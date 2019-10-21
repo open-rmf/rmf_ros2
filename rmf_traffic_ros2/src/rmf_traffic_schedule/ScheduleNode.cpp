@@ -17,6 +17,10 @@
 
 #include "ScheduleNode.hpp"
 
+#include <rmf_traffic_ros2/Trajectory.hpp>
+
+#include <rmf_traffic/Conflict.hpp>
+
 namespace rmf_traffic_schedule {
 
 //==============================================================================
@@ -44,21 +48,130 @@ ScheduleNode::ScheduleNode()
 }
 
 //==============================================================================
+void insert_conflicts(
+    const std::size_t i,
+    const std::vector<rmf_traffic::ConflictData>& conflicts,
+    rmf_traffic_msgs::srv::SubmitTrajectory::Response& response)
+{
+  if(!conflicts.empty())
+  {
+    response.accepted = false;
+    for(const auto& c : conflicts)
+    {
+      rmf_traffic_msgs::msg::ScheduleConflict conflict_msg;
+      conflict_msg.index = i;
+      conflict_msg.time = c.get_time().time_since_epoch().count();
+      response.conflicts.emplace_back(std::move(conflict_msg));
+    }
+  }
+}
+
+//==============================================================================
 void ScheduleNode::submit_trajectory(
-    const std::shared_ptr<rmw_request_id_t>& request_header,
+    const std::shared_ptr<rmw_request_id_t>& /*request_header*/,
     const SubmitTrajectory::Request::SharedPtr& request,
     const SubmitTrajectory::Response::SharedPtr& response)
 {
+  response->accepted = true;
+  response->current_version = database.latest_version();
+  response->original_version = response->current_version;
 
+  std::vector<rmf_traffic::Trajectory> requested_trajectories;
+  requested_trajectories.reserve(request->trajectories.size());
+  for(std::size_t i=0; i < request->trajectories.size(); ++i)
+  {
+    const auto& msg = request->trajectories[i];
+
+    bool valid_trajectory = true;
+    rmf_traffic::Trajectory requested_trajectory =
+        [&]() -> rmf_traffic::Trajectory
+    {
+      try
+      {
+        return rmf_traffic_ros2::convert(msg);
+      }
+      catch(const std::exception& e)
+      {
+        valid_trajectory = false;
+        response->accepted = false;
+        response->error = e.what();
+      }
+
+      return {""};
+    }();
+
+    if(!valid_trajectory)
+      return;
+
+    if(requested_trajectory.size() < 2)
+    {
+      response->error = "Invalid trajectory at index [" + std::to_string(i)
+          + "]: Only [" + std::to_string(requested_trajectory.size())
+          + "] segments; minimum is 2.";
+      return;
+    }
+
+    const auto view = database.query(rmf_traffic::schedule::make_query(
+                     {requested_trajectory.get_map_name()},
+                     requested_trajectory.start_time(),
+                     requested_trajectory.finish_time()));
+
+    for(const auto& scheduled_trajectory : view)
+    {
+      if(*requested_trajectory.finish_time() < *scheduled_trajectory.start_time())
+        continue;
+
+      if(*scheduled_trajectory.finish_time() < *requested_trajectory.start_time())
+        continue;
+
+      const auto conflicts = rmf_traffic::DetectConflict::narrow_phase(
+            requested_trajectory, scheduled_trajectory);
+
+      insert_conflicts(i, conflicts, *response);
+    }
+
+    requested_trajectories.emplace_back(std::move(requested_trajectory));
+  }
+
+  if(!response->accepted)
+    return;
+
+  // TODO(MXG): Should there be constraints on trajectory submissions to avoid
+  // this kind of check? Like each submission can only refer to one vehicle at
+  // a time, and therefore we should never need to test these trajectories for
+  // conflicts with each other?
+  for(std::size_t i=0; i < requested_trajectories.size()-1; ++i)
+  {
+    for(std::size_t j=i+1; j < requested_trajectories.size(); ++j)
+    {
+      const auto conflicts = rmf_traffic::DetectConflict::between(
+            requested_trajectories[i],
+            requested_trajectories[j]);
+      insert_conflicts(i, conflicts, *response);
+    }
+  }
+
+  if(!response->accepted)
+    return;
+
+  for(auto&& request : requested_trajectories)
+    database.insert(std::move(request));
+
+  response->current_version = database.latest_version();
 }
 
 //==============================================================================
 void ScheduleNode::erase_schedule(
-    const std::shared_ptr<rmw_request_id_t>& request_header,
+    const std::shared_ptr<rmw_request_id_t>& /*request_header*/,
     const EraseSchedule::Request::SharedPtr& request,
     const EraseSchedule::Response::SharedPtr& response)
 {
+  for(const uint64_t id : request->erase_ids)
+  {
+    database.erase(id);
+  }
 
+  response->version = database.latest_version();
 }
 
 } // namespace rmf_traffic_schedule
