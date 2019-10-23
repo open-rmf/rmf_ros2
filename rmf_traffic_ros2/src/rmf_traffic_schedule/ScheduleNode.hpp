@@ -24,8 +24,10 @@
 
 #include <rmf_traffic_msgs/srv/submit_trajectory.hpp>
 #include <rmf_traffic_msgs/srv/erase_schedule.hpp>
+#include <rmf_traffic_msgs/srv/mirror_update.hpp>
 #include <rmf_traffic_msgs/srv/register_query.hpp>
 #include <rmf_traffic_msgs/srv/request_schedule_update.hpp>
+#include <rmf_traffic_msgs/srv/unregister_query.hpp>
 
 #include <unordered_map>
 
@@ -74,9 +76,32 @@ private:
   RegisterQueryService::SharedPtr register_query_service;
 
 
+  using UnregisterQuery = rmf_traffic_msgs::srv::UnregisterQuery;
+  using UnregisterQueryService = rclcpp::Service<UnregisterQuery>;
+
+  void unregister_query(
+      const std::shared_ptr<rmw_request_id_t>& request_header,
+      const UnregisterQuery::Request::SharedPtr& request,
+      const UnregisterQuery::Response::SharedPtr& response);
+
+  UnregisterQueryService::SharedPtr unregister_query_service;
+
+
+  using MirrorUpdate = rmf_traffic_msgs::srv::MirrorUpdate;
+  using MirrorUpdateService = rclcpp::Service<MirrorUpdate>;
+
+  void mirror_update(
+      const std::shared_ptr<rmw_request_id_t>& request_header,
+      const MirrorUpdate::Request::SharedPtr& request,
+      const MirrorUpdate::Response::SharedPtr& response);
+
+  MirrorUpdateService::SharedPtr mirror_update_service;
+
+
   rmf_traffic::schedule::Database database;
 
-  using QueryMap = std::unordered_map<std::size_t, rmf_traffic::schedule::Query>;
+  using QueryMap =
+      std::unordered_map<uint64_t, rmf_traffic::schedule::Query::Spacetime>;
   // TODO(MXG): Have a way to make query registrations expire after they have
   // not been used for some set amount of time (e.g. 24 hours? 48 hours?).
   std::size_t last_query_id = 0;

@@ -28,11 +28,13 @@ namespace rmf_traffic_ros2 {
 namespace geometry {
 namespace internal {
 
+//==============================================================================
 template<typename ShapeType, typename ShapeMsgType, typename ContextMsgType>
 class ShapeContextImpl
 {
 public:
 
+  using Base = ShapeContextImpl<ShapeType, ShapeMsgType, ContextMsgType>;
   using ShapeTypePtr = std::shared_ptr<const ShapeType>;
 
   std::vector<std::vector<ShapeTypePtr>> shapes;
@@ -46,14 +48,16 @@ public:
   using EntryMap = std::unordered_map<ShapeTypePtr, Entry>;
   EntryMap entry_map;
 
-  std::vector<std::function<std::size_t(const ShapeTypePtr&)>> casters;
-
-  std::vector<std::function<void(ContextMsgType& msg, const ShapeTypePtr& shape)>> converters;
+  using Caster = std::function<std::size_t(const ShapeTypePtr&)>;
+  static bool initialized;
+  static std::vector<Caster> casters;
 
 
   template<typename DerivedShape>
   void add(const std::size_t type_index)
   {
+    initialized = true;
+
     casters.push_back(
           [=](const ShapeTypePtr& shape) -> std::size_t
     {
@@ -90,7 +94,7 @@ public:
 
     const bool inserted = insertion.second;
     Entry& entry = insertion.first->second;
-    if(insertion.second)
+    if(inserted)
     {
       entry.type = get_type_index(shape);
 
@@ -113,6 +117,15 @@ public:
   }
 
 };
+
+//==============================================================================
+template<class T, class M, class C>
+bool ShapeContextImpl<T, M, C>::initialized = false;
+
+//==============================================================================
+template<class T, class M, class C>
+std::vector<typename ShapeContextImpl<T, M, C>::Caster>
+ShapeContextImpl<T, M, C>::casters;
 
 } // namespace internal
 } // namespace geometry

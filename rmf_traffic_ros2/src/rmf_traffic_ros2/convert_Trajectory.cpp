@@ -33,6 +33,12 @@ Eigen::Vector3d to_eigen(const std::array<double, 3>& values)
 }
 
 //==============================================================================
+std::array<double, 3> from_eigen(const Eigen::Vector3d& values)
+{
+  return {values[0], values[1], values[2]};
+}
+
+//==============================================================================
 rmf_traffic::Trajectory convert(const rmf_traffic_msgs::msg::Trajectory& from)
 {
   if(from.maps.empty())
@@ -79,10 +85,10 @@ rmf_traffic::Trajectory convert(const rmf_traffic_msgs::msg::Trajectory& from)
   for(const auto& segment : from.segments)
   {
     output.insert(
-          rmf_traffic::Time(rmf_traffic::Duration(segment.final_time)),
+          rmf_traffic::Time(rmf_traffic::Duration(segment.finish_time)),
           profiles.at(segment.profile_index),
-          to_eigen(segment.final_position),
-          to_eigen(segment.final_velocity));
+          to_eigen(segment.finish_position),
+          to_eigen(segment.finish_velocity));
   }
 
   return output;
@@ -92,13 +98,13 @@ namespace {
 //==============================================================================
 struct ProfileContext
 {
-  using ProfilePtr = rmf_traffic::Trajectory::ProfilePtr;
-  std::vector<ProfilePtr> profiles;
+  using ConstProfilePtr = rmf_traffic::Trajectory::ConstProfilePtr;
+  std::vector<ConstProfilePtr> profiles;
 
-  using EntryMap = std::unordered_map<ProfilePtr, std::size_t>;
+  using EntryMap = std::unordered_map<ConstProfilePtr, std::size_t>;
   EntryMap entry_map;
 
-  std::size_t insert(ProfilePtr profile)
+  std::size_t insert(ConstProfilePtr profile)
   {
     const auto insertion =
         entry_map.insert(std::make_pair(profile, profiles.size()));
@@ -107,15 +113,26 @@ struct ProfileContext
     if(inserted)
       profiles.emplace_back(std::move(profile));
 
+    if(profiles.size() > std::numeric_limits<uint8_t>::max())
+    {
+      // TODO(MXG): In the future, we should be able to support arbitrarily
+      // large and complex trajectories by automatically splitting them into
+      // multiple Trajectory messages.
+      throw std::runtime_error(std::string()
+            + "[convert(rmf_traffic::Trajectory)] Unexpectedly large "
+            +"trajectory being converted (more than 256 unique profiles).");
+    }
+
     return insertion.first->second;
   }
 };
 
 //==============================================================================
-std::vector<rmf_traffic_msgs::msg::TrajectoryProfile> convert(
-    geometry::ConvexShapeContext& shape_context,
+void insert_context(
+    rmf_traffic_msgs::msg::Trajectory& msg,
     const ProfileContext& profile_context)
 {
+  geometry::ConvexShapeContext shape_context;
   std::vector<rmf_traffic_msgs::msg::TrajectoryProfile> outputs;
   for(const auto& profile : profile_context.profiles)
   {
@@ -130,7 +147,23 @@ std::vector<rmf_traffic_msgs::msg::TrajectoryProfile> convert(
     outputs.emplace_back(std::move(output));
   }
 
-  return outputs;
+  msg.profiles = outputs;
+  msg.convex_shape_context = convert(shape_context);
+}
+
+//==============================================================================
+rmf_traffic_msgs::msg::TrajectorySegment convert(
+    const rmf_traffic::Trajectory::Segment& segment,
+    ProfileContext& context)
+{
+  rmf_traffic_msgs::msg::TrajectorySegment output;
+  output.finish_time = segment.get_finish_time().time_since_epoch().count();
+  output.finish_position = from_eigen(segment.get_finish_position());
+  output.finish_velocity = from_eigen(segment.get_finish_velocity());
+  output.profile_index =
+      static_cast<uint8_t>(context.insert(segment.get_profile()));
+
+  return output;
 }
 
 } // anonymous namespace
@@ -139,7 +172,13 @@ std::vector<rmf_traffic_msgs::msg::TrajectoryProfile> convert(
 rmf_traffic_msgs::msg::Trajectory convert(const rmf_traffic::Trajectory& from)
 {
   ProfileContext profile_context;
+  rmf_traffic_msgs::msg::Trajectory output;
 
+  for(const auto& segment : from)
+    output.segments.emplace_back(convert(segment, profile_context));
+
+  insert_context(output, profile_context);
+  return output;
 }
 
 } // namespace rmf_traffic_ros2

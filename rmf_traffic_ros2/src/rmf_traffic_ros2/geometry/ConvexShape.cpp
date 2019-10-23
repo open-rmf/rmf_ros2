@@ -35,8 +35,11 @@ public:
 
   Implementation()
   {
-    add<rmf_traffic::geometry::Box>(rmf_traffic_msgs::msg::ConvexShape::BOX);
-    add<rmf_traffic::geometry::Circle>(rmf_traffic_msgs::msg::ConvexShape::CIRCLE);
+    if(!initialized)
+    {
+      add<rmf_traffic::geometry::Box>(rmf_traffic_msgs::msg::ConvexShape::BOX);
+      add<rmf_traffic::geometry::Circle>(rmf_traffic_msgs::msg::ConvexShape::CIRCLE);
+    }
   }
 
   static const Implementation& get(const ConvexShapeContext& parent)

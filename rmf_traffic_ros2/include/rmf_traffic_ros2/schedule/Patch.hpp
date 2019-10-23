@@ -15,23 +15,23 @@
  *
 */
 
-#ifndef RMF_TRAFFIC_ROS2__SCHEDULE__QUERY_HPP
-#define RMF_TRAFFIC_ROS2__SCHEDULE__QUERY_HPP
+#ifndef RMF_TRAFFIC_ROS2__SCHEDULE__PATCH_HPP
+#define RMF_TRAFFIC_ROS2__SCHEDULE__PATCH_HPP
 
-#include <rmf_traffic_msgs/msg/schedule_query_spacetime.hpp>
+#include <rmf_traffic/schedule/Database.hpp>
 
-#include <rmf_traffic/schedule/Query.hpp>
+#include <rmf_traffic_msgs/msg/schedule_patch.hpp>
 
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
-rmf_traffic::schedule::Query::Spacetime convert(
-    const rmf_traffic_msgs::msg::ScheduleQuerySpacetime& from);
+rmf_traffic_msgs::msg::SchedulePatch convert(
+    const rmf_traffic::schedule::Database::Patch& patch);
 
 //==============================================================================
-rmf_traffic_msgs::msg::ScheduleQuerySpacetime convert(
-    const rmf_traffic::schedule::Query& from);
+rmf_traffic::schedule::Database::Patch convert(
+    const rmf_traffic_msgs::msg::SchedulePatch& patch);
 
-} // namespace rmf_traffic_ros2
+} // nmaespace rmf_traffic_ros2
 
-#endif // RMF_TRAFFIC_ROS2__SCHEDULE__QUERY_HPP
+#endif // RMF_TRAFFIC_ROS2__SCHEDULE__PATCH_HPP

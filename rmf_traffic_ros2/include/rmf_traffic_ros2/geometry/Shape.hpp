@@ -33,9 +33,10 @@ public:
 
   ShapeContext();
 
-  void insert(rmf_traffic::geometry::FinalShapePtr shape);
+  rmf_traffic_msgs::msg::Shape insert(
+      rmf_traffic::geometry::ConstFinalShapePtr shape);
 
-  rmf_traffic::geometry::ShapePtr get(
+  rmf_traffic::geometry::ConstFinalShapePtr at(
       const rmf_traffic_msgs::msg::Shape& shape) const;
 
   class Implementation;

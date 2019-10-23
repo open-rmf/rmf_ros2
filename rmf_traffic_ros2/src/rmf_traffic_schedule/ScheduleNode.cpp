@@ -18,6 +18,8 @@
 #include "ScheduleNode.hpp"
 
 #include <rmf_traffic_ros2/Trajectory.hpp>
+#include <rmf_traffic_ros2/schedule/Query.hpp>
+#include <rmf_traffic_ros2/schedule/Patch.hpp>
 
 #include <rmf_traffic/Conflict.hpp>
 
@@ -53,6 +55,22 @@ ScheduleNode::ScheduleNode()
             const RegisterQuery::Request::SharedPtr request,
             const RegisterQuery::Response::SharedPtr response)
         { this->register_query(request_header, request, response); });
+
+  unregister_query_service =
+      create_service<UnregisterQuery>(
+        "rmf_traffic/unregister_query",
+        [=](const std::shared_ptr<rmw_request_id_t> request_header,
+            const UnregisterQuery::Request::SharedPtr request,
+            const UnregisterQuery::Response::SharedPtr response)
+        { this->unregister_query(request_header, request, response); });
+
+  mirror_update_service =
+      create_service<MirrorUpdate>(
+        "rmf_traffic/mirror_update",
+        [=](const std::shared_ptr<rmw_request_id_t> request_header,
+            const MirrorUpdate::Request::SharedPtr request,
+            const MirrorUpdate::Response::SharedPtr response)
+        { this->mirror_update(request_header, request, response); });
 }
 
 //==============================================================================
@@ -184,15 +202,67 @@ void ScheduleNode::erase_schedule(
 
 //==============================================================================
 void ScheduleNode::register_query(
-    const std::shared_ptr<rmw_request_id_t>& request_header,
+    const std::shared_ptr<rmw_request_id_t>& /*request_header*/,
     const RegisterQuery::Request::SharedPtr& request,
     const RegisterQuery::Response::SharedPtr& response)
 {
-  std::size_t query_id = last_query_id;
-//  do
-//  {
+  uint64_t query_id = last_query_id;
+  uint64_t attempts = 0;
+  do
+  {
+    ++query_id;
+    ++attempts;
+    if(attempts == std::numeric_limits<uint64_t>::max())
+    {
+      // I suspect a compute would run out of RAM before we reach this point,
+      // but there's no harm in double-checking.
+      response->error = "No more space for additional queries to be registered";
+      return;
+    }
+  } while(registered_queries.find(query_id) != registered_queries.end());
 
-//  } while()
+  last_query_id = query_id;
+  registered_queries.insert(
+        std::make_pair(query_id, rmf_traffic_ros2::convert(request->query)));
+}
+
+//==============================================================================
+void ScheduleNode::unregister_query(
+    const std::shared_ptr<rmw_request_id_t>& /*request_header*/,
+    const UnregisterQuery::Request::SharedPtr& request,
+    const UnregisterQuery::Response::SharedPtr& response)
+{
+  const auto it = registered_queries.find(request->query_id);
+  if(it == registered_queries.end())
+  {
+    response->error = "No query found with the id ["
+        + std::to_string(request->query_id) + "]";
+    response->confirmation = false;
+    return;
+  }
+
+  registered_queries.erase(it);
+  response->confirmation = true;
+}
+
+//==============================================================================
+void ScheduleNode::mirror_update(
+    const std::shared_ptr<rmw_request_id_t>& /*request_header*/,
+    const MirrorUpdate::Request::SharedPtr& request,
+    const MirrorUpdate::Response::SharedPtr& response)
+{
+  const auto query_it = registered_queries.find(request->query_id);
+  if(query_it == registered_queries.end())
+  {
+    response->error = "Unrecognized query_id: "
+        + std::to_string(request->query_id);
+    return;
+  }
+
+  auto query = rmf_traffic::schedule::make_query(request->last_version);
+  query.spacetime() = query_it->second;
+
+  response->patch = rmf_traffic_ros2::convert(database.changes(query));
 }
 
 } // namespace rmf_traffic_schedule
