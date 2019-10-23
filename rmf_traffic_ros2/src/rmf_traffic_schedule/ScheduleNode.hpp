@@ -24,6 +24,10 @@
 
 #include <rmf_traffic_msgs/srv/submit_trajectory.hpp>
 #include <rmf_traffic_msgs/srv/erase_schedule.hpp>
+#include <rmf_traffic_msgs/srv/register_query.hpp>
+#include <rmf_traffic_msgs/srv/request_schedule_update.hpp>
+
+#include <unordered_map>
 
 namespace rmf_traffic_schedule {
 
@@ -36,8 +40,6 @@ public:
 
 
 private:
-
-  rmf_traffic::schedule::Database database;
 
   using SubmitTrajectory = rmf_traffic_msgs::srv::SubmitTrajectory;
   using SubmitTrajectoryService = rclcpp::Service<SubmitTrajectory>;
@@ -59,6 +61,27 @@ private:
       const EraseSchedule::Response::SharedPtr& response);
 
   EraseScheduleService::SharedPtr erase_schedule_service;
+
+
+  using RegisterQuery = rmf_traffic_msgs::srv::RegisterQuery;
+  using RegisterQueryService = rclcpp::Service<RegisterQuery>;
+
+  void register_query(
+      const std::shared_ptr<rmw_request_id_t>& request_header,
+      const RegisterQuery::Request::SharedPtr& request,
+      const RegisterQuery::Response::SharedPtr& response);
+
+  RegisterQueryService::SharedPtr register_query_service;
+
+
+  rmf_traffic::schedule::Database database;
+
+  using QueryMap = std::unordered_map<std::size_t, rmf_traffic::schedule::Query>;
+  // TODO(MXG): Have a way to make query registrations expire after they have
+  // not been used for some set amount of time (e.g. 24 hours? 48 hours?).
+  std::size_t last_query_id = 0;
+  QueryMap registered_queries;
+
 };
 
 } // namespace rmf_traffic_schedule

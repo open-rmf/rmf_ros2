@@ -39,12 +39,20 @@ ScheduleNode::ScheduleNode()
         { this->submit_trajectory(request_header, request, response); });
 
   erase_schedule_service =
-      create_service<rmf_traffic_msgs::srv::EraseSchedule>(
+      create_service<EraseSchedule>(
         "rmf_traffic/erase_schedule",
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const EraseSchedule::Request::SharedPtr request,
             const EraseSchedule::Response::SharedPtr response)
         { this->erase_schedule(request_header, request, response); });
+
+  register_query_service =
+      create_service<RegisterQuery>(
+        "rmf_traffic/register_query",
+        [=](const std::shared_ptr<rmw_request_id_t> request_header,
+            const RegisterQuery::Request::SharedPtr request,
+            const RegisterQuery::Response::SharedPtr response)
+        { this->register_query(request_header, request, response); });
 }
 
 //==============================================================================
@@ -172,6 +180,19 @@ void ScheduleNode::erase_schedule(
   }
 
   response->version = database.latest_version();
+}
+
+//==============================================================================
+void ScheduleNode::register_query(
+    const std::shared_ptr<rmw_request_id_t>& request_header,
+    const RegisterQuery::Request::SharedPtr& request,
+    const RegisterQuery::Response::SharedPtr& response)
+{
+  std::size_t query_id = last_query_id;
+//  do
+//  {
+
+//  } while()
 }
 
 } // namespace rmf_traffic_schedule

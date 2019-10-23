@@ -16,10 +16,12 @@
 */
 
 #include <rmf_traffic_ros2/Trajectory.hpp>
+#include <rmf_traffic_ros2/geometry/ConvexShape.hpp>
 
 #include <rmf_traffic/geometry/Box.hpp>
 #include <rmf_traffic/geometry/Circle.hpp>
 
+#include <unordered_map>
 #include <vector>
 
 namespace rmf_traffic_ros2 {
@@ -40,44 +42,14 @@ rmf_traffic::Trajectory convert(const rmf_traffic_msgs::msg::Trajectory& from)
   // now, we'll just grab the first map in the message.
   rmf_traffic::Trajectory output(from.maps.front());
 
-  std::vector<rmf_traffic::geometry::FinalConvexShapePtr> boxes;
-  boxes.reserve(from.boxes.size());
-  for(const auto& box : from.boxes)
-  {
-    using rmf_traffic::geometry::Box;
-    boxes.emplace_back(
-          rmf_traffic::geometry::make_final_convex<Box>(
-            box.dimensions[0], box.dimensions[1]));
-  }
-
-  std::vector<rmf_traffic::geometry::FinalConvexShapePtr> circles;
-  circles.reserve(from.circles.size());
-  for(const auto& circle : from.circles)
-  {
-    using rmf_traffic::geometry::Circle;
-    circles.emplace_back(
-          rmf_traffic::geometry::make_final_convex<Circle>(circle.radius));
-  }
+  geometry::ConvexShapeContext context = convert(from.convex_shape_context);
 
   std::vector<rmf_traffic::Trajectory::ProfilePtr> profiles;
   profiles.reserve(from.profiles.size());
   for(const auto& profile : from.profiles)
   {
     using rmf_traffic_msgs::msg::ConvexShape;
-    const auto shape = [&]() -> rmf_traffic::geometry::FinalConvexShapePtr
-    {
-      if(profile.shape.type == ConvexShape::BOX)
-      {
-        return boxes.at(profile.shape.index);
-      }
-      else if(profile.shape.type == ConvexShape::CIRCLE)
-      {
-        return circles.at(profile.shape.index);
-      }
-
-      throw std::runtime_error(
-          "Invalid shape type: " + std::to_string(profile.shape.type));
-    }();
+    const auto shape = context.at(profile.shape);
 
     using rmf_traffic_msgs::msg::TrajectoryProfile;
     if(TrajectoryProfile::GUIDED == profile.autonomy)
@@ -116,10 +88,58 @@ rmf_traffic::Trajectory convert(const rmf_traffic_msgs::msg::Trajectory& from)
   return output;
 }
 
+namespace {
+//==============================================================================
+struct ProfileContext
+{
+  using ProfilePtr = rmf_traffic::Trajectory::ProfilePtr;
+  std::vector<ProfilePtr> profiles;
+
+  using EntryMap = std::unordered_map<ProfilePtr, std::size_t>;
+  EntryMap entry_map;
+
+  std::size_t insert(ProfilePtr profile)
+  {
+    const auto insertion =
+        entry_map.insert(std::make_pair(profile, profiles.size()));
+
+    const bool inserted = insertion.second;
+    if(inserted)
+      profiles.emplace_back(std::move(profile));
+
+    return insertion.first->second;
+  }
+};
+
+//==============================================================================
+std::vector<rmf_traffic_msgs::msg::TrajectoryProfile> convert(
+    geometry::ConvexShapeContext& shape_context,
+    const ProfileContext& profile_context)
+{
+  std::vector<rmf_traffic_msgs::msg::TrajectoryProfile> outputs;
+  for(const auto& profile : profile_context.profiles)
+  {
+    rmf_traffic_msgs::msg::TrajectoryProfile output;
+    output.autonomy = static_cast<uint16_t>(profile->get_autonomy());
+    output.shape = shape_context.insert(profile->get_shape());
+
+    const auto* queue_info = profile->get_queue_info();
+    if(queue_info)
+      output.queue_id = queue_info->get_queue_id();
+
+    outputs.emplace_back(std::move(output));
+  }
+
+  return outputs;
+}
+
+} // anonymous namespace
+
 //==============================================================================
 rmf_traffic_msgs::msg::Trajectory convert(const rmf_traffic::Trajectory& from)
 {
-  // TODO(MXG): Implement this
+  ProfileContext profile_context;
+
 }
 
 } // namespace rmf_traffic_ros2
