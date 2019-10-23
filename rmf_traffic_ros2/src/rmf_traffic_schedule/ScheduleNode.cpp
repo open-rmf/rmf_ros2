@@ -17,6 +17,7 @@
 
 #include "ScheduleNode.hpp"
 
+#include <rmf_traffic_ros2/StandardNames.hpp>
 #include <rmf_traffic_ros2/Trajectory.hpp>
 #include <rmf_traffic_ros2/schedule/Query.hpp>
 #include <rmf_traffic_ros2/schedule/Patch.hpp>
@@ -34,7 +35,7 @@ ScheduleNode::ScheduleNode()
 
   submit_trajectory_service =
       create_service<rmf_traffic_msgs::srv::SubmitTrajectory>(
-        "rmf_traffic/submit_trajectory",
+        rmf_traffic_ros2::SubmitTrajectoryService,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const SubmitTrajectory::Request::SharedPtr request,
             const SubmitTrajectory::Response::SharedPtr response)
@@ -42,7 +43,7 @@ ScheduleNode::ScheduleNode()
 
   erase_schedule_service =
       create_service<EraseSchedule>(
-        "rmf_traffic/erase_schedule",
+        rmf_traffic_ros2::EraseScheduleService,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const EraseSchedule::Request::SharedPtr request,
             const EraseSchedule::Response::SharedPtr response)
@@ -50,7 +51,7 @@ ScheduleNode::ScheduleNode()
 
   register_query_service =
       create_service<RegisterQuery>(
-        "rmf_traffic/register_query",
+        rmf_traffic_ros2::RegisterQueryService,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const RegisterQuery::Request::SharedPtr request,
             const RegisterQuery::Response::SharedPtr response)
@@ -58,7 +59,7 @@ ScheduleNode::ScheduleNode()
 
   unregister_query_service =
       create_service<UnregisterQuery>(
-        "rmf_traffic/unregister_query",
+        rmf_traffic_ros2::UnregisterQueryService,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const UnregisterQuery::Request::SharedPtr request,
             const UnregisterQuery::Response::SharedPtr response)
@@ -66,11 +67,14 @@ ScheduleNode::ScheduleNode()
 
   mirror_update_service =
       create_service<MirrorUpdate>(
-        "rmf_traffic/mirror_update",
+        rmf_traffic_ros2::MirrorUpdateService,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const MirrorUpdate::Request::SharedPtr request,
             const MirrorUpdate::Response::SharedPtr response)
         { this->mirror_update(request_header, request, response); });
+
+  mirror_wakeup_publisher =
+      create_publisher<MirrorWakeup>(rmf_traffic_ros2::MirrorWakeupTopic);
 }
 
 //==============================================================================
@@ -184,6 +188,7 @@ void ScheduleNode::submit_trajectory(
     database.insert(std::move(request));
 
   response->current_version = database.latest_version();
+  wakeup_mirrors();
 }
 
 //==============================================================================
@@ -198,6 +203,7 @@ void ScheduleNode::erase_schedule(
   }
 
   response->version = database.latest_version();
+  wakeup_mirrors();
 }
 
 //==============================================================================
@@ -259,10 +265,19 @@ void ScheduleNode::mirror_update(
     return;
   }
 
-  auto query = rmf_traffic::schedule::make_query(request->last_version);
+  auto query = rmf_traffic::schedule::make_query(
+        request->latest_mirror_version);
   query.spacetime() = query_it->second;
 
   response->patch = rmf_traffic_ros2::convert(database.changes(query));
+}
+
+//==============================================================================
+void ScheduleNode::wakeup_mirrors() const
+{
+  rmf_traffic_msgs::msg::MirrorWakeup msg;
+  msg.latest_version = database.latest_version();
+  mirror_wakeup_publisher->publish(msg);
 }
 
 } // namespace rmf_traffic_schedule

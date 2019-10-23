@@ -109,4 +109,12 @@ rmf_traffic::schedule::Query::Spacetime convert(
         + std::to_string(from.type) + "]");
 }
 
+//==============================================================================
+rmf_traffic_msgs::msg::ScheduleQuerySpacetime convert(
+    const rmf_traffic::schedule::Query::Spacetime& from)
+{
+  rmf_traffic_msgs::msg::ScheduleQuerySpacetime msg;
+  msg.type =
+}
+
 } // namespace rmf_traffic_ros2

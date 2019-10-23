@@ -15,23 +15,21 @@
  *
 */
 
-#ifndef RMF_TRAFFIC_ROS2__SCHEDULE__QUERY_HPP
-#define RMF_TRAFFIC_ROS2__SCHEDULE__QUERY_HPP
+#ifndef RMF_TRAFFIC_ROS2__STANDARDNAMES_HPP
+#define RMF_TRAFFIC_ROS2__STANDARDNAMES_HPP
 
-#include <rmf_traffic_msgs/msg/schedule_query_spacetime.hpp>
-
-#include <rmf_traffic/schedule/Query.hpp>
+#include <string>
 
 namespace rmf_traffic_ros2 {
 
-//==============================================================================
-rmf_traffic::schedule::Query::Spacetime convert(
-    const rmf_traffic_msgs::msg::ScheduleQuerySpacetime& from);
-
-//==============================================================================
-rmf_traffic_msgs::msg::ScheduleQuerySpacetime convert(
-    const rmf_traffic::schedule::Query::Spacetime& from);
+const std::string Prefix = "rmf_traffic/";
+const std::string SubmitTrajectoryService = Prefix + "submit_trajectory";
+const std::string EraseScheduleService = Prefix + "erase_schedule";
+const std::string RegisterQueryService = Prefix + "register_query";
+const std::string UnregisterQueryService = Prefix + "unregister_query";
+const std::string MirrorUpdateService = Prefix + "mirror_update";
+const std::string MirrorWakeupTopic = Prefix + "mirror_wakeup";
 
 } // namespace rmf_traffic_ros2
 
-#endif // RMF_TRAFFIC_ROS2__SCHEDULE__QUERY_HPP
+#endif // RMF_TRAFFIC_ROS2__STANDARDNAMES_HPP

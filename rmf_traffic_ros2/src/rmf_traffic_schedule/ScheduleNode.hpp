@@ -22,11 +22,13 @@
 
 #include <rclcpp/node.hpp>
 
+#include <rmf_traffic_msgs/msg/mirror_wakeup.hpp>
+
 #include <rmf_traffic_msgs/srv/submit_trajectory.hpp>
 #include <rmf_traffic_msgs/srv/erase_schedule.hpp>
 #include <rmf_traffic_msgs/srv/mirror_update.hpp>
 #include <rmf_traffic_msgs/srv/register_query.hpp>
-#include <rmf_traffic_msgs/srv/request_schedule_update.hpp>
+#include <rmf_traffic_msgs/srv/mirror_update.h>
 #include <rmf_traffic_msgs/srv/unregister_query.hpp>
 
 #include <unordered_map>
@@ -97,6 +99,12 @@ private:
 
   MirrorUpdateService::SharedPtr mirror_update_service;
 
+
+  using MirrorWakeup = rmf_traffic_msgs::msg::MirrorWakeup;
+  using MirrorWakeupPublisher = rclcpp::Publisher<MirrorWakeup>;
+  MirrorWakeupPublisher::SharedPtr mirror_wakeup_publisher;
+
+  void wakeup_mirrors() const;
 
   rmf_traffic::schedule::Database database;
 
