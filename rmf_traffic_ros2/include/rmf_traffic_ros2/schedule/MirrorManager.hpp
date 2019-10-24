@@ -36,10 +36,7 @@ public:
   public:
 
     /// Constructor
-    Options(
-        bool update_on_wakeup = true,
-        std::chrono::nanoseconds discovery_wait_time = std::chrono::seconds(10),
-        std::chrono::nanoseconds service_wait_time = std::chrono::seconds(5));
+    Options(bool update_on_wakeup = true);
 
     /// True if the mirror should be updated each time a MirrorWakeup message
     /// is received. The MirrorWakeup messages are sent out each time a change
@@ -48,22 +45,6 @@ public:
 
     /// Toggle the choice to wakeup on an update.
     Options& set_update_on_wakeup(bool choice);
-
-    /// How long to wait for a service to reply before giving up. This will be
-    /// applied to every service call.
-    std::chrono::nanoseconds get_service_wait_time() const;
-
-    /// Set how long to wait for a service to reply before giving up.
-    Options& set_service_wait_time(std::chrono::nanoseconds wait_time);
-
-    /// How long to wait for a service to be discovered before giving up. This
-    /// will be applied to every service discovery attempt.
-    std::chrono::nanoseconds get_discovery_wait_time() const;
-
-    /// Set how long to wait for discovery before giving up.
-    Options& set_discovery_wait_time(std::chrono::nanoseconds wait_time);
-
-    // TODO(MXG): Add a field to specify a mutex to protect the viewer
 
     class Implementation;
   private:
@@ -85,15 +66,54 @@ public:
   class Implementation;
 private:
   MirrorManager();
-  rmf_utils::impl_ptr<Implementation> _pimpl;
+  rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
 
-/// Create a mirror manager that uses the given node to communicate to the
-/// RMF Traffic Schedule. It will filter its contents according to the
-/// Spacetime Query description that it is given.
+//==============================================================================
+class MirrorManagerFuture
+{
+public:
+
+  /// Wait for the MirrorManager to finish initializing. This will block until
+  /// initialization is finished.
+  ///
+  /// \note The initialization requires some ROS2 service calls, so there needs
+  /// to be a separate thread running rclcpp::spin(~) while this function
+  /// blocks. Otherwise it will block forever.
+  void wait() const;
+
+  /// Wait for the MirrorManager to finish initializing. This will block until
+  /// initialization is finished or until the timeout duration has passed.
+  ///
+  /// \sa wait()
+  std::future_status wait_for(const rmf_traffic::Duration& timeout) const;
+
+  /// Wait for the MirrorManager to finish initializing. This will block until
+  /// initialization is finished or until the time has been reached.
+  ///
+  /// \sa wait()
+  std::future_status wait_until(const rmf_traffic::Time& time) const;
+
+  /// Check if this MirrorManagerFuture is still valid. This means that get()
+  /// has never been called.
+  bool valid() const;
+
+  /// Get the MirrorManager of this future. This will wait until the
+  /// MirrorManager is initialized before returning it.
+  MirrorManager get();
+
+  class Implementation;
+private:
+  MirrorManagerFuture();
+  rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+};
+
+//==============================================================================
+/// Initiate creation of a mirror manager that uses the given node to
+/// communicate to  the RMF Traffic Schedule. It will filter its contents
+/// according to the Spacetime Query description that it is given.
 ///
-/// If the schedule database was not responsive while trying to register this
-/// mirror's query, this function will return a nullptr.
+/// Creating a mirror manager involves some asynchronous service calls to
 ///
 /// \param[in] node
 ///   The rclcpp node to use
@@ -106,9 +126,9 @@ private:
 ///
 // TODO(MXG): Use std::optional here instead of std::unique_ptr when C++17 can
 // be supported.
-std::unique_ptr<MirrorManager> make_mirror(
+MirrorManagerFuture make_mirror(
     rclcpp::Node& node,
-    const rmf_traffic::schedule::Query::Spacetime& spacetime,
+    rmf_traffic::schedule::Query::Spacetime spacetime,
     MirrorManager::Options options = MirrorManager::Options());
 
 } // namespace schedule

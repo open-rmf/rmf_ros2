@@ -35,7 +35,7 @@ ScheduleNode::ScheduleNode()
 
   submit_trajectory_service =
       create_service<rmf_traffic_msgs::srv::SubmitTrajectory>(
-        rmf_traffic_ros2::SubmitTrajectoryService,
+        rmf_traffic_ros2::SubmitTrajectoryServiceName,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const SubmitTrajectory::Request::SharedPtr request,
             const SubmitTrajectory::Response::SharedPtr response)
@@ -43,7 +43,7 @@ ScheduleNode::ScheduleNode()
 
   erase_schedule_service =
       create_service<EraseSchedule>(
-        rmf_traffic_ros2::EraseScheduleService,
+        rmf_traffic_ros2::EraseScheduleServiceName,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const EraseSchedule::Request::SharedPtr request,
             const EraseSchedule::Response::SharedPtr response)
@@ -51,7 +51,7 @@ ScheduleNode::ScheduleNode()
 
   register_query_service =
       create_service<RegisterQuery>(
-        rmf_traffic_ros2::RegisterQueryService,
+        rmf_traffic_ros2::RegisterQueryServiceName,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const RegisterQuery::Request::SharedPtr request,
             const RegisterQuery::Response::SharedPtr response)
@@ -59,7 +59,7 @@ ScheduleNode::ScheduleNode()
 
   unregister_query_service =
       create_service<UnregisterQuery>(
-        rmf_traffic_ros2::UnregisterQueryService,
+        rmf_traffic_ros2::UnregisterQueryServiceName,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const UnregisterQuery::Request::SharedPtr request,
             const UnregisterQuery::Response::SharedPtr response)
@@ -67,14 +67,14 @@ ScheduleNode::ScheduleNode()
 
   mirror_update_service =
       create_service<MirrorUpdate>(
-        rmf_traffic_ros2::MirrorUpdateService,
+        rmf_traffic_ros2::MirrorUpdateServiceName,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const MirrorUpdate::Request::SharedPtr request,
             const MirrorUpdate::Response::SharedPtr response)
         { this->mirror_update(request_header, request, response); });
 
   mirror_wakeup_publisher =
-      create_publisher<MirrorWakeup>(rmf_traffic_ros2::MirrorWakeupTopic);
+      create_publisher<MirrorWakeup>(rmf_traffic_ros2::MirrorWakeupTopicName);
 }
 
 //==============================================================================

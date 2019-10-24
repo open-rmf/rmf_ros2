@@ -23,12 +23,12 @@
 namespace rmf_traffic_ros2 {
 
 const std::string Prefix = "rmf_traffic/";
-const std::string SubmitTrajectoryService = Prefix + "submit_trajectory";
-const std::string EraseScheduleService = Prefix + "erase_schedule";
-const std::string RegisterQueryService = Prefix + "register_query";
-const std::string UnregisterQueryService = Prefix + "unregister_query";
-const std::string MirrorUpdateService = Prefix + "mirror_update";
-const std::string MirrorWakeupTopic = Prefix + "mirror_wakeup";
+const std::string SubmitTrajectoryServiceName = Prefix + "submit_trajectory";
+const std::string EraseScheduleServiceName = Prefix + "erase_schedule";
+const std::string RegisterQueryServiceName = Prefix + "register_query";
+const std::string UnregisterQueryServiceName = Prefix + "unregister_query";
+const std::string MirrorUpdateServiceName = Prefix + "mirror_update";
+const std::string MirrorWakeupTopicName = Prefix + "mirror_wakeup";
 
 } // namespace rmf_traffic_ros2
 
