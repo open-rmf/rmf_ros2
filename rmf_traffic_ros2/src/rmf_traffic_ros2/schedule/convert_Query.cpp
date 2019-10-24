@@ -21,6 +21,7 @@
 
 namespace rmf_traffic_ros2 {
 
+namespace {
 //==============================================================================
 Eigen::Isometry2d to_eigen(const geometry_msgs::msg::Pose2D& pose)
 {
@@ -31,7 +32,6 @@ Eigen::Isometry2d to_eigen(const geometry_msgs::msg::Pose2D& pose)
   return tf;
 }
 
-namespace {
 //==============================================================================
 rmf_traffic::geometry::Space parse_space(
     const rmf_traffic_msgs::msg::Space& space,
@@ -109,12 +109,97 @@ rmf_traffic::schedule::Query::Spacetime convert(
         + std::to_string(from.type) + "]");
 }
 
+namespace {
+//==============================================================================
+geometry_msgs::msg::Pose2D from_eigen(const Eigen::Isometry2d& pose)
+{
+  geometry_msgs::msg::Pose2D msg;
+  msg.x = pose.translation().x();
+  msg.y = pose.translation().y();
+  msg.theta = Eigen::Rotation2Dd(pose.rotation()).angle();
+
+  return msg;
+}
+
+//==============================================================================
+rmf_traffic_msgs::msg::Timespan convert_timespan(
+    const rmf_traffic::Time* lower_bound,
+    const rmf_traffic::Time* upper_bound)
+{
+  rmf_traffic_msgs::msg::Timespan msg;
+  if(lower_bound)
+  {
+    msg.has_lower_bound = true;
+    msg.lower_bound = lower_bound->time_since_epoch().count();
+  }
+  else
+    msg.has_lower_bound = false;
+
+  if(upper_bound)
+  {
+    msg.has_upper_bound = true;
+    msg.upper_bound = upper_bound->time_since_epoch().count();
+  }
+  else
+    msg.has_upper_bound = false;
+
+  return msg;
+}
+
+//==============================================================================
+void convert_regions(
+    rmf_traffic_msgs::msg::ScheduleQuerySpacetime& msg,
+    const rmf_traffic::schedule::Query::Spacetime::Regions& from)
+{
+  geometry::ShapeContext shape_context;
+  for(const auto& region : from)
+  {
+    rmf_traffic_msgs::msg::Region region_msg;
+    region_msg.map = region.get_map();
+
+    region_msg.timespan = convert_timespan(
+          region.get_lower_time_bound(),
+          region.get_upper_time_bound());
+
+    for(const auto& space : region)
+    {
+      rmf_traffic_msgs::msg::Space space_msg;
+      space_msg.shape = shape_context.insert(space.get_shape());
+      space_msg.pose = from_eigen(space.get_pose());
+      region_msg.spaces.emplace_back(std::move(space_msg));
+    }
+
+    msg.regions.emplace_back(std::move(region_msg));
+  }
+
+  msg.shape_context = convert(shape_context);
+}
+
+//==============================================================================
+void convert_timespan(
+    rmf_traffic_msgs::msg::ScheduleQuerySpacetime& msg,
+    const rmf_traffic::schedule::Query::Spacetime::Timespan& from)
+{
+  msg.timespan = convert_timespan(
+        from.get_lower_time_bound(),
+        from.get_upper_time_bound());
+}
+} // anonymous namespace
+
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleQuerySpacetime convert(
     const rmf_traffic::schedule::Query::Spacetime& from)
 {
   rmf_traffic_msgs::msg::ScheduleQuerySpacetime msg;
-  msg.type =
+  const auto mode = from.get_mode();
+  msg.type = static_cast<uint16_t>(mode);
+
+  if(rmf_traffic::schedule::Query::Spacetime::Mode::Regions == mode)
+    convert_regions(msg, *from.regions());
+  else if(rmf_traffic::schedule::Query::Spacetime::Mode::Timespan == mode)
+    convert_timespan(msg, *from.timespan());
+
+  return msg;
 }
 
 } // namespace rmf_traffic_ros2
