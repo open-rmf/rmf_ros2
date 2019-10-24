@@ -23,6 +23,7 @@ target_link_libraries(rmf_traffic_ros2
   PUBLIC
     rmf_traffic::rmf_traffic
     ${rmf_traffic_msgs_LIBRARIES}
+    ${rclcpp_LIBRARIES}
 )
 
 target_include_directories(rmf_traffic_ros2
@@ -30,6 +31,7 @@ target_include_directories(rmf_traffic_ros2
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_msgs_INCLUDE_DIRS}
+    ${rclcpp_INCLUDE_DIRS}
 )
 
 ament_package()
@@ -37,11 +39,21 @@ ament_package()
 # TODO(MXG): Change these executables into shared libraries that can act as
 # ROS2 node components
 
+#===============================================================================
 file(GLOB_RECURSE schedule_srcs "src/rmf_traffic_schedule/*.cpp")
 add_executable(rmf_traffic_schedule ${schedule_srcs})
 
 target_link_libraries(rmf_traffic_schedule
   PRIVATE
     rmf_traffic_ros2
-    ${rclcpp_LIBRARIES}
+)
+
+
+#===============================================================================
+file(GLOB_RECURSE proto_fleet_adapter_srcs "src/proto_fleet_adapter/*.cpp")
+add_executable(proto_fleet_adapter ${proto_fleet_adapter_srcs})
+
+target_link_libraries(proto_fleet_adapter
+  PRIVATE
+    rmf_traffic_ros2
 )

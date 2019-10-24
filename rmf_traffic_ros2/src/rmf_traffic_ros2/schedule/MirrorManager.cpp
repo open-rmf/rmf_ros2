@@ -158,6 +158,31 @@ auto MirrorManager::Options::set_update_on_wakeup(bool choice) -> Options&
 }
 
 //==============================================================================
+const rmf_traffic::schedule::Viewer& MirrorManager::viewer() const
+{
+  return _pimpl->mirror;
+}
+
+//==============================================================================
+void MirrorManager::update()
+{
+  _pimpl->update(_pimpl->mirror.latest_version());
+}
+
+//==============================================================================
+auto MirrorManager::get_options() const -> const Options&
+{
+  return _pimpl->options;
+}
+
+//==============================================================================
+MirrorManager& MirrorManager::set_options(Options options)
+{
+  _pimpl->options = std::move(options);
+  return *this;
+}
+
+//==============================================================================
 MirrorManager::MirrorManager()
 {
   // Do nothing
@@ -242,6 +267,11 @@ public:
       });
       registration_sent = true;
     }
+  }
+
+  void wait() const
+  {
+    registration_future.wait();
   }
 
   std::future_status wait_for(const rmf_traffic::Duration& timeout) const
@@ -335,6 +365,38 @@ public:
     return mmf;
   }
 };
+
+//==============================================================================
+void MirrorManagerFuture::wait() const
+{
+  _pimpl->wait();
+}
+
+//==============================================================================
+std::future_status MirrorManagerFuture::wait_for(
+    const rmf_traffic::Duration& timeout) const
+{
+  return _pimpl->wait_for(timeout);
+}
+
+//==============================================================================
+std::future_status MirrorManagerFuture::wait_until(
+    const rmf_traffic::Time& time) const
+{
+  return _pimpl->wait_until(time);
+}
+
+//==============================================================================
+bool MirrorManagerFuture::valid() const
+{
+  return _pimpl->valid();
+}
+
+//==============================================================================
+MirrorManager MirrorManagerFuture::get()
+{
+  return _pimpl->get();
+}
 
 //==============================================================================
 MirrorManagerFuture::MirrorManagerFuture()
