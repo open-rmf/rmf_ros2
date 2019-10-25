@@ -22,6 +22,7 @@
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 
 #include <rmf_traffic/agv/VehicleTraits.hpp>
+#include <rmf_traffic/agv/Graph.hpp>
 
 #include <rclcpp/node.hpp>
 
@@ -32,9 +33,27 @@ class FleetAdapterNode : public rclcpp::Node
 {
 public:
 
-  FleetAdapterNode(
-      std::string graph_file,
-      rmf_traffic::agv::VehicleTraits vehicle_traits);
+  static std::shared_ptr<FleetAdapterNode> make(
+      const std::string& graph_file,
+      rmf_traffic::agv::VehicleTraits vehicle_traits,
+      rmf_traffic::Duration wait_time = std::chrono::seconds(10));
+
+private:
+
+  struct Data
+  {
+    rmf_traffic::agv::Graph graph;
+    std::unordered_map<std::string, std::size_t> waypoint_keys;
+    rmf_traffic::agv::VehicleTraits traits;
+    rmf_traffic_ros2::schedule::MirrorManager mirror;
+  };
+
+  FleetAdapterNode();
+
+  void start(Data data);
+
+  // TODO(MXG): Replace this with a std::optional as soon as we can use C++17
+  std::unique_ptr<Data> data;
 
 };
 

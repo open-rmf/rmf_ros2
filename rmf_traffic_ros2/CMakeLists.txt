@@ -15,6 +15,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
 
+# TODO(MXG): Consider splitting off the components that depend on yaml-cpp
+find_package(yaml-cpp REQUIRED)
 
 file(GLOB_RECURSE core_lib_srcs "src/rmf_traffic_ros2/*.cpp")
 add_library(rmf_traffic_ros2 SHARED ${core_lib_srcs})
@@ -56,4 +58,5 @@ add_executable(proto_fleet_adapter ${proto_fleet_adapter_srcs})
 target_link_libraries(proto_fleet_adapter
   PRIVATE
     rmf_traffic_ros2
+    yaml-cpp
 )

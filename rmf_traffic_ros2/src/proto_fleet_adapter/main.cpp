@@ -46,15 +46,21 @@ int main(int argc, char* argv[])
   const std::string& graph_file = *(graph_arg+1);
 
   // TODO(MXG): Parse arguments for specifying vehicle traits and profile
-  // properties
+  // properties, or allow the user to pass a yaml file describing the properties
   auto profile = rmf_traffic::Trajectory::Profile::make_guided(
         rmf_traffic::geometry::make_final_convex<
           rmf_traffic::geometry::Circle>(0.5));
 
   rmf_traffic::agv::VehicleTraits traits{{0.7, 0.3}, {1.0, 0.45}, profile};
 
-  rclcpp::spin(std::make_shared<proto_fleet_adapter::FleetAdapterNode>(
-                 graph_file, std::move(traits)));
+  const auto fleet_adapter_node =
+    proto_fleet_adapter::FleetAdapterNode::make(graph_file, std::move(traits));
+  if(!fleet_adapter_node)
+  {
+    std::cerr << "Failed to initialize the fleet adapter node" << std::endl;
+    return 1;
+  }
 
+  rclcpp::spin(fleet_adapter_node);
   rclcpp::shutdown();
 }
