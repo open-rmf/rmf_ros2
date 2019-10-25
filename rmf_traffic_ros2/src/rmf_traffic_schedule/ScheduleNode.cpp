@@ -86,6 +86,7 @@ void insert_conflicts(
   if(!conflicts.empty())
   {
     response.accepted = false;
+    response.error = "Conflicts detected";
     for(const auto& c : conflicts)
     {
       rmf_traffic_msgs::msg::ScheduleConflict conflict_msg;

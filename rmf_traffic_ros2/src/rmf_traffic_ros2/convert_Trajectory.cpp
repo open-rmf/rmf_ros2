@@ -173,6 +173,7 @@ rmf_traffic_msgs::msg::Trajectory convert(const rmf_traffic::Trajectory& from)
 {
   ProfileContext profile_context;
   rmf_traffic_msgs::msg::Trajectory output;
+  output.maps.push_back(from.get_map_name());
 
   for(const auto& segment : from)
     output.segments.emplace_back(convert(segment, profile_context));

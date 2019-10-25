@@ -21,8 +21,12 @@
 
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 
-#include <rmf_traffic/agv/VehicleTraits.hpp>
+#include <rmf_traffic_msgs/msg/test_task_request.hpp>
+#include <rmf_traffic_msgs/srv/submit_trajectory.hpp>
+
 #include <rmf_traffic/agv/Graph.hpp>
+#include <rmf_traffic/agv/Planner.hpp>
+#include <rmf_traffic/agv/VehicleTraits.hpp>
 
 #include <rclcpp/node.hpp>
 
@@ -41,12 +45,17 @@ public:
 
 private:
 
+  using SubmitTrajectory = rmf_traffic_msgs::srv::SubmitTrajectory;
+  using SubmitTrajectoryClient = rclcpp::Client<SubmitTrajectory>;
+  using SubmitTrajectoryHandle = SubmitTrajectoryClient::SharedPtr;
+
   struct Data
   {
     rmf_traffic::agv::Graph graph;
     std::unordered_map<std::string, std::size_t> waypoint_keys;
     rmf_traffic::agv::VehicleTraits traits;
     rmf_traffic_ros2::schedule::MirrorManager mirror;
+    SubmitTrajectoryHandle submit_trajectory;
   };
 
   FleetAdapterNode(std::string fleet_name);
@@ -58,6 +67,16 @@ private:
 
   // TODO(MXG): Replace this with a std::optional as soon as we can use C++17
   std::unique_ptr<Data> data;
+
+  using TestTaskRequest = rmf_traffic_msgs::msg::TestTaskRequest;
+  using TestTaskRequestSub = rclcpp::Subscription<TestTaskRequest>;
+
+  TestTaskRequestSub::SharedPtr test_task_request_sub;
+
+  void test_task_request(TestTaskRequest::UniquePtr msg);
+
+  void test_task_receive_response(
+      const SubmitTrajectoryClient::SharedFuture& response);
 
 };
 

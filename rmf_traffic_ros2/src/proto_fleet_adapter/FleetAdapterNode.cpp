@@ -17,6 +17,11 @@
 
 #include "FleetAdapterNode.hpp"
 
+#include <rmf_traffic_ros2/StandardNames.hpp>
+#include <rmf_traffic_ros2/Trajectory.hpp>
+
+#include <rmf_traffic/agv/Planner.hpp>
+
 #include <rclcpp/rclcpp.hpp>
 #include <yaml-cpp/yaml.h>
 
@@ -35,6 +40,9 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
 
   auto mirror_mgr_future = rmf_traffic_ros2::schedule::make_mirror(
         *fleet_adapter, rmf_traffic::schedule::Query::Spacetime());
+
+  auto submit_trajectory = fleet_adapter->create_client<SubmitTrajectory>(
+        rmf_traffic_ros2::SubmitTrajectoryServiceName);
 
   const YAML::Node graph_config = YAML::LoadFile(graph_file);
   if(!graph_config)
@@ -141,15 +149,18 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
     rclcpp::spin_some(fleet_adapter);
 
     using namespace std::chrono_literals;
-    const auto status = mirror_mgr_future.wait_for(0s);
-    if(std::future_status::ready == status)
+    bool ready = (mirror_mgr_future.wait_for(0s) == std::future_status::ready);
+    ready &= submit_trajectory->service_is_ready();
+
+    if(ready)
     {
       fleet_adapter->start(
             Data{
               std::move(graph),
               std::move(waypoint_keys),
               std::move(vehicle_traits),
-              mirror_mgr_future.get()
+              mirror_mgr_future.get(),
+              std::move(submit_trajectory)
             });
 
       return fleet_adapter;
@@ -181,7 +192,97 @@ void FleetAdapterNode::start(Data _data)
 {
   data = std::make_unique<Data>(std::move(_data));
 
+  test_task_request_sub = create_subscription<TestTaskRequest>(
+        "test_task_request", rclcpp::SystemDefaultsQoS(),
+        [&](TestTaskRequest::UniquePtr msg)
+  {
+    this->test_task_request(std::move(msg));
+  });
+}
 
+//==============================================================================
+void FleetAdapterNode::test_task_request(TestTaskRequest::UniquePtr msg)
+{
+  std::cout << "test_task_request triggered (" << msg->fleet_name
+            << ", " << get_name() << ")" << std::endl;
+
+  if(msg->fleet_name != fleet_name)
+    return;
+
+  RCLCPP_INFO(
+        get_logger(),
+        "Performing task request from [" + msg->start_waypoint_name + "] to ["
+        + msg->goal_waypoint_name + "]");
+
+  const auto start_it = data->waypoint_keys.find(msg->start_waypoint_name);
+  if(start_it == data->waypoint_keys.end())
+  {
+    RCLCPP_ERROR(
+          get_logger(),
+          "Unrecognized start waypoint requested: " + msg->start_waypoint_name);
+    return;
+  }
+
+  const auto goal_it = data->waypoint_keys.find(msg->goal_waypoint_name);
+  if(goal_it == data->waypoint_keys.end())
+  {
+    RCLCPP_ERROR(
+          get_logger(),
+          "Unrecognized goal waypoint requested: " + msg->goal_waypoint_name);
+    return;
+  }
+
+  rmf_traffic::agv::Planner::Options options(
+        data->traits, data->graph, data->mirror.viewer());
+
+  std::vector<rmf_traffic::Trajectory> solution;
+  const bool solved = rmf_traffic::agv::Planner::solve(
+        std::chrono::steady_clock::now(),
+        start_it->second, 0.0, goal_it->second, nullptr, options, solution);
+  if(!solved)
+  {
+    RCLCPP_WARN(get_logger(), "Failed to find a solution!");
+    return;
+  }
+
+  SubmitTrajectory::Request request_msg;
+  for(const auto& t : solution)
+    request_msg.trajectories.emplace_back(rmf_traffic_ros2::convert(t));
+
+  std::string notice =
+      "Generated trajectories [" + std::to_string(solution.size()) + "]";
+  for(const auto& t : solution)
+    notice += " | " + std::to_string(rmf_traffic::time::to_seconds(t.duration()));
+
+  RCLCPP_INFO(get_logger(), notice);
+
+  data->submit_trajectory->async_send_request(
+        std::make_shared<SubmitTrajectory::Request>(std::move(request_msg)),
+        [&](const SubmitTrajectoryClient::SharedFuture response)
+  {
+    this->test_task_receive_response(response);
+  });
+}
+
+//==============================================================================
+void FleetAdapterNode::test_task_receive_response(
+    const SubmitTrajectoryClient::SharedFuture& response)
+{
+  const auto response_msg = response.get();
+  if(response_msg->accepted)
+  {
+    RCLCPP_INFO(get_logger(), "Response: accepted");
+  }
+  else
+  {
+    std::string error_msg = "Response: " + response_msg->error + ". Conflicts:";
+    for(const auto& conflict : response_msg->conflicts)
+    {
+      error_msg += "\n -- " + std::to_string(conflict.index) + " @ "
+          + std::to_string(conflict.time);
+    }
+    RCLCPP_INFO(get_logger(), error_msg);
+  }
 }
 
 } // namespace proto_fleet_adapter

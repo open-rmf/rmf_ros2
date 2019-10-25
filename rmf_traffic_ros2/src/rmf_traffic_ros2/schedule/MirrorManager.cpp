@@ -94,6 +94,11 @@ public:
     {
       const auto response = response_future.get();
 
+      RCLCPP_INFO(
+            node.get_logger(),
+            "Updating mirror [" + std::to_string(response->patch.latest_version)
+            + "]");
+
       try
       {
         mirror.update(convert(response->patch));

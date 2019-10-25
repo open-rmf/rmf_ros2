@@ -51,7 +51,12 @@ public:
   using Caster = std::function<std::size_t(const ShapeTypePtr&)>;
   static bool initialized;
   static std::vector<Caster> casters;
+  static std::size_t num_shape_types;
 
+  ShapeContextImpl()
+  {
+    shapes.resize(num_shape_types);
+  }
 
   template<typename DerivedShape>
   void add(const std::size_t type_index)
@@ -67,8 +72,11 @@ public:
       return 0;
     });
 
-    if(type_index >= shapes.size())
-      shapes.resize(type_index+1);
+    if(type_index >= num_shape_types)
+    {
+      num_shape_types = type_index+1;
+      shapes.resize(num_shape_types);
+    }
   }
 
   std::size_t get_type_index(const ShapeTypePtr& shape)
@@ -121,6 +129,10 @@ public:
 //==============================================================================
 template<class T, class M, class C>
 bool ShapeContextImpl<T, M, C>::initialized = false;
+
+//==============================================================================
+template<class T, class M, class C>
+std::size_t ShapeContextImpl<T, M, C>::num_shape_types = 0;
 
 //==============================================================================
 template<class T, class M, class C>
