@@ -34,6 +34,7 @@ class FleetAdapterNode : public rclcpp::Node
 public:
 
   static std::shared_ptr<FleetAdapterNode> make(
+      std::string fleet_name,
       const std::string& graph_file,
       rmf_traffic::agv::VehicleTraits vehicle_traits,
       rmf_traffic::Duration wait_time = std::chrono::seconds(10));
@@ -48,9 +49,12 @@ private:
     rmf_traffic_ros2::schedule::MirrorManager mirror;
   };
 
-  FleetAdapterNode();
+  FleetAdapterNode(std::string fleet_name);
 
   void start(Data data);
+
+
+  std::string fleet_name;
 
   // TODO(MXG): Replace this with a std::optional as soon as we can use C++17
   std::unique_ptr<Data> data;

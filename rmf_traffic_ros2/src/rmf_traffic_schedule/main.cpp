@@ -22,6 +22,18 @@
 int main(int argc, char* argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<rmf_traffic_schedule::ScheduleNode>());
+
+  const auto node = std::make_shared<rmf_traffic_schedule::ScheduleNode>();
+
+  RCLCPP_INFO(
+        node->get_logger(),
+        "Beginning traffic schedule node");
+
+  rclcpp::spin(node);
+
+  RCLCPP_INFO(
+        node->get_logger(),
+        "Closing down traffic schedule node");
+
   rclcpp::shutdown();
 }

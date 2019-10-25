@@ -138,6 +138,9 @@ void ScheduleNode::submit_trajectory(
       response->error = "Invalid trajectory at index [" + std::to_string(i)
           + "]: Only [" + std::to_string(requested_trajectory.size())
           + "] segments; minimum is 2.";
+      RCLCPP_ERROR(
+            get_logger(),
+            "[ScheduleNode::submit_trajectory] " + response->error);
       return;
     }
 
@@ -189,6 +192,11 @@ void ScheduleNode::submit_trajectory(
 
   response->current_version = database.latest_version();
   wakeup_mirrors();
+
+  RCLCPP_DEBUG(
+        get_logger(),
+        "Received trajectory [" + std::to_string(response->current_version)
+        + "]");
 }
 
 //==============================================================================
@@ -220,9 +228,12 @@ void ScheduleNode::register_query(
     ++attempts;
     if(attempts == std::numeric_limits<uint64_t>::max())
     {
-      // I suspect a compute would run out of RAM before we reach this point,
+      // I suspect a computer would run out of RAM before we reach this point,
       // but there's no harm in double-checking.
       response->error = "No more space for additional queries to be registered";
+      RCLCPP_ERROR(
+            get_logger(),
+            "[ScheduleNode::register_query] " + response->error);
       return;
     }
   } while(registered_queries.find(query_id) != registered_queries.end());
@@ -230,6 +241,11 @@ void ScheduleNode::register_query(
   last_query_id = query_id;
   registered_queries.insert(
         std::make_pair(query_id, rmf_traffic_ros2::convert(request->query)));
+
+  response->query_id = query_id;
+  RCLCPP_INFO(
+        get_logger(),
+        "[" + std::to_string(query_id) + "] Registered query");
 }
 
 //==============================================================================
@@ -244,11 +260,19 @@ void ScheduleNode::unregister_query(
     response->error = "No query found with the id ["
         + std::to_string(request->query_id) + "]";
     response->confirmation = false;
+
+    RCLCPP_WARN(
+          get_logger(),
+          "[ScheduleNode::unregister_query] " + response->error);
     return;
   }
 
   registered_queries.erase(it);
   response->confirmation = true;
+
+  RCLCPP_INFO(
+        get_logger(),
+        "[" + std::to_string(request->query_id) + "] Unregistered query");
 }
 
 //==============================================================================
@@ -262,6 +286,9 @@ void ScheduleNode::mirror_update(
   {
     response->error = "Unrecognized query_id: "
         + std::to_string(request->query_id);
+    RCLCPP_WARN(
+          get_logger(),
+          "[ScheduleNode::mirror_update] " + response->error);
     return;
   }
 

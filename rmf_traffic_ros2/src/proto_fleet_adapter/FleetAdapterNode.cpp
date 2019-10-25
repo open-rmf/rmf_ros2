@@ -24,12 +24,15 @@ namespace proto_fleet_adapter {
 
 //==============================================================================
 std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
+    std::string fleet_name,
     const std::string& graph_file,
     rmf_traffic::agv::VehicleTraits vehicle_traits,
     rmf_traffic::Duration wait_time)
 {
   const auto start_time = std::chrono::steady_clock::now();
-  std::shared_ptr<FleetAdapterNode> fleet_adapter(new FleetAdapterNode);
+  std::shared_ptr<FleetAdapterNode> fleet_adapter(
+        new FleetAdapterNode(std::move(fleet_name)));
+
   auto mirror_mgr_future = rmf_traffic_ros2::schedule::make_mirror(
         *fleet_adapter, rmf_traffic::schedule::Query::Spacetime());
 
@@ -161,8 +164,9 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
 }
 
 //==============================================================================
-FleetAdapterNode::FleetAdapterNode()
-  : Node("fleet_adapter")
+FleetAdapterNode::FleetAdapterNode(std::string _fleet_name)
+  : Node(_fleet_name + "_fleet_adapter"),
+    fleet_name(std::move(_fleet_name))
 {
   // Do nothing
 

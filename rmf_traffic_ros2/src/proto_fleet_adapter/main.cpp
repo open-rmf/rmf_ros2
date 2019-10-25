@@ -21,29 +21,45 @@
 
 #include <rmf_traffic/geometry/Circle.hpp>
 
+bool get_arg(
+    const std::vector<std::string>& args,
+    const std::string& key,
+    std::string& value,
+    const std::string& desc)
+{
+  const auto key_arg = std::find(args.begin(), args.end(), key);
+  if(key_arg == args.end())
+  {
+    // TODO(MXG): See if there's a way to use RCLCPP_ERROR here without first
+    // constructing a node. If not, we could consider constructing the
+    // FleetAdapterNode in two parts.
+    std::cerr << "You must specify a " << desc <<" using the " << key
+              << " argument!" << std::endl;
+    return false;
+  }
+  else if(key_arg+1 == args.end())
+  {
+    std::cerr << "The " << key << " argument must be followed by a " << desc
+              << "!" << std::endl;
+    return false;
+  }
+
+  value = *(key_arg+1);
+  return true;
+}
+
 int main(int argc, char* argv[])
 {
   const std::vector<std::string> args =
       rclcpp::init_and_remove_ros_arguments(argc, argv);
 
-  const auto graph_arg = std::find(args.begin(), args.end(), "-g");
-  if(graph_arg == args.end())
-  {
-    // TODO(MXG): See if there's a way to use RCLCPP_ERROR here without first
-    // constructing a node. If not, we could consider constructing the
-    // FleetAdapterNode in two parts.
-    std::cerr << "You must specify a graph file using the -g argument!"
-              << std::endl;
+  std::string graph_file;
+  if(!get_arg(args, "-g", graph_file, "graph file name"))
     return 1;
-  }
-  else if(graph_arg+1 == args.end())
-  {
-    std::cerr << "The -g argument must be followed by a graph file name!"
-              << std::endl;
-    return 1;
-  }
 
-  const std::string& graph_file = *(graph_arg+1);
+  std::string fleet_name;
+  if(!get_arg(args, "-f", fleet_name, "fleet name"))
+    return 1;
 
   // TODO(MXG): Parse arguments for specifying vehicle traits and profile
   // properties, or allow the user to pass a yaml file describing the properties
@@ -54,13 +70,23 @@ int main(int argc, char* argv[])
   rmf_traffic::agv::VehicleTraits traits{{0.7, 0.3}, {1.0, 0.45}, profile};
 
   const auto fleet_adapter_node =
-    proto_fleet_adapter::FleetAdapterNode::make(graph_file, std::move(traits));
+    proto_fleet_adapter::FleetAdapterNode::make(
+        std::move(fleet_name), std::move(graph_file), std::move(traits));
+
   if(!fleet_adapter_node)
   {
     std::cerr << "Failed to initialize the fleet adapter node" << std::endl;
     return 1;
   }
 
+  RCLCPP_INFO(
+        fleet_adapter_node->get_logger(),
+        "Beginning loop");
+
   rclcpp::spin(fleet_adapter_node);
+  RCLCPP_INFO(
+        fleet_adapter_node->get_logger(),
+        "Closing down");
+
   rclcpp::shutdown();
 }
