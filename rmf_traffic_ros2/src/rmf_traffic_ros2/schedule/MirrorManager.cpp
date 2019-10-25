@@ -232,6 +232,8 @@ public:
         node.create_client<UnregisterQuery>(UnregisterQueryServiceName);
 
     registration_future = registration_promise.get_future();
+
+    discovery_thread = std::thread([=](){ this->discover(); });
   }
 
   void discover()
@@ -305,6 +307,7 @@ public:
   {
     abandon_discovery = true;
 
+    assert(discovery_thread.joinable());
     discovery_thread.join();
 
     if(registration_sent && registration_future.valid())
