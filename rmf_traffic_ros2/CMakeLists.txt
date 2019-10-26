@@ -15,6 +15,9 @@ find_package(ament_cmake REQUIRED)
 find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
 
+# TODO(MXG): Remove this dependency as soon as all the old RMF is migrated
+find_package(rmf_msgs REQUIRED)
+
 # TODO(MXG): Consider splitting off the components that depend on yaml-cpp
 find_package(yaml-cpp REQUIRED)
 
@@ -59,4 +62,10 @@ target_link_libraries(proto_fleet_adapter
   PRIVATE
     rmf_traffic_ros2
     yaml-cpp
+    ${rmf_msgs_LIBRARIES}
+)
+
+target_include_directories(proto_fleet_adapter
+  PRIVATE
+    ${rmf_msgs_INCLUDE_DIRS}
 )

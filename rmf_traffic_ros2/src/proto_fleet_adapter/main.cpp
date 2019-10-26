@@ -65,9 +65,9 @@ int main(int argc, char* argv[])
   // properties, or allow the user to pass a yaml file describing the properties
   auto profile = rmf_traffic::Trajectory::Profile::make_guided(
         rmf_traffic::geometry::make_final_convex<
-          rmf_traffic::geometry::Circle>(0.5));
+          rmf_traffic::geometry::Circle>(1.0));
 
-  rmf_traffic::agv::VehicleTraits traits{{0.7, 0.3}, {1.0, 0.45}, profile};
+  rmf_traffic::agv::VehicleTraits traits{{0.7, 0.5}, {0.3, 1.5}, profile};
 
   const auto fleet_adapter_node =
     proto_fleet_adapter::FleetAdapterNode::make(

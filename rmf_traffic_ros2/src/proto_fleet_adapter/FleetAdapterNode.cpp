@@ -198,6 +198,8 @@ void FleetAdapterNode::start(Data _data)
   {
     this->test_task_request(std::move(msg));
   });
+
+  robot_path_publisher = create_publisher<RobotPath>("gazebo_path_requests");
 }
 
 //==============================================================================
@@ -236,9 +238,11 @@ void FleetAdapterNode::test_task_request(TestTaskRequest::UniquePtr msg)
         data->traits, data->graph, data->mirror.viewer());
 
   std::vector<rmf_traffic::Trajectory> solution;
+  std::vector<rmf_traffic::agv::Planner::Waypoint> waypoints;
   const bool solved = rmf_traffic::agv::Planner::solve(
         std::chrono::steady_clock::now(),
-        start_it->second, 0.0, goal_it->second, nullptr, options, solution);
+        start_it->second, 0.0, goal_it->second, nullptr, options, solution,
+        &waypoints);
   if(!solved)
   {
     RCLCPP_WARN(get_logger(), "Failed to find a solution!");
@@ -262,6 +266,27 @@ void FleetAdapterNode::test_task_request(TestTaskRequest::UniquePtr msg)
   {
     this->test_task_receive_response(response);
   });
+
+  RobotPath path_msg;
+  path_msg.robot_name = fleet_name;
+  for(const auto& wp : waypoints)
+  {
+    rmf_msgs::msg::Place place;
+    place.location.position.x = wp.location[0];
+    place.location.position.y = wp.location[1];
+
+    const Eigen::AngleAxisd R{wp.location[2], Eigen::Vector3d::UnitZ()};
+    const Eigen::Quaterniond q{R};
+    place.location.orientation.w = q.w();
+    place.location.orientation.x = q.x();
+    place.location.orientation.y = q.y();
+    place.location.orientation.z = q.z();
+    place.time = wp.time.time_since_epoch().count();
+
+    path_msg.robot_path.waypoints.emplace_back(std::move(place));
+  }
+
+  robot_path_publisher->publish(path_msg);
 }
 
 //==============================================================================

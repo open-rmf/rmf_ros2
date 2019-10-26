@@ -21,6 +21,8 @@
 
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 
+#include <rmf_msgs/msg/robot_path.hpp>
+
 #include <rmf_traffic_msgs/msg/test_task_request.hpp>
 #include <rmf_traffic_msgs/srv/submit_trajectory.hpp>
 
@@ -72,8 +74,15 @@ private:
   using TestTaskRequestSub = rclcpp::Subscription<TestTaskRequest>;
 
   TestTaskRequestSub::SharedPtr test_task_request_sub;
-
   void test_task_request(TestTaskRequest::UniquePtr msg);
+
+
+  using RobotPath = rmf_msgs::msg::RobotPath;
+  using RobotPathPub = rclcpp::Publisher<RobotPath>;
+
+  RobotPathPub::SharedPtr robot_path_publisher;
+
+
 
   void test_task_receive_response(
       const SubmitTrajectoryClient::SharedFuture& response);

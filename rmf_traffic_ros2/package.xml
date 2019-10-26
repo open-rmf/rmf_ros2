@@ -11,6 +11,7 @@
 
   <depend>rmf_traffic</depend>
   <depend>rmf_traffic_msgs</depend>
+  <depend>rmf_msgs</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
