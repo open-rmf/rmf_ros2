@@ -23,7 +23,8 @@
 #include <rmf_traffic/agv/Planner.hpp>
 
 #include <rclcpp/rclcpp.hpp>
-#include <yaml-cpp/yaml.h>
+
+#include "ParseGraph.hpp"
 
 namespace proto_fleet_adapter {
 
@@ -44,102 +45,10 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
   auto submit_trajectory = fleet_adapter->create_client<SubmitTrajectory>(
         rmf_traffic_ros2::SubmitTrajectoryServiceName);
 
-  const YAML::Node graph_config = YAML::LoadFile(graph_file);
-  if(!graph_config)
-  {
-    RCLCPP_ERROR(
-          fleet_adapter->get_logger(),
-          "Failed to load graph file [" + graph_file + "]");
-    return nullptr;
-  }
-
-  const YAML::Node levels = graph_config["levels"];
-  if(!levels)
-  {
-    RCLCPP_ERROR(
-          fleet_adapter->get_logger(),
-          "Graph file [" + graph_file + "] is missing the [levels] key");
-    return nullptr;
-  }
-
-  if(!levels.IsMap())
-  {
-    RCLCPP_ERROR(
-          fleet_adapter->get_logger(),
-          "The [levels] key does not point to a map in graph file ["
-          + graph_file + "]");
-    return nullptr;
-  }
-
   rmf_traffic::agv::Graph graph;
   std::unordered_map<std::string, std::size_t> waypoint_keys;
-  for(const auto& level : levels)
-  {
-    const std::string& map_name = level.first.as<std::string>();
-
-    const YAML::Node& vertices = level.second["vertices"];
-    for(const auto& vertex : vertices)
-    {
-      const Eigen::Vector2d location{
-        vertex[0].as<double>(), vertex[1].as<double>()};
-
-      const auto& wp = graph.add_waypoint(map_name, location, true);
-
-      const std::string& name = vertex[2].as<std::string>();
-      if(!name.empty())
-      {
-        const auto ins = waypoint_keys.insert(std::make_pair(name, wp.index()));
-        if(!ins.second)
-        {
-          RCLCPP_ERROR(
-                fleet_adapter->get_logger(),
-                "Duplicated waypoint name [" + name + "] in graph ["
-                + graph_file + "]");
-          return nullptr;
-        }
-      }
-    }
-
-    const YAML::Node& lanes = level.second["lanes"];
-    for(const auto& lane : lanes)
-    {
-      using Constraint = rmf_traffic::agv::Graph::OrientationConstraint;
-      using ConstraintPtr = std::unique_ptr<Constraint>;
-
-      const std::string& constraint_label = lane[2].as<std::string>();
-      ConstraintPtr constraint = nullptr;
-      if(!constraint_label.empty())
-      {
-        if(constraint_label == "forward")
-        {
-          constraint = Constraint::make(
-                Constraint::Direction::Forward,
-                vehicle_traits.get_differential()->get_forward());
-        }
-        else if(constraint_label == "backward")
-        {
-          constraint = Constraint::make(
-                Constraint::Direction::Backward,
-                vehicle_traits.get_differential()->get_forward());
-        }
-        else
-        {
-          RCLCPP_ERROR(
-                fleet_adapter->get_logger(),
-                "Unrecognized constraint label given to lane ["
-                + std::to_string(lane[0].as<std::size_t>()) + ", "
-                + std::to_string(lane[1].as<std::size_t>()) + "]: ["
-                + lane[2].as<std::string>() + "] in graph ["
-                + graph_file + "]");
-          return nullptr;
-        }
-      }
-
-      graph.add_lane(
-          lane[0].as<std::size_t>(),
-          {lane[1].as<std::size_t>(), std::move(constraint)});
-    }
-  }
+  if(!parse_graph(graph_file, vehicle_traits, *fleet_adapter, graph, waypoint_keys))
+    return nullptr;
 
   const auto stop_time = start_time + wait_time;
   while(rclcpp::ok() && std::chrono::steady_clock::now() < stop_time)
@@ -237,10 +146,11 @@ void FleetAdapterNode::test_task_request(TestTaskRequest::UniquePtr msg)
   rmf_traffic::agv::Planner::Options options(
         data->traits, data->graph, data->mirror.viewer());
 
+  using namespace std::chrono_literals;
   std::vector<rmf_traffic::Trajectory> solution;
   std::vector<rmf_traffic::agv::Planner::Waypoint> waypoints;
   const bool solved = rmf_traffic::agv::Planner::solve(
-        std::chrono::steady_clock::now(),
+        std::chrono::steady_clock::now() + 2s,
         start_it->second, 0.0, goal_it->second, nullptr, options, solution,
         &waypoints);
   if(!solved)
