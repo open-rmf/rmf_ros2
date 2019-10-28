@@ -72,8 +72,10 @@ private:
 
   using TestTaskRequest = rmf_traffic_msgs::msg::TestTaskRequest;
   using TestTaskRequestSub = rclcpp::Subscription<TestTaskRequest>;
+  using TestTaskRequestPub = rclcpp::Publisher<TestTaskRequest>;
 
   TestTaskRequestSub::SharedPtr test_task_request_sub;
+  TestTaskRequestPub::SharedPtr test_task_request_retry;
   void test_task_request(TestTaskRequest::UniquePtr msg);
 
 

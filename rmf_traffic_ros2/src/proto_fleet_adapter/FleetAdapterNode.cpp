@@ -100,6 +100,7 @@ FleetAdapterNode::FleetAdapterNode(std::string _fleet_name)
 void FleetAdapterNode::start(Data _data)
 {
   data = std::make_unique<Data>(std::move(_data));
+  data->mirror.update();
 
   test_task_request_sub = create_subscription<TestTaskRequest>(
         "test_task_request", rclcpp::SystemDefaultsQoS(),
@@ -107,6 +108,9 @@ void FleetAdapterNode::start(Data _data)
   {
     this->test_task_request(std::move(msg));
   });
+
+  test_task_request_retry = create_publisher<TestTaskRequest>(
+        "test_task_request");
 
   robot_path_publisher = create_publisher<RobotPath>("gazebo_path_requests");
 }
@@ -147,21 +151,35 @@ void FleetAdapterNode::test_task_request(TestTaskRequest::UniquePtr msg)
         data->traits, data->graph, data->mirror.viewer());
 
   using namespace std::chrono_literals;
+  const auto target_time = std::chrono::steady_clock::now() + 2s;
+
   std::vector<rmf_traffic::Trajectory> solution;
   std::vector<rmf_traffic::agv::Planner::Waypoint> waypoints;
   const bool solved = rmf_traffic::agv::Planner::solve(
-        std::chrono::steady_clock::now() + 2s,
-        start_it->second, 0.0, goal_it->second, nullptr, options, solution,
-        &waypoints);
+        target_time,
+        start_it->second, msg->initial_orientation, goal_it->second, nullptr,
+        options, solution, &waypoints);
   if(!solved)
   {
-    RCLCPP_WARN(get_logger(), "Failed to find a solution!");
+    RCLCPP_WARN(get_logger(), "Failed to find a solution! We will retry!");
+    test_task_request_retry->publish(*msg);
     return;
   }
 
+  if(solution.empty() || solution.back().duration() == rmf_traffic::Duration(0))
+  {
+    RCLCPP_INFO(get_logger(), "No trajectory needed!");
+    return;
+  }
+
+  const auto new_target_time = std::chrono::steady_clock::now() + 2s;
+  const auto time_adjustment = new_target_time - target_time;
   SubmitTrajectory::Request request_msg;
-  for(const auto& t : solution)
+  for(auto t : solution)
+  {
+    t.begin()->adjust_finish_times(time_adjustment);
     request_msg.trajectories.emplace_back(rmf_traffic_ros2::convert(t));
+  }
 
   std::string notice =
       "Generated trajectories [" + std::to_string(solution.size()) + "]";
@@ -191,11 +209,13 @@ void FleetAdapterNode::test_task_request(TestTaskRequest::UniquePtr msg)
     place.location.orientation.x = q.x();
     place.location.orientation.y = q.y();
     place.location.orientation.z = q.z();
-    place.time = wp.time.time_since_epoch().count();
+    place.time = (wp.time + time_adjustment).time_since_epoch().count();
 
     path_msg.robot_path.waypoints.emplace_back(std::move(place));
   }
 
+  // TODO FIXME(MXG): This should only be published after we've received
+  // confirmation from the schedule node.
   robot_path_publisher->publish(path_msg);
 }
 

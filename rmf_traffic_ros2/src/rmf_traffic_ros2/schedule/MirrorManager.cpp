@@ -84,11 +84,13 @@ public:
       update(minimum_version);
   }
 
-  void update(uint64_t minimum_version)
+  void update(
+      uint64_t minimum_version,
+      const rmf_traffic::Duration wait = rmf_traffic::Duration(0))
   {
     request_msg->latest_mirror_version = mirror.latest_version();
     request_msg->minimum_patch_version = minimum_version;
-    mirror_update_client->async_send_request(
+    const auto future = mirror_update_client->async_send_request(
           request_msg,
           [&](const MirrorUpdateFuture response_future)
     {
@@ -111,6 +113,9 @@ public:
               "message: " + std::string(e.what()));
       }
     });
+
+    if(wait > rmf_traffic::Duration(0))
+      future.wait_for(wait);
   }
 
   ~Implementation()
@@ -169,9 +174,9 @@ const rmf_traffic::schedule::Viewer& MirrorManager::viewer() const
 }
 
 //==============================================================================
-void MirrorManager::update()
+void MirrorManager::update(const rmf_traffic::Duration wait)
 {
-  _pimpl->update(_pimpl->mirror.latest_version());
+  _pimpl->update(_pimpl->mirror.latest_version(), wait);
 }
 
 //==============================================================================
