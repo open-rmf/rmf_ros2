@@ -263,7 +263,7 @@ int main(int argc, char* argv[])
   // properties, or allow the user to pass a yaml file describing the properties
   auto profile = rmf_traffic::Trajectory::Profile::make_guided(
         rmf_traffic::geometry::make_final_convex<
-          rmf_traffic::geometry::Circle>(1.0));
+          rmf_traffic::geometry::Circle>(0.6));
 
   std::cout << "Vehicle traits: v: " << v_nom << " | a: " << a_nom << std::endl;
   rmf_traffic::agv::VehicleTraits traits{
