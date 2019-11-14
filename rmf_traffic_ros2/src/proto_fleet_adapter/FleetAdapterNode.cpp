@@ -18,6 +18,7 @@
 #include "FleetAdapterNode.hpp"
 
 #include <rmf_traffic_ros2/StandardNames.hpp>
+#include <rmf_traffic_ros2/Time.hpp>
 #include <rmf_traffic_ros2/Trajectory.hpp>
 
 #include <rmf_traffic/agv/Planner.hpp>
@@ -63,13 +64,16 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
 
     if(ready)
     {
+
       fleet_adapter->start(
             Data{
-              std::move(graph),
               std::move(waypoint_keys),
-              std::move(vehicle_traits),
               mirror_mgr_future.get(),
-              std::move(submit_trajectory)
+              std::move(submit_trajectory),
+              rmf_traffic::agv::Planner::Configuration{
+                std::move(graph),
+                std::move(vehicle_traits)
+              }
             });
 
       return fleet_adapter;
@@ -112,7 +116,7 @@ void FleetAdapterNode::start(Data _data)
   test_task_request_retry = create_publisher<TestTaskRequest>(
         "test_task_request");
 
-  robot_path_publisher = create_publisher<RobotPath>("gazebo_path_requests");
+  path_request_publisher = create_publisher<PathRequest>("gazebo_path_requests");
 }
 
 //==============================================================================
@@ -147,24 +151,29 @@ void FleetAdapterNode::test_task_request(TestTaskRequest::UniquePtr msg)
     return;
   }
 
-  rmf_traffic::agv::Planner::Options options(
-        data->traits, data->graph, data->mirror.viewer());
-
   using namespace std::chrono_literals;
   const auto target_time = std::chrono::steady_clock::now() + 2s;
 
-  std::vector<rmf_traffic::Trajectory> solution;
-  std::vector<rmf_traffic::agv::Planner::Waypoint> waypoints;
-  const bool solved = rmf_traffic::agv::Planner::solve(
+  rmf_traffic::agv::Plan::Start start{
         target_time,
-        start_it->second, msg->initial_orientation, goal_it->second, nullptr,
-        options, solution, &waypoints);
-  if(!solved)
+        start_it->second,
+        msg->initial_orientation
+  };
+
+  rmf_traffic::agv::Plan::Goal goal{goal_it->second};
+
+  const auto plan = data->planner.plan(start, goal);
+  if(!plan)
   {
     RCLCPP_WARN(get_logger(), "Failed to find a solution! We will retry!");
     test_task_request_retry->publish(*msg);
     return;
   }
+
+  const std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints =
+      plan.get_waypoints();
+
+  const std::vector<rmf_traffic::Trajectory> solution = plan.get_trajectories();
 
   if(solution.empty() || solution.back().duration() == rmf_traffic::Duration(0))
   {
@@ -195,28 +204,24 @@ void FleetAdapterNode::test_task_request(TestTaskRequest::UniquePtr msg)
     this->test_task_receive_response(response);
   });
 
-  RobotPath path_msg;
+  PathRequest path_msg;
+  path_msg.fleet_name = fleet_name;
   path_msg.robot_name = fleet_name;
   for(const auto& wp : waypoints)
   {
-    rmf_msgs::msg::Place place;
-    place.location.position.x = wp.location[0];
-    place.location.position.y = wp.location[1];
+    rmf_fleet_msgs::msg::Location location;
+    const auto p = wp.position();
+    location.x = p[0];
+    location.y = p[1];
+    location.yaw = p[2];
+    location.t = rmf_traffic_ros2::convert(wp.time());
 
-    const Eigen::AngleAxisd R{wp.location[2], Eigen::Vector3d::UnitZ()};
-    const Eigen::Quaterniond q{R};
-    place.location.orientation.w = q.w();
-    place.location.orientation.x = q.x();
-    place.location.orientation.y = q.y();
-    place.location.orientation.z = q.z();
-    place.time = (wp.time + time_adjustment).time_since_epoch().count();
-
-    path_msg.robot_path.waypoints.emplace_back(std::move(place));
+    path_msg.path.emplace_back(std::move(location));
   }
 
   // TODO FIXME(MXG): This should only be published after we've received
   // confirmation from the schedule node.
-  robot_path_publisher->publish(path_msg);
+  path_request_publisher->publish(path_msg);
 }
 
 //==============================================================================

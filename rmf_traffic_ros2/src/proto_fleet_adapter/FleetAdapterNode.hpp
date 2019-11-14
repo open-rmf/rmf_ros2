@@ -21,7 +21,7 @@
 
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 
-#include <rmf_msgs/msg/robot_path.hpp>
+#include <rmf_fleet_msgs/msg/path_request.hpp>
 
 #include <rmf_traffic_msgs/msg/test_task_request.hpp>
 #include <rmf_traffic_msgs/srv/submit_trajectory.hpp>
@@ -53,11 +53,24 @@ private:
 
   struct Data
   {
-    rmf_traffic::agv::Graph graph;
     std::unordered_map<std::string, std::size_t> waypoint_keys;
-    rmf_traffic::agv::VehicleTraits traits;
     rmf_traffic_ros2::schedule::MirrorManager mirror;
     SubmitTrajectoryHandle submit_trajectory;
+    rmf_traffic::agv::Planner planner;
+
+    Data(
+        std::unordered_map<std::string, std::size_t> waypoint_keys_,
+        rmf_traffic_ros2::schedule::MirrorManager mirror_,
+        SubmitTrajectoryHandle submit_trajectory_,
+        rmf_traffic::agv::Planner::Configuration config_)
+    : waypoint_keys(std::move(waypoint_keys_)),
+      mirror(std::move(mirror_)),
+      submit_trajectory(std::move(submit_trajectory_)),
+      planner(std::move(config_),
+              rmf_traffic::agv::Planner::Options{mirror.viewer()})
+    {
+      // Do nothing
+    }
   };
 
   FleetAdapterNode(std::string fleet_name);
@@ -79,12 +92,10 @@ private:
   void test_task_request(TestTaskRequest::UniquePtr msg);
 
 
-  using RobotPath = rmf_msgs::msg::RobotPath;
-  using RobotPathPub = rclcpp::Publisher<RobotPath>;
+  using PathRequest = rmf_fleet_msgs::msg::PathRequest;
+  using PathRequestPub = rclcpp::Publisher<PathRequest>;
 
-  RobotPathPub::SharedPtr robot_path_publisher;
-
-
+  PathRequestPub::SharedPtr path_request_publisher;
 
   void test_task_receive_response(
       const SubmitTrajectoryClient::SharedFuture& response);

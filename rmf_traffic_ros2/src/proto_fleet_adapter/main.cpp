@@ -23,7 +23,7 @@
 #include <rmf_traffic/geometry/Circle.hpp>
 
 #include <rmf_traffic_msgs/msg/test_task_request.hpp>
-#include <rmf_msgs/msg/robot_state.hpp>
+#include <rmf_fleet_msgs/msg/robot_state.hpp>
 
 namespace {
 
@@ -64,7 +64,7 @@ public:
   using TestTaskRequestHandle = TestTaskRequestPub::SharedPtr;
   TestTaskRequestHandle test_task_request_pub;
 
-  using RobotState = rmf_msgs::msg::RobotState;
+  using RobotState = rmf_fleet_msgs::msg::RobotState;
   using RobotStateSub = rclcpp::Subscription<RobotState>;
   using RobotStateHandle = RobotStateSub::SharedPtr;
   RobotStateHandle robot_state_sub;
@@ -98,13 +98,13 @@ public:
           "gazebo_robot_state", rclcpp::SystemDefaultsQoS(),
           [&](RobotState::UniquePtr msg)
     {
-      if(msg->robot_name != fleet_name)
+      if(msg->name != fleet_name)
         return;
 
       const Eigen::Vector2d& current_target = get_current_target().location;
 
       const Eigen::Vector2d current_location =
-          {msg->location.position.x, msg->location.position.y};
+          {msg->location.x, msg->location.y};
 
       const double dist = (current_target - current_location).norm();
 //      RCLCPP_INFO(
@@ -113,21 +113,10 @@ public:
 
       if( dist < 0.03 )
       {
-        const auto q_msg = msg->location.orientation;
-        const Eigen::Quaterniond q{q_msg.w, q_msg.x, q_msg.y, q_msg.z};
-        last_known_orientation = wrap_to_pi(Eigen::AngleAxisd(q).angle());
+        last_known_orientation = msg->location.yaw;
         RCLCPP_INFO(
           node.get_logger(),
           "Last known orientation: " + std::to_string(last_known_orientation)
-//          + " | angles: "
-//          + std::to_string(angles[0]) + ", "
-//          + std::to_string(angles[1]) + ", "
-//          + std::to_string(angles[2])
-//          + " | quaternion: "
-//          + std::to_string(q.w()) + ", "
-//          + std::to_string(q.x()) + ", "
-//          + std::to_string(q.y()) + ", "
-//          + std::to_string(q.z())
           );
         use_next_target();
       }
