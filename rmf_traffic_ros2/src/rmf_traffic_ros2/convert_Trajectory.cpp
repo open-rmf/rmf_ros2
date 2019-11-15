@@ -106,6 +106,13 @@ struct ProfileContext
 
   std::size_t insert(ConstProfilePtr profile)
   {
+    if(!profile)
+    {
+      throw std::runtime_error(std::string()
+          + "[convert(rmf_traffic::Trajectory)] Cannot convert a Trajectory "
+          + "that contains a nullptr profile");
+    }
+
     const auto insertion =
         entry_map.insert(std::make_pair(profile, profiles.size()));
 
