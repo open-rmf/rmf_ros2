@@ -11,6 +11,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
 endif()
 
+include(GNUInstallDirs)
+
 find_package(ament_cmake REQUIRED)
 find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
@@ -37,7 +39,8 @@ target_include_directories(rmf_traffic_ros2
     ${rclcpp_INCLUDE_DIRS}
 )
 
-ament_package()
+ament_export_interfaces(rmf_traffic_ros2 HAS_LIBRARY_TARGET)
+ament_export_dependencies(rmf_traffic rmf_traffic_msgs rclcpp)
 
 # TODO(MXG): Change these executables into shared libraries that can act as
 # ROS2 node components
@@ -67,3 +70,20 @@ target_include_directories(proto_fleet_adapter
   PRIVATE
     ${rmf_fleet_msgs_INCLUDE_DIRS}
 )
+
+
+#===============================================================================
+install(
+  DIRECTORY include/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(
+  TARGETS rmf_traffic_ros2 rmf_traffic_schedule proto_fleet_adapter
+  EXPORT rmf_traffic_ros2
+  RUNTIME DESTINATION lib/rmf_traffic_ros2
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+)
+
+ament_package()
