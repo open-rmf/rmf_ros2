@@ -56,30 +56,13 @@ target_link_libraries(rmf_traffic_schedule
 
 
 #===============================================================================
-file(GLOB_RECURSE proto_fleet_adapter_srcs "src/proto_fleet_adapter/*.cpp")
-add_executable(proto_fleet_adapter ${proto_fleet_adapter_srcs})
-
-target_link_libraries(proto_fleet_adapter
-  PRIVATE
-    rmf_traffic_ros2
-    yaml-cpp
-    ${rmf_fleet_msgs_LIBRARIES}
-)
-
-target_include_directories(proto_fleet_adapter
-  PRIVATE
-    ${rmf_fleet_msgs_INCLUDE_DIRS}
-)
-
-
-#===============================================================================
 install(
   DIRECTORY include/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 install(
-  TARGETS rmf_traffic_ros2 rmf_traffic_schedule proto_fleet_adapter
+  TARGETS rmf_traffic_ros2 rmf_traffic_schedule
   EXPORT rmf_traffic_ros2
   RUNTIME DESTINATION lib/rmf_traffic_ros2
   LIBRARY DESTINATION lib

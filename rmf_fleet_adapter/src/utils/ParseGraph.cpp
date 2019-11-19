@@ -19,7 +19,9 @@
 
 #include <yaml-cpp/yaml.h>
 
-namespace proto_fleet_adapter {
+namespace rmf_fleet {
+namespace adapter {
+
 //==============================================================================
 bool parse_graph(
     const std::string& graph_file,
@@ -125,4 +127,6 @@ bool parse_graph(
 
   return true;
 }
-} // namespace proto_fleet_adapter
+
+} // namespace adapter
+} // namespace rmf_fleet

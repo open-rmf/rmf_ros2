@@ -15,8 +15,8 @@
  *
 */
 
-#ifndef SRC__RMF_TRAFFIC_ROS2__PROTO_FLEET_ADAPTER__PARSEGRAPH_HPP
-#define SRC__RMF_TRAFFIC_ROS2__PROTO_FLEET_ADAPTER__PARSEGRAPH_HPP
+#ifndef RMF_FLEET_ADAPTER__SRC__UTILS__PARSEGRAPH_HPP
+#define RMF_FLEET_ADAPTER__SRC__UTILS__PARSEGRAPH_HPP
 
 #include <rmf_traffic/agv/Graph.hpp>
 #include <rmf_traffic/agv/VehicleTraits.hpp>
@@ -25,7 +25,8 @@
 
 #include <rclcpp/node.hpp>
 
-namespace proto_fleet_adapter {
+namespace rmf_fleet {
+namespace adapter {
 
 //==============================================================================
 bool parse_graph(
@@ -35,6 +36,7 @@ bool parse_graph(
     rmf_traffic::agv::Graph& graph,
     std::unordered_map<std::string, std::size_t>& waypoint_keys);
 
-} // namespace proto_fleet_adapter
+} // namespace adapter
+} // namespace rmf_fleet
 
-#endif // SRC__RMF_TRAFFIC_ROS2__PROTO_FLEET_ADAPTER__PARSEGRAPH_HPP
+#endif // RMF_FLEET_ADAPTER__SRC__UTILS__PARSEGRAPH_HPP
