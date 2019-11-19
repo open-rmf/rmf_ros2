@@ -88,7 +88,7 @@ bool parse_graph(
     for(const auto& lane : lanes)
     {
       using Constraint = rmf_traffic::agv::Graph::OrientationConstraint;
-      using ConstraintPtr = std::unique_ptr<Constraint>;
+      using ConstraintPtr = rmf_utils::clone_ptr<Constraint>;
 
       const std::string& constraint_label = lane[2].as<std::string>();
       ConstraintPtr constraint = nullptr;
