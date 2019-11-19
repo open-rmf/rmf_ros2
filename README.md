@@ -55,6 +55,8 @@ allow many other potential options for de-conflicting robot traffic.
 | pause/resume motion | `rmf_fleet_msgs/ModeRequest` | `mode_requests` |
 | set complete paths | `rmf_fleet_msgs/PathRequest` | `path_requests` |
 
+* [Example](docs/fake_fleet_adapter.md) - running a simulated read-only fleet
+
 ### Door integration
 
 The `rmf_door_msgs` package contains two messages. This interface allows
