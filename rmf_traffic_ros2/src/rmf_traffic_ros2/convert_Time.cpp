@@ -41,4 +41,25 @@ builtin_interfaces::msg::Time convert(rmf_traffic::Time time)
   return result;
 }
 
+//==============================================================================
+rmf_traffic::Time convert(builtin_interfaces::msg::Time time)
+{
+  return std::chrono::steady_clock::time_point(
+        std::chrono::seconds(time.sec)
+        + std::chrono::nanoseconds(time.nanosec));
+}
+
+//==============================================================================
+rclcpp::Time to_ros2(rmf_traffic::Time from)
+{
+  return convert(from);
+}
+
+//==============================================================================
+rmf_traffic::Time convert(rclcpp::Time from)
+{
+  return std::chrono::steady_clock::time_point(
+        std::chrono::nanoseconds(from.nanoseconds()));
+}
+
 } // namespace rmf_traffic_ros2

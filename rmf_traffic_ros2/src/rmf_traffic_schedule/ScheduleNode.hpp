@@ -24,8 +24,8 @@
 
 #include <rmf_traffic_msgs/msg/mirror_wakeup.hpp>
 
-#include <rmf_traffic_msgs/srv/submit_trajectory.hpp>
-#include <rmf_traffic_msgs/srv/erase_schedule.hpp>
+#include <rmf_traffic_msgs/srv/submit_trajectories.hpp>
+#include <rmf_traffic_msgs/srv/erase_trajectories.hpp>
 #include <rmf_traffic_msgs/srv/mirror_update.hpp>
 #include <rmf_traffic_msgs/srv/register_query.hpp>
 #include <rmf_traffic_msgs/srv/mirror_update.h>
@@ -45,26 +45,26 @@ public:
 
 private:
 
-  using SubmitTrajectory = rmf_traffic_msgs::srv::SubmitTrajectory;
-  using SubmitTrajectoryService = rclcpp::Service<SubmitTrajectory>;
+  using SubmitTrajectories = rmf_traffic_msgs::srv::SubmitTrajectories;
+  using SubmitTrajectoryService = rclcpp::Service<SubmitTrajectories>;
 
-  void submit_trajectory(
+  void submit_trajectories(
       const std::shared_ptr<rmw_request_id_t>& request_header,
-      const SubmitTrajectory::Request::SharedPtr& request,
-      const SubmitTrajectory::Response::SharedPtr& response);
+      const SubmitTrajectories::Request::SharedPtr& request,
+      const SubmitTrajectories::Response::SharedPtr& response);
 
   SubmitTrajectoryService::SharedPtr submit_trajectory_service;
 
 
-  using EraseSchedule = rmf_traffic_msgs::srv::EraseSchedule;
-  using EraseScheduleService = rclcpp::Service<EraseSchedule>;
+  using EraseTrajectories = rmf_traffic_msgs::srv::EraseTrajectories;
+  using EraseTrajectoriesService = rclcpp::Service<EraseTrajectories>;
 
-  void erase_schedule(
+  void erase_trajectories(
       const std::shared_ptr<rmw_request_id_t>& request_header,
-      const EraseSchedule::Request::SharedPtr& request,
-      const EraseSchedule::Response::SharedPtr& response);
+      const EraseTrajectories::Request::SharedPtr& request,
+      const EraseTrajectories::Response::SharedPtr& response);
 
-  EraseScheduleService::SharedPtr erase_schedule_service;
+  EraseTrajectoriesService::SharedPtr erase_trajectories_service;
 
 
   using RegisterQuery = rmf_traffic_msgs::srv::RegisterQuery;

@@ -26,10 +26,8 @@ endforeach()
 
 # -----------------------------------------------------------------------------
 
-add_executable(rmf_fleet_adapter
-  src/main.cpp
-  src/ReadOnlyFleetAdapter.cpp
-  src/utils/ParseGraph.cpp
+add_library(rmf_fleet_adapter
+  src/rmf_fleet_adapter/ParseGraph.cpp
 )
 
 target_link_libraries(rmf_fleet_adapter
@@ -51,6 +49,18 @@ target_include_directories(rmf_fleet_adapter
 
 # -----------------------------------------------------------------------------
 
+add_executable(read_only
+  src/read_only/main.cpp
+  src/read_only/FleetAdapterNode.cpp
+)
+
+target_link_libraries(read_only
+  PRIVATE
+    rmf_fleet_adapter
+)
+
+# -----------------------------------------------------------------------------
+
 add_executable(fake_fleet
   test/FakeFleet.cpp
 )
@@ -61,6 +71,7 @@ ament_target_dependencies(fake_fleet rclcpp rmf_fleet_msgs)
 install(
   TARGETS 
     rmf_fleet_adapter
+    read_only
     fake_fleet
   RUNTIME DESTINATION lib/rmf_fleet_adapter
   LIBRARY DESTINATION lib

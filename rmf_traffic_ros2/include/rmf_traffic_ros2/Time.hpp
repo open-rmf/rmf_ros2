@@ -21,11 +21,21 @@
 #include <builtin_interfaces/msg/time.hpp>
 
 #include <rmf_traffic/Time.hpp>
+#include <rclcpp/time.hpp>
 
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
 builtin_interfaces::msg::Time convert(rmf_traffic::Time time);
+
+//==============================================================================
+rmf_traffic::Time convert(builtin_interfaces::msg::Time time);
+
+//==============================================================================
+rclcpp::Time to_ros2(rmf_traffic::Time time);
+
+//==============================================================================
+rmf_traffic::Time convert(rclcpp::Time time);
 
 } // namespace rmf_traffic_ros2
 

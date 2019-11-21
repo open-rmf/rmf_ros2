@@ -34,20 +34,20 @@ ScheduleNode::ScheduleNode()
   // multi-threaded so they can be parallel processed.
 
   submit_trajectory_service =
-      create_service<rmf_traffic_msgs::srv::SubmitTrajectory>(
-        rmf_traffic_ros2::SubmitTrajectoryServiceName,
+      create_service<rmf_traffic_msgs::srv::SubmitTrajectories>(
+        rmf_traffic_ros2::SubmitTrajectoriesSrvName,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
-            const SubmitTrajectory::Request::SharedPtr request,
-            const SubmitTrajectory::Response::SharedPtr response)
-        { this->submit_trajectory(request_header, request, response); });
+            const SubmitTrajectories::Request::SharedPtr request,
+            const SubmitTrajectories::Response::SharedPtr response)
+        { this->submit_trajectories(request_header, request, response); });
 
-  erase_schedule_service =
-      create_service<EraseSchedule>(
-        rmf_traffic_ros2::EraseScheduleServiceName,
+  erase_trajectories_service =
+      create_service<EraseTrajectories>(
+        rmf_traffic_ros2::EraseTrajectoriesSrvName,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
-            const EraseSchedule::Request::SharedPtr request,
-            const EraseSchedule::Response::SharedPtr response)
-        { this->erase_schedule(request_header, request, response); });
+            const EraseTrajectories::Request::SharedPtr request,
+            const EraseTrajectories::Response::SharedPtr response)
+        { this->erase_trajectories(request_header, request, response); });
 
   register_query_service =
       create_service<RegisterQuery>(
@@ -81,7 +81,7 @@ ScheduleNode::ScheduleNode()
 void insert_conflicts(
     const std::size_t i,
     const std::vector<rmf_traffic::ConflictData>& conflicts,
-    rmf_traffic_msgs::srv::SubmitTrajectory::Response& response)
+    rmf_traffic_msgs::srv::SubmitTrajectories::Response& response)
 {
   if(!conflicts.empty())
   {
@@ -98,10 +98,10 @@ void insert_conflicts(
 }
 
 //==============================================================================
-void ScheduleNode::submit_trajectory(
+void ScheduleNode::submit_trajectories(
     const std::shared_ptr<rmw_request_id_t>& /*request_header*/,
-    const SubmitTrajectory::Request::SharedPtr& request,
-    const SubmitTrajectory::Response::SharedPtr& response)
+    const SubmitTrajectories::Request::SharedPtr& request,
+    const SubmitTrajectories::Response::SharedPtr& response)
 {
   response->accepted = true;
   response->current_version = database.latest_version();
@@ -201,10 +201,10 @@ void ScheduleNode::submit_trajectory(
 }
 
 //==============================================================================
-void ScheduleNode::erase_schedule(
+void ScheduleNode::erase_trajectories(
     const std::shared_ptr<rmw_request_id_t>& /*request_header*/,
-    const EraseSchedule::Request::SharedPtr& request,
-    const EraseSchedule::Response::SharedPtr& response)
+    const EraseTrajectories::Request::SharedPtr& request,
+    const EraseTrajectories::Response::SharedPtr& response)
 {
   for(const uint64_t id : request->erase_ids)
   {

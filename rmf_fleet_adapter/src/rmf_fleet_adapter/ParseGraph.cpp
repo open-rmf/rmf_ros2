@@ -19,8 +19,7 @@
 
 #include <yaml-cpp/yaml.h>
 
-namespace rmf_fleet {
-namespace adapter {
+namespace rmf_fleet_adapter {
 
 //==============================================================================
 bool parse_graph(
@@ -128,5 +127,4 @@ bool parse_graph(
   return true;
 }
 
-} // namespace adapter
-} // namespace rmf_fleet
+} // namespace rmf_fleet_adapter
