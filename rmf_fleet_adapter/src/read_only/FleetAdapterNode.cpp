@@ -50,12 +50,12 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
   {
     rclcpp::spin_some(node);
 
-    bool keep_waiting = false;
-    keep_waiting |= node->_client_submit_trajectories->service_is_ready();
-    keep_waiting |= node->_client_replace_trajectories->service_is_ready();
-    keep_waiting |= node->_client_delay_trajectories->service_is_ready();
+    bool ready = true;
+    ready &= node->_client_submit_trajectories->service_is_ready();
+    ready &= node->_client_replace_trajectories->service_is_ready();
+    ready &= node->_client_delay_trajectories->service_is_ready();
 
-    if (!keep_waiting)
+    if (ready)
       return node;
   }
 

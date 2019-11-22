@@ -25,7 +25,10 @@
 #include <rmf_traffic_msgs/msg/mirror_wakeup.hpp>
 
 #include <rmf_traffic_msgs/srv/submit_trajectories.hpp>
+#include <rmf_traffic_msgs/srv/replace_trajectories.hpp>
+#include <rmf_traffic_msgs/srv/delay_trajectories.hpp>
 #include <rmf_traffic_msgs/srv/erase_trajectories.hpp>
+
 #include <rmf_traffic_msgs/srv/mirror_update.hpp>
 #include <rmf_traffic_msgs/srv/register_query.hpp>
 #include <rmf_traffic_msgs/srv/mirror_update.h>
@@ -45,15 +48,39 @@ public:
 
 private:
 
+  using request_id_ptr = std::shared_ptr<rmw_request_id_t>;
+
   using SubmitTrajectories = rmf_traffic_msgs::srv::SubmitTrajectories;
-  using SubmitTrajectoryService = rclcpp::Service<SubmitTrajectories>;
+  using SubmitTrajectoriesService = rclcpp::Service<SubmitTrajectories>;
 
   void submit_trajectories(
-      const std::shared_ptr<rmw_request_id_t>& request_header,
+      const request_id_ptr& request_header,
       const SubmitTrajectories::Request::SharedPtr& request,
       const SubmitTrajectories::Response::SharedPtr& response);
 
-  SubmitTrajectoryService::SharedPtr submit_trajectory_service;
+  SubmitTrajectoriesService::SharedPtr submit_trajectories_service;
+
+
+  using ReplaceTrajectories = rmf_traffic_msgs::srv::ReplaceTrajectories;
+  using ReplaceTrajectoriesService = rclcpp::Service<ReplaceTrajectories>;
+
+  void replace_trajectories(
+      const request_id_ptr& request_header,
+      const ReplaceTrajectories::Request::SharedPtr& request,
+      const ReplaceTrajectories::Response::SharedPtr& response);
+
+  ReplaceTrajectoriesService::SharedPtr replace_trajectories_service;
+
+
+  using DelayTrajectories = rmf_traffic_msgs::srv::DelayTrajectories;
+  using DelayTrajectoriesService = rclcpp::Service<DelayTrajectories>;
+
+  void delay_trajectories(
+      const request_id_ptr& request_header,
+      const DelayTrajectories::Request::SharedPtr& request,
+      const DelayTrajectories::Response::SharedPtr& response);
+
+  DelayTrajectoriesService::SharedPtr delay_trajectories_service;
 
 
   using EraseTrajectories = rmf_traffic_msgs::srv::EraseTrajectories;

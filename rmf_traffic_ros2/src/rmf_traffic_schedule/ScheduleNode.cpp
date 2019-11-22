@@ -33,13 +33,29 @@ ScheduleNode::ScheduleNode()
   // TODO(MXG): As soon as possible, all of these services should be made
   // multi-threaded so they can be parallel processed.
 
-  submit_trajectory_service =
+  submit_trajectories_service =
       create_service<rmf_traffic_msgs::srv::SubmitTrajectories>(
         rmf_traffic_ros2::SubmitTrajectoriesSrvName,
         [=](const std::shared_ptr<rmw_request_id_t> request_header,
             const SubmitTrajectories::Request::SharedPtr request,
             const SubmitTrajectories::Response::SharedPtr response)
         { this->submit_trajectories(request_header, request, response); });
+
+  replace_trajectories_service =
+      create_service<ReplaceTrajectories>(
+        rmf_traffic_ros2::ReplaceTrajectoriesSrvName,
+        [=](const request_id_ptr request_header,
+            const ReplaceTrajectories::Request::SharedPtr request,
+            const ReplaceTrajectories::Response::SharedPtr response)
+        { this->replace_trajectories(request_header, request, response); });
+
+  delay_trajectories_service =
+      create_service<DelayTrajectories>(
+        rmf_traffic_ros2::DelayTrajectoriesSrvName,
+        [=](const request_id_ptr request_header,
+            const DelayTrajectories::Request::SharedPtr request,
+            const DelayTrajectories::Response::SharedPtr response)
+        { this->delay_trajectories(request_header, request, response); });
 
   erase_trajectories_service =
       create_service<EraseTrajectories>(
@@ -198,6 +214,76 @@ void ScheduleNode::submit_trajectories(
         get_logger(),
         "Received trajectory [" + std::to_string(response->current_version)
         + "]");
+}
+
+//==============================================================================
+void ScheduleNode::replace_trajectories(
+    const request_id_ptr& /*request_header*/,
+    const ReplaceTrajectories::Request::SharedPtr& request,
+    const ReplaceTrajectories::Response::SharedPtr& response)
+{
+  response->original_version = database.latest_version();
+  response->current_version = response->original_version;
+  if (request->replace_ids.size() != request->trajectories.size())
+  {
+    response->error = std::string()
+        + "Mismatch between size of replace_ids ["
+        + std::to_string(request->replace_ids.size()) + "] and trajectories ["
+        + std::to_string(request->trajectories.size()) + "]";
+    RCLCPP_WARN(get_logger(), response->error);
+    return;
+  }
+
+  std::vector<rmf_traffic::Trajectory> trajectories;
+  trajectories.reserve(request->trajectories.size());
+  for (std::size_t i=0; i < request->trajectories.size(); ++i)
+  {
+    try
+    {
+      trajectories.emplace_back(
+            rmf_traffic_ros2::convert(request->trajectories[i]));
+    }
+    catch(const std::exception& e)
+    {
+      response->error = std::string()
+          + "Failed to convert trajectory at index [" + std::to_string(i)
+          + "] with exception: " + e.what();
+      RCLCPP_WARN(get_logger(), response->error);
+      return;
+    }
+  }
+
+  for (std::size_t i=0; i < request->replace_ids.size(); ++i)
+    database.replace(request->replace_ids[i], std::move(trajectories[i]));
+
+  response->current_version = database.latest_version();
+}
+
+//==============================================================================
+void ScheduleNode::delay_trajectories(
+    const request_id_ptr& /*request_header*/,
+    const DelayTrajectories::Request::SharedPtr& request,
+    const DelayTrajectories::Response::SharedPtr& response)
+{
+  response->original_version = database.latest_version();
+  response->current_version = response->original_version;
+
+  const auto from_time = std::chrono::steady_clock::time_point(
+        std::chrono::nanoseconds(request->from_time));
+
+  if (request->delay < 0)
+  {
+    response->error = std::string()
+        + "The schedule does not (yet) support negative delays ["
+        + std::to_string(request->delay) + "]";
+    RCLCPP_WARN(get_logger(), response->error);
+    return;
+  }
+
+  const auto delay = std::chrono::nanoseconds(request->delay);
+
+  for (const rmf_traffic::schedule::Version id : request->delay_ids)
+    database.delay(id, from_time, delay);
 }
 
 //==============================================================================
