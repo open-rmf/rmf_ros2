@@ -90,7 +90,9 @@ ScheduleNode::ScheduleNode()
         { this->mirror_update(request_header, request, response); });
 
   mirror_wakeup_publisher =
-      create_publisher<MirrorWakeup>(rmf_traffic_ros2::MirrorWakeupTopicName);
+      create_publisher<MirrorWakeup>(
+        rmf_traffic_ros2::MirrorWakeupTopicName,
+        rclcpp::SystemDefaultsQoS());
 }
 
 //==============================================================================
@@ -224,14 +226,11 @@ void ScheduleNode::replace_trajectories(
 {
   response->original_version = database.latest_version();
   response->current_version = response->original_version;
-  if (request->replace_ids.size() != request->trajectories.size())
+  if (request->replace_ids.size() == 0)
   {
-    response->error = std::string()
-        + "Mismatch between size of replace_ids ["
-        + std::to_string(request->replace_ids.size()) + "] and trajectories ["
-        + std::to_string(request->trajectories.size()) + "]";
-    RCLCPP_WARN(get_logger(), response->error);
-    return;
+    RCLCPP_WARN(
+          get_logger(),
+          "Replace trajectory request has no replace IDs in it!");
   }
 
   std::vector<rmf_traffic::Trajectory> trajectories;
@@ -253,10 +252,25 @@ void ScheduleNode::replace_trajectories(
     }
   }
 
-  for (std::size_t i=0; i < request->replace_ids.size(); ++i)
-    database.replace(request->replace_ids[i], std::move(trajectories[i]));
+  std::size_t index=0;
+  while (index < request->replace_ids.size() &&
+         index < request->trajectories.size())
+  {
+    database.replace(request->replace_ids[index],
+                     std::move(trajectories[index]));
+    ++index;
+  }
+
+  for (; index < request->trajectories.size(); ++index)
+    database.insert(std::move(trajectories[index]));
+
+  response->latest_trajectory_version = database.latest_version();
+
+  for (; index < request->replace_ids.size(); ++index)
+    database.erase(request->replace_ids[index]);
 
   response->current_version = database.latest_version();
+  wakeup_mirrors();
 }
 
 //==============================================================================
@@ -284,6 +298,7 @@ void ScheduleNode::delay_trajectories(
 
   for (const rmf_traffic::schedule::Version id : request->delay_ids)
     database.delay(id, from_time, delay);
+  wakeup_mirrors();
 }
 
 //==============================================================================
