@@ -245,7 +245,7 @@ bool FleetAdapterNode::handle_delay(
     const Eigen::Vector3d p_state{l_state.x, l_state.y, l_state.yaw};
     const Eigen::Vector3d p_entry{l_entry.x, l_entry.y, l_entry.yaw};
 
-    if ((p_state - p_entry).norm() < 1e-8)
+    if ((p_state - p_entry).norm() > 1e-8)
       return false;
   }
 
