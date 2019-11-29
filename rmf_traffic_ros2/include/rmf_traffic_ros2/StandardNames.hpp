@@ -27,10 +27,14 @@ const std::string SubmitTrajectoriesSrvName = Prefix + "submit_trajectories";
 const std::string ReplaceTrajectoriesSrvName = Prefix + "replace_trajectories";
 const std::string DelayTrajectoriesSrvName = Prefix + "delay_trajectories";
 const std::string EraseTrajectoriesSrvName = Prefix + "erase_trajectories";
+const std::string ResolveConflictsSrvName = Prefix + "resolve_conflicts";
 const std::string RegisterQueryServiceName = Prefix + "register_query";
 const std::string UnregisterQueryServiceName = Prefix + "unregister_query";
 const std::string MirrorUpdateServiceName = Prefix + "mirror_update";
 const std::string MirrorWakeupTopicName = Prefix + "mirror_wakeup";
+const std::string ScheduleConflictTopicName = Prefix + "schedule_conflict";
+
+const std::string EmergencyTopicName = "fire_alarm_trigger";
 
 } // namespace rmf_traffic_ros2
 

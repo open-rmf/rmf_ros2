@@ -15,10 +15,15 @@ find_package(ament_cmake REQUIRED)
 set(dep_pkgs
   rclcpp
   rmf_utils
+  rmf_dispenser_msgs
+  rmf_door_msgs
   rmf_fleet_msgs
+  rmf_lift_msgs
+  rmf_task_msgs
   rmf_traffic
   rmf_traffic_ros2
   rmf_traffic_msgs
+  std_msgs
 )
 foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
@@ -57,6 +62,36 @@ add_executable(read_only
 target_link_libraries(read_only
   PRIVATE
     rmf_fleet_adapter
+)
+
+# -----------------------------------------------------------------------------
+
+add_executable(full_control
+  src/full_control/main.cpp
+  src/full_control/FleetAdapterNode.cpp
+  src/full_control/MoveAction.cpp
+  src/full_control/DispenseAction.cpp
+  src/full_control/DeliveryTask.cpp
+  src/full_control/ScheduleManager.cpp
+)
+
+target_link_libraries(full_control
+  PRIVATE
+    rmf_fleet_adapter
+    ${rmf_task_msgs_LIBRARIES}
+    ${rmf_dispenser_msgs_LIBRARIES}
+    ${rmf_door_msgs_LIBRARIES}
+    ${rmf_lift_msgs_LIBRARIES}
+    ${std_msgs_LIBRARIES}
+)
+
+target_include_directories(full_control
+  PRIVATE
+    ${rmf_task_msgs_INCLUDE_DIRS}
+    ${rmf_dispenser_msgs_INCLUDE_DIRS}
+    ${rmf_door_msgs_INCLUDE_DIRS}
+    ${rmf_lift_msgs_INCLUDE_DIRS}
+    ${std_msgs_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------

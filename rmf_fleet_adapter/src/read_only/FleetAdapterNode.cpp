@@ -99,6 +99,9 @@ FleetAdapterNode::FleetAdapterNode(
 //==============================================================================
 void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr state)
 {
+  if (state->name != _fleet_name)
+    return;
+
   for(const auto& robot : state->robots)
   {
     const auto it = _schedule_entries.find(robot.name);
@@ -219,7 +222,7 @@ bool FleetAdapterNode::handle_delay(
     // The current schedule ID is dirty and is waiting for an update, so it's
     // too soon to make more schedule changes to it. Hopefully this shouldn't
     // happen often, so we'll issue a warning about it.
-    RCLCPP_WARN(
+    RCLCPP_DEBUG(
           get_logger(),
           "Schedule ID [" + std::to_string(entry.schedule_id) + "] for robot ["
           + state.name + "] is dirty. We cannot update it again until we get "

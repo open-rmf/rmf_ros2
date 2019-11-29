@@ -37,6 +37,12 @@ rclcpp::Time to_ros2(rmf_traffic::Time time);
 //==============================================================================
 rmf_traffic::Time convert(rclcpp::Time time);
 
+//==============================================================================
+rclcpp::Duration convert(rmf_traffic::Duration duration);
+
+//==============================================================================
+rmf_traffic::Duration convert(rclcpp::Duration duration);
+
 } // namespace rmf_traffic_ros2
 
 #endif // RMF_TRAFFIC_ROS2__TIME_HPP

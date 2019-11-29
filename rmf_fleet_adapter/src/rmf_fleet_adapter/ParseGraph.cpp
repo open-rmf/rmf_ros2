@@ -22,12 +22,10 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-bool parse_graph(
+rmf_utils::optional<GraphInfo> parse_graph(
     const std::string& graph_file,
     const rmf_traffic::agv::VehicleTraits& vehicle_traits,
-    const rclcpp::Node& node,
-    rmf_traffic::agv::Graph& graph,
-    std::unordered_map<std::string, std::size_t>& waypoint_keys)
+    const rclcpp::Node& node)
 {
   const YAML::Node graph_config = YAML::LoadFile(graph_file);
   if(!graph_config)
@@ -35,7 +33,7 @@ bool parse_graph(
     RCLCPP_ERROR(
           node.get_logger(),
           "Failed to load graph file [" + graph_file + "]");
-    return false;
+    return rmf_utils::nullopt;
   }
 
   const YAML::Node levels = graph_config["levels"];
@@ -44,7 +42,7 @@ bool parse_graph(
     RCLCPP_ERROR(
           node.get_logger(),
           "Graph file [" + graph_file + "] is missing the [levels] key");
-    return false;
+    return rmf_utils::nullopt;
   }
 
   if(!levels.IsMap())
@@ -53,8 +51,10 @@ bool parse_graph(
           node.get_logger(),
           "The [levels] key does not point to a map in graph file ["
           + graph_file + "]");
-    return false;
+    return rmf_utils::nullopt;
   }
+
+  GraphInfo info;
 
   for(const auto& level : levels)
   {
@@ -66,19 +66,40 @@ bool parse_graph(
       const Eigen::Vector2d location{
         vertex[0].as<double>(), vertex[1].as<double>()};
 
-      const auto& wp = graph.add_waypoint(map_name, location, true);
+      const auto& wp = info.graph.add_waypoint(map_name, location, true);
 
       const std::string& name = vertex[2].as<std::string>();
       if(!name.empty())
       {
-        const auto ins = waypoint_keys.insert(std::make_pair(name, wp.index()));
+        const auto ins = info.keys.insert(std::make_pair(name, wp.index()));
         if(!ins.second)
         {
           RCLCPP_ERROR(
                 node.get_logger(),
                 "Duplicated waypoint name [" + name + "] in graph ["
                 + graph_file + "]");
-          return false;
+          return rmf_utils::nullopt;
+        }
+
+        info.waypoint_names.insert(std::make_pair(wp.index(), name));
+      }
+
+      if(vertex.size() > 3)
+      {
+        const YAML::Node& properties = vertex[3];
+        if (properties)
+        {
+          if (const YAML::Node& workcell_name = properties["workcell_name"])
+          {
+            info.workcell_names.insert(
+                {wp.index(), workcell_name.as<std::string>()});
+          }
+
+          if (const YAML::Node& is_parking_spot = properties["is_parking_spot"])
+          {
+            if (is_parking_spot.as<bool>())
+              info.parking_spots.push_back(wp.index());
+          }
         }
       }
     }
@@ -114,17 +135,17 @@ bool parse_graph(
                 + std::to_string(lane[1].as<std::size_t>()) + "]: ["
                 + lane[2].as<std::string>() + "] in graph ["
                 + graph_file + "]");
-          return false;
+          return rmf_utils::nullopt;
         }
       }
 
-      graph.add_lane(
+      info.graph.add_lane(
           lane[0].as<std::size_t>(),
           {lane[1].as<std::size_t>(), std::move(constraint)});
     }
   }
 
-  return true;
+  return std::move(info);
 }
 
 } // namespace rmf_fleet_adapter

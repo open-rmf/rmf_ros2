@@ -23,11 +23,13 @@
 #include <rclcpp/node.hpp>
 
 #include <rmf_traffic_msgs/msg/mirror_wakeup.hpp>
+#include <rmf_traffic_msgs/msg/schedule_conflict.hpp>
 
 #include <rmf_traffic_msgs/srv/submit_trajectories.hpp>
 #include <rmf_traffic_msgs/srv/replace_trajectories.hpp>
 #include <rmf_traffic_msgs/srv/delay_trajectories.hpp>
 #include <rmf_traffic_msgs/srv/erase_trajectories.hpp>
+#include <rmf_traffic_msgs/srv/resolve_conflicts.hpp>
 
 #include <rmf_traffic_msgs/srv/mirror_update.hpp>
 #include <rmf_traffic_msgs/srv/register_query.hpp>
@@ -45,6 +47,7 @@ public:
 
   ScheduleNode();
 
+  ~ScheduleNode();
 
 private:
 
@@ -52,6 +55,13 @@ private:
 
   using SubmitTrajectories = rmf_traffic_msgs::srv::SubmitTrajectories;
   using SubmitTrajectoriesService = rclcpp::Service<SubmitTrajectories>;
+
+  std::unordered_set<uint64_t> process_trajectories(
+      std::vector<rmf_traffic::Trajectory>& output_trajectories,
+      std::vector<uint64_t>& output_conflicts,
+      const std::vector<rmf_traffic_msgs::msg::Trajectory>& requests,
+      const std::unordered_set<uint64_t>& initial_conflicts = {},
+      const std::unordered_set<uint64_t>& replace_ids = {});
 
   void submit_trajectories(
       const request_id_ptr& request_header,
@@ -63,6 +73,12 @@ private:
 
   using ReplaceTrajectories = rmf_traffic_msgs::srv::ReplaceTrajectories;
   using ReplaceTrajectoriesService = rclcpp::Service<ReplaceTrajectories>;
+
+  void perform_replacement(
+      const std::vector<uint64_t>& replace_ids,
+      std::vector<rmf_traffic::Trajectory> trajectories,
+      uint64_t& latest_trajectory_version,
+      uint64_t& current_version);
 
   void replace_trajectories(
       const request_id_ptr& request_header,
@@ -92,6 +108,17 @@ private:
       const EraseTrajectories::Response::SharedPtr& response);
 
   EraseTrajectoriesService::SharedPtr erase_trajectories_service;
+
+
+  using ResolveConflicts = rmf_traffic_msgs::srv::ResolveConflicts;
+  using ResolveConflictsService = rclcpp::Service<ResolveConflicts>;
+
+  ResolveConflictsService::SharedPtr resolve_conflicts_service;
+
+  void resolve_conflicts(
+      const std::shared_ptr<rmw_request_id_t>& request_header,
+      const ResolveConflicts::Request::SharedPtr& request,
+      const ResolveConflicts::Response::SharedPtr& response);
 
 
   using RegisterQuery = rmf_traffic_msgs::srv::RegisterQuery;
@@ -131,8 +158,16 @@ private:
   using MirrorWakeupPublisher = rclcpp::Publisher<MirrorWakeup>;
   MirrorWakeupPublisher::SharedPtr mirror_wakeup_publisher;
 
-  void wakeup_mirrors() const;
 
+  using ScheduleConflict = rmf_traffic_msgs::msg::ScheduleConflict;
+  using ScheduleConflictPublisher = rclcpp::Publisher<ScheduleConflict>;
+  ScheduleConflictPublisher::SharedPtr conflict_publisher;
+
+
+  void wakeup_mirrors();
+
+  // TODO(MXG): Consider using libguarded instead of a database_mutex
+  std::mutex database_mutex;
   rmf_traffic::schedule::Database database;
 
   using QueryMap =
@@ -142,6 +177,24 @@ private:
   std::size_t last_query_id = 0;
   QueryMap registered_queries;
 
+  // TODO(MXG): Make this a separate node
+  std::thread conflict_check_thread;
+  std::condition_variable conflict_check_cv;
+  std::atomic_bool conflict_check_quit;
+
+  using Version = rmf_traffic::schedule::Version;
+  using ConflictMap = std::map<Version, std::unordered_set<Version>>;
+  ConflictMap active_conflicts;
+  std::mutex active_conflicts_mutex;
+  // TODO(MXG): As replace, delay, and erase events occur, some of the entries
+  // that are logged in the active conflicts may actually become obsolete. It
+  // may be a good idea to consider tracking and erasing those entries as they
+  // get modified.
+  //
+  // In the long-term the schedule should periodically become completely
+  // resolved, so those entries should still get erased eventually anyhow, but
+  // it may be good to erase them as they become outdated for the sake of
+  // maximum sanitation.
 };
 
 } // namespace rmf_traffic_schedule

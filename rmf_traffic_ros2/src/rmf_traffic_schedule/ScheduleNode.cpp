@@ -23,8 +23,37 @@
 #include <rmf_traffic_ros2/schedule/Patch.hpp>
 
 #include <rmf_traffic/Conflict.hpp>
+#include <rmf_traffic/schedule/Mirror.hpp>
+
+#include <rmf_utils/optional.hpp>
 
 namespace rmf_traffic_schedule {
+
+//==============================================================================
+std::unordered_set<rmf_traffic::schedule::Version> get_conflicts(
+    const rmf_traffic::schedule::Viewer::View& view)
+{
+  // TODO(MXG): Make this function more efficient by only checking the latest
+  // unchecked changes against the ones that came before them, and then
+  // appending that list onto the conflicts of the previous version.
+
+  std::unordered_set<rmf_traffic::schedule::Version> conflicts;
+  for (auto v0 = view.begin(); v0 != view.end(); ++v0)
+  {
+    auto v1 = ++rmf_traffic::schedule::Viewer::View::const_iterator{v0};
+    for (; v1 != view.end(); ++v1)
+    {
+      if (!rmf_traffic::DetectConflict::between(
+            v0->trajectory, v1->trajectory, true).empty())
+      {
+        conflicts.insert(v0->id);
+        conflicts.insert(v1->id);
+      }
+    }
+  }
+
+  return conflicts;
+}
 
 //==============================================================================
 ScheduleNode::ScheduleNode()
@@ -65,6 +94,14 @@ ScheduleNode::ScheduleNode()
             const EraseTrajectories::Response::SharedPtr response)
         { this->erase_trajectories(request_header, request, response); });
 
+  resolve_conflicts_service =
+      create_service<ResolveConflicts>(
+        rmf_traffic_ros2::ResolveConflictsSrvName,
+        [=](const std::shared_ptr<rmw_request_id_t> request_header,
+            const ResolveConflicts::Request::SharedPtr request,
+            const ResolveConflicts::Response::SharedPtr response)
+        { this->resolve_conflicts(request_header, request, response); });
+
   register_query_service =
       create_service<RegisterQuery>(
         rmf_traffic_ros2::RegisterQueryServiceName,
@@ -93,26 +130,210 @@ ScheduleNode::ScheduleNode()
       create_publisher<MirrorWakeup>(
         rmf_traffic_ros2::MirrorWakeupTopicName,
         rclcpp::SystemDefaultsQoS());
+
+  conflict_publisher =
+      create_publisher<ScheduleConflict>(
+        rmf_traffic_ros2::ScheduleConflictTopicName,
+        rclcpp::SystemDefaultsQoS());
+
+  conflict_check_quit = false;
+  conflict_check_thread = std::thread(
+        [&]()
+  {
+    rmf_traffic::schedule::Mirror mirror;
+
+    Version last_checked_version = 0;
+
+    while (rclcpp::ok() && !conflict_check_quit)
+    {
+      const auto next_query =
+          rmf_traffic::schedule::make_query(last_checked_version);
+      rmf_utils::optional<rmf_traffic::schedule::Database::Patch> next_patch;
+
+      // Use this scope to minimize how long we lock the database for
+      {
+        std::unique_lock<std::mutex> lock(database_mutex);
+        conflict_check_cv.wait_for(lock, std::chrono::milliseconds(100), [&]()
+        {
+          return (database.latest_version() > last_checked_version)
+              && !conflict_check_quit;
+        });
+
+        if (database.latest_version() == last_checked_version
+            || conflict_check_quit)
+        {
+          // This is a casual wakeup to check if we're supposed to quit yet
+          continue;
+        }
+
+        next_patch = database.changes(next_query);
+
+        // TODO(MXG): Check whether the database really needs to remain locked
+        // during this update.
+        mirror.update(*next_patch);
+      }
+
+      const auto view = mirror.query(
+            rmf_traffic::schedule::query_everything());
+
+      const auto conflicts = get_conflicts(view);
+      if (!conflicts.empty())
+      {
+        {
+          std::unique_lock<std::mutex> lock(active_conflicts_mutex);
+          active_conflicts.insert(
+                std::make_pair(mirror.latest_version(), conflicts));
+        }
+
+        ScheduleConflict msg;
+        for (const auto c : conflicts)
+          msg.indices.push_back(c);
+
+        msg.version = last_checked_version;
+
+        conflict_publisher->publish(std::move(msg));
+      }
+      else
+      {
+        bool had_conflicts = false;
+
+        {
+          std::unique_lock<std::mutex> lock(active_conflicts_mutex);
+          had_conflicts = !active_conflicts.empty();
+          active_conflicts.clear();
+        }
+
+        if (had_conflicts)
+        {
+          ScheduleConflict msg;
+          msg.version = last_checked_version;
+          conflict_publisher->publish(std::move(msg));
+        }
+      }
+
+      last_checked_version = mirror.latest_version();
+    }
+  });
 }
 
 //==============================================================================
-void insert_conflicts(
-    const std::size_t i,
-    const std::vector<rmf_traffic::ConflictData>& conflicts,
-    rmf_traffic_msgs::srv::SubmitTrajectories::Response& response)
+ScheduleNode::~ScheduleNode()
+{
+  conflict_check_quit = true;
+  if (conflict_check_thread.joinable())
+    conflict_check_thread.join();
+}
+
+//==============================================================================
+template<typename Msg>
+bool has_conflicts(
+    const std::vector<uint64_t>& conflicts, Msg& response)
 {
   if(!conflicts.empty())
   {
     response.accepted = false;
-    response.error = "Conflicts detected";
-    for(const auto& c : conflicts)
+    response.conflicts = conflicts;
+    return true;
+  }
+
+  return false;
+}
+
+//==============================================================================
+std::unordered_set<uint64_t> ScheduleNode::process_trajectories(
+    std::vector<rmf_traffic::Trajectory>& output_trajectories,
+    std::vector<uint64_t>& output_conflicts,
+    const std::vector<rmf_traffic_msgs::msg::Trajectory>& requests,
+    const std::unordered_set<uint64_t>& initial_conflicts,
+    const std::unordered_set<uint64_t>& replace_ids)
+{
+  output_trajectories.reserve(requests.size());
+  output_conflicts.reserve(requests.size());
+  std::unordered_set<uint64_t> unresolved_conflicts;
+  for(std::size_t i=0; i < requests.size(); ++i)
+  {
+    const auto& msg = requests[i];
+
+    rmf_traffic::Trajectory requested_trajectory =
+        rmf_traffic_ros2::convert(msg);
+
+    if(requested_trajectory.size() < 2)
     {
-      rmf_traffic_msgs::msg::ScheduleConflict conflict_msg;
-      conflict_msg.index = i;
-      conflict_msg.time = c.get_time().time_since_epoch().count();
-      response.conflicts.emplace_back(std::move(conflict_msg));
+      const std::string error =
+          "Invalid trajectory at index [" + std::to_string(i)
+          + "]: Only [" + std::to_string(requested_trajectory.size())
+          + "] segments; minimum is 2.";
+
+      RCLCPP_ERROR(get_logger(), error);
+
+      throw std::runtime_error(error);
+    }
+
+    const auto view = database.query(
+          rmf_traffic::schedule::make_query(
+              {requested_trajectory.get_map_name()},
+              requested_trajectory.start_time(),
+              requested_trajectory.finish_time()));
+
+    for(const auto& v : view)
+    {
+      if (initial_conflicts.count(v.id) != 0)
+      {
+        // Check if this schedule entry is one that is being replaced. If it
+        // is, then don't bother testing it for conflicts.
+        if (replace_ids.count(v.id) != 0)
+          continue;
+
+        if (!rmf_traffic::DetectConflict::between(
+              requested_trajectory, v.trajectory, true).empty())
+          unresolved_conflicts.insert(v.id);
+
+        continue;
+      }
+
+      // TODO(MXG) Since we already put these time limits in the query, do we
+      // really need to check them again here?
+      if(*requested_trajectory.finish_time() < *v.trajectory.start_time())
+        continue;
+
+      if(*v.trajectory.finish_time() < *requested_trajectory.start_time())
+        continue;
+
+      const auto conflicts = rmf_traffic::DetectConflict::narrow_phase(
+            requested_trajectory, v.trajectory, true);
+      if (!conflicts.empty())
+        output_conflicts.push_back(i);
+    }
+
+    output_trajectories.emplace_back(std::move(requested_trajectory));
+  }
+
+  return unresolved_conflicts;
+}
+
+//==============================================================================
+std::vector<uint64_t> check_self_conflicts(
+    const std::vector<rmf_traffic::Trajectory>& requested_trajectories)
+{
+  // TODO(MXG): Should there be constraints on trajectory submissions to avoid
+  // this kind of check? Like each submission can only refer to one vehicle at
+  // a time, and therefore we should never need to test these trajectories for
+  // conflicts with each other?
+  std::vector<uint64_t> conflicting_indices;
+  conflicting_indices.reserve(requested_trajectories.size());
+  for(std::size_t i=0; i < requested_trajectories.size()-1; ++i)
+  {
+    for(std::size_t j=i+1; j < requested_trajectories.size(); ++j)
+    {
+      const auto conflicts = rmf_traffic::DetectConflict::between(
+            requested_trajectories[i],
+            requested_trajectories[j], true);
+      if (!conflicts.empty())
+        conflicting_indices.push_back(i);
     }
   }
+
+  return conflicting_indices;
 }
 
 //==============================================================================
@@ -124,98 +345,70 @@ void ScheduleNode::submit_trajectories(
   response->accepted = true;
   response->current_version = database.latest_version();
   response->original_version = response->current_version;
+  response->error.clear();
 
   std::vector<rmf_traffic::Trajectory> requested_trajectories;
-  requested_trajectories.reserve(request->trajectories.size());
-  for(std::size_t i=0; i < request->trajectories.size(); ++i)
+  std::vector<uint64_t> conflicting_indices;
+  try
   {
-    const auto& msg = request->trajectories[i];
-
-    bool valid_trajectory = true;
-    rmf_traffic::Trajectory requested_trajectory =
-        [&]() -> rmf_traffic::Trajectory
-    {
-      try
-      {
-        return rmf_traffic_ros2::convert(msg);
-      }
-      catch(const std::exception& e)
-      {
-        valid_trajectory = false;
-        response->accepted = false;
-        response->error = e.what();
-      }
-
-      return {""};
-    }();
-
-    if(!valid_trajectory)
-      return;
-
-    if(requested_trajectory.size() < 2)
-    {
-      response->error = "Invalid trajectory at index [" + std::to_string(i)
-          + "]: Only [" + std::to_string(requested_trajectory.size())
-          + "] segments; minimum is 2.";
-      RCLCPP_ERROR(
-            get_logger(),
-            "[ScheduleNode::submit_trajectory] " + response->error);
-      return;
-    }
-
-    const auto view = database.query(rmf_traffic::schedule::make_query(
-                     {requested_trajectory.get_map_name()},
-                     requested_trajectory.start_time(),
-                     requested_trajectory.finish_time()));
-
-    for(const auto& scheduled_trajectory : view)
-    {
-      if(*requested_trajectory.finish_time() < *scheduled_trajectory.start_time())
-        continue;
-
-      if(*scheduled_trajectory.finish_time() < *requested_trajectory.start_time())
-        continue;
-
-      const auto conflicts = rmf_traffic::DetectConflict::narrow_phase(
-            requested_trajectory, scheduled_trajectory);
-
-      insert_conflicts(i, conflicts, *response);
-    }
-
-    requested_trajectories.emplace_back(std::move(requested_trajectory));
+    process_trajectories(
+          requested_trajectories, conflicting_indices, request->trajectories);
+  }
+  catch(const std::exception& e)
+  {
+    response->accepted = false;
+    response->error = e.what();
+    return;
   }
 
-  if(!response->accepted)
+  if (has_conflicts(conflicting_indices, *response))
     return;
 
-  // TODO(MXG): Should there be constraints on trajectory submissions to avoid
-  // this kind of check? Like each submission can only refer to one vehicle at
-  // a time, and therefore we should never need to test these trajectories for
-  // conflicts with each other?
-  for(std::size_t i=0; i < requested_trajectories.size()-1; ++i)
+  conflicting_indices = check_self_conflicts(requested_trajectories);
+
+  if(has_conflicts(conflicting_indices, *response))
+    return;
+
   {
-    for(std::size_t j=i+1; j < requested_trajectories.size(); ++j)
-    {
-      const auto conflicts = rmf_traffic::DetectConflict::between(
-            requested_trajectories[i],
-            requested_trajectories[j]);
-      insert_conflicts(i, conflicts, *response);
-    }
+    std::unique_lock<std::mutex> lock(database_mutex);
+    for(auto&& request : requested_trajectories)
+      database.insert(std::move(request));
   }
-
-  if(!response->accepted)
-    return;
-
-  for(auto&& request : requested_trajectories)
-    database.insert(std::move(request));
 
   response->current_version = database.latest_version();
   wakeup_mirrors();
 
-  RCLCPP_DEBUG(
+  RCLCPP_INFO(
         get_logger(),
         "Received trajectory [" + std::to_string(response->current_version)
         + "]");
+}
+
+//==============================================================================
+void ScheduleNode::perform_replacement(
+    const std::vector<uint64_t>& replace_ids,
+    std::vector<rmf_traffic::Trajectory> trajectories,
+    uint64_t& latest_trajectory_version,
+    uint64_t& current_version)
+{
+  std::size_t index=0;
+  std::unique_lock<std::mutex> lock(database_mutex);
+  while (index < replace_ids.size() &&
+         index < trajectories.size())
+  {
+    database.replace(replace_ids[index], std::move(trajectories[index]));
+    ++index;
+  }
+
+  for (; index < trajectories.size(); ++index)
+    database.insert(std::move(trajectories[index]));
+
+  latest_trajectory_version = database.latest_version();
+
+  for (; index < replace_ids.size(); ++index)
+    database.erase(replace_ids[index]);
+
+  current_version = database.latest_version();
 }
 
 //==============================================================================
@@ -252,24 +445,10 @@ void ScheduleNode::replace_trajectories(
     }
   }
 
-  std::size_t index=0;
-  while (index < request->replace_ids.size() &&
-         index < request->trajectories.size())
-  {
-    database.replace(request->replace_ids[index],
-                     std::move(trajectories[index]));
-    ++index;
-  }
+  perform_replacement(request->replace_ids, std::move(trajectories),
+                      response->latest_trajectory_version,
+                      response->current_version);
 
-  for (; index < request->trajectories.size(); ++index)
-    database.insert(std::move(trajectories[index]));
-
-  response->latest_trajectory_version = database.latest_version();
-
-  for (; index < request->replace_ids.size(); ++index)
-    database.erase(request->replace_ids[index]);
-
-  response->current_version = database.latest_version();
   wakeup_mirrors();
 }
 
@@ -296,8 +475,12 @@ void ScheduleNode::delay_trajectories(
 
   const auto delay = std::chrono::nanoseconds(request->delay);
 
-  for (const rmf_traffic::schedule::Version id : request->delay_ids)
-    database.delay(id, from_time, delay);
+  {
+    std::unique_lock<std::mutex> lock(database_mutex);
+    for (const rmf_traffic::schedule::Version id : request->delay_ids)
+      database.delay(id, from_time, delay);
+  }
+
   wakeup_mirrors();
 }
 
@@ -307,12 +490,111 @@ void ScheduleNode::erase_trajectories(
     const EraseTrajectories::Request::SharedPtr& request,
     const EraseTrajectories::Response::SharedPtr& response)
 {
-  for(const uint64_t id : request->erase_ids)
   {
-    database.erase(id);
+    std::unique_lock<std::mutex> lock(database_mutex);
+    for(const uint64_t id : request->erase_ids)
+      database.erase(id);
   }
 
   response->version = database.latest_version();
+  wakeup_mirrors();
+}
+
+//==============================================================================
+void ScheduleNode::resolve_conflicts(
+    const std::shared_ptr<rmw_request_id_t>& /*request_header*/,
+    const ResolveConflicts::Request::SharedPtr& request,
+    const ResolveConflicts::Response::SharedPtr& response)
+{
+  response->current_version = database.latest_version();
+  response->original_version = response->current_version;
+
+  std::unordered_set<Version> conflict_set;
+  bool conflict_resolved = false;
+
+  {
+    std::unique_lock<std::mutex> lock(active_conflicts_mutex);
+    const auto conflict_it = active_conflicts.find(request->conflict_version);
+    const auto conflict_end = active_conflicts.end();
+    if (conflict_it == conflict_end)
+      conflict_resolved = true;
+    else
+      conflict_set = conflict_it->second;
+  }
+
+  if (conflict_resolved)
+  {
+    response->accepted = false;
+    return;
+  }
+
+  const std::vector<uint64_t>& replace_ids = request->resolve_ids;
+
+  for (const auto r : replace_ids)
+  {
+    if (conflict_set.count(r) == 0)
+    {
+      response->error = std::string()
+          + "Asking to replace a trajectory [" + std::to_string(r)
+          + "] which is not in the conflict set:";
+      for (const auto c : conflict_set)
+        response->error += " " + std::to_string(c);
+      response->error += "]";
+
+      response->accepted = false;
+      return;
+    }
+  }
+
+  std::vector<rmf_traffic::Trajectory> resolution_trajectories;
+  std::vector<uint64_t> conflict_indices;
+
+  std::unordered_set<uint64_t> unresolved_conflicts;
+  try
+  {
+    unresolved_conflicts = process_trajectories(
+          resolution_trajectories,
+          conflict_indices,
+          request->trajectories,
+          conflict_set,
+          {replace_ids.begin(), replace_ids.end()});
+  }
+  catch (const std::exception& e)
+  {
+    response->accepted = false;
+    response->error = e.what();
+  }
+
+  if (unresolved_conflicts.size() == replace_ids.size())
+  {
+    response->accepted = false;
+    response->error = "The request did not resolve any conflicts";
+    return;
+  }
+
+  if (has_conflicts(conflict_indices, *response))
+    return;
+
+  conflict_indices = check_self_conflicts(resolution_trajectories);
+
+  if (has_conflicts(conflict_indices, *response))
+    return;
+
+  if (unresolved_conflicts.empty())
+  {
+    std::unique_lock<std::mutex> lock(active_conflicts_mutex);
+    active_conflicts.erase(request->conflict_version);
+  }
+  else
+  {
+    std::unique_lock<std::mutex> lock(active_conflicts_mutex);
+    active_conflicts.at(request->conflict_version) = unresolved_conflicts;
+  }
+
+  perform_replacement(request->resolve_ids, std::move(resolution_trajectories),
+                      response->latest_trajectory_version,
+                      response->current_version);
+
   wakeup_mirrors();
 }
 
@@ -402,11 +684,13 @@ void ScheduleNode::mirror_update(
 }
 
 //==============================================================================
-void ScheduleNode::wakeup_mirrors() const
+void ScheduleNode::wakeup_mirrors()
 {
   rmf_traffic_msgs::msg::MirrorWakeup msg;
   msg.latest_version = database.latest_version();
   mirror_wakeup_publisher->publish(msg);
+
+  conflict_check_cv.notify_all();
 }
 
 } // namespace rmf_traffic_schedule

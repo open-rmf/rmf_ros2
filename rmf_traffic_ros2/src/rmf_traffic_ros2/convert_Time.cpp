@@ -62,4 +62,16 @@ rmf_traffic::Time convert(rclcpp::Time from)
         std::chrono::nanoseconds(from.nanoseconds()));
 }
 
+//==============================================================================
+rclcpp::Duration convert(rmf_traffic::Duration duration)
+{
+  return rclcpp::Duration{duration};
+}
+
+//==============================================================================
+rmf_traffic::Duration convert(rclcpp::Duration duration)
+{
+  return duration.to_chrono<rmf_traffic::Duration>();
+}
+
 } // namespace rmf_traffic_ros2

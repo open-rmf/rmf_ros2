@@ -15,8 +15,8 @@
  *
 */
 
-#ifndef RMF_FLEET_ADAPTER__SRC__UTILS__PARSEGRAPH_HPP
-#define RMF_FLEET_ADAPTER__SRC__UTILS__PARSEGRAPH_HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__PARSEGRAPH_HPP
+#define SRC__RMF_FLEET_ADAPTER__PARSEGRAPH_HPP
 
 #include <rmf_traffic/agv/Graph.hpp>
 #include <rmf_traffic/agv/VehicleTraits.hpp>
@@ -25,18 +25,39 @@
 
 #include <rclcpp/node.hpp>
 
-namespace rmf_fleet {
-namespace adapter {
+#include <rmf_utils/optional.hpp>
+
+namespace rmf_fleet_adapter {
+
+struct GraphInfo
+{
+  rmf_traffic::agv::Graph graph;
+
+  // TODO(MXG): Consider making waypoint keys an intrinsic property of a Graph
+  using WaypointKeys = std::unordered_map<std::string, std::size_t>;
+  /// A map from a waypoint name to its index in the graph
+  WaypointKeys keys;
+
+  // TODO(MXG): Consider making waypoint names an intrinsic property of a Graph
+  using NameMap = std::unordered_map<std::size_t, std::string>;
+  /// A map from a waypoint index to its waypoint name (if the waypoint has a
+  /// name)
+  NameMap waypoint_names;
+
+  /// A map from a waypoint index to the workcell that is stationed at that
+  /// waypoint
+  NameMap workcell_names;
+
+  /// The parking spot
+  std::vector<std::size_t> parking_spots;
+};
 
 //==============================================================================
-bool parse_graph(
+rmf_utils::optional<GraphInfo> parse_graph(
     const std::string& filename,
     const rmf_traffic::agv::VehicleTraits& vehicle_traits,
-    const rclcpp::Node& node,
-    rmf_traffic::agv::Graph& graph,
-    std::unordered_map<std::string, std::size_t>& waypoint_keys);
+    const rclcpp::Node& node);
 
-} // namespace adapter
-} // namespace rmf_fleet
+} // namespace rmf_fleet_adapter
 
-#endif // RMF_FLEET_ADAPTER__SRC__UTILS__PARSEGRAPH_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__PARSEGRAPH_HPP
