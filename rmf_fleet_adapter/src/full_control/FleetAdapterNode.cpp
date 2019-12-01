@@ -38,11 +38,12 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
     const std::string& fleet_name,
     const std::string& graph_file,
     rmf_traffic::agv::VehicleTraits traits,
+    const rmf_traffic::Duration delay_threshold,
     const rmf_traffic::Duration plan_time,
     const rmf_traffic::Duration wait_time)
 {
   const auto node = std::shared_ptr<FleetAdapterNode>(
-        new FleetAdapterNode(fleet_name, plan_time));
+        new FleetAdapterNode(fleet_name, delay_threshold, plan_time));
 
   auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
         *node, rmf_traffic::schedule::query_everything().spacetime());
@@ -200,6 +201,12 @@ rmf_traffic::Duration FleetAdapterNode::get_plan_time() const
 }
 
 //==============================================================================
+rmf_traffic::Duration FleetAdapterNode::get_delay_threshold() const
+{
+  return _delay_threshold;
+}
+
+//==============================================================================
 const rmf_traffic::agv::Planner& FleetAdapterNode::get_planner() const
 {
   return _field->planner;
@@ -334,9 +341,11 @@ auto FleetAdapterNode::get_fields() const -> const Fields&
 //==============================================================================
 FleetAdapterNode::FleetAdapterNode(
     const std::string& fleet_name,
+    rmf_traffic::Duration delay_threshold,
     rmf_traffic::Duration plan_time)
 : rclcpp::Node(fleet_name + "__full_control_fleet_adapter"),
   _fleet_name(fleet_name),
+  _delay_threshold(delay_threshold),
   _plan_time(plan_time)
 {
   // Do nothing

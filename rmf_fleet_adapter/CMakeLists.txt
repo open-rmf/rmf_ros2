@@ -33,6 +33,7 @@ endforeach()
 
 add_library(rmf_fleet_adapter
   src/rmf_fleet_adapter/ParseGraph.cpp
+  src/rmf_fleet_adapter/ParseArgs.cpp
 )
 
 target_link_libraries(rmf_fleet_adapter

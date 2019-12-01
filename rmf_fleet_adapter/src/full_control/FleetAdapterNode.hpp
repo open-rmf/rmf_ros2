@@ -86,6 +86,7 @@ public:
       const std::string& fleet_name,
       const std::string& graph_file,
       rmf_traffic::agv::VehicleTraits traits,
+      rmf_traffic::Duration delay_threshold,
       rmf_traffic::Duration get_plan_time,
       rmf_traffic::Duration wait_time = std::chrono::seconds(10));
 
@@ -125,6 +126,8 @@ public:
   const std::string& get_fleet_name() const;
 
   rmf_traffic::Duration get_plan_time() const;
+
+  rmf_traffic::Duration get_delay_threshold() const;
 
   const rmf_traffic::agv::Planner& get_planner() const;
 
@@ -249,9 +252,12 @@ private:
 
   FleetAdapterNode(
       const std::string& fleet_name,
+      rmf_traffic::Duration delay_threshold,
       rmf_traffic::Duration get_plan_time);
 
   std::string _fleet_name;
+
+  rmf_traffic::Duration _delay_threshold;
 
   rmf_traffic::Duration _plan_time;
 

@@ -351,7 +351,8 @@ public:
         const auto now = _parent->_node->get_clock()->now();
 
         // Recompute a plan if the fleet driver has a huge delay.
-        if (now - _parent->_command_time > std::chrono::seconds(5))
+        if (now - _parent->_command_time
+            > _parent->_node->get_delay_threshold())
         {
           RCLCPP_ERROR(
                 _parent->_node->get_logger(),
