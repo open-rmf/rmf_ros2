@@ -64,13 +64,12 @@ public:
       FleetAdapterNode* node,
       Task* parent,
       FleetAdapterNode::RobotContext* state,
-      const std::size_t goal_wp_index,
-      const std::vector<std::size_t>& fallback_wps)
+      const std::size_t goal_wp_index)
   : _node(node),
     _task(parent),
     _context(state),
     _goal_wp_index(goal_wp_index),
-    _fallback_wps(fallback_wps),
+    _fallback_wps(node->get_parking_spots()),
     _state_listener(this),
     _event_executor(this),
     _event_listener(this),
@@ -917,11 +916,9 @@ std::unique_ptr<Action> make_move(
     FleetAdapterNode* node,
     FleetAdapterNode::RobotContext* state,
     Task* parent,
-    const std::size_t goal_wp_index,
-    const std::vector<std::size_t>& fallback_wps)
+    const std::size_t goal_wp_index)
 {
-  return std::make_unique<MoveAction>(
-        node, parent, state, goal_wp_index, fallback_wps);
+  return std::make_unique<MoveAction>(node, parent, state, goal_wp_index);
 }
 
 } // namespace full_control

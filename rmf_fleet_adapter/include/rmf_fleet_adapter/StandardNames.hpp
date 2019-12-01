@@ -38,6 +38,7 @@ const std::string DispenserResultTopicName = "dispenser_requests";
 const std::string DispenserStateTopicName = "dispenser_states";
 
 const std::string DeliveryTopicName = "delivery_requests";
+const std::string LoopRequestTopicName = "loop_requests";
 const std::string TaskSummaryTopicName = "task_summaries";
 
 } // namespace rmf_fleet_adapter

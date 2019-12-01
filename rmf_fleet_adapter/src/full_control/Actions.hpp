@@ -27,8 +27,7 @@ std::unique_ptr<Action> make_move(
     FleetAdapterNode* node,
     FleetAdapterNode::RobotContext* state,
     Task* parent,
-    const std::size_t goal_wp_index,
-    const std::vector<std::size_t>& fallback_wps);
+    const std::size_t goal_wp_index);
 
 std::unique_ptr<Action> make_dispense(
     FleetAdapterNode* const node,

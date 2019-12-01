@@ -181,6 +181,13 @@ void FleetAdapterNode::RobotContext::resume()
 }
 
 //==============================================================================
+std::size_t FleetAdapterNode::RobotContext::num_tasks() const
+{
+  const std::size_t n_queue = _task_queue.size();
+  return _task? n_queue + 1 : n_queue;
+}
+
+//==============================================================================
 const std::string& FleetAdapterNode::get_fleet_name() const
 {
   return _fleet_name;
@@ -350,6 +357,13 @@ void FleetAdapterNode::start(Fields fields)
     this->delivery_request(std::move(msg));
   });
 
+  _loop_request_sub = create_subscription<LoopRequest>(
+        LoopRequestTopicName, default_qos,
+        [&](LoopRequest::UniquePtr msg)
+  {
+    this->loop_request(std::move(msg));
+  });
+
   _dispenser_result_sub = create_subscription<DispenserResult>(
         DispenserResultTopicName, default_qos,
         [&](DispenserResult::UniquePtr msg)
@@ -439,6 +453,49 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
   auto task = make_delivery(this, context, *msg);
   if (task)
     context->add_task(std::move(task));
+}
+
+//==============================================================================
+void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
+{
+  if (msg->robot_type != _fleet_name)
+    return;
+
+  std::size_t fewest = std::numeric_limits<std::size_t>::max();
+  RobotContext* fewest_context = nullptr;
+  for (const auto& c : _contexts)
+  {
+    const std::size_t n = c.second->num_tasks();
+    if (n < fewest)
+    {
+      fewest = n;
+      fewest_context = c.second.get();
+    }
+  }
+
+  if (fewest_context)
+  {
+    auto task = make_loop(this, fewest_context, std::move(*msg));
+    if (task)
+      fewest_context->add_task(std::move(task));
+
+    return;
+  }
+
+  RCLCPP_ERROR(
+        get_logger(),
+        "Cannot assign a robot to looping task [" + msg->task_id
+        + "] because no robots have reported their existence.");
+
+  rmf_task_msgs::msg::TaskSummary summary;
+  summary.status = "Services unavailable";
+  summary.start_time = get_clock()->now();
+  summary.end_time = summary.start_time;
+  summary.task_id = msg->task_id;
+  summary.submission_time = summary.start_time;
+
+  task_summary_publisher->publish(summary);
+
 }
 
 //==============================================================================

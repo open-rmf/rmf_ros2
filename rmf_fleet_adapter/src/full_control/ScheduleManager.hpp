@@ -36,10 +36,6 @@ public:
       FleetAdapterNode* node,
       std::function<void()> revision_callback);
 
-  bool active() const;
-
-  void activate();
-
   using TrajectorySet = std::vector<rmf_traffic::Trajectory>;
 
   void push_trajectories(
@@ -77,8 +73,6 @@ private:
 
   std::function<void()> _queued_change;
   std::vector<std::function<void()>> _queued_delays;
-
-  bool _active = false;
 
   std::vector<rmf_traffic::schedule::Version> _schedule_ids;
   bool _waiting_for_schedule = false;

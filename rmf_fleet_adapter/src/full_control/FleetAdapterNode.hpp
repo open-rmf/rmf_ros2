@@ -41,6 +41,7 @@
 #include <rmf_lift_msgs/msg/lift_state.hpp>
 
 #include <rmf_task_msgs/msg/delivery.hpp>
+#include <rmf_task_msgs/msg/loop.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
 
 #include <rmf_traffic/Time.hpp>
@@ -113,6 +114,8 @@ public:
     void interrupt();
 
     void resume();
+
+    std::size_t num_tasks() const;
 
   private:
     std::unique_ptr<Task> _task;
@@ -257,9 +260,13 @@ private:
   rmf_utils::optional<Fields> _field;
 
   using DeliverySub = rclcpp::Subscription<Delivery>;
-  using DeliveryPtr = DeliverySub::SharedPtr;
-  DeliveryPtr _delivery_sub;
+  DeliverySub::SharedPtr _delivery_sub;
   void delivery_request(Delivery::UniquePtr msg);
+
+  using LoopRequest = rmf_task_msgs::msg::Loop;
+  using LoopRequestSub = rclcpp::Subscription<LoopRequest>;
+  LoopRequestSub::SharedPtr _loop_request_sub;
+  void loop_request(LoopRequest::UniquePtr msg);
 
   // FIXME(MXG): To avoid memory leaks, this set should be periodically purged
   // of tasks that are long past completed.

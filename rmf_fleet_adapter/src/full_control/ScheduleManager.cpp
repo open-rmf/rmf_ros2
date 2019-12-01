@@ -69,18 +69,6 @@ ScheduleManager::ScheduleManager(
   // Do nothing
 }
 
-//==============================================================================
-bool ScheduleManager::active() const
-{
-  return _active;
-}
-
-//==============================================================================
-void ScheduleManager::activate()
-{
-
-}
-
 namespace {
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::Trajectory> convert(
