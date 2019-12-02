@@ -538,7 +538,8 @@ public:
       request.door_name = door_name;
       request.request_time = _command_time;
       request.requested_mode.value = mode;
-      request.requester_id = _parent->_node->get_fleet_name();
+      request.requester_id = _parent->_node->get_fleet_name()
+          + "/" + _parent->_context->robot_name();
 
       _parent->_node->door_request_publisher->publish(request);
     }
@@ -623,7 +624,8 @@ public:
 
       LiftRequest request;
       request.lift_name = lift_name;
-      request.session_id = _parent->_node->get_fleet_name();
+      request.session_id = _parent->_node->get_fleet_name()
+          + "/" + _parent->_context->robot_name();
       request.request_type = lift_mode;
       request.destination_floor = floor_name;
       request.door_state = door_state;

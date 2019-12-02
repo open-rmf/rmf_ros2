@@ -27,10 +27,12 @@ const std::string DestinationRequestTopicName = "destination_requests";
 const std::string ModeRequestTopicName = "mode_requests";
 const std::string PathRequestTopicName = "path_requests";
 
-const std::string DoorRequestTopicName = "adapter_door_requests";
+const std::string FinalDoorRequestTopicName = "door_requests";
+const std::string AdapterDoorRequestTopicName = "adapter_door_requests";
 const std::string DoorStateTopicName = "door_states";
 
-const std::string LiftRequestTopicName = "adapter_lift_requests";
+const std::string FinalLiftRequestTopicName = "lift_requests";
+const std::string AdapterLiftRequestTopicName = "adapter_lift_requests";
 const std::string LiftStateTopicName = "lift_states";
 
 const std::string DispenserRequestTopicName = "dispenser_requests";

@@ -110,8 +110,11 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
 }
 
 //==============================================================================
-FleetAdapterNode::RobotContext::RobotContext(Location location_)
-  : location(std::move(location_))
+FleetAdapterNode::RobotContext::RobotContext(
+    std::string name,
+    Location location_)
+: location(std::move(location_)),
+  _name(std::move(name))
 {
   // Do nothing
 }
@@ -186,6 +189,12 @@ std::size_t FleetAdapterNode::RobotContext::num_tasks() const
 {
   const std::size_t n_queue = _task_queue.size();
   return _task? n_queue + 1 : n_queue;
+}
+
+//==============================================================================
+const std::string& FleetAdapterNode::RobotContext::robot_name() const
+{
+  return _name;
 }
 
 //==============================================================================
@@ -426,10 +435,10 @@ void FleetAdapterNode::start(Fields fields)
         PathRequestTopicName, default_qos);
 
   door_request_publisher = create_publisher<DoorRequest>(
-        DoorRequestTopicName, default_qos);
+        AdapterDoorRequestTopicName, default_qos);
 
   lift_request_publisher = create_publisher<LiftRequest>(
-        LiftRequestTopicName, default_qos);
+        AdapterLiftRequestTopicName, default_qos);
 
   dispenser_request_publisher = create_publisher<DispenserRequest>(
         DispenserRequestTopicName, default_qos);
@@ -537,7 +546,8 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr msg)
 
     if (inserted)
     {
-      it->second = std::make_unique<RobotContext>(RobotContext{robot.location});
+      it->second = std::make_unique<RobotContext>(
+            RobotContext{robot.name, robot.location});
     }
     else
     {

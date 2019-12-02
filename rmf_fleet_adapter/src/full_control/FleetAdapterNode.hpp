@@ -101,7 +101,7 @@ public:
 
   struct RobotContext
   {
-    RobotContext(Location location);
+    RobotContext(std::string name, Location location);
 
     Location location;
     RobotStateListeners state_listeners;
@@ -118,9 +118,12 @@ public:
 
     std::size_t num_tasks() const;
 
+    const std::string& robot_name() const;
+
   private:
     std::unique_ptr<Task> _task;
     std::vector<std::unique_ptr<Task>> _task_queue;
+    const std::string _name;
   };
 
   const std::string& get_fleet_name() const;

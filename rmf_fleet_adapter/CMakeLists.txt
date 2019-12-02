@@ -97,6 +97,49 @@ target_include_directories(full_control
 
 # -----------------------------------------------------------------------------
 
+add_executable(lift_supervisor
+  src/lift_supervisor/main.cpp
+  src/lift_supervisor/Node.cpp
+)
+
+target_link_libraries(lift_supervisor
+  PRIVATE
+    rmf_fleet_adapter
+    ${rclcpp_LIBARRIES}
+    ${rmf_lift_msgs_LIBRARIES}
+    ${std_msgs_LIBRARIES}
+)
+
+target_include_directories(lift_supervisor
+  PRIVATE
+    ${rclcpp_INCLUDE_DIRS}
+    ${rmf_lift_msgs_INCLUDE_DIRS}
+    ${std_msgs_INCLUDE_DIRS}
+)
+
+
+# -----------------------------------------------------------------------------
+
+add_executable(door_supervisor
+  src/door_supervisor/main.cpp
+  src/door_supervisor/Node.cpp
+)
+
+target_link_libraries(door_supervisor
+  PRIVATE
+    rmf_fleet_adapter
+    ${rclcpp_LIBRARIES}
+    ${rmf_door_msgs_LIBRARIES}
+)
+
+target_include_directories(door_supervisor
+  PRIVATE
+    ${rclcpp_INCLUDE_DIRS}
+    ${rmf_door_msgs_INCLUDE_DIRS}
+)
+
+# -----------------------------------------------------------------------------
+
 add_executable(fake_fleet
   test/FakeFleet.cpp
 )
