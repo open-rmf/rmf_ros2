@@ -1,0 +1,37 @@
+<?xml version='1.0' ?>
+
+<launch>
+
+  <arg name="control_type" description="Fleet adapter type: full_control or read_only"/>
+  <arg name="fleet_name" description="Name of the fleet that this adapter will interface with"/>
+  <!-- Note: We give a blank default to nav_graph_file because it is not required for read_only
+             mode. However it is still required for full_control mode.
+       TODO(MXG): Investigate if there is a better way to handle conditionally required arguments. -->
+  <arg name="nav_graph_file" default="" description="The file path of this fleet's navigation graph"/>
+  <arg name="linear_velocity" description="The nominal linear velocity of the vehicles in this fleet"/>
+  <arg name="angular_velocity" description="The nominal angular velocity of the vehicles in this fleet"/>
+  <arg name="linear_acceleration" description="The nominal linear acceleration of the vehicles in this fleet"/>
+  <arg name="angular_acceleration" description="The nominal angular acceleration of the vehicles in this fleet"/>
+  <arg name="profile_radius" description="The radius of the bounding circle of the vehicles in this fleet"/>
+  <arg name="output" default="screen"/>
+
+  <node pkg="rmf_fleet_adapter"
+        exec="$(var control_type)"
+        name="$(var fleet_name)_fleet_adapter"
+        node-name="$(var fleet_name)_fleet_adapter"
+        output="both">
+
+    <param name="fleet_name" value="$(var fleet_name)"/>
+
+    <param name="nav_graph_file" value="$(var nav_graph_file)"/>
+
+    <param name="linear_velocity" value="$(var linear_velocity)"/>
+    <param name="angular_velocity" value="$(var angular_velocity)"/>
+
+    <param name="linear_acceleration" value="$(var linear_acceleration)"/>
+    <param name="angular_acceleration" value="$(var angular_acceleration)"/>
+
+    <param name="profile_radius" value="$(var profile_radius)"/>
+  </node>
+
+</launch>

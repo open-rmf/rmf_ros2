@@ -133,8 +133,6 @@ public:
 
   }
 
-
-
 private:
   Location get_location(
       builtin_interfaces::msg::Time t,
@@ -347,11 +345,8 @@ int main(int argc, char* argv[])
   const std::vector<std::string> args =
       rclcpp::init_and_remove_ros_arguments(argc, argv);
 
-  std::string fleet_name = "fleet1";
+  std::string fleet_name = "test_fleet";
   std::string viz_name = "viz";
   rclcpp::spin(std::make_shared<TestReadOnly>(fleet_name,viz_name));
-
   rclcpp::shutdown();
-  return 0;
-
 }

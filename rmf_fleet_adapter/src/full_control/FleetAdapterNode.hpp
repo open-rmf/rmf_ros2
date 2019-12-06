@@ -20,15 +20,9 @@
 
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 
-#include <rmf_traffic_msgs/msg/schedule_conflict.hpp>
-#include <rmf_traffic_msgs/srv/submit_trajectories.hpp>
-#include <rmf_traffic_msgs/srv/delay_trajectories.hpp>
-#include <rmf_traffic_msgs/srv/replace_trajectories.hpp>
-#include <rmf_traffic_msgs/srv/erase_trajectories.hpp>
-#include <rmf_traffic_msgs/srv/resolve_conflicts.hpp>
-
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
 #include <rmf_fleet_msgs/msg/path_request.hpp>
+#include <rmf_fleet_msgs/msg/mode_request.hpp>
 
 #include <rmf_dispenser_msgs/msg/dispenser_request.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_state.hpp>
@@ -67,28 +61,11 @@ namespace rmf_fleet_adapter {
 namespace full_control {
 
 //==============================================================================
-template<typename T>
-class Listener
-{
-public:
-
-  virtual void receive(const T& msg) = 0;
-
-  virtual ~Listener() = default;
-};
-
-//==============================================================================
 class FleetAdapterNode : public rclcpp::Node
 {
 public:
 
-  static std::shared_ptr<FleetAdapterNode> make(
-      const std::string& fleet_name,
-      const std::string& graph_file,
-      rmf_traffic::agv::VehicleTraits traits,
-      rmf_traffic::Duration delay_threshold,
-      rmf_traffic::Duration get_plan_time,
-      rmf_traffic::Duration wait_time = std::chrono::seconds(10));
+  static std::shared_ptr<FleetAdapterNode> make();
 
   using WaypointKeys = std::unordered_map<std::string, std::size_t>;
   using WaypointNames = std::unordered_map<std::size_t, std::string>;
@@ -104,7 +81,6 @@ public:
     RobotContext(std::string name, Location location);
 
     Location location;
-    RobotStateListeners state_listeners;
 
     void next_task();
 
@@ -120,11 +96,20 @@ public:
 
     const std::string& robot_name() const;
 
+    void insert_listener(Listener<RobotState>* listener);
+
+    void remove_listener(Listener<RobotState>* listener);
+
+    void update_listeners(const RobotState& state);
+
   private:
     std::unique_ptr<Task> _task;
     std::vector<std::unique_ptr<Task>> _task_queue;
     const std::string _name;
+    RobotStateListeners state_listeners;
   };
+
+  bool ignore_fleet(const std::string& fleet_name) const;
 
   const std::string& get_fleet_name() const;
 
@@ -145,37 +130,10 @@ public:
 
   const std::vector<std::size_t>& get_parking_spots() const;
 
-
-  using SubmitTrajectories = rmf_traffic_msgs::srv::SubmitTrajectories;
-  using SubmitTrajectoriesClient = rclcpp::Client<SubmitTrajectories>;
-  using SubmitTrajectoriesPtr = SubmitTrajectoriesClient::SharedPtr;
-
-  using DelayTrajectories = rmf_traffic_msgs::srv::DelayTrajectories;
-  using DelayTrajectoriesClient = rclcpp::Client<DelayTrajectories>;
-  using DelayTrajectoriesPtr = DelayTrajectoriesClient::SharedPtr;
-
-  using ReplaceTrajectories = rmf_traffic_msgs::srv::ReplaceTrajectories;
-  using ReplaceTrajectoriesClient = rclcpp::Client<ReplaceTrajectories>;
-  using ReplaceTrajectoriesPtr = ReplaceTrajectoriesClient::SharedPtr;
-
-  using EraseTrajectories = rmf_traffic_msgs::srv::EraseTrajectories;
-  using EraseTrajectoriesClient = rclcpp::Client<EraseTrajectories>;
-  using EraseTrajectoriesPtr = EraseTrajectoriesClient::SharedPtr;
-
-  using ResolveConflicts = rmf_traffic_msgs::srv::ResolveConflicts;
-  using ResolveConflictsClient = rclcpp::Client<ResolveConflicts>;
-  using ResolveConflictsPtr = ResolveConflictsClient::SharedPtr;
-
   struct Fields
   {
     rmf_traffic_ros2::schedule::MirrorManager mirror;
-
-    SubmitTrajectoriesPtr submit_trajectories;
-    DelayTrajectoriesPtr delay_trajectories;
-    ReplaceTrajectoriesPtr replace_trajectories;
-    EraseTrajectoriesPtr erase_trajectories;
-    ResolveConflictsPtr resolve_conflicts;
-
+    ScheduleConnections schedule;
     GraphInfo graph_info;
     rmf_traffic::agv::VehicleTraits traits;
     rmf_traffic::agv::Planner planner;
@@ -184,17 +142,9 @@ public:
         GraphInfo graph_info_,
         rmf_traffic::agv::VehicleTraits traits_,
         rmf_traffic_ros2::schedule::MirrorManager mirror_,
-        SubmitTrajectoriesPtr submit_trajectories_,
-        DelayTrajectoriesPtr delay_trajectories_,
-        ReplaceTrajectoriesPtr replace_trajectories_,
-        EraseTrajectoriesPtr erase_trajectories_,
-        ResolveConflictsPtr resolve_conflicts_)
+        ScheduleConnections connections_)
     : mirror(std::move(mirror_)),
-      submit_trajectories(std::move(submit_trajectories_)),
-      delay_trajectories(std::move(delay_trajectories_)),
-      replace_trajectories(std::move(replace_trajectories_)),
-      erase_trajectories(std::move(erase_trajectories_)),
-      resolve_conflicts(std::move(resolve_conflicts_)),
+      schedule(std::move(connections_)),
       graph_info(std::move(graph_info_)),
       traits(std::move(traits_)),
       planner(
@@ -204,6 +154,8 @@ public:
       // Do nothing
     }
   };
+
+  Fields& get_fields();
 
   const Fields& get_fields() const;
 
@@ -235,6 +187,10 @@ public:
   using PathRequestPub = rclcpp::Publisher<PathRequest>;
   PathRequestPub::SharedPtr path_request_publisher;
 
+  using ModeRequest = rmf_fleet_msgs::msg::ModeRequest;
+  using ModeRequestPub = rclcpp::Publisher<ModeRequest>;
+  ModeRequestPub::SharedPtr mode_request_publisher;
+
   using DoorRequest = rmf_door_msgs::msg::DoorRequest;
   using DoorRequestPub = rclcpp::Publisher<DoorRequest>;
   DoorRequestPub::SharedPtr door_request_publisher;
@@ -253,10 +209,7 @@ public:
 
 private:
 
-  FleetAdapterNode(
-      const std::string& fleet_name,
-      rmf_traffic::Duration delay_threshold,
-      rmf_traffic::Duration get_plan_time);
+  FleetAdapterNode();
 
   std::string _fleet_name;
 

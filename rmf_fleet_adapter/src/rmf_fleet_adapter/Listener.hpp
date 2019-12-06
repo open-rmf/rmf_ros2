@@ -15,26 +15,18 @@
  *
 */
 
-#include "FleetAdapterNode.hpp"
+#ifndef SRC__RMF_FLEET_ADAPTER__LISTENER_HPP
+#define SRC__RMF_FLEET_ADAPTER__LISTENER_HPP
 
-#include <rmf_traffic/geometry/Circle.hpp>
-
-#include <rclcpp/executors.hpp>
-
-#include "../rmf_fleet_adapter/ParseArgs.hpp"
-
-using namespace rmf_fleet_adapter;
-
-int main(int argc, char* argv[])
+//==============================================================================
+template<typename T>
+class Listener
 {
-  rclcpp::init(argc, argv);
-  const auto fleet_adapter_node = read_only::FleetAdapterNode::make();
-  if (!fleet_adapter_node)
-    return 1;
+public:
 
-  RCLCPP_INFO(fleet_adapter_node->get_logger(), "Starting Fleet Adapter");
-  rclcpp::spin(fleet_adapter_node);
-  RCLCPP_INFO(fleet_adapter_node->get_logger(), "Closing Fleet Adapter");
+  virtual void receive(const T& msg) = 0;
 
-  rclcpp::shutdown();
-}
+  virtual ~Listener() = default;
+};
+
+#endif // SRC__RMF_FLEET_ADAPTER__LISTENER_HPP

@@ -19,6 +19,8 @@
 
 #include <yaml-cpp/yaml.h>
 
+#include <unordered_set>
+
 namespace rmf_fleet_adapter {
 
 //==============================================================================
@@ -28,7 +30,7 @@ rmf_utils::optional<GraphInfo> parse_graph(
     const rclcpp::Node& node)
 {
   const YAML::Node graph_config = YAML::LoadFile(graph_file);
-  if(!graph_config)
+  if (!graph_config)
   {
     RCLCPP_ERROR(
           node.get_logger(),
@@ -37,7 +39,7 @@ rmf_utils::optional<GraphInfo> parse_graph(
   }
 
   const YAML::Node levels = graph_config["levels"];
-  if(!levels)
+  if (!levels)
   {
     RCLCPP_ERROR(
           node.get_logger(),
@@ -45,7 +47,7 @@ rmf_utils::optional<GraphInfo> parse_graph(
     return rmf_utils::nullopt;
   }
 
-  if(!levels.IsMap())
+  if (!levels.IsMap())
   {
     RCLCPP_ERROR(
           node.get_logger(),
@@ -56,23 +58,25 @@ rmf_utils::optional<GraphInfo> parse_graph(
 
   GraphInfo info;
 
-  for(const auto& level : levels)
+  for (const auto& level : levels)
   {
     const std::string& map_name = level.first.as<std::string>();
 
     const YAML::Node& vertices = level.second["vertices"];
-    for(const auto& vertex : vertices)
+    for (const auto& vertex : vertices)
     {
       const Eigen::Vector2d location{
         vertex[0].as<double>(), vertex[1].as<double>()};
 
       const auto& wp = info.graph.add_waypoint(map_name, location, true);
 
-      const std::string& name = vertex[2].as<std::string>();
-      if(!name.empty())
+      const YAML::Node& options = vertex[2];
+      const YAML::Node& name_option = options["name"];
+      if (name_option)
       {
+        const std::string& name = name_option.as<std::string>();
         const auto ins = info.keys.insert(std::make_pair(name, wp.index()));
-        if(!ins.second)
+        if (!ins.second)
         {
           RCLCPP_ERROR(
                 node.get_logger(),
@@ -84,43 +88,44 @@ rmf_utils::optional<GraphInfo> parse_graph(
         info.waypoint_names.insert(std::make_pair(wp.index(), name));
       }
 
-      if(vertex.size() > 3)
+      const YAML::Node& workcell_name_option = options["workcell_name"];
+      if (workcell_name_option)
       {
-        const YAML::Node& properties = vertex[3];
-        if (properties)
-        {
-          if (const YAML::Node& workcell_name = properties["workcell_name"])
-          {
-            info.workcell_names.insert(
-                {wp.index(), workcell_name.as<std::string>()});
-          }
+        const std::string& workcell = workcell_name_option.as<std::string>();
+        info.workcell_names.insert({wp.index(), workcell});
+      }
 
-          if (const YAML::Node& is_parking_spot = properties["is_parking_spot"])
-          {
-            if (is_parking_spot.as<bool>())
-              info.parking_spots.push_back(wp.index());
-          }
-        }
+      const YAML::Node& parking_spot_option = options["is_parking_spot"];
+      if (parking_spot_option)
+      {
+        const bool is_parking_spot = parking_spot_option.as<bool>();
+        if (is_parking_spot)
+          info.parking_spots.push_back(wp.index());
       }
     }
 
     const YAML::Node& lanes = level.second["lanes"];
-    for(const auto& lane : lanes)
+    for (const auto& lane : lanes)
     {
       using Constraint = rmf_traffic::agv::Graph::OrientationConstraint;
       using ConstraintPtr = rmf_utils::clone_ptr<Constraint>;
 
-      const std::string& constraint_label = lane[2].as<std::string>();
       ConstraintPtr constraint = nullptr;
-      if(!constraint_label.empty())
+
+      const YAML::Node& options = lane[2];
+      const YAML::Node& orientation_constraint_option =
+          options["orientation_constraint"];
+      if (orientation_constraint_option)
       {
-        if(constraint_label == "forward")
+        const std::string& constraint_label =
+            orientation_constraint_option.as<std::string>();
+        if (constraint_label == "forward")
         {
           constraint = Constraint::make(
                 Constraint::Direction::Forward,
                 vehicle_traits.get_differential()->get_forward());
         }
-        else if(constraint_label == "backward")
+        else if (constraint_label == "backward")
         {
           constraint = Constraint::make(
                 Constraint::Direction::Backward,
@@ -130,10 +135,10 @@ rmf_utils::optional<GraphInfo> parse_graph(
         {
           RCLCPP_ERROR(
                 node.get_logger(),
-                "Unrecognized constraint label given to lane ["
+                "Unrecognized orientation constraint label given to lane ["
                 + std::to_string(lane[0].as<std::size_t>()) + ", "
                 + std::to_string(lane[1].as<std::size_t>()) + "]: ["
-                + lane[2].as<std::string>() + "] in graph ["
+                + constraint_label + "] in graph ["
                 + graph_file + "]");
           return rmf_utils::nullopt;
         }
@@ -144,6 +149,28 @@ rmf_utils::optional<GraphInfo> parse_graph(
           {lane[1].as<std::size_t>(), std::move(constraint)});
     }
   }
+
+  std::unordered_set<std::size_t> generic_waypoint;
+  for (std::size_t i=0; i < info.graph.num_waypoints(); ++i)
+    generic_waypoint.insert(i);
+
+  for (std::size_t i=0; i < info.graph.num_lanes(); ++i)
+  {
+    const auto& lane = info.graph.get_lane(i);
+    if (lane.entry().event())
+      generic_waypoint.erase(lane.entry().waypoint_index());
+
+    if (lane.exit().event())
+      generic_waypoint.erase(lane.exit().waypoint_index());
+  }
+
+  for (const auto& workcell_wp : info.workcell_names)
+    generic_waypoint.erase(workcell_wp.first);
+
+  // All of the waypoints that don't serve any particular purpose can be used
+  // as holding points during planning.
+  for (const std::size_t wp : generic_waypoint)
+    info.graph.get_waypoint(wp).set_holding_point(true);
 
   return std::move(info);
 }

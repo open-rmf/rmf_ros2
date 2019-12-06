@@ -473,6 +473,13 @@ void ScheduleNode::delay_trajectories(
     return;
   }
 
+  if (request->delay_ids.empty())
+  {
+    response->error = "delay_ids field in request was empty";
+    RCLCPP_WARN(get_logger(), response->error);
+    return;
+  }
+
   const auto delay = std::chrono::nanoseconds(request->delay);
 
   {
@@ -480,6 +487,8 @@ void ScheduleNode::delay_trajectories(
     for (const rmf_traffic::schedule::Version id : request->delay_ids)
       database.delay(id, from_time, delay);
   }
+
+  response->current_version = database.latest_version();
 
   wakeup_mirrors();
 }

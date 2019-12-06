@@ -18,6 +18,7 @@
 #include "FleetAdapterNode.hpp"
 
 #include "../rmf_fleet_adapter/ParseGraph.hpp"
+#include "../rmf_fleet_adapter/load_param.hpp"
 
 #include <rmf_traffic_ros2/StandardNames.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
@@ -30,45 +31,58 @@
 #include "Actions.hpp"
 #include "Tasks.hpp"
 
+#include <rmf_traffic/geometry/Circle.hpp>
+
 namespace rmf_fleet_adapter {
 namespace full_control {
 
 //==============================================================================
-std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
-    const std::string& fleet_name,
-    const std::string& graph_file,
-    rmf_traffic::agv::VehicleTraits traits,
-    const rmf_traffic::Duration delay_threshold,
-    const rmf_traffic::Duration plan_time,
-    const rmf_traffic::Duration wait_time)
+std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
 {
-  const auto node = std::shared_ptr<FleetAdapterNode>(
-        new FleetAdapterNode(fleet_name, delay_threshold, plan_time));
+  const auto node = std::shared_ptr<FleetAdapterNode>(new FleetAdapterNode);
+
+  const std::string nav_graph_param_name = "nav_graph_file";
+  std::string graph_file =
+      node->declare_parameter(nav_graph_param_name, std::string());
+
+  if (graph_file.empty())
+  {
+    RCLCPP_ERROR(
+          node->get_logger(),
+          "Missing [" + nav_graph_param_name + "] parameter!");
+
+    return nullptr;
+  }
+
+  const std::string fleet_name = node->get_fleet_name().empty()?
+        "all fleets" : "[" + node->get_fleet_name() + "]";
+  RCLCPP_INFO(
+        node->get_logger(),
+        "Launching fleet adapter for " + fleet_name);
+
+  auto traits = get_traits_or_default(*node, 0.7, 0.3, 0.5, 1.5, 0.6);
+
+  node->_delay_threshold =
+      get_parameter_or_default_time(*node, "delay_threshold", 5.0);
+
+  node->_plan_time =
+      get_parameter_or_default_time(*node, "planning_timeout", 5.0);
 
   auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
         *node, rmf_traffic::schedule::query_everything().spacetime());
 
-  auto submit_trajectories = node->create_client<SubmitTrajectories>(
-        rmf_traffic_ros2::SubmitTrajectoriesSrvName);
-
-  auto delay_trajectories = node->create_client<DelayTrajectories>(
-        rmf_traffic_ros2::DelayTrajectoriesSrvName);
-
-  auto replace_trajectories = node->create_client<ReplaceTrajectories>(
-        rmf_traffic_ros2::ReplaceTrajectoriesSrvName);
-
-  auto erase_trajectories = node->create_client<EraseTrajectories>(
-        rmf_traffic_ros2::EraseTrajectoriesSrvName);
-
-  auto resolve_conflicts = node->create_client<ResolveConflicts>(
-        rmf_traffic_ros2::ResolveConflictsSrvName);
-
   rmf_utils::optional<GraphInfo> graph_info =
       parse_graph(graph_file, traits, *node);
+
   if (!graph_info)
     return nullptr;
 
   using namespace std::chrono_literals;
+
+  auto connections = ScheduleConnections::make(*node);
+
+  const auto wait_time =
+      get_parameter_or_default_time(*node, "discovery_timeout", 10.0);
 
   const auto stop_time = std::chrono::steady_clock::now() + wait_time;
   while(rclcpp::ok() && std::chrono::steady_clock::now() < stop_time)
@@ -76,10 +90,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
     rclcpp::spin_some(node);
 
     bool ready = true;
-    ready &= submit_trajectories->service_is_ready();
-    ready &= delay_trajectories->service_is_ready();
-    ready &= replace_trajectories->service_is_ready();
-    ready &= erase_trajectories->service_is_ready();
+    ready &= connections.ready();
     ready &= (mirror_future.wait_for(0s) == std::future_status::ready);
 
     if (ready)
@@ -89,11 +100,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make(
               std::move(*graph_info),
               std::move(traits),
               mirror_future.get(),
-              std::move(submit_trajectories),
-              std::move(delay_trajectories),
-              std::move(replace_trajectories),
-              std::move(erase_trajectories),
-              std::move(resolve_conflicts)
+              std::move(connections),
             });
 
       return node;
@@ -122,6 +129,7 @@ FleetAdapterNode::RobotContext::RobotContext(
 //==============================================================================
 void FleetAdapterNode::RobotContext::next_task()
 {
+  // TODO(MXG): Report the current task complete before clearing it
   if (!_task_queue.empty())
   {
     _task = std::move(_task_queue.front());
@@ -129,6 +137,8 @@ void FleetAdapterNode::RobotContext::next_task()
     _task->next();
     return;
   }
+
+  _task = nullptr;
 
   // TODO(MXG): If the task queue is empty, have the robot move back to its
   // home.
@@ -195,6 +205,40 @@ std::size_t FleetAdapterNode::RobotContext::num_tasks() const
 const std::string& FleetAdapterNode::RobotContext::robot_name() const
 {
   return _name;
+}
+
+//==============================================================================
+void FleetAdapterNode::RobotContext::insert_listener(
+    Listener<RobotState>* listener)
+{
+  state_listeners.insert(listener);
+}
+
+//==============================================================================
+void FleetAdapterNode::RobotContext::remove_listener(
+    Listener<RobotState>* listener)
+{
+  state_listeners.erase(listener);
+}
+
+//==============================================================================
+void FleetAdapterNode::RobotContext::update_listeners(const RobotState& state)
+{
+  // We need to copy this container before iterating over it, because it's
+  // very possible for the container to get modified by Actions while we iterate
+  // over it.
+  const auto current_listeners = state_listeners;
+  for (auto* listener : current_listeners)
+    listener->receive(state);
+}
+
+//==============================================================================
+bool FleetAdapterNode::ignore_fleet(const std::string& fleet_name) const
+{
+  if (!_fleet_name.empty() && fleet_name != _fleet_name)
+    return true;
+
+  return false;
 }
 
 //==============================================================================
@@ -342,20 +386,21 @@ const std::vector<std::size_t>& FleetAdapterNode::get_parking_spots() const
 }
 
 //==============================================================================
+auto FleetAdapterNode::get_fields() -> Fields&
+{
+  return *_field;
+}
+
+//==============================================================================
 auto FleetAdapterNode::get_fields() const -> const Fields&
 {
   return *_field;
 }
 
 //==============================================================================
-FleetAdapterNode::FleetAdapterNode(
-    const std::string& fleet_name,
-    rmf_traffic::Duration delay_threshold,
-    rmf_traffic::Duration plan_time)
-: rclcpp::Node(fleet_name + "__full_control_fleet_adapter"),
-  _fleet_name(fleet_name),
-  _delay_threshold(delay_threshold),
-  _plan_time(plan_time)
+FleetAdapterNode::FleetAdapterNode()
+: rclcpp::Node("fleet_adapter"),
+  _fleet_name(get_fleet_name_parameter(*this))
 {
   // Do nothing
 }
@@ -434,6 +479,9 @@ void FleetAdapterNode::start(Fields fields)
   path_request_publisher = create_publisher<PathRequest>(
         PathRequestTopicName, default_qos);
 
+  mode_request_publisher = create_publisher<ModeRequest>(
+        ModeRequestTopicName, default_qos);
+
   door_request_publisher = create_publisher<DoorRequest>(
         AdapterDoorRequestTopicName, default_qos);
 
@@ -476,7 +524,7 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
 //==============================================================================
 void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
 {
-  if (msg->robot_type != _fleet_name)
+  if (ignore_fleet(msg->robot_type))
     return;
 
   std::size_t fewest = std::numeric_limits<std::size_t>::max();
@@ -513,7 +561,6 @@ void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
   summary.submission_time = summary.start_time;
 
   task_summary_publisher->publish(summary);
-
 }
 
 //==============================================================================
@@ -534,7 +581,7 @@ void FleetAdapterNode::dispenser_state_update(DispenserState::UniquePtr msg)
 void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr msg)
 {
   const auto& fleet_state = *msg;
-  if (fleet_state.name != _fleet_name)
+  if (ignore_fleet(fleet_state.name))
     return;
 
   for (const auto& robot : fleet_state.robots)
@@ -546,16 +593,14 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr msg)
 
     if (inserted)
     {
-      it->second = std::make_unique<RobotContext>(
-            RobotContext{robot.name, robot.location});
+      it->second = std::make_unique<RobotContext>(robot.name, robot.location);
     }
     else
     {
       it->second->location = robot.location;
     }
 
-    for (auto* listener : it->second->state_listeners)
-      listener->receive(robot);
+    it->second->update_listeners(robot);
   }
 }
 

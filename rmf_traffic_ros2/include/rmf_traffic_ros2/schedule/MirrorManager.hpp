@@ -36,15 +36,32 @@ public:
   public:
 
     /// Constructor
-    Options(bool update_on_wakeup = true);
+    ///
+    /// \brief update_mutex
+    ///   A reference to a mutex that should be locked when performing an
+    ///   update. When set to a nullptr, no mutex will be locked.
+    ///
+    /// \brief update_on_wakeup
+    ///   Specify if the mirror should perform an update whenever it gets woken
+    ///   up by the schedule.
+    Options(
+        std::mutex* update_mutex = nullptr,
+        bool update_on_wakeup = true);
+
+    /// Get a reference to the mutex that will be used when performing an
+    /// update.
+    std::mutex* update_mutex() const;
+
+    /// Set the mutex that should be used when performing an update.
+    Options& update_mutex(std::mutex* mutex);
 
     /// True if the mirror should be updated each time a MirrorWakeup message
     /// is received. The MirrorWakeup messages are sent out each time a change
     /// is introduced to the schedule database.
-    bool get_update_on_wakeup() const;
+    bool update_on_wakeup() const;
 
     /// Toggle the choice to wakeup on an update.
-    Options& set_update_on_wakeup(bool choice);
+    Options& update_on_wakeup(bool choice);
 
     class Implementation;
   private:

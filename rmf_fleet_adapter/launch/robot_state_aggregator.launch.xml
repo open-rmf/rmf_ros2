@@ -1,0 +1,19 @@
+<?xml version='1.0' ?>
+
+<launch>
+
+  <arg name="robot_prefix" default="" description="The prefix that this aggregator should look for in the incoming robot names"/>
+  <arg name="fleet_name" description="The name that will be published in the outgoing fleet state"/>
+
+  <node pkg="rmf_fleet_adapter"
+        exec="robot_state_aggregator"
+        name="$(var fleet_name)_state_aggregator"
+        node-name="$(var fleet_name)_state_aggregator"
+        output="both">
+
+    <param name="robot_prefix" value="$(var robot_prefix)"/>
+    <param name="fleet_name" value="$(var fleet_name)"/>
+
+  </node>
+
+</launch>

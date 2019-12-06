@@ -21,10 +21,53 @@
 #include <rmf_traffic/Trajectory.hpp>
 #include <rmf_traffic/schedule/Version.hpp>
 
+#include "Listener.hpp"
+
+#include <rmf_traffic_msgs/msg/schedule_conflict.hpp>
+#include <rmf_traffic_msgs/srv/submit_trajectories.hpp>
+#include <rmf_traffic_msgs/srv/delay_trajectories.hpp>
+#include <rmf_traffic_msgs/srv/replace_trajectories.hpp>
+#include <rmf_traffic_msgs/srv/erase_trajectories.hpp>
+#include <rmf_traffic_msgs/srv/resolve_conflicts.hpp>
+
+#include <rclcpp/node.hpp>
+
 namespace rmf_fleet_adapter {
-namespace full_control {
 
 class FleetAdapterNode;
+
+struct ScheduleConnections
+{
+  using SubmitTrajectories = rmf_traffic_msgs::srv::SubmitTrajectories;
+  using SubmitTrajectoriesClient = rclcpp::Client<SubmitTrajectories>;
+  using SubmitTrajectoriesPtr = SubmitTrajectoriesClient::SharedPtr;
+
+  using DelayTrajectories = rmf_traffic_msgs::srv::DelayTrajectories;
+  using DelayTrajectoriesClient = rclcpp::Client<DelayTrajectories>;
+  using DelayTrajectoriesPtr = DelayTrajectoriesClient::SharedPtr;
+
+  using ReplaceTrajectories = rmf_traffic_msgs::srv::ReplaceTrajectories;
+  using ReplaceTrajectoriesClient = rclcpp::Client<ReplaceTrajectories>;
+  using ReplaceTrajectoriesPtr = ReplaceTrajectoriesClient::SharedPtr;
+
+  using EraseTrajectories = rmf_traffic_msgs::srv::EraseTrajectories;
+  using EraseTrajectoriesClient = rclcpp::Client<EraseTrajectories>;
+  using EraseTrajectoriesPtr = EraseTrajectoriesClient::SharedPtr;
+
+  using ResolveConflicts = rmf_traffic_msgs::srv::ResolveConflicts;
+  using ResolveConflictsClient = rclcpp::Client<ResolveConflicts>;
+  using ResolveConflictsPtr = ResolveConflictsClient::SharedPtr;
+
+  SubmitTrajectoriesPtr submit_trajectories;
+  DelayTrajectoriesPtr delay_trajectories;
+  ReplaceTrajectoriesPtr replace_trajectories;
+  EraseTrajectoriesPtr erase_trajectories;
+  ResolveConflictsPtr resolve_conflicts;
+
+  static ScheduleConnections make(rclcpp::Node& node);
+
+  bool ready() const;
+};
 
 //==============================================================================
 // TODO(MXG): Move this into rmf_traffic_ros2 as a generalized utility class
@@ -33,7 +76,8 @@ class ScheduleManager
 public:
 
   ScheduleManager(
-      FleetAdapterNode* node,
+      ScheduleConnections* connections,
+      rmf_traffic_msgs::msg::FleetProperties properties,
       std::function<void()> revision_callback);
 
   using TrajectorySet = std::vector<rmf_traffic::Trajectory>;
@@ -47,6 +91,8 @@ public:
       const rmf_traffic::Time from_time);
 
   bool waiting() const;
+
+  const std::vector<rmf_traffic::schedule::Version>& ids() const;
 
   ~ScheduleManager();
 
@@ -68,7 +114,8 @@ private:
 
   class ConflictListener;
 
-  FleetAdapterNode* _node;
+  ScheduleConnections* _connections;
+  rmf_traffic_msgs::msg::FleetProperties _properties;
   std::function<void()> _revision_callback;
 
   std::function<void()> _queued_change;
@@ -83,7 +130,6 @@ private:
   rmf_traffic::schedule::Version _last_revised_version;
 };
 
-} // namespace full_control
 } // namespace rmf_fleet_adapter
 
 

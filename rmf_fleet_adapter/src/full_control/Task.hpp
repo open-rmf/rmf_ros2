@@ -18,19 +18,20 @@
 #ifndef SRC__FULL_CONTROL__TASK_HPP
 #define SRC__FULL_CONTROL__TASK_HPP
 
-#include "ScheduleManager.hpp"
+#include "../rmf_fleet_adapter/ScheduleManager.hpp"
 
 #include <rclcpp/time.hpp>
 
 namespace rmf_fleet_adapter {
-namespace full_control {
 
 //==============================================================================
 class Task
 {
 public:
 
-  Task(FleetAdapterNode* node) : schedule(node, [&](){ this->resolve(); }) { }
+  Task(ScheduleConnections* connections,
+       rmf_traffic_msgs::msg::FleetProperties properties)
+  : schedule(connections, std::move(properties), [&](){ this->resolve(); }) { }
 
   virtual void next() = 0;
 
@@ -53,7 +54,6 @@ public:
   ScheduleManager schedule;
 };
 
-} // namespace full_control
 } // namespace rmf_fleet_adapter
 
 #endif // SRC__FULL_CONTROL__TASK_HPP

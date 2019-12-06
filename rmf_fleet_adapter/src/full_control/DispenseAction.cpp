@@ -59,7 +59,7 @@ public:
       });
     }
 
-    _context->state_listeners.insert(&_robot_state_listener);
+    _context->insert_listener(&_robot_state_listener);
     _node->dispenser_state_listeners.insert(&_dispenser_state_listener);
 
     send_request();
@@ -266,7 +266,7 @@ public:
 
   ~DispenseAction()
   {
-    _context->state_listeners.erase(&_robot_state_listener);
+    _context->remove_listener(&_robot_state_listener);
     _node->dispenser_state_listeners.erase(&_dispenser_state_listener);
     _node->dispenser_result_listeners.erase(&_dispenser_result_listener);
   }

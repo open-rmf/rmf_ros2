@@ -79,6 +79,12 @@ public:
     // Do nothing
   }
 
+  std::unordered_set<uint64_t> schedule_ids() const
+  {
+    const auto& ids = _task->schedule.ids();
+    return std::unordered_set<uint64_t>{ids.begin(), ids.end()};
+  }
+
   void find_plan()
   {
     _emergency_active = false;
@@ -91,6 +97,7 @@ public:
     bool interrupt_flag = false;
     auto options = planner.get_default_options();
     options.interrupt_flag(&interrupt_flag);
+    options.ignore_schedule_ids(schedule_ids());
 
     bool main_plan_finished = false;
     std::condition_variable main_plan_cv;
@@ -183,6 +190,7 @@ public:
     bool interrupt_flag = false;
     auto options = planner.get_default_options();
     options.interrupt_flag(&interrupt_flag);
+    options.ignore_schedule_ids(schedule_ids());
 
     const auto t_spread = std::chrono::seconds(15);
     bool have_resume_plan = false;
@@ -241,8 +249,6 @@ public:
     {
       for (const auto& trajectory : plan.get_trajectories())
       {
-        assert(trajectory.size() > 0);
-
         // If the trajectory has only one point then the robot doesn't need to
         // go anywhere.
         if (trajectory.size() < 2)
@@ -265,18 +271,18 @@ public:
 
   void command_plan()
   {
-    _waypoints.clear();
+    _remaining_waypoints.clear();
     for (const auto& plan : _plans)
       for (const auto& wp : plan.get_waypoints())
-        _waypoints.emplace_back(wp);
+        _remaining_waypoints.emplace_back(wp);
 
     _command_segment = 0;
-    send_next_command();
+    return send_next_command();
   }
 
   void send_next_command()
   {
-    if (_waypoints.empty())
+    if (_remaining_waypoints.empty())
     {
       if (_emergency_active)
         report_waiting();
@@ -286,6 +292,7 @@ public:
     }
 
     _command.fleet_name = _node->get_fleet_name();
+    _command.robot_name = _context->robot_name();
     _command.task_id =
         _task->id() + std::to_string(_command_segment++);
 
@@ -294,9 +301,9 @@ public:
     const auto& graph = _node->get_graph();
 
     std::size_t i=0;
-    for (; i < _waypoints.size(); ++i)
+    for (; i < _remaining_waypoints.size(); ++i)
     {
-      const auto& wp = _waypoints[i];
+      const auto& wp = _remaining_waypoints[i];
 
       const auto& p = wp.position();
 
@@ -317,7 +324,16 @@ public:
         break;
     }
 
-    _waypoints.erase(_waypoints.begin(), _waypoints.begin()+i);
+    _next_stop = (i == _remaining_waypoints.size()) ?
+          _remaining_waypoints.back().position() : _remaining_waypoints[i].position();
+    _issued_waypoints.clear();
+    _issued_waypoints.insert(
+                _issued_waypoints.end(),
+                _remaining_waypoints.begin(),
+                _remaining_waypoints.begin()+i);
+    _remaining_waypoints.erase(
+                _remaining_waypoints.begin(),
+                _remaining_waypoints.begin()+i);
 
     publish_command();
     _command_time = _node->get_clock()->now();
@@ -372,6 +388,14 @@ public:
       if (msg.path.size() <= 1)
         _parent->handle_event(msg);
 
+      if (_parent->_next_stop)
+      {
+        const auto& l = msg.location;
+        const Eigen::Vector3d p{l.x, l.y, l.yaw};
+        if ( (p - *_parent->_next_stop).norm() < 0.1 )
+          return _parent->send_next_command();
+      }
+
       _parent->handle_delay(msg);
     }
 
@@ -380,7 +404,10 @@ public:
 
   void handle_event(const RobotState& msg)
   {
-    const auto& event_wp = _waypoints.front();
+    if (_remaining_waypoints.empty())
+      return;
+
+    const auto& event_wp = _remaining_waypoints.front();
     if (!event_wp.event())
       return;
 
@@ -425,6 +452,7 @@ public:
             _command.path[i].t = rmf_traffic_ros2::convert(
                   rmf_traffic_ros2::convert(_command.path[i].t) + delay);
           }
+          return true;
         }
       }
     }
@@ -559,7 +587,8 @@ public:
 
       if (mode == msg.current_mode.value)
       {
-        _parent->_waypoints.erase(_parent->_waypoints.begin());
+        _parent->_remaining_waypoints.erase(
+                    _parent->_remaining_waypoints.begin());
         _parent->_event_listener.door = nullptr;
         _is_active = false;
         _parent->send_next_command();
@@ -660,7 +689,8 @@ public:
 
       if (msg.door_state == door_state)
       {
-        _parent->_waypoints.erase(_parent->_waypoints.begin());
+        _parent->_remaining_waypoints.erase(
+                    _parent->_remaining_waypoints.begin());
         _parent->_event_listener.lift = nullptr;
         _is_active = false;
         _parent->send_next_command();
@@ -714,8 +744,8 @@ public:
             LiftRequest::REQUEST_END_SESSION,
             LiftRequest::DOOR_CLOSED);
 
-      _parent->_waypoints.erase(_parent->_waypoints.begin());
-      _parent->send_next_command();
+      _parent->_remaining_waypoints.erase(_parent->_remaining_waypoints.begin());
+      return _parent->send_next_command();
     }
 
     void execute(const Lane::LiftMove& move) final
@@ -755,7 +785,7 @@ public:
 
   void execute() final
   {
-    _context->state_listeners.insert(&_state_listener);
+    _context->insert_listener(&_state_listener);
     find_and_execute_plan();
   }
 
@@ -770,6 +800,7 @@ public:
     bool interrupt_flag = false;
     auto options = planner.get_default_options();
     options.interrupt_flag(&interrupt_flag);
+    options.ignore_schedule_ids(schedule_ids());
 
     std::vector<std::thread> plan_threads;
     std::vector<rmf_utils::optional<rmf_traffic::agv::Plan>> plans;
@@ -817,9 +848,20 @@ public:
 
   void cancel()
   {
-    _waypoints.clear();
+    _issued_waypoints.clear();
+    _remaining_waypoints.clear();
     _event_executor.cancel();
-    // TODO(MXG): Should we issue a command to the robot to stop?
+
+    using ModeRequest = rmf_fleet_msgs::msg::ModeRequest;
+    using RobotMode = rmf_fleet_msgs::msg::RobotMode;
+    ModeRequest request;
+    request.mode.mode = RobotMode::MODE_PAUSED;
+    request.task_id =
+        _task->id() + std::to_string(_command_segment) + " - pause";
+    request.fleet_name = _node->get_fleet_name();
+    request.robot_name = _context->robot_name();
+
+    _node->mode_request_publisher->publish(std::move(request));
   }
 
   void interrupt() final
@@ -850,10 +892,10 @@ public:
     {
       const auto wp_it = waypoint_names.find(wp_index);
       return wp_it == waypoint_names.end()?
-            "waypoint #" + std::to_string(_goal_wp_index) : wp_it->second;
+            "#" + std::to_string(_goal_wp_index) : wp_it->second;
     };
 
-    status = "Moving to dispenser at [" + name_of(_goal_wp_index) + "] - ";
+    status = "Moving to waypoint [" + name_of(_goal_wp_index) + "] - ";
 
     if (_emergency_active)
       status += "Emergency Interruption - ";
@@ -865,13 +907,13 @@ public:
       status += "Waiting for emergency to end";
       return {status};
     }
-    else if (_waypoints.empty())
+    else if (_remaining_waypoints.empty())
     {
       status += "Empty Plan - May require human intervention";
       return {status};
     }
 
-    for (const auto& wp : _waypoints)
+    for (const auto& wp : _remaining_waypoints)
     {
       if (wp.graph_index())
       {
@@ -880,7 +922,7 @@ public:
       }
     }
 
-    const auto& final_wp = _waypoints.back();
+    const auto& final_wp = _remaining_waypoints.back();
     const auto end_time = rmf_traffic_ros2::to_ros2(final_wp.time());
     return {status, end_time};
   }
@@ -898,7 +940,9 @@ private:
 
   rclcpp::Time _command_time;
   std::vector<rmf_traffic::agv::Plan> _plans;
-  std::vector<rmf_traffic::agv::Plan::Waypoint> _waypoints;
+  std::vector<rmf_traffic::agv::Plan::Waypoint> _remaining_waypoints;
+  std::vector<rmf_traffic::agv::Plan::Waypoint> _issued_waypoints;
+  rmf_utils::optional<Eigen::Vector3d> _next_stop;
   rmf_fleet_msgs::msg::PathRequest _command;
   std::size_t _command_segment;
 
@@ -909,7 +953,7 @@ private:
 
 MoveAction::~MoveAction()
 {
-  _context->state_listeners.erase(&_state_listener);
+  _context->remove_listener(&_state_listener);
 }
 
 } // anonymous namespace
