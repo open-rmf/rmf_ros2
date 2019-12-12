@@ -178,6 +178,13 @@ rmf_traffic_msgs::msg::TrajectorySegment convert(
 //==============================================================================
 rmf_traffic_msgs::msg::Trajectory convert(const rmf_traffic::Trajectory& from)
 {
+  if (from.get_map_name().empty())
+  {
+    throw std::runtime_error(
+          "Attempting to convert a trajectory with a blank map, which is "
+          "almost certainly an unintended error.");
+  }
+
   ProfileContext profile_context;
   rmf_traffic_msgs::msg::Trajectory output;
   output.maps.push_back(from.get_map_name());

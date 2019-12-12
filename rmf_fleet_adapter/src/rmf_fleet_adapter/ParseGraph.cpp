@@ -75,17 +75,20 @@ rmf_utils::optional<GraphInfo> parse_graph(
       if (name_option)
       {
         const std::string& name = name_option.as<std::string>();
-        const auto ins = info.keys.insert(std::make_pair(name, wp.index()));
-        if (!ins.second)
+        if (!name.empty())
         {
-          RCLCPP_ERROR(
-                node.get_logger(),
-                "Duplicated waypoint name [" + name + "] in graph ["
-                + graph_file + "]");
-          return rmf_utils::nullopt;
-        }
+          const auto ins = info.keys.insert(std::make_pair(name, wp.index()));
+          if (!ins.second)
+          {
+            RCLCPP_ERROR(
+                  node.get_logger(),
+                  "Duplicated waypoint name [" + name + "] in graph ["
+                  + graph_file + "]");
+            return rmf_utils::nullopt;
+          }
 
-        info.waypoint_names.insert(std::make_pair(wp.index(), name));
+          info.waypoint_names.insert(std::make_pair(wp.index(), name));
+        }
       }
 
       const YAML::Node& workcell_name_option = options["workcell_name"];
@@ -100,7 +103,10 @@ rmf_utils::optional<GraphInfo> parse_graph(
       {
         const bool is_parking_spot = parking_spot_option.as<bool>();
         if (is_parking_spot)
+        {
+          std::cout << "Adding waypoint [" << wp.index() << "] as a parking spot" << std::endl;
           info.parking_spots.push_back(wp.index());
+        }
       }
     }
 
@@ -171,6 +177,11 @@ rmf_utils::optional<GraphInfo> parse_graph(
   // as holding points during planning.
   for (const std::size_t wp : generic_waypoint)
     info.graph.get_waypoint(wp).set_holding_point(true);
+
+  std::cout << "Named waypoints:";
+  for (const auto& key : info.keys)
+    std::cout << "\n -- [" << key.first << "]";
+  std::cout << std::endl;
 
   return std::move(info);
 }

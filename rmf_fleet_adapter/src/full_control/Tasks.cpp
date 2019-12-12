@@ -41,7 +41,7 @@ public:
       FleetAdapterNode* node,
       FleetAdapterNode::RobotContext* context,
       std::string task_id)
-  : Task(&node->get_fields().schedule, make_fleet_properties(node)),
+  : Task(node->get_fields().schedule.get(), make_fleet_properties(node)),
     _node(node),
     _context(context),
     _task_id(std::move(task_id)),
@@ -71,7 +71,6 @@ public:
     _action = std::move(_action_queue.front());
     _action_queue.pop();
     _action->execute();
-    report_status();
   }
 
   void interrupt()
@@ -144,6 +143,8 @@ public:
 
   void critical_failure(const std::string& error)
   {
+    std::cout << " =============== CRITICAL FAILURE HAS OCCURRED" << std::endl;
+    throw std::runtime_error("baaaaaaahhhhhhh");
     rmf_task_msgs::msg::TaskSummary summary;
     summary.task_id = id();
     summary.start_time = start_time();
@@ -259,13 +260,16 @@ std::unique_ptr<Task> make_delivery(
 
   std::queue<std::unique_ptr<Action>> action_queue;
 
-  action_queue.push(make_move(node, context, task.get(), pickup_wp->second));
+  std::size_t move_id = 0;
+  action_queue.push(
+        make_move(node, context, task.get(), pickup_wp->second, move_id++));
 
   action_queue.push(
         make_dispense(node, context, task.get(), pickup_dispenser->second,
                       delivery.items, delivery.pickup_behavior));
 
-  action_queue.push(make_move(node, context, task.get(), dropoff_wp->second));
+  action_queue.push(
+        make_move(node, context, task.get(), dropoff_wp->second, move_id++));
 
   action_queue.push(
         make_dispense(node, context, task.get(), dropoff_dispenser->second,
@@ -312,11 +316,15 @@ std::unique_ptr<Task> make_loop(
 
   auto task = std::make_unique<GenericTask>(node, context, task_id);
 
+  std::size_t move_id = 0;
   std::queue<std::unique_ptr<Action>> action_queue;
   for (std::size_t i=0; i < loop.num_loops; ++i)
   {
-    action_queue.push(make_move(node, context, task.get(), start_wp->second));
-    action_queue.push(make_move(node, context, task.get(), finish_wp->second));
+    action_queue.push(
+          make_move(node, context, task.get(), start_wp->second, move_id++));
+
+    action_queue.push(
+          make_move(node, context, task.get(), finish_wp->second, move_id++));
   }
 
   task->fill_queue(std::move(action_queue));

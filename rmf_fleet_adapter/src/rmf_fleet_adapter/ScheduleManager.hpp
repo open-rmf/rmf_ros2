@@ -32,6 +32,8 @@
 
 #include <rclcpp/node.hpp>
 
+#include <unordered_set>
+
 namespace rmf_fleet_adapter {
 
 class FleetAdapterNode;
@@ -64,13 +66,32 @@ struct ScheduleConnections
   EraseTrajectoriesPtr erase_trajectories;
   ResolveConflictsPtr resolve_conflicts;
 
-  static ScheduleConnections make(rclcpp::Node& node);
+  using ScheduleConflict = rmf_traffic_msgs::msg::ScheduleConflict;
+  using ScheduleConflictListener = Listener<ScheduleConflict>;
+
+  void insert_conflict_listener(ScheduleConflictListener* listener);
+
+  void remove_conflict_listener(ScheduleConflictListener* listener);
+
+  static std::unique_ptr<ScheduleConnections> make(rclcpp::Node& node);
 
   bool ready() const;
+
+private:
+
+  using ScheduleConflictListeners =
+      std::unordered_set<ScheduleConflictListener*>;
+  ScheduleConflictListeners _schedule_conflict_listeners;
+
+  using ScheduleConflictSub = rclcpp::Subscription<ScheduleConflict>;
+  ScheduleConflictSub::SharedPtr _schedule_conflict_sub;
+  void schedule_conflict_update(ScheduleConflict::UniquePtr msg);
+
 };
 
 //==============================================================================
-// TODO(MXG): Move this into rmf_traffic_ros2 as a generalized utility class
+// TODO(MXG): Move this into rmf_traffic_ros2 as a generalized utility class.
+// Consider renaming it to ScheduleParticipant.
 class ScheduleManager
 {
 public:
@@ -98,17 +119,21 @@ public:
 
 private:
 
+  using ValidTrajectorySet = std::vector<const rmf_traffic::Trajectory*>;
+
   void submit_trajectories(
-      const TrajectorySet& trajectories,
+      const ValidTrajectorySet& trajectories,
       std::function<void()> approval_callback);
 
   void replace_trajectories(
-      const TrajectorySet& trajectories,
+      const ValidTrajectorySet& trajectories,
       std::function<void()> approval_callback);
 
   void resolve_trajectories(
-      const TrajectorySet& trajectories,
+      const ValidTrajectorySet& trajectories,
       std::function<void()> approval_callback);
+
+  void erase_trajectories();
 
   bool process_queues();
 
@@ -126,6 +151,7 @@ private:
 
   std::unique_ptr<ConflictListener> _conflict_listener;
   bool _have_conflict = false;
+  std::vector<rmf_traffic::schedule::Version> _conflict_ids;
   rmf_traffic::schedule::Version _last_conflict_version;
   rmf_traffic::schedule::Version _last_revised_version;
 };

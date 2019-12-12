@@ -59,7 +59,7 @@ private:
 
   rmf_traffic::Duration _delay_threshold;
 
-  ScheduleConnections _connections;
+  std::unique_ptr<ScheduleConnections> _connections;
 
   rmf_traffic_msgs::msg::FleetProperties _properties;
 
@@ -103,10 +103,6 @@ private:
   bool handle_delay(
       const RobotState& state,
       const ScheduleEntries::iterator& it);
-
-  rmf_traffic::Trajectory make_trajectory(
-      const RobotState& state,
-      bool& is_sitting) const;
 };
 
 } // namespace read_only

@@ -31,6 +31,7 @@ endforeach()
 # -----------------------------------------------------------------------------
 
 add_library(rmf_fleet_adapter
+  src/rmf_fleet_adapter/make_trajectory.cpp
   src/rmf_fleet_adapter/ParseGraph.cpp
   src/rmf_fleet_adapter/ParseArgs.cpp
   src/rmf_fleet_adapter/load_param.cpp

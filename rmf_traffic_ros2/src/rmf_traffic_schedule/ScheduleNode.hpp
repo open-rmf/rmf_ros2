@@ -183,7 +183,20 @@ private:
   std::atomic_bool conflict_check_quit;
 
   using Version = rmf_traffic::schedule::Version;
-  using ConflictMap = std::map<Version, std::unordered_set<Version>>;
+  struct ConflictInfo
+  {
+    ConflictInfo(std::unordered_set<Version> ids)
+    : original_ids(std::move(ids)),
+      unresolved_ids(original_ids)
+    {
+      // Do nothing
+    }
+
+    const std::unordered_set<Version> original_ids;
+    std::unordered_set<Version> unresolved_ids = {};
+  };
+
+  using ConflictMap = std::map<Version, ConflictInfo>;
   ConflictMap active_conflicts;
   std::mutex active_conflicts_mutex;
   // TODO(MXG): As replace, delay, and erase events occur, some of the entries

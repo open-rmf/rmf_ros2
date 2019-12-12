@@ -56,6 +56,10 @@ public:
 
   rmf_traffic::schedule::Mirror mirror;
 
+  bool waiting_for_reply = false;
+
+  rmf_traffic::schedule::Version next_minimum_version = 0;
+
   Implementation(
       rclcpp::Node& _node,
       Options _options,
@@ -88,8 +92,22 @@ public:
       uint64_t minimum_version,
       const rmf_traffic::Duration wait = rmf_traffic::Duration(0))
   {
+    if (waiting_for_reply)
+    {
+      next_minimum_version = minimum_version;
+      return;
+    }
+
+    waiting_for_reply = true;
+    // TODO(MXG): What if the latest version has wrapped around the integer
+    // overflow, but this is a fresh mirror starting up? We should have a ROS2
+    // service to ask the schedule database what its oldest version is, and
+    // initialize this value to that. Or maybe the mirror wakeup can publish
+    // both its oldest and latest version.
+    // This is also relevant to the next_minimum_version value.
     request_msg->latest_mirror_version = mirror.latest_version();
     request_msg->minimum_patch_version = minimum_version;
+
     const auto future = mirror_update_client->async_send_request(
           request_msg,
           [&](const MirrorUpdateFuture response_future)
@@ -101,7 +119,7 @@ public:
         const rmf_traffic::schedule::Database::Patch patch =
             convert(response->patch);
 
-        RCLCPP_INFO(
+        RCLCPP_DEBUG(
               node.get_logger(),
               "Updating mirror ["
               + std::to_string(response->patch.latest_version)
@@ -117,6 +135,10 @@ public:
         {
           mirror.update(patch);
         }
+
+        waiting_for_reply = false;
+        if (patch.latest_version() < next_minimum_version)
+          update(next_minimum_version);
       }
       catch(const std::exception& e)
       {

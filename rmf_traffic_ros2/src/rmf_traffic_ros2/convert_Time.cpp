@@ -24,21 +24,7 @@ namespace rmf_traffic_ros2 {
 //==============================================================================
 builtin_interfaces::msg::Time convert(rmf_traffic::Time time)
 {
-  const auto duration = time.time_since_epoch();
-
-  // We're assuming that we never have to go back in time to before the UNIX
-  // epoch.
-  // TODO(MXG): Be more robust than this.
-  assert(duration.count() > 0);
-
-  builtin_interfaces::msg::Time result;
-  result.sec = std::chrono::duration_cast<
-      std::chrono::seconds>(duration).count();
-
-  const auto nanoseconds = duration - std::chrono::seconds(result.sec);
-  result.nanosec = nanoseconds.count();
-
-  return result;
+  return rclcpp::Time(time.time_since_epoch().count(), RCL_ROS_TIME);
 }
 
 //==============================================================================
@@ -52,7 +38,7 @@ rmf_traffic::Time convert(builtin_interfaces::msg::Time time)
 //==============================================================================
 rclcpp::Time to_ros2(rmf_traffic::Time from)
 {
-  return convert(from);
+  return rclcpp::Time(from.time_since_epoch().count(), RCL_ROS_TIME);
 }
 
 //==============================================================================

@@ -170,7 +170,16 @@ ScheduleNode::ScheduleNode()
 
         // TODO(MXG): Check whether the database really needs to remain locked
         // during this update.
-        mirror.update(*next_patch);
+        try
+        {
+          mirror.update(*next_patch);
+          last_checked_version = next_patch->latest_version();
+        }
+        catch(const std::exception& e)
+        {
+          RCLCPP_ERROR(get_logger(), e.what());
+          continue;
+        }
       }
 
       const auto view = mirror.query(
@@ -182,7 +191,7 @@ ScheduleNode::ScheduleNode()
         {
           std::unique_lock<std::mutex> lock(active_conflicts_mutex);
           active_conflicts.insert(
-                std::make_pair(mirror.latest_version(), conflicts));
+                std::make_pair(last_checked_version, conflicts));
         }
 
         ScheduleConflict msg;
@@ -210,8 +219,6 @@ ScheduleNode::ScheduleNode()
           conflict_publisher->publish(std::move(msg));
         }
       }
-
-      last_checked_version = mirror.latest_version();
     }
   });
 }
@@ -361,13 +368,13 @@ void ScheduleNode::submit_trajectories(
     return;
   }
 
-  if (has_conflicts(conflicting_indices, *response))
-    return;
+//  if (has_conflicts(conflicting_indices, *response))
+//    return;
 
   conflicting_indices = check_self_conflicts(requested_trajectories);
 
-  if(has_conflicts(conflicting_indices, *response))
-    return;
+//  if(has_conflicts(conflicting_indices, *response))
+//    return;
 
   {
     std::unique_lock<std::mutex> lock(database_mutex);
@@ -517,8 +524,10 @@ void ScheduleNode::resolve_conflicts(
 {
   response->current_version = database.latest_version();
   response->original_version = response->current_version;
+  response->accepted = false;
 
-  std::unordered_set<Version> conflict_set;
+  std::unordered_set<Version> original_conflict_set;
+  std::unordered_set<Version> remaining_conflict_set;
   bool conflict_resolved = false;
 
   {
@@ -528,12 +537,19 @@ void ScheduleNode::resolve_conflicts(
     if (conflict_it == conflict_end)
       conflict_resolved = true;
     else
-      conflict_set = conflict_it->second;
+    {
+      original_conflict_set = conflict_it->second.original_ids;
+      remaining_conflict_set = conflict_it->second.unresolved_ids;
+
+      if (remaining_conflict_set.empty())
+        conflict_resolved = true;
+    }
   }
 
   if (conflict_resolved)
   {
-    response->accepted = false;
+    response->reason =
+        ResolveConflicts::Response::REASON_ALREADY_RESOLVED;
     return;
   }
 
@@ -541,18 +557,31 @@ void ScheduleNode::resolve_conflicts(
 
   for (const auto r : replace_ids)
   {
-    if (conflict_set.count(r) == 0)
+    if (original_conflict_set.count(r) == 0)
     {
-      response->error = std::string()
-          + "Asking to replace a trajectory [" + std::to_string(r)
-          + "] which is not in the conflict set:";
-      for (const auto c : conflict_set)
-        response->error += " " + std::to_string(c);
-      response->error += "]";
-
       response->accepted = false;
+      response->reason =
+          ResolveConflicts::Response::REASON_WRONG_CONFLICT_SET;
       return;
     }
+  }
+
+  bool still_in_conflict = false;
+  for (const auto r : replace_ids)
+  {
+    if (remaining_conflict_set.count(r) != 0)
+    {
+      still_in_conflict = true;
+      break;
+    }
+  }
+
+  if (!still_in_conflict)
+  {
+    response->reason =
+        ResolveConflicts::Response::REASON_ALREADY_PARTIALLY_RESOLVED;
+    response->accepted = false;
+    return;
   }
 
   std::vector<rmf_traffic::Trajectory> resolution_trajectories;
@@ -565,39 +594,48 @@ void ScheduleNode::resolve_conflicts(
           resolution_trajectories,
           conflict_indices,
           request->trajectories,
-          conflict_set,
+          remaining_conflict_set,
           {replace_ids.begin(), replace_ids.end()});
   }
   catch (const std::exception& e)
   {
-    response->accepted = false;
     response->error = e.what();
-  }
-
-  if (unresolved_conflicts.size() == replace_ids.size())
-  {
-    response->accepted = false;
-    response->error = "The request did not resolve any conflicts";
+    RCLCPP_WARN(
+          get_logger(),
+          std::string("Error while evaluating resolution request: ")
+          + e.what());
     return;
   }
 
-  if (has_conflicts(conflict_indices, *response))
-    return;
+  // TODO(MXG): Consider if we should bring this back, and if so: how?
+//  if (unresolved_conflicts.size() == remaining_conflict_set.size())
+//  {
+//    std::cout << " -- The request did not resolve any conflicts" << std::endl;
+//    return;
+//  }
+
+//  if (has_conflicts(conflict_indices, *response))
+//  {
+//    response->reason =
+//        ResolveConflicts::Response::REASON_CONFLICTS_WITH_SCHEDULE;
+//    return;
+//  }
 
   conflict_indices = check_self_conflicts(resolution_trajectories);
 
   if (has_conflicts(conflict_indices, *response))
+  {
+    response->reason =
+        ResolveConflicts::Response::REASON_CONFLICTS_WITH_SELF;
     return;
-
-  if (unresolved_conflicts.empty())
-  {
-    std::unique_lock<std::mutex> lock(active_conflicts_mutex);
-    active_conflicts.erase(request->conflict_version);
   }
-  else
+
+  response->accepted = true;
+
   {
     std::unique_lock<std::mutex> lock(active_conflicts_mutex);
-    active_conflicts.at(request->conflict_version) = unresolved_conflicts;
+    active_conflicts.at(request->conflict_version)
+        .unresolved_ids = unresolved_conflicts;
   }
 
   perform_replacement(request->resolve_ids, std::move(resolution_trajectories),

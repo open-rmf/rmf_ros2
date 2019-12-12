@@ -50,34 +50,79 @@ public:
           == schedule_ids.end())
         continue;
 
+      std::cout << "[ ";
+      for (const auto s : schedule_ids)
+         std::cout << s << " ";
+      std::cout << "]: " << msg.version << std::endl;
+
       _parent->_have_conflict = true;
+      _parent->_conflict_ids = schedule_ids;
       _parent->_last_conflict_version = msg.version;
       return _parent->_revision_callback();
     }
+
+//    if (!msg.indices.empty())
+//    {
+//      std::cout << "Ignoring conflict for [ ";
+//      for (const auto c : msg.indices)
+//        std::cout << c << " ";
+//      std::cout << "] | Our ids are [ ";
+//      for (const auto s : schedule_ids)
+//        std::cout << s << " ";
+//      std::cout << "]" << std::endl;
+//    }
+    _parent->_have_conflict = false;
   }
 
   ScheduleManager* const _parent;
 };
 
 //==============================================================================
-ScheduleConnections ScheduleConnections::make(rclcpp::Node& node)
+void ScheduleConnections::insert_conflict_listener(
+    ScheduleConflictListener* listener)
 {
-  ScheduleConnections connections;
+  _schedule_conflict_listeners.insert(listener);
+}
 
-  connections.submit_trajectories = node.create_client<SubmitTrajectories>(
+//==============================================================================
+void ScheduleConnections::remove_conflict_listener(
+    ScheduleConflictListener* listener)
+{
+  _schedule_conflict_listeners.erase(listener);
+}
+
+//==============================================================================
+std::unique_ptr<ScheduleConnections> ScheduleConnections::make(
+    rclcpp::Node& node)
+{
+  auto connections = std::make_unique<ScheduleConnections>();
+
+  connections->submit_trajectories = node.create_client<SubmitTrajectories>(
         rmf_traffic_ros2::SubmitTrajectoriesSrvName);
 
-  connections.delay_trajectories = node.create_client<DelayTrajectories>(
+  connections->delay_trajectories = node.create_client<DelayTrajectories>(
         rmf_traffic_ros2::DelayTrajectoriesSrvName);
 
-  connections.replace_trajectories = node.create_client<ReplaceTrajectories>(
+  connections->replace_trajectories = node.create_client<ReplaceTrajectories>(
         rmf_traffic_ros2::ReplaceTrajectoriesSrvName);
 
-  connections.erase_trajectories = node.create_client<EraseTrajectories>(
+  connections->erase_trajectories = node.create_client<EraseTrajectories>(
         rmf_traffic_ros2::EraseTrajectoriesSrvName);
 
-  connections.resolve_conflicts = node.create_client<ResolveConflicts>(
+  connections->resolve_conflicts = node.create_client<ResolveConflicts>(
         rmf_traffic_ros2::ResolveConflictsSrvName);
+
+  auto* c_ptr = connections.get();
+  connections->_schedule_conflict_sub =
+      node.create_subscription<ScheduleConflict>(
+        rmf_traffic_ros2::ScheduleConflictTopicName,
+        rclcpp::SystemDefaultsQoS(),
+        [c_ptr](ScheduleConflict::UniquePtr msg)
+  {
+    const auto listeners = c_ptr->_schedule_conflict_listeners;
+    for (auto& listener : listeners)
+      listener->receive(*msg);
+  });
 
   return connections;
 }
@@ -101,20 +146,21 @@ ScheduleManager::ScheduleManager(
     std::function<void()> revision_callback)
 : _connections(connections),
   _properties(std::move(properties)),
-  _revision_callback(std::move(revision_callback))
+  _revision_callback(std::move(revision_callback)),
+  _conflict_listener(std::make_unique<ConflictListener>(this))
 {
-  // Do nothing
+  _connections->insert_conflict_listener(_conflict_listener.get());
 }
 
 namespace {
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::Trajectory> convert(
-    const std::vector<rmf_traffic::Trajectory>& trajectories)
+    const std::vector<const rmf_traffic::Trajectory*>& trajectories)
 {
   std::vector<rmf_traffic_msgs::msg::Trajectory> output;
   output.reserve(trajectories.size());
   for (const auto& trajectory : trajectories)
-    output.emplace_back(rmf_traffic_ros2::convert(trajectory));
+    output.emplace_back(rmf_traffic_ros2::convert(*trajectory));
 
   return output;
 }
@@ -126,17 +172,25 @@ void ScheduleManager::push_trajectories(
     const std::vector<rmf_traffic::Trajectory>& trajectories,
     std::function<void()> approval_callback)
 {
+  // If any operations have been queued up, we should throw them all out
+  _queued_change = nullptr;
+  _queued_delays.clear();
+
   // TODO(MXG): Be smarter here. If there are no trajectories then erase the
   // current schedule? Or have the robot stand in place?
-  if (trajectories.empty())
-    approval_callback();
+  ValidTrajectorySet valid_trajectories;
+  valid_trajectories.reserve(trajectories.size());
+  for (const auto& trajectory : trajectories)
+  {
+    if (trajectory.size() < 2)
+      continue;
+
+    valid_trajectories.push_back(&trajectory);
+  }
 
   if (_waiting_for_schedule)
   {
-    // If any delays were queued on a previous trajectory, we should throw them
-    // all out
-    _queued_delays.clear();
-
+    std::cout << " |||||||||||| Queuing up trajectory push" << std::endl;
     _queued_change =
         [this, approval_cb{std::move(approval_callback)}, trajectories]()
     {
@@ -146,15 +200,31 @@ void ScheduleManager::push_trajectories(
     return;
   }
 
+  // If there are no valid trajectories to push to the schedule, then erase the
+  // current trajectories from the schedule and approve.
+  // TODO(MXG): Consider putting some debug output here.
+  if (valid_trajectories.empty())
+  {
+    erase_trajectories();
+    approval_callback();
+    return;
+  }
+
   _waiting_for_schedule = true;
 
   if (_have_conflict)
-    return resolve_trajectories(trajectories, std::move(approval_callback));
+  {
+    return resolve_trajectories(
+          valid_trajectories, std::move(approval_callback));
+  }
 
   if (_schedule_ids.empty())
-    return submit_trajectories(trajectories, std::move(approval_callback));
+  {
+    return submit_trajectories(
+          valid_trajectories, std::move(approval_callback));
+  }
 
-  return replace_trajectories(trajectories, std::move(approval_callback));
+  return replace_trajectories(valid_trajectories, std::move(approval_callback));
 }
 
 //==============================================================================
@@ -162,11 +232,20 @@ void ScheduleManager::push_delay(
     const rmf_traffic::Duration duration,
     const rmf_traffic::Time from_time)
 {
+  if (_have_conflict)
+    return;
+
   if (_waiting_for_schedule)
   {
     _queued_delays.push_back([=](){ push_delay(duration, from_time); });
     return;
   }
+
+  // TODO(MXG): Pushing a delay when _schedule_ids is empty would be very
+  // suspicious. We should probably be noisy and do some debugging when this
+  // happens.
+  if (_schedule_ids.empty())
+    return;
 
   using DelayTrajectories = rmf_traffic_msgs::srv::DelayTrajectories;
 
@@ -217,24 +296,13 @@ const std::vector<rmf_traffic::schedule::Version>& ScheduleManager::ids() const
 //==============================================================================
 ScheduleManager::~ScheduleManager()
 {
-  if (!_schedule_ids.empty())
-  {
-    using EraseTrajectories = rmf_traffic_msgs::srv::EraseTrajectories;
-
-    const auto& erase = _connections->erase_trajectories;
-    EraseTrajectories::Request request;
-    request.erase_ids = _schedule_ids;
-
-    _schedule_ids.clear();
-
-    erase->async_send_request(
-          std::make_shared<EraseTrajectories::Request>(std::move(request)));
-  }
+  _connections->remove_conflict_listener(_conflict_listener.get());
+  erase_trajectories();
 }
 
 //==============================================================================
 void ScheduleManager::submit_trajectories(
-    const TrajectorySet& trajectories,
+    const ValidTrajectorySet& trajectories,
     std::function<void()> approval_callback)
 {
   using SubmitTrajectories = rmf_traffic_msgs::srv::SubmitTrajectories;
@@ -284,7 +352,7 @@ void ScheduleManager::submit_trajectories(
 
 //==============================================================================
 void ScheduleManager::replace_trajectories(
-    const TrajectorySet& trajectories,
+    const ValidTrajectorySet& trajectories,
     std::function<void()> approval_callback)
 {
   using ReplaceTrajectories = rmf_traffic_msgs::srv::ReplaceTrajectories;
@@ -298,6 +366,7 @@ void ScheduleManager::replace_trajectories(
   _waiting_for_schedule = true;
 
   _schedule_ids.clear();
+
   replace->async_send_request(
         std::make_shared<ReplaceTrajectories::Request>(std::move(request)),
         [this](rclcpp::Client<ReplaceTrajectories>::SharedFuture future)
@@ -324,18 +393,25 @@ void ScheduleManager::replace_trajectories(
 
 //==============================================================================
 void ScheduleManager::resolve_trajectories(
-    const TrajectorySet& trajectories,
+    const ValidTrajectorySet& trajectories,
     std::function<void()> approval_callback)
 {
   _last_revised_version = _last_conflict_version;
 
   using ResolveConflicts = rmf_traffic_msgs::srv::ResolveConflicts;
   ResolveConflicts::Request request;
-  request.resolve_ids = _schedule_ids;
+  request.resolve_ids = _conflict_ids;
   request.trajectories = convert(trajectories);
   request.conflict_version = _last_revised_version;
 
   const auto& resolve = _connections->resolve_conflicts;
+
+  _waiting_for_schedule = true;
+
+  // We'll just clear this flag so we don't get stuck failing to resolve
+  // conflicts forever
+  // TODO(MXG): Come up with a better scheme for this
+  _have_conflict = false;
 
   resolve->async_send_request(
         std::make_shared<ResolveConflicts::Request>(std::move(request)),
@@ -349,9 +425,22 @@ void ScheduleManager::resolve_trajectories(
     if (!response->error.empty())
       throw std::runtime_error(response->error);
 
+    std::string str = "[ ";
+    for (const auto s : _schedule_ids)
+      str += std::to_string(s) + " ";
+    str += "]";
+
     if (!response->accepted)
     {
+      // TODO(MXG): We should be given an indication of whether this was
+      // rejected because it's a bad plan or because the conflict was already
+      // resolved.
+
       // The conflict was resolved by someone else, so we will quit
+
+      std::cout << "Resolution rejected " << str << ": "
+                << static_cast<int>(response->reason)
+                << std::endl;
       return;
     }
 
@@ -362,11 +451,40 @@ void ScheduleManager::resolve_trajectories(
       _schedule_ids.push_back(i);
     }
 
-    if (process_queues())
+    if (_queued_change)
+    {
+      process_queues();
+      std::cout << "Resolution accepted, but it has been pushed off"
+                << std::endl;
       return;
+    }
+
+    std::cout << "Resolution accepted " << str << std::endl;
 
     approval_cb();
   });
+}
+
+//==============================================================================
+void ScheduleManager::erase_trajectories()
+{
+  _queued_change = nullptr;
+  _queued_delays.clear();
+  _waiting_for_schedule = false;
+
+  if (!_schedule_ids.empty())
+  {
+    using EraseTrajectories = rmf_traffic_msgs::srv::EraseTrajectories;
+
+    const auto& erase = _connections->erase_trajectories;
+    EraseTrajectories::Request request;
+    request.erase_ids = _schedule_ids;
+
+    _schedule_ids.clear();
+
+    erase->async_send_request(
+          std::make_shared<EraseTrajectories::Request>(std::move(request)));
+  }
 }
 
 //==============================================================================
@@ -374,8 +492,9 @@ bool ScheduleManager::process_queues()
 {
   if (_queued_change)
   {
-    _queued_change();
+    const auto perform_change = _queued_change;
     _queued_change = nullptr;
+    perform_change();
     return true;
   }
 

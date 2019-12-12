@@ -122,7 +122,8 @@ public:
   const rmf_traffic::agv::Graph& get_graph() const;
 
   std::vector<rmf_traffic::agv::Plan::Start> compute_plan_starts(
-      const Location& location);
+      const Location& location,
+      const std::chrono::nanoseconds start_delay);
 
   const WaypointKeys& get_waypoint_keys() const;
 
@@ -133,7 +134,7 @@ public:
   struct Fields
   {
     rmf_traffic_ros2::schedule::MirrorManager mirror;
-    ScheduleConnections schedule;
+    std::unique_ptr<ScheduleConnections> schedule;
     GraphInfo graph_info;
     rmf_traffic::agv::VehicleTraits traits;
     rmf_traffic::agv::Planner planner;
@@ -142,7 +143,7 @@ public:
         GraphInfo graph_info_,
         rmf_traffic::agv::VehicleTraits traits_,
         rmf_traffic_ros2::schedule::MirrorManager mirror_,
-        ScheduleConnections connections_)
+        std::unique_ptr<ScheduleConnections> connections_)
     : mirror(std::move(mirror_)),
       schedule(std::move(connections_)),
       graph_info(std::move(graph_info_)),
@@ -177,11 +178,6 @@ public:
   using DispenserStateListeners =
       std::unordered_set<Listener<DispenserState>*>;
   DispenserStateListeners dispenser_state_listeners;
-
-  using ScheduleConflict = rmf_traffic_msgs::msg::ScheduleConflict;
-  using ScheduleConflictListeners =
-      std::unordered_set<Listener<ScheduleConflict>*>;
-  ScheduleConflictListeners schedule_conflict_listeners;
 
   using PathRequest = rmf_fleet_msgs::msg::PathRequest;
   using PathRequestPub = rclcpp::Publisher<PathRequest>;
@@ -254,10 +250,6 @@ private:
   using LiftStateSub = rclcpp::Subscription<LiftState>;
   LiftStateSub::SharedPtr _lift_state_sub;
   void lift_state_update(LiftState::UniquePtr msg);
-
-  using ScheduleConflictSub = rclcpp::Subscription<ScheduleConflict>;
-  ScheduleConflictSub::SharedPtr _schedule_conflict_sub;
-  void schedule_conflict_update(ScheduleConflict::UniquePtr msg);
 
   using EmergencyNotice = std_msgs::msg::Bool;
   using EmergencyNoticeSub = rclcpp::Subscription<EmergencyNotice>;

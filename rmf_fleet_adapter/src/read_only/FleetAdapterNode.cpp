@@ -30,6 +30,8 @@
 
 #include "../rmf_fleet_adapter/load_param.hpp"
 
+#include "../rmf_fleet_adapter/make_trajectory.hpp"
+
 namespace rmf_fleet_adapter {
 namespace read_only {
 
@@ -51,7 +53,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
   while(rclcpp::ok() && std::chrono::steady_clock::now() < stop_time)
   {
     rclcpp::spin_some(node);
-    if (node->_connections.ready())
+    if (node->_connections->ready())
       return node;
   }
 
@@ -66,7 +68,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
 }
 
 FleetAdapterNode::ScheduleEntry::ScheduleEntry(FleetAdapterNode* node)
-: schedule(&node->_connections, node->_properties, [](){}),
+: schedule(node->_connections.get(), node->_properties, [](){}),
   trajectory("")
 {
   // Do nothing
@@ -123,7 +125,7 @@ void FleetAdapterNode::push_trajectory(
   for (const auto& location : state.path)
     it->second->path.push_back(location);
 
-  it->second->trajectory = make_trajectory(state, it->second->sitting);
+  it->second->trajectory = make_trajectory(state, _traits, it->second->sitting);
   it->second->schedule.push_trajectories({it->second->trajectory}, [](){});
 }
 
@@ -183,7 +185,7 @@ bool FleetAdapterNode::handle_delay(
     entry.path.push_back(location);
 
   bool sitting = false;
-  auto new_trajectory = make_trajectory(state, sitting);
+  auto new_trajectory = make_trajectory(state, _traits, sitting);
 
   if (entry.sitting && sitting)
   {
@@ -264,64 +266,44 @@ bool FleetAdapterNode::handle_delay(
   const auto t_it = entry.trajectory.find(from_time);
   if (t_it == entry.trajectory.end())
   {
-    // I can't think of a situation where this could happen, so let's report it
-    // as an error and debug it later.
-    RCLCPP_ERROR(
-          get_logger(),
-          "BUG: Robot [" + state.name + "] has a delay, but we cannot identify "
-          "where its schedule should be pushed back. This should not happen; "
-          "please report this.");
+    const auto t_start = *entry.trajectory.start_time();
+    if (from_time <= t_start)
+    {
+      // This is okay. It just means we will push back the entire trajectory
+      // in the schedule.
+      entry.trajectory.front().adjust_finish_times(time_difference);
+    }
+    else
+    {
+      // I can't think of a situation where this could happen, so let's report
+      // it as an error and debug it later.
+      const auto t_start =
+          entry.trajectory.start_time()->time_since_epoch().count();
+      const auto t_finish =
+          entry.trajectory.finish_time()->time_since_epoch().count();
 
-    // We'll return false so that the old trajectory can be replaced with the
-    // new one, and hopefully everything keeps working okay.
-    return false;
+      RCLCPP_ERROR(
+            get_logger(),
+            "BUG: Robot [" + state.name + "] has a delay which starts from ["
+            + std::to_string(from_time.time_since_epoch().count()) + "], but "
+            "we cannot identify where its schedule should be pushed back ["
+            + std::to_string(t_start) + " --> " + std::to_string(t_finish)
+            + "]. This should not happen; please report this.");
+
+      // We'll return false so that the old trajectory can be replaced with the
+      // new one, and hopefully everything keeps working okay.
+      return false;
+    }
   }
-
-  t_it->adjust_finish_times(time_difference);
+  else
+  {
+    t_it->adjust_finish_times(time_difference);
+  }
 
   entry.schedule.push_delay(time_difference, from_time);
 
   // Return true to indicate that the delay has been handled.
   return true;
-}
-
-//==============================================================================
-rmf_traffic::Trajectory FleetAdapterNode::make_trajectory(
-    const RobotState& state, bool& is_sitting) const
-{
-  // TODO(MXG): Account for the multi-floor use case
-  const std::string& map_name = state.location.level_name;
-
-  std::vector<Eigen::Vector3d> positions;
-  positions.push_back({state.location.x, state.location.y, state.location.yaw});
-  for (const auto& location : state.path)
-    positions.push_back({location.x, location.y, location.yaw});
-
-  const auto start_time = rmf_traffic_ros2::convert(state.location.t);
-
-  auto trajectory = rmf_traffic::agv::Interpolate::positions(
-        map_name, _traits, start_time, positions);
-
-  if (trajectory.size() < 2)
-  {
-    // If a robot state results in a single-point trajectory, then we should
-    // make a temporary sitting trajectory.
-    const Eigen::Vector3d p = positions.front();
-    rmf_traffic::Trajectory sitting{map_name};
-    sitting.insert(
-          start_time, _traits.get_profile(), p, Eigen::Vector3d::Zero());
-
-    const auto finish_time = start_time + std::chrono::seconds(10);
-    sitting.insert(
-          finish_time, _traits.get_profile(), p, Eigen::Vector3d::Zero());
-
-    is_sitting = true;
-    return sitting;
-  }
-
-  is_sitting = false;
-
-  return trajectory;
 }
 
 } // namespace read_only

@@ -90,7 +90,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     rclcpp::spin_some(node);
 
     bool ready = true;
-    ready &= connections.ready();
+    ready &= connections->ready();
     ready &= (mirror_future.wait_for(0s) == std::future_status::ready);
 
     if (ready)
@@ -273,12 +273,10 @@ const rmf_traffic::agv::Graph& FleetAdapterNode::get_graph() const
 
 //==============================================================================
 std::vector<rmf_traffic::agv::Plan::Start>
-FleetAdapterNode::compute_plan_starts(const Location& location)
+FleetAdapterNode::compute_plan_starts(const Location& location,
+    const std::chrono::nanoseconds start_delay)
 {
-  // Add 3 seconds to the current time to give us some buffer
-  // TODO(MXG): Make this configurable
-  const auto now = rmf_traffic_ros2::convert(get_clock()->now())
-      + std::chrono::seconds(3);
+  const auto now = rmf_traffic_ros2::convert(get_clock()->now()) + start_delay;
 
   const Eigen::Vector2d p_location = {location.x, location.y};
   const double start_yaw = static_cast<double>(location.yaw);
@@ -290,7 +288,7 @@ FleetAdapterNode::compute_plan_starts(const Location& location)
     const auto& wp = graph.get_waypoint(i);
     const Eigen::Vector2d wp_location = wp.get_location();
 
-    if ( (p_location - wp_location).norm() < 0.05 )
+    if ( (p_location - wp_location).norm() < 0.1 )
     {
       // This waypoint is very close to the real location, so we will assume
       // that the robot is located here.
@@ -299,9 +297,12 @@ FleetAdapterNode::compute_plan_starts(const Location& location)
   }
 
   std::vector<rmf_traffic::agv::Plan::Start> starts;
+  std::unordered_set<std::size_t> raw_starts;
 
   double closest_lane_dist = std::numeric_limits<double>::infinity();
-  std::size_t closest_lane = std::numeric_limits<std::size_t>::max();
+  rmf_utils::optional<std::size_t> closest_start_wp;
+  rmf_utils::optional<std::size_t> closest_lane;
+
   for (std::size_t i=0; i < graph.num_lanes(); ++i)
   {
     const auto& lane = graph.get_lane(i);
@@ -311,38 +312,86 @@ FleetAdapterNode::compute_plan_starts(const Location& location)
           lane.exit().waypoint_index()).get_location();
 
     const double lane_length = (p1 - p0).norm();
+    // This "lane" is effectively a single point, so we'll skip it
+    if (lane_length < 1e-8)
+      continue;
+
     const Eigen::Vector2d pn = (p1 - p0)/lane_length;
 
     const Eigen::Vector2d p_l = p_location - p0;
     const double p_l_projection = p_l.dot(pn);
 
-    double lane_dist = std::numeric_limits<double>::infinity();
     if (p_l_projection < 0.0)
     {
       // If it's negative then its closest point on the lane is the entry point
-      lane_dist = p_l.norm();
+      const double lane_dist = p_l.norm();
+      const std::size_t s = lane.entry().waypoint_index();
+      if (lane_dist < 0.1)
+      {
+        if (!raw_starts.insert(s).second)
+          continue;
+
+        starts.emplace_back(
+              rmf_traffic::agv::Plan::Start(now, s, start_yaw, p_location));
+      }
+
+      if (lane_dist < closest_lane_dist)
+      {
+        closest_start_wp = s;
+        closest_lane = rmf_utils::nullopt;
+        closest_lane_dist = lane_dist;
+      }
     }
-    else if (p_l_projection > lane_length)
+    else if (lane_length < p_l_projection)
     {
       // If it's larger than the lane length, then its closest point on the lane
       // is the exit point.
-      lane_dist = (p_location - p1).norm();
+      const double lane_dist = (p_location - p1).norm();
+      const std::size_t s = lane.exit().waypoint_index();
+      if (lane_dist < 0.1)
+      {
+        if (!raw_starts.insert(s).second)
+          continue;
+
+        starts.emplace_back(
+              rmf_traffic::agv::Plan::Start(now, s, start_yaw, p_location));
+      }
+
+      if (lane_dist < closest_lane_dist)
+      {
+        closest_start_wp = s;
+        closest_lane = rmf_utils::nullopt;
+        closest_lane_dist = lane_dist;
+      }
     }
     else
     {
       // If it's between the entry and the exit points, then we should compute
       // its distance away from the lane line.
-      lane_dist = (p_l - p_l_projection*pn).norm();
-    }
+      const double lane_dist = (p_l - p_l_projection*pn).norm();
+      const std::size_t s = lane.exit().waypoint_index();
+      if (lane_dist < 0.1)
+      {
+        starts.emplace_back(
+              rmf_traffic::agv::Plan::Start(now, s, start_yaw, p_location, i));
+      }
 
-    if (lane_dist < 0.25)
-    {
-      // If the robot is within 25cm of the lane, go ahead and add it as one of
-      // the options to consider.
-      starts.emplace_back(
-            rmf_traffic::agv::Plan::Start(
-              now, lane.exit().waypoint_index(), start_yaw, p_location, i));
+      if (lane_dist < closest_lane_dist)
+      {
+        closest_start_wp = s;
+        closest_lane = i;
+        closest_lane_dist = lane_dist;
+      }
     }
+  }
+
+  if (!closest_start_wp)
+  {
+    RCLCPP_WARN(
+          get_logger(),
+          "No start points found? This implies either a bug "
+          "or an empty nav graph!");
+    return {};
   }
 
   if (starts.empty())
@@ -360,8 +409,7 @@ FleetAdapterNode::compute_plan_starts(const Location& location)
 
     starts.emplace_back(
           rmf_traffic::agv::Plan::Start(
-            now, graph.get_lane(closest_lane).exit().waypoint_index(),
-            start_yaw, p_location, closest_lane));
+            now, *closest_start_wp, start_yaw, p_location, closest_lane));
   }
 
   return starts;
@@ -462,13 +510,6 @@ void FleetAdapterNode::start(Fields fields)
     this->lift_state_update(std::move(msg));
   });
 
-  _schedule_conflict_sub = create_subscription<ScheduleConflict>(
-        rmf_traffic_ros2::ScheduleConflictTopicName, default_qos,
-        [&](ScheduleConflict::UniquePtr msg)
-  {
-    this->schedule_conflict_update(std::move(msg));
-  });
-
   _emergency_notice_sub = create_subscription<EmergencyNotice>(
         rmf_traffic_ros2::EmergencyTopicName, default_qos,
         [&](EmergencyNotice::UniquePtr msg)
@@ -506,6 +547,14 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
     return;
   }
 
+  if (_in_emergency_mode)
+  {
+    RCLCPP_ERROR(
+          get_logger(),
+          "We do not currently support receiving tasks during emergencies!");
+    return;
+  }
+
   auto task_insertion = _received_tasks.insert(msg->task_id);
   if (!task_insertion.second)
   {
@@ -526,6 +575,14 @@ void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
 {
   if (ignore_fleet(msg->robot_type))
     return;
+
+  if (_in_emergency_mode)
+  {
+    RCLCPP_ERROR(
+          get_logger(),
+          "We do not currently support receiving tasks during emergencies!");
+    return;
+  }
 
   std::size_t fewest = std::numeric_limits<std::size_t>::max();
   RobotContext* fewest_context = nullptr;
@@ -615,13 +672,6 @@ void FleetAdapterNode::door_state_update(DoorState::UniquePtr msg)
 void FleetAdapterNode::lift_state_update(LiftState::UniquePtr msg)
 {
   for (const auto& listener : lift_state_listeners)
-    listener->receive(*msg);
-}
-
-//==============================================================================
-void FleetAdapterNode::schedule_conflict_update(ScheduleConflict::UniquePtr msg)
-{
-  for (const auto& listener : schedule_conflict_listeners)
     listener->receive(*msg);
 }
 
