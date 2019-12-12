@@ -364,7 +364,7 @@ public:
     return _base_task_id + std::to_string(_command_id);
   }
 
-  void send_next_command()
+  void send_next_command(bool continuous = true)
   {
     if (_remaining_waypoints.empty())
     {
@@ -381,19 +381,14 @@ public:
     _command->task_id = task_id();
     ++_command_id;
 
-    _command->path.clear();
-
     const auto& graph = _node->get_graph();
 
-    std::size_t i=0;
-    for (; i < _remaining_waypoints.size(); ++i)
+    auto make_location = [&](
+        const Eigen::Vector3d& p,
+        const rmf_traffic::Time t)
     {
-      const auto& wp = _remaining_waypoints[i];
-
-      const auto& p = wp.position();
-
       rmf_fleet_msgs::msg::Location location;
-      location.t = rmf_traffic_ros2::convert(wp.time());
+      location.t = rmf_traffic_ros2::convert(t);
       location.x = p[0];
       location.y = p[1];
       location.yaw = p[2];
@@ -401,7 +396,29 @@ public:
       // TODO(MXG): Fix this assumption that every waypoint is on one map
       location.level_name = graph.get_waypoint(0).get_map_name();
 
-      _command->path.emplace_back(std::move(location));
+      return location;
+    };
+
+    _command->path.clear();
+
+    if (continuous && !_issued_waypoints.empty())
+    {
+      // Most continuations will be continuous from the last commanded waypoint,
+      // so we should include that last commanded waypoint in the path that we
+      // send.
+      //
+      // However, some events (such as docking) will leave the robot in a
+      // different location than it started in, so those should not be
+      // continuous.
+      const auto& wp = _issued_waypoints.back();
+      _command->path.emplace_back(make_location(wp.position(), wp.time()));
+    }
+
+    std::size_t i=0;
+    for (; i < _remaining_waypoints.size(); ++i)
+    {
+      const auto& wp = _remaining_waypoints[i];
+      _command->path.emplace_back(make_location(wp.position(), wp.time()));
 
       // Break off the command wherever an event occurs, because those are
       // points where the fleet adapter will need to issue door/lift requests.
@@ -452,6 +469,9 @@ public:
         return;
 
       assert(_parent->_command || _parent->_retry_time);
+
+      if (_parent->handle_docking(msg))
+        return;
 
       if (_parent->handle_retry())
         return;
@@ -563,6 +583,31 @@ public:
     }
 
     find_and_execute_plan(std::chrono::seconds(15));
+  }
+
+  bool handle_docking(const RobotState& msg)
+  {
+    if (!_waiting_on_docking)
+      return false;
+
+    if (msg.task_id != task_id())
+    {
+      _event_executor.request_docking(_current_dock_name);
+      return true;
+    }
+
+    using RobotMode = rmf_fleet_msgs::msg::RobotMode;
+    if (msg.mode.mode == RobotMode::MODE_DOCKING)
+      return true;
+
+    // If the task_id is the one for docking but the state's mode is not docking
+    // then we assume that the docking is complete and that we should send the
+    // next batch of commands.
+    _event_executor.cancel();
+    _waiting_on_docking = false;
+    _current_dock_name.clear();
+    send_next_command(false);
+    return true;
   }
 
   bool handle_retry()
@@ -710,6 +755,7 @@ public:
 
   using DoorRequest = rmf_door_msgs::msg::DoorRequest;
   using LiftRequest = rmf_lift_msgs::msg::LiftRequest;
+  using ModeRequest = rmf_fleet_msgs::msg::ModeRequest;
 
   class EventExecutor : public rmf_traffic::agv::Graph::Lane::Executor
   {
@@ -729,6 +775,40 @@ public:
     {
       return _is_active;
     }
+
+    void request_docking(const std::string& dock_name)
+    {
+      ModeRequest request;
+
+      using RobotMode = rmf_fleet_msgs::msg::RobotMode;
+      request.mode.mode = RobotMode::MODE_DOCKING;
+
+      using Parameter = rmf_fleet_msgs::msg::ModeParameter;
+      Parameter p;
+      p.name = "dock_name";
+      p.value = dock_name;
+      request.parameters.emplace_back(std::move(p));
+
+      request.task_id = _parent->task_id();
+      request.robot_name = _parent->_context->robot_name();
+
+      _parent->_node->mode_request_publisher->publish(request);
+    }
+
+    void execute(const Lane::Dock& dock) override
+    {
+      if (_is_active)
+        return;
+
+      _is_active = true;
+
+      _parent->_waiting_on_docking = true;
+      _parent->_current_dock_name = dock.dock_name();
+
+      ++_parent->_command_id;
+      request_docking(_parent->_current_dock_name);
+    }
+
 
     void request_door_mode(
         const std::string& door_name,
@@ -1168,8 +1248,11 @@ private:
 
   rmf_utils::optional<rclcpp::Time> _retry_time = rmf_utils::nullopt;
 
-  bool _emergency_active;
-  bool _waiting_on_emergency;
+  bool _waiting_on_docking = false;
+  std::string _current_dock_name;
+
+  bool _emergency_active = false;
+  bool _waiting_on_emergency = false;
 
 };
 
