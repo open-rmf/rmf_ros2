@@ -4,6 +4,7 @@
 
   <arg name="robot_prefix" default="" description="The prefix that this aggregator should look for in the incoming robot names"/>
   <arg name="fleet_name" description="The name that will be published in the outgoing fleet state"/>
+  <arg name="use_sim_time" default="false" description="Use the /clock topic for time to sync with simulation"/>
 
   <node pkg="rmf_fleet_adapter"
         exec="robot_state_aggregator"
@@ -13,6 +14,7 @@
 
     <param name="robot_prefix" value="$(var robot_prefix)"/>
     <param name="fleet_name" value="$(var fleet_name)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
 
   </node>
 

@@ -539,14 +539,6 @@ void FleetAdapterNode::start(Fields fields)
 //==============================================================================
 void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
 {
-  if (_contexts.empty())
-  {
-    RCLCPP_ERROR(
-          get_logger(),
-          "No robots appear to be online!");
-    return;
-  }
-
   if (_in_emergency_mode)
   {
     RCLCPP_ERROR(
@@ -555,14 +547,27 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
     return;
   }
 
+  if (_contexts.empty())
+  {
+    RCLCPP_ERROR(
+          get_logger(),
+          "No robots appear to be online!");
+    return;
+  }
+
   auto task_insertion = _received_tasks.insert(msg->task_id);
   if (!task_insertion.second)
   {
     // We've already received and processed this task in the past, so we can
     // ignore it.
+    RCLCPP_INFO(
+          get_logger(),
+          "Already received delivery task [" + msg->task_id + "] so it will "
+          "be ignored");
     return;
   }
 
+  // TODO(MXG): Support multiple simultaneous deliveries
   auto context = _contexts.begin()->second.get();
 
   auto task = make_delivery(this, context, *msg);
@@ -573,9 +578,6 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
 //==============================================================================
 void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
 {
-  if (ignore_fleet(msg->robot_type))
-    return;
-
   if (_in_emergency_mode)
   {
     RCLCPP_ERROR(
@@ -583,6 +585,9 @@ void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
           "We do not currently support receiving tasks during emergencies!");
     return;
   }
+
+  if (ignore_fleet(msg->robot_type))
+    return;
 
   std::size_t fewest = std::numeric_limits<std::size_t>::max();
   RobotContext* fewest_context = nullptr;
@@ -598,6 +603,22 @@ void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
 
   if (fewest_context)
   {
+    // TODO(MXG): We should make a queue of tasks for the whole fleet instead of
+    // queuing up like this.
+    if (!_received_tasks.insert(msg->task_id).second)
+    {
+      RCLCPP_INFO(
+            get_logger(),
+            "Already received looping task request [" + msg->task_id
+            + "] so it will be ignored");
+      return;
+    }
+
+    RCLCPP_INFO(
+          get_logger(),
+          "Received task looping task ID [" + msg->task_id + "] and assigned "
+          "it to [" + fewest_context->robot_name() + "]");
+
     auto task = make_loop(this, fewest_context, std::move(*msg));
     if (task)
       fewest_context->add_task(std::move(task));

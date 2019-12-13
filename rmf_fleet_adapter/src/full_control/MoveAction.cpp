@@ -356,7 +356,7 @@ public:
       for (const auto& wp : plan.get_waypoints())
         _remaining_waypoints.emplace_back(wp);
 
-    return send_next_command();
+    return send_next_command(false);
   }
 
   std::string task_id() const
@@ -785,7 +785,7 @@ public:
 
       using Parameter = rmf_fleet_msgs::msg::ModeParameter;
       Parameter p;
-      p.name = "dock_name";
+      p.name = "docking";
       p.value = dock_name;
       request.parameters.emplace_back(std::move(p));
 
