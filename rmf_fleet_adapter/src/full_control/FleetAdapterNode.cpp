@@ -616,7 +616,7 @@ void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
 
     RCLCPP_INFO(
           get_logger(),
-          "Received task looping task ID [" + msg->task_id + "] and assigned "
+          "Received looping task ID [" + msg->task_id + "] and assigned "
           "it to [" + fewest_context->robot_name() + "]");
 
     auto task = make_loop(this, fewest_context, std::move(*msg));
@@ -644,14 +644,16 @@ void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
 //==============================================================================
 void FleetAdapterNode::dispenser_result_update(DispenserResult::UniquePtr msg)
 {
-  for (auto* listener : dispenser_result_listeners)
+  const auto current_listeners = dispenser_result_listeners;
+  for (auto* listener : current_listeners)
     listener->receive(*msg);
 }
 
 //==============================================================================
 void FleetAdapterNode::dispenser_state_update(DispenserState::UniquePtr msg)
 {
-  for (auto* listener : dispenser_state_listeners)
+  const auto current_listeners = dispenser_state_listeners;
+  for (auto* listener : current_listeners)
     listener->receive(*msg);
 }
 
@@ -685,14 +687,16 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr msg)
 //==============================================================================
 void FleetAdapterNode::door_state_update(DoorState::UniquePtr msg)
 {
-  for (const auto& listener : door_state_listeners)
+  const auto current_listeners = door_state_listeners;
+  for (const auto& listener : current_listeners)
     listener->receive(*msg);
 }
 
 //==============================================================================
 void FleetAdapterNode::lift_state_update(LiftState::UniquePtr msg)
 {
-  for (const auto& listener : lift_state_listeners)
+  const auto current_listeners = lift_state_listeners;
+  for (const auto& listener : current_listeners)
     listener->receive(*msg);
 }
 

@@ -926,7 +926,9 @@ public:
       if (time < initial_time)
         return;
 
-      if (msg.lift_name != lift_name)
+      // TODO(MXG): Accepting any lift when lift_name is empty is a temporary
+      // hack for an upcoming demo, and it should be removed immediately.
+      if (!lift_name.empty() && msg.lift_name != lift_name)
         return;
 
       if ((time - _command_time).seconds() > 0.2)

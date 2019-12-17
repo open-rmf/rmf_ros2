@@ -150,9 +150,50 @@ rmf_utils::optional<GraphInfo> parse_graph(
         }
       }
 
+      using Lane = rmf_traffic::agv::Graph::Lane;
+      using Event = Lane::Event;
+      rmf_utils::clone_ptr<Event> entry_event;
+      rmf_utils::clone_ptr<Event> exit_event;
+      if (const YAML::Node mock_lift_option = options["demo_mock_floor_name"])
+      {
+        // TODO(MXG): Replace this with a key like lift_name when we have proper
+        // support for lifts.
+        const std::string floor_name = mock_lift_option.as<std::string>();
+        const YAML::Node lift_name_option = options["door_name"];
+
+        const std::string lift_name = lift_name_option?
+              lift_name_option.as<std::string>() : std::string();
+        const rmf_traffic::Duration duration = std::chrono::seconds(4);
+        entry_event = Event::make(
+              Lane::LiftDoorOpen(lift_name, floor_name, duration));
+        // NOTE(MXG): We do not need an exit event for lifts
+      }
+      else if (const YAML::Node door_name_option = options["door_name"])
+      {
+        const std::string name = door_name_option.as<std::string>();
+        const rmf_traffic::Duration duration = std::chrono::seconds(4);
+        entry_event = Event::make(Lane::DoorOpen(name, duration));
+        exit_event = Event::make(Lane::DoorClose(name, duration));
+      }
+
+      if (const YAML::Node docking_option = options["dock_name"])
+      {
+        // TODO(MXG): Add support for this
+        if (entry_event || exit_event)
+        {
+          throw std::runtime_error(
+              "We do not currently support a dock_name option when any other "
+              "lane options are also specified");
+        }
+
+        const std::string dock_name = docking_option.as<std::string>();
+        const rmf_traffic::Duration duration = std::chrono::seconds(5);
+        entry_event = Event::make(Lane::Dock(dock_name, duration));
+      }
+
       info.graph.add_lane(
-          lane[0].as<std::size_t>(),
-          {lane[1].as<std::size_t>(), std::move(constraint)});
+          {lane[0].as<std::size_t>(), entry_event},
+          {lane[1].as<std::size_t>(), exit_event, std::move(constraint)});
     }
   }
 

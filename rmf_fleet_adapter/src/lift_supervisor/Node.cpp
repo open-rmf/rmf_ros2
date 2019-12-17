@@ -51,29 +51,28 @@ Node::Node()
 }
 
 //==============================================================================
-void Node::_adapter_lift_request_update(LiftRequest::UniquePtr /*msg*/)
+void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
 {
-  // TODO(MXG): At some point, come up with an intelligent way to plan out
-  // lift usage based on incoming requests.
-  //
-  // For right now, the only job of this node is to sniff out the emergency
-  // message from the lift messages, and broadcast that over the emergency
-  // topic.
+  // For now we will simply forward the request along
+  // TODO(MXG): Make this more intelligent by scheduling the lift
+  _lift_request_pub->publish(*msg);
 }
 
 //==============================================================================
-void Node::_lift_state_update(LiftState::UniquePtr msg)
+void Node::_lift_state_update(LiftState::UniquePtr /*msg*/)
 {
-  std_msgs::msg::Bool emergency_msg;
-  emergency_msg.data = false;
+  // For now, we do not need to publish this.
 
-  if (LiftState::MODE_FIRE == msg->current_mode
-      || LiftState::MODE_EMERGENCY == msg->current_mode)
-  {
-    emergency_msg.data = true;
-  }
+//  std_msgs::msg::Bool emergency_msg;
+//  emergency_msg.data = false;
 
-  _emergency_notice_pub->publish(emergency_msg);
+//  if (LiftState::MODE_FIRE == msg->current_mode
+//      || LiftState::MODE_EMERGENCY == msg->current_mode)
+//  {
+//    emergency_msg.data = true;
+//  }
+
+//  _emergency_notice_pub->publish(emergency_msg);
 }
 
 } // namespace lift_supervisor

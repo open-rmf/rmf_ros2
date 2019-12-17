@@ -119,8 +119,8 @@ std::unique_ptr<ScheduleConnections> ScheduleConnections::make(
         rclcpp::SystemDefaultsQoS(),
         [c_ptr](ScheduleConflict::UniquePtr msg)
   {
-    const auto listeners = c_ptr->_schedule_conflict_listeners;
-    for (auto& listener : listeners)
+    const auto current_listeners = c_ptr->_schedule_conflict_listeners;
+    for (auto& listener : current_listeners)
       listener->receive(*msg);
   });
 
