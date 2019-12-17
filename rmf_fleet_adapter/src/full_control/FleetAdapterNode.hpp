@@ -258,6 +258,8 @@ private:
 
   bool _in_emergency_mode = false;
 
+  bool _perform_deliveries = false;
+
   using Context =
       std::unordered_map<std::string, std::unique_ptr<RobotContext>>;
   Context _contexts;

@@ -20,6 +20,8 @@
 
 #include <rmf_traffic_ros2/Time.hpp>
 
+#include "../rmf_fleet_adapter/make_trajectory.hpp"
+
 namespace rmf_fleet_adapter {
 namespace full_control {
 
@@ -61,6 +63,7 @@ public:
 
     _context->insert_listener(&_robot_state_listener);
     _node->dispenser_state_listeners.insert(&_dispenser_state_listener);
+    _node->dispenser_result_listeners.insert(&_dispenser_result_listener);
 
     send_request();
   }
@@ -122,7 +125,10 @@ public:
     const auto start = rmf_traffic_ros2::convert(now);
     const auto finish = rmf_traffic_ros2::convert(*_last_reported_wait_time);
 
-    rmf_traffic::Trajectory trajectory{l.level_name};
+    const std::string map_name =
+        _node->get_graph().get_waypoint(0).get_map_name();
+
+    rmf_traffic::Trajectory trajectory{map_name};
     trajectory.insert(start, profile, position, zero);
     trajectory.insert(finish, profile, position, zero);
 

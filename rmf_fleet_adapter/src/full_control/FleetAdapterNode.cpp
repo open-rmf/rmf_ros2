@@ -41,6 +41,9 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
 {
   const auto node = std::shared_ptr<FleetAdapterNode>(new FleetAdapterNode);
 
+  node->_perform_deliveries =
+      node->declare_parameter<bool>("perform_deliveries", false);
+
   const std::string nav_graph_param_name = "nav_graph_file";
   std::string graph_file =
       node->declare_parameter(nav_graph_param_name, std::string());
@@ -539,6 +542,9 @@ void FleetAdapterNode::start(Fields fields)
 //==============================================================================
 void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
 {
+  if (!_perform_deliveries)
+    return;
+
   if (_in_emergency_mode)
   {
     RCLCPP_ERROR(
@@ -569,6 +575,10 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
 
   // TODO(MXG): Support multiple simultaneous deliveries
   auto context = _contexts.begin()->second.get();
+
+  RCLCPP_INFO(
+        get_logger(),
+        "Assigning delivery task to [" + context->robot_name() + "]");
 
   auto task = make_delivery(this, context, *msg);
   if (task)

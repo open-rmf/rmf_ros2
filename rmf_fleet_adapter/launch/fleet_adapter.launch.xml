@@ -15,6 +15,7 @@
   <arg name="linear_acceleration" description="The nominal linear acceleration of the vehicles in this fleet"/>
   <arg name="angular_acceleration" description="The nominal angular acceleration of the vehicles in this fleet"/>
   <arg name="profile_radius" description="The radius of the bounding circle of the vehicles in this fleet"/>
+  <arg name="perform_deliveries" default="false" description="Whether this fleet adapter can perform deliveries"/>
   <arg name="output" default="screen"/>
 
   <node pkg="rmf_fleet_adapter"
@@ -34,6 +35,8 @@
     <param name="angular_acceleration" value="$(var angular_acceleration)"/>
 
     <param name="profile_radius" value="$(var profile_radius)"/>
+
+    <param name="perform_deliveries" value="$(var perform_deliveries)"/>
 
     <param name="use_sim_time" value="$(var use_sim_time)"/>
   </node>
