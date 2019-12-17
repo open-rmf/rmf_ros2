@@ -684,6 +684,9 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr msg)
     if (inserted)
     {
       it->second = std::make_unique<RobotContext>(robot.name, robot.location);
+      RCLCPP_INFO(
+            get_logger(),
+            "Found a robot: [" + robot.name + "]");
     }
     else
     {

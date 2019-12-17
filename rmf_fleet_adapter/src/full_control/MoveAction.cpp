@@ -570,7 +570,7 @@ public:
     const Eigen::Vector2d target = event_wp.position().block<2,1>(0,0);
 
     // TODO(MXG): Consider making this threshold configurable
-    if ((p - target).norm() < 0.1)
+    if ((p - target).norm() < 0.5)
       event_wp.event()->execute(_event_executor);
   }
 
