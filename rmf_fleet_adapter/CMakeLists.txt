@@ -197,6 +197,25 @@ target_include_directories(dump_fleet_states
 
 # -----------------------------------------------------------------------------
 
+add_executable(task_aggregator
+  src/task_aggregator/main.cpp
+)
+
+target_link_libraries(task_aggregator
+  PRIVATE
+    rmf_fleet_adapter
+    ${rclcpp_LIBRARIES}
+    ${rmf_task_msgs_LIBRARIES}
+)
+
+target_include_directories(task_aggregator
+  PRIVATE
+    ${rclcpp_INCLUDE_DIRS}
+    ${rmf_task_msgs_INCLUDE_DIRS}
+)
+
+# -----------------------------------------------------------------------------
+
 install(
   TARGETS 
     rmf_fleet_adapter
@@ -207,6 +226,7 @@ install(
     door_supervisor
     robot_state_aggregator
     test_read_only_adapter
+    task_aggregator
   RUNTIME DESTINATION lib/rmf_fleet_adapter
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
