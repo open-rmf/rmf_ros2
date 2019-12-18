@@ -161,8 +161,16 @@ rmf_utils::optional<GraphInfo> parse_graph(
         const std::string floor_name = mock_lift_option.as<std::string>();
         const YAML::Node lift_name_option = options["demo_mock_lift_name"];
 
-        const std::string lift_name = lift_name_option?
-              lift_name_option.as<std::string>() : std::string();
+        if (!lift_name_option)
+        {
+          RCLCPP_ERROR(
+                node.get_logger(),
+                "Missing [demo_mock_lift_name] parameter which is required for "
+                "mock lifts");
+          return rmf_utils::nullopt;
+        }
+
+        const std::string lift_name = lift_name_option.as<std::string>();
         const rmf_traffic::Duration duration = std::chrono::seconds(4);
         entry_event = Event::make(
               Lane::LiftDoorOpen(lift_name, floor_name, duration));
