@@ -122,8 +122,11 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
 //==============================================================================
 FleetAdapterNode::RobotContext::RobotContext(
     std::string name,
-    Location location_)
+    Location location_,
+    ScheduleConnections* connections,
+    const rmf_traffic_msgs::msg::FleetProperties& properties)
 : location(std::move(location_)),
+  schedule(connections, properties, [&](){ this->resolve(); }),
   _name(std::move(name))
 {
   // Do nothing
@@ -195,6 +198,13 @@ void FleetAdapterNode::RobotContext::resume()
 {
   if (_task)
     _task->resume();
+}
+
+//==============================================================================
+void FleetAdapterNode::RobotContext::resolve()
+{
+  if (_task)
+    _task->resolve();
 }
 
 //==============================================================================
@@ -683,7 +693,10 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr msg)
 
     if (inserted)
     {
-      it->second = std::make_unique<RobotContext>(robot.name, robot.location);
+      it->second = std::make_unique<RobotContext>(
+            robot.name, robot.location,
+            _field->schedule.get(), make_fleet_properties());
+
       RCLCPP_INFO(
             get_logger(),
             "Found a robot: [" + robot.name + "]");

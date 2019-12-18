@@ -29,10 +29,6 @@ class Task
 {
 public:
 
-  Task(ScheduleConnections* connections,
-       rmf_traffic_msgs::msg::FleetProperties properties)
-  : schedule(connections, std::move(properties), [&](){ this->resolve(); }) { }
-
   virtual void next() = 0;
 
   virtual void interrupt() = 0;
@@ -50,8 +46,6 @@ public:
   virtual const rclcpp::Time& start_time() const = 0;
 
   virtual ~Task() = default;
-
-  ScheduleManager schedule;
 };
 
 } // namespace rmf_fleet_adapter

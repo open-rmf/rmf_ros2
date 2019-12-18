@@ -22,17 +22,6 @@ namespace rmf_fleet_adapter {
 namespace full_control {
 
 //==============================================================================
-rmf_traffic_msgs::msg::FleetProperties make_fleet_properties(
-    FleetAdapterNode* node)
-{
-  rmf_traffic_msgs::msg::FleetProperties fleet;
-  fleet.type = rmf_traffic_msgs::msg::FleetProperties::TYPE_RESPONSIVE;
-  fleet.fleet_id = node->get_fleet_name();
-
-  return fleet;
-}
-
-//==============================================================================
 class GenericTask : public Task
 {
 public:
@@ -41,8 +30,7 @@ public:
       FleetAdapterNode* node,
       FleetAdapterNode::RobotContext* context,
       std::string task_id)
-  : Task(node->get_fields().schedule.get(), make_fleet_properties(node)),
-    _node(node),
+  : _node(node),
     _context(context),
     _task_id(std::move(task_id)),
     _submission_time(node->get_clock()->now())

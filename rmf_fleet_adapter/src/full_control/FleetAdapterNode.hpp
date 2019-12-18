@@ -78,9 +78,15 @@ public:
 
   struct RobotContext
   {
-    RobotContext(std::string name, Location location);
+    RobotContext(
+        std::string name,
+        Location location,
+        ScheduleConnections* connections,
+        const rmf_traffic_msgs::msg::FleetProperties& properties);
 
     Location location;
+
+    ScheduleManager schedule;
 
     void next_task();
 
@@ -91,6 +97,8 @@ public:
     void interrupt();
 
     void resume();
+
+    void resolve();
 
     std::size_t num_tasks() const;
 
@@ -155,6 +163,15 @@ public:
       // Do nothing
     }
   };
+
+  rmf_traffic_msgs::msg::FleetProperties make_fleet_properties() const
+  {
+    rmf_traffic_msgs::msg::FleetProperties fleet;
+    fleet.type = rmf_traffic_msgs::msg::FleetProperties::TYPE_RESPONSIVE;
+    fleet.fleet_id = get_fleet_name();
+
+    return fleet;
+  }
 
   Fields& get_fields();
 

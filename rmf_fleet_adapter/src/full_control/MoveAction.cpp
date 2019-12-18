@@ -95,7 +95,7 @@ public:
 
   std::unordered_set<uint64_t> schedule_ids() const
   {
-    const auto& ids = _task->schedule.ids();
+    const auto& ids = _context->schedule.ids();
     return std::unordered_set<uint64_t>{ids.begin(), ids.end()};
   }
 
@@ -344,7 +344,7 @@ public:
   void execute_plan(std::vector<rmf_traffic::agv::Plan> plans)
   {
     assert(!plans.empty());
-    _task->schedule.push_trajectories(
+    _context->schedule.push_trajectories(
           collect_trajectories(plans),
           [&, plans](){ command_plans(plans); });
   }
@@ -465,7 +465,7 @@ public:
 
     void receive(const RobotState& msg) final
     {
-      if (_parent->_task->schedule.waiting())
+      if (_parent->_context->schedule.waiting())
         return;
 
       assert(_parent->_command || _parent->_retry_time);
@@ -663,7 +663,7 @@ public:
     const auto from_time =
         rmf_traffic_ros2::convert(msg.location.t) - new_delay;
     _finish_estimate = new_finish_estimate;
-    _task->schedule.push_delay(new_delay, from_time);
+    _context->schedule.push_delay(new_delay, from_time);
   }
 
   void report_waiting()
@@ -692,7 +692,7 @@ public:
             _finish_estimate,
             profile, position, Eigen::Vector3d::Zero());
 
-      _task->schedule.push_trajectories({wait_trajectory}, [](){});
+      _context->schedule.push_trajectories({wait_trajectory}, [](){});
     }
     else
     {
@@ -708,7 +708,7 @@ public:
         const auto new_finish_estimate = now + std::chrono::minutes(5);
         const auto schedule_delay = new_finish_estimate - _finish_estimate;
         _finish_estimate = new_finish_estimate;
-        _task->schedule.push_delay(schedule_delay, now);
+        _context->schedule.push_delay(schedule_delay, now);
       }
     }
   }
@@ -1149,7 +1149,7 @@ public:
     // TODO(MXG): This is fragile. Robots ought to correctly report their level
     // name, but we can't rely on that for right now.
     hold.set_map_name(_node->get_graph().get_waypoint(0).get_map_name());
-    _task->schedule.push_trajectories({hold}, [](){});
+    _context->schedule.push_trajectories({hold}, [](){});
 
     _node->mode_request_publisher->publish(std::move(request));
   }
