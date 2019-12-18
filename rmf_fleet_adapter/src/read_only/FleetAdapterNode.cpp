@@ -125,6 +125,7 @@ void FleetAdapterNode::push_trajectory(
   for (const auto& location : state.path)
     it->second->path.push_back(location);
 
+  it->second->cumulative_delay = std::chrono::seconds(0);
   it->second->trajectory = make_trajectory(state, _traits, it->second->sitting);
   it->second->schedule.push_trajectories({it->second->trajectory}, [](){});
 }
@@ -210,8 +211,12 @@ bool FleetAdapterNode::handle_delay(
     const auto current_time = rmf_traffic_ros2::convert(state.location.t);
     const auto next_finish_time = current_time + std::chrono::seconds(10);
     const auto delay = next_finish_time - *entry.trajectory.finish_time();
-    if (delay > std::chrono::seconds(3))
+    if (delay > std::chrono::seconds(1))
     {
+      entry.cumulative_delay += delay;
+      if (entry.cumulative_delay >= MaxCumulativeDelay)
+        return false;
+
       entry.trajectory.back().adjust_finish_times(delay);
       entry.schedule.push_delay(delay, current_time);
     }
@@ -240,22 +245,9 @@ bool FleetAdapterNode::handle_delay(
     return true;
   }
 
-  if (time_difference.count() < 0)
-  {
-    // The AGV is ahead of schedule. This shouldn't generally happen because
-    // there shouldn't be a situation where the robot moves faster than the
-    // estimate. We will log this for debugging reference, but otherise ignore
-    // it for now.
-    RCLCPP_WARN(
-          get_logger(),
-          "Robot [" + state.name + "] is unexpectedly ["
-          + std::to_string(-rmf_traffic::time::to_seconds(time_difference))
-          + "] seconds ahead of schedule. This should not happen; the real "
-          + "robots should only ever be behind the predicted schedule.");
-
-    // We'll return true to avoid a needless schedule replacement.
-    return true;
-  }
+  entry.cumulative_delay += time_difference;
+  if (entry.cumulative_delay >= MaxCumulativeDelay)
+    return false;
 
   // There was a considerable difference between the scheduled finishing time
   // estimate and the latest finishing time estimate, so we will notify the

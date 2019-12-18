@@ -471,15 +471,6 @@ void ScheduleNode::delay_trajectories(
   const auto from_time = std::chrono::steady_clock::time_point(
         std::chrono::nanoseconds(request->from_time));
 
-  if (request->delay < 0)
-  {
-    response->error = std::string()
-        + "The schedule does not (yet) support negative delays ["
-        + std::to_string(request->delay) + "]";
-    RCLCPP_WARN(get_logger(), response->error);
-    return;
-  }
-
   if (request->delay_ids.empty())
   {
     response->error = "delay_ids field in request was empty";

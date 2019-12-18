@@ -75,6 +75,7 @@ private:
     ScheduleManager schedule;
     std::vector<Location> path;
     rmf_traffic::Trajectory trajectory;
+    rmf_traffic::Duration cumulative_delay = rmf_traffic::Duration(0);
     bool sitting = false;
 
     ScheduleEntry(FleetAdapterNode* node);
@@ -103,6 +104,8 @@ private:
   bool handle_delay(
       const RobotState& state,
       const ScheduleEntries::iterator& it);
+
+  const rmf_traffic::Duration MaxCumulativeDelay = std::chrono::seconds(15);
 };
 
 } // namespace read_only
