@@ -1010,8 +1010,7 @@ public:
         this->wait_for_lift_mode(
               msg, lift_name, floor_name,
               LiftRequest::REQUEST_AGV_MODE,
-              LiftRequest::DOOR_OPEN,
-              initial_time);
+              LiftRequest::DOOR_OPEN);
       };
     }
 
