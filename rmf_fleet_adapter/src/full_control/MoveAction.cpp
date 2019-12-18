@@ -919,19 +919,14 @@ public:
         const std::string& lift_name,
         const std::string& floor_name,
         const uint8_t lift_mode,
-        const uint8_t door_state,
-        const rclcpp::Time& initial_time)
+        const uint8_t door_state)
     {
-      const auto time = rclcpp::Time(msg.lift_time);
-      if (time < initial_time)
-        return;
-
       // TODO(MXG): Accepting any lift when lift_name is empty is a temporary
       // hack for an upcoming demo, and it should be removed immediately.
       if (!lift_name.empty() && msg.lift_name != lift_name)
         return;
 
-      if ((time - _command_time).seconds() > 0.2)
+      if ((_parent->_node->get_clock()->now() - _command_time).seconds() > 0.2)
       {
         // Send the command periodically as a precaution
         request_lift_mode(
@@ -967,8 +962,7 @@ public:
         this->wait_for_lift_mode(
               msg, lift_name, floor_name,
               LiftRequest::REQUEST_AGV_MODE,
-              LiftRequest::DOOR_OPEN,
-              initial_time);
+              LiftRequest::DOOR_OPEN);
       };
 
       request_lift_mode(
