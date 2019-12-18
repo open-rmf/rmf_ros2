@@ -159,7 +159,7 @@ rmf_utils::optional<GraphInfo> parse_graph(
         // TODO(MXG): Replace this with a key like lift_name when we have proper
         // support for lifts.
         const std::string floor_name = mock_lift_option.as<std::string>();
-        const YAML::Node lift_name_option = options["door_name"];
+        const YAML::Node lift_name_option = options["demo_mock_lift_name"];
 
         const std::string lift_name = lift_name_option?
               lift_name_option.as<std::string>() : std::string();
