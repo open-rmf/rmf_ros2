@@ -248,12 +248,12 @@ std::unique_ptr<Task> make_delivery(
   std::queue<std::unique_ptr<Action>> action_queue;
 
   std::size_t move_id = 0;
-//  action_queue.push(
-//        make_move(node, context, task.get(), pickup_wp->second, move_id++));
+  action_queue.push(
+        make_move(node, context, task.get(), pickup_wp->second, move_id++));
 
-//  action_queue.push(
-//        make_dispense(node, context, task.get(), pickup_dispenser->second,
-//                      delivery.items, delivery.pickup_behavior));
+  action_queue.push(
+        make_dispense(node, context, task.get(), pickup_dispenser->second,
+                      delivery.items, delivery.pickup_behavior));
 
   action_queue.push(
         make_move(node, context, task.get(), dropoff_wp->second, move_id++));
