@@ -105,7 +105,7 @@ private:
       const RobotState& state,
       const ScheduleEntries::iterator& it);
 
-  const rmf_traffic::Duration MaxCumulativeDelay = std::chrono::seconds(15);
+  const rmf_traffic::Duration MaxCumulativeDelay = std::chrono::seconds(5);
 };
 
 } // namespace read_only

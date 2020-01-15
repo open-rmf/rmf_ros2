@@ -16,6 +16,10 @@
   <arg name="angular_acceleration" description="The nominal angular acceleration of the vehicles in this fleet"/>
   <arg name="profile_radius" description="The radius of the bounding circle of the vehicles in this fleet"/>
   <arg name="perform_deliveries" default="false" description="Whether this fleet adapter can perform deliveries"/>
+  <arg name="delay_threshold" default="30.0" description="How long to wait before replanning" />
+  <arg name="retry_wait" default="10.0" description="How long a retry should wait before starting"/>
+  <arg name="discovery_timeout" default="10.0" description="How long to wait on discovery before giving up"/>
+  <arg name="reversible" default="true" description="Can the robot drive backwards"/>
   <arg name="output" default="screen"/>
 
   <node pkg="rmf_fleet_adapter"
@@ -37,6 +41,11 @@
     <param name="profile_radius" value="$(var profile_radius)"/>
 
     <param name="perform_deliveries" value="$(var perform_deliveries)"/>
+
+    <param name="delay_threshold" value="$(var delay_threshold)"/>
+    <param name="retry_wait" value="$(var retry_wait)"/>
+    <param name="discovery_timeout" value="$(var discovery_timeout)"/>
+    <param name="reversible" value="$(var reversible)"/>
 
     <param name="use_sim_time" value="$(var use_sim_time)"/>
   </node>

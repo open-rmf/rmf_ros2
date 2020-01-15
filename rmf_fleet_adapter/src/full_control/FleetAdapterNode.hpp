@@ -125,6 +125,8 @@ public:
 
   rmf_traffic::Duration get_delay_threshold() const;
 
+  rmf_traffic::Duration get_retry_wait() const;
+
   const rmf_traffic::agv::Planner& get_planner() const;
 
   const rmf_traffic::agv::Graph& get_graph() const;
@@ -228,6 +230,8 @@ private:
 
   rmf_traffic::Duration _delay_threshold;
 
+  rmf_traffic::Duration _retry_wait;
+
   rmf_traffic::Duration _plan_time;
 
   void start(Fields fields);
@@ -276,6 +280,8 @@ private:
   bool _in_emergency_mode = false;
 
   bool _perform_deliveries = false;
+
+  bool _have_delivery_request = false;
 
   using Context =
       std::unordered_map<std::string, std::unique_ptr<RobotContext>>;

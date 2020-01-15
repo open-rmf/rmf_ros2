@@ -66,14 +66,22 @@ rmf_traffic::agv::VehicleTraits get_traits_or_default(
       get_parameter_or_default(node, "angular_acceleration", default_alpha_nom);
   const double r =
       get_parameter_or_default(node, "profile_radius", default_radius);
+  const bool reversible =
+      get_parameter_or_default(node, "reversible", true);
 
-  return rmf_traffic::agv::VehicleTraits{
+  if (!reversible)
+    std::cout << " ===== We have an irreversible robot" << std::endl;
+
+  auto traits = rmf_traffic::agv::VehicleTraits{
     {v_nom, a_nom},
     {w_nom, b_nom},
     rmf_traffic::Trajectory::Profile::make_guided(
           rmf_traffic::geometry::make_final_convex<
             rmf_traffic::geometry::Circle>(r))
   };
+
+  traits.get_differential()->set_reversible(reversible);
+  return traits;
 }
 
 } // namespace rmf_fleet_adapter

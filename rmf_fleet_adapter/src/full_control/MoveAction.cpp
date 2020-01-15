@@ -195,7 +195,6 @@ public:
     auto plans = find_plan(start_delay);
     if (!plans.empty())
       return execute_plan(std::move(plans));
-
     cancel(std::chrono::seconds(1));
   }
 
@@ -305,7 +304,8 @@ public:
   }
 
   std::vector<rmf_traffic::Trajectory> collect_trajectories(
-      std::vector<rmf_traffic::agv::Plan> plans) const
+      std::vector<rmf_traffic::agv::Plan> plans,
+      std::chrono::nanoseconds delay = std::chrono::seconds(0)) const
   {
     std::vector<rmf_traffic::Trajectory> trajectories;
     bool first_trajectory = true;
@@ -333,6 +333,7 @@ public:
         if (trajectory.size() < 2)
           continue;
 
+        trajectory.begin()->adjust_finish_times(delay);
         trajectories.emplace_back(std::move(trajectory));
       }
     }
@@ -438,11 +439,16 @@ public:
                 _remaining_waypoints.begin(),
                 _remaining_waypoints.begin()+i);
 
-    _finish_estimate = _issued_waypoints.back().time();
+    const auto previous_delay = _finish_estimate - _original_finish_estimate;
+    std::cout << "Noting previous delay: " << rmf_traffic::time::to_seconds(previous_delay)
+              << std::endl;
+
+    _finish_estimate = _issued_waypoints.back().time() + previous_delay;
     _original_finish_estimate = _finish_estimate;
 
     publish_command();
     _command_time = _node->get_clock()->now();
+    _task->report_status();
   }
 
   void publish_command()
@@ -582,7 +588,7 @@ public:
       return;
     }
 
-    find_and_execute_plan(std::chrono::seconds(15));
+    find_and_execute_plan(_node->get_retry_wait());
   }
 
   bool handle_docking(const RobotState& msg)
@@ -634,19 +640,22 @@ public:
       return;
 
     bool s;
-    const auto trajectory_estimate =
+    auto trajectory_estimate =
         make_trajectory(msg, _node->get_fields().traits, s);
 
     const auto new_finish_estimate = *trajectory_estimate.finish_time();
 
     const auto total_delay = new_finish_estimate - _original_finish_estimate;
-    // TODO(MXG): Make this threshold configurable
-    if (total_delay > std::chrono::seconds(30))
+    if (total_delay > _node->get_delay_threshold())
     {
       RCLCPP_WARN(
             _node->get_logger(),
             "Attempting to replan the movement for [" + _context->robot_name()
-            + "] because the delay has been too long.");
+            + "] because the delay has been too long ["
+            + std::to_string(rmf_traffic::time::to_seconds(_node->get_delay_threshold()))
+            + "]. Retrying in ["
+            + std::to_string(rmf_traffic::time::to_seconds(_node->get_retry_wait()))
+            + "] seconds.");
       // If the dealys have piled up, then consider just restarting altogether.
       return retry();
     }
@@ -655,15 +664,35 @@ public:
     // TODO(MXG): Make this threshold configurable
 //    if (new_delay < std::chrono::seconds(3))
 //      return;
-    if (new_delay < std::chrono::seconds(1))
+    if (std::abs(new_delay.count()) < std::chrono::seconds(1).count())
+    {
       return;
+    }
+
+//    std::cout << "Adding delay: ["
+//              << rmf_traffic::time::to_seconds(new_delay)
+//              << "] total: "
+//              << rmf_traffic::time::to_seconds(
+//                   new_finish_estimate - _original_finish_estimate)
+//              << std::endl;
 //    if (new_delay < std::chrono::milliseconds(500))
 //      return;
 
     const auto from_time =
         rmf_traffic_ros2::convert(msg.location.t) - new_delay;
     _finish_estimate = new_finish_estimate;
-    _context->schedule.push_delay(new_delay, from_time);
+
+    if (total_delay < std::chrono::seconds(30))
+    {
+      _context->schedule.push_delay(new_delay, from_time);
+    }
+    else
+    {
+      trajectory_estimate.set_map_name(_node->get_graph().get_waypoint(0).get_map_name());
+      _context->schedule.push_trajectories({trajectory_estimate}, [](){});
+      _finish_estimate = new_finish_estimate;
+      _original_finish_estimate = _finish_estimate;
+    }
   }
 
   void report_waiting()
@@ -805,7 +834,11 @@ public:
       _parent->_waiting_on_docking = true;
       _parent->_current_dock_name = dock.dock_name();
 
+      status = " - Waiting for docking into ["
+          + _parent->_current_dock_name + "]";
+
       ++_parent->_command_id;
+      _parent->_task->report_status();
       request_docking(_parent->_current_dock_name);
     }
 
@@ -864,6 +897,8 @@ public:
       const std::string door_name = open.name();
       const auto initial_time = _parent->_node->get_clock()->now();
 
+      status = " - Waiting for door [" + door_name + "] to open";
+
       _parent->_event_listener.door =
           [=](const DoorState& msg)
       {
@@ -871,6 +906,7 @@ public:
               msg, DoorMode::MODE_OPEN, door_name, initial_time);
       };
 
+      _parent->_task->report_status();
       request_door_mode(door_name, DoorMode::MODE_OPEN);
     }
 
@@ -885,6 +921,8 @@ public:
       const auto initial_time = _parent->_node->get_clock()->now();
       _command_time = initial_time;
 
+      status = " - Waiting for door [" + door_name + "] to close";
+
       _parent->_event_listener.door =
           [=](const DoorState& msg)
       {
@@ -892,6 +930,7 @@ public:
               msg, DoorMode::MODE_CLOSED, door_name, initial_time);
       };
 
+      _parent->_task->report_status();
       request_door_mode(door_name, DoorMode::MODE_CLOSED);
     }
 
@@ -956,6 +995,9 @@ public:
       const std::string floor_name = open.floor_name();
       const auto initial_time = _parent->_node->get_clock()->now();
 
+      status = " - Waiting for lift [" + lift_name + "] to open on floor ["
+          + floor_name + "]";
+
       _parent->_event_listener.lift =
           [=](const LiftState& msg)
       {
@@ -965,6 +1007,7 @@ public:
               LiftRequest::DOOR_OPEN);
       };
 
+      _parent->_task->report_status();
       request_lift_mode(
             lift_name, floor_name,
             LiftRequest::REQUEST_AGV_MODE,
@@ -1020,6 +1063,8 @@ public:
       _parent->_event_listener.lift = nullptr;
       _is_active = false;
     }
+
+    std::string status;
 
   private:
     rclcpp::Time _command_time;
@@ -1189,36 +1234,34 @@ public:
             "#" + std::to_string(_goal_wp_index) : wp_it->second;
     };
 
-    status = "Moving to waypoint [" + name_of(_goal_wp_index) + "] - ";
+    status = "Moving to waypoint [" + name_of(_goal_wp_index) + "]";
 
     if (_emergency_active)
-      status += "Emergency Interruption - ";
+      status += " - Emergency Interruption";
     else
-      status = "In progress - ";
+      status += " - In progress";
 
     if (_waiting_on_emergency)
     {
-      status += "Waiting for emergency to end";
-      return {status};
-    }
-    else if (_remaining_waypoints.empty())
-    {
-      status += "Empty Plan - May require human intervention";
+      status += " - Waiting for emergency to end";
       return {status};
     }
 
-    for (const auto& wp : _remaining_waypoints)
+    if (_event_executor.is_active())
     {
-      if (wp.graph_index())
-      {
-        status += "next waypoint: [" + name_of(*wp.graph_index()) + "]";
-        break;
-      }
+      status += _event_executor.status;
     }
 
-    const auto& final_wp = _remaining_waypoints.back();
-    const auto end_time = rmf_traffic_ros2::to_ros2(final_wp.time());
-    return {status, end_time};
+    rmf_utils::optional<rmf_traffic::agv::Plan::Waypoint> final_wp;
+    if (!_remaining_waypoints.empty())
+      final_wp = _remaining_waypoints.back();
+    else if(!_issued_waypoints.empty())
+      final_wp = _issued_waypoints.back();
+
+    if (final_wp)
+      return {status, rmf_traffic_ros2::to_ros2(final_wp->time())};
+
+    return {status, _node->now()};
   }
 
 private:
@@ -1235,8 +1278,8 @@ private:
   rclcpp::Time _command_time;
   std::vector<rmf_traffic::agv::Plan::Waypoint> _remaining_waypoints;
   std::vector<rmf_traffic::agv::Plan::Waypoint> _issued_waypoints;
-  rmf_traffic::Time _finish_estimate;
-  rmf_traffic::Time _original_finish_estimate;
+  rmf_traffic::Time _finish_estimate = rmf_traffic::Time(std::chrono::seconds(0));
+  rmf_traffic::Time _original_finish_estimate = rmf_traffic::Time(std::chrono::seconds(0));
   rmf_utils::optional<Eigen::Vector3d> _next_stop;
   rmf_utils::optional<rmf_fleet_msgs::msg::PathRequest> _command;
   std::size_t _command_id = 0;

@@ -233,6 +233,10 @@ bool FleetAdapterNode::handle_delay(
 
   const auto time_difference =
       *new_trajectory.finish_time() - *entry.trajectory.finish_time();
+
+//  std::cout << "Calculating delay: ["
+//            << rmf_traffic::time::to_seconds(time_difference) << "]" << std::endl;
+
   if (std::abs(time_difference.count()) < _delay_threshold.count())
   {
     // The difference between the current finishing time estimate and the
@@ -289,7 +293,10 @@ bool FleetAdapterNode::handle_delay(
   }
   else
   {
-    t_it->adjust_finish_times(time_difference);
+    if (time_difference.count() < 0)
+      entry.trajectory.begin()->adjust_finish_times(time_difference);
+    else
+      t_it->adjust_finish_times(time_difference);
   }
 
   entry.schedule.push_delay(time_difference, from_time);

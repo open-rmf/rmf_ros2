@@ -32,7 +32,8 @@ int main(int argc, char* argv[])
   if (!fleet_adapter_node)
     return 1;
 
-  RCLCPP_INFO(fleet_adapter_node->get_logger(), "Starting Fleet Adapter");
+//  RCLCPP_INFO(fleet_adapter_node->get_logger(), "Starting Fleet Adapter");
+  std::cout << "Starting [" << fleet_adapter_node->get_fleet_name() << "]" << std::endl;
   rclcpp::spin(fleet_adapter_node);
   RCLCPP_INFO(fleet_adapter_node->get_logger(), "Closing Fleet Adapter");
 

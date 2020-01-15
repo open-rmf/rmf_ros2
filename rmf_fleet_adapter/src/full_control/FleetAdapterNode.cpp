@@ -68,6 +68,9 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
   node->_delay_threshold =
       get_parameter_or_default_time(*node, "delay_threshold", 5.0);
 
+  node->_retry_wait =
+      get_parameter_or_default_time(*node, "retry_wait", 15.0);
+
   node->_plan_time =
       get_parameter_or_default_time(*node, "planning_timeout", 5.0);
 
@@ -138,6 +141,7 @@ void FleetAdapterNode::RobotContext::next_task()
   // TODO(MXG): Report the current task complete before clearing it
   if (!_task_queue.empty())
   {
+    std::cout << "Starting the next task" << std::endl;
     _task = std::move(_task_queue.front());
     _task_queue.erase(_task_queue.begin());
     _task->next();
@@ -157,11 +161,13 @@ void FleetAdapterNode::RobotContext::add_task(std::unique_ptr<Task> new_task)
   {
     // No task is currently active, so set this new task as the active one and
     // begin executing it.
+    std::cout << "beginning task" << std::endl;
     _task = std::move(new_task);
     _task->next();
   }
   else
   {
+    std::cout << "appending task" << std::endl;
     // A task is currently active, so add this task to the queue. We're going to
     // do first-come first-serve for task requests for now.
     _task_queue.emplace_back(std::move(_task));
@@ -204,7 +210,12 @@ void FleetAdapterNode::RobotContext::resume()
 void FleetAdapterNode::RobotContext::resolve()
 {
   if (_task)
+  {
+    std::cout << "Asking task to resolve" << std::endl;
     _task->resolve();
+  }
+
+  std::cout << "No task to resolve" << std::endl;
 }
 
 //==============================================================================
@@ -270,6 +281,12 @@ rmf_traffic::Duration FleetAdapterNode::get_plan_time() const
 rmf_traffic::Duration FleetAdapterNode::get_delay_threshold() const
 {
   return _delay_threshold;
+}
+
+//==============================================================================
+rmf_traffic::Duration FleetAdapterNode::get_retry_wait() const
+{
+  return _retry_wait;
 }
 
 //==============================================================================
@@ -583,6 +600,9 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
     return;
   }
 
+  if (_have_delivery_request)
+    return;
+
   // TODO(MXG): Support multiple simultaneous deliveries
   auto context = _contexts.begin()->second.get();
 
@@ -590,9 +610,15 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
         get_logger(),
         "Assigning delivery task to [" + context->robot_name() + "]");
 
+  std::cout << "Robot name: [" << context->robot_name() << "]  | ptr: ["
+            << context << "]" << std::endl;
+
   auto task = make_delivery(this, context, *msg);
   if (task)
+  {
+    _have_delivery_request = true;
     context->add_task(std::move(task));
+  }
 }
 
 //==============================================================================

@@ -452,9 +452,16 @@ void ScheduleNode::replace_trajectories(
     }
   }
 
-  perform_replacement(request->replace_ids, std::move(trajectories),
-                      response->latest_trajectory_version,
-                      response->current_version);
+  try
+  {
+    perform_replacement(request->replace_ids, std::move(trajectories),
+                        response->latest_trajectory_version,
+                        response->current_version);
+  }
+  catch(const std::exception& e)
+  {
+    response->error = e.what();
+  }
 
   wakeup_mirrors();
 }
@@ -629,9 +636,16 @@ void ScheduleNode::resolve_conflicts(
         .unresolved_ids = unresolved_conflicts;
   }
 
-  perform_replacement(request->resolve_ids, std::move(resolution_trajectories),
-                      response->latest_trajectory_version,
-                      response->current_version);
+  try
+  {
+    perform_replacement(request->resolve_ids, std::move(resolution_trajectories),
+                        response->latest_trajectory_version,
+                        response->current_version);
+  }
+  catch (const std::exception& e)
+  {
+    response->error = e.what();
+  }
 
   wakeup_mirrors();
 }

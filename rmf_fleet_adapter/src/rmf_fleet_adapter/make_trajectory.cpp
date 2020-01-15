@@ -29,7 +29,10 @@ rmf_traffic::Trajectory make_trajectory(
     bool& is_sitting)
 {
   // TODO(MXG): Account for the multi-floor use case
-  const std::string& map_name = state.location.level_name;
+  std::string map_name = state.location.level_name;
+  if (map_name.empty())
+    map_name = "B1";
+
 
   std::vector<Eigen::Vector3d> positions;
   positions.push_back({state.location.x, state.location.y, state.location.yaw});

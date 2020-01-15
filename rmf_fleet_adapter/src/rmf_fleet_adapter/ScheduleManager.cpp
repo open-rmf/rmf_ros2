@@ -36,41 +36,54 @@ public:
 
   void receive(const ScheduleConflict& msg) final
   {
-    if (_parent->_waiting_for_schedule)
-      return;
+//    if (_parent->_waiting_for_schedule)
+//      return;
 
-    if (msg.version <= _parent->_last_revised_version)
-      return;
+//    if (msg.version <= _parent->_last_revised_version)
+//    {
+//      std::cout << "Ignoring old conflict notice" << std::endl;
+//      return;
+//    }
 
     const auto& schedule_ids = _parent->_schedule_ids;
 
     for (const auto id : msg.indices)
     {
-      if (std::find(schedule_ids.begin(), schedule_ids.end(), id)
-          == schedule_ids.end())
+      const bool is_current_id =
+          std::find(schedule_ids.begin(), schedule_ids.end(), id) != schedule_ids.end();
+
+      const auto it = _parent->_schedule_history.find(id);
+      const bool is_old_id = it != _parent->_schedule_history.end();
+
+      if (!is_current_id && !is_old_id)
         continue;
 
+
+      _parent->_have_conflict = true;
+      if (is_current_id)
+        _parent->_conflict_ids = schedule_ids;
+      else if (is_old_id)
+        _parent->_conflict_ids = it->second;
+
       std::cout << "[ ";
-      for (const auto s : schedule_ids)
+      for (const auto s : _parent->_conflict_ids)
          std::cout << s << " ";
       std::cout << "]: " << msg.version << std::endl;
 
-      _parent->_have_conflict = true;
-      _parent->_conflict_ids = schedule_ids;
       _parent->_last_conflict_version = msg.version;
       return _parent->_revision_callback();
     }
 
-//    if (!msg.indices.empty())
-//    {
-//      std::cout << "Ignoring conflict for [ ";
-//      for (const auto c : msg.indices)
-//        std::cout << c << " ";
-//      std::cout << "] | Our ids are [ ";
-//      for (const auto s : schedule_ids)
+    if (!msg.indices.empty())
+    {
+      std::cout << "Ignoring conflict for [ ";
+      for (const auto c : msg.indices)
+        std::cout << c << " ";
+      std::cout << "] | Our ids are [ ";
+//      for (const auto s : msg.indices)
 //        std::cout << s << " ";
 //      std::cout << "]" << std::endl;
-//    }
+    }
     _parent->_have_conflict = false;
   }
 
@@ -256,7 +269,7 @@ void ScheduleManager::push_delay(
   request.delay = duration.count();
   request.from_time = from_time.time_since_epoch().count();
 
-  _schedule_ids.clear();
+  clear_schedule_ids();
   _waiting_for_schedule = true;
 
   delay->async_send_request(
@@ -268,8 +281,8 @@ void ScheduleManager::push_delay(
 
     _waiting_for_schedule = false;
 
-    if (!response->error.empty())
-      throw std::runtime_error(response->error);
+//    if (!response->error.empty())
+//      throw std::runtime_error(response->error);
 
     for (auto i = response->original_version+1;
          i <= response->current_version; ++i)
@@ -325,8 +338,8 @@ void ScheduleManager::submit_trajectories(
 
     _waiting_for_schedule = false;
 
-    if (!response->error.empty())
-      throw std::runtime_error(response->error);
+//    if (!response->error.empty())
+//      throw std::runtime_error(response->error);
 
     if (response->accepted)
     {
@@ -365,7 +378,7 @@ void ScheduleManager::replace_trajectories(
 
   _waiting_for_schedule = true;
 
-  _schedule_ids.clear();
+  clear_schedule_ids();
 
   replace->async_send_request(
         std::make_shared<ReplaceTrajectories::Request>(std::move(request)),
@@ -375,8 +388,8 @@ void ScheduleManager::replace_trajectories(
 
     _waiting_for_schedule = false;
 
-    if (!response->error.empty())
-      throw std::runtime_error(response->error);
+//    if (!response->error.empty())
+//      throw std::runtime_error(response->error);
 
     for (auto i = response->original_version+1;
          i <= response->latest_trajectory_version; ++i)
@@ -422,8 +435,8 @@ void ScheduleManager::resolve_trajectories(
 
     _waiting_for_schedule = false;
 
-    if (!response->error.empty())
-      throw std::runtime_error(response->error);
+//    if (!response->error.empty())
+//      throw std::runtime_error(response->error);
 
     std::string str = "[ ";
     for (const auto s : _schedule_ids)
@@ -444,7 +457,7 @@ void ScheduleManager::resolve_trajectories(
       return;
     }
 
-    _schedule_ids.clear();
+    clear_schedule_ids();
     for (auto i = response->original_version+1;
          i <= response->latest_trajectory_version; ++i)
     {
@@ -480,7 +493,7 @@ void ScheduleManager::erase_trajectories()
     EraseTrajectories::Request request;
     request.erase_ids = _schedule_ids;
 
-    _schedule_ids.clear();
+    clear_schedule_ids();
 
     erase->async_send_request(
           std::make_shared<EraseTrajectories::Request>(std::move(request)));
@@ -507,6 +520,15 @@ bool ScheduleManager::process_queues()
   }
 
   return false;
+}
+
+//==============================================================================
+void ScheduleManager::clear_schedule_ids()
+{
+  for (const auto s : _schedule_ids)
+    _schedule_history.insert(std::make_pair(s, _schedule_ids));
+
+  _schedule_ids.clear();
 }
 
 } // namespace rmf_fleet_adapter

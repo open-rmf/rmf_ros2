@@ -137,6 +137,8 @@ private:
 
   bool process_queues();
 
+  void clear_schedule_ids();
+
   class ConflictListener;
 
   ScheduleConnections* _connections;
@@ -147,6 +149,10 @@ private:
   std::vector<std::function<void()>> _queued_delays;
 
   std::vector<rmf_traffic::schedule::Version> _schedule_ids;
+//  std::unordered_set<rmf_traffic::schedule::Version> _schedule_history;
+  std::unordered_map<
+    rmf_traffic::schedule::Version,
+    std::vector<rmf_traffic::schedule::Version>> _schedule_history;
   bool _waiting_for_schedule = false;
 
   std::unique_ptr<ConflictListener> _conflict_listener;
