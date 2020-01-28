@@ -107,8 +107,26 @@ public:
     std::vector<rmf_traffic::agv::Plan> plans;
 
     const auto& planner = _node->get_planner();
-    const auto plan_starts =
-        _node->compute_plan_starts(_context->location, start_delay);
+
+    Eigen::Vector3d pose = 
+        {_context->location.x, _context->location.y, _context->location.yaw};
+    const auto start_time = 
+        rmf_traffic_ros2::convert(_node->get_clock()->now()) + start_delay;
+
+    // TODO: further parameterize waypoint and lane merging distance
+    const auto plan_starts = 
+        rmf_traffic::agv::compute_plan_starts(
+            planner.get_configuration().graph(), pose, start_time, 0.1, 1.0, 
+            1e-8);
+
+    if (plan_starts.empty())
+    {
+      RCLCPP_WARN(
+          _node->get_logger(), 
+          "The robot appears to be in an unrecoverable state, failed to find "
+          "suitable waypoints on the graph to start planning.");
+      return {};
+    }
 
     bool interrupt_flag = false;
     auto options = planner.get_default_options();
@@ -123,8 +141,10 @@ public:
     std::thread main_plan_thread = std::thread(
           [&]()
     {
-      main_plan = planner.plan(
-            plan_starts, rmf_traffic::agv::Plan::Goal(_goal_wp_index), options);
+      main_plan = 
+          planner.plan(
+              plan_starts.value(), 
+              rmf_traffic::agv::Plan::Goal(_goal_wp_index), options);
       if (main_plan)
       {
         main_plan_solved = true;
@@ -143,8 +163,10 @@ public:
     {
       fallback_plan_threads.emplace_back(std::thread([&, goal_wp]()
       {
-        auto fallback_plan = planner.plan(
-              plan_starts, rmf_traffic::agv::Plan::Goal(goal_wp), options);
+        auto fallback_plan = 
+            planner.plan(
+                plan_starts.value(), 
+                rmf_traffic::agv::Plan::Goal(goal_wp), options);
 
         std::unique_lock<std::mutex> lock(fallback_plan_mutex);
         if (fallback_plan)
@@ -1084,8 +1106,26 @@ public:
 
     const auto& planner = _node->get_planner();
 
-    const auto plan_starts = _node->compute_plan_starts(
-          _context->location, std::chrono::seconds(0));
+    Eigen::Vector3d pose = 
+        {_context->location.x, _context->location.y, _context->location.yaw};
+    const auto start_time = 
+        rmf_traffic_ros2::convert(_node->get_clock()->now()) + 
+        std::chrono::nanoseconds(0);
+
+    // TODO: further parameterize waypoint and lane merging distance
+    const auto plan_starts =
+        rmf_traffic::agv::compute_plan_starts(
+            planner.get_configuration().graph(), pose, start_time, 0.1, 1.0,
+            1e-8);
+
+    if (!plan_starts)
+    {
+      RCLCPP_WARN(
+          _node->get_logger(), 
+          "The robot appears to be in an unrecoverable state, failed to find "
+          "suitable waypoints on the graph to start planning.");
+      return {};
+    }
 
     bool interrupt_flag = false;
     auto options = planner.get_default_options();
@@ -1101,8 +1141,10 @@ public:
     {
       plan_threads.emplace_back(std::thread([&, goal_wp]()
       {
-        auto emergency_plan = planner.plan(
-              plan_starts, rmf_traffic::agv::Plan::Goal(goal_wp), options);
+        auto emergency_plan = 
+            planner.plan(
+                plan_starts.value(), 
+                rmf_traffic::agv::Plan::Goal(goal_wp), options);
 
         std::unique_lock<std::mutex> lock(plans_mutex);
         if (emergency_plan)
