@@ -11,6 +11,10 @@ to many other subsystems, as shown in the following diagram.
 
 ![integration-diagram](/docs/rmf_core_integration_diagram.png)
 
+## FAQ
+
+Answers to frequently asked questions can be found [here](docs/faq.md).
+
 ## Interfacing with rmf\_core
 
 There are several interface points with RMF core, as shown in the arrows
