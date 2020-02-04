@@ -160,13 +160,6 @@ target_include_directories(robot_state_aggregator
 
 # -----------------------------------------------------------------------------
 
-add_executable(fake_fleet
-  test/FakeFleet.cpp
-)
-ament_target_dependencies(fake_fleet rclcpp rmf_fleet_msgs)
-
-# -----------------------------------------------------------------------------
-
 add_executable(test_read_only_adapter
   test/test_read_only_adapter.cpp
 )
@@ -221,7 +214,6 @@ install(
     rmf_fleet_adapter
     read_only
     full_control
-    fake_fleet
     lift_supervisor
     door_supervisor
     robot_state_aggregator
