@@ -59,8 +59,6 @@ allow many other potential options for de-conflicting robot traffic.
 | pause/resume motion | `rmf_fleet_msgs/ModeRequest` | `mode_requests` |
 | set complete paths | `rmf_fleet_msgs/PathRequest` | `path_requests` |
 
-* [Example](docs/fake_fleet_adapter.md) - running a simulated read-only fleet
-
 ### Door integration
 
 The `rmf_door_msgs` package contains two messages. This interface allows
@@ -71,6 +69,6 @@ to `rmf_core`. These messages express the current mode of the door as `CLOSED`, 
  * `rmf_door_msgs/DoorRequest` messages are sent from `rmf_core` to doors when
 they need to open or close for robot operations.
 
-### Demonstrations
+## Demonstrations
 
 [This repository](https://github.com/osrf/rmf_demos) holds a number of demonstrations and examples of working with `rmf_core` and the other packages in the RMF ecosystem.
