@@ -15,7 +15,6 @@
   <depend>rmf_door_msgs</depend>
   <depend>rmf_dispenser_msgs</depend>
   <depend>rmf_fleet_msgs</depend>
-  <depend>rmf_fleet_utils</depend>
   <depend>rmf_lift_msgs</depend>
   <depend>rmf_task_msgs</depend>
   <depend>rmf_traffic</depend>
