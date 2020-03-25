@@ -21,10 +21,6 @@
 #include <rmf_traffic/Time.hpp>
 #include <rmf_traffic/agv/VehicleTraits.hpp>
 
-#include <rmf_traffic_msgs/srv/submit_trajectories.hpp>
-#include <rmf_traffic_msgs/srv/delay_trajectories.hpp>
-#include <rmf_traffic_msgs/srv/replace_trajectories.hpp>
-
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
 #include <rmf_fleet_msgs/msg/path_request.hpp>
 
@@ -55,45 +51,45 @@ private:
 
   std::string _fleet_name;
 
+  std::mutex _async_mutex;
+
   rmf_traffic::agv::VehicleTraits _traits;
 
   rmf_traffic::Duration _delay_threshold;
 
-  std::unique_ptr<ScheduleConnections> _connections;
-
-  rmf_traffic_msgs::msg::FleetProperties _properties;
-
   using FleetState = rmf_fleet_msgs::msg::FleetState;
   rclcpp::Subscription<FleetState>::SharedPtr _fleet_state_subscription;
 
+  rmf_traffic_ros2::schedule::WriterPtr _writer;
 
   void fleet_state_update(FleetState::UniquePtr new_state);
 
   using Location = rmf_fleet_msgs::msg::Location;
   struct ScheduleEntry
   {
-    ScheduleManager schedule;
+    rmf_utils::optional<ScheduleManager> schedule;
     std::vector<Location> path;
-    rmf_traffic::Trajectory trajectory;
+    rmf_utils::optional<rmf_traffic::Route> route;
     rmf_traffic::Duration cumulative_delay = rmf_traffic::Duration(0);
     bool sitting = false;
 
-    ScheduleEntry(FleetAdapterNode* node);
+    ScheduleEntry(
+        FleetAdapterNode* node,
+        std::string name,
+        std::mutex& async_mutex);
   };
 
-  // TODO(MXG): We could add threads to make this adapter more efficient, but
-  // then we'll need to protect this map with a mutex.
   using ScheduleEntries =
       std::unordered_map<std::string, std::unique_ptr<ScheduleEntry>>;
   ScheduleEntries _schedule_entries;
 
   using RobotState = rmf_fleet_msgs::msg::RobotState;
 
-  void push_trajectory(
+  void push_route(
       const RobotState& state,
       const ScheduleEntries::iterator& it);
 
-  void submit_robot(
+  void register_robot(
       const RobotState& state,
       const ScheduleEntries::iterator& it);
 

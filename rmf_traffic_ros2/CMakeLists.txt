@@ -54,6 +54,12 @@ target_link_libraries(rmf_traffic_schedule
     rmf_traffic_ros2
 )
 
+#===============================================================================
+# Add examples
+# TODO(MXG): Consider creating a separate downstream package for these
+add_executable(participant_node examples/participant_node.cpp)
+target_link_libraries(participant_node PUBLIC rmf_traffic_ros2)
+
 
 #===============================================================================
 install(

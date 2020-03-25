@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Open Source Robotics Foundation
+ * Copyright (C) 2020 Open Source Robotics Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,31 +15,24 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__MAKE_TRAJECTORY_HPP
-#define SRC__RMF_FLEET_ADAPTER__MAKE_TRAJECTORY_HPP
-
-#include <rmf_traffic/Trajectory.hpp>
 #include <rmf_traffic/Route.hpp>
-#include <rmf_traffic/agv/VehicleTraits.hpp>
 
-#include <rmf_fleet_msgs/msg/robot_state.hpp>
+#include <rmf_traffic_msgs/msg/route.hpp>
 
-//==============================================================================
-rmf_traffic::Trajectory make_trajectory(
-    const rmf_fleet_msgs::msg::RobotState& state,
-    const rmf_traffic::agv::VehicleTraits& traits,
-    bool& is_sitting);
+namespace rmf_traffic_ros2 {
 
 //==============================================================================
-rmf_traffic::Route make_route(
-    const rmf_fleet_msgs::msg::RobotState& state,
-    const rmf_traffic::agv::VehicleTraits& traits,
-    bool& is_sitting);
+rmf_traffic::Route convert(const rmf_traffic_msgs::msg::Route& from);
 
 //==============================================================================
-rmf_traffic::Trajectory make_hold(
-    const rmf_fleet_msgs::msg::Location& location,
-    const rmf_traffic::Time time,
-    rmf_traffic::Duration duration);
+rmf_traffic_msgs::msg::Route convert(const rmf_traffic::Route& from);
 
-#endif // SRC__RMF_FLEET_ADAPTER__MAKE_TRAJECTORY_HPP
+//==============================================================================
+std::vector<rmf_traffic::Route> convert(
+    const std::vector<rmf_traffic_msgs::msg::Route>& from);
+
+//==============================================================================
+std::vector<rmf_traffic_msgs::msg::Route> convert(
+    const std::vector<rmf_traffic::Route>& from);
+
+} // namespace rmf_traffic_ros2

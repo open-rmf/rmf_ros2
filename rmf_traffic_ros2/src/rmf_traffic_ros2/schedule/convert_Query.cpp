@@ -202,4 +202,64 @@ rmf_traffic_msgs::msg::ScheduleQuerySpacetime convert(
   return msg;
 }
 
+//==============================================================================
+rmf_traffic::schedule::Query::Participants convert(
+    const rmf_traffic_msgs::msg::ScheduleQueryParticipants& from)
+{
+  using Participants = rmf_traffic::schedule::Query::Participants;
+
+  if (from.ALL == from.type)
+    return Participants::make_all();
+  else if (from.INCLUDE == from.type)
+    return Participants::make_only(from.ids);
+  else if (from.EXCLUDE == from.type)
+    return Participants::make_all_except(from.ids);
+
+  throw std::runtime_error(
+        "[rmf_traffic_ros2::convert] Invalid type value for "
+        "rmf_traffic::schedule::Query::Participants: " +
+        std::to_string(from.type));
+}
+
+//==============================================================================
+rmf_traffic_msgs::msg::ScheduleQueryParticipants convert(
+    const rmf_traffic::schedule::Query::Participants& from)
+{
+  using Participants = rmf_traffic::schedule::Query::Participants;
+
+  rmf_traffic_msgs::msg::ScheduleQueryParticipants output;
+
+  const auto mode = from.get_mode();
+  output.type = static_cast<uint16_t>(mode);
+
+  if (Participants::Mode::Exclude == mode)
+    output.ids = from.exclude()->get_ids();
+  else if (Participants::Mode::Include == mode)
+    output.ids = from.include()->get_ids();
+
+  return output;
+}
+
+//==============================================================================
+rmf_traffic::schedule::Query convert(
+    const rmf_traffic_msgs::msg::ScheduleQuery& from)
+{
+  auto output = rmf_traffic::schedule::query_all();
+  output.spacetime() = convert(from.spacetime);
+  output.participants() = convert(from.participants);
+
+  return output;
+}
+
+//==============================================================================
+rmf_traffic_msgs::msg::ScheduleQuery convert(
+    const rmf_traffic::schedule::Query& from)
+{
+  rmf_traffic_msgs::msg::ScheduleQuery output;
+  output.spacetime = convert(from.spacetime());
+  output.participants = convert(from.participants());
+
+  return output;
+}
+
 } // namespace rmf_traffic_ros2

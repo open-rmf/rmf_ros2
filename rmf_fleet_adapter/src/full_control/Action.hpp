@@ -24,11 +24,13 @@
 
 #include <rmf_utils/optional.hpp>
 
+#include <rmf_traffic/schedule/Negotiator.hpp>
+
 namespace rmf_fleet_adapter {
 namespace full_control {
 
 //==============================================================================
-class Action
+class Action : public rmf_traffic::schedule::Negotiator
 {
 public:
 
@@ -37,8 +39,6 @@ public:
   virtual void interrupt() = 0;
 
   virtual void resume() = 0;
-
-  virtual void resolve() = 0;
 
   struct Status
   {

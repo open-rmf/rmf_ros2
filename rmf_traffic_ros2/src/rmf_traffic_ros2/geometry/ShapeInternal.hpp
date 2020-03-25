@@ -97,6 +97,14 @@ public:
 
   ShapeMsgType insert(ShapeTypePtr shape)
   {
+    if (!shape)
+    {
+      ShapeMsgType shape_msg;
+      shape_msg.type = 0;
+      shape_msg.index = 0;
+      return shape_msg;
+    }
+
     const auto insertion =
         entry_map.insert(std::make_pair(shape, Entry{}));
 
@@ -115,11 +123,14 @@ public:
     shape_msg.type = entry.type;
     shape_msg.index = entry.index;
 
-    return std::move(shape_msg);
+    return shape_msg;
   }
 
   ShapeTypePtr at(const ShapeMsgType& shape) const
   {
+    if (shape.type == ShapeMsgType::NONE)
+      return nullptr;
+
     const std::vector<ShapeTypePtr>& bucket = shapes.at(shape.type);
     return bucket.at(shape.index);
   }

@@ -81,8 +81,7 @@ public:
     RobotContext(
         std::string name,
         Location location,
-        ScheduleConnections* connections,
-        const rmf_traffic_msgs::msg::FleetProperties& properties);
+        ScheduleManager schedule);
 
     Location location;
 
@@ -98,7 +97,10 @@ public:
 
     void resume();
 
-    void resolve();
+    void respond(
+        rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+        const rmf_traffic::schedule::Negotiator::Responder& responder,
+        const bool* interrupt_flag);
 
     std::size_t num_tasks() const;
 
@@ -140,36 +142,30 @@ public:
   struct Fields
   {
     rmf_traffic_ros2::schedule::MirrorManager mirror;
-    std::unique_ptr<ScheduleConnections> schedule;
+    rmf_traffic_ros2::schedule::WriterPtr writer;
+    rmf_traffic_ros2::schedule::Negotiation negotiation;
     GraphInfo graph_info;
     rmf_traffic::agv::VehicleTraits traits;
     rmf_traffic::agv::Planner planner;
 
     Fields(
+        rclcpp::Node& node_,
         GraphInfo graph_info_,
         rmf_traffic::agv::VehicleTraits traits_,
         rmf_traffic_ros2::schedule::MirrorManager mirror_,
-        std::unique_ptr<ScheduleConnections> connections_)
+        rmf_traffic_ros2::schedule::WriterPtr writer_)
     : mirror(std::move(mirror_)),
-      schedule(std::move(connections_)),
+      writer(std::move(writer_)),
+      negotiation(node_, mirror.viewer()),
       graph_info(std::move(graph_info_)),
       traits(std::move(traits_)),
       planner(
         rmf_traffic::agv::Planner::Configuration(graph_info.graph, traits),
-        rmf_traffic::agv::Planner::Options(mirror.viewer()))
+        rmf_traffic::agv::Planner::Options(nullptr))
     {
       // Do nothing
     }
   };
-
-  rmf_traffic_msgs::msg::FleetProperties make_fleet_properties() const
-  {
-    rmf_traffic_msgs::msg::FleetProperties fleet;
-    fleet.type = rmf_traffic_msgs::msg::FleetProperties::TYPE_RESPONSIVE;
-    fleet.fleet_id = get_fleet_name();
-
-    return fleet;
-  }
 
   Fields& get_fields();
 
@@ -221,6 +217,8 @@ public:
 private:
 
   FleetAdapterNode();
+
+  std::mutex _async_mutex;
 
   std::string _fleet_name;
 

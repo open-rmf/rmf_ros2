@@ -18,7 +18,7 @@
 #ifndef RMF_TRAFFIC_ROS2__SCHEDULE__QUERY_HPP
 #define RMF_TRAFFIC_ROS2__SCHEDULE__QUERY_HPP
 
-#include <rmf_traffic_msgs/msg/schedule_query_spacetime.hpp>
+#include <rmf_traffic_msgs/msg/schedule_query.hpp>
 
 #include <rmf_traffic/schedule/Query.hpp>
 
@@ -31,6 +31,22 @@ rmf_traffic::schedule::Query::Spacetime convert(
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleQuerySpacetime convert(
     const rmf_traffic::schedule::Query::Spacetime& from);
+
+//==============================================================================
+rmf_traffic::schedule::Query::Participants convert(
+    const rmf_traffic_msgs::msg::ScheduleQueryParticipants& from);
+
+//==============================================================================
+rmf_traffic_msgs::msg::ScheduleQueryParticipants convert(
+    const rmf_traffic::schedule::Query::Participants& from);
+
+//==============================================================================
+rmf_traffic::schedule::Query convert(
+    const rmf_traffic_msgs::msg::ScheduleQuery& from);
+
+//==============================================================================
+rmf_traffic_msgs::msg::ScheduleQuery convert(
+    const rmf_traffic::schedule::Query& from);
 
 } // namespace rmf_traffic_ros2
 

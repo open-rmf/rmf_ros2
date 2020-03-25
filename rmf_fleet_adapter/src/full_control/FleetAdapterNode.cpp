@@ -69,13 +69,13 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
       get_parameter_or_default_time(*node, "delay_threshold", 5.0);
 
   node->_retry_wait =
-      get_parameter_or_default_time(*node, "retry_wait", 15.0);
+      get_parameter_or_default_time(*node, "retry_wait", 5.0);
 
   node->_plan_time =
       get_parameter_or_default_time(*node, "planning_timeout", 5.0);
 
   auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
-        *node, rmf_traffic::schedule::query_everything().spacetime());
+        *node, rmf_traffic::schedule::query_all());
 
   rmf_utils::optional<GraphInfo> graph_info =
       parse_graph(graph_file, traits, *node);
@@ -85,7 +85,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
 
   using namespace std::chrono_literals;
 
-  auto connections = ScheduleConnections::make(*node);
+  auto writer = rmf_traffic_ros2::schedule::Writer::make(*node);
 
   const auto wait_time =
       get_parameter_or_default_time(*node, "discovery_timeout", 10.0);
@@ -96,17 +96,18 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     rclcpp::spin_some(node);
 
     bool ready = true;
-    ready &= connections->ready();
+    ready &= writer->ready();
     ready &= (mirror_future.wait_for(0s) == std::future_status::ready);
 
     if (ready)
     {
       node->start(
             Fields{
+              *node,
               std::move(*graph_info),
               std::move(traits),
               mirror_future.get(),
-              std::move(connections),
+              std::move(writer)
             });
 
       return node;
@@ -126,13 +127,19 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
 FleetAdapterNode::RobotContext::RobotContext(
     std::string name,
     Location location_,
-    ScheduleConnections* connections,
-    const rmf_traffic_msgs::msg::FleetProperties& properties)
+    ScheduleManager schedule_)
 : location(std::move(location_)),
-  schedule(connections, properties, [&](){ this->resolve(); }),
+  schedule(std::move(schedule_)),
   _name(std::move(name))
 {
-  // Do nothing
+  schedule.set_negotiator(
+        [this](
+          rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+          const rmf_traffic::schedule::Negotiator::Responder& responder,
+          const bool* interrupt_flag)
+  {
+    this->respond(std::move(table), responder, interrupt_flag);
+  });
 }
 
 //==============================================================================
@@ -207,15 +214,21 @@ void FleetAdapterNode::RobotContext::resume()
 }
 
 //==============================================================================
-void FleetAdapterNode::RobotContext::resolve()
+void FleetAdapterNode::RobotContext::respond(
+    rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+    const rmf_traffic::schedule::Negotiator::Responder& responder,
+    const bool* interrupt_flag)
 {
   if (_task)
+    _task->respond(std::move(table), responder, interrupt_flag);
+  else
   {
-    std::cout << "Asking task to resolve" << std::endl;
-    _task->resolve();
+    // This would be very suspicious if it happens
+    std::cerr << "[FleetAdatperNode::RobotContext::respond] "
+              << "Responding to a negotiation while not performing a task"
+              << std::endl;
+    responder.submit({}, [](){});
   }
-
-  std::cout << "No task to resolve" << std::endl;
 }
 
 //==============================================================================
@@ -575,20 +588,41 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr msg)
 
     if (inserted)
     {
-      it->second = std::make_unique<RobotContext>(
-            robot.name, robot.location,
-            _field->schedule.get(), make_fleet_properties());
+      // This robot has not been seen before, so we should create a schedule
+      // manager for it and instantiate it in the map
+
+      rmf_traffic::schedule::ParticipantDescription description{
+        robot.name,
+        get_fleet_name(),
+        rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
+        _field->traits.profile()
+      };
+
+      async_make_schedule_manager(
+            *this,
+            *_field->writer,
+            &_field->negotiation,
+            std::move(description),
+            [this, name = robot.name, location = robot.location](
+              ScheduleManager manager)
+      {
+        this->_contexts.at(name) = std::make_unique<RobotContext>(
+              name, location, std::move(manager));
+      }, _async_mutex);
 
       RCLCPP_INFO(
             get_logger(),
             "Found a robot: [" + robot.name + "]");
     }
-    else
+    else if (it->second)
     {
       it->second->location = robot.location;
+      it->second->update_listeners(robot);
     }
-
-    it->second->update_listeners(robot);
+    // else
+    // {
+    //   we are waiting for the schedule manager to finish being created
+    // }
   }
 }
 

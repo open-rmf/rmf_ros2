@@ -16,224 +16,114 @@
 */
 
 #include <rmf_traffic_ros2/schedule/Patch.hpp>
-#include <rmf_traffic_ros2/Trajectory.hpp>
+#include <rmf_traffic_ros2/schedule/Change.hpp>
 
-using Change = rmf_traffic::schedule::Database::Change;
 using Time = rmf_traffic::Time;
 using Duration = rmf_traffic::Duration;
 
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
-static rmf_traffic_msgs::msg::ScheduleChangeInsert convert_insert(
-    const Change& change)
+rmf_traffic::schedule::Patch::Participant convert(
+    const rmf_traffic_msgs::msg::ScheduleParticipantPatch& from);
+
+//==============================================================================
+
+//==============================================================================
+template<typename T_out, typename T_in>
+void convert_vector(
+    std::vector<T_out>& output,
+    const std::vector<T_in>& input)
 {
-  const Change::Insert& insert = *change.insert();
-
-  rmf_traffic_msgs::msg::ScheduleChangeInsert msg;
-  msg.version = change.id();
-  msg.trajectory = convert(*insert.trajectory());
-
-  return msg;
+  output.reserve(input.size());
+  for (const auto& i : input)
+    output.emplace_back(convert(i));
 }
 
 //==============================================================================
-static rmf_traffic_msgs::msg::ScheduleChangeInterrupt convert_interrupt(
-    const Change& change)
+template<typename T_out, typename T_in>
+std::vector<T_out> convert_vector(
+    const std::vector<T_in>& input)
 {
-  const Change::Interrupt& interrupt = *change.interrupt();
-
-  rmf_traffic_msgs::msg::ScheduleChangeInterrupt msg;
-  msg.version = change.id();
-  msg.interruption_trajectory = convert(*interrupt.interruption());
-  msg.delay = interrupt.delay().count();
-  msg.parent_id = interrupt.original_id();
-
-  return msg;
+  std::vector<T_out> output;
+  convert_vector(output, input);
+  return output;
 }
 
 //==============================================================================
-static rmf_traffic_msgs::msg::ScheduleChangeDelay convert_delay(
-    const Change& change)
+rmf_traffic_msgs::msg::ScheduleParticipantPatch convert(
+    const rmf_traffic::schedule::Patch::Participant& from)
 {
-  const Change::Delay& delay = *change.delay();
+  rmf_traffic_msgs::msg::ScheduleParticipantPatch output;
+  output.participant_id = from.participant_id();
 
-  rmf_traffic_msgs::msg::ScheduleChangeDelay msg;
-  msg.version = change.id();
-  msg.from_time = delay.from().time_since_epoch().count();
-  msg.delay = delay.duration().count();
-  msg.parent_id = delay.original_id();
+  output.erasures = from.erasures().ids();
+  output.additions = convert_vector<rmf_traffic_msgs::msg::ScheduleChangeAdd>(
+        from.additions().items());
+  output.delays = convert_vector<rmf_traffic_msgs::msg::ScheduleChangeDelay>(
+        from.delays());
 
-  return msg;
+  return output;
 }
 
 //==============================================================================
-static rmf_traffic_msgs::msg::ScheduleChangeReplace convert_replace(
-    const Change& change)
+rmf_traffic::schedule::Patch::Participant convert(
+    const rmf_traffic_msgs::msg::ScheduleParticipantPatch& from)
 {
-  const Change::Replace& replace = *change.replace();
-
-  rmf_traffic_msgs::msg::ScheduleChangeReplace msg;
-  msg.version = change.id();
-  msg.trajectory = convert(*replace.trajectory());
-  msg.parent_id = replace.original_id();
-
-  return msg;
+  return rmf_traffic::schedule::Patch::Participant{
+    from.participant_id,
+    rmf_traffic::schedule::Change::Erase{from.erasures},
+    convert_vector<rmf_traffic::schedule::Change::Delay>(from.delays),
+    rmf_traffic::schedule::Change::Add{
+      convert_vector<rmf_traffic::schedule::Change::Add::Item>(from.additions)
+    }
+  };
 }
-
-//==============================================================================
-static rmf_traffic_msgs::msg::ScheduleChangeErase convert_erase(
-    const Change& change)
-{
-  const Change::Erase& erase = *change.erase();
-
-  rmf_traffic_msgs::msg::ScheduleChangeErase msg;
-  msg.version = change.id();
-  msg.parent_id = erase.original_id();
-
-  return msg;
-}
-
-//==============================================================================
-static rmf_traffic_msgs::msg::ScheduleChangeCull convert_cull(
-    const Change& change)
-{
-  const Change::Cull& cull = *change.cull();
-
-  rmf_traffic_msgs::msg::ScheduleChangeCull msg;
-  msg.version = change.id();
-  msg.time = cull.time().time_since_epoch().count();
-
-  return msg;
-}
-
-//==============================================================================
-class ChangeDispatcher
-{
-public:
-
-  using PatchMsg = rmf_traffic_msgs::msg::SchedulePatch;
-
-  ChangeDispatcher()
-  {
-    dispatcher.resize(static_cast<std::size_t>(Change::Mode::NUM),
-                      [](PatchMsg&, const Change& change)
-    {
-      throw std::runtime_error(
-            "Unsupported Database::Change::Mode ["
-            + std::to_string(static_cast<uint16_t>(change.get_mode())) + "]");
-    });
-
-#define MAKE_DISPATCH(x) dispatcher[static_cast<uint16_t>(Change::Mode:: x)] = \
-  [](PatchMsg& patch, const Change& change)
-
-    MAKE_DISPATCH(Insert) { patch.insertions.emplace_back(convert_insert(change)); };
-    MAKE_DISPATCH(Interrupt) { patch.interruptions.emplace_back(convert_interrupt(change)); };
-    MAKE_DISPATCH(Delay) { patch.delays.emplace_back(convert_delay(change)); };
-    MAKE_DISPATCH(Replace) { patch.replacements.emplace_back(convert_replace(change)); };
-    MAKE_DISPATCH(Erase) { patch.erasures.emplace_back(convert_erase(change)); };
-    MAKE_DISPATCH(Cull) { patch.culls.emplace_back(convert_cull(change)); };
-  }
-
-  void dispatch(PatchMsg& patch, const Change& change)
-  {
-    dispatcher.at(static_cast<std::size_t>(change.get_mode()))(patch, change);
-  }
-
-private:
-
-  std::vector<std::function<void(PatchMsg&, const Change&)>> dispatcher;
-
-};
 
 //==============================================================================
 rmf_traffic_msgs::msg::SchedulePatch convert(
-    const rmf_traffic::schedule::Database::Patch& patch)
+    const rmf_traffic::schedule::Patch& from)
 {
-  static ChangeDispatcher dispatcher;
+  rmf_traffic_msgs::msg::SchedulePatch output;
 
-  rmf_traffic_msgs::msg::SchedulePatch msg;
-  for(const auto& change : patch)
-    dispatcher.dispatch(msg, change);
+  for (const auto& u : from.unregistered())
+    output.unregister_participants.emplace_back(u.id());
 
-  msg.latest_version = patch.latest_version();
+  convert_vector(output.register_participants, from.registered());
 
-  return msg;
+  output.participants.reserve(from.size());
+  for (const auto& p : from)
+    output.participants.emplace_back(convert(p));
+
+  if (const auto& cull = from.cull())
+    output.cull.emplace_back(convert(*cull));
+
+  output.latest_version = from.latest_version();
+
+  return output;
 }
 
 //==============================================================================
-static Change convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeInsert& ins)
+rmf_traffic::schedule::Patch convert(
+    const rmf_traffic_msgs::msg::SchedulePatch& from)
 {
-  return Change::make_insert(convert(ins.trajectory), ins.version);
+  // TODO(MXG): Fix the Patch API to make this more elegant
+  std::vector<rmf_traffic::schedule::Change::UnregisterParticipant> unregister;
+  unregister.reserve(from.unregister_participants.size());
+  for (const auto& u : from.unregister_participants)
+    unregister.emplace_back(u);
+
+  rmf_utils::optional<rmf_traffic::schedule::Change::Cull> cull;
+  if (!from.cull.empty())
+    cull = convert(from.cull.front());
+
+  return rmf_traffic::schedule::Patch{
+    std::move(unregister),
+    convert_vector<rmf_traffic::schedule::Change::RegisterParticipant>(from.register_participants),
+    convert_vector<rmf_traffic::schedule::Patch::Participant>(from.participants),
+    std::move(cull),
+    from.latest_version
+  };
 }
-
-//==============================================================================
-static Change convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeInterrupt& intr)
-{
-  return Change::make_interrupt(
-        intr.parent_id, convert(intr.interruption_trajectory),
-        Duration(intr.delay), intr.version);
-}
-
-//==============================================================================
-static Change convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeDelay& delay)
-{
-  return Change::make_delay(delay.parent_id, Time(Duration(delay.from_time)),
-                            Duration(delay.delay), delay.version);
-}
-
-//==============================================================================
-static Change convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeReplace& rep)
-{
-  return Change::make_replace(rep.parent_id, convert(rep.trajectory),
-                              rep.version);
-}
-
-//==============================================================================
-static Change convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeErase& er)
-{
-  return Change::make_erase(er.parent_id, er.version);
-}
-
-//==============================================================================
-static Change convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeCull& cull)
-{
-  return Change::make_cull(Time(Duration(cull.time)), cull.version);
-}
-
-//==============================================================================
-rmf_traffic::schedule::Database::Patch convert(
-    const rmf_traffic_msgs::msg::SchedulePatch& patch)
-{
-  std::vector<Change> changes;
-
-  for(const auto& insert : patch.insertions)
-    changes.emplace_back(convert(insert));
-
-  for(const auto& interrupt : patch.interruptions)
-    changes.emplace_back(convert(interrupt));
-
-  for(const auto& delay : patch.delays)
-    changes.emplace_back(convert(delay));
-
-  for(const auto& replace : patch.replacements)
-    changes.emplace_back(convert(replace));
-
-  for(const auto& erase : patch.erasures)
-    changes.emplace_back(convert(erase));
-
-  for(const auto& cull : patch.culls)
-    changes.emplace_back(convert(cull));
-
-  return rmf_traffic::schedule::Database::Patch(
-        std::move(changes), patch.latest_version);
-}
-
 
 } // namespace rmf_traffic_ros2

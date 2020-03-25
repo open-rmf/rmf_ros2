@@ -25,7 +25,7 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-class Task
+class Task : public rmf_traffic::schedule::Negotiator
 {
 public:
 
@@ -34,8 +34,6 @@ public:
   virtual void interrupt() = 0;
 
   virtual void resume() = 0;
-
-  virtual void resolve() = 0;
 
   virtual void report_status() = 0;
 

@@ -89,18 +89,36 @@ public:
     _action->resume();
   }
 
-  void resolve() final
+//  void resolve() final
+//  {
+//    if (!_action)
+//    {
+//      RCLCPP_WARN(
+//            _node->get_logger(),
+//            "No action for this task [" + id() + "] to resolve. This might "
+//            "indicate a bug!");
+//      return;
+//    }
+
+//    _action->resolve();
+//  }
+
+  void respond(
+      rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+      const Responder& responder,
+      const bool* interrupt_flag) final
   {
     if (!_action)
     {
       RCLCPP_WARN(
             _node->get_logger(),
-            "No action for this task [" + id() + "] to resolve. This might "
-            "indicate a bug!");
+            "No action for this task [" + id() + "] to respond with. This "
+            "might indicate a bug!");
+      responder.submit({}, [](){});
       return;
     }
 
-    _action->resolve();
+    _action->respond(std::move(table), responder, interrupt_flag);
   }
 
   void report_status()

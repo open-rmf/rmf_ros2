@@ -151,9 +151,8 @@ private:
 ///
 // TODO(MXG): Use std::optional here instead of std::unique_ptr when C++17 can
 // be supported.
-MirrorManagerFuture make_mirror(
-    rclcpp::Node& node,
-    rmf_traffic::schedule::Query::Spacetime spacetime,
+MirrorManagerFuture make_mirror(rclcpp::Node& node,
+    rmf_traffic::schedule::Query query,
     MirrorManager::Options options = MirrorManager::Options());
 
 } // namespace schedule

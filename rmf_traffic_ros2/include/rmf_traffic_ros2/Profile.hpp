@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Open Source Robotics Foundation
+ * Copyright (C) 2020 Open Source Robotics Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,23 +15,21 @@
  *
 */
 
-#ifndef RMF_TRAFFIC_ROS2__SCHEDULE__PATCH_HPP
-#define RMF_TRAFFIC_ROS2__SCHEDULE__PATCH_HPP
+#ifndef RMF_TRAFFIC_ROS2__PROFILE_HPP
+#define RMF_TRAFFIC_ROS2__PROFILE_HPP
 
-#include <rmf_traffic/schedule/Patch.hpp>
+#include <rmf_traffic_msgs/msg/profile.hpp>
 
-#include <rmf_traffic_msgs/msg/schedule_patch.hpp>
+#include <rmf_traffic/Profile.hpp>
 
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
-rmf_traffic_msgs::msg::SchedulePatch convert(
-    const rmf_traffic::schedule::Patch& from);
+rmf_traffic::Profile convert(const rmf_traffic_msgs::msg::Profile& from);
 
 //==============================================================================
-rmf_traffic::schedule::Patch convert(
-    const rmf_traffic_msgs::msg::SchedulePatch& from);
+rmf_traffic_msgs::msg::Profile convert(const rmf_traffic::Profile& from);
 
-} // nmaespace rmf_traffic_ros2
+} // namespace rmf_traffic_ros2
 
-#endif // RMF_TRAFFIC_ROS2__SCHEDULE__PATCH_HPP
+#endif // RMF_TRAFFIC_ROS2__PROFILE_HPP

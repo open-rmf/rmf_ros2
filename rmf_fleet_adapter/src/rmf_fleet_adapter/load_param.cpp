@@ -75,9 +75,9 @@ rmf_traffic::agv::VehicleTraits get_traits_or_default(
   auto traits = rmf_traffic::agv::VehicleTraits{
     {v_nom, a_nom},
     {w_nom, b_nom},
-    rmf_traffic::Trajectory::Profile::make_guided(
+    rmf_traffic::Profile{
           rmf_traffic::geometry::make_final_convex<
-            rmf_traffic::geometry::Circle>(r))
+            rmf_traffic::geometry::Circle>(r)}
   };
 
   traits.get_differential()->set_reversible(reversible);

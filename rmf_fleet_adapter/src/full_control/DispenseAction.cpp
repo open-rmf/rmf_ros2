@@ -22,6 +22,8 @@
 
 #include "../rmf_fleet_adapter/make_trajectory.hpp"
 
+#include <rmf_traffic/DetectConflict.hpp>
+
 namespace rmf_fleet_adapter {
 namespace full_control {
 
@@ -83,11 +85,29 @@ public:
       finish();
   }
 
+  rmf_traffic::Route calculate_itinerary() const
+  {
+    const auto now = _node->get_clock()->now();
+
+    const auto l = _context->location;
+    const Eigen::Vector3d position{l.x, l.y, l.yaw};
+    const Eigen::Vector3d zero = Eigen::Vector3d::Zero();
+
+    const auto start = rmf_traffic_ros2::convert(now);
+    const auto finish = rmf_traffic_ros2::convert(*_last_reported_wait_time);
+
+    const std::string map_name =
+        _node->get_graph().get_waypoint(0).get_map_name();
+
+    rmf_traffic::Trajectory trajectory;
+    trajectory.insert(start, position, zero);
+    trajectory.insert(finish, position, zero);
+
+    return {std::move(map_name), std::move(trajectory)};
+  }
+
   void update_schedule()
   {
-    if (_context->schedule.waiting())
-      return;
-
     const auto now = _node->get_clock()->now();
 
     if (_last_reported_wait_time)
@@ -106,25 +126,8 @@ public:
       }
     }
 
-    const auto l = _context->location;
-    const Eigen::Vector3d position{l.x, l.y, l.yaw};
-
-    const auto& profile = _node->get_fields().traits.get_profile();
-    const Eigen::Vector3d zero = Eigen::Vector3d::Zero();
-
     _last_reported_wait_time = now + _duration_estimate;
-
-    const auto start = rmf_traffic_ros2::convert(now);
-    const auto finish = rmf_traffic_ros2::convert(*_last_reported_wait_time);
-
-    const std::string map_name =
-        _node->get_graph().get_waypoint(0).get_map_name();
-
-    rmf_traffic::Trajectory trajectory{map_name};
-    trajectory.insert(start, profile, position, zero);
-    trajectory.insert(finish, profile, position, zero);
-
-    _context->schedule.push_trajectories({trajectory}, [](){});
+    _context->schedule.push_routes({calculate_itinerary()}, [](){});
   }
 
   void finish()
@@ -146,10 +149,33 @@ public:
     update();
   }
 
-  void resolve() final
+  void respond(
+      rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+      const Responder& responder,
+      const bool* /*interrupt_flag*/) final
   {
-    // We can't do anything about fixing conflicts while we're waiting for a
-    // dispenser, so we'll just ignore requests to resolve our trajectory.
+    const rmf_traffic::Route route = calculate_itinerary();
+    const auto& trajectory = route.trajectory();
+    const auto view = table->query(rmf_traffic::schedule::make_query(
+                   {route.map()},
+                   trajectory.start_time(),
+                   trajectory.finish_time()).spacetime());
+    const auto& profile = _context->schedule.description().profile();
+
+    for (const auto& v : view)
+    {
+      if (rmf_traffic::DetectConflict::between(
+            profile,
+            trajectory,
+            v.description.profile(),
+            v.route.trajectory()))
+      {
+        responder.reject();
+        return;
+      }
+    }
+
+    responder.submit({route}, [](){});
   }
 
   Status get_status() const final
