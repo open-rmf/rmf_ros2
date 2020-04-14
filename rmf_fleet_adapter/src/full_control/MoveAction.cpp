@@ -20,6 +20,8 @@
 #include <rmf_traffic_ros2/Time.hpp>
 #include <rmf_traffic_ros2/Trajectory.hpp>
 
+#include <rmf_traffic/DetectConflict.hpp>
+
 #include <rmf_utils/math.hpp>
 
 #include "../rmf_fleet_adapter/make_trajectory.hpp"
@@ -116,7 +118,7 @@ public:
 
     const auto& planner = _node->get_planner();
 
-    Eigen::Vector3d pose = 
+    Eigen::Vector3d pose =
         {_context->location.x, _context->location.y, _context->location.yaw};
     const auto start_time = 
         rmf_traffic_ros2::convert(_node->get_clock()->now()) + start_delay;
@@ -227,7 +229,28 @@ public:
     auto plans = find_plan(start_delay);
     if (!plans.empty())
       return execute_plan(std::move(plans));
-    cancel(std::chrono::seconds(1));
+
+    RCLCPP_INFO(
+          _node->get_logger(),
+          "Looking for a plan to open a schedule conflict for ["
+          + _context->robot_name() + "]");
+    plans = find_plan(start_delay, nullptr);
+    if (plans.empty())
+    {
+      const auto it = _node->get_waypoint_names().find(_goal_wp_index);
+      std::string wp_name = std::to_string(_goal_wp_index);
+      if (it != _node->get_waypoint_names().end())
+        wp_name = it->second;
+
+      RCLCPP_ERROR(
+            _node->get_logger(),
+            "Unable to find a feasible plan for [" + _context->robot_name()
+            + "] to reach waypoint [" + wp_name
+            + "]. This is a critical error.");
+      return;
+    }
+
+    return execute_plan(std::move(plans));
   }
 
   void respond(
@@ -235,6 +258,55 @@ public:
       const Responder& responder,
       const bool* interrupt_flag) final
   {
+    if (_event_executor.do_not_negotiate())
+    {
+      const auto& itinerary = _context->schedule.participant().itinerary();
+
+      const auto proposal = table->proposal();
+      const auto& profile = _context->schedule.description().profile();
+      for (const auto& p : proposal)
+      {
+        const auto other_participant =
+            _node->get_fields().mirror.viewer().get_participant(p.participant);
+        if (!other_participant)
+        {
+          // TODO(MXG): This is lazy and sloppy. For now we just reject the
+          // negotiation if we don't know about the other participant. In the
+          // future, we should have a way to wait until the participant
+          // information is available.
+          assert(false);
+          return responder.reject();
+        }
+
+        const auto& other_profile = other_participant->profile();
+
+        for (const auto& other_route : p.itinerary)
+        {
+          for (const auto& item : itinerary)
+          {
+            if (item.route->map() != other_route->map())
+              continue;
+
+            if (rmf_traffic::DetectConflict::between(
+                  profile,
+                  item.route->trajectory(),
+                  other_profile,
+                  other_route->trajectory()))
+            {
+              return responder.reject();
+            }
+          }
+        }
+      }
+
+      std::vector<rmf_traffic::Route> submission;
+      for (const auto& item : itinerary)
+        submission.push_back(*item.route);
+
+      responder.submit(std::move(submission));
+      return;
+    }
+
     // TODO(MXG): Do something with the interrupt flag
     std::vector<rmf_traffic::agv::Plan> plans =
         find_plan(
@@ -254,12 +326,16 @@ public:
           std::move(itinerary),
           [this, table, plans = std::move(plans),
            weak_handle = std::move(weak_handle)]()
+          -> rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion>
     {
       auto handle = weak_handle.lock();
       if (!handle)
-        return;
+      {
+        return rmf_utils::nullopt;
+      }
 
       execute_plan(std::move(plans));
+      return _context->schedule.participant().version();
     });
   }
 
@@ -271,11 +347,6 @@ public:
     const auto i_nearest_opt = get_fastest_plan_index(fallback_plans);
     if (!i_nearest_opt)
     {
-      RCLCPP_WARN(
-            _node->get_logger(),
-            "Robot [" + _context->robot_name() + "] is stuck! We will try to "
-            "find a path again soon.");
-
       return plans;
     }
     const auto i_nearest = *i_nearest_opt;
@@ -392,13 +463,10 @@ public:
     return routes;
   }
 
-
   void execute_plan(std::vector<rmf_traffic::agv::Plan> plans)
   {
     assert(!plans.empty());
-    _context->schedule.push_routes(
-          collect_routes(plans),
-          [&, plans](){ command_plans(plans); });
+    command_plans(plans);
   }
 
   void command_plans(std::vector<rmf_traffic::agv::Plan> plans)
@@ -490,16 +558,44 @@ public:
                 _remaining_waypoints.begin(),
                 _remaining_waypoints.begin()+i);
 
-    const auto previous_delay = _finish_estimate - _original_finish_estimate;
-    std::cout << "Noting previous delay: " << rmf_traffic::time::to_seconds(previous_delay)
-              << std::endl;
+    if (_issued_waypoints.empty())
+    {
+      _context->schedule.push_routes({});
+      return;
+    }
 
+    const std::string& map_name = _node->get_graph().get_waypoint(0).get_map_name();
+    const auto trajectory = make_trajectory(
+          _issued_waypoints.front().time(),
+          _command->path,
+          _node->get_fields().traits);
+    _context->schedule.push_routes({{map_name, trajectory}});
+
+    const auto previous_delay = _finish_estimate - _original_finish_estimate;
     _finish_estimate = _issued_waypoints.back().time() + previous_delay;
+    _tweaked_finish_estimate = _finish_estimate;
     _original_finish_estimate = _finish_estimate;
 
     publish_command();
     _command_time = _node->get_clock()->now();
+    _reported_excessive_delay = false;
     _task->report_status();
+  }
+
+  void report_holding()
+  {
+    const std::string& map_name = _node->get_graph().get_waypoint(0).get_map_name();
+    // NOTE(MXG): 10 minutes is a crazy estimate, but it should help keep other
+    // vehicles from disrupting the traversal.
+    _context->schedule.push_routes({
+          rmf_traffic::Route{
+            map_name,
+            make_hold(
+              _context->location,
+              rmf_traffic_ros2::convert(_node->now()),
+              std::chrono::minutes(10))
+          }
+    });
   }
 
   void publish_command()
@@ -527,9 +623,6 @@ public:
       if (_parent->handle_docking(msg))
         return;
 
-      if (_parent->handle_retry())
-        return;
-
       if (!_parent->verify_task_id(msg))
         return;
 
@@ -552,20 +645,38 @@ public:
       const auto now = _node->get_clock()->now();
 
       // Recompute a plan if the fleet driver has a huge delay.
-      if (now - _command_time > _node->get_delay_threshold())
+      if (!_reported_excessive_delay
+          && now - _command_time > _node->get_delay_threshold())
       {
         RCLCPP_ERROR(
               _node->get_logger(),
               "The fleet driver is being unresponsive to task plan ["
-              + task_id() + "]. Recomputing plan!");
-
-        retry();
-        return false;
+              + task_id() + "]");
+        _reported_excessive_delay = true;
       }
 
       // Attempt to resend the command if the robot has not received it yet.
       if (now - _command_time > std::chrono::milliseconds(200))
         publish_command();
+
+      return false;
+    }
+
+    if (msg.mode.mode == rmf_fleet_msgs::msg::RobotMode::MODE_ADAPTER_ERROR)
+    {
+      // There was an error with the command that we sent (most likely the robot
+      // has moved too far from where it was when we originally made the plan),
+      // so we'll need to recalculate the plan. A better implementation would
+      // be to optimally reroute the robot onto the intended itinerary, but that
+      // can be saved for future work.
+      RCLCPP_INFO(
+            _node->get_logger(),
+            "Replanning for [" + _context->robot_name()
+            + "] due to an adapter error");
+      if (_emergency_active)
+        find_and_execute_emergency_plan();
+      else
+        find_and_execute_plan(std::chrono::seconds(0));
 
       return false;
     }
@@ -628,17 +739,6 @@ public:
       event_wp.event()->execute(_event_executor);
   }
 
-  void retry()
-  {
-    if (_emergency_active)
-    {
-      find_and_execute_emergency_plan();
-      return;
-    }
-
-    find_and_execute_plan(_node->get_retry_wait());
-  }
-
   bool handle_docking(const RobotState& msg)
   {
     if (!_waiting_on_docking)
@@ -664,24 +764,6 @@ public:
     return true;
   }
 
-  bool handle_retry()
-  {
-    if (!_retry_time)
-      return false;
-
-    if (_node->now() < *_retry_time)
-    {
-      // We are supposed to retry eventually, but not yet. Therefore we return
-      // true to short circuit the other update checks.
-      return true;
-    }
-
-    _retry_time = rmf_utils::nullopt;
-
-    retry();
-    return true;
-  }
-
   void handle_delay(const RobotState& msg)
   {
     if (!_command)
@@ -694,64 +776,50 @@ public:
     const auto new_finish_estimate = *trajectory_estimate.finish_time();
 
     const auto total_delay = new_finish_estimate - _original_finish_estimate;
-    if (total_delay > _node->get_delay_threshold())
+    if (!_event_executor.do_not_negotiate()
+        && std::chrono::seconds(10) < total_delay)
     {
-      RCLCPP_WARN(
+      RCLCPP_INFO(
             _node->get_logger(),
-            "Attempting to replan the movement for [" + _context->robot_name()
-            + "] because the delay has been too long ["
-            + std::to_string(rmf_traffic::time::to_seconds(_node->get_delay_threshold()))
-            + "]. Retrying in ["
-            + std::to_string(rmf_traffic::time::to_seconds(_node->get_retry_wait()))
-            + "] seconds.");
-      // If the dealys have piled up, then consider just restarting altogether.
-      return retry();
-    }
-
-    const auto new_delay = new_finish_estimate - _finish_estimate;
-    // TODO(MXG): Make this threshold configurable
-//    if (new_delay < std::chrono::seconds(3))
-//      return;
-    if (std::abs(new_delay.count()) < std::chrono::seconds(1).count())
-    {
+            "Replanning for [" + _context->robot_name()
+            + "] due to excessive delays");
+      if (_emergency_active)
+        find_and_execute_emergency_plan();
+      else
+        find_and_execute_plan(std::chrono::seconds(0));
       return;
     }
 
-    if (new_delay < std::chrono::seconds(0))
-    {
-      if (new_delay < std::chrono::seconds(-5))
-      {
-//        RCLCPP_WARN(
-//              _node->get_logger(),
-//              "Ignoring big negative delay ["
-//              + std::to_string(rmf_traffic::time::to_seconds(new_delay)) + "]");
-      }
-      return;
-    }
-
-//    std::cout << "Adding delay: ["
-//              << rmf_traffic::time::to_seconds(new_delay)
-//              << "] total: "
-//              << rmf_traffic::time::to_seconds(
-//                   new_finish_estimate - _original_finish_estimate)
-//              << std::endl;
-//    if (new_delay < std::chrono::milliseconds(500))
-//      return;
-
-    const auto from_time =
-        rmf_traffic_ros2::convert(msg.location.t) - new_delay;
-    _finish_estimate = new_finish_estimate;
-
-    if (total_delay < std::chrono::seconds(30))
-    {
-      _context->schedule.push_delay(new_delay, from_time);
-    }
-    else
+    const auto tweaked_delay = new_finish_estimate - _tweaked_finish_estimate;
+    if (std::chrono::seconds(2) < tweaked_delay)
     {
       const std::string& map_name = _node->get_graph().get_waypoint(0).get_map_name();
-      _context->schedule.push_routes({{map_name, trajectory_estimate}}, [](){});
+      _context->schedule.push_routes({{map_name, trajectory_estimate}});
       _finish_estimate = new_finish_estimate;
-      _original_finish_estimate = _finish_estimate;
+      RCLCPP_INFO(
+            _node->get_logger(),
+            "Recomputing itinerary for [" + _context->robot_name()
+            + "] due to excess delays ["
+            + std::to_string(rmf_traffic::time::to_seconds(total_delay))
+            + "s]");
+      _tweaked_finish_estimate = _finish_estimate;
+      return;
+    }
+
+    // TODO(MXG): Make this threshold configurable
+    const auto new_delay = new_finish_estimate - _finish_estimate;
+    if (std::chrono::milliseconds(500) < new_delay)
+    {
+      RCLCPP_INFO(
+            _node->get_logger(),
+            "Adding a delay of [%f] for [%s]",
+            rmf_traffic::time::to_seconds(new_delay),
+            _context->robot_name().c_str());
+
+      const auto from_time =
+          rmf_traffic_ros2::convert(msg.location.t) - new_delay;
+      _context->schedule.push_delay(new_delay, from_time);
+      _finish_estimate = new_finish_estimate;
     }
   }
 
@@ -771,13 +839,15 @@ public:
       rmf_traffic::Trajectory wait_trajectory;
       wait_trajectory.insert(now, position, Eigen::Vector3d::Zero());
       _finish_estimate = now + std::chrono::minutes(5);
+      _tweaked_finish_estimate = _finish_estimate;
+      _original_finish_estimate = _finish_estimate;
 
       wait_trajectory.insert(
             _finish_estimate, position, Eigen::Vector3d::Zero());
 
       const std::string& map_name =
           _node->get_graph().get_waypoint(0).get_map_name();
-      _context->schedule.push_routes({{map_name, wait_trajectory}}, [](){});
+      _context->schedule.push_routes({{map_name, wait_trajectory}});
     }
     else
     {
@@ -793,6 +863,8 @@ public:
         const auto new_finish_estimate = now + std::chrono::minutes(5);
         const auto schedule_delay = new_finish_estimate - _finish_estimate;
         _finish_estimate = new_finish_estimate;
+        _tweaked_finish_estimate = _finish_estimate;
+        _original_finish_estimate = _finish_estimate;
         _context->schedule.push_delay(schedule_delay, now);
       }
     }
@@ -861,6 +933,11 @@ public:
       return _is_active;
     }
 
+    bool do_not_negotiate() const
+    {
+      return _is_active || _is_using_door;
+    }
+
     void request_docking(const std::string& dock_name)
     {
       ModeRequest request;
@@ -896,8 +973,9 @@ public:
       ++_parent->_command_id;
       _parent->_task->report_status();
       request_docking(_parent->_current_dock_name);
+      // NOTE: We do not report a holding here, because the vehicle is moving
+      // while docking
     }
-
 
     void request_door_mode(
         const std::string& door_name,
@@ -932,6 +1010,9 @@ public:
       {
         _parent->_event_listener.door = nullptr;
         _is_active = false;
+        if (mode == DoorMode::MODE_CLOSED)
+          _is_using_door = false;
+
         _parent->send_next_command();
         return;
       }
@@ -949,6 +1030,7 @@ public:
         return;
 
       _is_active = true;
+      _is_using_door = true;
 
       const std::string door_name = open.name();
       const auto initial_time = _parent->_node->get_clock()->now();
@@ -988,6 +1070,7 @@ public:
 
       _parent->_task->report_status();
       request_door_mode(door_name, DoorMode::MODE_CLOSED);
+      _parent->report_holding();
     }
 
     void request_lift_mode(
@@ -1068,6 +1151,7 @@ public:
             lift_name, floor_name,
             LiftRequest::REQUEST_AGV_MODE,
             LiftRequest::DOOR_OPEN);
+      _parent->report_holding();
     }
 
     void execute(const Lane::LiftDoorClose& close) final
@@ -1111,6 +1195,8 @@ public:
               LiftRequest::REQUEST_AGV_MODE,
               LiftRequest::DOOR_OPEN);
       };
+
+      _parent->report_holding();
     }
 
     void cancel()
@@ -1126,6 +1212,7 @@ public:
     rclcpp::Time _command_time;
     MoveAction* const _parent;
     bool _is_active;
+    bool _is_using_door = false;
   };
 
   void execute() final
@@ -1135,6 +1222,12 @@ public:
   }
 
   std::vector<rmf_traffic::agv::Plan> find_emergency_plan()
+  {
+    return find_emergency_plan(_validator);
+  }
+
+  std::vector<rmf_traffic::agv::Plan> find_emergency_plan(
+      const rmf_utils::clone_ptr<rmf_traffic::agv::RouteValidator> validator)
   {
     _emergency_active = true;
 
@@ -1163,6 +1256,7 @@ public:
 
     bool interrupt_flag = false;
     _planner_options.interrupt_flag(&interrupt_flag);
+    _planner_options.validator(std::move(validator));
 
     std::vector<std::thread> plan_threads;
     std::vector<rmf_utils::optional<rmf_traffic::agv::Plan>> candidate_plans;
@@ -1233,44 +1327,17 @@ public:
     if (!plans.empty())
       return execute_plan(std::move(plans));
 
-    cancel(std::chrono::seconds(1));
-  }
+    plans = find_emergency_plan(nullptr);
+    if (plans.empty())
+    {
+      RCLCPP_ERROR(
+            _node->get_logger(),
+            "Unable to find a feasible emergency plan for ["
+            + _context->robot_name() + "]. This is a critical error.");
+      return;
+    }
 
-  void cancel(std::chrono::nanoseconds duration)
-  {
-    _issued_waypoints.clear();
-    _remaining_waypoints.clear();
-    _event_executor.cancel();
-
-    _command = rmf_utils::nullopt;
-    const auto now = _node->now();
-//    _retry_time = now + duration;
-    _retry_time = now;
-
-    RCLCPP_WARN(
-          _node->get_logger(),
-          "Putting movement for [" + _context->robot_name()
-          + "] on hold because we are encountering difficulties.");
-    using ModeRequest = rmf_fleet_msgs::msg::ModeRequest;
-    using RobotMode = rmf_fleet_msgs::msg::RobotMode;
-    ModeRequest request;
-    request.mode.mode = RobotMode::MODE_PAUSED;
-    // TODO(MXG): Make this part of the task_id() function?
-    request.task_id =
-        task_id() + " - pause";
-    request.fleet_name = _node->get_fleet_name();
-    request.robot_name = _context->robot_name();
-
-    auto hold = make_hold(
-          _context->location,
-          rmf_traffic_ros2::convert(now),
-          std::chrono::seconds(2));
-    // TODO(MXG): This is fragile. Robots ought to correctly report their level
-    // name, but we can't rely on that for right now.
-    const std::string& map_name = _node->get_graph().get_waypoint(0).get_map_name();
-    _context->schedule.push_routes({{map_name, hold}}, [](){});
-
-    _node->mode_request_publisher->publish(std::move(request));
+    return execute_plan(std::move(plans));
   }
 
   void interrupt() final
@@ -1350,9 +1417,11 @@ private:
   EventListener _event_listener;
 
   rclcpp::Time _command_time;
+  bool _reported_excessive_delay = true;
   std::vector<rmf_traffic::agv::Plan::Waypoint> _remaining_waypoints;
   std::vector<rmf_traffic::agv::Plan::Waypoint> _issued_waypoints;
   rmf_traffic::Time _finish_estimate = rmf_traffic::Time(std::chrono::seconds(0));
+  rmf_traffic::Time _tweaked_finish_estimate = rmf_traffic::Time(std::chrono::seconds(0));
   rmf_traffic::Time _original_finish_estimate = rmf_traffic::Time(std::chrono::seconds(0));
   rmf_utils::optional<Eigen::Vector3d> _next_stop;
   rmf_utils::optional<rmf_fleet_msgs::msg::PathRequest> _command;

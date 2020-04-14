@@ -148,13 +148,14 @@ void FleetAdapterNode::RobotContext::next_task()
   // TODO(MXG): Report the current task complete before clearing it
   if (!_task_queue.empty())
   {
-    std::cout << "Starting the next task" << std::endl;
+    std::cout << "Starting the next task for [" << _name << "]" << std::endl;
     _task = std::move(_task_queue.front());
     _task_queue.erase(_task_queue.begin());
     _task->next();
     return;
   }
 
+  std::cout << " ======== Task complete for [" << _name << "]" << std::endl;
   _task = nullptr;
 
   // TODO(MXG): If the task queue is empty, have the robot move back to its
@@ -227,7 +228,7 @@ void FleetAdapterNode::RobotContext::respond(
     std::cerr << "[FleetAdatperNode::RobotContext::respond] "
               << "Responding to a negotiation while not performing a task"
               << std::endl;
-    responder.submit({}, [](){});
+    responder.submit({});
   }
 }
 

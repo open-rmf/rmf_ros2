@@ -39,9 +39,7 @@ ScheduleManager::ScheduleManager(rclcpp::Node& node,
 }
 
 //==============================================================================
-void ScheduleManager::push_routes(
-    const std::vector<rmf_traffic::Route>& routes,
-    std::function<void()> approval_callback)
+void ScheduleManager::push_routes(const std::vector<rmf_traffic::Route>& routes)
 {
   // TODO(MXG): Be smarter here. If there are no trajectories then erase the
   // current schedule? Or have the robot stand in place?
@@ -61,12 +59,10 @@ void ScheduleManager::push_routes(
   if (valid_routes.empty())
   {
     _participant.clear();
-    approval_callback();
     return;
   }
 
   _participant.set(std::move(valid_routes));
-  approval_callback();
 }
 
 //==============================================================================

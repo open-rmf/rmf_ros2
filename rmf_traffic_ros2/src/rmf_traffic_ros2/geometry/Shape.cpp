@@ -37,9 +37,19 @@ public:
   {
     if(!initialized)
     {
-      add<rmf_traffic::geometry::Box>(rmf_traffic_msgs::msg::Shape::BOX);
-      add<rmf_traffic::geometry::Circle>(rmf_traffic_msgs::msg::Shape::CIRCLE);
+      // TODO(MXG): Reconsider this design. Static initialization of singletons
+      // seems too error prone with too little benefit. A template-based
+      // implementation may be preferable.
+      std::lock_guard<std::mutex> lock(initialization_mutex);
+      if(!initialized)
+      {
+        add<rmf_traffic::geometry::Box>(rmf_traffic_msgs::msg::Shape::BOX);
+        add<rmf_traffic::geometry::Circle>(rmf_traffic_msgs::msg::Shape::CIRCLE);
+        initialized = true;
+      }
     }
+
+    shapes.resize(num_shape_types);
   }
 
   static const Implementation& get(const ShapeContext& parent)

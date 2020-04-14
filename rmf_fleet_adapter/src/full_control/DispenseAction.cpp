@@ -127,7 +127,7 @@ public:
     }
 
     _last_reported_wait_time = now + _duration_estimate;
-    _context->schedule.push_routes({calculate_itinerary()}, [](){});
+    _context->schedule.push_routes({calculate_itinerary()});
   }
 
   void finish()
@@ -175,7 +175,7 @@ public:
       }
     }
 
-    responder.submit({route}, [](){});
+    responder.submit({route});
   }
 
   Status get_status() const final

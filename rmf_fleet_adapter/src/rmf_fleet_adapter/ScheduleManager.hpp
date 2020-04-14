@@ -44,9 +44,7 @@ public:
 
   using TrajectorySet = std::vector<rmf_traffic::Trajectory>;
 
-  void push_routes(
-      const std::vector<rmf_traffic::Route>& routes,
-      std::function<void()> approval_callback);
+  void push_routes(const std::vector<rmf_traffic::Route>& routes);
 
   void push_delay(
       const rmf_traffic::Duration duration,

@@ -65,6 +65,20 @@ rmf_traffic::Trajectory make_trajectory(
 }
 
 //==============================================================================
+rmf_traffic::Trajectory make_trajectory(
+    const rmf_traffic::Time start_time,
+    const std::vector<rmf_fleet_msgs::msg::Location>& path,
+    const rmf_traffic::agv::VehicleTraits& traits)
+{
+  std::vector<Eigen::Vector3d> positions;
+  for (const auto& location : path)
+    positions.push_back({location.x, location.y, location.yaw});
+
+  return rmf_traffic::agv::Interpolate::positions(
+        traits, start_time, positions);
+}
+
+//==============================================================================
 rmf_traffic::Route make_route(
     const rmf_fleet_msgs::msg::RobotState& state,
     const rmf_traffic::agv::VehicleTraits& traits,

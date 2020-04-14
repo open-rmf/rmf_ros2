@@ -137,7 +137,7 @@ void FleetAdapterNode::push_route(
 
   it->second->cumulative_delay = std::chrono::seconds(0);
   it->second->route = make_route(state, _traits, it->second->sitting);
-  it->second->schedule->push_routes({*it->second->route}, [](){});
+  it->second->schedule->push_routes({*it->second->route});
 }
 
 //==============================================================================

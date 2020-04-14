@@ -114,7 +114,7 @@ public:
             _node->get_logger(),
             "No action for this task [" + id() + "] to respond with. This "
             "might indicate a bug!");
-      responder.submit({}, [](){});
+      responder.submit({});
       return;
     }
 
