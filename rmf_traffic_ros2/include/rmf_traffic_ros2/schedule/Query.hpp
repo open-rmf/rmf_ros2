@@ -26,27 +26,27 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Query::Spacetime convert(
-    const rmf_traffic_msgs::msg::ScheduleQuerySpacetime& from);
+  const rmf_traffic_msgs::msg::ScheduleQuerySpacetime& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleQuerySpacetime convert(
-    const rmf_traffic::schedule::Query::Spacetime& from);
+  const rmf_traffic::schedule::Query::Spacetime& from);
 
 //==============================================================================
 rmf_traffic::schedule::Query::Participants convert(
-    const rmf_traffic_msgs::msg::ScheduleQueryParticipants& from);
+  const rmf_traffic_msgs::msg::ScheduleQueryParticipants& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleQueryParticipants convert(
-    const rmf_traffic::schedule::Query::Participants& from);
+  const rmf_traffic::schedule::Query::Participants& from);
 
 //==============================================================================
 rmf_traffic::schedule::Query convert(
-    const rmf_traffic_msgs::msg::ScheduleQuery& from);
+  const rmf_traffic_msgs::msg::ScheduleQuery& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleQuery convert(
-    const rmf_traffic::schedule::Query& from);
+  const rmf_traffic::schedule::Query& from);
 
 } // namespace rmf_traffic_ros2
 

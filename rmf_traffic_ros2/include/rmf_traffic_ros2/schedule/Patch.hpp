@@ -26,11 +26,11 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic_msgs::msg::SchedulePatch convert(
-    const rmf_traffic::schedule::Patch& from);
+  const rmf_traffic::schedule::Patch& from);
 
 //==============================================================================
 rmf_traffic::schedule::Patch convert(
-    const rmf_traffic_msgs::msg::SchedulePatch& from);
+  const rmf_traffic_msgs::msg::SchedulePatch& from);
 
 } // nmaespace rmf_traffic_ros2
 

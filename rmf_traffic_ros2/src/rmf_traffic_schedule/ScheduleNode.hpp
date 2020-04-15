@@ -73,9 +73,9 @@ public:
   using RegisterQueryService = rclcpp::Service<RegisterQuery>;
 
   void register_query(
-      const request_id_ptr& request_header,
-      const RegisterQuery::Request::SharedPtr& request,
-      const RegisterQuery::Response::SharedPtr& response);
+    const request_id_ptr& request_header,
+    const RegisterQuery::Request::SharedPtr& request,
+    const RegisterQuery::Response::SharedPtr& response);
 
   RegisterQueryService::SharedPtr register_query_service;
 
@@ -84,9 +84,9 @@ public:
   using UnregisterQueryService = rclcpp::Service<UnregisterQuery>;
 
   void unregister_query(
-      const request_id_ptr& request_header,
-      const UnregisterQuery::Request::SharedPtr& request,
-      const UnregisterQuery::Response::SharedPtr& response);
+    const request_id_ptr& request_header,
+    const UnregisterQuery::Request::SharedPtr& request,
+    const UnregisterQuery::Response::SharedPtr& response);
 
   UnregisterQueryService::SharedPtr unregister_query_service;
 
@@ -95,9 +95,9 @@ public:
   using RegisterParticipantSrv = rclcpp::Service<RegisterParticipant>;
 
   void register_participant(
-      const request_id_ptr& request_header,
-      const RegisterParticipant::Request::SharedPtr& request,
-      const RegisterParticipant::Response::SharedPtr& response);
+    const request_id_ptr& request_header,
+    const RegisterParticipant::Request::SharedPtr& request,
+    const RegisterParticipant::Response::SharedPtr& response);
 
   RegisterParticipantSrv::SharedPtr register_participant_service;
 
@@ -106,9 +106,9 @@ public:
   using UnregisterParticipantSrv = rclcpp::Service<UnregisterParticipant>;
 
   void unregister_participant(
-      const request_id_ptr& request_header,
-      const UnregisterParticipant::Request::SharedPtr& request,
-      const UnregisterParticipant::Response::SharedPtr& response);
+    const request_id_ptr& request_header,
+    const UnregisterParticipant::Request::SharedPtr& request,
+    const UnregisterParticipant::Response::SharedPtr& response);
 
   UnregisterParticipantSrv::SharedPtr unregister_participant_service;
 
@@ -117,9 +117,9 @@ public:
   using MirrorUpdateService = rclcpp::Service<MirrorUpdate>;
 
   void mirror_update(
-      const request_id_ptr& request_header,
-      const MirrorUpdate::Request::SharedPtr& request,
-      const MirrorUpdate::Response::SharedPtr& response);
+    const request_id_ptr& request_header,
+    const MirrorUpdate::Request::SharedPtr& request,
+    const MirrorUpdate::Response::SharedPtr& response);
 
   MirrorUpdateService::SharedPtr mirror_update_service;
 
@@ -130,7 +130,8 @@ public:
 
 
   using ScheduleConflictNotice = rmf_traffic_msgs::msg::ScheduleConflictNotice;
-  using ScheduleConflictNoticePublisher = rclcpp::Publisher<ScheduleConflictNotice>;
+  using ScheduleConflictNoticePublisher =
+    rclcpp::Publisher<ScheduleConflictNotice>;
   ScheduleConflictNoticePublisher::SharedPtr conflict_publisher;
 
 
@@ -165,7 +166,7 @@ public:
   rmf_traffic::schedule::Database database;
 
   using QueryMap =
-      std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
+    std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
   // TODO(MXG): Have a way to make query registrations expire after they have
   // not been used for some set amount of time (e.g. 24 hours? 48 hours?).
   std::size_t last_query_id = 0;
@@ -219,7 +220,7 @@ public:
     };
 
     ConflictRecord(const rmf_traffic::schedule::Viewer& viewer)
-      : _viewer(viewer)
+    : _viewer(viewer)
     {
       // Do nothing
     }
@@ -258,10 +259,10 @@ public:
         return rmf_utils::nullopt;
 
       const Version negotiation_version = existing_negotiation ?
-            *existing_negotiation : _next_negotiation_version++;
+        *existing_negotiation : _next_negotiation_version++;
 
       const auto insertion = _negotiations.insert(
-            std::make_pair(negotiation_version, rmf_utils::nullopt));
+        std::make_pair(negotiation_version, rmf_utils::nullopt));
 
       for (const auto p : add_to_negotiation)
         _version[p] = negotiation_version;
@@ -270,8 +271,8 @@ public:
       if (!update_negotiation)
       {
         update_negotiation = rmf_traffic::schedule::Negotiation(
-              _viewer, std::vector<ParticipantId>(
-                add_to_negotiation.begin(), add_to_negotiation.end()));
+          _viewer, std::vector<ParticipantId>(
+            add_to_negotiation.begin(), add_to_negotiation.end()));
       }
       else
       {
@@ -300,12 +301,12 @@ public:
         return;
 
       const auto& participants =
-          negotiation_it->second->negotiation.participants();
+        negotiation_it->second->negotiation.participants();
 
       for (const auto p : participants)
       {
         const auto insertion =
-            _waiting.insert({p, Wait{version, rmf_utils::nullopt}});
+          _waiting.insert({p, Wait{version, rmf_utils::nullopt}});
 
         assert(insertion.second);
         (void)(insertion);
@@ -318,9 +319,9 @@ public:
     // Tell the ConflictRecord what ItineraryVersion will resolve this
     // negotiation.
     void acknowledge(
-        const Version negotiation_version,
-        const ParticipantId p,
-        const rmf_utils::optional<ItineraryVersion> update_version)
+      const Version negotiation_version,
+      const ParticipantId p,
+      const rmf_utils::optional<ItineraryVersion> update_version)
     {
       const auto wait_it = _waiting.find(p);
       if (wait_it == _waiting.end())
@@ -372,7 +373,8 @@ public:
 
 //  private:
     std::unordered_map<ParticipantId, Version> _version;
-    std::unordered_map<Version, rmf_utils::optional<NegotiationRoom>> _negotiations;
+    std::unordered_map<Version,
+      rmf_utils::optional<NegotiationRoom>> _negotiations;
     std::unordered_map<ParticipantId, Wait> _waiting;
     const rmf_traffic::schedule::Viewer& _viewer;
     Version _next_negotiation_version = 0;

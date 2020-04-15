@@ -36,7 +36,7 @@ namespace rmf_traffic_ros2 {
 namespace schedule {
 
 std::string table_to_string(
-    const std::vector<rmf_traffic::schedule::ParticipantId>& table)
+  const std::vector<rmf_traffic::schedule::ParticipantId>& table)
 {
   std::string output;
   for (const auto p : table)
@@ -58,22 +58,23 @@ public:
     const rmf_traffic::schedule::Negotiation::TablePtr table;
 
     Responder(
-        Implementation* const impl_,
-        const rmf_traffic::schedule::Version version_,
-        rmf_traffic::schedule::Negotiation::TablePtr table_)
-      : impl(impl_),
-        conflict_version(version_),
-        table(table_)
+      Implementation* const impl_,
+      const rmf_traffic::schedule::Version version_,
+      rmf_traffic::schedule::Negotiation::TablePtr table_)
+    : impl(impl_),
+      conflict_version(version_),
+      table(table_)
     {
       // Do nothing
     }
 
     void submit(
-        std::vector<rmf_traffic::Route> itinerary,
-        std::function<UpdateVersion()> approval_callback) const final
+      std::vector<rmf_traffic::Route> itinerary,
+      std::function<UpdateVersion()> approval_callback) const final
     {
       const auto* last_version = table->version();
-      const bool accepted = table->submit(itinerary, last_version? *last_version+1 : 0);
+      const bool accepted = table->submit(itinerary,
+          last_version ? *last_version+1 : 0);
       assert(accepted);
       (void)(accepted);
       impl->approvals[conflict_version][table] = std::move(approval_callback);
@@ -96,7 +97,7 @@ public:
         // This means that the whole negotiation is completely impossible.
         // TODO(MXG): Improve this by having the planner reveal what vehicle is
         // blocking progress so we can add it to the negotiation
-        table->reject(table->version()? *table->version() : 0);
+        table->reject(table->version() ? *table->version() : 0);
         impl->publish_rejection(conflict_version, *table);
       }
     }
@@ -162,69 +163,70 @@ public:
   using TablePtr = rmf_traffic::schedule::Negotiation::TablePtr;
   using ItineraryVersion = rmf_traffic::schedule::ItineraryVersion;
   using UpdateVersion = rmf_utils::optional<ItineraryVersion>;
-  using ApprovalCallbackMap = std::unordered_map<TablePtr, std::function<UpdateVersion()>>;
+  using ApprovalCallbackMap = std::unordered_map<TablePtr,
+      std::function<UpdateVersion()>>;
   using Approvals = std::unordered_map<Version, ApprovalCallbackMap>;
   Approvals approvals;
 
   Implementation(
-      rclcpp::Node& node_,
-      const rmf_traffic::schedule::Viewer& viewer_)
-    : node(node_),
-      viewer(viewer_),
-      negotiators(std::make_shared<NegotiatorMap>())
+    rclcpp::Node& node_,
+    const rmf_traffic::schedule::Viewer& viewer_)
+  : node(node_),
+    viewer(viewer_),
+    negotiators(std::make_shared<NegotiatorMap>())
   {
     // TODO(MXG): Make the QoS configurable
     const auto qos = rclcpp::ServicesQoS().reliable();
 
     repeat_sub = node.create_subscription<Repeat>(
-          ScheduleConflictRepeatTopicName, qos,
-          [&](const Repeat::UniquePtr msg)
-    {
-      this->receive_repeat_request(*msg);
-    });
+      ScheduleConflictRepeatTopicName, qos,
+      [&](const Repeat::UniquePtr msg)
+      {
+        this->receive_repeat_request(*msg);
+      });
 
     repeat_pub = node.create_publisher<Repeat>(
-          ScheduleConflictRepeatTopicName, qos);
+      ScheduleConflictRepeatTopicName, qos);
 
     notice_sub = node.create_subscription<Notice>(
-          ScheduleConflictNoticeTopicName, qos,
-          [&](const Notice::UniquePtr msg)
-    {
-      this->receive_notice(*msg);
-    });
+      ScheduleConflictNoticeTopicName, qos,
+      [&](const Notice::UniquePtr msg)
+      {
+        this->receive_notice(*msg);
+      });
 
     notice_pub = node.create_publisher<Notice>(
-          ScheduleConflictNoticeTopicName, qos);
+      ScheduleConflictNoticeTopicName, qos);
 
     proposal_sub = node.create_subscription<Proposal>(
-          ScheduleConflictProposalTopicName, qos,
-          [&](const Proposal::UniquePtr msg)
-    {
-      this->receive_proposal(*msg);
-    });
+      ScheduleConflictProposalTopicName, qos,
+      [&](const Proposal::UniquePtr msg)
+      {
+        this->receive_proposal(*msg);
+      });
 
     proposal_pub = node.create_publisher<Proposal>(
-          ScheduleConflictProposalTopicName, qos);
+      ScheduleConflictProposalTopicName, qos);
 
     rejection_sub = node.create_subscription<Rejection>(
-          ScheduleConflictRejectionTopicName, qos,
-          [&](const Rejection::UniquePtr msg)
-    {
-      this->receive_rejection(*msg);
-    });
+      ScheduleConflictRejectionTopicName, qos,
+      [&](const Rejection::UniquePtr msg)
+      {
+        this->receive_rejection(*msg);
+      });
 
     rejection_pub = node.create_publisher<Rejection>(
-          ScheduleConflictRejectionTopicName, qos);
+      ScheduleConflictRejectionTopicName, qos);
 
     conclusion_sub = node.create_subscription<Conclusion>(
-          ScheduleConflictConclusionTopicName, qos,
-          [&](const Conclusion::UniquePtr msg)
-    {
-      this->receive_conclusion(*msg);
-    });
+      ScheduleConflictConclusionTopicName, qos,
+      [&](const Conclusion::UniquePtr msg)
+      {
+        this->receive_conclusion(*msg);
+      });
 
     ack_pub = node.create_publisher<Ack>(
-          ScheduleConflictAckTopicName, qos);
+      ScheduleConflictAckTopicName, qos);
   }
 
   void receive_repeat_request(const Repeat& msg)
@@ -252,14 +254,14 @@ public:
     to_accommodate.pop_back();
 
     const auto table = negotiate_it->second.room.negotiation.table(
-          for_participant, to_accommodate);
+      for_participant, to_accommodate);
     if (!table)
     {
       std::string error =
-          "[rmf_traffic_ros2::schedule::Negotiation] A repeat was requested "
-          "for a table that does not exist. Negotiation ["
-          + std::to_string(msg.conflict_version) + "], table ["
-          + table_to_string(msg.table) + " ]";
+        "[rmf_traffic_ros2::schedule::Negotiation] A repeat was requested "
+        "for a table that does not exist. Negotiation ["
+        + std::to_string(msg.conflict_version) + "], table ["
+        + table_to_string(msg.table) + " ]";
 
       RCLCPP_WARN(node.get_logger(), error);
 
@@ -282,8 +284,8 @@ public:
     }
 
     const auto insertion = negotiations.insert(
-        {msg.conflict_version,
-         Entry{relevant, Negotiation(viewer, msg.participants)}});
+      {msg.conflict_version,
+        Entry{relevant, Negotiation(viewer, msg.participants)}});
 
     const bool is_new = insertion.second;
     bool& participating = insertion.first->second.participating;
@@ -320,7 +322,7 @@ public:
         if (!table->submission())
         {
           it->second->respond(
-                table, Responder(this, msg.conflict_version, table));
+            table, Responder(this, msg.conflict_version, table));
         }
       }
     }
@@ -354,7 +356,7 @@ public:
         if (!respond_to->submission())
         {
           n.second->respond(
-                respond_to, Responder(this, msg.conflict_version, respond_to));
+            respond_to, Responder(this, msg.conflict_version, respond_to));
         }
 
         respond_queue.push_back(respond_to);
@@ -368,10 +370,10 @@ public:
     if (negotiate_it == negotiations.end())
     {
       RCLCPP_WARN(
-            node.get_logger(),
-            "[rmf_traffic_ros2::schedule::Negotiation::receive_proposal] "
-            "Received a proposal for an unknown negotiation: "
-            + std::to_string(msg.conflict_version));
+        node.get_logger(),
+        "[rmf_traffic_ros2::schedule::Negotiation::receive_proposal] "
+        "Received a proposal for an unknown negotiation: "
+        + std::to_string(msg.conflict_version));
       return;
     }
 
@@ -379,7 +381,7 @@ public:
     auto& room = negotiate_it->second.room;
     Negotiation& negotiation = room.negotiation;
     const auto received_table =
-        negotiation.table(msg.for_participant, msg.to_accommodate);
+      negotiation.table(msg.for_participant, msg.to_accommodate);
 
     if (!received_table)
     {
@@ -387,10 +389,10 @@ public:
       // so that the negotiation can be reconstructed after requesting some
       // repeats.
       std::string error =
-          "[rmf_traffic_ros2::schedule::Negotiation::receive_proposal] "
-          "Receieved a proposal for negotiation ["
-          + std::to_string(msg.conflict_version) + "] that builds on an "
-          "unknown table: [";
+        "[rmf_traffic_ros2::schedule::Negotiation::receive_proposal] "
+        "Receieved a proposal for negotiation ["
+        + std::to_string(msg.conflict_version) + "] that builds on an "
+        "unknown table: [";
       for (const auto p : msg.to_accommodate)
         error += " " + std::to_string(p);
       error += " " + std::to_string(msg.for_participant) + " ]";
@@ -404,7 +406,7 @@ public:
     // in them, because one of our negotiators might get added to it in the
     // future
     const bool updated =
-        received_table->submit(convert(msg.itinerary), msg.proposal_version);
+      received_table->submit(convert(msg.itinerary), msg.proposal_version);
 
     if (!updated)
       return;
@@ -428,8 +430,8 @@ public:
         if (const auto respond_to = top->respond(participant))
         {
           negotiator->respond(
-                respond_to,
-                Responder(this, msg.conflict_version, respond_to));
+            respond_to,
+            Responder(this, msg.conflict_version, respond_to));
 
           if (respond_to->submission())
             queue.push_back(respond_to);
@@ -486,11 +488,11 @@ public:
         assert(approval_callback_it != approvals.end());
         const auto& approval_callbacks = approval_callback_it->second;
 
-        for (std::size_t i=1; i <= msg.table.size(); ++i)
+        for (std::size_t i = 1; i <= msg.table.size(); ++i)
         {
           const auto table = negotiation.table(
-                std::vector<ParticipantId>(
-                  msg.table.begin(), msg.table.begin()+i));
+            std::vector<ParticipantId>(
+              msg.table.begin(), msg.table.begin()+i));
 
           if (!table)
             break;
@@ -522,7 +524,7 @@ public:
         p_ack.updating = false;
         for (const auto p : negotiation.participants())
         {
-          if (negotiators->count(p) !=0)
+          if (negotiators->count(p) != 0)
           {
             p_ack.participant = p;
             acknowledgments.push_back(p_ack);
@@ -551,8 +553,8 @@ public:
   }
 
   void publish_proposal(
-      const Version conflict_version,
-      const Negotiation::Table& table)
+    const Version conflict_version,
+    const Negotiation::Table& table)
   {
     Proposal msg;
     msg.conflict_version = conflict_version;
@@ -565,19 +567,19 @@ public:
 
     const auto& sequence = table.sequence();
     msg.to_accommodate.reserve(sequence.size()-1);
-    for (std::size_t i=0; i < sequence.size()-1; ++i)
+    for (std::size_t i = 0; i < sequence.size()-1; ++i)
       msg.to_accommodate.push_back(sequence[i]);
 
     proposal_pub->publish(msg);
   }
 
   void publish_rejection(
-      const Version conflict_version,
-      const Negotiation::Table& table)
+    const Version conflict_version,
+    const Negotiation::Table& table)
   {
     Rejection msg;
     msg.conflict_version = conflict_version;
-    msg.proposal_version = table.version()? *table.version() : 0;
+    msg.proposal_version = table.version() ? *table.version() : 0;
     msg.table = table.sequence();
     rejection_pub->publish(msg);
   }
@@ -585,10 +587,10 @@ public:
   struct Handle
   {
     Handle(
-        const ParticipantId for_participant_,
-        NegotiationMapPtr map)
-      : for_participant(for_participant_),
-        weak_map(map)
+      const ParticipantId for_participant_,
+      NegotiationMapPtr map)
+    : for_participant(for_participant_),
+      weak_map(map)
     {
       // Do nothing
     }
@@ -604,18 +606,20 @@ public:
   };
 
   std::shared_ptr<void> register_negotiator(
-      const ParticipantId for_participant,
-      NegotiatorPtr negotiator)
+    const ParticipantId for_participant,
+    NegotiatorPtr negotiator)
   {
     const auto insertion = negotiators->insert(
-          std::make_pair(for_participant, std::move(negotiator)));
+      std::make_pair(for_participant, std::move(negotiator)));
 
     if (!insertion.second)
     {
+      // *INDENT-OFF*
       throw std::runtime_error(
-            "[rmf_traffic_ros2::schedule::Negotiaton] Attempt to register a "
-            "duplicate negotiator for participant ["
-            + std::to_string(for_participant) + "]");
+        "[rmf_traffic_ros2::schedule::Negotiaton] Attempt to register a "
+        "duplicate negotiator for participant ["
+        + std::to_string(for_participant) + "]");
+      // *INDENT-ON*
     }
 
     return std::make_shared<Handle>(for_participant, negotiators);
@@ -624,17 +628,17 @@ public:
 
 //==============================================================================
 Negotiation::Negotiation(
-    rclcpp::Node& node,
-    const rmf_traffic::schedule::Viewer& viewer)
-  : _pimpl(rmf_utils::make_unique_impl<Implementation>(node, viewer))
+  rclcpp::Node& node,
+  const rmf_traffic::schedule::Viewer& viewer)
+: _pimpl(rmf_utils::make_unique_impl<Implementation>(node, viewer))
 {
   // Do nothing
 }
 
 //==============================================================================
 std::shared_ptr<void> Negotiation::register_negotiator(
-    rmf_traffic::schedule::ParticipantId for_participant,
-    std::unique_ptr<rmf_traffic::schedule::Negotiator> negotiator)
+  rmf_traffic::schedule::ParticipantId for_participant,
+  std::unique_ptr<rmf_traffic::schedule::Negotiator> negotiator)
 {
   return _pimpl->register_negotiator(for_participant, std::move(negotiator));
 }

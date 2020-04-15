@@ -37,8 +37,8 @@ public:
 
   /// Constructor
   Negotiation(
-      rclcpp::Node& node,
-      const rmf_traffic::schedule::Viewer& viewer);
+    rclcpp::Node& node,
+    const rmf_traffic::schedule::Viewer& viewer);
 
   /// Register a negotiator with this Negotiation manager.
   ///
@@ -51,8 +51,8 @@ public:
   /// \return a handle that should be kept by the caller. When this handle
   /// expires, this negotiator will be automatically unregistered.
   std::shared_ptr<void> register_negotiator(
-      rmf_traffic::schedule::ParticipantId for_participant,
-      std::unique_ptr<rmf_traffic::schedule::Negotiator> negotiator);
+    rmf_traffic::schedule::ParticipantId for_participant,
+    std::unique_ptr<rmf_traffic::schedule::Negotiator> negotiator);
 
   class Implementation;
 private:

@@ -29,19 +29,19 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Change::Add::Item convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeAdd& from);
+  const rmf_traffic_msgs::msg::ScheduleChangeAdd& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleChangeAdd convert(
-    const rmf_traffic::schedule::Change::Add::Item& from);
+  const rmf_traffic::schedule::Change::Add::Item& from);
 
 //==============================================================================
 rmf_traffic::schedule::Change::Delay convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeDelay& from);
+  const rmf_traffic_msgs::msg::ScheduleChangeDelay& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleChangeDelay convert(
-    const rmf_traffic::schedule::Change::Delay& from);
+  const rmf_traffic::schedule::Change::Delay& from);
 
 //==============================================================================
 // TODO(MXG): Fix this. This function does not make much sense because of the
@@ -59,23 +59,23 @@ rmf_traffic_msgs::msg::ScheduleChangeDelay convert(
 
 //==============================================================================
 rmf_traffic::schedule::Change::RegisterParticipant convert(
-    const rmf_traffic_msgs::msg::ScheduleRegister& from);
+  const rmf_traffic_msgs::msg::ScheduleRegister& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleRegister convert(
-    const rmf_traffic::schedule::Change::RegisterParticipant& from);
+  const rmf_traffic::schedule::Change::RegisterParticipant& from);
 
 //==============================================================================
 rmf_traffic::schedule::ParticipantId convert(
-    const rmf_traffic::schedule::Change::UnregisterParticipant& from);
+  const rmf_traffic::schedule::Change::UnregisterParticipant& from);
 
 //==============================================================================
 rmf_traffic::schedule::Change::Cull convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeCull& from);
+  const rmf_traffic_msgs::msg::ScheduleChangeCull& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleChangeCull convert(
-    const rmf_traffic::schedule::Change::Cull& from);
+  const rmf_traffic::schedule::Change::Cull& from);
 
 } // namespace rmf_traffic_ros2
 

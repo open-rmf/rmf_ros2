@@ -26,13 +26,14 @@ namespace schedule {
 
 //==============================================================================
 NegotiationRoom::NegotiationRoom(rmf_traffic::schedule::Negotiation negotiation_)
-  : negotiation(std::move(negotiation_))
+: negotiation(std::move(negotiation_))
 {
   // Do nothing
 }
 
 //==============================================================================
-std::vector<rmf_traffic::schedule::Negotiation::TablePtr> NegotiationRoom::check_cache()
+std::vector<rmf_traffic::schedule::Negotiation::TablePtr> NegotiationRoom::
+check_cache()
 {
   std::vector<rmf_traffic::schedule::Negotiation::TablePtr> new_tables;
 
@@ -41,16 +42,16 @@ std::vector<rmf_traffic::schedule::Negotiation::TablePtr> NegotiationRoom::check
   {
     recheck = false;
 
-    for (auto it = cached_proposals.begin(); it != cached_proposals.end();)
+    for (auto it = cached_proposals.begin(); it != cached_proposals.end(); )
     {
       const auto& proposal = *it;
       const auto table = negotiation.table(
-            proposal.for_participant, proposal.to_accommodate);
+        proposal.for_participant, proposal.to_accommodate);
       if (table)
       {
         const bool updated = table->submit(
-              rmf_traffic_ros2::convert(
-                proposal.itinerary), proposal.proposal_version);
+          rmf_traffic_ros2::convert(
+            proposal.itinerary), proposal.proposal_version);
         if (updated)
           new_tables.push_back(table);
 
@@ -61,7 +62,7 @@ std::vector<rmf_traffic::schedule::Negotiation::TablePtr> NegotiationRoom::check
         ++it;
     }
 
-    for (auto it = cached_rejections.begin(); it != cached_rejections.end();)
+    for (auto it = cached_rejections.begin(); it != cached_rejections.end(); )
     {
       // TODO(MXG): This needs to account for what version of the proposal
       // is being rejected.
@@ -80,18 +81,18 @@ std::vector<rmf_traffic::schedule::Negotiation::TablePtr> NegotiationRoom::check
   } while (recheck);
 
   auto remove_it = std::remove_if(new_tables.begin(), new_tables.end(),
-                 [](const rmf_traffic::schedule::Negotiation::TablePtr& table)
-  {
-    return table->rejected();
-  });
+      [](const rmf_traffic::schedule::Negotiation::TablePtr& table)
+      {
+        return table->rejected();
+      });
   new_tables.erase(remove_it, new_tables.end());
 
   return new_tables;
 }
 
 void print_negotiation_status(
-    rmf_traffic::schedule::Version conflict_version,
-    const rmf_traffic::schedule::Negotiation& negotiation)
+  rmf_traffic::schedule::Version conflict_version,
+  const rmf_traffic::schedule::Negotiation& negotiation)
 {
   using Negotiation = rmf_traffic::schedule::Negotiation;
 
@@ -136,7 +137,7 @@ void print_negotiation_status(
     const bool finished = static_cast<bool>(t->submission());
     const bool rejected = t->rejected();
     const auto sequence = t->sequence();
-    for (std::size_t i=0; i < sequence.size(); ++i)
+    for (std::size_t i = 0; i < sequence.size(); ++i)
     {
       if (i == t->sequence().size()-1 && rejected)
         std::cout << " <" << sequence[i] << ">";

@@ -46,9 +46,9 @@ rmf_traffic::Trajectory convert(const rmf_traffic_msgs::msg::Trajectory& from)
   for (const auto& waypoint : from.waypoints)
   {
     output.insert(
-          rmf_traffic::Time(rmf_traffic::Duration(waypoint.time)),
-          to_eigen(waypoint.position),
-          to_eigen(waypoint.velocity));
+      rmf_traffic::Time(rmf_traffic::Duration(waypoint.time)),
+      to_eigen(waypoint.position),
+      to_eigen(waypoint.velocity));
   }
 
   return output;
@@ -57,7 +57,7 @@ rmf_traffic::Trajectory convert(const rmf_traffic_msgs::msg::Trajectory& from)
 namespace {
 //==============================================================================
 rmf_traffic_msgs::msg::TrajectoryWaypoint convert_waypoint(
-    const rmf_traffic::Trajectory::Waypoint& from)
+  const rmf_traffic::Trajectory::Waypoint& from)
 {
   rmf_traffic_msgs::msg::TrajectoryWaypoint output;
   output.time = from.time().time_since_epoch().count();

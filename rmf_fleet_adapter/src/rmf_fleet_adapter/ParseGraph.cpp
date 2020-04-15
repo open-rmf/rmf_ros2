@@ -25,16 +25,16 @@ namespace rmf_fleet_adapter {
 
 //==============================================================================
 rmf_utils::optional<GraphInfo> parse_graph(
-    const std::string& graph_file,
-    const rmf_traffic::agv::VehicleTraits& vehicle_traits,
-    const rclcpp::Node& node)
+  const std::string& graph_file,
+  const rmf_traffic::agv::VehicleTraits& vehicle_traits,
+  const rclcpp::Node& node)
 {
   const YAML::Node graph_config = YAML::LoadFile(graph_file);
   if (!graph_config)
   {
     RCLCPP_ERROR(
-          node.get_logger(),
-          "Failed to load graph file [" + graph_file + "]");
+      node.get_logger(),
+      "Failed to load graph file [" + graph_file + "]");
     return rmf_utils::nullopt;
   }
 
@@ -42,17 +42,17 @@ rmf_utils::optional<GraphInfo> parse_graph(
   if (!levels)
   {
     RCLCPP_ERROR(
-          node.get_logger(),
-          "Graph file [" + graph_file + "] is missing the [levels] key");
+      node.get_logger(),
+      "Graph file [" + graph_file + "] is missing the [levels] key");
     return rmf_utils::nullopt;
   }
 
   if (!levels.IsMap())
   {
     RCLCPP_ERROR(
-          node.get_logger(),
-          "The [levels] key does not point to a map in graph file ["
-          + graph_file + "]");
+      node.get_logger(),
+      "The [levels] key does not point to a map in graph file ["
+      + graph_file + "]");
     return rmf_utils::nullopt;
   }
 
@@ -81,9 +81,9 @@ rmf_utils::optional<GraphInfo> parse_graph(
           if (!ins.second)
           {
             RCLCPP_ERROR(
-                  node.get_logger(),
-                  "Duplicated waypoint name [" + name + "] in graph ["
-                  + graph_file + "]");
+              node.get_logger(),
+              "Duplicated waypoint name [" + name + "] in graph ["
+              + graph_file + "]");
             return rmf_utils::nullopt;
           }
 
@@ -104,7 +104,8 @@ rmf_utils::optional<GraphInfo> parse_graph(
         const bool is_parking_spot = parking_spot_option.as<bool>();
         if (is_parking_spot)
         {
-          std::cout << "Adding waypoint [" << wp.index() << "] as a parking spot" << std::endl;
+          std::cout << "Adding waypoint [" << wp.index() <<
+            "] as a parking spot" << std::endl;
           info.parking_spots.push_back(wp.index());
         }
       }
@@ -120,32 +121,32 @@ rmf_utils::optional<GraphInfo> parse_graph(
 
       const YAML::Node& options = lane[2];
       const YAML::Node& orientation_constraint_option =
-          options["orientation_constraint"];
+        options["orientation_constraint"];
       if (orientation_constraint_option)
       {
         const std::string& constraint_label =
-            orientation_constraint_option.as<std::string>();
+          orientation_constraint_option.as<std::string>();
         if (constraint_label == "forward")
         {
           constraint = Constraint::make(
-                Constraint::Direction::Forward,
-                vehicle_traits.get_differential()->get_forward());
+            Constraint::Direction::Forward,
+            vehicle_traits.get_differential()->get_forward());
         }
         else if (constraint_label == "backward")
         {
           constraint = Constraint::make(
-                Constraint::Direction::Backward,
-                vehicle_traits.get_differential()->get_forward());
+            Constraint::Direction::Backward,
+            vehicle_traits.get_differential()->get_forward());
         }
         else
         {
           RCLCPP_ERROR(
-                node.get_logger(),
-                "Unrecognized orientation constraint label given to lane ["
-                + std::to_string(lane[0].as<std::size_t>()) + ", "
-                + std::to_string(lane[1].as<std::size_t>()) + "]: ["
-                + constraint_label + "] in graph ["
-                + graph_file + "]");
+            node.get_logger(),
+            "Unrecognized orientation constraint label given to lane ["
+            + std::to_string(lane[0].as<std::size_t>()) + ", "
+            + std::to_string(lane[1].as<std::size_t>()) + "]: ["
+            + constraint_label + "] in graph ["
+            + graph_file + "]");
           return rmf_utils::nullopt;
         }
       }
@@ -164,16 +165,16 @@ rmf_utils::optional<GraphInfo> parse_graph(
         if (!lift_name_option)
         {
           RCLCPP_ERROR(
-                node.get_logger(),
-                "Missing [demo_mock_lift_name] parameter which is required for "
-                "mock lifts");
+            node.get_logger(),
+            "Missing [demo_mock_lift_name] parameter which is required for "
+            "mock lifts");
           return rmf_utils::nullopt;
         }
 
         const std::string lift_name = lift_name_option.as<std::string>();
         const rmf_traffic::Duration duration = std::chrono::seconds(4);
         entry_event = Event::make(
-              Lane::LiftDoorOpen(lift_name, floor_name, duration));
+          Lane::LiftDoorOpen(lift_name, floor_name, duration));
         // NOTE(MXG): We do not need an exit event for lifts
       }
       else if (const YAML::Node door_name_option = options["door_name"])
@@ -189,9 +190,11 @@ rmf_utils::optional<GraphInfo> parse_graph(
         // TODO(MXG): Add support for this
         if (entry_event || exit_event)
         {
+          // *INDENT-OFF*
           throw std::runtime_error(
-              "We do not currently support a dock_name option when any other "
-              "lane options are also specified");
+            "We do not currently support a dock_name option when any other "
+            "lane options are also specified");
+          // *INDENT-ON*
         }
 
         const std::string dock_name = docking_option.as<std::string>();
@@ -200,16 +203,16 @@ rmf_utils::optional<GraphInfo> parse_graph(
       }
 
       info.graph.add_lane(
-          {lane[0].as<std::size_t>(), entry_event},
-          {lane[1].as<std::size_t>(), exit_event, std::move(constraint)});
+        {lane[0].as<std::size_t>(), entry_event},
+        {lane[1].as<std::size_t>(), exit_event, std::move(constraint)});
     }
   }
 
   std::unordered_set<std::size_t> generic_waypoint;
-  for (std::size_t i=0; i < info.graph.num_waypoints(); ++i)
+  for (std::size_t i = 0; i < info.graph.num_waypoints(); ++i)
     generic_waypoint.insert(i);
 
-  for (std::size_t i=0; i < info.graph.num_lanes(); ++i)
+  for (std::size_t i = 0; i < info.graph.num_lanes(); ++i)
   {
     const auto& lane = info.graph.get_lane(i);
     if (lane.entry().event())

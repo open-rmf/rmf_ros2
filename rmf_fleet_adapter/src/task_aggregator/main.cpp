@@ -1,4 +1,3 @@
-
 /*
  * Copyright (C) 2019 Open Source Robotics Foundation
  *
@@ -27,46 +26,46 @@
 class TaskAggregator : public rclcpp::Node
 {
 
-using TaskSummary = rmf_task_msgs::msg::TaskSummary;
-using Tasks = rmf_task_msgs::msg::Tasks;
+  using TaskSummary = rmf_task_msgs::msg::TaskSummary;
+  using Tasks = rmf_task_msgs::msg::Tasks;
 
 public:
   TaskAggregator(
-      std::string node_name,
-      std::string input_topic,
-      double rate)
+    std::string node_name,
+    std::string input_topic,
+    double rate)
   : Node(node_name),
     _rate(rate)
   {
     // Create a wall timer to periodically publish Tasks msg
     const double period = 1.0/_rate;
     auto timer_period = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::duration<double, std::ratio<1>>(period));
+      std::chrono::duration<double, std::ratio<1>>(period));
     _timer = this->create_wall_timer(
-        timer_period, std::bind(&TaskAggregator::timer_callback, this));
-    
+      timer_period, std::bind(&TaskAggregator::timer_callback, this));
+
     // Create publisher for Tasks msg
     _tasks_pub = this->create_publisher<Tasks>(
-        "/tasks",
-        rclcpp::ServicesQoS());
+      "/tasks",
+      rclcpp::ServicesQoS());
 
     // Create subscription to receive TaskSummary msgs from fleet adapters
     _cb_group_task_summary = this->create_callback_group(
-    rclcpp::callback_group::CallbackGroupType::MutuallyExclusive);
+      rclcpp::callback_group::CallbackGroupType::MutuallyExclusive);
     auto sub_map_opt = rclcpp::SubscriptionOptions();
     sub_map_opt.callback_group = _cb_group_task_summary;
     auto qos_profile = rclcpp::QoS(10);
     _task_summary_sub = this->create_subscription<TaskSummary>(
-        input_topic,
-        qos_profile,
-        std::bind(
-            &TaskAggregator::task_summary_cb,
-            this,
-            std::placeholders::_1),
-        sub_map_opt);
+      input_topic,
+      qos_profile,
+      std::bind(
+        &TaskAggregator::task_summary_cb,
+        this,
+        std::placeholders::_1),
+      sub_map_opt);
 
     RCLCPP_INFO(get_logger(),
-        "Listening for Task Summaries on topic /" + input_topic);
+      "Listening for Task Summaries on topic /" + input_topic);
   }
 
 private:
@@ -89,12 +88,12 @@ private:
     }
     else
     {
-     _db.insert(std::make_pair(msg->task_id, *msg));
+      _db.insert(std::make_pair(msg->task_id, *msg));
     }
   }
 
   double _rate;
-  
+
   std::unordered_map<std::string, TaskSummary> _db;
 
   rclcpp::TimerBase::SharedPtr _timer;
@@ -104,23 +103,23 @@ private:
 };
 
 bool get_arg(
-    const std::vector<std::string>& args,
-    const std::string& key,
-    std::string& value,
-    const std::string& desc,
-    const bool mandatory = true)
+  const std::vector<std::string>& args,
+  const std::string& key,
+  std::string& value,
+  const std::string& desc,
+  const bool mandatory = true)
 {
   const auto key_arg = std::find(args.begin(), args.end(), key);
-  if(key_arg == args.end())
+  if (key_arg == args.end())
   {
-    if(mandatory)
+    if (mandatory)
     {
       std::cerr << "You must specify a " << desc <<" using the " << key
                 << " argument!" << std::endl;
     }
     return false;
   }
-  else if(key_arg+1 == args.end())
+  else if (key_arg+1 == args.end())
   {
     std::cerr << "The " << key << " argument must be followed by a " << desc
               << "!" << std::endl;
@@ -134,7 +133,7 @@ bool get_arg(
 int main(int argc, char* argv[])
 {
   const std::vector<std::string> args =
-      rclcpp::init_and_remove_ros_arguments(argc, argv);
+    rclcpp::init_and_remove_ros_arguments(argc, argv);
 
   std::string node_name = "task_aggregator";
   get_arg(args, "-n", node_name, "node name", false);
@@ -143,19 +142,19 @@ int main(int argc, char* argv[])
   get_arg(args, "-t", input_topic, "node name", false);
 
   std::string rate_string;
-  get_arg(args, "-r", rate_string, "rate",false);
-  double rate = rate_string.empty()? 1.0 : std::stod(rate_string);
+  get_arg(args, "-r", rate_string, "rate", false);
+  double rate = rate_string.empty() ? 1.0 : std::stod(rate_string);
 
   auto task_aggregator_node = std::make_shared<TaskAggregator>(
-      node_name,
-      input_topic,
-      rate);
+    node_name,
+    input_topic,
+    rate);
 
   rclcpp::spin(task_aggregator_node);
 
   RCLCPP_INFO(
-        task_aggregator_node->get_logger(),
-        "Closing down");
+    task_aggregator_node->get_logger(),
+    "Closing down");
 
   rclcpp::shutdown();
 }

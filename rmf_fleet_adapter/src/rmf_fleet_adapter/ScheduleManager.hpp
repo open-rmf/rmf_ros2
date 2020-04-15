@@ -38,23 +38,23 @@ class ScheduleManager
 public:
 
   ScheduleManager(
-      rclcpp::Node& node,
-      rmf_traffic::schedule::Participant participant,
-      rmf_traffic_ros2::schedule::Negotiation* negotiation);
+    rclcpp::Node& node,
+    rmf_traffic::schedule::Participant participant,
+    rmf_traffic_ros2::schedule::Negotiation* negotiation);
 
   using TrajectorySet = std::vector<rmf_traffic::Trajectory>;
 
   void push_routes(const std::vector<rmf_traffic::Route>& routes);
 
   void push_delay(
-      const rmf_traffic::Duration duration,
-      const rmf_traffic::Time from_time);
+    const rmf_traffic::Duration duration,
+    const rmf_traffic::Time from_time);
 
   void set_negotiator(
-      std::function<void(
-        rmf_traffic::schedule::Negotiation::ConstTablePtr,
-        const rmf_traffic::schedule::Negotiator::Responder&,
-        const bool*)> negotiation_callback);
+    std::function<void(
+      rmf_traffic::schedule::Negotiation::ConstTablePtr,
+      const rmf_traffic::schedule::Negotiator::Responder&,
+      const bool*)> negotiation_callback);
 
   rmf_traffic::schedule::Participant& participant();
 
@@ -69,9 +69,9 @@ private:
   public:
 
     void respond(
-        std::shared_ptr<const rmf_traffic::schedule::Negotiation::Table> table,
-        const Responder& responder,
-        const bool* interrupt_flag) final;
+      std::shared_ptr<const rmf_traffic::schedule::Negotiation::Table> table,
+      const Responder& responder,
+      const bool* interrupt_flag) final;
 
     std::function<void(
         rmf_traffic::schedule::Negotiation::ConstTablePtr,
@@ -87,19 +87,19 @@ private:
 
 //==============================================================================
 std::future<ScheduleManager> make_schedule_manager(
-    rclcpp::Node& node,
-    rmf_traffic_ros2::schedule::Writer& writer,
-    rmf_traffic_ros2::schedule::Negotiation* negotiation,
-    rmf_traffic::schedule::ParticipantDescription description);
+  rclcpp::Node& node,
+  rmf_traffic_ros2::schedule::Writer& writer,
+  rmf_traffic_ros2::schedule::Negotiation* negotiation,
+  rmf_traffic::schedule::ParticipantDescription description);
 
 //==============================================================================
 void async_make_schedule_manager(
-    rclcpp::Node& node,
-    rmf_traffic_ros2::schedule::Writer& writer,
-    rmf_traffic_ros2::schedule::Negotiation* negotiation,
-    rmf_traffic::schedule::ParticipantDescription description,
-    std::function<void(ScheduleManager manager)> ready_callback,
-    std::mutex& ready_mutex);
+  rclcpp::Node& node,
+  rmf_traffic_ros2::schedule::Writer& writer,
+  rmf_traffic_ros2::schedule::Negotiation* negotiation,
+  rmf_traffic::schedule::ParticipantDescription description,
+  std::function<void(ScheduleManager manager)> ready_callback,
+  std::mutex& ready_mutex);
 
 } // namespace rmf_fleet_adapter
 

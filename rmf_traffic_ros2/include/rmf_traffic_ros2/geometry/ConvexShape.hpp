@@ -34,10 +34,10 @@ public:
   ConvexShapeContext();
 
   rmf_traffic_msgs::msg::ConvexShape insert(
-      rmf_traffic::geometry::ConstFinalConvexShapePtr shape);
+    rmf_traffic::geometry::ConstFinalConvexShapePtr shape);
 
   rmf_traffic::geometry::ConstFinalConvexShapePtr at(
-      const rmf_traffic_msgs::msg::ConvexShape& shape) const;
+    const rmf_traffic_msgs::msg::ConvexShape& shape) const;
 
   class Implementation;
 private:
@@ -48,11 +48,11 @@ private:
 
 //==============================================================================
 geometry::ConvexShapeContext convert(
-    const rmf_traffic_msgs::msg::ConvexShapeContext& from);
+  const rmf_traffic_msgs::msg::ConvexShapeContext& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ConvexShapeContext convert(
-    const geometry::ConvexShapeContext& from);
+  const geometry::ConvexShapeContext& from);
 
 } // namespace rmf_traffic_ros2
 

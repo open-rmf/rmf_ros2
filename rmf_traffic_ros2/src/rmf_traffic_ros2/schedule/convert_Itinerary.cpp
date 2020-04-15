@@ -22,7 +22,7 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::Route> convert(
-    const rmf_traffic::schedule::Itinerary& from)
+  const rmf_traffic::schedule::Itinerary& from)
 {
   std::vector<rmf_traffic_msgs::msg::Route> output;
   for (const auto& r : from)

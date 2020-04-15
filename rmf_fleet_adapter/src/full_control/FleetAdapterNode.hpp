@@ -79,9 +79,9 @@ public:
   struct RobotContext
   {
     RobotContext(
-        std::string name,
-        Location location,
-        ScheduleManager schedule);
+      std::string name,
+      Location location,
+      ScheduleManager schedule);
 
     Location location;
 
@@ -98,9 +98,9 @@ public:
     void resume();
 
     void respond(
-        rmf_traffic::schedule::Negotiation::ConstTablePtr table,
-        const rmf_traffic::schedule::Negotiator::Responder& responder,
-        const bool* interrupt_flag);
+      rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+      const rmf_traffic::schedule::Negotiator::Responder& responder,
+      const bool* interrupt_flag);
 
     std::size_t num_tasks() const;
 
@@ -149,11 +149,11 @@ public:
     rmf_traffic::agv::Planner planner;
 
     Fields(
-        rclcpp::Node& node_,
-        GraphInfo graph_info_,
-        rmf_traffic::agv::VehicleTraits traits_,
-        rmf_traffic_ros2::schedule::MirrorManager mirror_,
-        rmf_traffic_ros2::schedule::WriterPtr writer_)
+      rclcpp::Node& node_,
+      GraphInfo graph_info_,
+      rmf_traffic::agv::VehicleTraits traits_,
+      rmf_traffic_ros2::schedule::MirrorManager mirror_,
+      rmf_traffic_ros2::schedule::WriterPtr writer_)
     : mirror(std::move(mirror_)),
       writer(std::move(writer_)),
       negotiation(node_, mirror.viewer()),
@@ -183,11 +183,11 @@ public:
   using DispenserState = rmf_dispenser_msgs::msg::DispenserState;
 
   using DispenserResultListeners =
-      std::unordered_set<Listener<DispenserResult>*>;
+    std::unordered_set<Listener<DispenserResult>*>;
   DispenserResultListeners dispenser_result_listeners;
 
   using DispenserStateListeners =
-      std::unordered_set<Listener<DispenserState>*>;
+    std::unordered_set<Listener<DispenserState>*>;
   DispenserStateListeners dispenser_state_listeners;
 
   using PathRequest = rmf_fleet_msgs::msg::PathRequest;
@@ -278,7 +278,7 @@ private:
   bool _have_delivery_request = false;
 
   using Context =
-      std::unordered_map<std::string, std::unique_ptr<RobotContext>>;
+    std::unordered_map<std::string, std::unique_ptr<RobotContext>>;
   Context _contexts;
 };
 

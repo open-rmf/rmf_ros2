@@ -24,9 +24,9 @@
 
 //==============================================================================
 rmf_traffic::Trajectory make_trajectory(
-    const rmf_fleet_msgs::msg::RobotState& state,
-    const rmf_traffic::agv::VehicleTraits& traits,
-    bool& is_sitting)
+  const rmf_fleet_msgs::msg::RobotState& state,
+  const rmf_traffic::agv::VehicleTraits& traits,
+  bool& is_sitting)
 {
   // TODO(MXG): Account for the multi-floor use case
   std::string map_name = state.location.level_name;
@@ -42,7 +42,7 @@ rmf_traffic::Trajectory make_trajectory(
   const auto start_time = rmf_traffic_ros2::convert(state.location.t);
 
   auto trajectory = rmf_traffic::agv::Interpolate::positions(
-        traits, start_time, positions);
+    traits, start_time, positions);
 
   if (trajectory.size() < 2)
   {
@@ -66,23 +66,23 @@ rmf_traffic::Trajectory make_trajectory(
 
 //==============================================================================
 rmf_traffic::Trajectory make_trajectory(
-    const rmf_traffic::Time start_time,
-    const std::vector<rmf_fleet_msgs::msg::Location>& path,
-    const rmf_traffic::agv::VehicleTraits& traits)
+  const rmf_traffic::Time start_time,
+  const std::vector<rmf_fleet_msgs::msg::Location>& path,
+  const rmf_traffic::agv::VehicleTraits& traits)
 {
   std::vector<Eigen::Vector3d> positions;
   for (const auto& location : path)
     positions.push_back({location.x, location.y, location.yaw});
 
   return rmf_traffic::agv::Interpolate::positions(
-        traits, start_time, positions);
+    traits, start_time, positions);
 }
 
 //==============================================================================
 rmf_traffic::Route make_route(
-    const rmf_fleet_msgs::msg::RobotState& state,
-    const rmf_traffic::agv::VehicleTraits& traits,
-    bool& is_sitting)
+  const rmf_fleet_msgs::msg::RobotState& state,
+  const rmf_traffic::agv::VehicleTraits& traits,
+  bool& is_sitting)
 {
   return rmf_traffic::Route{
     state.location.level_name,
@@ -92,9 +92,9 @@ rmf_traffic::Route make_route(
 
 //==============================================================================
 rmf_traffic::Trajectory make_hold(
-    const rmf_fleet_msgs::msg::Location& l,
-    const rmf_traffic::Time t,
-    rmf_traffic::Duration duration)
+  const rmf_fleet_msgs::msg::Location& l,
+  const rmf_traffic::Time t,
+  rmf_traffic::Duration duration)
 {
   rmf_traffic::Trajectory hold;
   const Eigen::Vector3d p{l.x, l.y, l.yaw};

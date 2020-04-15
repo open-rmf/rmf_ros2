@@ -62,36 +62,36 @@ public:
   rmf_traffic::schedule::Version next_minimum_version = 0;
 
   Implementation(
-      rclcpp::Node& _node,
-      Options _options,
-      uint64_t _query_id,
-      MirrorUpdateClient _mirror_update_client,
-      UnregisterQueryClient _unregister_query_client)
-    : node(_node),
-      options(std::move(_options)),
-      mirror_update_client(std::move(_mirror_update_client)),
-      unregister_query_client(std::move(_unregister_query_client)),
-      request_msg(std::make_shared<MirrorUpdate::Request>())
+    rclcpp::Node& _node,
+    Options _options,
+    uint64_t _query_id,
+    MirrorUpdateClient _mirror_update_client,
+    UnregisterQueryClient _unregister_query_client)
+  : node(_node),
+    options(std::move(_options)),
+    mirror_update_client(std::move(_mirror_update_client)),
+    unregister_query_client(std::move(_unregister_query_client)),
+    request_msg(std::make_shared<MirrorUpdate::Request>())
   {
     mirror_wakeup_sub = node.create_subscription<MirrorWakeup>(
-          MirrorWakeupTopicName, rclcpp::SystemDefaultsQoS(),
-          [&](const MirrorWakeup::SharedPtr msg)
-    {
-      trigger_wakeup(msg->latest_version);
-    });
+      MirrorWakeupTopicName, rclcpp::SystemDefaultsQoS(),
+      [&](const MirrorWakeup::SharedPtr msg)
+      {
+        trigger_wakeup(msg->latest_version);
+      });
 
     request_msg->query_id = _query_id;
   }
 
   void trigger_wakeup(uint64_t minimum_version)
   {
-    if(options.update_on_wakeup())
+    if (options.update_on_wakeup())
       update(minimum_version);
   }
 
   void update(
-      uint64_t minimum_version,
-      const rmf_traffic::Duration wait = rmf_traffic::Duration(0))
+    uint64_t minimum_version,
+    const rmf_traffic::Duration wait = rmf_traffic::Duration(0))
   {
     if (waiting_for_reply)
     {
@@ -112,47 +112,47 @@ public:
     initial_request = false;
 
     const auto future = mirror_update_client->async_send_request(
-          request_msg,
-          [&](const MirrorUpdateFuture response_future)
-    {
-      const auto response = response_future.get();
-
-      try
+      request_msg,
+      [&](const MirrorUpdateFuture response_future)
       {
-        const rmf_traffic::schedule::Patch patch =
-            convert(response->patch);
+        const auto response = response_future.get();
 
-        RCLCPP_DEBUG(
-              node.get_logger(),
-              "Updating mirror ["
-              + std::to_string(response->patch.latest_version)
-              + "]: " + std::to_string(patch.size()) + " changes");
-
-        std::mutex* update_mutex = options.update_mutex();
-        if (update_mutex)
+        try
         {
-          std::lock_guard<std::mutex> lock(*update_mutex);
-          mirror.update(patch);
+          const rmf_traffic::schedule::Patch patch =
+          convert(response->patch);
+
+          RCLCPP_DEBUG(
+            node.get_logger(),
+            "Updating mirror ["
+            + std::to_string(response->patch.latest_version)
+            + "]: " + std::to_string(patch.size()) + " changes");
+
+          std::mutex* update_mutex = options.update_mutex();
+          if (update_mutex)
+          {
+            std::lock_guard<std::mutex> lock(*update_mutex);
+            mirror.update(patch);
+          }
+          else
+          {
+            mirror.update(patch);
+          }
+
+          waiting_for_reply = false;
+          if (patch.latest_version() < next_minimum_version)
+            update(next_minimum_version);
         }
-        else
+        catch (const std::exception& e)
         {
-          mirror.update(patch);
+          RCLCPP_ERROR(
+            node.get_logger(),
+            "[rmf_traffic_ros2::MirrorManager] Failed to deserialize Patch "
+            "message: " + std::string(e.what()));
         }
+      });
 
-        waiting_for_reply = false;
-        if (patch.latest_version() < next_minimum_version)
-          update(next_minimum_version);
-      }
-      catch(const std::exception& e)
-      {
-        RCLCPP_ERROR(
-              node.get_logger(),
-              "[rmf_traffic_ros2::MirrorManager] Failed to deserialize Patch "
-              "message: " + std::string(e.what()));
-      }
-    });
-
-    if(wait > rmf_traffic::Duration(0))
+    if (wait > rmf_traffic::Duration(0))
       future.wait_for(wait);
   }
 
@@ -161,15 +161,15 @@ public:
     UnregisterQuery::Request msg;
     msg.query_id = request_msg->query_id;
     unregister_query_client->async_send_request(
-          std::make_shared<UnregisterQuery::Request>(std::move(msg)));
+      std::make_shared<UnregisterQuery::Request>(std::move(msg)));
   }
 
   template<typename... Args>
-  static MirrorManager make(Args&&... args)
+  static MirrorManager make(Args&& ... args)
   {
     MirrorManager mgr;
     mgr._pimpl = rmf_utils::make_unique_impl<Implementation>(
-          std::forward<Args>(args)...);
+      std::forward<Args>(args)...);
 
     return mgr;
   }
@@ -188,13 +188,13 @@ public:
 
 //==============================================================================
 MirrorManager::Options::Options(
-    std::mutex* update_mutex,
-    bool update_on_wakeup)
-  : _pimpl(rmf_utils::make_impl<Implementation>(
-             Implementation{
-               update_mutex,
-               update_on_wakeup
-             }))
+  std::mutex* update_mutex,
+  bool update_on_wakeup)
+: _pimpl(rmf_utils::make_impl<Implementation>(
+      Implementation{
+        update_mutex,
+        update_on_wakeup
+      }))
 {
   // Do nothing
 }
@@ -281,60 +281,60 @@ public:
   std::promise<RegisterQuery::Response> registration_promise;
 
   Implementation(
-      rclcpp::Node& _node,
-      rmf_traffic::schedule::Query _query,
-      MirrorManager::Options _options)
-    : node(_node),
-      query(std::move(_query)),
-      options(std::move(_options)),
-      abandon_discovery(false),
-      registration_sent(false)
+    rclcpp::Node& _node,
+    rmf_traffic::schedule::Query _query,
+    MirrorManager::Options _options)
+  : node(_node),
+    query(std::move(_query)),
+    options(std::move(_options)),
+    abandon_discovery(false),
+    registration_sent(false)
   {
     register_query_client =
-        node.create_client<RegisterQuery>(RegisterQueryServiceName);
+      node.create_client<RegisterQuery>(RegisterQueryServiceName);
 
     mirror_update_client =
-        node.create_client<MirrorUpdate>(MirrorUpdateServiceName);
+      node.create_client<MirrorUpdate>(MirrorUpdateServiceName);
 
     unregister_query_client =
-        node.create_client<UnregisterQuery>(UnregisterQueryServiceName);
+      node.create_client<UnregisterQuery>(UnregisterQueryServiceName);
 
     registration_future = registration_promise.get_future();
 
-    discovery_thread = std::thread([=](){ this->discover(); });
+    discovery_thread = std::thread([=]() { this->discover(); });
   }
 
   void discover()
   {
     const auto timeout = std::chrono::milliseconds(10);
     bool ready = false;
-    while(!abandon_discovery && !ready)
+    while (!abandon_discovery && !ready)
     {
       ready = register_query_client->wait_for_service(timeout);
       ready = ready && mirror_update_client->wait_for_service(timeout);
       ready = ready && unregister_query_client->wait_for_service(timeout);
     }
 
-    if(ready && !abandon_discovery)
+    if (ready && !abandon_discovery)
     {
       RegisterQuery::Request register_query_request;
       register_query_request.query = convert(query);
       register_query_client->async_send_request(
-            std::make_shared<RegisterQuery::Request>(register_query_request),
-            [&](const RegisterQueryFuture response)
-      {
-        try
+        std::make_shared<RegisterQuery::Request>(register_query_request),
+        [&](const RegisterQueryFuture response)
         {
-          registration_promise.set_value(*response.get());
-        }
-        catch(const std::exception& e)
-        {
-          RCLCPP_ERROR(
-                node.get_logger(),
-                "[rmf_traffic_ros2::MirrorManagerFuture] Exception while "
-                "registering a query: " + std::string(e.what()));
-        }
-      });
+          try
+          {
+            registration_promise.set_value(*response.get());
+          }
+          catch (const std::exception& e)
+          {
+            RCLCPP_ERROR(
+              node.get_logger(),
+              "[rmf_traffic_ros2::MirrorManagerFuture] Exception while "
+              "registering a query: " + std::string(e.what()));
+          }
+        });
       registration_sent = true;
     }
   }
@@ -364,11 +364,11 @@ public:
     const auto registration = registration_future.get();
 
     return MirrorManager::Implementation::make(
-          node,
-          std::move(options),
-          registration.query_id,
-          std::move(mirror_update_client),
-          std::move(unregister_query_client));
+      node,
+      std::move(options),
+      registration.query_id,
+      std::move(mirror_update_client),
+      std::move(unregister_query_client));
   }
 
   ~Implementation()
@@ -378,60 +378,60 @@ public:
     assert(discovery_thread.joinable());
     discovery_thread.join();
 
-    if(registration_sent && registration_future.valid())
+    if (registration_sent && registration_future.valid())
     {
       // If the future is still valid, then the MirrorManager was never created,
       // so its destructor will never be called. Therefore we should unregister
       // the query in this destructor instead if the query was successfully
       // registered.
-      if(std::future_status::ready ==
-         registration_future.wait_for(std::chrono::milliseconds(10)))
+      if (std::future_status::ready ==
+        registration_future.wait_for(std::chrono::milliseconds(10)))
       {
         const auto registration_response = registration_future.get();
-        if(!registration_response.error.empty())
+        if (!registration_response.error.empty())
         {
           RCLCPP_WARN(
-                node.get_logger(),
-                "[rmf_traffic_ros2::~MirrorManagerFuture] Error received "
-                "while trying to register the query a MirrorManager: "
-                + registration_response.error);
+            node.get_logger(),
+            "[rmf_traffic_ros2::~MirrorManagerFuture] Error received "
+            "while trying to register the query a MirrorManager: "
+            + registration_response.error);
         }
         else
         {
           UnregisterQuery::Request msg;
           msg.query_id = registration_response.query_id;
           unregister_query_client->async_send_request(
-                std::make_shared<UnregisterQuery::Request>(std::move(msg)),
-                [&](const UnregisterQueryFuture response_future)
-          {
-            const auto response = response_future.get();
-            if(!response->error.empty())
+            std::make_shared<UnregisterQuery::Request>(std::move(msg)),
+            [&](const UnregisterQueryFuture response_future)
             {
-              RCLCPP_WARN(
-                    node.get_logger(),
-                    "[rmf_traffic_ros2::~MirrorManagerFuture] Error received "
-                    "while trying to unregister the query of an uninstantiated "
-                    "MirrorManager: " + response->error);
-            }
-          });
+              const auto response = response_future.get();
+              if (!response->error.empty())
+              {
+                RCLCPP_WARN(
+                  node.get_logger(),
+                  "[rmf_traffic_ros2::~MirrorManagerFuture] Error received "
+                  "while trying to unregister the query of an uninstantiated "
+                  "MirrorManager: " + response->error);
+              }
+            });
         }
       }
       else
       {
         RCLCPP_WARN(
-              node.get_logger(),
-              "[rmf_traffic_ros2::~MirrorManagerFuture] Timeout while waiting "
-              "for the acknowlegment of a query registration.");
+          node.get_logger(),
+          "[rmf_traffic_ros2::~MirrorManagerFuture] Timeout while waiting "
+          "for the acknowlegment of a query registration.");
       }
     }
   }
 
   template<typename... Args>
-  static MirrorManagerFuture make(Args&&... args)
+  static MirrorManagerFuture make(Args&& ... args)
   {
     MirrorManagerFuture mmf;
     mmf._pimpl = rmf_utils::make_unique_impl<Implementation>(
-          std::forward<Args>(args)...);
+      std::forward<Args>(args)...);
 
     return mmf;
   }
@@ -445,14 +445,14 @@ void MirrorManagerFuture::wait() const
 
 //==============================================================================
 std::future_status MirrorManagerFuture::wait_for(
-    const rmf_traffic::Duration& timeout) const
+  const rmf_traffic::Duration& timeout) const
 {
   return _pimpl->wait_for(timeout);
 }
 
 //==============================================================================
 std::future_status MirrorManagerFuture::wait_until(
-    const rmf_traffic::Time& time) const
+  const rmf_traffic::Time& time) const
 {
   return _pimpl->wait_until(time);
 }
@@ -477,12 +477,12 @@ MirrorManagerFuture::MirrorManagerFuture()
 
 //==============================================================================
 MirrorManagerFuture make_mirror(
-    rclcpp::Node& node,
-    rmf_traffic::schedule::Query query,
-    MirrorManager::Options options)
+  rclcpp::Node& node,
+  rmf_traffic::schedule::Query query,
+  MirrorManager::Options options)
 {
   return MirrorManagerFuture::Implementation::make(
-        node, std::move(query), std::move(options));
+    node, std::move(query), std::move(options));
 }
 
 } // namespace schedule

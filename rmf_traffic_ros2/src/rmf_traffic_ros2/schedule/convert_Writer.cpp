@@ -22,16 +22,16 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Writer::Input convert(
-    const std::vector<rmf_traffic_msgs::msg::ScheduleWriterItem>& from)
+  const std::vector<rmf_traffic_msgs::msg::ScheduleWriterItem>& from)
 {
   rmf_traffic::schedule::Writer::Input output;
   for (const auto& item : from)
   {
     output.emplace_back(
-          rmf_traffic::schedule::Writer::Item{
-            item.id,
-            std::make_shared<rmf_traffic::Route>(convert(item.route))
-          });
+      rmf_traffic::schedule::Writer::Item{
+        item.id,
+        std::make_shared<rmf_traffic::Route>(convert(item.route))
+      });
   }
 
   return output;
@@ -39,7 +39,7 @@ rmf_traffic::schedule::Writer::Input convert(
 
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::ScheduleWriterItem> convert(
-    const rmf_traffic::schedule::Writer::Input& from)
+  const rmf_traffic::schedule::Writer::Input& from)
 {
   std::vector<rmf_traffic_msgs::msg::ScheduleWriterItem> output;
   for (const auto& item : from)

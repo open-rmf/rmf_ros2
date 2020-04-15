@@ -26,22 +26,22 @@ namespace geometry {
 
 //==============================================================================
 class ShapeContext::Implementation
-    : public internal::ShapeContextImpl<
-        rmf_traffic::geometry::FinalShape,
-        rmf_traffic_msgs::msg::Shape,
-        rmf_traffic_msgs::msg::ShapeContext>
+  : public internal::ShapeContextImpl<
+    rmf_traffic::geometry::FinalShape,
+    rmf_traffic_msgs::msg::Shape,
+    rmf_traffic_msgs::msg::ShapeContext>
 {
 public:
 
   Implementation()
   {
-    if(!initialized)
+    if (!initialized)
     {
       // TODO(MXG): Reconsider this design. Static initialization of singletons
       // seems too error prone with too little benefit. A template-based
       // implementation may be preferable.
       std::lock_guard<std::mutex> lock(initialization_mutex);
-      if(!initialized)
+      if (!initialized)
       {
         add<rmf_traffic::geometry::Box>(rmf_traffic_msgs::msg::Shape::BOX);
         add<rmf_traffic::geometry::Circle>(rmf_traffic_msgs::msg::Shape::CIRCLE);
@@ -60,21 +60,21 @@ public:
 
 //==============================================================================
 ShapeContext::ShapeContext()
-  : _pimpl(rmf_utils::make_impl<Implementation>())
+: _pimpl(rmf_utils::make_impl<Implementation>())
 {
   // Do nothing
 }
 
 //==============================================================================
 rmf_traffic_msgs::msg::Shape ShapeContext::insert(
-    rmf_traffic::geometry::ConstFinalShapePtr shape)
+  rmf_traffic::geometry::ConstFinalShapePtr shape)
 {
   return _pimpl->insert(std::move(shape));
 }
 
 //==============================================================================
 rmf_traffic::geometry::ConstFinalShapePtr ShapeContext::at(
-    const rmf_traffic_msgs::msg::Shape& shape) const
+  const rmf_traffic_msgs::msg::Shape& shape) const
 {
   return _pimpl->at(shape);
 }
@@ -83,15 +83,15 @@ rmf_traffic::geometry::ConstFinalShapePtr ShapeContext::at(
 
 //==============================================================================
 geometry::ShapeContext convert(
-    const rmf_traffic_msgs::msg::ShapeContext& from)
+  const rmf_traffic_msgs::msg::ShapeContext& from)
 {
   using namespace rmf_traffic::geometry;
 
   geometry::ShapeContext context;
-  for(const auto& box : from.convex_shapes.boxes)
+  for (const auto& box : from.convex_shapes.boxes)
     context.insert(make_final<Box>(convert(box)));
 
-  for(const auto& circle : from.convex_shapes.circles)
+  for (const auto& circle : from.convex_shapes.circles)
     context.insert(make_final<Circle>(convert(circle)));
 
   // TODO(MXG): Add SimplePolygon here once we're ready to support it
@@ -101,7 +101,7 @@ geometry::ShapeContext convert(
 
 //==============================================================================
 rmf_traffic_msgs::msg::ShapeContext convert(
-    const geometry::ShapeContext& _from)
+  const geometry::ShapeContext& _from)
 {
   using rmf_traffic_msgs::msg::Shape;
   using namespace rmf_traffic::geometry;
@@ -113,16 +113,16 @@ rmf_traffic_msgs::msg::ShapeContext convert(
   // TODO(MXG): Consider how this can be refactored to share the same code as
   // convert(ConvexShapeContext)
 
-  for(const auto& box : from.shapes.at(Shape::BOX))
+  for (const auto& box : from.shapes.at(Shape::BOX))
   {
     context.convex_shapes.boxes.emplace_back(
-          convert(static_cast<const Box&>(box->source())));
+      convert(static_cast<const Box&>(box->source())));
   }
 
-  for(const auto& circle : from.shapes.at(Shape::CIRCLE))
+  for (const auto& circle : from.shapes.at(Shape::CIRCLE))
   {
     context.convex_shapes.circles.emplace_back(
-          convert(static_cast<const Circle&>(circle->source())));
+      convert(static_cast<const Circle&>(circle->source())));
   }
 
   // TODO(MXG): Add SimplePolygon here once we're ready to support it

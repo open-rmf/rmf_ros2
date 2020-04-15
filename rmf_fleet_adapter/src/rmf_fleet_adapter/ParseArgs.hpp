@@ -27,23 +27,23 @@ namespace rmf_fleet_adapter {
 // TODO(MXG): Use something like boost::program_options instead of a custom CLI
 // interpreter
 bool get_arg(
-    const std::vector<std::string>& args,
-    const std::string& key,
-    std::string& value,
-    const std::string& desc,
-    const bool mandatory = true);
+  const std::vector<std::string>& args,
+  const std::string& key,
+  std::string& value,
+  const std::string& desc,
+  const bool mandatory = true);
 
 double get_double_arg(
-    const std::vector<std::string>& args,
-    const std::string& key,
-    const std::string& desc,
-    const double default_value);
+  const std::vector<std::string>& args,
+  const std::string& key,
+  const std::string& desc,
+  const double default_value);
 
 std::chrono::nanoseconds get_time_arg(
-    const std::vector<std::string>& args,
-    const std::string& key,
-    const std::string& desc,
-    const double default_value);
+  const std::vector<std::string>& args,
+  const std::string& key,
+  const std::string& desc,
+  const double default_value);
 
 } // namespace rmf_fleet_adapter
 

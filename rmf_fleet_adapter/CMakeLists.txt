@@ -12,6 +12,17 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 
+if(BUILD_TESTING)
+  find_package(rmf_cmake_uncrustify REQUIRED)
+  find_file(uncrustify_config_file NAMES "share/format/rmf_code_style.cfg")
+                
+  rmf_uncrustify(
+    ARGN include src test
+    CONFIG_FILE ${uncrustify_config_file}
+    MAX_LINE_LENGTH 80
+  )
+endif()
+
 set(dep_pkgs
   rclcpp
   rmf_utils

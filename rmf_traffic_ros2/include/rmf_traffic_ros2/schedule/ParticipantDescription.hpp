@@ -26,11 +26,11 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::ParticipantDescription convert(
-    const rmf_traffic_msgs::msg::ParticipantDescription& from);
+  const rmf_traffic_msgs::msg::ParticipantDescription& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ParticipantDescription convert(
-    const rmf_traffic::schedule::ParticipantDescription& from);
+  const rmf_traffic::schedule::ParticipantDescription& from);
 
 } // namespace rmf_traffic_ros2
 

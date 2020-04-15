@@ -30,24 +30,24 @@ Node::Node()
   const auto default_qos = rclcpp::SystemDefaultsQoS();
 
   _lift_request_pub = create_publisher<LiftRequest>(
-        FinalLiftRequestTopicName, default_qos);
+    FinalLiftRequestTopicName, default_qos);
 
   _adapter_lift_request_sub = create_subscription<LiftRequest>(
-        AdapterLiftRequestTopicName, default_qos,
-        [&](LiftRequest::UniquePtr msg)
-  {
-    _adapter_lift_request_update(std::move(msg));
-  });
+    AdapterLiftRequestTopicName, default_qos,
+    [&](LiftRequest::UniquePtr msg)
+    {
+      _adapter_lift_request_update(std::move(msg));
+    });
 
   _lift_state_sub = create_subscription<LiftState>(
-        LiftStateTopicName, default_qos,
-        [&](LiftState::UniquePtr msg)
-  {
-    _lift_state_update(std::move(msg));
-  });
+    LiftStateTopicName, default_qos,
+    [&](LiftState::UniquePtr msg)
+    {
+      _lift_state_update(std::move(msg));
+    });
 
   _emergency_notice_pub = create_publisher<EmergencyNotice>(
-        rmf_traffic_ros2::EmergencyTopicName, default_qos);
+    rmf_traffic_ros2::EmergencyTopicName, default_qos);
 }
 
 //==============================================================================

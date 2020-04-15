@@ -24,20 +24,20 @@ namespace rmf_fleet_adapter {
 namespace full_control {
 
 std::unique_ptr<Task> make_delivery(
-    FleetAdapterNode* node,
-    FleetAdapterNode::RobotContext* context,
-    rmf_task_msgs::msg::Delivery delivery);
+  FleetAdapterNode* node,
+  FleetAdapterNode::RobotContext* context,
+  rmf_task_msgs::msg::Delivery delivery);
 
 std::unique_ptr<Task> make_loop(
-    FleetAdapterNode* node,
-    FleetAdapterNode::RobotContext* context,
-    rmf_task_msgs::msg::Loop loop);
+  FleetAdapterNode* node,
+  FleetAdapterNode::RobotContext* context,
+  rmf_task_msgs::msg::Loop loop);
 
 
 void report_impossible(
-    FleetAdapterNode* const node,
-    std::string task_id,
-    std::string error);
+  FleetAdapterNode* const node,
+  std::string task_id,
+  std::string error);
 
 } // namespace full_control
 } // namespace rmf_fleet_adapter

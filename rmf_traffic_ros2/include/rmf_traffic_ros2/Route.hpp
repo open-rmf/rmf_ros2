@@ -29,10 +29,10 @@ rmf_traffic_msgs::msg::Route convert(const rmf_traffic::Route& from);
 
 //==============================================================================
 std::vector<rmf_traffic::Route> convert(
-    const std::vector<rmf_traffic_msgs::msg::Route>& from);
+  const std::vector<rmf_traffic_msgs::msg::Route>& from);
 
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::Route> convert(
-    const std::vector<rmf_traffic::Route>& from);
+  const std::vector<rmf_traffic::Route>& from);
 
 } // namespace rmf_traffic_ros2

@@ -24,26 +24,26 @@ namespace rmf_fleet_adapter {
 
 //==============================================================================
 bool get_arg(
-    const std::vector<std::string>& args,
-    const std::string& key,
-    std::string& value,
-    const std::string& desc,
-    const bool mandatory)
+  const std::vector<std::string>& args,
+  const std::string& key,
+  std::string& value,
+  const std::string& desc,
+  const bool mandatory)
 {
   const auto key_arg = std::find(args.begin(), args.end(), key);
-  if(key_arg == args.end())
+  if (key_arg == args.end())
   {
     // TODO(MXG): See if there's a way to use RCLCPP_ERROR here without first
     // constructing a node. If not, we could consider constructing the
     // FleetAdapterNode in two parts.
-    if(mandatory)
+    if (mandatory)
     {
       std::cerr << "You must specify a " << desc <<" using the " << key
                 << " argument!" << std::endl;
     }
     return false;
   }
-  else if(key_arg+1 == args.end())
+  else if (key_arg+1 == args.end())
   {
     std::cerr << "The " << key << " argument must be followed by a " << desc
               << "!" << std::endl;
@@ -56,10 +56,10 @@ bool get_arg(
 
 //==============================================================================
 double get_double_arg(
-    const std::vector<std::string>& args,
-    const std::string& key,
-    const std::string& desc,
-    const double default_value)
+  const std::vector<std::string>& args,
+  const std::string& key,
+  const std::string& desc,
+  const double default_value)
 {
   std::string cli_value;
   if (get_arg(args, key, cli_value, desc, false))
@@ -73,15 +73,15 @@ double get_double_arg(
 
 //==============================================================================
 std::chrono::nanoseconds get_time_arg(
-    const std::vector<std::string>& args,
-    const std::string& key,
-    const std::string& desc,
-    const double default_value)
+  const std::vector<std::string>& args,
+  const std::string& key,
+  const std::string& desc,
+  const double default_value)
 {
   const double value = get_double_arg(args, key, desc, default_value);
 
   return std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::duration<double, std::ratio<1>>(value));
+    std::chrono::duration<double, std::ratio<1>>(value));
 }
 
 } // namespace rmf_fleet_adapter

@@ -22,20 +22,20 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::ParticipantDescription convert(
-    const rmf_traffic_msgs::msg::ParticipantDescription& from)
+  const rmf_traffic_msgs::msg::ParticipantDescription& from)
 {
   return rmf_traffic::schedule::ParticipantDescription{
     from.name,
     from.owner,
     static_cast<rmf_traffic::schedule::ParticipantDescription::Rx>(
-          from.responsiveness),
+      from.responsiveness),
     convert(from.profile)
   };
 }
 
 //==============================================================================
 rmf_traffic_msgs::msg::ParticipantDescription convert(
-    const rmf_traffic::schedule::ParticipantDescription& from)
+  const rmf_traffic::schedule::ParticipantDescription& from)
 {
   rmf_traffic_msgs::msg::ParticipantDescription output;
   output.name = from.name();

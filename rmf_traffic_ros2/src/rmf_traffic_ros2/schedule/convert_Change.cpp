@@ -24,14 +24,14 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Change::Add::Item convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeAdd& from)
+  const rmf_traffic_msgs::msg::ScheduleChangeAdd& from)
 {
   return {from.id, std::make_shared<rmf_traffic::Route>(convert(from.route))};
 }
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleChangeAdd convert(
-    const rmf_traffic::schedule::Change::Add::Item& from)
+  const rmf_traffic::schedule::Change::Add::Item& from)
 {
   if (!from.route)
     throw std::runtime_error("Cannot convert a nullptr route into a message");
@@ -44,7 +44,7 @@ rmf_traffic_msgs::msg::ScheduleChangeAdd convert(
 
 //==============================================================================
 rmf_traffic::schedule::Change::Delay convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeDelay& from)
+  const rmf_traffic_msgs::msg::ScheduleChangeDelay& from)
 {
   return rmf_traffic::schedule::Change::Delay{
     rmf_traffic::Time(rmf_traffic::Duration(from.from_time)),
@@ -54,7 +54,7 @@ rmf_traffic::schedule::Change::Delay convert(
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleChangeDelay convert(
-    const rmf_traffic::schedule::Change::Delay& from)
+  const rmf_traffic::schedule::Change::Delay& from)
 {
   rmf_traffic_msgs::msg::ScheduleChangeDelay output;
   output.from_time = from.from().time_since_epoch().count();
@@ -64,7 +64,7 @@ rmf_traffic_msgs::msg::ScheduleChangeDelay convert(
 
 //==============================================================================
 rmf_traffic::schedule::Change::RegisterParticipant convert(
-    const rmf_traffic_msgs::msg::ScheduleRegister& from)
+  const rmf_traffic_msgs::msg::ScheduleRegister& from)
 {
   return rmf_traffic::schedule::Change::RegisterParticipant{
     from.participant_id,
@@ -74,7 +74,7 @@ rmf_traffic::schedule::Change::RegisterParticipant convert(
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleRegister convert(
-    const rmf_traffic::schedule::Change::RegisterParticipant& from)
+  const rmf_traffic::schedule::Change::RegisterParticipant& from)
 {
   rmf_traffic_msgs::msg::ScheduleRegister output;
   output.participant_id = from.id();
@@ -84,14 +84,14 @@ rmf_traffic_msgs::msg::ScheduleRegister convert(
 
 //==============================================================================
 rmf_traffic::schedule::Change::Cull convert(
-    const rmf_traffic_msgs::msg::ScheduleChangeCull& from)
+  const rmf_traffic_msgs::msg::ScheduleChangeCull& from)
 {
   return rmf_traffic::Time(rmf_traffic::Duration(from.time));
 }
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleChangeCull convert(
-    const rmf_traffic::schedule::Change::Cull& from)
+  const rmf_traffic::schedule::Change::Cull& from)
 {
   rmf_traffic_msgs::msg::ScheduleChangeCull output;
   output.time = from.time().time_since_epoch().count();

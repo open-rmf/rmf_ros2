@@ -34,10 +34,10 @@ public:
   ShapeContext();
 
   rmf_traffic_msgs::msg::Shape insert(
-      rmf_traffic::geometry::ConstFinalShapePtr shape);
+    rmf_traffic::geometry::ConstFinalShapePtr shape);
 
   rmf_traffic::geometry::ConstFinalShapePtr at(
-      const rmf_traffic_msgs::msg::Shape& shape) const;
+    const rmf_traffic_msgs::msg::Shape& shape) const;
 
   class Implementation;
 private:
@@ -48,11 +48,11 @@ private:
 
 //==============================================================================
 geometry::ShapeContext convert(
-    const rmf_traffic_msgs::msg::ShapeContext& from);
+  const rmf_traffic_msgs::msg::ShapeContext& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ShapeContext convert(
-    const geometry::ShapeContext& from);
+  const geometry::ShapeContext& from);
 
 } // namespace rmf_traffic_ros2
 

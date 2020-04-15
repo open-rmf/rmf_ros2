@@ -31,21 +31,21 @@ Node::Node()
   const auto default_qos = rclcpp::SystemDefaultsQoS();
 
   _door_request_pub = create_publisher<DoorRequest>(
-        FinalDoorRequestTopicName, default_qos);
+    FinalDoorRequestTopicName, default_qos);
 
   _adapter_door_request_sub = create_subscription<DoorRequest>(
-        AdapterDoorRequestTopicName, default_qos,
-        [&](DoorRequest::UniquePtr msg)
-  {
-    _adapter_door_request_update(std::move(msg));
-  });
+    AdapterDoorRequestTopicName, default_qos,
+    [&](DoorRequest::UniquePtr msg)
+    {
+      _adapter_door_request_update(std::move(msg));
+    });
 
   _door_state_sub = create_subscription<DoorState>(
-        DoorStateTopicName, default_qos,
-        [&](DoorState::UniquePtr msg)
-  {
-    _door_state_update(std::move(msg));
-  });
+    DoorStateTopicName, default_qos,
+    [&](DoorState::UniquePtr msg)
+    {
+      _door_state_update(std::move(msg));
+    });
 }
 
 //==============================================================================
@@ -55,14 +55,15 @@ void Node::_adapter_door_request_update(DoorRequest::UniquePtr msg)
     _process_open_request(msg->door_name, msg->requester_id, msg->request_time);
 
   if (DoorMode::MODE_CLOSED == msg->requested_mode.value)
-    _process_close_request(msg->door_name, msg->requester_id, msg->request_time);
+    _process_close_request(msg->door_name, msg->requester_id,
+      msg->request_time);
 }
 
 //==============================================================================
 void Node::_process_open_request(
-    const std::string& door_name,
-    const std::string& requester_id,
-    const builtin_interfaces::msg::Time& time)
+  const std::string& door_name,
+  const std::string& requester_id,
+  const builtin_interfaces::msg::Time& time)
 {
   auto& open_requests = _log[door_name];
   auto insertion = open_requests.insert(std::make_pair(requester_id, time));
@@ -89,9 +90,9 @@ void Node::_send_open_request(const std::string& door_name)
 
 //==============================================================================
 void Node::_process_close_request(
-    const std::string& door_name,
-    const std::string& requester_id,
-    const builtin_interfaces::msg::Time& time)
+  const std::string& door_name,
+  const std::string& requester_id,
+  const builtin_interfaces::msg::Time& time)
 {
   auto door_it = _log.find(door_name);
   if (door_it == _log.end())
@@ -142,7 +143,7 @@ void Node::_door_state_update(DoorState::UniquePtr msg)
   if (door_it == _log.end() || door_it->second.empty())
   {
     if (DoorMode::MODE_OPEN == msg->current_mode.value
-        || DoorMode::MODE_MOVING == msg->current_mode.value)
+      || DoorMode::MODE_MOVING == msg->current_mode.value)
     {
       // If the door is not closed but it's supposed to be, then send a reminder
       _send_close_request(door_name);
@@ -151,7 +152,7 @@ void Node::_door_state_update(DoorState::UniquePtr msg)
   else
   {
     if (DoorMode::MODE_CLOSED == msg->current_mode.value
-        || DoorMode::MODE_MOVING == msg->current_mode.value)
+      || DoorMode::MODE_MOVING == msg->current_mode.value)
     {
       // If the door is not open but it's supposed to be, then send a reminder
       _send_open_request(door_name);

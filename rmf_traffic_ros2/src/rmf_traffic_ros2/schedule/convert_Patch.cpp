@@ -25,15 +25,15 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Patch::Participant convert(
-    const rmf_traffic_msgs::msg::ScheduleParticipantPatch& from);
+  const rmf_traffic_msgs::msg::ScheduleParticipantPatch& from);
 
 //==============================================================================
 
 //==============================================================================
 template<typename T_out, typename T_in>
 void convert_vector(
-    std::vector<T_out>& output,
-    const std::vector<T_in>& input)
+  std::vector<T_out>& output,
+  const std::vector<T_in>& input)
 {
   output.reserve(input.size());
   for (const auto& i : input)
@@ -43,7 +43,7 @@ void convert_vector(
 //==============================================================================
 template<typename T_out, typename T_in>
 std::vector<T_out> convert_vector(
-    const std::vector<T_in>& input)
+  const std::vector<T_in>& input)
 {
   std::vector<T_out> output;
   convert_vector(output, input);
@@ -52,23 +52,23 @@ std::vector<T_out> convert_vector(
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleParticipantPatch convert(
-    const rmf_traffic::schedule::Patch::Participant& from)
+  const rmf_traffic::schedule::Patch::Participant& from)
 {
   rmf_traffic_msgs::msg::ScheduleParticipantPatch output;
   output.participant_id = from.participant_id();
 
   output.erasures = from.erasures().ids();
   output.additions = convert_vector<rmf_traffic_msgs::msg::ScheduleChangeAdd>(
-        from.additions().items());
+    from.additions().items());
   output.delays = convert_vector<rmf_traffic_msgs::msg::ScheduleChangeDelay>(
-        from.delays());
+    from.delays());
 
   return output;
 }
 
 //==============================================================================
 rmf_traffic::schedule::Patch::Participant convert(
-    const rmf_traffic_msgs::msg::ScheduleParticipantPatch& from)
+  const rmf_traffic_msgs::msg::ScheduleParticipantPatch& from)
 {
   return rmf_traffic::schedule::Patch::Participant{
     from.participant_id,
@@ -82,7 +82,7 @@ rmf_traffic::schedule::Patch::Participant convert(
 
 //==============================================================================
 rmf_traffic_msgs::msg::SchedulePatch convert(
-    const rmf_traffic::schedule::Patch& from)
+  const rmf_traffic::schedule::Patch& from)
 {
   rmf_traffic_msgs::msg::SchedulePatch output;
 
@@ -105,7 +105,7 @@ rmf_traffic_msgs::msg::SchedulePatch convert(
 
 //==============================================================================
 rmf_traffic::schedule::Patch convert(
-    const rmf_traffic_msgs::msg::SchedulePatch& from)
+  const rmf_traffic_msgs::msg::SchedulePatch& from)
 {
   // TODO(MXG): Fix the Patch API to make this more elegant
   std::vector<rmf_traffic::schedule::Change::UnregisterParticipant> unregister;
@@ -119,7 +119,8 @@ rmf_traffic::schedule::Patch convert(
 
   return rmf_traffic::schedule::Patch{
     std::move(unregister),
-    convert_vector<rmf_traffic::schedule::Change::RegisterParticipant>(from.register_participants),
+    convert_vector<rmf_traffic::schedule::Change::RegisterParticipant>(
+      from.register_participants),
     convert_vector<rmf_traffic::schedule::Patch::Participant>(from.participants),
     std::move(cull),
     from.latest_version

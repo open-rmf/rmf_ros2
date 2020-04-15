@@ -65,7 +65,7 @@ public:
   /// \param[in] description.
   ///   The description of the participant.
   std::future<rmf_traffic::schedule::Participant> make_participant(
-      rmf_traffic::schedule::ParticipantDescription description);
+    rmf_traffic::schedule::ParticipantDescription description);
 
   /// Asynchronously create a schedule participant.
   ///
@@ -78,8 +78,8 @@ public:
   /// \param[in] ready_callback
   ///   The callback that will be triggered when the participant is ready.
   void async_make_participant(
-      rmf_traffic::schedule::ParticipantDescription description,
-      std::function<void(rmf_traffic::schedule::Participant)> ready_callback);
+    rmf_traffic::schedule::ParticipantDescription description,
+    std::function<void(rmf_traffic::schedule::Participant)> ready_callback);
 
   class Implementation;
 private:
@@ -93,11 +93,11 @@ using WriterPtr = std::shared_ptr<Writer>;
 
 //==============================================================================
 rmf_traffic::schedule::Writer::Input convert(
-    const std::vector<rmf_traffic_msgs::msg::ScheduleWriterItem>& from);
+  const std::vector<rmf_traffic_msgs::msg::ScheduleWriterItem>& from);
 
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::ScheduleWriterItem> convert(
-    const rmf_traffic::schedule::Writer::Input& from);
+  const rmf_traffic::schedule::Writer::Input& from);
 
 } // namespace rmf_traffic_ros2
 

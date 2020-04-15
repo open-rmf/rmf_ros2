@@ -30,17 +30,17 @@ namespace rmf_fleet_adapter {
 //==============================================================================
 template<typename T>
 T get_parameter_or_default(
-    rclcpp::Node& node,
-    const std::string& param_name,
-    const T& default_value)
+  rclcpp::Node& node,
+  const std::string& param_name,
+  const T& default_value)
 {
   // TODO(MXG): Consider a way to automatically make a callback that will update
   // a target variable when the parameter value gets changed.
 
   const T value = node.declare_parameter(param_name, default_value);
   RCLCPP_INFO(
-        node.get_logger(),
-        "Parameter [" + param_name + "] set to: " + std::to_string(value));
+    node.get_logger(),
+    "Parameter [" + param_name + "] set to: " + std::to_string(value));
   return value;
 }
 
@@ -49,16 +49,16 @@ std::string get_fleet_name_parameter(rclcpp::Node& node);
 
 //==============================================================================
 std::chrono::nanoseconds get_parameter_or_default_time(
-    rclcpp::Node& node,
-    const std::string& param_name,
-    const double default_value);
+  rclcpp::Node& node,
+  const std::string& param_name,
+  const double default_value);
 
 //==============================================================================
 rmf_traffic::agv::VehicleTraits get_traits_or_default(
-    rclcpp::Node& node,
-    const double default_v_nom, const double default_w_nom,
-    const double default_a_nom, const double default_alpha_nom,
-    const double default_radius);
+  rclcpp::Node& node,
+  const double default_v_nom, const double default_w_nom,
+  const double default_a_nom, const double default_alpha_nom,
+  const double default_radius);
 
 } // namespace rmf_fleet_adapter
 

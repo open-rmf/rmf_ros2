@@ -36,7 +36,7 @@ namespace schedule {
 namespace {
 //==============================================================================
 class RectifierFactory
-    : public rmf_traffic::schedule::RectificationRequesterFactory
+  : public rmf_traffic::schedule::RectificationRequesterFactory
 {
 public:
 
@@ -60,8 +60,8 @@ public:
   };
 
   using StubMap = std::unordered_map<
-      rmf_traffic::schedule::ParticipantId,
-      std::weak_ptr<RectifierStub>
+    rmf_traffic::schedule::ParticipantId,
+    std::weak_ptr<RectifierStub>
   >;
 
   StubMap stub_map;
@@ -72,17 +72,17 @@ public:
   RectifierFactory(rclcpp::Node& node)
   {
     inconsistency_sub = node.create_subscription<InconsistencyMsg>(
-          ScheduleInconsistencyTopicName,
-          rclcpp::SystemDefaultsQoS().reliable(),
-          [&](const InconsistencyMsg::UniquePtr msg)
-    {
-      check_inconsistencies(*msg);
-    });
+      ScheduleInconsistencyTopicName,
+      rclcpp::SystemDefaultsQoS().reliable(),
+      [&](const InconsistencyMsg::UniquePtr msg)
+      {
+        check_inconsistencies(*msg);
+      });
   }
 
   std::unique_ptr<rmf_traffic::schedule::RectificationRequester> make(
-      rmf_traffic::schedule::Rectifier rectifier,
-      rmf_traffic::schedule::ParticipantId participant_id) final
+    rmf_traffic::schedule::Rectifier rectifier,
+    rmf_traffic::schedule::ParticipantId participant_id) final
   {
     auto requester = std::make_unique<Requester>(std::move(rectifier));
 
@@ -126,9 +126,9 @@ public:
 
 //==============================================================================
 RectifierFactory::Requester::Requester(
-    rmf_traffic::schedule::Rectifier rectifier_)
-  : rectifier(std::move(rectifier_)),
-    stub(std::make_shared<RectifierStub>(RectifierStub{*this}))
+  rmf_traffic::schedule::Rectifier rectifier_)
+: rectifier(std::move(rectifier_)),
+  stub(std::make_shared<RectifierStub>(RectifierStub{*this}))
 {
   // Do nothing
 }
@@ -137,7 +137,7 @@ RectifierFactory::Requester::Requester(
 
 //==============================================================================
 class Writer::Implementation
-    : public rmf_traffic::schedule::Writer
+  : public rmf_traffic::schedule::Writer
 {
 public:
 
@@ -162,39 +162,39 @@ public:
   rclcpp::Client<Unregister>::SharedPtr unregister_client;
 
   Implementation(rclcpp::Node& node)
-    : rectifier_factory(node)
+  : rectifier_factory(node)
   {
     set_pub = node.create_publisher<Set>(
-          ItinerarySetTopicName,
-          rclcpp::SystemDefaultsQoS().best_effort());
+      ItinerarySetTopicName,
+      rclcpp::SystemDefaultsQoS().best_effort());
 
     extend_pub = node.create_publisher<Extend>(
-          ItineraryExtendTopicName,
-          rclcpp::SystemDefaultsQoS().best_effort());
+      ItineraryExtendTopicName,
+      rclcpp::SystemDefaultsQoS().best_effort());
 
     delay_pub = node.create_publisher<Delay>(
-          ItineraryDelayTopicName,
-          rclcpp::SystemDefaultsQoS().best_effort());
+      ItineraryDelayTopicName,
+      rclcpp::SystemDefaultsQoS().best_effort());
 
     erase_pub = node.create_publisher<Erase>(
-          ItineraryEraseTopicName,
-          rclcpp::SystemDefaultsQoS().best_effort());
+      ItineraryEraseTopicName,
+      rclcpp::SystemDefaultsQoS().best_effort());
 
     clear_pub = node.create_publisher<Clear>(
-          ItineraryClearTopicName,
-          rclcpp::SystemDefaultsQoS().best_effort());
+      ItineraryClearTopicName,
+      rclcpp::SystemDefaultsQoS().best_effort());
 
     register_client =
-        node.create_client<Register>(RegisterParticipantSrvName);
+      node.create_client<Register>(RegisterParticipantSrvName);
 
     unregister_client =
-        node.create_client<Unregister>(UnregisterParticipantSrvName);
+      node.create_client<Unregister>(UnregisterParticipantSrvName);
   }
 
   void set(
-      const rmf_traffic::schedule::ParticipantId participant,
-      const Input& itinerary,
-      const rmf_traffic::schedule::ItineraryVersion version) final
+    const rmf_traffic::schedule::ParticipantId participant,
+    const Input& itinerary,
+    const rmf_traffic::schedule::ItineraryVersion version) final
   {
     Set msg;
     msg.participant = participant;
@@ -205,9 +205,9 @@ public:
   }
 
   void extend(
-      const rmf_traffic::schedule::ParticipantId participant,
-      const Input& routes,
-      const rmf_traffic::schedule::ItineraryVersion version) final
+    const rmf_traffic::schedule::ParticipantId participant,
+    const Input& routes,
+    const rmf_traffic::schedule::ItineraryVersion version) final
   {
     Extend msg;
     msg.participant = participant;
@@ -218,10 +218,10 @@ public:
   }
 
   void delay(
-      const rmf_traffic::schedule::ParticipantId participant,
-      const rmf_traffic::Time from,
-      const rmf_traffic::Duration duration,
-      const rmf_traffic::schedule::ItineraryVersion version) final
+    const rmf_traffic::schedule::ParticipantId participant,
+    const rmf_traffic::Time from,
+    const rmf_traffic::Duration duration,
+    const rmf_traffic::schedule::ItineraryVersion version) final
   {
     Delay msg;
     msg.participant = participant;
@@ -233,9 +233,9 @@ public:
   }
 
   void erase(
-      const rmf_traffic::schedule::ParticipantId participant,
-      const std::vector<rmf_traffic::RouteId>& routes,
-      const rmf_traffic::schedule::ItineraryVersion version) final
+    const rmf_traffic::schedule::ParticipantId participant,
+    const std::vector<rmf_traffic::RouteId>& routes,
+    const rmf_traffic::schedule::ItineraryVersion version) final
   {
     Erase msg;
     msg.participant = participant;
@@ -246,8 +246,8 @@ public:
   }
 
   void erase(
-      const rmf_traffic::schedule::ParticipantId participant,
-      const rmf_traffic::schedule::ItineraryVersion version) final
+    const rmf_traffic::schedule::ParticipantId participant,
+    const rmf_traffic::schedule::ItineraryVersion version) final
   {
     Clear msg;
     msg.participant = participant;
@@ -257,7 +257,7 @@ public:
   }
 
   rmf_traffic::schedule::ParticipantId register_participant(
-      rmf_traffic::schedule::ParticipantDescription participant_info) final
+    rmf_traffic::schedule::ParticipantDescription participant_info) final
   {
     using namespace std::chrono_literals;
 
@@ -265,49 +265,55 @@ public:
     request->description = convert(participant_info);
 
     auto future = register_client->async_send_request(request);
-    while(future.wait_for(100ms) != std::future_status::ready)
+    while (future.wait_for(100ms) != std::future_status::ready)
     {
       if (!rclcpp::ok())
       {
+        // *INDENT-OFF*
         throw std::runtime_error(
-              "[rmf_traffic_ros2::schedule::Writer] Tearing down while waiting "
-              "for a schedule participant to finish registering");
+          "[rmf_traffic_ros2::schedule::Writer] Tearing down while waiting "
+          "for a schedule participant to finish registering");
+        // *INDENT-ON*
       }
     }
 
     const auto response = future.get();
     if (!response->error.empty())
     {
+      // *INDENT-OFF*
       throw std::runtime_error(
-            "[rmf_traffic_ros2::schedule::Writer] Error while attempting to "
-            "register a participant: " + response->error);
+        "[rmf_traffic_ros2::schedule::Writer] Error while attempting to "
+        "register a participant: " + response->error);
+      // *INDENT-ON*
     }
 
     return response->participant_id;
   }
 
   void unregister_participant(
-      const rmf_traffic::schedule::ParticipantId participant) final
+    const rmf_traffic::schedule::ParticipantId participant) final
   {
     auto request = std::make_shared<Unregister::Request>();
     request->participant_id = participant;
 
     unregister_client->async_send_request(
-          request,
-          [=](const rclcpp::Client<Unregister>::SharedFuture response_future)
-    {
-      const auto response = response_future.get();
-      if (!response->error.empty())
+      request,
+      [=](const rclcpp::Client<Unregister>::SharedFuture response_future)
       {
-        throw std::runtime_error(
-              "[rmf_traffic_ros2::schedule::Writer] Error while attempting to "
-              "unregister a participant: " + response->error);
-      }
-    });
+        const auto response = response_future.get();
+        if (!response->error.empty())
+        {
+          // *INDENT-OFF*
+          throw std::runtime_error(
+            "[rmf_traffic_ros2::schedule::Writer] Error while attempting to "
+            "unregister a participant: " + response->error);
+          // *INDENT-ON*
+        }
+      });
   }
 
   std::future<rmf_traffic::schedule::Participant> make_participant(
-      rmf_traffic::schedule::ParticipantDescription description)
+    rmf_traffic::schedule::ParticipantDescription description)
   {
     // TODO(MXG): This implementation assumes that the async promise will be
     // finished before the Writer instance is destructed. If that is not true,
@@ -321,13 +327,13 @@ public:
     std::promise<rmf_traffic::schedule::Participant> promise;
     auto future = promise.get_future();
     std::thread worker(
-          [this](
-          rmf_traffic::schedule::ParticipantDescription description,
-          std::promise<rmf_traffic::schedule::Participant> promise)
-    {
-      promise.set_value(rmf_traffic::schedule::make_participant(
-            std::move(description), *this, &rectifier_factory));
-    }, std::move(description), std::move(promise));
+      [this](
+        rmf_traffic::schedule::ParticipantDescription description,
+        std::promise<rmf_traffic::schedule::Participant> promise)
+      {
+        promise.set_value(rmf_traffic::schedule::make_participant(
+          std::move(description), *this, &rectifier_factory));
+      }, std::move(description), std::move(promise));
 
     worker.detach();
 
@@ -335,25 +341,25 @@ public:
   }
 
   void async_make_participant(
-      rmf_traffic::schedule::ParticipantDescription description,
-      std::function<void(rmf_traffic::schedule::Participant)> ready_callback)
+    rmf_traffic::schedule::ParticipantDescription description,
+    std::function<void(rmf_traffic::schedule::Participant)> ready_callback)
   {
     std::thread worker(
-          [description = std::move(description),
-           this,
-           ready_callback = std::move(ready_callback)]()
-    {
-      // TODO(MXG): We could probably make an implementation of the
-      // RectifierFactory that allows us to pass the ready_callback along to
-      // the service call so that it gets triggered when the service response is
-      // received. That way we don't need to create an additional thread here
-      // and worry about the threat of race conditions.
-      auto participant = rmf_traffic::schedule::make_participant(
-            std::move(description), *this, &rectifier_factory);
+      [description = std::move(description),
+      this,
+      ready_callback = std::move(ready_callback)]()
+      {
+        // TODO(MXG): We could probably make an implementation of the
+        // RectifierFactory that allows us to pass the ready_callback along to
+        // the service call so that it gets triggered when the service response is
+        // received. That way we don't need to create an additional thread here
+        // and worry about the threat of race conditions.
+        auto participant = rmf_traffic::schedule::make_participant(
+          std::move(description), *this, &rectifier_factory);
 
-      if (ready_callback)
-        ready_callback(std::move(participant));
-    });
+        if (ready_callback)
+          ready_callback(std::move(participant));
+      });
 
     worker.detach();
   }
@@ -370,7 +376,7 @@ std::shared_ptr<Writer> Writer::make(rclcpp::Node& node)
 bool Writer::ready() const
 {
   return _pimpl->register_client->service_is_ready()
-      && _pimpl->unregister_client->service_is_ready();
+    && _pimpl->unregister_client->service_is_ready();
 }
 
 //==============================================================================
@@ -386,33 +392,33 @@ bool Writer::wait_for_service(rmf_traffic::Time stop) const
   bool ready = true;
 
   ready &= _pimpl->register_client->wait_for_service(
-        stop - std::chrono::steady_clock::now());
+    stop - std::chrono::steady_clock::now());
 
   ready &= _pimpl->unregister_client->wait_for_service(
-        stop - std::chrono::steady_clock::now());
+    stop - std::chrono::steady_clock::now());
 
   return ready;
 }
 
 //==============================================================================
 std::future<rmf_traffic::schedule::Participant> Writer::make_participant(
-    rmf_traffic::schedule::ParticipantDescription description)
+  rmf_traffic::schedule::ParticipantDescription description)
 {
   return _pimpl->make_participant(std::move(description));
 }
 
 //==============================================================================
 void Writer::async_make_participant(
-    rmf_traffic::schedule::ParticipantDescription description,
-    std::function<void(rmf_traffic::schedule::Participant)> ready_callback)
+  rmf_traffic::schedule::ParticipantDescription description,
+  std::function<void(rmf_traffic::schedule::Participant)> ready_callback)
 {
   _pimpl->async_make_participant(
-        std::move(description), std::move(ready_callback));
+    std::move(description), std::move(ready_callback));
 }
 
 //==============================================================================
 Writer::Writer(rclcpp::Node& node)
-  : _pimpl(rmf_utils::make_unique_impl<Implementation>(node))
+: _pimpl(rmf_utils::make_unique_impl<Implementation>(node))
 {
   // Do nothing
 }

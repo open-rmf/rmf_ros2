@@ -26,25 +26,26 @@ namespace geometry {
 
 //==============================================================================
 class ConvexShapeContext::Implementation
-    : public internal::ShapeContextImpl<
-        rmf_traffic::geometry::FinalConvexShape,
-        rmf_traffic_msgs::msg::ConvexShape,
-        rmf_traffic_msgs::msg::ConvexShapeContext>
+  : public internal::ShapeContextImpl<
+    rmf_traffic::geometry::FinalConvexShape,
+    rmf_traffic_msgs::msg::ConvexShape,
+    rmf_traffic_msgs::msg::ConvexShapeContext>
 {
 public:
 
   Implementation()
   {
-    if(!initialized)
+    if (!initialized)
     {
       // TODO(MXG): Reconsider this design. Static initialization of singletons
       // seems too error prone with too little benefit. A template-based
       // implementation may be preferable.
       std::lock_guard<std::mutex> lock(initialization_mutex);
-      if(!initialized)
+      if (!initialized)
       {
         add<rmf_traffic::geometry::Box>(rmf_traffic_msgs::msg::ConvexShape::BOX);
-        add<rmf_traffic::geometry::Circle>(rmf_traffic_msgs::msg::ConvexShape::CIRCLE);
+        add<rmf_traffic::geometry::Circle>(
+          rmf_traffic_msgs::msg::ConvexShape::CIRCLE);
         initialized = true;
       }
     }
@@ -60,21 +61,21 @@ public:
 
 //==============================================================================
 ConvexShapeContext::ConvexShapeContext()
-  : _pimpl(rmf_utils::make_impl<Implementation>())
+: _pimpl(rmf_utils::make_impl<Implementation>())
 {
   // Do nothing
 }
 
 //==============================================================================
 rmf_traffic_msgs::msg::ConvexShape ConvexShapeContext::insert(
-    rmf_traffic::geometry::ConstFinalConvexShapePtr shape)
+  rmf_traffic::geometry::ConstFinalConvexShapePtr shape)
 {
   return _pimpl->insert(std::move(shape));
 }
 
 //==============================================================================
 rmf_traffic::geometry::ConstFinalConvexShapePtr ConvexShapeContext::at(
-    const rmf_traffic_msgs::msg::ConvexShape& shape) const
+  const rmf_traffic_msgs::msg::ConvexShape& shape) const
 {
   return _pimpl->at(shape);
 }
@@ -83,15 +84,15 @@ rmf_traffic::geometry::ConstFinalConvexShapePtr ConvexShapeContext::at(
 
 //==============================================================================
 geometry::ConvexShapeContext convert(
-    const rmf_traffic_msgs::msg::ConvexShapeContext& from)
+  const rmf_traffic_msgs::msg::ConvexShapeContext& from)
 {
   using namespace rmf_traffic::geometry;
 
   geometry::ConvexShapeContext context;
-  for(const auto& box : from.boxes)
+  for (const auto& box : from.boxes)
     context.insert(make_final_convex<Box>(convert(box)));
 
-  for(const auto& circle : from.circles)
+  for (const auto& circle : from.circles)
     context.insert(make_final_convex<Circle>(convert(circle)));
 
   return context;
@@ -99,7 +100,7 @@ geometry::ConvexShapeContext convert(
 
 //==============================================================================
 rmf_traffic_msgs::msg::ConvexShapeContext convert(
-    const geometry::ConvexShapeContext& _from)
+  const geometry::ConvexShapeContext& _from)
 {
   using rmf_traffic_msgs::msg::ConvexShape;
   using namespace rmf_traffic::geometry;
@@ -108,11 +109,12 @@ rmf_traffic_msgs::msg::ConvexShapeContext convert(
 
   rmf_traffic_msgs::msg::ConvexShapeContext context;
 
-  for(const auto& box : from.shapes.at(ConvexShape::BOX))
+  for (const auto& box : from.shapes.at(ConvexShape::BOX))
     context.boxes.emplace_back(convert(static_cast<const Box&>(box->source())));
 
-  for(const auto& circle : from.shapes.at(ConvexShape::CIRCLE))
-    context.circles.emplace_back(convert(static_cast<const Circle&>(circle->source())));
+  for (const auto& circle : from.shapes.at(ConvexShape::CIRCLE))
+    context.circles.emplace_back(convert(static_cast<const Circle&>(circle->
+      source())));
 
   return context;
 }

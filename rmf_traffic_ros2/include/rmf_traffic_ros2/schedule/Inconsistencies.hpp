@@ -25,7 +25,7 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleInconsistency convert(
-    const rmf_traffic::schedule::Inconsistencies::Element& from);
+  const rmf_traffic::schedule::Inconsistencies::Element& from);
 
 } // namespace rmf_traffic_ros2
 

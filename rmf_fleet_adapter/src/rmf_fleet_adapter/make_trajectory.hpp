@@ -26,26 +26,26 @@
 
 //==============================================================================
 rmf_traffic::Trajectory make_trajectory(
-    const rmf_fleet_msgs::msg::RobotState& state,
-    const rmf_traffic::agv::VehicleTraits& traits,
-    bool& is_sitting);
+  const rmf_fleet_msgs::msg::RobotState& state,
+  const rmf_traffic::agv::VehicleTraits& traits,
+  bool& is_sitting);
 
 //==============================================================================
 rmf_traffic::Trajectory make_trajectory(
-    const rmf_traffic::Time start_time,
-    const std::vector<rmf_fleet_msgs::msg::Location>& path,
-    const rmf_traffic::agv::VehicleTraits& traits);
+  const rmf_traffic::Time start_time,
+  const std::vector<rmf_fleet_msgs::msg::Location>& path,
+  const rmf_traffic::agv::VehicleTraits& traits);
 
 //==============================================================================
 rmf_traffic::Route make_route(
-    const rmf_fleet_msgs::msg::RobotState& state,
-    const rmf_traffic::agv::VehicleTraits& traits,
-    bool& is_sitting);
+  const rmf_fleet_msgs::msg::RobotState& state,
+  const rmf_traffic::agv::VehicleTraits& traits,
+  bool& is_sitting);
 
 //==============================================================================
 rmf_traffic::Trajectory make_hold(
-    const rmf_fleet_msgs::msg::Location& location,
-    const rmf_traffic::Time time,
-    rmf_traffic::Duration duration);
+  const rmf_fleet_msgs::msg::Location& location,
+  const rmf_traffic::Time time,
+  rmf_traffic::Duration duration);
 
 #endif // SRC__RMF_FLEET_ADAPTER__MAKE_TRAJECTORY_HPP

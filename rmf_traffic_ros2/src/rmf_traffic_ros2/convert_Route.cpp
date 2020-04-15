@@ -37,7 +37,7 @@ rmf_traffic_msgs::msg::Route convert(const rmf_traffic::Route& from)
 
 //==============================================================================
 std::vector<rmf_traffic::Route> convert(
-    const std::vector<rmf_traffic_msgs::msg::Route>& from)
+  const std::vector<rmf_traffic_msgs::msg::Route>& from)
 {
   std::vector<rmf_traffic::Route> output;
   for (const auto& msg : from)
@@ -48,7 +48,7 @@ std::vector<rmf_traffic::Route> convert(
 
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::Route> convert(
-    const std::vector<rmf_traffic::Route>& from)
+  const std::vector<rmf_traffic::Route>& from)
 {
   std::vector<rmf_traffic_msgs::msg::Route> output;
   for (const auto& msg : from)

@@ -55,21 +55,21 @@ public:
   static std::vector<Caster> casters;
   static std::size_t num_shape_types;
 
-  ShapeContextImpl() { }
+  ShapeContextImpl() {}
 
   template<typename DerivedShape>
   void add(const std::size_t type_index)
   {
     casters.push_back(
-          [=](const ShapeTypePtr& shape) -> std::size_t
-    {
-      if(dynamic_cast<const DerivedShape*>(&shape->source()))
-        return type_index;
+      [=](const ShapeTypePtr& shape) -> std::size_t
+      {
+        if (dynamic_cast<const DerivedShape*>(&shape->source()))
+          return type_index;
 
-      return 0;
-    });
+        return 0;
+      });
 
-    if(type_index >= num_shape_types)
+    if (type_index >= num_shape_types)
     {
       num_shape_types = type_index+1;
       shapes.resize(num_shape_types);
@@ -78,18 +78,20 @@ public:
 
   std::size_t get_type_index(const ShapeTypePtr& shape)
   {
-    for(const auto& caster : casters)
+    for (const auto& caster : casters)
     {
       const std::size_t cast = caster(shape);
-      if(cast != 0)
+      if (cast != 0)
         return cast;
     }
 
+    // *INDENT-OFF*
     throw std::runtime_error(
-          std::string()
-          + "Failed to find a shape context type index for type ["
-          + typeid(shape->source()).name() + "] with base type ["
-          + typeid(ShapeType).name() + "]");
+      std::string()
+      + "Failed to find a shape context type index for type ["
+      + typeid(shape->source()).name() + "] with base type ["
+      + typeid(ShapeType).name() + "]");
+    // *INDENT-ON*
   }
 
   ShapeMsgType insert(ShapeTypePtr shape)
@@ -103,11 +105,11 @@ public:
     }
 
     const auto insertion =
-        entry_map.insert(std::make_pair(shape, Entry{}));
+      entry_map.insert(std::make_pair(shape, Entry{}));
 
     const bool inserted = insertion.second;
     Entry& entry = insertion.first->second;
-    if(inserted)
+    if (inserted)
     {
       entry.type = get_type_index(shape);
 

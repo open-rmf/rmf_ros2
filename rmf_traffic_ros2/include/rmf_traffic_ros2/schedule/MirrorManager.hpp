@@ -45,8 +45,8 @@ public:
     ///   Specify if the mirror should perform an update whenever it gets woken
     ///   up by the schedule.
     Options(
-        std::mutex* update_mutex = nullptr,
-        bool update_on_wakeup = true);
+      std::mutex* update_mutex = nullptr,
+      bool update_on_wakeup = true);
 
     /// Get a reference to the mutex that will be used when performing an
     /// update.
@@ -152,8 +152,8 @@ private:
 // TODO(MXG): Use std::optional here instead of std::unique_ptr when C++17 can
 // be supported.
 MirrorManagerFuture make_mirror(rclcpp::Node& node,
-    rmf_traffic::schedule::Query query,
-    MirrorManager::Options options = MirrorManager::Options());
+  rmf_traffic::schedule::Query query,
+  MirrorManager::Options options = MirrorManager::Options());
 
 } // namespace schedule
 } // namespace rmf_traffic_ros2
