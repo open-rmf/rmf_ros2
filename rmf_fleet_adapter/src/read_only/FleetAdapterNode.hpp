@@ -31,6 +31,8 @@
 
 #include <rmf_utils/optional.hpp>
 
+#include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
+
 #include "../rmf_fleet_adapter/ScheduleManager.hpp"
 
 namespace rmf_fleet_adapter {
@@ -61,6 +63,7 @@ private:
   rclcpp::Subscription<FleetState>::SharedPtr _fleet_state_subscription;
 
   rmf_traffic_ros2::schedule::WriterPtr _writer;
+  rmf_utils::optional<rmf_traffic_ros2::schedule::MirrorManager> _mirror;
 
   void fleet_state_update(FleetState::UniquePtr new_state);
 
@@ -74,32 +77,32 @@ private:
     bool sitting = false;
 
     ScheduleEntry(
-      FleetAdapterNode* node,
-      std::string name,
-      std::mutex& async_mutex);
+        FleetAdapterNode* node,
+        std::string name,
+        std::mutex& async_mutex);
   };
 
   using ScheduleEntries =
-    std::unordered_map<std::string, std::unique_ptr<ScheduleEntry>>;
+      std::unordered_map<std::string, std::unique_ptr<ScheduleEntry>>;
   ScheduleEntries _schedule_entries;
 
   using RobotState = rmf_fleet_msgs::msg::RobotState;
 
   void push_route(
-    const RobotState& state,
-    const ScheduleEntries::iterator& it);
+      const RobotState& state,
+      const ScheduleEntries::iterator& it);
 
   void register_robot(
-    const RobotState& state,
-    const ScheduleEntries::iterator& it);
+      const RobotState& state,
+      const ScheduleEntries::iterator& it);
 
   void update_robot(
-    const RobotState& state,
-    const ScheduleEntries::iterator& it);
+      const RobotState& state,
+      const ScheduleEntries::iterator& it);
 
   bool handle_delay(
-    const RobotState& state,
-    const ScheduleEntries::iterator& it);
+      const RobotState& state,
+      const ScheduleEntries::iterator& it);
 
   const rmf_traffic::Duration MaxCumulativeDelay = std::chrono::seconds(5);
 };

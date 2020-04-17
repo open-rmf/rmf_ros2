@@ -17,6 +17,8 @@
 
 #include "FleetAdapterNode.hpp"
 
+#include <rmf_traffic/DetectConflict.hpp>
+
 #include <rmf_traffic/agv/Interpolate.hpp>
 
 #include <rmf_traffic_ros2/StandardNames.hpp>
@@ -41,33 +43,45 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
   auto node = std::shared_ptr<FleetAdapterNode>(new FleetAdapterNode);
 
   const auto wait_time =
-    get_parameter_or_default_time(*node, "discovery_timeout", 10.0);
+      get_parameter_or_default_time(*node, "discovery_timeout", 10.0);
 
   node->_delay_threshold =
-    get_parameter_or_default_time(*node, "delay_threshold", 5.0);
+      get_parameter_or_default_time(*node, "delay_threshold", 5.0);
+
+  auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
+        *node, rmf_traffic::schedule::query_all());
 
   node->_writer = rmf_traffic_ros2::schedule::Writer::make(*node);
+
+  using namespace std::chrono_literals;
 
   const auto stop_time = std::chrono::steady_clock::now() + wait_time;
   while (rclcpp::ok() && std::chrono::steady_clock::now() < stop_time)
   {
     rclcpp::spin_some(node);
 
-    if (node->_writer->ready())
+    bool ready = true;
+    ready &= node->_writer->ready();
+    ready &= (mirror_future.wait_for(0s) == std::future_status::ready);
+
+    if (ready)
+    {
+      node->_mirror = mirror_future.get();
       return node;
+    }
   }
 
   RCLCPP_INFO(
-    node->get_logger(),
-    "Timeout while trying to connect to traffic schedule");
+        node->get_logger(),
+        "Timeout while trying to connect to traffic schedule");
   return nullptr;
 }
 
 //==============================================================================
 FleetAdapterNode::ScheduleEntry::ScheduleEntry(
-  FleetAdapterNode* node,
-  std::string name,
-  std::mutex& async_mutex)
+    FleetAdapterNode* node,
+    std::string name,
+    std::mutex& async_mutex)
 {
   rmf_traffic::schedule::ParticipantDescription description{
     std::move(name),
@@ -77,11 +91,64 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
   };
 
   async_make_schedule_manager(
-    *node, *node->_writer, nullptr, std::move(description),
-    [this](ScheduleManager manager)
+        *node, *node->_writer, nullptr, std::move(description),
+        [this, node](ScheduleManager manager)
+  {
+    this->schedule = std::move(manager);
+
+    this->schedule->set_negotiator(
+          [this, node](
+            rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+          const rmf_traffic::schedule::Negotiator::Responder& responder,
+          const bool*)
     {
-      this->schedule = std::move(manager);
-    }, async_mutex);
+      const auto itinerary = this->schedule->participant().itinerary();
+
+      const auto proposal = table->proposal();
+      const auto& profile = this->schedule->description().profile();
+      for (const auto& p : proposal)
+      {
+        const auto other_participant =
+            node->_mirror->viewer().get_participant(p.participant);
+
+        if (!other_participant)
+        {
+          // TODO(MXG): This is lazy and sloppy. For now we just reject the
+          // negotiation if we don't know about the other participant. In the
+          // future, we should have a way to wait until the participant
+          // information is available.
+          assert(false);
+          return responder.reject();
+        }
+
+        const auto& other_profile = other_participant->profile();
+        for (const auto& other_route : p.itinerary)
+        {
+          for (const auto& item : itinerary)
+          {
+            if (item.route->map() != other_route->map())
+              continue;
+
+            if (rmf_traffic::DetectConflict::between(
+                  profile,
+                  item.route->trajectory(),
+                  other_profile,
+                  other_route->trajectory()))
+            {
+              return responder.reject();
+            }
+          }
+        }
+      }
+
+      std::vector<rmf_traffic::Route> submission;
+      submission.reserve(itinerary.size());
+      for (const auto& item : itinerary)
+        submission.push_back(*item.route);
+
+      return responder.submit(std::move(submission));
+    });
+  }, async_mutex);
 }
 
 //==============================================================================
@@ -97,15 +164,15 @@ bool FleetAdapterNode::ignore_fleet(const std::string& fleet_name) const
 FleetAdapterNode::FleetAdapterNode()
 : rclcpp::Node("fleet_adapter"),
   _fleet_name(get_fleet_name_parameter(*this)),
-  _traits(get_traits_or_default(*this, 0.7, 0.3, 0.5, 1.5, 0.6))
+  _traits(get_traits_or_default(*this, 0.7, 0.3, 0.5, 1.5, 0.5, 1.5))
 {
   _fleet_state_subscription =
-    create_subscription<FleetState>(
-    FleetStateTopicName, rclcpp::SystemDefaultsQoS(),
-    [&](FleetState::UniquePtr msg)
-    {
-      this->fleet_state_update(std::move(msg));
-    });
+      create_subscription<FleetState>(
+        FleetStateTopicName, rclcpp::SystemDefaultsQoS(),
+        [&](FleetState::UniquePtr msg)
+  {
+    this->fleet_state_update(std::move(msg));
+  });
 }
 
 //==============================================================================
@@ -114,10 +181,10 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr state)
   if (ignore_fleet(state->name))
     return;
 
-  for (const auto& robot : state->robots)
+  for(const auto& robot : state->robots)
   {
     const auto insertion = _schedule_entries.insert(
-      std::make_pair(robot.name, nullptr));
+          std::make_pair(robot.name, nullptr));
 
     if (insertion.second)
       register_robot(robot, insertion.first);
@@ -128,8 +195,8 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr state)
 
 //==============================================================================
 void FleetAdapterNode::push_route(
-  const RobotState& state,
-  const ScheduleEntries::iterator& it)
+    const RobotState& state,
+    const ScheduleEntries::iterator& it)
 {
   it->second->path.clear();
   for (const auto& location : state.path)
@@ -142,8 +209,8 @@ void FleetAdapterNode::push_route(
 
 //==============================================================================
 void FleetAdapterNode::register_robot(
-  const RobotState& state,
-  const ScheduleEntries::iterator& it)
+    const RobotState& state,
+    const ScheduleEntries::iterator& it)
 {
   it->second = std::make_unique<ScheduleEntry>(this, state.name, _async_mutex);
   // TODO(MXG): We could consider queuing up the current route of this robot
@@ -154,8 +221,8 @@ void FleetAdapterNode::register_robot(
 
 //==============================================================================
 void FleetAdapterNode::update_robot(
-  const RobotState& state,
-  const ScheduleEntries::iterator& it)
+    const RobotState& state,
+    const ScheduleEntries::iterator& it)
 {
   if (handle_delay(state, it))
     return;
@@ -165,8 +232,8 @@ void FleetAdapterNode::update_robot(
 
 //==============================================================================
 bool FleetAdapterNode::handle_delay(
-  const RobotState& state,
-  const ScheduleEntries::iterator& it)
+    const RobotState& state,
+    const ScheduleEntries::iterator& it)
 {
   if (!it->second->route)
     return false;
@@ -181,7 +248,7 @@ bool FleetAdapterNode::handle_delay(
     return false;
   }
 
-  for (std::size_t i = 1; i <= state.path.size(); ++i)
+  for (std::size_t i=1; i <= state.path.size(); ++i)
   {
     const auto& l_state = state.path[state.path.size()-i];
     const auto& l_entry = entry.path[entry.path.size()-i];
@@ -205,16 +272,14 @@ bool FleetAdapterNode::handle_delay(
   {
     // Check if the robot is still sitting in the same location.
     const Eigen::Vector3d p_entry =
-      entry.route->trajectory().back().position();
-    assert(
-      (entry.route->trajectory().front().position() - p_entry).norm() <
-      1e-12);
+        entry.route->trajectory().back().position();
+    assert((entry.route->trajectory().front().position() - p_entry).norm() < 1e-12);
 
     const auto& l_state = state.location;
     const Eigen::Vector3d p_state{l_state.x, l_state.y, l_state.yaw};
 
     // TODO(MXG): Make this threshold configurable
-    if ((p_state.block<2, 1>(0, 0) - p_entry.block<2, 1>(0, 0)).norm() > 0.05)
+    if ((p_state.block<2,1>(0,0) - p_entry.block<2,1>(0,0)).norm() > 0.05)
       return false;
 
     // TODO(MXG): Make this threshold configurable
@@ -225,8 +290,7 @@ bool FleetAdapterNode::handle_delay(
     // TODO(MXG): Make these parameters configurable
     const auto current_time = rmf_traffic_ros2::convert(state.location.t);
     const auto next_finish_time = current_time + std::chrono::seconds(10);
-    const auto delay = next_finish_time -
-      *entry.route->trajectory().finish_time();
+    const auto delay = next_finish_time - *entry.route->trajectory().finish_time();
     if (delay > std::chrono::seconds(1))
     {
       entry.cumulative_delay += delay;
@@ -248,7 +312,7 @@ bool FleetAdapterNode::handle_delay(
   }
 
   const auto time_difference =
-    *new_trajectory.finish_time() - *entry.route->trajectory().finish_time();
+      *new_trajectory.finish_time() - *entry.route->trajectory().finish_time();
 
 //  std::cout << "Calculating delay: ["
 //            << rmf_traffic::time::to_seconds(time_difference) << "]" << std::endl;
@@ -273,7 +337,7 @@ bool FleetAdapterNode::handle_delay(
   // estimate and the latest finishing time estimate, so we will notify the
   // schedule of a delay.
   const auto from_time =
-    rmf_traffic_ros2::convert(state.location.t) - time_difference;
+      rmf_traffic_ros2::convert(state.location.t) - time_difference;
 
   const auto t_it = entry.route->trajectory().find(from_time);
   if (t_it == entry.route->trajectory().end())
@@ -290,17 +354,17 @@ bool FleetAdapterNode::handle_delay(
       // I can't think of a situation where this could happen, so let's report
       // it as an error and debug it later.
       const auto t_start =
-        entry.route->trajectory().start_time()->time_since_epoch().count();
+          entry.route->trajectory().start_time()->time_since_epoch().count();
       const auto t_finish =
-        entry.route->trajectory().finish_time()->time_since_epoch().count();
+          entry.route->trajectory().finish_time()->time_since_epoch().count();
 
       RCLCPP_ERROR(
-        get_logger(),
-        "BUG: Robot [" + state.name + "] has a delay which starts from ["
-        + std::to_string(from_time.time_since_epoch().count()) + "], but "
-        "we cannot identify where its schedule should be pushed back ["
-        + std::to_string(t_start) + " --> " + std::to_string(t_finish)
-        + "]. This should not happen; please report this.");
+            get_logger(),
+            "BUG: Robot [" + state.name + "] has a delay which starts from ["
+            + std::to_string(from_time.time_since_epoch().count()) + "], but "
+            "we cannot identify where its schedule should be pushed back ["
+            + std::to_string(t_start) + " --> " + std::to_string(t_finish)
+            + "]. This should not happen; please report this.");
 
       // We'll return false so that the old trajectory can be replaced with the
       // new one, and hopefully everything keeps working okay.

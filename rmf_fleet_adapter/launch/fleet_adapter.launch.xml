@@ -14,7 +14,8 @@
   <arg name="angular_velocity" description="The nominal angular velocity of the vehicles in this fleet"/>
   <arg name="linear_acceleration" description="The nominal linear acceleration of the vehicles in this fleet"/>
   <arg name="angular_acceleration" description="The nominal angular acceleration of the vehicles in this fleet"/>
-  <arg name="profile_radius" description="The radius of the bounding circle of the vehicles in this fleet"/>
+  <arg name="footprint_radius" description="The radius of the footprint of the vehicles in this fleet"/>
+  <arg name="vicinity_radius" description="The radius of the personal vicinity of the vehicles in this fleet"/>
   <arg name="perform_deliveries" default="false" description="Whether this fleet adapter can perform deliveries"/>
   <arg name="delay_threshold" default="30.0" description="How long to wait before replanning" />
   <arg name="retry_wait" default="10.0" description="How long a retry should wait before starting"/>
@@ -38,7 +39,8 @@
     <param name="linear_acceleration" value="$(var linear_acceleration)"/>
     <param name="angular_acceleration" value="$(var angular_acceleration)"/>
 
-    <param name="profile_radius" value="$(var profile_radius)"/>
+    <param name="footprint_radius" value="$(var footprint_radius)"/>
+    <param name="vicinity_radius" value="$(var vicinity_radius)"/>
 
     <param name="perform_deliveries" value="$(var perform_deliveries)"/>
 

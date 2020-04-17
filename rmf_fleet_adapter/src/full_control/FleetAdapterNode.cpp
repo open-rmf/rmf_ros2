@@ -42,43 +42,43 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
   const auto node = std::shared_ptr<FleetAdapterNode>(new FleetAdapterNode);
 
   node->_perform_deliveries =
-    node->declare_parameter<bool>("perform_deliveries", false);
+      node->declare_parameter<bool>("perform_deliveries", false);
 
   const std::string nav_graph_param_name = "nav_graph_file";
   std::string graph_file =
-    node->declare_parameter(nav_graph_param_name, std::string());
+      node->declare_parameter(nav_graph_param_name, std::string());
 
   if (graph_file.empty())
   {
     RCLCPP_ERROR(
-      node->get_logger(),
-      "Missing [" + nav_graph_param_name + "] parameter!");
+          node->get_logger(),
+          "Missing [" + nav_graph_param_name + "] parameter!");
 
     return nullptr;
   }
 
-  const std::string fleet_name = node->get_fleet_name().empty() ?
-    "all fleets" : "[" + node->get_fleet_name() + "]";
+  const std::string fleet_name = node->get_fleet_name().empty()?
+        "all fleets" : "[" + node->get_fleet_name() + "]";
   RCLCPP_INFO(
-    node->get_logger(),
-    "Launching fleet adapter for " + fleet_name);
+        node->get_logger(),
+        "Launching fleet adapter for " + fleet_name);
 
-  auto traits = get_traits_or_default(*node, 0.7, 0.3, 0.5, 1.5, 0.6);
+  auto traits = get_traits_or_default(*node, 0.7, 0.3, 0.5, 1.5, 0.5, 1.5);
 
   node->_delay_threshold =
-    get_parameter_or_default_time(*node, "delay_threshold", 5.0);
+      get_parameter_or_default_time(*node, "delay_threshold", 5.0);
 
   node->_retry_wait =
-    get_parameter_or_default_time(*node, "retry_wait", 5.0);
+      get_parameter_or_default_time(*node, "retry_wait", 5.0);
 
   node->_plan_time =
-    get_parameter_or_default_time(*node, "planning_timeout", 5.0);
+      get_parameter_or_default_time(*node, "planning_timeout", 5.0);
 
   auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
-    *node, rmf_traffic::schedule::query_all());
+        *node, rmf_traffic::schedule::query_all());
 
   rmf_utils::optional<GraphInfo> graph_info =
-    parse_graph(graph_file, traits, *node);
+      parse_graph(graph_file, traits, *node);
 
   if (!graph_info)
     return nullptr;
@@ -88,10 +88,10 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
   auto writer = rmf_traffic_ros2::schedule::Writer::make(*node);
 
   const auto wait_time =
-    get_parameter_or_default_time(*node, "discovery_timeout", 10.0);
+      get_parameter_or_default_time(*node, "discovery_timeout", 10.0);
 
   const auto stop_time = std::chrono::steady_clock::now() + wait_time;
-  while (rclcpp::ok() && std::chrono::steady_clock::now() < stop_time)
+  while(rclcpp::ok() && std::chrono::steady_clock::now() < stop_time)
   {
     rclcpp::spin_some(node);
 
@@ -102,44 +102,44 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     if (ready)
     {
       node->start(
-        Fields{
-          *node,
-          std::move(*graph_info),
-          std::move(traits),
-          mirror_future.get(),
-          std::move(writer)
-        });
+            Fields{
+              *node,
+              std::move(*graph_info),
+              std::move(traits),
+              mirror_future.get(),
+              std::move(writer)
+            });
 
       return node;
     }
   }
 
   RCLCPP_ERROR(
-    node->get_logger(),
-    "Timeout after waiting ["
-    + std::to_string(rmf_traffic::time::to_seconds(wait_time))
-    + "] to connect to the schedule");
+        node->get_logger(),
+        "Timeout after waiting ["
+        + std::to_string(rmf_traffic::time::to_seconds(wait_time))
+        + "] to connect to the schedule");
 
   return nullptr;
 }
 
 //==============================================================================
 FleetAdapterNode::RobotContext::RobotContext(
-  std::string name,
-  Location location_,
-  ScheduleManager schedule_)
+    std::string name,
+    Location location_,
+    ScheduleManager schedule_)
 : location(std::move(location_)),
   schedule(std::move(schedule_)),
   _name(std::move(name))
 {
   schedule.set_negotiator(
-    [this](
-      rmf_traffic::schedule::Negotiation::ConstTablePtr table,
-      const rmf_traffic::schedule::Negotiator::Responder& responder,
-      const bool* interrupt_flag)
-    {
-      this->respond(std::move(table), responder, interrupt_flag);
-    });
+        [this](
+          rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+          const rmf_traffic::schedule::Negotiator::Responder& responder,
+          const bool* interrupt_flag)
+  {
+    this->respond(std::move(table), responder, interrupt_flag);
+  });
 }
 
 //==============================================================================
@@ -191,10 +191,10 @@ void FleetAdapterNode::RobotContext::discard_task(Task* discarded_task)
   }
 
   const auto it = std::find_if(_task_queue.begin(), _task_queue.end(),
-      [&](const std::unique_ptr<Task>& task)
-      {
-        return task.get() == discarded_task;
-      });
+               [&](const std::unique_ptr<Task>& task)
+  {
+    return task.get() == discarded_task;
+  });
 
   if (it != _task_queue.end())
     _task_queue.erase(it);
@@ -216,9 +216,9 @@ void FleetAdapterNode::RobotContext::resume()
 
 //==============================================================================
 void FleetAdapterNode::RobotContext::respond(
-  rmf_traffic::schedule::Negotiation::ConstTablePtr table,
-  const rmf_traffic::schedule::Negotiator::Responder& responder,
-  const bool* interrupt_flag)
+    rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+    const rmf_traffic::schedule::Negotiator::Responder& responder,
+    const bool* interrupt_flag)
 {
   if (_task)
     _task->respond(std::move(table), responder, interrupt_flag);
@@ -236,7 +236,7 @@ void FleetAdapterNode::RobotContext::respond(
 std::size_t FleetAdapterNode::RobotContext::num_tasks() const
 {
   const std::size_t n_queue = _task_queue.size();
-  return _task ? n_queue + 1 : n_queue;
+  return _task? n_queue + 1 : n_queue;
 }
 
 //==============================================================================
@@ -247,14 +247,14 @@ const std::string& FleetAdapterNode::RobotContext::robot_name() const
 
 //==============================================================================
 void FleetAdapterNode::RobotContext::insert_listener(
-  Listener<RobotState>* listener)
+    Listener<RobotState>* listener)
 {
   state_listeners.insert(listener);
 }
 
 //==============================================================================
 void FleetAdapterNode::RobotContext::remove_listener(
-  Listener<RobotState>* listener)
+    Listener<RobotState>* listener)
 {
   state_listeners.erase(listener);
 }
@@ -362,78 +362,78 @@ void FleetAdapterNode::start(Fields fields)
   const auto default_qos = rclcpp::SystemDefaultsQoS();
 
   _delivery_sub = create_subscription<Delivery>(
-    DeliveryTopicName, default_qos,
-    [&](Delivery::UniquePtr msg)
-    {
-      this->delivery_request(std::move(msg));
-    });
+        DeliveryTopicName, default_qos,
+        [&](Delivery::UniquePtr msg)
+  {
+    this->delivery_request(std::move(msg));
+  });
 
   _loop_request_sub = create_subscription<LoopRequest>(
-    LoopRequestTopicName, default_qos,
-    [&](LoopRequest::UniquePtr msg)
-    {
-      this->loop_request(std::move(msg));
-    });
+        LoopRequestTopicName, default_qos,
+        [&](LoopRequest::UniquePtr msg)
+  {
+    this->loop_request(std::move(msg));
+  });
 
   _dispenser_result_sub = create_subscription<DispenserResult>(
-    DispenserResultTopicName, default_qos,
-    [&](DispenserResult::UniquePtr msg)
-    {
-      this->dispenser_result_update(std::move(msg));
-    });
+        DispenserResultTopicName, default_qos,
+        [&](DispenserResult::UniquePtr msg)
+  {
+    this->dispenser_result_update(std::move(msg));
+  });
 
   _dispenser_state_sub = create_subscription<DispenserState>(
-    DispenserStateTopicName, default_qos,
-    [&](DispenserState::UniquePtr msg)
-    {
-      this->dispenser_state_update(std::move(msg));
-    });
+        DispenserStateTopicName, default_qos,
+        [&](DispenserState::UniquePtr msg)
+  {
+    this->dispenser_state_update(std::move(msg));
+  });
 
   _fleet_state_sub = create_subscription<FleetState>(
-    FleetStateTopicName, default_qos,
-    [&](FleetState::UniquePtr msg)
-    {
-      this->fleet_state_update(std::move(msg));
-    });
+        FleetStateTopicName, default_qos,
+        [&](FleetState::UniquePtr msg)
+  {
+    this->fleet_state_update(std::move(msg));
+  });
 
   _door_state_sub = create_subscription<DoorState>(
-    DoorStateTopicName, default_qos,
-    [&](DoorState::UniquePtr msg)
-    {
-      this->door_state_update(std::move(msg));
-    });
+        DoorStateTopicName, default_qos,
+        [&](DoorState::UniquePtr msg)
+  {
+    this->door_state_update(std::move(msg));
+  });
 
   _lift_state_sub = create_subscription<LiftState>(
-    LiftStateTopicName, default_qos,
-    [&](LiftState::UniquePtr msg)
-    {
-      this->lift_state_update(std::move(msg));
-    });
+        LiftStateTopicName, default_qos,
+        [&](LiftState::UniquePtr msg)
+  {
+    this->lift_state_update(std::move(msg));
+  });
 
   _emergency_notice_sub = create_subscription<EmergencyNotice>(
-    rmf_traffic_ros2::EmergencyTopicName, default_qos,
-    [&](EmergencyNotice::UniquePtr msg)
-    {
-      this->emergency_notice_update(std::move(msg));
-    });
+        rmf_traffic_ros2::EmergencyTopicName, default_qos,
+        [&](EmergencyNotice::UniquePtr msg)
+  {
+    this->emergency_notice_update(std::move(msg));
+  });
 
   path_request_publisher = create_publisher<PathRequest>(
-    PathRequestTopicName, default_qos);
+        PathRequestTopicName, default_qos);
 
   mode_request_publisher = create_publisher<ModeRequest>(
-    ModeRequestTopicName, default_qos);
+        ModeRequestTopicName, default_qos);
 
   door_request_publisher = create_publisher<DoorRequest>(
-    AdapterDoorRequestTopicName, default_qos);
+        AdapterDoorRequestTopicName, default_qos);
 
   lift_request_publisher = create_publisher<LiftRequest>(
-    AdapterLiftRequestTopicName, default_qos);
+        AdapterLiftRequestTopicName, default_qos);
 
   dispenser_request_publisher = create_publisher<DispenserRequest>(
-    DispenserRequestTopicName, default_qos);
+        DispenserRequestTopicName, default_qos);
 
   task_summary_publisher = create_publisher<TaskSummary>(
-    TaskSummaryTopicName, default_qos);
+        TaskSummaryTopicName, default_qos);
 }
 
 //==============================================================================
@@ -445,16 +445,16 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
   if (_in_emergency_mode)
   {
     RCLCPP_ERROR(
-      get_logger(),
-      "We do not currently support receiving tasks during emergencies!");
+          get_logger(),
+          "We do not currently support receiving tasks during emergencies!");
     return;
   }
 
   if (_contexts.empty())
   {
     RCLCPP_ERROR(
-      get_logger(),
-      "No robots appear to be online!");
+          get_logger(),
+          "No robots appear to be online!");
     return;
   }
 
@@ -464,9 +464,9 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
     // We've already received and processed this task in the past, so we can
     // ignore it.
     RCLCPP_INFO(
-      get_logger(),
-      "Already received delivery task [" + msg->task_id + "] so it will "
-      "be ignored");
+          get_logger(),
+          "Already received delivery task [" + msg->task_id + "] so it will "
+          "be ignored");
     return;
   }
 
@@ -477,8 +477,8 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
   auto context = _contexts.begin()->second.get();
 
   RCLCPP_INFO(
-    get_logger(),
-    "Assigning delivery task to [" + context->robot_name() + "]");
+        get_logger(),
+        "Assigning delivery task to [" + context->robot_name() + "]");
 
   std::cout << "Robot name: [" << context->robot_name() << "]  | ptr: ["
             << context << "]" << std::endl;
@@ -497,8 +497,8 @@ void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
   if (_in_emergency_mode)
   {
     RCLCPP_ERROR(
-      get_logger(),
-      "We do not currently support receiving tasks during emergencies!");
+          get_logger(),
+          "We do not currently support receiving tasks during emergencies!");
     return;
   }
 
@@ -524,16 +524,16 @@ void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
     if (!_received_tasks.insert(msg->task_id).second)
     {
       RCLCPP_INFO(
-        get_logger(),
-        "Already received looping task request [" + msg->task_id
-        + "] so it will be ignored");
+            get_logger(),
+            "Already received looping task request [" + msg->task_id
+            + "] so it will be ignored");
       return;
     }
 
     RCLCPP_INFO(
-      get_logger(),
-      "Received looping task ID [" + msg->task_id + "] and assigned "
-      "it to [" + fewest_context->robot_name() + "]");
+          get_logger(),
+          "Received looping task ID [" + msg->task_id + "] and assigned "
+          "it to [" + fewest_context->robot_name() + "]");
 
     auto task = make_loop(this, fewest_context, std::move(*msg));
     if (task)
@@ -543,9 +543,9 @@ void FleetAdapterNode::loop_request(LoopRequest::UniquePtr msg)
   }
 
   RCLCPP_ERROR(
-    get_logger(),
-    "Cannot assign a robot to looping task [" + msg->task_id
-    + "] because no robots have reported their existence.");
+        get_logger(),
+        "Cannot assign a robot to looping task [" + msg->task_id
+        + "] because no robots have reported their existence.");
 
   rmf_task_msgs::msg::TaskSummary summary;
   summary.status = "Services unavailable";
@@ -583,7 +583,7 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr msg)
   for (const auto& robot : fleet_state.robots)
   {
     const auto insertion = _contexts.insert(
-      std::make_pair(robot.name, nullptr));
+          std::make_pair(robot.name, nullptr));
     const bool inserted = insertion.second;
     const auto it = insertion.first;
 
@@ -600,20 +600,20 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr msg)
       };
 
       async_make_schedule_manager(
-        *this,
-        *_field->writer,
-        &_field->negotiation,
-        std::move(description),
-        [this, name = robot.name, location = robot.location](
-          ScheduleManager manager)
-        {
-          this->_contexts.at(name) = std::make_unique<RobotContext>(
-            name, location, std::move(manager));
-        }, _async_mutex);
+            *this,
+            *_field->writer,
+            &_field->negotiation,
+            std::move(description),
+            [this, name = robot.name, location = robot.location](
+              ScheduleManager manager)
+      {
+        this->_contexts.at(name) = std::make_unique<RobotContext>(
+              name, location, std::move(manager));
+      }, _async_mutex);
 
       RCLCPP_INFO(
-        get_logger(),
-        "Found a robot: [" + robot.name + "]");
+            get_logger(),
+            "Found a robot: [" + robot.name + "]");
     }
     else if (it->second)
     {
