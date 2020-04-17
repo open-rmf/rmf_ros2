@@ -77,32 +77,32 @@ private:
     bool sitting = false;
 
     ScheduleEntry(
-        FleetAdapterNode* node,
-        std::string name,
-        std::mutex& async_mutex);
+      FleetAdapterNode* node,
+      std::string name,
+      std::mutex& async_mutex);
   };
 
   using ScheduleEntries =
-      std::unordered_map<std::string, std::unique_ptr<ScheduleEntry>>;
+    std::unordered_map<std::string, std::unique_ptr<ScheduleEntry>>;
   ScheduleEntries _schedule_entries;
 
   using RobotState = rmf_fleet_msgs::msg::RobotState;
 
   void push_route(
-      const RobotState& state,
-      const ScheduleEntries::iterator& it);
+    const RobotState& state,
+    const ScheduleEntries::iterator& it);
 
   void register_robot(
-      const RobotState& state,
-      const ScheduleEntries::iterator& it);
+    const RobotState& state,
+    const ScheduleEntries::iterator& it);
 
   void update_robot(
-      const RobotState& state,
-      const ScheduleEntries::iterator& it);
+    const RobotState& state,
+    const ScheduleEntries::iterator& it);
 
   bool handle_delay(
-      const RobotState& state,
-      const ScheduleEntries::iterator& it);
+    const RobotState& state,
+    const ScheduleEntries::iterator& it);
 
   const rmf_traffic::Duration MaxCumulativeDelay = std::chrono::seconds(5);
 };
