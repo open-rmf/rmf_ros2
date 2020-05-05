@@ -170,7 +170,7 @@ void FleetAdapterNode::RobotContext::add_task(std::unique_ptr<Task> new_task)
     std::cout << "appending task" << std::endl;
     // A task is currently active, so add this task to the queue. We're going to
     // do first-come first-serve for task requests for now.
-    _task_queue.emplace_back(std::move(_task));
+    _task_queue.emplace_back(std::move(new_task));
   }
 }
 
