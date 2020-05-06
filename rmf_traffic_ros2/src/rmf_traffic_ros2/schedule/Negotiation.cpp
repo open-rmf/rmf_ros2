@@ -55,7 +55,12 @@ public:
 
     Implementation* const impl;
     const rmf_traffic::schedule::Version conflict_version;
+
     const rmf_traffic::schedule::Negotiation::TablePtr table;
+    rmf_utils::optional<rmf_traffic::schedule::Version> table_version;
+
+    const rmf_traffic::schedule::Negotiation::TablePtr parent;
+    rmf_utils::optional<rmf_traffic::schedule::Version> parent_version;
 
     Responder(
       Implementation* const impl_,
@@ -63,7 +68,12 @@ public:
       rmf_traffic::schedule::Negotiation::TablePtr table_)
     : impl(impl_),
       conflict_version(version_),
-      table(table_)
+      table(table_),
+      table_version(rmf_utils::pointer_to_opt(table->version())),
+      parent(table->parent()),
+      parent_version(
+        parent? rmf_utils::pointer_to_opt(parent->version())
+              : rmf_utils::nullopt)
     {
       // Do nothing
     }
@@ -81,24 +91,15 @@ public:
       impl->publish_proposal(conflict_version, *table);
     }
 
-    void reject() const final
+    void reject(const Alternatives& alternatives) const final
     {
-      const auto parent = table->parent();
       if (parent)
       {
         // We will reject the parent to communicate that this whole branch is
         // infeasible
         assert(parent->version());
-        parent->reject(*parent->version());
+        parent->reject(*parent->version(), table->participant(), alternatives);
         impl->publish_rejection(conflict_version, *parent);
-      }
-      else if (table->ongoing())
-      {
-        // This means that the whole negotiation is completely impossible.
-        // TODO(MXG): Improve this by having the planner reveal what vehicle is
-        // blocking progress so we can add it to the negotiation
-        table->reject(table->version() ? *table->version() : 0);
-        impl->publish_rejection(conflict_version, *table);
       }
     }
 
