@@ -47,6 +47,8 @@ const std::string ScheduleConflictProposalTopicName = Prefix +
   "schedule_conflict_proposal";
 const std::string ScheduleConflictRejectionTopicName = Prefix +
   "schedule_conflict_rejection";
+const std::string ScheduleConflictForfeitTopicName = Prefix +
+  "schedule_conflict_forfeit";
 const std::string ScheduleConflictConclusionTopicName = Prefix +
   "schedule_conflict_conclusion";
 

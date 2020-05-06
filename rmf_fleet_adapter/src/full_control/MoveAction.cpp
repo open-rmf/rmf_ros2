@@ -21,6 +21,7 @@
 #include <rmf_traffic_ros2/Trajectory.hpp>
 
 #include <rmf_traffic/DetectConflict.hpp>
+#include <rmf_traffic/agv/Negotiator.hpp>
 
 #include <rmf_utils/math.hpp>
 
@@ -153,17 +154,16 @@ public:
     bool main_plan_failed = false;
     bool fallback_plan_solved = false;
     std::condition_variable plan_solved_cv;
-    rmf_utils::optional<rmf_traffic::agv::Plan> main_plan;
+    rmf_utils::optional<rmf_traffic::agv::Planner::Result> main_plan;
     std::thread main_plan_thread = std::thread(
       [&]()
       {
-        main_plan =
-        planner.plan(
+        main_plan = planner.plan(
           plan_starts,
           rmf_traffic::agv::Plan::Goal(_goal_wp_index),
           _planner_options);
 
-        if (main_plan)
+        if (*main_plan)
         {
           main_plan_solved = true;
           plan_solved_cv.notify_all();
@@ -226,7 +226,7 @@ public:
 
     if (main_plan)
     {
-      plans.emplace_back(std::move(*std::move(main_plan)));
+      plans.emplace_back(std::move(*std::move(*std::move(main_plan))));
       return plans;
     }
 
@@ -264,15 +264,15 @@ public:
   }
 
   void respond(
-    rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+    const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
     const Responder& responder,
-    const bool* interrupt_flag) final
+    const bool* /*interrupt_flag*/) final
   {
     if (_event_executor.do_not_negotiate())
     {
       const auto& itinerary = _context->schedule.participant().itinerary();
 
-      const auto proposal = table->proposal();
+      const auto proposal = table->base_proposals();
       const auto& profile = _context->schedule.description().profile();
       for (const auto& p : proposal)
       {
@@ -285,7 +285,7 @@ public:
           // future, we should have a way to wait until the participant
           // information is available.
           assert(false);
-          return responder.reject();
+          return responder.reject({});
         }
 
         const auto& other_profile = other_participant->profile();
@@ -303,7 +303,12 @@ public:
                 other_profile,
                 other_route->trajectory()))
             {
-              return responder.reject();
+              rmf_traffic::schedule::Itinerary alternative;
+              alternative.reserve(itinerary.size());
+              for (const auto& item : itinerary)
+                alternative.emplace_back(item.route);
+
+              return responder.reject({std::move(alternative)});
             }
           }
         }
@@ -318,53 +323,55 @@ public:
     }
 
     auto start_time = rmf_traffic_ros2::convert(_node->get_clock()->now());
-    const auto parent = table->parent();
-    if (parent)
+    const auto& base_proposals = table->base_proposals();
+    if (!base_proposals.empty())
     {
-      // Use the same start time as the parent so that we don't accidentally
-      // phase through the plans of the others.
-      assert(parent->submission());
-      if (!parent->submission()->empty())
-      {
-        // TODO(MXG): We should really look through all the routes to find the
-        // one that starts earliest.
-        const auto& r = parent->submission()->front();
-        const auto* t = r->trajectory().start_time();
-        if (t)
-          start_time = *t;
-      }
+      // TODO(MXG): We should really look through all the routes to find the
+      // one that starts earliest.
+      const auto& r = base_proposals.front().itinerary.front();
+      const auto* t = r->trajectory().start_time();
+      if (t)
+        start_time = *t;
     }
 
-    // TODO(MXG): Do something with the interrupt flag
-    std::vector<rmf_traffic::agv::Plan> plans =
-      find_plan(
-      start_time,
-      rmf_utils::make_clone<rmf_traffic::agv::NegotiatingRouteValidator>(
-        *table, _context->schedule.description().profile()));
-
-    if (plans.empty())
-    {
-      responder.reject();
-      return;
-    }
-
-    auto itinerary = collect_routes(plans);
     std::weak_ptr<void> weak_handle = _handle;
-    responder.submit(
-      std::move(itinerary),
-      [this, table, plans = std::move(plans),
-      weak_handle = std::move(weak_handle)]()
-      -> rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion>
-      {
-        auto handle = weak_handle.lock();
-        if (!handle)
-        {
-          return rmf_utils::nullopt;
-        }
+    rmf_traffic::agv::SimpleNegotiator::Options options(
+          [this, weak_handle = std::move(weak_handle)](
+          rmf_traffic::agv::Plan approved_plan)
+          -> rmf_traffic::schedule::Negotiator::Responder::UpdateVersion
+    {
+      auto handle = weak_handle.lock();
+      if (!handle)
+        return rmf_utils::nullopt;
 
-        execute_plan(std::move(plans));
-        return _context->schedule.participant().version();
-      });
+      this->execute_plan({std::move(approved_plan)});
+      return _context->schedule.participant().version();
+    });
+
+    const auto& planner = _node->get_planner();
+    Eigen::Vector3d pose =
+      {_context->location.x, _context->location.y, _context->location.yaw};
+
+    const auto plan_starts =
+      rmf_traffic::agv::compute_plan_starts(
+      planner.get_configuration().graph(), pose, start_time, 0.1, 1.0, 1e-8);
+
+    rmf_traffic::agv::SimpleNegotiator negotiator(
+          plan_starts,
+          rmf_traffic::agv::Plan::Goal(_goal_wp_index),
+          planner.get_configuration(),
+          options);
+
+    bool interrupt_flag = false;
+    auto future = std::async(
+          std::launch::async,
+          [&](){negotiator.respond(table, responder, &interrupt_flag);});
+
+    using namespace std::chrono_literals;
+    if (future.wait_for(2s) != std::future_status::ready)
+      interrupt_flag = true;
+
+    future.wait();
   }
 
   std::vector<rmf_traffic::agv::Plan> use_fallback(
@@ -414,7 +421,7 @@ public:
           std::unique_lock<std::mutex> lock(resume_plan_mutex);
           if (resume_plan)
             have_resume_plan = true;
-          resume_plans.emplace_back(std::move(resume_plan));
+          resume_plans.emplace_back(*std::move(resume_plan));
           resume_plan_cv.notify_all();
         }));
     }
@@ -1310,7 +1317,7 @@ public:
           if (emergency_plan)
             have_plan = true;
 
-          candidate_plans.emplace_back(std::move(emergency_plan));
+          candidate_plans.emplace_back(*std::move(emergency_plan));
           plans_cv.notify_all();
         }));
     }

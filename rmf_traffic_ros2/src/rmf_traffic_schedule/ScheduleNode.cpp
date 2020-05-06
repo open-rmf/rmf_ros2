@@ -21,6 +21,7 @@
 #include <rmf_traffic_ros2/StandardNames.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
 #include <rmf_traffic_ros2/Trajectory.hpp>
+#include <rmf_traffic_ros2/schedule/Itinerary.hpp>
 #include <rmf_traffic_ros2/schedule/Query.hpp>
 #include <rmf_traffic_ros2/schedule/Patch.hpp>
 #include <rmf_traffic_ros2/schedule/Writer.hpp>
@@ -39,7 +40,7 @@ namespace rmf_traffic_schedule {
 //==============================================================================
 std::vector<ScheduleNode::ConflictSet> get_conflicts(
   const rmf_traffic::schedule::Viewer::View& view_changes,
-  const rmf_traffic::schedule::Viewer& viewer)
+  const rmf_traffic::schedule::ItineraryViewer& viewer)
 {
   std::vector<ScheduleNode::ConflictSet> conflicts;
   const auto& participants = viewer.participant_ids();
@@ -81,6 +82,8 @@ ScheduleNode::ScheduleNode()
 : Node("rmf_traffic_schedule_node"),
   active_conflicts(database)
 {
+  database = std::make_shared<rmf_traffic::schedule::Database>();
+
   // TODO(MXG): As soon as possible, all of these services should be made
   // multi-threaded so they can be parallel processed.
 
@@ -209,6 +212,13 @@ ScheduleNode::ScheduleNode()
       this->receive_rejection(*msg);
     });
 
+  conflict_forfeit_sub = create_subscription<ConflictForfeit>(
+    rmf_traffic_ros2::ScheduleConflictForfeitTopicName, negotiation_qos,
+    [&](const ConflictForfeit::UniquePtr msg)
+    {
+      this->receive_forfeit(*msg);
+    });
+
   conflict_conclusion_pub = create_publisher<ConflictConclusion>(
     rmf_traffic_ros2::ScheduleConflictConclusionTopicName, negotiation_qos);
 
@@ -230,25 +240,25 @@ ScheduleNode::ScheduleNode()
           std::unique_lock<std::mutex> lock(database_mutex);
           conflict_check_cv.wait_for(lock, std::chrono::milliseconds(100), [&]()
           {
-            return (database.latest_version() > last_checked_version)
+            return (database->latest_version() > last_checked_version)
             && !conflict_check_quit;
           });
 
-          if (database.latest_version() == last_checked_version
+          if (database->latest_version() == last_checked_version
           || conflict_check_quit)
           {
             // This is a casual wakeup to check if we're supposed to quit yet
             continue;
           }
 
-          next_patch = database.changes(query_all, last_checked_version);
+          next_patch = database->changes(query_all, last_checked_version);
 
           // TODO(MXG): Check whether the database really needs to remain locked
           // during this update.
           try
           {
             mirror.update(*next_patch);
-            view_changes = database.query(query_all, last_checked_version);
+            view_changes = database->query(query_all, last_checked_version);
             last_checked_version = next_patch->latest_version();
           }
           catch (const std::exception& e)
@@ -364,7 +374,7 @@ void ScheduleNode::register_participant(
   // TODO(MXG): Use try on every database operation
   try
   {
-    response->participant_id = database.register_participant(
+    response->participant_id = database->register_participant(
       rmf_traffic_ros2::convert(request->description));
 
     RCLCPP_INFO(
@@ -391,7 +401,7 @@ void ScheduleNode::unregister_participant(
 {
   std::unique_lock<std::mutex> lock(database_mutex);
 
-  const auto& p = database.get_participant(request->participant_id);
+  const auto& p = database->get_participant(request->participant_id);
   if (!p)
   {
     response->error =
@@ -411,7 +421,7 @@ void ScheduleNode::unregister_participant(
     const std::string name = p->name();
     const std::string owner = p->owner();
 
-    database.unregister_participant(request->participant_id);
+    database->unregister_participant(request->participant_id);
     response->confirmation = true;
 
     RCLCPP_INFO(
@@ -452,14 +462,14 @@ void ScheduleNode::mirror_update(
     version = request->latest_mirror_version;
 
   response->patch =
-    rmf_traffic_ros2::convert(database.changes(query_it->second, version));
+    rmf_traffic_ros2::convert(database->changes(query_it->second, version));
 }
 
 //==============================================================================
 void ScheduleNode::itinerary_set(const ItinerarySet& set)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
-  database.set(
+  database->set(
     set.participant,
     rmf_traffic_ros2::convert(set.itinerary),
     set.itinerary_version);
@@ -475,7 +485,7 @@ void ScheduleNode::itinerary_set(const ItinerarySet& set)
 void ScheduleNode::itinerary_extend(const ItineraryExtend& extend)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
-  database.extend(
+  database->extend(
     extend.participant,
     rmf_traffic_ros2::convert(extend.routes),
     extend.itinerary_version);
@@ -484,7 +494,7 @@ void ScheduleNode::itinerary_extend(const ItineraryExtend& extend)
 
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
-    extend.participant, database.itinerary_version(extend.participant));
+    extend.participant, database->itinerary_version(extend.participant));
   wakeup_mirrors();
 }
 
@@ -492,7 +502,7 @@ void ScheduleNode::itinerary_extend(const ItineraryExtend& extend)
 void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
-  database.delay(
+  database->delay(
     delay.participant,
     rmf_traffic::Time(rmf_traffic::Duration(delay.from_time)),
     rmf_traffic::Duration(delay.delay),
@@ -502,7 +512,7 @@ void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
 
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
-    delay.participant, database.itinerary_version(delay.participant));
+    delay.participant, database->itinerary_version(delay.participant));
   wakeup_mirrors();
 }
 
@@ -510,7 +520,7 @@ void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
 void ScheduleNode::itinerary_erase(const ItineraryErase& erase)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
-  database.erase(
+  database->erase(
     erase.participant,
     std::vector<rmf_traffic::RouteId>(
       erase.routes.begin(), erase.routes.end()),
@@ -520,7 +530,7 @@ void ScheduleNode::itinerary_erase(const ItineraryErase& erase)
 
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
-    erase.participant, database.itinerary_version(erase.participant));
+    erase.participant, database->itinerary_version(erase.participant));
   wakeup_mirrors();
 }
 
@@ -528,13 +538,13 @@ void ScheduleNode::itinerary_erase(const ItineraryErase& erase)
 void ScheduleNode::itinerary_clear(const ItineraryClear& clear)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
-  database.erase(clear.participant, clear.itinerary_version);
+  database->erase(clear.participant, clear.itinerary_version);
 
   publish_inconsistencies(clear.participant);
 
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
-    clear.participant, database.itinerary_version(clear.participant));
+    clear.participant, database->itinerary_version(clear.participant));
   wakeup_mirrors();
 }
 
@@ -545,8 +555,8 @@ void ScheduleNode::publish_inconsistencies(
   // TODO(MXG): This approach is likely to send out a lot of redundant
   // inconsistency reports. We should try to be smarter about how
   // inconsistencies get reported.
-  const auto it = database.inconsistencies().find(id);
-  assert(it != database.inconsistencies().end());
+  const auto it = database->inconsistencies().find(id);
+  assert(it != database->inconsistencies().end());
   if (it->ranges.size() == 0)
     return;
 
@@ -557,7 +567,7 @@ void ScheduleNode::publish_inconsistencies(
 void ScheduleNode::wakeup_mirrors()
 {
   rmf_traffic_msgs::msg::MirrorWakeup msg;
-  msg.latest_version = database.latest_version();
+  msg.latest_version = database->latest_version();
   mirror_wakeup_publisher->publish(msg);
 
   conflict_check_cv.notify_all();
@@ -741,7 +751,45 @@ void ScheduleNode::receive_rejection(const ConflictRejection& msg)
     return;
   }
 
-  table->reject(msg.proposal_version);
+  table->reject(
+        msg.proposal_version,
+        msg.rejected_by,
+        rmf_traffic_ros2::convert(msg.alternatives));
+  negotiation_room->check_cache();
+}
+
+//==============================================================================
+void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
+{
+  std::unique_lock<std::mutex> lock(active_conflicts_mutex);
+  auto* negotiation_room = active_conflicts.negotiation(msg.conflict_version);
+
+  if (!negotiation_room)
+  {
+    RCLCPP_WARN(
+      get_logger(),
+      "Received forfeit for unknown negotiation ["
+      + std::to_string(msg.conflict_version) + "]");
+    return;
+  }
+
+  auto& negotiation = negotiation_room->negotiation;
+
+  const auto table = negotiation.table(msg.table);
+  if (!table)
+  {
+    std::string error = "Received forfeit in negotiation ["
+      + std::to_string(msg.conflict_version) + "] for unknown table [";
+    for (const auto p : msg.table)
+      error += " " + std::to_string(p) + " ";
+    error += "]";
+
+    RCLCPP_WARN(get_logger(), error);
+    negotiation_room->cached_forfeits.push_back(msg);
+    return;
+  }
+
+  table->forfeit(msg.proposal_version);
   negotiation_room->check_cache();
 
   // TODO(MXG): This should be removed once we have a negotiation visualizer
@@ -750,7 +798,7 @@ void ScheduleNode::receive_rejection(const ConflictRejection& msg)
 
   if (negotiation.complete())
   {
-    std::string output = "Rejected negotiation ["
+    std::string output = "Forfeited negotiation ["
       + std::to_string(msg.conflict_version) + "]";
     RCLCPP_INFO(get_logger(), output);
 

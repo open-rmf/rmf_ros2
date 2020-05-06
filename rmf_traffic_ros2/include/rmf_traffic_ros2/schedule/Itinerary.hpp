@@ -31,11 +31,11 @@ std::vector<rmf_traffic_msgs::msg::Route> convert(
 
 //==============================================================================
 std::vector<rmf_traffic::schedule::Itinerary> convert(
-    const std::vector<rmf_traffic_msgs::msg::Itinerary>& from);
+  const std::vector<rmf_traffic_msgs::msg::Itinerary>& from);
 
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::Itinerary> convert(
-    const std::vector<rmf_traffic::schedule::Itinerary>& from);
+  const std::vector<rmf_traffic::schedule::Itinerary>& from);
 
 } // namespace rmf_traffic_ros2
 

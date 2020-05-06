@@ -83,9 +83,8 @@ public:
       std::vector<rmf_traffic::Route> itinerary,
       std::function<UpdateVersion()> approval_callback) const final
     {
-      const auto* last_version = table->version();
       const bool accepted = table->submit(itinerary,
-          last_version ? *last_version+1 : 0);
+          table_version? *table_version+1 : 0);
       assert(accepted);
       (void)(accepted);
       impl->approvals[conflict_version][table] = std::move(approval_callback);
@@ -100,7 +99,8 @@ public:
         // infeasible
         assert(parent->version());
         parent->reject(*parent->version(), table->participant(), alternatives);
-        impl->publish_rejection(conflict_version, *parent);
+        impl->publish_rejection(
+              conflict_version, *parent, table->participant(), alternatives);
       }
     }
 
@@ -108,7 +108,8 @@ public:
     {
       // TODO(MXG): Consider using blockers to invite more participants into the
       // negotiation
-
+      table->forfeit(table_version? *table_version+1 : 0);
+      impl->publish_forfeit(conflict_version, *table);
     }
 
   };
@@ -232,6 +233,16 @@ public:
 
     rejection_pub = node.create_publisher<Rejection>(
       ScheduleConflictRejectionTopicName, qos);
+
+    forfeit_sub = node.create_subscription<Forfeit>(
+      ScheduleConflictForfeitTopicName, qos,
+      [&](const Forfeit::UniquePtr msg)
+      {
+        this->receive_forfeit(*msg);
+      });
+
+    forfeit_pub = node.create_publisher<Forfeit>(
+      ScheduleConflictForfeitTopicName, qos);
 
     conclusion_sub = node.create_subscription<Conclusion>(
       ScheduleConflictConclusionTopicName, qos,
@@ -644,12 +655,18 @@ public:
 
   void publish_rejection(
     const Version conflict_version,
-    const Negotiation::Table& table)
+    const Negotiation::Table& table,
+    const ParticipantId rejected_by,
+    const Negotiation::Alternatives& alternatives)
   {
     Rejection msg;
     msg.conflict_version = conflict_version;
-    msg.proposal_version = table.version() ? *table.version() : 0;
+    assert(table.version());
+    msg.proposal_version = *table.version();
     msg.table = table.sequence();
+    msg.rejected_by = rejected_by;
+    msg.alternatives = convert(alternatives);
+
     rejection_pub->publish(msg);
   }
 
@@ -657,7 +674,13 @@ public:
     const Version conflict_version,
     const Negotiation::Table& table)
   {
-    TODO(MXG): Implement this function
+    Forfeit msg;
+    msg.conflict_version = conflict_version;
+    assert(table.version());
+    msg.proposal_version = *table.version();
+    msg.table = table.sequence();
+
+    forfeit_pub->publish(msg);
   }
 
   struct Handle

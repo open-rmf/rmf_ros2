@@ -36,6 +36,7 @@
 #include <rmf_traffic_msgs/msg/schedule_conflict_ack.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_repeat.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_notice.hpp>
+#include <rmf_traffic_msgs/msg/schedule_conflict_forfeit.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_proposal.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_rejection.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_conclusion.hpp>
@@ -163,7 +164,7 @@ public:
 
   // TODO(MXG): Consider using libguarded instead of a database_mutex
   std::mutex database_mutex;
-  rmf_traffic::schedule::Database database;
+  std::shared_ptr<rmf_traffic::schedule::Database> database;
 
   using QueryMap =
     std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
@@ -196,6 +197,11 @@ public:
   ConflictRejectionSub::SharedPtr conflict_rejection_sub;
   void receive_rejection(const ConflictRejection& msg);
 
+  using ConflictForfeit = rmf_traffic_msgs::msg::ScheduleConflictForfeit;
+  using ConflictForfeitSub = rclcpp::Subscription<ConflictForfeit>;
+  ConflictForfeitSub::SharedPtr conflict_forfeit_sub;
+  void receive_forfeit(const ConflictForfeit& msg);
+
   using ConflictConclusion = rmf_traffic_msgs::msg::ScheduleConflictConclusion;
   using ConflictConclusionPub = rclcpp::Publisher<ConflictConclusion>;
   ConflictConclusionPub::SharedPtr conflict_conclusion_pub;
@@ -219,8 +225,9 @@ public:
       rmf_utils::optional<ItineraryVersion> itinerary_update_version;
     };
 
-    ConflictRecord(const rmf_traffic::schedule::Viewer& viewer)
-    : _viewer(viewer)
+    ConflictRecord(
+      std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer)
+    : _viewer(std::move(viewer))
     {
       // Do nothing
     }
@@ -271,7 +278,7 @@ public:
       if (!update_negotiation)
       {
         update_negotiation = rmf_traffic::schedule::Negotiation(
-          _viewer, std::vector<ParticipantId>(
+          _viewer->snapshot(), std::vector<ParticipantId>(
             add_to_negotiation.begin(), add_to_negotiation.end()));
       }
       else
@@ -376,7 +383,7 @@ public:
     std::unordered_map<Version,
       rmf_utils::optional<NegotiationRoom>> _negotiations;
     std::unordered_map<ParticipantId, Wait> _waiting;
-    const rmf_traffic::schedule::Viewer& _viewer;
+    std::shared_ptr<const rmf_traffic::schedule::Snappable> _viewer;
     Version _next_negotiation_version = 0;
   };
 
