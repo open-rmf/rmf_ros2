@@ -21,6 +21,7 @@
 #include <rmf_traffic/schedule/Negotiation.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_proposal.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_rejection.hpp>
+#include <rmf_traffic_msgs/msg/schedule_conflict_forfeit.hpp>
 
 #include <list>
 
@@ -36,6 +37,7 @@ struct NegotiationRoom
   rmf_traffic::schedule::Negotiation negotiation;
   std::list<rmf_traffic_msgs::msg::ScheduleConflictProposal> cached_proposals;
   std::list<rmf_traffic_msgs::msg::ScheduleConflictRejection> cached_rejections;
+  std::list<rmf_traffic_msgs::msg::ScheduleConflictForfeit> cached_forfeits;
 
   std::vector<rmf_traffic::schedule::Negotiation::TablePtr> check_cache();
 };

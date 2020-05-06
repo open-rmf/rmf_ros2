@@ -18,6 +18,7 @@
 #include "NegotiationRoom.hpp"
 
 #include <rmf_traffic_ros2/Route.hpp>
+#include <rmf_traffic_ros2/schedule/Itinerary.hpp>
 
 #include <iostream>
 
@@ -64,15 +65,30 @@ check_cache()
 
     for (auto it = cached_rejections.begin(); it != cached_rejections.end(); )
     {
-      // TODO(MXG): This needs to account for what version of the proposal
-      // is being rejected.
       const auto& rejection = *it;
       const auto table = negotiation.table(rejection.table);
       if (table)
       {
-        table->reject(rejection.proposal_version);
+        table->reject(
+              rejection.proposal_version,
+              rejection.rejected_by,
+              rmf_traffic_ros2::convert(rejection.alternatives));
         recheck = true;
         cached_rejections.erase(it++);
+      }
+      else
+        ++it;
+    }
+
+    for (auto it = cached_forfeits.begin(); it != cached_forfeits.end(); )
+    {
+      const auto& forfeit = *it;
+      const auto table = negotiation.table(forfeit.table);
+      if (table)
+      {
+        table->forfeit(forfeit.proposal_version);
+        recheck = true;
+        cached_forfeits.erase(it++);
       }
       else
         ++it;

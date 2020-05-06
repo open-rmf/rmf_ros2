@@ -26,6 +26,7 @@
 #include <rmf_traffic_msgs/msg/schedule_conflict_ack.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_repeat.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_notice.hpp>
+#include <rmf_traffic_msgs/msg/schedule_conflict_forfeit.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_proposal.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_rejection.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_conclusion.hpp>
@@ -103,10 +104,17 @@ public:
       }
     }
 
+    void forfeit(const std::vector<ParticipantId>& /*blockers*/) const final
+    {
+      // TODO(MXG): Consider using blockers to invite more participants into the
+      // negotiation
+
+    }
+
   };
 
   rclcpp::Node& node;
-  const rmf_traffic::schedule::Viewer& viewer;
+  std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer;
 
   using Repeat = rmf_traffic_msgs::msg::ScheduleConflictRepeat;
   using RepeatSub = rclcpp::Subscription<Repeat>;
@@ -131,6 +139,12 @@ public:
   using RejectionPub = rclcpp::Publisher<Rejection>;
   RejectionSub::SharedPtr rejection_sub;
   RejectionPub::SharedPtr rejection_pub;
+
+  using Forfeit = rmf_traffic_msgs::msg::ScheduleConflictForfeit;
+  using ForfeitSub = rclcpp::Subscription<Forfeit>;
+  using ForfeitPub = rclcpp::Publisher<Forfeit>;
+  ForfeitSub::SharedPtr forfeit_sub;
+  ForfeitPub::SharedPtr forfeit_pub;
 
   using Conclusion = rmf_traffic_msgs::msg::ScheduleConflictConclusion;
   using ConclusionSub = rclcpp::Subscription<Conclusion>;
@@ -171,9 +185,9 @@ public:
 
   Implementation(
     rclcpp::Node& node_,
-    const rmf_traffic::schedule::Viewer& viewer_)
+    std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer_)
   : node(node_),
-    viewer(viewer_),
+    viewer(std::move(viewer_)),
     negotiators(std::make_shared<NegotiatorMap>())
   {
     // TODO(MXG): Make the QoS configurable
@@ -286,7 +300,7 @@ public:
 
     const auto insertion = negotiations.insert(
       {msg.conflict_version,
-        Entry{relevant, Negotiation(viewer, msg.participants)}});
+        Entry{relevant, Negotiation(viewer->snapshot(), msg.participants)}});
 
     const bool is_new = insertion.second;
     bool& participating = insertion.first->second.participating;
@@ -323,7 +337,7 @@ public:
         if (!table->submission())
         {
           it->second->respond(
-            table, Responder(this, msg.conflict_version, table));
+            table->viewer(), Responder(this, msg.conflict_version, table));
         }
       }
     }
@@ -357,10 +371,38 @@ public:
         if (!respond_to->submission())
         {
           n.second->respond(
-            respond_to, Responder(this, msg.conflict_version, respond_to));
+            respond_to->viewer(),
+            Responder(this, msg.conflict_version, respond_to));
         }
 
         respond_queue.push_back(respond_to);
+      }
+    }
+  }
+
+  void respond_to_queue(
+      std::vector<TablePtr> queue,
+      Version conflict_version)
+  {
+    while (!queue.empty())
+    {
+      const auto top = queue.back();
+      queue.pop_back();
+
+      for (const auto& n : *negotiators)
+      {
+        const ParticipantId participant = n.first;
+        const auto& negotiator = n.second;
+
+        if (const auto respond_to = top->respond(participant))
+        {
+          negotiator->respond(
+            respond_to->viewer(),
+            Responder(this, conflict_version, respond_to));
+
+          if (respond_to->submission())
+            queue.push_back(respond_to);
+        }
       }
     }
   }
@@ -418,27 +460,7 @@ public:
       return;
 
     queue.push_back(received_table);
-    while (!queue.empty())
-    {
-      const auto top = queue.back();
-      queue.pop_back();
-
-      for (const auto& n : *negotiators)
-      {
-        const ParticipantId participant = n.first;
-        const auto& negotiator = n.second;
-
-        if (const auto respond_to = top->respond(participant))
-        {
-          negotiator->respond(
-            respond_to,
-            Responder(this, msg.conflict_version, respond_to));
-
-          if (respond_to->submission())
-            queue.push_back(respond_to);
-        }
-      }
-    }
+    respond_to_queue(queue, msg.conflict_version);
   }
 
   void receive_rejection(const Rejection& msg)
@@ -461,9 +483,55 @@ public:
       return;
     }
 
-    table->reject(msg.proposal_version);
+    const bool updated = table->reject(
+      msg.proposal_version, msg.rejected_by, convert(msg.alternatives));
+
+    if (!updated)
+      return;
+
+    std::vector<TablePtr> queue = room.check_cache();
+
+    if (!negotiate_it->second.participating)
+      return;
+
+    const auto n_it = negotiators->find(table->participant());
+    if (n_it != negotiators->end())
+    {
+      const auto& negotiator = n_it->second;
+      negotiator->respond(
+            table->viewer(),
+            Responder(this, msg.conflict_version, table));
+
+      if (table->submission())
+        queue.push_back(table);
+    }
+
+    respond_to_queue(queue, msg.conflict_version);
+  }
+
+  void receive_forfeit(const Forfeit& msg)
+  {
+    const auto negotiate_it = negotiations.find(msg.conflict_version);
+    if (negotiate_it == negotiations.end())
+    {
+      // We don't need to worry about caching an unknown rejection, because it
+      // is impossible for a proposal that was produced by this negotiation
+      // instance to be rejected without us being aware of that proposal.
+      return;
+    }
+
+    auto& room = negotiate_it->second.room;
+    Negotiation& negotiation = room.negotiation;
+    const auto table = negotiation.table(msg.table);
+    if (!table)
+    {
+      room.cached_forfeits.push_back(msg);
+      return;
+    }
+
+    table->forfeit(msg.proposal_version);
+
     room.check_cache();
-    // TODO(MXG): Give the negotiator a chance to offer a new proposal.
   }
 
   void receive_conclusion(const Conclusion& msg)
@@ -585,6 +653,13 @@ public:
     rejection_pub->publish(msg);
   }
 
+  void publish_forfeit(
+    const Version conflict_version,
+    const Negotiation::Table& table)
+  {
+    TODO(MXG): Implement this function
+  }
+
   struct Handle
   {
     Handle(
@@ -630,8 +705,8 @@ public:
 //==============================================================================
 Negotiation::Negotiation(
   rclcpp::Node& node,
-  const rmf_traffic::schedule::Viewer& viewer)
-: _pimpl(rmf_utils::make_unique_impl<Implementation>(node, viewer))
+  std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer)
+: _pimpl(rmf_utils::make_unique_impl<Implementation>(node, std::move(viewer)))
 {
   // Do nothing
 }

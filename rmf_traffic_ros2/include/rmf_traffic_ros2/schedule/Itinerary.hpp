@@ -19,13 +19,23 @@
 #define RMF_TRAFFIC_ROS2__SCHEDULE__ITINERARY_HPP
 
 #include <rmf_traffic/schedule/Itinerary.hpp>
+
 #include <rmf_traffic_msgs/msg/route.hpp>
+#include <rmf_traffic_msgs/msg/itinerary.hpp>
 
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::Route> convert(
   const rmf_traffic::schedule::Itinerary& from);
+
+//==============================================================================
+std::vector<rmf_traffic::schedule::Itinerary> convert(
+    const std::vector<rmf_traffic_msgs::msg::Itinerary>& from);
+
+//==============================================================================
+std::vector<rmf_traffic_msgs::msg::Itinerary> convert(
+    const std::vector<rmf_traffic::schedule::Itinerary>& from);
 
 } // namespace rmf_traffic_ros2
 
