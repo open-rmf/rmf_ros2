@@ -79,6 +79,48 @@ rmf_traffic::Trajectory make_trajectory(
 }
 
 //==============================================================================
+rmf_traffic::Trajectory make_timed_trajectory(
+  const std::vector<rmf_fleet_msgs::msg::Location>& path,
+  const rmf_traffic::agv::VehicleTraits& traits)
+{
+  rmf_traffic::Trajectory output;
+  for (const auto& location : path)
+  {
+    if (output.size() == 0)
+    {
+      output.insert(
+        rmf_traffic_ros2::convert(location.t),
+        Eigen::Vector3d(location.x, location.y, location.yaw),
+        Eigen::Vector3d::Zero());
+      continue;
+    }
+
+    std::vector<Eigen::Vector3d> positions;
+    positions.reserve(2);
+    positions.push_back(output.back().position());
+    positions.push_back({location.x, location.y, location.yaw});
+
+    rmf_traffic::Trajectory extension =
+        rmf_traffic::agv::Interpolate::positions(
+          traits, output.back().time(), positions);
+
+    for (const auto& wp : extension)
+      output.insert(wp);
+
+    const auto wait_time = rmf_traffic_ros2::convert(location.t);
+    const auto wait_duration = wait_time - output.back().time();
+
+    if (wait_duration > std::chrono::milliseconds(1))
+    {
+      output.insert(
+            wait_time, output.back().position(), Eigen::Vector3d::Zero());
+    }
+  }
+
+  return output;
+}
+
+//==============================================================================
 rmf_traffic::Route make_route(
   const rmf_fleet_msgs::msg::RobotState& state,
   const rmf_traffic::agv::VehicleTraits& traits,

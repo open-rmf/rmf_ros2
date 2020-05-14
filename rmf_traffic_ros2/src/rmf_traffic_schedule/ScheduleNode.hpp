@@ -36,6 +36,7 @@
 #include <rmf_traffic_msgs/msg/schedule_conflict_ack.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_repeat.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_notice.hpp>
+#include <rmf_traffic_msgs/msg/schedule_conflict_refusal.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_forfeit.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_proposal.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_rejection.hpp>
@@ -129,13 +130,6 @@ public:
   using MirrorWakeupPublisher = rclcpp::Publisher<MirrorWakeup>;
   MirrorWakeupPublisher::SharedPtr mirror_wakeup_publisher;
 
-
-  using ScheduleConflictNotice = rmf_traffic_msgs::msg::ScheduleConflictNotice;
-  using ScheduleConflictNoticePublisher =
-    rclcpp::Publisher<ScheduleConflictNotice>;
-  ScheduleConflictNoticePublisher::SharedPtr conflict_publisher;
-
-
   using ItinerarySet = rmf_traffic_msgs::msg::ItinerarySet;
   void itinerary_set(const ItinerarySet& set);
   rclcpp::Subscription<ItinerarySet>::SharedPtr itinerary_set_sub;
@@ -186,6 +180,11 @@ public:
   using ConflictNotice = rmf_traffic_msgs::msg::ScheduleConflictNotice;
   using ConflictNoticePub = rclcpp::Publisher<ConflictNotice>;
   ConflictNoticePub::SharedPtr conflict_notice_pub;
+
+  using ConflictRefusal = rmf_traffic_msgs::msg::ScheduleConflictRefusal;
+  using ConflictRefusalSub = rclcpp::Subscription<ConflictRefusal>;
+  ConflictRefusalSub::SharedPtr conflict_refusal_sub;
+  void receive_refusal(const ConflictRefusal& msg);
 
   using ConflictProposal = rmf_traffic_msgs::msg::ScheduleConflictProposal;
   using ConflictProposalSub = rclcpp::Subscription<ConflictProposal>;
@@ -277,7 +276,7 @@ public:
       auto& update_negotiation = insertion.first->second;
       if (!update_negotiation)
       {
-        update_negotiation = rmf_traffic::schedule::Negotiation(
+        update_negotiation = *rmf_traffic::schedule::Negotiation::make(
           _viewer->snapshot(), std::vector<ParticipantId>(
             add_to_negotiation.begin(), add_to_negotiation.end()));
       }
@@ -321,6 +320,11 @@ public:
       }
 
       _negotiations.erase(negotiation_it);
+    }
+
+    void refuse(const Version version)
+    {
+      _negotiations.erase(version);
     }
 
     // Tell the ConflictRecord what ItineraryVersion will resolve this
