@@ -67,6 +67,9 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     if (ready)
     {
       node->_mirror = mirror_future.get();
+      node->_negotiation = rmf_traffic_ros2::schedule::Negotiation(
+            *node, node->_mirror->snapshot_handle());
+
       return node;
     }
   }
@@ -91,7 +94,7 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
   };
 
   async_make_schedule_manager(
-    *node, *node->_writer, nullptr, std::move(description),
+    *node, *node->_writer, &node->_negotiation.value(), std::move(description),
     [this, node](ScheduleManager manager)
     {
       this->schedule = std::move(manager);
@@ -114,8 +117,8 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
             if (!other_participant)
             {
               // TODO(MXG): This is lazy and sloppy. For now we just reject the
-              // negotiation if we don't know about the other participant. In the
-              // future, we should have a way to wait until the participant
+              // negotiation if we don't know about the other participant. In
+              // the future, we should have a way to wait until the participant
               // information is available.
               assert(false);
               return responder.forfeit({});

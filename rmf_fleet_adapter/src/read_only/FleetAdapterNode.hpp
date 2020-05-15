@@ -64,6 +64,7 @@ private:
 
   rmf_traffic_ros2::schedule::WriterPtr _writer;
   rmf_utils::optional<rmf_traffic_ros2::schedule::MirrorManager> _mirror;
+  rmf_utils::optional<rmf_traffic_ros2::schedule::Negotiation> _negotiation;
 
   void fleet_state_update(FleetState::UniquePtr new_state);
 
