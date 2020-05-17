@@ -36,6 +36,8 @@
 #include <rmf_traffic_msgs/msg/schedule_conflict_ack.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_repeat.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_notice.hpp>
+#include <rmf_traffic_msgs/msg/schedule_conflict_refusal.hpp>
+#include <rmf_traffic_msgs/msg/schedule_conflict_forfeit.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_proposal.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_rejection.hpp>
 #include <rmf_traffic_msgs/msg/schedule_conflict_conclusion.hpp>
@@ -128,13 +130,6 @@ public:
   using MirrorWakeupPublisher = rclcpp::Publisher<MirrorWakeup>;
   MirrorWakeupPublisher::SharedPtr mirror_wakeup_publisher;
 
-
-  using ScheduleConflictNotice = rmf_traffic_msgs::msg::ScheduleConflictNotice;
-  using ScheduleConflictNoticePublisher =
-    rclcpp::Publisher<ScheduleConflictNotice>;
-  ScheduleConflictNoticePublisher::SharedPtr conflict_publisher;
-
-
   using ItinerarySet = rmf_traffic_msgs::msg::ItinerarySet;
   void itinerary_set(const ItinerarySet& set);
   rclcpp::Subscription<ItinerarySet>::SharedPtr itinerary_set_sub;
@@ -163,7 +158,7 @@ public:
 
   // TODO(MXG): Consider using libguarded instead of a database_mutex
   std::mutex database_mutex;
-  rmf_traffic::schedule::Database database;
+  std::shared_ptr<rmf_traffic::schedule::Database> database;
 
   using QueryMap =
     std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
@@ -186,6 +181,11 @@ public:
   using ConflictNoticePub = rclcpp::Publisher<ConflictNotice>;
   ConflictNoticePub::SharedPtr conflict_notice_pub;
 
+  using ConflictRefusal = rmf_traffic_msgs::msg::ScheduleConflictRefusal;
+  using ConflictRefusalSub = rclcpp::Subscription<ConflictRefusal>;
+  ConflictRefusalSub::SharedPtr conflict_refusal_sub;
+  void receive_refusal(const ConflictRefusal& msg);
+
   using ConflictProposal = rmf_traffic_msgs::msg::ScheduleConflictProposal;
   using ConflictProposalSub = rclcpp::Subscription<ConflictProposal>;
   ConflictProposalSub::SharedPtr conflict_proposal_sub;
@@ -195,6 +195,11 @@ public:
   using ConflictRejectionSub = rclcpp::Subscription<ConflictRejection>;
   ConflictRejectionSub::SharedPtr conflict_rejection_sub;
   void receive_rejection(const ConflictRejection& msg);
+
+  using ConflictForfeit = rmf_traffic_msgs::msg::ScheduleConflictForfeit;
+  using ConflictForfeitSub = rclcpp::Subscription<ConflictForfeit>;
+  ConflictForfeitSub::SharedPtr conflict_forfeit_sub;
+  void receive_forfeit(const ConflictForfeit& msg);
 
   using ConflictConclusion = rmf_traffic_msgs::msg::ScheduleConflictConclusion;
   using ConflictConclusionPub = rclcpp::Publisher<ConflictConclusion>;
@@ -219,8 +224,9 @@ public:
       rmf_utils::optional<ItineraryVersion> itinerary_update_version;
     };
 
-    ConflictRecord(const rmf_traffic::schedule::Viewer& viewer)
-    : _viewer(viewer)
+    ConflictRecord(
+      std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer)
+    : _viewer(std::move(viewer))
     {
       // Do nothing
     }
@@ -270,8 +276,8 @@ public:
       auto& update_negotiation = insertion.first->second;
       if (!update_negotiation)
       {
-        update_negotiation = rmf_traffic::schedule::Negotiation(
-          _viewer, std::vector<ParticipantId>(
+        update_negotiation = *rmf_traffic::schedule::Negotiation::make(
+          _viewer->snapshot(), std::vector<ParticipantId>(
             add_to_negotiation.begin(), add_to_negotiation.end()));
       }
       else
@@ -314,6 +320,11 @@ public:
       }
 
       _negotiations.erase(negotiation_it);
+    }
+
+    void refuse(const Version version)
+    {
+      _negotiations.erase(version);
     }
 
     // Tell the ConflictRecord what ItineraryVersion will resolve this
@@ -376,7 +387,7 @@ public:
     std::unordered_map<Version,
       rmf_utils::optional<NegotiationRoom>> _negotiations;
     std::unordered_map<ParticipantId, Wait> _waiting;
-    const rmf_traffic::schedule::Viewer& _viewer;
+    std::shared_ptr<const rmf_traffic::schedule::Snappable> _viewer;
     Version _next_negotiation_version = 0;
   };
 

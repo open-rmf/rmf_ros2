@@ -31,4 +31,45 @@ std::vector<rmf_traffic_msgs::msg::Route> convert(
   return output;
 }
 
+//==============================================================================
+std::vector<rmf_traffic::schedule::Itinerary> convert(
+  const std::vector<rmf_traffic_msgs::msg::Itinerary>& from)
+{
+  std::vector<rmf_traffic::schedule::Itinerary> output;
+  output.reserve(from.size());
+  for (const auto& from_itinerary : from)
+  {
+    rmf_traffic::schedule::Itinerary to_itinerary;
+    to_itinerary.reserve(from_itinerary.routes.size());
+    for (const auto& from_route : from_itinerary.routes)
+    {
+      to_itinerary.emplace_back(
+            std::make_shared<rmf_traffic::Route>(convert(from_route)));
+    }
+
+    output.emplace_back(std::move(to_itinerary));
+  }
+
+  return output;
+}
+
+//==============================================================================
+std::vector<rmf_traffic_msgs::msg::Itinerary> convert(
+  const std::vector<rmf_traffic::schedule::Itinerary>& from)
+{
+  std::vector<rmf_traffic_msgs::msg::Itinerary> output;
+  output.reserve(from.size());
+  for (const auto& from_itinerary : from)
+  {
+    rmf_traffic_msgs::msg::Itinerary to_itinerary;
+    to_itinerary.routes.reserve(from_itinerary.size());
+    for (const auto& from_route : from_itinerary)
+      to_itinerary.routes.emplace_back(convert(*from_route));
+
+    output.emplace_back(std::move(to_itinerary));
+  }
+
+  return output;
+}
+
 } // namespace rmf_traffic_ros2

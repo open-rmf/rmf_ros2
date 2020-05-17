@@ -63,7 +63,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     node->get_logger(),
     "Launching fleet adapter for " + fleet_name);
 
-  auto traits = get_traits_or_default(*node, 0.7, 0.3, 0.5, 1.5, 0.6);
+  auto traits = get_traits_or_default(*node, 0.7, 0.3, 0.5, 1.5, 0.5, 1.5);
 
   node->_delay_threshold =
     get_parameter_or_default_time(*node, "delay_threshold", 5.0);
@@ -134,11 +134,11 @@ FleetAdapterNode::RobotContext::RobotContext(
 {
   schedule.set_negotiator(
     [this](
-      rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+      const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
       const rmf_traffic::schedule::Negotiator::Responder& responder,
       const bool* interrupt_flag)
     {
-      this->respond(std::move(table), responder, interrupt_flag);
+      this->respond(table, responder, interrupt_flag);
     });
 }
 
@@ -216,12 +216,12 @@ void FleetAdapterNode::RobotContext::resume()
 
 //==============================================================================
 void FleetAdapterNode::RobotContext::respond(
-  rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+  const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
   const rmf_traffic::schedule::Negotiator::Responder& responder,
   const bool* interrupt_flag)
 {
   if (_task)
-    _task->respond(std::move(table), responder, interrupt_flag);
+    _task->respond(table, responder, interrupt_flag);
   else
   {
     // This would be very suspicious if it happens

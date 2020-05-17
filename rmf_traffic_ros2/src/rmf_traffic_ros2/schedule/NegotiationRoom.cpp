@@ -18,10 +18,41 @@
 #include "NegotiationRoom.hpp"
 
 #include <rmf_traffic_ros2/Route.hpp>
+#include <rmf_traffic_ros2/schedule/Itinerary.hpp>
 
 #include <iostream>
 
 namespace rmf_traffic_ros2 {
+
+//==============================================================================
+rmf_traffic::schedule::Negotiation::VersionedKeySequence convert(
+    const std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey>& from)
+{
+  rmf_traffic::schedule::Negotiation::VersionedKeySequence output;
+  output.reserve(from.size());
+  for (const auto& key : from)
+    output.push_back({key.participant, key.version});
+
+  return output;
+}
+
+//==============================================================================
+std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey> convert(
+    const rmf_traffic::schedule::Negotiation::VersionedKeySequence& from)
+{
+  std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey> output;
+  output.reserve(from.size());
+  for (const auto& key : from)
+  {
+    rmf_traffic_msgs::msg::ScheduleConflictKey msg;
+    msg.participant = key.participant;
+    msg.version = key.version;
+    output.push_back(msg);
+  }
+
+  return output;
+}
+
 namespace schedule {
 
 //==============================================================================
@@ -33,7 +64,7 @@ NegotiationRoom::NegotiationRoom(rmf_traffic::schedule::Negotiation negotiation_
 
 //==============================================================================
 std::vector<rmf_traffic::schedule::Negotiation::TablePtr> NegotiationRoom::
-check_cache()
+check_cache(const NegotiatorMap& negotiators)
 {
   std::vector<rmf_traffic::schedule::Negotiation::TablePtr> new_tables;
 
@@ -45,8 +76,16 @@ check_cache()
     for (auto it = cached_proposals.begin(); it != cached_proposals.end(); )
     {
       const auto& proposal = *it;
-      const auto table = negotiation.table(
-        proposal.for_participant, proposal.to_accommodate);
+      const auto search = negotiation.find(
+        proposal.for_participant, convert(proposal.to_accommodate));
+
+      if (search.deprecated())
+      {
+        cached_proposals.erase(it++);
+        continue;
+      }
+
+      const auto table = search.table;
       if (table)
       {
         const bool updated = table->submit(
@@ -64,15 +103,46 @@ check_cache()
 
     for (auto it = cached_rejections.begin(); it != cached_rejections.end(); )
     {
-      // TODO(MXG): This needs to account for what version of the proposal
-      // is being rejected.
       const auto& rejection = *it;
-      const auto table = negotiation.table(rejection.table);
+      const auto search = negotiation.find(convert(rejection.table));
+
+      if (search.deprecated())
+      {
+        cached_rejections.erase(it++);
+        continue;
+      }
+
+      const auto table = search.table;
       if (table)
       {
-        table->reject(rejection.proposal_version);
+        table->reject(
+              rejection.table.back().version,
+              rejection.rejected_by,
+              rmf_traffic_ros2::convert(rejection.alternatives));
         recheck = true;
         cached_rejections.erase(it++);
+      }
+      else
+        ++it;
+    }
+
+    for (auto it = cached_forfeits.begin(); it != cached_forfeits.end(); )
+    {
+      const auto& forfeit = *it;
+      const auto search = negotiation.find(convert(forfeit.table));
+
+      if (search.deprecated())
+      {
+        cached_forfeits.erase(it++);
+        continue;
+      }
+
+      const auto table = search.table;
+      if (table)
+      {
+        table->forfeit(forfeit.table.back().version);
+        recheck = true;
+        cached_forfeits.erase(it++);
       }
       else
         ++it;
@@ -83,13 +153,25 @@ check_cache()
   auto remove_it = std::remove_if(new_tables.begin(), new_tables.end(),
       [](const rmf_traffic::schedule::Negotiation::TablePtr& table)
       {
-        return table->rejected();
+        return table->forfeited() || table->defunct();
       });
   new_tables.erase(remove_it, new_tables.end());
 
-  return new_tables;
+  std::vector<rmf_traffic::schedule::Negotiation::TablePtr> respond_to;
+  for (const auto& new_table : new_tables)
+  {
+    for (const auto& n : negotiators)
+    {
+      const auto participant = n.first;
+      if (const auto r = new_table->respond(participant))
+        respond_to.push_back(r);
+    }
+  }
+
+  return respond_to;
 }
 
+//==============================================================================
 void print_negotiation_status(
   rmf_traffic::schedule::Version conflict_version,
   const rmf_traffic::schedule::Negotiation& negotiation)
@@ -136,15 +218,26 @@ void print_negotiation_status(
     std::cout << "\n --";
     const bool finished = static_cast<bool>(t->submission());
     const bool rejected = t->rejected();
+    const bool forfeited = t->forfeited();
     const auto sequence = t->sequence();
     for (std::size_t i = 0; i < sequence.size(); ++i)
     {
-      if (i == t->sequence().size()-1 && rejected)
-        std::cout << " <" << sequence[i] << ">";
-      else if (i == t->sequence().size()-1 && !finished)
-        std::cout << " [" << sequence[i] << "]";
+      const auto& s = sequence[i];
+      if (i == t->sequence().size()-1)
+      {
+        if (forfeited)
+          std::cout << " <" << s.participant << ":" << s.version << ">";
+        else if (rejected)
+          std::cout << " {" << s.participant << ":" << s.version << "}";
+        else if (!finished)
+          std::cout << " [" << s.participant << ":" << s.version << "]";
+        else
+          std::cout << " >" << s.participant << ":" << s.version << "<";
+      }
       else
-        std::cout << " " << sequence[i];
+      {
+        std::cout << " " << s.participant << ":" << s.version;
+      }
     }
   }
   std::cout << "\n" << std::endl;

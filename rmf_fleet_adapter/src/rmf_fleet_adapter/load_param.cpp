@@ -50,11 +50,10 @@ std::string get_fleet_name_parameter(rclcpp::Node& node)
 }
 
 //==============================================================================
-rmf_traffic::agv::VehicleTraits get_traits_or_default(
-  rclcpp::Node& node,
+rmf_traffic::agv::VehicleTraits get_traits_or_default(rclcpp::Node& node,
   const double default_v_nom, const double default_w_nom,
   const double default_a_nom, const double default_alpha_nom,
-  const double default_radius)
+  const double default_r_f, const double default_r_v)
 {
   const double v_nom =
     get_parameter_or_default(node, "linear_velocity", default_v_nom);
@@ -64,8 +63,10 @@ rmf_traffic::agv::VehicleTraits get_traits_or_default(
     get_parameter_or_default(node, "linear_acceleration", default_a_nom);
   const double b_nom =
     get_parameter_or_default(node, "angular_acceleration", default_alpha_nom);
-  const double r =
-    get_parameter_or_default(node, "profile_radius", default_radius);
+  const double r_f =
+    get_parameter_or_default(node, "footprint_radius", default_r_f);
+  const double r_v =
+    get_parameter_or_default(node, "vicinity_radius", default_r_v);
   const bool reversible =
     get_parameter_or_default(node, "reversible", true);
 
@@ -77,7 +78,10 @@ rmf_traffic::agv::VehicleTraits get_traits_or_default(
     {w_nom, b_nom},
     rmf_traffic::Profile{
       rmf_traffic::geometry::make_final_convex<
-        rmf_traffic::geometry::Circle>(r)}
+        rmf_traffic::geometry::Circle>(r_f),
+      rmf_traffic::geometry::make_final_convex<
+        rmf_traffic::geometry::Circle>(r_v)
+    }
   };
 
   traits.get_differential()->set_reversible(reversible);

@@ -52,7 +52,7 @@ public:
 
   void set_negotiator(
     std::function<void(
-      rmf_traffic::schedule::Negotiation::ConstTablePtr,
+      const rmf_traffic::schedule::Negotiation::Table::ViewerPtr&,
       const rmf_traffic::schedule::Negotiator::Responder&,
       const bool*)> negotiation_callback);
 
@@ -69,12 +69,12 @@ private:
   public:
 
     void respond(
-      std::shared_ptr<const rmf_traffic::schedule::Negotiation::Table> table,
+      const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
       const Responder& responder,
       const bool* interrupt_flag) final;
 
     std::function<void(
-        rmf_traffic::schedule::Negotiation::ConstTablePtr,
+        rmf_traffic::schedule::Negotiation::Table::ViewerPtr,
         const Responder&,
         const bool*)> callback;
   };

@@ -72,6 +72,9 @@ public:
   /// Get the viewer of the mirror that is being managed
   const rmf_traffic::schedule::Viewer& viewer() const;
 
+  /// Get a stub that can take snapshots of the schedule
+  std::shared_ptr<rmf_traffic::schedule::Snappable> snapshot_handle() const;
+
   /// Attempt to update this mirror immediately.
   ///
   /// \param[in] wait

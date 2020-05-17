@@ -54,7 +54,7 @@ public:
 
   MirrorUpdate::Request::SharedPtr request_msg;
 
-  rmf_traffic::schedule::Mirror mirror;
+  std::shared_ptr<rmf_traffic::schedule::Mirror> mirror;
 
   bool initial_request = true;
   bool waiting_for_reply = false;
@@ -71,7 +71,8 @@ public:
     options(std::move(_options)),
     mirror_update_client(std::move(_mirror_update_client)),
     unregister_query_client(std::move(_unregister_query_client)),
-    request_msg(std::make_shared<MirrorUpdate::Request>())
+    request_msg(std::make_shared<MirrorUpdate::Request>()),
+    mirror(std::make_shared<rmf_traffic::schedule::Mirror>())
   {
     mirror_wakeup_sub = node.create_subscription<MirrorWakeup>(
       MirrorWakeupTopicName, rclcpp::SystemDefaultsQoS(),
@@ -106,7 +107,7 @@ public:
     // initialize this value to that. Or maybe the mirror wakeup can publish
     // both its oldest and latest version.
     // This is also relevant to the next_minimum_version value.
-    request_msg->latest_mirror_version = mirror.latest_version();
+    request_msg->latest_mirror_version = mirror->latest_version();
     request_msg->minimum_patch_version = minimum_version;
     request_msg->initial_request = initial_request;
     initial_request = false;
@@ -132,11 +133,11 @@ public:
           if (update_mutex)
           {
             std::lock_guard<std::mutex> lock(*update_mutex);
-            mirror.update(patch);
+            mirror->update(patch);
           }
           else
           {
-            mirror.update(patch);
+            mirror->update(patch);
           }
 
           waiting_for_reply = false;
@@ -228,13 +229,20 @@ auto MirrorManager::Options::update_on_wakeup(bool choice) -> Options&
 //==============================================================================
 const rmf_traffic::schedule::Viewer& MirrorManager::viewer() const
 {
+  return *_pimpl->mirror;
+}
+
+//==============================================================================
+std::shared_ptr<rmf_traffic::schedule::Snappable>
+MirrorManager::snapshot_handle() const
+{
   return _pimpl->mirror;
 }
 
 //==============================================================================
 void MirrorManager::update(const rmf_traffic::Duration wait)
 {
-  _pimpl->update(_pimpl->mirror.latest_version(), wait);
+  _pimpl->update(_pimpl->mirror->latest_version(), wait);
 }
 
 //==============================================================================

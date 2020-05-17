@@ -37,6 +37,11 @@ rmf_traffic::Trajectory make_trajectory(
   const rmf_traffic::agv::VehicleTraits& traits);
 
 //==============================================================================
+rmf_traffic::Trajectory make_timed_trajectory(
+  const std::vector<rmf_fleet_msgs::msg::Location>& path,
+  const rmf_traffic::agv::VehicleTraits& traits);
+
+//==============================================================================
 rmf_traffic::Route make_route(
   const rmf_fleet_msgs::msg::RobotState& state,
   const rmf_traffic::agv::VehicleTraits& traits,

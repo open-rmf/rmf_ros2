@@ -58,7 +58,7 @@ rmf_traffic::agv::VehicleTraits get_traits_or_default(
   rclcpp::Node& node,
   const double default_v_nom, const double default_w_nom,
   const double default_a_nom, const double default_alpha_nom,
-  const double default_radius);
+  const double default_r_f, const double default_r_v);
 
 } // namespace rmf_fleet_adapter
 

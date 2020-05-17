@@ -17,6 +17,8 @@
 
 #include "FleetAdapterNode.hpp"
 
+#include <rmf_traffic/DetectConflict.hpp>
+
 #include <rmf_traffic/agv/Interpolate.hpp>
 
 #include <rmf_traffic_ros2/StandardNames.hpp>
@@ -46,15 +48,30 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
   node->_delay_threshold =
     get_parameter_or_default_time(*node, "delay_threshold", 5.0);
 
+  auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
+    *node, rmf_traffic::schedule::query_all());
+
   node->_writer = rmf_traffic_ros2::schedule::Writer::make(*node);
+
+  using namespace std::chrono_literals;
 
   const auto stop_time = std::chrono::steady_clock::now() + wait_time;
   while (rclcpp::ok() && std::chrono::steady_clock::now() < stop_time)
   {
     rclcpp::spin_some(node);
 
-    if (node->_writer->ready())
+    bool ready = true;
+    ready &= node->_writer->ready();
+    ready &= (mirror_future.wait_for(0s) == std::future_status::ready);
+
+    if (ready)
+    {
+      node->_mirror = mirror_future.get();
+      node->_negotiation = rmf_traffic_ros2::schedule::Negotiation(
+            *node, node->_mirror->snapshot_handle());
+
       return node;
+    }
   }
 
   RCLCPP_INFO(
@@ -77,10 +94,68 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
   };
 
   async_make_schedule_manager(
-    *node, *node->_writer, nullptr, std::move(description),
-    [this](ScheduleManager manager)
+    *node, *node->_writer, &node->_negotiation.value(), std::move(description),
+    [this, node](ScheduleManager manager)
     {
       this->schedule = std::move(manager);
+
+      this->schedule->set_negotiator(
+        [this, node](
+          const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
+          const rmf_traffic::schedule::Negotiator::Responder& responder,
+          const bool*)
+        {
+          const auto itinerary = this->schedule->participant().itinerary();
+
+          const auto proposals = table->base_proposals();
+          const auto& profile = this->schedule->description().profile();
+          for (const auto& p : proposals)
+          {
+            const auto other_participant =
+            node->_mirror->viewer().get_participant(p.participant);
+
+            if (!other_participant)
+            {
+              // TODO(MXG): This is lazy and sloppy. For now we just reject the
+              // negotiation if we don't know about the other participant. In
+              // the future, we should have a way to wait until the participant
+              // information is available.
+              assert(false);
+              return responder.forfeit({});
+            }
+
+            const auto& other_profile = other_participant->profile();
+            for (const auto& other_route : p.itinerary)
+            {
+              for (const auto& item : itinerary)
+              {
+                if (item.route->map() != other_route->map())
+                  continue;
+
+                if (rmf_traffic::DetectConflict::between(
+                  profile,
+                  item.route->trajectory(),
+                  other_profile,
+                  other_route->trajectory()))
+                {
+                  rmf_traffic::schedule::Itinerary alternative;
+                  alternative.reserve(itinerary.size());
+                  for (const auto& item : itinerary)
+                    alternative.emplace_back(item.route);
+
+                  return responder.reject({std::move(alternative)});
+                }
+              }
+            }
+          }
+
+          std::vector<rmf_traffic::Route> submission;
+          submission.reserve(itinerary.size());
+          for (const auto& item : itinerary)
+            submission.push_back(*item.route);
+
+          return responder.submit(std::move(submission));
+        });
     }, async_mutex);
 }
 
@@ -97,7 +172,7 @@ bool FleetAdapterNode::ignore_fleet(const std::string& fleet_name) const
 FleetAdapterNode::FleetAdapterNode()
 : rclcpp::Node("fleet_adapter"),
   _fleet_name(get_fleet_name_parameter(*this)),
-  _traits(get_traits_or_default(*this, 0.7, 0.3, 0.5, 1.5, 0.6))
+  _traits(get_traits_or_default(*this, 0.7, 0.3, 0.5, 1.5, 0.5, 1.5))
 {
   _fleet_state_subscription =
     create_subscription<FleetState>(

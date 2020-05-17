@@ -23,11 +23,13 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-ScheduleManager::ScheduleManager(rclcpp::Node& node,
+ScheduleManager::ScheduleManager(
+  rclcpp::Node& node,
   rmf_traffic::schedule::Participant participant,
   rmf_traffic_ros2::schedule::Negotiation* negotiation)
 : _node(&node),
-  _participant(std::move(participant))
+  _participant(std::move(participant)),
+  _negotiator(nullptr)
 {
   if (negotiation)
   {
@@ -76,7 +78,7 @@ void ScheduleManager::push_delay(
 //==============================================================================
 void ScheduleManager::set_negotiator(
   std::function<void(
-    rmf_traffic::schedule::Negotiation::ConstTablePtr,
+    const rmf_traffic::schedule::Negotiation::Table::ViewerPtr&,
     const Negotiator::Responder&,
     const bool*)> negotiation_callback)
 {
@@ -105,14 +107,14 @@ ScheduleManager::description() const
 
 //==============================================================================
 void ScheduleManager::Negotiator::respond(
-  std::shared_ptr<const rmf_traffic::schedule::Negotiation::Table> table,
+  const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
   const Responder& responder,
   const bool* interrupt_flag)
 {
   if (!callback)
     return;
 
-  callback(std::move(table), responder, interrupt_flag);
+  callback(table, responder, interrupt_flag);
 }
 
 //==============================================================================

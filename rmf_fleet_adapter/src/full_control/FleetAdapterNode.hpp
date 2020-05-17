@@ -98,7 +98,7 @@ public:
     void resume();
 
     void respond(
-      rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+      const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
       const rmf_traffic::schedule::Negotiator::Responder& responder,
       const bool* interrupt_flag);
 
@@ -156,7 +156,7 @@ public:
       rmf_traffic_ros2::schedule::WriterPtr writer_)
     : mirror(std::move(mirror_)),
       writer(std::move(writer_)),
-      negotiation(node_, mirror.viewer()),
+      negotiation(node_, mirror.snapshot_handle()),
       graph_info(std::move(graph_info_)),
       traits(std::move(traits_)),
       planner(

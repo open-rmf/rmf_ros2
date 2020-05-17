@@ -150,7 +150,7 @@ public:
   }
 
   void respond(
-    rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+    const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
     const Responder& responder,
     const bool* /*interrupt_flag*/) final
   {
@@ -159,7 +159,7 @@ public:
     const auto view = table->query(rmf_traffic::schedule::make_query(
           {route.map()},
           trajectory.start_time(),
-          trajectory.finish_time()).spacetime());
+          trajectory.finish_time()).spacetime(), {});
     const auto& profile = _context->schedule.description().profile();
 
     for (const auto& v : view)
@@ -170,7 +170,9 @@ public:
           v.description.profile(),
           v.route.trajectory()))
       {
-        responder.reject();
+        rmf_traffic::schedule::Itinerary alternative;
+        alternative.push_back(std::make_shared<rmf_traffic::Route>(route));
+        responder.reject({std::move(alternative)});
         return;
       }
     }

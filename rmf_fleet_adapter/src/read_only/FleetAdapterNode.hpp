@@ -31,6 +31,8 @@
 
 #include <rmf_utils/optional.hpp>
 
+#include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
+
 #include "../rmf_fleet_adapter/ScheduleManager.hpp"
 
 namespace rmf_fleet_adapter {
@@ -61,6 +63,8 @@ private:
   rclcpp::Subscription<FleetState>::SharedPtr _fleet_state_subscription;
 
   rmf_traffic_ros2::schedule::WriterPtr _writer;
+  rmf_utils::optional<rmf_traffic_ros2::schedule::MirrorManager> _mirror;
+  rmf_utils::optional<rmf_traffic_ros2::schedule::Negotiation> _negotiation;
 
   void fleet_state_update(FleetState::UniquePtr new_state);
 

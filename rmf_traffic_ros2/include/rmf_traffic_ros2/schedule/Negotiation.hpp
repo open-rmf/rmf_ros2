@@ -22,7 +22,7 @@
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
-#include <rmf_traffic/schedule/Viewer.hpp>
+#include <rmf_traffic/schedule/Snapshot.hpp>
 
 #include <rmf_utils/impl_ptr.hpp>
 
@@ -38,7 +38,7 @@ public:
   /// Constructor
   Negotiation(
     rclcpp::Node& node,
-    const rmf_traffic::schedule::Viewer& viewer);
+    std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer);
 
   /// Register a negotiator with this Negotiation manager.
   ///

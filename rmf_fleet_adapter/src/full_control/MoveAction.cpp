@@ -21,6 +21,8 @@
 #include <rmf_traffic_ros2/Trajectory.hpp>
 
 #include <rmf_traffic/DetectConflict.hpp>
+#include <rmf_traffic/agv/Negotiator.hpp>
+#include <rmf_traffic/agv/debug/debug_Negotiator.hpp>
 
 #include <rmf_utils/math.hpp>
 
@@ -103,14 +105,22 @@ public:
     // Do nothing
   }
 
-  std::vector<rmf_traffic::agv::Plan> find_plan(
-    const std::chrono::nanoseconds start_delay)
+  std::vector<rmf_traffic::agv::Plan> find_plan()
   {
-    return find_plan(start_delay, _validator);
+    return find_plan(
+      rmf_traffic_ros2::convert(_node->get_clock()->now()),
+      _validator);
   }
 
   std::vector<rmf_traffic::agv::Plan> find_plan(
-    const std::chrono::nanoseconds start_delay,
+    const rmf_utils::clone_ptr<rmf_traffic::agv::RouteValidator> validator)
+  {
+    return find_plan(
+      rmf_traffic_ros2::convert(_node->get_clock()->now()), validator);
+  }
+
+  std::vector<rmf_traffic::agv::Plan> find_plan(
+    const rmf_traffic::Time start_time,
     const rmf_utils::clone_ptr<rmf_traffic::agv::RouteValidator> validator)
   {
     _emergency_active = false;
@@ -121,8 +131,6 @@ public:
 
     Eigen::Vector3d pose =
     {_context->location.x, _context->location.y, _context->location.yaw};
-    const auto start_time =
-      rmf_traffic_ros2::convert(_node->get_clock()->now()) + start_delay;
 
     // TODO: further parameterize waypoint and lane merging distance
     const auto plan_starts =
@@ -147,17 +155,16 @@ public:
     bool main_plan_failed = false;
     bool fallback_plan_solved = false;
     std::condition_variable plan_solved_cv;
-    rmf_utils::optional<rmf_traffic::agv::Plan> main_plan;
+    rmf_utils::optional<rmf_traffic::agv::Planner::Result> main_plan;
     std::thread main_plan_thread = std::thread(
       [&]()
       {
-        main_plan =
-        planner.plan(
+        main_plan = planner.plan(
           plan_starts,
           rmf_traffic::agv::Plan::Goal(_goal_wp_index),
           _planner_options);
 
-        if (main_plan)
+        if (*main_plan)
         {
           main_plan_solved = true;
           plan_solved_cv.notify_all();
@@ -168,32 +175,9 @@ public:
         }
       });
 
-    std::vector<std::thread> fallback_plan_threads;
-    std::vector<rmf_utils::optional<rmf_traffic::agv::Plan>> fallback_plans;
-    std::mutex fallback_plan_mutex;
-    for (const std::size_t goal_wp : _fallback_wps)
-    {
-      fallback_plan_threads.emplace_back(
-        std::thread([&, goal_wp]()
-        {
-          auto fallback_plan =
-          planner.plan(
-            plan_starts,
-            rmf_traffic::agv::Plan::Goal(goal_wp),
-            _planner_options);
-
-          std::unique_lock<std::mutex> lock(fallback_plan_mutex);
-          if (fallback_plan)
-          {
-            fallback_plan_solved = true;
-            plan_solved_cv.notify_all();
-          }
-          fallback_plans.emplace_back(std::move(fallback_plan));
-        }));
-    }
-
+    using namespace std::chrono_literals;
     const auto giveup_time =
-      std::chrono::steady_clock::now() + _node->get_plan_time();
+      std::chrono::steady_clock::now() + 10s;
 
     const auto done_searching = [&]() -> bool
       {
@@ -213,22 +197,33 @@ public:
     }
 
     interrupt_flag = true;
-    main_plan_thread.join();
-    for (auto& fallback_thread : fallback_plan_threads)
-      fallback_thread.join();
 
-    if (main_plan)
+    main_plan_thread.join();
+
+    if (main_plan->success())
     {
-      plans.emplace_back(std::move(*std::move(main_plan)));
+      plans.emplace_back(**std::move(main_plan));
       return plans;
     }
 
-    return use_fallback(std::move(fallback_plans));
+    if (validator == nullptr)
+    {
+      interrupt_flag = false;
+      main_plan->resume();
+
+      if (main_plan->success())
+      {
+        plans.emplace_back(**std::move(main_plan));
+        return plans;
+      }
+    }
+
+    return {};
   }
 
-  void find_and_execute_plan(const std::chrono::nanoseconds start_delay)
+  void find_and_execute_plan()
   {
-    auto plans = find_plan(start_delay);
+    auto plans = find_plan();
     if (!plans.empty())
       return execute_plan(std::move(plans));
 
@@ -236,7 +231,8 @@ public:
       _node->get_logger(),
       "Looking for a plan to open a schedule conflict for ["
       + _context->robot_name() + "]");
-    plans = find_plan(start_delay, nullptr);
+
+    plans = find_plan(nullptr);
     if (plans.empty())
     {
       const auto it = _node->get_waypoint_names().find(_goal_wp_index);
@@ -256,15 +252,15 @@ public:
   }
 
   void respond(
-    rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+    const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
     const Responder& responder,
-    const bool* interrupt_flag) final
+    const bool* /*interrupt_flag*/) final
   {
     if (_event_executor.do_not_negotiate())
     {
       const auto& itinerary = _context->schedule.participant().itinerary();
 
-      const auto proposal = table->proposal();
+      const auto proposal = table->base_proposals();
       const auto& profile = _context->schedule.description().profile();
       for (const auto& p : proposal)
       {
@@ -277,7 +273,7 @@ public:
           // future, we should have a way to wait until the participant
           // information is available.
           assert(false);
-          return responder.reject();
+          return responder.reject({});
         }
 
         const auto& other_profile = other_participant->profile();
@@ -295,7 +291,12 @@ public:
                 other_profile,
                 other_route->trajectory()))
             {
-              return responder.reject();
+              rmf_traffic::schedule::Itinerary alternative;
+              alternative.reserve(itinerary.size());
+              for (const auto& item : itinerary)
+                alternative.emplace_back(item.route);
+
+              return responder.reject({std::move(alternative)});
             }
           }
         }
@@ -309,36 +310,87 @@ public:
       return;
     }
 
-    // TODO(MXG): Do something with the interrupt flag
-    std::vector<rmf_traffic::agv::Plan> plans =
-      find_plan(
-      std::chrono::seconds(0),
-      rmf_utils::make_clone<rmf_traffic::agv::NegotiatingRouteValidator>(
-        *table, _context->schedule.description().profile()));
-
-    if (plans.empty())
+    rmf_utils::optional<rmf_traffic::Time> earliest_time;
+    for (const auto& proposed : table->base_proposals())
     {
-      responder.reject();
-      return;
+      if (proposed.itinerary.empty())
+        continue;
+
+      const auto& r = proposed.itinerary.front();
+      if (!r || r->trajectory().size() == 0)
+        continue;
+
+      const auto* t = r->trajectory().start_time();
+      if (!t)
+        continue;
+
+      if (!earliest_time || *t < *earliest_time)
+        earliest_time = *t;
     }
 
-    auto itinerary = collect_routes(plans);
-    std::weak_ptr<void> weak_handle = _handle;
-    responder.submit(
-      std::move(itinerary),
-      [this, table, plans = std::move(plans),
-      weak_handle = std::move(weak_handle)]()
-      -> rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion>
-      {
-        auto handle = weak_handle.lock();
-        if (!handle)
-        {
-          return rmf_utils::nullopt;
-        }
+    const auto start_time = earliest_time?
+          *earliest_time : rmf_traffic_ros2::convert(_node->get_clock()->now());
 
-        execute_plan(std::move(plans));
-        return _context->schedule.participant().version();
-      });
+    std::weak_ptr<void> weak_handle = _handle;
+    rmf_traffic::agv::SimpleNegotiator::Options options(
+          [this, weak_handle = std::move(weak_handle)](
+          rmf_traffic::agv::Plan approved_plan)
+          -> rmf_traffic::schedule::Negotiator::Responder::UpdateVersion
+    {
+      auto handle = weak_handle.lock();
+      if (!handle)
+        return rmf_utils::nullopt;
+
+      this->execute_plan({std::move(approved_plan)});
+      return _context->schedule.participant().version();
+    });
+
+    const auto& planner = _node->get_planner();
+    Eigen::Vector3d pose =
+      {_context->location.x, _context->location.y, _context->location.yaw};
+
+    const auto plan_starts =
+      rmf_traffic::agv::compute_plan_starts(
+      planner.get_configuration().graph(), pose, start_time, 0.1, 1.0, 1e-8);
+
+    rmf_traffic::agv::SimpleNegotiator negotiator(
+          plan_starts,
+          rmf_traffic::agv::Plan::Goal(_goal_wp_index),
+          planner.get_configuration(),
+          options);
+
+    bool interrupt_flag = false;
+    auto future = std::async(
+          std::launch::async,
+          [&]()
+    {
+      try {
+        negotiator.respond(table, responder, &interrupt_flag);
+      }
+      catch(const std::exception& e)
+      {
+        std::cout << " !!!!!!!!!!!!!!!!!! EXCEPTION WHILE TRYING TO NEGOTIATE: "
+                  << e.what() << std::endl;
+
+        responder.forfeit({});
+      }
+    });
+
+    using namespace std::chrono_literals;
+    // We allow for more time based on how many negotiation attempts have been
+    // made.
+    auto wait_duration = 2s + table->sequence().back().version * 10s;
+    if (table->sequence().size() > 2)
+    {
+      const auto parent_attempts =
+          table->sequence()[table->sequence().size()-2].version - 1;
+      wait_duration += parent_attempts * 10s;
+    }
+
+    if (future.wait_for(wait_duration) != std::future_status::ready)
+      interrupt_flag = true;
+
+    future.wait();
   }
 
   std::vector<rmf_traffic::agv::Plan> use_fallback(
@@ -388,7 +440,7 @@ public:
           std::unique_lock<std::mutex> lock(resume_plan_mutex);
           if (resume_plan)
             have_resume_plan = true;
-          resume_plans.emplace_back(std::move(resume_plan));
+          resume_plans.emplace_back(*std::move(resume_plan));
           resume_plan_cv.notify_all();
         }));
     }
@@ -427,44 +479,6 @@ public:
     return plans;
   }
 
-  std::vector<rmf_traffic::Route> collect_routes(
-    std::vector<rmf_traffic::agv::Plan> plans,
-    std::chrono::nanoseconds delay = std::chrono::seconds(0)) const
-  {
-    std::vector<rmf_traffic::Route> routes;
-    bool first_trajectory = true;
-    for (const auto& plan : plans)
-    {
-      for (auto r : plan.get_itinerary())
-      {
-        if (first_trajectory && r.trajectory().size() > 0)
-        {
-          first_trajectory = false;
-          const auto now = rmf_traffic_ros2::convert(_node->now());
-          assert(r.trajectory().start_time());
-          if (now < *r.trajectory().start_time())
-          {
-            const auto& s = r.trajectory().front();
-            r.trajectory().insert(
-              now,
-              s.position(),
-              Eigen::Vector3d::Zero());
-          }
-        }
-
-        // If the trajectory has only one point then the robot doesn't need to
-        // go anywhere.
-        if (r.trajectory().size() < 2)
-          continue;
-
-        r.trajectory().begin()->adjust_times(delay);
-        routes.emplace_back(std::move(r));
-      }
-    }
-
-    return routes;
-  }
-
   void execute_plan(std::vector<rmf_traffic::agv::Plan> plans)
   {
     assert(!plans.empty());
@@ -477,8 +491,6 @@ public:
     for (const auto& plan : plans)
       for (const auto& wp : plan.get_waypoints())
         _remaining_waypoints.emplace_back(wp);
-
-
 
     return send_next_command(false);
   }
@@ -502,8 +514,8 @@ public:
     _command = rmf_fleet_msgs::msg::PathRequest();
     _command->fleet_name = _node->get_fleet_name();
     _command->robot_name = _context->robot_name();
-    _command->task_id = task_id();
     ++_command_id;
+    _command->task_id = task_id();
 
     const auto& graph = _node->get_graph();
 
@@ -570,8 +582,7 @@ public:
 
     const std::string& map_name =
       _node->get_graph().get_waypoint(0).get_map_name();
-    const auto trajectory = make_trajectory(
-      _issued_waypoints.front().time(),
+    const auto trajectory = make_timed_trajectory(
       _command->path,
       _node->get_fields().traits);
     _context->schedule.push_routes({{map_name, trajectory}});
@@ -624,7 +635,13 @@ public:
 
     void receive(const RobotState& msg) final
     {
-      assert(_parent->_command || _parent->_retry_time);
+      ++_report_status_count;
+      if (_report_status_count % 1000 == 0)
+      {
+        _parent->_task->report_status();
+      }
+
+      assert(_parent->_command);
 
       if (_parent->handle_docking(msg))
         return;
@@ -639,13 +656,11 @@ public:
     }
 
     MoveAction* _parent;
+    std::size_t _report_status_count = 0;
   };
 
   bool verify_task_id(const RobotState& msg)
   {
-    if (!_command)
-      return false;
-
     if (msg.task_id != _command->task_id)
     {
       const auto now = _node->get_clock()->now();
@@ -682,7 +697,7 @@ public:
       if (_emergency_active)
         find_and_execute_emergency_plan();
       else
-        find_and_execute_plan(std::chrono::seconds(0));
+        find_and_execute_plan();
 
       return false;
     }
@@ -692,9 +707,6 @@ public:
 
   void handle_event(const RobotState& msg)
   {
-    if (!_command)
-      return;
-
     if (_issued_waypoints.empty())
       return;
 
@@ -772,9 +784,6 @@ public:
 
   void handle_delay(const RobotState& msg)
   {
-    if (!_command)
-      return;
-
     bool s;
     auto trajectory_estimate =
       make_trajectory(msg, _node->get_fields().traits, s);
@@ -783,7 +792,7 @@ public:
 
     const auto total_delay = new_finish_estimate - _original_finish_estimate;
     if (!_event_executor.do_not_negotiate()
-      && std::chrono::seconds(10) < total_delay)
+      && std::chrono::seconds(20) < total_delay)
     {
       RCLCPP_INFO(
         _node->get_logger(),
@@ -792,7 +801,7 @@ public:
       if (_emergency_active)
         find_and_execute_emergency_plan();
       else
-        find_and_execute_plan(std::chrono::seconds(0));
+        find_and_execute_plan();
       return;
     }
 
@@ -1225,7 +1234,7 @@ public:
   void execute() final
   {
     _context->insert_listener(&_state_listener);
-    find_and_execute_plan(std::chrono::seconds(0));
+    find_and_execute_plan();
   }
 
   std::vector<rmf_traffic::agv::Plan> find_emergency_plan()
@@ -1284,7 +1293,7 @@ public:
           if (emergency_plan)
             have_plan = true;
 
-          candidate_plans.emplace_back(std::move(emergency_plan));
+          candidate_plans.emplace_back(*std::move(emergency_plan));
           plans_cv.notify_all();
         }));
     }
@@ -1366,7 +1375,7 @@ public:
     RCLCPP_INFO(
       _node->get_logger(),
       "Resuming normal operations for [" + _context->robot_name() + "]");
-    find_and_execute_plan(std::chrono::seconds(0));
+    find_and_execute_plan();
   }
 
   Status get_status() const final
@@ -1375,8 +1384,7 @@ public:
 
     const auto& waypoint_names = _node->get_waypoint_names();
 
-    auto name_of =
-      [&](std::size_t wp_index) -> std::string
+    auto name_of = [&](std::size_t wp_index) -> std::string
       {
         const auto wp_it = waypoint_names.find(wp_index);
         return wp_it == waypoint_names.end() ?
@@ -1400,6 +1408,8 @@ public:
     {
       status += _event_executor.status;
     }
+
+    status += " - Subtask ID: [" + task_id() + "]";
 
     rmf_utils::optional<rmf_traffic::agv::Plan::Waypoint> final_wp;
     if (!_remaining_waypoints.empty())
@@ -1437,8 +1447,6 @@ private:
   rmf_utils::optional<Eigen::Vector3d> _next_stop;
   rmf_utils::optional<rmf_fleet_msgs::msg::PathRequest> _command;
   std::size_t _command_id = 0;
-
-  rmf_utils::optional<rclcpp::Time> _retry_time = rmf_utils::nullopt;
 
   bool _waiting_on_docking = false;
   std::string _current_dock_name;

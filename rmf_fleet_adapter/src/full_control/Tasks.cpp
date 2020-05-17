@@ -104,7 +104,7 @@ public:
 //  }
 
   void respond(
-    rmf_traffic::schedule::Negotiation::ConstTablePtr table,
+    const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
     const Responder& responder,
     const bool* interrupt_flag) final
   {
@@ -118,7 +118,7 @@ public:
       return;
     }
 
-    _action->respond(std::move(table), responder, interrupt_flag);
+    _action->respond(table, responder, interrupt_flag);
   }
 
   void report_status()
