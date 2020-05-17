@@ -178,7 +178,18 @@ void FleetAdapterNode::RobotContext::add_task(std::unique_ptr<Task> new_task)
     std::cout << "appending task" << std::endl;
     // A task is currently active, so add this task to the queue. We're going to
     // do first-come first-serve for task requests for now.
-    _task_queue.emplace_back(std::move(_task));
+    _task_queue.emplace_back(std::move(new_task));
+  }
+}
+
+//==============================================================================
+// BH: Helper function to determine if the robot has a task right now
+bool FleetAdapterNode::RobotContext::has_task() 
+{
+  if (!_task) {
+    return false;
+  } else {
+    return true;
   }
 }
 
@@ -470,25 +481,40 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
     return;
   }
 
-  if (_have_delivery_request)
-    return;
+  // BH: Implementing Multiple Simultaneoud deliveries
+  // Assuming that the robots are ordered in sequence of assignment priority in
+  // _contexts
 
-  // TODO(MXG): Support multiple simultaneous deliveries
-  auto context = _contexts.begin()->second.get();
-
-  RCLCPP_INFO(
-    get_logger(),
-    "Assigning delivery task to [" + context->robot_name() + "]");
-
-  std::cout << "Robot name: [" << context->robot_name() << "]  | ptr: ["
-            << context << "]" << std::endl;
-
-  auto task = make_delivery(this, context, *msg);
-  if (task)
+  // Selecting Robot Context
+  for (auto it = _contexts.begin(); it != _contexts.end(); it++) 
   {
-    _have_delivery_request = true;
-    context->add_task(std::move(task));
+    auto context = it->second.get();
+    if (!context->has_task()) 
+    {
+      // Robot is free! assign task
+      RCLCPP_INFO(get_logger(),
+                  "Assigning delivery task to [" + context->robot_name() + "]");
+      auto task = make_delivery(this, context, *msg);
+      if (task) 
+      {
+        context->add_task(std::move(task));
+        return;
+      } else 
+      {
+        RCLCPP_ERROR(get_logger(),
+                     "Task creation went wrong! This should not happen.");
+        return;
+      }
+    } else 
+    {
+      // This robot is not free, continue search..
+      continue;
+    }
   }
+
+  // If Control reaches here, means no robots are free
+  RCLCPP_INFO(get_logger(),
+              "No robots are free, resend delivery request at a later time.");
 }
 
 //==============================================================================

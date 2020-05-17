@@ -90,6 +90,8 @@ public:
     void next_task();
 
     void add_task(std::unique_ptr<Task> new_task);
+   
+    bool has_task();
 
     void discard_task(Task* discarded_task);
 
@@ -274,8 +276,6 @@ private:
   bool _in_emergency_mode = false;
 
   bool _perform_deliveries = false;
-
-  bool _have_delivery_request = false;
 
   using Context =
     std::unordered_map<std::string, std::unique_ptr<RobotContext>>;

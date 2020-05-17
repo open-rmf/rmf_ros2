@@ -69,6 +69,18 @@ to `rmf_core`. These messages express the current mode of the door as `CLOSED`, 
  * `rmf_door_msgs/DoorRequest` messages are sent from `rmf_core` to doors when
 they need to open or close for robot operations.
 
+## Installation
+```
+mkdir ws_rmf/src -p
+cd ws_rmf/src/
+git clone https://github.com/osrf/rmf_core.git
+cd ../
+source /opt/ros/eloquent/setup.bash
+rosdep update
+rosdep install --from-paths src --ignore-src -y -r
+colcon build
+```
+
 ## Demonstrations
 
 [This repository](https://github.com/osrf/rmf_demos) holds a number of demonstrations and examples of working with `rmf_core` and the other packages in the RMF ecosystem.
