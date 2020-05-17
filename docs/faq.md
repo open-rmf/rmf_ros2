@@ -116,3 +116,56 @@ soon.
 Currently rmf_core requires ROS2 eloquent for certain launch file features. In
 general, we are likely to be using the latest release of ROS2 while doing
 research and development on RoMi-H.
+
+#### How does `rmf_traffic` avoid mobile robot traffic conflicts?
+
+When we are done implementing the traffic management solution, we will be doing a more
+extensive write-up on the conflict avoidance and negotiation methods than what can reasonably
+fit in an FAQ, but here is a quick outline of the methodology. There are two levels to
+traffic deconfliction: (1) prevention, and (2) resolution.
+
+1. **Prevention.** Whenever possible, it would be good to prevent traffic conflicts from
+happening in the first place. To facilitate this, we have implemented a platform agnostic
+[Traffic Schedule Database](https://github.com/osrf/rmf_core/blob/8cad142e5a5f14133e4e865beeac98fd46edb0e7/rmf_traffic/include/rmf_traffic/schedule/Database.hpp). The traffic schedule is a living
+database whose contents will change over time to reflect delays, cancelations, or route changes.
+All fleet managers that are integrated into RoMi-H must report the expected itineraries of their
+vehicles to the traffic schedule. With the information available on the schedule, compliant fleet
+managers can plan routes for their vehicles that avoid conflicts with any other vehicles (no matter
+which fleet they belong to). `rmf_traffic` provides a [Planner](https://github.com/osrf/rmf_core/blob/8cad142e5a5f14133e4e865beeac98fd46edb0e7/rmf_traffic/include/rmf_traffic/agv/Planner.hpp) class to
+help facilitate this for vehicles that behave like standard AGVs. In the future we intend to provide
+a similar utility for AMRs.
+
+2. **Resolution.** It is not always possible to perfectly prevent traffic conflicts. Mobile robots
+may experience delays because of unanticipated obstacles in their environment, or the predicted
+schedule may be flawed for any number of reasons. In cases where a conflict does arise, `rmf_traffic`
+has a [Negotiation](https://github.com/osrf/rmf_core/blob/8cad142e5a5f14133e4e865beeac98fd46edb0e7/rmf_traffic/include/rmf_traffic/schedule/Negotiation.hpp) scheme. When the Traffic Schedule Database detects an
+upcoming conflict between two or more schedule participants, it will send a conflict notice out to
+the relevant fleet managers, and a negotiation between the fleet managers will begin. Each fleet manager
+will submit its preferred itineraries, and each will respond with itineraries that can accommodate the
+others. A third-party judge (deployed by the system integrator) will choose the set of proposals that
+is considered preferable and notify the fleet managers about which itineraries they should follow.
+
+#### Why is this traffic management system so complicated?
+
+RoMi-H has a number of system design constraints that create unique challenges for traffic management.
+The core goal of RoMi-H is to facilitate system integration for heterogeneous mobile robot fleets that
+may be provided by different vendors and may have different technical capabilities.
+
+1. Vendors tend to want to keep their computing systems independent from other vendors. Since vendors
+are often responsible for ensuring uptime and reliability on their computing infrastructure, they may
+view it as an unacceptable liability to share computing resources with another vendor. This means that
+the traffic management system must be able to function while being distributed across different machines
+on a network.
+
+2. Different robot platforms may have different capabilities. Many valuable AGV platforms that are
+currently deployed are not able to change their itineraries dynamically. Some AGV platforms can
+change course when instructed to, as long as they stick to a predefined navigation graph. Some AMR
+platforms can dynamically navigate themselves around unanticipated obstacles in their environment.
+Since RoMi-H is meant to be an enabling technology, it is important that we design a system that can
+maximize the utility of all these different types of systems without placing detrimental constraints
+on any of them.
+
+These considerations led to the current design of distributed conflict prevention and distributed
+schedule negotiation. There is plenty of space within the design to create simpler and more efficient
+subsets for categories of mobile robots that fit certain sets of requirements, but these optimizations
+can be added later, building on top of the existing completely generalized framework.

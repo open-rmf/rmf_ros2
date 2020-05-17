@@ -13,6 +13,9 @@
   <depend>rmf_traffic_msgs</depend>
   <depend>rmf_fleet_msgs</depend>
 
+  <build_depend>yaml-cpp</build_depend>
+  <build_depend>eigen</build_depend>
+
   <export>
     <build_type>ament_cmake</build_type>
   </export>
