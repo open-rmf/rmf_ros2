@@ -129,13 +129,14 @@ public:
 
     const auto& planner = _node->get_planner();
 
-    Eigen::Vector3d pose =
-    {_context->location.x, _context->location.y, _context->location.yaw};
+    const auto& p = _context->location;
+    const Eigen::Vector3d pose = {p.x, p.y, p.yaw};
+    const std::string& map_name = _context->location.level_name;
 
     // TODO: further parameterize waypoint and lane merging distance
     const auto plan_starts =
       rmf_traffic::agv::compute_plan_starts(
-      planner.get_configuration().graph(), pose, start_time, 0.1, 1.0,
+      planner.get_configuration().graph(), map_name, pose, start_time, 0.1, 1.0,
       1e-8);
 
     if (plan_starts.empty())
@@ -346,12 +347,15 @@ public:
     });
 
     const auto& planner = _node->get_planner();
-    Eigen::Vector3d pose =
-      {_context->location.x, _context->location.y, _context->location.yaw};
+
+    const auto& p = _context->location;
+    const std::string& map_name = _context->location.level_name;
+    const Eigen::Vector3d pose = {p.x, p.y, p.yaw};
 
     const auto plan_starts =
       rmf_traffic::agv::compute_plan_starts(
-      planner.get_configuration().graph(), pose, start_time, 0.1, 1.0, 1e-8);
+      planner.get_configuration().graph(), map_name, pose,
+          start_time, 0.1, 1.0, 1e-8);
 
     rmf_traffic::agv::SimpleNegotiator negotiator(
           plan_starts,
@@ -1249,8 +1253,10 @@ public:
 
     const auto& planner = _node->get_planner();
 
-    Eigen::Vector3d pose =
-    {_context->location.x, _context->location.y, _context->location.yaw};
+    const auto& p = _context->location;
+    const Eigen::Vector3d pose = {p.x, p.y, p.yaw};
+    const std::string& map_name = _context->location.level_name;
+
     const auto start_time =
       rmf_traffic_ros2::convert(_node->get_clock()->now()) +
       std::chrono::nanoseconds(0);
@@ -1258,8 +1264,8 @@ public:
     // TODO: further parameterize waypoint and lane merging distance
     const auto plan_starts =
       rmf_traffic::agv::compute_plan_starts(
-      planner.get_configuration().graph(), pose, start_time, 0.1, 1.0,
-      1e-8);
+      planner.get_configuration().graph(), map_name, pose,
+      start_time, 0.1, 1.0, 1e-8);
 
     if (plan_starts.empty())
     {
