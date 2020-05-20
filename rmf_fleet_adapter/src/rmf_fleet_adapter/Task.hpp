@@ -34,6 +34,8 @@ class Task : public rmf_traffic::schedule::Negotiator
 {
 public:
 
+  using StatusMsg = rmf_task_msgs::msg::TaskSummary;
+
   /// This class represents the active phase of a Task. It provides an
   /// observable that the Task can track to stay up-to-date on the status and to
   /// know when to begin the next phase.
@@ -49,10 +51,19 @@ public:
 
     /// Get a reference to an observable for the status of this ActivePhase.
     /// When this phase is complete, it will trigger on_completed()
-    virtual rxcpp::observable<rmf_task_msgs::msg::TaskSummary>& observe() = 0;
+    virtual rxcpp::observable<StatusMsg>& observe() = 0;
 
     /// Estimate how much time remains in this phase.
     virtual rmf_traffic::Duration estimate_remaining_time() const = 0;
+
+    /// Activate or deactivate the emergency alarm behavior.
+    virtual void emergency_alarm(bool on) = 0;
+
+    /// Tell this phase to cancel
+    virtual void cancel() = 0;
+
+    /// Human-readable description of the phase
+    virtual const std::string& description() const = 0;
 
     // Virtual destructor
     virtual ~ActivePhase() = default;
@@ -66,23 +77,57 @@ public:
     virtual std::shared_ptr<ActivePhase> begin() = 0;
 
     /// Estimate how much time this phase will require.
-    virtual rmf_traffic::Duration estimate_phase_time() const = 0;
+    virtual rmf_traffic::Duration estimate_phase_duration() const = 0;
+
+    /// Human-readable description of the phase
+    virtual const std::string& description() const = 0;
 
     // Virtual destructor
     virtual ~PendingPhase() = default;
   };
 
+  using StatusCallback =
+    std::function<void(const StatusMsg&)>;
+
   /// Construct a Task
   Task(std::vector<std::unique_ptr<PendingPhase>> phases);
+
+  /// Get a reference to an observable for the status of this Task
+  rxcpp::observable<StatusMsg>& observe();
 
   /// Get the current phase of the task
   const std::shared_ptr<ActivePhase>& current_phase();
 
   /// const-qualified current_phase()
-  const std::shared_ptr<const ActivePhase>& current_phase() const;
+  std::shared_ptr<const ActivePhase> current_phase() const;
+
+  using PendingPhases = std::vector<std::unique_ptr<PendingPhase>>;
 
   /// Get the phases of the task that are pending
-  const std::vector<std::unique_ptr<PendingPhase>>& pending_phases() const;
+  const PendingPhases& pending_phases() const;
+
+  /// Cancel this task
+  void cancel();
+
+private:
+
+  rxcpp::observable<StatusMsg> _observable;
+  std::list<rxcpp::subscriber<StatusMsg>> _subscribers;
+
+  std::shared_ptr<ActivePhase> _active_phase;
+  rxcpp::subscription _active_phase_subscription;
+
+  // NOTE(MXG): Pending phases are stored in reverse order so we can simply
+  // pop_back() to snatch the next phase.
+  std::vector<std::unique_ptr<PendingPhase>> _pending_phases;
+
+  StatusCallback _status_callback;
+
+  rmf_utils::optional<builtin_interfaces::msg::Time> _initial_time;
+
+  void _start_next_phase();
+
+  StatusMsg _process_summary(const StatusMsg& input_msg);
 };
 
 }
