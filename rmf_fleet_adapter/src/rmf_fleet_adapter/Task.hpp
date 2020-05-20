@@ -58,7 +58,7 @@ public:
     virtual ~ActivePhase() = default;
   };
 
-  class PendingPhase : std::enable_shared_from_this<PendingPhase>
+  class PendingPhase
   {
   public:
 
