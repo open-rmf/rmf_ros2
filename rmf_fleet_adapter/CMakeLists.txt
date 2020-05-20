@@ -43,12 +43,17 @@ endforeach()
 
 # -----------------------------------------------------------------------------
 
+add_subdirectory(rmf_rxcpp)
+
+# -----------------------------------------------------------------------------
+
 add_library(rmf_fleet_adapter
   src/rmf_fleet_adapter/make_trajectory.cpp
   src/rmf_fleet_adapter/ParseGraph.cpp
   src/rmf_fleet_adapter/ParseArgs.cpp
   src/rmf_fleet_adapter/load_param.cpp
   src/rmf_fleet_adapter/ScheduleManager.cpp
+  src/rmf_fleet_adapter/Task.cpp
 )
 
 target_link_libraries(rmf_fleet_adapter
@@ -57,6 +62,9 @@ target_link_libraries(rmf_fleet_adapter
     yaml-cpp
     ${rmf_fleet_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
+  PRIVATE
+    rmf_rxcpp
+    ${rmf_task_msgs_LIBRARIES}
 )
 
 target_include_directories(rmf_fleet_adapter
@@ -66,6 +74,8 @@ target_include_directories(rmf_fleet_adapter
     ${rmf_traffic_ros2_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
+  PRIVATE
+    ${rmf_task_msgs_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------

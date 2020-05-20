@@ -19,32 +19,70 @@
 #define SRC__RMF_FLEET_ADAPTER__TASK_HPP
 
 #include <string>
+#include <memory>
+
+#include <rmf_traffic/schedule/Negotiator.hpp>
+
+#include <rmf_task_msgs/msg/task_summary.hpp>
+
+#include <rmf_rxcpp/RxJobs.hpp>
 
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-class Task
+class Task : public rmf_traffic::schedule::Negotiator
 {
 public:
 
+  /// This class represents the active phase of a Task. It provides an
+  /// observable that the Task can track to stay up-to-date on the status and to
+  /// know when to begin the next phase.
+  ///
+  /// The ActivePhase class must be a schedule Negotiator so that it can
+  /// negotiate its way out of conflicts with other schedule participants to
+  /// complete its work.
   class ActivePhase
+      : public std::enable_shared_from_this<ActivePhase>,
+        public rmf_traffic::schedule::Negotiator
   {
   public:
 
-    std::string current_status() const;
+    /// Get a reference to an observable for the status of this ActivePhase.
+    /// When this phase is complete, it will trigger on_completed()
+    virtual rxcpp::observable<rmf_task_msgs::msg::TaskSummary>& observe() = 0;
 
+    /// Estimate how much time remains in this phase.
+    virtual rmf_traffic::Duration estimate_remaining_time() const = 0;
 
-
+    // Virtual destructor
+    virtual ~ActivePhase() = default;
   };
 
-  class PendingPhase
+  class PendingPhase : std::enable_shared_from_this<PendingPhase>
   {
   public:
 
+    /// Begin this phase.
+    virtual std::shared_ptr<ActivePhase> begin() = 0;
 
+    /// Estimate how much time this phase will require.
+    virtual rmf_traffic::Duration estimate_phase_time() const = 0;
 
+    // Virtual destructor
+    virtual ~PendingPhase() = default;
   };
 
+  /// Construct a Task
+  Task(std::vector<std::unique_ptr<PendingPhase>> phases);
+
+  /// Get the current phase of the task
+  const std::shared_ptr<ActivePhase>& current_phase();
+
+  /// const-qualified current_phase()
+  const std::shared_ptr<const ActivePhase>& current_phase() const;
+
+  /// Get the phases of the task that are pending
+  const std::vector<std::unique_ptr<PendingPhase>>& pending_phases() const;
 };
 
 }
