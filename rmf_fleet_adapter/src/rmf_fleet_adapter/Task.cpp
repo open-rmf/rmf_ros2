@@ -99,7 +99,8 @@ void Task::_start_next_phase()
         {
           // We have received a status update from the phase. We will forward
           // this to whoever is subscribing to the Task.
-          this->_on_status_update(summary);
+          if (this->_on_status_update)
+            this->_on_status_update(summary);
         },
         [this]()
         {
