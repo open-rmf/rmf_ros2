@@ -30,7 +30,7 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-class Task : public rmf_traffic::schedule::Negotiator
+class Task
 {
 public:
 
@@ -43,9 +43,7 @@ public:
   /// The ActivePhase class must be a schedule Negotiator so that it can
   /// negotiate its way out of conflicts with other schedule participants to
   /// complete its work.
-  class ActivePhase
-      : public std::enable_shared_from_this<ActivePhase>,
-        public rmf_traffic::schedule::Negotiator
+  class ActivePhase : public std::enable_shared_from_this<ActivePhase>
   {
   public:
 
@@ -112,7 +110,8 @@ public:
 private:
 
   rxcpp::observable<StatusMsg> _observable;
-  std::list<rxcpp::subscriber<StatusMsg>> _subscribers;
+  std::function<void(const StatusMsg&)> _on_status_update;
+  std::function<void()> _on_task_completed;
 
   std::shared_ptr<ActivePhase> _active_phase;
   rxcpp::subscription _active_phase_subscription;

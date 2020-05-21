@@ -78,14 +78,6 @@ const std::string& DoorOpen::ActivePhase::description() const
 }
 
 //==============================================================================
-void DoorOpen::ActivePhase::respond(
-  const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table_viewer,
-  const rmf_traffic::schedule::Negotiator::Responder& responder, const bool* interrupt_flag)
-{
-  // TODO: implement
-}
-
-//==============================================================================
 DoorOpen::PendingPhase::PendingPhase(
   std::string  door_name,
   std::shared_ptr<rmf_rxcpp::Transport> transport,

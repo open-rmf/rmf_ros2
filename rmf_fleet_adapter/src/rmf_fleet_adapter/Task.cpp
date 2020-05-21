@@ -31,8 +31,9 @@ Task::Task(std::vector<std::unique_ptr<PendingPhase>> phases)
   _observable = rxcpp::observable<>::create<StatusMsg>(
         [this](rxcpp::subscriber<StatusMsg> s)
   {
-    _subscribers.push_back(s);
-  });
+    this->_on_status_update = [s](const StatusMsg& msg){ s.on_next(msg); };
+    this->_on_task_completed = [s](){ s.on_completed(); };
+  }).publish().ref_count();
 
   std::reverse(_pending_phases.begin(), _pending_phases.end());
   _start_next_phase();
@@ -82,8 +83,8 @@ void Task::_start_next_phase()
     _active_phase = nullptr;
     _active_phase_subscription.unsubscribe();
 
-    for (auto it = _subscribers.begin(); it != _subscribers.end(); ++it)
-      it->on_completed();
+    if (_on_task_completed)
+      _on_task_completed();
 
     return;
   }
@@ -98,19 +99,8 @@ void Task::_start_next_phase()
         {
           // We have received a status update from the phase. We will forward
           // this to whoever is subscribing to the Task.
-          for (auto it = _subscribers.begin(); it != _subscribers.end(); )
-          {
-            if (!it->is_subscribed())
-            {
-              // If this subscription is gone, then remove the subscriber from
-              // the list.
-              _subscribers.erase(it++);
-              continue;
-            }
-
-            it->on_next(summary);
-            ++it;
-          }
+          if (this->_on_status_update)
+            this->_on_status_update(summary);
         },
         [this]()
         {

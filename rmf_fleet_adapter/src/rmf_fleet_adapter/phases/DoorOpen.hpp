@@ -48,9 +48,6 @@ struct DoorOpen
 
     const std::string& description() const override;
 
-    void respond(const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table_viewer,
-      const Responder& responder, const bool* interrupt_flag) override;
-
   private:
 
     std::string _door_name;
