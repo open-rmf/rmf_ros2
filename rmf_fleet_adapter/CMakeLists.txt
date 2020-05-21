@@ -54,6 +54,7 @@ add_library(rmf_fleet_adapter
   src/rmf_fleet_adapter/load_param.cpp
   src/rmf_fleet_adapter/ScheduleManager.cpp
   src/rmf_fleet_adapter/Task.cpp
+  src/rmf_fleet_adapter/phases/DoorOpen.cpp
 )
 
 target_link_libraries(rmf_fleet_adapter
@@ -65,6 +66,7 @@ target_link_libraries(rmf_fleet_adapter
   PRIVATE
     rmf_rxcpp
     ${rmf_task_msgs_LIBRARIES}
+    ${rmf_door_msgs_LIBRARIES}
 )
 
 target_include_directories(rmf_fleet_adapter
@@ -76,6 +78,7 @@ target_include_directories(rmf_fleet_adapter
     ${rclcpp_INCLUDE_DIRS}
   PRIVATE
     ${rmf_task_msgs_INCLUDE_DIRS}
+    ${rmf_door_msgs_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------

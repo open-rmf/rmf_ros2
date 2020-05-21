@@ -57,8 +57,6 @@ TEST_CASE("run multiple jobs in parallel", "[Jobs]")
 
 struct AsyncCounterAction
 {
-  using Result = int;
-
   int counter = 0;
 
   template<typename Subscriber, typename Worker>
@@ -80,7 +78,7 @@ struct AsyncCounterAction
 TEST_CASE("async job", "[Jobs]")
 {
   auto action = std::make_shared<AsyncCounterAction>();
-  auto j = make_job(action);
+  auto j = make_job<int>(action);
   j.as_blocking().subscribe();
   REQUIRE(action->counter == 10);
 }
