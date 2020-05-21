@@ -313,7 +313,7 @@ struct MetaPlannerAction
     //vvvvvvvvvvvvvvvvvvvvv TODO: Make this parallel vvvvvvvvvvvvvvvvvvvvvvvvvvvvv
     std::cout << "Jobs: " << planner_actions.size() << std::endl;
 
-    auto meta_job = make_job_from_action_list(planner_actions);
+    auto meta_job = rmf_rxcpp::make_job_from_action_list(planner_actions);
     meta_job.subscribe(
           [this, s, estimate_leeway](
             const PlannerAction::Progress& progress)
@@ -421,7 +421,7 @@ int main()
 {
   const auto benchmark_start = std::chrono::steady_clock::now();
 
-  auto meta_planner_job = make_job(std::make_shared<MetaPlannerAction>());
+  auto meta_planner_job = rmf_rxcpp::make_job<MetaPlannerAction::Result>(std::make_shared<MetaPlannerAction>());
   meta_planner_job.as_blocking().subscribe([](const auto& itinerary)
   {
     std::cout <<"\nBest plan for B:" << std::endl;

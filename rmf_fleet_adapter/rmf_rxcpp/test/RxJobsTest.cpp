@@ -45,11 +45,11 @@ TEST_CASE("run multiple jobs in parallel", "[Jobs]")
     job1_success = job2_success;
     s.on_completed();
   });
-  auto job2 = make_job<int>([&job2_success](const auto& s) {
+  auto job2 = rmf_rxcpp::make_job<int>([&job2_success](const auto& s) {
     job2_success = true;
     s.on_completed();
   });
-  auto job3 = merge_jobs(job1, job2);
+  auto job3 = rmf_rxcpp::merge_jobs(job1, job2);
 
   job3.as_blocking().subscribe();
   REQUIRE(job1_success);
@@ -78,7 +78,7 @@ struct AsyncCounterAction
 TEST_CASE("async job", "[Jobs]")
 {
   auto action = std::make_shared<AsyncCounterAction>();
-  auto j = make_job<int>(action);
+  auto j = rmf_rxcpp::make_job<int>(action);
   j.as_blocking().subscribe();
   REQUIRE(action->counter == 10);
 }
@@ -86,7 +86,7 @@ TEST_CASE("async job", "[Jobs]")
 TEST_CASE("job completion handler is called", "[Jobs]")
 {
   bool called = false;
-  auto j = make_job<int>([](const auto& s)
+  auto j = rmf_rxcpp::make_job<int>([](const auto& s)
   {
     s.on_completed();
   });
@@ -99,9 +99,9 @@ TEST_CASE("job completion handler is called", "[Jobs]")
 
 TEST_CASE("nested job", "[Jobs]")
 {
-  auto job1 = make_job<std::string>([](const auto& s)
+  auto job1 = rmf_rxcpp::make_job<std::string>([](const auto& s)
   {
-    auto job2 = make_job<std::string>([](const auto& s)
+    auto job2 = rmf_rxcpp::make_job<std::string>([](const auto& s)
     {
       s.on_next("hello");
       s.on_completed();
@@ -122,7 +122,7 @@ TEST_CASE("nested job", "[Jobs]")
 TEST_CASE("cancelling job", "[Jobs]")
 {
   int counter = 0;
-  auto j = make_job<int>([&counter](const auto& s)
+  auto j = rmf_rxcpp::make_job<int>([&counter](const auto& s)
   {
     for (int i = 1; i <= 10; i++)
     {
@@ -162,7 +162,7 @@ TEST_CASE("make group jobs", "[Jobs]")
     std::make_shared<DummyAction>(),
     std::make_shared<DummyAction>()
   };
-  auto j = make_job_from_action_list(actions);
+  auto j = rmf_rxcpp::make_job_from_action_list(actions);
   j.as_blocking().subscribe();
   for (const auto& a : actions)
   {

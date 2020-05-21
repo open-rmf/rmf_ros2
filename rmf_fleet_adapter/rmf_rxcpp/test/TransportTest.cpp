@@ -50,7 +50,7 @@ TEST_CASE("publish subscribe loopback", "[Transport]")
     });
 
     bool received = false;
-    auto j = make_job<std_msgs::msg::String>([&obs, &received](const auto& s)
+    auto j = rmf_rxcpp::make_job<std_msgs::msg::String>([&obs, &received](const auto& s)
     {
       obs.subscribe([s, &received](const auto&)
       {
