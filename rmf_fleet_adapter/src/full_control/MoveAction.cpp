@@ -21,7 +21,7 @@
 #include <rmf_traffic_ros2/Trajectory.hpp>
 
 #include <rmf_traffic/DetectConflict.hpp>
-#include <rmf_traffic/agv/Negotiator.hpp>
+#include <rmf_traffic/agv/SimpleNegotiator.hpp>
 #include <rmf_traffic/agv/debug/debug_Negotiator.hpp>
 
 #include <rmf_utils/math.hpp>
