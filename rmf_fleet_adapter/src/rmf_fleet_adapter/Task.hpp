@@ -26,6 +26,7 @@
 #include <rmf_task_msgs/msg/task_summary.hpp>
 
 #include <rmf_rxcpp/RxJobs.hpp>
+#include <rmf_rxcpp/Publisher.hpp>
 
 namespace rmf_fleet_adapter {
 
@@ -49,7 +50,7 @@ public:
 
     /// Get a reference to an observable for the status of this ActivePhase.
     /// When this phase is complete, it will trigger on_completed()
-    virtual rxcpp::observable<StatusMsg>& observe() = 0;
+    virtual const rxcpp::observable<StatusMsg>& observe() const = 0;
 
     /// Estimate how much time remains in this phase.
     virtual rmf_traffic::Duration estimate_remaining_time() const = 0;
@@ -91,7 +92,7 @@ public:
   Task(std::vector<std::unique_ptr<PendingPhase>> phases);
 
   /// Get a reference to an observable for the status of this Task
-  rxcpp::observable<StatusMsg>& observe();
+  const rxcpp::observable<StatusMsg>& observe() const;
 
   /// Get the current phase of the task
   const std::shared_ptr<ActivePhase>& current_phase();
@@ -109,9 +110,7 @@ public:
 
 private:
 
-  rxcpp::observable<StatusMsg> _observable;
-  std::function<void(const StatusMsg&)> _on_status_update;
-  std::function<void()> _on_task_completed;
+  rmf_rxcpp::Publisher<StatusMsg> _status_publisher;
 
   std::shared_ptr<ActivePhase> _active_phase;
   rxcpp::subscription _active_phase_subscription;
@@ -119,8 +118,6 @@ private:
   // NOTE(MXG): Pending phases are stored in reverse order so we can simply
   // pop_back() to snatch the next phase.
   std::vector<std::unique_ptr<PendingPhase>> _pending_phases;
-
-  StatusCallback _status_callback;
 
   rmf_utils::optional<builtin_interfaces::msg::Time> _initial_time;
 

@@ -38,7 +38,7 @@ struct DoorOpen
       std::shared_ptr<rmf_rxcpp::Transport> transport,
       rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs);
 
-    rxcpp::observable<Task::StatusMsg>& observe() override;
+    const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 

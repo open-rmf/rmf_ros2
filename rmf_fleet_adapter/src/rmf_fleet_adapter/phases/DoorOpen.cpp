@@ -47,7 +47,7 @@ DoorOpen::ActivePhase::ActivePhase(
 }
 
 //==============================================================================
-rxcpp::observable<Task::StatusMsg>& DoorOpen::ActivePhase::observe()
+const rxcpp::observable<Task::StatusMsg>& DoorOpen::ActivePhase::observe() const
 {
   return _job;
 }
@@ -60,7 +60,7 @@ rmf_traffic::Duration DoorOpen::ActivePhase::estimate_remaining_time() const
 }
 
 //==============================================================================
-void DoorOpen::ActivePhase::emergency_alarm(bool on)
+void DoorOpen::ActivePhase::emergency_alarm(bool /*on*/)
 {
   // TODO: implement
 }

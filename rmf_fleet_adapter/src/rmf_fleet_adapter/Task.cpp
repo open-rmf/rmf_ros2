@@ -28,21 +28,14 @@ namespace rmf_fleet_adapter {
 Task::Task(std::vector<std::unique_ptr<PendingPhase>> phases)
   : _pending_phases(std::move(phases))
 {
-  _observable = rxcpp::observable<>::create<StatusMsg>(
-        [this](rxcpp::subscriber<StatusMsg> s)
-  {
-    this->_on_status_update = [s](const StatusMsg& msg){ s.on_next(msg); };
-    this->_on_task_completed = [s](){ s.on_completed(); };
-  }).publish().ref_count();
-
   std::reverse(_pending_phases.begin(), _pending_phases.end());
   _start_next_phase();
 }
 
 //==============================================================================
-auto Task::observe() -> rxcpp::observable<StatusMsg>&
+auto Task::observe() const -> const rxcpp::observable<StatusMsg>&
 {
-  return _observable;
+  return _status_publisher.observe();
 }
 
 //==============================================================================
@@ -82,9 +75,7 @@ void Task::_start_next_phase()
     // All phases are now complete
     _active_phase = nullptr;
     _active_phase_subscription.unsubscribe();
-
-    if (_on_task_completed)
-      _on_task_completed();
+    _status_publisher.complete();
 
     return;
   }
@@ -99,8 +90,7 @@ void Task::_start_next_phase()
         {
           // We have received a status update from the phase. We will forward
           // this to whoever is subscribing to the Task.
-          if (this->_on_status_update)
-            this->_on_status_update(summary);
+          this->_status_publisher.publish(summary);
         },
         [this]()
         {
