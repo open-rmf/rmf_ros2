@@ -53,6 +53,9 @@ public:
   /// Get the schedule description of this robot
   const rmf_traffic::schedule::ParticipantDescription& description() const;
 
+  /// Get the name of this robot
+  const std::string& name() const;
+
   /// Get the navigation graph used by this robot
   const rmf_traffic::agv::Graph& navigation_graph() const;
 
@@ -72,6 +75,8 @@ public:
 
   struct Empty { };
   const rxcpp::observable<Empty>& observe_interrupt() const;
+
+  rclcpp::Node& node();
 
 private:
   friend class RobotUpdateHandle;

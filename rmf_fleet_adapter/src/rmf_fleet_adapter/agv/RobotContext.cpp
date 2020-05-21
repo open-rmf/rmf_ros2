@@ -90,6 +90,12 @@ RobotContext::description() const
 }
 
 //==============================================================================
+const std::string& RobotContext::name() const
+{
+  return _schedule.description().name();
+}
+
+//==============================================================================
 const rmf_traffic::agv::Graph& RobotContext::navigation_graph() const
 {
   return _planner.get_configuration().graph();
@@ -145,6 +151,12 @@ auto RobotContext::set_negotiator(
 
   return std::make_shared<NegotiatorSubscription>(
         shared_from_this(), negotiator);
+}
+
+//==============================================================================
+rclcpp::Node& RobotContext::node()
+{
+  return *_node;
 }
 
 } // namespace agv

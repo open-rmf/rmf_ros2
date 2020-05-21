@@ -45,6 +45,9 @@ public:
       const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
       std::function<void()> path_finished_callback) = 0;
 
+  /// Have the robot come to an immediate stop.
+  virtual void stop() = 0;
+
   /// Have the robot begin a pre-defined docking procedure. Implement this
   /// function as a no-op if your robots do not perform docking procedures.
   ///

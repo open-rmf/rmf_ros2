@@ -170,20 +170,14 @@ private:
     //
     // TODO(MXG): Should we create a Planner::setup() function that does this as
     // an alternative to Planner::plan()?
-    bool do_not_start = true;
     rmf_traffic::agv::Planner::Options options(
           rmf_utils::make_clone<rmf_traffic::agv::ScheduleRouteValidator>(
             viewer, 10000, config.vehicle_traits().profile()),
-          std::chrono::seconds(5),
-          &do_not_start);
+          std::chrono::seconds(5));
 
-    auto setup = rmf_traffic::agv::Planner(
+    return rmf_traffic::agv::Planner(
           std::move(config), std::move(options))
-        .plan(std::move(start), std::move(goal));
-
-    setup.options().interrupt_flag(nullptr);
-
-    return setup;
+        .setup(std::move(start), std::move(goal));
   }
 };
 
