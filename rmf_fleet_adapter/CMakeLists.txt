@@ -47,13 +47,10 @@ add_subdirectory(rmf_rxcpp)
 
 # -----------------------------------------------------------------------------
 
-add_library(rmf_fleet_adapter
-  src/rmf_fleet_adapter/make_trajectory.cpp
-  src/rmf_fleet_adapter/ParseGraph.cpp
-  src/rmf_fleet_adapter/ParseArgs.cpp
-  src/rmf_fleet_adapter/load_param.cpp
-  src/rmf_fleet_adapter/ScheduleManager.cpp
-  src/rmf_fleet_adapter/Task.cpp
+file(GLOB_RECURSE rmf_fleet_adapter_srcs "src/rmf_fleet_adapter/*.cpp")
+
+add_library(rmf_fleet_adapter SHARED
+  ${rmf_fleet_adapter_srcs}
 )
 
 target_link_libraries(rmf_fleet_adapter

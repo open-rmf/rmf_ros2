@@ -23,6 +23,8 @@
 
 #include <Eigen/Geometry>
 
+#include <vector>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -69,6 +71,7 @@ public:
 
   class Implementation;
 private:
+  RobotUpdateHandle();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
 
