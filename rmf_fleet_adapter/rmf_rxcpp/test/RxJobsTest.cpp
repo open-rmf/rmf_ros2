@@ -22,7 +22,7 @@
 TEST_CASE("run simple job", "[Jobs]")
 {
   bool ran = false;
-  auto j = make_job<int>([](const auto& s)
+  auto j = rmf_rxcpp::make_job<int>([](const auto& s)
   {
     s.on_next(1);
     s.on_completed();
@@ -35,7 +35,7 @@ TEST_CASE("run multiple jobs in parallel", "[Jobs]")
 {
   bool job1_success = false;
   bool job2_success = false;
-  auto job1 = make_job<int>([&job1_success, &job2_success](const auto& s) {
+  auto job1 = rmf_rxcpp::make_job<int>([&job1_success, &job2_success](const auto& s) {
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(1);
     while (std::chrono::steady_clock::now() < timeout)
     {

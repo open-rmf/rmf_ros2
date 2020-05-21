@@ -42,7 +42,7 @@ DoorOpen::ActivePhase::ActivePhase(
     _transport{std::move(transport)},
     _door_state_obs{std::move(door_state_obs)}
 {
-  _job = make_job<Task::StatusMsg>(
+  _job = rmf_rxcpp::make_job<Task::StatusMsg>(
     std::make_shared<DoorOpen::Action>(_door_name, *_transport, _door_state_obs));
 }
 

@@ -20,6 +20,7 @@
 
 #include <rxcpp/rx.hpp>
 
+namespace rmf_rxcpp {
 namespace detail {
 template<typename Action, typename Subscriber>
 using IsAsyncAction = std::is_constructible<
@@ -87,5 +88,6 @@ auto make_merged_observable(const ActionsIterable& actions)
 }
 
 } // namespace detail
+} // namespace rmf_rxcpp
 
 #endif //RMF_RXCPP__RXJOBSDETAIL_HPP
