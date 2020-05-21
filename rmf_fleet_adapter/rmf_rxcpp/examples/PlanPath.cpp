@@ -421,7 +421,7 @@ int main()
 {
   const auto benchmark_start = std::chrono::steady_clock::now();
 
-  auto meta_planner_job = make_job(std::make_shared<MetaPlannerAction>());
+  auto meta_planner_job = make_job<MetaPlannerAction::Result>(std::make_shared<MetaPlannerAction>());
   meta_planner_job.as_blocking().subscribe([](const auto& itinerary)
   {
     std::cout <<"\nBest plan for B:" << std::endl;
