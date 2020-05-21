@@ -9,6 +9,8 @@
 
 #include <rclcpp/node.hpp>
 
+#include <rmf_rxcpp/Publisher.hpp>
+
 #include <rxcpp/rx-observable.hpp>
 
 namespace rmf_fleet_adapter {
@@ -69,7 +71,7 @@ public:
       rmf_traffic::schedule::Negotiator* negotiator);
 
   struct Empty { };
-  rxcpp::observable<Empty>& observe_interrupt();
+  const rxcpp::observable<Empty>& observe_interrupt() const;
 
 private:
   friend class RobotUpdateHandle;
@@ -78,6 +80,8 @@ private:
   rmf_traffic::schedule::Participant _schedule;
   rmf_traffic::schedule::Negotiator* _negotiator;
   rmf_traffic::agv::Planner _planner;
+
+  rmf_rxcpp::Publisher<Empty> _interrupt_publisher;
 
   // We're assuming that a RobotContextPtr is being held by the Node, so we
   // shouldn't have to worry about the lifetime of the Node

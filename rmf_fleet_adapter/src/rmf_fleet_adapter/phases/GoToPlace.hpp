@@ -19,6 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__PHASES__GOTOPLACE_HPP
 
 #include "../Task.hpp"
+#include "../agv/RobotContext.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -35,7 +36,7 @@ public:
   public:
 
     // Documentation inherited
-    rxcpp::observable<StatusMsg>& observe() final;
+    const rxcpp::observable<StatusMsg>& observe() const final;
 
     // Documentation inherited
     rmf_traffic::Duration estimate_remaining_time() const final;
@@ -50,9 +51,10 @@ public:
     const std::string & description() const final;
 
   private:
-
-
-
+    agv::RobotContextPtr _context;
+    rmf_traffic::agv::Plan::Goal _goal;
+    rmf_utils::optional<rmf_traffic::agv::Plan> _plan;
+    bool _emergency_active = false;
   };
 
   class Pending : public Task::PendingPhase
@@ -69,11 +71,16 @@ public:
     const std::string & description() const final;
 
   private:
-
-
+    friend class GoToPlace;
+    Pending(agv::RobotContextPtr context, rmf_traffic::agv::Plan::Goal goal);
+    agv::RobotContextPtr _context;
+    rmf_traffic::agv::Plan::Goal _goal;
   };
 
-  std::unique_ptr<Pending> make();
+  /// Make a Task Phase for going to a place
+  static std::unique_ptr<Pending> make(
+      agv::RobotContextPtr context,
+      rmf_traffic::agv::Plan::Goal goal);
 
 };
 

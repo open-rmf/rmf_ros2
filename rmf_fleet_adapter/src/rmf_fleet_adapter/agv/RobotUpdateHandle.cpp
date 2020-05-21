@@ -48,7 +48,8 @@ void RobotUpdateHandle::add_delay(rmf_traffic::Duration duration)
 //==============================================================================
 void RobotUpdateHandle::interrupted()
 {
-
+  if (const auto context = _pimpl->get_context())
+    context->_interrupt_publisher.publish(RobotContext::Empty());
 }
 
 //==============================================================================
