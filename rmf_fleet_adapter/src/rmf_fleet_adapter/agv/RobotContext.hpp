@@ -14,7 +14,7 @@ public:
   /// Get a handle to the command interface of the robot. This may return a
   /// nullptr if the robot has disconnected and/or its command API is no longer
   /// available.
-  const RobotCommandHandle* command();
+  std::shared_ptr<RobotCommandHandle> command();
 
   /// This is the robot's current (x, y, yaw) position.
   Eigen::Vector3d position() const;
