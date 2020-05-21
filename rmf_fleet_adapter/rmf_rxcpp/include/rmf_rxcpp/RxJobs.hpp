@@ -30,11 +30,11 @@ inline auto make_job(const std::shared_ptr<Action>& action)
   return detail::make_observable<T>(action);
 }
 
-//template<typename T, typename F>
-//inline auto make_job(const F& f)
-//{
-//  return detail::make_observable<T>(std::make_shared<F>(f));
-//}
+template<typename T, typename F>
+inline auto make_job(const F& f)
+{
+  return detail::make_observable<T>(std::make_shared<F>(f));
+}
 
 template<typename Job0, typename... Jobs>
 inline auto merge_jobs(const Job0& o0, Jobs&&... os)
