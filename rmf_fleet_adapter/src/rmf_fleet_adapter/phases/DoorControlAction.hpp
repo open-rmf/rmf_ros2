@@ -51,25 +51,31 @@ struct DoorControlAction
   void operator()(const Subscriber& s)
   {
     // TODO: multiplex publisher?
-      auto publisher = transport.create_publisher<rmf_door_msgs::msg::DoorRequest>(
-        AdapterDoorRequestTopicName, 10);
+    auto publisher = transport.create_publisher<rmf_door_msgs::msg::DoorRequest>(
+      AdapterDoorRequestTopicName, 10);
 
-      rmf_door_msgs::msg::DoorRequest msg{};
-      msg.door_name = door_name;
-      msg.request_time = transport.now();
-      msg.requested_mode.value = target_mode;
-      msg.requester_id = transport.get_name();
+    rmf_door_msgs::msg::DoorRequest msg{};
+    msg.door_name = door_name;
+    msg.request_time = transport.now();
+    msg.requested_mode.value = target_mode;
+    msg.requester_id = transport.get_name();
 
+    publisher->publish(msg);
+    auto timer = transport.create_wall_timer(std::chrono::milliseconds(1000), [publisher, msg]()
+    {
       publisher->publish(msg);
+    });
 
-      door_state_obs.subscribe([this, s](const rmf_door_msgs::msg::DoorState& door_state)
+    door_state_obs.take_while([this, s, timer](const rmf_door_msgs::msg::DoorState& door_state)
+    {
+      if (door_state.door_name == door_name &&
+        door_state.current_mode.value == target_mode)
       {
-        if (door_state.door_name == door_name &&
-          door_state.current_mode.value == target_mode)
-        {
-          s.on_completed();
-        }
-      });
+        s.on_completed();
+        return false;
+      }
+      return true;
+    }).subscribe();
   }
 };
 
