@@ -15,7 +15,7 @@
  *
 */
 
-#include "DoorOpen.hpp"
+#include "DoorClose.hpp"
 
 #include <utility>
 
@@ -23,7 +23,7 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-DoorOpen::ActivePhase::ActivePhase(
+DoorClose::ActivePhase::ActivePhase(
   std::string door_name,
   std::shared_ptr<rmf_rxcpp::Transport> transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs)
@@ -34,45 +34,45 @@ DoorOpen::ActivePhase::ActivePhase(
   _job = rmf_rxcpp::make_job<Task::StatusMsg>(
     std::make_shared<DoorControlAction>(
       _door_name,
-      rmf_door_msgs::msg::DoorMode::MODE_OPEN,
+      rmf_door_msgs::msg::DoorMode::MODE_CLOSED,
       *_transport,
       _door_state_obs));
-  _description = "Opening door \"" + _door_name + "\"";
+  _description = "Closing door \"" + _door_name + "\"";
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& DoorOpen::ActivePhase::observe() const
+const rxcpp::observable<Task::StatusMsg>& DoorClose::ActivePhase::observe() const
 {
   return _job;
 }
 
 //==============================================================================
-rmf_traffic::Duration DoorOpen::ActivePhase::estimate_remaining_time() const
+rmf_traffic::Duration DoorClose::ActivePhase::estimate_remaining_time() const
 {
   // TODO: implement
   return rmf_traffic::Duration{0};
 }
 
 //==============================================================================
-void DoorOpen::ActivePhase::emergency_alarm(bool /*on*/)
+void DoorClose::ActivePhase::emergency_alarm(bool /*on*/)
 {
   // TODO: implement
 }
 
 //==============================================================================
-void DoorOpen::ActivePhase::cancel()
+void DoorClose::ActivePhase::cancel()
 {
   // TODO: implement
 }
 
 //==============================================================================
-const std::string& DoorOpen::ActivePhase::description() const
+const std::string& DoorClose::ActivePhase::description() const
 {
   return _description;
 }
 
 //==============================================================================
-DoorOpen::PendingPhase::PendingPhase(
+DoorClose::PendingPhase::PendingPhase(
   std::string  door_name,
   std::shared_ptr<rmf_rxcpp::Transport> transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs)
@@ -80,24 +80,24 @@ DoorOpen::PendingPhase::PendingPhase(
     _transport{std::move(transport)},
     _door_state_obs{std::move(door_state_obs)}
 {
-  _description = "Open door \"" + _door_name + "\"";
+  _description = "Close door \"" + _door_name + "\"";
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> DoorOpen::PendingPhase::begin()
+std::shared_ptr<Task::ActivePhase> DoorClose::PendingPhase::begin()
 {
-  return std::make_shared<DoorOpen::ActivePhase>(_door_name, _transport, _door_state_obs);
+  return std::make_shared<DoorClose::ActivePhase>(_door_name, _transport, _door_state_obs);
 }
 
 //==============================================================================
-rmf_traffic::Duration DoorOpen::PendingPhase::estimate_phase_duration() const
+rmf_traffic::Duration DoorClose::PendingPhase::estimate_phase_duration() const
 {
   // TODO: implement
   return rmf_traffic::Duration{0};
 }
 
 //==============================================================================
-const std::string& DoorOpen::PendingPhase::description() const
+const std::string& DoorClose::PendingPhase::description() const
 {
   return _description;
 }
