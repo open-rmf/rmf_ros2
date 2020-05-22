@@ -26,17 +26,20 @@ namespace phases {
 DoorOpen::ActivePhase::ActivePhase(
   std::string door_name,
   std::shared_ptr<rmf_rxcpp::Transport> transport,
-  rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs)
+  rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},
     _transport{std::move(transport)},
-    _door_state_obs{std::move(door_state_obs)}
+    _door_state_obs{std::move(door_state_obs)},
+    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)}
 {
   _job = rmf_rxcpp::make_job<Task::StatusMsg>(
     std::make_shared<DoorControlAction>(
       _door_name,
       rmf_door_msgs::msg::DoorMode::MODE_OPEN,
-      *_transport,
-      _door_state_obs));
+      _transport,
+      _door_state_obs,
+      _supervisor_heartbeat_obs));
   _description = "Opening door \"" + _door_name + "\"";
 }
 
@@ -75,10 +78,12 @@ const std::string& DoorOpen::ActivePhase::description() const
 DoorOpen::PendingPhase::PendingPhase(
   std::string  door_name,
   std::shared_ptr<rmf_rxcpp::Transport> transport,
-  rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs)
+  rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},
     _transport{std::move(transport)},
-    _door_state_obs{std::move(door_state_obs)}
+    _door_state_obs{std::move(door_state_obs)},
+    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)}
 {
   _description = "Open door \"" + _door_name + "\"";
 }
@@ -86,7 +91,11 @@ DoorOpen::PendingPhase::PendingPhase(
 //==============================================================================
 std::shared_ptr<Task::ActivePhase> DoorOpen::PendingPhase::begin()
 {
-  return std::make_shared<DoorOpen::ActivePhase>(_door_name, _transport, _door_state_obs);
+  return std::make_shared<DoorOpen::ActivePhase>(
+    _door_name,
+    _transport,
+    _door_state_obs,
+    _supervisor_heartbeat_obs);
 }
 
 //==============================================================================
