@@ -40,6 +40,9 @@ DispenseItem::ActivePhase::ActivePhase(
   oss << _items[_items.size() - 2].type_guid << ")";
 
   _description = oss.str();
+
+  _job = rmf_rxcpp::make_job<Task::StatusMsg>(std::make_shared<DispenseItem::Action>(
+    _transport, _target, _transporter_type, _items, _result_obs));
 }
 
 //==============================================================================

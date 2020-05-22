@@ -63,6 +63,7 @@ target_link_libraries(rmf_fleet_adapter
     rmf_rxcpp
     ${rmf_task_msgs_LIBRARIES}
     ${rmf_door_msgs_LIBRARIES}
+    ${rmf_lift_msgs_LIBRARIES}
 )
 
 target_include_directories(rmf_fleet_adapter
@@ -75,6 +76,7 @@ target_include_directories(rmf_fleet_adapter
   PRIVATE
     ${rmf_task_msgs_INCLUDE_DIRS}
     ${rmf_door_msgs_INCLUDE_DIRS}
+    ${rmf_lift_msgs_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------

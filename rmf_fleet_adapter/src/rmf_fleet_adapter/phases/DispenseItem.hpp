@@ -139,7 +139,12 @@ void DispenseItem::Action::operator()(const Subscriber& s)
         (dispenser_result.status == rmf_dispenser_msgs::msg::DispenserResult::SUCCESS ||
         dispenser_result.status == rmf_dispenser_msgs::msg::DispenserResult::FAILED))
       {
-        s.on_next(dispenser_result.status);
+        Task::StatusMsg status;
+        if (dispenser_result.status == rmf_dispenser_msgs::msg::DispenserResult::SUCCESS)
+          status.state = Task::StatusMsg::STATE_COMPLETED;
+        else
+          status.state = Task::StatusMsg::STATE_FAILED;
+        s.on_next(status);
         s.on_completed();
         return false;
       }
