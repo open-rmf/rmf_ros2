@@ -25,6 +25,9 @@
 #include <rmf_lift_msgs/msg/lift_request.hpp>
 #include <rmf_lift_msgs/msg/lift_state.hpp>
 
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
@@ -117,7 +120,7 @@ void RequestLift::Action::operator()(const Subscriber& s)
   rmf_lift_msgs::msg::LiftRequest msg{};
   msg.lift_name = _lift_name;
   msg.destination_floor = _destination;
-  msg.session_id = _transport->get_name();
+  msg.session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
   msg.request_time = _transport->now();
   msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_AGV_MODE;
   msg.door_state = rmf_lift_msgs::msg::LiftRequest::DOOR_OPEN;

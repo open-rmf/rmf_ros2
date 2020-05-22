@@ -25,6 +25,9 @@
 #include <rmf_dispenser_msgs/msg/dispenser_request.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
 
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
@@ -121,7 +124,8 @@ void DispenseItem::Action::operator()(const Subscriber& s)
     DispenserRequestTopicName, 10);
 
   rmf_dispenser_msgs::msg::DispenserRequest msg{};
-  msg.request_guid = "";
+
+  msg.request_guid = boost::uuids::to_string(boost::uuids::random_generator{}());
   msg.target_guid = _target;
   msg.transporter_type = _transporter_type;
   msg.items = _items;
