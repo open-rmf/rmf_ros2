@@ -46,6 +46,9 @@ Node::Node()
     {
       _door_state_update(std::move(msg));
     });
+
+  _door_heartbeat_pub = create_publisher<Heartbeat>(
+    DoorSupervisorHeartbeatTopicName, default_qos);
 }
 
 //==============================================================================
@@ -75,6 +78,7 @@ void Node::_process_open_request(
   }
 
   _send_open_request(door_name);
+  _publish_heartbeat();
 }
 
 //==============================================================================
@@ -96,28 +100,29 @@ void Node::_process_close_request(
 {
   auto door_it = _log.find(door_name);
   if (door_it == _log.end())
-    return;
+    return _publish_heartbeat();
 
   auto& door_log = door_it->second;
   auto request_it = door_log.find(requester_id);
   if (request_it == door_log.end())
-    return;
+    return _publish_heartbeat();
 
   auto& logged_request_time = request_it->second;
   const auto new_request_time = rclcpp::Time(time);
   if (new_request_time < logged_request_time)
-    return;
+    return _publish_heartbeat();
 
   // We can remove this requester from the log of open requests
   door_log.erase(request_it);
 
   if (!door_log.empty())
-    return;
+    return _publish_heartbeat();
 
   // If all the open requests have been erased for this door, then we can
   // safely close it.
   // TODO(MXG): Consider whether the door_it should be erased from _log
   _send_close_request(door_name);
+  _publish_heartbeat();
 }
 
 //==============================================================================
@@ -158,6 +163,28 @@ void Node::_door_state_update(DoorState::UniquePtr msg)
       _send_open_request(door_name);
     }
   }
+}
+
+//==============================================================================
+void Node::_publish_heartbeat()
+{
+  rmf_door_msgs::msg::SupervisorHeartbeat msg;
+  for (const auto& door : _log)
+  {
+    rmf_door_msgs::msg::DoorSessions sessions;
+    sessions.door_name = door.first;
+    for (const auto& session : door.second)
+    {
+      rmf_door_msgs::msg::Session s;
+      s.request_time = session.second;
+      s.requester_id = session.first;
+      sessions.sessions.emplace_back(std::move(s));
+    }
+
+    msg.all_sessions.emplace_back(std::move(sessions));
+  }
+
+  _door_heartbeat_pub->publish(msg);
 }
 
 } // namespace door_supervisor

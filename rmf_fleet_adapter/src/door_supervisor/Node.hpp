@@ -20,6 +20,7 @@
 
 #include <rmf_door_msgs/msg/door_state.hpp>
 #include <rmf_door_msgs/msg/door_request.hpp>
+#include <rmf_door_msgs/msg/supervisor_heartbeat.hpp>
 
 #include <string>
 #include <unordered_map>
@@ -64,6 +65,11 @@ private:
   using DoorStateSub = rclcpp::Subscription<DoorState>;
   DoorStateSub::SharedPtr _door_state_sub;
   void _door_state_update(DoorState::UniquePtr msg);
+
+  using Heartbeat = rmf_door_msgs::msg::SupervisorHeartbeat;
+  using HeartbeatPub = rclcpp::Publisher<Heartbeat>;
+  HeartbeatPub::SharedPtr _door_heartbeat_pub;
+  void _publish_heartbeat();
 
   using OpenRequestLog =
     std::unordered_map<

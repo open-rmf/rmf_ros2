@@ -30,6 +30,8 @@ const std::string PathRequestTopicName = "robot_path_requests";
 const std::string FinalDoorRequestTopicName = "door_requests";
 const std::string AdapterDoorRequestTopicName = "adapter_door_requests";
 const std::string DoorStateTopicName = "door_states";
+const std::string DoorSupervisorHeartbeatTopicName =
+    "door_supervisor_heartbeat";
 
 const std::string FinalLiftRequestTopicName = "lift_requests";
 const std::string AdapterLiftRequestTopicName = "adapter_lift_requests";
