@@ -42,7 +42,7 @@ std::shared_ptr<RobotContext> RobotUpdateHandle::Implementation::get_context()
 void RobotUpdateHandle::add_delay(rmf_traffic::Duration duration)
 {
   if (const auto context = _pimpl->get_context())
-    context->schedule().delay(context->now(), duration);
+    context->itinerary().delay(context->now(), duration);
 }
 
 //==============================================================================

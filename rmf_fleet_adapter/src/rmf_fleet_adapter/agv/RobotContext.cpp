@@ -71,13 +71,19 @@ const std::vector<rmf_traffic::agv::Plan::Start>& RobotContext::location() const
 }
 
 //==============================================================================
-rmf_traffic::schedule::Participant& RobotContext::schedule()
+rmf_traffic::schedule::Participant& RobotContext::itinerary()
 {
-  return _schedule;
+  return _itinerary;
 }
 
 //==============================================================================
-const rmf_traffic::schedule::Participant& RobotContext::schedule() const
+const rmf_traffic::schedule::Participant& RobotContext::itinerary() const
+{
+  return _itinerary;
+}
+
+//==============================================================================
+auto RobotContext::schedule() const -> const std::shared_ptr<const Snappable>&
 {
   return _schedule;
 }
@@ -86,29 +92,24 @@ const rmf_traffic::schedule::Participant& RobotContext::schedule() const
 const rmf_traffic::schedule::ParticipantDescription&
 RobotContext::description() const
 {
-  return _schedule.description();
+  return _itinerary.description();
 }
 
 //==============================================================================
 const std::string& RobotContext::name() const
 {
-  return _schedule.description().name();
+  return _itinerary.description().name();
 }
 
 //==============================================================================
 const rmf_traffic::agv::Graph& RobotContext::navigation_graph() const
 {
-  return _planner.get_configuration().graph();
+  return _planner->get_configuration().graph();
 }
 
 //==============================================================================
-rmf_traffic::agv::Planner& RobotContext::planner()
-{
-  return _planner;
-}
-
-//==============================================================================
-const rmf_traffic::agv::Planner& RobotContext::planner() const
+const std::shared_ptr<const rmf_traffic::agv::Planner>&
+RobotContext::planner() const
 {
   return _planner;
 }
@@ -157,6 +158,24 @@ auto RobotContext::set_negotiator(
 rclcpp::Node& RobotContext::node()
 {
   return *_node;
+}
+
+//==============================================================================
+RobotContext::RobotContext(
+  std::shared_ptr<RobotCommandHandle> command_handle,
+  std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
+  rmf_traffic::schedule::Participant itinerary,
+  std::shared_ptr<const Snappable> schedule,
+  rmf_traffic::agv::Planner::Configuration configuration,
+  rmf_traffic::agv::Planner::Options default_options)
+  : _command_handle(std::move(command_handle)),
+    _location(std::move(_initial_location)),
+    _itinerary(std::move(itinerary)),
+    _schedule(std::move(schedule)),
+    _planner(std::make_shared<rmf_traffic::agv::Planner>(
+               std::move(configuration), std::move(default_options)))
+{
+  // Do nothing
 }
 
 } // namespace agv

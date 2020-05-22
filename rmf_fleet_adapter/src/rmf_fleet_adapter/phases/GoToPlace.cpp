@@ -15,7 +15,13 @@
  *
 */
 
+#include "../jobs/PlanningJob.hpp"
+
 #include "GoToPlace.hpp"
+#include "MoveRobot.hpp"
+#include "DoorOpen.hpp"
+#include "DoorClose.hpp"
+#include "RequestLift.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -115,13 +121,181 @@ GoToPlace::Active::Active(
 //==============================================================================
 void GoToPlace::Active::find_plan()
 {
-  // TODO(MXG): Create a job to find a plan
+  auto phase = std::static_pointer_cast<GoToPlace::Active>(shared_from_this());
+
+  _plan_subscription = rmf_rxcpp::make_job<jobs::FindPath::Result>(
+        std::make_shared<jobs::FindPath>(
+          _context->planner(), _context->location(), _goal,
+          _context->schedule()->snapshot(), _context->itinerary().id()))
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+        [phase = std::move(phase)](const jobs::FindPath::Result& result)
+  {
+    if (!result)
+    {
+      // This shouldn't happen, but let's try to handle it gracefully
+      phase->_status_publisher.error(
+            std::make_exception_ptr(std::runtime_error("Cannot find a plan")));
+
+      // TODO(MXG): Instead of canceling, should we retry later?
+      phase->_subtasks->cancel();
+      return;
+    }
+
+    phase->plan_to_subtasks(*std::move(result));
+  });
 }
 
 //==============================================================================
 void GoToPlace::Active::find_emergency_plan()
 {
-  // TODO(MXG): Create a job to find an emergency plan
+  auto phase = std::static_pointer_cast<GoToPlace::Active>(shared_from_this());
+
+  _plan_subscription = rmf_rxcpp::make_job<jobs::FindEmergencyPullover::Result>(
+        std::make_shared<jobs::FindEmergencyPullover>())
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+        [phase = std::move(phase)](
+        const jobs::FindEmergencyPullover::Result& result)
+  {
+    if (!result)
+    {
+      // This shouldn't happen, but let's try to handle it gracefully
+      phase->_status_publisher.error(
+            std::make_exception_ptr(std::runtime_error("Cannot find a plan")));
+
+      // TODO(MXG): Instead of canceling, should we retry later?
+      phase->_subtasks->cancel();
+      return;
+    }
+
+    phase->plan_to_subtasks(*std::move(result));
+    phase->_performing_emergency_task = true;
+  });
+}
+
+namespace {
+//==============================================================================
+class EventPhaseFactory : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+
+  using Lane = rmf_traffic::agv::Graph::Lane;
+
+  EventPhaseFactory(
+      agv::RobotContextPtr context,
+      Task::PendingPhases& phases)
+    : _context(std::move(context)),
+      _phases(phases)
+  {
+    // Do nothing
+  }
+
+  void execute(const Dock& dock) final
+  {
+    // TODO(MXG): Implement this
+  }
+
+  void execute(const DoorOpen& open) final
+  {
+    // TODO(MXG): Implement this
+  }
+
+  void execute(const DoorClose& close) final
+  {
+    // TODO(MXG): Implement this
+  }
+
+  void execute(const LiftDoorOpen& open) final
+  {
+    // TODO(MXG): Implement this
+  }
+
+  void execute(const LiftDoorClose& close) final
+  {
+    // Not supported yet
+  }
+
+  void execute(const LiftMove& move) final
+  {
+    // Not supported yet
+  }
+
+private:
+  agv::RobotContextPtr _context;
+  Task::PendingPhases& _phases;
+};
+
+} // anonymous namespace
+
+//==============================================================================
+void GoToPlace::Active::plan_to_subtasks(rmf_traffic::agv::Plan new_plan)
+{
+  _plan = std::move(new_plan);
+
+  std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints =
+      _plan->get_waypoints();
+
+  Task::PendingPhases sub_phases;
+  while (!waypoints.empty())
+  {
+    std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
+    auto it = waypoints.begin();
+    for (; it != waypoints.end(); ++it)
+    {
+      move_through.push_back(*it);
+
+      if (it->event())
+      {
+        sub_phases.push_back(
+            std::make_unique<MoveRobot::PendingPhase>(_context, move_through));
+
+        move_through.clear();
+
+        EventPhaseFactory factory(_context, sub_phases);
+        it->event()->execute(factory);
+
+        waypoints.erase(waypoints.begin(), it+1);
+        break;
+      }
+    }
+
+    if (!move_through.empty())
+    {
+      // If we made it into this if-statement, then we have reached the end of
+      // the waypoints, because otherwise an event would have interrupted the
+      // for-loop and cleared out the move_through sequence.
+      sub_phases.push_back(
+          std::make_unique<MoveRobot::PendingPhase>(_context, move_through));
+      waypoints.clear();
+    }
+  }
+
+  auto phase = std::static_pointer_cast<GoToPlace::Active>(shared_from_this());
+  _subtasks = Task(std::move(sub_phases));
+  _status_subscription = _subtasks->observe()
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+        [phase](const StatusMsg& msg)
+        {
+          phase->_status_publisher.publish(msg);
+        },
+        [phase](std::exception_ptr e)
+        {
+          phase->_status_publisher.error(e);
+        },
+        [phase]()
+        {
+          if (!phase->_emergency_active)
+            phase->_status_publisher.complete();
+
+          // If an emergency is active, then eventually the alarm should get
+          // turned off, which should trigger a non-emergency replanning. That
+          // new plan will create a new set of subtasks, and when that new set
+          // of subtasks is complete, then we will consider this GoToPlace phase
+          // to be complete.
+        }
+   );
 }
 
 //==============================================================================
@@ -161,10 +335,10 @@ auto GoToPlace::make(
     rmf_traffic::agv::Plan::Start start_estimate,
     rmf_traffic::agv::Plan::Goal goal) -> std::unique_ptr<Pending>
 {
-  auto estimate_options = context->planner().get_default_options();
+  auto estimate_options = context->planner()->get_default_options();
   estimate_options.validator(nullptr);
 
-  auto estimate = context->planner().setup(
+  auto estimate = context->planner()->setup(
         start_estimate, goal, estimate_options);
 
   if (!estimate.cost_estimate())

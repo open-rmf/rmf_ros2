@@ -70,6 +70,8 @@ public:
 
     void find_emergency_plan();
 
+    void plan_to_subtasks(rmf_traffic::agv::Plan new_plan);
+
     agv::RobotContextPtr _context;
     rmf_traffic::agv::Plan::Goal _goal;
     double _latest_time_estimate;
@@ -77,8 +79,10 @@ public:
     rmf_utils::optional<rmf_traffic::agv::Plan> _plan;
     rmf_utils::optional<Task> _subtasks;
     bool _emergency_active = false;
+    bool _performing_emergency_task = false;
     rmf_rxcpp::Publisher<StatusMsg> _status_publisher;
     rxcpp::subscription _status_subscription;
+    rxcpp::subscription _plan_subscription;
     std::shared_ptr<void> _negotiator_subscription;
   };
 
