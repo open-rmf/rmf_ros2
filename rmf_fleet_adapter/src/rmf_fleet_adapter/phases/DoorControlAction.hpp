@@ -24,6 +24,9 @@
 #include <rmf_door_msgs/msg/door_state.hpp>
 #include <rmf_door_msgs/msg/door_request.hpp>
 
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
@@ -58,7 +61,7 @@ struct DoorControlAction
     msg.door_name = door_name;
     msg.request_time = transport.now();
     msg.requested_mode.value = target_mode;
-    msg.requester_id = transport.get_name();
+    msg.requester_id = boost::uuids::to_string(boost::uuids::random_generator{}());
 
     publisher->publish(msg);
     auto timer = transport.create_wall_timer(std::chrono::milliseconds(1000), [publisher, msg]()
