@@ -15,8 +15,8 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__PHASES__DOOROPEN_HPP
-#define SRC__RMF_FLEET_ADAPTER__PHASES__DOOROPEN_HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__PHASES__DOORCLOSE_HPP
+#define SRC__RMF_FLEET_ADAPTER__PHASES__DOORCLOSE_HPP
 
 #include "DoorControlAction.hpp"
 #include "../Task.hpp"
@@ -26,7 +26,7 @@
 namespace rmf_fleet_adapter {
 namespace phases {
 
-struct DoorOpen
+struct DoorClose
 {
   class ActivePhase : public Task::ActivePhase
   {
@@ -83,4 +83,4 @@ struct DoorOpen
 } // namespace phases
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__PHASES__DOOROPEN_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__PHASES__DOORCLOSE_HPP

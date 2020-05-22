@@ -15,91 +15,94 @@
  *
 */
 
-#include "DoorOpen.hpp"
-
-#include <utility>
+#include "MoveRobot.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-DoorOpen::ActivePhase::ActivePhase(
-  std::string door_name,
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
-  rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs)
-  : _door_name{std::move(door_name)},
-    _transport{std::move(transport)},
-    _door_state_obs{std::move(door_state_obs)}
+MoveRobot::ActivePhase::ActivePhase(agv::RobotContextPtr context,
+  std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints)
+  : _context{std::move(context)},
+    _waypoints{std::move(waypoints)}
 {
+  std::ostringstream oss;
+  oss << "Moving robot to (" << _waypoints.back().position() << ")";
+  _description = oss.str();
+
   _job = rmf_rxcpp::make_job<Task::StatusMsg>(
-    std::make_shared<DoorControlAction>(
-      _door_name,
-      rmf_door_msgs::msg::DoorMode::MODE_OPEN,
-      *_transport,
-      _door_state_obs));
-  _description = "Opening door \"" + _door_name + "\"";
+    std::make_shared<MoveRobot::Action>(_context, _waypoints));
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& DoorOpen::ActivePhase::observe() const
+const rxcpp::observable<Task::StatusMsg>& MoveRobot::ActivePhase::observe() const
 {
   return _job;
 }
 
 //==============================================================================
-rmf_traffic::Duration DoorOpen::ActivePhase::estimate_remaining_time() const
+rmf_traffic::Duration MoveRobot::ActivePhase::estimate_remaining_time() const
 {
   // TODO: implement
   return rmf_traffic::Duration{0};
 }
 
 //==============================================================================
-void DoorOpen::ActivePhase::emergency_alarm(bool /*on*/)
+void MoveRobot::ActivePhase::emergency_alarm(bool on)
 {
   // TODO: implement
 }
 
 //==============================================================================
-void DoorOpen::ActivePhase::cancel()
+void MoveRobot::ActivePhase::cancel()
 {
   // TODO: implement
 }
 
 //==============================================================================
-const std::string& DoorOpen::ActivePhase::description() const
+const std::string& MoveRobot::ActivePhase::description() const
 {
   return _description;
 }
 
 //==============================================================================
-DoorOpen::PendingPhase::PendingPhase(
-  std::string  door_name,
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
-  rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs)
-  : _door_name{std::move(door_name)},
-    _transport{std::move(transport)},
-    _door_state_obs{std::move(door_state_obs)}
+MoveRobot::PendingPhase::PendingPhase(
+  agv::RobotContextPtr context,
+  std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints)
+  : _context{std::move(context)},
+    _waypoints{std::move(waypoints)}
 {
-  _description = "Open door \"" + _door_name + "\"";
+  std::ostringstream oss;
+  oss << "Move robot to (" << _waypoints.back().position() << ")";
+  _description = oss.str();
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> DoorOpen::PendingPhase::begin()
+std::shared_ptr<Task::ActivePhase> MoveRobot::PendingPhase::begin()
 {
-  return std::make_shared<DoorOpen::ActivePhase>(_door_name, _transport, _door_state_obs);
+  return std::make_shared<MoveRobot::ActivePhase>(_context, _waypoints);
 }
 
 //==============================================================================
-rmf_traffic::Duration DoorOpen::PendingPhase::estimate_phase_duration() const
+rmf_traffic::Duration MoveRobot::PendingPhase::estimate_phase_duration() const
 {
   // TODO: implement
   return rmf_traffic::Duration{0};
 }
 
 //==============================================================================
-const std::string& DoorOpen::PendingPhase::description() const
+const std::string& MoveRobot::PendingPhase::description() const
 {
   return _description;
+}
+
+//==============================================================================
+MoveRobot::Action::Action(agv::RobotContextPtr& context,
+  std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints)
+  : _context{context},
+    _waypoints{waypoints}
+{
+  // no op
 }
 
 } // namespace phases
