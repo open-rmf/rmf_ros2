@@ -60,11 +60,7 @@ auto Task::pending_phases() const -> const PendingPhases&
 void Task::cancel()
 {
   _pending_phases.clear();
-  _active_phase_subscription.unsubscribe();
   _active_phase->cancel();
-
-  // TODO(MXG): Should we send .on_error() or .on_completed() to the
-  // subscribers?
 }
 
 //==============================================================================
