@@ -54,6 +54,7 @@ struct DoorOpen
     std::shared_ptr<rmf_rxcpp::Transport> _transport;
     rxcpp::observable<Task::StatusMsg> _job;
     rxcpp::observable<rmf_door_msgs::msg::DoorState> _door_state_obs;
+    std::string _description;
   };
 
   class PendingPhase : public Task::PendingPhase
@@ -76,11 +77,10 @@ struct DoorOpen
     std::string _door_name;
     std::shared_ptr<rmf_rxcpp::Transport> _transport;
     rxcpp::observable<rmf_door_msgs::msg::DoorState> _door_state_obs;
+    std::string _description;
   };
 
 private:
-
-  static const std::string _Description;
 
   struct Action
   {

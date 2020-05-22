@@ -23,17 +23,6 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-const std::string DoorOpen::_Description = "Opening door";
-
-struct ASD
-{
-  template<typename Subscriber>
-  void operator()(const Subscriber& s)
-  {
-
-  }
-};
-//==============================================================================
 DoorOpen::ActivePhase::ActivePhase(
   std::string door_name,
   std::shared_ptr<rmf_rxcpp::Transport> transport,
@@ -44,6 +33,7 @@ DoorOpen::ActivePhase::ActivePhase(
 {
   _job = rmf_rxcpp::make_job<Task::StatusMsg>(
     std::make_shared<DoorOpen::Action>(_door_name, *_transport, _door_state_obs));
+  _description = "Opening door \"" + _door_name + "\"";
 }
 
 //==============================================================================
@@ -74,7 +64,7 @@ void DoorOpen::ActivePhase::cancel()
 //==============================================================================
 const std::string& DoorOpen::ActivePhase::description() const
 {
-  return _Description;
+  return _description;
 }
 
 //==============================================================================
@@ -86,7 +76,7 @@ DoorOpen::PendingPhase::PendingPhase(
     _transport{std::move(transport)},
     _door_state_obs{std::move(door_state_obs)}
 {
-  // no op
+  _description = "Open door \"" + _door_name + "\"";
 }
 
 //==============================================================================
@@ -105,7 +95,7 @@ rmf_traffic::Duration DoorOpen::PendingPhase::estimate_phase_duration() const
 //==============================================================================
 const std::string& DoorOpen::PendingPhase::description() const
 {
-  return _Description;
+  return _description;
 }
 
 } // namespace phases
