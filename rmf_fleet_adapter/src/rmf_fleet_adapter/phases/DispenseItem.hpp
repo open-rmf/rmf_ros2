@@ -18,6 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__DISPENSEITEM_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__DISPENSEITEM_HPP
 
+#include "RxOperators.hpp"
 #include "../Task.hpp"
 #include "rmf_fleet_adapter/StandardNames.hpp"
 

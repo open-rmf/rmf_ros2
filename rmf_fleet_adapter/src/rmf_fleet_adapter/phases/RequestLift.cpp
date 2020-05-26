@@ -16,6 +16,7 @@
 */
 
 #include "RequestLift.hpp"
+#include "RxOperators.hpp"
 
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/uuid_generators.hpp>
@@ -45,29 +46,27 @@ RequestLift::Action::Action(
 
   _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
 
-  auto op = [this](const auto& s)
-  {
-    _do_publish();
-
-    return rxcpp::make_subscriber<LiftState>([this, s](const LiftState& lift_state)
+  _obs = _lift_state_obs
+    .lift<LiftState>(on_subscribe([this]() { _do_publish(); }))
+    .map([this](const auto& v)
     {
-      auto status = _do(lift_state);
-      s.on_next(status);
+      return _check_status(v);
+    })
+    .lift<Task::StatusMsg>(grab_while([this](const Task::StatusMsg& status)
+    {
       if (
         status.state == Task::StatusMsg::STATE_COMPLETED ||
         status.state == Task::StatusMsg::STATE_FAILED)
       {
         _timer.reset();
-        s.on_completed();
+        return false;
       }
-    });
-  };
-
-  _obs = _lift_state_obs.lift<Task::StatusMsg>(op);
+      return true;
+    }));
 }
 
 //==============================================================================
-Task::StatusMsg RequestLift::Action::_do(const rmf_lift_msgs::msg::LiftState& lift_state)
+Task::StatusMsg RequestLift::Action::_check_status(const rmf_lift_msgs::msg::LiftState& lift_state)
 {
   using rmf_lift_msgs::msg::LiftState;
   Task::StatusMsg status{};

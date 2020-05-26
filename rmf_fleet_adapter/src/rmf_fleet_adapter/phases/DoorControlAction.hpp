@@ -72,7 +72,7 @@ private:
   bool _supervisor_received_publish = false;
   bool _supervisor_finished_request = false;
 
-  Task::StatusMsg _do(
+  Task::StatusMsg _check_status(
     const rmf_door_msgs::msg::DoorState& door_state,
     const rmf_door_msgs::msg::SupervisorHeartbeat& heartbeat);
 

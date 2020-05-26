@@ -17,6 +17,7 @@
 
 #include "DoorControlAction.hpp"
 #include "SupervisorHasSession.hpp"
+#include "RxOperators.hpp"
 #include "rmf_fleet_adapter/StandardNames.hpp"
 
 #include <boost/uuid/uuid_io.hpp>
@@ -50,30 +51,29 @@ DoorControlAction::DoorControlAction(
 
   _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
 
-  auto op = [this](const auto& s)
-  {
-    _do_publish();
-
-    using SourceType = std::tuple<DoorState, SupervisorHeartbeat>;
-    return rxcpp::make_subscriber<SourceType>([this, s](const SourceType& t)
+  using CombinedType = std::tuple<DoorState, SupervisorHeartbeat>;
+  _obs = _door_state_obs.combine_latest(_supervisor_heartbeat_obs)
+    .lift<CombinedType>(on_subscribe([this]() { _do_publish(); }))
+    .map([this](const auto& v)
     {
-      auto status = _do(std::get<0>(t), std::get<1>(t));
-      s.on_next(status);
+      return _check_status(std::get<0>(v), std::get<1>(v));
+    })
+    .lift<Task::StatusMsg>(grab_while([this](const Task::StatusMsg& status)
+    {
       if (
         _cancelled ||
         status.state == Task::StatusMsg::STATE_COMPLETED ||
         status.state == Task::StatusMsg::STATE_FAILED)
       {
-        s.on_completed();
+        _timer.reset();
+        return false;
       }
-    });
-  };
-
-  _obs = _door_state_obs.combine_latest(_supervisor_heartbeat_obs).lift<Task::StatusMsg>(op);
+      return true;
+    }));
 }
 
 //==============================================================================
-Task::StatusMsg DoorControlAction::_do(
+Task::StatusMsg DoorControlAction::_check_status(
   const rmf_door_msgs::msg::DoorState& door_state,
   const rmf_door_msgs::msg::SupervisorHeartbeat& heartbeat)
 {

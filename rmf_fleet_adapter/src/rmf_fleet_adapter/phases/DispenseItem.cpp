@@ -46,25 +46,23 @@ DispenseItem::Action::Action(
   _request_guid = boost::uuids::to_string(boost::uuids::random_generator{}());
 
   using rmf_dispenser_msgs::msg::DispenserResult;
-  auto op = [this](const auto& s)
-  {
-    _do_publish();
-
-    return rxcpp::make_subscriber<DispenserResult>(
-      [this, s](const DispenserResult& dispenser_result)
+  _obs = _result_obs
+    .lift<DispenserResult>(on_subscribe([this]() { _do_publish(); }))
+    .map([this](const auto& v)
+    {
+      return _check_status(v);
+    })
+    .lift<Task::StatusMsg>(grab_while([this](const Task::StatusMsg& status)
+    {
+      if (
+        status.state == Task::StatusMsg::STATE_COMPLETED ||
+        status.state == Task::StatusMsg::STATE_FAILED)
       {
-        auto status = _check_status(dispenser_result);
-        s.on_next(status);
-        if (
-          status.state == Task::StatusMsg::STATE_COMPLETED ||
-          status.state == Task::StatusMsg::STATE_FAILED)
-        {
-          _timer.reset();
-          s.on_completed();
-        }
-      });
-  };
-  _obs = _result_obs.lift<Task::StatusMsg>(op);
+        _timer.reset();
+        return false;
+      }
+      return true;
+    }));
 }
 
 //==============================================================================
