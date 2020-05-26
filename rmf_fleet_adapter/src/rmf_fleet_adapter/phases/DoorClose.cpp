@@ -29,22 +29,21 @@ DoorClose::ActivePhase::ActivePhase(
   : _door_name{std::move(door_name)},
     _transport{std::move(transport)},
     _door_state_obs{std::move(door_state_obs)},
-    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)}
-{
-  _job = rmf_rxcpp::make_job<Task::StatusMsg>(
-    std::make_shared<DoorControlAction>(
+    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
+    _action{
       _door_name,
-      rmf_door_msgs::msg::DoorMode::MODE_CLOSED,
+      rmf_door_msgs::msg::DoorMode::MODE_OPEN,
       _transport,
       _door_state_obs,
-      _supervisor_heartbeat_obs));
+      _supervisor_heartbeat_obs}
+{
   _description = "Closing door \"" + _door_name + "\"";
 }
 
 //==============================================================================
 const rxcpp::observable<Task::StatusMsg>& DoorClose::ActivePhase::observe() const
 {
-  return _job;
+  return _action.get_observable();
 }
 
 //==============================================================================
