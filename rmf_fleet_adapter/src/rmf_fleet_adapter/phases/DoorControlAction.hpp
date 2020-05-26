@@ -65,6 +65,7 @@ private:
   rxcpp::observable<rmf_door_msgs::msg::DoorState> _door_state_obs;
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> _supervisor_heartbeat_obs;
   rxcpp::observable<Task::StatusMsg> _obs;
+  rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _publisher;
   rclcpp::TimerBase::SharedPtr _timer;
   std::string _session_id;
   std::atomic<bool> _cancelled{false};

@@ -53,6 +53,7 @@ struct RequestLift
       rxcpp::observable<rmf_lift_msgs::msg::LiftState>& _lift_state_obs;
       rxcpp::observable<Task::StatusMsg> _obs;
       std::string _session_id;
+      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr _publisher;
       rclcpp::TimerBase::SharedPtr _timer;
 
       Task::StatusMsg _do(const rmf_lift_msgs::msg::LiftState& lift_state);

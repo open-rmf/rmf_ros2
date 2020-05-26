@@ -25,20 +25,50 @@
 #include <rmf_dispenser_msgs/msg/dispenser_request.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
 
-#include <boost/uuid/uuid_io.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-
 namespace rmf_fleet_adapter {
 namespace phases {
 
 struct DispenseItem
 {
+  class Action
+  {
+  public:
+
+    Action(
+      std::weak_ptr<rmf_rxcpp::Transport>& transport,
+      std::string& target,
+      std::string& transporter_type,
+      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem>& items,
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult>& result_obs);
+
+    inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
+    {
+      return _obs;
+    }
+
+  private:
+
+    std::weak_ptr<rmf_rxcpp::Transport>& _transport;
+    std::string& _target;
+    std::string& _transporter_type;
+    std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem>& _items;
+    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult>& _result_obs;
+    rxcpp::observable<Task::StatusMsg> _obs;
+    std::string _request_guid;
+    rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr _publisher;
+    rclcpp::TimerBase::SharedPtr _timer;
+
+    Task::StatusMsg _check_status(const rmf_dispenser_msgs::msg::DispenserResult& dispenser_result);
+
+    void _do_publish();
+  };
+
   class ActivePhase : public Task::ActivePhase
   {
   public:
 
     ActivePhase(
-      std::shared_ptr<rmf_rxcpp::Transport> transport,
+      std::weak_ptr<rmf_rxcpp::Transport> transport,
       std::string target,
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
@@ -56,13 +86,13 @@ struct DispenseItem
 
   private:
 
-    std::shared_ptr<rmf_rxcpp::Transport> _transport;
+    std::weak_ptr<rmf_rxcpp::Transport> _transport;
     std::string _target;
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult> _result_obs;
     std::string _description;
-    rxcpp::observable<Task::StatusMsg> _job;
+    Action _action;
   };
 
   class PendingPhase : public Task::PendingPhase
@@ -70,7 +100,7 @@ struct DispenseItem
   public:
 
     PendingPhase(
-      std::shared_ptr<rmf_rxcpp::Transport> transport,
+      std::weak_ptr<rmf_rxcpp::Transport> transport,
       std::string target,
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
@@ -84,77 +114,14 @@ struct DispenseItem
 
   private:
 
-    std::shared_ptr<rmf_rxcpp::Transport> _transport;
+    std::weak_ptr<rmf_rxcpp::Transport> _transport;
     std::string _target;
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult> _result_obs;
     std::string _description;
   };
-
-  class Action
-  {
-  public:
-
-    Action(
-      std::shared_ptr<rmf_rxcpp::Transport>& transport,
-      std::string& target,
-      std::string& transporter_type,
-      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem>& items,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult>& result_obs);
-
-    template<typename Subscriber>
-    void operator()(const Subscriber& s);
-
-  private:
-
-    std::shared_ptr<rmf_rxcpp::Transport>& _transport;
-    std::string& _target;
-    std::string& _transporter_type;
-    std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem>& _items;
-    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult>& _result_obs;
-  };
 };
-
-template<typename Subscriber>
-void DispenseItem::Action::operator()(const Subscriber& s)
-{
-  // TODO: multiplex publisher?
-  auto publisher = _transport->create_publisher<rmf_dispenser_msgs::msg::DispenserRequest>(
-    DispenserRequestTopicName, 10);
-
-  rmf_dispenser_msgs::msg::DispenserRequest msg{};
-
-  msg.request_guid = boost::uuids::to_string(boost::uuids::random_generator{}());
-  msg.target_guid = _target;
-  msg.transporter_type = _transporter_type;
-  msg.items = _items;
-
-  publisher->publish(msg);
-  auto timer = _transport->create_wall_timer(std::chrono::milliseconds(1000), [publisher, msg]()
-  {
-    publisher->publish(msg);
-  });
-
-  _result_obs.take_while(
-    [this, s, msg, timer](const rmf_dispenser_msgs::msg::DispenserResult& dispenser_result)
-    {
-      if (dispenser_result.request_guid == msg.request_guid &&
-        (dispenser_result.status == rmf_dispenser_msgs::msg::DispenserResult::SUCCESS ||
-        dispenser_result.status == rmf_dispenser_msgs::msg::DispenserResult::FAILED))
-      {
-        Task::StatusMsg status;
-        if (dispenser_result.status == rmf_dispenser_msgs::msg::DispenserResult::SUCCESS)
-          status.state = Task::StatusMsg::STATE_COMPLETED;
-        else
-          status.state = Task::StatusMsg::STATE_FAILED;
-        s.on_next(status);
-        s.on_completed();
-        return false;
-      }
-      return true;
-    }).subscribe();
-}
 
 } // namespace phases
 } // namespace rmf_fleet_adapter

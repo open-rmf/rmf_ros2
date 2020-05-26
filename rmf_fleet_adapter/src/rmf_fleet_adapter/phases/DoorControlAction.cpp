@@ -41,6 +41,13 @@ DoorControlAction::DoorControlAction(
   using rmf_door_msgs::msg::DoorState;
   using rmf_door_msgs::msg::SupervisorHeartbeat;
 
+  auto transport_ = _transport.lock();
+  if (!transport_)
+    throw std::runtime_error("invalid transport state");
+  // TODO: multiplex publisher?
+  _publisher = transport_->create_publisher<rmf_door_msgs::msg::DoorRequest>(
+    AdapterDoorRequestTopicName, 10);
+
   _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
 
   auto op = [this](const auto& s)
@@ -96,16 +103,13 @@ void DoorControlAction::_do_publish()
   if (!transport)
     throw std::runtime_error("invalid transport state");
 
-  auto publisher = transport->create_publisher<rmf_door_msgs::msg::DoorRequest>(
-    AdapterDoorRequestTopicName, 10);
-
   rmf_door_msgs::msg::DoorRequest msg{};
   msg.door_name = _door_name;
   msg.request_time = transport->now();
   msg.requested_mode.value = _target_mode;
   msg.requester_id = _session_id;
 
-  publisher->publish(msg);
+  _publisher->publish(msg);
   _timer = transport->create_wall_timer(
     std::chrono::milliseconds(1000),
     [this]()
