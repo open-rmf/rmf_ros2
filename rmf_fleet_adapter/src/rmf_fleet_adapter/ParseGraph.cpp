@@ -107,7 +107,7 @@ rmf_utils::optional<GraphInfo> parse_graph(
           std::cout << "Adding waypoint [" << wp.index() <<
             "] as a parking spot" << std::endl;
           info.parking_spots.push_back(wp.index());
-          wp.set_holding_point(true);
+          wp.set_parking_spot(true);
         }
       }
     }
