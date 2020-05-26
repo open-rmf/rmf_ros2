@@ -35,10 +35,10 @@ struct RequestLift
     public:
 
       Action(
-        std::weak_ptr<rmf_rxcpp::Transport>& transport,
-        std::string& lift_name,
-        std::string& destination,
-        rxcpp::observable<rmf_lift_msgs::msg::LiftState>& lift_state_obs);
+        std::weak_ptr<rmf_rxcpp::Transport> transport,
+        std::string lift_name,
+        std::string destination,
+        rxcpp::observable<rmf_lift_msgs::msg::LiftState> lift_state_obs);
 
       inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
       {
@@ -47,10 +47,10 @@ struct RequestLift
 
     private:
 
-      std::weak_ptr<rmf_rxcpp::Transport>& _transport;
-      std::string& _lift_name;
-      std::string& _destination;
-      rxcpp::observable<rmf_lift_msgs::msg::LiftState>& _lift_state_obs;
+      std::weak_ptr<rmf_rxcpp::Transport> _transport;
+      std::string _lift_name;
+      std::string _destination;
+      rxcpp::observable<rmf_lift_msgs::msg::LiftState> _lift_state_obs;
       rxcpp::observable<Task::StatusMsg> _obs;
       std::string _session_id;
       rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr _publisher;

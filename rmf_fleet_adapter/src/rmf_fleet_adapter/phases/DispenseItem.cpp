@@ -25,16 +25,16 @@ namespace phases {
 
 //==============================================================================
 DispenseItem::Action::Action(
-  std::weak_ptr<rmf_rxcpp::Transport>& transport,
-  std::string& target,
-  std::string& transporter_type,
-  std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem>& items,
-  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult>& result_obs)
-  : _transport{transport},
-    _target{target},
-    _transporter_type{transporter_type},
-    _items{items},
-    _result_obs{result_obs}
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
+  std::string target,
+  std::string transporter_type,
+  std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult> result_obs)
+  : _transport{std::move(transport)},
+    _target{std::move(target)},
+    _transporter_type{std::move(transporter_type)},
+    _items{std::move(items)},
+    _result_obs{std::move(result_obs)}
 {
   auto transport_ = _transport.lock();
   if (!transport_)

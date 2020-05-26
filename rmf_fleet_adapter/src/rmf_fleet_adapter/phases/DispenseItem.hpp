@@ -35,11 +35,11 @@ struct DispenseItem
   public:
 
     Action(
-      std::weak_ptr<rmf_rxcpp::Transport>& transport,
-      std::string& target,
-      std::string& transporter_type,
-      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem>& items,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult>& result_obs);
+      std::weak_ptr<rmf_rxcpp::Transport> transport,
+      std::string target,
+      std::string transporter_type,
+      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult> result_obs);
 
     inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
     {
@@ -48,11 +48,11 @@ struct DispenseItem
 
   private:
 
-    std::weak_ptr<rmf_rxcpp::Transport>& _transport;
-    std::string& _target;
-    std::string& _transporter_type;
-    std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem>& _items;
-    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult>& _result_obs;
+    std::weak_ptr<rmf_rxcpp::Transport> _transport;
+    std::string _target;
+    std::string _transporter_type;
+    std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
+    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult> _result_obs;
     rxcpp::observable<Task::StatusMsg> _obs;
     std::string _request_guid;
     rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr _publisher;

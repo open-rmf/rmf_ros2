@@ -25,14 +25,14 @@ namespace phases {
 
 //==============================================================================
 RequestLift::Action::Action(
-  std::weak_ptr<rmf_rxcpp::Transport>& transport,
-  std::string& lift_name,
-  std::string& destination,
-  rxcpp::observable<rmf_lift_msgs::msg::LiftState>& lift_state_obs)
-  : _transport{transport},
-    _lift_name{lift_name},
-    _destination{destination},
-    _lift_state_obs{lift_state_obs}
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
+  std::string lift_name,
+  std::string destination,
+  rxcpp::observable<rmf_lift_msgs::msg::LiftState> lift_state_obs)
+  : _transport{std::move(transport)},
+    _lift_name{std::move(lift_name)},
+    _destination{std::move(destination)},
+    _lift_state_obs{std::move(lift_state_obs)}
 {
   using rmf_lift_msgs::msg::LiftState;
 
