@@ -27,7 +27,7 @@ namespace phases {
 DoorControlAction::DoorControlAction(
   std::string door_name,
   uint32_t target_mode,
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},
@@ -87,13 +87,17 @@ Task::StatusMsg DoorControlAction::_do(
 //==============================================================================
 void DoorControlAction::_do_publish()
 {
-  auto publisher = _transport->create_publisher<rmf_door_msgs::msg::DoorRequest>(
+  auto transport = _transport.lock();
+  if (!transport)
+    throw std::runtime_error("invalid transport state");
+
+  auto publisher = transport->create_publisher<rmf_door_msgs::msg::DoorRequest>(
     AdapterDoorRequestTopicName, 10);
 
   _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
   rmf_door_msgs::msg::DoorRequest msg{};
   msg.door_name = _door_name;
-  msg.request_time = _transport->now();
+  msg.request_time = transport->now();
   msg.requested_mode.value = _target_mode;
   msg.requester_id = _session_id;
 
@@ -106,10 +110,14 @@ void DoorControlAction::_retry_publish_door_request(
   const rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr& publisher,
   const rmf_door_msgs::msg::DoorRequest& msg)
 {
+  auto transport = _transport.lock();
+  if (!transport)
+    throw std::runtime_error("invalid transport state");
+
   if (_supervisor_received_publish)
     return;
   publisher->publish(msg);
-  _timer = _transport->create_wall_timer(
+  _timer = transport->create_wall_timer(
     std::chrono::milliseconds(1000),
     [this, publisher, msg]()
     {

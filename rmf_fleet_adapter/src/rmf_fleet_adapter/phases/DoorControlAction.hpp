@@ -42,7 +42,7 @@ public:
   DoorControlAction(
     std::string door_name,
     uint32_t target_mode,
-    std::shared_ptr<rmf_rxcpp::Transport> transport,
+    std::weak_ptr<rmf_rxcpp::Transport> transport,
     rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
     rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs);
 
@@ -66,7 +66,7 @@ private:
 
   std::string _door_name;
   uint32_t _target_mode;
-  std::shared_ptr<rmf_rxcpp::Transport> _transport;
+  std::weak_ptr<rmf_rxcpp::Transport> _transport;
   rxcpp::observable<rmf_door_msgs::msg::DoorState> _door_state_obs;
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> _supervisor_heartbeat_obs;
   rxcpp::observable<Task::StatusMsg> _obs;

@@ -25,7 +25,7 @@ namespace phases {
 //==============================================================================
 DoorOpen::ActivePhase::ActivePhase(
   std::string door_name,
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},
@@ -96,7 +96,7 @@ const std::string& DoorOpen::ActivePhase::description() const
 //==============================================================================
 DoorOpen::PendingPhase::PendingPhase(
   std::string  door_name,
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},

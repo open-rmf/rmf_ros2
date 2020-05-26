@@ -34,7 +34,7 @@ struct DoorClose
 
     ActivePhase(
       std::string door_name,
-      std::shared_ptr<rmf_rxcpp::Transport> transport,
+      std::weak_ptr<rmf_rxcpp::Transport> transport,
       rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
       rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs);
 
@@ -51,7 +51,7 @@ struct DoorClose
   private:
 
     std::string _door_name;
-    std::shared_ptr<rmf_rxcpp::Transport> _transport;
+    std::weak_ptr<rmf_rxcpp::Transport> _transport;
     rxcpp::observable<rmf_door_msgs::msg::DoorState> _door_state_obs;
     rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> _supervisor_heartbeat_obs;
     DoorControlAction _action;
@@ -64,7 +64,7 @@ struct DoorClose
 
     PendingPhase(
       std::string door_name,
-      std::shared_ptr<rmf_rxcpp::Transport> transport,
+      std::weak_ptr<rmf_rxcpp::Transport> transport,
       rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
       rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs);
 
@@ -77,7 +77,7 @@ struct DoorClose
   private:
 
     std::string _door_name;
-    std::shared_ptr<rmf_rxcpp::Transport> _transport;
+    std::weak_ptr<rmf_rxcpp::Transport> _transport;
     rxcpp::observable<rmf_door_msgs::msg::DoorState> _door_state_obs;
     rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> _supervisor_heartbeat_obs;
     std::string _description;

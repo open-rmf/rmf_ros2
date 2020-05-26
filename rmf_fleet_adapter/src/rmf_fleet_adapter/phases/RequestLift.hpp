@@ -38,7 +38,7 @@ struct RequestLift
   public:
 
     ActivePhase(
-      std::shared_ptr<rmf_rxcpp::Transport> transport,
+      std::weak_ptr<rmf_rxcpp::Transport> transport,
       std::string lift_name,
       std::string destination,
       rxcpp::observable<rmf_lift_msgs::msg::LiftState> lift_state_obs);
@@ -55,7 +55,7 @@ struct RequestLift
 
   private:
 
-    std::shared_ptr<rmf_rxcpp::Transport> _transport;
+    std::weak_ptr<rmf_rxcpp::Transport> _transport;
     std::string _lift_name;
     std::string _destination;
     rxcpp::observable<rmf_lift_msgs::msg::LiftState> _lift_state_obs;
@@ -68,7 +68,7 @@ struct RequestLift
   public:
 
     PendingPhase(
-      std::shared_ptr<rmf_rxcpp::Transport> transport,
+      std::weak_ptr<rmf_rxcpp::Transport> transport,
       std::string lift_name,
       std::string destination,
       rxcpp::observable<rmf_lift_msgs::msg::LiftState> lift_state_obs);
@@ -81,7 +81,7 @@ struct RequestLift
 
   private:
 
-    std::shared_ptr<rmf_rxcpp::Transport> _transport;
+    std::weak_ptr<rmf_rxcpp::Transport> _transport;
     std::string _lift_name;
     std::string _destination;
     rxcpp::observable<rmf_lift_msgs::msg::LiftState> _lift_state_obs;
@@ -93,7 +93,7 @@ struct RequestLift
   public:
 
     Action(
-      std::shared_ptr<rmf_rxcpp::Transport>& transport,
+      std::weak_ptr<rmf_rxcpp::Transport>& transport,
       std::string& lift_name,
       std::string& destination,
       rxcpp::observable<rmf_lift_msgs::msg::LiftState>& lift_state_obs);
@@ -103,7 +103,7 @@ struct RequestLift
 
   private:
 
-    std::shared_ptr<rmf_rxcpp::Transport>& _transport;
+    std::weak_ptr<rmf_rxcpp::Transport>& _transport;
     std::string& _lift_name;
     std::string& _destination;
     rxcpp::observable<rmf_lift_msgs::msg::LiftState>& _lift_state_obs;
@@ -113,20 +113,24 @@ struct RequestLift
 template<typename Subscriber>
 void RequestLift::Action::operator()(const Subscriber& s)
 {
+  auto transport = _transport.lock();
+  if (!transport)
+    throw std::runtime_error("invalid transport state");
+
   // TODO: multiplex publisher?
-  auto publisher = _transport->create_publisher<rmf_lift_msgs::msg::LiftRequest>(
+  auto publisher = transport->create_publisher<rmf_lift_msgs::msg::LiftRequest>(
     AdapterLiftRequestTopicName, 10);
 
   rmf_lift_msgs::msg::LiftRequest msg{};
   msg.lift_name = _lift_name;
   msg.destination_floor = _destination;
   msg.session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
-  msg.request_time = _transport->now();
+  msg.request_time = transport->now();
   msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_AGV_MODE;
   msg.door_state = rmf_lift_msgs::msg::LiftRequest::DOOR_OPEN;
 
   publisher->publish(msg);
-  auto timer = _transport->create_wall_timer(std::chrono::milliseconds(1000), [publisher, msg]()
+  auto timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [publisher, msg]()
   {
     publisher->publish(msg);
   });

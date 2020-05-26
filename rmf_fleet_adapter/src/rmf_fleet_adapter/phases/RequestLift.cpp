@@ -22,7 +22,7 @@ namespace phases {
 
 //==============================================================================
 RequestLift::ActivePhase::ActivePhase(
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
   std::string lift_name,
   std::string destination,
   rxcpp::observable<rmf_lift_msgs::msg::LiftState> lift_state_obs)
@@ -74,7 +74,7 @@ const std::string& RequestLift::ActivePhase::description() const
 
 //==============================================================================
 RequestLift::PendingPhase::PendingPhase(
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
   std::string lift_name,
   std::string destination,
   rxcpp::observable<rmf_lift_msgs::msg::LiftState> lift_state_obs)
@@ -111,7 +111,7 @@ const std::string& RequestLift::PendingPhase::description() const
 
 //==============================================================================
 RequestLift::Action::Action(
-  std::shared_ptr<rmf_rxcpp::Transport>& transport,
+  std::weak_ptr<rmf_rxcpp::Transport>& transport,
   std::string& lift_name,
   std::string& destination,
   rxcpp::observable<rmf_lift_msgs::msg::LiftState>& lift_state_obs)
