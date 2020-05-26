@@ -16,6 +16,8 @@
 */
 
 #include "DoorControlAction.hpp"
+#include "SupervisorHasSession.hpp"
+#include "rmf_fleet_adapter/StandardNames.hpp"
 
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/uuid_generators.hpp>
@@ -36,28 +38,31 @@ DoorControlAction::DoorControlAction(
     _door_state_obs{std::move(door_state_obs)},
     _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)}
 {
-  auto _start_obs = rxcpp::observable<>::create<bool>([this](const auto& s)
+  using rmf_door_msgs::msg::DoorState;
+  using rmf_door_msgs::msg::SupervisorHeartbeat;
+
+  _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
+
+  auto op = [this](const auto& s)
   {
     _do_publish();
-    s.on_completed();
-  });
-  _obs = _start_obs.combine_latest(
-    [this](const auto&, const auto& door_state, const auto& heartbeat)
-    {
-      return _do(door_state, heartbeat);
-    }, door_state_obs, supervisor_heartbeat_obs)
 
-    // using lift instead of take_while/take_until because we want the last COMPLETED state to be
-    // reported. take_while/take_until may consume the last message.
-    .lift<Task::StatusMsg>([this](const auto& s)
+    using SourceType = std::tuple<DoorState, SupervisorHeartbeat>;
+    return rxcpp::make_subscriber<SourceType>([this, s](const SourceType& t)
     {
-      return rxcpp::make_subscriber<Task::StatusMsg>([this, s](const Task::StatusMsg& status)
+      auto status = _do(std::get<0>(t), std::get<1>(t));
+      s.on_next(status);
+      if (
+        _cancelled ||
+        status.state == Task::StatusMsg::STATE_COMPLETED ||
+        status.state == Task::StatusMsg::STATE_FAILED)
       {
-        s.on_next(status);
-        if (_cancelled || status.state == Task::StatusMsg::STATE_COMPLETED)
-          s.on_completed();
-      });
-  });
+        s.on_completed();
+      }
+    });
+  };
+
+  _obs = _door_state_obs.combine_latest(_supervisor_heartbeat_obs).lift<Task::StatusMsg>(op);
 }
 
 //==============================================================================
@@ -94,7 +99,6 @@ void DoorControlAction::_do_publish()
   auto publisher = transport->create_publisher<rmf_door_msgs::msg::DoorRequest>(
     AdapterDoorRequestTopicName, 10);
 
-  _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
   rmf_door_msgs::msg::DoorRequest msg{};
   msg.door_name = _door_name;
   msg.request_time = transport->now();
@@ -102,26 +106,11 @@ void DoorControlAction::_do_publish()
   msg.requester_id = _session_id;
 
   publisher->publish(msg);
-  _retry_publish_door_request(publisher, msg);
-}
-
-//==============================================================================
-void DoorControlAction::_retry_publish_door_request(
-  const rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr& publisher,
-  const rmf_door_msgs::msg::DoorRequest& msg)
-{
-  auto transport = _transport.lock();
-  if (!transport)
-    throw std::runtime_error("invalid transport state");
-
-  if (_supervisor_received_publish)
-    return;
-  publisher->publish(msg);
   _timer = transport->create_wall_timer(
     std::chrono::milliseconds(1000),
-    [this, publisher, msg]()
+    [this]()
     {
-      _retry_publish_door_request(publisher, msg);
+      _do_publish();
     });
 }
 

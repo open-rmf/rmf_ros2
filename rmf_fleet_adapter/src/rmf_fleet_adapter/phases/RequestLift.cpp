@@ -17,6 +17,9 @@
 
 #include "RequestLift.hpp"
 
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
@@ -29,22 +32,19 @@ RequestLift::ActivePhase::ActivePhase(
   : _transport{std::move(transport)},
     _lift_name{std::move(lift_name)},
     _destination{std::move(destination)},
-    _lift_state_obs{std::move(lift_state_obs)}
+    _lift_state_obs{std::move(lift_state_obs)},
+    _action{_transport, _lift_name, _destination, _lift_state_obs}
 {
   std::ostringstream oss;
   oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
 
   _description = oss.str();
-
-  _job = rmf_rxcpp::make_job<Task::StatusMsg>(
-    std::make_shared<RequestLift::Action>(
-      _transport, _lift_name, _destination, _lift_state_obs));
 }
 
 //==============================================================================
 const rxcpp::observable<Task::StatusMsg>& RequestLift::ActivePhase::observe() const
 {
-  return _job;
+  return _action.get_observable();
 }
 
 //==============================================================================
@@ -120,7 +120,70 @@ RequestLift::Action::Action(
     _destination{destination},
     _lift_state_obs{lift_state_obs}
 {
-  // no op
+  using rmf_lift_msgs::msg::LiftState;
+
+  _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
+
+  auto op = [this](const auto& s)
+  {
+    _do_publish();
+
+    return rxcpp::make_subscriber<LiftState>([this, s](const LiftState& lift_state)
+    {
+      auto status = _do(lift_state);
+      s.on_next(status);
+      if (
+        status.state == Task::StatusMsg::STATE_COMPLETED ||
+        status.state == Task::StatusMsg::STATE_FAILED)
+      {
+        s.on_completed();
+      }
+    });
+  };
+
+  _obs = _lift_state_obs.lift<Task::StatusMsg>(op);
+}
+
+//==============================================================================
+Task::StatusMsg RequestLift::Action::_do(const rmf_lift_msgs::msg::LiftState& lift_state)
+{
+  using rmf_lift_msgs::msg::LiftState;
+  Task::StatusMsg status{};
+  status.state = Task::StatusMsg::STATE_ACTIVE;
+  if (lift_state.current_floor == _destination && lift_state.door_state == LiftState::DOOR_OPEN)
+  {
+    status.state = Task::StatusMsg::STATE_COMPLETED;
+    _timer.reset();
+  }
+  return status;
+}
+
+//==============================================================================
+void RequestLift::Action::_do_publish()
+{
+  auto transport = _transport.lock();
+  if (!transport)
+    throw std::runtime_error("invalid transport state");
+
+  // TODO: multiplex publisher?
+  auto publisher = transport->create_publisher<rmf_lift_msgs::msg::LiftRequest>(
+    AdapterLiftRequestTopicName, 10);
+
+  rmf_lift_msgs::msg::LiftRequest msg{};
+  msg.lift_name = _lift_name;
+  msg.destination_floor = _destination;
+  msg.session_id = _session_id;
+  msg.request_time = transport->now();
+  msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_AGV_MODE;
+  msg.door_state = rmf_lift_msgs::msg::LiftRequest::DOOR_OPEN;
+
+  publisher->publish(msg);
+  _timer = transport->create_wall_timer(
+    std::chrono::milliseconds(1000),
+    [this]()
+    {
+      _do_publish();
+    });
 }
 
 } // namespace phases

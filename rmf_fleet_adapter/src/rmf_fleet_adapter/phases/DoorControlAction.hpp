@@ -18,17 +18,12 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__DOORCONTROLACTION_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__DOORCONTROLACTION_HPP
 
-#include "SupervisorHasSession.hpp"
 #include "../Task.hpp"
-#include "rmf_fleet_adapter/StandardNames.hpp"
 
 #include <rmf_rxcpp/Transport.hpp>
 #include <rmf_door_msgs/msg/door_state.hpp>
 #include <rmf_door_msgs/msg/door_request.hpp>
 #include <rmf_door_msgs/msg/supervisor_heartbeat.hpp>
-
-#include <boost/uuid/uuid_io.hpp>
-#include <boost/uuid/uuid_generators.hpp>
 
 #include <algorithm>
 
@@ -81,10 +76,6 @@ private:
     const rmf_door_msgs::msg::SupervisorHeartbeat& heartbeat);
 
   void _do_publish();
-
-  void _retry_publish_door_request(
-    const rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr& publisher,
-    const rmf_door_msgs::msg::DoorRequest& msg);
 };
 
 } // namespace phases
