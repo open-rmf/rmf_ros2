@@ -62,7 +62,8 @@ void DoorClose::ActivePhase::emergency_alarm(bool /*on*/)
 //==============================================================================
 void DoorClose::ActivePhase::cancel()
 {
-  // TODO: implement
+  // Don't actually cancel anything here, we don't want to leave hanging opened doors.
+  // no op
 }
 
 //==============================================================================

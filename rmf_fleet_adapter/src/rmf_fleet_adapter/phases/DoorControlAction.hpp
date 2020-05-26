@@ -51,6 +51,17 @@ public:
     return _obs;
   }
 
+  inline void cancel()
+  {
+    _timer.reset();
+    _cancelled = true;
+  }
+
+  inline bool is_cancelled()
+  {
+    return _cancelled;
+  }
+
 private:
 
   std::string _door_name;
@@ -61,7 +72,7 @@ private:
   rxcpp::observable<Task::StatusMsg> _obs;
   rclcpp::TimerBase::SharedPtr _timer;
   std::string _session_id;
-  // FIXME?: This may be read from different threads, do we need a lock or std::atomic<bool>?
+  std::atomic<bool> _cancelled{false};
   bool _supervisor_received_publish = false;
   bool _supervisor_finished_request = false;
 

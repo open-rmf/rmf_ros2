@@ -41,10 +41,23 @@ DoorControlAction::DoorControlAction(
     _do_publish();
     s.on_completed();
   });
-  _obs = _start_obs.combine_latest([this](const auto&, const auto& door_state, const auto& heartbeat)
-  {
-    return _do(door_state, heartbeat);
-  }, door_state_obs, supervisor_heartbeat_obs);
+  _obs = _start_obs.combine_latest(
+    [this](const auto&, const auto& door_state, const auto& heartbeat)
+    {
+      return _do(door_state, heartbeat);
+    }, door_state_obs, supervisor_heartbeat_obs)
+
+    // using lift instead of take_while/take_until because we want the last COMPLETED state to be
+    // reported. take_while/take_until may consume the last message.
+    .lift<Task::StatusMsg>([this](const auto& s)
+    {
+      return rxcpp::make_subscriber<Task::StatusMsg>([this, s](const Task::StatusMsg& status)
+      {
+        s.on_next(status);
+        if (_cancelled || status.state == Task::StatusMsg::STATE_COMPLETED)
+          s.on_completed();
+      });
+  });
 }
 
 //==============================================================================

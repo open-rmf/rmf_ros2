@@ -55,8 +55,8 @@ struct DoorOpen
     rxcpp::observable<rmf_door_msgs::msg::DoorState> _door_state_obs;
     rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> _supervisor_heartbeat_obs;
     DoorControlAction _action;
+    rxcpp::observable<Task::StatusMsg> _obs;
     std::string _description;
-    rxcpp::composite_subscription _subscription;
   };
 
   class PendingPhase : public Task::PendingPhase
