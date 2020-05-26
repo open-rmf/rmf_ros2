@@ -225,11 +225,6 @@ rmf_utils::optional<GraphInfo> parse_graph(
   for (const auto& workcell_wp : info.workcell_names)
     generic_waypoint.erase(workcell_wp.first);
 
-  // All of the waypoints that don't serve any particular purpose can be used
-  // as holding points during planning.
-  for (const std::size_t wp : generic_waypoint)
-    info.graph.get_waypoint(wp).set_holding_point(true);
-
   std::cout << "Named waypoints:";
   for (const auto& key : info.keys)
     std::cout << "\n -- [" << key.first << "]";
