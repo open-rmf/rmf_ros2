@@ -88,6 +88,27 @@ void Task::_start_next_phase()
           // this to whoever is subscribing to the Task.
           this->_status_publisher.publish(summary);
         },
+        [this](std::exception_ptr e)
+        {
+          _pending_phases.clear();
+          std::string exception_msg;
+          try
+          {
+            if (e)
+              std::rethrow_exception(e);
+          }
+          catch(const std::exception& e)
+          {
+            exception_msg = e.what();
+          }
+
+          StatusMsg msg;
+          msg.state = msg.STATE_FAILED;
+          msg.status = "Failure at phase ["+_active_phase->description()+"]: "
+            + exception_msg;
+
+          this->_status_publisher.publish(msg);
+        },
         [this]()
         {
           // We have received a completion notice from the phase
