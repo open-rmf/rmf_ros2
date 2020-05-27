@@ -25,28 +25,47 @@ namespace phases {
 //==============================================================================
 DoorOpen::ActivePhase::ActivePhase(
   std::string door_name,
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},
     _transport{std::move(transport)},
     _door_state_obs{std::move(door_state_obs)},
-    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)}
-{
-  _job = rmf_rxcpp::make_job<Task::StatusMsg>(
-    std::make_shared<DoorControlAction>(
+    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
+    _action{
       _door_name,
       rmf_door_msgs::msg::DoorMode::MODE_OPEN,
       _transport,
       _door_state_obs,
-      _supervisor_heartbeat_obs));
+      _supervisor_heartbeat_obs}
+{
   _description = "Opening door \"" + _door_name + "\"";
+
+  // When the phase is cancelled, queue a door close action instead of finishing immediately to
+  // make sure that there are no hanging opened doors.
+  auto post_finish_action = std::make_shared<DoorControlAction>(
+    _door_name,
+    rmf_door_msgs::msg::DoorMode::MODE_CLOSED,
+    _transport,
+    _door_state_obs,
+    _supervisor_heartbeat_obs);
+
+  auto post_finish_obs = rxcpp::observable<>::create<Task::StatusMsg>(
+    [this, post_finish_action](const auto& s)
+    {
+      if (!_action.is_cancelled())
+        s.on_completed();
+      else
+        post_finish_action->get_observable().subscribe(s);
+    });
+
+  _obs = _action.get_observable().concat(post_finish_obs);
 }
 
 //==============================================================================
 const rxcpp::observable<Task::StatusMsg>& DoorOpen::ActivePhase::observe() const
 {
-  return _job;
+  return _obs;
 }
 
 //==============================================================================
@@ -65,7 +84,7 @@ void DoorOpen::ActivePhase::emergency_alarm(bool /*on*/)
 //==============================================================================
 void DoorOpen::ActivePhase::cancel()
 {
-  // TODO: implement
+  _action.cancel();
 }
 
 //==============================================================================
@@ -77,7 +96,7 @@ const std::string& DoorOpen::ActivePhase::description() const
 //==============================================================================
 DoorOpen::PendingPhase::PendingPhase(
   std::string  door_name,
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},

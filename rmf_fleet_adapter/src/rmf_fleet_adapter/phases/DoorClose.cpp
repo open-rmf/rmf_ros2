@@ -23,28 +23,27 @@ namespace phases {
 //==============================================================================
 DoorClose::ActivePhase::ActivePhase(
   std::string door_name,
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},
     _transport{std::move(transport)},
     _door_state_obs{std::move(door_state_obs)},
-    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)}
-{
-  _job = rmf_rxcpp::make_job<Task::StatusMsg>(
-    std::make_shared<DoorControlAction>(
+    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
+    _action{
       _door_name,
-      rmf_door_msgs::msg::DoorMode::MODE_CLOSED,
+      rmf_door_msgs::msg::DoorMode::MODE_OPEN,
       _transport,
       _door_state_obs,
-      _supervisor_heartbeat_obs));
+      _supervisor_heartbeat_obs}
+{
   _description = "Closing door \"" + _door_name + "\"";
 }
 
 //==============================================================================
 const rxcpp::observable<Task::StatusMsg>& DoorClose::ActivePhase::observe() const
 {
-  return _job;
+  return _action.get_observable();
 }
 
 //==============================================================================
@@ -63,7 +62,8 @@ void DoorClose::ActivePhase::emergency_alarm(bool /*on*/)
 //==============================================================================
 void DoorClose::ActivePhase::cancel()
 {
-  // TODO: implement
+  // Don't actually cancel anything here, we don't want to leave hanging opened doors.
+  // no op
 }
 
 //==============================================================================
@@ -75,7 +75,7 @@ const std::string& DoorClose::ActivePhase::description() const
 //==============================================================================
 DoorClose::PendingPhase::PendingPhase(
   std::string  door_name,
-  std::shared_ptr<rmf_rxcpp::Transport> transport,
+  std::weak_ptr<rmf_rxcpp::Transport> transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},

@@ -15,8 +15,8 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER_PHASES__MOVEROBOT__HPP
-#define SRC__RMF_FLEET_ADAPTER_PHASES__MOVEROBOT__HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__PHASES__MOVEROBOT_HPP
+#define SRC__RMF_FLEET_ADAPTER__PHASES__MOVEROBOT_HPP
 
 #include "../Task.hpp"
 #include "../agv/RobotContext.hpp"
@@ -104,4 +104,4 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 } // namespace rmf_fleet_adapter
 
 
-#endif // SRC__RMF_FLEET_ADAPTER_PHASES__MOVEROBOT__HPP
+#endif // SRC__RMF_FLEET_ADAPTER__PHASES__MOVEROBOT_HPP
