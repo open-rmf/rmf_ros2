@@ -27,6 +27,9 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
+const std::string DoorControlAction::status_msg_cancelled = "cancelled";
+
+//==============================================================================
 DoorControlAction::DoorControlAction(
   std::string door_name,
   uint32_t target_mode,
@@ -52,21 +55,25 @@ DoorControlAction::DoorControlAction(
   _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
 
   auto cancelled_obs = _cancelled.get_observable()
-    .filter([](const auto& b) { return b; })
-    .map([](const auto&)
+    .filter([this](const auto& b) { return b; })
+    .map([this](const auto&)
     {
-      Task::StatusMsg status;
-      status.state = Task::StatusMsg::STATE_COMPLETED;
-      status.status = "cancelled";
-      return status;
+      _status.state = Task::StatusMsg::STATE_COMPLETED;
+      _status.status = status_msg_cancelled;
+      return _status;
     });
 
   using CombinedType = std::tuple<DoorState::SharedPtr, SupervisorHeartbeat::SharedPtr>;
   _obs = _door_state_obs.combine_latest(_supervisor_heartbeat_obs)
-    .lift<CombinedType>(on_subscribe([this]() { _do_publish(); }))
+    .lift<CombinedType>(on_subscribe([this]()
+    {
+      _status.state = Task::StatusMsg::STATE_ACTIVE;
+      _do_publish();
+    }))
     .map([this](const auto& v)
     {
-      return _check_status(std::get<0>(v), std::get<1>(v));
+      _update_status(std::get<0>(v), std::get<1>(v));
+      return _status;
     })
     .merge(cancelled_obs)
     .lift<Task::StatusMsg>(grab_while([this](const Task::StatusMsg& status)
@@ -83,15 +90,12 @@ DoorControlAction::DoorControlAction(
 }
 
 //==============================================================================
-Task::StatusMsg DoorControlAction::_check_status(
+void DoorControlAction::_update_status(
   const rmf_door_msgs::msg::DoorState::SharedPtr& door_state,
   const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat)
 {
-  Task::StatusMsg status{};
-  status.state = Task::StatusMsg::STATE_ACTIVE;
-
   if (door_state->door_name != _door_name)
-    return status;
+    return;
 
   bool has_session = supervisor_has_session(*heartbeat, _session_id, _door_name);
   if (!_supervisor_received_publish)
@@ -104,9 +108,7 @@ Task::StatusMsg DoorControlAction::_check_status(
     _supervisor_finished_request = !has_session;
 
   if (_supervisor_finished_request && door_state->current_mode.value == _target_mode)
-    status.state = Task::StatusMsg::STATE_COMPLETED;
-
-  return status;
+    _status.state = Task::StatusMsg::STATE_COMPLETED;
 }
 
 //==============================================================================

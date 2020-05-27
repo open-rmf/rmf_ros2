@@ -53,7 +53,7 @@ DoorOpen::ActivePhase::ActivePhase(
   auto post_finish_obs = rxcpp::observable<>::create<Task::StatusMsg>(
     [this, post_finish_action](const auto& s)
     {
-      if (!_action.is_cancelled())
+      if (_action.get_current_status().status != DoorControlAction::status_msg_cancelled)
         s.on_completed();
       else
         post_finish_action->get_observable().subscribe(s);

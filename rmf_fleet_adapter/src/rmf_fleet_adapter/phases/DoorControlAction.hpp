@@ -34,6 +34,8 @@ class DoorControlAction
 {
 public:
 
+  static const std::string status_msg_cancelled;
+
   DoorControlAction(
     std::string door_name,
     uint32_t target_mode,
@@ -52,9 +54,9 @@ public:
     _cancelled.get_subscriber().on_next(true);
   }
 
-  inline bool is_cancelled()
+  inline Task::StatusMsg get_current_status()
   {
-    return _cancelled.get_value();
+    return _status;
   }
 
 private:
@@ -65,6 +67,7 @@ private:
   rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> _door_state_obs;
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
   rxcpp::observable<Task::StatusMsg> _obs;
+  Task::StatusMsg _status;
   rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _publisher;
   rclcpp::TimerBase::SharedPtr _timer;
   std::string _session_id;
@@ -72,7 +75,7 @@ private:
   bool _supervisor_finished_request = false;
   rxcpp::subjects::behavior<bool> _cancelled{false};
 
-  Task::StatusMsg _check_status(
+  void _update_status(
     const rmf_door_msgs::msg::DoorState::SharedPtr& door_state,
     const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat);
 
