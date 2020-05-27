@@ -154,7 +154,9 @@ void GoToPlace::Active::find_emergency_plan()
 
   _plan_subscription = rmf_rxcpp::make_job<
       services::FindEmergencyPullover::Result>(
-        std::make_shared<services::FindEmergencyPullover>())
+        std::make_shared<services::FindEmergencyPullover>(
+          _context->planner(), _context->location(),
+          _context->schedule()->snapshot(), _context->itinerary().id()))
       .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
         [phase = std::move(phase)](

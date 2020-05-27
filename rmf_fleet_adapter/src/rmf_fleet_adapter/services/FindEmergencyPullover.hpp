@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__SERVICES__FINDEMERGENCYPULLOVER_HPP
 #define SRC__RMF_FLEET_ADAPTER__SERVICES__FINDEMERGENCYPULLOVER_HPP
 
-#include "../jobs/Planning.hpp"
+#include "../jobs/SearchForPath.hpp"
 
 namespace rmf_fleet_adapter {
 namespace services {
@@ -28,22 +28,39 @@ class FindEmergencyPullover
 {
 public:
 
-  FindEmergencyPullover()
-  {
-    // TODO
-  }
+  FindEmergencyPullover(
+      std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+      rmf_traffic::agv::Plan::StartSet starts,
+      std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
+      rmf_traffic::schedule::ParticipantId participant_id);
 
   using Result = rmf_traffic::agv::Plan::Result;
 
   template<typename Subscriber>
-  void operator()(const Subscriber& s)
-  {
-    // TODO
-  }
+  void operator()(const Subscriber& s);
 
+private:
+
+  struct EstimateInfo
+  {
+    double cost = std::numeric_limits<double>::infinity();
+    const jobs::SearchForPath* search;
+  };
+
+  std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
+  rmf_traffic::agv::Plan::StartSet _starts;
+  std::shared_ptr<const rmf_traffic::schedule::Snapshot> _schedule;
+  rmf_traffic::schedule::ParticipantId _participant_id;
+
+  std::vector<std::shared_ptr<jobs::SearchForPath>> _search_jobs;
+  rxcpp::subscription _search_sub;
+  EstimateInfo _best_estimate;
+  EstimateInfo _second_best_estimate;
 };
 
 } // namespace services
 } // namespace rmf_fleet_adapter
+
+#include "detail/impl_FindEmergencyPullover.hpp"
 
 #endif // SRC__RMF_FLEET_ADAPTER__SERVICES__FINDEMERGENCYPULLOVER_HPP

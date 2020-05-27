@@ -37,7 +37,9 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
   {
     // This means the plan was infeasible from the start, so we will declare
     // that the job is completed without returning any result.
-    s.on_completed();
+    s.on_error(std::make_exception_ptr(
+                 std::runtime_error(
+                   "[SearchForPath] Impossible path requested")));
     return;
   }
 
@@ -162,22 +164,6 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       _compliant_failed = true;
     }
   });
-}
-
-//==============================================================================
-void SearchForPath::discard()
-{
-  if (_greedy_job)
-    _greedy_job->discard();
-
-  if (_compliant_job)
-    _compliant_job->discard();
-}
-
-//==============================================================================
-void SearchForPath::set_cost_limit(double cost)
-{
-  _explicit_cost_limit = cost;
 }
 
 } // namespace jobs

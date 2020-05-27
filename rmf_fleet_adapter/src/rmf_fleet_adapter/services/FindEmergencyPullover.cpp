@@ -15,41 +15,24 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__SERVICES__FINDPATH_HPP
-#define SRC__RMF_FLEET_ADAPTER__SERVICES__FINDPATH_HPP
-
-#include "../jobs/SearchForPath.hpp"
+#include "FindEmergencyPullover.hpp"
 
 namespace rmf_fleet_adapter {
 namespace services {
 
 //==============================================================================
-/// Find a path that gets from the start to the goal. It might or might not
-/// comply with the given schedule, depending on what is feasible.
-class FindPath
-{
-public:
-
-  FindPath(
+FindEmergencyPullover::FindEmergencyPullover(
     std::shared_ptr<const rmf_traffic::agv::Planner> planner,
     rmf_traffic::agv::Plan::StartSet starts,
-    rmf_traffic::agv::Plan::Goal goal,
     std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
-    rmf_traffic::schedule::ParticipantId participant_id);
-
-  using Result = rmf_traffic::agv::Plan::Result;
-
-  template<typename Subscriber>
-  void operator()(const Subscriber& s);
-
-private:
-  std::shared_ptr<jobs::SearchForPath> _search_job;
-  rxcpp::subscription _search_sub;
-};
+    rmf_traffic::schedule::ParticipantId participant_id)
+  : _planner(std::move(planner)),
+    _starts(std::move(starts)),
+    _schedule(std::move(schedule)),
+    _participant_id(participant_id)
+{
+  // Do nothing
+}
 
 } // namespace services
 } // namespace rmf_fleet_adapter
-
-#include "detail/impl_FindPath.hpp"
-
-#endif // SRC__RMF_FLEET_ADAPTER__SERVICES__FINDPATH_HPP

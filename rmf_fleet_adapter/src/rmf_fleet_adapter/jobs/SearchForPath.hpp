@@ -55,6 +55,8 @@ public:
 
   void set_cost_limit(double cost);
 
+  double current_estimate() const;
+
 private:
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
   rmf_traffic::agv::Plan::StartSet _starts;
@@ -88,5 +90,7 @@ private:
 
 } // namespace jobs
 } // namespace rmf_fleet_adapter
+
+#include "detail/impl_SearchForPath.hpp"
 
 #endif // SRC__RMF_FLEET_ADAPTER__JOBS__SEARCHFORPATH_HPP

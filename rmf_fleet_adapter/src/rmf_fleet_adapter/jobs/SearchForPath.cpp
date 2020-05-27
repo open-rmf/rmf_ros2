@@ -67,5 +67,39 @@ SearchForPath::SearchForPath(
   _compliant_job = std::make_shared<Planning>(std::move(compliant_setup));
 }
 
+//==============================================================================
+void SearchForPath::discard()
+{
+  if (_greedy_job)
+    _greedy_job->discard();
+
+  if (_compliant_job)
+    _compliant_job->discard();
+}
+
+//==============================================================================
+void SearchForPath::set_cost_limit(double cost)
+{
+  _explicit_cost_limit = cost;
+}
+
+//==============================================================================
+double SearchForPath::current_estimate() const
+{
+  if (_compliant_job)
+  {
+    if(const auto estimate = _compliant_job->progress().cost_estimate())
+      return *estimate;
+  }
+
+  if (_greedy_job)
+  {
+    if (const auto estimate = _greedy_job->progress().cost_estimate())
+      return *estimate;
+  }
+
+  return std::numeric_limits<double>::infinity();
+}
+
 } // namespace jobs
 } // namespace rmf_fleet_adapter

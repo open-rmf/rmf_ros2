@@ -18,8 +18,49 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__SERVICES__DETAIL__PLANNING_HPP
 #define SRC__RMF_FLEET_ADAPTER__SERVICES__DETAIL__PLANNING_HPP
 
+#include "../FindPath.hpp"
+
 namespace rmf_fleet_adapter {
 namespace services {
+
+//==============================================================================
+template<typename Subscriber>
+void FindPath::operator()(const Subscriber& s)
+{
+  _search_sub = rmf_rxcpp::make_job<jobs::SearchForPath::Result>(_search_job)
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+    [s](const jobs::SearchForPath::Result& result)
+    {
+      // The first time we get a result back, it will be when the jobs is
+      // completed.
+      if (result.compliant_job)
+      {
+        s.on_next(result.compliant_job->progress());
+        s.on_completed();
+      }
+      else if (result.greedy_job)
+      {
+        s.on_next(result.greedy_job->progress());
+        s.on_completed();
+      }
+      else
+      {
+        s.on_error(std::make_exception_ptr(
+                std::runtime_error("[FindPath] Impossible error occurred")));
+      }
+    },
+    [s](std::exception_ptr e)
+    {
+      s.on_error(e);
+    },
+    [s]()
+    {
+      // If this is triggered without a result coming in, that implies that the
+      // job was impossible.
+      s.on_completed();
+    });
+}
 
 }
 }
