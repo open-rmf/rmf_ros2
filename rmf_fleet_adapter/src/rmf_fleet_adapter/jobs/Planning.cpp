@@ -15,52 +15,47 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__JOBS__PLANNINGJOB_HPP
-#define SRC__RMF_FLEET_ADAPTER__JOBS__PLANNINGJOB_HPP
-
-#include <rmf_rxcpp/RxJobs.hpp>
-#include <rmf_traffic/agv/Planner.hpp>
-#include <rmf_traffic/agv/RouteValidator.hpp>
-#include <rmf_traffic/schedule/Snapshot.hpp>
+#include "Planning.hpp"
 
 namespace rmf_fleet_adapter {
 namespace jobs {
 
 //==============================================================================
-/// A job to advance a planning effort forward
-class Planning
-{
-public:
-  struct Result
-  {
-    Planning& job;
-  };
-
-  Planning(
+Planning::Planning(
     std::shared_ptr<const rmf_traffic::agv::Planner> planner,
     const rmf_traffic::agv::Plan::StartSet& starts,
     rmf_traffic::agv::Plan::Goal goal,
-    rmf_traffic::agv::Plan::Options options);
+    rmf_traffic::agv::Plan::Options options)
+  : _current_result(
+      planner->setup(starts, std::move(goal), std::move(options)))
+{
+  // Do nothing
+}
 
-  Planning(rmf_traffic::agv::Planner::Result _setup);
+//==============================================================================
+Planning::Planning(rmf_traffic::agv::Planner::Result _setup)
+  : _current_result(std::move(_setup))
+{
+  // Do nothing
+}
 
-  template<typename Subscriber, typename Worker>
-  void operator()(const Subscriber& s, const Worker& w);
+//==============================================================================
+void Planning::discard()
+{
+  _discarded = true;
+}
 
-  void discard();
+//==============================================================================
+rmf_traffic::agv::Planner::Result& Planning::progress()
+{
+  return _current_result;
+}
 
-  rmf_traffic::agv::Planner::Result& progress();
-
-  const rmf_traffic::agv::Planner::Result& progress() const;
-
-private:
-  rmf_traffic::agv::Planner::Result _current_result;
-  bool _discarded = false;
-};
+//==============================================================================
+const rmf_traffic::agv::Planner::Result& Planning::progress() const
+{
+  return _current_result;
+}
 
 } // namespace jobs
 } // namespace rmf_fleet_adapter
-
-#include "detail/impl_Planning.hpp"
-
-#endif // SRC__RMF_FLEET_ADAPTER__JOBS__PLANNINGJOB_HPP

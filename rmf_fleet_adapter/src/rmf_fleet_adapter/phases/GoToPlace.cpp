@@ -15,7 +15,8 @@
  *
 */
 
-#include "../jobs/Planning.hpp"
+#include "../services/FindPath.hpp"
+#include "../services/FindEmergencyPullover.hpp"
 
 #include "GoToPlace.hpp"
 #include "MoveRobot.hpp"
@@ -123,13 +124,13 @@ void GoToPlace::Active::find_plan()
 {
   auto phase = std::static_pointer_cast<GoToPlace::Active>(shared_from_this());
 
-  _plan_subscription = rmf_rxcpp::make_job<jobs::FindPath::Result>(
-        std::make_shared<jobs::FindPath>(
+  _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
+        std::make_shared<services::FindPath>(
           _context->planner(), _context->location(), _goal,
           _context->schedule()->snapshot(), _context->itinerary().id()))
       .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
-        [phase = std::move(phase)](const jobs::FindPath::Result& result)
+        [phase = std::move(phase)](const services::FindPath::Result& result)
   {
     if (!result)
     {
@@ -151,12 +152,15 @@ void GoToPlace::Active::find_emergency_plan()
 {
   auto phase = std::static_pointer_cast<GoToPlace::Active>(shared_from_this());
 
-  _plan_subscription = rmf_rxcpp::make_job<jobs::FindEmergencyPullover::Result>(
-        std::make_shared<jobs::FindEmergencyPullover>())
+  _plan_subscription = rmf_rxcpp::make_job<
+      services::FindEmergencyPullover::Result>(
+        std::make_shared<services::FindEmergencyPullover>(
+          _context->planner(), _context->location(),
+          _context->schedule()->snapshot(), _context->itinerary().id()))
       .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
         [phase = std::move(phase)](
-        const jobs::FindEmergencyPullover::Result& result)
+        const services::FindEmergencyPullover::Result& result)
   {
     if (!result)
     {
