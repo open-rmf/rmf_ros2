@@ -15,7 +15,7 @@
  *
 */
 
-#include "../jobs/PlanningJob.hpp"
+#include "../jobs/Planning.hpp"
 
 #include "GoToPlace.hpp"
 #include "MoveRobot.hpp"
@@ -109,7 +109,7 @@ GoToPlace::Active::Active(
 
   StatusMsg initial_msg;
   initial_msg.status =
-      "Planning a move to [" + std::to_string(_goal.waypoint()) + "]";
+      " a move to [" + std::to_string(_goal.waypoint()) + "]";
   const auto now = _context->node().now();
   initial_msg.start_time = now;
   initial_msg.end_time = now + rclcpp::Duration(_latest_time_estimate);
