@@ -56,7 +56,7 @@ struct RequestLift
       rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr _publisher;
       rclcpp::TimerBase::SharedPtr _timer;
 
-      Task::StatusMsg _check_status(const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
+      Task::StatusMsg _get_status(const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
       void _do_publish();
     };
 

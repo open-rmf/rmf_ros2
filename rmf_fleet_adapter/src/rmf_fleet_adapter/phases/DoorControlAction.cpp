@@ -68,6 +68,7 @@ DoorControlAction::DoorControlAction(
     .lift<CombinedType>(on_subscribe([this]()
     {
       _status.state = Task::StatusMsg::STATE_ACTIVE;
+      _status.status = "waiting for door supervisor to receive request";
       _do_publish();
     }))
     .map([this](const auto& v)
@@ -102,13 +103,23 @@ void DoorControlAction::_update_status(
   {
     _supervisor_received_publish = has_session;
     if (_supervisor_received_publish)
+    {
+      _status.status = "waiting for door supervisor to finish request";
       _timer.reset();
+    }
   }
   else if (!_supervisor_finished_request)
+  {
     _supervisor_finished_request = !has_session;
+    if (_supervisor_finished_request)
+      _status.status = "waiting for door state";
+  }
 
   if (_supervisor_finished_request && door_state->current_mode.value == _target_mode)
+  {
     _status.state = Task::StatusMsg::STATE_COMPLETED;
+    _status.status = "success";
+  }
 }
 
 //==============================================================================

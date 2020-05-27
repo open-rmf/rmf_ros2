@@ -41,7 +41,7 @@ DispenseItem::Action::Action(
     throw std::runtime_error("invalid transport state");
   // TODO: multiplex publisher?
   _publisher = transport_->create_publisher<rmf_dispenser_msgs::msg::DispenserRequest>(
-    AdapterLiftRequestTopicName, 10);
+    DispenserRequestTopicName, 10);
 
   _request_guid = boost::uuids::to_string(boost::uuids::random_generator{}());
 
@@ -133,7 +133,7 @@ DispenseItem::ActivePhase::ActivePhase(
   oss << "Dispensing items (";
   for (size_t i = 0; i < _items.size() - 1; i++)
     oss << _items[i].type_guid << ", ";
-  oss << _items[_items.size() - 2].type_guid << ")";
+  oss << _items[_items.size() - 1].type_guid << ")";
 
   _description = oss.str();
 }
@@ -186,7 +186,7 @@ DispenseItem::PendingPhase::PendingPhase(
   oss << "Dispense items (";
   for (size_t i = 0; i < _items.size() - 1; i++)
     oss << _items[i].type_guid << ", ";
-  oss << _items[_items.size() - 2].type_guid << ")";
+  oss << _items[_items.size() - 1].type_guid << ")";
 
   _description = oss.str();
 }

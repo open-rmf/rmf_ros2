@@ -50,7 +50,7 @@ RequestLift::Action::Action(
     .lift<LiftState::SharedPtr>(on_subscribe([this]() { _do_publish(); }))
     .map([this](const auto& v)
     {
-      return _check_status(v);
+      return _get_status(v);
     })
     .lift<Task::StatusMsg>(grab_while([this](const Task::StatusMsg& status)
     {
@@ -66,7 +66,7 @@ RequestLift::Action::Action(
 }
 
 //==============================================================================
-Task::StatusMsg RequestLift::Action::_check_status(
+Task::StatusMsg RequestLift::Action::_get_status(
   const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state)
 {
   using rmf_lift_msgs::msg::LiftState;
@@ -75,6 +75,7 @@ Task::StatusMsg RequestLift::Action::_check_status(
   if (lift_state->current_floor == _destination && lift_state->door_state == LiftState::DOOR_OPEN)
   {
     status.state = Task::StatusMsg::STATE_COMPLETED;
+    status.status = "success";
     _timer.reset();
   }
   return status;

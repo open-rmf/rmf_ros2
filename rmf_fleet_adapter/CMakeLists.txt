@@ -90,6 +90,9 @@ if (BUILD_TESTING)
       test/phases/main.cpp
       test/phases/TransportFixture.cpp
       test/phases/DoorOpenTest.cpp
+      test/phases/DoorCloseTest.cpp
+      test/phases/RequestLiftTest.cpp
+      test/phases/DispenseItemTest.cpp
   )
   target_include_directories(rmf_fleet_adapter_phases_test
     PRIVATE
