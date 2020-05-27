@@ -81,6 +81,41 @@ target_include_directories(rmf_fleet_adapter
     ${rmf_lift_msgs_INCLUDE_DIRS}
 )
 
+if (BUILD_TESTING)
+  find_package(ament_cmake_catch2 REQUIRED)
+  find_package(std_msgs REQUIRED)
+
+  ament_add_catch2(
+    rmf_fleet_adapter_phases_test
+      test/phases/main.cpp
+      test/phases/TransportFixture.cpp
+      test/phases/DoorOpenTest.cpp
+  )
+  target_include_directories(rmf_fleet_adapter_phases_test
+    PRIVATE
+      # private includes of rmf_fleet_adapter
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/rmf_fleet_adapter>
+      ${rmf_task_msgs_INCLUDE_DIRS}
+      ${rmf_door_msgs_INCLUDE_DIRS}
+      ${rmf_lift_msgs_INCLUDE_DIRS}
+
+      ${std_msgs_INCLUDE_DIRS}
+  )
+  target_link_libraries(rmf_fleet_adapter_phases_test
+    PRIVATE
+      # private libraries of rmf_fleet_adapter
+      rmf_rxcpp
+      ${rmf_task_msgs_LIBRARIES}
+      ${rmf_door_msgs_LIBRARIES}
+      ${rmf_lift_msgs_LIBRARIES}
+      Boost::boost
+
+      rmf_fleet_adapter
+      rmf_utils::rmf_utils
+      ${std_msgs_LIBRARIES}
+  )
+endif ()
+
 # -----------------------------------------------------------------------------
 
 add_executable(read_only

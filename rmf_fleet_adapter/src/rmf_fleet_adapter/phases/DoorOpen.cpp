@@ -26,8 +26,8 @@ namespace phases {
 DoorOpen::ActivePhase::ActivePhase(
   std::string door_name,
   std::weak_ptr<rmf_rxcpp::Transport> transport,
-  rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
+  rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},
     _transport{std::move(transport)},
     _door_state_obs{std::move(door_state_obs)},
@@ -97,8 +97,8 @@ const std::string& DoorOpen::ActivePhase::description() const
 DoorOpen::PendingPhase::PendingPhase(
   std::string  door_name,
   std::weak_ptr<rmf_rxcpp::Transport> transport,
-  rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
+  rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},
     _transport{std::move(transport)},
     _door_state_obs{std::move(door_state_obs)},

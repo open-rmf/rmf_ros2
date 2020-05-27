@@ -38,8 +38,8 @@ public:
     std::string door_name,
     uint32_t target_mode,
     std::weak_ptr<rmf_rxcpp::Transport> transport,
-    rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
-    rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs);
+    rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
+    rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs);
 
   inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
   {
@@ -49,12 +49,12 @@ public:
   inline void cancel()
   {
     _timer.reset();
-    _cancelled = true;
+    _cancelled.get_subscriber().on_next(true);
   }
 
   inline bool is_cancelled()
   {
-    return _cancelled;
+    return _cancelled.get_value();
   }
 
 private:
@@ -62,19 +62,19 @@ private:
   std::string _door_name;
   uint32_t _target_mode;
   std::weak_ptr<rmf_rxcpp::Transport> _transport;
-  rxcpp::observable<rmf_door_msgs::msg::DoorState> _door_state_obs;
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> _supervisor_heartbeat_obs;
+  rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> _door_state_obs;
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
   rxcpp::observable<Task::StatusMsg> _obs;
   rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _publisher;
   rclcpp::TimerBase::SharedPtr _timer;
   std::string _session_id;
-  std::atomic<bool> _cancelled{false};
   bool _supervisor_received_publish = false;
   bool _supervisor_finished_request = false;
+  rxcpp::subjects::behavior<bool> _cancelled{false};
 
   Task::StatusMsg _check_status(
-    const rmf_door_msgs::msg::DoorState& door_state,
-    const rmf_door_msgs::msg::SupervisorHeartbeat& heartbeat);
+    const rmf_door_msgs::msg::DoorState::SharedPtr& door_state,
+    const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat);
 
   void _do_publish();
 };

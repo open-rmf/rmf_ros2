@@ -29,7 +29,7 @@ DispenseItem::Action::Action(
   std::string target,
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult> result_obs)
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs)
   : _transport{std::move(transport)},
     _target{std::move(target)},
     _transporter_type{std::move(transporter_type)},
@@ -47,7 +47,7 @@ DispenseItem::Action::Action(
 
   using rmf_dispenser_msgs::msg::DispenserResult;
   _obs = _result_obs
-    .lift<DispenserResult>(on_subscribe([this]() { _do_publish(); }))
+    .lift<DispenserResult::SharedPtr>(on_subscribe([this]() { _do_publish(); }))
     .map([this](const auto& v)
     {
       return _check_status(v);
@@ -67,15 +67,15 @@ DispenseItem::Action::Action(
 
 //==============================================================================
 Task::StatusMsg DispenseItem::Action::_check_status(
-  const rmf_dispenser_msgs::msg::DispenserResult& dispenser_result)
+  const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result)
 {
   Task::StatusMsg status{};
   status.state = Task::StatusMsg::STATE_ACTIVE;
 
   using rmf_dispenser_msgs::msg::DispenserResult;
-  if (dispenser_result.request_guid == _request_guid)
+  if (dispenser_result->request_guid == _request_guid)
   {
-    switch (dispenser_result.status)
+    switch (dispenser_result->status)
     {
       case DispenserResult::SUCCESS:
         status.state = Task::StatusMsg::STATE_COMPLETED;
@@ -116,7 +116,7 @@ DispenseItem::ActivePhase::ActivePhase(
   std::string target,
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> dispenser_items,
-  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult> result_obs)
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs)
   : _transport{std::move(transport)},
     _target{std::move(target)},
     _transporter_type{std::move(transporter_type)},
@@ -175,7 +175,7 @@ DispenseItem::PendingPhase::PendingPhase(
   std::string target,
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult> result_obs)
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs)
   : _transport{std::move(transport)},
     _target{std::move(target)},
     _transporter_type{std::move(transporter_type)},

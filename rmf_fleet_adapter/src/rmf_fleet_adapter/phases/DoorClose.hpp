@@ -35,8 +35,8 @@ struct DoorClose
     ActivePhase(
       std::string door_name,
       std::weak_ptr<rmf_rxcpp::Transport> transport,
-      rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
-      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs);
+      rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
+      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -52,8 +52,8 @@ struct DoorClose
 
     std::string _door_name;
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
-    rxcpp::observable<rmf_door_msgs::msg::DoorState> _door_state_obs;
-    rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> _supervisor_heartbeat_obs;
+    rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> _door_state_obs;
+    rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
     DoorControlAction _action;
     std::string _description;
   };
@@ -65,8 +65,8 @@ struct DoorClose
     PendingPhase(
       std::string door_name,
       std::weak_ptr<rmf_rxcpp::Transport> transport,
-      rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
-      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs);
+      rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
+      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
 
@@ -78,8 +78,8 @@ struct DoorClose
 
     std::string _door_name;
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
-    rxcpp::observable<rmf_door_msgs::msg::DoorState> _door_state_obs;
-    rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> _supervisor_heartbeat_obs;
+    rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> _door_state_obs;
+    rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
     std::string _description;
   };
 };

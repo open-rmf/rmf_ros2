@@ -31,8 +31,8 @@ DoorControlAction::DoorControlAction(
   std::string door_name,
   uint32_t target_mode,
   std::weak_ptr<rmf_rxcpp::Transport> transport,
-  rxcpp::observable<rmf_door_msgs::msg::DoorState> door_state_obs,
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat> supervisor_heartbeat_obs)
+  rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs)
   : _door_name{std::move(door_name)},
     _target_mode{target_mode},
     _transport{std::move(transport)},
@@ -51,17 +51,27 @@ DoorControlAction::DoorControlAction(
 
   _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
 
-  using CombinedType = std::tuple<DoorState, SupervisorHeartbeat>;
+  auto cancelled_obs = _cancelled.get_observable()
+    .filter([](const auto& b) { return b; })
+    .map([](const auto&)
+    {
+      Task::StatusMsg status;
+      status.state = Task::StatusMsg::STATE_COMPLETED;
+      status.status = "cancelled";
+      return status;
+    });
+
+  using CombinedType = std::tuple<DoorState::SharedPtr, SupervisorHeartbeat::SharedPtr>;
   _obs = _door_state_obs.combine_latest(_supervisor_heartbeat_obs)
     .lift<CombinedType>(on_subscribe([this]() { _do_publish(); }))
     .map([this](const auto& v)
     {
       return _check_status(std::get<0>(v), std::get<1>(v));
     })
+    .merge(cancelled_obs)
     .lift<Task::StatusMsg>(grab_while([this](const Task::StatusMsg& status)
     {
       if (
-        _cancelled ||
         status.state == Task::StatusMsg::STATE_COMPLETED ||
         status.state == Task::StatusMsg::STATE_FAILED)
       {
@@ -74,13 +84,16 @@ DoorControlAction::DoorControlAction(
 
 //==============================================================================
 Task::StatusMsg DoorControlAction::_check_status(
-  const rmf_door_msgs::msg::DoorState& door_state,
-  const rmf_door_msgs::msg::SupervisorHeartbeat& heartbeat)
+  const rmf_door_msgs::msg::DoorState::SharedPtr& door_state,
+  const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat)
 {
   Task::StatusMsg status{};
   status.state = Task::StatusMsg::STATE_ACTIVE;
 
-  bool has_session = supervisor_has_session(heartbeat, _session_id, _door_name);
+  if (door_state->door_name != _door_name)
+    return status;
+
+  bool has_session = supervisor_has_session(*heartbeat, _session_id, _door_name);
   if (!_supervisor_received_publish)
   {
     _supervisor_received_publish = has_session;
@@ -90,7 +103,7 @@ Task::StatusMsg DoorControlAction::_check_status(
   else if (!_supervisor_finished_request)
     _supervisor_finished_request = !has_session;
 
-  if (_supervisor_finished_request && door_state.current_mode.value == _target_mode)
+  if (_supervisor_finished_request && door_state->current_mode.value == _target_mode)
     status.state = Task::StatusMsg::STATE_COMPLETED;
 
   return status;

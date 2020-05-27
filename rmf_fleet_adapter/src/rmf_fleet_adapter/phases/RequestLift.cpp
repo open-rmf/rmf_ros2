@@ -29,7 +29,7 @@ RequestLift::Action::Action(
   std::weak_ptr<rmf_rxcpp::Transport> transport,
   std::string lift_name,
   std::string destination,
-  rxcpp::observable<rmf_lift_msgs::msg::LiftState> lift_state_obs)
+  rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs)
   : _transport{std::move(transport)},
     _lift_name{std::move(lift_name)},
     _destination{std::move(destination)},
@@ -47,7 +47,7 @@ RequestLift::Action::Action(
   _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
 
   _obs = _lift_state_obs
-    .lift<LiftState>(on_subscribe([this]() { _do_publish(); }))
+    .lift<LiftState::SharedPtr>(on_subscribe([this]() { _do_publish(); }))
     .map([this](const auto& v)
     {
       return _check_status(v);
@@ -66,12 +66,13 @@ RequestLift::Action::Action(
 }
 
 //==============================================================================
-Task::StatusMsg RequestLift::Action::_check_status(const rmf_lift_msgs::msg::LiftState& lift_state)
+Task::StatusMsg RequestLift::Action::_check_status(
+  const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state)
 {
   using rmf_lift_msgs::msg::LiftState;
   Task::StatusMsg status{};
   status.state = Task::StatusMsg::STATE_ACTIVE;
-  if (lift_state.current_floor == _destination && lift_state.door_state == LiftState::DOOR_OPEN)
+  if (lift_state->current_floor == _destination && lift_state->door_state == LiftState::DOOR_OPEN)
   {
     status.state = Task::StatusMsg::STATE_COMPLETED;
     _timer.reset();
@@ -108,7 +109,7 @@ RequestLift::ActivePhase::ActivePhase(
   std::weak_ptr<rmf_rxcpp::Transport> transport,
   std::string lift_name,
   std::string destination,
-  rxcpp::observable<rmf_lift_msgs::msg::LiftState> lift_state_obs)
+  rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs)
   : _transport{std::move(transport)},
     _lift_name{std::move(lift_name)},
     _destination{std::move(destination)},
@@ -157,7 +158,7 @@ RequestLift::PendingPhase::PendingPhase(
   std::weak_ptr<rmf_rxcpp::Transport> transport,
   std::string lift_name,
   std::string destination,
-  rxcpp::observable<rmf_lift_msgs::msg::LiftState> lift_state_obs)
+  rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs)
   : _transport{std::move(transport)},
     _lift_name{std::move(lift_name)},
     _destination{std::move(destination)},
