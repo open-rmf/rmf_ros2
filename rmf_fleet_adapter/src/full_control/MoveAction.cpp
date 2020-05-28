@@ -359,8 +359,6 @@ public:
           planner.get_configuration(),
           options);
 
-    rmf_traffic::agv::SimpleNegotiator::Debug::enable_debug_print(negotiator);
-
     bool interrupt_flag = false;
     auto future = std::async(
           std::launch::async,
