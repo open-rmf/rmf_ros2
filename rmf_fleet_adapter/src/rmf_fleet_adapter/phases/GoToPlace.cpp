@@ -110,7 +110,7 @@ GoToPlace::Active::Active(
 
   StatusMsg initial_msg;
   initial_msg.status =
-      " a move to [" + std::to_string(_goal.waypoint()) + "]";
+      "Planning a move to [" + std::to_string(_goal.waypoint()) + "]";
   const auto now = _context->node().now();
   initial_msg.start_time = now;
   initial_msg.end_time = now + rclcpp::Duration(_latest_time_estimate);
@@ -122,6 +122,9 @@ GoToPlace::Active::Active(
 //==============================================================================
 void GoToPlace::Active::find_plan()
 {
+  if (_emergency_active)
+    return find_emergency_plan();
+
   auto phase = std::static_pointer_cast<GoToPlace::Active>(shared_from_this());
 
   _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
@@ -151,6 +154,12 @@ void GoToPlace::Active::find_plan()
 void GoToPlace::Active::find_emergency_plan()
 {
   auto phase = std::static_pointer_cast<GoToPlace::Active>(shared_from_this());
+
+  StatusMsg emergency_msg;
+  emergency_msg.status = "Planning an emergency pullover";
+  emergency_msg.start_time = _context->node().now();
+  emergency_msg.end_time = emergency_msg.start_time;
+  _status_publisher.publish(emergency_msg);
 
   _plan_subscription = rmf_rxcpp::make_job<
       services::FindEmergencyPullover::Result>(

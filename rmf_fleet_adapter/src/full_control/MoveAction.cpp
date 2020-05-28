@@ -343,7 +343,7 @@ public:
 
       this->execute_plan({std::move(approved_plan)});
       return _context->schedule.participant().version();
-    });
+    }, rmf_traffic::agv::SimpleNegotiator::Options::DefaultMaxCostLeeway, 100);
 
     const auto& planner = _node->get_planner();
     Eigen::Vector3d pose =

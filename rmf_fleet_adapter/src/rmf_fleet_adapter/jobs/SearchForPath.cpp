@@ -78,27 +78,33 @@ void SearchForPath::discard()
 }
 
 //==============================================================================
-void SearchForPath::set_cost_limit(double cost)
+Planning& SearchForPath::greedy()
 {
-  _explicit_cost_limit = cost;
+  return *_greedy_job;
 }
 
 //==============================================================================
-double SearchForPath::current_estimate() const
+const Planning& SearchForPath::greedy() const
 {
-  if (_compliant_job)
-  {
-    if(const auto estimate = _compliant_job->progress().cost_estimate())
-      return *estimate;
-  }
+  return *_greedy_job;
+}
 
-  if (_greedy_job)
-  {
-    if (const auto estimate = _greedy_job->progress().cost_estimate())
-      return *estimate;
-  }
+//==============================================================================
+Planning& SearchForPath::compliant()
+{
+  return *_compliant_job;
+}
 
-  return std::numeric_limits<double>::infinity();
+//==============================================================================
+const Planning& SearchForPath::compliant() const
+{
+  return *_compliant_job;
+}
+
+//==============================================================================
+void SearchForPath::set_cost_limit(double cost)
+{
+  _explicit_cost_limit = cost;
 }
 
 } // namespace jobs

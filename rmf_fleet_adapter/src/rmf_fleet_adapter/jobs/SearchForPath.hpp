@@ -43,9 +43,8 @@ public:
 
   struct Result
   {
-    SearchForPath& search;
-    const Planning* greedy_job;
-    const Planning* compliant_job;
+    Planning* greedy_job;
+    Planning* compliant_job;
   };
 
   template<typename Subscriber, typename Worker>
@@ -55,7 +54,11 @@ public:
 
   void set_cost_limit(double cost);
 
-  double current_estimate() const;
+  Planning& greedy();
+  const Planning& greedy() const;
+
+  Planning& compliant();
+  const Planning& compliant() const;
 
 private:
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;

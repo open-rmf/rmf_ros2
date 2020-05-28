@@ -58,7 +58,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
         [this, s](const Planning::Result& result)
   {
     auto show_complaint = _compliant_failed? _compliant_job.get() : nullptr;
-    Result next{*this, _greedy_job.get(), show_complaint};
+    Result next{_greedy_job.get(), show_complaint};
 
     const auto& r = result.job.progress();
     if (r.success())
@@ -105,8 +105,6 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
     }
 
     s.on_next(next);
-    _greedy_job->progress().options()
-        .maximum_cost_estimate(_explicit_cost_limit);
   });
 
   _compliant_sub = rmf_rxcpp::make_job<Planning::Result>(_compliant_job)
@@ -115,7 +113,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
         [this, s](const Planning::Result& result)
   {
     auto show_greedy = _greedy_finished? _greedy_job.get() : nullptr;
-    Result next{*this, show_greedy, _compliant_job.get()};
+    Result next{show_greedy, _compliant_job.get()};
 
     auto& r = result.job.progress();
     if (r.success())
@@ -126,43 +124,39 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       return;
     }
 
+    if (_explicit_cost_limit)
+    {
+      // An explicit cost limit means this is part of a Job, so we should
+      // report an update whenever we get an update.
+      s.on_next(next);
+      return;
+    }
+
     if (_greedy_finished)
     {
-      if (_explicit_cost_limit)
+      // We don't have an explicit cost limit, so we'll just check if the
+      // greedy job search has granted us any more leeway.
+      const double new_maximum =
+          compliant_leeway * _greedy_job->progress()->get_cost();
+
+      if (*r.options().maximum_cost_estimate() < new_maximum)
       {
-        // An explicit cost limit means this is part of a Job, so we should
-        // report an update whenever we get an update.
-        s.on_next(next);
-        _compliant_job->progress().options()
-            .maximum_cost_estimate(_explicit_cost_limit);
+        // Push the maximum out a bit more and let the job try again.
+        r.options().maximum_cost_estimate(new_maximum);
         return;
       }
-      else
-      {
-        // We don't have an explicit cost limit, so we'll just check if the
-        // greedy job search has granted us any more leeway.
-        const double new_maximum =
-            compliant_leeway * _greedy_job->progress()->get_cost();
 
-        if (*r.options().maximum_cost_estimate() < new_maximum)
-        {
-          // Push the maximum out a bit more and let the job try again.
-          r.options().maximum_cost_estimate(new_maximum);
-          return;
-        }
-
-        s.on_next(next);
-        s.on_completed();
-        return;
-      }
+      // We shouldn't keep trying, because we have exceeded the cost limit, even
+      // when accounting for the greedy plan cost.
+      s.on_next(next);
+      s.on_completed();
+      return;
     }
 
-    if (!_explicit_cost_limit)
-    {
-      // Discard the job because it can no longer produce an acceptable result
-      result.job.discard();
-      _compliant_failed = true;
-    }
+    // Discard the job because it can no longer produce an acceptable result.
+    // The SearchForPath will continue looking for a greedy plan.
+    result.job.discard();
+    _compliant_failed = true;
   });
 }
 
