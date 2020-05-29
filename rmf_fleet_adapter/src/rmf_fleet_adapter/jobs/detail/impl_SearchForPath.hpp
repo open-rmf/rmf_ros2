@@ -124,6 +124,24 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       return;
     }
 
+    if (_interrupt_flag)
+    {
+      const double cost = r.cost_estimate()?
+            *r.cost_estimate() : std::numeric_limits<double>::infinity();
+      std::cout << " ===== Discarding job (" << _compliant_job.get()
+                << "). Cost: " << cost << std::endl;
+      _compliant_failed = true;
+      result.job.discard();
+
+      if (_greedy_finished)
+      {
+        s.on_next(next);
+        s.on_completed();
+      }
+
+      return;
+    }
+
     if (_explicit_cost_limit)
     {
       // An explicit cost limit means this is part of a Job, so we should

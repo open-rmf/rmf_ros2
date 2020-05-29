@@ -33,6 +33,11 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
     return;
   }
 
+  double cost_limit = _current_result.options().maximum_cost_estimate()?
+        *_current_result.options().maximum_cost_estimate()
+      : std::numeric_limits<double>::infinity();
+
+  std::cout << " === COST LIMIT (" << this << "): " << cost_limit << std::endl;
   _current_result.resume();
   s.on_next(Result{*this});
   if (_current_result.success() || !_current_result.cost_estimate())
@@ -42,10 +47,18 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
     return;
   }
 
-  w.schedule([this, s, w](const auto&)
+  if (!_discarded)
   {
-    (*this)(s, w);
-  });
+    std::cout << " === scheduling next job (" << this << ")" << std::endl;
+    w.schedule([this, s, w](const auto&)
+    {
+      (*this)(s, w);
+    });
+  }
+  else
+  {
+    std::cout << " === job (" << this << ") is discarded" << std::endl;
+  }
 }
 
 } // namespace jobs

@@ -52,6 +52,10 @@ public:
 
   void discard();
 
+  // Stop the compliant planner, and return the result of the greedy planner as
+  // soon as it's ready.
+  void interrupt();
+
   void set_cost_limit(double cost);
 
   Planning& greedy();
@@ -66,6 +70,7 @@ private:
   rmf_traffic::agv::Plan::Goal _goal;
   std::shared_ptr<const rmf_traffic::schedule::Snapshot> _schedule;
   rmf_traffic::schedule::ParticipantId _participant_id;
+  bool _interrupt_flag = false;
 
   // The greedy job makes an optimal plan that ignores all other schedule
   // participants. It is used for two purposes:

@@ -42,6 +42,8 @@ public:
   template<typename Subscriber>
   void operator()(const Subscriber& s);
 
+  void interrupt();
+
 private:
   std::shared_ptr<jobs::SearchForPath> _search_job;
   rxcpp::subscription _search_sub;
