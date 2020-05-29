@@ -34,12 +34,12 @@ void FindPath::operator()(const Subscriber& s)
     {
       // The first time we get a result back, it will be when the jobs is
       // completed.
-      if (result.compliant_job)
+      if (result.compliant_job && result.compliant_job->progress().success())
       {
         s.on_next(result.compliant_job->progress());
         s.on_completed();
       }
-      else if (result.greedy_job)
+      else if (result.greedy_job && result.greedy_job->progress().success())
       {
         s.on_next(result.greedy_job->progress());
         s.on_completed();
@@ -47,7 +47,7 @@ void FindPath::operator()(const Subscriber& s)
       else
       {
         s.on_error(std::make_exception_ptr(
-                std::runtime_error("[FindPath] Impossible error occurred")));
+                std::runtime_error("[FindPath] Unable to find path")));
       }
     },
     [s](std::exception_ptr e)

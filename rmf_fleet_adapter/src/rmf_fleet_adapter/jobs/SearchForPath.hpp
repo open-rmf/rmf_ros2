@@ -43,19 +43,24 @@ public:
 
   struct Result
   {
-    SearchForPath& search;
-    const Planning* greedy_job;
-    const Planning* compliant_job;
+    Planning* greedy_job;
+    Planning* compliant_job;
   };
 
   template<typename Subscriber, typename Worker>
   void operator()(const Subscriber& s, const Worker& w);
 
-  void discard();
+  // Stop the compliant planner, and return the result of the greedy planner as
+  // soon as it's ready.
+  void interrupt();
 
   void set_cost_limit(double cost);
 
-  double current_estimate() const;
+  Planning& greedy();
+  const Planning& greedy() const;
+
+  Planning& compliant();
+  const Planning& compliant() const;
 
 private:
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
@@ -63,6 +68,7 @@ private:
   rmf_traffic::agv::Plan::Goal _goal;
   std::shared_ptr<const rmf_traffic::schedule::Snapshot> _schedule;
   rmf_traffic::schedule::ParticipantId _participant_id;
+  bool _interrupt_flag = false;
 
   // The greedy job makes an optimal plan that ignores all other schedule
   // participants. It is used for two purposes:
@@ -84,8 +90,8 @@ private:
   decltype(rxcpp::observe_on_event_loop()) _event_loop;
 
   // TODO(MXG): Make these leeway factors configurable
-  const double greedy_leeway = 20.0;
-  const double compliant_leeway = 5.0;
+  const double greedy_leeway = 10.0;
+  const double compliant_leeway = 3.0;
 };
 
 } // namespace jobs

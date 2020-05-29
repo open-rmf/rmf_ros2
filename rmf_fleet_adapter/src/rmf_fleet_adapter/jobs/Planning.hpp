@@ -47,15 +47,15 @@ public:
   template<typename Subscriber, typename Worker>
   void operator()(const Subscriber& s, const Worker& w);
 
-  void discard();
+  void resume();
 
   rmf_traffic::agv::Planner::Result& progress();
 
   const rmf_traffic::agv::Planner::Result& progress() const;
 
 private:
+  std::function<void()> _resume;
   rmf_traffic::agv::Planner::Result _current_result;
-  bool _discarded = false;
 };
 
 } // namespace jobs

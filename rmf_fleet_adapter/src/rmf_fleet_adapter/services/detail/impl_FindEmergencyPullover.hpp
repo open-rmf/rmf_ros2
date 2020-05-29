@@ -38,23 +38,88 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       auto search = std::make_shared<jobs::SearchForPath>(
             _planner, _starts, wp.index(), _schedule, _participant_id);
 
-      const double cost = search->current_estimate();
-      if (cost < _best_estimate.cost)
-        _best_estimate = {cost, search.get()};
+      const bool keep =
+          _greedy_evaluator.initialize(search->greedy().progress())
+          || _compliant_evaluator.initialize(search->compliant().progress());
 
-      _search_jobs.emplace_back(std::move(search));
+      if (keep)
+        _search_jobs.emplace_back(std::move(search));
     }
   }
-  _second_best_estimate = _best_estimate;
 
-  const double estimate_leeway = 1.01;
+  const std::size_t N_jobs = _search_jobs.size();
+
+  for (const auto& job : _search_jobs)
+    job->set_cost_limit(estimate_leeway * _greedy_evaluator.best_estimate.cost);
 
   _search_sub = rmf_rxcpp::make_job_from_action_list(_search_jobs)
       .subscribe(
-        [this, s, estimate_leeway](
+        [this, s, N_jobs](
           const jobs::SearchForPath::Result& progress)
   {
+    auto* greedy = progress.greedy_job;
+    auto* compliant = progress.compliant_job;
 
+    bool resume_greedy = false;
+    if (greedy)
+    {
+      if (_greedy_evaluator.evaluate(greedy->progress()))
+        resume_greedy = true;
+    }
+
+    bool resume_compliant = false;
+    if (compliant)
+    {
+      if (_compliant_evaluator.evaluate(compliant->progress()))
+        resume_compliant = true;
+    }
+
+    if (greedy && compliant)
+    {
+      auto& compliant_progress = compliant->progress();
+      auto& greedy_progress = greedy->progress();
+      if (!compliant_progress.success())
+      {
+        if (!compliant_progress.cost_estimate())
+        {
+          resume_compliant = false;
+          ++_compliant_evaluator.finished_count;
+        }
+        else if (greedy_progress.success())
+        {
+          if (greedy_progress->get_cost() * compliance_leeway <
+              *compliant_progress.cost_estimate())
+          {
+            resume_compliant = false;
+            ++_compliant_evaluator.finished_count;
+          }
+        }
+      }
+    }
+
+    if (_compliant_evaluator.finished_count >= N_jobs
+        && _greedy_evaluator.finished_count >= N_jobs)
+    {
+      if (_compliant_evaluator.best_result.progress)
+        s.on_next(*_compliant_evaluator.best_result.progress);
+      else if (_greedy_evaluator.best_result.progress)
+        s.on_next(*_greedy_evaluator.best_result.progress);
+      else
+      {
+        s.on_error(std::make_exception_ptr(
+                     std::runtime_error(
+                       "[FindEmergencyPullover] Unable to find a plan")));
+      }
+
+      s.on_completed();
+      return;
+    }
+
+    if (resume_greedy)
+      greedy->resume();
+
+    if (resume_compliant)
+      compliant->resume();
   });
 }
 

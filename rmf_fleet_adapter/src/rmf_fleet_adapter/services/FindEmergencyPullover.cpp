@@ -34,5 +34,62 @@ FindEmergencyPullover::FindEmergencyPullover(
   // Do nothing
 }
 
+//==============================================================================
+bool FindEmergencyPullover::Evaluator::initialize(const Result& setup)
+{
+  if (!setup.cost_estimate())
+    return false;
+
+  const double cost = *setup.cost_estimate();
+  if (cost < best_estimate.cost)
+  {
+    best_estimate = ProgressInfo{cost, &setup};
+    second_best_estimate = best_estimate;
+  }
+
+  return true;
+}
+
+//==============================================================================
+bool FindEmergencyPullover::Evaluator::evaluate(Result& progress)
+{
+  if (!progress.success() && !progress.cost_estimate())
+    return false;
+
+  const double cost = progress.success()?
+        progress->get_cost() : *progress.cost_estimate();
+
+  if (progress.success())
+  {
+    if (cost < best_result.cost)
+      best_result = ProgressInfo{cost, &progress};
+  }
+
+  if (cost < second_best_estimate.cost)
+    second_best_estimate = ProgressInfo{cost, &progress};
+
+  if (best_estimate.progress == &progress)
+  {
+    best_estimate = second_best_estimate;
+    second_best_estimate = ProgressInfo();
+  }
+
+  if (!progress.success())
+  {
+    if (!best_result.progress || cost < best_result.cost)
+    {
+      progress.options().maximum_cost_estimate(
+            estimate_leeway * best_estimate.cost);
+      return true;
+    }
+
+    ++finished_count;
+    return false;
+  }
+
+  ++finished_count;
+  return true;
+}
+
 } // namespace services
 } // namespace rmf_fleet_adapter

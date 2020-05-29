@@ -86,15 +86,17 @@ if (BUILD_TESTING)
   find_package(std_msgs REQUIRED)
 
   ament_add_catch2(
-    rmf_fleet_adapter_phases_test
-      test/phases/main.cpp
+    rmf_fleet_adapter_test
+      test/main.cpp
       test/phases/TransportFixture.cpp
       test/phases/DoorOpenTest.cpp
       test/phases/DoorCloseTest.cpp
       test/phases/RequestLiftTest.cpp
       test/phases/DispenseItemTest.cpp
+      test/services/test_FindEmergencyPullover.cpp
+      test/services/test_FindPath.cpp
   )
-  target_include_directories(rmf_fleet_adapter_phases_test
+  target_include_directories(rmf_fleet_adapter_test
     PRIVATE
       # private includes of rmf_fleet_adapter
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/rmf_fleet_adapter>
@@ -104,7 +106,7 @@ if (BUILD_TESTING)
 
       ${std_msgs_INCLUDE_DIRS}
   )
-  target_link_libraries(rmf_fleet_adapter_phases_test
+  target_link_libraries(rmf_fleet_adapter_test
     PRIVATE
       # private libraries of rmf_fleet_adapter
       rmf_rxcpp

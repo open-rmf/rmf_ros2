@@ -27,6 +27,7 @@
 #include <iostream>
 #include <memory>
 #include <queue>
+#include <atomic>
 
 //==============================================================================
 inline rmf_traffic::Time print_start(const rmf_traffic::Route& route)
@@ -92,14 +93,16 @@ struct PlannerAction
       rmf_traffic::schedule::Database schedule,
       rmf_traffic::agv::Planner::Configuration config,
       rmf_traffic::agv::Planner::Start start,
-      rmf_traffic::agv::Planner::Goal goal)
+      rmf_traffic::agv::Planner::Goal goal,
+      std::atomic_int& sync_failure)
     : _database(std::move(schedule)),
       _current_result(
         initiate(
           _database,
           std::move(config),
           std::move(start),
-          std::move(goal)))
+          std::move(goal))),
+      _sync_failure(sync_failure)
   {
     // Do nothing
   }
@@ -107,6 +110,13 @@ struct PlannerAction
   template<typename Subscriber, typename Worker>
   void operator()(const Subscriber& s, const Worker& w)
   {
+    if (_discarded)
+    {
+      std::cout << " !!!!!!!!!!!!!!!!!!!!!! " << std::endl;
+      _sync_failure.fetch_add(1);
+      return;
+    }
+
     auto r = process();
       s.on_next(Progress{*this, r});
     if (r || _discarded)
@@ -115,10 +125,13 @@ struct PlannerAction
       return;
     }
 
-    w.schedule([this, s, w](const auto&)
+    if (!_discarded)
     {
-      (*this)(s, w);
-    });
+      w.schedule([this, s, w](const auto&)
+      {
+        (*this)(s, w);
+      });
+    }
   }
 
   inline void discard()
@@ -157,6 +170,7 @@ private:
   rmf_traffic::schedule::Database _database;
   rmf_traffic::agv::Planner::Result _current_result;
   bool _discarded = false;
+  std::atomic_int& _sync_failure;
 
   static rmf_traffic::agv::Planner::Result initiate(
       const rmf_traffic::schedule::Viewer& viewer,
@@ -198,6 +212,8 @@ struct MetaPlannerAction
     const PlannerAction* estimator = nullptr;
   };
 
+  std::atomic_int sync_failure;
+
   std::vector<std::shared_ptr<PlannerAction>> planner_actions;
   rmf_utils::optional<JobResult> best_result;
   std::size_t finished_count = 0;
@@ -208,6 +224,8 @@ struct MetaPlannerAction
   template<typename Subscriber>
   void operator()(const Subscriber& s)
   {
+    std::atomic_init(&sync_failure, 0);
+
     //============================================================================
     // vvvvvvvvvvvvvvvvvvvvvvvv Setting up the problem vvvvvvvvvvvvvvvvvvvvvvvvvvv
     const auto graph = make_graph();
@@ -278,7 +296,8 @@ struct MetaPlannerAction
         database.extend(p, {{r, route}}, v++);
 
       planner_actions.emplace_back(std::make_shared<PlannerAction>(
-                           std::move(database), config, start_B, goal_B));
+              std::move(database), config, start_B, goal_B, sync_failure));
+
       const double estimate = planner_actions.back()->cost_estimate();
       if (estimate < best_estimate.cost)
       {
@@ -415,16 +434,25 @@ int main()
 {
   const auto benchmark_start = std::chrono::steady_clock::now();
 
+  const auto meta_planner_obj = std::make_shared<MetaPlannerAction>();
   auto meta_planner_job = rmf_rxcpp::make_job<MetaPlannerAction::Result>(
-        std::make_shared<MetaPlannerAction>());
+        meta_planner_obj);
 
-  meta_planner_job.as_blocking().subscribe([](const auto& itinerary)
+  std::promise<std::vector<rmf_traffic::Route>> itinerary_promise;
+  auto itinerary_future = itinerary_promise.get_future();
+  meta_planner_job
+      .subscribe([&itinerary_promise](const auto& itinerary)
   {
     std::cout <<"\nBest plan for B:" << std::endl;
-    print_itinerary(itinerary);
+    itinerary_promise.set_value(itinerary);
   });
+
+  itinerary_future.wait_for(std::chrono::seconds(5));
+  print_itinerary(itinerary_future.get());
 
   const auto benchmark_finish = std::chrono::steady_clock::now();
   std::cout << "Benchmark: " << rmf_traffic::time::to_seconds(
                  benchmark_finish - benchmark_start) << std::endl;
+
+  std::cout << "Sync failures: " << meta_planner_obj->sync_failure << std::endl;
 }

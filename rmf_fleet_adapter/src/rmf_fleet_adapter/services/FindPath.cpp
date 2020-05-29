@@ -36,5 +36,11 @@ FindPath::FindPath(
         participant_id);
 }
 
+//==============================================================================
+void FindPath::interrupt()
+{
+  _search_job->interrupt();
+}
+
 } // namespace services
 } // namespace rmf_fleet_adapter

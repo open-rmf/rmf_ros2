@@ -39,12 +39,27 @@ public:
   template<typename Subscriber>
   void operator()(const Subscriber& s);
 
+  static constexpr double estimate_leeway = 1.01;
+  static constexpr double compliance_leeway = 3.0;
+
 private:
 
-  struct EstimateInfo
+  struct ProgressInfo
   {
     double cost = std::numeric_limits<double>::infinity();
-    const jobs::SearchForPath* search;
+    const Result* progress = nullptr;
+  };
+
+  struct Evaluator
+  {
+    bool initialize(const Result& setup);
+
+    bool evaluate(Result& progress);
+
+    ProgressInfo best_estimate;
+    ProgressInfo second_best_estimate;
+    ProgressInfo best_result;
+    std::size_t finished_count = 0;
   };
 
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
@@ -54,8 +69,9 @@ private:
 
   std::vector<std::shared_ptr<jobs::SearchForPath>> _search_jobs;
   rxcpp::subscription _search_sub;
-  EstimateInfo _best_estimate;
-  EstimateInfo _second_best_estimate;
+
+  Evaluator _greedy_evaluator;
+  Evaluator _compliant_evaluator;
 };
 
 } // namespace services

@@ -61,6 +61,7 @@ SearchForPath::SearchForPath(
         rmf_traffic::agv::ScheduleRouteValidator::make(
           _schedule, _participant_id));
   compliant_options.maximum_cost_estimate(compliant_leeway*base_cost);
+  compliant_options.interrupt_flag(&_interrupt_flag);
   auto compliant_setup = _planner->setup(_starts, _goal, compliant_options);
 
   _greedy_job = std::make_shared<Planning>(std::move(greedy_setup));
@@ -68,37 +69,39 @@ SearchForPath::SearchForPath(
 }
 
 //==============================================================================
-void SearchForPath::discard()
+void SearchForPath::interrupt()
 {
-  if (_greedy_job)
-    _greedy_job->discard();
+  _interrupt_flag = true;
+}
 
-  if (_compliant_job)
-    _compliant_job->discard();
+//==============================================================================
+Planning& SearchForPath::greedy()
+{
+  return *_greedy_job;
+}
+
+//==============================================================================
+const Planning& SearchForPath::greedy() const
+{
+  return *_greedy_job;
+}
+
+//==============================================================================
+Planning& SearchForPath::compliant()
+{
+  return *_compliant_job;
+}
+
+//==============================================================================
+const Planning& SearchForPath::compliant() const
+{
+  return *_compliant_job;
 }
 
 //==============================================================================
 void SearchForPath::set_cost_limit(double cost)
 {
   _explicit_cost_limit = cost;
-}
-
-//==============================================================================
-double SearchForPath::current_estimate() const
-{
-  if (_compliant_job)
-  {
-    if(const auto estimate = _compliant_job->progress().cost_estimate())
-      return *estimate;
-  }
-
-  if (_greedy_job)
-  {
-    if (const auto estimate = _greedy_job->progress().cost_estimate())
-      return *estimate;
-  }
-
-  return std::numeric_limits<double>::infinity();
 }
 
 } // namespace jobs

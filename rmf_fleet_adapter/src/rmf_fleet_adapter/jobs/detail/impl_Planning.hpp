@@ -27,11 +27,13 @@ namespace jobs {
 template <typename Subscriber, typename Worker>
 void Planning::operator()(const Subscriber& s, const Worker& w)
 {
-  if (_discarded)
+  _resume = [this, s, w]()
   {
-    s.on_completed();
-    return;
-  }
+    w.schedule([this, s, w](const auto&)
+    {
+      (*this)(s, w);
+    });
+  };
 
   _current_result.resume();
   s.on_next(Result{*this});
@@ -41,11 +43,6 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
     s.on_completed();
     return;
   }
-
-  w.schedule([this, s, w](const auto&)
-  {
-    (*this)(s, w);
-  });
 }
 
 } // namespace jobs

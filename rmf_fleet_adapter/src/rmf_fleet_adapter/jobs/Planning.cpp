@@ -40,9 +40,9 @@ Planning::Planning(rmf_traffic::agv::Planner::Result _setup)
 }
 
 //==============================================================================
-void Planning::discard()
+void Planning::resume()
 {
-  _discarded = true;
+  _resume();
 }
 
 //==============================================================================
