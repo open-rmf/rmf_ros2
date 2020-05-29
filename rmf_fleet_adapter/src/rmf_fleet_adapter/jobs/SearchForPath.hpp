@@ -41,10 +41,17 @@ public:
       std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
       rmf_traffic::schedule::ParticipantId participant_id);
 
+  enum class Type
+  {
+    greedy,
+    compliant
+  };
+
   struct Result
   {
     Planning* greedy_job;
     Planning* compliant_job;
+    Type type;
   };
 
   template<typename Subscriber, typename Worker>
@@ -83,7 +90,7 @@ private:
   // be feasible to find an acceptable compliant job, either because
   std::shared_ptr<Planning> _compliant_job;
   rxcpp::subscription _compliant_sub;
-  bool _compliant_failed = false;
+  bool _compliant_finished = false;
 
   rmf_utils::optional<double> _explicit_cost_limit;
 

@@ -56,6 +56,8 @@ private:
 
     bool evaluate(Result& progress);
 
+    void discard(Result& progress);
+
     ProgressInfo best_estimate;
     ProgressInfo second_best_estimate;
     ProgressInfo best_result;

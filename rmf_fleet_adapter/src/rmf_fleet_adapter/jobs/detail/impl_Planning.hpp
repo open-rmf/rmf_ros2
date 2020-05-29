@@ -36,6 +36,7 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
   };
 
   _current_result.resume();
+
   s.on_next(Result{*this});
   if (_current_result.success() || !_current_result.cost_estimate())
   {

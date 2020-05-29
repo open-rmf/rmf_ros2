@@ -38,19 +38,25 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       auto search = std::make_shared<jobs::SearchForPath>(
             _planner, _starts, wp.index(), _schedule, _participant_id);
 
-      const bool keep =
-          _greedy_evaluator.initialize(search->greedy().progress())
-          || _compliant_evaluator.initialize(search->compliant().progress());
+      // Be sure to initialize these individually and not in a single statement,
+      // otherwise the logic might short-circuit one of the initialize() calls
+      const bool keep_greedy =
+          _greedy_evaluator.initialize(search->greedy().progress());
 
-      if (keep)
+      const bool keep_compliant =
+          _compliant_evaluator.initialize(search->compliant().progress());
+
+      if (keep_greedy || keep_compliant)
         _search_jobs.emplace_back(std::move(search));
     }
   }
 
   const std::size_t N_jobs = _search_jobs.size();
+  const double initial_max_cost =
+      estimate_leeway * _greedy_evaluator.best_estimate.cost;
 
   for (const auto& job : _search_jobs)
-    job->set_cost_limit(estimate_leeway * _greedy_evaluator.best_estimate.cost);
+    job->set_cost_limit(initial_max_cost);
 
   _search_sub = rmf_rxcpp::make_job_from_action_list(_search_jobs)
       .subscribe(
@@ -60,41 +66,44 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
     auto* greedy = progress.greedy_job;
     auto* compliant = progress.compliant_job;
 
-    bool resume_greedy = false;
-    if (greedy)
-    {
-      if (_greedy_evaluator.evaluate(greedy->progress()))
-        resume_greedy = true;
-    }
-
-    bool resume_compliant = false;
-    if (compliant)
-    {
-      if (_compliant_evaluator.evaluate(compliant->progress()))
-        resume_compliant = true;
-    }
-
-    if (greedy && compliant)
+    bool resume_compliant = static_cast<bool>(compliant);
+    if (compliant && _greedy_evaluator.best_result.progress)
     {
       auto& compliant_progress = compliant->progress();
-      auto& greedy_progress = greedy->progress();
       if (!compliant_progress.success())
       {
         if (!compliant_progress.cost_estimate())
         {
           resume_compliant = false;
-          ++_compliant_evaluator.finished_count;
+          _compliant_evaluator.discard(compliant_progress);
         }
-        else if (greedy_progress.success())
+        else
         {
-          if (greedy_progress->get_cost() * compliance_leeway <
-              *compliant_progress.cost_estimate())
+          const double best_greedy_cost =
+              (*_greedy_evaluator.best_result.progress)->get_cost();
+          const double compliant_cost = *compliant_progress.cost_estimate();
+
+          if (best_greedy_cost * compliance_leeway < compliant_cost)
           {
             resume_compliant = false;
-            ++_compliant_evaluator.finished_count;
+            _compliant_evaluator.discard(compliant_progress);
           }
         }
       }
+    }
+
+    bool resume_greedy = false;
+    if (jobs::SearchForPath::Type::greedy == progress.type)
+    {
+      if (_greedy_evaluator.evaluate(greedy->progress()))
+        resume_greedy = true;
+    }
+
+    if (jobs::SearchForPath::Type::compliant == progress.type
+        && resume_compliant)
+    {
+      if (_compliant_evaluator.evaluate(compliant->progress()))
+        resume_compliant = true;
     }
 
     if (_compliant_evaluator.finished_count >= N_jobs

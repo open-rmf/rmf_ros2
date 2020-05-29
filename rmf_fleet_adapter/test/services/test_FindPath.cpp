@@ -143,12 +143,12 @@ SCENARIO("Find a path")
     REQUIRE(result_0.success());
 
 
+    // First we will test that a conflict happens when p0 does not put its
+    // itinerary in the database.
     path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
           planner, rmf_traffic::agv::Plan::StartSet({start_1}),
           goal_1, database->snapshot(), p1.id());
 
-    // First we will test that a conflict happens when p0 does not put its
-    // itinerary in the database.
     std::promise<rmf_traffic::agv::Plan::Result> pre_result_1_promise;
     auto pre_result_1_future = pre_result_1_promise.get_future();
     path_sub =
@@ -171,10 +171,9 @@ SCENARIO("Find a path")
     {
       for (const auto& t1 : pre_result_1->get_itinerary())
       {
-        at_least_one_conflict = at_least_one_conflict
-            || rmf_traffic::DetectConflict::between(
+        at_least_one_conflict |= rmf_traffic::DetectConflict::between(
               p0.description().profile(), t0.trajectory(),
-              p1.description().profile(), t1.trajectory());
+              p1.description().profile(), t1.trajectory()).has_value();
       }
     }
 

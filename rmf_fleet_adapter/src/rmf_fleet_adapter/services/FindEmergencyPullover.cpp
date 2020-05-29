@@ -42,10 +42,7 @@ bool FindEmergencyPullover::Evaluator::initialize(const Result& setup)
 
   const double cost = *setup.cost_estimate();
   if (cost < best_estimate.cost)
-  {
     best_estimate = ProgressInfo{cost, &setup};
-    second_best_estimate = best_estimate;
-  }
 
   return true;
 }
@@ -82,13 +79,22 @@ bool FindEmergencyPullover::Evaluator::evaluate(Result& progress)
             estimate_leeway * best_estimate.cost);
       return true;
     }
-
-    ++finished_count;
-    return false;
   }
 
   ++finished_count;
-  return true;
+  return false;
+}
+
+//==============================================================================
+void FindEmergencyPullover::Evaluator::discard(Result& progress)
+{
+  if (best_estimate.progress == &progress)
+  {
+    best_estimate = second_best_estimate;
+    second_best_estimate = ProgressInfo();
+  }
+
+  ++finished_count;
 }
 
 } // namespace services

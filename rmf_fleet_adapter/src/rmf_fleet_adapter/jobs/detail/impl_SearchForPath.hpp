@@ -57,20 +57,26 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       .subscribe(
         [this, s](const Planning::Result& result)
   {
-    auto show_complaint = _compliant_failed? _compliant_job.get() : nullptr;
-    Result next{_greedy_job.get(), show_complaint};
+    auto show_complaint = _compliant_finished? _compliant_job.get() : nullptr;
+    Result next{_greedy_job.get(), show_complaint, Type::greedy};
 
     const auto& r = result.job.progress();
     if (r.success())
     {
-      if (_compliant_failed)
+      if (_compliant_finished)
       {
         s.on_next(next);
         s.on_completed();
         return;
       }
+      else if (_explicit_cost_limit)
+      {
+        s.on_next(next);
 
-      // If the job has succeeded, record the fact
+        _greedy_finished = true;
+        return;
+      }
+
       _greedy_finished = true;
       return;
     }
@@ -115,27 +121,37 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
         [this, s](const Planning::Result& result)
   {
     auto show_greedy = _greedy_finished? _greedy_job.get() : nullptr;
-    Result next{show_greedy, _compliant_job.get()};
+    Result next{show_greedy, _compliant_job.get(), Type::compliant};
 
     auto& r = result.job.progress();
     if (r.success())
     {
       // Return the successful schedule-compliant plan
-      s.on_next(next);
-      s.on_completed();
+      if (_greedy_finished || _explicit_cost_limit)
+      {
+        s.on_next(next);
+      }
+      _compliant_finished = true;
+
+      if (_greedy_finished)
+        s.on_completed();
+
       return;
     }
 
     if (_interrupt_flag)
     {
-      _compliant_failed = true;
-
       if (_greedy_finished)
       {
         s.on_next(next);
         s.on_completed();
       }
+      else if (_explicit_cost_limit)
+      {
+        s.on_next(next);
+      }
 
+      _compliant_finished = true;
       return;
     }
 
@@ -173,7 +189,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
 
     // Discard the job because it can no longer produce an acceptable result.
     // The SearchForPath will continue looking for a greedy plan.
-    _compliant_failed = true;
+    _compliant_finished = true;
   });
 }
 
