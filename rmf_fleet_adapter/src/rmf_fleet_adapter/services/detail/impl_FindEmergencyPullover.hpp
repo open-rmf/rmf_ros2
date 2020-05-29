@@ -60,16 +60,18 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
     auto* greedy = progress.greedy_job;
     auto* compliant = progress.compliant_job;
 
+    bool resume_greedy = false;
     if (greedy)
     {
-      if (!_greedy_evaluator.evaluate(greedy->progress()))
-        greedy->discard();
+      if (_greedy_evaluator.evaluate(greedy->progress()))
+        resume_greedy = true;
     }
 
+    bool resume_compliant = false;
     if (compliant)
     {
-      if (!_compliant_evaluator.evaluate(compliant->progress()))
-        compliant->discard();
+      if (_compliant_evaluator.evaluate(compliant->progress()))
+        resume_compliant = true;
     }
 
     if (greedy && compliant)
@@ -80,7 +82,7 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       {
         if (!compliant_progress.cost_estimate())
         {
-          compliant->discard();
+          resume_compliant = false;
           ++_compliant_evaluator.finished_count;
         }
         else if (greedy_progress.success())
@@ -88,7 +90,7 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
           if (greedy_progress->get_cost() * compliance_leeway <
               *compliant_progress.cost_estimate())
           {
-            compliant->discard();
+            resume_compliant = false;
             ++_compliant_evaluator.finished_count;
           }
         }
@@ -110,7 +112,14 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       }
 
       s.on_completed();
+      return;
     }
+
+    if (resume_greedy)
+      greedy->resume();
+
+    if (resume_compliant)
+      compliant->resume();
   });
 }
 

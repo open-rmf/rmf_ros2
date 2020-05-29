@@ -30,7 +30,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
   s.add([this]()
   {
     // This gets triggered if the subscription is discarded
-    this->discard();
+    this->interrupt();
   });
 
   if (!_greedy_job)
@@ -105,6 +105,8 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
     }
 
     s.on_next(next);
+    // We do not automatically resume, because that should be the choice of
+    // whoever we are reporting to
   });
 
   _compliant_sub = rmf_rxcpp::make_job<Planning::Result>(_compliant_job)
@@ -126,12 +128,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
 
     if (_interrupt_flag)
     {
-      const double cost = r.cost_estimate()?
-            *r.cost_estimate() : std::numeric_limits<double>::infinity();
-      std::cout << " ===== Discarding job (" << _compliant_job.get()
-                << "). Cost: " << cost << std::endl;
       _compliant_failed = true;
-      result.job.discard();
 
       if (_greedy_finished)
       {
@@ -147,6 +144,8 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       // An explicit cost limit means this is part of a Job, so we should
       // report an update whenever we get an update.
       s.on_next(next);
+      // We do not automatically resume, because that should be the choice of
+      // whoever we are reporting to.
       return;
     }
 
@@ -161,6 +160,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       {
         // Push the maximum out a bit more and let the job try again.
         r.options().maximum_cost_estimate(new_maximum);
+        result.job.resume();
         return;
       }
 
@@ -173,7 +173,6 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
 
     // Discard the job because it can no longer produce an acceptable result.
     // The SearchForPath will continue looking for a greedy plan.
-    result.job.discard();
     _compliant_failed = true;
   });
 }

@@ -27,17 +27,14 @@ namespace jobs {
 template <typename Subscriber, typename Worker>
 void Planning::operator()(const Subscriber& s, const Worker& w)
 {
-  if (_discarded)
+  _resume = [this, s, w]()
   {
-    s.on_completed();
-    return;
-  }
+    w.schedule([this, s, w](const auto&)
+    {
+      (*this)(s, w);
+    });
+  };
 
-  double cost_limit = _current_result.options().maximum_cost_estimate()?
-        *_current_result.options().maximum_cost_estimate()
-      : std::numeric_limits<double>::infinity();
-
-  std::cout << " === COST LIMIT (" << this << "): " << cost_limit << std::endl;
   _current_result.resume();
   s.on_next(Result{*this});
   if (_current_result.success() || !_current_result.cost_estimate())
@@ -45,19 +42,6 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
     // The plan is either finished or is guaranteed to never finish
     s.on_completed();
     return;
-  }
-
-  if (!_discarded)
-  {
-    std::cout << " === scheduling next job (" << this << ")" << std::endl;
-    w.schedule([this, s, w](const auto&)
-    {
-      (*this)(s, w);
-    });
-  }
-  else
-  {
-    std::cout << " === job (" << this << ") is discarded" << std::endl;
   }
 }
 

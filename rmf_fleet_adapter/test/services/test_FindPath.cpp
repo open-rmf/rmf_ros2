@@ -137,7 +137,7 @@ SCENARIO("Find a path")
       result_0_promise.set_value(result);
     });
 
-    const auto status_0 = result_0_future.wait_for(5s);
+    const auto status_0 = result_0_future.wait_for(1s);
     REQUIRE(std::future_status::ready == status_0);
     const auto result_0 = result_0_future.get();
     REQUIRE(result_0.success());
@@ -161,7 +161,7 @@ SCENARIO("Find a path")
       pre_result_1_promise.set_value(result);
     });
 
-    const auto pre_status_1 = pre_result_1_future.wait_for(5s);
+    const auto pre_status_1 = pre_result_1_future.wait_for(1s);
     REQUIRE(std::future_status::ready == pre_status_1);
     const auto pre_result_1 = pre_result_1_future.get();
     REQUIRE(pre_result_1.success());
@@ -200,7 +200,7 @@ SCENARIO("Find a path")
       result_1_promise.set_value(result);
     });
 
-    const auto status_1 = result_1_future.wait_for(5s);
+    const auto status_1 = result_1_future.wait_for(1s);
     REQUIRE(std::future_status::ready == status_1);
     const auto result_1 = result_1_future.get();
     REQUIRE(result_1.success());
@@ -243,7 +243,6 @@ SCENARIO("Find a path")
           planner, rmf_traffic::agv::Plan::StartSet({start_1}), goal_1,
           database->snapshot(), p1.id());
 
-    std::cout << " ============= Tough job" << std::endl;
     std::promise<rmf_traffic::agv::Plan::Result> result_1_promise;
     auto result_1_future = result_1_promise.get_future();
     auto path_sub =
@@ -256,13 +255,7 @@ SCENARIO("Find a path")
       result_1_promise.set_value(result);
     });
 
-    auto status_1 = result_1_future.wait_for(5s);
-    if (std::future_status::ready != status_1)
-    {
-      path_service->interrupt();
-      status_1 = result_1_future.wait_for(1s);
-    }
-
+    auto status_1 = result_1_future.wait_for(1s);
     REQUIRE(std::future_status::ready == status_1);
     const auto result_1 = result_1_future.get();
     REQUIRE(result_1.success());

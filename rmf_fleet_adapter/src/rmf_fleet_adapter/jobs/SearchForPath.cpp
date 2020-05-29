@@ -69,19 +69,8 @@ SearchForPath::SearchForPath(
 }
 
 //==============================================================================
-void SearchForPath::discard()
-{
-  if (_greedy_job)
-    _greedy_job->discard();
-
-  if (_compliant_job)
-    _compliant_job->discard();
-}
-
-//==============================================================================
 void SearchForPath::interrupt()
 {
-  std::cout << " ==== Interrupting" << std::endl;
   _interrupt_flag = true;
 }
 
