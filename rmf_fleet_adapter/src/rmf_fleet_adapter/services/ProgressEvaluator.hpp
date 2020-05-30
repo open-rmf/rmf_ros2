@@ -15,24 +15,41 @@
  *
 */
 
-#include "FindEmergencyPullover.hpp"
+#ifndef SRC__RMF_FLEET_ADAPTER__SERVICES__PROGRESSEVALUATOR_HPP
+#define SRC__RMF_FLEET_ADAPTER__SERVICES__PROGRESSEVALUATOR_HPP
+
+#include <rmf_traffic/agv/Planner.hpp>
 
 namespace rmf_fleet_adapter {
 namespace services {
 
 //==============================================================================
-FindEmergencyPullover::FindEmergencyPullover(
-    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-    rmf_traffic::agv::Plan::StartSet starts,
-    std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
-    rmf_traffic::schedule::ParticipantId participant_id)
-  : _planner(std::move(planner)),
-    _starts(std::move(starts)),
-    _schedule(std::move(schedule)),
-    _participant_id(participant_id)
+struct ProgressEvaluator
 {
-  // Do nothing
-}
+  using Result = rmf_traffic::agv::Plan::Result;
+
+  struct Info
+  {
+    double cost = std::numeric_limits<double>::infinity();
+    const Result* progress = nullptr;
+  };
+
+  bool initialize(const Result& setup);
+
+  bool evaluate(Result& progress);
+
+  void discard(Result& progress);
+
+  Info best_estimate;
+  Info second_best_estimate;
+  Info best_result;
+  std::size_t finished_count = 0;
+
+  static constexpr double estimate_leeway = 1.01;
+};
+
 
 } // namespace services
 } // namespace rmf_fleet_adapter
+
+#endif // SRC__RMF_FLEET_ADAPTER__SERVICES__PROGRESSEVALUATOR_HPP

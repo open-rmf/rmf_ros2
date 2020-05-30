@@ -19,6 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__SERVICES__FINDEMERGENCYPULLOVER_HPP
 
 #include "../jobs/SearchForPath.hpp"
+#include "ProgressEvaluator.hpp"
 
 namespace rmf_fleet_adapter {
 namespace services {
@@ -39,30 +40,9 @@ public:
   template<typename Subscriber>
   void operator()(const Subscriber& s);
 
-  static constexpr double estimate_leeway = 1.01;
   static constexpr double compliance_leeway = 3.0;
 
 private:
-
-  struct ProgressInfo
-  {
-    double cost = std::numeric_limits<double>::infinity();
-    const Result* progress = nullptr;
-  };
-
-  struct Evaluator
-  {
-    bool initialize(const Result& setup);
-
-    bool evaluate(Result& progress);
-
-    void discard(Result& progress);
-
-    ProgressInfo best_estimate;
-    ProgressInfo second_best_estimate;
-    ProgressInfo best_result;
-    std::size_t finished_count = 0;
-  };
 
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
   rmf_traffic::agv::Plan::StartSet _starts;
@@ -72,8 +52,8 @@ private:
   std::vector<std::shared_ptr<jobs::SearchForPath>> _search_jobs;
   rxcpp::subscription _search_sub;
 
-  Evaluator _greedy_evaluator;
-  Evaluator _compliant_evaluator;
+  ProgressEvaluator _greedy_evaluator;
+  ProgressEvaluator _compliant_evaluator;
 };
 
 } // namespace services
