@@ -15,42 +15,38 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__SERVICES__PROGRESSEVALUATOR_HPP
-#define SRC__RMF_FLEET_ADAPTER__SERVICES__PROGRESSEVALUATOR_HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__JOBS__ROLLOUT_HPP
+#define SRC__RMF_FLEET_ADAPTER__JOBS__ROLLOUT_HPP
 
-#include <rmf_traffic/agv/Planner.hpp>
+#include <rmf_traffic/agv/Rollout.hpp>
 
 namespace rmf_fleet_adapter {
-namespace services {
+namespace jobs {
 
 //==============================================================================
-struct ProgressEvaluator
+class Rollout
 {
-  using Result = rmf_traffic::agv::Plan::Result;
+public:
 
-  struct Info
+  struct Result
   {
-    double cost = std::numeric_limits<double>::infinity();
-    const Result* progress = nullptr;
+    std::vector<rmf_traffic::schedule::Itinerary> alternatives;
   };
 
-  bool initialize(const Result& setup);
+  Rollout(
+      rmf_traffic::agv::Planner::Result result,
+      rmf_traffic::schedule::ParticipantId blocker,
+      rmf_traffic::Duration span,
+      rmf_utils::optional<std::size_t> max_rollouts = rmf_utils::nullopt);
 
-  bool evaluate(Result& progress);
+  template<typename Subscriber, typename Worker>
+  void operator()(const Subscriber& s, const Worker& w);
 
-  void discard(Result& progress);
-
-  Info best_estimate;
-  Info second_best_estimate;
-  Info best_result;
-  Info best_discarded;
-  std::size_t finished_count = 0;
-
-  static constexpr double estimate_leeway = 1.01;
+private:
+  rmf_traffic::agv::Rollout _rollout;
 };
 
-
-} // namespace services
+} // namespace jobs
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__SERVICES__PROGRESSEVALUATOR_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__JOBS__ROLLOUT_HPP

@@ -20,13 +20,14 @@
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include "../jobs/Planning.hpp"
+#include "../jobs/Rollout.hpp"
 #include "ProgressEvaluator.hpp"
 
 namespace rmf_fleet_adapter {
 namespace services {
 
 //==============================================================================
-class Negotiate
+class Negotiate : public std::enable_shared_from_this<Negotiate>
 {
 public:
 
@@ -35,20 +36,23 @@ public:
       rmf_traffic::agv::Plan::StartSet starts,
       std::vector<rmf_traffic::agv::Plan::Goal> goals,
       rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
-      std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder);
+      std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
+      rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval);
 
   static std::shared_ptr<Negotiate> path(
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
       rmf_traffic::agv::Plan::StartSet starts,
       rmf_traffic::agv::Plan::Goal goal,
       rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
-      std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder);
+      std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
+      rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval);
 
   static std::shared_ptr<Negotiate> emergency_pullover(
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
       rmf_traffic::agv::Plan::StartSet starts,
       rmf_traffic::schedule::Negotiation::Table::ViewerPtr viewer,
-      std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder);
+      std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
+      rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval);
 
   using Result = std::function<void()>;
 
@@ -60,14 +64,23 @@ public:
   void discard();
 
 private:
+
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
   rmf_traffic::agv::Plan::StartSet _starts;
   std::vector<rmf_traffic::agv::Plan::Goal> _goals;
   rmf_traffic::schedule::Negotiator::TableViewerPtr _viewer;
   std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> _responder;
+  rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback _approval;
 
-  std::vector<std::shared_ptr<jobs::Planning>> _jobs;
-  rxcpp::subscription _sub;
+  std::vector<std::shared_ptr<jobs::Planning>> _search_jobs;
+  rxcpp::subscription _search_sub;
+  std::shared_ptr<jobs::Rollout> _rollout_job;
+  rxcpp::subscription _rollout_sub;
+  bool _attempting_rollout = false;
+
+  using Alternatives = std::vector<rmf_traffic::schedule::Itinerary>;
+  rmf_utils::optional<Alternatives> _alternatives;
+
   bool _interrupted = false;
   bool _discarded = false;
 

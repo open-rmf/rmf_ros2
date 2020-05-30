@@ -80,6 +80,11 @@ void ProgressEvaluator::discard(Result& progress)
     second_best_estimate = Info();
   }
 
+  const double cost = progress.cost_estimate()?
+        *progress.cost_estimate() : std::numeric_limits<double>::infinity();
+  if (best_discarded.progress || cost < best_discarded.cost)
+    best_discarded = Info{cost, &progress};
+
   ++finished_count;
 }
 

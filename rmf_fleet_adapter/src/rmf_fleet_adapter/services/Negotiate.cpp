@@ -20,31 +20,20 @@
 namespace rmf_fleet_adapter {
 namespace services {
 
-namespace detail {
-//==============================================================================
-std::vector<rmf_utils::clone_ptr<rmf_traffic::agv::NegotiatingRouteValidator>>
-make_validators(const rmf_traffic::schedule::Negotiator::TableViewerPtr& viewer)
-{
-  std::vector<rmf_utils::clone_ptr<rmf_traffic::agv::NegotiatingRouteValidator>>
-      validators;
-
-  std::vector<rmf_utils::clone_ptr<rmf_traffic::agv::NegotiatingRouteValidator>>
-      queue;
-}
-} // namespace detail
-
 //==============================================================================
 Negotiate::Negotiate(
     std::shared_ptr<const rmf_traffic::agv::Planner> planner,
     rmf_traffic::agv::Plan::StartSet starts,
     std::vector<rmf_traffic::agv::Plan::Goal> goals,
     rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
-    std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder)
+    std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
+    rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval)
   : _planner(std::move(planner)),
     _starts(std::move(starts)),
     _goals(std::move(goals)),
     _viewer(std::move(viewer)),
-    _responder(std::move(responder))
+    _responder(std::move(responder)),
+    _approval(std::move(approval))
 {
   // Do nothing
 }
@@ -55,14 +44,16 @@ std::shared_ptr<Negotiate> Negotiate::path(
     rmf_traffic::agv::Plan::StartSet starts,
     rmf_traffic::agv::Plan::Goal goal,
     rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
-    std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder)
+    std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
+    rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval)
 {
   return std::make_shared<Negotiate>(
         std::move(planner),
         std::move(starts),
         std::vector<rmf_traffic::agv::Plan::Goal>({std::move(goal)}),
         std::move(viewer),
-        std::move(responder));
+        std::move(responder),
+        std::move(approval));
 }
 
 //==============================================================================
@@ -70,7 +61,8 @@ std::shared_ptr<Negotiate> Negotiate::emergency_pullover(
     std::shared_ptr<const rmf_traffic::agv::Planner> planner,
     rmf_traffic::agv::Plan::StartSet starts,
     rmf_traffic::schedule::Negotiation::Table::ViewerPtr viewer,
-    std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder)
+    std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
+    rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval)
 {
   const auto& graph = planner->get_configuration().graph();
   const std::size_t N = graph.num_waypoints();
@@ -89,7 +81,8 @@ std::shared_ptr<Negotiate> Negotiate::emergency_pullover(
         std::move(starts),
         std::move(goals),
         std::move(viewer),
-        std::move(responder));
+        std::move(responder),
+        std::move(approval));
 }
 
 //==============================================================================
