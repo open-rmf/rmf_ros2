@@ -62,7 +62,12 @@ void Negotiate::operator()(const Subscriber& s)
         s.on_next(
               [n = shared_from_this(), r = _evaluator.best_result.progress]()
         {
-          n->_responder->submit((*r)->get_itinerary(), n->_approval);
+          n->_responder->submit(
+                (*r)->get_itinerary(),
+                [n, r]() -> UpdateVersion
+          {
+            return n->_approval(**r);
+          });
         });
 
         s.on_completed();
@@ -128,7 +133,7 @@ void Negotiate::operator()(const Subscriber& s)
               rmf_rxcpp::make_job<jobs::Rollout::Result>(_rollout_job)
               .observe_on(rxcpp::observe_on_event_loop())
               .subscribe(
-                [this](const jobs::Rollout::Result& result)
+                [this, check_if_finished](const jobs::Rollout::Result& result)
           {
             this->_alternatives = result.alternatives;
             _attempting_rollout = false;

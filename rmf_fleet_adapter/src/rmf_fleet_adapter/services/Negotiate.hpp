@@ -31,28 +31,33 @@ class Negotiate : public std::enable_shared_from_this<Negotiate>
 {
 public:
 
+  using ItineraryVersion = rmf_traffic::schedule::ItineraryVersion;
+  using UpdateVersion = rmf_utils::optional<ItineraryVersion>;
+  using ApprovalCallback =
+    std::function<UpdateVersion(const rmf_traffic::agv::Plan&)>;
+
   Negotiate(
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
       rmf_traffic::agv::Plan::StartSet starts,
       std::vector<rmf_traffic::agv::Plan::Goal> goals,
       rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
-      std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
-      rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval);
+      rmf_traffic::schedule::Negotiator::ResponderPtr responder,
+      ApprovalCallback approval);
 
   static std::shared_ptr<Negotiate> path(
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
       rmf_traffic::agv::Plan::StartSet starts,
       rmf_traffic::agv::Plan::Goal goal,
       rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
-      std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
-      rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval);
+      rmf_traffic::schedule::Negotiator::ResponderPtr responder,
+      ApprovalCallback approval);
 
   static std::shared_ptr<Negotiate> emergency_pullover(
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
       rmf_traffic::agv::Plan::StartSet starts,
       rmf_traffic::schedule::Negotiation::Table::ViewerPtr viewer,
-      std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
-      rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval);
+      rmf_traffic::schedule::Negotiator::ResponderPtr responder,
+      ApprovalCallback approval);
 
   using Result = std::function<void()>;
 
@@ -69,8 +74,8 @@ private:
   rmf_traffic::agv::Plan::StartSet _starts;
   std::vector<rmf_traffic::agv::Plan::Goal> _goals;
   rmf_traffic::schedule::Negotiator::TableViewerPtr _viewer;
-  std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> _responder;
-  rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback _approval;
+  rmf_traffic::schedule::Negotiator::ResponderPtr _responder;
+  ApprovalCallback _approval;
 
   std::vector<std::shared_ptr<jobs::Planning>> _search_jobs;
   rxcpp::subscription _search_sub;
@@ -89,5 +94,7 @@ private:
 
 } // namespace services
 } // namespace rmf_fleet_adapter
+
+#include "detail/impl_Negotiate.hpp"
 
 #endif // SRC__RMF_FLEET_ADAPTER__SERVICES__NEGOTIATEPATH_HPP

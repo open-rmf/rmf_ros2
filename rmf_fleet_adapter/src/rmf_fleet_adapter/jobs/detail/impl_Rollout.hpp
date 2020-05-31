@@ -27,7 +27,7 @@ namespace jobs {
 template<typename Subscriber, typename Worker>
 void Rollout::operator()(const Subscriber& s, const Worker&)
 {
-  s.on_next(_rollout.expand(_blocker, _span, _max_rollouts));
+  s.on_next(Result{_rollout.expand(_blocker, _span, _max_rollouts)});
   s.on_completed();
 }
 

@@ -52,4 +52,6 @@ private:
 } // namespace jobs
 } // namespace rmf_fleet_adapter
 
+#include "detail/impl_Rollout.hpp"
+
 #endif // SRC__RMF_FLEET_ADAPTER__JOBS__ROLLOUT_HPP

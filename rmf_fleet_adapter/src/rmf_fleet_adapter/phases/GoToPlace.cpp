@@ -17,6 +17,7 @@
 
 #include "../services/FindPath.hpp"
 #include "../services/FindEmergencyPullover.hpp"
+#include "../services/Negotiate.hpp"
 
 #include "GoToPlace.hpp"
 #include "MoveRobot.hpp"
@@ -93,7 +94,44 @@ void GoToPlace::Active::respond(
   const ResponderPtr& responder,
   const bool *)
 {
+  auto phase = std::enable_shared_from_this<Active>::shared_from_this();
+  std::weak_ptr<Active> weak = phase;
 
+  auto approval_cb = [w = std::move(weak)](
+      const rmf_traffic::agv::Plan& plan)
+      -> rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion>
+  {
+    if (auto active = w.lock())
+    {
+      active->execute_plan(plan);
+      return active->_context->itinerary().version();
+    }
+
+    return rmf_utils::nullopt;
+  };
+
+  std::shared_ptr<services::Negotiate> negotiate;
+  if (_emergency_active)
+  {
+    negotiate = services::Negotiate::emergency_pullover(
+          _context->planner(), _context->location(), table_viewer, responder,
+          std::move(approval_cb));
+  }
+  else
+  {
+    negotiate = services::Negotiate::path(
+          _context->planner(), _context->location(), _goal, table_viewer,
+          responder, std::move(approval_cb));
+  }
+
+  _negotiate_subscription = rmf_rxcpp::make_job<services::Negotiate::Result>(
+        std::move(negotiate))
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+        [phase = std::move(phase)](const auto& result)
+  {
+    result();
+  });
 }
 
 //==============================================================================
@@ -106,7 +144,7 @@ GoToPlace::Active::Active(
     _latest_time_estimate(original_time_estimate)
 {
   _description = "Moving to [" + std::to_string(_goal.waypoint()) + "]";
-  _negotiator_subscription = _context->set_negotiator(this);
+  _negotiator_license = _context->set_negotiator(this);
 
   StatusMsg initial_msg;
   initial_msg.status =
@@ -125,7 +163,7 @@ void GoToPlace::Active::find_plan()
   if (_emergency_active)
     return find_emergency_plan();
 
-  auto phase = std::static_pointer_cast<GoToPlace::Active>(shared_from_this());
+  auto phase = std::enable_shared_from_this<Active>::shared_from_this();
 
   _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
         std::make_shared<services::FindPath>(
@@ -146,14 +184,14 @@ void GoToPlace::Active::find_plan()
       return;
     }
 
-    phase->plan_to_subtasks(*std::move(result));
+    phase->execute_plan(*std::move(result));
   });
 }
 
 //==============================================================================
 void GoToPlace::Active::find_emergency_plan()
 {
-  auto phase = std::static_pointer_cast<GoToPlace::Active>(shared_from_this());
+  auto phase = std::enable_shared_from_this<Active>::shared_from_this();
 
   StatusMsg emergency_msg;
   emergency_msg.status = "Planning an emergency pullover";
@@ -182,7 +220,7 @@ void GoToPlace::Active::find_emergency_plan()
       return;
     }
 
-    phase->plan_to_subtasks(*std::move(result));
+    phase->execute_plan(*std::move(result));
     phase->_performing_emergency_task = true;
   });
 }
@@ -242,7 +280,7 @@ private:
 } // anonymous namespace
 
 //==============================================================================
-void GoToPlace::Active::plan_to_subtasks(rmf_traffic::agv::Plan new_plan)
+void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
 {
   _plan = std::move(new_plan);
 
@@ -284,7 +322,7 @@ void GoToPlace::Active::plan_to_subtasks(rmf_traffic::agv::Plan new_plan)
     }
   }
 
-  auto phase = std::static_pointer_cast<GoToPlace::Active>(shared_from_this());
+  auto phase = std::enable_shared_from_this<Active>::shared_from_this();
   _subtasks = Task(std::move(sub_phases));
   _status_subscription = _subtasks->observe()
       .observe_on(rxcpp::observe_on_event_loop())
@@ -309,6 +347,8 @@ void GoToPlace::Active::plan_to_subtasks(rmf_traffic::agv::Plan new_plan)
           // to be complete.
         }
    );
+
+  _context->itinerary().set(_plan->get_itinerary());
 }
 
 //==============================================================================

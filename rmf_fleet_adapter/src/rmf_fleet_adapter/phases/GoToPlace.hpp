@@ -34,7 +34,8 @@ public:
 
   class Active
       : public Task::ActivePhase,
-        public rmf_traffic::schedule::Negotiator
+        public rmf_traffic::schedule::Negotiator,
+        std::enable_shared_from_this<Active>
   {
   public:
 
@@ -70,7 +71,7 @@ public:
 
     void find_emergency_plan();
 
-    void plan_to_subtasks(rmf_traffic::agv::Plan new_plan);
+    void execute_plan(rmf_traffic::agv::Plan new_plan);
 
     agv::RobotContextPtr _context;
     rmf_traffic::agv::Plan::Goal _goal;
@@ -83,7 +84,8 @@ public:
     rmf_rxcpp::Publisher<StatusMsg> _status_publisher;
     rxcpp::subscription _status_subscription;
     rxcpp::subscription _plan_subscription;
-    std::shared_ptr<void> _negotiator_subscription;
+    rxcpp::subscription _negotiate_subscription;
+    std::shared_ptr<void> _negotiator_license;
   };
 
   class Pending : public Task::PendingPhase

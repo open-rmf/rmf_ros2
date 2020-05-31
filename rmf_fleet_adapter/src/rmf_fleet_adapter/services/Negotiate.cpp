@@ -26,8 +26,8 @@ Negotiate::Negotiate(
     rmf_traffic::agv::Plan::StartSet starts,
     std::vector<rmf_traffic::agv::Plan::Goal> goals,
     rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
-    std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
-    rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval)
+    rmf_traffic::schedule::Negotiator::ResponderPtr responder,
+    ApprovalCallback approval)
   : _planner(std::move(planner)),
     _starts(std::move(starts)),
     _goals(std::move(goals)),
@@ -44,8 +44,8 @@ std::shared_ptr<Negotiate> Negotiate::path(
     rmf_traffic::agv::Plan::StartSet starts,
     rmf_traffic::agv::Plan::Goal goal,
     rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
-    std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
-    rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval)
+    rmf_traffic::schedule::Negotiator::ResponderPtr responder,
+    ApprovalCallback approval)
 {
   return std::make_shared<Negotiate>(
         std::move(planner),
@@ -61,8 +61,8 @@ std::shared_ptr<Negotiate> Negotiate::emergency_pullover(
     std::shared_ptr<const rmf_traffic::agv::Planner> planner,
     rmf_traffic::agv::Plan::StartSet starts,
     rmf_traffic::schedule::Negotiation::Table::ViewerPtr viewer,
-    std::shared_ptr<rmf_traffic::schedule::Negotiator::Responder> responder,
-    rmf_traffic::schedule::Negotiator::Responder::ApprovalCallback approval)
+    rmf_traffic::schedule::Negotiator::ResponderPtr responder,
+    ApprovalCallback approval)
 {
   const auto& graph = planner->get_configuration().graph();
   const std::size_t N = graph.num_waypoints();
