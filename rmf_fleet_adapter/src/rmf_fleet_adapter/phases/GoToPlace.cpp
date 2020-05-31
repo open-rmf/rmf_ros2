@@ -90,10 +90,10 @@ const std::string& GoToPlace::Active::description() const
 //==============================================================================
 void GoToPlace::Active::respond(
   const TableViewerPtr& table_viewer,
-  const Responder& responder,
+  const ResponderPtr& responder,
   const bool *)
 {
-  // TODO(MXG): Create a job that responds to the negotiation
+
 }
 
 //==============================================================================

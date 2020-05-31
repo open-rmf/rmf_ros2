@@ -135,7 +135,7 @@ FleetAdapterNode::RobotContext::RobotContext(
   schedule.set_negotiator(
     [this](
       const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-      const rmf_traffic::schedule::Negotiator::Responder& responder,
+      const rmf_traffic::schedule::Negotiator::ResponderPtr& responder,
       const bool* interrupt_flag)
     {
       this->respond(table, responder, interrupt_flag);
@@ -228,7 +228,7 @@ void FleetAdapterNode::RobotContext::resume()
 //==============================================================================
 void FleetAdapterNode::RobotContext::respond(
   const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-  const rmf_traffic::schedule::Negotiator::Responder& responder,
+  const rmf_traffic::schedule::Negotiator::ResponderPtr& responder,
   const bool* interrupt_flag)
 {
   if (_task)
@@ -239,7 +239,7 @@ void FleetAdapterNode::RobotContext::respond(
     std::cerr << "[FleetAdatperNode::RobotContext::respond] "
               << "Responding to a negotiation while not performing a task"
               << std::endl;
-    responder.submit({});
+    responder->submit({});
   }
 }
 

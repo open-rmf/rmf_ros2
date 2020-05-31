@@ -89,6 +89,12 @@ public:
       // Do nothing
     }
 
+    template<typename... Args>
+    static std::shared_ptr<Responder> make(Args&&... args)
+    {
+      return std::make_shared<Responder>(std::forward<Args>(args)...);
+    }
+
     void submit(
       std::vector<rmf_traffic::Route> itinerary,
       std::function<UpdateVersion()> approval_callback) const final
@@ -348,7 +354,7 @@ public:
 
         const auto& negotiator = n_it->second;
         negotiator->respond(
-              top->viewer(), Responder(this, conflict_version, top));
+              top->viewer(), Responder::make(this, conflict_version, top));
       }
 
       if (top->submission())
@@ -438,7 +444,8 @@ public:
         if (!table->submission())
         {
           it->second->respond(
-            table->viewer(), Responder(this, msg.conflict_version, table));
+            table->viewer(),
+            Responder::make(this, msg.conflict_version, table));
         }
       }
     }

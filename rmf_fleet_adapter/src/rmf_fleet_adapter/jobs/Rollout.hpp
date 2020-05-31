@@ -44,6 +44,9 @@ public:
 
 private:
   rmf_traffic::agv::Rollout _rollout;
+  rmf_traffic::schedule::ParticipantId _blocker;
+  rmf_traffic::Duration _span;
+  rmf_utils::optional<std::size_t> _max_rollouts;
 };
 
 } // namespace jobs

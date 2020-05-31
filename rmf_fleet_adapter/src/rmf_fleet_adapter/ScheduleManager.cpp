@@ -79,7 +79,7 @@ void ScheduleManager::push_delay(
 void ScheduleManager::set_negotiator(
   std::function<void(
     const rmf_traffic::schedule::Negotiation::Table::ViewerPtr&,
-    const Negotiator::Responder&,
+    const Negotiator::ResponderPtr&,
     const bool*)> negotiation_callback)
 {
   if (_negotiator)
@@ -108,7 +108,7 @@ ScheduleManager::description() const
 //==============================================================================
 void ScheduleManager::Negotiator::respond(
   const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-  const Responder& responder,
+  const ResponderPtr& responder,
   const bool* interrupt_flag)
 {
   if (!callback)

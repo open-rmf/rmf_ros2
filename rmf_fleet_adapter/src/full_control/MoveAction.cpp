@@ -253,7 +253,7 @@ public:
 
   void respond(
     const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-    const Responder& responder,
+    const ResponderPtr& responder,
     const bool* /*interrupt_flag*/) final
   {
     if (_event_executor.do_not_negotiate())
@@ -273,7 +273,7 @@ public:
           // future, we should have a way to wait until the participant
           // information is available.
           assert(false);
-          return responder.reject({});
+          return responder->reject({});
         }
 
         const auto& other_profile = other_participant->profile();
@@ -296,7 +296,7 @@ public:
               for (const auto& item : itinerary)
                 alternative.emplace_back(item.route);
 
-              return responder.reject({std::move(alternative)});
+              return responder->reject({std::move(alternative)});
             }
           }
         }
@@ -306,7 +306,7 @@ public:
       for (const auto& item : itinerary)
         submission.push_back(*item.route);
 
-      responder.submit(std::move(submission));
+      responder->submit(std::move(submission));
       return;
     }
 
@@ -372,7 +372,7 @@ public:
         std::cout << " !!!!!!!!!!!!!!!!!! EXCEPTION WHILE TRYING TO NEGOTIATE: "
                   << e.what() << std::endl;
 
-        responder.forfeit({});
+        responder->forfeit({});
       }
     });
 

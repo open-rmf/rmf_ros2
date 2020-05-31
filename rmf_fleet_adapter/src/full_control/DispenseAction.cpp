@@ -151,7 +151,7 @@ public:
 
   void respond(
     const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-    const Responder& responder,
+    const ResponderPtr& responder,
     const bool* /*interrupt_flag*/) final
   {
     const rmf_traffic::Route route = calculate_itinerary();
@@ -172,12 +172,12 @@ public:
       {
         rmf_traffic::schedule::Itinerary alternative;
         alternative.push_back(std::make_shared<rmf_traffic::Route>(route));
-        responder.reject({std::move(alternative)});
+        responder->reject({std::move(alternative)});
         return;
       }
     }
 
-    responder.submit({route});
+    responder->submit({route});
   }
 
   Status get_status() const final

@@ -105,7 +105,7 @@ public:
 
   void respond(
     const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-    const Responder& responder,
+    const ResponderPtr& responder,
     const bool* interrupt_flag) final
   {
     if (!_action)
@@ -114,7 +114,7 @@ public:
         _node->get_logger(),
         "No action for this task [" + id() + "] to respond with. This "
         "might indicate a bug!");
-      responder.submit({});
+      responder->submit({});
       return;
     }
 

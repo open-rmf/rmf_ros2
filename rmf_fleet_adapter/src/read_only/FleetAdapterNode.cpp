@@ -102,7 +102,7 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
       this->schedule->set_negotiator(
         [this, node](
           const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-          const rmf_traffic::schedule::Negotiator::Responder& responder,
+          const rmf_traffic::schedule::Negotiator::ResponderPtr& responder,
           const bool*)
         {
           const auto itinerary = this->schedule->participant().itinerary();
@@ -121,7 +121,7 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
               // the future, we should have a way to wait until the participant
               // information is available.
               assert(false);
-              return responder.forfeit({});
+              return responder->forfeit({});
             }
 
             const auto& other_profile = other_participant->profile();
@@ -143,7 +143,7 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
                   for (const auto& item : itinerary)
                     alternative.emplace_back(item.route);
 
-                  return responder.reject({std::move(alternative)});
+                  return responder->reject({std::move(alternative)});
                 }
               }
             }
@@ -154,7 +154,7 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
           for (const auto& item : itinerary)
             submission.push_back(*item.route);
 
-          return responder.submit(std::move(submission));
+          return responder->submit(std::move(submission));
         });
     }, async_mutex);
 }

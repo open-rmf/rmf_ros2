@@ -56,7 +56,7 @@ public:
     // Documentation inherited from Negotiator
     void respond(
         const TableViewerPtr& table_viewer,
-        const Responder& responder,
+        const ResponderPtr& responder,
         const bool*) final;
 
   private:
