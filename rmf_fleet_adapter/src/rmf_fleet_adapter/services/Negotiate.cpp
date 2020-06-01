@@ -95,6 +95,7 @@ void Negotiate::interrupt()
 void Negotiate::discard()
 {
   _discarded = true;
+  _interrupted = true;
 }
 
 } // namespace services

@@ -27,6 +27,15 @@ namespace services {
 template<typename Subscriber>
 void Negotiate::operator()(const Subscriber& s)
 {
+  s.add([n = shared_from_this()]()
+  {
+    std::cout << "-- Discarding unsubscribed negotiate job: [";
+    for (const auto& p : n->_viewer->sequence())
+      std::cout << " " << p.participant << ":" << p.version;
+    std::cout << " ]" << std::endl;
+    n->discard();
+  });
+
   auto validators =
       rmf_traffic::agv::NegotiatingRouteValidator::Generator(_viewer).all();
 
@@ -41,7 +50,8 @@ void Negotiate::operator()(const Subscriber& s)
     {
       auto job = std::make_shared<jobs::Planning>(
             _planner, _starts, goal,
-            rmf_traffic::agv::Plan::Options(validator));
+            rmf_traffic::agv::Plan::Options(validator)
+            .interrupt_flag(&_interrupted));
 
       _evaluator.initialize(job->progress());
 
@@ -53,20 +63,26 @@ void Negotiate::operator()(const Subscriber& s)
 
   auto check_if_finished = [this, s, N_jobs]()
   {
-    if (_evaluator.finished_count >= N_jobs)
+    if (_evaluator.finished_count >= N_jobs || _interrupted)
     {
       if (_evaluator.best_result.progress
           && _evaluator.best_result.progress->success())
       {
         // This means we found a successful plan to submit to the negotiation.
         s.on_next(
-              [n = shared_from_this(), r = _evaluator.best_result.progress]()
+              [r = *_evaluator.best_result.progress,
+               approval = std::move(_approval),
+               responder = std::move(_responder)]()
         {
-          n->_responder->submit(
-                (*r)->get_itinerary(),
-                [n, r]() -> UpdateVersion
+          responder->submit(
+                r->get_itinerary(),
+                [r = std::move(r), approval = std::move(approval)]()
+                -> UpdateVersion
           {
-            return n->_approval(**r);
+            if (approval)
+              return approval(*r);
+
+            return rmf_utils::nullopt;
           });
         });
 
@@ -106,37 +122,44 @@ void Negotiate::operator()(const Subscriber& s)
   _search_sub = rmf_rxcpp::make_job_from_action_list(_search_jobs)
       .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
-        [this, s, N_jobs, check_if_finished = std::move(check_if_finished)](
+        [n = shared_from_this(), s, N_jobs,
+         check_if_finished = std::move(check_if_finished)](
         const jobs::Planning::Result& result)
   {
-    if (_evaluator.evaluate(result.job.progress()))
+    if (n->_discarded)
+    {
+      s.on_completed();
+      return;
+    }
+
+    if (n->_evaluator.evaluate(result.job.progress()))
     {
       result.job.resume();
     }
-    else if (!_attempting_rollout && _viewer->parent_id())
+    else if (!n->_attempting_rollout && n->_viewer->parent_id())
     {
-      const auto parent_id = *_viewer->parent_id();
+      const auto parent_id = *n->_viewer->parent_id();
       for (const auto p : result.job.progress().blockers())
       {
         if (p == parent_id)
         {
-          _attempting_rollout = true;
+          n->_attempting_rollout = true;
           auto rollout_source = result.job.progress();
           static_cast<rmf_traffic::agv::NegotiatingRouteValidator*>(
                 rollout_source.options().validator().get())->mask(parent_id);
 
-          _rollout_job = std::make_shared<jobs::Rollout>(
+          n->_rollout_job = std::make_shared<jobs::Rollout>(
                 std::move(rollout_source), parent_id,
                 std::chrono::seconds(15), 200);
 
-          _rollout_sub =
-              rmf_rxcpp::make_job<jobs::Rollout::Result>(_rollout_job)
+          n->_rollout_sub =
+              rmf_rxcpp::make_job<jobs::Rollout::Result>(n->_rollout_job)
               .observe_on(rxcpp::observe_on_event_loop())
               .subscribe(
-                [this, check_if_finished](const jobs::Rollout::Result& result)
+                [n, check_if_finished](const jobs::Rollout::Result& result)
           {
-            this->_alternatives = result.alternatives;
-            _attempting_rollout = false;
+            n->_alternatives = result.alternatives;
+            n->_attempting_rollout = false;
             check_if_finished();
           });
         }
