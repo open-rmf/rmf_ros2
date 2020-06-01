@@ -761,7 +761,7 @@ SCENARIO("fan-in-fan-out bottleneck")
 //      THEN("Valid Proposal is found")
       {
         std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database, intentions);
+        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
         auto future_proposal = room->print().solve();
         const auto status = future_proposal.wait_for(20min);
         REQUIRE(status == std::future_status::ready);
@@ -797,7 +797,7 @@ SCENARIO("fan-in-fan-out bottleneck")
 //      THEN("Valid Proposal is found")
       {
         std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database, intentions);
+        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
         auto future_proposal = room->print().solve();
         const auto status = future_proposal.wait_for(20min);
         REQUIRE(status == std::future_status::ready);
@@ -851,7 +851,7 @@ SCENARIO("fan-in-fan-out bottleneck")
 //      THEN("Valid Proposal is found")
       {
         std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database, intentions);
+        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
         auto future_proposal = room->print().solve();
         const auto status = future_proposal.wait_for(20min);
         REQUIRE(status == std::future_status::ready);
@@ -903,7 +903,7 @@ SCENARIO("fan-in-fan-out bottleneck")
 //      THEN("Valid Proposal is found")
       {
         std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database, intentions);
+        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
         auto future_proposal = room->print().solve();
         const auto status = future_proposal.wait_for(20min);
         REQUIRE(status == std::future_status::ready);
@@ -955,7 +955,7 @@ SCENARIO("fan-in-fan-out bottleneck")
 //      THEN("Valid Proposal is found")
       {
         std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database, intentions);
+        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
         auto future_proposal = room->print().solve();
         const auto status = future_proposal.wait_for(20min);
         REQUIRE(status == std::future_status::ready);
@@ -1011,7 +1011,7 @@ SCENARIO("fan-in-fan-out bottleneck")
 //      THEN("Valid Proposal is found")
       {
         std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database, intentions);
+        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
         auto future_proposal = room->print().solve();
         const auto status = future_proposal.wait_for(20min);
         REQUIRE(status == std::future_status::ready);
@@ -1083,7 +1083,7 @@ SCENARIO("fan-in-fan-out bottleneck")
 //      THEN("Valid Proposal is found")
       {
         std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database, intentions);
+        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
         auto future_proposal = room->print().solve();
         const auto status = future_proposal.wait_for(20min);
         REQUIRE(status == std::future_status::ready);
@@ -1114,73 +1114,70 @@ SCENARIO("fan-in-fan-out bottleneck")
       }
     }
 //    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(E->V), p2(X->C)]")
-//    {
-//      const auto time = std::chrono::steady_clock::now();
+    {
+      const auto time = std::chrono::steady_clock::now();
 
-//      NegotiationRoom::Intentions intentions;
-//      intentions.insert({
-//          p0.id(),
-//          NegotiationRoom::Intention{
-//            {time, vertex_id_to_idx["A"], 0.0},  // Time, Start Vertex, Initial Orientation
-//            vertex_id_to_idx["Z"], // Goal Vertex
-//            a0_planner // Planner Configuration ( Preset )
-//          }
-//        });
+      NegotiationRoom::Intentions intentions;
+      intentions.insert({
+          p0.id(),
+          NegotiationRoom::Intention{
+            {time, vertex_id_to_idx["A"], 0.0},  // Time, Start Vertex, Initial Orientation
+            vertex_id_to_idx["Z"], // Goal Vertex
+            a0_planner // Planner Configuration ( Preset )
+          }
+        });
 
-//      intentions.insert({
-//          p1.id(),
-//          NegotiationRoom::Intention{
-//            {time, vertex_id_to_idx["E"], 0.0},  // Time, Start Vertex, Initial Orientation
-//            vertex_id_to_idx["V"], // Goal Vertex
-//            a1_planner // Planner Configuration ( Preset )
-//          }
-//        });
+      intentions.insert({
+          p1.id(),
+          NegotiationRoom::Intention{
+            {time, vertex_id_to_idx["E"], 0.0},  // Time, Start Vertex, Initial Orientation
+            vertex_id_to_idx["V"], // Goal Vertex
+            a1_planner // Planner Configuration ( Preset )
+          }
+        });
 
-//      intentions.insert({
-//          p2.id(),
-//          NegotiationRoom::Intention{
-//            {time, vertex_id_to_idx["X"], 0.0},  // Time, Start Vertex, Initial Orientation
-//            vertex_id_to_idx["C"], // Goal Vertex
-//            a2_planner // Planner Configuration ( Preset )
-//          }
-//        });
+      intentions.insert({
+          p2.id(),
+          NegotiationRoom::Intention{
+            {time, vertex_id_to_idx["X"], 0.0},  // Time, Start Vertex, Initial Orientation
+            vertex_id_to_idx["C"], // Goal Vertex
+            a2_planner // Planner Configuration ( Preset )
+          }
+        });
 
-      // We don't run this test in debug mode because it takes a long time
-//      THEN("Valid Proposal is found")
-//      {
-//        std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-//        const auto room = std::make_shared<NegotiationRoom>(database, intentions);
-//        auto future_success = room->print().solve();
-//        const auto status = future_success.wait_for(20min);
-//        REQUIRE(status == std::future_status::ready);
-//        REQUIRE(future_success.get());
+      //THEN("Valid Proposal is found")
+      {
+        std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
+        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
+        auto future_proposal = room->print().solve();
+        const auto status = future_proposal.wait_for(20min);
+        REQUIRE(status == std::future_status::ready);
 
-//        const auto proposed_table = room->negotiation->evaluate(
-//              rmf_traffic::schedule::QuickestFinishEvaluator());
-//        REQUIRE(proposed_table);
-//        const auto proposal = proposed_table->proposal();
+        const auto proposal_opt = future_proposal.get();
+        REQUIRE(proposal_opt);
+        const auto& proposal = *proposal_opt;
 
-//        auto p0_itinerary =
-//          get_participant_itinerary(proposal, p0.id()).value();
-//        auto p1_itinerary =
-//          get_participant_itinerary(proposal, p1.id()).value();
-//        auto p2_itinerary =
-//          get_participant_itinerary(proposal, p2.id()).value();
-//        REQUIRE(p0_itinerary.back()->trajectory().back().position().segment(0,
-//          2) ==
-//          vertices["Z"].first);
-//        REQUIRE(p1_itinerary.back()->trajectory().back().position().segment(0,
-//          2) ==
-//          vertices["V"].first);
-//        REQUIRE(p2_itinerary.back()->trajectory().back().position().segment(0,
-//          2) ==
-//          vertices["C"].first);
-//      }
+        auto p0_itinerary =
+          get_participant_itinerary(proposal, p0.id()).value();
+        auto p1_itinerary =
+          get_participant_itinerary(proposal, p1.id()).value();
+        auto p2_itinerary =
+          get_participant_itinerary(proposal, p2.id()).value();
+        REQUIRE(p0_itinerary.back()->trajectory().back().position().segment(0,
+          2) ==
+          vertices["Z"].first);
+        REQUIRE(p1_itinerary.back()->trajectory().back().position().segment(0,
+          2) ==
+          vertices["V"].first);
+        REQUIRE(p2_itinerary.back()->trajectory().back().position().segment(0,
+          2) ==
+          vertices["C"].first);
+      }
 
-//      std::cout << "... Waiting for jobs to finish..." << std::endl;
-//      // Wait for jobs to finish
-//      std::this_thread::sleep_for(job_cooldown);
-//    }
+      std::cout << "... Waiting for jobs to finish..." << std::endl;
+      // Wait for jobs to finish
+      std::this_thread::sleep_for(job_cooldown);
+    }
   }
 
   std::this_thread::sleep_for(10s);

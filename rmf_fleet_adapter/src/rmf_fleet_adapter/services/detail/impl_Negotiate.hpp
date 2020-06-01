@@ -39,9 +39,6 @@ void Negotiate::operator()(const Subscriber& s)
   auto validators =
       rmf_traffic::agv::NegotiatingRouteValidator::Generator(_viewer).all();
 
-  std::vector<rmf_utils::clone_ptr<rmf_traffic::agv::NegotiatingRouteValidator>>
-      validator_queue;
-
   _search_jobs.reserve(_goals.size()*validators.size());
 
   for (const auto& goal : _goals)
