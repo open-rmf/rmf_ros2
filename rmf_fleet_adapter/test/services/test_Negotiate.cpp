@@ -1180,5 +1180,6 @@ SCENARIO("fan-in-fan-out bottleneck")
     }
   }
 
+  std::cout << " ------- FINAL WAIT --------- " << std::endl;
   std::this_thread::sleep_for(10s);
 }
