@@ -16,6 +16,7 @@
 */
 
 #include "MoveRobot.hpp"
+#include "RxOperators.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -30,14 +31,16 @@ MoveRobot::ActivePhase::ActivePhase(agv::RobotContextPtr context,
   oss << "Moving robot to (" << _waypoints.back().position() << ")";
   _description = oss.str();
 
-  _job = rmf_rxcpp::make_job<Task::StatusMsg>(
+  auto _job = rmf_rxcpp::make_job<Task::StatusMsg>(
     std::make_shared<MoveRobot::Action>(_context, _waypoints));
+  _obs = make_cancellable(_job, _cancel_subject.get_observable())
+    .observe_on(rxcpp::observe_on_event_loop());
 }
 
 //==============================================================================
 const rxcpp::observable<Task::StatusMsg>& MoveRobot::ActivePhase::observe() const
 {
-  return _job;
+  return _obs;
 }
 
 //==============================================================================
@@ -56,7 +59,8 @@ void MoveRobot::ActivePhase::emergency_alarm(bool on)
 //==============================================================================
 void MoveRobot::ActivePhase::cancel()
 {
-  // TODO: implement
+  _context->command()->stop();
+  _cancel_subject.get_subscriber().on_next(true);
 }
 
 //==============================================================================

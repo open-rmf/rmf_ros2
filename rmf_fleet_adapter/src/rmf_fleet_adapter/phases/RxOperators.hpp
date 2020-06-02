@@ -18,6 +18,8 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__RXOPERATORS_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__RXOPERATORS_HPP
 
+#include "../Task.hpp"
+
 #include <rxcpp/rx.hpp>
 
 namespace rmf_fleet_adapter {
@@ -51,6 +53,15 @@ auto grab_while(Predicate pred)
   };
 }
 
+inline auto grab_while_active()
+{
+  return grab_while([](const Task::StatusMsg& status)
+  {
+    return !(status.state == Task::StatusMsg::STATE_COMPLETED ||
+      status.state == Task::StatusMsg::STATE_FAILED);
+  });
+}
+
 /**
  * Runs a function when a subscribe happens.
  * @tparam T
@@ -66,6 +77,33 @@ auto on_subscribe(F f)
     f();
     return s;
   };
+}
+
+const std::string status_msg_cancelled = "cancelled";
+
+/**
+ * Makes an observable cancellable, the observable must be of type `Task::StatusMsg`.
+ * TODO: Add a "CANCELLED" task state?
+ * Use the `cancelled_msg` status text to find if the result of the observable is cancelled.
+ * @tparam Observable An observable of type `Task::StatusMsg`
+ * @tparam CancelObservable An observable of type `bool`
+ * @param obs
+ * @param cancel_obs
+ * @return
+ */
+template<typename Observable, typename CancelObservable>
+auto make_cancellable(const Observable& obs, const CancelObservable& cancel_obs)
+{
+  auto cancelled_obs = cancel_obs
+    .filter([](const auto& b) { return b; })
+    .map([](const auto&)
+    {
+      Task::StatusMsg status;
+      status.state = Task::StatusMsg::STATE_COMPLETED;
+      status.status = status_msg_cancelled;
+      return status;
+    });
+  return obs.merge(cancelled_obs);
 }
 
 } // namespace phases

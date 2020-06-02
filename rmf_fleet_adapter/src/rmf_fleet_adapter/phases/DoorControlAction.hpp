@@ -34,8 +34,6 @@ class DoorControlAction
 {
 public:
 
-  static const std::string status_msg_cancelled;
-
   DoorControlAction(
     std::string door_name,
     uint32_t target_mode,
@@ -52,11 +50,6 @@ public:
   {
     _timer.reset();
     _cancelled.get_subscriber().on_next(true);
-  }
-
-  inline Task::StatusMsg get_current_status()
-  {
-    return _status;
   }
 
 private:

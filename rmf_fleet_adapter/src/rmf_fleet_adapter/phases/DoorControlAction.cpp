@@ -27,9 +27,6 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-const std::string DoorControlAction::status_msg_cancelled = "cancelled";
-
-//==============================================================================
 DoorControlAction::DoorControlAction(
   std::string door_name,
   uint32_t target_mode,
@@ -54,15 +51,6 @@ DoorControlAction::DoorControlAction(
 
   _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
 
-  auto cancelled_obs = _cancelled.get_observable()
-    .filter([this](const auto& b) { return b; })
-    .map([this](const auto&)
-    {
-      _status.state = Task::StatusMsg::STATE_COMPLETED;
-      _status.status = status_msg_cancelled;
-      return _status;
-    });
-
   using CombinedType = std::tuple<DoorState::SharedPtr, SupervisorHeartbeat::SharedPtr>;
   _obs = _door_state_obs.combine_latest(_supervisor_heartbeat_obs)
     .lift<CombinedType>(on_subscribe([this]()
@@ -75,19 +63,15 @@ DoorControlAction::DoorControlAction(
     {
       _update_status(std::get<0>(v), std::get<1>(v));
       return _status;
-    })
-    .merge(cancelled_obs)
-    .lift<Task::StatusMsg>(grab_while([this](const Task::StatusMsg& status)
+    });
+  _obs = make_cancellable(_obs, _cancelled.get_observable())
+    .observe_on(rxcpp::observe_on_event_loop())
+    .lift<Task::StatusMsg>(grab_while_active())
+    .finally([this]()
     {
-      if (
-        status.state == Task::StatusMsg::STATE_COMPLETED ||
-        status.state == Task::StatusMsg::STATE_FAILED)
-      {
-        _timer.reset();
-        return false;
-      }
-      return true;
-    }));
+      if (_timer)
+        _timer->reset();
+    });
 }
 
 //==============================================================================

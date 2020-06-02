@@ -52,17 +52,12 @@ DispenseItem::Action::Action(
     {
       return _check_status(v);
     })
-    .lift<Task::StatusMsg>(grab_while([this](const Task::StatusMsg& status)
+    .lift<Task::StatusMsg>(grab_while_active())
+    .finally([this]()
     {
-      if (
-        status.state == Task::StatusMsg::STATE_COMPLETED ||
-        status.state == Task::StatusMsg::STATE_FAILED)
-      {
+      if (_timer)
         _timer.reset();
-        return false;
-      }
-      return true;
-    }));
+    });
 }
 
 //==============================================================================

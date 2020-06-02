@@ -16,6 +16,7 @@
 */
 
 #include "DoorOpen.hpp"
+#include "RxOperators.hpp"
 
 #include <utility>
 
@@ -53,13 +54,19 @@ DoorOpen::ActivePhase::ActivePhase(
   auto post_finish_obs = rxcpp::observable<>::create<Task::StatusMsg>(
     [this, post_finish_action](const auto& s)
     {
-      if (_action.get_current_status().status != DoorControlAction::status_msg_cancelled)
+      if (_last_status.status != status_msg_cancelled)
         s.on_completed();
       else
         post_finish_action->get_observable().subscribe(s);
     });
 
-  _obs = _action.get_observable().concat(post_finish_obs);
+  _obs = _action
+    .get_observable()
+    .tap([this](const Task::StatusMsg& status)
+    {
+      _last_status = status;
+    })
+    .concat(post_finish_obs);
 }
 
 //==============================================================================

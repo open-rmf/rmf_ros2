@@ -49,7 +49,8 @@ struct MoveRobot
     agv::RobotContextPtr _context;
     std::vector<rmf_traffic::agv::Plan::Waypoint> _waypoints;
     std::string _description;
-    rxcpp::observable<Task::StatusMsg> _job;
+    rxcpp::observable<Task::StatusMsg> _obs;
+    rxcpp::subjects::subject<bool> _cancel_subject;
   };
 
   class PendingPhase : public Task::PendingPhase
@@ -96,6 +97,10 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 {
   _context->command()->follow_new_path(_waypoints, [s]()
   {
+    Task::StatusMsg status;
+    status.status = Task::StatusMsg::STATE_COMPLETED;
+    status.status = "success";
+    s.on_next(status);
     s.on_completed();
   });
 }
