@@ -147,8 +147,8 @@ public:
       return {};
     }
 
-    bool interrupt_flag = false;
-    _planner_options.interrupt_flag(&interrupt_flag);
+    const auto interrupt_flag = std::make_shared<bool>(false);
+    _planner_options.interrupt_flag(interrupt_flag);
     _planner_options.validator(std::move(validator));
 
     bool main_plan_solved = false;
@@ -196,7 +196,7 @@ public:
         [&]() { return done_searching(); });
     }
 
-    interrupt_flag = true;
+    *interrupt_flag = true;
 
     main_plan_thread.join();
 
@@ -208,7 +208,7 @@ public:
 
     if (validator == nullptr)
     {
-      interrupt_flag = false;
+      *interrupt_flag = false;
       main_plan->resume();
 
       if (main_plan->success())
@@ -253,8 +253,7 @@ public:
 
   void respond(
     const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-    const ResponderPtr& responder,
-    const bool* /*interrupt_flag*/) final
+    const ResponderPtr& responder) final
   {
     if (_event_executor.do_not_negotiate())
     {
@@ -331,6 +330,7 @@ public:
     const auto start_time = earliest_time?
           *earliest_time : rmf_traffic_ros2::convert(_node->get_clock()->now());
 
+    const auto interrupt_flag = std::make_shared<bool>(false);
     std::weak_ptr<void> weak_handle = _handle;
     rmf_traffic::agv::SimpleNegotiator::Options options(
           [this, weak_handle = std::move(weak_handle)](
@@ -343,7 +343,8 @@ public:
 
       this->execute_plan({std::move(approved_plan)});
       return _context->schedule.participant().version();
-    }, rmf_traffic::agv::SimpleNegotiator::Options::DefaultMaxCostLeeway, 100);
+    }, interrupt_flag,
+    rmf_traffic::agv::SimpleNegotiator::Options::DefaultMaxCostLeeway, 100);
 
     const auto& planner = _node->get_planner();
     Eigen::Vector3d pose =
@@ -359,13 +360,12 @@ public:
           planner.get_configuration(),
           options);
 
-    bool interrupt_flag = false;
     auto future = std::async(
           std::launch::async,
           [&]()
     {
       try {
-        negotiator.respond(table, responder, &interrupt_flag);
+        negotiator.respond(table, responder);
       }
       catch(const std::exception& e)
       {
@@ -388,7 +388,7 @@ public:
     }
 
     if (future.wait_for(wait_duration) != std::future_status::ready)
-      interrupt_flag = true;
+      *interrupt_flag = true;
 
     future.wait();
   }
@@ -415,8 +415,8 @@ public:
 
     const auto& planner = _node->get_planner();
 
-    bool interrupt_flag = false;
-    _planner_options.interrupt_flag(&interrupt_flag);
+    const auto interrupt_flag = std::make_shared<bool>(false);
+    _planner_options.interrupt_flag(interrupt_flag);
 
     const auto t_spread = std::chrono::seconds(15);
     bool have_resume_plan = false;
@@ -456,7 +456,7 @@ public:
         [&]() { return have_resume_plan; });
     }
 
-    interrupt_flag = true;
+    *interrupt_flag = true;
     for (auto& resume_plan_thread : resume_plan_threads)
       resume_plan_thread.join();
 
@@ -1270,8 +1270,8 @@ public:
       return {};
     }
 
-    bool interrupt_flag = false;
-    _planner_options.interrupt_flag(&interrupt_flag);
+    const auto interrupt_flag = std::make_shared<bool>(false);
+    _planner_options.interrupt_flag(interrupt_flag);
     _planner_options.validator(std::move(validator));
 
     std::vector<std::thread> plan_threads;
@@ -1308,7 +1308,7 @@ public:
         [&]() { return have_plan; });
     }
 
-    interrupt_flag = true;
+    *interrupt_flag = true;
     for (auto& plan_thread : plan_threads)
       plan_thread.join();
 

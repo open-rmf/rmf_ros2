@@ -75,7 +75,7 @@ private:
   rmf_traffic::agv::Plan::Goal _goal;
   std::shared_ptr<const rmf_traffic::schedule::Snapshot> _schedule;
   rmf_traffic::schedule::ParticipantId _participant_id;
-  bool _interrupt_flag = false;
+  std::shared_ptr<bool> _interrupt_flag = std::make_shared<bool>(false);
 
   // The greedy job makes an optimal plan that ignores all other schedule
   // participants. It is used for two purposes:

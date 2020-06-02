@@ -151,8 +151,7 @@ public:
 
   void respond(
     const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-    const ResponderPtr& responder,
-    const bool* /*interrupt_flag*/) final
+    const ResponderPtr& responder) final
   {
     const rmf_traffic::Route route = calculate_itinerary();
     const auto& trajectory = route.trajectory();

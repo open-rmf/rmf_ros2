@@ -91,8 +91,7 @@ const std::string& GoToPlace::Active::description() const
 //==============================================================================
 void GoToPlace::Active::respond(
   const TableViewerPtr& table_viewer,
-  const ResponderPtr& responder,
-  const bool *)
+  const ResponderPtr& responder)
 {
   auto phase = std::enable_shared_from_this<Active>::shared_from_this();
   std::weak_ptr<Active> weak = phase;

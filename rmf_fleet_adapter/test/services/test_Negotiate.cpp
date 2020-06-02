@@ -279,8 +279,7 @@ public:
 
   void respond(
       const TableViewerPtr& table_viewer,
-      const ResponderPtr& responder,
-      const bool * = nullptr) final
+      const ResponderPtr& responder) final
   {
     if (_print)
     {
@@ -311,7 +310,7 @@ private:
   std::shared_ptr<rmf_traffic::agv::Planner> _planner;
   rmf_traffic::agv::Plan::StartSet _starts;
   rmf_traffic::agv::Plan::Goal _goal;
-  std::vector<rxcpp::subscription> _subscriptions;
+  std::vector<rmf_rxcpp::subscription_guard> _subscriptions;
   bool _print = false;
   std::shared_ptr<rmf_traffic::schedule::Negotiation> _n;
 
@@ -355,7 +354,11 @@ public:
         std::vector<rmf_traffic::Route> itinerary,
         ApprovalCallback approval_callback = nullptr) const final
     {
-      if (!_table->ongoing() && _room->_print)
+      const auto room = _room.lock();
+      if (!room)
+        return;
+
+      if (!_table->ongoing() && room->_print)
       {
         std::cout << "Deprecated negotiation: ";
       }
@@ -363,23 +366,23 @@ public:
       if (_table->defunct())
       {
         std::cout << "Defunct " << to_string(_table) << " ("
-                  << _room->negotiation.get() << ")" << std::endl;
+                  << room->negotiation.get() << ")" << std::endl;
         return;
       }
 
       rmf_traffic::schedule::SimpleResponder(_table)
           .submit(std::move(itinerary), std::move(approval_callback));
 
-      if (_room->_print)
+      if (room->_print)
       {
         std::cout << "Submission given for " + to_string(_table)
-                  << " (" << _room->negotiation.get() << ")" << std::endl;
+                  << " (" << room->negotiation.get() << ")" << std::endl;
       }
 
-      if (_room->check_finished())
+      if (room->check_finished())
         return;
 
-      for (const auto& n : _room->negotiators)
+      for (const auto& n : room->negotiators)
       {
         const auto participant = n.first;
         const auto respond_to = _table->respond(participant);
@@ -387,7 +390,7 @@ public:
         {
           if (skip(respond_to))
           {
-            if (_room->_print)
+            if (room->_print)
             {
               std::cout << "    Skipping a response request from "
                         << to_string(respond_to) << std::endl;
@@ -397,26 +400,30 @@ public:
             continue;
           }
 
-          n.second->print(_room->_print).n(_room->negotiation).respond(
-                respond_to->viewer(), make(_room, respond_to));
+          n.second->print(room->_print).n(room->negotiation).respond(
+                respond_to->viewer(), make(room, respond_to));
         }
       }
     }
 
     void reject(const Alternatives& alternatives) const final
     {
+      const auto room = _room.lock();
+      if (!room)
+        return;
+
       if (_table->defunct())
         return;
 
       rmf_traffic::schedule::SimpleResponder(_table).reject(alternatives);
 
-      if (_room->check_finished())
+      if (room->check_finished())
         return;
 
       const auto parent = _table->parent();
       if (parent)
       {
-        if (_room->_print)
+        if (room->_print)
         {
           std::cout << std::to_string(_table->participant()) << " rejected "
                     << to_string(parent) << std::endl;
@@ -428,20 +435,24 @@ public:
           return;
         }
 
-        _room->negotiators.at(parent->participant())
-            ->print(_room->_print).n(_room->negotiation).respond(
-              parent->viewer(), make(_room, parent));
+        room->negotiators.at(parent->participant())
+            ->print(room->_print).n(room->negotiation).respond(
+              parent->viewer(), make(room, parent));
       }
     }
 
     void forfeit(const std::vector<ParticipantId>& blockers) const final
     {
+      const auto room = _room.lock();
+      if (!room)
+        return;
+
       if (_table->defunct())
         return;
 
       rmf_traffic::schedule::SimpleResponder(_table).forfeit(blockers);
 
-      if (_room->_print)
+      if (room->_print)
       {
         std::cout << "Forfeit given for " << to_string(_table)
                   << " with the following blockers:";
@@ -451,7 +462,7 @@ public:
     }
 
   private:
-    std::shared_ptr<NegotiationRoom> _room;
+    std::weak_ptr<NegotiationRoom> _room;
     rmf_traffic::schedule::Negotiation::TablePtr _table;
   };
 
@@ -740,12 +751,12 @@ SCENARIO("fan-in-fan-out bottleneck")
 
   const auto job_cooldown = 0s;
 
-//  GIVEN("1 Participant")
+  GIVEN("1 Participant")
   {
-    auto p0 = rmf_traffic::schedule::make_participant(a0_config.description,
-        *database);
+    auto p0 = rmf_traffic::schedule::make_participant(
+          a0_config.description, *database);
 
-//    WHEN("Schedule:[], Negotiation:[p0(A->Z)]")
+    WHEN("Schedule:[], Negotiation:[p0(A->Z)]")
     {
       const auto time = std::chrono::steady_clock::now();
       NegotiationRoom::Intentions intentions;
@@ -758,12 +769,12 @@ SCENARIO("fan-in-fan-out bottleneck")
           }
         });
 
-//      THEN("Valid Proposal is found")
+      THEN("Valid Proposal is found")
       {
-        std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
-        auto future_proposal = room->print().solve();
-        const auto status = future_proposal.wait_for(20min);
+        const auto room = std::make_shared<NegotiationRoom>(
+              database->snapshot(), intentions);
+        auto future_proposal = room->solve();
+        const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
         const auto proposal_opt = future_proposal.get();
@@ -774,14 +785,10 @@ SCENARIO("fan-in-fan-out bottleneck")
         REQUIRE(p0_itinerary);
         REQUIRE(p0_itinerary->back()->trajectory().back().position()
                 .segment(0, 2) == vertices["Z"].first);
-
-        std::cout << "... Waiting for jobs to finish..." << std::endl;
-        // Wait for jobs to finish
-        std::this_thread::sleep_for(job_cooldown);
       }
     }
 
-//    WHEN("Schedule:[], Negotiation:[p0(X->C)]")
+    WHEN("Schedule:[], Negotiation:[p0(X->C)]")
     {
       const auto time = std::chrono::steady_clock::now();
       NegotiationRoom::Intentions intentions;
@@ -794,12 +801,12 @@ SCENARIO("fan-in-fan-out bottleneck")
           }
         });
 
-//      THEN("Valid Proposal is found")
+      THEN("Valid Proposal is found")
       {
-        std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
-        auto future_proposal = room->print().solve();
-        const auto status = future_proposal.wait_for(20min);
+        const auto room = std::make_shared<NegotiationRoom>(
+              database->snapshot(), intentions);
+        auto future_proposal = room->solve();
+        const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
         const auto proposal_opt = future_proposal.get();
@@ -810,22 +817,18 @@ SCENARIO("fan-in-fan-out bottleneck")
         REQUIRE(p0_itinerary);
         REQUIRE(p0_itinerary->back()->trajectory().back().position()
                 .segment(0, 2) == vertices["C"].first);
-
-        std::cout << "... Waiting for jobs to finish..." << std::endl;
-        // Wait for jobs to finish
-        std::this_thread::sleep_for(job_cooldown);
       }
     }
   }
 
-//  GIVEN("2 Participants")
+  GIVEN("2 Participants")
   {
     auto p0 = rmf_traffic::schedule::make_participant(a0_config.description,
         *database);
     auto p1 = rmf_traffic::schedule::make_participant(a1_config.description,
         *database);
 
-//    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(E->V)]")
+    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(E->V)]")
     {
       const auto time = std::chrono::steady_clock::now();
 
@@ -848,12 +851,12 @@ SCENARIO("fan-in-fan-out bottleneck")
           }
         });
 
-//      THEN("Valid Proposal is found")
+      THEN("Valid Proposal is found")
       {
-        std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
-        auto future_proposal = room->print().solve();
-        const auto status = future_proposal.wait_for(20min);
+        const auto room = std::make_shared<NegotiationRoom>(
+              database->snapshot(), intentions);
+        auto future_proposal = room->solve();
+        const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
         const auto proposal_opt = future_proposal.get();
@@ -870,14 +873,10 @@ SCENARIO("fan-in-fan-out bottleneck")
                 .segment(0, 2) == vertices["Z"].first);
         REQUIRE(p1_itinerary->back()->trajectory().back().position()
                 .segment(0, 2) == vertices["V"].first);
-
-        std::cout << "... Waiting for jobs to finish..." << std::endl;
-        // Wait for jobs to finish
-        std::this_thread::sleep_for(job_cooldown);
       }
     }
 
-//    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(V->E)]")
+    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(V->E)]")
     {
       const auto time = std::chrono::steady_clock::now();
 
@@ -900,12 +899,12 @@ SCENARIO("fan-in-fan-out bottleneck")
           }
         });
 
-//      THEN("Valid Proposal is found")
+      THEN("Valid Proposal is found")
       {
-        std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
-        auto future_proposal = room->print().solve();
-        const auto status = future_proposal.wait_for(20min);
+        const auto room = std::make_shared<NegotiationRoom>(
+              database->snapshot(), intentions);
+        auto future_proposal = room->solve();
+        const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
         const auto proposal_opt = future_proposal.get();
@@ -922,14 +921,10 @@ SCENARIO("fan-in-fan-out bottleneck")
         REQUIRE(p1_itinerary.back()->trajectory().back().position().segment(0,
           2) ==
           vertices["E"].first);
-
-        std::cout << "... Waiting for jobs to finish..." << std::endl;
-        // Wait for jobs to finish
-        std::this_thread::sleep_for(job_cooldown);
       }
     }
 
-//    WHEN("Schedule:[], Negotiation:[p0(A->X), p1(V->Z)]")
+    WHEN("Schedule:[], Negotiation:[p0(A->X), p1(V->Z)]")
     {
       const auto time = std::chrono::steady_clock::now();
 
@@ -952,12 +947,12 @@ SCENARIO("fan-in-fan-out bottleneck")
           }
         });
 
-//      THEN("Valid Proposal is found")
+      THEN("Valid Proposal is found")
       {
-        std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
-        auto future_proposal = room->print().solve();
-        const auto status = future_proposal.wait_for(20min);
+        const auto room = std::make_shared<NegotiationRoom>(
+              database->snapshot(), intentions);
+        auto future_proposal = room->solve();
+        const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
         const auto proposal_opt = future_proposal.get();
@@ -968,20 +963,14 @@ SCENARIO("fan-in-fan-out bottleneck")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        REQUIRE(p0_itinerary.back()->trajectory().back().position().segment(0,
-          2) ==
-          vertices["X"].first);
-        REQUIRE(p1_itinerary.back()->trajectory().back().position().segment(0,
-          2) ==
-          vertices["Z"].first);
-
-        std::cout << "... Waiting for jobs to finish..." << std::endl;
-        // Wait for jobs to finish
-        std::this_thread::sleep_for(job_cooldown);
+        REQUIRE(p0_itinerary.back()->trajectory().back().position()
+                .segment(0, 2) == vertices["X"].first);
+        REQUIRE(p1_itinerary.back()->trajectory().back().position()
+                .segment(0, 2) == vertices["Z"].first);
       }
     }
 
-//    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(X->C)")
+    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(X->C)")
     {
       const auto time = std::chrono::steady_clock::now();
       rmf_traffic::agv::Planner::Configuration p0_planner_config{graph,
@@ -1008,12 +997,12 @@ SCENARIO("fan-in-fan-out bottleneck")
           }
         });
 
-//      THEN("Valid Proposal is found")
+      THEN("Valid Proposal is found")
       {
-        std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
-        auto future_proposal = room->print().solve();
-        const auto status = future_proposal.wait_for(20min);
+        const auto room = std::make_shared<NegotiationRoom>(
+              database->snapshot(), intentions);
+        auto future_proposal = room->solve();
+        const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
         const auto proposal_opt = future_proposal.get();
@@ -1030,24 +1019,20 @@ SCENARIO("fan-in-fan-out bottleneck")
         REQUIRE(p1_itinerary.back()->trajectory().back().position().segment(0,
           2) ==
           vertices["C"].first);
-
-        std::cout << "... Waiting for jobs to finish..." << std::endl;
-        // Wait for jobs to finish
-        std::this_thread::sleep_for(job_cooldown);
       }
     }
   }
 
-//  GIVEN("3 Participants")
+  GIVEN("3 Participants")
   {
-    auto p0 = rmf_traffic::schedule::make_participant(a0_config.description,
-        *database);
-    auto p1 = rmf_traffic::schedule::make_participant(a1_config.description,
-        *database);
-    auto p2 = rmf_traffic::schedule::make_participant(a2_config.description,
-        *database);
+    auto p0 = rmf_traffic::schedule::make_participant(
+          a0_config.description, *database);
+    auto p1 = rmf_traffic::schedule::make_participant(
+          a1_config.description, *database);
+    auto p2 = rmf_traffic::schedule::make_participant(
+          a2_config.description, *database);
 
-//    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(E->V), p2(C->X)]")
+    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(E->V), p2(C->X)]")
     {
       const auto time = std::chrono::steady_clock::now();
 
@@ -1079,13 +1064,12 @@ SCENARIO("fan-in-fan-out bottleneck")
           }
         });
 
-      // We don't run this test in debug mode because it takes a long time
-//      THEN("Valid Proposal is found")
+      THEN("Valid Proposal is found")
       {
-        std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
-        auto future_proposal = room->print().solve();
-        const auto status = future_proposal.wait_for(20min);
+        const auto room = std::make_shared<NegotiationRoom>(
+              database->snapshot(), intentions);
+        auto future_proposal = room->solve();
+        const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
         const auto proposal_opt = future_proposal.get();
@@ -1107,13 +1091,9 @@ SCENARIO("fan-in-fan-out bottleneck")
         REQUIRE(p2_itinerary.back()->trajectory().back().position().segment(0,
           2) ==
           vertices["X"].first);
-
-        std::cout << "... Waiting for jobs to finish..." << std::endl;
-        // Wait for jobs to finish
-        std::this_thread::sleep_for(job_cooldown);
       }
     }
-//    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(E->V), p2(X->C)]")
+    WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(E->V), p2(X->C)]")
     {
       const auto time = std::chrono::steady_clock::now();
 
@@ -1145,12 +1125,12 @@ SCENARIO("fan-in-fan-out bottleneck")
           }
         });
 
-      //THEN("Valid Proposal is found")
+      THEN("Valid Proposal is found")
       {
-        std::cout << " ---------------- " << __LINE__ << " --------------------" << std::endl;
-        const auto room = std::make_shared<NegotiationRoom>(database->snapshot(), intentions);
-        auto future_proposal = room->print().solve();
-        const auto status = future_proposal.wait_for(20min);
+        const auto room = std::make_shared<NegotiationRoom>(
+              database->snapshot(), intentions);
+        auto future_proposal = room->solve();
+        const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
         const auto proposal_opt = future_proposal.get();
@@ -1173,13 +1153,10 @@ SCENARIO("fan-in-fan-out bottleneck")
           2) ==
           vertices["C"].first);
       }
-
-      std::cout << "... Waiting for jobs to finish..." << std::endl;
-      // Wait for jobs to finish
-      std::this_thread::sleep_for(job_cooldown);
     }
   }
 
-  std::cout << " ------- FINAL WAIT --------- " << std::endl;
-  std::this_thread::sleep_for(10s);
+  // We wait one second here so that dangling planning threads (which should all
+  // have been interrupted by now) have some time to gracefully wind down.
+  std::this_thread::sleep_for(1s);
 }

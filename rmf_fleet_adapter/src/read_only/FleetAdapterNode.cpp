@@ -102,8 +102,7 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
       this->schedule->set_negotiator(
         [this, node](
           const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-          const rmf_traffic::schedule::Negotiator::ResponderPtr& responder,
-          const bool*)
+          const rmf_traffic::schedule::Negotiator::ResponderPtr& responder)
         {
           const auto itinerary = this->schedule->participant().itinerary();
 

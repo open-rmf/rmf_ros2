@@ -49,6 +49,48 @@ inline auto make_job_from_action_list(const ActionsIterable& actions)
   return detail::make_merged_observable<typename Action::Result>(actions);
 }
 
+struct subscription_guard
+{
+  subscription_guard(rxcpp::subscription s)
+    : _subscription(std::move(s))
+  {
+    // Do nothing
+  }
+
+  subscription_guard(const subscription_guard&) = delete;
+  subscription_guard(subscription_guard&& other)
+  {
+    _subscription = other._subscription;
+    other._subscription = rxcpp::subscription();
+  }
+
+  subscription_guard& operator=(const subscription_guard&) = delete;
+  subscription_guard& operator=(subscription_guard&& other)
+  {
+    _subscription = other._subscription;
+    other._subscription = rxcpp::subscription();
+    return *this;
+  }
+
+  rxcpp::subscription& get()
+  {
+    return _subscription;
+  }
+
+  const rxcpp::subscription& get() const
+  {
+    return _subscription;
+  }
+
+  ~subscription_guard()
+  {
+    _subscription.unsubscribe();
+  }
+
+private:
+  rxcpp::subscription _subscription;
+};
+
 } // namespace rmf_rxcpp
 
 #endif //RMF_RXCPP__RXJOBS_HPP

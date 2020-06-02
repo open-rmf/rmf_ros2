@@ -86,7 +86,7 @@ private:
   using Alternatives = std::vector<rmf_traffic::schedule::Itinerary>;
   rmf_utils::optional<Alternatives> _alternatives;
 
-  bool _interrupted = false;
+  std::shared_ptr<bool> _interrupted = std::make_shared<bool>(false);
   bool _discarded = false;
 
   ProgressEvaluator _evaluator;

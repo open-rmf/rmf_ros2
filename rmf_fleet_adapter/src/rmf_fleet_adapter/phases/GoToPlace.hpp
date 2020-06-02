@@ -57,8 +57,7 @@ public:
     // Documentation inherited from Negotiator
     void respond(
         const TableViewerPtr& table_viewer,
-        const ResponderPtr& responder,
-        const bool*) final;
+        const ResponderPtr& responder) final;
 
   private:
     friend class Pending;

@@ -88,14 +88,14 @@ std::shared_ptr<Negotiate> Negotiate::emergency_pullover(
 //==============================================================================
 void Negotiate::interrupt()
 {
-  _interrupted = true;
+  *_interrupted = true;
 }
 
 //==============================================================================
 void Negotiate::discard()
 {
   _discarded = true;
-  _interrupted = true;
+  interrupt();
 }
 
 } // namespace services

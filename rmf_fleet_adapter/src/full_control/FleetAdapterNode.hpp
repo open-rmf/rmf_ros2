@@ -101,8 +101,7 @@ public:
 
     void respond(
       const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-      const rmf_traffic::schedule::Negotiator::ResponderPtr& responder,
-      const bool* interrupt_flag);
+      const rmf_traffic::schedule::Negotiator::ResponderPtr& responder);
 
     std::size_t num_tasks() const;
 

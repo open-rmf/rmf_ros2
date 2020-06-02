@@ -29,10 +29,7 @@ void Negotiate::operator()(const Subscriber& s)
 {
   s.add([n = shared_from_this()]()
   {
-    std::cout << "-- Discarding unsubscribed negotiate job: [";
-    for (const auto& p : n->_viewer->sequence())
-      std::cout << " " << p.participant << ":" << p.version;
-    std::cout << " ]" << std::endl;
+    // This service will be discarded if it is unsubscribed from
     n->discard();
   });
 
@@ -48,7 +45,7 @@ void Negotiate::operator()(const Subscriber& s)
       auto job = std::make_shared<jobs::Planning>(
             _planner, _starts, goal,
             rmf_traffic::agv::Plan::Options(validator)
-            .interrupt_flag(&_interrupted));
+            .interrupt_flag(_interrupted));
 
       _evaluator.initialize(job->progress());
 

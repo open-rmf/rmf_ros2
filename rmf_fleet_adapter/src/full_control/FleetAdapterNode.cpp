@@ -135,10 +135,9 @@ FleetAdapterNode::RobotContext::RobotContext(
   schedule.set_negotiator(
     [this](
       const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-      const rmf_traffic::schedule::Negotiator::ResponderPtr& responder,
-      const bool* interrupt_flag)
+      const rmf_traffic::schedule::Negotiator::ResponderPtr& responder)
     {
-      this->respond(table, responder, interrupt_flag);
+      this->respond(table, responder);
     });
 }
 
@@ -228,11 +227,10 @@ void FleetAdapterNode::RobotContext::resume()
 //==============================================================================
 void FleetAdapterNode::RobotContext::respond(
   const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-  const rmf_traffic::schedule::Negotiator::ResponderPtr& responder,
-  const bool* interrupt_flag)
+  const rmf_traffic::schedule::Negotiator::ResponderPtr& responder)
 {
   if (_task)
-    _task->respond(table, responder, interrupt_flag);
+    _task->respond(table, responder);
   else
   {
     // This would be very suspicious if it happens

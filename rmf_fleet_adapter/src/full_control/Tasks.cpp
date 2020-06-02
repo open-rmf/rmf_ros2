@@ -105,8 +105,7 @@ public:
 
   void respond(
     const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-    const ResponderPtr& responder,
-    const bool* interrupt_flag) final
+    const ResponderPtr& responder) final
   {
     if (!_action)
     {
@@ -118,7 +117,7 @@ public:
       return;
     }
 
-    _action->respond(table, responder, interrupt_flag);
+    _action->respond(table, responder);
   }
 
   void report_status()
