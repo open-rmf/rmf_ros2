@@ -54,6 +54,7 @@ void Negotiate::operator()(const Subscriber& s)
   }
 
   const std::size_t N_jobs = _search_jobs.size();
+  std::cout << " === Launching " << N_jobs << " planning jobs" << std::endl;
 
   auto check_if_finished = [this, s, N_jobs]()
   {
@@ -81,6 +82,7 @@ void Negotiate::operator()(const Subscriber& s)
         });
 
         s.on_completed();
+        this->interrupt();
       }
       else if (_alternatives && !_alternatives->empty())
       {
@@ -93,6 +95,7 @@ void Negotiate::operator()(const Subscriber& s)
         });
 
         s.on_completed();
+        this->interrupt();
       }
       else if (!_attempting_rollout)
       {
@@ -109,6 +112,7 @@ void Negotiate::operator()(const Subscriber& s)
         });
 
         s.on_completed();
+        this->interrupt();
       }
     }
   };
