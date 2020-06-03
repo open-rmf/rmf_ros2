@@ -27,8 +27,7 @@
 
 // Intermediate RobotCommandHandle wrapper to implement shared_pointer getter
 class PyRobotCommandHandle :
-  public rmf_mock_adapter::RobotCommandHandle  //,
-  // public std::enable_shared_from_this<PyRobotCommandHandle>
+  public rmf_mock_adapter::RobotCommandHandle
 {
 public:
   // Constructor
@@ -59,11 +58,6 @@ public:
       docking_finished_callback
     );
   }
-
-  // std::shared_ptr<PyRobotCommandHandle> get_ptr()
-  // {
-  //     return shared_from_this();
-  // }
 };
 
 #endif // PYROBOTCOMMANDHANDLE_HPP
