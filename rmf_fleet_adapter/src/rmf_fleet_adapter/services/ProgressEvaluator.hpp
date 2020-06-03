@@ -46,7 +46,11 @@ struct ProgressEvaluator
   Info best_discarded;
   std::size_t finished_count = 0;
 
-  static constexpr double estimate_leeway = 1.01;
+  static constexpr double estimate_leeway = 1.5;
+
+  // TODO(MXG): This is redundant with SearchForPath::compliant_leeway, so we
+  // should refactor this.
+  static constexpr double compliant_leeway = 3.0;
 };
 
 

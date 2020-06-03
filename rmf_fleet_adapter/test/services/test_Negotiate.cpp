@@ -228,6 +228,9 @@ std::string to_string(const TableViewPtr& table)
   return out;
 }
 
+std::vector<std::chrono::steady_clock::time_point> timer_starts;
+std::vector<std::chrono::steady_clock::time_point> timer_ends;
+
 //==============================================================================
 class TestPathNegotiator
     : public rmf_traffic::schedule::Negotiator,
@@ -561,10 +564,10 @@ public:
       {
         if (room->_print)
         {
-          std::cout << std::to_string(_table->participant()) << " rejected "
-                    << to_string(parent) << " (" << room->negotiation.get()
-                    << ") with [" << alternatives.size()
-                    << "] alternatives" << std::endl;
+          std::cout << "[ "<< std::to_string(_table->participant())
+                    << " ] rejected " << to_string(parent) << " ("
+                    << room->negotiation.get() << ") with ["
+                    << alternatives.size() << "] alternatives" << std::endl;
         }
 
         if (skip(parent))
@@ -597,6 +600,8 @@ public:
         for (const auto p : blockers)
           std::cout << " " << p << std::endl;
       }
+
+      room->check_finished();
     }
 
   private:
@@ -688,12 +693,22 @@ public:
       _finished = true;
       if (negotiation->ready())
       {
-        _solution.set_value(
-              negotiation->evaluate(
-                rmf_traffic::schedule::QuickestFinishEvaluator())->proposal());
+        const auto winner = negotiation->evaluate(
+              rmf_traffic::schedule::QuickestFinishEvaluator());
+
+        if (_print)
+        {
+          std::cout << "Successfully finished negotiation ("
+                    << negotiation.get() << ") with " << to_string(winner)
+                    << std::endl;
+        }
+
+        _solution.set_value(winner->proposal());
       }
       else
       {
+        std::cout << "Failed finish for negotiation (" << negotiation.get()
+                  << ")" << std::endl;
         _solution.set_value(rmf_utils::nullopt);
       }
     }
@@ -725,6 +740,8 @@ using TestEmergencyNegotiationRoom = NegotiationRoom<TestEmergencyNegotiator>;
 
 SCENARIO("fan-in-fan-out bottleneck")
 {
+  timer_starts.push_back(std::chrono::steady_clock::now());
+
   using namespace std::chrono_literals;
   auto database = std::make_shared<rmf_traffic::schedule::Database>();
   const std::string test_map_name = "test_fan_in_fan_out";
@@ -1280,7 +1297,7 @@ SCENARIO("fan-in-fan-out bottleneck")
       {
         const auto room = std::make_shared<TestEmergencyNegotiationRoom>(
               database->snapshot(), intentions);
-        auto future_proposal = room->print().solve();
+        auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
@@ -1325,13 +1342,16 @@ SCENARIO("fan-in-fan-out bottleneck")
     }
   }
 
-  // We wait one second here so that dangling planning threads (which should all
-  // have been interrupted by now) have some now to gracefully wind down.
-  std::this_thread::sleep_for(1s);
+  timer_ends.push_back(std::chrono::steady_clock::now());
+  // We wait a little here so that dangling planning threads (which should all
+  // have been interrupted by now) have some time to gracefully wind down.
+  std::this_thread::sleep_for(100ms);
 }
 
 SCENARIO("A single lane with an alcove holding space")
 {
+  timer_starts.push_back(std::chrono::steady_clock::now());
+
   using namespace std::chrono_literals;
   auto database = std::make_shared<rmf_traffic::schedule::Database>();
   const std::string test_map_name = "test_single_lane_with_alcove";
@@ -1407,10 +1427,9 @@ SCENARIO("A single lane with an alcove holding space")
 
       THEN("Valid Proposal is found")
       {
-        std::cout << " ------------------ " << __LINE__ << " ------------------ " << std::endl;
         const auto room = std::make_shared<TestPathNegotiationRoom>(
               database->snapshot(), intentions);
-        auto future_proposal = room->print().solve();
+        auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
@@ -1423,7 +1442,7 @@ SCENARIO("A single lane with an alcove holding space")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         REQUIRE(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["E"].first);
+                .segment(0, 2) == vertices["D"].first);
         REQUIRE(p1_itinerary.back()->trajectory().back().position()
                 .segment(0, 2) == vertices["A"].first);
 
@@ -1454,12 +1473,11 @@ SCENARIO("A single lane with an alcove holding space")
 
       THEN("Valid Proposal is found")
       {
-        std::cout << " ------------------ " << __LINE__ << " ------------------ " << std::endl;
         const auto room = std::make_shared<TestPathNegotiationRoom>(
               database->snapshot(), intentions);
         REQUIRE(room);
 
-        auto future_proposal = room->print().solve();
+        auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
@@ -1503,12 +1521,11 @@ SCENARIO("A single lane with an alcove holding space")
 
       THEN("Valid Proposal is found")
       {
-        std::cout << " ------------------ " << __LINE__ << " ------------------ " << std::endl;
         const auto room = std::make_shared<TestPathNegotiationRoom>(
               database->snapshot(), intentions);
         REQUIRE(room);
 
-        auto future_proposal = room->print().solve();
+        auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
@@ -1552,12 +1569,11 @@ SCENARIO("A single lane with an alcove holding space")
 
       THEN("Valid Proposal is found")
       {
-        std::cout << " ------------------ " << __LINE__ << " ------------------ " << std::endl;
         const auto room = std::make_shared<TestPathNegotiationRoom>(
               database->snapshot(), intentions);
         REQUIRE(room);
 
-        auto future_proposal = room->print().solve();
+        auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
 
@@ -1578,60 +1594,20 @@ SCENARIO("A single lane with an alcove holding space")
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
     }
-
-//    WHEN("Schedule:[], Negotiation:[p0(A->D), p1(D->C)]")
-//    {
-//      TestPathNegotiator::Intentions intentions;
-//      intentions.insert({
-//          p0.id(),
-//          TestPathNegotiator::Intention{
-//            {now, vertex_id_to_idx["A"], 0.0},
-//            vertex_id_to_idx["D"], // Goal Vertex
-//            a0_planner // Planner Configuration ( Preset )
-//          }
-//        });
-
-//      intentions.insert({
-//          p1.id(),
-//          TestPathNegotiator::Intention{
-//            {now, vertex_id_to_idx["D"], 0.0},
-//            vertex_id_to_idx["C"], // Goal Vertex
-//            a1_planner // Planner Configuration ( Preset )
-//          }
-//        });
-
-//      THEN("Valid Proposal is found")
-//      {
-//        std::cout << " ------------------ " << __LINE__ << " ------------------ " << std::endl;
-//        const auto room = std::make_shared<TestPathNegotiationRoom>(
-//              database->snapshot(), intentions);
-//        REQUIRE(room);
-
-//        auto future_proposal = room->print().solve();
-//        const auto status = future_proposal.wait_for(2min);
-//        REQUIRE(status == std::future_status::ready);
-
-//        const auto proposal_opt = future_proposal.get();
-//        REQUIRE(proposal_opt);
-//        const auto& proposal = *proposal_opt;
-
-//        auto p0_itinerary =
-//          get_participant_itinerary(proposal, p0.id()).value();
-//        auto p1_itinerary =
-//          get_participant_itinerary(proposal, p1.id()).value();
-
-//        REQUIRE(p0_itinerary.back()->trajectory().back().position()
-//                .segment(0, 2) == vertices["D"].first);
-//        REQUIRE(p1_itinerary.back()->trajectory().back().position()
-//                .segment(0, 2) == vertices["A"].first);
-
-//        CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
-//      }
-//    }
   }
 
-  // We wait one second here so that dangling planning threads (which should all
-  // have been interrupted by now) have some now to gracefully wind down.
-  std::this_thread::sleep_for(1s);
+  timer_ends.push_back(std::chrono::steady_clock::now());
+
+  double total_time = 0.0;
+  REQUIRE(timer_starts.size() == timer_ends.size());
+  for (std::size_t i=0; i < timer_starts.size(); ++i)
+    total_time += rmf_traffic::time::to_seconds(
+          timer_ends[i] - timer_starts[i]);
+
+//  std::cout << "Benchmark: " << total_time << std::endl;
+
+  // We wait a little here so that dangling planning threads (which should all
+  // have been interrupted by now) have some time to gracefully wind down.
+  std::this_thread::sleep_for(100ms);
 }
 

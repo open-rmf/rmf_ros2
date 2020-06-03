@@ -98,5 +98,14 @@ void Negotiate::discard()
   interrupt();
 }
 
+//==============================================================================
+void Negotiate::_resume_next()
+{
+  const auto top = _resume_jobs.top();
+  _resume_jobs.pop();
+  _current_jobs.insert(top);
+  top->resume();
+}
+
 } // namespace services
 } // namespace rmf_fleet_adapter

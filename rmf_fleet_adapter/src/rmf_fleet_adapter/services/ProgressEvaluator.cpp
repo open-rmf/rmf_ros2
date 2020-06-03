@@ -37,7 +37,10 @@ bool ProgressEvaluator::initialize(const Result& setup)
 bool ProgressEvaluator::evaluate(Result& progress)
 {
   if (!progress.success() && !progress.cost_estimate())
+  {
+    ++finished_count;
     return false;
+  }
 
   const double cost = progress.success()?
         progress->get_cost() : *progress.cost_estimate();
@@ -57,12 +60,17 @@ bool ProgressEvaluator::evaluate(Result& progress)
     second_best_estimate = Info();
   }
 
-  if (!progress.success())
+  const bool giveup = compliant_leeway*progress.initial_cost_estimate() < cost;
+  if (!progress.success() && !giveup)
   {
-    if (!best_result.progress || cost < best_result.cost)
+    if (!best_result.progress)
     {
-      progress.options().maximum_cost_estimate(
-            estimate_leeway * best_estimate.cost);
+      progress.options().maximum_cost_estimate(estimate_leeway * cost);
+      return true;
+    }
+    else if (cost < best_result.cost)
+    {
+      progress.options().maximum_cost_estimate(best_result.cost);
       return true;
     }
   }

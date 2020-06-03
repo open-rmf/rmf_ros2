@@ -28,7 +28,7 @@ namespace jobs {
 
 //==============================================================================
 /// A job to advance a planning effort forward
-class Planning
+class Planning : public std::enable_shared_from_this<Planning>
 {
 public:
   struct Result

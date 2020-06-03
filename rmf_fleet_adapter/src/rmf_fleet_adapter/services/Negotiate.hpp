@@ -70,6 +70,8 @@ public:
 
 private:
 
+  void _resume_next();
+
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
   rmf_traffic::agv::Plan::StartSet _starts;
   std::vector<rmf_traffic::agv::Plan::Goal> _goals;
@@ -77,7 +79,23 @@ private:
   rmf_traffic::schedule::Negotiator::ResponderPtr _responder;
   ApprovalCallback _approval;
 
-  std::vector<std::shared_ptr<jobs::Planning>> _search_jobs;
+  using JobPtr = std::shared_ptr<jobs::Planning>;
+  struct CompareJobs
+  {
+    bool operator()(const JobPtr& a, const JobPtr& b)
+    {
+      if (!b->progress().cost_estimate())
+        return true;
+
+      if (!a->progress().cost_estimate())
+        return false;
+
+      return *b->progress().cost_estimate() < *a->progress().cost_estimate();
+    }
+  };
+
+  std::unordered_set<JobPtr> _current_jobs;
+  std::priority_queue<JobPtr, std::vector<JobPtr>, CompareJobs> _resume_jobs;
   rxcpp::subscription _search_sub;
   std::shared_ptr<jobs::Rollout> _rollout_job;
   rxcpp::subscription _rollout_sub;
@@ -88,6 +106,8 @@ private:
 
   std::shared_ptr<bool> _interrupted = std::make_shared<bool>(false);
   bool _discarded = false;
+
+  static constexpr std::size_t max_concurrent_jobs = 5;
 
   ProgressEvaluator _evaluator;
 };

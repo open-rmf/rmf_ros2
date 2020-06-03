@@ -36,7 +36,8 @@ void Negotiate::operator()(const Subscriber& s)
   auto validators =
       rmf_traffic::agv::NegotiatingRouteValidator::Generator(_viewer).all();
 
-  _search_jobs.reserve(_goals.size()*validators.size());
+  std::vector<JobPtr> search_jobs;
+  search_jobs.reserve(validators.size() * _goals.size());
 
   for (const auto& goal : _goals)
   {
@@ -49,16 +50,21 @@ void Negotiate::operator()(const Subscriber& s)
 
       _evaluator.initialize(job->progress());
 
-      _search_jobs.emplace_back(std::move(job));
+      search_jobs.emplace_back(std::move(job));
     }
   }
 
-  const std::size_t N_jobs = _search_jobs.size();
-  std::cout << " === Launching " << N_jobs << " planning jobs" << std::endl;
+  const double initial_max_cost =
+      _evaluator.best_estimate.cost * _evaluator.estimate_leeway;
 
-  auto check_if_finished = [this, s, N_jobs]()
+  const std::size_t N_jobs = search_jobs.size();
+
+  for (const auto& job : search_jobs)
+    job->progress().options().maximum_cost_estimate(initial_max_cost);
+
+  auto check_if_finished = [this, s, N_jobs]() -> bool
   {
-    if (_evaluator.finished_count >= N_jobs || _interrupted)
+    if (_evaluator.finished_count >= N_jobs || *_interrupted)
     {
       if (_evaluator.best_result.progress
           && _evaluator.best_result.progress->success())
@@ -83,6 +89,7 @@ void Negotiate::operator()(const Subscriber& s)
 
         s.on_completed();
         this->interrupt();
+        return true;
       }
       else if (_alternatives && !_alternatives->empty())
       {
@@ -96,6 +103,7 @@ void Negotiate::operator()(const Subscriber& s)
 
         s.on_completed();
         this->interrupt();
+        return true;
       }
       else if (!_attempting_rollout)
       {
@@ -113,11 +121,17 @@ void Negotiate::operator()(const Subscriber& s)
 
         s.on_completed();
         this->interrupt();
+        return true;
       }
+
+      // If we land here, that means a rollout is still being calculated, and
+      // we will consider the service finished when that rollout is ready
     }
+
+    return false;
   };
 
-  _search_sub = rmf_rxcpp::make_job_from_action_list(_search_jobs)
+  _search_sub = rmf_rxcpp::make_job_from_action_list(search_jobs)
       .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
         [n = shared_from_this(), s, N_jobs,
@@ -130,11 +144,13 @@ void Negotiate::operator()(const Subscriber& s)
       return;
     }
 
+    bool resume = false;
     if (n->_evaluator.evaluate(result.job.progress()))
     {
-      result.job.resume();
+      resume = true;
     }
-    else if (!n->_attempting_rollout && n->_viewer->parent_id())
+    else if (!n->_attempting_rollout && !n->_alternatives
+             && n->_viewer->parent_id())
     {
       const auto parent_id = *n->_viewer->parent_id();
       for (const auto p : result.job.progress().blockers())
@@ -164,7 +180,31 @@ void Negotiate::operator()(const Subscriber& s)
       }
     }
 
-    check_if_finished();
+    if (!check_if_finished())
+    {
+      const auto job = result.job.shared_from_this();
+      if (resume)
+      {
+        if (n->_current_jobs.find(job) != n->_current_jobs.end())
+        {
+          job->resume();
+        }
+        else
+        {
+          n->_resume_jobs.push(job);
+        }
+      }
+      else
+      {
+        n->_current_jobs.erase(job);
+      }
+
+      while (n->_current_jobs.size() < max_concurrent_jobs
+             && !n->_resume_jobs.empty())
+      {
+        n->_resume_next();
+      }
+    }
   });
 }
 
