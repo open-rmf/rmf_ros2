@@ -85,7 +85,7 @@ setup(
     description='Python bindings for rmf_mock_adapter',
     long_description='',
     ext_modules=[CMakeExtension(package_name)],
-    setup_requires=['pybind11>=2.5.0'],
+    setup_requires=['pybind11>=2.5.0', 'pytest-runner'],
     cmdclass={'build_ext': CMakeBuild},
     zip_safe=False,
     entry_points={'console_scripts': [
@@ -97,5 +97,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml'])
-    ]
+    ],
+    tests_require=['pytest'],
+    test_suite="tests"
 )
