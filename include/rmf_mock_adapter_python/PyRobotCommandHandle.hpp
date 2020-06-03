@@ -15,27 +15,32 @@
  *
 */
 
-#ifndef _PYPYROBOTCOMMANDHANDLE_H
-#define _PYPYROBOTCOMMANDHANDLE_H
+#ifndef PYROBOTCOMMANDHANDLE_HPP
+#define PYROBOTCOMMANDHANDLE_HPP
 
-#include <pybind11/pybind11.h>
-#include "PyRobotCommandHandle.hpp"
+#include <iostream>
+#include <string>
+#include <memory>
+#include <vector>
 
-// Trampoline class to support Python overrides of the default
-// implementations of PyRobotCommandHandle methods
-class _PyRobotCommandHandle :
-  public PyRobotCommandHandle
+#include <rmf_mock_adapter/adapter.hpp>
+
+// Intermediate RobotCommandHandle wrapper to implement shared_pointer getter
+class PyRobotCommandHandle :
+  public rmf_mock_adapter::RobotCommandHandle  //,
+  // public std::enable_shared_from_this<PyRobotCommandHandle>
 {
-  // Inherit constructor
-  using PyRobotCommandHandle::PyRobotCommandHandle;
+public:
+  // Constructor
+  using rmf_mock_adapter::RobotCommandHandle::RobotCommandHandle;
 
   void follow_new_path(
     const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
     std::function<void()> path_finished_callback) override
   {
-    PYBIND11_OVERLOAD(
+    PYBIND11_OVERLOAD_PURE(
       void,
-      PyRobotCommandHandle,
+      rmf_mock_adapter::RobotCommandHandle,
       follow_new_path,
       waypoints,
       path_finished_callback
@@ -46,19 +51,19 @@ class _PyRobotCommandHandle :
     const std::string& dock_name,
     std::function<void()> docking_finished_callback) override
   {
-    PYBIND11_OVERLOAD(
+    PYBIND11_OVERLOAD_PURE(
       void,
-      PyRobotCommandHandle,
+      rmf_mock_adapter::RobotCommandHandle,
       dock,
       dock_name,
       docking_finished_callback
     );
   }
 
-  std::shared_ptr<PyRobotCommandHandle> get_ptr()
-  {
-    return shared_from_this();
-  }
+  // std::shared_ptr<PyRobotCommandHandle> get_ptr()
+  // {
+  //     return shared_from_this();
+  // }
 };
 
-#endif // _PYPYROBOTCOMMANDHANDLE_H
+#endif // PYROBOTCOMMANDHANDLE_HPP

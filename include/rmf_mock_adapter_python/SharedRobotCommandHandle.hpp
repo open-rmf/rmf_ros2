@@ -15,8 +15,8 @@
  *
 */
 
-#ifndef PYROBOTCOMMANDHANDLEINSTANCE_H
-#define PYROBOTCOMMANDHANDLEINSTANCE_H
+#ifndef SHAREDROBOTCOMMANDHANDLE_HPP
+#define SHAREDROBOTCOMMANDHANDLE_HPP
 
 #include <iostream>
 #include <string>
@@ -26,27 +26,18 @@
 #include <rmf_mock_adapter/adapter.hpp>
 
 // Intermediate RobotCommandHandle wrapper to implement shared_pointer getter
-class PyRobotCommandHandle :
+class SharedRobotCommandHandle :
   public rmf_mock_adapter::RobotCommandHandle,
-  public std::enable_shared_from_this<PyRobotCommandHandle>
+  public std::enable_shared_from_this<SharedRobotCommandHandle>
 {
 public:
   // Constructor
-  PyRobotCommandHandle();
+  SharedRobotCommandHandle() {}
 
-  // Methods
-  virtual void follow_new_path(
-      const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
-      std::function<void()> path_finished_callback);
-  virtual void dock(const std::string& dock_name,
-                    std::function<void()> docking_finished_callback);
-  virtual void step();
-  virtual bool interruped();
-
-  std::shared_ptr<PyRobotCommandHandle> get_ptr()
+  std::shared_ptr<SharedRobotCommandHandle> get_ptr()
   {
       return shared_from_this();
   }
 };
 
-#endif // PYROBOTCOMMANDHANDLEINSTANCE_H
+#endif // SHAREDROBOTCOMMANDHANDLE_HPP

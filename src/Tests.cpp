@@ -3,7 +3,6 @@
 #include <pybind11/functional.h>
 #include <memory>
 
-#include "RobotCommandHandleInstance.h"
 #include <rmf_mock_adapter/adapter.hpp>
 
 namespace py = pybind11;
@@ -16,7 +15,7 @@ void bind_tests(py::module &m) {
 
   // Test shared_ptr passing
   m.def("test_shared_ptr",
-        [](std::shared_ptr<RobotCommandHandleInstance> handle,
+        [](std::shared_ptr<rmf_mock_adapter::RobotCommandHandle> handle,
            std::string print_str = "DUMMY_DOCK_NAME",
            std::function<void()> docking_finished_callback = [&](){})
         {

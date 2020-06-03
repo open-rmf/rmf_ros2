@@ -5,10 +5,9 @@
 #include <memory>
 
 #include "rmf_mock_adapter/adapter.hpp"
-// #include "RobotCommandHandleInstance.h"
-// #include "PyRobotCommandHandleInstance.hpp"
-// #include "PyRobotCommandHandle.hpp"
-#include "_PyRobotCommandHandle.hpp"
+// #include "rmf_mock_adapter_python/_PySharedRobotCommandHandle.hpp"
+// #include "rmf_mock_adapter_python/_PyRobotCommandHandle.hpp"
+#include "rmf_mock_adapter_python/PyRobotCommandHandle.hpp"
 
 namespace py = pybind11;
 namespace adpt = rmf_mock_adapter;
@@ -25,13 +24,29 @@ PYBIND11_MODULE(rmf_adapter, m) {
     //     .def("follow_new_path", &adpt::RobotCommandHandle::follow_new_path)
     //     .def("dock", &adpt::RobotCommandHandle::dock);
 
-    py::class_<PyRobotCommandHandle, _PyRobotCommandHandle,
-               std::shared_ptr<PyRobotCommandHandle> >
-      (m, "RobotCommandHandle", py::dynamic_attr())
+    // py::class_<adpt::RobotCommandHandle, _PyRobotCommandHandle,
+    //            std::shared_ptr<_PyRobotCommandHandle> >
+    //   (m, "RobotCommandHandle")  //, py::dynamic_attr())
+    //     .def(py::init<>())
+    //     .def("follow_new_path", &adpt::RobotCommandHandle::follow_new_path)
+    //     .def("dock", &adpt::RobotCommandHandle::dock);
+
+    // py::class_<SharedRobotCommandHandle, _PySharedRobotCommandHandle,
+    //            std::shared_ptr<SharedRobotCommandHandle> >
+    //   (m, "PyRobotCommandHandle")  //, py::dynamic_attr())
+    //     .def(py::init<>())
+    //     .def("follow_new_path", &SharedRobotCommandHandle::follow_new_path)
+    //     .def("dock", &SharedRobotCommandHandle::dock)
+    //     .def("get_ptr", &SharedRobotCommandHandle::get_ptr);
+
+
+    py::class_<adpt::RobotCommandHandle, PyRobotCommandHandle,
+               std::shared_ptr<adpt::RobotCommandHandle> >
+      (m, "RobotCommandHandle")  //, py::dynamic_attr())
         .def(py::init<>())
-        .def("follow_new_path", &PyRobotCommandHandle::follow_new_path)
-        .def("dock", &PyRobotCommandHandle::dock)
-        .def("get_ptr", &PyRobotCommandHandle::get_ptr);
+        .def("follow_new_path", &adpt::RobotCommandHandle::follow_new_path)
+        .def("dock", &adpt::RobotCommandHandle::dock);
+        // .def("get_ptr", &PyRobotCommandHandle::get_ptr);
 
     // py::class_<RobotCommandHandleInstance,
     //            PyRobotCommandHandleInstance,

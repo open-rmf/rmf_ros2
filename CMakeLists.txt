@@ -30,9 +30,8 @@ pybind11_add_module(rmf_adapter
   src/Adapter.cpp
   src/Types.cpp
   src/Tests.cpp
-  # src/impl/PyRobotCommandHandle.cpp
 )
-target_link_libraries(rmf_adapter PRIVATE rmf_mock_adapter::rmf_mock_adapter)
-# ament_target_dependencies(adapter rmf_mock_adapter)
+target_link_libraries(rmf_adapter PRIVATE
+  rmf_mock_adapter::rmf_mock_adapter)
 
 # NO AMENT PACKAGE! That's settled by setup.py
