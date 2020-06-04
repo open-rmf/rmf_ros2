@@ -5,11 +5,15 @@
 #include <random>
 
 #include <rmf_utils/impl_ptr.hpp>
+#include <rmf_utils/clone_ptr.hpp>
 
 namespace py = pybind11;
 
-PYBIND11_DECLARE_HOLDER_TYPE(T, rmf_utils::unique_impl_ptr<T>)
-PYBIND11_DECLARE_HOLDER_TYPE(T, std::weak_ptr<T>)
+// PYBIND11_DECLARE_HOLDER_TYPE(T, rmf_utils::unique_impl_ptr<T>)
+// PYBIND11_DECLARE_HOLDER_TYPE(T, rmf_utils::clone_ptr<T>)
+// PYBIND11_DECLARE_HOLDER_TYPE(T, std::weak_ptr<T>)
+
+// PYBIND11_DECLARE_HOLDER_TYPE(T, rmf_utils::clone_ptr<T>)
 
 void bind_types(py::module &m) {
   // Wrapper for the std::mt19937 class

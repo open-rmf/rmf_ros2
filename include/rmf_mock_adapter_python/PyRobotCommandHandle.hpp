@@ -25,7 +25,8 @@
 
 #include <rmf_mock_adapter/adapter.hpp>
 
-// Intermediate RobotCommandHandle wrapper to implement shared_pointer getter
+// Trampoline RobotCommandHandle wrapper class
+// to allow method overrides from Python
 class PyRobotCommandHandle :
   public rmf_mock_adapter::RobotCommandHandle
 {

@@ -9,6 +9,9 @@ Ensure that you have built this package and sourced its environment. Then it is 
 
 ```python
 import rmf_adapter as adpt
+
+# You may then check the available bindings
+print(dir(adpt))
 ```
 
 
@@ -22,6 +25,7 @@ There are some **caveats** though.
 - Instance attributes are declared as static attributes, but they are actually instanced
 - The `follow_new_path` and `dock` methods must be implemented, since the underlying C++ definition is a pure `virtual` method which requires an override
 - You **must not** declare an `__init__` method, as that will override the binding
+  - If you still need to, look at the **Using `__init__`** section
 
 Also:
 
@@ -88,6 +92,37 @@ adpt.test_shared_ptr(command_handler,
 
 
 
+## Using `__init__`
+
+If, however, you still want to define an `__init__` magic method, ensure that you **explicitly** call the required bound C++ constructor.
+
+```python
+class RobotCommandHandleInit(adpt.RobotCommandHandle):
+    
+    def __init__(self, new_member="rawr"):
+        adpt.RobotCommandHandle.__init__(self)
+        self.new_member = new_member
+    
+    # The argument names do not need to be the same
+    # But they are declared here to match the C++ interface for consistency
+    def follow_new_path(self,
+                        waypoints: str,
+                        path_finished_callback: Callable) -> None:
+        # Your implementation goes here.
+        # You may replace the following lines!
+        print(self.new_member)  # We use the instance variable here!
+        path_finished_callback()
+    
+    def dock(self,
+             dock_name: str,
+             docking_finished_callback: Callable) -> None:
+        # Implementation here too!
+        print(dock_name)
+        docking_finished_callback()
+```
+
+
+
 ## Running tests
 
 You may invoke `pytest` directly in the appropriate directory.
@@ -111,3 +146,11 @@ $ cd <workspace_dir>
 # Invoke the tests
 $ colcon test --packages-select rmf_mock_adapter_python --event-handlers console_direct+
 ```
+## Gotchas
+
+- `clone_ptr` indirection does not seem to work correctly currently! Be **very careful**!
+- The only way to do pointer indirection is to do it via the objects that manage them. Unfortunately there isn't much of a workaround given that most of the pointers point to abstract classes.
+- Unfortunately, since there is no way to instantiate VelocityConstraint pointers yet, you cannot pass them into `Node`s yet.
+  - `VelocityConstraint::clone` is not bound. And overriding it in Python doesn't expose the underlying pointer.
+- For most of the other pointers, you must make them using the various factory functions. Do not instantiate them directly since you will not be able to configure their internal members, even if those members are public.
+  - No explicit bound methods exist for them as they are meant to be pointers to implementations that might vary widely.

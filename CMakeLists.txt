@@ -30,6 +30,8 @@ pybind11_add_module(rmf_adapter
   src/Adapter.cpp
   src/Types.cpp
   src/Tests.cpp
+  src/graph/Graph.cpp
+  src/graph/Lane.cpp
 )
 target_link_libraries(rmf_adapter PRIVATE
   rmf_mock_adapter::rmf_mock_adapter)

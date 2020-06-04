@@ -5,7 +5,10 @@ from typing import Callable
 # Class under test
 class TestHandle(adpt.RobotCommandHandle):
     __test__ = False
-    test_member = "rawr"
+
+    def __init__(self):
+        adpt.RobotCommandHandle.__init__(self)
+        self.test_member = "rawr"
 
     def follow_new_path(self,
                         waypoints: str,
