@@ -32,7 +32,7 @@ DoorClose::ActivePhase::ActivePhase(
     _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
     _action{
       _door_name,
-      rmf_door_msgs::msg::DoorMode::MODE_OPEN,
+      rmf_door_msgs::msg::DoorMode::MODE_CLOSED,
       _transport,
       _door_state_obs,
       _supervisor_heartbeat_obs}

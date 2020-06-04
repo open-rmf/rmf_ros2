@@ -28,58 +28,122 @@ namespace test {
 using rmf_lift_msgs::msg::LiftState;
 using rmf_lift_msgs::msg::LiftRequest;
 
-struct RequestLiftFixture : TransportFixture
+SCENARIO_METHOD(TransportFixture, "request lift phase", "[phases]")
 {
-  rxcpp::observable<LiftState::SharedPtr> lift_state_obs;
-  std::shared_ptr<Task::PendingPhase> pending_phase;
-  std::shared_ptr<Task::ActivePhase> active_phase;
-  std::string lift_name = "test_lift";
-  std::string destination = "test_floor";
+  std::mutex m;
+  std::condition_variable received_requests_cv;
+  std::list<LiftRequest> received_requests;
+  std::string session_id;
+  auto rcl_subscription = transport->create_subscription<LiftRequest>(
+    AdapterLiftRequestTopicName,
+    10,
+    [&](LiftRequest::UniquePtr lift_request)
+    {
+      std::unique_lock<std::mutex> lk(m);
+      session_id = lift_request->session_id;
+      received_requests.emplace_back(*lift_request);
+      received_requests_cv.notify_all();
+    });
 
-  RequestLiftFixture() : TransportFixture()
+  GIVEN("a request lift phase")
   {
-    lift_state_obs = transport->create_observable<LiftState>(LiftStateTopicName, 10);
-    pending_phase = std::make_shared<RequestLift::PendingPhase>(
+    std::string lift_name = "test_lift";
+    std::string destination = "test_floor";
+    auto lift_state_obs = transport->create_observable<LiftState>(LiftStateTopicName, 10);
+    auto pending_phase = std::make_shared<RequestLift::PendingPhase>(
       transport,
       lift_name,
       destination,
       lift_state_obs
     );
-    active_phase = pending_phase->begin();
+    auto active_phase = pending_phase->begin();
+
+    WHEN("it is started")
+    {
+      std::condition_variable status_updates_cv;
+      std::list<Task::StatusMsg> status_updates;
+      auto sub = active_phase->observe().subscribe(
+        [&](const auto& status)
+        {
+          std::unique_lock<std::mutex> lk(m);
+          status_updates.emplace_back(status);
+          status_updates_cv.notify_all();
+        });
+
+      THEN("it should send lift request")
+      {
+        std::unique_lock<std::mutex> lk(m);
+        if (received_requests.empty())
+          received_requests_cv.wait(lk, [&]() { return !received_requests.empty(); });
+        REQUIRE(received_requests.size() == 1);
+        REQUIRE(received_requests.front().destination_floor == destination);
+      }
+
+      THEN("it should continuously send lift requests")
+      {
+        std::unique_lock<std::mutex> lk(m);
+        received_requests_cv.wait(lk, [&]() { return received_requests.size() >= 3; });
+        for (const auto& lift_request : received_requests)
+        {
+          REQUIRE(lift_request.destination_floor == destination);
+        }
+      }
+
+      THEN("cancelled, it should not do anything")
+      {
+        active_phase->cancel();
+        std::unique_lock<std::mutex> lk(m);
+
+        bool completed = status_updates_cv.wait_for(lk, std::chrono::seconds(1), [&]()
+        {
+          for (const auto& status : status_updates)
+          {
+            if (status.state == Task::StatusMsg::STATE_COMPLETED)
+              return true;
+          }
+          status_updates.clear();
+          return false;
+        });
+        REQUIRE(!completed);
+      }
+
+      AND_WHEN("lift is on destination floor")
+      {
+        auto lift_state_pub = transport->create_publisher<LiftState>(LiftStateTopicName, 10);
+        rclcpp::TimerBase::SharedPtr timer;
+        std::function<void()> publish_lift_state = [&]()
+        {
+          std::unique_lock<std::mutex> lk(m);
+          LiftState lift_state;
+          lift_state.lift_name = lift_name;
+          lift_state.lift_time = transport->now();
+          lift_state.motion_state = LiftState::MOTION_STOPPED;
+          lift_state.destination_floor = destination;
+          lift_state.current_floor = destination;
+          lift_state.session_id = session_id;
+          lift_state.door_state = LiftState::DOOR_OPEN;
+          lift_state.current_mode = LiftState::MODE_AGV;
+          lift_state_pub->publish(lift_state);
+          timer = transport->create_wall_timer(std::chrono::milliseconds(100), publish_lift_state);
+        };
+        publish_lift_state();
+
+        THEN("it is completed")
+        {
+          std::unique_lock<std::mutex> lk(m);
+          bool completed = status_updates_cv.wait_for(lk, std::chrono::milliseconds(1000), [&]()
+          {
+            return status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+          });
+          REQUIRE(completed);
+        }
+
+        timer.reset();
+      }
+
+      sub.unsubscribe();
+    }
   }
-};
-
-TEST_CASE_METHOD(RequestLiftFixture, "publishes lift request", "[RequestLift]")
-{
-  bool received = false;
-  rxcpp::composite_subscription rx_subscription;
-  auto rcl_subscription = transport->create_subscription<LiftRequest>(
-    AdapterLiftRequestTopicName,
-    10,
-    [&](LiftRequest::UniquePtr)
-    {
-      received = true;
-      rx_subscription.unsubscribe();
-    });
-  active_phase->observe().as_blocking().subscribe(rx_subscription);
-  REQUIRE(received);
-}
-
-TEST_CASE_METHOD(RequestLiftFixture, "continuously send lift requests", "[RequestLift]")
-{
-  int received = 0;
-  rxcpp::composite_subscription rx_subscription;
-  auto rcl_subscription = transport->create_subscription<LiftRequest>(
-    AdapterLiftRequestTopicName,
-    10,
-    [&](LiftRequest::UniquePtr)
-    {
-      received++;
-      if (received >= 2)
-        rx_subscription.unsubscribe();
-    });
-  active_phase->observe().as_blocking().subscribe(rx_subscription);
-  REQUIRE(received >= 2);
 }
 
 } // namespace test
