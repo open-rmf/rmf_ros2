@@ -25,7 +25,7 @@ using OrientationConstraint = Graph::OrientationConstraint;
 using VelocityConstraint = Graph::VelocityConstraint;
 
 void bind_graph(py::module &m) {
-  auto m_graph = m.def_submodule("Graph");
+  auto m_graph = m.def_submodule("graph");
 
   // WAYPOINT ==================================================================
   py::class_<Graph::Waypoint>(m_graph, "Waypoint")

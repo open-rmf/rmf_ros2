@@ -16,7 +16,7 @@ using Graph = rmf_traffic::agv::Graph;
 using Lane = rmf_traffic::agv::Graph::Lane;
 
 void bind_lane(py::module &m) {
-  auto m_lane = m.def_submodule("Lane");
+  auto m_lane = m.def_submodule("lane");
 
   // LANE ==================================================================
   py::class_<Lane>(m_lane, "Lane")

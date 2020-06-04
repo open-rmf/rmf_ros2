@@ -27,11 +27,12 @@ include_directories(include ${rmf_mock_adapter_INCLUDE_DIRS})
 find_package(pybind11 REQUIRED)
 
 pybind11_add_module(rmf_adapter
-  src/Adapter.cpp
-  src/Types.cpp
-  src/Tests.cpp
-  src/graph/Graph.cpp
-  src/graph/Lane.cpp
+  src/adapter.cpp
+  src/types.cpp
+  src/tests.cpp
+  src/graph/graph.cpp
+  src/graph/lane.cpp
+  src/geometry/shapes.cpp
 )
 target_link_libraries(rmf_adapter PRIVATE
   rmf_mock_adapter::rmf_mock_adapter)

@@ -13,11 +13,13 @@ namespace adpt = rmf_mock_adapter;
 void bind_types(py::module &);
 void bind_tests(py::module &);
 void bind_graph(py::module &);
+void bind_shapes(py::module &);
 
 PYBIND11_MODULE(rmf_adapter, m) {
     bind_types(m);
     bind_tests(m);
     bind_graph(m);
+    bind_shapes(m);
 
     py::class_<adpt::RobotCommandHandle, PyRobotCommandHandle,
                std::shared_ptr<adpt::RobotCommandHandle> > \
