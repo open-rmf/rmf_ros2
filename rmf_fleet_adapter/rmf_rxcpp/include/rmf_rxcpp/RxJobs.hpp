@@ -84,7 +84,8 @@ struct subscription_guard
 
   ~subscription_guard()
   {
-    _subscription.unsubscribe();
+    if (_subscription.is_subscribed())
+      _subscription.unsubscribe();
   }
 
 private:
