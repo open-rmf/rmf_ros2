@@ -27,13 +27,15 @@ Negotiate::Negotiate(
     std::vector<rmf_traffic::agv::Plan::Goal> goals,
     rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
     rmf_traffic::schedule::Negotiator::ResponderPtr responder,
-    ApprovalCallback approval)
+    ApprovalCallback approval,
+    const ProgressEvaluator compliant_leeway)
   : _planner(std::move(planner)),
     _starts(std::move(starts)),
     _goals(std::move(goals)),
     _viewer(std::move(viewer)),
     _responder(std::move(responder)),
-    _approval(std::move(approval))
+    _approval(std::move(approval)),
+    _evaluator(compliant_leeway)
 {
   // Do nothing
 }
@@ -45,7 +47,8 @@ std::shared_ptr<Negotiate> Negotiate::path(
     rmf_traffic::agv::Plan::Goal goal,
     rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
     rmf_traffic::schedule::Negotiator::ResponderPtr responder,
-    ApprovalCallback approval)
+    ApprovalCallback approval,
+    const ProgressEvaluator compliant_leeway)
 {
   return std::make_shared<Negotiate>(
         std::move(planner),
@@ -53,7 +56,8 @@ std::shared_ptr<Negotiate> Negotiate::path(
         std::vector<rmf_traffic::agv::Plan::Goal>({std::move(goal)}),
         std::move(viewer),
         std::move(responder),
-        std::move(approval));
+        std::move(approval),
+        compliant_leeway);
 }
 
 //==============================================================================
@@ -62,7 +66,8 @@ std::shared_ptr<Negotiate> Negotiate::emergency_pullover(
     rmf_traffic::agv::Plan::StartSet starts,
     rmf_traffic::schedule::Negotiation::Table::ViewerPtr viewer,
     rmf_traffic::schedule::Negotiator::ResponderPtr responder,
-    ApprovalCallback approval)
+    ApprovalCallback approval,
+    const ProgressEvaluator compliant_leeway)
 {
   const auto& graph = planner->get_configuration().graph();
   const std::size_t N = graph.num_waypoints();
@@ -82,7 +87,8 @@ std::shared_ptr<Negotiate> Negotiate::emergency_pullover(
         std::move(goals),
         std::move(viewer),
         std::move(responder),
-        std::move(approval));
+        std::move(approval),
+        compliant_leeway);
 }
 
 //==============================================================================

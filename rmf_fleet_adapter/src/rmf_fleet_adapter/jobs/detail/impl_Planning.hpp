@@ -35,10 +35,26 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
     });
   };
 
-  _current_result.resume();
+  double cost = *_current_result->cost_estimate();
+  double max_cost = *_current_result->options().maximum_cost_estimate();
+  double initial_cost = _current_result->initial_cost_estimate();
+  double cutoff_cost = cutoff_factor*initial_cost + cutoff_base;
+  if (_debug)
+  {
+    std::cout << cost << " | " << max_cost << " | " << initial_cost
+              << " | " << cutoff_cost << std::endl;
+  }
+
+  if (!_current_result)
+    return;
+
+  _current_result->resume();
+
+  const bool completed =
+      _current_result->success() || !_current_result->cost_estimate();
 
   s.on_next(Result{*this});
-  if (_current_result.success() || !_current_result.cost_estimate())
+  if (completed)
   {
     // The plan is either finished or is guaranteed to never finish
     s.on_completed();

@@ -109,18 +109,27 @@ void GoToPlace::Active::respond(
     return rmf_utils::nullopt;
   };
 
+  services::ProgressEvaluator evaluator;
+  if (table_viewer->parent_id())
+  {
+    const auto& s = table_viewer->sequence();
+    assert(s.size() >= 2);
+    evaluator.compliant_leeway_base *= s[s.size()-2].version + 1;
+  }
+
   std::shared_ptr<services::Negotiate> negotiate;
   if (_emergency_active)
   {
+
     negotiate = services::Negotiate::emergency_pullover(
           _context->planner(), _context->location(), table_viewer, responder,
-          std::move(approval_cb));
+          std::move(approval_cb), evaluator);
   }
   else
   {
     negotiate = services::Negotiate::path(
           _context->planner(), _context->location(), _goal, table_viewer,
-          responder, std::move(approval_cb));
+          responder, std::move(approval_cb), evaluator);
   }
 
   _negotiate_subscription = rmf_rxcpp::make_job<services::Negotiate::Result>(

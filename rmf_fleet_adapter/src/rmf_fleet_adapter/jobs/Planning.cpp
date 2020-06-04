@@ -46,15 +46,21 @@ void Planning::resume()
 }
 
 //==============================================================================
+void Planning::discard()
+{
+  _current_result = rmf_utils::nullopt;
+}
+
+//==============================================================================
 rmf_traffic::agv::Planner::Result& Planning::progress()
 {
-  return _current_result;
+  return *_current_result;
 }
 
 //==============================================================================
 const rmf_traffic::agv::Planner::Result& Planning::progress() const
 {
-  return _current_result;
+  return *_current_result;
 }
 
 } // namespace jobs

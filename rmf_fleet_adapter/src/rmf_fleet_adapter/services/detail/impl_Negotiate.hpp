@@ -64,11 +64,15 @@ void Negotiate::operator()(const Subscriber& s)
 
   auto check_if_finished = [this, s, N_jobs]() -> bool
   {
+    if (_finished)
+      return true;
+
     if (_evaluator.finished_count >= N_jobs || *_interrupted)
     {
       if (_evaluator.best_result.progress
           && _evaluator.best_result.progress->success())
       {
+        _finished = true;
         // This means we found a successful plan to submit to the negotiation.
         s.on_next(
               [r = *_evaluator.best_result.progress,
@@ -93,6 +97,7 @@ void Negotiate::operator()(const Subscriber& s)
       }
       else if (_alternatives && !_alternatives->empty())
       {
+        _finished = true;
         // This means we could not find a successful plan, but we have some
         // alternatives to offer the parent in the negotiation.
         s.on_next(
@@ -107,16 +112,16 @@ void Negotiate::operator()(const Subscriber& s)
       }
       else if (!_attempting_rollout)
       {
+        _finished = true;
         // This means we could not find any plan or any alternatives to offer
         // the parent, so all we can do is forfeit.
         s.on_next(
               [n = shared_from_this()]()
         {
-          const auto* progress = n->_evaluator.best_estimate.progress?
-                n->_evaluator.best_estimate.progress
-              : n->_evaluator.best_discarded.progress;
+          std::vector<rmf_traffic::schedule::ParticipantId> blockers(
+                n->_blockers.begin(), n->_blockers.end());
 
-          n->_responder->forfeit(progress->blockers());
+          n->_responder->forfeit(std::move(blockers));
         });
 
         s.on_completed();
@@ -187,6 +192,8 @@ void Negotiate::operator()(const Subscriber& s)
       {
         if (n->_current_jobs.find(job) != n->_current_jobs.end())
         {
+          job->cutoff_factor = n->_evaluator.compliant_leeway_multiplier;
+          job->cutoff_base = n->_evaluator.compliant_leeway_base;
           job->resume();
         }
         else
@@ -196,6 +203,13 @@ void Negotiate::operator()(const Subscriber& s)
       }
       else
       {
+        const auto& blockers = job->progress().blockers();
+        for (const auto p : blockers)
+          n->_blockers.insert(p);
+
+        if (!job->progress().success())
+          job->discard();
+
         n->_current_jobs.erase(job);
       }
 
