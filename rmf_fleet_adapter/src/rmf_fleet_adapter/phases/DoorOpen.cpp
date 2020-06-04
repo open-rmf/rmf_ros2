@@ -54,18 +54,20 @@ DoorOpen::ActivePhase::ActivePhase(
   auto post_finish_obs = rxcpp::observable<>::create<Task::StatusMsg>(
     [this, post_finish_action](const auto& s)
     {
-      if (_last_status.status != status_msg_cancelled)
+      // FIXME: is this thread-safe?
+      if (!_cancelled.get_value())
         s.on_completed();
       else
+      {
         post_finish_action->get_observable().subscribe(s);
+      }
     });
 
-  _obs = _action
-    .get_observable()
-    .tap([this](const Task::StatusMsg& status)
-    {
-      _last_status = status;
-    })
+  auto cancelled_obs = _cancelled.get_observable()
+    .filter([](auto b) { return b; });
+
+  _obs = _action.get_observable()
+    .take_until(cancelled_obs)
     .concat(post_finish_obs);
 }
 
@@ -91,7 +93,7 @@ void DoorOpen::ActivePhase::emergency_alarm(bool /*on*/)
 //==============================================================================
 void DoorOpen::ActivePhase::cancel()
 {
-  _action.cancel();
+  _cancelled.get_subscriber().on_next(true);
 }
 
 //==============================================================================

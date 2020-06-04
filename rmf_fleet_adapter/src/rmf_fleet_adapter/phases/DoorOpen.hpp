@@ -55,7 +55,7 @@ struct DoorOpen
     rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> _door_state_obs;
     rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
     DoorControlAction _action;
-    Task::StatusMsg _last_status;
+    rxcpp::subjects::behavior<bool> _cancelled = rxcpp::subjects::behavior<bool>(false);
     rxcpp::observable<Task::StatusMsg> _obs;
     std::string _description;
   };
