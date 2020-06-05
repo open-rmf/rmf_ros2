@@ -193,8 +193,6 @@ void Negotiate::operator()(const Subscriber& s)
       {
         if (n->_current_jobs.find(job) != n->_current_jobs.end())
         {
-          job->cutoff_factor = n->_evaluator.compliant_leeway_multiplier;
-          job->cutoff_base = n->_evaluator.compliant_leeway_base;
           job->resume();
         }
         else

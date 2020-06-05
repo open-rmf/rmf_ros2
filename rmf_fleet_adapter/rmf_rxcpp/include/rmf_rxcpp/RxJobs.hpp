@@ -61,7 +61,6 @@ struct subscription_guard
   subscription_guard(const subscription_guard&) = delete;
   subscription_guard(subscription_guard&& other)
   {
-//    std::cout << "moving subscription" << std::endl;
     _subscription = std::move(other._subscription);
     other._subscription = rxcpp::subscription();
     assert(!other._subscription.is_subscribed());
@@ -70,7 +69,6 @@ struct subscription_guard
   subscription_guard& operator=(const subscription_guard&) = delete;
   subscription_guard& operator=(subscription_guard&& other)
   {
-//    std::cout << "moving subscription" << std::endl;
     _subscription = std::move(other._subscription);
     other._subscription = rxcpp::subscription();
     assert(!other._subscription.is_subscribed());

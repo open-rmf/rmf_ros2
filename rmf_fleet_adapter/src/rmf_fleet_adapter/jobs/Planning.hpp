@@ -55,13 +55,9 @@ public:
 
   const rmf_traffic::agv::Planner::Result& progress() const;
 
-  double cutoff_factor;
-  double cutoff_base;
-
 private:
   std::function<void()> _resume;
   rmf_utils::optional<rmf_traffic::agv::Planner::Result> _current_result;
-  bool _debug = false;
 };
 
 } // namespace jobs

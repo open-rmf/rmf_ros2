@@ -17,9 +17,6 @@
 
 #include "ProgressEvaluator.hpp"
 
-
-#include <iostream>
-
 namespace rmf_fleet_adapter {
 namespace services {
 
@@ -93,14 +90,10 @@ bool ProgressEvaluator::evaluate(Result& progress)
       progress.options().maximum_cost_estimate(
             std::min(estimate_leeway * cost, dropdead_cost));
 
-//      std::cout << "(" << &progress << ") Cost: " << cost << " | Next: "
-//                << estimate_leeway*cost << " | Drop: " << dropdead_cost << std::endl;
       return true;
     }
     else if (cost < best_result.cost)
     {
-//      std::cout << "(" << &progress << ") Cost: " << cost << " | Best: "
-//                << estimate_leeway*cost << " | Drop: " << dropdead_cost << std::endl;
       progress.options().maximum_cost_estimate(
             std::min(best_result.cost, dropdead_cost));
       return true;
