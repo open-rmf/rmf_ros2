@@ -42,7 +42,8 @@ public:
       std::vector<rmf_traffic::agv::Plan::Goal> goals,
       rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
       rmf_traffic::schedule::Negotiator::ResponderPtr responder,
-      ApprovalCallback approval);
+      ApprovalCallback approval,
+      ProgressEvaluator evaluator);
 
   static std::shared_ptr<Negotiate> path(
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
@@ -50,14 +51,16 @@ public:
       rmf_traffic::agv::Plan::Goal goal,
       rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
       rmf_traffic::schedule::Negotiator::ResponderPtr responder,
-      ApprovalCallback approval);
+      ApprovalCallback approval,
+      ProgressEvaluator evaluator);
 
   static std::shared_ptr<Negotiate> emergency_pullover(
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
       rmf_traffic::agv::Plan::StartSet starts,
       rmf_traffic::schedule::Negotiation::Table::ViewerPtr viewer,
       rmf_traffic::schedule::Negotiator::ResponderPtr responder,
-      ApprovalCallback approval);
+      ApprovalCallback approval,
+      ProgressEvaluator evaluator);
 
   using Result = std::function<void()>;
 
@@ -99,10 +102,12 @@ private:
   rxcpp::subscription _search_sub;
   std::shared_ptr<jobs::Rollout> _rollout_job;
   rxcpp::subscription _rollout_sub;
+  bool _finished = false;
   bool _attempting_rollout = false;
 
   using Alternatives = std::vector<rmf_traffic::schedule::Itinerary>;
   rmf_utils::optional<Alternatives> _alternatives;
+  std::unordered_set<rmf_traffic::schedule::ParticipantId> _blockers;
 
   std::shared_ptr<bool> _interrupted = std::make_shared<bool>(false);
   bool _discarded = false;

@@ -21,6 +21,18 @@ namespace rmf_fleet_adapter {
 namespace services {
 
 //==============================================================================
+ProgressEvaluator::ProgressEvaluator(
+    const double compliant_leeway_base_,
+    const double compliant_leeway_multiplier_,
+    const double estimate_leeway_)
+  : compliant_leeway_base(compliant_leeway_base_),
+    compliant_leeway_multiplier(compliant_leeway_multiplier_),
+    estimate_leeway(estimate_leeway_)
+{
+  // Do nothing
+}
+
+//==============================================================================
 bool ProgressEvaluator::initialize(const Result& setup)
 {
   if (!setup.cost_estimate())
@@ -60,17 +72,30 @@ bool ProgressEvaluator::evaluate(Result& progress)
     second_best_estimate = Info();
   }
 
-  const bool giveup = compliant_leeway*progress.initial_cost_estimate() < cost;
+  if (progress.saturated())
+  {
+    ++finished_count;
+    return false;
+  }
+
+  const double dropdead_cost =
+      compliant_leeway_multiplier*progress.initial_cost_estimate()
+      + compliant_leeway_base;
+
+  const bool giveup = dropdead_cost <= cost;
   if (!progress.success() && !giveup)
   {
     if (!best_result.progress)
     {
-      progress.options().maximum_cost_estimate(estimate_leeway * cost);
+      progress.options().maximum_cost_estimate(
+            std::min(estimate_leeway * cost, dropdead_cost));
+
       return true;
     }
     else if (cost < best_result.cost)
     {
-      progress.options().maximum_cost_estimate(best_result.cost);
+      progress.options().maximum_cost_estimate(
+            std::min(best_result.cost, dropdead_cost));
       return true;
     }
   }

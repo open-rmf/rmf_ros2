@@ -49,13 +49,15 @@ public:
 
   void resume();
 
+  void discard();
+
   rmf_traffic::agv::Planner::Result& progress();
 
   const rmf_traffic::agv::Planner::Result& progress() const;
 
 private:
   std::function<void()> _resume;
-  rmf_traffic::agv::Planner::Result _current_result;
+  rmf_utils::optional<rmf_traffic::agv::Planner::Result> _current_result;
 };
 
 } // namespace jobs

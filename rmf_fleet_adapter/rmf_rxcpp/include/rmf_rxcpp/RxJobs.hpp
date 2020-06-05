@@ -21,6 +21,7 @@
 #include <rmf_rxcpp/detail/RxJobsDetail.hpp>
 #include <rxcpp/rx.hpp>
 #include <memory>
+#include <cassert>
 
 namespace rmf_rxcpp {
 
@@ -60,15 +61,17 @@ struct subscription_guard
   subscription_guard(const subscription_guard&) = delete;
   subscription_guard(subscription_guard&& other)
   {
-    _subscription = other._subscription;
+    _subscription = std::move(other._subscription);
     other._subscription = rxcpp::subscription();
+    assert(!other._subscription.is_subscribed());
   }
 
   subscription_guard& operator=(const subscription_guard&) = delete;
   subscription_guard& operator=(subscription_guard&& other)
   {
-    _subscription = other._subscription;
+    _subscription = std::move(other._subscription);
     other._subscription = rxcpp::subscription();
+    assert(!other._subscription.is_subscribed());
     return *this;
   }
 

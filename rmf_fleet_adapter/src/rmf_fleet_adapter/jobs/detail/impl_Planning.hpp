@@ -35,10 +35,17 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
     });
   };
 
-  _current_result.resume();
+
+  if (!_current_result)
+    return;
+
+  _current_result->resume();
+
+  const bool completed =
+      _current_result->success() || !_current_result->cost_estimate();
 
   s.on_next(Result{*this});
-  if (_current_result.success() || !_current_result.cost_estimate())
+  if (completed)
   {
     // The plan is either finished or is guaranteed to never finish
     s.on_completed();

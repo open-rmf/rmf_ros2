@@ -26,6 +26,15 @@ namespace services {
 //==============================================================================
 struct ProgressEvaluator
 {
+  static constexpr double DefaultCompliantLeewayBase = 30.0;
+  static constexpr double DefaultCompliantLeewayMultiplier = 2.0;
+  static constexpr double DefaultEstimateLeeway = 1.5;
+
+  ProgressEvaluator(
+      double compliant_leeway_base_ = DefaultCompliantLeewayBase,
+      double compliant_leeway_multiplier_ = DefaultCompliantLeewayMultiplier,
+      double estimate_leeway_ = DefaultEstimateLeeway);
+
   using Result = rmf_traffic::agv::Plan::Result;
 
   struct Info
@@ -46,11 +55,13 @@ struct ProgressEvaluator
   Info best_discarded;
   std::size_t finished_count = 0;
 
-  static constexpr double estimate_leeway = 1.5;
+  double compliant_leeway_base;
 
   // TODO(MXG): This is redundant with SearchForPath::compliant_leeway, so we
   // should refactor this.
-  static constexpr double compliant_leeway = 3.0;
+  double compliant_leeway_multiplier;
+
+  double estimate_leeway;
 };
 
 

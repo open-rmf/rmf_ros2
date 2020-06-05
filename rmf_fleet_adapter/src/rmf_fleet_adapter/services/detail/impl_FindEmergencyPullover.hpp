@@ -53,7 +53,7 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
 
   const std::size_t N_jobs = _search_jobs.size();
   const double initial_max_cost =
-      ProgressEvaluator::estimate_leeway
+      ProgressEvaluator::DefaultEstimateLeeway
       * _greedy_evaluator.best_estimate.cost;
 
   for (const auto& job : _search_jobs)
