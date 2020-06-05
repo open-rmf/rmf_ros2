@@ -35,15 +35,6 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
     });
   };
 
-  double cost = *_current_result->cost_estimate();
-  double max_cost = *_current_result->options().maximum_cost_estimate();
-  double initial_cost = _current_result->initial_cost_estimate();
-  double cutoff_cost = cutoff_factor*initial_cost + cutoff_base;
-  if (_debug)
-  {
-    std::cout << cost << " | " << max_cost << " | " << initial_cost
-              << " | " << cutoff_cost << std::endl;
-  }
 
   if (!_current_result)
     return;

@@ -75,6 +75,12 @@ bool ProgressEvaluator::evaluate(Result& progress)
     second_best_estimate = Info();
   }
 
+  if (progress.saturated())
+  {
+    ++finished_count;
+    return false;
+  }
+
   const double dropdead_cost =
       compliant_leeway_multiplier*progress.initial_cost_estimate()
       + compliant_leeway_base;

@@ -48,6 +48,7 @@ void Negotiate::operator()(const Subscriber& s)
             rmf_traffic::agv::Plan::Options(validator)
             .interrupt_flag(_interrupted));
 
+      job->progress().options().saturation_limit(200000);
       _evaluator.initialize(job->progress());
 
       search_jobs.emplace_back(std::move(job));
