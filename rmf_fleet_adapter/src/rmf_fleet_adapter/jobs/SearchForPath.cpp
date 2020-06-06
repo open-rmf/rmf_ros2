@@ -32,7 +32,7 @@ SearchForPath::SearchForPath(
     _goal(std::move(goal)),
     _schedule(std::move(schedule)),
     _participant_id(participant_id),
-    _event_loop(rxcpp::observe_on_event_loop())
+    _worker(rxcpp::schedulers::make_event_loop().create_worker())
 {
   auto greedy_options = _planner->get_default_options();
   greedy_options.validator(nullptr);
