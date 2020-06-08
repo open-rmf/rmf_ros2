@@ -11,6 +11,7 @@
 #include <rclcpp/node.hpp>
 
 #include <rmf_rxcpp/Publisher.hpp>
+#include <rmf_rxcpp/Transport.hpp>
 
 #include <rxcpp/rx-observable.hpp>
 
@@ -79,7 +80,12 @@ public:
   struct Empty { };
   const rxcpp::observable<Empty>& observe_interrupt() const;
 
-  rclcpp::Node& node();
+  /// Get a reference to the rclcpp node
+  rmf_rxcpp::Transport& node();
+
+  /// Get a reference to the worker for this robot. Use this worker to observe
+  /// callbacks that can modify the state of the robot.
+  const rxcpp::schedulers::worker& worker() const;
 
 private:
   friend class RobotUpdateHandle;
@@ -90,7 +96,9 @@ private:
     rmf_traffic::schedule::Participant itinerary,
     std::shared_ptr<const Snappable> schedule,
     rmf_traffic::agv::Planner::Configuration configuration,
-    rmf_traffic::agv::Planner::Options default_options);
+    rmf_traffic::agv::Planner::Options default_options,
+    std::shared_ptr<rmf_rxcpp::Transport> node,
+    const rxcpp::schedulers::worker& worker);
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
@@ -103,7 +111,8 @@ private:
 
   // We're assuming that a RobotContextPtr is being held by the Node, so we
   // shouldn't have to worry about the lifetime of the Node
-  rclcpp::Node* _node;
+  std::shared_ptr<rmf_rxcpp::Transport> _node;
+  rxcpp::schedulers::worker _worker;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

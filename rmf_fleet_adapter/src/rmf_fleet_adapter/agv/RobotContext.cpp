@@ -155,9 +155,22 @@ auto RobotContext::set_negotiator(
 }
 
 //==============================================================================
-rclcpp::Node& RobotContext::node()
+const rxcpp::observable<RobotContext::Empty>&
+RobotContext::observe_interrupt() const
+{
+  return _interrupt_publisher.observe();
+}
+
+//==============================================================================
+rmf_rxcpp::Transport& RobotContext::node()
 {
   return *_node;
+}
+
+//==============================================================================
+const rxcpp::schedulers::worker& RobotContext::worker() const
+{
+  return _worker;
 }
 
 //==============================================================================
@@ -167,13 +180,17 @@ RobotContext::RobotContext(
   rmf_traffic::schedule::Participant itinerary,
   std::shared_ptr<const Snappable> schedule,
   rmf_traffic::agv::Planner::Configuration configuration,
-  rmf_traffic::agv::Planner::Options default_options)
+  rmf_traffic::agv::Planner::Options default_options,
+  std::shared_ptr<rmf_rxcpp::Transport> node,
+  const rxcpp::schedulers::worker& worker)
   : _command_handle(std::move(command_handle)),
     _location(std::move(_initial_location)),
     _itinerary(std::move(itinerary)),
     _schedule(std::move(schedule)),
     _planner(std::make_shared<rmf_traffic::agv::Planner>(
-               std::move(configuration), std::move(default_options)))
+               std::move(configuration), std::move(default_options))),
+    _node(std::move(node)),
+    _worker(worker)
 {
   // Do nothing
 }
