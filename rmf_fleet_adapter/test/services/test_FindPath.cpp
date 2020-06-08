@@ -41,7 +41,7 @@ SCENARIO("Find a path")
       rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
       profile
     },
-    *database);
+    database);
 
   auto p1 = rmf_traffic::schedule::make_participant(
     rmf_traffic::schedule::ParticipantDescription{
@@ -50,7 +50,7 @@ SCENARIO("Find a path")
       rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
       profile
     },
-    *database);
+    database);
 
   const std::string test_map_name = "test_map";
   rmf_traffic::agv::Graph graph;

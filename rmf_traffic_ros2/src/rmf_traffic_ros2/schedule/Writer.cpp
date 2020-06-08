@@ -137,11 +137,12 @@ RectifierFactory::Requester::Requester(
 
 //==============================================================================
 class Writer::Implementation
-  : public rmf_traffic::schedule::Writer
+  : public rmf_traffic::schedule::Writer,
+    std::enable_shared_from_this<Writer::Implementation>
 {
 public:
 
-  RectifierFactory rectifier_factory;
+  std::shared_ptr<RectifierFactory> rectifier_factory;
 
   using Set = rmf_traffic_msgs::msg::ItinerarySet;
   using Extend = rmf_traffic_msgs::msg::ItineraryExtend;
@@ -162,7 +163,7 @@ public:
   rclcpp::Client<Unregister>::SharedPtr unregister_client;
 
   Implementation(rclcpp::Node& node)
-  : rectifier_factory(node)
+  : rectifier_factory(std::make_shared<RectifierFactory>(node))
   {
     set_pub = node.create_publisher<Set>(
       ItinerarySetTopicName,
@@ -332,7 +333,7 @@ public:
         std::promise<rmf_traffic::schedule::Participant> promise)
       {
         promise.set_value(rmf_traffic::schedule::make_participant(
-          std::move(description), *this, &rectifier_factory));
+          std::move(description), shared_from_this(), rectifier_factory));
       }, std::move(description), std::move(promise));
 
     worker.detach();
@@ -355,7 +356,7 @@ public:
         // received. That way we don't need to create an additional thread here
         // and worry about the threat of race conditions.
         auto participant = rmf_traffic::schedule::make_participant(
-          std::move(description), *this, &rectifier_factory);
+          std::move(description), shared_from_this(), rectifier_factory);
 
         if (ready_callback)
           ready_callback(std::move(participant));
@@ -363,7 +364,6 @@ public:
 
     worker.detach();
   }
-
 };
 
 //==============================================================================
