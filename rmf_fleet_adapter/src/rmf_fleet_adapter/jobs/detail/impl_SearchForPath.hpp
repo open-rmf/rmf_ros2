@@ -53,7 +53,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
   }
 
   _greedy_sub = rmf_rxcpp::make_job<Planning::Result>(_greedy_job)
-      .observe_on(_event_loop)
+      .observe_on(rxcpp::identity_same_worker(_worker))
       .subscribe(
         [this, s](const Planning::Result& result)
   {
@@ -116,7 +116,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
   });
 
   _compliant_sub = rmf_rxcpp::make_job<Planning::Result>(_compliant_job)
-      .observe_on(_event_loop)
+      .observe_on(rxcpp::identity_same_worker(_worker))
       .subscribe(
         [this, s](const Planning::Result& result)
   {
@@ -139,7 +139,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       return;
     }
 
-    if (_interrupt_flag)
+    if (*_interrupt_flag)
     {
       if (_greedy_finished)
       {

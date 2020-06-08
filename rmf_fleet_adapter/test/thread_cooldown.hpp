@@ -15,5 +15,16 @@
  *
 */
 
-#define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do this in one cpp file
-#include <rmf_utils/catch.hpp>
+#ifndef TEST__THREAD_COOLDOWN_HPP
+#define TEST__THREAD_COOLDOWN_HPP
+
+namespace rmf_fleet_adapter_test {
+
+// This is used by multi-threaded tests to have the executable wait some time
+// before quitting so that all the threads can wind down before the executable
+// exits. Set this to true when running a multi-threaded test. Leave this alone
+// when running single-threaded tests.
+extern bool thread_cooldown;
+} // namespace rmf_fleet_adapter_test
+
+#endif // TEST__THREAD_COOLDOWN_HPP

@@ -15,5 +15,34 @@
  *
 */
 
-#define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do this in one cpp file
+
+#define CATCH_CONFIG_RUNNER
 #include <rmf_utils/catch.hpp>
+
+#include <thread>
+
+#include "thread_cooldown.hpp"
+
+namespace rmf_fleet_adapter_test {
+bool thread_cooldown;
+} // namespace rmf_fleet_adapter_test
+
+int main(int argc, char* argv[])
+{
+  rmf_fleet_adapter_test::thread_cooldown = false;
+  const int result = Catch::Session().run(argc, argv);
+
+  if (rmf_fleet_adapter_test::thread_cooldown)
+  {
+    using namespace std::chrono_literals;
+#ifdef NDEBUG
+    const auto cooldown_time = 100ms;
+#else
+    const auto cooldown_time = 1s;
+#endif
+
+    std::this_thread::sleep_for(cooldown_time);
+  }
+
+  return result;
+}

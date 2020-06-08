@@ -29,14 +29,14 @@ Planning::Planning(
   : _current_result(
       planner->setup(starts, std::move(goal), std::move(options)))
 {
-  // Do nothing
+  _current_result->options().saturation_limit(200000);
 }
 
 //==============================================================================
 Planning::Planning(rmf_traffic::agv::Planner::Result _setup)
   : _current_result(std::move(_setup))
 {
-  // Do nothing
+  _current_result->options().saturation_limit(200000);
 }
 
 //==============================================================================
@@ -49,6 +49,12 @@ void Planning::resume()
 void Planning::discard()
 {
   _current_result = rmf_utils::nullopt;
+}
+
+//==============================================================================
+bool Planning::active() const
+{
+  return _current_result.has_value();
 }
 
 //==============================================================================

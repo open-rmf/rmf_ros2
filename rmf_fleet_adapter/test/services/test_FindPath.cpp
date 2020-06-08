@@ -22,8 +22,11 @@
 
 #include <rmf_utils/catch.hpp>
 
+#include "../thread_cooldown.hpp"
+
 SCENARIO("Find a path")
 {
+  rmf_fleet_adapter_test::thread_cooldown = true;
   auto database = std::make_shared<rmf_traffic::schedule::Database>();
 
   rmf_traffic::Profile profile{

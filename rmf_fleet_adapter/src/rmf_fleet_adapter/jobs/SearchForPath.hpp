@@ -94,7 +94,7 @@ private:
 
   rmf_utils::optional<double> _explicit_cost_limit;
 
-  decltype(rxcpp::observe_on_event_loop()) _event_loop;
+  rxcpp::schedulers::worker _worker;
 
   // TODO(MXG): Make these leeway factors configurable
   const double greedy_leeway = 10.0;

@@ -51,6 +51,8 @@ public:
 
   void discard();
 
+  bool active() const;
+
   rmf_traffic::agv::Planner::Result& progress();
 
   const rmf_traffic::agv::Planner::Result& progress() const;
