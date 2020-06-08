@@ -63,14 +63,12 @@ DoorControlAction::DoorControlAction(
     {
       _update_status(std::get<0>(v), std::get<1>(v));
       return _status;
-    });
-  _obs = make_cancellable(_obs, _cancelled.get_observable())
-    .observe_on(rxcpp::observe_on_event_loop())
+    })
     .lift<Task::StatusMsg>(grab_while_active())
     .finally([this]()
     {
       if (_timer)
-        _timer->reset();
+        _timer.reset();
     });
 }
 

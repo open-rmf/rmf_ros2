@@ -38,16 +38,14 @@ auto grab_while(Predicate pred)
   return [pred = std::move(pred)](const auto& s)
   {
     using SourceType = typename std::decay_t<decltype(s)>::value_type;
-    rxcpp::composite_subscription subscription{};
     return rxcpp::make_subscriber<SourceType>(
-      subscription,
+      s,
       [=, pred = std::move(pred)](const SourceType& v)
       {
         s.on_next(v);
         if (!pred(v))
         {
           s.on_completed();
-          subscription.unsubscribe();
         }
       });
   };

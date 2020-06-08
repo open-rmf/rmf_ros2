@@ -32,98 +32,157 @@ using rmf_door_msgs::msg::SupervisorHeartbeat;
 using rmf_door_msgs::msg::DoorSessions;
 using rmf_door_msgs::msg::Session;
 
-struct DoorCloseFixture : TransportFixture
+SCENARIO_METHOD(TransportFixture, "door close phase", "[phases]")
 {
-  rxcpp::observable<DoorState::SharedPtr> door_state_obs;
-  rxcpp::observable<SupervisorHeartbeat::SharedPtr> heartbeat_obs;
-  std::shared_ptr<Task::PendingPhase> pending_phase;
-  std::shared_ptr<Task::ActivePhase> active_phase;
-  std::string door_name = "test_door";
+  std::mutex m;
+  std::condition_variable received_requests_cv;
+  std::list<DoorRequest::UniquePtr> received_requests;
+  auto rcl_subscription = transport->create_subscription<DoorRequest>(
+    AdapterDoorRequestTopicName,
+    10,
+    [&](DoorRequest::UniquePtr door_request)
+    {
+      std::unique_lock<std::mutex> lk(m);
+      received_requests.emplace_back(std::move(door_request));
+      received_requests_cv.notify_all();
+    });
 
-  DoorCloseFixture() : TransportFixture()
+  GIVEN("a door close phase")
   {
-    door_state_obs = transport->create_observable<DoorState>(DoorStateTopicName, 10);
-    heartbeat_obs = transport->create_observable<SupervisorHeartbeat>(DoorSupervisorHeartbeatTopicName, 10);
-    pending_phase = std::make_shared<DoorClose::PendingPhase>(
+    std::string door_name = "test_door";
+    auto door_state_obs = transport->create_observable<DoorState>(DoorStateTopicName, 10);
+    auto heartbeat_obs = transport->create_observable<SupervisorHeartbeat>(DoorSupervisorHeartbeatTopicName, 10);
+    auto pending_phase = std::make_shared<DoorClose::PendingPhase>(
       door_name,
       transport,
       door_state_obs,
       heartbeat_obs
     );
-    active_phase = pending_phase->begin();
+    auto active_phase = pending_phase->begin();
+
+    WHEN("it is started")
+    {
+      std::condition_variable status_updates_cv;
+      std::list<Task::StatusMsg> status_updates;
+      auto sub = active_phase->observe().subscribe(
+        [&](const auto& status)
+        {
+          std::unique_lock<std::mutex> lk(m);
+          status_updates.emplace_back(status);
+          status_updates_cv.notify_all();
+        });
+
+      THEN("it should send door close request")
+      {
+        std::unique_lock<std::mutex> lk(m);
+        if (received_requests.empty())
+          received_requests_cv.wait(lk, [&]() { return !received_requests.empty(); });
+        REQUIRE(received_requests.size() == 1);
+        REQUIRE(received_requests.front()->requested_mode.value == DoorMode::MODE_CLOSED);
+      }
+
+      THEN("it should continuously send door close requests")
+      {
+        std::unique_lock<std::mutex> lk(m);
+        received_requests_cv.wait(lk, [&]() { return received_requests.size() >= 3; });
+        for (const auto& door_request : received_requests)
+        {
+          REQUIRE(door_request->requested_mode.value == DoorMode::MODE_CLOSED);
+        }
+      }
+
+      THEN("it should complete only after door supervisor releases session")
+      {
+        std::condition_variable published_heartbeat_cv;
+        std::atomic<bool> published_heartbeat(false);
+        auto door_state_pub = transport->create_publisher<DoorState>(DoorStateTopicName, 10);
+        auto heartbeat_pub = transport->create_publisher<SupervisorHeartbeat>(DoorSupervisorHeartbeatTopicName, 10);
+        auto rcl_subscription2 = transport->create_subscription<DoorRequest>(
+          AdapterDoorRequestTopicName,
+          10,
+          [&](DoorRequest::UniquePtr door_request)
+          {
+            DoorState door_state;
+            door_state.door_name = door_name;
+            door_state.door_time = transport->now();
+            door_state.current_mode.value = door_request->requested_mode.value;
+            door_state_pub->publish(door_state);
+
+            Session session;
+            session.requester_id = door_request->requester_id;
+            session.request_time = door_request->request_time;
+            DoorSessions door_sessions;
+            door_sessions.door_name = door_request->door_name;
+            door_sessions.sessions.emplace_back(std::move(session));
+            SupervisorHeartbeat heartbeat;
+            heartbeat.all_sessions.emplace_back(std::move(door_sessions));
+            heartbeat_pub->publish(heartbeat);
+            published_heartbeat = true;
+            published_heartbeat_cv.notify_all();
+          });
+
+        {
+          std::unique_lock<std::mutex> lk(m);
+          published_heartbeat_cv.wait(lk, [&]() { return published_heartbeat.load(); });
+        }
+
+        // phase should not complete yet as supervisor haven't release the session
+        {
+          std::unique_lock<std::mutex> lk(m);
+          bool completed = status_updates_cv.wait_for(lk, std::chrono::seconds(1), [&]()
+          {
+            for (const auto& status : status_updates)
+            {
+              if (status.state == Task::StatusMsg::STATE_COMPLETED)
+                return true;
+            }
+            status_updates.clear();
+            return false;
+          });
+          REQUIRE(!completed);
+        }
+
+        // supervisor released session
+        heartbeat_pub->publish(SupervisorHeartbeat());
+
+        // phase should now complete
+        {
+          std::unique_lock<std::mutex> lk(m);
+          bool completed = status_updates_cv.wait_for(lk, std::chrono::seconds(1), [&]()
+          {
+            for (const auto& status : status_updates)
+            {
+              if (status.state == Task::StatusMsg::STATE_COMPLETED)
+                return true;
+            }
+            status_updates.clear();
+            return false;
+          });
+          REQUIRE(completed);
+        }
+      }
+
+      THEN("cancelled, it should not do anything")
+      {
+        active_phase->cancel();
+        std::unique_lock<std::mutex> lk(m);
+
+        bool completed = status_updates_cv.wait_for(lk, std::chrono::seconds(1), [&]()
+        {
+          for (const auto& status : status_updates)
+          {
+            if (status.state == Task::StatusMsg::STATE_COMPLETED)
+              return true;
+          }
+          status_updates.clear();
+          return false;
+        });
+        REQUIRE(!completed);
+      }
+
+      sub.unsubscribe();
+    }
   }
-};
-
-TEST_CASE_METHOD(DoorCloseFixture, "sends door close request", "[DoorClose]")
-{
-  bool received = false;
-  rxcpp::composite_subscription rx_subscription;
-  auto rcl_subscription = transport->create_subscription<DoorRequest>(
-    AdapterDoorRequestTopicName,
-    10,
-    [&](DoorRequest::UniquePtr)
-    {
-      received = true;
-      rx_subscription.unsubscribe();
-    });
-  active_phase->observe().as_blocking().subscribe(rx_subscription);
-  REQUIRE(received);
-}
-
-/**
- * see DoorOpenTest "waits for supervisor heartbeat"
- */
-TEST_CASE_METHOD(DoorCloseFixture, "door close waits for supervisor heartbeat", "[DoorClose]")
-{
-  auto door_state_pub = transport->create_publisher<DoorState>(DoorStateTopicName, 10);
-  auto heartbeat_pub = transport->create_publisher<SupervisorHeartbeat>(DoorSupervisorHeartbeatTopicName, 10);
-  auto subscription = transport->create_subscription<DoorRequest>(
-    AdapterDoorRequestTopicName,
-    10,
-    [&](DoorRequest::UniquePtr door_request)
-    {
-      DoorState door_state;
-      door_state.door_name = door_name;
-      door_state.door_time = transport->now();
-      door_state.current_mode.value = door_request->requested_mode.value;
-      door_state_pub->publish(door_state);
-
-      Session session;
-      session.requester_id = door_request->requester_id;
-      session.request_time = door_request->request_time;
-      DoorSessions door_sessions;
-      door_sessions.door_name = door_request->door_name;
-      door_sessions.sessions.emplace_back(std::move(session));
-      SupervisorHeartbeat heartbeat;
-      heartbeat.all_sessions.emplace_back(std::move(door_sessions));
-      heartbeat_pub->publish(heartbeat);
-
-      heartbeat_pub->publish(SupervisorHeartbeat());
-    });
-
-  int call_count = 0;
-  active_phase->observe().as_blocking().subscribe([&](const auto&)
-  {
-    call_count++;
-  });
-  REQUIRE(call_count == 2);
-}
-
-TEST_CASE_METHOD(DoorCloseFixture, "continuously send door close requests", "[DoorClose]")
-{
-  int received = 0;
-  rxcpp::composite_subscription rx_subscription;
-  auto rcl_subscription = transport->create_subscription<DoorRequest>(
-    AdapterDoorRequestTopicName,
-    10,
-    [&](DoorRequest::UniquePtr)
-    {
-      received++;
-      if (received >= 2)
-        rx_subscription.unsubscribe();
-    });
-  active_phase->observe().as_blocking().subscribe(rx_subscription);
-  REQUIRE(received >= 2);
 }
 
 } // namespace test

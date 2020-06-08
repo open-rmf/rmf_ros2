@@ -29,66 +29,149 @@ using rmf_dispenser_msgs::msg::DispenserResult;
 using rmf_dispenser_msgs::msg::DispenserRequest;
 using rmf_dispenser_msgs::msg::DispenserRequestItem;
 
-struct DispenseItemFixture : TransportFixture
+SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
 {
-  rxcpp::observable<DispenserResult::SharedPtr> dispenser_result_obs;
-  std::shared_ptr<Task::PendingPhase> pending_phase;
-  std::shared_ptr<Task::ActivePhase> active_phase;
-  std::string target = "test_dispenser";
-  std::string transporter_type = "test_type";
-  std::vector<DispenserRequestItem> items;
+  std::mutex m;
+  std::condition_variable received_requests_cv;
+  std::list<DispenserRequest> received_requests;
+  std::string request_guid;
+  auto rcl_subscription = transport->create_subscription<DispenserRequest>(
+    DispenserRequestTopicName,
+    10,
+    [&](DispenserRequest::UniquePtr dispenser_request)
+    {
+      std::unique_lock<std::mutex> lk(m);
+      request_guid = dispenser_request->request_guid;
+      received_requests.emplace_back(*dispenser_request);
+      received_requests_cv.notify_all();
+    });
 
-  DispenseItemFixture() : TransportFixture()
+  GIVEN("a dispense item phase")
   {
+    std::string target = "test_dispenser";
+    std::string transporter_type = "test_type";
+    std::vector<DispenserRequestItem> items;
     DispenserRequestItem item;
     item.type_guid = "test_item_type";
     item.compartment_name = "test_compartment";
     item.quantity = 1;
     items.emplace_back(std::move(item));
 
-    dispenser_result_obs = transport->create_observable<DispenserResult>(DispenserResultTopicName, 10);
-    pending_phase = std::make_shared<DispenseItem::PendingPhase>(
+    auto dispenser_result_obs = transport->create_observable<DispenserResult>(DispenserResultTopicName, 10);
+    auto pending_phase = std::make_shared<DispenseItem::PendingPhase>(
       transport,
       target,
       transporter_type,
       items,
       dispenser_result_obs
     );
-    active_phase = pending_phase->begin();
+    auto active_phase = pending_phase->begin();
+
+    WHEN("it is started")
+    {
+      std::condition_variable status_updates_cv;
+      std::list<Task::StatusMsg> status_updates;
+      auto sub = active_phase->observe().subscribe(
+        [&](const auto& status)
+        {
+          std::unique_lock<std::mutex> lk(m);
+          status_updates.emplace_back(status);
+          status_updates_cv.notify_all();
+        });
+
+      THEN("it should send dispense item request")
+      {
+        std::unique_lock<std::mutex> lk(m);
+        if (received_requests.empty())
+          received_requests_cv.wait(lk, [&]() { return !received_requests.empty(); });
+        REQUIRE(received_requests.size() == 1);
+      }
+
+      THEN("it should continuously send dispense item request")
+      {
+        std::unique_lock<std::mutex> lk(m);
+        received_requests_cv.wait(lk, [&]() { return received_requests.size() >= 3; });
+      }
+
+      THEN("cancelled, it should not do anything")
+      {
+        active_phase->cancel();
+        std::unique_lock<std::mutex> lk(m);
+
+        bool completed = status_updates_cv.wait_for(lk, std::chrono::seconds(3), [&]()
+        {
+          for (const auto& status : status_updates)
+          {
+            if (status.state == Task::StatusMsg::STATE_COMPLETED)
+              return true;
+          }
+          status_updates.clear();
+          return false;
+        });
+        REQUIRE(!completed);
+      }
+
+      AND_WHEN("dispenser result is success")
+      {
+        auto dispenser_result_pub = transport->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
+        rclcpp::TimerBase::SharedPtr timer;
+        std::function<void()> publish_result = [&]()
+        {
+          std::unique_lock<std::mutex> lk(m);
+          DispenserResult result;
+          result.request_guid = request_guid;
+          result.status = DispenserResult::SUCCESS;
+          result.time = transport->now();
+          dispenser_result_pub->publish(result);
+          timer = transport->create_wall_timer(std::chrono::milliseconds(100), publish_result);
+        };
+        publish_result();
+
+        THEN("it is completed")
+        {
+          std::unique_lock<std::mutex> lk(m);
+          bool completed = status_updates_cv.wait_for(lk, std::chrono::milliseconds(1000), [&]()
+          {
+            return status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+          });
+          REQUIRE(completed);
+        }
+
+        timer.reset();
+      }
+
+      AND_WHEN("dispenser result is failed")
+      {
+        auto dispenser_result_pub = transport->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
+        rclcpp::TimerBase::SharedPtr timer;
+        std::function<void()> publish_result = [&]()
+        {
+          std::unique_lock<std::mutex> lk(m);
+          DispenserResult result;
+          result.request_guid = request_guid;
+          result.status = DispenserResult::FAILED;
+          result.time = transport->now();
+          dispenser_result_pub->publish(result);
+          timer = transport->create_wall_timer(std::chrono::milliseconds(100), publish_result);
+        };
+        publish_result();
+
+        THEN("it is failed")
+        {
+          std::unique_lock<std::mutex> lk(m);
+          bool completed = status_updates_cv.wait_for(lk, std::chrono::milliseconds(1000), [&]()
+          {
+            return status_updates.back().state == Task::StatusMsg::STATE_FAILED;
+          });
+          REQUIRE(completed);
+        }
+
+        timer.reset();
+      }
+
+      sub.unsubscribe();
+    }
   }
-};
-
-TEST_CASE_METHOD(DispenseItemFixture, "publishes dispenser request", "[DispenseItem]")
-{
-  bool received = false;
-  rxcpp::composite_subscription rx_subscription;
-  auto rcl_subscription = transport->create_subscription<DispenserRequest>(
-    DispenserRequestTopicName,
-    10,
-    [&](DispenserRequest::UniquePtr)
-    {
-      received = true;
-      rx_subscription.unsubscribe();
-    });
-  active_phase->observe().as_blocking().subscribe(rx_subscription);
-  REQUIRE(received);
-}
-
-TEST_CASE_METHOD(DispenseItemFixture, "continuously send dispenser requests", "[DispenseItem]")
-{
-  int received = 0;
-  rxcpp::composite_subscription rx_subscription;
-  auto rcl_subscription = transport->create_subscription<DispenserRequest>(
-    DispenserRequestTopicName,
-    10,
-    [&](DispenserRequest::UniquePtr)
-    {
-      received++;
-      if (received >= 2)
-        rx_subscription.unsubscribe();
-    });
-  active_phase->observe().as_blocking().subscribe(rx_subscription);
-  REQUIRE(received >= 2);
 }
 
 } // namespace test

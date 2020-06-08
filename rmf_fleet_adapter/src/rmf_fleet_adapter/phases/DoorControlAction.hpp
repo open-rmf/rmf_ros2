@@ -46,12 +46,6 @@ public:
     return _obs;
   }
 
-  inline void cancel()
-  {
-    _timer.reset();
-    _cancelled.get_subscriber().on_next(true);
-  }
-
 private:
 
   std::string _door_name;
@@ -66,7 +60,6 @@ private:
   std::string _session_id;
   bool _supervisor_received_publish = false;
   bool _supervisor_finished_request = false;
-  rxcpp::subjects::behavior<bool> _cancelled{false};
 
   void _update_status(
     const rmf_door_msgs::msg::DoorState::SharedPtr& door_state,
