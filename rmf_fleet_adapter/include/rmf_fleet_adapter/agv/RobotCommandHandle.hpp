@@ -29,6 +29,21 @@ class RobotCommandHandle
 {
 public:
 
+  using Duration = rmf_traffic::Duration;
+
+  /// Use this callback function to update the fleet adapter on how long the
+  /// robot will take to reach its next destination.
+  ///
+  /// \param[in] path_index
+  ///   The index of the path element that the robot is currently heading
+  ///   towards.
+  ///
+  /// \param[in] remaining_time
+  ///   An estimate of how much longer the robot will take to arrive at
+  ///   `path_index`.
+  using ArrivalEstimator =
+      std::function<void(std::size_t path_index, Duration remaining_time)>;
+
   /// Have the robot follow a new path. If it was already following a path, then
   /// it should immediately switch over to this one.
   ///
@@ -39,10 +54,18 @@ public:
   ///   because the waypoint timing is used to avoid traffic conflicts with
   ///   other vehicles.
   ///
+  /// \param[in] next_arrival_estimate
+  ///   Give an estimate for how long the robot will take to reach the path
+  ///   element of the specified index. You should still be calling
+  ///   RobotUpdateHandle::update_position() even as you call this function.
+  ///
   /// \param[in] path_finished_callback
   ///   Trigger this callback when the robot is done following the new path.
+  ///   You do not need to trigger waypoint_arrival_callback when triggering
+  ///   this one.
   virtual void follow_new_path(
       const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
+      ArrivalEstimator next_arrival_estimator,
       std::function<void()> path_finished_callback) = 0;
 
   /// Have the robot come to an immediate stop.

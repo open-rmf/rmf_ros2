@@ -47,7 +47,6 @@ struct MoveRobot
   private:
 
     agv::RobotContextPtr _context;
-    std::vector<rmf_traffic::agv::Plan::Waypoint> _waypoints;
     std::string _description;
     rxcpp::observable<Task::StatusMsg> _obs;
     rxcpp::subjects::subject<bool> _cancel_subject;
@@ -74,7 +73,7 @@ struct MoveRobot
     std::string _description;
   };
 
-  class Action
+  class Action : public std::enable_shared_from_this<Action>
   {
   public:
 
@@ -87,20 +86,80 @@ struct MoveRobot
 
   private:
 
-    agv::RobotContextPtr& _context;
-    std::vector<rmf_traffic::agv::Plan::Waypoint>& _waypoints;
+    agv::RobotContextPtr _context;
+    std::vector<rmf_traffic::agv::Plan::Waypoint> _waypoints;
+    std::size_t _next_path_index = 0;
+    rmf_traffic::Duration _current_delay = rmf_traffic::Duration(0);
   };
 };
 
 template<typename Subscriber>
 void MoveRobot::Action::operator()(const Subscriber& s)
 {
-  _context->command()->follow_new_path(_waypoints, [s]()
+  _context->command()->follow_new_path(
+        _waypoints,
+        [s, w_action = weak_from_this()](
+        std::size_t path_index, rmf_traffic::Duration estimate)
   {
-    Task::StatusMsg status;
-    status.status = Task::StatusMsg::STATE_COMPLETED;
-    status.status = "success";
-    s.on_next(status);
+    const auto action = w_action.lock();
+    if (!action)
+      return;
+
+    if (path_index != action->_next_path_index)
+    {
+      action->_next_path_index = path_index;
+      Task::StatusMsg msg;
+      msg.state = Task::StatusMsg::STATE_ACTIVE;
+
+      if (path_index < action->_waypoints.size())
+      {
+        std::ostringstream oss;
+        oss << "Moving robot ("
+            << action->_waypoints[path_index].position().transpose() << ") -> ("
+            << action->_waypoints.back().position().transpose() << ")";
+        msg.status = oss.str();
+      }
+      else
+      {
+        std::ostringstream oss;
+        oss << "Moving robot | ERROR: Bad state. Arrived at path index ["
+            << path_index << "] but path only has ["
+            << action->_waypoints.size() << "] elements.";
+        msg.status = oss.str();
+      }
+
+      s.on_next(msg);
+    }
+
+    if (action->_next_path_index >= action->_waypoints.size())
+    {
+      // TODO(MXG): Consider a warning here. We'll ignore it for now, because
+      // maybe it was called when the robot arrived at the final waypoint.
+      return;
+    }
+
+    rmf_traffic::Time t = action->_context->now();
+    const auto previously_expected_arrival =
+        action->_waypoints[path_index].time() + action->_current_delay;
+    const auto newly_expected_arrival = t + estimate;
+    const auto new_delay = newly_expected_arrival - previously_expected_arrival;
+
+    if (std::chrono::seconds(2) < new_delay)
+    {
+      action->_current_delay += new_delay;
+      action->_context->worker().schedule(
+            [context = action->_context, t, new_delay](const auto&)
+      {
+        context->itinerary().delay(t, new_delay);
+      });
+    }
+  },
+        [s]()
+  {
+    Task::StatusMsg msg;
+    msg.status = Task::StatusMsg::STATE_COMPLETED;
+    msg.status = "success";
+    s.on_next(msg);
     s.on_completed();
   });
 }

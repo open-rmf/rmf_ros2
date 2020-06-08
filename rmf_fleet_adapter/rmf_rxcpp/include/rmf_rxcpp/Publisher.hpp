@@ -8,6 +8,8 @@
 namespace rmf_rxcpp {
 
 //==============================================================================
+// TODO(MXG): This class appears to be redundant with the
+// rxcpp::subjects::subject class, so it should probably be thrown out.
 template<typename T>
 class Publisher
 {

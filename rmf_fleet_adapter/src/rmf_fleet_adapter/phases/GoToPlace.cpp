@@ -157,7 +157,7 @@ GoToPlace::Active::Active(
   StatusMsg initial_msg;
   initial_msg.status =
       "Planning a move to [" + std::to_string(_goal.waypoint()) + "]";
-  const auto now = _context->node().now();
+  const auto now = _context->node()->now();
   initial_msg.start_time = now;
   initial_msg.end_time = now + rclcpp::Duration(_latest_time_estimate);
   _status_publisher.publish(initial_msg);
@@ -203,7 +203,7 @@ void GoToPlace::Active::find_emergency_plan()
 
   StatusMsg emergency_msg;
   emergency_msg.status = "Planning an emergency pullover";
-  emergency_msg.start_time = _context->node().now();
+  emergency_msg.start_time = _context->node()->now();
   emergency_msg.end_time = emergency_msg.start_time;
   _status_publisher.publish(emergency_msg);
 
@@ -405,7 +405,7 @@ auto GoToPlace::make(
   if (!estimate.cost_estimate())
   {
     RCLCPP_ERROR(
-          context->node().get_logger(),
+          context->node()->get_logger(),
           "[GoToPlace] Unable to find any path for robot [%s] to get from "
           "waypoint [%d] to waypoint [%d]",
           context->name().c_str(), start_estimate.waypoint(), goal.waypoint());
