@@ -28,11 +28,12 @@ find_package(pybind11 REQUIRED)
 
 pybind11_add_module(rmf_adapter
   src/adapter.cpp
-  src/types.cpp
   src/tests.cpp
+  src/types/types.cpp
   src/graph/graph.cpp
   src/graph/lane.cpp
   src/geometry/shapes.cpp
+  src/planner/planner.cpp
   src/vehicletraits/vehicletraits.cpp
 )
 target_link_libraries(rmf_adapter PRIVATE

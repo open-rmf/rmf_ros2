@@ -16,6 +16,14 @@ print(dir(adpt))
 
 
 
+## Running the Integration Test
+
+```shell
+ros2 run rmf_mock_adapter_python test_adapter
+```
+
+
+
 ## Creating your own RobotCommandHandle
 
 Python bindings have been written for the `rmf_mock_adapter::RobotCommandHandle` abstract class that allows you to implement it in Python and have it communicate with the C++ code, as well as other Python bound `rmf_mock_adapter` classes and methods.
@@ -146,11 +154,37 @@ $ cd <workspace_dir>
 # Invoke the tests
 $ colcon test --packages-select rmf_mock_adapter_python --event-handlers console_direct+
 ```
+
+
+
 ## Gotchas
 
+### Pointer Indirection Gotchas
+
 - `clone_ptr` indirection does not seem to work correctly currently! Be **very careful**!
-- The only way to do pointer indirection is to do it via the objects that manage them. Unfortunately there isn't much of a workaround given that most of the pointers point to abstract classes.
-- Unfortunately, since there is no way to instantiate VelocityConstraint pointers yet, you cannot pass them into `Node`s yet.
-  - `VelocityConstraint::clone` is not bound. And overriding it in Python doesn't expose the underlying pointer.
+- The only way surefire way to do pointer indirection is to do it via the objects that manage them. Unfortunately there isn't much of a workaround given that most of the pointers point to abstract classes.
 - For most of the other pointers, you must make them using the various factory functions. Do not instantiate them directly since you will not be able to configure their internal members, even if those members are public.
   - No explicit bound methods exist for them as they are meant to be pointers to implementations that might vary widely.
+
+### Missing Implementations
+
+- Unfortunately, since there is no way to instantiate VelocityConstraint pointers yet, you cannot pass them into `Node`s yet.
+  - `VelocityConstraint::clone` is not bound. And overriding it in Python doesn't expose the underlying pointer.
+
+### Update Handles Cannot be Directly Instantiated (Segfault risk!)
+
+- The `RobotUpdateHandle` and `FleetUpdateHandle` classes must **only be instantiated via their factory methods**!
+  - `FleetUpdateHandle` should be instantiated via `TestScenario` (via `add_fleet`)
+  - `RobotUpdateHandle` should be instantiated via `FleetUpdateHandle` (via `add_robot`)
+  - Doing otherwise will cause their members to contain null values which will **lead to segmentation faults**!!!
+
+### Different Kinds of Waypoints
+
+- The `graph` and `plan` submodules have their own internal `Waypoint` classes with different, but related interfaces!
+
+### Memory Leak
+
+- The destructor for `TestScenario` will be disabled soon to avoid a segfault on object deallocation. When that happens, be **very wary** of repeatedly creating or re-instantiating multiple `Scenario` objects since their memory will not be cleared as long as the program does not exit.
+  - This also means that you should preferably not be continuously and needlessly adding fleets and robots over and over repeatedly, since Scenarios will not get deallocated.
+
+

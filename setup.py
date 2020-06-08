@@ -47,7 +47,7 @@ class CMakeBuild(build_ext):
         cmake_args = ['-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=' + extdir,
                       '-DPYTHON_EXECUTABLE=' + sys.executable]
 
-        cfg = 'Debug' if self.debug else 'Release'
+        cfg = 'Debug'  # if self.debug else 'Release'
         build_args = ['--config', cfg]
 
         if platform.system() == "Windows":
@@ -77,7 +77,7 @@ class CMakeBuild(build_ext):
 setup(
     name=package_name,
     version=__version__,
-    packages=[], #['wrap_add_test'],
+    packages=['scripts'], #['wrap_add_test'],
     #package_dir={'wrap_add_test': 'scripts/wrap_add_test'},
     author='methylDragon',
     author_email='methylDragon@gmail.com',
@@ -89,7 +89,7 @@ setup(
     cmdclass={'build_ext': CMakeBuild},
     zip_safe=False,
     entry_points={'console_scripts': [
-        #'wrap_add_test = wrap_add_test.wrap_add_test:main'
+        'test_adapter = scripts.test_adapter:main'
     ]},
     license='Apache License, Version 2.0',
     install_requires=['setuptools'],
