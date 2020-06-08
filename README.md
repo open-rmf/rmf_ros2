@@ -3,6 +3,12 @@ Python bindings for https://github.com/osrf/rmf_mock_adapter
 
 
 
+## Installation
+
+- Place the `pybind_ament` and `rmf_mock_adapter_python` packages in your ROS2 workspace, and run `colcon build` as per normal.
+
+
+
 ## Using the Bindings
 
 Ensure that you have built this package and sourced its environment. Then it is as simple as importing the module containing the Python bindings!
