@@ -327,13 +327,7 @@ const rmf_traffic::agv::Graph& FleetAdapterNode::get_graph() const
 //==============================================================================
 auto FleetAdapterNode::get_waypoint_keys() const -> const WaypointKeys&
 {
-  return _field->graph_info.keys;
-}
-
-//==============================================================================
-auto FleetAdapterNode::get_waypoint_names() const -> const WaypointNames&
-{
-  return _field->graph_info.waypoint_names;
+  return _field->graph_info.graph.keys();
 }
 
 //==============================================================================

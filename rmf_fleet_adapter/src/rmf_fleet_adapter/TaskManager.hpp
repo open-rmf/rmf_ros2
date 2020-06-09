@@ -47,6 +47,10 @@ public:
   /// task queue.
   StartSet expected_finish_location() const;
 
+  const agv::RobotContextPtr& context();
+
+  agv::ConstRobotContextPtr context() const;
+
 private:
   agv::RobotContextPtr _context;
   std::unique_ptr<Task> _active_task;

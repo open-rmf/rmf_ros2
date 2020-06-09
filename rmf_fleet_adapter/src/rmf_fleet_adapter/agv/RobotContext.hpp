@@ -132,6 +132,7 @@ private:
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;
+using ConstRobotContextPtr = std::shared_ptr<const RobotContext>;
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

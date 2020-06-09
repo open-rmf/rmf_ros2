@@ -77,8 +77,7 @@ rmf_utils::optional<GraphInfo> parse_graph(
         const std::string& name = name_option.as<std::string>();
         if (!name.empty())
         {
-          const auto ins = info.keys.insert(std::make_pair(name, wp.index()));
-          if (!ins.second)
+          if (!info.graph.add_key(name, wp.index()))
           {
             RCLCPP_ERROR(
               node.get_logger(),
@@ -86,8 +85,6 @@ rmf_utils::optional<GraphInfo> parse_graph(
               + graph_file + "]");
             return rmf_utils::nullopt;
           }
-
-          info.waypoint_names.insert(std::make_pair(wp.index(), name));
         }
       }
 
@@ -227,7 +224,7 @@ rmf_utils::optional<GraphInfo> parse_graph(
     generic_waypoint.erase(workcell_wp.first);
 
   std::cout << "Named waypoints:";
-  for (const auto& key : info.keys)
+  for (const auto& key : info.graph.keys())
     std::cout << "\n -- [" << key.first << "]";
   std::cout << std::endl;
 

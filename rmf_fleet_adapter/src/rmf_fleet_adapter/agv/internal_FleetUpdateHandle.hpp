@@ -22,6 +22,7 @@
 
 #include "Node.hpp"
 #include "RobotContext.hpp"
+#include "../TaskManager.hpp"
 
 #include <rmf_traffic/schedule/Snapshot.hpp>
 
@@ -115,7 +116,8 @@ public:
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
   AcceptDeliveryRequest accept_delivery;
 
-  std::vector<RobotContextPtr> robots = {};
+//  std::vector<RobotContextPtr> robots = {};
+  std::vector<TaskManager> task_managers;
 
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
@@ -128,8 +130,8 @@ public:
 
   struct DeliveryEstimate
   {
-    rmf_traffic::Time time;
-    RobotContextPtr robot;
+    rmf_traffic::Time time = rmf_traffic::Time::max();
+    RobotContextPtr robot = nullptr;
   };
 
   static DeliveryEstimate estimate_delivery(

@@ -20,6 +20,13 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
+TaskManager::TaskManager(agv::RobotContextPtr context)
+  : _context(std::move(context))
+{
+  // Do nothing
+}
+
+//==============================================================================
 void TaskManager::queue_task(Task task, Start expected_finish)
 {
   _queue.push_back(std::make_unique<Task>(std::move(task)));
@@ -36,6 +43,18 @@ auto TaskManager::expected_finish_location() const -> StartSet
     return {*_expected_finish_location};
 
   return _context->location();
+}
+
+//==============================================================================
+const agv::RobotContextPtr& TaskManager::context()
+{
+  return _context;
+}
+
+//==============================================================================
+agv::ConstRobotContextPtr TaskManager::context() const
+{
+  return _context;
 }
 
 //==============================================================================

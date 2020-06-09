@@ -206,7 +206,7 @@ std::unique_ptr<Task> make_delivery(
   FleetAdapterNode::RobotContext* const context,
   rmf_task_msgs::msg::Delivery delivery)
 {
-  const auto& waypoint_keys = node->get_fields().graph_info.keys;
+  const auto& waypoint_keys = node->get_fields().graph_info.graph.keys();
   const auto& dispenser_names = node->get_fields().graph_info.workcell_names;
   const auto& task_id = delivery.task_id;
 

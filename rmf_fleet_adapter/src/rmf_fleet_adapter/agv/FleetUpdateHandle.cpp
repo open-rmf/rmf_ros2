@@ -63,7 +63,17 @@ auto FleetUpdateHandle::Implementation::estimate_delivery(
     const rmf_task_msgs::msg::Delivery& request)
 -> DeliveryEstimate
 {
+  // TODO(MXG): At some point we should consider parallelizing this estimation
+  // process and taking the existing schedule into account, but for now we'll
+  // try to use a very quick rough estimate.
+  DeliveryEstimate best;
+  for (const auto& mgr : fleet._pimpl->task_managers)
+  {
+    const auto start = mgr.expected_finish_location();
+    const auto planner = mgr.context()->planner();
 
+//    request.pickup_place_name
+  }
 }
 
 //==============================================================================
@@ -112,7 +122,7 @@ void FleetUpdateHandle::add_robot(
             std::make_unique<LiaisonNegotiator>(context));
     }
 
-    fleet->_pimpl->robots.push_back(context);
+    fleet->_pimpl->task_managers.push_back(context);
     return RobotUpdateHandle::Implementation::make(std::move(context));
   });
 }

@@ -24,6 +24,7 @@
 #include "DoorOpen.hpp"
 #include "DoorClose.hpp"
 #include "RequestLift.hpp"
+#include "DockRobot.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -252,7 +253,9 @@ public:
 
   void execute(const Dock& dock) final
   {
-    // TODO(MXG): Implement this
+    _phases.push_back(
+          std::make_unique<phases::DockRobot::PendingPhase>(
+            _context, dock.dock_name()));
   }
 
   void execute(const DoorOpen& open) final
