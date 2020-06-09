@@ -10,18 +10,16 @@ endif()
 
 find_package(Threads REQUIRED)
 
-add_library(rmf_rxcpp STATIC
-  src/Transport.cpp
-)
+add_library(rmf_rxcpp INTERFACE)
 
 target_include_directories(rmf_rxcpp
-  PUBLIC
+  INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/RxCpp-4.1.0/Rx/v2/src
     ${rclcpp_INCLUDE_DIRS}
 )
 target_link_libraries(rmf_rxcpp
-  PUBLIC
+  INTERFACE
     Threads::Threads
     ${rclcpp_LIBRARIES}
 )

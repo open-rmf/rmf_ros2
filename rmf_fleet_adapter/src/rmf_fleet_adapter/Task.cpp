@@ -25,11 +25,18 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-Task::Task(std::vector<std::unique_ptr<PendingPhase>> phases)
-  : _pending_phases(std::move(phases))
+Task::Task(std::string id, std::vector<std::unique_ptr<PendingPhase>> phases)
+  : _id(std::move(id)),
+    _pending_phases(std::move(phases))
 {
   std::reverse(_pending_phases.begin(), _pending_phases.end());
-  _start_next_phase();
+}
+
+//==============================================================================
+void Task::begin()
+{
+  if (!_active_phase)
+    _start_next_phase();
 }
 
 //==============================================================================
@@ -61,6 +68,12 @@ void Task::cancel()
 {
   _pending_phases.clear();
   _active_phase->cancel();
+}
+
+//==============================================================================
+const std::string& Task::id() const
+{
+  return _id;
 }
 
 //==============================================================================

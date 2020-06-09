@@ -15,9 +15,14 @@
  *
 */
 
+#include <phases/MoveRobot.hpp>
+#include <rmf_fleet_adapter/agv/Adapter.hpp>
+
 #include <rmf_utils/catch.hpp>
 
-SCENARIO("Test GoToPlace")
+SCENARIO("Test MoveAction")
 {
+  const auto adapter = rmf_fleet_adapter::agv::Adapter::make("test_node");
+
 
 }

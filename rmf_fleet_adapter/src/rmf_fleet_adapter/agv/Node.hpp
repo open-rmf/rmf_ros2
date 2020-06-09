@@ -25,6 +25,7 @@
 #include <rmf_door_msgs/msg/supervisor_heartbeat.hpp>
 #include <rmf_lift_msgs/msg/lift_request.hpp>
 #include <rmf_lift_msgs/msg/lift_state.hpp>
+#include <rmf_task_msgs/msg/task_summary.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -34,9 +35,7 @@ class Node : public rmf_rxcpp::Transport
 {
 public:
 
-  Node(
-      const std::string& node_name,
-      const rclcpp::NodeOptions& options);
+  Node(const std::string& node_name, const rclcpp::NodeOptions& options);
 
   using DoorState = rmf_door_msgs::msg::DoorState;
   using DoorStateObs = rxcpp::observable<DoorState::SharedPtr>;
@@ -58,6 +57,10 @@ public:
   using LiftRequestPub = rclcpp::Publisher<LiftRequest>::SharedPtr;
   const LiftRequestPub& lift_request() const;
 
+  using TaskSummary = rmf_task_msgs::msg::TaskSummary;
+  using TaskSummaryPub = rclcpp::Publisher<TaskSummary>::SharedPtr;
+  const TaskSummaryPub& task_summary() const;
+
 private:
 
   DoorStateObs _door_state_obs;
@@ -65,6 +68,7 @@ private:
   DoorRequestPub _door_request_pub;
   LiftStateObs _lift_state_obs;
   LiftRequestPub _lift_request_pub;
+  TaskSummaryPub _task_summary_pub;
 };
 
 } // namespace agv

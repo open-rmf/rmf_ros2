@@ -37,6 +37,8 @@ Node::Node(const std::string& node_name, const rclcpp::NodeOptions& options)
         LiftStateTopicName, default_qos);
   _lift_request_pub = create_publisher<LiftRequest>(
         AdapterLiftRequestTopicName, default_qos);
+  _task_summary_pub = create_publisher<TaskSummary>(
+        TaskSummaryTopicName, default_qos);
 }
 
 //==============================================================================
@@ -67,6 +69,12 @@ auto Node::lift_state() const -> const LiftStateObs&
 auto Node::lift_request() const -> const LiftRequestPub&
 {
   return _lift_request_pub;
+}
+
+//==============================================================================
+auto Node::task_summary() const -> const TaskSummaryPub&
+{
+  return _task_summary_pub;
 }
 
 } // namespace agv

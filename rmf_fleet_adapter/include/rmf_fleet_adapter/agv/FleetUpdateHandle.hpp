@@ -21,6 +21,8 @@
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/RobotCommandHandle.hpp>
 
+#include <rmf_task_msgs/msg/delivery.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -60,6 +62,27 @@ public:
       const rmf_traffic::Profile& profile,
       rmf_traffic::agv::Plan::StartSet start,
       std::function<void(std::shared_ptr<RobotUpdateHandle> handle)> handle_cb);
+
+  /// A callback function that evaluates whether a fleet will accept a delivery
+  /// request.
+  ///
+  /// \param[in] request
+  ///   Information about the delivery request that is being considered.
+  ///
+  /// \return true to indicate that this fleet should accept the request, false
+  /// to reject the request.
+  using AcceptDeliveryRequest =
+      std::function<bool(const rmf_task_msgs::msg::Delivery& request)>;
+
+  /// Provide a callback that indicates whether this fleet will accept a
+  /// delivery request. By default all delivery requests will be rejected.
+  ///
+  /// \note The callback function that you give should ideally be non-blocking
+  /// and return quickly. It's meant to check whether this fleet's vehicles are
+  /// compatible with the requested payload, pickup, and dropoff behavior
+  /// settings. The path planning feasibility will be taken care of by the
+  /// adapter internally.
+  FleetUpdateHandle& accept_delivery_requests(AcceptDeliveryRequest check);
 
   class Implementation;
 private:

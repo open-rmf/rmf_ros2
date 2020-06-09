@@ -26,6 +26,11 @@
 
 namespace rmf_rxcpp {
 
+// TODO(MXG): We define all the member functions of this class inline so that we
+// don't need to export/install rmf_rxcpp as its own shared library (linking to
+// it as a static library results in linking errors related to symbols not being
+// relocatable). This is a quick and dirty solution to the linking problem, so
+// we may want to consider replacing it with something cleaner.
 class Transport : public rclcpp::Node
 {
 public:
@@ -41,9 +46,21 @@ public:
   /**
    * Not threadsafe
    */
-  void start();
+  void start()
+  {
+    if (!_stopping)
+      return;
 
-  void stop();
+    _stopping = false;
+    _spin_thread = std::thread{[this]() { _do_spin(); }};
+  }
+
+  void stop()
+  {
+    _stopping = true;
+    if (_spin_thread.joinable())
+      _spin_thread.join();
+  }
 
   /**
    * Creates a sharable observable that is bridged to a rclcpp subscription and is observed on an
@@ -70,7 +87,16 @@ private:
   std::thread _spin_thread;
   bool _stopping = true;
 
-  void _do_spin();
+  void _do_spin()
+  {
+    rclcpp::executor::ExecutorArgs exec_args;
+    exec_args.context = this->get_node_options().context();
+    rclcpp::executors::SingleThreadedExecutor executor(exec_args);
+    executor.add_node(shared_from_this());
+
+    while (!_stopping)
+      executor.spin_some();
+  }
 };
 
 } // namespace rmf_rxcpp

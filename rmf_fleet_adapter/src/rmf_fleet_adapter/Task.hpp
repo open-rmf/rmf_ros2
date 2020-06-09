@@ -89,7 +89,9 @@ public:
     std::function<void(const StatusMsg&)>;
 
   /// Construct a Task
-  Task(std::vector<std::unique_ptr<PendingPhase>> phases);
+  Task(std::string id, std::vector<std::unique_ptr<PendingPhase>> phases);
+
+  void begin();
 
   /// Get a reference to an observable for the status of this Task
   const rxcpp::observable<StatusMsg>& observe() const;
@@ -108,8 +110,11 @@ public:
   /// Cancel this task
   void cancel();
 
+  const std::string& id() const;
+
 private:
 
+  std::string _id;
   rmf_rxcpp::Publisher<StatusMsg> _status_publisher;
 
   std::shared_ptr<ActivePhase> _active_phase;

@@ -58,6 +58,15 @@ public:
 } // anonymous namespace
 
 //==============================================================================
+auto FleetUpdateHandle::Implementation::estimate_delivery(
+    const FleetUpdateHandle& fleet,
+    const rmf_task_msgs::msg::Delivery& request)
+-> DeliveryEstimate
+{
+
+}
+
+//==============================================================================
 void FleetUpdateHandle::add_robot(
     std::shared_ptr<RobotCommandHandle> command,
     const std::string& name,
@@ -90,14 +99,30 @@ void FleetUpdateHandle::add_robot(
             fleet->_pimpl->worker
           });
 
-    context->_negotiation_license = fleet->_pimpl->negotiation
-        ->register_negotiator(
-          context->itinerary().id(),
-          std::make_unique<LiaisonNegotiator>(context));
+    // TODO(MXG): We need to perform this test because we do not currently
+    // support the distributed negotiation in unit test environments. We should
+    // create an abstract NegotiationRoom interface in rmf_traffic and use that
+    // instead.
+    if (fleet->_pimpl->negotiation)
+    {
+      context->_negotiation_license =
+          fleet->_pimpl->negotiation
+          ->register_negotiator(
+            context->itinerary().id(),
+            std::make_unique<LiaisonNegotiator>(context));
+    }
 
     fleet->_pimpl->robots.push_back(context);
     return RobotUpdateHandle::Implementation::make(std::move(context));
   });
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::accept_delivery_requests(
+    AcceptDeliveryRequest check)
+{
+  _pimpl->accept_delivery = std::move(check);
+  return *this;
 }
 
 //==============================================================================
