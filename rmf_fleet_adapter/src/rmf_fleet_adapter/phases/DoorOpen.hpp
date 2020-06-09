@@ -18,10 +18,13 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__DOOROPEN_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__DOOROPEN_HPP
 
-#include "DoorControlAction.hpp"
+#include "DoorClose.hpp"
 #include "../Task.hpp"
 
 #include <rmf_rxcpp/Transport.hpp>
+#include <rmf_door_msgs/msg/door_state.hpp>
+#include <rmf_door_msgs/msg/door_request.hpp>
+#include <rmf_door_msgs/msg/supervisor_heartbeat.hpp>
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -34,7 +37,8 @@ struct DoorOpen
 
     ActivePhase(
       std::string door_name,
-      std::weak_ptr<rmf_rxcpp::Transport> transport,
+      std::string request_id,
+      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
       rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
       rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs);
 
@@ -51,13 +55,23 @@ struct DoorOpen
   private:
 
     std::string _door_name;
+    std::string _request_id;
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
     rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> _door_state_obs;
     rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
-    DoorControlAction _action;
     rxcpp::subjects::behavior<bool> _cancelled = rxcpp::subjects::behavior<bool>(false);
     rxcpp::observable<Task::StatusMsg> _obs;
     std::string _description;
+    rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _door_req_pub;
+    rclcpp::TimerBase::SharedPtr _timer;
+    Task::StatusMsg _status;
+    DoorClose::ActivePhase _door_close_phase;
+
+    void _publish_open_door();
+
+    void _update_status(
+      const rmf_door_msgs::msg::DoorState::SharedPtr& door_state,
+      const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat);
   };
 
   class PendingPhase : public Task::PendingPhase
@@ -66,6 +80,7 @@ struct DoorOpen
 
     PendingPhase(
       std::string door_name,
+      std::string request_id,
       std::weak_ptr<rmf_rxcpp::Transport> transport,
       rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
       rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs);
@@ -79,6 +94,7 @@ struct DoorOpen
   private:
 
     std::string _door_name;
+    std::string _request_id;
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
     rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> _door_state_obs;
     rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;

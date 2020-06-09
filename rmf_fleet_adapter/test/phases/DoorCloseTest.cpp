@@ -50,12 +50,12 @@ SCENARIO_METHOD(TransportFixture, "door close phase", "[phases]")
   GIVEN("a door close phase")
   {
     std::string door_name = "test_door";
-    auto door_state_obs = transport->create_observable<DoorState>(DoorStateTopicName, 10);
+    std::string request_id = "test_id";
     auto heartbeat_obs = transport->create_observable<SupervisorHeartbeat>(DoorSupervisorHeartbeatTopicName, 10);
     auto pending_phase = std::make_shared<DoorClose::PendingPhase>(
       door_name,
+      request_id,
       transport,
-      door_state_obs,
       heartbeat_obs
     );
     auto active_phase = pending_phase->begin();
@@ -91,10 +91,8 @@ SCENARIO_METHOD(TransportFixture, "door close phase", "[phases]")
         }
       }
 
-      THEN("it should complete only after door supervisor releases session")
+      THEN("it is completed after door supervisor releases session, regardless of the door state")
       {
-        std::condition_variable published_heartbeat_cv;
-        std::atomic<bool> published_heartbeat(false);
         auto door_state_pub = transport->create_publisher<DoorState>(DoorStateTopicName, 10);
         auto heartbeat_pub = transport->create_publisher<SupervisorHeartbeat>(DoorSupervisorHeartbeatTopicName, 10);
         auto rcl_subscription2 = transport->create_subscription<DoorRequest>(
@@ -105,9 +103,10 @@ SCENARIO_METHOD(TransportFixture, "door close phase", "[phases]")
             DoorState door_state;
             door_state.door_name = door_name;
             door_state.door_time = transport->now();
-            door_state.current_mode.value = door_request->requested_mode.value;
+            door_state.current_mode.value = DoorMode::MODE_OPEN;
             door_state_pub->publish(door_state);
 
+            // supervisor has session
             Session session;
             session.requester_id = door_request->requester_id;
             session.request_time = door_request->request_time;
@@ -117,14 +116,7 @@ SCENARIO_METHOD(TransportFixture, "door close phase", "[phases]")
             SupervisorHeartbeat heartbeat;
             heartbeat.all_sessions.emplace_back(std::move(door_sessions));
             heartbeat_pub->publish(heartbeat);
-            published_heartbeat = true;
-            published_heartbeat_cv.notify_all();
           });
-
-        {
-          std::unique_lock<std::mutex> lk(m);
-          published_heartbeat_cv.wait(lk, [&]() { return published_heartbeat.load(); });
-        }
 
         // phase should not complete yet as supervisor haven't release the session
         {
@@ -142,7 +134,7 @@ SCENARIO_METHOD(TransportFixture, "door close phase", "[phases]")
           REQUIRE(!completed);
         }
 
-        // supervisor released session
+        // supervisor released session, door state still opened
         heartbeat_pub->publish(SupervisorHeartbeat());
 
         // phase should now complete
