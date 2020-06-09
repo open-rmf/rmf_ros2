@@ -104,6 +104,12 @@ const std::string& RobotContext::name() const
 }
 
 //==============================================================================
+const std::string& RobotContext::requester_id() const
+{
+  return _requester_id;
+}
+
+//==============================================================================
 const rmf_traffic::agv::Graph& RobotContext::navigation_graph() const
 {
   return _planner->get_configuration().graph();
@@ -215,7 +221,9 @@ RobotContext::RobotContext(
     _schedule(std::move(schedule)),
     _planner(std::move(planner)),
     _node(std::move(node)),
-    _worker(worker)
+    _worker(worker),
+    _requester_id(
+      _itinerary.description().owner() + "/" + _itinerary.description().name())
 {
   // Do nothing
 }

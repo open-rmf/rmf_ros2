@@ -26,9 +26,17 @@ namespace agv {
 Node::Node(const std::string& node_name, const rclcpp::NodeOptions& options)
   : rmf_rxcpp::Transport(node_name, options)
 {
-  _door_state_obs = create_observable<DoorState>(DoorStateTopicName, 10);
+  auto default_qos = rclcpp::SystemDefaultsQoS();
+  _door_state_obs = create_observable<DoorState>(
+        DoorStateTopicName, default_qos);
   _door_supervisor_obs = create_observable<DoorSupervisorState>(
-        DoorSupervisorHeartbeatTopicName, 10);
+        DoorSupervisorHeartbeatTopicName, default_qos);
+  _door_request_pub = create_publisher<DoorRequest>(
+        AdapterDoorRequestTopicName, default_qos);
+  _lift_state_obs = create_observable<LiftState>(
+        LiftStateTopicName, default_qos);
+  _lift_request_pub = create_publisher<LiftRequest>(
+        AdapterLiftRequestTopicName, default_qos);
 }
 
 //==============================================================================
@@ -41,6 +49,24 @@ auto Node::door_state() const -> const DoorStateObs&
 auto Node::door_supervisor() const -> const DoorSupervisorObs&
 {
   return _door_supervisor_obs;
+}
+
+//==============================================================================
+auto Node::door_request() const -> const DoorRequestPub&
+{
+  return _door_request_pub;
+}
+
+//==============================================================================
+auto Node::lift_state() const -> const LiftStateObs&
+{
+  return _lift_state_obs;
+}
+
+//==============================================================================
+auto Node::lift_request() const -> const LiftRequestPub&
+{
+  return _lift_request_pub;
 }
 
 } // namespace agv

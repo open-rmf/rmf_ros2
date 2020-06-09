@@ -257,25 +257,48 @@ public:
 
   void execute(const DoorOpen& open) final
   {
-    // TODO(MXG): Implement this
+    const auto node = _context->node();
+    _phases.push_back(
+          std::make_unique<phases::DoorOpen::PendingPhase>(
+            open.name(),
+            _context->requester_id(),
+            node,
+            node->door_state(),
+            node->door_supervisor(),
+            node->door_request()));
   }
 
   void execute(const DoorClose& close) final
   {
-    // TODO(MXG): Implement this
+    const auto node = _context->node();
+    _phases.push_back(
+          std::make_unique<phases::DoorClose::PendingPhase>(
+            close.name(),
+            _context->requester_id(),
+            node,
+            node->door_supervisor(),
+            node->door_request()));
   }
 
   void execute(const LiftDoorOpen& open) final
   {
-    // TODO(MXG): Implement this
+    const auto node = _context->node();
+    _phases.push_back(
+          std::make_unique<phases::RequestLift::PendingPhase>(
+            _context->requester_id(),
+            node,
+            open.lift_name(),
+            open.floor_name(),
+            node->lift_state(),
+            node->lift_request()));
   }
 
-  void execute(const LiftDoorClose& close) final
+  void execute(const LiftDoorClose& /*close*/) final
   {
     // Not supported yet
   }
 
-  void execute(const LiftMove& move) final
+  void execute(const LiftMove& /*move*/) final
   {
     // Not supported yet
   }

@@ -40,7 +40,8 @@ struct DoorOpen
       std::string request_id,
       const std::shared_ptr<rmf_rxcpp::Transport>& transport,
       rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
-      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs);
+      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+      rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -59,10 +60,10 @@ struct DoorOpen
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
     rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> _door_state_obs;
     rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
+    rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _door_req_pub;
     rxcpp::subjects::behavior<bool> _cancelled = rxcpp::subjects::behavior<bool>(false);
     rxcpp::observable<Task::StatusMsg> _obs;
     std::string _description;
-    rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _door_req_pub;
     rclcpp::TimerBase::SharedPtr _timer;
     Task::StatusMsg _status;
     DoorClose::ActivePhase _door_close_phase;
@@ -83,7 +84,8 @@ struct DoorOpen
       std::string request_id,
       std::weak_ptr<rmf_rxcpp::Transport> transport,
       rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
-      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs);
+      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+      rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
 
@@ -98,6 +100,7 @@ struct DoorOpen
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
     rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> _door_state_obs;
     rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
+    rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _door_request_pub;
     std::string _description;
   };
 };
