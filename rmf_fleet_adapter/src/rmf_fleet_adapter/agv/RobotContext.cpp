@@ -19,6 +19,8 @@
 
 #include <rmf_traffic_ros2/Time.hpp>
 
+#include <rmf_traffic/schedule/StubbornNegotiator.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -115,11 +117,11 @@ RobotContext::planner() const
 }
 
 //==============================================================================
-class RobotContext::NegotiatorSubscription
+class RobotContext::NegotiatorLicense
 {
 public:
 
-  NegotiatorSubscription(
+  NegotiatorLicense(
       std::shared_ptr<RobotContext> context,
       rmf_traffic::schedule::Negotiator* negotiator)
     : _context(context),
@@ -128,7 +130,7 @@ public:
     // Do nothing
   }
 
-  ~NegotiatorSubscription()
+  ~NegotiatorLicense()
   {
     const auto context = _context.lock();
     if (!context)
@@ -146,18 +148,56 @@ private:
 //==============================================================================
 auto RobotContext::set_negotiator(
     rmf_traffic::schedule::Negotiator* negotiator)
--> std::shared_ptr<NegotiatorSubscription>
+-> std::shared_ptr<NegotiatorLicense>
 {
   _negotiator = negotiator;
 
-  return std::make_shared<NegotiatorSubscription>(
+  return std::make_shared<NegotiatorLicense>(
         shared_from_this(), negotiator);
 }
 
 //==============================================================================
-rclcpp::Node& RobotContext::node()
+const rxcpp::observable<RobotContext::Empty>&
+RobotContext::observe_interrupt() const
 {
-  return *_node;
+  return _interrupt_publisher.observe();
+}
+
+//==============================================================================
+const std::shared_ptr<rmf_fleet_adapter::agv::Node>& RobotContext::node()
+{
+  return _node;
+}
+
+//==============================================================================
+std::shared_ptr<const Node> RobotContext::node() const
+{
+  return _node;
+}
+
+//==============================================================================
+const rxcpp::schedulers::worker& RobotContext::worker() const
+{
+  return _worker;
+}
+
+//==============================================================================
+void RobotContext::respond(
+    const TableViewerPtr& table_viewer,
+    const ResponderPtr& responder)
+{
+  if (_negotiator)
+    return _negotiator->respond(table_viewer, responder);
+
+  // If there is no negotiator assigned for this robot, then use a
+  // StubbornNegotiator.
+  //
+  // TODO(MXG): Consider if this should be scheduled on a separate thread
+  // instead of executed immediately. The StubbornNegotiator doesn't do any
+  // planning, so it should be able to finish quickly, but that should be
+  // verified with benchmarks.
+  rmf_traffic::schedule::StubbornNegotiator(_itinerary).respond(
+        table_viewer, responder);
 }
 
 //==============================================================================
@@ -166,14 +206,16 @@ RobotContext::RobotContext(
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
   rmf_traffic::schedule::Participant itinerary,
   std::shared_ptr<const Snappable> schedule,
-  rmf_traffic::agv::Planner::Configuration configuration,
-  rmf_traffic::agv::Planner::Options default_options)
+  std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+  std::shared_ptr<rmf_fleet_adapter::agv::Node> node,
+  const rxcpp::schedulers::worker& worker)
   : _command_handle(std::move(command_handle)),
     _location(std::move(_initial_location)),
     _itinerary(std::move(itinerary)),
     _schedule(std::move(schedule)),
-    _planner(std::make_shared<rmf_traffic::agv::Planner>(
-               std::move(configuration), std::move(default_options)))
+    _planner(std::move(planner)),
+    _node(std::move(node)),
+    _worker(worker)
 {
   // Do nothing
 }

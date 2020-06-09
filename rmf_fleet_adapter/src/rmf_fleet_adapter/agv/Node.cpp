@@ -15,40 +15,32 @@
  *
 */
 
-#include "internal_RobotUpdateHandle.hpp"
+#include "Node.hpp"
 
-#include <iostream>
+#include <rmf_fleet_adapter/StandardNames.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
-std::shared_ptr<RobotContext> RobotUpdateHandle::Implementation::get_context()
+Node::Node(const std::string& node_name, const rclcpp::NodeOptions& options)
+  : rmf_rxcpp::Transport(node_name, options)
 {
-  auto output = context.lock();
-  if (output)
-    return output;
-
-  if (reported_loss)
-    return nullptr;
-
-  std::cerr << "ERROR: [RobotUpdateHandle] Robot named [" << name << "] is no "
-            << "longer available" << std::endl;
-  reported_loss = true;
-  return nullptr;
+  _door_state_obs = create_observable<DoorState>(DoorStateTopicName, 10);
+  _door_supervisor_obs = create_observable<DoorSupervisorState>(
+        DoorSupervisorHeartbeatTopicName, 10);
 }
 
 //==============================================================================
-void RobotUpdateHandle::interrupted()
+auto Node::door_state() const -> const DoorStateObs&
 {
-  if (const auto context = _pimpl->get_context())
-    context->_interrupt_publisher.publish(RobotContext::Empty());
+  return _door_state_obs;
 }
 
 //==============================================================================
-RobotUpdateHandle::RobotUpdateHandle()
+auto Node::door_supervisor() const -> const DoorSupervisorObs&
 {
-  // Do nothing
+  return _door_supervisor_obs;
 }
 
 } // namespace agv

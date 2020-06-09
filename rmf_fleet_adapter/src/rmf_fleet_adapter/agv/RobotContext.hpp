@@ -3,6 +3,7 @@
 
 #include <rmf_fleet_adapter/agv/RobotCommandHandle.hpp>
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
+#include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
@@ -11,8 +12,11 @@
 #include <rclcpp/node.hpp>
 
 #include <rmf_rxcpp/Publisher.hpp>
+#include <rmf_rxcpp/Transport.hpp>
 
 #include <rxcpp/rx-observable.hpp>
+
+#include "Node.hpp"
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -68,20 +72,33 @@ public:
   /// Get a mutable reference to the planner for this robot
   const std::shared_ptr<const rmf_traffic::agv::Planner>& planner() const;
 
-  class NegotiatorSubscription;
+  class NegotiatorLicense;
 
   /// Set the schedule negotiator that will take responsibility for this robot.
   /// Hold onto the returned subscription to remain the negotiator for this
   /// robot.
-  std::shared_ptr<NegotiatorSubscription> set_negotiator(
+  std::shared_ptr<NegotiatorLicense> set_negotiator(
       rmf_traffic::schedule::Negotiator* negotiator);
 
   struct Empty { };
   const rxcpp::observable<Empty>& observe_interrupt() const;
 
-  rclcpp::Node& node();
+  /// Get a reference to the rclcpp node
+  const std::shared_ptr<Node>& node();
+
+  /// const-qualified node()
+  std::shared_ptr<const Node> node() const;
+
+  /// Get a reference to the worker for this robot. Use this worker to observe
+  /// callbacks that can modify the state of the robot.
+  const rxcpp::schedulers::worker& worker() const;
+
+  void respond(
+      const TableViewerPtr& table_viewer,
+      const ResponderPtr& responder) final;
 
 private:
+  friend class FleetUpdateHandle;
   friend class RobotUpdateHandle;
 
   RobotContext(
@@ -89,21 +106,26 @@ private:
     std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
     rmf_traffic::schedule::Participant itinerary,
     std::shared_ptr<const Snappable> schedule,
-    rmf_traffic::agv::Planner::Configuration configuration,
-    rmf_traffic::agv::Planner::Options default_options);
+    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+    std::shared_ptr<Node> node,
+    const rxcpp::schedulers::worker& worker);
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
   rmf_traffic::schedule::Participant _itinerary;
   std::shared_ptr<const Snappable> _schedule;
-  rmf_traffic::schedule::Negotiator* _negotiator = nullptr;
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
+
+  std::shared_ptr<void> _negotiation_license;
 
   rmf_rxcpp::Publisher<Empty> _interrupt_publisher;
 
   // We're assuming that a RobotContextPtr is being held by the Node, so we
   // shouldn't have to worry about the lifetime of the Node
-  rclcpp::Node* _node;
+  std::shared_ptr<Node> _node;
+  rxcpp::schedulers::worker _worker;
+
+  rmf_traffic::schedule::Negotiator* _negotiator = nullptr;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

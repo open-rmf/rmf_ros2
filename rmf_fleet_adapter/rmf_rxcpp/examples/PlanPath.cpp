@@ -244,7 +244,9 @@ struct MetaPlannerAction
     const rmf_traffic::agv::VehicleTraits traits(
         {0.7, 0.3}, {1.0, 0.45}, profile);
 
-    rmf_traffic::schedule::Database master_schedule;
+    const auto master_schedule =
+        std::make_shared<rmf_traffic::schedule::Database>();
+
     auto p_A = rmf_traffic::schedule::make_participant(
           description, master_schedule);
 

@@ -134,7 +134,7 @@ void GoToPlace::Active::respond(
 
   _negotiate_subscription = rmf_rxcpp::make_job<services::Negotiate::Result>(
         std::move(negotiate))
-      .observe_on(rxcpp::observe_on_event_loop())
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
         [phase = std::move(phase)](const auto& result)
   {
@@ -157,7 +157,7 @@ GoToPlace::Active::Active(
   StatusMsg initial_msg;
   initial_msg.status =
       "Planning a move to [" + std::to_string(_goal.waypoint()) + "]";
-  const auto now = _context->node().now();
+  const auto now = _context->node()->now();
   initial_msg.start_time = now;
   initial_msg.end_time = now + rclcpp::Duration(_latest_time_estimate);
   _status_publisher.publish(initial_msg);
@@ -177,7 +177,7 @@ void GoToPlace::Active::find_plan()
         std::make_shared<services::FindPath>(
           _context->planner(), _context->location(), _goal,
           _context->schedule()->snapshot(), _context->itinerary().id()))
-      .observe_on(rxcpp::observe_on_event_loop())
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
         [phase = std::move(phase)](const services::FindPath::Result& result)
   {
@@ -203,7 +203,7 @@ void GoToPlace::Active::find_emergency_plan()
 
   StatusMsg emergency_msg;
   emergency_msg.status = "Planning an emergency pullover";
-  emergency_msg.start_time = _context->node().now();
+  emergency_msg.start_time = _context->node()->now();
   emergency_msg.end_time = emergency_msg.start_time;
   _status_publisher.publish(emergency_msg);
 
@@ -212,7 +212,7 @@ void GoToPlace::Active::find_emergency_plan()
         std::make_shared<services::FindEmergencyPullover>(
           _context->planner(), _context->location(),
           _context->schedule()->snapshot(), _context->itinerary().id()))
-      .observe_on(rxcpp::observe_on_event_loop())
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
         [phase = std::move(phase)](
         const services::FindEmergencyPullover::Result& result)
@@ -333,7 +333,7 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
   auto phase = std::enable_shared_from_this<Active>::shared_from_this();
   _subtasks = Task(std::move(sub_phases));
   _status_subscription = _subtasks->observe()
-      .observe_on(rxcpp::observe_on_event_loop())
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
         [phase](const StatusMsg& msg)
         {
@@ -405,7 +405,7 @@ auto GoToPlace::make(
   if (!estimate.cost_estimate())
   {
     RCLCPP_ERROR(
-          context->node().get_logger(),
+          context->node()->get_logger(),
           "[GoToPlace] Unable to find any path for robot [%s] to get from "
           "waypoint [%d] to waypoint [%d]",
           context->name().c_str(), start_estimate.waypoint(), goal.waypoint());

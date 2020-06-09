@@ -22,19 +22,20 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-MoveRobot::ActivePhase::ActivePhase(agv::RobotContextPtr context,
+MoveRobot::ActivePhase::ActivePhase(
+  agv::RobotContextPtr context,
   std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints)
-  : _context{std::move(context)},
-    _waypoints{std::move(waypoints)}
+  : _context{std::move(context)}
 {
   std::ostringstream oss;
-  oss << "Moving robot to (" << _waypoints.back().position() << ")";
+  oss << "Moving robot (" << waypoints.front().position().transpose()
+      << ") -> (" << waypoints.back().position().transpose() << ")";
   _description = oss.str();
 
   auto _job = rmf_rxcpp::make_job<Task::StatusMsg>(
-    std::make_shared<MoveRobot::Action>(_context, _waypoints));
+    std::make_shared<MoveRobot::Action>(_context, waypoints));
   _obs = make_cancellable(_job, _cancel_subject.get_observable())
-    .observe_on(rxcpp::observe_on_event_loop());
+    .observe_on(rxcpp::identity_same_worker(_context->worker()));
 }
 
 //==============================================================================

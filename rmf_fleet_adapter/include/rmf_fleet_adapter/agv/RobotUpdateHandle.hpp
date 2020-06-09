@@ -38,10 +38,10 @@ class RobotUpdateHandle
 {
 public:
 
-  /// Tell the RMF schedule that the robot has been delayed.
-  void add_delay(rmf_traffic::Duration duration);
-
   /// Tell the RMF schedule that the robot was interrupted and needs a new plan.
+  /// A new plan will be generated, starting from the last position that was
+  /// given by update_position(). It is best to call update_position() with the
+  /// latest position of the robot before calling this function.
   void interrupted();
 
   /// Update the current position of the robot by specifying the waypoint that
