@@ -116,8 +116,7 @@ public:
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
   AcceptDeliveryRequest accept_delivery;
 
-//  std::vector<RobotContextPtr> robots = {};
-  std::vector<TaskManager> task_managers;
+  std::unordered_map<RobotContextPtr, TaskManager> task_managers;
 
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
@@ -134,7 +133,7 @@ public:
     RobotContextPtr robot = nullptr;
   };
 
-  static DeliveryEstimate estimate_delivery(
+  static rmf_utils::optional<DeliveryEstimate> estimate_delivery(
       const FleetUpdateHandle& fleet,
       const rmf_task_msgs::msg::Delivery& request);
 };

@@ -61,19 +61,52 @@ public:
 auto FleetUpdateHandle::Implementation::estimate_delivery(
     const FleetUpdateHandle& fleet,
     const rmf_task_msgs::msg::Delivery& request)
--> DeliveryEstimate
+-> rmf_utils::optional<FleetUpdateHandle::Implementation::DeliveryEstimate>
 {
+  const auto planner = fleet._pimpl->planner;
+  const auto& graph = planner->get_configuration().graph();
+  const auto pickup_wp = graph.find_waypoint(request.pickup_place_name);
+  if (!pickup_wp)
+    return rmf_utils::nullopt;
+
+  const auto dropoff_wp = graph.find_waypoint(request.dropoff_place_name);
+  if (!dropoff_wp)
+    return rmf_utils::nullopt;
+
+  const auto pickup_goal = rmf_traffic::agv::Plan::Goal(pickup_wp->index());
+  const auto dropoff_goal = rmf_traffic::agv::Plan::Goal(dropoff_wp->index());
+
   // TODO(MXG): At some point we should consider parallelizing this estimation
   // process and taking the existing schedule into account, but for now we'll
   // try to use a very quick rough estimate.
   DeliveryEstimate best;
-  for (const auto& mgr : fleet._pimpl->task_managers)
+  for (const auto& element : fleet._pimpl->task_managers)
   {
+    const auto& mgr = element.second;
     const auto start = mgr.expected_finish_location();
-    const auto planner = mgr.context()->planner();
+    const auto pickup_plan = planner->plan(start, pickup_goal);
+    if (!pickup_plan)
+      continue;
 
-//    request.pickup_place_name
+    assert(pickup_plan->get_waypoints().back().graph_index());
+    const auto dropoff_start = rmf_traffic::agv::Plan::Start(
+          pickup_plan->get_waypoints().back().time(),
+          *pickup_plan->get_waypoints().back().graph_index(),
+          pickup_plan->get_waypoints().back().position()[2]);
+
+    const auto dropoff_plan = planner->plan(dropoff_start, dropoff_goal);
+    if (!dropoff_plan)
+      continue;
+
+    const auto estimate = dropoff_plan->get_waypoints().back().time();
+    if (estimate < best.time)
+      best = DeliveryEstimate{estimate, element.first};
   }
+
+  if (best.robot)
+    return best;
+
+  return rmf_utils::nullopt;
 }
 
 //==============================================================================
@@ -122,7 +155,7 @@ void FleetUpdateHandle::add_robot(
             std::make_unique<LiaisonNegotiator>(context));
     }
 
-    fleet->_pimpl->task_managers.push_back(context);
+    fleet->_pimpl->task_managers.insert({context, context});
     return RobotUpdateHandle::Implementation::make(std::move(context));
   });
 }
