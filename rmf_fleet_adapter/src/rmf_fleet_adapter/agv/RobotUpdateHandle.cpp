@@ -17,6 +17,8 @@
 
 #include "internal_RobotUpdateHandle.hpp"
 
+#include <rmf_traffic_ros2/Time.hpp>
+
 #include <iostream>
 
 namespace rmf_fleet_adapter {
@@ -43,6 +45,96 @@ void RobotUpdateHandle::interrupted()
 {
   if (const auto context = _pimpl->get_context())
     context->_interrupt_publisher.publish(RobotContext::Empty());
+}
+
+//==============================================================================
+void RobotUpdateHandle::update_position(
+    std::size_t waypoint,
+    double orientation)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+          [context = std::move(context),
+           waypoint,
+           orientation](const auto&)
+    {
+      context->_location = {
+        rmf_traffic::agv::Plan::Start(
+          rmf_traffic_ros2::convert(context->node()->now()),
+          waypoint, orientation)
+      };
+    });
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::update_position(
+    const Eigen::Vector3d& position,
+    const std::vector<std::size_t>& lanes)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    if (lanes.empty())
+    {
+      throw std::runtime_error(
+            "[RobotUpdateHandle::update_position] No lanes specified for "
+            "function signature that requires at least one lane.");
+    }
+
+    const auto now = rmf_traffic_ros2::convert(context->node()->now());
+    rmf_traffic::agv::Plan::StartSet starts;
+    for (const auto l : lanes)
+    {
+      const auto& graph = context->navigation_graph();
+      const auto wp = graph.get_lane(l).exit().waypoint_index();
+      starts.push_back(
+        {
+          now, wp, position[2], Eigen::Vector2d(position.block<2,1>(0,0)), l
+        });
+    }
+
+    context->worker().schedule(
+          [context, starts = std::move(starts)](const auto&)
+    {
+      context->_location = std::move(starts);
+    });
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::update_position(
+    const std::string& map_name,
+    const Eigen::Vector3d& position,
+    const double max_merge_waypoint_distance,
+    const double max_merge_lane_distance,
+    const double min_lane_length)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    const auto now = rmf_traffic_ros2::convert(context->node()->now());
+    auto starts = rmf_traffic::agv::compute_plan_starts(
+          context->navigation_graph(), map_name, position, now,
+          max_merge_waypoint_distance, max_merge_lane_distance,
+          min_lane_length);
+
+    if (starts.empty())
+    {
+      RCLCPP_ERROR(
+            context->node()->get_logger(),
+            "[RobotUpdateHandle::update_position] The robot [%s] has diverged "
+            "from its navigation graph, currently located at <%f, %f%, %f> on "
+            "map [%s]", context->requester_id().c_str(),
+            position[0], position[1], position[2], map_name.c_str());
+      return;
+    }
+
+    context->worker().schedule(
+          [context, starts = std::move(starts)](const auto&)
+    {
+      context->_location = std::move(starts);
+    });
+  }
 }
 
 //==============================================================================

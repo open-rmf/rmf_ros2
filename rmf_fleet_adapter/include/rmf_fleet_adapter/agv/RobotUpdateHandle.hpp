@@ -65,15 +65,25 @@ public:
   ///
   /// \warning This function should only be used if the robot has diverged from
   /// the navigation graph somehow.
+  ///
+  /// We will attempt to merge the robot back onto the navigation graph. The
+  /// parameters for this function are passed along to
+  /// rmf_traffic::agv::compute_plan_starts().
   void update_position(
       const std::string& map_name,
-      const Eigen::Vector3d& position);
+      const Eigen::Vector3d& position,
+      const double max_merge_waypoint_distance = 0.1,
+      const double max_merge_lane_distance = 1.0,
+      const double min_lane_length = 1e-8);
 
   class Implementation;
 private:
   RobotUpdateHandle();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
+
+using RobotUpdateHandlePtr = std::shared_ptr<RobotUpdateHandle>;
+using ConstRobotUpdateHandlePtr = std::shared_ptr<const RobotUpdateHandle>;
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

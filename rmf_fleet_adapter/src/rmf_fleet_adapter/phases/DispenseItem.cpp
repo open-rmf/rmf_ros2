@@ -91,10 +91,14 @@ Task::StatusMsg DispenseItem::Action::_get_status(
     }
   }
 
-  // The request has been received, so if it's no longer in the queue,
-  // then we'll assume it's finished.
-  if (
-    _request_acknowledged &&
+  if (!_request_acknowledged)
+  {
+    _request_acknowledged = std::find(
+          dispenser_state->request_guid_queue.begin(),
+          dispenser_state->request_guid_queue.end(),
+          _request_guid) != dispenser_state->request_guid_queue.end();
+  }
+  else if (
     dispenser_state->guid == _target &&
     std::find(
       dispenser_state->request_guid_queue.begin(),
@@ -102,6 +106,8 @@ Task::StatusMsg DispenseItem::Action::_get_status(
       _request_guid
     ) == dispenser_state->request_guid_queue.end())
   {
+    // The request has been received, so if it's no longer in the queue,
+    // then we'll assume it's finished.
     status.state = Task::StatusMsg::STATE_COMPLETED;
   }
 

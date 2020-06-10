@@ -96,6 +96,7 @@ if (BUILD_TESTING)
       test/services/test_FindEmergencyPullover.cpp
       test/services/test_FindPath.cpp
       test/services/test_Negotiate.cpp
+      test/tasks/test_Delivery.cpp
   )
   target_include_directories(rmf_fleet_adapter_test
     PRIVATE

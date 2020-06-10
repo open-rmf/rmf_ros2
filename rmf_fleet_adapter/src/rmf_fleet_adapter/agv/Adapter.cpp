@@ -16,6 +16,7 @@
 */
 
 #include <rmf_fleet_adapter/agv/Adapter.hpp>
+#include <rmf_fleet_adapter/StandardNames.hpp>
 
 #include "Node.hpp"
 #include "internal_FleetUpdateHandle.hpp"
@@ -23,6 +24,8 @@
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 #include <rmf_traffic_ros2/schedule/Negotiation.hpp>
 #include <rmf_traffic_ros2/schedule/Writer.hpp>
+
+#include <rmf_task_msgs/msg/delivery.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -38,7 +41,33 @@ public:
   std::shared_ptr<ParticipantFactory> writer;
   rmf_traffic_ros2::schedule::MirrorManager mirror_manager;
 
+
+  using Delivery = rmf_task_msgs::msg::Delivery;
+  using DeliverySub = rclcpp::Subscription<Delivery>::SharedPtr;
+  DeliverySub delivery_sub;
+
   std::vector<std::shared_ptr<FleetUpdateHandle>> fleets = {};
+
+  Implementation(
+      rxcpp::schedulers::worker worker_,
+      std::shared_ptr<Node> node_,
+      std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation_,
+      std::shared_ptr<ParticipantFactory> writer_,
+      rmf_traffic_ros2::schedule::MirrorManager mirror_manager_)
+    : worker{std::move(worker_)},
+      node{std::move(node_)},
+      negotiation{std::move(negotiation_)},
+      writer{std::move(writer_)},
+      mirror_manager{std::move(mirror_manager_)}
+  {
+    const auto default_qos = rclcpp::SystemDefaultsQoS();
+    delivery_sub = node->create_subscription<Delivery>(
+          DeliveryTopicName, default_qos,
+          [this](Delivery::SharedPtr msg)
+    {
+      rmf_fleet_adapter::agv::request_delivery(*msg, fleets);
+    });
+  }
 
   static rmf_utils::unique_impl_ptr<Implementation> make(
       const std::string& node_name,

@@ -114,9 +114,9 @@ public:
   std::shared_ptr<ParticipantFactory> writer;
   std::shared_ptr<rmf_traffic::schedule::Snappable> snappable;
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
-  AcceptDeliveryRequest accept_delivery;
 
-  std::unordered_map<RobotContextPtr, TaskManager> task_managers;
+  AcceptDeliveryRequest accept_delivery = nullptr;
+  std::unordered_map<RobotContextPtr, TaskManager> task_managers = {};
 
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
@@ -153,6 +153,11 @@ public:
   void perform_delivery(const rmf_task_msgs::msg::Delivery& request,
       const DeliveryEstimate& estimate);
 };
+
+//==============================================================================
+void request_delivery(
+    const rmf_task_msgs::msg::Delivery& request,
+    const std::vector<std::shared_ptr<FleetUpdateHandle>>& fleets);
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

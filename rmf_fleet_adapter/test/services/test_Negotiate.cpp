@@ -950,7 +950,6 @@ SCENARIO("Test Plan Negotiation Between Two Participants")
   add_bidir_lane(8, 9);
   add_bidir_lane(8, 10);
 
-  // Create a conflict
   const rmf_traffic::agv::VehicleTraits traits{
     {0.7, 0.3},
     {1.0, 0.45},

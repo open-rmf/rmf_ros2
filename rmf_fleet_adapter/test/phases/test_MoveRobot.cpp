@@ -24,5 +24,5 @@ SCENARIO("Test MoveAction")
 {
   const auto adapter = rmf_fleet_adapter::agv::Adapter::make("test_node");
 
-
+  // TODO
 }

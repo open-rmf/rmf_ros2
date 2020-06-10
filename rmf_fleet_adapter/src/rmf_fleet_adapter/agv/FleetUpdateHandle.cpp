@@ -204,5 +204,36 @@ FleetUpdateHandle::FleetUpdateHandle()
   // Do nothing
 }
 
+//==============================================================================
+void request_delivery(
+    const rmf_task_msgs::msg::Delivery& request,
+    const std::vector<std::shared_ptr<FleetUpdateHandle>>& fleets)
+{
+  FleetUpdateHandle::Implementation::DeliveryEstimate best;
+  FleetUpdateHandle::Implementation* chosen_fleet = nullptr;
+
+  for (auto& fleet : fleets)
+  {
+    auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
+    if (!fimpl.accept_delivery(request))
+      continue;
+
+    const auto estimate = fimpl.estimate_delivery(request);
+    if (!estimate)
+      continue;
+
+    if (estimate->time < best.time)
+    {
+      best = *estimate;
+      chosen_fleet = &fimpl;
+    }
+  }
+
+  if (!chosen_fleet)
+    return;
+
+  chosen_fleet->perform_delivery(request, best);
+}
+
 } // namespace agv
 } // namespace rmf_fleet_adapter
