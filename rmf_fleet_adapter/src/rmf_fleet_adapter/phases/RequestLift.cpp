@@ -26,28 +26,32 @@ namespace phases {
 
 //==============================================================================
 RequestLift::Action::Action(
-  std::weak_ptr<rmf_rxcpp::Transport> transport,
+  const std::shared_ptr<rmf_rxcpp::Transport>& transport,
   std::string lift_name,
   std::string destination,
   rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs)
-  : _transport{std::move(transport)},
+  : _transport{transport},
     _lift_name{std::move(lift_name)},
     _destination{std::move(destination)},
     _lift_state_obs{std::move(lift_state_obs)}
 {
   using rmf_lift_msgs::msg::LiftState;
 
-  auto transport_ = _transport.lock();
-  if (!transport_)
-    throw std::runtime_error("invalid transport state");
   // TODO: multiplex publisher?
-  _publisher = transport_->create_publisher<rmf_lift_msgs::msg::LiftRequest>(
+  _publisher = transport->create_publisher<rmf_lift_msgs::msg::LiftRequest>(
     AdapterLiftRequestTopicName, 10);
 
   _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
 
   _obs = _lift_state_obs
-    .lift<LiftState::SharedPtr>(on_subscribe([this]() { _do_publish(); }))
+    .lift<LiftState::SharedPtr>(on_subscribe([this, transport]()
+    {
+      _do_publish(transport);
+      _timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [this, transport]()
+      {
+        _do_publish(transport);
+      });
+    }))
     .map([this](const auto& v)
     {
       return _get_status(v);
@@ -82,40 +86,29 @@ Task::StatusMsg RequestLift::Action::_get_status(
 }
 
 //==============================================================================
-void RequestLift::Action::_do_publish()
+void RequestLift::Action::_do_publish(const rclcpp::Node::SharedPtr& node)
 {
-  auto transport = _transport.lock();
-  if (!transport)
-    throw std::runtime_error("invalid transport state");
-
   rmf_lift_msgs::msg::LiftRequest msg{};
   msg.lift_name = _lift_name;
   msg.destination_floor = _destination;
   msg.session_id = _session_id;
-  msg.request_time = transport->now();
+  msg.request_time = node->now();
   msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_AGV_MODE;
   msg.door_state = rmf_lift_msgs::msg::LiftRequest::DOOR_OPEN;
-
   _publisher->publish(msg);
-  _timer = transport->create_wall_timer(
-    std::chrono::milliseconds(1000),
-    [this]()
-    {
-      _do_publish();
-    });
 }
 
 //==============================================================================
 RequestLift::ActivePhase::ActivePhase(
-  std::weak_ptr<rmf_rxcpp::Transport> transport,
+  const std::shared_ptr<rmf_rxcpp::Transport>& transport,
   std::string lift_name,
   std::string destination,
   rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs)
-  : _transport{std::move(transport)},
+  : _transport{transport},
     _lift_name{std::move(lift_name)},
     _destination{std::move(destination)},
     _lift_state_obs{std::move(lift_state_obs)},
-    _action{_transport, _lift_name, _destination, _lift_state_obs}
+    _action{transport, _lift_name, _destination, _lift_state_obs}
 {
   std::ostringstream oss;
   oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
@@ -174,8 +167,12 @@ RequestLift::PendingPhase::PendingPhase(
 //==============================================================================
 std::shared_ptr<Task::ActivePhase> RequestLift::PendingPhase::begin()
 {
+  auto transport = _transport.lock();
+  if (!transport)
+    throw std::runtime_error("invalid transport state");
+
   return std::make_shared<RequestLift::ActivePhase>(
-    _transport, _lift_name, _destination, _lift_state_obs);
+    transport, _lift_name, _destination, _lift_state_obs);
 }
 
 //==============================================================================

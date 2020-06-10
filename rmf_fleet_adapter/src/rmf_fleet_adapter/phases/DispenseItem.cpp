@@ -25,32 +25,36 @@ namespace phases {
 
 //==============================================================================
 DispenseItem::Action::Action(
-  std::weak_ptr<rmf_rxcpp::Transport> transport,
+  const std::shared_ptr<rmf_rxcpp::Transport>& transport,
   std::string target,
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
   rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs)
-  : _transport{std::move(transport)},
+  : _transport{transport},
     _target{std::move(target)},
     _transporter_type{std::move(transporter_type)},
     _items{std::move(items)},
     _result_obs{std::move(result_obs)}
 {
-  auto transport_ = _transport.lock();
-  if (!transport_)
-    throw std::runtime_error("invalid transport state");
   // TODO: multiplex publisher?
-  _publisher = transport_->create_publisher<rmf_dispenser_msgs::msg::DispenserRequest>(
+  _publisher = transport->create_publisher<rmf_dispenser_msgs::msg::DispenserRequest>(
     DispenserRequestTopicName, 10);
 
   _request_guid = boost::uuids::to_string(boost::uuids::random_generator{}());
 
   using rmf_dispenser_msgs::msg::DispenserResult;
   _obs = _result_obs
-    .lift<DispenserResult::SharedPtr>(on_subscribe([this]() { _do_publish(); }))
+    .lift<DispenserResult::SharedPtr>(on_subscribe([this, transport]()
+    {
+      _do_publish();
+      _timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [this]()
+      {
+        _do_publish();
+      });
+    }))
     .map([this](const auto& v)
     {
-      return _check_status(v);
+      return _get_status(v);
     })
     .lift<Task::StatusMsg>(grab_while_active())
     .finally([this]()
@@ -61,7 +65,7 @@ DispenseItem::Action::Action(
 }
 
 //==============================================================================
-Task::StatusMsg DispenseItem::Action::_check_status(
+Task::StatusMsg DispenseItem::Action::_get_status(
   const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result)
 {
   Task::StatusMsg status{};
@@ -86,39 +90,28 @@ Task::StatusMsg DispenseItem::Action::_check_status(
 //==============================================================================
 void DispenseItem::Action::_do_publish()
 {
-  auto transport = _transport.lock();
-  if (!transport)
-    throw std::runtime_error("invalid transport state");
-
   rmf_dispenser_msgs::msg::DispenserRequest msg{};
   msg.request_guid = _request_guid;
   msg.target_guid = _target;
   msg.transporter_type = _transporter_type;
   msg.items = _items;
-
   _publisher->publish(msg);
-  _timer = transport->create_wall_timer(
-    std::chrono::milliseconds(1000),
-    [this]()
-    {
-      _do_publish();
-    });
 }
 
 //==============================================================================
 DispenseItem::ActivePhase::ActivePhase(
-  std::weak_ptr<rmf_rxcpp::Transport> transport,
+  const std::shared_ptr<rmf_rxcpp::Transport>& transport,
   std::string target,
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> dispenser_items,
   rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs)
-  : _transport{std::move(transport)},
+  : _transport{transport},
     _target{std::move(target)},
     _transporter_type{std::move(transporter_type)},
     _items{std::move(dispenser_items)},
     _result_obs{std::move(result_obs)},
     _action{
-      _transport,
+      transport,
       _target,
       _transporter_type,
       _items,
@@ -189,8 +182,12 @@ DispenseItem::PendingPhase::PendingPhase(
 //==============================================================================
 std::shared_ptr<Task::ActivePhase> DispenseItem::PendingPhase::begin()
 {
+  auto transport = _transport.lock();
+  if (!transport)
+    throw std::runtime_error("invalid transport state");
+
   return std::make_shared<DispenseItem::ActivePhase>(
-    _transport, _target, _transporter_type, _items, _result_obs);
+    transport, _target, _transporter_type, _items, _result_obs);
 }
 
 //==============================================================================

@@ -30,6 +30,13 @@ namespace phases {
 
 struct DoorClose
 {
+  /**
+   * The phase should do the following
+   * 1. Send out a MODE_CLOSED door request
+   * 2. Periodically resend the close request while the supervisor state contains the requester_id
+   * 3. It is completed when the supervisor state does NOT contains the requester_id, regardless of the door state
+   * 4. Cancellation requests are ignored
+   */
   class ActivePhase : public Task::ActivePhase
   {
   public:
@@ -62,7 +69,7 @@ struct DoorClose
     rclcpp::TimerBase::SharedPtr _timer;
     Task::StatusMsg _status;
 
-    void _publish_close_door();
+    void _publish_close_door(const rclcpp::Node::SharedPtr& node);
 
     void _update_status(const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat);
   };

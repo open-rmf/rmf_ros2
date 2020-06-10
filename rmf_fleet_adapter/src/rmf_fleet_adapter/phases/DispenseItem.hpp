@@ -36,7 +36,7 @@ struct DispenseItem
   public:
 
     Action(
-      std::weak_ptr<rmf_rxcpp::Transport> transport,
+      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
       std::string target,
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
@@ -59,7 +59,7 @@ struct DispenseItem
     rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr _publisher;
     rclcpp::TimerBase::SharedPtr _timer;
 
-    Task::StatusMsg _check_status(const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result);
+    Task::StatusMsg _get_status(const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result);
 
     void _do_publish();
   };
@@ -69,7 +69,7 @@ struct DispenseItem
   public:
 
     ActivePhase(
-      std::weak_ptr<rmf_rxcpp::Transport> transport,
+      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
       std::string target,
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
