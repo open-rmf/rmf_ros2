@@ -47,7 +47,6 @@ add_subdirectory(rmf_rxcpp)
 
 # -----------------------------------------------------------------------------
 
-find_package(Boost REQUIRED)
 file(GLOB_RECURSE rmf_fleet_adapter_srcs "src/rmf_fleet_adapter/*.cpp")
 
 add_library(rmf_fleet_adapter SHARED
@@ -65,7 +64,6 @@ target_link_libraries(rmf_fleet_adapter
     ${rmf_task_msgs_LIBRARIES}
     ${rmf_door_msgs_LIBRARIES}
     ${rmf_lift_msgs_LIBRARIES}
-    Boost::boost
 )
 
 target_include_directories(rmf_fleet_adapter
@@ -116,7 +114,6 @@ if (BUILD_TESTING)
       ${rmf_task_msgs_LIBRARIES}
       ${rmf_door_msgs_LIBRARIES}
       ${rmf_lift_msgs_LIBRARIES}
-      Boost::boost
 
       rmf_fleet_adapter
       rmf_utils::rmf_utils
