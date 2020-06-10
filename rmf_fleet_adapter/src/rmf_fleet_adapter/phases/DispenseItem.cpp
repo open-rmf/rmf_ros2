@@ -17,34 +17,38 @@
 
 #include "DispenseItem.hpp"
 
-#include <boost/uuid/uuid_io.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-
 namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
 DispenseItem::Action::Action(
   const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+  std::string request_guid,
   std::string target,
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs)
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs)
   : _transport{transport},
+    _request_guid{std::move(request_guid)},
     _target{std::move(target)},
     _transporter_type{std::move(transporter_type)},
     _items{std::move(items)},
-    _result_obs{std::move(result_obs)}
+    _result_obs{std::move(result_obs)},
+    _state_obs{std::move(state_obs)}
 {
   // TODO: multiplex publisher?
   _publisher = transport->create_publisher<rmf_dispenser_msgs::msg::DispenserRequest>(
     DispenserRequestTopicName, 10);
 
-  _request_guid = boost::uuids::to_string(boost::uuids::random_generator{}());
-
   using rmf_dispenser_msgs::msg::DispenserResult;
+  using rmf_dispenser_msgs::msg::DispenserState;
+  using CombinedType = std::tuple<DispenserResult::SharedPtr, DispenserState::SharedPtr>;
   _obs = _result_obs
-    .lift<DispenserResult::SharedPtr>(on_subscribe([this, transport]()
+    .combine_latest(
+      rxcpp::observe_on_event_loop(),
+      _state_obs.start_with(std::make_shared<DispenserState>()))
+    .lift<CombinedType>(on_subscribe([this, transport]()
     {
       _do_publish();
       _timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [this]()
@@ -54,7 +58,7 @@ DispenseItem::Action::Action(
     }))
     .map([this](const auto& v)
     {
-      return _get_status(v);
+      return _get_status(std::get<0>(v), std::get<1>(v));
     })
     .lift<Task::StatusMsg>(grab_while_active())
     .finally([this]()
@@ -66,7 +70,8 @@ DispenseItem::Action::Action(
 
 //==============================================================================
 Task::StatusMsg DispenseItem::Action::_get_status(
-  const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result)
+  const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result,
+  const rmf_dispenser_msgs::msg::DispenserState::SharedPtr& dispenser_state)
 {
   Task::StatusMsg status{};
   status.state = Task::StatusMsg::STATE_ACTIVE;
@@ -76,6 +81,9 @@ Task::StatusMsg DispenseItem::Action::_get_status(
   {
     switch (dispenser_result->status)
     {
+      case DispenserResult::ACKNOWLEDGED:
+        _request_acknowledged = true;
+        break;
       case DispenserResult::SUCCESS:
         status.state = Task::StatusMsg::STATE_COMPLETED;
         break;
@@ -84,6 +92,21 @@ Task::StatusMsg DispenseItem::Action::_get_status(
         break;
     }
   }
+
+  // The request has been received, so if it's no longer in the queue,
+  // then we'll assume it's finished.
+  if (
+    _request_acknowledged &&
+    dispenser_state->guid == _target &&
+    std::find(
+      dispenser_state->request_guid_queue.begin(),
+      dispenser_state->request_guid_queue.end(),
+      _request_guid
+    ) == dispenser_state->request_guid_queue.end())
+  {
+    status.state = Task::StatusMsg::STATE_COMPLETED;
+  }
+
   return status;
 }
 
@@ -101,21 +124,27 @@ void DispenseItem::Action::_do_publish()
 //==============================================================================
 DispenseItem::ActivePhase::ActivePhase(
   const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+  std::string request_guid,
   std::string target,
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> dispenser_items,
-  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs)
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs)
   : _transport{transport},
+    _request_guid{std::move(request_guid)},
     _target{std::move(target)},
     _transporter_type{std::move(transporter_type)},
     _items{std::move(dispenser_items)},
     _result_obs{std::move(result_obs)},
+    _state_obs{std::move(state_obs)},
     _action{
       transport,
+      _request_guid,
       _target,
       _transporter_type,
       _items,
-      _result_obs}
+      _result_obs,
+      _state_obs}
 {
   std::ostringstream oss;
   oss << "Dispensing items (";
@@ -160,15 +189,19 @@ const std::string& DispenseItem::ActivePhase::description() const
 //==============================================================================
 DispenseItem::PendingPhase::PendingPhase(
   std::weak_ptr<rmf_rxcpp::Transport> transport,
+  std::string request_guid,
   std::string target,
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs)
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs)
   : _transport{std::move(transport)},
+    _request_guid{std::move(request_guid)},
     _target{std::move(target)},
     _transporter_type{std::move(transporter_type)},
     _items{std::move(items)},
-    _result_obs{std::move(result_obs)}
+    _result_obs{std::move(result_obs)},
+    _state_obs{std::move(state_obs)}
 {
   std::ostringstream oss;
   oss << "Dispense items (";
@@ -187,7 +220,7 @@ std::shared_ptr<Task::ActivePhase> DispenseItem::PendingPhase::begin()
     throw std::runtime_error("invalid transport state");
 
   return std::make_shared<DispenseItem::ActivePhase>(
-    transport, _target, _transporter_type, _items, _result_obs);
+    transport, _request_guid, _target, _transporter_type, _items, _result_obs, _state_obs);
 }
 
 //==============================================================================
