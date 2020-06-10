@@ -43,7 +43,8 @@ struct DispenseItem
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
       rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs);
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
+      rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub);
 
     inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
     {
@@ -59,8 +60,8 @@ struct DispenseItem
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> _result_obs;
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> _state_obs;
+    rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr _request_pub;
     rxcpp::observable<Task::StatusMsg> _obs;
-    rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr _publisher;
     rclcpp::TimerBase::SharedPtr _timer;
     bool _request_acknowledged = false;
 
@@ -82,7 +83,8 @@ struct DispenseItem
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
       rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs);
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
+      rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -118,7 +120,8 @@ struct DispenseItem
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
       rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs);
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
+      rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
 
@@ -135,6 +138,7 @@ struct DispenseItem
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> _result_obs;
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> _state_obs;
+    rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr _request_pub;
     std::string _description;
   };
 };

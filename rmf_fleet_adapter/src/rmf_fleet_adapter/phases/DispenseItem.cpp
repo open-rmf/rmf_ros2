@@ -28,19 +28,17 @@ DispenseItem::Action::Action(
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
   rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
-  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs)
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
+  rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub)
   : _transport{transport},
     _request_guid{std::move(request_guid)},
     _target{std::move(target)},
     _transporter_type{std::move(transporter_type)},
     _items{std::move(items)},
     _result_obs{std::move(result_obs)},
-    _state_obs{std::move(state_obs)}
+    _state_obs{std::move(state_obs)},
+    _request_pub{std::move(request_pub)}
 {
-  // TODO: multiplex publisher?
-  _publisher = transport->create_publisher<rmf_dispenser_msgs::msg::DispenserRequest>(
-    DispenserRequestTopicName, 10);
-
   using rmf_dispenser_msgs::msg::DispenserResult;
   using rmf_dispenser_msgs::msg::DispenserState;
   using CombinedType = std::tuple<DispenserResult::SharedPtr, DispenserState::SharedPtr>;
@@ -118,7 +116,7 @@ void DispenseItem::Action::_do_publish()
   msg.target_guid = _target;
   msg.transporter_type = _transporter_type;
   msg.items = _items;
-  _publisher->publish(msg);
+  _request_pub->publish(msg);
 }
 
 //==============================================================================
@@ -129,7 +127,8 @@ DispenseItem::ActivePhase::ActivePhase(
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> dispenser_items,
   rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
-  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs)
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
+  rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub)
   : _transport{transport},
     _request_guid{std::move(request_guid)},
     _target{std::move(target)},
@@ -144,7 +143,8 @@ DispenseItem::ActivePhase::ActivePhase(
       _transporter_type,
       _items,
       _result_obs,
-      _state_obs}
+      _state_obs,
+      std::move(request_pub)}
 {
   std::ostringstream oss;
   oss << "Dispensing items (";
@@ -194,14 +194,16 @@ DispenseItem::PendingPhase::PendingPhase(
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
   rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
-  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs)
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
+  rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub)
   : _transport{std::move(transport)},
     _request_guid{std::move(request_guid)},
     _target{std::move(target)},
     _transporter_type{std::move(transporter_type)},
     _items{std::move(items)},
     _result_obs{std::move(result_obs)},
-    _state_obs{std::move(state_obs)}
+    _state_obs{std::move(state_obs)},
+    _request_pub{std::move(request_pub)}
 {
   std::ostringstream oss;
   oss << "Dispense items (";
@@ -220,7 +222,14 @@ std::shared_ptr<Task::ActivePhase> DispenseItem::PendingPhase::begin()
     throw std::runtime_error("invalid transport state");
 
   return std::make_shared<DispenseItem::ActivePhase>(
-    transport, _request_guid, _target, _transporter_type, _items, _result_obs, _state_obs);
+    transport,
+    _request_guid,
+    _target,
+    _transporter_type,
+    _items,
+    _result_obs,
+    _state_obs,
+    _request_pub);
 }
 
 //==============================================================================

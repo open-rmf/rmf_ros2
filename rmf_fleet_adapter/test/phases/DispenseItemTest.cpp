@@ -57,6 +57,7 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
 
   auto dispenser_result_obs = transport->create_observable<DispenserResult>(DispenserResultTopicName, 10);
   auto dispenser_state_obs = transport->create_observable<DispenserState>(DispenserStateTopicName, 10);
+  auto dispenser_request_pub = transport->create_publisher<DispenserRequest>(DispenserRequestTopicName, 10);
   auto pending_phase = std::make_shared<DispenseItem::PendingPhase>(
     transport,
     request_guid,
@@ -64,7 +65,8 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
     transporter_type,
     items,
     dispenser_result_obs,
-    dispenser_state_obs
+    dispenser_state_obs,
+    dispenser_request_pub
   );
   auto active_phase = pending_phase->begin();
 

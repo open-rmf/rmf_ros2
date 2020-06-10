@@ -30,21 +30,46 @@ Task make_delivery(
     rmf_traffic::agv::Plan::Start pickup_start,
     rmf_traffic::agv::Plan::Start dropoff_start)
 {
+  const auto& graph = context->navigation_graph();
+
   const auto pickup_wp =
-      context->navigation_graph()
-      .find_waypoint(request.pickup_place_name)->index();
+      graph.find_waypoint(request.pickup_place_name)->index();
+
+  const auto& node = context->node();
 
   Task::PendingPhases phases;
   phases.push_back(
         phases::GoToPlace::make(context, std::move(pickup_start), pickup_wp));
 
   phases.push_back(
-        std::make_unique<phases::DispenseItem>(
-          context->node(),
+        std::make_unique<phases::DispenseItem::PendingPhase>(
+          node,
+          request.task_id,
           request.pickup_dispenser,
           context->itinerary().description().owner(),
           request.items,
-          ))
+          node->dispenser_result(),
+          node->dispenser_state(),
+          node->dispenser_request()));
+
+  const auto dropoff_wp =
+      graph.find_waypoint(request.dropoff_place_name)->index();
+
+  phases.push_back(
+        phases::GoToPlace::make(context, std::move(dropoff_start), dropoff_wp));
+
+  phases.push_back(
+        std::make_unique<phases::DispenseItem::PendingPhase>(
+          node,
+          request.task_id,
+          request.dropoff_dispenser,
+          context->itinerary().description().owner(),
+          request.items,
+          node->dispenser_result(),
+          node->dispenser_state(),
+          node->dispenser_request()));
+
+  return Task(request.task_id, std::move(phases));
 }
 
 } // namespace task
