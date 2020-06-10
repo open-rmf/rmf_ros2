@@ -98,6 +98,35 @@ void MockAdapter::stop()
   _pimpl->node->stop();
 }
 
+//==============================================================================
+void MockAdapter::request_delivery(const rmf_task_msgs::msg::Delivery& request)
+{
+  FleetUpdateHandle::Implementation::DeliveryEstimate best;
+  FleetUpdateHandle::Implementation* chosen_fleet = nullptr;
+
+  for (auto& fleet : _pimpl->fleets)
+  {
+    auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
+    if (!fimpl.accept_delivery(request))
+      continue;
+
+    const auto estimate = fimpl.estimate_delivery(request);
+    if (!estimate)
+      continue;
+
+    if (estimate->time < best.time)
+    {
+      best = *estimate;
+      chosen_fleet = &fimpl;
+    }
+  }
+
+  if (!chosen_fleet)
+    return;
+
+  chosen_fleet->perform_delivery(request, best);
+}
+
 } // namespace test
 } // namespace agv
 } // namespace rmf_fleet_adapter

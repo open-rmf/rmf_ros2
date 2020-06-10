@@ -131,11 +131,27 @@ public:
   {
     rmf_traffic::Time time = rmf_traffic::Time::max();
     RobotContextPtr robot = nullptr;
+    rmf_utils::optional<rmf_traffic::agv::Plan::Start> pickup_start;
+    rmf_utils::optional<rmf_traffic::agv::Plan::Start> dropoff_start;
+    rmf_utils::optional<rmf_traffic::agv::Plan::Start> finish;
   };
 
-  static rmf_utils::optional<DeliveryEstimate> estimate_delivery(
-      const FleetUpdateHandle& fleet,
-      const rmf_task_msgs::msg::Delivery& request);
+  static Implementation& get(FleetUpdateHandle& fleet)
+  {
+    return *fleet._pimpl;
+  }
+
+  static const Implementation& get(const FleetUpdateHandle& fleet)
+  {
+    return *fleet._pimpl;
+  }
+
+  // TODO(MXG): Come up with a better design for task dispatch
+  rmf_utils::optional<DeliveryEstimate> estimate_delivery(
+      const rmf_task_msgs::msg::Delivery& request) const;
+
+  void perform_delivery(const rmf_task_msgs::msg::Delivery& request,
+      const DeliveryEstimate& estimate);
 };
 
 } // namespace agv

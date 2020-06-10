@@ -14,7 +14,6 @@
  * limitations under the License.
  *
 */
-
 #ifndef RMF_FLEET_ADAPTER__AGV__ADAPTER_HPP
 #define RMF_FLEET_ADAPTER__AGV__ADAPTER_HPP
 

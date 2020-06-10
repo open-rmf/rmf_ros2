@@ -19,6 +19,8 @@
 #include "internal_RobotUpdateHandle.hpp"
 #include "RobotContext.hpp"
 
+#include "../tasks/Delivery.hpp"
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -59,11 +61,9 @@ public:
 
 //==============================================================================
 auto FleetUpdateHandle::Implementation::estimate_delivery(
-    const FleetUpdateHandle& fleet,
-    const rmf_task_msgs::msg::Delivery& request)
+    const rmf_task_msgs::msg::Delivery& request) const
 -> rmf_utils::optional<FleetUpdateHandle::Implementation::DeliveryEstimate>
 {
-  const auto planner = fleet._pimpl->planner;
   const auto& graph = planner->get_configuration().graph();
   const auto pickup_wp = graph.find_waypoint(request.pickup_place_name);
   if (!pickup_wp)
@@ -80,10 +80,10 @@ auto FleetUpdateHandle::Implementation::estimate_delivery(
   // process and taking the existing schedule into account, but for now we'll
   // try to use a very quick rough estimate.
   DeliveryEstimate best;
-  for (const auto& element : fleet._pimpl->task_managers)
+  for (const auto& element : task_managers)
   {
     const auto& mgr = element.second;
-    const auto start = mgr.expected_finish_location();
+    auto start = mgr.expected_finish_location();
     const auto pickup_plan = planner->plan(start, pickup_goal);
     if (!pickup_plan)
       continue;
@@ -98,15 +98,45 @@ auto FleetUpdateHandle::Implementation::estimate_delivery(
     if (!dropoff_plan)
       continue;
 
-    const auto estimate = dropoff_plan->get_waypoints().back().time();
+    const auto& final_wp = dropoff_plan->get_waypoints().back();
+
+    const auto estimate = final_wp.time();
+    rmf_traffic::agv::Plan::Start finish{
+      estimate,
+      *final_wp.graph_index(),
+      final_wp.position()[2]
+    };
+
     if (estimate < best.time)
-      best = DeliveryEstimate{estimate, element.first};
+    {
+      best = DeliveryEstimate{
+        estimate,
+        element.first,
+        std::move(start.front()),
+        std::move(dropoff_start),
+        std::move(finish)
+      };
+    }
   }
 
   if (best.robot)
     return best;
 
   return rmf_utils::nullopt;
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::perform_delivery(
+    const rmf_task_msgs::msg::Delivery& request,
+    const DeliveryEstimate& estimate)
+{
+  auto& mgr = task_managers.at(estimate.robot);
+  mgr.queue_task(
+        tasks::make_delivery(
+          request, estimate.robot,
+          *estimate.pickup_start,
+          *estimate.dropoff_start),
+        *estimate.finish);
 }
 
 //==============================================================================

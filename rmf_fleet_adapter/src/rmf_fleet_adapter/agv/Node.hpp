@@ -20,6 +20,9 @@
 
 #include <rmf_rxcpp/Transport.hpp>
 
+#include <rmf_dispenser_msgs/msg/dispenser_request.hpp>
+#include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
+#include <rmf_dispenser_msgs/msg/dispenser_state.hpp>
 #include <rmf_door_msgs/msg/door_state.hpp>
 #include <rmf_door_msgs/msg/door_request.hpp>
 #include <rmf_door_msgs/msg/supervisor_heartbeat.hpp>
@@ -61,6 +64,18 @@ public:
   using TaskSummaryPub = rclcpp::Publisher<TaskSummary>::SharedPtr;
   const TaskSummaryPub& task_summary() const;
 
+  using DispenserRequest = rmf_dispenser_msgs::msg::DispenserRequest;
+  using DispenserRequestPub = rclcpp::Publisher<DispenserRequest>::SharedPtr;
+  const DispenserRequestPub& dispenser_request() const;
+
+  using DispenserResult = rmf_dispenser_msgs::msg::DispenserResult;
+  using DispenserResultObs = rxcpp::observable<DispenserResult::SharedPtr>;
+  const DispenserResultObs& dispenser_result() const;
+
+  using DispenserState = rmf_dispenser_msgs::msg::DispenserState;
+  using DispenserStateObs = rxcpp::observable<DispenserState::SharedPtr>;
+  const DispenserStateObs& dispenser_state() const;
+
 private:
 
   DoorStateObs _door_state_obs;
@@ -69,6 +84,9 @@ private:
   LiftStateObs _lift_state_obs;
   LiftRequestPub _lift_request_pub;
   TaskSummaryPub _task_summary_pub;
+  DispenserRequestPub _dispenser_request_pub;
+  DispenserResultObs _dispenser_result_obs;
+  DispenserStateObs _dispenser_state_obs;
 };
 
 } // namespace agv

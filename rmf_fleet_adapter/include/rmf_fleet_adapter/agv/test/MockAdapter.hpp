@@ -21,6 +21,8 @@
 
 #include <rclcpp/node.hpp>
 
+#include <rmf_task_msgs/msg/delivery.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 namespace test {
@@ -29,29 +31,35 @@ namespace test {
 /// This class is an alternative to the Adapter class, but made specifically for
 /// testing. It does not try to connect to a Schedule Node or to any Negotiation
 /// topics. It keeps its database internal.
-///
-/// TODO(MXG): We could probably polish this class and make it part of the
-/// public API so that users have a way to test their integrations.
 class MockAdapter : public std::enable_shared_from_this<MockAdapter>
 {
 public:
 
+  /// Create a mock adapter
   MockAdapter(
       const std::string& node_name,
       const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions());
 
+  /// Add a fleet to test
   std::shared_ptr<FleetUpdateHandle> add_fleet(
       const std::string& fleet_name,
       rmf_traffic::agv::VehicleTraits traits,
       rmf_traffic::agv::Graph navigation_graph);
 
+  /// Get the rclcpp Node for this adapter
   std::shared_ptr<rclcpp::Node> node();
 
+  /// const-qualified node()
   std::shared_ptr<const rclcpp::Node> node() const;
 
+  /// Start spinning this adapter
   void start();
 
+  /// Stop this adapter from spinning
   void stop();
+
+  /// Submit a delivery request
+  void request_delivery(const rmf_task_msgs::msg::Delivery& request);
 
   class Implementation;
 private:

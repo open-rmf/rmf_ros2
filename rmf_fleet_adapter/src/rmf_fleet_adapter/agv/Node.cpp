@@ -39,6 +39,12 @@ Node::Node(const std::string& node_name, const rclcpp::NodeOptions& options)
         AdapterLiftRequestTopicName, default_qos);
   _task_summary_pub = create_publisher<TaskSummary>(
         TaskSummaryTopicName, default_qos);
+  _dispenser_request_pub = create_publisher<DispenserRequest>(
+        DispenserRequestTopicName, default_qos);
+  _dispenser_result_obs = create_observable<DispenserResult>(
+        DispenserResultTopicName, default_qos);
+  _dispenser_state_obs = create_observable<DispenserState>(
+        DispenserStateTopicName, default_qos);
 }
 
 //==============================================================================
@@ -75,6 +81,24 @@ auto Node::lift_request() const -> const LiftRequestPub&
 auto Node::task_summary() const -> const TaskSummaryPub&
 {
   return _task_summary_pub;
+}
+
+//==============================================================================
+auto Node::dispenser_request() const -> const DispenserRequestPub&
+{
+  return _dispenser_request_pub;
+}
+
+//==============================================================================
+auto Node::dispenser_result() const -> const DispenserResultObs&
+{
+  return _dispenser_result_obs;
+}
+
+//==============================================================================
+auto Node::dispenser_state() const -> const DispenserStateObs&
+{
+  return _dispenser_state_obs;
 }
 
 } // namespace agv
