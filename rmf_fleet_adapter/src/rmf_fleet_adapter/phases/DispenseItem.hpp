@@ -25,6 +25,7 @@
 #include <rmf_rxcpp/Transport.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_request.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
+#include <rmf_dispenser_msgs/msg/dispenser_state.hpp>
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -36,11 +37,13 @@ struct DispenseItem
   public:
 
     Action(
-      std::weak_ptr<rmf_rxcpp::Transport> transport,
+      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+      std::string request_guid,
       std::string target,
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs);
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs);
 
     inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
     {
@@ -50,16 +53,20 @@ struct DispenseItem
   private:
 
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
+    std::string _request_guid;
     std::string _target;
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> _result_obs;
+    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> _state_obs;
     rxcpp::observable<Task::StatusMsg> _obs;
-    std::string _request_guid;
     rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr _publisher;
     rclcpp::TimerBase::SharedPtr _timer;
+    bool _request_acknowledged = false;
 
-    Task::StatusMsg _check_status(const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result);
+    Task::StatusMsg _get_status(
+      const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result,
+      const rmf_dispenser_msgs::msg::DispenserState::SharedPtr& dispenser_state);
 
     void _do_publish();
   };
@@ -69,11 +76,13 @@ struct DispenseItem
   public:
 
     ActivePhase(
-      std::weak_ptr<rmf_rxcpp::Transport> transport,
+      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+      std::string request_guid,
       std::string target,
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs);
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -88,10 +97,12 @@ struct DispenseItem
   private:
 
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
+    std::string _request_guid;
     std::string _target;
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> _result_obs;
+    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> _state_obs;
     std::string _description;
     Action _action;
   };
@@ -102,10 +113,12 @@ struct DispenseItem
 
     PendingPhase(
       std::weak_ptr<rmf_rxcpp::Transport> transport,
+      std::string request_guid,
       std::string target,
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs);
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
 
@@ -116,10 +129,12 @@ struct DispenseItem
   private:
 
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
+    std::string _request_guid;
     std::string _target;
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> _result_obs;
+    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> _state_obs;
     std::string _description;
   };
 };

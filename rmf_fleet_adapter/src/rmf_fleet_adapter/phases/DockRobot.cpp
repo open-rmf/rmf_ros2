@@ -33,8 +33,14 @@ DockRobot::ActivePhase::ActivePhase(
 
   _obs = rmf_rxcpp::make_job<Task::StatusMsg>([this](const auto& s)
   {
+    Task::StatusMsg status;
+    status.state = Task::StatusMsg::STATE_ACTIVE;
+    s.on_next(status);
     _context->command()->dock(_dock_name, [s]()
     {
+      Task::StatusMsg status;
+      status.state = Task::StatusMsg::STATE_COMPLETED;
+      s.on_next(status);
       s.on_completed();
     });
   });

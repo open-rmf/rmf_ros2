@@ -36,7 +36,7 @@ struct RequestLift
 
       Action(
         std::string requester_id,
-        std::weak_ptr<rmf_rxcpp::Transport> transport,
+        const std::shared_ptr<rmf_rxcpp::Transport>& transport,
         std::string lift_name,
         std::string destination,
         rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
@@ -59,7 +59,7 @@ struct RequestLift
       rclcpp::TimerBase::SharedPtr _timer;
 
       Task::StatusMsg _get_status(const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
-      void _do_publish();
+      void _do_publish(const rclcpp::Node::SharedPtr& node);
     };
 
   class ActivePhase : public Task::ActivePhase
@@ -68,7 +68,7 @@ struct RequestLift
 
     ActivePhase(
       std::string requester_id,
-      std::weak_ptr<rmf_rxcpp::Transport> transport,
+      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
       std::string lift_name,
       std::string destination,
       rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,

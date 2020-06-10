@@ -53,12 +53,15 @@ DoorOpen::ActivePhase::ActivePhase(
   using rmf_door_msgs::msg::DoorState;
   using rmf_door_msgs::msg::SupervisorHeartbeat;
   using CombinedType = std::tuple<DoorState::SharedPtr, SupervisorHeartbeat::SharedPtr>;
-  _obs = _door_state_obs.combine_latest(_supervisor_heartbeat_obs)
-    .lift<CombinedType>(on_subscribe([this]()
+  _obs = _door_state_obs.combine_latest(rxcpp::observe_on_event_loop(), _supervisor_heartbeat_obs)
+    .lift<CombinedType>(on_subscribe([this, transport]()
     {
       _status.state = Task::StatusMsg::STATE_ACTIVE;
-      _status.status = "waiting for door supervisor to receive request";
-      _publish_open_door();
+      _publish_open_door(transport);
+      _timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [this, transport]()
+      {
+        _publish_open_door(transport);
+      });
     }))
     .map([this](const auto& v)
     {
@@ -117,25 +120,14 @@ const std::string& DoorOpen::ActivePhase::description() const
 }
 
 //==============================================================================
-void DoorOpen::ActivePhase::_publish_open_door()
+void DoorOpen::ActivePhase::_publish_open_door(const rclcpp::Node::SharedPtr& node)
 {
-  auto transport = _transport.lock();
-  if (!transport)
-    throw std::runtime_error("invalid transport state");
-
   rmf_door_msgs::msg::DoorRequest msg{};
   msg.door_name = _door_name;
-  msg.request_time = transport->now();
+  msg.request_time = node->now();
   msg.requested_mode.value = rmf_door_msgs::msg::DoorMode::MODE_OPEN;
   msg.requester_id = _request_id;
-
   _door_req_pub->publish(msg);
-  _timer = transport->create_wall_timer(
-    std::chrono::milliseconds(1000),
-    [this]()
-    {
-      _publish_open_door();
-    });
 }
 
 //==============================================================================
