@@ -32,7 +32,7 @@ namespace phases {
 //==============================================================================
 auto GoToPlace::Active::observe() const -> const rxcpp::observable<StatusMsg>&
 {
-  return _status_publisher.observe();
+  return _status_obs;
 }
 
 //==============================================================================
@@ -94,7 +94,7 @@ void GoToPlace::Active::respond(
   const TableViewerPtr& table_viewer,
   const ResponderPtr& responder)
 {
-  auto phase = std::enable_shared_from_this<Active>::shared_from_this();
+  auto phase = phase_from_this();
   std::weak_ptr<Active> weak = phase;
 
   auto approval_cb = [w = std::move(weak)](
@@ -121,7 +121,6 @@ void GoToPlace::Active::respond(
   std::shared_ptr<services::Negotiate> negotiate;
   if (_emergency_active)
   {
-
     negotiate = services::Negotiate::emergency_pullover(
           _context->planner(), _context->location(), table_viewer, responder,
           std::move(approval_cb), evaluator);
@@ -133,11 +132,11 @@ void GoToPlace::Active::respond(
           responder, std::move(approval_cb), evaluator);
   }
 
-  _negotiate_subscription = rmf_rxcpp::make_job<services::Negotiate::Result>(
-        std::move(negotiate))
+  _negotiate_subscription =
+      rmf_rxcpp::make_job<services::Negotiate::Result>(negotiate)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [phase = std::move(phase)](const auto& result)
+        [phase = std::move(phase), negotiate](const auto& result)
   {
     result();
   });
@@ -152,6 +151,8 @@ GoToPlace::Active::Active(
     _goal(std::move(goal)),
     _latest_time_estimate(original_time_estimate)
 {
+  _status_obs = _status_publisher.get_observable();
+
   _description = "Moving to [" + std::to_string(_goal.waypoint()) + "]";
   _negotiator_license = _context->set_negotiator(this);
 
@@ -161,9 +162,7 @@ GoToPlace::Active::Active(
   const auto now = _context->node()->now();
   initial_msg.start_time = now;
   initial_msg.end_time = now + rclcpp::Duration(_latest_time_estimate);
-  _status_publisher.publish(initial_msg);
-
-  find_plan();
+  _status_publisher.get_subscriber().on_next(initial_msg);
 }
 
 //==============================================================================
@@ -172,20 +171,23 @@ void GoToPlace::Active::find_plan()
   if (_emergency_active)
     return find_emergency_plan();
 
-  auto phase = std::enable_shared_from_this<Active>::shared_from_this();
+  std::cout << "Requesting plan search" << std::endl;
+  auto phase = phase_from_this();
 
-  _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
-        std::make_shared<services::FindPath>(
-          _context->planner(), _context->location(), _goal,
-          _context->schedule()->snapshot(), _context->itinerary().id()))
+  auto service = std::make_shared<services::FindPath>(
+        _context->planner(), _context->location(), _goal,
+        _context->schedule()->snapshot(), _context->itinerary().id());
+
+  _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(service)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [phase = std::move(phase)](const services::FindPath::Result& result)
+        [phase = std::move(phase), service](
+        const services::FindPath::Result& result)
   {
     if (!result)
     {
       // This shouldn't happen, but let's try to handle it gracefully
-      phase->_status_publisher.error(
+      phase->_status_publisher.get_subscriber().on_error(
             std::make_exception_ptr(std::runtime_error("Cannot find a plan")));
 
       // TODO(MXG): Instead of canceling, should we retry later?
@@ -193,6 +195,7 @@ void GoToPlace::Active::find_plan()
       return;
     }
 
+    std::cout << "Executing plan" << std::endl;
     phase->execute_plan(*std::move(result));
   });
 }
@@ -200,28 +203,29 @@ void GoToPlace::Active::find_plan()
 //==============================================================================
 void GoToPlace::Active::find_emergency_plan()
 {
-  auto phase = std::enable_shared_from_this<Active>::shared_from_this();
+  auto phase = phase_from_this();
 
   StatusMsg emergency_msg;
   emergency_msg.status = "Planning an emergency pullover";
   emergency_msg.start_time = _context->node()->now();
   emergency_msg.end_time = emergency_msg.start_time;
-  _status_publisher.publish(emergency_msg);
+  _status_publisher.get_subscriber().on_next(emergency_msg);
+
+  auto service = std::make_shared<services::FindEmergencyPullover>(
+        _context->planner(), _context->location(),
+        _context->schedule()->snapshot(), _context->itinerary().id());
 
   _plan_subscription = rmf_rxcpp::make_job<
-      services::FindEmergencyPullover::Result>(
-        std::make_shared<services::FindEmergencyPullover>(
-          _context->planner(), _context->location(),
-          _context->schedule()->snapshot(), _context->itinerary().id()))
+      services::FindEmergencyPullover::Result>(service)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [phase = std::move(phase)](
+        [phase = std::move(phase), service](
         const services::FindEmergencyPullover::Result& result)
   {
     if (!result)
     {
       // This shouldn't happen, but let's try to handle it gracefully
-      phase->_status_publisher.error(
+      phase->_status_publisher.get_subscriber().on_error(
             std::make_exception_ptr(std::runtime_error("Cannot find a plan")));
 
       // TODO(MXG): Instead of canceling, should we retry later?
@@ -356,23 +360,34 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
     }
   }
 
-  auto phase = std::enable_shared_from_this<Active>::shared_from_this();
+  auto phase = phase_from_this();
   _subtasks = Task("", std::move(sub_phases));
   _status_subscription = _subtasks->observe()
-      .observe_on(rxcpp::identity_same_worker(_context->worker()))
+//      .observe_on(rxcpp::identity_same_worker(_context->worker()))
+//      .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
         [phase](const StatusMsg& msg)
         {
-          phase->_status_publisher.publish(msg);
+          std::cout << "Subtask update: " << msg.status << std::endl;
+          phase->_status_publisher.get_subscriber().on_next(msg);
         },
         [phase](std::exception_ptr e)
         {
-          phase->_status_publisher.error(e);
+          std::cout << " !!!!!! SUBTASK ERROR" << std::endl;
+          phase->_status_publisher.get_subscriber().on_error(e);
         },
         [phase]()
         {
+          std::cout << "subtasks complete" << std::endl;
           if (!phase->_emergency_active)
-            phase->_status_publisher.complete();
+          {
+            std::cout << "Finished going to place" << std::endl;
+            phase->_status_publisher.get_subscriber().on_completed();
+          }
+          else
+          {
+            std::cout << "Emergency active -- not finished going" << std::endl;
+          }
 
           // If an emergency is active, then eventually the alarm should get
           // turned off, which should trigger a non-emergency replanning. That
@@ -382,14 +397,32 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
         }
    );
 
+  _subtasks->begin();
   _context->itinerary().set(_plan->get_itinerary());
+}
+
+//==============================================================================
+std::shared_ptr<GoToPlace::Active> GoToPlace::Active::phase_from_this()
+{
+  return std::static_pointer_cast<Active>(shared_from_this());
+}
+
+//==============================================================================
+std::shared_ptr<const GoToPlace::Active>
+GoToPlace::Active::phase_from_this() const
+{
+  return std::static_pointer_cast<const Active>(shared_from_this());
 }
 
 //==============================================================================
 std::shared_ptr<Task::ActivePhase> GoToPlace::Pending::begin()
 {
-  return std::shared_ptr<Task::ActivePhase>(
-        new Active(_context, _goal, _time_estimate));
+  auto active =
+      std::shared_ptr<Active>(new Active(_context, _goal, _time_estimate));
+
+  active->find_plan();
+
+  return active;
 }
 
 //==============================================================================

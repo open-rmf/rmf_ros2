@@ -16,6 +16,7 @@
 */
 
 #include <rmf_traffic/geometry/Circle.hpp>
+#include <rmf_traffic/schedule/Database.hpp>
 
 #include <rmf_fleet_adapter/agv/test/MockAdapter.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
@@ -23,6 +24,9 @@
 #include <rmf_dispenser_msgs/msg/dispenser_request.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_state.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
+
+#include <services/FindPath.hpp>
+#include <agv/internal_RobotUpdateHandle.hpp>
 
 #include <rmf_utils/catch.hpp>
 
@@ -60,8 +64,10 @@ public:
       if (updater)
       {
         const auto& previous_wp = waypoints[_current_waypoint_target-1];
+        std::cout << "Reached " << previous_wp.position().transpose() << std::endl;
         if (previous_wp.graph_index())
         {
+          std::cout << "waypoint: " << *previous_wp.graph_index() << std::endl;
           updater->update_position(
                 *previous_wp.graph_index(), previous_wp.position()[2]);
           _visited_wps.insert(*previous_wp.graph_index());
@@ -88,6 +94,7 @@ public:
         return;
       }
 
+      std::cout << "Finished!" << std::endl;
       _timer.reset();
       path_finished_callback();
     });
@@ -102,6 +109,7 @@ public:
       const std::string& dock_name,
       std::function<void()> docking_finished_callback) final
   {
+    std::cout << "Docking into " << dock_name << std::endl;
     ++_dockings.insert({dock_name, 0}).first->second;
     docking_finished_callback();
   }
@@ -254,12 +262,23 @@ public:
         ++r.publish_count;
       }
 
+      const std::size_t initial_count = _request_queue.size();
+
       _request_queue.erase(std::remove_if(
             _request_queue.begin(), _request_queue.end(),
             [](const auto& r)
       {
         return r.publish_count > 2;
       }), _request_queue.end());
+
+      if (_request_queue.size() < initial_count)
+      {
+        if (!_fulfilled_promise)
+        {
+          _fulfilled_promise = true;
+          success_promise.set_value(true);
+        }
+      }
 
       _state_pub->publish(msg);
     });
@@ -281,6 +300,7 @@ private:
   rclcpp::Publisher<DispenserState>::SharedPtr _state_pub;
   std::vector<RequestEntry> _request_queue;
   rclcpp::TimerBase::SharedPtr _timer;
+  bool _fulfilled_promise = false;
 
   void _process_request(const DispenserRequest& msg)
   {
@@ -374,6 +394,7 @@ SCENARIO("Test Delivery")
     profile
   };
 
+  rclcpp::init(0, nullptr);
   auto adapter = rmf_fleet_adapter::agv::test::MockAdapter("test_Delivery");
   auto fleet = adapter.add_fleet("test_fleet", traits, graph);
   fleet->accept_delivery_requests(
@@ -384,9 +405,10 @@ SCENARIO("Test Delivery")
   });
 
   const auto now = std::chrono::steady_clock::now();
+  const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};
   auto robot_cmd = std::make_shared<MockRobotCommand>(adapter.node());
   fleet->add_robot(
-        robot_cmd, "T0", profile, {{now, 0, 0.0}},
+        robot_cmd, "T0", profile, starts,
         [&robot_cmd](rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
   {
     robot_cmd->updater = std::move(updater);
@@ -415,21 +437,19 @@ SCENARIO("Test Delivery")
 
   adapter.request_delivery(request);
 
-  const auto pickup_status = pickup_future.wait_for(2s);
+  const auto pickup_status = pickup_future.wait_for(5s);
   REQUIRE(pickup_status == std::future_status::ready);
   REQUIRE(pickup_future.get());
 
-  const auto dropoff_status = dropoff_future.wait_for(2s);
+  const auto dropoff_status = dropoff_future.wait_for(5s);
   REQUIRE(dropoff_status == std::future_status::ready);
   REQUIRE(dropoff_future.get());
 
   const auto& visits = robot_cmd->visited_wps();
-  CHECK(visits.size() == 7);
+  CHECK(visits.size() == 5);
   CHECK(visits.count(0));
-  CHECK(visits.count(1));
   CHECK(visits.count(5));
   CHECK(visits.count(6));
   CHECK(visits.count(7));
   CHECK(visits.count(8));
-  CHECK(visits.count(10));
 }

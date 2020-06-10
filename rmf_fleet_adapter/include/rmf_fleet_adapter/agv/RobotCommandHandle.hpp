@@ -54,7 +54,7 @@ public:
   ///   because the waypoint timing is used to avoid traffic conflicts with
   ///   other vehicles.
   ///
-  /// \param[in] next_arrival_estimate
+  /// \param[in] next_arrival_estimator
   ///   Give an estimate for how long the robot will take to reach the path
   ///   element of the specified index. You should still be calling
   ///   RobotUpdateHandle::update_position() even as you call this function.
@@ -83,6 +83,8 @@ public:
       const std::string& dock_name,
       std::function<void()> docking_finished_callback) = 0;
 
+  // Virtual destructor
+  virtual ~RobotCommandHandle() = default;
 };
 
 } // namespace agv

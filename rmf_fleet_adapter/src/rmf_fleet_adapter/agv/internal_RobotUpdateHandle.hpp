@@ -43,6 +43,16 @@ public:
     return std::make_shared<RobotUpdateHandle>(std::move(handle));
   }
 
+  static Implementation& get(RobotUpdateHandle& handle)
+  {
+    return *handle._pimpl;
+  }
+
+  static const Implementation& get(const RobotUpdateHandle& handle)
+  {
+    return *handle._pimpl;
+  }
+
   std::shared_ptr<RobotContext> get_context();
 
 };

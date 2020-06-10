@@ -48,6 +48,8 @@ public:
   {
   public:
 
+    using StatusMsg = Task::StatusMsg;
+
     /// Get a reference to an observable for the status of this ActivePhase.
     /// When this phase is complete, it will trigger on_completed()
     virtual const rxcpp::observable<StatusMsg>& observe() const = 0;
@@ -88,8 +90,10 @@ public:
   using StatusCallback =
     std::function<void(const StatusMsg&)>;
 
+  using PendingPhases = std::vector<std::unique_ptr<PendingPhase>>;
+
   /// Construct a Task
-  Task(std::string id, std::vector<std::unique_ptr<PendingPhase>> phases);
+  Task(std::string id, PendingPhases phases);
 
   void begin();
 
@@ -102,8 +106,6 @@ public:
   /// const-qualified current_phase()
   std::shared_ptr<const ActivePhase> current_phase() const;
 
-  using PendingPhases = std::vector<std::unique_ptr<PendingPhase>>;
-
   /// Get the phases of the task that are pending
   const PendingPhases& pending_phases() const;
 
@@ -115,7 +117,8 @@ public:
 private:
 
   std::string _id;
-  rmf_rxcpp::Publisher<StatusMsg> _status_publisher;
+  rxcpp::subjects::subject<StatusMsg> _status_publisher;
+  rxcpp::observable<StatusMsg> _status_obs;
 
   std::shared_ptr<ActivePhase> _active_phase;
   rxcpp::subscription _active_phase_subscription;

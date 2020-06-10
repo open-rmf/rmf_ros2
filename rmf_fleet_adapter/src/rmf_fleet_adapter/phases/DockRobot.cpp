@@ -27,6 +27,7 @@ DockRobot::ActivePhase::ActivePhase(
   : _context{std::move(context)},
     _dock_name{std::move(dock_name)}
 {
+  std::cout << "Docking robot to " << _dock_name << std::endl;
   std::ostringstream oss;
   oss << "Docking robot to " << _dock_name;
   _description = oss.str();
@@ -35,10 +36,16 @@ DockRobot::ActivePhase::ActivePhase(
   {
     Task::StatusMsg status;
     status.state = Task::StatusMsg::STATE_ACTIVE;
+    status.status = "Docking [" + _context->requester_id() + "] into dock ["
+        + _dock_name + "]";
+
     s.on_next(status);
-    _context->command()->dock(_dock_name, [s]()
+    _context->command()->dock(_dock_name, [s, this]()
     {
+      std::cout << " === Received dock complete notice" << std::endl;
       Task::StatusMsg status;
+      status.status = "Finished docking [" + _context->requester_id()
+          + "] into dock [" + _dock_name + "]";
       status.state = Task::StatusMsg::STATE_COMPLETED;
       s.on_next(status);
       s.on_completed();

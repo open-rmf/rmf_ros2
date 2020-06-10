@@ -44,7 +44,8 @@ std::shared_ptr<RobotContext> RobotUpdateHandle::Implementation::get_context()
 void RobotUpdateHandle::interrupted()
 {
   if (const auto context = _pimpl->get_context())
-    context->_interrupt_publisher.publish(RobotContext::Empty());
+    context->_interrupt_publisher.get_subscriber().on_next(
+          RobotContext::Empty());
 }
 
 //==============================================================================

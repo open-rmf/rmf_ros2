@@ -29,6 +29,7 @@ Task::Task(std::string id, std::vector<std::unique_ptr<PendingPhase>> phases)
   : _id(std::move(id)),
     _pending_phases(std::move(phases))
 {
+  _status_obs = _status_publisher.get_observable();
   std::reverse(_pending_phases.begin(), _pending_phases.end());
 }
 
@@ -42,7 +43,7 @@ void Task::begin()
 //==============================================================================
 auto Task::observe() const -> const rxcpp::observable<StatusMsg>&
 {
-  return _status_publisher.observe();
+  return _status_obs;
 }
 
 //==============================================================================
@@ -79,12 +80,14 @@ const std::string& Task::id() const
 //==============================================================================
 void Task::_start_next_phase()
 {
+  std::cout << "Remaining phases: " << _pending_phases.size() << std::endl;
   if (_pending_phases.empty())
   {
+    std::cout << "Finished (sub)task" << std::endl;
     // All phases are now complete
     _active_phase = nullptr;
     _active_phase_subscription.unsubscribe();
-    _status_publisher.complete();
+    _status_publisher.get_subscriber().on_completed();
 
     return;
   }
@@ -93,39 +96,51 @@ void Task::_start_next_phase()
   _pending_phases.pop_back();
   _active_phase_subscription =
       _active_phase->observe()
-      .observe_on(rxcpp::observe_on_event_loop())
+      .observe_on(rxcpp::serialize_event_loop())
       .subscribe(
-        [this](const rmf_task_msgs::msg::TaskSummary& summary)
+        [this](const rmf_task_msgs::msg::TaskSummary& msg)
         {
+          auto summary = msg;
+          std::cout << "[" << _id << "] update on task phase: "
+                    << summary.status << std::endl;
           // We have received a status update from the phase. We will forward
           // this to whoever is subscribing to the Task.
-          this->_status_publisher.publish(summary);
-        },
-        [this](std::exception_ptr e)
-        {
-          _pending_phases.clear();
-          std::string exception_msg;
-          try
-          {
-            if (e)
-              std::rethrow_exception(e);
-          }
-          catch(const std::exception& e)
-          {
-            exception_msg = e.what();
-          }
+          summary.task_id = this->_id;
+          this->_status_publisher.get_subscriber().on_next(summary);
 
-          StatusMsg msg;
-          msg.state = msg.STATE_FAILED;
-          msg.status = "Failure at phase ["+_active_phase->description()+"]: "
-            + exception_msg;
-
-          this->_status_publisher.publish(msg);
+          // DEBUG: We should be calling _start_next_phase() from the
+          // on_completed callback instead of calling it here, but when we do
+          // that, the GoToPlace task fails to call it after the MoveRobot phase
+          // in test_Delivery.
+          if (summary.state == summary.STATE_COMPLETED)
+            this->_start_next_phase();
         },
+//        [this](std::exception_ptr e)
+//        {
+//          _pending_phases.clear();
+//          std::string exception_msg;
+//          try
+//          {
+//            if (e)
+//              std::rethrow_exception(e);
+//          }
+//          catch(const std::exception& e)
+//          {
+//            exception_msg = e.what();
+//          }
+
+//          StatusMsg msg;
+//          msg.state = msg.STATE_FAILED;
+//          msg.status = "Failure at phase ["+_active_phase->description()+"]: "
+//            + exception_msg;
+
+//          this->_status_publisher.publish(msg);
+//        },
         [this]()
         {
+          std::cout << "[" << _id << "] ========== Finished phase" << std::endl;
           // We have received a completion notice from the phase
-          this->_start_next_phase();
+//          this->_start_next_phase();
         });
 }
 

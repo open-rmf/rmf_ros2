@@ -23,28 +23,40 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
+std::shared_ptr<Node> Node::make(
+    const std::string& node_name,
+    const rclcpp::NodeOptions& options)
+{
+  auto node = std::shared_ptr<Node>(new Node(node_name, options));
+
+  auto default_qos = rclcpp::SystemDefaultsQoS();
+  node->_door_state_obs = node->create_observable<DoorState>(
+        DoorStateTopicName, default_qos);
+  node->_door_supervisor_obs = node->create_observable<DoorSupervisorState>(
+        DoorSupervisorHeartbeatTopicName, default_qos);
+  node->_door_request_pub = node->create_publisher<DoorRequest>(
+        AdapterDoorRequestTopicName, default_qos);
+  node->_lift_state_obs = node->create_observable<LiftState>(
+        LiftStateTopicName, default_qos);
+  node->_lift_request_pub = node->create_publisher<LiftRequest>(
+        AdapterLiftRequestTopicName, default_qos);
+  node->_task_summary_pub = node->create_publisher<TaskSummary>(
+        TaskSummaryTopicName, default_qos);
+  node->_dispenser_request_pub = node->create_publisher<DispenserRequest>(
+        DispenserRequestTopicName, default_qos);
+  node->_dispenser_result_obs = node->create_observable<DispenserResult>(
+        DispenserResultTopicName, default_qos);
+  node->_dispenser_state_obs = node->create_observable<DispenserState>(
+        DispenserStateTopicName, default_qos);
+
+  return node;
+}
+
+//==============================================================================
 Node::Node(const std::string& node_name, const rclcpp::NodeOptions& options)
   : rmf_rxcpp::Transport(node_name, options)
 {
-  auto default_qos = rclcpp::SystemDefaultsQoS();
-  _door_state_obs = create_observable<DoorState>(
-        DoorStateTopicName, default_qos);
-  _door_supervisor_obs = create_observable<DoorSupervisorState>(
-        DoorSupervisorHeartbeatTopicName, default_qos);
-  _door_request_pub = create_publisher<DoorRequest>(
-        AdapterDoorRequestTopicName, default_qos);
-  _lift_state_obs = create_observable<LiftState>(
-        LiftStateTopicName, default_qos);
-  _lift_request_pub = create_publisher<LiftRequest>(
-        AdapterLiftRequestTopicName, default_qos);
-  _task_summary_pub = create_publisher<TaskSummary>(
-        TaskSummaryTopicName, default_qos);
-  _dispenser_request_pub = create_publisher<DispenserRequest>(
-        DispenserRequestTopicName, default_qos);
-  _dispenser_result_obs = create_observable<DispenserResult>(
-        DispenserResultTopicName, default_qos);
-  _dispenser_state_obs = create_observable<DispenserState>(
-        DispenserStateTopicName, default_qos);
+  // Do nothing
 }
 
 //==============================================================================

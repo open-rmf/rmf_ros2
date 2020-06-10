@@ -186,7 +186,7 @@ void FleetUpdateHandle::add_robot(
     }
 
     fleet->_pimpl->task_managers.insert({context, context});
-    return RobotUpdateHandle::Implementation::make(std::move(context));
+    handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
   });
 }
 

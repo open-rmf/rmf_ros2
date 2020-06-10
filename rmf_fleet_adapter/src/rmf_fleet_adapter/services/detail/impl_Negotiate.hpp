@@ -139,7 +139,7 @@ void Negotiate::operator()(const Subscriber& s)
   _search_sub = rmf_rxcpp::make_job_from_action_list(search_jobs)
       .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
-        [n = shared_from_this(), s, N_jobs,
+        [n = shared_from_this(), s,
          check_if_finished = std::move(check_if_finished)](
         const jobs::Planning::Result& result)
   {

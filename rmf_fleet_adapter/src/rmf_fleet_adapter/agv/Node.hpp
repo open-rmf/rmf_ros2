@@ -38,7 +38,9 @@ class Node : public rmf_rxcpp::Transport
 {
 public:
 
-  Node(const std::string& node_name, const rclcpp::NodeOptions& options);
+  static std::shared_ptr<Node> make(
+      const std::string& node_name,
+      const rclcpp::NodeOptions& options);
 
   using DoorState = rmf_door_msgs::msg::DoorState;
   using DoorStateObs = rxcpp::observable<DoorState::SharedPtr>;
@@ -77,6 +79,8 @@ public:
   const DispenserStateObs& dispenser_state() const;
 
 private:
+
+  Node(const std::string& node_name, const rclcpp::NodeOptions& options);
 
   DoorStateObs _door_state_obs;
   DoorSupervisorObs _door_supervisor_obs;

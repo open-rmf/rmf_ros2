@@ -122,7 +122,8 @@ private:
 
   std::shared_ptr<void> _negotiation_license;
 
-  rmf_rxcpp::Publisher<Empty> _interrupt_publisher;
+  rxcpp::subjects::subject<Empty> _interrupt_publisher;
+  rxcpp::observable<Empty> _interrupt_obs;
 
   std::shared_ptr<Node> _node;
   rxcpp::schedulers::worker _worker;

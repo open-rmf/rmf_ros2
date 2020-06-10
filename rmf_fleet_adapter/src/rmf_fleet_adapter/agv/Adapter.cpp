@@ -74,7 +74,7 @@ public:
       const rclcpp::NodeOptions& node_options,
       const rmf_traffic::Duration wait_time)
   {
-    auto node = std::make_shared<Node>(node_name, node_options);
+    auto node = Node::make(node_name, node_options);
 
     auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
           *node, rmf_traffic::schedule::query_all());

@@ -153,10 +153,14 @@ DispenseItem::ActivePhase::ActivePhase(
       std::move(request_pub)}
 {
   std::ostringstream oss;
-  oss << "Dispensing items (";
-  for (size_t i = 0; i < _items.size() - 1; i++)
-    oss << _items[i].type_guid << ", ";
-  oss << _items[_items.size() - 1].type_guid << ")";
+  oss << "Dispense items (";
+  for (size_t i = 0; i < _items.size(); i++)
+  {
+    oss << _items[i].type_guid;
+    if (i < _items.size()-1)
+      oss << ", ";
+  }
+  oss << ")";
 
   _description = oss.str();
 }
@@ -213,9 +217,13 @@ DispenseItem::PendingPhase::PendingPhase(
 {
   std::ostringstream oss;
   oss << "Dispense items (";
-  for (size_t i = 0; i < _items.size() - 1; i++)
-    oss << _items[i].type_guid << ", ";
-  oss << _items[_items.size() - 1].type_guid << ")";
+  for (size_t i = 0; i < _items.size(); i++)
+  {
+    oss << _items[i].type_guid;
+    if (i < _items.size()-1)
+      oss << ", ";
+  }
+  oss << ")";
 
   _description = oss.str();
 }

@@ -45,7 +45,7 @@ MockAdapter::MockAdapter(
       rmf_utils::make_unique_impl<Implementation>(
         Implementation{
           rxcpp::schedulers::make_event_loop().create_worker(),
-          std::make_shared<Node>(node_name, node_options),
+          Node::make(node_name, node_options),
           std::make_shared<rmf_traffic::schedule::Database>()
         })
     }

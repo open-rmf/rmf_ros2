@@ -57,9 +57,24 @@ public:
 
   const rmf_traffic::agv::Planner::Result& progress() const;
 
+  ~Planning()
+  {
+    if (_current_result)
+    {
+      std::cout << "Tearing down planning job for "
+                << _current_result.get() << " going to "
+                << _current_result->get_goal().waypoint() << std::endl;
+    }
+    else
+    {
+      std::cout << "Tearing down planning job for discarded result" << std::endl;
+    }
+  }
+
 private:
   std::function<void()> _resume;
-  rmf_utils::optional<rmf_traffic::agv::Planner::Result> _current_result;
+//  rmf_utils::optional<rmf_traffic::agv::Planner::Result> _current_result;
+  std::unique_ptr<rmf_traffic::agv::Planner::Result> _current_result;
 };
 
 } // namespace jobs

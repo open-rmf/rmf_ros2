@@ -166,7 +166,7 @@ auto RobotContext::set_negotiator(
 const rxcpp::observable<RobotContext::Empty>&
 RobotContext::observe_interrupt() const
 {
-  return _interrupt_publisher.observe();
+  return _interrupt_obs;
 }
 
 //==============================================================================
@@ -225,7 +225,7 @@ RobotContext::RobotContext(
     _requester_id(
       _itinerary.description().owner() + "/" + _itinerary.description().name())
 {
-  // Do nothing
+  _interrupt_obs = _interrupt_publisher.get_observable();
 }
 
 } // namespace agv
