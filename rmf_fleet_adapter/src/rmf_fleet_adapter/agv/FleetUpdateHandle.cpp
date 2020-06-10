@@ -58,6 +58,58 @@ public:
 } // anonymous namespace
 
 //==============================================================================
+auto FleetUpdateHandle::Implementation::estimate_delivery(
+    const FleetUpdateHandle& fleet,
+    const rmf_task_msgs::msg::Delivery& request)
+-> rmf_utils::optional<FleetUpdateHandle::Implementation::DeliveryEstimate>
+{
+  const auto planner = fleet._pimpl->planner;
+  const auto& graph = planner->get_configuration().graph();
+  const auto pickup_wp = graph.find_waypoint(request.pickup_place_name);
+  if (!pickup_wp)
+    return rmf_utils::nullopt;
+
+  const auto dropoff_wp = graph.find_waypoint(request.dropoff_place_name);
+  if (!dropoff_wp)
+    return rmf_utils::nullopt;
+
+  const auto pickup_goal = rmf_traffic::agv::Plan::Goal(pickup_wp->index());
+  const auto dropoff_goal = rmf_traffic::agv::Plan::Goal(dropoff_wp->index());
+
+  // TODO(MXG): At some point we should consider parallelizing this estimation
+  // process and taking the existing schedule into account, but for now we'll
+  // try to use a very quick rough estimate.
+  DeliveryEstimate best;
+  for (const auto& element : fleet._pimpl->task_managers)
+  {
+    const auto& mgr = element.second;
+    const auto start = mgr.expected_finish_location();
+    const auto pickup_plan = planner->plan(start, pickup_goal);
+    if (!pickup_plan)
+      continue;
+
+    assert(pickup_plan->get_waypoints().back().graph_index());
+    const auto dropoff_start = rmf_traffic::agv::Plan::Start(
+          pickup_plan->get_waypoints().back().time(),
+          *pickup_plan->get_waypoints().back().graph_index(),
+          pickup_plan->get_waypoints().back().position()[2]);
+
+    const auto dropoff_plan = planner->plan(dropoff_start, dropoff_goal);
+    if (!dropoff_plan)
+      continue;
+
+    const auto estimate = dropoff_plan->get_waypoints().back().time();
+    if (estimate < best.time)
+      best = DeliveryEstimate{estimate, element.first};
+  }
+
+  if (best.robot)
+    return best;
+
+  return rmf_utils::nullopt;
+}
+
+//==============================================================================
 void FleetUpdateHandle::add_robot(
     std::shared_ptr<RobotCommandHandle> command,
     const std::string& name,
@@ -90,14 +142,30 @@ void FleetUpdateHandle::add_robot(
             fleet->_pimpl->worker
           });
 
-    context->_negotiation_license = fleet->_pimpl->negotiation
-        ->register_negotiator(
-          context->itinerary().id(),
-          std::make_unique<LiaisonNegotiator>(context));
+    // TODO(MXG): We need to perform this test because we do not currently
+    // support the distributed negotiation in unit test environments. We should
+    // create an abstract NegotiationRoom interface in rmf_traffic and use that
+    // instead.
+    if (fleet->_pimpl->negotiation)
+    {
+      context->_negotiation_license =
+          fleet->_pimpl->negotiation
+          ->register_negotiator(
+            context->itinerary().id(),
+            std::make_unique<LiaisonNegotiator>(context));
+    }
 
-    fleet->_pimpl->robots.push_back(context);
+    fleet->_pimpl->task_managers.insert({context, context});
     return RobotUpdateHandle::Implementation::make(std::move(context));
   });
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::accept_delivery_requests(
+    AcceptDeliveryRequest check)
+{
+  _pimpl->accept_delivery = std::move(check);
+  return *this;
 }
 
 //==============================================================================

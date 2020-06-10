@@ -50,11 +50,14 @@ SCENARIO_METHOD(TransportFixture, "request lift phase", "[phases]")
     std::string lift_name = "test_lift";
     std::string destination = "test_floor";
     auto lift_state_obs = transport->create_observable<LiftState>(LiftStateTopicName, 10);
+    auto lift_request_pub = transport->create_publisher<LiftRequest>(AdapterLiftRequestTopicName, 10);
     auto pending_phase = std::make_shared<RequestLift::PendingPhase>(
+      "test_requester",
       transport,
       lift_name,
       destination,
-      lift_state_obs
+      lift_state_obs,
+      lift_request_pub
     );
     auto active_phase = pending_phase->begin();
 

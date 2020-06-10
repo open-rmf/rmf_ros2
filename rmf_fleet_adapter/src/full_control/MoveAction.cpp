@@ -236,10 +236,10 @@ public:
     plans = find_plan(nullptr);
     if (plans.empty())
     {
-      const auto it = _node->get_waypoint_names().find(_goal_wp_index);
+      const auto name = _node->get_graph().get_waypoint(_goal_wp_index).name();
       std::string wp_name = std::to_string(_goal_wp_index);
-      if (it != _node->get_waypoint_names().end())
-        wp_name = it->second;
+      if (name)
+        wp_name = *name;
 
       RCLCPP_ERROR(
         _node->get_logger(),
@@ -1331,9 +1331,8 @@ public:
 
     const std::size_t emergency_wp_index =
       *candidate_plans[*quickest_finish_opt]->get_waypoints().back().graph_index();
-    const auto it = _node->get_waypoint_names().find(emergency_wp_index);
-    const auto emergency_wp_name =
-      (it == _node->get_waypoint_names().end()) ? "" : (":" + it->second);
+    const auto name = _node->get_graph().get_waypoint(emergency_wp_index).name();
+    const auto emergency_wp_name = name ? (":" + *name) : "";
 
     RCLCPP_INFO(
       _node->get_logger(),
@@ -1388,13 +1387,12 @@ public:
   {
     std::string status;
 
-    const auto& waypoint_names = _node->get_waypoint_names();
+    const auto& graph = _node->get_graph();
 
     auto name_of = [&](std::size_t wp_index) -> std::string
       {
-        const auto wp_it = waypoint_names.find(wp_index);
-        return wp_it == waypoint_names.end() ?
-          "#" + std::to_string(_goal_wp_index) : wp_it->second;
+        const auto name = graph.get_waypoint(wp_index).name();
+        return name ? *name : "#" + std::to_string(_goal_wp_index);
       };
 
     status = "Moving to waypoint [" + name_of(_goal_wp_index) + "]";

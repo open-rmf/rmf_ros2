@@ -18,30 +18,25 @@
 #include "RequestLift.hpp"
 #include "RxOperators.hpp"
 
-#include <boost/uuid/uuid_io.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-
 namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
 RequestLift::Action::Action(
+  std::string requester_id,
   const std::shared_ptr<rmf_rxcpp::Transport>& transport,
   std::string lift_name,
   std::string destination,
-  rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs)
+  rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
+  rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub)
   : _transport{transport},
     _lift_name{std::move(lift_name)},
     _destination{std::move(destination)},
-    _lift_state_obs{std::move(lift_state_obs)}
+    _lift_state_obs{std::move(lift_state_obs)},
+    _publisher{std::move(lift_request_pub)},
+    _session_id{std::move(requester_id)}
 {
   using rmf_lift_msgs::msg::LiftState;
-
-  // TODO: multiplex publisher?
-  _publisher = transport->create_publisher<rmf_lift_msgs::msg::LiftRequest>(
-    AdapterLiftRequestTopicName, 10);
-
-  _session_id = boost::uuids::to_string(boost::uuids::random_generator{}());
 
   _obs = _lift_state_obs
     .lift<LiftState::SharedPtr>(on_subscribe([this, transport]()
@@ -100,15 +95,24 @@ void RequestLift::Action::_do_publish(const rclcpp::Node::SharedPtr& node)
 
 //==============================================================================
 RequestLift::ActivePhase::ActivePhase(
+  std::string requester_id,
   const std::shared_ptr<rmf_rxcpp::Transport>& transport,
   std::string lift_name,
   std::string destination,
-  rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs)
+  rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
+  rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub)
   : _transport{transport},
     _lift_name{std::move(lift_name)},
     _destination{std::move(destination)},
     _lift_state_obs{std::move(lift_state_obs)},
-    _action{transport, _lift_name, _destination, _lift_state_obs}
+    _action{
+      std::move(requester_id),
+      transport,
+      _lift_name,
+      _destination,
+      _lift_state_obs,
+      std::move(lift_request_pub)
+    }
 {
   std::ostringstream oss;
   oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
@@ -149,14 +153,18 @@ const std::string& RequestLift::ActivePhase::description() const
 
 //==============================================================================
 RequestLift::PendingPhase::PendingPhase(
+  std::string requester_id,
   std::weak_ptr<rmf_rxcpp::Transport> transport,
   std::string lift_name,
   std::string destination,
-  rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs)
-  : _transport{std::move(transport)},
+  rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
+  rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub)
+  : _requester_id{std::move(requester_id)},
+    _transport{std::move(transport)},
     _lift_name{std::move(lift_name)},
     _destination{std::move(destination)},
-    _lift_state_obs{std::move(lift_state_obs)}
+    _lift_state_obs{std::move(lift_state_obs)},
+    _lift_request_pub{std::move(lift_request_pub)}
 {
   std::ostringstream oss;
   oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
@@ -172,7 +180,12 @@ std::shared_ptr<Task::ActivePhase> RequestLift::PendingPhase::begin()
     throw std::runtime_error("invalid transport state");
 
   return std::make_shared<RequestLift::ActivePhase>(
-    transport, _lift_name, _destination, _lift_state_obs);
+    _requester_id,
+    transport,
+    _lift_name,
+    _destination,
+    _lift_state_obs,
+    _lift_request_pub);
 }
 
 //==============================================================================

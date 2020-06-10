@@ -33,16 +33,8 @@ struct GraphInfo
 {
   rmf_traffic::agv::Graph graph;
 
-  // TODO(MXG): Consider making waypoint keys an intrinsic property of a Graph
-  using WaypointKeys = std::unordered_map<std::string, std::size_t>;
-  /// A map from a waypoint name to its index in the graph
-  WaypointKeys keys;
-
   // TODO(MXG): Consider making waypoint names an intrinsic property of a Graph
   using NameMap = std::unordered_map<std::size_t, std::string>;
-  /// A map from a waypoint index to its waypoint name (if the waypoint has a
-  /// name)
-  NameMap waypoint_names;
 
   /// A map from a waypoint index to the workcell that is stationed at that
   /// waypoint

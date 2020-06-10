@@ -93,6 +93,8 @@ if (BUILD_TESTING)
       test/phases/DoorCloseTest.cpp
       test/phases/RequestLiftTest.cpp
       test/phases/DispenseItemTest.cpp
+      test/phases/test_GoToPlace.cpp
+      test/phases/test_MoveRobot.cpp
       test/services/test_FindEmergencyPullover.cpp
       test/services/test_FindPath.cpp
       test/services/test_Negotiate.cpp

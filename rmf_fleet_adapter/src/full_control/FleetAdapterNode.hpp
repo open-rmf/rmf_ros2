@@ -136,8 +136,6 @@ public:
 
   const WaypointKeys& get_waypoint_keys() const;
 
-  const WaypointNames& get_waypoint_names() const;
-
   const std::vector<std::size_t>& get_parking_spots() const;
 
   struct Fields

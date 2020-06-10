@@ -45,7 +45,8 @@ struct DoorClose
       std::string door_name,
       std::string request_id,
       const std::shared_ptr<rmf_rxcpp::Transport>& transport,
-      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs);
+      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+      rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -82,7 +83,8 @@ struct DoorClose
       std::string door_name,
       std::string request_id,
       std::weak_ptr<rmf_rxcpp::Transport> transport,
-      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs);
+      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+      rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
 
@@ -96,6 +98,7 @@ struct DoorClose
     std::string _request_id;
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
     rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
+    rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _door_request_pub;
     std::string _description;
   };
 };

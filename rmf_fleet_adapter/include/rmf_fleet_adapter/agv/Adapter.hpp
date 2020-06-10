@@ -70,16 +70,19 @@ public:
       rmf_traffic::agv::Graph navigation_graph);
 
   /// Get the rclcpp::Node that this adapter will be using for communication.
-  rclcpp::Node& node();
+  std::shared_ptr<rclcpp::Node> node();
 
   /// const-qualified node()
-  const rclcpp::Node& node() const;
+  std::shared_ptr<const rclcpp::Node> node() const;
 
   /// Begin running the event loop for this adapter. The event loop will operate
   /// in another thread, so this function is non-blocking.
   void start();
 
   /// Stop the event loop if it is running.
+  //
+  // TODO(MXG): Return a std::future from this to indicate when the thread has
+  // come to a stop.
   void stop();
 
   class Implementation;

@@ -31,25 +31,25 @@ DoorOpen::ActivePhase::ActivePhase(
   std::string request_id,
   const std::shared_ptr<rmf_rxcpp::Transport>& transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs)
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+  rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub)
   : _door_name{std::move(door_name)},
     _request_id{std::move(request_id)},
     _transport{transport},
     _door_state_obs{std::move(door_state_obs)},
     _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
+    _door_req_pub(std::move(door_request_pub)),
     _door_close_phase{
       _door_name,
       _request_id,
       transport,
-      _supervisor_heartbeat_obs
+      _supervisor_heartbeat_obs,
+      _door_req_pub
     }
 {
   _description = "Opening door \"" + _door_name + "\"";
 
   using rmf_door_msgs::msg::DoorRequest;
-  // TODO: multiplex publisher?
-  _door_req_pub = transport->create_publisher<DoorRequest>(AdapterDoorRequestTopicName, 10);
-
   using rmf_door_msgs::msg::DoorState;
   using rmf_door_msgs::msg::SupervisorHeartbeat;
   using CombinedType = std::tuple<DoorState::SharedPtr, SupervisorHeartbeat::SharedPtr>;
@@ -151,12 +151,14 @@ DoorOpen::PendingPhase::PendingPhase(
   std::string request_id,
   std::weak_ptr<rmf_rxcpp::Transport> transport,
   rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs)
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+  rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub)
   : _door_name{std::move(door_name)},
     _request_id{std::move(request_id)},
     _transport{std::move(transport)},
     _door_state_obs{std::move(door_state_obs)},
-    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)}
+    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
+    _door_request_pub{std::move(door_request_pub)}
 {
   _description = "Open door \"" + _door_name + "\"";
 }
@@ -173,7 +175,8 @@ std::shared_ptr<Task::ActivePhase> DoorOpen::PendingPhase::begin()
     _request_id,
     transport,
     _door_state_obs,
-    _supervisor_heartbeat_obs);
+    _supervisor_heartbeat_obs,
+    _door_request_pub);
 }
 
 //==============================================================================

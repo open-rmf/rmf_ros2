@@ -66,6 +66,9 @@ public:
   /// Get the name of this robot
   const std::string& name() const;
 
+  /// Get the requester ID to use for this robot when sending requests
+  const std::string& requester_id() const;
+
   /// Get the navigation graph used by this robot
   const rmf_traffic::agv::Graph& navigation_graph() const;
 
@@ -93,6 +96,7 @@ public:
   /// callbacks that can modify the state of the robot.
   const rxcpp::schedulers::worker& worker() const;
 
+  // Documentation inherited from rmf_traffic::schedule::Negotiator
   void respond(
       const TableViewerPtr& table_viewer,
       const ResponderPtr& responder) final;
@@ -120,15 +124,15 @@ private:
 
   rmf_rxcpp::Publisher<Empty> _interrupt_publisher;
 
-  // We're assuming that a RobotContextPtr is being held by the Node, so we
-  // shouldn't have to worry about the lifetime of the Node
   std::shared_ptr<Node> _node;
   rxcpp::schedulers::worker _worker;
+  std::string _requester_id;
 
   rmf_traffic::schedule::Negotiator* _negotiator = nullptr;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;
+using ConstRobotContextPtr = std::shared_ptr<const RobotContext>;
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

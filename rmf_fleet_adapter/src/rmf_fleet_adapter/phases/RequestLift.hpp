@@ -35,10 +35,12 @@ struct RequestLift
     public:
 
       Action(
+        std::string requester_id,
         const std::shared_ptr<rmf_rxcpp::Transport>& transport,
         std::string lift_name,
         std::string destination,
-        rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs);
+        rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
+        rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub);
 
       inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
       {
@@ -51,9 +53,9 @@ struct RequestLift
       std::string _lift_name;
       std::string _destination;
       rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> _lift_state_obs;
+      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr _publisher;
       rxcpp::observable<Task::StatusMsg> _obs;
       std::string _session_id;
-      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr _publisher;
       rclcpp::TimerBase::SharedPtr _timer;
 
       Task::StatusMsg _get_status(const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
@@ -65,10 +67,12 @@ struct RequestLift
   public:
 
     ActivePhase(
+      std::string requester_id,
       const std::shared_ptr<rmf_rxcpp::Transport>& transport,
       std::string lift_name,
       std::string destination,
-      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs);
+      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
+      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -95,10 +99,12 @@ struct RequestLift
   public:
 
     PendingPhase(
+      std::string requester_id,
       std::weak_ptr<rmf_rxcpp::Transport> transport,
       std::string lift_name,
       std::string destination,
-      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs);
+      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
+      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
 
@@ -107,11 +113,12 @@ struct RequestLift
     const std::string& description() const override;
 
   private:
-
+    std::string _requester_id;
     std::weak_ptr<rmf_rxcpp::Transport> _transport;
     std::string _lift_name;
     std::string _destination;
     rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> _lift_state_obs;
+    rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr _lift_request_pub;
     std::string _description;
   };
 };

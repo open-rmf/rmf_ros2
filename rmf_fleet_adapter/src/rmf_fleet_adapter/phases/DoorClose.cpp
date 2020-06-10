@@ -28,18 +28,17 @@ DoorClose::ActivePhase::ActivePhase(
   std::string door_name,
   std::string request_id,
   const std::shared_ptr<rmf_rxcpp::Transport>& transport,
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs)
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+  rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub)
   : _door_name{std::move(door_name)},
     _request_id{std::move(request_id)},
     _transport{transport},
-    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)}
+    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
+    _door_req_pub(std::move(door_request_pub))
 {
   _description = "Closing door \"" + _door_name + "\"";
 
   using rmf_door_msgs::msg::DoorRequest;
-    // TODO: multiplex publisher?
-    _door_req_pub = transport->create_publisher<DoorRequest>(AdapterDoorRequestTopicName, 10);
-
   using rmf_door_msgs::msg::SupervisorHeartbeat;
   _obs = _supervisor_heartbeat_obs
     .lift<SupervisorHeartbeat::SharedPtr>(on_subscribe([this, transport]()
@@ -123,11 +122,13 @@ DoorClose::PendingPhase::PendingPhase(
   std::string door_name,
   std::string request_id,
   std::weak_ptr<rmf_rxcpp::Transport> transport,
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs)
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+  rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub)
   : _door_name{std::move(door_name)},
     _request_id{std::move(request_id)},
     _transport{std::move(transport)},
-    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)}
+    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
+    _door_request_pub{std::move(door_request_pub)}
 {
   _description = "Close door \"" + _door_name + "\"";
 }
@@ -143,7 +144,8 @@ std::shared_ptr<Task::ActivePhase> DoorClose::PendingPhase::begin()
     _door_name,
     _request_id,
     transport,
-    _supervisor_heartbeat_obs);
+    _supervisor_heartbeat_obs,
+    _door_request_pub);
 }
 
 //==============================================================================

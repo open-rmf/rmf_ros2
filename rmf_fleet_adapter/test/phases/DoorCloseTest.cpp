@@ -50,11 +50,13 @@ SCENARIO_METHOD(TransportFixture, "door close phase", "[phases]")
   std::string door_name = "test_door";
   std::string request_id = "test_id";
   auto heartbeat_obs = transport->create_observable<SupervisorHeartbeat>(DoorSupervisorHeartbeatTopicName, 10);
+  auto door_request_pub = transport->create_publisher<DoorRequest>(AdapterDoorRequestTopicName, 10);
   auto pending_phase = std::make_shared<DoorClose::PendingPhase>(
     door_name,
     request_id,
     transport,
-    heartbeat_obs
+    heartbeat_obs,
+    door_request_pub
   );
   auto active_phase = pending_phase->begin();
 
