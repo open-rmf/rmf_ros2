@@ -171,10 +171,7 @@ void GoToPlace::Active::find_plan()
   if (_emergency_active)
     return find_emergency_plan();
 
-  std::cout << "Requesting plan search" << std::endl;
   auto phase = phase_from_this();
-
-  const auto loc = _context->location();
 
   auto service = std::make_shared<services::FindPath>(
         _context->planner(), _context->location(), _goal,
@@ -197,7 +194,6 @@ void GoToPlace::Active::find_plan()
       return;
     }
 
-    std::cout << "Executing plan: " << ++phase->_execute_count << std::endl;
     phase->execute_plan(*std::move(result));
   });
 }
@@ -365,31 +361,20 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
   auto phase = phase_from_this();
   _subtasks = Task(_description, std::move(sub_phases));
   _status_subscription = _subtasks->observe()
-//      .observe_on(rxcpp::identity_same_worker(_context->worker()))
-//      .observe_on(rxcpp::observe_on_event_loop())
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
         [phase](const StatusMsg& msg)
         {
-          std::cout << "Subtask update: " << msg.status << std::endl;
           phase->_status_publisher.get_subscriber().on_next(msg);
         },
         [phase](std::exception_ptr e)
         {
-          std::cout << " !!!!!! SUBTASK ERROR" << std::endl;
           phase->_status_publisher.get_subscriber().on_error(e);
         },
         [phase]()
         {
-          std::cout << "subtasks complete" << std::endl;
           if (!phase->_emergency_active)
-          {
-            std::cout << "Finished going to place" << std::endl;
             phase->_status_publisher.get_subscriber().on_completed();
-          }
-          else
-          {
-            std::cout << "Emergency active -- not finished going" << std::endl;
-          }
 
           // If an emergency is active, then eventually the alarm should get
           // turned off, which should trigger a non-emergency replanning. That
@@ -412,8 +397,6 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
   const auto clock_f = std::chrono::system_clock::time_point(dt_f);
   const std::time_t t_f = std::chrono::system_clock::to_time_t(clock_f);
   const std::string f = std::ctime(&t_f);
-
-  std::cout << " ## Scheduling plan from (" << s << ") --> (" << f << ")" << std::endl;
 
   _subtasks->begin();
   _context->itinerary().set(_plan->get_itinerary());

@@ -156,13 +156,11 @@ void MoveRobot::Action::operator()(const Subscriber& s)
   },
         [s]()
   {
-    std::cout << "== RECEIVED COMPLETION NOTICE" << std::endl;
     Task::StatusMsg msg;
     msg.state = Task::StatusMsg::STATE_COMPLETED;
     msg.status = "move robot success";
     s.on_next(msg);
 
-    std::cout << "Calling on_completed()" << std::endl;
     s.on_completed();
 
   });

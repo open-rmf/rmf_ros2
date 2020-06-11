@@ -80,10 +80,8 @@ const std::string& Task::id() const
 //==============================================================================
 void Task::_start_next_phase()
 {
-  std::cout << "Remaining phases: " << _pending_phases.size() << std::endl;
   if (_pending_phases.empty())
   {
-    std::cout << "[" << _id << "] Finished (sub)task" << std::endl;
     // All phases are now complete
     _active_phase = nullptr;
     _active_phase_subscription.unsubscribe();
@@ -92,7 +90,6 @@ void Task::_start_next_phase()
     return;
   }
 
-  std::cout << "[" << _id << "] About to begin [" << _pending_phases.back()->description() << "]" << std::endl;
   _active_phase = _pending_phases.back()->begin();
   _pending_phases.pop_back();
   _active_phase_subscription =
@@ -102,44 +99,35 @@ void Task::_start_next_phase()
         [this](const rmf_task_msgs::msg::TaskSummary& msg)
         {
           auto summary = msg;
-          std::cout << "[" << _id << "] update on task phase: "
-                    << summary.status << std::endl;
           // We have received a status update from the phase. We will forward
           // this to whoever is subscribing to the Task.
           summary.task_id = this->_id;
           this->_status_publisher.get_subscriber().on_next(summary);
 
-          // DEBUG: We should be calling _start_next_phase() from the
-          // on_completed callback instead of calling it here, but when we do
-          // that, the GoToPlace task fails to call it after the MoveRobot phase
-          // in test_Delivery.
-//          if (summary.state == summary.STATE_COMPLETED)
-//            this->_start_next_phase();
         },
-//        [this](std::exception_ptr e)
-//        {
-//          _pending_phases.clear();
-//          std::string exception_msg;
-//          try
-//          {
-//            if (e)
-//              std::rethrow_exception(e);
-//          }
-//          catch(const std::exception& e)
-//          {
-//            exception_msg = e.what();
-//          }
+        [this](std::exception_ptr e)
+        {
+          _pending_phases.clear();
+          std::string exception_msg;
+          try
+          {
+            if (e)
+              std::rethrow_exception(e);
+          }
+          catch(const std::exception& e)
+          {
+            exception_msg = e.what();
+          }
 
-//          StatusMsg msg;
-//          msg.state = msg.STATE_FAILED;
-//          msg.status = "Failure at phase ["+_active_phase->description()+"]: "
-//            + exception_msg;
+          StatusMsg msg;
+          msg.state = msg.STATE_FAILED;
+          msg.status = "Failure at phase ["+_active_phase->description()+"]: "
+            + exception_msg;
 
-//          this->_status_publisher.publish(msg);
-//        },
+          this->_status_publisher.get_subscriber().on_next(msg);
+        },
         [this]()
         {
-          std::cout << "[" << _id << "] ========== Finished phase" << std::endl;
           // We have received a completion notice from the phase
           this->_start_next_phase();
         });

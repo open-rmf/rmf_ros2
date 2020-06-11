@@ -52,7 +52,6 @@ public:
       ArrivalEstimator next_arrival_estimator,
       std::function<void()> path_finished_callback) final
   {
-    std::cout << " ---------------- Received new path to follow --------- " << std::endl;
     _current_waypoint_target = 0;
     _active = true;
     _timer = _node->create_wall_timer(
@@ -71,10 +70,8 @@ public:
       if (updater)
       {
         const auto& previous_wp = waypoints[_current_waypoint_target-1];
-        std::cout << "Reached " << previous_wp.position().transpose() << std::endl;
         if (previous_wp.graph_index())
         {
-          std::cout << "waypoint: " << *previous_wp.graph_index() << std::endl;
           updater->update_position(
                 *previous_wp.graph_index(), previous_wp.position()[2]);
           _visited_wps.insert(*previous_wp.graph_index());
@@ -101,7 +98,6 @@ public:
         return;
       }
 
-      std::cout << "Finished!" << std::endl;
       _active = false;
       _timer.reset();
       path_finished_callback();
@@ -117,7 +113,6 @@ public:
       const std::string& dock_name,
       std::function<void()> docking_finished_callback) final
   {
-    std::cout << "Docking into " << dock_name << std::endl;
     ++_dockings.insert({dock_name, 0}).first->second;
     docking_finished_callback();
   }
@@ -182,16 +177,8 @@ private:
 
   void _process_request(const DispenserRequest& msg)
   {
-    std::cout << " // Received dispenser request [" << msg.request_guid
-              << "] for [" << msg.target_guid << "]" << std::endl;
-
     if (msg.target_guid != _name)
-    {
-      std::cout << " // Ignoring request [" << _name << "]" << std::endl;
       return;
-    }
-
-    std::cout << " // Accepting request" << std::endl;
 
     const auto insertion = _task_complete_map.insert({msg.request_guid, false});
     uint8_t status = DispenserResult::ACKNOWLEDGED;
@@ -202,11 +189,9 @@ private:
     else
     {
       using namespace std::chrono_literals;
-      std::cout << " -- Beginning timer" << std::endl;
       _timer = _node->create_wall_timer(
             10ms, [this, msg]()
       {
-        std::cout << " -- Timer triggered" << std::endl;
         _timer.reset();
         _task_complete_map[msg.request_guid] = true;
 
@@ -264,7 +249,6 @@ public:
     _timer = _node->create_wall_timer(
           100ms, [this]()
     {
-      std::cout << " >> Updating Flaky Dispenser state" << std::endl;
       DispenserState msg;
       msg.guid = _name;
 
@@ -278,7 +262,6 @@ public:
 
       for (auto& r : _request_queue)
       {
-        std::cout << " -- Adding [" << r.request.request_guid << "] to the queue" << std::endl;
         msg.request_guid_queue.push_back(r.request.request_guid);
         ++r.publish_count;
       }
@@ -294,11 +277,8 @@ public:
 
       if (_request_queue.size() < initial_count)
       {
-        std::cout << " -- Removed " << initial_count - _request_queue.size()
-                  << " requests from the queue" << std::endl;
         if (!_fulfilled_promise)
         {
-          std::cout << " -- Declaring the promise fulfilled" << std::endl;
           _fulfilled_promise = true;
           success_promise.set_value(true);
         }
@@ -328,16 +308,11 @@ private:
 
   void _process_request(const DispenserRequest& msg)
   {
-    std::cout << " -- Received dispense request [" << msg.request_guid
-              << "] for [" << msg.target_guid << "]" << std::endl;
     if (msg.target_guid != _name)
     {
-      std::cout << " -- Ignoring request [" << _name << "]" << std::endl;
       return;
     }
 
-    std::cout << " -- Queuing request [" << msg.request_guid
-              << "]" << std::endl;
     _request_queue.push_back({msg, 0});
   }
 };
@@ -441,8 +416,6 @@ SCENARIO("Test Delivery")
   const auto clock_s = std::chrono::system_clock::time_point(dt_s);
   const std::time_t t_s = std::chrono::system_clock::to_time_t(clock_s);
   const std::string s = std::ctime(&t_s);
-
-  std::cout << "INITIAL TIME: " << s << std::endl;
 
   const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};
   auto robot_cmd = std::make_shared<MockRobotCommand>(adapter.node());

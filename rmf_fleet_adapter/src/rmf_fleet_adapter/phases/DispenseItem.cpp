@@ -39,7 +39,6 @@ DispenseItem::Action::Action(
     _state_obs{std::move(state_obs)},
     _request_pub{std::move(request_pub)}
 {
-  std::cout << " ** Constructing dispense item action" << std::endl;
   using rmf_dispenser_msgs::msg::DispenserResult;
   using rmf_dispenser_msgs::msg::DispenserState;
   using CombinedType = std::tuple<DispenserResult::SharedPtr, DispenserState::SharedPtr>;
@@ -50,11 +49,9 @@ DispenseItem::Action::Action(
       _state_obs.start_with(std::shared_ptr<DispenserState>(nullptr)))
     .lift<CombinedType>(on_subscribe([this, transport]()
     {
-      std::cout << " ** First publish" << std::endl;
       _do_publish();
       _timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [this]()
       {
-        std::cout << " ** Repeat publish" << std::endl;
         _do_publish();
       });
     }))
@@ -84,11 +81,9 @@ Task::StatusMsg DispenseItem::Action::_get_status(
     switch (dispenser_result->status)
     {
       case DispenserResult::ACKNOWLEDGED:
-        std::cout << " ++ Acknowledged " << __LINE__ << std::endl;
         _request_acknowledged = true;
         break;
       case DispenserResult::SUCCESS:
-        std::cout << " ++ Success " << __LINE__ << std::endl;
         status.state = Task::StatusMsg::STATE_COMPLETED;
         break;
       case DispenserResult::FAILED:
@@ -99,16 +94,12 @@ Task::StatusMsg DispenseItem::Action::_get_status(
 
   if (dispenser_state && dispenser_state->guid == _target)
   {
-    std::cout << " ++ Getting dispenser state [" << dispenser_state->guid << "]" << std::endl;
     if (!_request_acknowledged)
     {
       _request_acknowledged = std::find(
             dispenser_state->request_guid_queue.begin(),
             dispenser_state->request_guid_queue.end(),
             _request_guid) != dispenser_state->request_guid_queue.end();
-
-      if (_request_acknowledged)
-        std::cout << " ++ Acknowledged " << __LINE__ << std::endl;
     }
     else if (
       std::find(
@@ -119,13 +110,8 @@ Task::StatusMsg DispenseItem::Action::_get_status(
     {
       // The request has been received, so if it's no longer in the queue,
       // then we'll assume it's finished.
-      std::cout << " ++ Success " << __LINE__ << std::endl;
       status.state = Task::StatusMsg::STATE_COMPLETED;
     }
-  }
-  else
-  {
-    std::cout << " ||| Dispenser callback with no state" << std::endl;
   }
 
   return status;
@@ -169,7 +155,6 @@ DispenseItem::ActivePhase::ActivePhase(
       _state_obs,
       std::move(request_pub)}
 {
-  std::cout << " *** Dispenser active phase" << std::endl;
   std::ostringstream oss;
   oss << "Dispense items (";
   for (size_t i = 0; i < _items.size(); i++)
