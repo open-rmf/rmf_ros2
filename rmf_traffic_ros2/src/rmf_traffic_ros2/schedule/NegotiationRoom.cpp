@@ -26,7 +26,7 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Negotiation::VersionedKeySequence convert(
-    const std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey>& from)
+  const std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey>& from)
 {
   rmf_traffic::schedule::Negotiation::VersionedKeySequence output;
   output.reserve(from.size());
@@ -38,7 +38,7 @@ rmf_traffic::schedule::Negotiation::VersionedKeySequence convert(
 
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey> convert(
-    const rmf_traffic::schedule::Negotiation::VersionedKeySequence& from)
+  const rmf_traffic::schedule::Negotiation::VersionedKeySequence& from)
 {
   std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey> output;
   output.reserve(from.size());
@@ -116,9 +116,9 @@ check_cache(const NegotiatorMap& negotiators)
       if (table)
       {
         table->reject(
-              rejection.table.back().version,
-              rejection.rejected_by,
-              rmf_traffic_ros2::convert(rejection.alternatives));
+          rejection.table.back().version,
+          rejection.rejected_by,
+          rmf_traffic_ros2::convert(rejection.alternatives));
         recheck = true;
         cached_rejections.erase(it++);
       }

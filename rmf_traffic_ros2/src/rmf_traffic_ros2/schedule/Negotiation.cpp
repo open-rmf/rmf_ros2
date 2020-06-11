@@ -48,7 +48,7 @@ std::string table_to_string(
 }
 
 //==============================================================================
-template <typename T>
+template<typename T>
 std::string ptr_to_string(T* ptr)
 {
   std::stringstream str;
@@ -84,7 +84,7 @@ public:
       table(table_),
       table_version(table->version()),
       parent(table->parent()),
-      parent_version(parent? OptVersion(parent->version()) : OptVersion())
+      parent_version(parent ? OptVersion(parent->version()) : OptVersion())
     {
       // Do nothing
     }
@@ -113,7 +113,7 @@ public:
         // infeasible
         parent->reject(*parent_version, table->participant(), alternatives);
         impl->publish_rejection(
-              conflict_version, *parent, table->participant(), alternatives);
+          conflict_version, *parent, table->participant(), alternatives);
       }
     }
 
@@ -320,8 +320,8 @@ public:
   }
 
   void respond_to_queue(
-      std::vector<TablePtr> queue,
-      Version conflict_version)
+    std::vector<TablePtr> queue,
+    Version conflict_version)
   {
     while (!queue.empty())
     {
@@ -348,7 +348,7 @@ public:
 
         const auto& negotiator = n_it->second;
         negotiator->respond(
-              top->viewer(), Responder(this, conflict_version, top));
+          top->viewer(), Responder(this, conflict_version, top));
       }
 
       if (top->submission())
@@ -378,7 +378,7 @@ public:
 
 
     auto new_negotiation = Negotiation::make(
-          viewer->snapshot(), msg.participants);
+      viewer->snapshot(), msg.participants);
     if (!new_negotiation)
     {
       // TODO(MXG): This is a temporary hack to deal with situations where a
@@ -481,7 +481,8 @@ public:
         + std::to_string(msg.conflict_version) + "] that builds on an "
         "unknown table: [";
       for (const auto p : msg.to_accommodate)
-        error += " " + std::to_string(p.participant) + ":" + std::to_string(p.version);
+        error += " " + std::to_string(p.participant) + ":" + std::to_string(
+          p.version);
       error += " " + std::to_string(msg.for_participant) + " ]";
 
       RCLCPP_WARN(node.get_logger(), error);
@@ -539,7 +540,8 @@ public:
         + std::to_string(msg.conflict_version) + "] for an "
         "unknown table: [";
       for (const auto p : msg.table)
-        error += " " + std::to_string(p.participant) + ":" + std::to_string(p.version);
+        error += " " + std::to_string(p.participant) + ":" + std::to_string(
+          p.version);
       error += " ]";
 
       RCLCPP_WARN(node.get_logger(), error);
@@ -593,18 +595,19 @@ public:
   }
 
   void dump_conclusion_info(
-      const Conclusion& msg,
-      const Approvals::const_iterator& approval_callback_it,
-      const Negotiation& negotiation)
+    const Conclusion& msg,
+    const Approvals::const_iterator& approval_callback_it,
+    const Negotiation& negotiation)
   {
     const auto full_sequence = convert(msg.table);
 
     std::string err =
-        "\n !!!!!!!!!!!! Impossible situation encountered for Negotiation ["
-        + std::to_string(msg.conflict_version) + "] in node ["
-        + node.get_name() + "]: No approval callbacks found?? Sequence: [";
+      "\n !!!!!!!!!!!! Impossible situation encountered for Negotiation ["
+      + std::to_string(msg.conflict_version) + "] in node ["
+      + node.get_name() + "]: No approval callbacks found?? Sequence: [";
     for (const auto s : msg.table)
-      err += " " + std::to_string(s.participant) + ":" + std::to_string(s.version);
+      err += " " + std::to_string(s.participant) + ":" + std::to_string(
+        s.version);
     err += " ] ";
 
     if (msg.resolved)
@@ -618,21 +621,23 @@ public:
         err += "\n -- " + ptr_to_string(table.get()) + " |";
 
         for (const auto& s : table->sequence())
-          err += " " + std::to_string(s.participant) + ":" + std::to_string(s.version);
+          err += " " + std::to_string(s.participant) + ":" + std::to_string(
+            s.version);
       }
 
       err += "\nCurrent relevant tables in the negotiation:";
       for (std::size_t i = 1; i <= msg.table.size(); ++i)
       {
         std::vector<ParticipantId> sequence;
-        for (std::size_t j=0; j < i; ++j)
+        for (std::size_t j = 0; j < i; ++j)
           sequence.push_back(full_sequence[j].participant);
 
         const auto table = negotiation.table(sequence);
         err += "\n -- " + ptr_to_string(table.get()) + " |";
 
-        for (std::size_t j=0; j < i; ++j)
-          err += " " + std::to_string(msg.table[j].participant) + ":" + std::to_string(msg.table[j].version);
+        for (std::size_t j = 0; j < i; ++j)
+          err += " " + std::to_string(msg.table[j].participant) + ":" +
+            std::to_string(msg.table[j].version);
       }
     }
     else
@@ -676,7 +681,7 @@ public:
         for (std::size_t i = 1; i <= msg.table.size(); ++i)
         {
           const auto sequence = Negotiation::VersionedKeySequence(
-                full_sequence.begin(), full_sequence.begin()+i);
+            full_sequence.begin(), full_sequence.begin()+i);
           const auto participant = sequence.back().participant;
 
           const auto search = negotiation.find(sequence);
@@ -714,8 +719,8 @@ public:
             // We will do a brute-force search through our approval callbacks
             // to dig up the relevant one.
             for (auto a_it = approval_callbacks.begin();
-                 a_it != approval_callbacks.end();
-                 ++a_it)
+              a_it != approval_callbacks.end();
+              ++a_it)
             {
               if (a_it->second.sequence == sequence)
               {

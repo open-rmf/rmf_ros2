@@ -90,7 +90,7 @@ public:
     void next_task();
 
     void add_task(std::unique_ptr<Task> new_task);
-   
+
     bool has_task();
 
     void discard_task(Task* discarded_task);

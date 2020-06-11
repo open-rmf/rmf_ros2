@@ -31,11 +31,11 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Negotiation::VersionedKeySequence convert(
-    const std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey>& from);
+  const std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey>& from);
 
 //==============================================================================
 std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey> convert(
-    const rmf_traffic::schedule::Negotiation::VersionedKeySequence& from);
+  const rmf_traffic::schedule::Negotiation::VersionedKeySequence& from);
 
 namespace schedule {
 
@@ -55,7 +55,7 @@ struct NegotiationRoom
   std::list<rmf_traffic_msgs::msg::ScheduleConflictForfeit> cached_forfeits;
 
   std::vector<rmf_traffic::schedule::Negotiation::TablePtr> check_cache(
-      const NegotiatorMap& negotiators);
+    const NegotiatorMap& negotiators);
 };
 
 //==============================================================================

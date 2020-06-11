@@ -328,53 +328,55 @@ public:
         earliest_time = *t;
     }
 
-    const auto start_time = earliest_time?
-          *earliest_time : rmf_traffic_ros2::convert(_node->get_clock()->now());
+    const auto start_time = earliest_time ?
+      *earliest_time : rmf_traffic_ros2::convert(_node->get_clock()->now());
 
     std::weak_ptr<void> weak_handle = _handle;
     rmf_traffic::agv::SimpleNegotiator::Options options(
-          [this, weak_handle = std::move(weak_handle)](
-          rmf_traffic::agv::Plan approved_plan)
-          -> rmf_traffic::schedule::Negotiator::Responder::UpdateVersion
-    {
-      auto handle = weak_handle.lock();
-      if (!handle)
-        return rmf_utils::nullopt;
+      [this, weak_handle = std::move(weak_handle)](
+        rmf_traffic::agv::Plan approved_plan)
+      -> rmf_traffic::schedule::Negotiator::Responder::UpdateVersion
+      {
+        auto handle = weak_handle.lock();
+        if (!handle)
+          return rmf_utils::nullopt;
 
-      this->execute_plan({std::move(approved_plan)});
-      return _context->schedule.participant().version();
-    });
+        this->execute_plan({std::move(approved_plan)});
+        return _context->schedule.participant().version();
+      });
 
     const auto& planner = _node->get_planner();
     Eigen::Vector3d pose =
-      {_context->location.x, _context->location.y, _context->location.yaw};
+    {_context->location.x, _context->location.y, _context->location.yaw};
 
     const auto plan_starts =
       rmf_traffic::agv::compute_plan_starts(
       planner.get_configuration().graph(), pose, start_time, 0.1, 1.0, 1e-8);
 
     rmf_traffic::agv::SimpleNegotiator negotiator(
-          plan_starts,
-          rmf_traffic::agv::Plan::Goal(_goal_wp_index),
-          planner.get_configuration(),
-          options);
+      plan_starts,
+      rmf_traffic::agv::Plan::Goal(_goal_wp_index),
+      planner.get_configuration(),
+      options);
 
     bool interrupt_flag = false;
     auto future = std::async(
-          std::launch::async,
-          [&]()
-    {
-      try {
-        negotiator.respond(table, responder, &interrupt_flag);
-      }
-      catch(const std::exception& e)
+      std::launch::async,
+      [&]()
       {
-        std::cout << " !!!!!!!!!!!!!!!!!! EXCEPTION WHILE TRYING TO NEGOTIATE: "
-                  << e.what() << std::endl;
+        try
+        {
+          negotiator.respond(table, responder,
+          &interrupt_flag);
+        }
+        catch (const std::exception& e)
+        {
+          std::cout << " !!!!!!!!!!!!!!!!!! EXCEPTION WHILE TRYING TO NEGOTIATE: "
+                    << e.what() << std::endl;
 
-        responder.forfeit({});
-      }
-    });
+          responder.forfeit({});
+        }
+      });
 
     using namespace std::chrono_literals;
     // We allow for more time based on how many negotiation attempts have been
@@ -383,7 +385,7 @@ public:
     if (table->sequence().size() > 2)
     {
       const auto parent_attempts =
-          table->sequence()[table->sequence().size()-2].version - 1;
+        table->sequence()[table->sequence().size()-2].version - 1;
       wait_duration += parent_attempts * 10s;
     }
 
@@ -491,6 +493,8 @@ public:
     for (const auto& plan : plans)
       for (const auto& wp : plan.get_waypoints())
         _remaining_waypoints.emplace_back(wp);
+
+
 
     return send_next_command(false);
   }

@@ -184,11 +184,14 @@ void FleetAdapterNode::RobotContext::add_task(std::unique_ptr<Task> new_task)
 
 //==============================================================================
 // BH: Helper function to determine if the robot has a task right now
-bool FleetAdapterNode::RobotContext::has_task() 
+bool FleetAdapterNode::RobotContext::has_task()
 {
-  if (!_task) {
+  if (!_task)
+  {
     return false;
-  } else {
+  }
+  else
+  {
     return true;
   }
 }
@@ -486,26 +489,28 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
   // _contexts
 
   // Selecting Robot Context
-  for (auto it = _contexts.begin(); it != _contexts.end(); it++) 
+  for (auto it = _contexts.begin(); it != _contexts.end(); it++)
   {
     auto context = it->second.get();
-    if (!context->has_task()) 
+    if (!context->has_task())
     {
       // Robot is free! assign task
       RCLCPP_INFO(get_logger(),
-                  "Assigning delivery task to [" + context->robot_name() + "]");
+        "Assigning delivery task to [" + context->robot_name() + "]");
       auto task = make_delivery(this, context, *msg);
-      if (task) 
+      if (task)
       {
         context->add_task(std::move(task));
         return;
-      } else 
+      }
+      else
       {
         RCLCPP_ERROR(get_logger(),
-                     "Task creation went wrong! This should not happen.");
+          "Task creation went wrong! This should not happen.");
         return;
       }
-    } else 
+    }
+    else
     {
       // This robot is not free, continue search..
       continue;
@@ -514,7 +519,7 @@ void FleetAdapterNode::delivery_request(Delivery::UniquePtr msg)
 
   // If Control reaches here, means no robots are free
   RCLCPP_INFO(get_logger(),
-              "No robots are free, resend delivery request at a later time.");
+    "No robots are free, resend delivery request at a later time.");
 }
 
 //==============================================================================
