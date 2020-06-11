@@ -153,7 +153,7 @@ GoToPlace::Active::Active(
 {
   _status_obs = _status_publisher.get_observable();
 
-  _description = "Moving to [" + std::to_string(_goal.waypoint()) + "]";
+  _description = "Sending robot to [" + std::to_string(_goal.waypoint()) + "]";
   _negotiator_license = _context->set_negotiator(this);
 
   StatusMsg initial_msg;
@@ -361,7 +361,7 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
   }
 
   auto phase = phase_from_this();
-  _subtasks = Task("", std::move(sub_phases));
+  _subtasks = Task(_description, std::move(sub_phases));
   _status_subscription = _subtasks->observe()
 //      .observe_on(rxcpp::identity_same_worker(_context->worker()))
 //      .observe_on(rxcpp::observe_on_event_loop())
@@ -446,7 +446,7 @@ GoToPlace::Pending::Pending(
   _goal(std::move(goal)),
   _time_estimate(time_estimate)
 {
-  _description = "Moving to [" + std::to_string(_goal.waypoint()) + "]";
+  _description = "Send robot to [" + std::to_string(_goal.waypoint()) + "]";
 }
 
 //==============================================================================

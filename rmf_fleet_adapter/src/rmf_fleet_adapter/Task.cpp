@@ -83,7 +83,7 @@ void Task::_start_next_phase()
   std::cout << "Remaining phases: " << _pending_phases.size() << std::endl;
   if (_pending_phases.empty())
   {
-    std::cout << "Finished (sub)task" << std::endl;
+    std::cout << "[" << _id << "] Finished (sub)task" << std::endl;
     // All phases are now complete
     _active_phase = nullptr;
     _active_phase_subscription.unsubscribe();
@@ -92,12 +92,12 @@ void Task::_start_next_phase()
     return;
   }
 
-  std::cout << "About to begin [" << _pending_phases.back()->description() << "]" << std::endl;
+  std::cout << "[" << _id << "] About to begin [" << _pending_phases.back()->description() << "]" << std::endl;
   _active_phase = _pending_phases.back()->begin();
   _pending_phases.pop_back();
   _active_phase_subscription =
       _active_phase->observe()
-      .observe_on(rxcpp::serialize_event_loop())
+      .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
         [this](const rmf_task_msgs::msg::TaskSummary& msg)
         {
