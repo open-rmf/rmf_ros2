@@ -43,9 +43,8 @@ DispenseItem::Action::Action(
   using rmf_dispenser_msgs::msg::DispenserState;
   using CombinedType = std::tuple<DispenserResult::SharedPtr, DispenserState::SharedPtr>;
   _obs = _result_obs
-    .combine_latest(
-      rxcpp::observe_on_event_loop(),
-      _state_obs.start_with(std::make_shared<DispenserState>()))
+    .start_with(std::make_shared<DispenserResult>())
+    .combine_latest(rxcpp::observe_on_event_loop(), _state_obs)
     .lift<CombinedType>(on_subscribe([this, transport]()
     {
       _do_publish();

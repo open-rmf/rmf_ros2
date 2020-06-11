@@ -101,7 +101,7 @@ auto make_cancellable(const Observable& obs, const CancelObservable& cancel_obs)
       status.status = status_msg_cancelled;
       return status;
     });
-  return obs.merge(cancelled_obs);
+  return obs.merge(rxcpp::observe_on_event_loop(), cancelled_obs);
 }
 
 } // namespace phases
