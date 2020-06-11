@@ -51,6 +51,7 @@ public:
       std::function<void()> path_finished_callback) final
   {
     _current_waypoint_target = 0;
+    _active = true;
     _timer = _node->create_wall_timer(
           std::chrono::milliseconds(10),
           [this,
@@ -58,6 +59,9 @@ public:
            next_arrival_estimator = std::move(next_arrival_estimator),
            path_finished_callback = std::move(path_finished_callback)]
     {
+      if (!_active)
+        return;
+
       if (_current_waypoint_target < waypoints.size())
         ++_current_waypoint_target;
 
@@ -95,6 +99,7 @@ public:
       }
 
       std::cout << "Finished!" << std::endl;
+      _active = false;
       _timer.reset();
       path_finished_callback();
     });
@@ -125,6 +130,7 @@ public:
   }
 
 private:
+  bool _active = false;
   std::shared_ptr<rclcpp::Node> _node;
   rclcpp::TimerBase::SharedPtr _timer;
   std::size_t _current_waypoint_target = 0;
@@ -465,15 +471,16 @@ SCENARIO("Test Delivery")
   REQUIRE(flaky_status == std::future_status::ready);
   REQUIRE(flaky_future.get());
 
-  const auto quiet_status = quiet_future.wait_for(5s);
+  const auto quiet_status = quiet_future.wait_for(15s);
   REQUIRE(quiet_status == std::future_status::ready);
   REQUIRE(quiet_future.get());
 
   const auto& visits = robot_cmd->visited_wps();
-  CHECK(visits.size() == 5);
+  CHECK(visits.size() == 6);
   CHECK(visits.count(0));
   CHECK(visits.count(5));
   CHECK(visits.count(6));
   CHECK(visits.count(7));
   CHECK(visits.count(8));
+  CHECK(visits.count(10));
 }
