@@ -43,8 +43,10 @@ DispenseItem::Action::Action(
   using rmf_dispenser_msgs::msg::DispenserState;
   using CombinedType = std::tuple<DispenserResult::SharedPtr, DispenserState::SharedPtr>;
   _obs = _result_obs
-    .start_with(std::make_shared<DispenserResult>())
-    .combine_latest(rxcpp::observe_on_event_loop(), _state_obs)
+    .start_with(std::shared_ptr<DispenserResult>())
+    .combine_latest(
+      rxcpp::observe_on_event_loop(),
+      _state_obs.start_with(std::shared_ptr<DispenserState>()))
     .lift<CombinedType>(on_subscribe([this, transport]()
     {
       _do_publish();
@@ -74,7 +76,7 @@ Task::StatusMsg DispenseItem::Action::_get_status(
   status.state = Task::StatusMsg::STATE_ACTIVE;
 
   using rmf_dispenser_msgs::msg::DispenserResult;
-  if (dispenser_result->request_guid == _request_guid)
+  if (dispenser_result && dispenser_result->request_guid == _request_guid)
   {
     switch (dispenser_result->status)
     {
@@ -90,24 +92,27 @@ Task::StatusMsg DispenseItem::Action::_get_status(
     }
   }
 
-  if (!_request_acknowledged)
+  if (dispenser_state)
   {
-    _request_acknowledged = std::find(
-          dispenser_state->request_guid_queue.begin(),
-          dispenser_state->request_guid_queue.end(),
-          _request_guid) != dispenser_state->request_guid_queue.end();
-  }
-  else if (
-    dispenser_state->guid == _target &&
-    std::find(
-      dispenser_state->request_guid_queue.begin(),
-      dispenser_state->request_guid_queue.end(),
-      _request_guid
-    ) == dispenser_state->request_guid_queue.end())
-  {
-    // The request has been received, so if it's no longer in the queue,
-    // then we'll assume it's finished.
-    status.state = Task::StatusMsg::STATE_COMPLETED;
+    if (!_request_acknowledged)
+    {
+      _request_acknowledged = std::find(
+            dispenser_state->request_guid_queue.begin(),
+            dispenser_state->request_guid_queue.end(),
+            _request_guid) != dispenser_state->request_guid_queue.end();
+    }
+    else if (
+      dispenser_state->guid == _target &&
+      std::find(
+        dispenser_state->request_guid_queue.begin(),
+        dispenser_state->request_guid_queue.end(),
+        _request_guid
+      ) == dispenser_state->request_guid_queue.end())
+    {
+      // The request has been received, so if it's no longer in the queue,
+      // then we'll assume it's finished.
+      status.state = Task::StatusMsg::STATE_COMPLETED;
+    }
   }
 
   return status;
