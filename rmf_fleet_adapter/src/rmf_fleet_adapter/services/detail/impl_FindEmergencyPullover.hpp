@@ -61,14 +61,18 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
 
   _search_sub = rmf_rxcpp::make_job_from_action_list(_search_jobs)
       .subscribe(
-        [this, s, N_jobs](
+        [weak = weak_from_this(), s, N_jobs](
           const jobs::SearchForPath::Result& progress)
   {
+    const auto f = weak.lock();
+    if (!f)
+      return;
+
     auto* greedy = progress.greedy_job;
     auto* compliant = progress.compliant_job;
 
     bool resume_compliant = static_cast<bool>(compliant);
-    if (compliant && _greedy_evaluator.best_result.progress)
+    if (compliant && f->_greedy_evaluator.best_result.progress)
     {
       auto& compliant_progress = compliant->progress();
       if (!compliant_progress.success())
@@ -76,18 +80,18 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
         if (!compliant_progress.cost_estimate())
         {
           resume_compliant = false;
-          _compliant_evaluator.discard(compliant_progress);
+          f->_compliant_evaluator.discard(compliant_progress);
         }
         else
         {
           const double best_greedy_cost =
-              (*_greedy_evaluator.best_result.progress)->get_cost();
+              (*f->_greedy_evaluator.best_result.progress)->get_cost();
           const double compliant_cost = *compliant_progress.cost_estimate();
 
           if (best_greedy_cost * compliance_leeway < compliant_cost)
           {
             resume_compliant = false;
-            _compliant_evaluator.discard(compliant_progress);
+            f->_compliant_evaluator.discard(compliant_progress);
           }
         }
       }
@@ -96,24 +100,24 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
     bool resume_greedy = false;
     if (jobs::SearchForPath::Type::greedy == progress.type)
     {
-      if (_greedy_evaluator.evaluate(greedy->progress()))
+      if (f->_greedy_evaluator.evaluate(greedy->progress()))
         resume_greedy = true;
     }
 
     if (jobs::SearchForPath::Type::compliant == progress.type
         && resume_compliant)
     {
-      if (_compliant_evaluator.evaluate(compliant->progress()))
+      if (f->_compliant_evaluator.evaluate(compliant->progress()))
         resume_compliant = true;
     }
 
-    if (_compliant_evaluator.finished_count >= N_jobs
-        && _greedy_evaluator.finished_count >= N_jobs)
+    if (f->_compliant_evaluator.finished_count >= N_jobs
+        && f->_greedy_evaluator.finished_count >= N_jobs)
     {
-      if (_compliant_evaluator.best_result.progress)
-        s.on_next(*_compliant_evaluator.best_result.progress);
-      else if (_greedy_evaluator.best_result.progress)
-        s.on_next(*_greedy_evaluator.best_result.progress);
+      if (f->_compliant_evaluator.best_result.progress)
+        s.on_next(*f->_compliant_evaluator.best_result.progress);
+      else if (f->_greedy_evaluator.best_result.progress)
+        s.on_next(*f->_greedy_evaluator.best_result.progress);
       else
       {
         s.on_error(std::make_exception_ptr(

@@ -26,17 +26,14 @@ Planning::Planning(
     const rmf_traffic::agv::Plan::StartSet& starts,
     rmf_traffic::agv::Plan::Goal goal,
     rmf_traffic::agv::Plan::Options options)
-  : _current_result(
-      std::make_unique<rmf_traffic::agv::Planner::Result>(
-        planner->setup(starts, std::move(goal), std::move(options))))
+  : _current_result(planner->setup(starts, std::move(goal), std::move(options)))
 {
   _current_result->options().saturation_limit(200000);
 }
 
 //==============================================================================
 Planning::Planning(rmf_traffic::agv::Planner::Result _setup)
-  : _current_result(
-      std::make_unique<rmf_traffic::agv::Planner::Result>(std::move(_setup)))
+  : _current_result(std::move(_setup))
 {
   _current_result->options().saturation_limit(200000);
 }
@@ -50,8 +47,7 @@ void Planning::resume()
 //==============================================================================
 void Planning::discard()
 {
-//  _current_result = rmf_utils::nullopt;
-  _current_result = nullptr;
+  _current_result = rmf_utils::nullopt;
 }
 
 //==============================================================================

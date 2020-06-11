@@ -27,14 +27,14 @@ namespace jobs {
 template <typename Subscriber, typename Worker>
 void Planning::operator()(const Subscriber& s, const Worker& w)
 {
-  _resume = [this, s, w]()
+  _resume = [a = weak_from_this(), s, w]()
   {
-    w.schedule([this, s, w](const auto&)
+    w.schedule([a, s, w](const auto&)
     {
-      (*this)(s, w);
+      if (const auto action = a.lock())
+        (*action)(s, w);
     });
   };
-
 
   if (!_current_result)
     return;

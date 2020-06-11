@@ -21,6 +21,10 @@
 #include "../Task.hpp"
 #include "../agv/RobotContext.hpp"
 
+#include "../services/FindPath.hpp"
+#include "../services/FindEmergencyPullover.hpp"
+#include "../services/Negotiate.hpp"
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
@@ -87,9 +91,15 @@ public:
     rxcpp::observable<StatusMsg> _status_obs;
     rmf_rxcpp::subscription_guard _status_subscription;
     rmf_rxcpp::subscription_guard _plan_subscription;
-    rmf_rxcpp::subscription_guard _negotiate_subscription;
+    std::shared_ptr<services::FindPath> _find_path_service;
+    std::shared_ptr<services::FindEmergencyPullover> _pullover_service;
+
+    using NegotiatePtr = std::shared_ptr<services::Negotiate>;
+    using NegotiateServiceMap =
+        std::unordered_map<NegotiatePtr, rmf_rxcpp::subscription_guard>;
+    NegotiateServiceMap _negotiate_services;
+
     std::shared_ptr<void> _negotiator_license;
-    std::size_t _execute_count = 0;
   };
 
   class Pending : public Task::PendingPhase

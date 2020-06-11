@@ -54,13 +54,13 @@ SearchForPath::SearchForPath(
   }
 
   const double base_cost = *greedy_setup.cost_estimate();
-  greedy_setup.options().maximum_cost_estimate(greedy_leeway*base_cost);
+  greedy_setup.options().maximum_cost_estimate(_greedy_leeway*base_cost);
 
   auto compliant_options = _planner->get_default_options();
   compliant_options.validator(
         rmf_traffic::agv::ScheduleRouteValidator::make(
           _schedule, _participant_id));
-  compliant_options.maximum_cost_estimate(compliant_leeway*base_cost);
+  compliant_options.maximum_cost_estimate(_compliant_leeway*base_cost);
   compliant_options.interrupt_flag(_interrupt_flag);
   auto compliant_setup = _planner->setup(_starts, _goal, compliant_options);
 

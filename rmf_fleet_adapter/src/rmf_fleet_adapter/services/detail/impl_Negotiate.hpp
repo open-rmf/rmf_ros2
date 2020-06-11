@@ -27,17 +27,17 @@ namespace services {
 template<typename Subscriber>
 void Negotiate::operator()(const Subscriber& s)
 {
-  s.add([n = shared_from_this()]()
+  s.add([n = weak_from_this()]()
   {
     // This service will be discarded if it is unsubscribed from
-    n->discard();
+    if (const auto negotiate = n.lock())
+      negotiate->discard();
   });
 
   auto validators =
       rmf_traffic::agv::NegotiatingRouteValidator::Generator(_viewer).all();
 
-  std::vector<JobPtr> search_jobs;
-  search_jobs.reserve(validators.size() * _goals.size());
+  _all_jobs.reserve(validators.size() * _goals.size());
 
   for (const auto& goal : _goals)
   {
@@ -50,16 +50,16 @@ void Negotiate::operator()(const Subscriber& s)
 
       _evaluator.initialize(job->progress());
 
-      search_jobs.emplace_back(std::move(job));
+      _all_jobs.emplace_back(std::move(job));
     }
   }
 
   const double initial_max_cost =
       _evaluator.best_estimate.cost * _evaluator.estimate_leeway;
 
-  const std::size_t N_jobs = search_jobs.size();
+  const std::size_t N_jobs = _all_jobs.size();
 
-  for (const auto& job : search_jobs)
+  for (const auto& job : _all_jobs)
     job->progress().options().maximum_cost_estimate(initial_max_cost);
 
   auto check_if_finished = [this, s, N_jobs]() -> bool
@@ -75,21 +75,24 @@ void Negotiate::operator()(const Subscriber& s)
         _finished = true;
         // This means we found a successful plan to submit to the negotiation.
         s.on_next(
-              [r = *_evaluator.best_result.progress,
-               approval = std::move(_approval),
-               responder = std::move(_responder)]()
-        {
-          responder->submit(
-                r->get_itinerary(),
-                [r = std::move(r), approval = std::move(approval)]()
-                -> UpdateVersion
-          {
-            if (approval)
-              return approval(*r);
+          Result{
+            shared_from_this(),
+            [r = *_evaluator.best_result.progress,
+             approval = std::move(_approval),
+             responder = std::move(_responder)]()
+            {
+              responder->submit(
+                    r->get_itinerary(),
+                    [r = std::move(r), approval = std::move(approval)]()
+                    -> UpdateVersion
+              {
+                if (approval)
+                  return approval(*r);
 
-            return rmf_utils::nullopt;
+                return rmf_utils::nullopt;
+              });
+            }
           });
-        });
 
         s.on_completed();
         this->interrupt();
@@ -101,10 +104,13 @@ void Negotiate::operator()(const Subscriber& s)
         // This means we could not find a successful plan, but we have some
         // alternatives to offer the parent in the negotiation.
         s.on_next(
-              [n = shared_from_this()]()
-        {
-          n->_responder->reject(*n->_alternatives);
-        });
+          Result{
+            shared_from_this(),
+            [n = shared_from_this()]()
+            {
+              n->_responder->reject(*n->_alternatives);
+            }
+          });
 
         s.on_completed();
         this->interrupt();
@@ -116,13 +122,16 @@ void Negotiate::operator()(const Subscriber& s)
         // This means we could not find any plan or any alternatives to offer
         // the parent, so all we can do is forfeit.
         s.on_next(
-              [n = shared_from_this()]()
-        {
-          std::vector<rmf_traffic::schedule::ParticipantId> blockers(
-                n->_blockers.begin(), n->_blockers.end());
+          Result{
+            shared_from_this(),
+            [n = shared_from_this()]()
+            {
+              std::vector<rmf_traffic::schedule::ParticipantId> blockers(
+                    n->_blockers.begin(), n->_blockers.end());
 
-          n->_responder->forfeit(std::move(blockers));
-        });
+              n->_responder->forfeit(std::move(blockers));
+            }
+          });
 
         s.on_completed();
         this->interrupt();
@@ -136,13 +145,20 @@ void Negotiate::operator()(const Subscriber& s)
     return false;
   };
 
-  _search_sub = rmf_rxcpp::make_job_from_action_list(search_jobs)
+  _search_sub = rmf_rxcpp::make_job_from_action_list(_all_jobs)
       .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
-        [n = shared_from_this(), s,
+        [n_weak = weak_from_this(), s,
          check_if_finished = std::move(check_if_finished)](
         const jobs::Planning::Result& result)
   {
+    const auto n = n_weak.lock();
+    if (!n)
+    {
+      s.on_completed();
+      return;
+    }
+
     if (n->_discarded)
     {
       s.on_completed();

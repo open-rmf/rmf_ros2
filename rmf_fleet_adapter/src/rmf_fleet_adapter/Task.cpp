@@ -103,7 +103,6 @@ void Task::_start_next_phase()
           // this to whoever is subscribing to the Task.
           summary.task_id = this->_id;
           this->_status_publisher.get_subscriber().on_next(summary);
-
         },
         [this](std::exception_ptr e)
         {

@@ -34,6 +34,8 @@
 
 #include "../thread_cooldown.hpp"
 
+#include <rmf_task_msgs/msg/task_summary.hpp>
+
 //==============================================================================
 class MockRobotCommand : public rmf_fleet_adapter::agv::RobotCommandHandle
 {
@@ -401,7 +403,7 @@ SCENARIO("Test Delivery")
   };
 
   rclcpp::init(0, nullptr);
-  auto adapter = rmf_fleet_adapter::agv::test::MockAdapter("test_Delivery");
+  rmf_fleet_adapter::agv::test::MockAdapter adapter("test_Delivery");
   auto fleet = adapter.add_fleet("test_fleet", traits, graph);
   fleet->accept_delivery_requests(
         [](const rmf_task_msgs::msg::Delivery&)
@@ -442,23 +444,20 @@ SCENARIO("Test Delivery")
   request.task_id = "test_id";
 
   request.pickup_place_name = pickup_name;
-  request.pickup_dispenser = flaky_dispenser_name;
-//  request.pickup_dispenser = quiet_dispenser_name;
+  request.pickup_dispenser = quiet_dispenser_name;
 
   request.dropoff_place_name = dropoff_name;
-  request.dropoff_dispenser = quiet_dispenser_name;
-//  request.dropoff_dispenser = flaky_dispenser_name;
+  request.dropoff_dispenser = flaky_dispenser_name;
 
   adapter.request_delivery(request);
+
+  const auto quiet_status = quiet_future.wait_for(5s);
+  REQUIRE(quiet_status == std::future_status::ready);
+  REQUIRE(quiet_future.get());
 
   const auto flaky_status = flaky_future.wait_for(5s);
   REQUIRE(flaky_status == std::future_status::ready);
   REQUIRE(flaky_future.get());
-
-//  const auto quiet_status = quiet_future.wait_for(15s);
-//  REQUIRE(quiet_status == std::future_status::ready);
-  quiet_future.wait();
-  REQUIRE(quiet_future.get());
 
   const auto& visits = robot_cmd->visited_wps();
   CHECK(visits.size() == 6);

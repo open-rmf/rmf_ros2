@@ -24,8 +24,11 @@
 namespace rmf_fleet_adapter {
 namespace phases {
 
+//==============================================================================
 struct DockRobot
 {
+  class Action;
+
   class ActivePhase : public Task::ActivePhase
   {
   public:
@@ -45,10 +48,12 @@ struct DockRobot
     const std::string& description() const override;
 
   private:
+    friend class Action;
 
     agv::RobotContextPtr _context;
     std::string _dock_name;
     std::string _description;
+    std::shared_ptr<Action> _action;
     rxcpp::observable<Task::StatusMsg> _obs;
   };
 
@@ -72,7 +77,41 @@ struct DockRobot
     std::string _dock_name;
     std::string _description;
   };
+
+  class Action
+  {
+  public:
+
+    Action(ActivePhase* phase);
+
+    template<typename Subscriber>
+    void operator()(const Subscriber& s);
+
+  private:
+    ActivePhase* _phase;
+  };
 };
+
+//==============================================================================
+template <typename Subscriber>
+void DockRobot::Action::operator()(const Subscriber& s)
+{
+  Task::StatusMsg status;
+  status.state = Task::StatusMsg::STATE_ACTIVE;
+  status.status = "Docking [" + _phase->_context->requester_id() + "] into dock ["
+      + _phase->_dock_name + "]";
+
+  s.on_next(status);
+  _phase->_context->command()->dock(_phase->_dock_name, [s, this]()
+  {
+    Task::StatusMsg status;
+    status.status = "Finished docking [" + _phase->_context->requester_id()
+        + "] into dock [" + _phase->_dock_name + "]";
+    status.state = Task::StatusMsg::STATE_COMPLETED;
+    s.on_next(status);
+    s.on_completed();
+  });
+}
 
 } // namespace phases
 } // namespace rmf_fleet_adapter

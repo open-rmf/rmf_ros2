@@ -26,6 +26,8 @@ namespace phases {
 
 struct MoveRobot
 {
+  class Action;
+
   class ActivePhase : public Task::ActivePhase
   {
   public:
@@ -48,6 +50,7 @@ struct MoveRobot
 
     agv::RobotContextPtr _context;
     std::string _description;
+    std::shared_ptr<Action> _action;
     rxcpp::observable<Task::StatusMsg> _obs;
     rxcpp::subjects::subject<bool> _cancel_subject;
   };

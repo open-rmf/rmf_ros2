@@ -26,6 +26,7 @@ namespace services {
 
 //==============================================================================
 class FindEmergencyPullover
+    : public std::enable_shared_from_this<FindEmergencyPullover>
 {
 public:
 
@@ -50,7 +51,7 @@ private:
   rmf_traffic::schedule::ParticipantId _participant_id;
 
   std::vector<std::shared_ptr<jobs::SearchForPath>> _search_jobs;
-  rxcpp::subscription _search_sub;
+  rmf_rxcpp::subscription_guard _search_sub;
 
   ProgressEvaluator _greedy_evaluator;
   ProgressEvaluator _compliant_evaluator;

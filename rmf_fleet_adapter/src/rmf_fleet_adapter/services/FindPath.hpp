@@ -46,7 +46,7 @@ public:
 
 private:
   std::shared_ptr<jobs::SearchForPath> _search_job;
-  rxcpp::subscription _search_sub;
+  rmf_rxcpp::subscription_guard _search_sub;
 };
 
 } // namespace services

@@ -29,22 +29,32 @@ using IsAsyncAction = std::is_constructible<
 
 template<typename Action, typename Subscriber>
 void schedule_job(
-  const std::shared_ptr<Action>& a,
+  const std::weak_ptr<Action>& a,
   const Subscriber& s,
   const rxcpp::schedulers::worker& w,
   typename std::enable_if_t<IsAsyncAction<Action, Subscriber>::value>* = 0)
 {
-  w.schedule([a, s, w](const auto&) { (*a)(s, w); });
+  w.schedule(
+        [a, s, w](const auto&)
+  {
+    if (const auto action = a.lock())
+      (*action)(s, w);
+  });
 }
 
 template<typename Action, typename Subscriber>
 void schedule_job(
-  const std::shared_ptr<Action>& a,
+  const std::weak_ptr<Action>& a,
   const Subscriber& s,
   const rxcpp::schedulers::worker& w,
   typename std::enable_if_t<!IsAsyncAction<Action, Subscriber>::value>* = 0)
 {
-  w.schedule([a, s](const auto&) { (*a)(s); });
+  w.schedule(
+        [a, s](const auto&)
+  {
+    if (const auto action = a.lock())
+      (*action)(s);
+  });
 }
 
 inline auto get_event_loop()
@@ -66,10 +76,23 @@ inline auto get_event_loop()
 template<typename T, typename Action>
 auto make_observable(const std::shared_ptr<Action>& action)
 {
-  return rxcpp::observable<>::create<T>([action](const auto& s)
+  return rxcpp::observable<>::create<T>(
+        [a = std::weak_ptr<Action>(action)](const auto& s)
   {
     auto worker = get_event_loop().create_worker();
-    detail::schedule_job(action, s, worker);
+    detail::schedule_job(a, s, worker);
+  });
+}
+
+/// Alternative to make_observable that is unconcerned about memory leaks
+template<typename T, typename Action>
+auto make_leaky_observable(const std::shared_ptr<Action>& action)
+{
+  return rxcpp::observable<>::create<T>(
+        [a = std::move(action)](const auto& s)
+  {
+    auto worker = get_event_loop().create_worker();
+    detail::schedule_job(a, s, worker);
   });
 }
 

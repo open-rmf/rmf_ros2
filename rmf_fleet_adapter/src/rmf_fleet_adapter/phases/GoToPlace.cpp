@@ -15,10 +15,6 @@
  *
 */
 
-#include "../services/FindPath.hpp"
-#include "../services/FindEmergencyPullover.hpp"
-#include "../services/Negotiate.hpp"
-
 #include "GoToPlace.hpp"
 #include "MoveRobot.hpp"
 #include "DoorOpen.hpp"
@@ -132,13 +128,14 @@ void GoToPlace::Active::respond(
           responder, std::move(approval_cb), evaluator);
   }
 
-  _negotiate_subscription =
+  _negotiate_services[negotiate] =
       rmf_rxcpp::make_job<services::Negotiate::Result>(negotiate)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
         [phase = std::move(phase), negotiate](const auto& result)
   {
-    result();
+    result.respond();
+    phase->_negotiate_services.erase(result.service);
   });
 }
 
@@ -173,16 +170,22 @@ void GoToPlace::Active::find_plan()
 
   auto phase = phase_from_this();
 
-  auto service = std::make_shared<services::FindPath>(
+  _pullover_service = nullptr;
+  _find_path_service = std::make_shared<services::FindPath>(
         _context->planner(), _context->location(), _goal,
         _context->schedule()->snapshot(), _context->itinerary().id());
 
-  _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(service)
+  _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
+        _find_path_service)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [phase = std::move(phase), service](
+        [weak = std::weak_ptr<Active>(phase)](
         const services::FindPath::Result& result)
   {
+    const auto phase = weak.lock();
+    if (!phase)
+      return;
+
     if (!result)
     {
       // This shouldn't happen, but let's try to handle it gracefully
@@ -209,17 +212,22 @@ void GoToPlace::Active::find_emergency_plan()
   emergency_msg.end_time = emergency_msg.start_time;
   _status_publisher.get_subscriber().on_next(emergency_msg);
 
-  auto service = std::make_shared<services::FindEmergencyPullover>(
+  _find_path_service = nullptr;
+  _pullover_service = std::make_shared<services::FindEmergencyPullover>(
         _context->planner(), _context->location(),
         _context->schedule()->snapshot(), _context->itinerary().id());
 
   _plan_subscription = rmf_rxcpp::make_job<
-      services::FindEmergencyPullover::Result>(service)
+      services::FindEmergencyPullover::Result>(_pullover_service)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [phase = std::move(phase), service](
+        [weak = std::weak_ptr<Active>(phase)](
         const services::FindEmergencyPullover::Result& result)
   {
+    const auto phase = weak.lock();
+    if (!phase)
+      return;
+
     if (!result)
     {
       // This shouldn't happen, but let's try to handle it gracefully
@@ -363,24 +371,29 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
   _status_subscription = _subtasks->observe()
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [phase](const StatusMsg& msg)
+        [weak = std::weak_ptr<Active>(phase)](const StatusMsg& msg)
         {
-          phase->_status_publisher.get_subscriber().on_next(msg);
+          if (const auto phase = weak.lock())
+            phase->_status_publisher.get_subscriber().on_next(msg);
         },
-        [phase](std::exception_ptr e)
+        [weak = std::weak_ptr<Active>(phase)](std::exception_ptr e)
         {
-          phase->_status_publisher.get_subscriber().on_error(e);
+          if (const auto phase = weak.lock())
+            phase->_status_publisher.get_subscriber().on_error(e);
         },
-        [phase]()
+        [weak = std::weak_ptr<Active>(phase)]()
         {
-          if (!phase->_emergency_active)
-            phase->_status_publisher.get_subscriber().on_completed();
+          if (const auto phase = weak.lock())
+          {
+            if (!phase->_emergency_active)
+              phase->_status_publisher.get_subscriber().on_completed();
 
-          // If an emergency is active, then eventually the alarm should get
-          // turned off, which should trigger a non-emergency replanning. That
-          // new plan will create a new set of subtasks, and when that new set
-          // of subtasks is complete, then we will consider this GoToPlace phase
-          // to be complete.
+            // If an emergency is active, then eventually the alarm should get
+            // turned off, which should trigger a non-emergency replanning. That
+            // new plan will create a new set of subtasks, and when that new set
+            // of subtasks is complete, then we will consider this GoToPlace
+            // phase to be complete.
+          }
         }
    );
 

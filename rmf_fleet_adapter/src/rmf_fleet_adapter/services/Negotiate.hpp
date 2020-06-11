@@ -62,7 +62,11 @@ public:
       ApprovalCallback approval,
       ProgressEvaluator evaluator);
 
-  using Result = std::function<void()>;
+  struct Result
+  {
+    std::shared_ptr<Negotiate> service;
+    std::function<void()> respond;
+  };
 
   template<typename Subscriber>
   void operator()(const Subscriber& s);
@@ -70,6 +74,8 @@ public:
   void interrupt();
 
   void discard();
+
+  ~Negotiate();
 
 private:
 
@@ -99,9 +105,10 @@ private:
 
   std::unordered_set<JobPtr> _current_jobs;
   std::priority_queue<JobPtr, std::vector<JobPtr>, CompareJobs> _resume_jobs;
-  rxcpp::subscription _search_sub;
+  std::vector<JobPtr> _all_jobs; // Used to keep the jobs alive
+  rmf_rxcpp::subscription_guard _search_sub;
   std::shared_ptr<jobs::Rollout> _rollout_job;
-  rxcpp::subscription _rollout_sub;
+  rmf_rxcpp::subscription_guard _rollout_sub;
   bool _finished = false;
   bool _attempting_rollout = false;
 

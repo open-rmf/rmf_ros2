@@ -257,7 +257,7 @@ SCENARIO("Find a path")
       result_1_promise.set_value(result);
     });
 
-    auto status_1 = result_1_future.wait_for(1s);
+    auto status_1 = result_1_future.wait_for(60s);
     REQUIRE(std::future_status::ready == status_1);
     const auto result_1 = result_1_future.get();
     REQUIRE(result_1.success());

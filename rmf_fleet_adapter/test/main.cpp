@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
 #ifdef NDEBUG
     const auto cooldown_time = 100ms;
 #else
-    const auto cooldown_time = 1s;
+    const auto cooldown_time = 2s;
 #endif
 
     std::this_thread::sleep_for(cooldown_time);

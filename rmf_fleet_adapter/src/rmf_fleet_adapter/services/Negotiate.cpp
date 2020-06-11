@@ -105,6 +105,18 @@ void Negotiate::discard()
 }
 
 //==============================================================================
+Negotiate::~Negotiate()
+{
+  // We violate the Rule of Three/Five/Zero here because it's a good idea to
+  // flip the interrupt flag just in case there are any dangling planning jobs
+  // still running.
+  //
+  // TODO(MXG): Consider creating a simple Rule of Zero wrapper class for
+  // _interrupted that will set its value to true upon destruction.
+  *_interrupted = true;
+}
+
+//==============================================================================
 void Negotiate::_resume_next()
 {
   const auto top = _resume_jobs.top();

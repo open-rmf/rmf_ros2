@@ -31,24 +31,8 @@ DockRobot::ActivePhase::ActivePhase(
   oss << "Docking robot to " << _dock_name;
   _description = oss.str();
 
-  _obs = rmf_rxcpp::make_job<Task::StatusMsg>([this](const auto& s)
-  {
-    Task::StatusMsg status;
-    status.state = Task::StatusMsg::STATE_ACTIVE;
-    status.status = "Docking [" + _context->requester_id() + "] into dock ["
-        + _dock_name + "]";
-
-    s.on_next(status);
-    _context->command()->dock(_dock_name, [s, this]()
-    {
-      Task::StatusMsg status;
-      status.status = "Finished docking [" + _context->requester_id()
-          + "] into dock [" + _dock_name + "]";
-      status.state = Task::StatusMsg::STATE_COMPLETED;
-      s.on_next(status);
-      s.on_completed();
-    });
-  });
+  _action = std::make_shared<Action>(this);
+  _obs = rmf_rxcpp::make_job<Task::StatusMsg>(_action);
 }
 
 //==============================================================================
@@ -111,6 +95,13 @@ rmf_traffic::Duration DockRobot::PendingPhase::estimate_phase_duration() const
 const std::string& DockRobot::PendingPhase::description() const
 {
   return _description;
+}
+
+//==============================================================================
+DockRobot::Action::Action(ActivePhase* phase)
+  : _phase(phase)
+{
+  // Do nothing
 }
 
 } // namespace phases

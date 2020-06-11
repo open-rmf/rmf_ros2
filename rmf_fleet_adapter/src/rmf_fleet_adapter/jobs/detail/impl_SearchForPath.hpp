@@ -27,10 +27,13 @@ namespace jobs {
 template <typename Subscriber, typename Worker>
 void SearchForPath::operator()(const Subscriber& s, const Worker&)
 {
-  s.add([this]()
+  s.add([weak = weak_from_this()]()
   {
-    // This gets triggered if the subscription is discarded
-    this->interrupt();
+    if (const auto search = weak.lock())
+    {
+      // This gets triggered if the subscription is discarded
+      search->interrupt();
+    }
   });
 
   if (!_greedy_job)
@@ -55,33 +58,38 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
   _greedy_sub = rmf_rxcpp::make_job<Planning::Result>(_greedy_job)
       .observe_on(rxcpp::identity_same_worker(_worker))
       .subscribe(
-        [this, s](const Planning::Result& result)
+        [weak = weak_from_this(), s](const Planning::Result& result)
   {
-    auto show_complaint = _compliant_finished? _compliant_job.get() : nullptr;
-    Result next{_greedy_job.get(), show_complaint, Type::greedy};
+    const auto search = weak.lock();
+    if (!search)
+      return;
+
+    auto show_complaint = search->_compliant_finished?
+          search->_compliant_job.get() : nullptr;
+    Result next{search->_greedy_job.get(), show_complaint, Type::greedy};
 
     const auto& r = result.job.progress();
     if (r.success())
     {
-      if (_compliant_finished)
+      if (search->_compliant_finished)
       {
         s.on_next(next);
         s.on_completed();
         return;
       }
-      else if (_explicit_cost_limit)
+      else if (search->_explicit_cost_limit)
       {
         s.on_next(next);
 
-        _greedy_finished = true;
+        search->_greedy_finished = true;
         return;
       }
 
-      _greedy_finished = true;
+      search->_greedy_finished = true;
       return;
     }
 
-    if (!_explicit_cost_limit)
+    if (!search->_explicit_cost_limit)
     {
       const double current_cost = r.cost_estimate()?
             *r.cost_estimate() : std::numeric_limits<double>::infinity();
@@ -89,18 +97,20 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
             *r.options().maximum_cost_estimate()
           : std::numeric_limits<double>::infinity();
 
-      const auto& desc = _schedule->get_participant(_participant_id);
+      const auto& desc = search->_schedule->get_participant(
+            search->_participant_id);
       // If the job has not succeeded, then something very suspicious is
       // happening. The initial cost estimate must be very very bad for this to
       // occur, which would imply broader systemic issues in the planner.
       std::cerr << "[SearchForPath] CRITICAL ERROR: Failed to find an "
                 << "acceptable greedy solution. Participant [" << desc->name()
                 << "] owned by [" << desc->owner() << "] Requested path";
-      for (const auto& start : _starts)
+      for (const auto& start : search->_starts)
         std::cerr << " (" << start.waypoint() << ")";
-      std::cerr << " --> (" << _goal.waypoint() << "). Maximum cost: "
-                << maximum_cost << " | Leeway factor: " << greedy_leeway
-                << " | Current cost: " << current_cost << std::endl;
+      std::cerr << " --> (" << search->_goal.waypoint() << "). Maximum cost: "
+                << maximum_cost << " | Leeway factor: "
+                << search->_greedy_leeway << " | Current cost: " << current_cost
+                << std::endl;
       assert(false);
 
       // We'll return the failed plan, I guess. If the greedy planner fails,
@@ -170,7 +180,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       // We don't have an explicit cost limit, so we'll just check if the
       // greedy job search has granted us any more leeway.
       const double new_maximum =
-          compliant_leeway * _greedy_job->progress()->get_cost();
+          _compliant_leeway * _greedy_job->progress()->get_cost();
 
       if (*r.options().maximum_cost_estimate() < new_maximum)
       {

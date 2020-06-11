@@ -30,7 +30,7 @@ namespace jobs {
 /// plan will generally be preferred, but if it is excessively blocked by other
 /// vehicles on the schedule, then the greedy plan can be used to create an
 /// opening in the traffic schedule.
-class SearchForPath
+class SearchForPath : public std::enable_shared_from_this<SearchForPath>
 {
 public:
 
@@ -97,8 +97,8 @@ private:
   rxcpp::schedulers::worker _worker;
 
   // TODO(MXG): Make these leeway factors configurable
-  const double greedy_leeway = 10.0;
-  const double compliant_leeway = 3.0;
+  const double _greedy_leeway = 10.0;
+  const double _compliant_leeway = 3.0;
 };
 
 } // namespace jobs

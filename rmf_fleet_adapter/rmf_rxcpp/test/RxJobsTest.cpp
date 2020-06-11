@@ -22,7 +22,7 @@
 TEST_CASE("run simple job", "[Jobs]")
 {
   bool ran = false;
-  auto j = rmf_rxcpp::make_job<int>([](const auto& s)
+  auto j = rmf_rxcpp::make_leaky_job<int>([](const auto& s)
   {
     s.on_next(1);
     s.on_completed();
@@ -35,7 +35,7 @@ TEST_CASE("run multiple jobs in parallel", "[Jobs]")
 {
   bool job1_success = false;
   bool job2_success = false;
-  auto job1 = rmf_rxcpp::make_job<int>([&job1_success, &job2_success](const auto& s) {
+  auto job1 = rmf_rxcpp::make_leaky_job<int>([&job1_success, &job2_success](const auto& s) {
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(1);
     while (std::chrono::steady_clock::now() < timeout)
     {
@@ -45,7 +45,7 @@ TEST_CASE("run multiple jobs in parallel", "[Jobs]")
     job1_success = job2_success;
     s.on_completed();
   });
-  auto job2 = rmf_rxcpp::make_job<int>([&job2_success](const auto& s) {
+  auto job2 = rmf_rxcpp::make_leaky_job<int>([&job2_success](const auto& s) {
     job2_success = true;
     s.on_completed();
   });
@@ -86,7 +86,7 @@ TEST_CASE("async job", "[Jobs]")
 TEST_CASE("job completion handler is called", "[Jobs]")
 {
   bool called = false;
-  auto j = rmf_rxcpp::make_job<int>([](const auto& s)
+  auto j = rmf_rxcpp::make_leaky_job<int>([](const auto& s)
   {
     s.on_completed();
   });
@@ -99,9 +99,9 @@ TEST_CASE("job completion handler is called", "[Jobs]")
 
 TEST_CASE("nested job", "[Jobs]")
 {
-  auto job1 = rmf_rxcpp::make_job<std::string>([](const auto& s)
+  auto job1 = rmf_rxcpp::make_leaky_job<std::string>([](const auto& s)
   {
-    auto job2 = rmf_rxcpp::make_job<std::string>([](const auto& s)
+    auto job2 = rmf_rxcpp::make_leaky_job<std::string>([](const auto& s)
     {
       s.on_next("hello");
       s.on_completed();
@@ -122,7 +122,7 @@ TEST_CASE("nested job", "[Jobs]")
 TEST_CASE("cancelling job", "[Jobs]")
 {
   int counter = 0;
-  auto j = rmf_rxcpp::make_job<int>([&counter](const auto& s)
+  auto j = rmf_rxcpp::make_leaky_job<int>([&counter](const auto& s)
   {
     for (int i = 1; i <= 10; i++)
     {

@@ -396,11 +396,12 @@ public:
           evaluator);
 
     auto sub = rmf_rxcpp::make_job<
-        rmf_fleet_adapter::services::Negotiate::Result>(std::move(negotiate))
+        rmf_fleet_adapter::services::Negotiate::Result>(negotiate)
         .observe_on(rxcpp::identity_same_worker(_worker))
-        .subscribe([](const auto& result){ result(); });
+        .subscribe([](const auto& result){ result.respond(); });
 
     _subscriptions.emplace_back(std::move(sub));
+    _services.emplace_back(std::move(negotiate));
   }
 
 private:
@@ -408,6 +409,7 @@ private:
   rmf_traffic::agv::Plan::StartSet _starts;
   rmf_traffic::agv::Plan::Goal _goal;
   std::vector<rmf_rxcpp::subscription_guard> _subscriptions;
+  std::vector<std::shared_ptr<rmf_fleet_adapter::services::Negotiate>> _services;
   bool _print = false;
   std::shared_ptr<rmf_traffic::schedule::Negotiation> _n;
   rxcpp::schedulers::worker _worker;
@@ -524,15 +526,17 @@ public:
     auto sub = rmf_rxcpp::make_job<
         rmf_fleet_adapter::services::Negotiate::Result>(std::move(negotiate))
         .observe_on(rxcpp::identity_same_worker(_worker))
-        .subscribe([](const auto& result){ result(); });
+        .subscribe([](const auto& result){ result.respond(); });
 
     _subscriptions.emplace_back(std::move(sub));
+    _services.emplace_back(std::move(negotiate));
   }
 
 private:
   std::shared_ptr<rmf_traffic::agv::Planner> _planner;
   rmf_traffic::agv::Plan::StartSet _starts;
   std::vector<rmf_rxcpp::subscription_guard> _subscriptions;
+  std::vector<std::shared_ptr<rmf_fleet_adapter::services::Negotiate>> _services;
   bool _print = false;
   std::shared_ptr<rmf_traffic::schedule::Negotiation> _n;
   rxcpp::schedulers::worker _worker;

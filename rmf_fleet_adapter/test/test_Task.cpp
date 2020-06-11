@@ -46,9 +46,7 @@ public:
     template<typename Subscriber, typename Worker>
     void operator()(const Subscriber& s, const Worker& w)
     {
-      std::cout << "Beginning wait: " << *count << std::endl;
       std::this_thread::sleep_for(period);
-      std::cout << "Finished wait: " << *count << std::endl;
       ++ *count;
       s.on_next(*count);
       if (count_length <= *count)
