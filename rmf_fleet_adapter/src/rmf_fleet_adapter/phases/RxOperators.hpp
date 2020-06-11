@@ -55,8 +55,12 @@ inline auto grab_while_active()
 {
   return grab_while([](const Task::StatusMsg& status)
   {
-    return !(status.state == Task::StatusMsg::STATE_COMPLETED ||
+    const bool grab = !(status.state == Task::StatusMsg::STATE_COMPLETED ||
       status.state == Task::StatusMsg::STATE_FAILED);
+    std::cout << "Grabbing: " << grab
+              << " | for [" << status.task_id << "] | status: "
+              << status.status << std::endl;
+    return grab;
   });
 }
 
@@ -102,7 +106,7 @@ auto make_cancellable(const Observable& obs, const CancelObservable& cancel_obs)
       return status;
     });
   return obs
-      .merge(cancelled_obs)
+      .merge(rxcpp::observe_on_event_loop(), cancelled_obs)
       .template lift<Task::StatusMsg>(grab_while_active());
 }
 

@@ -117,8 +117,8 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
     AND_WHEN("dispenser result is success")
     {
       auto dispenser_result_pub = transport->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
-      rclcpp::TimerBase::SharedPtr timer;
-      std::function<void()> publish_result = [&]()
+      auto dispenser_state_pub = transport->create_publisher<DispenserState>(DispenserStateTopicName, 10);
+      auto timer = transport->create_wall_timer(std::chrono::milliseconds(100), [&]()
       {
         std::unique_lock<std::mutex> lk(m);
         DispenserResult result;
@@ -126,9 +126,13 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
         result.status = DispenserResult::SUCCESS;
         result.time = transport->now();
         dispenser_result_pub->publish(result);
-        timer = transport->create_wall_timer(std::chrono::milliseconds(100), publish_result);
-      };
-      publish_result();
+
+        DispenserState state;
+        state.guid = request_guid;
+        state.mode = DispenserState::IDLE;
+        state.time = transport->now();
+        dispenser_state_pub->publish(state);
+      });
 
       THEN("it is completed")
       {
@@ -146,8 +150,8 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
     AND_WHEN("dispenser result is failed")
     {
       auto dispenser_result_pub = transport->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
-      rclcpp::TimerBase::SharedPtr timer;
-      std::function<void()> publish_result = [&]()
+      auto dispenser_state_pub = transport->create_publisher<DispenserState>(DispenserStateTopicName, 10);
+      auto timer = transport->create_wall_timer(std::chrono::milliseconds(100), [&]()
       {
         std::unique_lock<std::mutex> lk(m);
         DispenserResult result;
@@ -155,9 +159,13 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
         result.status = DispenserResult::FAILED;
         result.time = transport->now();
         dispenser_result_pub->publish(result);
-        timer = transport->create_wall_timer(std::chrono::milliseconds(100), publish_result);
-      };
-      publish_result();
+
+        DispenserState state;
+        state.guid = request_guid;
+        state.mode = DispenserState::IDLE;
+        state.time = transport->now();
+        dispenser_state_pub->publish(state);
+      });
 
       THEN("it is failed")
       {

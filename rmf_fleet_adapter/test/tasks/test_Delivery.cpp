@@ -173,10 +173,17 @@ private:
 
   void _process_request(const DispenserRequest& msg)
   {
-    if (msg.target_guid != _name)
-      return;
+    std::cout << " // Received dispenser request [" << msg.request_guid
+              << "] for [" << msg.target_guid << "]" << std::endl;
 
-    std::cout << " -- Received request" << std::endl;
+    if (msg.target_guid != _name)
+    {
+      std::cout << " // Ignoring request [" << _name << "]" << std::endl;
+      return;
+    }
+
+    std::cout << " // Accepting request" << std::endl;
+
     const auto insertion = _task_complete_map.insert({msg.request_guid, false});
     uint8_t status = DispenserResult::ACKNOWLEDGED;
     if (insertion.first->second)
@@ -312,10 +319,15 @@ private:
 
   void _process_request(const DispenserRequest& msg)
   {
-    if (msg.target_guid != _name)
-      return;
-
     std::cout << " -- Received dispense request [" << msg.request_guid
+              << "] for [" << msg.target_guid << "]" << std::endl;
+    if (msg.target_guid != _name)
+    {
+      std::cout << " -- Ignoring request [" << _name << "]" << std::endl;
+      return;
+    }
+
+    std::cout << " -- Queuing request [" << msg.request_guid
               << "]" << std::endl;
     _request_queue.push_back({msg, 0});
   }
@@ -440,22 +452,22 @@ SCENARIO("Test Delivery")
   request.task_id = "test_id";
 
   request.pickup_place_name = pickup_name;
-//  request.pickup_dispenser = flaky_dispenser_name;
-  request.pickup_dispenser = quiet_dispenser_name;
+  request.pickup_dispenser = flaky_dispenser_name;
+//  request.pickup_dispenser = quiet_dispenser_name;
 
   request.dropoff_place_name = dropoff_name;
-//  request.dropoff_dispenser = quiet_dispenser_name;
-  request.dropoff_dispenser = flaky_dispenser_name;
+  request.dropoff_dispenser = quiet_dispenser_name;
+//  request.dropoff_dispenser = flaky_dispenser_name;
 
   adapter.request_delivery(request);
-
-  const auto quiet_status = quiet_future.wait_for(5s);
-  REQUIRE(quiet_status == std::future_status::ready);
-  REQUIRE(quiet_future.get());
 
   const auto flaky_status = flaky_future.wait_for(5s);
   REQUIRE(flaky_status == std::future_status::ready);
   REQUIRE(flaky_future.get());
+
+  const auto quiet_status = quiet_future.wait_for(5s);
+  REQUIRE(quiet_status == std::future_status::ready);
+  REQUIRE(quiet_future.get());
 
   const auto& visits = robot_cmd->visited_wps();
   CHECK(visits.size() == 5);

@@ -49,7 +49,6 @@ struct MoveRobot
     agv::RobotContextPtr _context;
     std::string _description;
     rxcpp::observable<Task::StatusMsg> _obs;
-    rxcpp::subjects::subject<bool> _cancel_subject;
   };
 
   class PendingPhase : public Task::PendingPhase
@@ -90,6 +89,7 @@ struct MoveRobot
     std::vector<rmf_traffic::agv::Plan::Waypoint> _waypoints;
     std::size_t _next_path_index = 0;
     rmf_traffic::Duration _current_delay = rmf_traffic::Duration(0);
+    rxcpp::subjects::subject<bool> _cancel_subject;
   };
 };
 
@@ -164,6 +164,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 
     std::cout << "Calling on_completed()" << std::endl;
     s.on_completed();
+
   });
 }
 
