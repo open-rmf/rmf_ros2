@@ -82,14 +82,14 @@ private:
   // 1. Provide a reference for what an acceptable cost is for the compliant job
   // 2. Provide a backup plan if a compliant job can't be found
   std::shared_ptr<Planning> _greedy_job;
-  rxcpp::subscription _greedy_sub;
+  rmf_rxcpp::subscription_guard _greedy_sub;
   bool _greedy_finished = false;
 
   // The compliant job makes the plan which is optimal without conflicting with
   // any other traffic currently on the schedule. In some cases, it might not
   // be feasible to find an acceptable compliant job, either because
   std::shared_ptr<Planning> _compliant_job;
-  rxcpp::subscription _compliant_sub;
+  rmf_rxcpp::subscription_guard _compliant_sub;
   bool _compliant_finished = false;
 
   rmf_utils::optional<double> _explicit_cost_limit;

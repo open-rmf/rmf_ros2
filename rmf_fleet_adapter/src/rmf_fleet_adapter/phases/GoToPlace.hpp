@@ -85,10 +85,11 @@ public:
     bool _performing_emergency_task = false;
     rxcpp::subjects::subject<StatusMsg> _status_publisher;
     rxcpp::observable<StatusMsg> _status_obs;
-    rxcpp::subscription _status_subscription;
-    rxcpp::subscription _plan_subscription;
-    rxcpp::subscription _negotiate_subscription;
+    rmf_rxcpp::subscription_guard _status_subscription;
+    rmf_rxcpp::subscription_guard _plan_subscription;
+    rmf_rxcpp::subscription_guard _negotiate_subscription;
     std::shared_ptr<void> _negotiator_license;
+    std::size_t _execute_count = 0;
   };
 
   class Pending : public Task::PendingPhase

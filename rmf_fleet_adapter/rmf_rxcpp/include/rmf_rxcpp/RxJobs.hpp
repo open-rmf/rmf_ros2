@@ -52,7 +52,7 @@ inline auto make_job_from_action_list(const ActionsIterable& actions)
 
 struct subscription_guard
 {
-  subscription_guard(rxcpp::subscription s)
+  subscription_guard(rxcpp::subscription s = rxcpp::subscription())
     : _subscription(std::move(s))
   {
     // Do nothing

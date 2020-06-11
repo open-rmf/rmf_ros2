@@ -55,12 +55,8 @@ inline auto grab_while_active()
 {
   return grab_while([](const Task::StatusMsg& status)
   {
-    const bool grab = !(status.state == Task::StatusMsg::STATE_COMPLETED ||
-      status.state == Task::StatusMsg::STATE_FAILED);
-    std::cout << "Grabbing: " << grab
-              << " | for [" << status.task_id << "] | status: "
-              << status.status << std::endl;
-    return grab;
+    return !(status.state == Task::StatusMsg::STATE_COMPLETED ||
+             status.state == Task::StatusMsg::STATE_FAILED);
   });
 }
 

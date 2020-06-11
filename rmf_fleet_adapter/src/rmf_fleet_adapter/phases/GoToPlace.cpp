@@ -174,6 +174,8 @@ void GoToPlace::Active::find_plan()
   std::cout << "Requesting plan search" << std::endl;
   auto phase = phase_from_this();
 
+  const auto loc = _context->location();
+
   auto service = std::make_shared<services::FindPath>(
         _context->planner(), _context->location(), _goal,
         _context->schedule()->snapshot(), _context->itinerary().id());
@@ -195,7 +197,7 @@ void GoToPlace::Active::find_plan()
       return;
     }
 
-    std::cout << "Executing plan" << std::endl;
+    std::cout << "Executing plan: " << ++phase->_execute_count << std::endl;
     phase->execute_plan(*std::move(result));
   });
 }
@@ -396,6 +398,22 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
           // to be complete.
         }
    );
+
+  const auto start = *_plan->get_itinerary().front().trajectory().start_time();
+  const auto dt_s = std::chrono::duration_cast<std::chrono::system_clock::duration>(
+        start.time_since_epoch());
+  const auto clock_s = std::chrono::system_clock::time_point(dt_s);
+  const std::time_t t_s = std::chrono::system_clock::to_time_t(clock_s);
+  const std::string s = std::ctime(&t_s);
+
+  const auto finish = *_plan->get_itinerary().back().trajectory().finish_time();
+  const auto dt_f = std::chrono::duration_cast<std::chrono::system_clock::duration>(
+        finish.time_since_epoch());
+  const auto clock_f = std::chrono::system_clock::time_point(dt_f);
+  const std::time_t t_f = std::chrono::system_clock::to_time_t(clock_f);
+  const std::string f = std::ctime(&t_f);
+
+  std::cout << " ## Scheduling plan from (" << s << ") --> (" << f << ")" << std::endl;
 
   _subtasks->begin();
   _context->itinerary().set(_plan->get_itinerary());

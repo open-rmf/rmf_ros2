@@ -21,6 +21,8 @@
 #include <rmf_fleet_adapter/agv/test/MockAdapter.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
+#include <rmf_traffic_ros2/Time.hpp>
+
 #include <rmf_dispenser_msgs/msg/dispenser_request.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_state.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
@@ -50,6 +52,7 @@ public:
       ArrivalEstimator next_arrival_estimator,
       std::function<void()> path_finished_callback) final
   {
+    std::cout << " ---------------- Received new path to follow --------- " << std::endl;
     _current_waypoint_target = 0;
     _active = true;
     _timer = _node->create_wall_timer(
@@ -432,7 +435,15 @@ SCENARIO("Test Delivery")
     return true;
   });
 
-  const auto now = std::chrono::steady_clock::now();
+  const auto now = rmf_traffic_ros2::convert(adapter.node()->now());
+  const auto dt_s = std::chrono::duration_cast<std::chrono::system_clock::duration>(
+        now.time_since_epoch());
+  const auto clock_s = std::chrono::system_clock::time_point(dt_s);
+  const std::time_t t_s = std::chrono::system_clock::to_time_t(clock_s);
+  const std::string s = std::ctime(&t_s);
+
+  std::cout << "INITIAL TIME: " << s << std::endl;
+
   const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};
   auto robot_cmd = std::make_shared<MockRobotCommand>(adapter.node());
   fleet->add_robot(
@@ -471,8 +482,9 @@ SCENARIO("Test Delivery")
   REQUIRE(flaky_status == std::future_status::ready);
   REQUIRE(flaky_future.get());
 
-  const auto quiet_status = quiet_future.wait_for(15s);
-  REQUIRE(quiet_status == std::future_status::ready);
+//  const auto quiet_status = quiet_future.wait_for(15s);
+//  REQUIRE(quiet_status == std::future_status::ready);
+  quiet_future.wait();
   REQUIRE(quiet_future.get());
 
   const auto& visits = robot_cmd->visited_wps();
