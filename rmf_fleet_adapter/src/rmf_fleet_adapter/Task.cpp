@@ -92,6 +92,7 @@ void Task::_start_next_phase()
     return;
   }
 
+  std::cout << "About to begin [" << _pending_phases.back()->description() << "]" << std::endl;
   _active_phase = _pending_phases.back()->begin();
   _pending_phases.pop_back();
   _active_phase_subscription =
@@ -112,8 +113,8 @@ void Task::_start_next_phase()
           // on_completed callback instead of calling it here, but when we do
           // that, the GoToPlace task fails to call it after the MoveRobot phase
           // in test_Delivery.
-          if (summary.state == summary.STATE_COMPLETED)
-            this->_start_next_phase();
+//          if (summary.state == summary.STATE_COMPLETED)
+//            this->_start_next_phase();
         },
 //        [this](std::exception_ptr e)
 //        {
@@ -140,7 +141,7 @@ void Task::_start_next_phase()
         {
           std::cout << "[" << _id << "] ========== Finished phase" << std::endl;
           // We have received a completion notice from the phase
-//          this->_start_next_phase();
+          this->_start_next_phase();
         });
 }
 

@@ -44,7 +44,7 @@ DispenseItem::Action::Action(
   using CombinedType = std::tuple<DispenserResult::SharedPtr, DispenserState::SharedPtr>;
   _obs = _result_obs
     .combine_latest(
-      rxcpp::observe_on_event_loop(),
+      rxcpp::serialize_event_loop(),
       _state_obs.start_with(std::make_shared<DispenserState>()))
     .lift<CombinedType>(on_subscribe([this, transport]()
     {
@@ -71,6 +71,7 @@ Task::StatusMsg DispenseItem::Action::_get_status(
   const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result,
   const rmf_dispenser_msgs::msg::DispenserState::SharedPtr& dispenser_state)
 {
+  std::cout << " ++ Getting dispenser status [" << dispenser_state->guid << "]" << std::endl;
   Task::StatusMsg status{};
   status.state = Task::StatusMsg::STATE_ACTIVE;
 
@@ -80,9 +81,11 @@ Task::StatusMsg DispenseItem::Action::_get_status(
     switch (dispenser_result->status)
     {
       case DispenserResult::ACKNOWLEDGED:
+        std::cout << " ++ Acknowledged " << __LINE__ << std::endl;
         _request_acknowledged = true;
         break;
       case DispenserResult::SUCCESS:
+        std::cout << " ++ Success " << __LINE__ << std::endl;
         status.state = Task::StatusMsg::STATE_COMPLETED;
         break;
       case DispenserResult::FAILED:
@@ -97,6 +100,9 @@ Task::StatusMsg DispenseItem::Action::_get_status(
           dispenser_state->request_guid_queue.begin(),
           dispenser_state->request_guid_queue.end(),
           _request_guid) != dispenser_state->request_guid_queue.end();
+
+    if (_request_acknowledged)
+      std::cout << " ++ Acknowledged " << __LINE__ << std::endl;
   }
   else if (
     dispenser_state->guid == _target &&
@@ -108,6 +114,7 @@ Task::StatusMsg DispenseItem::Action::_get_status(
   {
     // The request has been received, so if it's no longer in the queue,
     // then we'll assume it's finished.
+    std::cout << " ++ Success " << __LINE__ << std::endl;
     status.state = Task::StatusMsg::STATE_COMPLETED;
   }
 

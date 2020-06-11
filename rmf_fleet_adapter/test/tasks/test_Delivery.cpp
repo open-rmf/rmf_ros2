@@ -176,6 +176,7 @@ private:
     if (msg.target_guid != _name)
       return;
 
+    std::cout << " -- Received request" << std::endl;
     const auto insertion = _task_complete_map.insert({msg.request_guid, false});
     uint8_t status = DispenserResult::ACKNOWLEDGED;
     if (insertion.first->second)
@@ -185,9 +186,11 @@ private:
     else
     {
       using namespace std::chrono_literals;
+      std::cout << " -- Beginning timer" << std::endl;
       _timer = _node->create_wall_timer(
             10ms, [this, msg]()
       {
+        std::cout << " -- Timer triggered" << std::endl;
         _timer.reset();
         _task_complete_map[msg.request_guid] = true;
 
@@ -238,13 +241,14 @@ public:
     });
 
     _state_pub = _node->create_publisher<DispenserState>(
-          rmf_fleet_adapter::DispenserResultTopicName,
+          rmf_fleet_adapter::DispenserStateTopicName,
           rclcpp::SystemDefaultsQoS());
 
     using namespace std::chrono_literals;
     _timer = _node->create_wall_timer(
           100ms, [this]()
     {
+      std::cout << " >> Updating Flaky Dispenser state" << std::endl;
       DispenserState msg;
       msg.guid = _name;
 
@@ -258,6 +262,7 @@ public:
 
       for (auto& r : _request_queue)
       {
+        std::cout << " -- Adding [" << r.request.request_guid << "] to the queue" << std::endl;
         msg.request_guid_queue.push_back(r.request.request_guid);
         ++r.publish_count;
       }
@@ -273,8 +278,11 @@ public:
 
       if (_request_queue.size() < initial_count)
       {
+        std::cout << " -- Removed " << initial_count - _request_queue.size()
+                  << " requests from the queue" << std::endl;
         if (!_fulfilled_promise)
         {
+          std::cout << " -- Declaring the promise fulfilled" << std::endl;
           _fulfilled_promise = true;
           success_promise.set_value(true);
         }
@@ -307,6 +315,8 @@ private:
     if (msg.target_guid != _name)
       return;
 
+    std::cout << " -- Received dispense request [" << msg.request_guid
+              << "]" << std::endl;
     _request_queue.push_back({msg, 0});
   }
 };
@@ -417,12 +427,12 @@ SCENARIO("Test Delivery")
   const std::string flaky_dispenser_name = "flaky";
   auto flaky_dispenser = MockFlakyDispenser(
         adapter.node(), flaky_dispenser_name);
-  auto pickup_future = flaky_dispenser.success_promise.get_future();
+  auto flaky_future = flaky_dispenser.success_promise.get_future();
 
   const std::string quiet_dispenser_name = "quiet";
   auto quiet_dispenser = MockQuietDispenser(
         adapter.node(), quiet_dispenser_name);
-  auto dropoff_future = quiet_dispenser.success_promise.get_future();
+  auto quiet_future = quiet_dispenser.success_promise.get_future();
 
   adapter.start();
 
@@ -430,20 +440,22 @@ SCENARIO("Test Delivery")
   request.task_id = "test_id";
 
   request.pickup_place_name = pickup_name;
-  request.pickup_dispenser = flaky_dispenser_name;
+//  request.pickup_dispenser = flaky_dispenser_name;
+  request.pickup_dispenser = quiet_dispenser_name;
 
   request.dropoff_place_name = dropoff_name;
-  request.dropoff_dispenser = quiet_dispenser_name;
+//  request.dropoff_dispenser = quiet_dispenser_name;
+  request.dropoff_dispenser = flaky_dispenser_name;
 
   adapter.request_delivery(request);
 
-  const auto pickup_status = pickup_future.wait_for(5s);
-  REQUIRE(pickup_status == std::future_status::ready);
-  REQUIRE(pickup_future.get());
+  const auto quiet_status = quiet_future.wait_for(5s);
+  REQUIRE(quiet_status == std::future_status::ready);
+  REQUIRE(quiet_future.get());
 
-  const auto dropoff_status = dropoff_future.wait_for(5s);
-  REQUIRE(dropoff_status == std::future_status::ready);
-  REQUIRE(dropoff_future.get());
+  const auto flaky_status = flaky_future.wait_for(5s);
+  REQUIRE(flaky_status == std::future_status::ready);
+  REQUIRE(flaky_future.get());
 
   const auto& visits = robot_cmd->visited_wps();
   CHECK(visits.size() == 5);

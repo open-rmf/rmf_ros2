@@ -101,7 +101,9 @@ auto make_cancellable(const Observable& obs, const CancelObservable& cancel_obs)
       status.status = status_msg_cancelled;
       return status;
     });
-  return obs.merge(cancelled_obs);
+  return obs
+      .merge(cancelled_obs)
+      .template lift<Task::StatusMsg>(grab_while_active());
 }
 
 } // namespace phases

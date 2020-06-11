@@ -78,7 +78,7 @@ MoveRobot::PendingPhase::PendingPhase(
     _waypoints{std::move(waypoints)}
 {
   std::ostringstream oss;
-  oss << "Move robot to (" << _waypoints.back().position() << ")";
+  oss << "Move robot to (" << _waypoints.back().position().transpose() << ")";
   _description = oss.str();
 }
 
