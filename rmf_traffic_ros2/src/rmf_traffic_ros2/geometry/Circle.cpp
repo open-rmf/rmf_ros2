@@ -21,7 +21,7 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic_msgs::msg::Circle convert(
-    const rmf_traffic::geometry::Circle& circle)
+  const rmf_traffic::geometry::Circle& circle)
 {
   rmf_traffic_msgs::msg::Circle output;
   output.radius = circle.get_radius();
@@ -30,7 +30,7 @@ rmf_traffic_msgs::msg::Circle convert(
 
 //==============================================================================
 rmf_traffic::geometry::Circle convert(
-    const rmf_traffic_msgs::msg::Circle& circle)
+  const rmf_traffic_msgs::msg::Circle& circle)
 {
   return rmf_traffic::geometry::Circle(circle.radius);
 }

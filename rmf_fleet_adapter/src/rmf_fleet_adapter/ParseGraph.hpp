@@ -54,9 +54,9 @@ struct GraphInfo
 
 //==============================================================================
 rmf_utils::optional<GraphInfo> parse_graph(
-    const std::string& filename,
-    const rmf_traffic::agv::VehicleTraits& vehicle_traits,
-    const rclcpp::Node& node);
+  const std::string& filename,
+  const rmf_traffic::agv::VehicleTraits& vehicle_traits,
+  const rclcpp::Node& node);
 
 } // namespace rmf_fleet_adapter
 

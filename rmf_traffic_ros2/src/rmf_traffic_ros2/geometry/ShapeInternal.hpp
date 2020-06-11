@@ -21,6 +21,7 @@
 
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -49,30 +50,26 @@ public:
   EntryMap entry_map;
 
   using Caster = std::function<std::size_t(const ShapeTypePtr&)>;
+  static std::mutex initialization_mutex;
   static bool initialized;
   static std::vector<Caster> casters;
   static std::size_t num_shape_types;
 
-  ShapeContextImpl()
-  {
-    shapes.resize(num_shape_types);
-  }
+  ShapeContextImpl() {}
 
   template<typename DerivedShape>
   void add(const std::size_t type_index)
   {
-    initialized = true;
-
     casters.push_back(
-          [=](const ShapeTypePtr& shape) -> std::size_t
-    {
-      if(dynamic_cast<const DerivedShape*>(&shape->source()))
-        return type_index;
+      [=](const ShapeTypePtr& shape) -> std::size_t
+      {
+        if (dynamic_cast<const DerivedShape*>(&shape->source()))
+          return type_index;
 
-      return 0;
-    });
+        return 0;
+      });
 
-    if(type_index >= num_shape_types)
+    if (type_index >= num_shape_types)
     {
       num_shape_types = type_index+1;
       shapes.resize(num_shape_types);
@@ -81,28 +78,38 @@ public:
 
   std::size_t get_type_index(const ShapeTypePtr& shape)
   {
-    for(const auto& caster : casters)
+    for (const auto& caster : casters)
     {
       const std::size_t cast = caster(shape);
-      if(cast != 0)
+      if (cast != 0)
         return cast;
     }
 
+    // *INDENT-OFF*
     throw std::runtime_error(
-          std::string()
-          + "Failed to find a shape context type index for type ["
-          + typeid(shape->source()).name() + "] with base type ["
-          + typeid(ShapeType).name() + "]");
+      std::string()
+      + "Failed to find a shape context type index for type ["
+      + typeid(shape->source()).name() + "] with base type ["
+      + typeid(ShapeType).name() + "]");
+    // *INDENT-ON*
   }
 
   ShapeMsgType insert(ShapeTypePtr shape)
   {
+    if (!shape)
+    {
+      ShapeMsgType shape_msg;
+      shape_msg.type = 0;
+      shape_msg.index = 0;
+      return shape_msg;
+    }
+
     const auto insertion =
-        entry_map.insert(std::make_pair(shape, Entry{}));
+      entry_map.insert(std::make_pair(shape, Entry{}));
 
     const bool inserted = insertion.second;
     Entry& entry = insertion.first->second;
-    if(inserted)
+    if (inserted)
     {
       entry.type = get_type_index(shape);
 
@@ -115,16 +122,23 @@ public:
     shape_msg.type = entry.type;
     shape_msg.index = entry.index;
 
-    return std::move(shape_msg);
+    return shape_msg;
   }
 
   ShapeTypePtr at(const ShapeMsgType& shape) const
   {
+    if (shape.type == ShapeMsgType::NONE)
+      return nullptr;
+
     const std::vector<ShapeTypePtr>& bucket = shapes.at(shape.type);
     return bucket.at(shape.index);
   }
 
 };
+
+//==============================================================================
+template<class T, class M, class C>
+std::mutex ShapeContextImpl<T, M, C>::initialization_mutex;
 
 //==============================================================================
 template<class T, class M, class C>

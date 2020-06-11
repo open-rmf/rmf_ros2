@@ -22,6 +22,17 @@ find_package(Eigen3 REQUIRED)
 # TODO(MXG): Consider splitting off the components that depend on yaml-cpp
 find_package(yaml-cpp REQUIRED)
 
+if(BUILD_TESTING)
+  find_package(rmf_cmake_uncrustify REQUIRED)
+  find_file(uncrustify_config_file NAMES "share/format/rmf_code_style.cfg")
+                
+  rmf_uncrustify(
+    ARGN include src examples
+    CONFIG_FILE ${uncrustify_config_file}
+    MAX_LINE_LENGTH 80
+  )
+endif()
+
 file(GLOB_RECURSE core_lib_srcs "src/rmf_traffic_ros2/*.cpp")
 add_library(rmf_traffic_ros2 SHARED ${core_lib_srcs})
 
@@ -54,6 +65,12 @@ target_link_libraries(rmf_traffic_schedule
   PRIVATE
     rmf_traffic_ros2
 )
+
+#===============================================================================
+# Add examples
+# TODO(MXG): Consider creating a separate downstream package for these
+add_executable(participant_node examples/participant_node.cpp)
+target_link_libraries(participant_node PUBLIC rmf_traffic_ros2)
 
 
 #===============================================================================

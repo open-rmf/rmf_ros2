@@ -45,8 +45,8 @@ public:
     ///   Specify if the mirror should perform an update whenever it gets woken
     ///   up by the schedule.
     Options(
-        std::mutex* update_mutex = nullptr,
-        bool update_on_wakeup = true);
+      std::mutex* update_mutex = nullptr,
+      bool update_on_wakeup = true);
 
     /// Get a reference to the mutex that will be used when performing an
     /// update.
@@ -71,6 +71,9 @@ public:
   // TODO(MXG): Put a mutex on this
   /// Get the viewer of the mirror that is being managed
   const rmf_traffic::schedule::Viewer& viewer() const;
+
+  /// Get a stub that can take snapshots of the schedule
+  std::shared_ptr<rmf_traffic::schedule::Snappable> snapshot_handle() const;
 
   /// Attempt to update this mirror immediately.
   ///
@@ -151,10 +154,9 @@ private:
 ///
 // TODO(MXG): Use std::optional here instead of std::unique_ptr when C++17 can
 // be supported.
-MirrorManagerFuture make_mirror(
-    rclcpp::Node& node,
-    rmf_traffic::schedule::Query::Spacetime spacetime,
-    MirrorManager::Options options = MirrorManager::Options());
+MirrorManagerFuture make_mirror(rclcpp::Node& node,
+  rmf_traffic::schedule::Query query,
+  MirrorManager::Options options = MirrorManager::Options());
 
 } // namespace schedule
 } // namespace rmf_traffic_ros2

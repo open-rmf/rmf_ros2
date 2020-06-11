@@ -26,14 +26,14 @@ int main(int argc, char* argv[])
   const auto node = std::make_shared<rmf_traffic_schedule::ScheduleNode>();
 
   RCLCPP_INFO(
-        node->get_logger(),
-        "Beginning traffic schedule node");
+    node->get_logger(),
+    "Beginning traffic schedule node");
 
   rclcpp::spin(node);
 
   RCLCPP_INFO(
-        node->get_logger(),
-        "Closing down traffic schedule node");
+    node->get_logger(),
+    "Closing down traffic schedule node");
 
   rclcpp::shutdown();
 }

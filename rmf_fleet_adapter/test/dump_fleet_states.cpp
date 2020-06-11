@@ -60,10 +60,10 @@ public:
   : rclcpp::Node("dump_test_fleet_states")
   {
     fleet_state_publisher = create_publisher<FleetState>(
-          "/fleet_states", rclcpp::SystemDefaultsQoS());
+      "/fleet_states", rclcpp::SystemDefaultsQoS());
 
     timer = create_wall_timer(
-          std::chrono::milliseconds(period_ms), [&](){ update(); });
+      std::chrono::milliseconds(period_ms), [&]() { update(); });
 
     current_location = Eigen::Vector3d(0.0, 0.0, 0.0);
 
@@ -78,15 +78,16 @@ private:
 
   void update()
   {
-    std::cout << "Current location: " << current_location.transpose() << std::endl;
+    std::cout << "Current location: " << current_location.transpose() <<
+      std::endl;
 
     if (path.empty())
       return publish();
 
     const Eigen::Vector3d next_location = to_eigen(path.front());
 
-    const Eigen::Vector2d p = current_location.block<2,1>(0,0);
-    const Eigen::Vector2d p_next = next_location.block<2,1>(0,0);
+    const Eigen::Vector2d p = current_location.block<2, 1>(0, 0);
+    const Eigen::Vector2d p_next = next_location.block<2, 1>(0, 0);
 
     const Eigen::Vector2d n = p_next - p;
     const double dist = n.norm();
@@ -102,14 +103,14 @@ private:
         return publish();
       }
 
-      current_location.block<2,1>(0,0) = p_next;
+      current_location.block<2, 1>(0, 0) = p_next;
       current_location[2] += d_yaw;
 
       return publish();
     }
 
     const Eigen::Vector2d dir = n/dist;
-    current_location.block<2,1>(0,0) += velocity*timestep*dir;
+    current_location.block<2, 1>(0, 0) += velocity*timestep*dir;
     return publish();
   }
 

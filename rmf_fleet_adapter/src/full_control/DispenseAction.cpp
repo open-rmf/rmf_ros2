@@ -22,6 +22,8 @@
 
 #include "../rmf_fleet_adapter/make_trajectory.hpp"
 
+#include <rmf_traffic/DetectConflict.hpp>
+
 namespace rmf_fleet_adapter {
 namespace full_control {
 
@@ -32,11 +34,11 @@ class DispenseAction : public Action
 public:
 
   DispenseAction(
-      FleetAdapterNode* node,
-      FleetAdapterNode::RobotContext* context,
-      Task* task,
-      std::string dispenser_name,
-      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items)
+    FleetAdapterNode* node,
+    FleetAdapterNode::RobotContext* context,
+    Task* task,
+    std::string dispenser_name,
+    std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items)
   : _node(node),
     _context(context),
     _task(task),
@@ -83,11 +85,29 @@ public:
       finish();
   }
 
+  rmf_traffic::Route calculate_itinerary() const
+  {
+    const auto now = _node->get_clock()->now();
+
+    const auto l = _context->location;
+    const Eigen::Vector3d position{l.x, l.y, l.yaw};
+    const Eigen::Vector3d zero = Eigen::Vector3d::Zero();
+
+    const auto start = rmf_traffic_ros2::convert(now);
+    const auto finish = rmf_traffic_ros2::convert(*_last_reported_wait_time);
+
+    const std::string map_name =
+      _node->get_graph().get_waypoint(0).get_map_name();
+
+    rmf_traffic::Trajectory trajectory;
+    trajectory.insert(start, position, zero);
+    trajectory.insert(finish, position, zero);
+
+    return {std::move(map_name), std::move(trajectory)};
+  }
+
   void update_schedule()
   {
-    if (_context->schedule.waiting())
-      return;
-
     const auto now = _node->get_clock()->now();
 
     if (_last_reported_wait_time)
@@ -100,31 +120,14 @@ public:
         _last_reported_wait_time = next_wait_time;
 
         _context->schedule.push_delay(
-              rmf_traffic_ros2::convert(delay),
-              rmf_traffic_ros2::convert(now));
+          rmf_traffic_ros2::convert(delay),
+          rmf_traffic_ros2::convert(now));
         return;
       }
     }
 
-    const auto l = _context->location;
-    const Eigen::Vector3d position{l.x, l.y, l.yaw};
-
-    const auto& profile = _node->get_fields().traits.get_profile();
-    const Eigen::Vector3d zero = Eigen::Vector3d::Zero();
-
     _last_reported_wait_time = now + _duration_estimate;
-
-    const auto start = rmf_traffic_ros2::convert(now);
-    const auto finish = rmf_traffic_ros2::convert(*_last_reported_wait_time);
-
-    const std::string map_name =
-        _node->get_graph().get_waypoint(0).get_map_name();
-
-    rmf_traffic::Trajectory trajectory{map_name};
-    trajectory.insert(start, profile, position, zero);
-    trajectory.insert(finish, profile, position, zero);
-
-    _context->schedule.push_trajectories({trajectory}, [](){});
+    _context->schedule.push_routes({calculate_itinerary()});
   }
 
   void finish()
@@ -146,10 +149,35 @@ public:
     update();
   }
 
-  void resolve() final
+  void respond(
+    const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
+    const Responder& responder,
+    const bool* /*interrupt_flag*/) final
   {
-    // We can't do anything about fixing conflicts while we're waiting for a
-    // dispenser, so we'll just ignore requests to resolve our trajectory.
+    const rmf_traffic::Route route = calculate_itinerary();
+    const auto& trajectory = route.trajectory();
+    const auto view = table->query(rmf_traffic::schedule::make_query(
+          {route.map()},
+          trajectory.start_time(),
+          trajectory.finish_time()).spacetime(), {});
+    const auto& profile = _context->schedule.description().profile();
+
+    for (const auto& v : view)
+    {
+      if (rmf_traffic::DetectConflict::between(
+          profile,
+          trajectory,
+          v.description.profile(),
+          v.route.trajectory()))
+      {
+        rmf_traffic::schedule::Itinerary alternative;
+        alternative.push_back(std::make_shared<rmf_traffic::Route>(route));
+        responder.reject({std::move(alternative)});
+        return;
+      }
+    }
+
+    responder.submit({route});
   }
 
   Status get_status() const final
@@ -215,11 +243,11 @@ public:
       if (!_parent->_request_received)
       {
         _parent->_request_received =
-            std::find(
-              msg.request_guid_queue.begin(),
-              msg.request_guid_queue.end(),
-              _parent->_request->request_guid)
-            != msg.request_guid_queue.end();
+          std::find(
+          msg.request_guid_queue.begin(),
+          msg.request_guid_queue.end(),
+          _parent->_request->request_guid)
+          != msg.request_guid_queue.end();
 
         if (_parent->_request_received)
         {
@@ -236,11 +264,11 @@ public:
         // The request has been received, so if it's no longer in the queue,
         // then we'll assume it's finished.
         _parent->_request_finished =
-            std::find(
-              msg.request_guid_queue.begin(),
-              msg.request_guid_queue.end(),
-              _parent->_request->request_guid)
-            == msg.request_guid_queue.end();
+          std::find(
+          msg.request_guid_queue.begin(),
+          msg.request_guid_queue.end(),
+          _parent->_request->request_guid)
+          == msg.request_guid_queue.end();
       }
 
       _parent->update();
@@ -330,17 +358,17 @@ private:
 
 //==============================================================================
 std::unique_ptr<Action> make_dispense(
-    FleetAdapterNode* const node,
-    FleetAdapterNode::RobotContext* const context,
-    Task* const parent,
-    std::string dispenser_name,
-    std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-    const rmf_task_msgs::msg::Behavior& /*behavior*/)
+  FleetAdapterNode* const node,
+  FleetAdapterNode::RobotContext* const context,
+  Task* const parent,
+  std::string dispenser_name,
+  std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
+  const rmf_task_msgs::msg::Behavior& /*behavior*/)
 {
   return std::make_unique<DispenseAction>(
-        node, context, parent,
-        std::move(dispenser_name),
-        std::move(items));
+    node, context, parent,
+    std::move(dispenser_name),
+    std::move(items));
 }
 
 } // namespace full_control

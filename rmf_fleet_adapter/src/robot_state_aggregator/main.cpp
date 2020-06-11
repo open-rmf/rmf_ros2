@@ -32,15 +32,15 @@ public:
   static std::shared_ptr<RobotStateAggregator> make()
   {
     const auto node = std::shared_ptr<RobotStateAggregator>(
-          new RobotStateAggregator);
+      new RobotStateAggregator);
 
     const auto prefix = node->declare_parameter("robot_prefix", "");
     const auto fleet_name = node->declare_parameter("fleet_name", "");
     if (fleet_name.empty())
     {
       RCLCPP_FATAL(
-            node->get_logger(),
-            "Missing required parameter: [fleet_adapter]");
+        node->get_logger(),
+        "Missing required parameter: [fleet_adapter]");
       return nullptr;
     }
 
@@ -58,14 +58,14 @@ private:
     const auto default_qos = rclcpp::SystemDefaultsQoS();
 
     _fleet_state_pub = create_publisher<FleetState>(
-          rmf_fleet_adapter::FleetStateTopicName, default_qos);
+      rmf_fleet_adapter::FleetStateTopicName, default_qos);
 
     _robot_state_sub = create_subscription<RobotState>(
-          "robot_state", default_qos,
-          [&](RobotState::UniquePtr msg)
-    {
-      _robot_state_update(std::move(msg));
-    });
+      "robot_state", default_qos,
+      [&](RobotState::UniquePtr msg)
+      {
+        _robot_state_update(std::move(msg));
+      });
   }
 
   std::string _prefix;

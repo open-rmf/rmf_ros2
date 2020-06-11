@@ -27,9 +27,9 @@ class GenericTask : public Task
 public:
 
   GenericTask(
-      FleetAdapterNode* node,
-      FleetAdapterNode::RobotContext* context,
-      std::string task_id)
+    FleetAdapterNode* node,
+    FleetAdapterNode::RobotContext* context,
+    std::string task_id)
   : _node(node),
     _context(context),
     _task_id(std::move(task_id)),
@@ -66,9 +66,9 @@ public:
     if (!_action)
     {
       RCLCPP_WARN(
-            _node->get_logger(),
-            "No action for this task [" + id() + "] to interrupt. This might "
-            "indicate a bug!");
+        _node->get_logger(),
+        "No action for this task [" + id() + "] to interrupt. This might "
+        "indicate a bug!");
       return;
     }
 
@@ -80,27 +80,45 @@ public:
     if (!_action)
     {
       RCLCPP_WARN(
-            _node->get_logger(),
-            "No action for this task [" + id() + "] to resume. This might "
-            "indicate a bug!");
+        _node->get_logger(),
+        "No action for this task [" + id() + "] to resume. This might "
+        "indicate a bug!");
       return;
     }
 
     _action->resume();
   }
 
-  void resolve() final
+//  void resolve() final
+//  {
+//    if (!_action)
+//    {
+//      RCLCPP_WARN(
+//            _node->get_logger(),
+//            "No action for this task [" + id() + "] to resolve. This might "
+//            "indicate a bug!");
+//      return;
+//    }
+
+//    _action->resolve();
+//  }
+
+  void respond(
+    const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
+    const Responder& responder,
+    const bool* interrupt_flag) final
   {
     if (!_action)
     {
       RCLCPP_WARN(
-            _node->get_logger(),
-            "No action for this task [" + id() + "] to resolve. This might "
-            "indicate a bug!");
+        _node->get_logger(),
+        "No action for this task [" + id() + "] to respond with. This "
+        "might indicate a bug!");
+      responder.submit({});
       return;
     }
 
-    _action->resolve();
+    _action->respond(table, responder, interrupt_flag);
   }
 
   void report_status()
@@ -167,9 +185,9 @@ private:
 };
 
 void report_impossible(
-    FleetAdapterNode* const node,
-    std::string task_id,
-    std::string error)
+  FleetAdapterNode* const node,
+  std::string task_id,
+  std::string error)
 {
   rmf_task_msgs::msg::TaskSummary summary;
   summary.status = std::move(error);
@@ -185,9 +203,9 @@ void report_impossible(
 
 //==============================================================================
 std::unique_ptr<Task> make_delivery(
-    FleetAdapterNode* const node,
-    FleetAdapterNode::RobotContext* const context,
-    rmf_task_msgs::msg::Delivery delivery)
+  FleetAdapterNode* const node,
+  FleetAdapterNode::RobotContext* const context,
+  rmf_task_msgs::msg::Delivery delivery)
 {
   const auto& waypoint_keys = node->get_fields().graph_info.keys;
   const auto& dispenser_names = node->get_fields().graph_info.workcell_names;
@@ -197,8 +215,8 @@ std::unique_ptr<Task> make_delivery(
   if (pickup_wp == waypoint_keys.end())
   {
     std::string error =
-        "Unknown pickup location [" + delivery.pickup_place_name
-        + "] in delivery request [" + delivery.task_id + "]";
+      "Unknown pickup location [" + delivery.pickup_place_name
+      + "] in delivery request [" + delivery.task_id + "]";
 
     RCLCPP_ERROR(node->get_logger(), error);
     report_impossible(node, task_id, std::move(error));
@@ -209,9 +227,9 @@ std::unique_ptr<Task> make_delivery(
   if (pickup_dispenser == dispenser_names.end())
   {
     std::string error =
-        "No known workcell available at pickup location ["
-        + delivery.pickup_place_name + "] in delivery request ["
-        + delivery.task_id + "]";
+      "No known workcell available at pickup location ["
+      + delivery.pickup_place_name + "] in delivery request ["
+      + delivery.task_id + "]";
 
     RCLCPP_ERROR(node->get_logger(), error);
     report_impossible(node, task_id, std::move(error));
@@ -222,8 +240,8 @@ std::unique_ptr<Task> make_delivery(
   if (dropoff_wp == waypoint_keys.end())
   {
     std::string error =
-        "Unknown dropoff location [" + delivery.dropoff_place_name + "] in "
-        + "delivery request [" + delivery.task_id + "]";
+      "Unknown dropoff location [" + delivery.dropoff_place_name + "] in "
+      + "delivery request [" + delivery.task_id + "]";
 
     RCLCPP_ERROR(node->get_logger(), error);
     report_impossible(node, task_id, std::move(error));
@@ -234,9 +252,9 @@ std::unique_ptr<Task> make_delivery(
   if (dropoff_dispenser == dispenser_names.end())
   {
     std::string error =
-        "No known workcell available at dropoff location ["
-        + delivery.dropoff_place_name + "] in delivery request ["
-        + delivery.task_id + "]";
+      "No known workcell available at dropoff location ["
+      + delivery.dropoff_place_name + "] in delivery request ["
+      + delivery.task_id + "]";
 
     RCLCPP_ERROR(node->get_logger(), error);
     report_impossible(node, task_id, std::move(error));
@@ -249,18 +267,18 @@ std::unique_ptr<Task> make_delivery(
 
   std::size_t move_id = 0;
   action_queue.push(
-        make_move(node, context, task.get(), pickup_wp->second, move_id++));
+    make_move(node, context, task.get(), pickup_wp->second, move_id++));
 
   action_queue.push(
-        make_dispense(node, context, task.get(), pickup_dispenser->second,
-                      delivery.items, delivery.pickup_behavior));
+    make_dispense(node, context, task.get(), pickup_dispenser->second,
+    delivery.items, delivery.pickup_behavior));
 
   action_queue.push(
-        make_move(node, context, task.get(), dropoff_wp->second, move_id++));
+    make_move(node, context, task.get(), dropoff_wp->second, move_id++));
 
   action_queue.push(
-        make_dispense(node, context, task.get(), dropoff_dispenser->second,
-                      delivery.items, delivery.dropoff_behavior));
+    make_dispense(node, context, task.get(), dropoff_dispenser->second,
+    delivery.items, delivery.dropoff_behavior));
 
   task->fill_queue(std::move(action_queue));
 
@@ -270,9 +288,9 @@ std::unique_ptr<Task> make_delivery(
 
 //==============================================================================
 std::unique_ptr<Task> make_loop(
-    FleetAdapterNode* node,
-    FleetAdapterNode::RobotContext* context,
-    rmf_task_msgs::msg::Loop loop)
+  FleetAdapterNode* node,
+  FleetAdapterNode::RobotContext* context,
+  rmf_task_msgs::msg::Loop loop)
 {
   const auto& waypoint_keys = node->get_waypoint_keys();
   const auto& task_id = loop.task_id;
@@ -281,8 +299,8 @@ std::unique_ptr<Task> make_loop(
   if (start_wp == waypoint_keys.end())
   {
     std::string error =
-        "Unknown start location [" + loop.start_name + "] in loop request ["
-        + task_id + "]";
+      "Unknown start location [" + loop.start_name + "] in loop request ["
+      + task_id + "]";
 
     RCLCPP_ERROR(node->get_logger(), error);
     report_impossible(node, task_id, std::move(error));
@@ -293,8 +311,8 @@ std::unique_ptr<Task> make_loop(
   if (finish_wp == waypoint_keys.end())
   {
     std::string error =
-        "Unknown finish location [" + loop.finish_name + "] in loop request ["
-        + task_id + "]";
+      "Unknown finish location [" + loop.finish_name + "] in loop request ["
+      + task_id + "]";
 
     RCLCPP_ERROR(node->get_logger(), error);
     report_impossible(node, task_id, std::move(error));
@@ -305,13 +323,13 @@ std::unique_ptr<Task> make_loop(
 
   std::size_t move_id = 0;
   std::queue<std::unique_ptr<Action>> action_queue;
-  for (std::size_t i=0; i < loop.num_loops; ++i)
+  for (std::size_t i = 0; i < loop.num_loops; ++i)
   {
     action_queue.push(
-          make_move(node, context, task.get(), start_wp->second, move_id++));
+      make_move(node, context, task.get(), start_wp->second, move_id++));
 
     action_queue.push(
-          make_move(node, context, task.get(), finish_wp->second, move_id++));
+      make_move(node, context, task.get(), finish_wp->second, move_id++));
   }
 
   task->fill_queue(std::move(action_queue));

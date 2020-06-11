@@ -26,11 +26,11 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic_msgs::msg::Circle convert(
-    const rmf_traffic::geometry::Circle& circle);
+  const rmf_traffic::geometry::Circle& circle);
 
 //==============================================================================
 rmf_traffic::geometry::Circle convert(
-    const rmf_traffic_msgs::msg::Circle& circle);
+  const rmf_traffic_msgs::msg::Circle& circle);
 
 } // namespace rmf_traffic_ros2
 
