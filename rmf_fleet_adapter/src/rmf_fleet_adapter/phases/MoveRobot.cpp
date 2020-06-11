@@ -35,6 +35,7 @@ MoveRobot::ActivePhase::ActivePhase(
   auto _job = rmf_rxcpp::make_job<Task::StatusMsg>(
     std::make_shared<MoveRobot::Action>(_context, waypoints));
   _obs = make_cancellable(_job, _cancel_subject.get_observable())
+    .lift<Task::StatusMsg>(grab_while_active())
     .observe_on(rxcpp::identity_same_worker(_context->worker()));
 }
 
