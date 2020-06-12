@@ -31,7 +31,7 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-class Task
+class Task : public std::enable_shared_from_this<Task>
 {
 public:
 
@@ -44,7 +44,7 @@ public:
   /// The ActivePhase class must be a schedule Negotiator so that it can
   /// negotiate its way out of conflicts with other schedule participants to
   /// complete its work.
-  class ActivePhase : public std::enable_shared_from_this<ActivePhase>
+  class ActivePhase
   {
   public:
 
@@ -92,8 +92,9 @@ public:
 
   using PendingPhases = std::vector<std::unique_ptr<PendingPhase>>;
 
-  /// Construct a Task
-  Task(std::string id, PendingPhases phases);
+  // Make a new task
+  static std::shared_ptr<Task> make(
+      std::string id, PendingPhases phases);
 
   void begin();
 
@@ -115,6 +116,8 @@ public:
   const std::string& id() const;
 
 private:
+
+  Task(std::string id, PendingPhases phases);
 
   std::string _id;
   rxcpp::subjects::subject<StatusMsg> _status_publisher;

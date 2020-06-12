@@ -41,7 +41,7 @@ public:
   using StartSet = rmf_traffic::agv::Plan::StartSet;
 
   /// Add a task to the queue of this manager.
-  void queue_task(Task task, Start expected_finish);
+  void queue_task(std::shared_ptr<Task> task, Start expected_finish);
 
   /// The location where we expect this robot to be at the end of its current
   /// task queue.
@@ -53,8 +53,8 @@ public:
 
 private:
   agv::RobotContextPtr _context;
-  std::unique_ptr<Task> _active_task;
-  std::vector<std::unique_ptr<Task>> _queue;
+  std::shared_ptr<Task> _active_task;
+  std::vector<std::shared_ptr<Task>> _queue;
   rmf_utils::optional<Start> _expected_finish_location;
   rxcpp::subscription _task_sub;
 

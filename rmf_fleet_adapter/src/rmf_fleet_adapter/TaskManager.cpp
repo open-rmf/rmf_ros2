@@ -27,9 +27,9 @@ TaskManager::TaskManager(agv::RobotContextPtr context)
 }
 
 //==============================================================================
-void TaskManager::queue_task(Task task, Start expected_finish)
+void TaskManager::queue_task(std::shared_ptr<Task> task, Start expected_finish)
 {
-  _queue.push_back(std::make_unique<Task>(std::move(task)));
+  _queue.push_back(std::move(task));
   _expected_finish_location = std::move(expected_finish);
 
   if (!_active_task)

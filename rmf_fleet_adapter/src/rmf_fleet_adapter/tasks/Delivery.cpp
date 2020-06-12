@@ -24,7 +24,7 @@ namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-Task make_delivery(
+std::shared_ptr<Task> make_delivery(
     const rmf_task_msgs::msg::Delivery& request,
     const agv::RobotContextPtr& context,
     rmf_traffic::agv::Plan::Start pickup_start,
@@ -69,7 +69,7 @@ Task make_delivery(
           node->dispenser_state(),
           node->dispenser_request()));
 
-  return Task(request.task_id, std::move(phases));
+  return Task::make(request.task_id, std::move(phases));
 }
 
 } // namespace task

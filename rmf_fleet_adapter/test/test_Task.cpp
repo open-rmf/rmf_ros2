@@ -170,12 +170,14 @@ public:
 
   using PendingPhases = rmf_fleet_adapter::Task::PendingPhases;
 
-  class Active : public rmf_fleet_adapter::Task::ActivePhase
+  class Active
+      : public rmf_fleet_adapter::Task::ActivePhase,
+        public std::enable_shared_from_this<Active>
   {
   public:
 
     Active(PendingPhases phases)
-      : _subtasks("subtasks", std::move(phases))
+      : _subtasks(rmf_fleet_adapter::Task::make("subtasks", std::move(phases)))
     {
       _desc = "subtasks";
       _status_obs = _status_publisher.get_observable();
@@ -183,21 +185,22 @@ public:
 
     void begin()
     {
-      auto phase = std::static_pointer_cast<Active>(shared_from_this());
-
-      _subscription = _subtasks.observe()
+      _subscription = _subtasks->observe()
           .observe_on(rxcpp::observe_on_event_loop())
           .subscribe(
-            [phase](const StatusMsg& msg)
+            [weak = weak_from_this()](
+            const StatusMsg& msg)
             {
-              phase->_status_publisher.get_subscriber().on_next(msg);
+              if (const auto phase = weak.lock())
+                phase->_status_publisher.get_subscriber().on_next(msg);
             },
-            [phase]()
+            [weak = weak_from_this()]()
             {
-              phase->_status_publisher.get_subscriber().on_completed();
+              if (const auto phase = weak.lock())
+                phase->_status_publisher.get_subscriber().on_completed();
             });
 
-      _subtasks.begin();
+      _subtasks->begin();
     }
 
     const rxcpp::observable<StatusMsg> & observe() const final
@@ -228,7 +231,7 @@ public:
 
   private:
 
-    rmf_fleet_adapter::Task _subtasks;
+    std::shared_ptr<rmf_fleet_adapter::Task> _subtasks;
     rxcpp::subscription _subscription;
     rxcpp::subjects::subject<StatusMsg> _status_publisher;
     rxcpp::observable<StatusMsg> _status_obs;
@@ -284,11 +287,12 @@ SCENARIO("Test simple task")
   phases.push_back(std::make_unique<MockPhase::Pending>("B", count, 15, dt));
   phases.push_back(std::make_unique<MockPhase::Pending>("C", count, 18, dt));
 
-  rmf_fleet_adapter::Task task("id", std::move(phases));
+  std::shared_ptr<rmf_fleet_adapter::Task> task =
+      rmf_fleet_adapter::Task::make("id", std::move(phases));
 
   std::promise<bool> completed_promise;
   auto completed_future = completed_promise.get_future();
-  auto status_sub = task.observe()
+  auto status_sub = task->observe()
       .subscribe(
         [](const rmf_fleet_adapter::Task::StatusMsg& msg)
   {
@@ -312,7 +316,7 @@ SCENARIO("Test simple task")
     completed_promise.set_value(true);
   });
 
-  task.begin();
+  task->begin();
 
   // Wait 100x as long as what we're expecting in order to deal with any
   // possible overhead
@@ -369,11 +373,11 @@ SCENARIO("Test nested task")
   phases.push_back(
     std::make_unique<MockSubtaskPhase::Pending>(std::move(c_phases)));
 
-  rmf_fleet_adapter::Task task("id", std::move(phases));
+  const auto task = rmf_fleet_adapter::Task::make("id", std::move(phases));
 
   std::promise<bool> completed_promise;
   auto completed_future = completed_promise.get_future();
-  auto status_sub = task.observe()
+  auto status_sub = task->observe()
       .subscribe(
         [&count_limits](const rmf_fleet_adapter::Task::StatusMsg& msg)
   {
@@ -386,7 +390,7 @@ SCENARIO("Test nested task")
     completed_promise.set_value(true);
   });
 
-  task.begin();
+  task->begin();
 
   const auto status = completed_future.wait_for(16*dt * 1000);
   REQUIRE(status == std::future_status::ready);

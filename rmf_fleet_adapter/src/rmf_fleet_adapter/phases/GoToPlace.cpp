@@ -90,10 +90,7 @@ void GoToPlace::Active::respond(
   const TableViewerPtr& table_viewer,
   const ResponderPtr& responder)
 {
-  auto phase = phase_from_this();
-  std::weak_ptr<Active> weak = phase;
-
-  auto approval_cb = [w = std::move(weak)](
+  auto approval_cb = [w = weak_from_this()](
       const rmf_traffic::agv::Plan& plan)
       -> rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion>
   {
@@ -132,10 +129,13 @@ void GoToPlace::Active::respond(
       rmf_rxcpp::make_job<services::Negotiate::Result>(negotiate)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [phase = std::move(phase), negotiate](const auto& result)
+        [w = weak_from_this(), negotiate](const auto& result)
   {
-    result.respond();
-    phase->_negotiate_services.erase(result.service);
+    if (auto phase = w.lock())
+    {
+      result.respond();
+      phase->_negotiate_services.erase(result.service);
+    }
   });
 }
 
@@ -168,8 +168,6 @@ void GoToPlace::Active::find_plan()
   if (_emergency_active)
     return find_emergency_plan();
 
-  auto phase = phase_from_this();
-
   _pullover_service = nullptr;
   _find_path_service = std::make_shared<services::FindPath>(
         _context->planner(), _context->location(), _goal,
@@ -179,10 +177,10 @@ void GoToPlace::Active::find_plan()
         _find_path_service)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [weak = std::weak_ptr<Active>(phase)](
+        [w = weak_from_this()](
         const services::FindPath::Result& result)
   {
-    const auto phase = weak.lock();
+    const auto phase = w.lock();
     if (!phase)
       return;
 
@@ -204,8 +202,6 @@ void GoToPlace::Active::find_plan()
 //==============================================================================
 void GoToPlace::Active::find_emergency_plan()
 {
-  auto phase = phase_from_this();
-
   StatusMsg emergency_msg;
   emergency_msg.status = "Planning an emergency pullover";
   emergency_msg.start_time = _context->node()->now();
@@ -221,10 +217,10 @@ void GoToPlace::Active::find_emergency_plan()
       services::FindEmergencyPullover::Result>(_pullover_service)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [weak = std::weak_ptr<Active>(phase)](
+        [w = weak_from_this()](
         const services::FindEmergencyPullover::Result& result)
   {
-    const auto phase = weak.lock();
+    const auto phase = w.lock();
     if (!phase)
       return;
 
@@ -366,22 +362,21 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
     }
   }
 
-  auto phase = phase_from_this();
-  _subtasks = Task(_description, std::move(sub_phases));
+  _subtasks = Task::make(_description, std::move(sub_phases));
   _status_subscription = _subtasks->observe()
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [weak = std::weak_ptr<Active>(phase)](const StatusMsg& msg)
+        [weak = weak_from_this()](const StatusMsg& msg)
         {
           if (const auto phase = weak.lock())
             phase->_status_publisher.get_subscriber().on_next(msg);
         },
-        [weak = std::weak_ptr<Active>(phase)](std::exception_ptr e)
+        [weak = weak_from_this()](std::exception_ptr e)
         {
           if (const auto phase = weak.lock())
             phase->_status_publisher.get_subscriber().on_error(e);
         },
-        [weak = std::weak_ptr<Active>(phase)]()
+        [weak = weak_from_this()]()
         {
           if (const auto phase = weak.lock())
           {
@@ -413,19 +408,6 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
 
   _subtasks->begin();
   _context->itinerary().set(_plan->get_itinerary());
-}
-
-//==============================================================================
-std::shared_ptr<GoToPlace::Active> GoToPlace::Active::phase_from_this()
-{
-  return std::static_pointer_cast<Active>(shared_from_this());
-}
-
-//==============================================================================
-std::shared_ptr<const GoToPlace::Active>
-GoToPlace::Active::phase_from_this() const
-{
-  return std::static_pointer_cast<const Active>(shared_from_this());
 }
 
 //==============================================================================

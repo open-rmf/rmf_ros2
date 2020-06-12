@@ -34,6 +34,13 @@ Task::Task(std::string id, std::vector<std::unique_ptr<PendingPhase>> phases)
 }
 
 //==============================================================================
+std::shared_ptr<Task> Task::make(
+    std::string id, PendingPhases phases)
+{
+  return std::make_shared<Task>(Task(std::move(id), std::move(phases)));
+}
+
+//==============================================================================
 void Task::begin()
 {
   if (!_active_phase)
@@ -96,22 +103,31 @@ void Task::_start_next_phase()
       _active_phase->observe()
       .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
-        [this](const rmf_task_msgs::msg::TaskSummary& msg)
+        [w = weak_from_this()](
+        const rmf_task_msgs::msg::TaskSummary& msg)
         {
+          const auto task = w.lock();
+          if (!task)
+            return;
+
           auto summary = msg;
           // We have received a status update from the phase. We will forward
           // this to whoever is subscribing to the Task.
-          summary.task_id = this->_id;
+          summary.task_id = task->_id;
 
           // We don't want to say that the task is complete until the very end.
           if (summary.STATE_COMPLETED == summary.state)
             summary.state = summary.STATE_ACTIVE;
 
-          this->_status_publisher.get_subscriber().on_next(summary);
+          task->_status_publisher.get_subscriber().on_next(summary);
         },
-        [this](std::exception_ptr e)
+        [w = weak_from_this()](std::exception_ptr e)
         {
-          _pending_phases.clear();
+          const auto task = w.lock();
+          if (!task)
+            return;
+
+          task->_pending_phases.clear();
           std::string exception_msg;
           try
           {
@@ -125,15 +141,20 @@ void Task::_start_next_phase()
 
           StatusMsg msg;
           msg.state = msg.STATE_FAILED;
-          msg.status = "Failure at phase ["+_active_phase->description()+"]: "
+          msg.status = "Failure at phase ["
+            + task->_active_phase->description() + "]: "
             + exception_msg;
 
-          this->_status_publisher.get_subscriber().on_next(msg);
+          task->_status_publisher.get_subscriber().on_next(msg);
         },
-        [this]()
+        [w = weak_from_this()]()
         {
+          const auto task = w.lock();
+          if (!task)
+            return;
+
           // We have received a completion notice from the phase
-          this->_start_next_phase();
+          task->_start_next_phase();
         });
 }
 

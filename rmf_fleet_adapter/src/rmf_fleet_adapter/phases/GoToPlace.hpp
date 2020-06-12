@@ -38,7 +38,8 @@ public:
 
   class Active
       : public Task::ActivePhase,
-        public rmf_traffic::schedule::Negotiator
+        public rmf_traffic::schedule::Negotiator,
+        public std::enable_shared_from_this<Active>
   {
   public:
 
@@ -75,16 +76,12 @@ public:
 
     void execute_plan(rmf_traffic::agv::Plan new_plan);
 
-    std::shared_ptr<Active> phase_from_this();
-
-    std::shared_ptr<const Active> phase_from_this() const;
-
     agv::RobotContextPtr _context;
     rmf_traffic::agv::Plan::Goal _goal;
     double _latest_time_estimate;
     std::string _description;
     rmf_utils::optional<rmf_traffic::agv::Plan> _plan;
-    rmf_utils::optional<Task> _subtasks;
+    std::shared_ptr<Task> _subtasks;
     bool _emergency_active = false;
     bool _performing_emergency_task = false;
     rxcpp::subjects::subject<StatusMsg> _status_publisher;
