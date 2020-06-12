@@ -125,8 +125,10 @@ SCENARIO("Test loop requests")
     profile
   };
 
-  rclcpp::init(0, nullptr);
-  rmf_fleet_adapter::agv::test::MockAdapter adapter("test_Loop");
+  auto rcl_context = std::make_shared<rclcpp::Context>();
+  rcl_context->init(0, nullptr);
+  rmf_fleet_adapter::agv::test::MockAdapter adapter(
+        "test_Loop", rclcpp::NodeOptions().context(rcl_context));
 
   const std::string task_0 = "task_0";
   std::promise<bool> task_0_completed_promise;
