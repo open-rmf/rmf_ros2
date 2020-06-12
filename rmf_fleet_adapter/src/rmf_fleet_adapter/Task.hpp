@@ -31,7 +31,7 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-class Task
+class Task : std::enable_shared_from_this<Task>
 {
 public:
 
@@ -92,8 +92,9 @@ public:
 
   using PendingPhases = std::vector<std::unique_ptr<PendingPhase>>;
 
-  /// Construct a Task
-  Task(std::string id, PendingPhases phases);
+  // Make a new task
+  static std::shared_ptr<Task> make(
+      std::string id, PendingPhases phases);
 
   void begin();
 
@@ -114,7 +115,15 @@ public:
 
   const std::string& id() const;
 
+  ~Task()
+  {
+//    if (!_pending_phases.empty())
+      std::cout << "Destructing task early" << std::endl;
+  }
+
 private:
+
+  Task(std::string id, PendingPhases phases);
 
   std::string _id;
   rxcpp::subjects::subject<StatusMsg> _status_publisher;

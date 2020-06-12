@@ -29,7 +29,7 @@ namespace tasks {
 //==============================================================================
 // TODO(MXG): This is a sloppy design. We should have a task estimator + factory
 // interface to handle the task dispatch and creation pipeline more elegantly.
-Task make_delivery(
+std::shared_ptr<Task> make_delivery(
     const rmf_task_msgs::msg::Delivery& request,
     const agv::RobotContextPtr& context,
     rmf_traffic::agv::Plan::Start pickup_start,

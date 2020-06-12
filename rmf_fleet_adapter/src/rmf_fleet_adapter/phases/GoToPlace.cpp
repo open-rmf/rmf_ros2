@@ -367,7 +367,7 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
   }
 
   auto phase = phase_from_this();
-  _subtasks = Task(_description, std::move(sub_phases));
+  _subtasks = Task::make(_description, std::move(sub_phases));
   _status_subscription = _subtasks->observe()
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(

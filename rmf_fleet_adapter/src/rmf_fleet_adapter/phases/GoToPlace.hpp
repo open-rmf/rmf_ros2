@@ -84,7 +84,7 @@ public:
     double _latest_time_estimate;
     std::string _description;
     rmf_utils::optional<rmf_traffic::agv::Plan> _plan;
-    rmf_utils::optional<Task> _subtasks;
+    std::shared_ptr<Task> _subtasks;
     bool _emergency_active = false;
     bool _performing_emergency_task = false;
     rxcpp::subjects::subject<StatusMsg> _status_publisher;
