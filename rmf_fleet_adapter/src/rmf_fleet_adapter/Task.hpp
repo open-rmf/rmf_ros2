@@ -31,7 +31,7 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-class Task : std::enable_shared_from_this<Task>
+class Task : public std::enable_shared_from_this<Task>
 {
 public:
 
@@ -114,12 +114,6 @@ public:
   void cancel();
 
   const std::string& id() const;
-
-  ~Task()
-  {
-//    if (!_pending_phases.empty())
-      std::cout << "Destructing task early" << std::endl;
-  }
 
 private:
 

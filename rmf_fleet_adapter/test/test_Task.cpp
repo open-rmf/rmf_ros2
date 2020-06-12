@@ -46,7 +46,6 @@ public:
     template<typename Subscriber, typename Worker>
     void operator()(const Subscriber& s, const Worker& w)
     {
-      std::cout << "Count: " << *count << std::endl;
       std::this_thread::sleep_for(period);
       ++ *count;
       s.on_next(*count);
@@ -291,8 +290,6 @@ SCENARIO("Test simple task")
   std::shared_ptr<rmf_fleet_adapter::Task> task =
       rmf_fleet_adapter::Task::make("id", std::move(phases));
 
-  std::cout << "task value: " << task << std::endl;
-
   std::promise<bool> completed_promise;
   auto completed_future = completed_promise.get_future();
   auto status_sub = task->observe()
@@ -319,92 +316,85 @@ SCENARIO("Test simple task")
     completed_promise.set_value(true);
   });
 
-  std::cout << "task value: " << task << std::endl;
-  std::cout << " -- begin --" << std::endl;
   task->begin();
-  std::cout << "task value: " << task << std::endl;
 
   // Wait 100x as long as what we're expecting in order to deal with any
   // possible overhead
   const auto status = completed_future.wait_for(18*dt * 1000);
-  std::cout << "task value: " << task << std::endl;
-//  REQUIRE(status == std::future_status::ready);
-//  REQUIRE(completed_future.get());
-  CHECK(status == std::future_status::ready);
+  REQUIRE(status == std::future_status::ready);
+  REQUIRE(completed_future.get());
 
-  std::cout << "task value: " << task << std::endl;
   CHECK(*count == 18);
-  std::cout << "task value: " << task << std::endl;
 }
 
-//SCENARIO("Test nested task")
-//{
-//  rmf_fleet_adapter_test::thread_cooldown = true;
+SCENARIO("Test nested task")
+{
+  rmf_fleet_adapter_test::thread_cooldown = true;
 
-//  using PendingPhases = rmf_fleet_adapter::Task::PendingPhases;
+  using PendingPhases = rmf_fleet_adapter::Task::PendingPhases;
 
-//  std::shared_ptr<std::size_t> count = std::make_shared<std::size_t>(0);
-//  const auto dt = 10ms;
+  std::shared_ptr<std::size_t> count = std::make_shared<std::size_t>(0);
+  const auto dt = 10ms;
 
-//  std::unordered_map<std::string, std::pair<std::size_t, std::size_t>>
-//      count_limits;
+  std::unordered_map<std::string, std::pair<std::size_t, std::size_t>>
+      count_limits;
 
-//  count_limits["A"] = {0, 5};
-//  count_limits["B1"] = {5, 10};
-//  count_limits["B1"] = {0, 10};
-//  count_limits["B2"] = {10, 11};
-//  count_limits["B3"] = {11, 13};
-//  count_limits["C1"] = {13, 14};
-//  count_limits["C2"] = {14, 15};
-//  count_limits["C3"] = {15, 16};
+  count_limits["A"] = {0, 5};
+  count_limits["B1"] = {5, 10};
+  count_limits["B1"] = {0, 10};
+  count_limits["B2"] = {10, 11};
+  count_limits["B3"] = {11, 13};
+  count_limits["C1"] = {13, 14};
+  count_limits["C2"] = {14, 15};
+  count_limits["C3"] = {15, 16};
 
-//  PendingPhases phases;
+  PendingPhases phases;
 
-//  phases.push_back(
-//    std::make_unique<MockPhase::Pending>("A", count, count_limits["A"].second, dt));
+  phases.push_back(
+    std::make_unique<MockPhase::Pending>("A", count, count_limits["A"].second, dt));
 
-//  PendingPhases b_phases;
-//  b_phases.push_back(
-//    std::make_unique<MockPhase::Pending>("B1", count, count_limits["B1"].second, dt));
-//  b_phases.push_back(
-//    std::make_unique<MockPhase::Pending>("B2", count, count_limits["B2"].second, dt));
-//  b_phases.push_back(
-//    std::make_unique<MockPhase::Pending>("B3", count, count_limits["B3"].second, dt));
-//  phases.push_back(
-//    std::make_unique<MockSubtaskPhase::Pending>(std::move(b_phases)));
+  PendingPhases b_phases;
+  b_phases.push_back(
+    std::make_unique<MockPhase::Pending>("B1", count, count_limits["B1"].second, dt));
+  b_phases.push_back(
+    std::make_unique<MockPhase::Pending>("B2", count, count_limits["B2"].second, dt));
+  b_phases.push_back(
+    std::make_unique<MockPhase::Pending>("B3", count, count_limits["B3"].second, dt));
+  phases.push_back(
+    std::make_unique<MockSubtaskPhase::Pending>(std::move(b_phases)));
 
-//  PendingPhases c_phases;
-//  c_phases.push_back(
-//    std::make_unique<MockPhase::Pending>("C1", count, count_limits["C1"].second, dt));
-//  c_phases.push_back(
-//    std::make_unique<MockPhase::Pending>("C2", count, count_limits["C2"].second, dt));
-//  c_phases.push_back(
-//    std::make_unique<MockPhase::Pending>("C3", count, count_limits["C3"].second, dt));
-//  phases.push_back(
-//    std::make_unique<MockSubtaskPhase::Pending>(std::move(c_phases)));
+  PendingPhases c_phases;
+  c_phases.push_back(
+    std::make_unique<MockPhase::Pending>("C1", count, count_limits["C1"].second, dt));
+  c_phases.push_back(
+    std::make_unique<MockPhase::Pending>("C2", count, count_limits["C2"].second, dt));
+  c_phases.push_back(
+    std::make_unique<MockPhase::Pending>("C3", count, count_limits["C3"].second, dt));
+  phases.push_back(
+    std::make_unique<MockSubtaskPhase::Pending>(std::move(c_phases)));
 
-//  const auto task = rmf_fleet_adapter::Task::make("id", std::move(phases));
+  const auto task = rmf_fleet_adapter::Task::make("id", std::move(phases));
 
-//  std::promise<bool> completed_promise;
-//  auto completed_future = completed_promise.get_future();
-//  auto status_sub = task->observe()
-//      .subscribe(
-//        [&count_limits](const rmf_fleet_adapter::Task::StatusMsg& msg)
-//  {
-//    const auto& limits = count_limits[msg.status];
-//    CHECK(limits.first < msg.state);
-//    CHECK(msg.state <= limits.second);
-//  },
-//        [&completed_promise]()
-//  {
-//    completed_promise.set_value(true);
-//  });
+  std::promise<bool> completed_promise;
+  auto completed_future = completed_promise.get_future();
+  auto status_sub = task->observe()
+      .subscribe(
+        [&count_limits](const rmf_fleet_adapter::Task::StatusMsg& msg)
+  {
+    const auto& limits = count_limits[msg.status];
+    CHECK(limits.first < msg.state);
+    CHECK(msg.state <= limits.second);
+  },
+        [&completed_promise]()
+  {
+    completed_promise.set_value(true);
+  });
 
-//  task->begin();
+  task->begin();
 
-//  const auto status = completed_future.wait_for(16*dt * 1000);
-//  REQUIRE(status == std::future_status::ready);
-//  REQUIRE(completed_future.get());
+  const auto status = completed_future.wait_for(16*dt * 1000);
+  REQUIRE(status == std::future_status::ready);
+  REQUIRE(completed_future.get());
 
-//  CHECK(*count == 16);
-//}
+  CHECK(*count == 16);
+}

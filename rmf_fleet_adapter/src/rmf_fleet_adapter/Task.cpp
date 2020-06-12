@@ -29,7 +29,6 @@ Task::Task(std::string id, std::vector<std::unique_ptr<PendingPhase>> phases)
   : _id(std::move(id)),
     _pending_phases(std::move(phases))
 {
-  std::cout << "Constructing task" << std::endl;
   _status_obs = _status_publisher.get_observable();
   std::reverse(_pending_phases.begin(), _pending_phases.end());
 }
@@ -38,7 +37,7 @@ Task::Task(std::string id, std::vector<std::unique_ptr<PendingPhase>> phases)
 std::shared_ptr<Task> Task::make(
     std::string id, PendingPhases phases)
 {
-  return std::shared_ptr<Task>(new Task(std::move(id), std::move(phases)));
+  return std::make_shared<Task>(Task(std::move(id), std::move(phases)));
 }
 
 //==============================================================================
@@ -98,24 +97,18 @@ void Task::_start_next_phase()
     return;
   }
 
-  std::cout << "About to call shared_from_this()" << std::endl;
-  auto task = shared_from_this();
-  std::cout << "Done with shared_from_this()" << std::endl;
   _active_phase = _pending_phases.back()->begin();
   _pending_phases.pop_back();
   _active_phase_subscription =
       _active_phase->observe()
       .observe_on(rxcpp::observe_on_event_loop())
       .subscribe(
-        [w = std::weak_ptr<Task>(task)](
+        [w = weak_from_this()](
         const rmf_task_msgs::msg::TaskSummary& msg)
         {
           const auto task = w.lock();
           if (!task)
-          {
-            std::cout << "cannot lock task" << std::endl;
             return;
-          }
 
           auto summary = msg;
           // We have received a status update from the phase. We will forward
@@ -128,7 +121,7 @@ void Task::_start_next_phase()
 
           task->_status_publisher.get_subscriber().on_next(summary);
         },
-        [w = std::weak_ptr<Task>(task)](std::exception_ptr e)
+        [w = weak_from_this()](std::exception_ptr e)
         {
           const auto task = w.lock();
           if (!task)
@@ -154,7 +147,7 @@ void Task::_start_next_phase()
 
           task->_status_publisher.get_subscriber().on_next(msg);
         },
-        [w = std::weak_ptr<Task>(task)]()
+        [w = weak_from_this()]()
         {
           const auto task = w.lock();
           if (!task)
