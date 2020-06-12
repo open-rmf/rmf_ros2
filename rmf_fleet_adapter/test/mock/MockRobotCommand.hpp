@@ -45,11 +45,11 @@ public:
       _dock_to_wp[dock.dock_name()] = _wp;
     }
 
-    void execute(const DoorOpen& open) override { }
-    void execute(const LiftMove& move) override { }
-    void execute(const DoorClose& close) override { }
-    void execute(const LiftDoorOpen& open) override { }
-    void execute(const LiftDoorClose& close) override { }
+    void execute(const DoorOpen&) override { }
+    void execute(const LiftMove&) override { }
+    void execute(const DoorClose&) override { }
+    void execute(const LiftDoorOpen&) override { }
+    void execute(const LiftDoorClose&) override { }
 
   private:
     std::unordered_map<std::string, std::size_t>& _dock_to_wp;
@@ -143,7 +143,9 @@ public:
   {
     assert(_dock_to_wp.find(dock_name) != _dock_to_wp.end());
     ++_dockings.insert({dock_name, 0}).first->second;
-    updater->update_position(_dock_to_wp.at(dock_name), 0.0);
+    const auto wp = _dock_to_wp.at(dock_name);
+    ++_visited_wps.insert({wp, 0}).first->second;
+    updater->update_position(wp, 0.0);
     docking_finished_callback();
   }
 

@@ -402,20 +402,6 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
         }
    );
 
-  const auto start = *_plan->get_itinerary().front().trajectory().start_time();
-  const auto dt_s = std::chrono::duration_cast<std::chrono::system_clock::duration>(
-        start.time_since_epoch());
-  const auto clock_s = std::chrono::system_clock::time_point(dt_s);
-  const std::time_t t_s = std::chrono::system_clock::to_time_t(clock_s);
-  const std::string s = std::ctime(&t_s);
-
-  const auto finish = *_plan->get_itinerary().back().trajectory().finish_time();
-  const auto dt_f = std::chrono::duration_cast<std::chrono::system_clock::duration>(
-        finish.time_since_epoch());
-  const auto clock_f = std::chrono::system_clock::time_point(dt_f);
-  const std::time_t t_f = std::chrono::system_clock::to_time_t(clock_f);
-  const std::string f = std::ctime(&t_f);
-
   _subtasks->begin();
   _context->itinerary().set(_plan->get_itinerary());
 }

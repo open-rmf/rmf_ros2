@@ -237,13 +237,14 @@ SCENARIO("Test Delivery")
   graph.add_waypoint(test_map_name, {0.0, 10.0}); // 10
 
   /*
-   *                  10(D)
+   *                   10
    *                   |
+   *                  (D)
    *                   |
    *                   8------9
    *                   |      |
    *                   |      |
-   *     3------4------5------6------7(D)
+   *     3------4------5------6--(D)--7
    *                   |      |
    *                   |      |
    *                   1------2
@@ -317,7 +318,7 @@ SCENARIO("Test Delivery")
       at_least_one_incomplete = true;
   });
 
-  auto fleet = adapter.add_fleet("test_fleet", traits, graph);
+  const auto fleet = adapter.add_fleet("test_fleet", traits, graph);
   fleet->accept_delivery_requests(
         [](const rmf_task_msgs::msg::Delivery&)
   {
@@ -326,12 +327,6 @@ SCENARIO("Test Delivery")
   });
 
   const auto now = rmf_traffic_ros2::convert(adapter.node()->now());
-  const auto dt_s = std::chrono::duration_cast<std::chrono::system_clock::duration>(
-        now.time_since_epoch());
-  const auto clock_s = std::chrono::system_clock::time_point(dt_s);
-  const std::time_t t_s = std::chrono::system_clock::to_time_t(clock_s);
-  const std::string s = std::ctime(&t_s);
-
   const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};
   auto robot_cmd = std::make_shared<
       rmf_fleet_adapter_test::MockRobotCommand>(adapter.node(), graph);
@@ -375,15 +370,18 @@ SCENARIO("Test Delivery")
   REQUIRE(flaky_future.get());
 
   const auto& visits = robot_cmd->visited_wps();
-  CHECK(visits.size() == 5);
+  CHECK(visits.size() == 6);
   CHECK(visits.count(0));
   CHECK(visits.count(5));
   CHECK(visits.count(6));
   CHECK(visits.count(7));
   CHECK(visits.count(8));
+  CHECK(visits.count(10));
 
   const auto completed_status = completed_future.wait_for(5s);
   REQUIRE(completed_status == std::future_status::ready);
   REQUIRE(completed_future.get());
   CHECK(at_least_one_incomplete);
+
+  adapter.stop();
 }

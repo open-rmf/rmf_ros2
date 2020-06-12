@@ -182,7 +182,7 @@ auto FleetUpdateHandle::Implementation::estimate_loop(
       continue;
 
     rmf_traffic::Duration init_duration = std::chrono::seconds(0);
-    if (!loop_init_plan->get_waypoints().empty())
+    if (loop_init_plan->get_waypoints().size() > 1)
     {
       // If loop_init_plan is not empty, then that means we are not starting at
       // the starting point of the loop. Therefore we will need an initial plan
