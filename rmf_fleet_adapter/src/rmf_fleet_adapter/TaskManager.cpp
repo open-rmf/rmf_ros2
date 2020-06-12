@@ -33,7 +33,16 @@ void TaskManager::queue_task(Task task, Start expected_finish)
   _expected_finish_location = std::move(expected_finish);
 
   if (!_active_task)
+  {
     _begin_next_task();
+  }
+  else
+  {
+    rmf_task_msgs::msg::TaskSummary msg;
+    msg.task_id = _queue.back()->id();
+    msg.state = msg.STATE_QUEUED;
+    this->_context->node()->task_summary()->publish(msg);
+  }
 }
 
 //==============================================================================
@@ -94,8 +103,13 @@ void TaskManager::_begin_next_task()
     _context->node()->task_summary()->publish(msg);
     _begin_next_task();
   },
-        [this]()
+        [this, id = _active_task->id()]()
   {
+    rmf_task_msgs::msg::TaskSummary msg;
+    msg.task_id = id;
+    msg.state = msg.STATE_COMPLETED;
+    this->_context->node()->task_summary()->publish(msg);
+
     _begin_next_task();
   });
 

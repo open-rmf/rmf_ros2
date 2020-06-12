@@ -27,9 +27,6 @@
 #include <rmf_dispenser_msgs/msg/dispenser_state.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
 
-#include <services/FindPath.hpp>
-#include <agv/internal_RobotUpdateHandle.hpp>
-
 #include <rmf_utils/catch.hpp>
 
 #include "../thread_cooldown.hpp"
@@ -404,6 +401,22 @@ SCENARIO("Test Delivery")
 
   rclcpp::init(0, nullptr);
   rmf_fleet_adapter::agv::test::MockAdapter adapter("test_Delivery");
+
+  std::promise<bool> completed_promise;
+  bool at_least_one_incomplete = false;
+  auto completed_future = completed_promise.get_future();
+  const auto task_sub = adapter.node()->create_subscription<
+      rmf_task_msgs::msg::TaskSummary>(
+        rmf_fleet_adapter::TaskSummaryTopicName, rclcpp::SystemDefaultsQoS(),
+        [&completed_promise, &at_least_one_incomplete](
+        const rmf_task_msgs::msg::TaskSummary::SharedPtr msg)
+  {
+    if (msg->STATE_COMPLETED == msg->state)
+      completed_promise.set_value(true);
+    else
+      at_least_one_incomplete = true;
+  });
+
   auto fleet = adapter.add_fleet("test_fleet", traits, graph);
   fleet->accept_delivery_requests(
         [](const rmf_task_msgs::msg::Delivery&)
@@ -467,4 +480,9 @@ SCENARIO("Test Delivery")
   CHECK(visits.count(7));
   CHECK(visits.count(8));
   CHECK(visits.count(10));
+
+  const auto completed_status = completed_future.wait_for(5s);
+  REQUIRE(completed_status == std::future_status::ready);
+  REQUIRE(completed_future.get());
+  CHECK(at_least_one_incomplete);
 }

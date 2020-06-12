@@ -102,6 +102,11 @@ void Task::_start_next_phase()
           // We have received a status update from the phase. We will forward
           // this to whoever is subscribing to the Task.
           summary.task_id = this->_id;
+
+          // We don't want to say that the task is complete until the very end.
+          if (summary.STATE_COMPLETED == summary.state)
+            summary.state = summary.STATE_ACTIVE;
+
           this->_status_publisher.get_subscriber().on_next(summary);
         },
         [this](std::exception_ptr e)
