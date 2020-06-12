@@ -27,9 +27,6 @@
 #include <rmf_dispenser_msgs/msg/dispenser_state.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
 
-#include <services/FindPath.hpp>
-#include <agv/internal_RobotUpdateHandle.hpp>
-
 #include <rmf_utils/catch.hpp>
 
 #include "../thread_cooldown.hpp"
