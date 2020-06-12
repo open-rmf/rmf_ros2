@@ -64,6 +64,7 @@ struct DispenseItem
     rxcpp::observable<Task::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
     bool _request_acknowledged = false;
+    builtin_interfaces::msg::Time _last_msg;
 
     Task::StatusMsg _get_status(
       const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result,

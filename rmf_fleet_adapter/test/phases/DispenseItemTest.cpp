@@ -111,7 +111,7 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
         status_updates.clear();
         return false;
       });
-      REQUIRE(!completed);
+      CHECK(!completed);
     }
 
     AND_WHEN("dispenser result is success")
@@ -141,7 +141,7 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
         {
           return status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
         });
-        REQUIRE(completed);
+        CHECK(completed);
       }
 
       timer.reset();
@@ -174,7 +174,7 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
         {
           return status_updates.back().state == Task::StatusMsg::STATE_FAILED;
         });
-        REQUIRE(failed);
+        CHECK(failed);
       }
 
       timer.reset();
@@ -208,7 +208,43 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
         {
           return status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
         });
-        REQUIRE(completed);
+        CHECK(completed);
+      }
+
+      interval.unsubscribe();
+    }
+
+    AND_WHEN("request acknowledged result arrives before request state in queue")
+    {
+      auto result_pub = transport->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
+      auto state_pub = transport->create_publisher<DispenserState>(DispenserStateTopicName, 10);
+      auto interval = rxcpp::observable<>::interval(std::chrono::milliseconds(100))
+        .subscribe_on(rxcpp::observe_on_new_thread())
+        .subscribe([&](const auto&)
+        {
+          DispenserResult result;
+          result.request_guid = request_guid;
+          result.status = DispenserResult::ACKNOWLEDGED;
+          result.time = transport->now();
+          result_pub->publish(result);
+
+          DispenserState state;
+          // simulate state arriving late
+          state.time.sec = 0;
+          state.time.nanosec = 0;
+          state.guid = target;
+          state.mode = DispenserState::BUSY;
+          state_pub->publish(state);
+        });
+
+      THEN("it is not completed")
+      {
+        std::unique_lock<std::mutex> lk(m);
+        bool completed = status_updates_cv.wait_for(lk, std::chrono::milliseconds(1000), [&]()
+        {
+          return status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+        });
+        CHECK(!completed);
       }
 
       interval.unsubscribe();

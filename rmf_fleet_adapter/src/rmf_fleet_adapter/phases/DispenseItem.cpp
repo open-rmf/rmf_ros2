@@ -16,6 +16,7 @@
 */
 
 #include "DispenseItem.hpp"
+#include "Utils.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -76,8 +77,11 @@ Task::StatusMsg DispenseItem::Action::_get_status(
   status.state = Task::StatusMsg::STATE_ACTIVE;
 
   using rmf_dispenser_msgs::msg::DispenserResult;
-  if (dispenser_result && dispenser_result->request_guid == _request_guid)
+  if (dispenser_result
+    && dispenser_result->request_guid == _request_guid
+    && is_newer(dispenser_result->time, _last_msg))
   {
+    _last_msg = dispenser_result->time;
     switch (dispenser_result->status)
     {
       case DispenserResult::ACKNOWLEDGED:
@@ -92,8 +96,11 @@ Task::StatusMsg DispenseItem::Action::_get_status(
     }
   }
 
-  if (dispenser_state && dispenser_state->guid == _target)
+  if (dispenser_state
+    && dispenser_state->guid == _target
+    && is_newer(dispenser_state->time, _last_msg))
   {
+    _last_msg = dispenser_state->time;
     if (!_request_acknowledged)
     {
       _request_acknowledged = std::find(
