@@ -26,6 +26,7 @@
 #include <rmf_traffic_ros2/schedule/Writer.hpp>
 
 #include <rmf_task_msgs/msg/delivery.hpp>
+#include <rmf_task_msgs/msg/loop.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -45,6 +46,10 @@ public:
   using Delivery = rmf_task_msgs::msg::Delivery;
   using DeliverySub = rclcpp::Subscription<Delivery>::SharedPtr;
   DeliverySub delivery_sub;
+
+  using Loop = rmf_task_msgs::msg::Loop;
+  using LoopSub = rclcpp::Subscription<Loop>::SharedPtr;
+  LoopSub loop_sub;
 
   std::vector<std::shared_ptr<FleetUpdateHandle>> fleets = {};
 
@@ -66,6 +71,13 @@ public:
           [this](Delivery::SharedPtr msg)
     {
       rmf_fleet_adapter::agv::request_delivery(*msg, fleets);
+    });
+
+    loop_sub = node->create_subscription<Loop>(
+          LoopRequestTopicName, default_qos,
+          [this](Loop::SharedPtr msg)
+    {
+      rmf_fleet_adapter::agv::request_loop(*msg, fleets);
     });
   }
 

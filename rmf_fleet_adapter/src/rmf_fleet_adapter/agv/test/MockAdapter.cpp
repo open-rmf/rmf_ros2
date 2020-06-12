@@ -104,6 +104,12 @@ void MockAdapter::request_delivery(const rmf_task_msgs::msg::Delivery& request)
   rmf_fleet_adapter::agv::request_delivery(request, _pimpl->fleets);
 }
 
+//==============================================================================
+void MockAdapter::request_loop(const rmf_task_msgs::msg::Loop& request)
+{
+  rmf_fleet_adapter::agv::request_loop(request, _pimpl->fleets);
+}
+
 } // namespace test
 } // namespace agv
 } // namespace rmf_fleet_adapter

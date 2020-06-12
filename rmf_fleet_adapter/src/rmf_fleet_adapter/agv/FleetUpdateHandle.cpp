@@ -20,6 +20,7 @@
 #include "RobotContext.hpp"
 
 #include "../tasks/Delivery.hpp"
+#include "../tasks/Loop.hpp"
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -88,11 +89,12 @@ auto FleetUpdateHandle::Implementation::estimate_delivery(
     if (!pickup_plan)
       continue;
 
-    assert(pickup_plan->get_waypoints().back().graph_index());
+    const auto& pickup_plan_end = pickup_plan->get_waypoints().back();
+    assert(pickup_plan_end.graph_index());
     const auto dropoff_start = rmf_traffic::agv::Plan::Start(
-          pickup_plan->get_waypoints().back().time(),
-          *pickup_plan->get_waypoints().back().graph_index(),
-          pickup_plan->get_waypoints().back().position()[2]);
+          pickup_plan_end.time(),
+          *pickup_plan_end.graph_index(),
+          pickup_plan_end.position()[2]);
 
     const auto dropoff_plan = planner->plan(dropoff_start, dropoff_goal);
     if (!dropoff_plan)
@@ -133,10 +135,143 @@ void FleetUpdateHandle::Implementation::perform_delivery(
   auto& mgr = task_managers.at(estimate.robot);
   mgr.queue_task(
         tasks::make_delivery(
-          request, estimate.robot,
+          request,
+          estimate.robot,
           *estimate.pickup_start,
           *estimate.dropoff_start),
         *estimate.finish);
+}
+
+//==============================================================================
+auto FleetUpdateHandle::Implementation::estimate_loop(
+    const rmf_task_msgs::msg::Loop& request) const
+-> rmf_utils::optional<LoopEstimate>
+{
+  if (request.robot_type != name)
+    return rmf_utils::nullopt;
+
+  const std::size_t n = request.num_loops;
+  if (n == 0)
+    return rmf_utils::nullopt;
+
+  const auto& graph = planner->get_configuration().graph();
+  const auto loop_start_wp = graph.find_waypoint(request.start_name);
+  if (!loop_start_wp)
+    return rmf_utils::nullopt;
+
+  const auto loop_end_wp = graph.find_waypoint(request.finish_name);
+  if (!loop_end_wp)
+    return rmf_utils::nullopt;
+
+  const auto loop_start_goal =
+      rmf_traffic::agv::Plan::Goal(loop_start_wp->index());
+
+  const auto loop_end_goal =
+      rmf_traffic::agv::Plan::Goal(loop_end_wp->index());
+
+  LoopEstimate best;
+  for (const auto& element : task_managers)
+  {
+    LoopEstimate estimate;
+    estimate.robot = element.first;
+
+    const auto& mgr = element.second;
+    auto start = mgr.expected_finish_location();
+    const auto loop_init_plan = planner->plan(start, loop_start_goal);
+    if (!loop_init_plan)
+      continue;
+
+    rmf_traffic::Duration init_duration = std::chrono::seconds(0);
+    if (!loop_init_plan->get_waypoints().empty())
+    {
+      // If loop_init_plan is not empty, then that means we are not starting at
+      // the starting point of the loop. Therefore we will need an initial plan
+      // to reach the first point in the loop.
+      estimate.init_start = start.front();
+
+      init_duration =
+          loop_init_plan->get_waypoints().back().time()
+          - loop_init_plan->get_waypoints().front().time();
+    }
+
+    const auto loop_forward_start = [&]() -> rmf_traffic::agv::Plan::StartSet
+    {
+      if (loop_init_plan->get_waypoints().empty())
+        return start;
+
+      const auto& loop_init_wp = loop_init_plan->get_waypoints().back();
+      assert(loop_init_wp.graph_index());
+      return {rmf_traffic::agv::Plan::Start(
+            loop_init_wp.time(),
+            *loop_init_wp.graph_index(),
+            loop_init_wp.position()[2])};
+    }();
+
+    const auto loop_forward_plan =
+        planner->plan(loop_forward_start, loop_end_goal);
+    if (!loop_forward_plan)
+      continue;
+
+    // If the forward plan is empty then that means the start and end of the
+    // loop are the same, making it a useless request.
+    // TODO(MXG): We should probably make noise here instead of just ignoring
+    // the request.
+    if (loop_forward_plan->get_waypoints().empty())
+      return rmf_utils::nullopt;
+
+    estimate.loop_start = loop_forward_start.front();
+
+    const auto loop_duration =
+        loop_forward_plan->get_waypoints().back().time()
+        - loop_forward_plan->get_waypoints().front().time();
+
+    // We only need to provide this if there is supposed to be more than one
+    // loop.
+    const auto& final_wp = loop_forward_plan->get_waypoints().back();
+    assert(final_wp.graph_index());
+    estimate.loop_end = rmf_traffic::agv::Plan::Start{
+      final_wp.time(),
+      *final_wp.graph_index(),
+      final_wp.position()[2]
+    };
+
+    const auto start_time = [&]()
+    {
+      if (loop_init_plan->get_waypoints().empty())
+        return loop_forward_plan->get_waypoints().front().time();
+
+      return loop_init_plan->get_waypoints().front().time();
+    }();
+
+    estimate.time =
+        start_time + init_duration + (2*n - 1)*loop_duration;
+
+    estimate.loop_end->time(estimate.time);
+
+    if (estimate.time < best.time)
+      best = std::move(estimate);
+  }
+
+  if (best.robot)
+    return best;
+
+  return rmf_utils::nullopt;
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::perform_loop(
+    const rmf_task_msgs::msg::Loop& request,
+    const LoopEstimate& estimate)
+{
+  auto& mgr = task_managers.at(estimate.robot);
+  mgr.queue_task(
+        tasks::make_loop(
+          request,
+          estimate.robot,
+          estimate.init_start,
+          *estimate.loop_start,
+          estimate.loop_end),
+        *estimate.loop_end);
 }
 
 //==============================================================================
@@ -234,6 +369,35 @@ void request_delivery(
 
   chosen_fleet->perform_delivery(request, best);
 }
+
+//==============================================================================
+void request_loop(
+    const rmf_task_msgs::msg::Loop& request,
+    const std::vector<std::shared_ptr<FleetUpdateHandle>>& fleets)
+{
+  FleetUpdateHandle::Implementation::LoopEstimate best;
+  FleetUpdateHandle::Implementation* chosen_fleet = nullptr;
+
+  for (auto& fleet : fleets)
+  {
+    auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
+    const auto estimate = fimpl.estimate_loop(request);
+    if (!estimate)
+      continue;
+
+    if (estimate->time < best.time)
+    {
+      best = *estimate;
+      chosen_fleet = &fimpl;
+    }
+  }
+
+  if (!chosen_fleet)
+    return;
+
+  chosen_fleet->perform_loop(request, best);
+}
+
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

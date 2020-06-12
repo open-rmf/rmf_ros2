@@ -15,6 +15,8 @@
  *
 */
 
+#include "../mock/MockRobotCommand.hpp"
+
 #include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic/schedule/Database.hpp>
 
@@ -32,108 +34,6 @@
 #include "../thread_cooldown.hpp"
 
 #include <rmf_task_msgs/msg/task_summary.hpp>
-
-//==============================================================================
-class MockRobotCommand : public rmf_fleet_adapter::agv::RobotCommandHandle
-{
-public:
-
-  MockRobotCommand(std::shared_ptr<rclcpp::Node> node)
-    : _node(std::move(node))
-  {
-    // Do nothing
-  }
-
-  std::shared_ptr<rmf_fleet_adapter::agv::RobotUpdateHandle> updater;
-
-  void follow_new_path(
-      const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
-      ArrivalEstimator next_arrival_estimator,
-      std::function<void()> path_finished_callback) final
-  {
-    _current_waypoint_target = 0;
-    _active = true;
-    _timer = _node->create_wall_timer(
-          std::chrono::milliseconds(10),
-          [this,
-           waypoints,
-           next_arrival_estimator = std::move(next_arrival_estimator),
-           path_finished_callback = std::move(path_finished_callback)]
-    {
-      if (!_active)
-        return;
-
-      if (_current_waypoint_target < waypoints.size())
-        ++_current_waypoint_target;
-
-      if (updater)
-      {
-        const auto& previous_wp = waypoints[_current_waypoint_target-1];
-        if (previous_wp.graph_index())
-        {
-          updater->update_position(
-                *previous_wp.graph_index(), previous_wp.position()[2]);
-          _visited_wps.insert(*previous_wp.graph_index());
-        }
-        else
-        {
-          updater->update_position("test_map", previous_wp.position());
-        }
-      }
-
-      if (_current_waypoint_target < waypoints.size())
-      {
-        const auto& wp = waypoints[_current_waypoint_target];
-        const auto test_delay =
-            std::chrono::milliseconds(750) * _current_waypoint_target;
-
-        const auto delayed_arrival_time = wp.time() + test_delay;
-        const auto remaining_time =
-            std::chrono::steady_clock::time_point(
-              std::chrono::steady_clock::duration(_node->now().nanoseconds()))
-              - delayed_arrival_time;
-
-        next_arrival_estimator(_current_waypoint_target, remaining_time);
-        return;
-      }
-
-      _active = false;
-      _timer.reset();
-      path_finished_callback();
-    });
-  }
-
-  void stop() final
-  {
-    _timer.reset();
-  }
-
-  void dock(
-      const std::string& dock_name,
-      std::function<void()> docking_finished_callback) final
-  {
-    ++_dockings.insert({dock_name, 0}).first->second;
-    docking_finished_callback();
-  }
-
-  const std::unordered_map<std::string, std::size_t>& dockings() const
-  {
-    return _dockings;
-  }
-
-  const std::unordered_set<std::size_t> visited_wps() const
-  {
-    return _visited_wps;
-  }
-
-private:
-  bool _active = false;
-  std::shared_ptr<rclcpp::Node> _node;
-  rclcpp::TimerBase::SharedPtr _timer;
-  std::size_t _current_waypoint_target = 0;
-  std::unordered_map<std::string, std::size_t> _dockings;
-  std::unordered_set<std::size_t> _visited_wps;
-};
 
 //==============================================================================
 /// This mock dispenser will not publish any states; it will only publish a
@@ -368,18 +268,18 @@ SCENARIO("Test Delivery")
     graph.add_lane(w1, w0);
   };
 
-  add_bidir_lane(0, 1);  // 1   2
-  add_bidir_lane(1, 2);  // 3   4
-  add_bidir_lane(1, 5);  // 5   6
-  add_bidir_lane(2, 6);  // 7   8
-  add_bidir_lane(3, 4);  // 9  10
-  add_bidir_lane(4, 5);  // 11 12
-  add_bidir_lane(5, 6);  // 13 14
-  add_dock_lane(6, 7, "A");  // 15 16
-  add_bidir_lane(5, 8);  // 17 18
-  add_bidir_lane(6, 9);  // 19 20
-  add_bidir_lane(8, 9);  // 21 22
-  add_dock_lane(8, 10, "B"); // 23 24
+  add_bidir_lane(0, 1);  // 0   1
+  add_bidir_lane(1, 2);  // 2   3
+  add_bidir_lane(1, 5);  // 4   5
+  add_bidir_lane(2, 6);  // 6   7
+  add_bidir_lane(3, 4);  // 8   9
+  add_bidir_lane(4, 5);  // 10 11
+  add_bidir_lane(5, 6);  // 12 13
+  add_dock_lane(6, 7, "A");  // 14 15
+  add_bidir_lane(5, 8);  // 16 17
+  add_bidir_lane(6, 9);  // 18 19
+  add_bidir_lane(8, 9);  // 20 21
+  add_dock_lane(8, 10, "B"); // 22 23
 
   const std::string pickup_name = "pickup";
   REQUIRE(graph.add_key(pickup_name, 7));
@@ -433,7 +333,9 @@ SCENARIO("Test Delivery")
   const std::string s = std::ctime(&t_s);
 
   const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};
-  auto robot_cmd = std::make_shared<MockRobotCommand>(adapter.node());
+  auto robot_cmd = std::make_shared<
+      rmf_fleet_adapter_test::MockRobotCommand>(adapter.node(), graph);
+
   fleet->add_robot(
         robot_cmd, "T0", profile, starts,
         [&robot_cmd](rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
@@ -441,15 +343,15 @@ SCENARIO("Test Delivery")
     robot_cmd->updater = std::move(updater);
   });
 
-  const std::string flaky_dispenser_name = "flaky";
-  auto flaky_dispenser = MockFlakyDispenser(
-        adapter.node(), flaky_dispenser_name);
-  auto flaky_future = flaky_dispenser.success_promise.get_future();
-
   const std::string quiet_dispenser_name = "quiet";
   auto quiet_dispenser = MockQuietDispenser(
         adapter.node(), quiet_dispenser_name);
   auto quiet_future = quiet_dispenser.success_promise.get_future();
+
+  const std::string flaky_dispenser_name = "flaky";
+  auto flaky_dispenser = MockFlakyDispenser(
+        adapter.node(), flaky_dispenser_name);
+  auto flaky_future = flaky_dispenser.success_promise.get_future();
 
   adapter.start();
 
@@ -473,13 +375,12 @@ SCENARIO("Test Delivery")
   REQUIRE(flaky_future.get());
 
   const auto& visits = robot_cmd->visited_wps();
-  CHECK(visits.size() == 6);
+  CHECK(visits.size() == 5);
   CHECK(visits.count(0));
   CHECK(visits.count(5));
   CHECK(visits.count(6));
   CHECK(visits.count(7));
   CHECK(visits.count(8));
-  CHECK(visits.count(10));
 
   const auto completed_status = completed_future.wait_for(5s);
   REQUIRE(completed_status == std::future_status::ready);

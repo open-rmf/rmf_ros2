@@ -18,6 +18,8 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__AGV__INTERNAL_FLEETUPDATEHANDLE_HPP
 #define SRC__RMF_FLEET_ADAPTER__AGV__INTERNAL_FLEETUPDATEHANDLE_HPP
 
+#include <rmf_task_msgs/msg/loop.hpp>
+
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 
 #include "Node.hpp"
@@ -136,6 +138,15 @@ public:
     rmf_utils::optional<rmf_traffic::agv::Plan::Start> finish;
   };
 
+  struct LoopEstimate
+  {
+    rmf_traffic::Time time = rmf_traffic::Time::max();
+    RobotContextPtr robot = nullptr;
+    rmf_utils::optional<rmf_traffic::agv::Plan::Start> init_start;
+    rmf_utils::optional<rmf_traffic::agv::Plan::Start> loop_start;
+    rmf_utils::optional<rmf_traffic::agv::Plan::Start> loop_end;
+  };
+
   static Implementation& get(FleetUpdateHandle& fleet)
   {
     return *fleet._pimpl;
@@ -150,13 +161,26 @@ public:
   rmf_utils::optional<DeliveryEstimate> estimate_delivery(
       const rmf_task_msgs::msg::Delivery& request) const;
 
-  void perform_delivery(const rmf_task_msgs::msg::Delivery& request,
+  void perform_delivery(
+      const rmf_task_msgs::msg::Delivery& request,
       const DeliveryEstimate& estimate);
+
+  rmf_utils::optional<LoopEstimate> estimate_loop(
+      const rmf_task_msgs::msg::Loop& request) const;
+
+  void perform_loop(
+      const rmf_task_msgs::msg::Loop& request,
+      const LoopEstimate& estimate);
 };
 
 //==============================================================================
 void request_delivery(
     const rmf_task_msgs::msg::Delivery& request,
+    const std::vector<std::shared_ptr<FleetUpdateHandle>>& fleets);
+
+//==============================================================================
+void request_loop(
+    const rmf_task_msgs::msg::Loop& request,
     const std::vector<std::shared_ptr<FleetUpdateHandle>>& fleets);
 
 } // namespace agv

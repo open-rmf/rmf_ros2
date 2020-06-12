@@ -338,8 +338,12 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
 
       if (it->event())
       {
-        sub_phases.push_back(
-            std::make_unique<MoveRobot::PendingPhase>(_context, move_through));
+        if (move_through.size() > 1)
+        {
+          sub_phases.push_back(
+              std::make_unique<MoveRobot::PendingPhase>(
+                  _context, move_through));
+        }
 
         move_through.clear();
 
@@ -351,13 +355,19 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
       }
     }
 
+    if (move_through.size() > 1)
+    {
+      /// If we have more than one waypoint to move through, then create a
+      /// moving phase.
+      sub_phases.push_back(
+          std::make_unique<MoveRobot::PendingPhase>(_context, move_through));
+    }
+
     if (!move_through.empty())
     {
       // If we made it into this if-statement, then we have reached the end of
       // the waypoints, because otherwise an event would have interrupted the
       // for-loop and cleared out the move_through sequence.
-      sub_phases.push_back(
-          std::make_unique<MoveRobot::PendingPhase>(_context, move_through));
       waypoints.clear();
     }
   }

@@ -22,6 +22,7 @@
 #include <rclcpp/node.hpp>
 
 #include <rmf_task_msgs/msg/delivery.hpp>
+#include <rmf_task_msgs/msg/loop.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -60,6 +61,9 @@ public:
 
   /// Submit a delivery request
   void request_delivery(const rmf_task_msgs::msg::Delivery& request);
+
+  /// Submit a loop request
+  void request_loop(const rmf_task_msgs::msg::Loop& request);
 
   class Implementation;
 private:
