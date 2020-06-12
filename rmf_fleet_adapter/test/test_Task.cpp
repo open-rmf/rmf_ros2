@@ -170,7 +170,9 @@ public:
 
   using PendingPhases = rmf_fleet_adapter::Task::PendingPhases;
 
-  class Active : public rmf_fleet_adapter::Task::ActivePhase
+  class Active
+      : public rmf_fleet_adapter::Task::ActivePhase,
+        public std::enable_shared_from_this<Active>
   {
   public:
 
@@ -183,18 +185,16 @@ public:
 
     void begin()
     {
-      auto phase = std::static_pointer_cast<Active>(shared_from_this());
-
       _subscription = _subtasks->observe()
           .observe_on(rxcpp::observe_on_event_loop())
           .subscribe(
-            [weak = std::weak_ptr<MockSubtaskPhase::Active>(phase)](
+            [weak = weak_from_this()](
             const StatusMsg& msg)
             {
               if (const auto phase = weak.lock())
                 phase->_status_publisher.get_subscriber().on_next(msg);
             },
-            [weak = std::weak_ptr<MockSubtaskPhase::Active>(phase)]()
+            [weak = weak_from_this()]()
             {
               if (const auto phase = weak.lock())
                 phase->_status_publisher.get_subscriber().on_completed();

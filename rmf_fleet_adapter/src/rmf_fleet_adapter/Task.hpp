@@ -44,7 +44,7 @@ public:
   /// The ActivePhase class must be a schedule Negotiator so that it can
   /// negotiate its way out of conflicts with other schedule participants to
   /// complete its work.
-  class ActivePhase : public std::enable_shared_from_this<ActivePhase>
+  class ActivePhase
   {
   public:
 
