@@ -30,37 +30,48 @@ namespace phases {
 
 struct RequestLift
 {
-  class Action
+  class Action : public std::enable_shared_from_this<Action>
+  {
+  public:
+
+    static std::shared_ptr<Action> make(
+      std::string requester_id,
+      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+      std::string lift_name,
+      std::string destination,
+      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
+      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub);
+
+    inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
     {
-    public:
+      return _obs;
+    }
 
-      Action(
-        std::string requester_id,
-        const std::shared_ptr<rmf_rxcpp::Transport>& transport,
-        std::string lift_name,
-        std::string destination,
-        rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
-        rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub);
+  private:
 
-      inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
-      {
-        return _obs;
-      }
+    std::weak_ptr<rmf_rxcpp::Transport> _transport;
+    std::string _lift_name;
+    std::string _destination;
+    rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> _lift_state_obs;
+    rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr _publisher;
+    rxcpp::observable<Task::StatusMsg> _obs;
+    std::string _session_id;
+    rclcpp::TimerBase::SharedPtr _timer;
 
-    private:
+    Action(
+      std::string requester_id,
+      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+      std::string lift_name,
+      std::string destination,
+      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
+      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub);
 
-      std::weak_ptr<rmf_rxcpp::Transport> _transport;
-      std::string _lift_name;
-      std::string _destination;
-      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> _lift_state_obs;
-      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr _publisher;
-      rxcpp::observable<Task::StatusMsg> _obs;
-      std::string _session_id;
-      rclcpp::TimerBase::SharedPtr _timer;
+    void _init_obs();
 
-      Task::StatusMsg _get_status(const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
-      void _do_publish(const rclcpp::Node::SharedPtr& node);
-    };
+    Task::StatusMsg _get_status(const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
+
+    void _do_publish(const rclcpp::Node::SharedPtr& node);
+  };
 
   class ActivePhase : public Task::ActivePhase
   {
@@ -91,7 +102,7 @@ struct RequestLift
     std::string _destination;
     rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> _lift_state_obs;
     std::string _description;
-    Action _action;
+    std::shared_ptr<Action> _action;
   };
 
   class PendingPhase : public Task::PendingPhase

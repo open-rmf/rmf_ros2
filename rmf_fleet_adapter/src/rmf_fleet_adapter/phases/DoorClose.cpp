@@ -24,43 +24,22 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-DoorClose::ActivePhase::ActivePhase(
+std::shared_ptr<DoorClose::ActivePhase> DoorClose::ActivePhase::make(
   std::string door_name,
   std::string request_id,
   const std::shared_ptr<rmf_rxcpp::Transport>& transport,
   rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
   rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub)
-  : _door_name{std::move(door_name)},
-    _request_id{std::move(request_id)},
-    _transport{transport},
-    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
-    _door_req_pub(std::move(door_request_pub))
 {
-  _description = "Closing door \"" + _door_name + "\"";
-
-  using rmf_door_msgs::msg::DoorRequest;
-  using rmf_door_msgs::msg::SupervisorHeartbeat;
-  _obs = _supervisor_heartbeat_obs
-    .lift<SupervisorHeartbeat::SharedPtr>(on_subscribe([this, transport]()
-    {
-      _status.state = Task::StatusMsg::STATE_ACTIVE;
-      _publish_close_door(transport);
-      _timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [this, transport]()
-      {
-        _publish_close_door(transport);
-      });
-    }))
-    .map([this](const auto& heartbeat)
-    {
-      _update_status(heartbeat);
-      return _status;
-    })
-    .lift<Task::StatusMsg>(grab_while_active())
-    .finally([this]()
-    {
-      if (_timer)
-        _timer.reset();
-    });
+  auto inst = std::shared_ptr<ActivePhase>(new ActivePhase(
+    std::move(door_name),
+    std::move(request_id),
+    transport,
+    std::move(supervisor_heartbeat_obs),
+    std::move(door_request_pub)
+  ));
+  inst->_init_obs();
+  return inst;
 }
 
 //==============================================================================
@@ -96,6 +75,55 @@ const std::string& DoorClose::ActivePhase::description() const
 }
 
 //==============================================================================
+void DoorClose::ActivePhase::_init_obs()
+{
+  auto transport = _transport.lock();
+  if (!transport)
+    throw std::runtime_error("invalid transport");
+
+  using rmf_door_msgs::msg::DoorRequest;
+  using rmf_door_msgs::msg::SupervisorHeartbeat;
+  _obs = _supervisor_heartbeat_obs
+    .lift<SupervisorHeartbeat::SharedPtr>(on_subscribe([weak = weak_from_this(), transport]()
+    {
+      auto me = weak.lock();
+      if (!me)
+        return;
+
+      me->_status.state = Task::StatusMsg::STATE_ACTIVE;
+      me->_publish_close_door(transport);
+      me->_timer = transport->create_wall_timer(
+        std::chrono::milliseconds(1000),
+        [weak, transport]()
+        {
+          auto me = weak.lock();
+          if (!me)
+            return;
+
+          me->_publish_close_door(transport);
+        });
+    }))
+    .map([weak = weak_from_this()](const auto& heartbeat)
+    {
+      auto me = weak.lock();
+      if (!me)
+        throw std::runtime_error("invalid state");
+
+      me->_update_status(heartbeat);
+      return me->_status;
+    })
+    .lift<Task::StatusMsg>(grab_while_active())
+    .finally([weak = weak_from_this()]()
+    {
+      auto me = weak.lock();
+      if (!me)
+        return;
+
+      me->_timer.reset();
+    });
+}
+
+//==============================================================================
 void DoorClose::ActivePhase::_publish_close_door(const rclcpp::Node::SharedPtr& node)
 {
   rmf_door_msgs::msg::DoorRequest msg{};
@@ -115,6 +143,22 @@ void DoorClose::ActivePhase::_update_status(
     _status.status = "success";
     _status.state = Task::StatusMsg::STATE_COMPLETED;
   }
+}
+
+//==============================================================================
+DoorClose::ActivePhase::ActivePhase(
+  std::string door_name,
+  std::string request_id,
+  const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+  rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub)
+  : _door_name{std::move(door_name)},
+    _request_id{std::move(request_id)},
+    _transport{transport},
+    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
+    _door_req_pub(std::move(door_request_pub))
+{
+  _description = "Closing door \"" + _door_name + "\"";
 }
 
 //==============================================================================
@@ -140,7 +184,7 @@ std::shared_ptr<Task::ActivePhase> DoorClose::PendingPhase::begin()
   if (!transport)
     throw std::runtime_error("invalid transport state");
 
-  return std::make_shared<DoorClose::ActivePhase>(
+  return DoorClose::ActivePhase::make(
     _door_name,
     _request_id,
     transport,

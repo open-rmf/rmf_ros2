@@ -26,6 +26,27 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
+std::shared_ptr<DoorOpen::ActivePhase> DoorOpen::ActivePhase::make(
+  std::string door_name,
+  std::string request_id,
+  const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+  rxcpp::observable<rmf_door_msgs::msg::DoorState::SharedPtr> door_state_obs,
+  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+  rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub)
+{
+  auto inst = std::shared_ptr<ActivePhase>(new ActivePhase(
+    std::move(door_name),
+    std::move(request_id),
+    transport,
+    std::move(door_state_obs),
+    std::move(supervisor_heartbeat_obs),
+    std::move(door_request_pub)
+  ));
+  inst->_init_obs();
+  return inst;
+}
+
+//==============================================================================
 DoorOpen::ActivePhase::ActivePhase(
   std::string door_name,
   std::string request_id,
@@ -38,54 +59,9 @@ DoorOpen::ActivePhase::ActivePhase(
     _transport{transport},
     _door_state_obs{std::move(door_state_obs)},
     _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
-    _door_req_pub(std::move(door_request_pub)),
-    _door_close_phase{
-      _door_name,
-      _request_id,
-      transport,
-      _supervisor_heartbeat_obs,
-      _door_req_pub
-    }
+    _door_req_pub(std::move(door_request_pub))
 {
   _description = "Opening door \"" + _door_name + "\"";
-
-  using rmf_door_msgs::msg::DoorRequest;
-  using rmf_door_msgs::msg::DoorState;
-  using rmf_door_msgs::msg::SupervisorHeartbeat;
-  using CombinedType = std::tuple<DoorState::SharedPtr, SupervisorHeartbeat::SharedPtr>;
-  _obs = _door_state_obs.combine_latest(rxcpp::observe_on_event_loop(), _supervisor_heartbeat_obs)
-    .lift<CombinedType>(on_subscribe([this, transport]()
-    {
-      _status.state = Task::StatusMsg::STATE_ACTIVE;
-      _publish_open_door(transport);
-      _timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [this, transport]()
-      {
-        _publish_open_door(transport);
-      });
-    }))
-    .map([this](const auto& v)
-    {
-      _update_status(std::get<0>(v), std::get<1>(v));
-      return _status;
-    })
-    .lift<Task::StatusMsg>(grab_while_active())
-    .finally([this]()
-    {
-      if (_timer)
-        _timer.reset();
-    })
-    // When the phase is cancelled, queue a door close phase to make sure that there is no hanging
-    // open doors
-    .take_until(_cancelled.get_observable().filter([](auto b) { return b; }))
-    .concat(rxcpp::observable<>::create<Task::StatusMsg>(
-      [this](const auto& s)
-      {
-        // FIXME: is this thread-safe?
-        if (!_cancelled.get_value())
-          s.on_completed();
-        else
-          _door_close_phase.observe().subscribe(s);
-      }));
 }
 
 //==============================================================================
@@ -117,6 +93,83 @@ void DoorOpen::ActivePhase::cancel()
 const std::string& DoorOpen::ActivePhase::description() const
 {
   return _description;
+}
+
+//==============================================================================
+void DoorOpen::ActivePhase::_init_obs()
+{
+  auto transport = _transport.lock();
+  if (!transport)
+    throw std::runtime_error("invalid transport");
+
+  using rmf_door_msgs::msg::DoorRequest;
+  using rmf_door_msgs::msg::DoorState;
+  using rmf_door_msgs::msg::SupervisorHeartbeat;
+  using CombinedType = std::tuple<DoorState::SharedPtr, SupervisorHeartbeat::SharedPtr>;
+  _obs = _door_state_obs.combine_latest(rxcpp::observe_on_event_loop(), _supervisor_heartbeat_obs)
+    .lift<CombinedType>(on_subscribe([weak = weak_from_this(), transport]()
+    {
+      auto me = weak.lock();
+      if (!me)
+        return;
+
+      me->_status.state = Task::StatusMsg::STATE_ACTIVE;
+      me->_publish_open_door(transport);
+      me->_timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [weak, transport]()
+      {
+        auto me = weak.lock();
+        if (!me)
+          return;
+
+        me->_publish_open_door(transport);
+      });
+    }))
+    .map([weak = weak_from_this()](const auto& v)
+    {
+      auto me = weak.lock();
+      if (!me)
+        throw std::runtime_error("invalid state");
+
+      me->_update_status(std::get<0>(v), std::get<1>(v));
+      return me->_status;
+    })
+    .lift<Task::StatusMsg>(grab_while_active())
+    .finally([weak = weak_from_this()]()
+    {
+      auto me = weak.lock();
+      if (!me)
+        return;
+
+      me->_timer.reset();
+    })
+    // When the phase is cancelled, queue a door close phase to make sure that there is no hanging
+    // open doors
+    .take_until(_cancelled.get_observable().filter([](auto b) { return b; }))
+    .concat(rxcpp::observable<>::create<Task::StatusMsg>(
+      [weak = weak_from_this()](const auto& s)
+      {
+        auto me = weak.lock();
+        if (!me)
+          return;
+
+        // FIXME: is this thread-safe?
+        if (!me->_cancelled.get_value())
+          s.on_completed();
+        else
+        {
+          auto transport = me->_transport.lock();
+          if (!transport)
+            throw std::runtime_error("invalid transport");
+          me->_door_close_phase = DoorClose::ActivePhase::make(
+            me->_door_name,
+            me->_request_id,
+            transport,
+            me->_supervisor_heartbeat_obs,
+            me->_door_req_pub
+          );
+          me->_door_close_phase->observe().subscribe(s);
+        }
+      }));
 }
 
 //==============================================================================
@@ -170,7 +223,7 @@ std::shared_ptr<Task::ActivePhase> DoorOpen::PendingPhase::begin()
   if (!transport)
     throw std::runtime_error("invalid transport state");
 
-  return std::make_shared<DoorOpen::ActivePhase>(
+  return ActivePhase::make(
     _door_name,
     _request_id,
     transport,
