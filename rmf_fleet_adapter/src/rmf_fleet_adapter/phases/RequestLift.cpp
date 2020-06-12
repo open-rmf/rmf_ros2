@@ -22,6 +22,27 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
+std::shared_ptr<RequestLift::Action> RequestLift::Action::make(
+  std::string requester_id,
+  const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+  std::string lift_name,
+  std::string destination,
+  rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
+  rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub)
+{
+  auto inst = std::shared_ptr<Action>(new Action(
+    std::move(requester_id),
+    transport,
+    std::move(lift_name),
+    std::move(destination),
+    std::move(lift_state_obs),
+    std::move(lift_request_pub)
+  ));
+  inst->_init_obs();
+  return inst;
+}
+
+//==============================================================================
 RequestLift::Action::Action(
   std::string requester_id,
   const std::shared_ptr<rmf_rxcpp::Transport>& transport,
@@ -36,28 +57,56 @@ RequestLift::Action::Action(
     _publisher{std::move(lift_request_pub)},
     _session_id{std::move(requester_id)}
 {
+  // no op
+}
+
+//==============================================================================
+void RequestLift::Action::_init_obs()
+{
+  auto transport = _transport.lock();
+  if (!transport)
+    throw std::runtime_error("invalid transport");
+
   using rmf_lift_msgs::msg::LiftState;
 
   _obs = _lift_state_obs
-    .lift<LiftState::SharedPtr>(on_subscribe([this, transport]()
+    .lift<LiftState::SharedPtr>(on_subscribe([weak = weak_from_this(), transport]()
     {
-      _do_publish(transport);
-      _timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [this, transport]()
-      {
-        _do_publish(transport);
-      });
+      auto me = weak.lock();
+      if (!me)
+        return;
+
+      me->_do_publish(transport);
+      me->_timer = transport->create_wall_timer(
+        std::chrono::milliseconds(1000),
+        [weak, transport]()
+        {
+          auto me = weak.lock();
+          if (!me)
+            return;
+
+          me->_do_publish(transport);
+        });
     }))
-    .map([this](const auto& v)
+    .map([weak = weak_from_this()](const auto& v)
     {
-      return _get_status(v);
+      auto me = weak.lock();
+      if (!me)
+        throw std::runtime_error("invalid state");
+
+      return me->_get_status(v);
     })
-    .lift<Task::StatusMsg>(grab_while([this](const Task::StatusMsg& status)
+    .lift<Task::StatusMsg>(grab_while([weak = weak_from_this()](const Task::StatusMsg& status)
     {
+      auto me = weak.lock();
+      if (!me)
+        return false;
+
       if (
         status.state == Task::StatusMsg::STATE_COMPLETED ||
         status.state == Task::StatusMsg::STATE_FAILED)
       {
-        _timer.reset();
+        me->_timer.reset();
         return false;
       }
       return true;
@@ -105,13 +154,13 @@ RequestLift::ActivePhase::ActivePhase(
     _lift_name{std::move(lift_name)},
     _destination{std::move(destination)},
     _lift_state_obs{std::move(lift_state_obs)},
-    _action{
+    _action{RequestLift::Action::make(
       std::move(requester_id),
       transport,
       _lift_name,
       _destination,
       _lift_state_obs,
-      std::move(lift_request_pub)
+      std::move(lift_request_pub))
     }
 {
   std::ostringstream oss;
@@ -123,7 +172,7 @@ RequestLift::ActivePhase::ActivePhase(
 //==============================================================================
 const rxcpp::observable<Task::StatusMsg>& RequestLift::ActivePhase::observe() const
 {
-  return _action.get_observable();
+  return _action->get_observable();
 }
 
 //==============================================================================

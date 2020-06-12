@@ -32,11 +32,11 @@ namespace phases {
 
 struct DispenseItem
 {
-  class Action
+  class Action : public std::enable_shared_from_this<Action>
   {
   public:
 
-    Action(
+    static std::shared_ptr<Action> make(
       const std::shared_ptr<rmf_rxcpp::Transport>& transport,
       std::string request_guid,
       std::string target,
@@ -64,6 +64,19 @@ struct DispenseItem
     rxcpp::observable<Task::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
     bool _request_acknowledged = false;
+    builtin_interfaces::msg::Time _last_msg;
+
+    Action(
+      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+      std::string request_guid,
+      std::string target,
+      std::string transporter_type,
+      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
+      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
+      rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub);
+
+    void _init_obs();
 
     Task::StatusMsg _get_status(
       const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result,
@@ -106,7 +119,7 @@ struct DispenseItem
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> _result_obs;
     rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> _state_obs;
     std::string _description;
-    Action _action;
+    std::shared_ptr<Action> _action;
   };
 
   class PendingPhase : public Task::PendingPhase

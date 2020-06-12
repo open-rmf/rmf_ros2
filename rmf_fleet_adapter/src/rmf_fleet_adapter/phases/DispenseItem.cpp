@@ -16,12 +16,13 @@
 */
 
 #include "DispenseItem.hpp"
+#include "Utils.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-DispenseItem::Action::Action(
+std::shared_ptr<DispenseItem::Action> DispenseItem::Action::make(
   const std::shared_ptr<rmf_rxcpp::Transport>& transport,
   std::string request_guid,
   std::string target,
@@ -30,15 +31,28 @@ DispenseItem::Action::Action(
   rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
   rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
   rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub)
-  : _transport{transport},
-    _request_guid{std::move(request_guid)},
-    _target{std::move(target)},
-    _transporter_type{std::move(transporter_type)},
-    _items{std::move(items)},
-    _result_obs{std::move(result_obs)},
-    _state_obs{std::move(state_obs)},
-    _request_pub{std::move(request_pub)}
 {
+  auto inst = std::shared_ptr<Action>(new Action(
+    transport,
+    std::move(request_guid),
+    std::move(target),
+    std::move(transporter_type),
+    std::move(items),
+    std::move(result_obs),
+    std::move(state_obs),
+    std::move(request_pub)
+  ));
+  inst->_init_obs();
+  return inst;
+}
+
+//==============================================================================
+void DispenseItem::Action::_init_obs()
+{
+  auto transport = _transport.lock();
+  if (!transport)
+    throw std::runtime_error("invalid transport");
+
   using rmf_dispenser_msgs::msg::DispenserResult;
   using rmf_dispenser_msgs::msg::DispenserState;
   using CombinedType = std::tuple<DispenserResult::SharedPtr, DispenserState::SharedPtr>;
@@ -47,23 +61,39 @@ DispenseItem::Action::Action(
     .combine_latest(
       rxcpp::observe_on_event_loop(),
       _state_obs.start_with(std::shared_ptr<DispenserState>(nullptr)))
-    .lift<CombinedType>(on_subscribe([this, transport]()
+    .lift<CombinedType>(on_subscribe([weak = weak_from_this(), transport]()
     {
-      _do_publish();
-      _timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [this]()
+      auto me = weak.lock();
+      if (!me)
+        return;
+
+      me->_do_publish();
+      me->_timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [weak]()
       {
-        _do_publish();
+        auto me = weak.lock();
+        if (!me)
+          return;
+
+        me->_do_publish();
       });
     }))
-    .map([this](const auto& v)
+    .map([weak = weak_from_this()](const auto& v)
     {
-      return _get_status(std::get<0>(v), std::get<1>(v));
+      auto me = weak.lock();
+      if (!me)
+        throw std::runtime_error("invalid state");
+
+      return me->_get_status(std::get<0>(v), std::get<1>(v));
     })
     .lift<Task::StatusMsg>(grab_while_active())
-    .finally([this]()
+    .finally([weak = weak_from_this()]()
     {
-      if (_timer)
-        _timer.reset();
+      auto me = weak.lock();
+      if (!me)
+        return;
+
+      if (me->_timer)
+        me->_timer.reset();
     });
 }
 
@@ -76,8 +106,11 @@ Task::StatusMsg DispenseItem::Action::_get_status(
   status.state = Task::StatusMsg::STATE_ACTIVE;
 
   using rmf_dispenser_msgs::msg::DispenserResult;
-  if (dispenser_result && dispenser_result->request_guid == _request_guid)
+  if (dispenser_result
+    && dispenser_result->request_guid == _request_guid
+    && is_newer(dispenser_result->time, _last_msg))
   {
+    _last_msg = dispenser_result->time;
     switch (dispenser_result->status)
     {
       case DispenserResult::ACKNOWLEDGED:
@@ -92,8 +125,11 @@ Task::StatusMsg DispenseItem::Action::_get_status(
     }
   }
 
-  if (dispenser_state && dispenser_state->guid == _target)
+  if (dispenser_state
+    && dispenser_state->guid == _target
+    && is_newer(dispenser_state->time, _last_msg))
   {
+    _last_msg = dispenser_state->time;
     if (!_request_acknowledged)
     {
       _request_acknowledged = std::find(
@@ -115,6 +151,28 @@ Task::StatusMsg DispenseItem::Action::_get_status(
   }
 
   return status;
+}
+
+//==============================================================================
+DispenseItem::Action::Action(
+  const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+  std::string request_guid,
+  std::string target,
+  std::string transporter_type,
+  std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
+  rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
+  rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub)
+  : _transport{transport},
+    _request_guid{std::move(request_guid)},
+    _target{std::move(target)},
+    _transporter_type{std::move(transporter_type)},
+    _items{std::move(items)},
+    _result_obs{std::move(result_obs)},
+    _state_obs{std::move(state_obs)},
+    _request_pub{std::move(request_pub)}
+{
+  // no op
 }
 
 //==============================================================================
@@ -145,7 +203,7 @@ DispenseItem::ActivePhase::ActivePhase(
     _items{std::move(dispenser_items)},
     _result_obs{std::move(result_obs)},
     _state_obs{std::move(state_obs)},
-    _action{
+    _action{DispenseItem::Action::make(
       transport,
       _request_guid,
       _target,
@@ -153,7 +211,7 @@ DispenseItem::ActivePhase::ActivePhase(
       _items,
       _result_obs,
       _state_obs,
-      std::move(request_pub)}
+      std::move(request_pub))}
 {
   std::ostringstream oss;
   oss << "Dispense items (";
@@ -171,7 +229,7 @@ DispenseItem::ActivePhase::ActivePhase(
 //==============================================================================
 const rxcpp::observable<Task::StatusMsg>& DispenseItem::ActivePhase::observe() const
 {
-  return _action.get_observable();
+  return _action->get_observable();
 }
 
 //==============================================================================

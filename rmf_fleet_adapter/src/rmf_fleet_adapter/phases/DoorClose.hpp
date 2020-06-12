@@ -37,11 +37,11 @@ struct DoorClose
    * 3. It is completed when the supervisor state does NOT contains the requester_id, regardless of the door state
    * 4. Cancellation requests are ignored
    */
-  class ActivePhase : public Task::ActivePhase
+  class ActivePhase : public Task::ActivePhase, public std::enable_shared_from_this<ActivePhase>
   {
   public:
 
-    ActivePhase(
+    static std::shared_ptr<ActivePhase> make(
       std::string door_name,
       std::string request_id,
       const std::shared_ptr<rmf_rxcpp::Transport>& transport,
@@ -69,6 +69,15 @@ struct DoorClose
     rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _door_req_pub;
     rclcpp::TimerBase::SharedPtr _timer;
     Task::StatusMsg _status;
+
+    ActivePhase(
+      std::string door_name,
+      std::string request_id,
+      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
+      rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub);
+
+    void _init_obs();
 
     void _publish_close_door(const rclcpp::Node::SharedPtr& node);
 
