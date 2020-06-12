@@ -25,19 +25,13 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-Task::Task(std::string id, std::vector<std::unique_ptr<PendingPhase>> phases)
-  : _id(std::move(id)),
-    _pending_phases(std::move(phases))
-{
-  _status_obs = _status_publisher.get_observable();
-  std::reverse(_pending_phases.begin(), _pending_phases.end());
-}
-
-//==============================================================================
 std::shared_ptr<Task> Task::make(
-    std::string id, PendingPhases phases)
+    std::string id,
+    PendingPhases phases,
+    rxcpp::schedulers::worker worker)
 {
-  return std::make_shared<Task>(Task(std::move(id), std::move(phases)));
+  return std::make_shared<Task>(
+        Task(std::move(id), std::move(phases), std::move(worker)));
 }
 
 //==============================================================================
@@ -85,6 +79,19 @@ const std::string& Task::id() const
 }
 
 //==============================================================================
+Task::Task(
+    std::string id,
+    std::vector<std::unique_ptr<PendingPhase>> phases,
+    rxcpp::schedulers::worker worker)
+  : _id(std::move(id)),
+    _pending_phases(std::move(phases)),
+    _worker(std::move(worker))
+{
+  _status_obs = _status_publisher.get_observable();
+  std::reverse(_pending_phases.begin(), _pending_phases.end());
+}
+
+//==============================================================================
 void Task::_start_next_phase()
 {
   if (_pending_phases.empty())
@@ -92,6 +99,7 @@ void Task::_start_next_phase()
     // All phases are now complete
     _active_phase = nullptr;
     _active_phase_subscription.unsubscribe();
+    std::cout << "On completed for [" << _id << "]" << std::endl;
     _status_publisher.get_subscriber().on_completed();
 
     return;
@@ -101,7 +109,7 @@ void Task::_start_next_phase()
   _pending_phases.pop_back();
   _active_phase_subscription =
       _active_phase->observe()
-      .observe_on(rxcpp::observe_on_event_loop())
+      .observe_on(rxcpp::identity_same_worker(_worker))
       .subscribe(
         [w = weak_from_this()](
         const rmf_task_msgs::msg::TaskSummary& msg)
@@ -153,6 +161,16 @@ void Task::_start_next_phase()
           if (!task)
             return;
 
+          if (task->pending_phases().empty())
+          {
+            std::cout << "Finished last phase for [" << task->_id << "]" << std::endl;
+          }
+          else
+          {
+            std::cout << "Starting next phase for [" << task->_id
+                      << "]: " << task->_pending_phases.back()->description()
+                      << " | Remaining: " << task->_pending_phases.size() << std::endl;
+          }
           // We have received a completion notice from the phase
           task->_start_next_phase();
         });

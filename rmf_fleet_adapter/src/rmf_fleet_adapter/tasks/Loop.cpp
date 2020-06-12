@@ -61,7 +61,7 @@ std::shared_ptr<Task> make_loop(
           phases::GoToPlace::make(context, loop_start, end_wp));
   }
 
-  return Task::make(request.task_id, std::move(phases));
+  return Task::make(request.task_id, std::move(phases), context->worker());
 }
 
 } // namespace tasks

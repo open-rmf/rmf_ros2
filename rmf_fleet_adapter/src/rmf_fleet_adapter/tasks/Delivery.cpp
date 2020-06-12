@@ -69,7 +69,7 @@ std::shared_ptr<Task> make_delivery(
           node->dispenser_state(),
           node->dispenser_request()));
 
-  return Task::make(request.task_id, std::move(phases));
+  return Task::make(request.task_id, std::move(phases), context->worker());
 }
 
 } // namespace task

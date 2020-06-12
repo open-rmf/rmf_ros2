@@ -28,7 +28,8 @@ MoveRobot::ActivePhase::ActivePhase(
   : _context{std::move(context)}
 {
   std::ostringstream oss;
-  oss << "Moving robot (" << waypoints.front().position().transpose()
+  oss << "Moving [" << _context->requester_id() << "]: ("
+      << waypoints.front().position().transpose()
       << ") -> (" << waypoints.back().position().transpose() << ")";
   _description = oss.str();
 
@@ -80,7 +81,8 @@ MoveRobot::PendingPhase::PendingPhase(
     _waypoints{std::move(waypoints)}
 {
   std::ostringstream oss;
-  oss << "Move robot to (" << _waypoints.back().position().transpose() << ")";
+  oss << "Move [" << _context->requester_id() << "] to ("
+      << _waypoints.back().position().transpose() << ")";
   _description = oss.str();
 }
 

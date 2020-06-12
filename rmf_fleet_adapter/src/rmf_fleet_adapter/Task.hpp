@@ -94,7 +94,9 @@ public:
 
   // Make a new task
   static std::shared_ptr<Task> make(
-      std::string id, PendingPhases phases);
+      std::string id,
+      PendingPhases phases,
+      rxcpp::schedulers::worker worker);
 
   void begin();
 
@@ -117,18 +119,24 @@ public:
 
 private:
 
-  Task(std::string id, PendingPhases phases);
+  Task(
+      std::string id,
+      PendingPhases phases,
+      rxcpp::schedulers::worker worker);
 
   std::string _id;
-  rxcpp::subjects::subject<StatusMsg> _status_publisher;
-  rxcpp::observable<StatusMsg> _status_obs;
-
-  std::shared_ptr<ActivePhase> _active_phase;
-  rxcpp::subscription _active_phase_subscription;
 
   // NOTE(MXG): Pending phases are stored in reverse order so we can simply
   // pop_back() to snatch the next phase.
   std::vector<std::unique_ptr<PendingPhase>> _pending_phases;
+  std::shared_ptr<ActivePhase> _active_phase;
+
+  rxcpp::schedulers::worker _worker;
+
+  rxcpp::subjects::subject<StatusMsg> _status_publisher;
+  rxcpp::observable<StatusMsg> _status_obs;
+
+  rxcpp::subscription _active_phase_subscription;
 
   rmf_utils::optional<builtin_interfaces::msg::Time> _initial_time;
 

@@ -101,7 +101,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 {
   _context->command()->follow_new_path(
         _waypoints,
-        [s, w_action = weak_from_this()](
+        [s, w_action = weak_from_this(), r = _context->requester_id()](
         std::size_t path_index, rmf_traffic::Duration estimate)
   {
     const auto action = w_action.lock();
@@ -117,7 +117,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       if (path_index < action->_waypoints.size())
       {
         std::ostringstream oss;
-        oss << "Moving robot ("
+        oss << "Moving [" << r << "]: ("
             << action->_waypoints[path_index].position().transpose() << ") -> ("
             << action->_waypoints.back().position().transpose() << ")";
         msg.status = oss.str();
@@ -125,7 +125,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       else
       {
         std::ostringstream oss;
-        oss << "Moving robot | ERROR: Bad state. Arrived at path index ["
+        oss << "Moving [" << r << "] | ERROR: Bad state. Arrived at path index ["
             << path_index << "] but path only has ["
             << action->_waypoints.size() << "] elements.";
         msg.status = oss.str();

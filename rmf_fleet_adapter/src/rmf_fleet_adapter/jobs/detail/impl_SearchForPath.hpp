@@ -149,7 +149,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       return;
     }
 
-    if (*_interrupt_flag)
+    if (*_interrupt_flag || r.saturated() || !r.cost_estimate())
     {
       if (_greedy_finished)
       {
@@ -184,12 +184,17 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
 
       if (*r.options().maximum_cost_estimate() < new_maximum)
       {
+        std::cout << " >> GIVING MORE TIME FOR " << _participant_id
+                  << " (" << *r.cost_estimate() << "): "
+                  << *r.options().maximum_cost_estimate()
+                  << " --> " << new_maximum << std::endl;
         // Push the maximum out a bit more and let the job try again.
         r.options().maximum_cost_estimate(new_maximum);
         result.job.resume();
         return;
       }
 
+      std::cout << " >> CALLING IT QUITS ON " << std::endl;
       // We shouldn't keep trying, because we have exceeded the cost limit, even
       // when accounting for the greedy plan cost.
       s.on_next(next);
@@ -197,6 +202,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       return;
     }
 
+    std::cout << " >> SETTING COMPLIANT TO FINISHED" << std::endl;
     // Discard the job because it can no longer produce an acceptable result.
     // The SearchForPath will continue looking for a greedy plan.
     _compliant_finished = true;

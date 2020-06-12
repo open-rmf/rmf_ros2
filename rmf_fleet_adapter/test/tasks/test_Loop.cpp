@@ -39,6 +39,8 @@
 //==============================================================================
 SCENARIO("Test loop requests")
 {
+  std::cout << " -------------------- Testing Loop -------------------------" << std::endl;
+
   rmf_fleet_adapter_test::thread_cooldown = true;
   using namespace std::chrono_literals;
 
@@ -130,13 +132,13 @@ SCENARIO("Test loop requests")
   rmf_fleet_adapter::agv::test::MockAdapter adapter(
         "test_Loop", rclcpp::NodeOptions().context(rcl_context));
 
-  const std::string task_0 = "task_0";
+  const std::string loop_0 = "loop_0";
   std::promise<bool> task_0_completed_promise;
   auto task_0_completed_future = task_0_completed_promise.get_future();
   std::size_t completed_0_count = 0;
   bool at_least_one_incomplete_task_0 = false;
 
-  const std::string task_1 = "task_1";
+  const std::string loop_1 = "loop_1";
   std::promise<bool> task_1_completed_promise;
   auto task_1_completed_future = task_1_completed_promise.get_future();
   std::size_t completed_1_count = 0;
@@ -145,22 +147,22 @@ SCENARIO("Test loop requests")
   const auto task_sub = adapter.node()->create_subscription<
       rmf_task_msgs::msg::TaskSummary>(
         rmf_fleet_adapter::TaskSummaryTopicName, rclcpp::SystemDefaultsQoS(),
-        [&task_0_completed_promise, &task_0, &at_least_one_incomplete_task_0,
+        [&task_0_completed_promise, &loop_0, &at_least_one_incomplete_task_0,
          &completed_0_count,
-         &task_1_completed_promise, &task_1, &at_least_one_incomplete_task_1,
+         &task_1_completed_promise, &loop_1, &at_least_one_incomplete_task_1,
          &completed_1_count](
         const rmf_task_msgs::msg::TaskSummary::SharedPtr msg)
   {
     if (msg->STATE_COMPLETED == msg->state)
     {
-      if (msg->task_id == task_0)
+      if (msg->task_id == loop_0)
       {
         if (completed_0_count == 0)
           task_0_completed_promise.set_value(true);
 
         ++completed_0_count;
       }
-      else if (msg->task_id == task_1)
+      else if (msg->task_id == loop_1)
       {
         if (completed_1_count == 0)
           task_1_completed_promise.set_value(true);
@@ -172,9 +174,9 @@ SCENARIO("Test loop requests")
     }
     else
     {
-      if (msg->task_id == task_0)
+      if (msg->task_id == loop_0)
         at_least_one_incomplete_task_0 = true;
-      else if (msg->task_id == task_1)
+      else if (msg->task_id == loop_1)
         at_least_one_incomplete_task_1 = true;
       else
         CHECK(false);
@@ -211,24 +213,24 @@ SCENARIO("Test loop requests")
   adapter.start();
 
   rmf_task_msgs::msg::Loop request;
-  request.task_id = task_0;
+  request.task_id = loop_0;
   request.num_loops = n_loops;
   request.robot_type = fleet_type;
   request.start_name = south;
   request.finish_name = east;
   adapter.request_loop(request);
 
-  request.task_id = task_1;
+  request.task_id = loop_1;
   request.start_name = north;
   request.finish_name = east;
   adapter.request_loop(request);
 
-  const auto task_0_completed_status = task_0_completed_future.wait_for(5s);
+  const auto task_0_completed_status = task_0_completed_future.wait_for(10s);
   REQUIRE(task_0_completed_status == std::future_status::ready);
   REQUIRE(task_0_completed_future.get());
   CHECK(at_least_one_incomplete_task_0);
 
-  const auto task_1_completed_status = task_1_completed_future.wait_for(5s);
+  const auto task_1_completed_status = task_1_completed_future.wait_for(10s);
   REQUIRE(task_1_completed_status == std::future_status::ready);
   REQUIRE(task_1_completed_future.get());
   CHECK(at_least_one_incomplete_task_1);
@@ -272,4 +274,6 @@ SCENARIO("Test loop requests")
   CHECK((visited_north(v1, n_loops) | visited_south(v1, n_loops)));
   CHECK(visited_east(v1, n_loops));
   CHECK(completed_1_count == 1);
+
+  std::cout << " -------------------- Testing Loop -------------------------" << std::endl;
 }

@@ -177,7 +177,10 @@ public:
   public:
 
     Active(PendingPhases phases)
-      : _subtasks(rmf_fleet_adapter::Task::make("subtasks", std::move(phases)))
+      : _subtasks(
+          rmf_fleet_adapter::Task::make(
+            "subtasks", std::move(phases),
+            rxcpp::schedulers::make_event_loop().create_worker()))
     {
       _desc = "subtasks";
       _status_obs = _status_publisher.get_observable();
@@ -288,7 +291,9 @@ SCENARIO("Test simple task")
   phases.push_back(std::make_unique<MockPhase::Pending>("C", count, 18, dt));
 
   std::shared_ptr<rmf_fleet_adapter::Task> task =
-      rmf_fleet_adapter::Task::make("id", std::move(phases));
+      rmf_fleet_adapter::Task::make(
+        "test_Task", std::move(phases),
+        rxcpp::schedulers::make_event_loop().create_worker());
 
   std::promise<bool> completed_promise;
   auto completed_future = completed_promise.get_future();
@@ -373,7 +378,9 @@ SCENARIO("Test nested task")
   phases.push_back(
     std::make_unique<MockSubtaskPhase::Pending>(std::move(c_phases)));
 
-  const auto task = rmf_fleet_adapter::Task::make("id", std::move(phases));
+  const auto task = rmf_fleet_adapter::Task::make(
+        "test_NestedTask", std::move(phases),
+        rxcpp::schedulers::make_event_loop().create_worker());
 
   std::promise<bool> completed_promise;
   auto completed_future = completed_promise.get_future();
