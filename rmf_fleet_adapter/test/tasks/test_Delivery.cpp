@@ -363,11 +363,11 @@ SCENARIO("Test Delivery")
 
   adapter.request_delivery(request);
 
-  const auto quiet_status = quiet_future.wait_for(60s);
+  const auto quiet_status = quiet_future.wait_for(15s);
   REQUIRE(quiet_status == std::future_status::ready);
   REQUIRE(quiet_future.get());
 
-  const auto flaky_status = flaky_future.wait_for(60s);
+  const auto flaky_status = flaky_future.wait_for(15s);
   REQUIRE(flaky_status == std::future_status::ready);
   REQUIRE(flaky_future.get());
 
@@ -380,7 +380,7 @@ SCENARIO("Test Delivery")
   CHECK(visits.count(8));
   CHECK(visits.count(10));
 
-  const auto completed_status = completed_future.wait_for(60s);
+  const auto completed_status = completed_future.wait_for(15s);
   REQUIRE(completed_status == std::future_status::ready);
   REQUIRE(completed_future.get());
   CHECK(at_least_one_incomplete);

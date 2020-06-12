@@ -99,7 +99,6 @@ void Task::_start_next_phase()
     // All phases are now complete
     _active_phase = nullptr;
     _active_phase_subscription.unsubscribe();
-    std::cout << "On completed for [" << _id << "]" << std::endl;
     _status_publisher.get_subscriber().on_completed();
 
     return;
@@ -161,16 +160,6 @@ void Task::_start_next_phase()
           if (!task)
             return;
 
-          if (task->pending_phases().empty())
-          {
-            std::cout << "Finished last phase for [" << task->_id << "]" << std::endl;
-          }
-          else
-          {
-            std::cout << "Starting next phase for [" << task->_id
-                      << "]: " << task->_pending_phases.back()->description()
-                      << " | Remaining: " << task->_pending_phases.size() << std::endl;
-          }
           // We have received a completion notice from the phase
           task->_start_next_phase();
         });

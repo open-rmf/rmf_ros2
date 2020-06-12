@@ -174,25 +174,19 @@ void GoToPlace::Active::find_plan()
         _context->planner(), _context->location(), _goal,
         _context->schedule()->snapshot(), _context->itinerary().id());
 
-  std::cout << "Searching for plan for [" << _context->requester_id() << "]" << std::endl;
   _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
         _find_path_service)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [w = weak_from_this(), r = _context->requester_id()](
+        [w = weak_from_this()](
         const services::FindPath::Result& result)
   {
     const auto phase = w.lock();
     if (!phase)
-    {
-      std::cout << " !!!! GoToPlace expired for [" << r
-                << "] before a plan was found!" << std::endl;
       return;
-    }
 
     if (!result)
     {
-      std::cout << " !!!! FAILED TO FIND PLAN FOR [" << phase->_context->requester_id() << "]" << std::endl;
       // This shouldn't happen, but let's try to handle it gracefully
       phase->_status_publisher.get_subscriber().on_error(
             std::make_exception_ptr(std::runtime_error("Cannot find a plan")));
@@ -202,20 +196,7 @@ void GoToPlace::Active::find_plan()
       return;
     }
 
-    std::cout << "Found plan for [" << r << "]" << std::endl;
     phase->execute_plan(*std::move(result));
-  },
-      [w = weak_from_this(), r= _context->requester_id()]()
-  {
-    const auto phase = w.lock();
-    if (!phase)
-    {
-      std::cout << "!!!! GoToPlace expired for [" << r
-                << "] before plan completion was triggered!" << std::endl;
-      return;
-    }
-
-    std::cout << "Plan completion given for [" << r << "]" << std::endl;
   });
 }
 
@@ -247,7 +228,6 @@ void GoToPlace::Active::find_emergency_plan()
 
     if (!result)
     {
-      std::cout << " !!!! FAILED TO FIND EMERGENCY PLAN FOR [" << phase->_context->requester_id() << "]" << std::endl;
       // This shouldn't happen, but let's try to handle it gracefully
       phase->_status_publisher.get_subscriber().on_error(
             std::make_exception_ptr(std::runtime_error("Cannot find a plan")));
@@ -403,29 +383,19 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
         [weak = weak_from_this(), r = _context->name()](const StatusMsg& msg)
         {
           if (const auto phase = weak.lock())
-          {
-            std::cout << "[" << r << "] done with subtask: " << msg.status << std::endl;
             phase->_status_publisher.get_subscriber().on_next(msg);
-          }
-          else
-            std::cout << " 1!!! LOST GoToPlace FOR [" << r << "]" << std::endl;
         },
         [weak = weak_from_this(), r = _context->name()](std::exception_ptr e)
         {
           if (const auto phase = weak.lock())
             phase->_status_publisher.get_subscriber().on_error(e);
-          else
-            std::cout << " 2!!! LOST GoToPlace FOR [" << r << "]" << std::endl;
         },
         [weak = weak_from_this(), r = _context->name()]()
         {
           if (const auto phase = weak.lock())
           {
             if (!phase->_emergency_active)
-            {
-              std::cout << "[" << r << "] completed GoToPlace: " << phase->_description << std::endl;
               phase->_status_publisher.get_subscriber().on_completed();
-            }
 
             // If an emergency is active, then eventually the alarm should get
             // turned off, which should trigger a non-emergency replanning. That
@@ -433,8 +403,6 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
             // of subtasks is complete, then we will consider this GoToPlace
             // phase to be complete.
           }
-          else
-            std::cout << " 3!!! LOST GoToPlace FOR [" << r << "]" << std::endl;
         }
    );
 

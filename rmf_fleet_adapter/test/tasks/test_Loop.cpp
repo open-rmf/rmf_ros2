@@ -39,8 +39,6 @@
 //==============================================================================
 SCENARIO("Test loop requests")
 {
-  std::cout << " -------------------- Testing Loop -------------------------" << std::endl;
-
   rmf_fleet_adapter_test::thread_cooldown = true;
   using namespace std::chrono_literals;
 
@@ -274,6 +272,4 @@ SCENARIO("Test loop requests")
   CHECK((visited_north(v1, n_loops) | visited_south(v1, n_loops)));
   CHECK(visited_east(v1, n_loops));
   CHECK(completed_1_count == 1);
-
-  std::cout << " -------------------- Testing Loop -------------------------" << std::endl;
 }

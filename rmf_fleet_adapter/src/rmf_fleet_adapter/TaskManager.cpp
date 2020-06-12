@@ -108,7 +108,6 @@ void TaskManager::_begin_next_task()
     rmf_task_msgs::msg::TaskSummary msg;
     msg.task_id = id;
     msg.state = msg.STATE_COMPLETED;
-    std::cout << "Publishing [" << id << "] completed" << std::endl;
     this->_context->node()->task_summary()->publish(msg);
 
     _begin_next_task();
