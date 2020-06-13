@@ -135,20 +135,22 @@ SCENARIO("Test loop requests")
   auto task_0_completed_future = task_0_completed_promise.get_future();
   std::size_t completed_0_count = 0;
   bool at_least_one_incomplete_task_0 = false;
+  rmf_task_msgs::msg::TaskSummary last_task_0_msg;
 
   const std::string loop_1 = "loop_1";
   std::promise<bool> task_1_completed_promise;
   auto task_1_completed_future = task_1_completed_promise.get_future();
   std::size_t completed_1_count = 0;
   bool at_least_one_incomplete_task_1 = false;
+  rmf_task_msgs::msg::TaskSummary last_task_1_msg;
 
   const auto task_sub = adapter.node()->create_subscription<
       rmf_task_msgs::msg::TaskSummary>(
         rmf_fleet_adapter::TaskSummaryTopicName, rclcpp::SystemDefaultsQoS(),
         [&task_0_completed_promise, &loop_0, &at_least_one_incomplete_task_0,
-         &completed_0_count,
+         &completed_0_count, &last_task_0_msg,
          &task_1_completed_promise, &loop_1, &at_least_one_incomplete_task_1,
-         &completed_1_count](
+         &completed_1_count, &last_task_1_msg](
         const rmf_task_msgs::msg::TaskSummary::SharedPtr msg)
   {
     if (msg->STATE_COMPLETED == msg->state)
@@ -179,6 +181,11 @@ SCENARIO("Test loop requests")
       else
         CHECK(false);
     }
+
+    if (msg->task_id == loop_0)
+      last_task_0_msg = *msg;
+    else if (msg->task_id == loop_1)
+      last_task_1_msg = *msg;
   });
 
   const std::size_t n_loops = 5;
@@ -224,14 +231,24 @@ SCENARIO("Test loop requests")
   adapter.request_loop(request);
 
   const auto task_0_completed_status = task_0_completed_future.wait_for(10s);
-  REQUIRE(task_0_completed_status == std::future_status::ready);
-  REQUIRE(task_0_completed_future.get());
+  CHECK(task_0_completed_status == std::future_status::ready);
   CHECK(at_least_one_incomplete_task_0);
+  if (task_0_completed_status != std::future_status::ready)
+  {
+    std::cout << "Last " << loop_0 << " status (" << last_task_0_msg.task_id
+              << "|" << last_task_0_msg.state << "): " << last_task_0_msg.status
+              << std::endl;
+  }
 
   const auto task_1_completed_status = task_1_completed_future.wait_for(10s);
-  REQUIRE(task_1_completed_status == std::future_status::ready);
-  REQUIRE(task_1_completed_future.get());
+  CHECK(task_1_completed_status == std::future_status::ready);
   CHECK(at_least_one_incomplete_task_1);
+  if (task_1_completed_status != std::future_status::ready)
+  {
+    std::cout << "Last " << loop_1 << " status (" << last_task_1_msg.task_id
+              << "|" << last_task_1_msg.state << "): " << last_task_1_msg.status
+              << std::endl;
+  }
 
   using VisitMap = std::unordered_map<std::size_t, std::size_t>;
   const auto visited_wp = [](std::size_t wp, const VisitMap& v, std::size_t num)

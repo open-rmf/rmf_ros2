@@ -169,6 +169,13 @@ void GoToPlace::Active::find_plan()
   if (_emergency_active)
     return find_emergency_plan();
 
+  StatusMsg msg;
+  msg.status = "Finding a plan for [" + _context->requester_id()
+      + "] to go to [" + std::to_string(_goal.waypoint()) + "]";
+  msg.start_time = _context->node()->now();
+  msg.end_time = msg.start_time;
+  _status_publisher.get_subscriber().on_next(msg);
+
   _pullover_service = nullptr;
   _find_path_service = std::make_shared<services::FindPath>(
         _context->planner(), _context->location(), _goal,
