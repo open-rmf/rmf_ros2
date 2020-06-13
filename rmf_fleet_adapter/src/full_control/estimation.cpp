@@ -31,7 +31,7 @@ void check_path_finish(rclcpp::Node* node,
   assert(wp.graph_index());
   info.last_known_wp = *wp.graph_index();
 
-  assert(_current_waypoints.size() > 2);
+  assert(info.waypoints.size() > 2);
 
   if (dist > 2.0)
   {
