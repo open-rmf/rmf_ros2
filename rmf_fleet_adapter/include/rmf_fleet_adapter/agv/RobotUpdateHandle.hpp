@@ -61,6 +61,15 @@ public:
       const std::vector<std::size_t>& lanes);
 
   /// Update the current position of the robot by specifying the x, y, yaw
+  /// position of the robot and the waypoint that it is moving towards.
+  ///
+  /// This should be used if the robot has diverged significantly from its
+  /// course but it is merging back onto a waypoint.
+  void update_position(
+      const Eigen::Vector3d& position,
+      std::size_t target_waypoint);
+
+  /// Update the current position of the robot by specifying the x, y, yaw
   /// position of the robot and what map the robot is on.
   ///
   /// \warning This function should only be used if the robot has diverged from

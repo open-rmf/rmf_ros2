@@ -15,34 +15,26 @@
  *
 */
 
-#include "TransportFixture.hpp"
+#ifndef RMF_FLEET_ADAPTER__AGV__PARSE_GRAPH_HPP
+#define RMF_FLEET_ADAPTER__AGV__PARSE_GRAPH_HPP
+
+#include <rmf_traffic/agv/Graph.hpp>
+#include <rmf_traffic/agv/VehicleTraits.hpp>
+
+#include <rmf_utils/optional.hpp>
 
 namespace rmf_fleet_adapter {
-namespace phases {
-namespace test {
+namespace agv {
 
-std::size_t TransportFixture::_node_counter = 0;
-std::size_t TransportFixture::_topic_counter = 0;
+/// Parse the graph described by a yaml file.
+///
+/// \warning This will throw a std::runtime_error if the file has a syntax
+/// error.
+rmf_traffic::agv::Graph parse_graph(
+    const std::string& filename,
+    const rmf_traffic::agv::VehicleTraits& vehicle_traits);
 
-TransportFixture::TransportFixture()
-{
-  _context = std::make_shared<rclcpp::Context>();
-  _context->init(0, nullptr);
-
-  transport = std::make_shared<rmf_rxcpp::Transport>(
-    rxcpp::schedulers::make_event_loop().create_worker(),
-    "test_transport_" + std::to_string(_node_counter++),
-    rclcpp::NodeOptions().context(_context));
-
-  transport->start();
-}
-
-TransportFixture::~TransportFixture()
-{
-  transport->stop();
-  rclcpp::shutdown(_context);
-}
-
-} // namespace test
-} // namespace phases
+} // namespace agv
 } // namespace rmf_fleet_adapter
+
+#endif // RMF_FLEET_ADAPTER__AGV__PARSE_GRAPH_HPP

@@ -39,6 +39,7 @@ class Node : public rmf_rxcpp::Transport
 public:
 
   static std::shared_ptr<Node> make(
+      rxcpp::schedulers::worker worker,
       const std::string& node_name,
       const rclcpp::NodeOptions& options);
 
@@ -80,7 +81,10 @@ public:
 
 private:
 
-  Node(const std::string& node_name, const rclcpp::NodeOptions& options);
+  Node(
+      rxcpp::schedulers::worker worker,
+      const std::string& node_name,
+      const rclcpp::NodeOptions& options);
 
   DoorStateObs _door_state_obs;
   DoorSupervisorObs _door_supervisor_obs;

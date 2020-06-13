@@ -36,11 +36,14 @@ class Transport : public rclcpp::Node
 public:
 
   explicit Transport(
+      rxcpp::schedulers::worker worker,
       const std::string& node_name,
       const rclcpp::NodeOptions& options = rclcpp::NodeOptions())
-    : rclcpp::Node{node_name, options}
+    : rclcpp::Node{node_name, options},
+      _worker{std::move(worker)},
+      _executor(_make_exec_args(options))
   {
-    // no op
+    // Do nothing
   }
 
   /**
@@ -51,15 +54,26 @@ public:
     if (!_stopping)
       return;
 
+    if (!_node_added)
+      _executor.add_node(shared_from_this());
+
     _stopping = false;
-    _spin_thread = std::thread{[this]() { _do_spin(); }};
+    _schedule_spin();
   }
 
   void stop()
   {
     _stopping = true;
-    if (_spin_thread.joinable())
-      _spin_thread.join();
+  }
+
+  std::condition_variable& spin_cv()
+  {
+    return _spin_cv;
+  }
+
+  bool still_spinning() const
+  {
+    return !_stopping && rclcpp::ok(get_node_options().context());
   }
 
   /**
@@ -86,16 +100,35 @@ private:
 
   std::thread _spin_thread;
   bool _stopping = true;
+  rxcpp::schedulers::worker _worker;
+  rclcpp::executors::SingleThreadedExecutor _executor;
+  bool _node_added = false;
+  std::condition_variable _spin_cv;
+
+  static rclcpp::executor::ExecutorArgs _make_exec_args(
+      const rclcpp::NodeOptions& options)
+  {
+    rclcpp::executor::ExecutorArgs exec_args;
+    exec_args.context = options.context();
+    return exec_args;
+  }
 
   void _do_spin()
   {
-    rclcpp::executor::ExecutorArgs exec_args;
-    exec_args.context = this->get_node_options().context();
-    rclcpp::executors::SingleThreadedExecutor executor(exec_args);
-    executor.add_node(shared_from_this());
+    _executor.spin_some();
 
-    while (!_stopping)
-      executor.spin_some();
+    if (still_spinning())
+      _schedule_spin();
+  }
+
+  void _schedule_spin()
+  {
+    _worker.schedule(
+          [w = weak_from_this()](const auto&)
+    {
+      if (const auto node = std::static_pointer_cast<Transport>(w.lock()))
+        node->_do_spin();
+    });
   }
 };
 

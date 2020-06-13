@@ -56,9 +56,7 @@ void RobotUpdateHandle::update_position(
   if (const auto context = _pimpl->get_context())
   {
     context->worker().schedule(
-          [context = std::move(context),
-           waypoint,
-           orientation](const auto&)
+          [context, waypoint, orientation](const auto&)
     {
       context->_location = {
         rmf_traffic::agv::Plan::Start(
@@ -99,6 +97,25 @@ void RobotUpdateHandle::update_position(
           [context, starts = std::move(starts)](const auto&)
     {
       context->_location = std::move(starts);
+    });
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::update_position(
+    const Eigen::Vector3d& position,
+    const std::size_t waypoint)
+{
+  if (const auto& context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+          [context, position, waypoint](const auto&)
+    {
+      context->_location = {
+        rmf_traffic::agv::Plan::Start(
+          rmf_traffic_ros2::convert(context->node()->now()),
+          waypoint, position[2], Eigen::Vector2d(position.block<2,1>(0,0)))
+      };
     });
   }
 }

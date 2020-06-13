@@ -32,8 +32,32 @@ class Adapter : public std::enable_shared_from_this<Adapter>
 {
 public:
 
+  /// Initialize an rclcpp context and make an adapter instance. This will
+  /// instantiate an rclcpp::Node and allow you to add fleets to be adapted.
+  ///
+  /// This is an easier-to-use but less customizable alternative to make().
+  ///
+  /// \param[in] node_name
+  ///   The name for the rclcpp::Node that will be produced for this Adapter.
+  ///
+  /// \param[in] discovery_timeout
+  ///   How long we will wait to discover the Schedule Node before giving up. If
+  ///   rmf_utils::nullopt is given, then this will try to use the
+  ///   discovery_timeout node paramter, or it will wait 1 minute if the
+  ///   discovery_timeout node parameter was not defined.
+  ///
+  /// \sa make()
+  static std::shared_ptr<Adapter> init_and_make(
+      const std::string& node_name,
+      rmf_utils::optional<rmf_traffic::Duration> discovery_timeout =
+          rmf_utils::nullopt);
+
   /// Make an adapter instance. This will instantiate an rclcpp::Node and allow
   /// you to add fleets to be adapted.
+  ///
+  /// \note You must initialize rclcpp before calling this, either by using
+  /// rclcpp::init(~) or rclcpp::Context::init(~). This requirement can be
+  /// avoided by using init_and_make() instead of this function.
   ///
   /// \param[in] node_name
   ///   The name for the rclcpp::Node that will be produced for this Adapter.
@@ -41,12 +65,18 @@ public:
   /// \param[in] node_options
   ///   The options that the rclcpp::Node will be constructed with.
   ///
-  /// \param[in] wait_time
-  ///   How long we will wait to discover the Schedule Node before giving up.
+  /// \param[in] discovery_timeout
+  ///   How long we will wait to discover the Schedule Node before giving up. If
+  ///   rmf_utils::nullopt is given, then this will try to use the
+  ///   discovery_timeout node paramter, or it will wait 1 minute if the
+  ///   discovery_timeout node parameter was not defined.
+  ///
+  /// \sa init_and_make()
   static std::shared_ptr<Adapter> make(
       const std::string& node_name,
       const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions(),
-      rmf_traffic::Duration wait_time = std::chrono::minutes(1));
+      rmf_utils::optional<rmf_traffic::Duration> discovery_timeout =
+          rmf_utils::nullopt);
 
   /// Add a fleet to be adapted.
   ///
@@ -76,19 +106,30 @@ public:
 
   /// Begin running the event loop for this adapter. The event loop will operate
   /// in another thread, so this function is non-blocking.
-  void start();
+  Adapter& start();
 
   /// Stop the event loop if it is running.
-  //
-  // TODO(MXG): Return a std::future from this to indicate when the thread has
-  // come to a stop.
-  void stop();
+  Adapter& stop();
+
+  /// Wait until the adapter is done spinning.
+  ///
+  /// \sa wait_for()
+  Adapter& wait();
+
+  /// Wait until the adapter is done spinning, or until the maximum wait time
+  /// duration is reached.
+  ///
+  /// \sa wait()
+  Adapter& wait_for(std::chrono::nanoseconds max_wait);
 
   class Implementation;
 private:
   Adapter();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
+
+using AdapterPtr = std::shared_ptr<Adapter>;
+using ConstAdapterPtr = std::shared_ptr<const Adapter>;
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

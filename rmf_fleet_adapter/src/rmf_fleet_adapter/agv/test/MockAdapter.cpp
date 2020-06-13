@@ -33,6 +33,16 @@ public:
   std::shared_ptr<Node> node;
   std::shared_ptr<rmf_traffic::schedule::Database> database;
 
+  Implementation(
+      const std::string& node_name,
+      const rclcpp::NodeOptions& node_options)
+    : worker{rxcpp::schedulers::make_event_loop().create_worker()},
+      node{Node::make(worker, node_name, node_options)},
+      database{std::make_shared<rmf_traffic::schedule::Database>()}
+  {
+
+  }
+
   std::vector<std::shared_ptr<FleetUpdateHandle>> fleets = {};
 
 };
@@ -41,14 +51,7 @@ public:
 MockAdapter::MockAdapter(
     const std::string& node_name,
     const rclcpp::NodeOptions& node_options)
-  : _pimpl{
-      rmf_utils::make_unique_impl<Implementation>(
-        Implementation{
-          rxcpp::schedulers::make_event_loop().create_worker(),
-          Node::make(node_name, node_options),
-          std::make_shared<rmf_traffic::schedule::Database>()
-        })
-    }
+  : _pimpl{rmf_utils::make_unique_impl<Implementation>(node_name, node_options)}
 {
   // Do nothing
 }

@@ -90,6 +90,9 @@ private:
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
 
+using FleetUpdateHandlePtr = std::shared_ptr<FleetUpdateHandle>;
+using ConstFleetUpdateHandlePtr = std::shared_ptr<const FleetUpdateHandle>;
+
 } // namespace agv
 } // namespace rmf_fleet_adapter
 

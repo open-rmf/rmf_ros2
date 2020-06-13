@@ -31,6 +31,7 @@ TEST_CASE("publish subscribe loopback", "[Transport]")
   context->init(0, nullptr);
 
   auto transport = std::make_shared<rmf_rxcpp::Transport>(
+        rxcpp::schedulers::make_event_loop().create_worker(),
         "test_transport_" + std::to_string(node_counter++),
         rclcpp::NodeOptions().context(context));
 

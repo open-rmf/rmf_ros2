@@ -44,6 +44,10 @@ public:
   using ArrivalEstimator =
       std::function<void(std::size_t path_index, Duration remaining_time)>;
 
+  /// Trigger this callback function when the follow_new_path request has been
+  /// completed. It should only be triggered that one time and then discarded.
+  using RequestCompleted = std::function<void()>;
+
   /// Have the robot follow a new path. If it was already following a path, then
   /// it should immediately switch over to this one.
   ///
@@ -66,7 +70,7 @@ public:
   virtual void follow_new_path(
       const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
       ArrivalEstimator next_arrival_estimator,
-      std::function<void()> path_finished_callback) = 0;
+      RequestCompleted path_finished_callback) = 0;
 
   /// Have the robot come to an immediate stop.
   virtual void stop() = 0;
@@ -81,7 +85,7 @@ public:
   ///   Trigger this callback when the docking is finished.
   virtual void dock(
       const std::string& dock_name,
-      std::function<void()> docking_finished_callback) = 0;
+      RequestCompleted docking_finished_callback) = 0;
 
   // Virtual destructor
   virtual ~RobotCommandHandle() = default;

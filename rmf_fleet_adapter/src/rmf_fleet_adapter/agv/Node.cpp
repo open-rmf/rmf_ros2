@@ -24,10 +24,12 @@ namespace agv {
 
 //==============================================================================
 std::shared_ptr<Node> Node::make(
+    rxcpp::schedulers::worker worker,
     const std::string& node_name,
     const rclcpp::NodeOptions& options)
 {
-  auto node = std::shared_ptr<Node>(new Node(node_name, options));
+  auto node = std::shared_ptr<Node>(
+        new Node(std::move(worker), node_name, options));
 
   auto default_qos = rclcpp::SystemDefaultsQoS();
   node->_door_state_obs = node->create_observable<DoorState>(
@@ -53,8 +55,11 @@ std::shared_ptr<Node> Node::make(
 }
 
 //==============================================================================
-Node::Node(const std::string& node_name, const rclcpp::NodeOptions& options)
-  : rmf_rxcpp::Transport(node_name, options)
+Node::Node(
+    rxcpp::schedulers::worker worker,
+    const std::string& node_name,
+    const rclcpp::NodeOptions& options)
+  : rmf_rxcpp::Transport(std::move(worker), node_name, options)
 {
   // Do nothing
 }

@@ -137,6 +137,7 @@ SCENARIO("Test loop requests")
   bool at_least_one_incomplete_task_0 = false;
   rmf_task_msgs::msg::TaskSummary last_task_0_msg;
   std::size_t finding_a_plan_0_count = 0;
+  std::vector<std::string> finding_a_plan_0_statuses;
 
   const std::string loop_1 = "loop_1";
   std::promise<bool> task_1_completed_promise;
@@ -145,6 +146,7 @@ SCENARIO("Test loop requests")
   bool at_least_one_incomplete_task_1 = false;
   rmf_task_msgs::msg::TaskSummary last_task_1_msg;
   std::size_t finding_a_plan_1_count = 0;
+  std::vector<std::string> finding_a_plan_1_statuses;
 
   const auto task_sub = adapter.node()->create_subscription<
       rmf_task_msgs::msg::TaskSummary>(
@@ -152,7 +154,8 @@ SCENARIO("Test loop requests")
         [&task_0_completed_promise, &loop_0, &at_least_one_incomplete_task_0,
          &completed_0_count, &last_task_0_msg, &finding_a_plan_0_count,
          &task_1_completed_promise, &loop_1, &at_least_one_incomplete_task_1,
-         &completed_1_count, &last_task_1_msg, &finding_a_plan_1_count](
+         &completed_1_count, &last_task_1_msg, &finding_a_plan_1_count,
+         &finding_a_plan_0_statuses, &finding_a_plan_1_statuses](
         const rmf_task_msgs::msg::TaskSummary::SharedPtr msg)
   {
     if (msg->STATE_COMPLETED == msg->state)
@@ -188,13 +191,19 @@ SCENARIO("Test loop requests")
     {
       last_task_0_msg = *msg;
       if (msg->status.find("Finding a plan for") != std::string::npos)
+      {
         ++finding_a_plan_0_count;
+        finding_a_plan_0_statuses.push_back(msg->status);
+      }
     }
     else if (msg->task_id == loop_1)
     {
       last_task_1_msg = *msg;
       if (msg->status.find("Finding a plan for") != std::string::npos)
+      {
         ++finding_a_plan_1_count;
+        finding_a_plan_1_statuses.push_back(msg->status);
+      }
     }
   });
 
@@ -294,6 +303,13 @@ SCENARIO("Test loop requests")
   CHECK(visited_east(v0, n_loops));
   CHECK(completed_0_count == 1);
   CHECK(finding_a_plan_0_count >= 2*n_loops - 1);
+  if (finding_a_plan_0_count < 2*n_loops - 1)
+  {
+    std::cout << "The following plan finding statuses were received for "
+              << loop_0 << ":\n";
+    for (const auto& s : finding_a_plan_0_statuses)
+      std::cout << " -- " << s << std::endl;
+  }
 
   const auto& v1 = robot_cmd_1->visited_wps();
   CHECK(robot_cmd_1->visited_wps().size() > 2);
@@ -301,4 +317,11 @@ SCENARIO("Test loop requests")
   CHECK(visited_east(v1, n_loops));
   CHECK(completed_1_count == 1);
   CHECK(finding_a_plan_1_count >= 2*n_loops - 1);
+  if (finding_a_plan_1_count < 2*n_loops - 1)
+  {
+    std::cout << "The following plan finding statuses were received for "
+              << loop_1 << ":";
+    for (const auto& s : finding_a_plan_1_statuses)
+      std::cout << " -- " << s << std::endl;
+  }
 }
