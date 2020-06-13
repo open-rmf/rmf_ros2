@@ -23,6 +23,9 @@
 #include <rmf_fleet_adapter/agv/Adapter.hpp>
 #include <rmf_fleet_adapter/agv/parse_graph.hpp>
 
+// Standard topic names for communicating with fleet drivers
+#include <rmf_fleet_adapter/StandardNames.hpp>
+
 // Fleet driver state/command messages
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
 #include <rmf_fleet_msgs/msg/path_request.hpp>
@@ -33,6 +36,10 @@
 
 // ROS2 utilities for rmf_traffic
 #include <rmf_traffic_ros2/Time.hpp>
+
+// Utility functions for estimating where a robot is on the graph based on
+// the information provided by fleet drivers.
+#include "estimation.hpp"
 
 //==============================================================================
 class FleetDriverRobotCommandHandle
@@ -48,27 +55,30 @@ public:
 
   FleetDriverRobotCommandHandle(
       rclcpp::Node& node,
-      std::string robot_name,
       std::string fleet_name,
+      std::string robot_name,
       std::shared_ptr<const rmf_traffic::agv::Graph> graph,
       std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
       PathRequestPub path_request_pub,
       ModeRequestPub mode_request_pub)
     : _node(&node),
-      _graph(std::move(graph)),
-      _traits(std::move(traits)),
       _path_request_pub(std::move(path_request_pub)),
       _mode_request_pub(std::move(mode_request_pub))
   {
-    _current_path_request.robot_name = robot_name;
     _current_path_request.fleet_name = fleet_name;
+    _current_path_request.robot_name = robot_name;
 
-    _current_dock_request.robot_name = std::move(robot_name);
-    _current_dock_request.fleet_name = std::move(fleet_name);
+    _current_dock_request.fleet_name = fleet_name;
+    _current_dock_request.robot_name = robot_name;
 
     rmf_fleet_msgs::msg::ModeParameter p;
     p.name = "docking";
     _current_dock_request.parameters.push_back(std::move(p));
+
+    _travel_info.graph = std::move(graph);
+    _travel_info.traits = std::move(traits);
+    _travel_info.fleet_name = std::move(fleet_name);
+    _travel_info.robot_name = std::move(robot_name);
   }
 
   void follow_new_path(
@@ -78,9 +88,10 @@ public:
   {
     _clear_last_command();
 
-    _current_waypoints = waypoints;
-    _next_arrival_estimator = std::move(next_arrival_estimator);
-    _path_finished_callback = std::move(path_finished_callback);
+    _travel_info.waypoints = waypoints;
+    _travel_info.next_arrival_estimator = std::move(next_arrival_estimator);
+    _travel_info.path_finished_callback = std::move(path_finished_callback);
+    _interrupted = false;
 
     _current_path_request.task_id = std::to_string(++_current_task_id);
     _current_path_request.path.clear();
@@ -99,7 +110,7 @@ public:
       if (wp.graph_index())
       {
         location.level_name =
-            _graph->get_waypoint(*wp.graph_index()).get_map_name();
+            _travel_info.graph->get_waypoint(*wp.graph_index()).get_map_name();
       }
 
       _current_path_request.path.emplace_back(std::move(location));
@@ -130,9 +141,9 @@ public:
 
   void update_state(const rmf_fleet_msgs::msg::RobotState& state)
   {
-    if (_path_finished_callback)
+    if (_travel_info.path_finished_callback)
     {
-      // If we have a _path_finished_callback, then the robot should be
+      // If we have a path_finished_callback, then the robot should be
       // following a path
 
       // There should not be a docking command happening
@@ -150,152 +161,98 @@ public:
           _path_request_pub->publish(_current_path_request);
         }
 
-        return _estimate_state(state);
+        return estimate_state(_node, state.location, _travel_info);
+      }
+
+      if (state.mode.mode == state.mode.MODE_ADAPTER_ERROR)
+      {
+        if (_interrupted)
+        {
+          // This interruption was already noticed
+          return;
+        }
+
+        RCLCPP_INFO(
+              _node->get_logger(),
+              "Fleet driver [%s] reported interruption for [%s]",
+              _current_path_request.fleet_name.c_str(),
+              _current_path_request.robot_name.c_str());
+
+        _interrupted = true;
+        return _travel_info.updater->interrupted();
       }
 
       if (state.path.empty())
-        return _handle_path_finish(state);
+      {
+        // When the state path is empty, that means the robot believes it has
+        // arrived at its destination.
+        return check_path_finish(_node, state, _travel_info);
+      }
 
-      return _handle_path_traveling(state);
+      return estimate_path_traveling(state, _travel_info);
     }
     else if (_dock_finished_callback)
     {
       // If we have a _dock_finished_callback, then the robot should be docking
+      if (state.task_id != _current_dock_request.task_id)
+      {
+        const auto now = std::chrono::steady_clock::now();
+        if (std::chrono::milliseconds(200) < now - _dock_requested_time)
+        {
+          // We published the request a while ago, so we'll send it again in
+          // case it got dropped.
+          _dock_requested_time = now;
+          _mode_request_pub->publish(_current_dock_request);
+        }
+
+        return;
+      }
+
+      if (state.mode.mode != state.mode.MODE_DOCKING)
+      {
+        _dock_finished_callback();
+        _dock_finished_callback = nullptr;
+      }
+
+      // TODO(MXG): We ought to update the location of the robot while docking.
+      // It would be trivial if we had a convenient way to identify the docking
+      // lanes.
     }
     else
     {
       // If we don't have a finishing callback, then the robot is not under our
       // command
-      _estimate_state(state);
+      estimate_state(_node, state.location, _travel_info);
     }
+  }
+
+  void set_updater(rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
+  {
+    _travel_info.updater = std::move(updater);
   }
 
 private:
 
   rclcpp::Node* _node;
-  std::shared_ptr<const rmf_traffic::agv::Graph> _graph;
-  std::shared_ptr<const rmf_traffic::agv::VehicleTraits> _traits;
 
+  PathRequestPub _path_request_pub;
   rmf_fleet_msgs::msg::PathRequest _current_path_request;
   std::chrono::steady_clock::time_point _path_requested_time;
-  std::vector<rmf_traffic::agv::Plan::Waypoint> _current_waypoints;
-  ArrivalEstimator _next_arrival_estimator;
-  RequestCompleted _path_finished_callback;
-  PathRequestPub _path_request_pub;
-  rmf_utils::optional<std::size_t> _last_known_wp;
-  rmf_utils::optional<std::size_t> _last_known_lane;
+  TravelInfo _travel_info;
+  bool _interrupted = false;
 
   rmf_fleet_msgs::msg::ModeRequest _current_dock_request;
   std::chrono::steady_clock::time_point _dock_requested_time;
   RequestCompleted _dock_finished_callback;
   ModeRequestPub _mode_request_pub;
 
-  rmf_fleet_adapter::agv::RobotUpdateHandlePtr _updater;
   uint32_t _current_task_id = 0;
 
   void _clear_last_command()
   {
-    _next_arrival_estimator = nullptr;
-    _path_finished_callback = nullptr;
+    _travel_info.next_arrival_estimator = nullptr;
+    _travel_info.path_finished_callback = nullptr;
     _dock_finished_callback = nullptr;
-  }
-
-  void _handle_path_finish(const rmf_fleet_msgs::msg::RobotState& state)
-  {
-    // The robot believes it has reached the end of its path.
-    const auto& wp = _current_waypoints.back();
-    const auto& l = state.location;
-    const Eigen::Vector2d p{l.x, l.y};
-    const double dist = (p - wp.position().block<2,1>(0, 0)).norm();
-
-    assert(wp.graph_index());
-    _last_known_wp = *wp.graph_index();
-
-    assert(_current_waypoints.size() > 2);
-
-    if (dist > 2.0)
-    {
-      RCLCPP_ERROR(
-        _node->get_logger(),
-        "The robot is very far [%fm] from where it is supposed to be, but "
-        "its remaining path is empty. This means the robot believes it is"
-        "finished, but it is not where it is supposed to be.", dist);
-      return _estimate_state(state);
-    }
-
-    if (dist > 0.5)
-    {
-      RCLCPP_WARN(
-        _node->get_logger(),
-        "The robot is somewhat far [%fm] from where it is supposed to be, "
-        "but we will proceed anyway.");
-
-      const auto& last_wp = _current_waypoints[_current_waypoints.size()-2];
-      _midlane_state(state.location, last_wp, wp);
-    }
-    else
-    {
-      // We are close enough to the goal that we will say the robot is
-      // currently located there.
-      _updater->update_position(*wp.graph_index(), l.yaw);
-      _last_known_wp = *wp.graph_index();
-    }
-
-    _path_finished_callback();
-    return _clear_last_command();
-  }
-
-  void _handle_path_traveling(const rmf_fleet_msgs::msg::RobotState& state)
-  {
-    const std::size_t remaining_count = state.path.size();
-    const std::size_t i_target_wp = _current_waypoints.size() - remaining_count;
-    const auto& target_wp = _current_waypoints[i_target_wp];
-
-    const auto& l = state.location;
-    const auto& p = target_wp.position();
-    const auto interp = rmf_traffic::agv::Interpolate::positions(
-          *_traits, std::chrono::steady_clock::now(), {{l.x, l.y, l.yaw}, p});
-    const auto next_arrival = interp.back().time() - interp.front().time();
-    _next_arrival_estimator(i_target_wp, next_arrival);
-
-    if (i_target_wp > 1)
-      return _midlane_state(l, _current_waypoints[i_target_wp-1], target_wp);
-
-
-  }
-
-  void _midlane_state(
-      const rmf_fleet_msgs::msg::Location& l,
-      const rmf_traffic::agv::Plan::Waypoint& last_wp,
-      const rmf_traffic::agv::Plan::Waypoint& target_wp)
-  {
-    if (last_wp.graph_index())
-    {
-      std::vector<std::size_t> lanes;
-      const auto last_gi = *last_wp.graph_index();
-      const auto target_gi = *target_wp.graph_index();
-      const auto* forward_lane = _graph->lane_from(last_gi, target_gi);
-      assert(forward_lane);
-      lanes.push_back(forward_lane->index());
-
-      if (const auto* reverse_lane = _graph->lane_from(target_gi, last_gi))
-        lanes.push_back(reverse_lane->index());
-
-      _updater->update_position({l.x, l.y, l.yaw}, std::move(lanes));
-      return;
-    }
-
-    // The target should always have a graph index, because only the first
-    // waypoint in a command should ever be lacking a graph index.
-    assert(target_wp.graph_index());
-    _updater->update_position({l.x, l.y, l.yaw}, *target_wp.graph_index());
-  }
-
-  void _estimate_state(const rmf_fleet_msgs::msg::RobotState& state)
-  {
-    // This function is used when we need to estimate the state of the robot
-    // because it's not obvious where it intends to be on the graph
-
   }
 };
 
@@ -304,13 +261,19 @@ using FleetDriverRobotCommandHandlePtr =
 
 //==============================================================================
 /// This is an RAII class that keeps the connections to the fleet driver alive.
-struct Connections
+struct Connections : public std::enable_shared_from_this<Connections>
 {
   /// The API for adding new robots to the adapter
   rmf_fleet_adapter::agv::FleetUpdateHandlePtr fleet;
 
+  /// The API for running the fleet adapter
+  rmf_fleet_adapter::agv::AdapterPtr adapter;
+
   /// The navigation graph for the robot
   std::shared_ptr<const rmf_traffic::agv::Graph> graph;
+
+  /// The traits of the vehicles
+  std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits;
 
   /// The topic subscription for responding to new fleet states
   rclcpp::Subscription<rmf_fleet_msgs::msg::FleetState>::SharedPtr
@@ -327,14 +290,42 @@ struct Connections
   /// The container for robot update handles
   std::unordered_map<std::string, FleetDriverRobotCommandHandlePtr>
   robots;
+
+  void add_robot(
+      const std::string& fleet_name,
+      const rmf_fleet_msgs::msg::RobotState& state)
+  {
+    const auto& robot_name = state.name;
+    const auto command = std::make_shared<FleetDriverRobotCommandHandle>(
+          *adapter->node(), fleet_name, robot_name, graph, traits,
+          path_request_pub, mode_request_pub);
+
+    const auto& l = state.location;
+    fleet->add_robot(
+          command, robot_name, traits->profile(),
+          rmf_traffic::agv::compute_plan_starts(
+            *graph, state.location.level_name, {l.x, l.y, l.yaw},
+            rmf_traffic_ros2::convert(adapter->node()->now())),
+          [c = weak_from_this(), command, robot_name = std::move(robot_name)](
+          const rmf_fleet_adapter::agv::RobotUpdateHandlePtr& updater)
+    {
+      const auto connections = c.lock();
+      if (!connections)
+        return;
+
+      command->set_updater(updater);
+      connections->robots[robot_name] = command;
+    });
+  }
 };
 
 //==============================================================================
-rmf_utils::optional<Connections> make_fleet(
+std::shared_ptr<Connections> make_fleet(
     const rmf_fleet_adapter::agv::AdapterPtr& adapter)
 {
   const auto& node = adapter->node();
-  Connections connections;
+  std::shared_ptr<Connections> connections = std::make_shared<Connections>();
+  connections->adapter = adapter;
 
   const std::string nav_graph_param_name = "nav_graph_file";
   const std::string graph_file =
@@ -345,7 +336,7 @@ rmf_utils::optional<Connections> make_fleet(
           node->get_logger(),
           "Missing [%s] parameter", nav_graph_param_name.c_str());
 
-    return rmf_utils::nullopt;
+    return nullptr;
   }
 
   const std::string fleet_name_param_name = "fleet_name";
@@ -357,26 +348,67 @@ rmf_utils::optional<Connections> make_fleet(
           node->get_logger(),
           "Missing [%s] parameter", fleet_name_param_name.c_str());
 
-    return rmf_utils::nullopt;
+    return nullptr;
   }
 
-  auto traits = rmf_fleet_adapter::get_traits_or_default(
-        *node, 0.7, 0.3, 0.5, 1.5, 0.5, 1.5);
+  connections->traits = std::make_shared<rmf_traffic::agv::VehicleTraits>(
+        rmf_fleet_adapter::get_traits_or_default(
+        *node, 0.7, 0.3, 0.5, 1.5, 0.5, 1.5));
 
-  auto graph = rmf_fleet_adapter::agv::parse_graph(graph_file, traits);
+  connections->graph =
+      std::make_shared<rmf_traffic::agv::Graph>(
+        rmf_fleet_adapter::agv::parse_graph(graph_file, *connections->traits));
 
-  connections.fleet = adapter->add_fleet(
-        fleet_name, std::move(traits), std::move(graph));
+  connections->fleet = adapter->add_fleet(
+        fleet_name, *connections->traits, *connections->graph);
 
   // If the perform_deliveries parameter is true, then we just blindly accept
   // all delivery requests.
   if (node->declare_parameter<bool>("perform_deliveries", false))
   {
-    connections.fleet->accept_delivery_requests(
+    connections->fleet->accept_delivery_requests(
           [](const rmf_task_msgs::msg::Delivery&){ return true; });
   }
 
+  connections->path_request_pub = node->create_publisher<
+      rmf_fleet_msgs::msg::PathRequest>(
+        rmf_fleet_adapter::PathRequestTopicName, rclcpp::SystemDefaultsQoS());
 
+  connections->mode_request_pub = node->create_publisher<
+      rmf_fleet_msgs::msg::ModeRequest>(
+        rmf_fleet_adapter::ModeRequestTopicName, rclcpp::SystemDefaultsQoS());
+
+  connections->fleet_state_sub = node->create_subscription<
+      rmf_fleet_msgs::msg::FleetState>(
+        rmf_fleet_adapter::FleetStateTopicName,
+        rclcpp::SystemDefaultsQoS(),
+        [c = std::weak_ptr<Connections>(connections), fleet_name](
+        const rmf_fleet_msgs::msg::FleetState::SharedPtr msg)
+  {
+    if (msg->name != fleet_name)
+      return;
+
+    const auto connections = c.lock();
+    if (!connections)
+      return;
+
+    for (const auto& state : msg->robots)
+    {
+      const auto insertion = connections->robots.insert({state.name, nullptr});
+      if (insertion.second)
+      {
+        // We have not seen this robot before, so let's add it to the fleet.
+        connections->add_robot(fleet_name, state);
+      }
+
+      const auto& command = insertion.first->second;
+      if (command)
+      {
+        // We are ready to command this robot, so let's update its state
+        command->update_state(state);
+      }
+    }
+  });
 
   return connections;
 }
