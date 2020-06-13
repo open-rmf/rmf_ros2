@@ -101,8 +101,8 @@ rmf_traffic::Trajectory make_timed_trajectory(
     positions.push_back({location.x, location.y, location.yaw});
 
     rmf_traffic::Trajectory extension =
-        rmf_traffic::agv::Interpolate::positions(
-          traits, output.back().time(), positions);
+      rmf_traffic::agv::Interpolate::positions(traits,
+        output.back().time(), positions);
 
     for (const auto& wp : extension)
       output.insert(wp);
@@ -113,7 +113,7 @@ rmf_traffic::Trajectory make_timed_trajectory(
     if (wait_duration > std::chrono::milliseconds(1))
     {
       output.insert(
-            wait_time, output.back().position(), Eigen::Vector3d::Zero());
+        wait_time, output.back().position(), Eigen::Vector3d::Zero());
     }
   }
 

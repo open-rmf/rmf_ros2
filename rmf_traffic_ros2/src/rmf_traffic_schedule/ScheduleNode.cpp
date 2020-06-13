@@ -641,7 +641,7 @@ void ScheduleNode::receive_refusal(const ConflictRefusal& msg)
 {
   std::unique_lock<std::mutex> lock(active_conflicts_mutex);
   auto* negotiation_room =
-      active_conflicts.negotiation(msg.conflict_version);
+    active_conflicts.negotiation(msg.conflict_version);
 
   if (!negotiation_room)
   {
@@ -653,7 +653,7 @@ void ScheduleNode::receive_refusal(const ConflictRefusal& msg)
   }
 
   std::string output = "Refused negotiation ["
-      + std::to_string(msg.conflict_version) + "]";
+    + std::to_string(msg.conflict_version) + "]";
   RCLCPP_INFO(get_logger(), output);
 
   active_conflicts.refuse(msg.conflict_version);
@@ -683,7 +683,7 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
   auto& negotiation = negotiation_room->negotiation;
 
   const auto search = negotiation.find(
-        msg.for_participant, rmf_traffic_ros2::convert(msg.to_accommodate));
+    msg.for_participant, rmf_traffic_ros2::convert(msg.to_accommodate));
 
   if (search.deprecated())
     return;
@@ -695,7 +695,8 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
       + std::to_string(msg.conflict_version) + "] for participant ["
       + std::to_string(msg.for_participant) + "] on unknown table [";
     for (const auto p : msg.to_accommodate)
-      error += " " + std::to_string(p.participant) + ":" + std::to_string(p.version) + " ";
+      error += " " + std::to_string(p.participant) + ":" + std::to_string(
+        p.version) + " ";
     error += "]";
 
     RCLCPP_WARN(get_logger(), error);
@@ -729,7 +730,8 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
       + std::to_string(msg.conflict_version) + "]:";
 
     for (const auto p : conclusion.table)
-      output += " " + std::to_string(p.participant) + ":" + std::to_string(p.version);
+      output += " " + std::to_string(p.participant) + ":" + std::to_string(
+        p.version);
     RCLCPP_INFO(get_logger(), output);
 
     conflict_conclusion_pub->publish(std::move(conclusion));
@@ -780,7 +782,8 @@ void ScheduleNode::receive_rejection(const ConflictRejection& msg)
     std::string error = "Received rejection in negotiation ["
       + std::to_string(msg.conflict_version) + "] for unknown table [";
     for (const auto p : msg.table)
-      error += " " + std::to_string(p.participant) + ":" + std::to_string(p.version) + " ";
+      error += " " + std::to_string(p.participant) + ":" + std::to_string(
+        p.version) + " ";
     error += "]";
 
     RCLCPP_WARN(get_logger(), error);
@@ -789,9 +792,9 @@ void ScheduleNode::receive_rejection(const ConflictRejection& msg)
   }
 
   table->reject(
-        msg.table.back().version,
-        msg.rejected_by,
-        rmf_traffic_ros2::convert(msg.alternatives));
+    msg.table.back().version,
+    msg.rejected_by,
+    rmf_traffic_ros2::convert(msg.alternatives));
 
   negotiation_room->check_cache({});
 
@@ -829,7 +832,8 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
     std::string error = "Received forfeit in negotiation ["
       + std::to_string(msg.conflict_version) + "] for unknown table [";
     for (const auto p : msg.table)
-      error += " " + std::to_string(p.participant) + ":" + std::to_string(p.version) + " ";
+      error += " " + std::to_string(p.participant) + ":" + std::to_string(
+        p.version) + " ";
     error += "]";
 
     RCLCPP_WARN(get_logger(), error);

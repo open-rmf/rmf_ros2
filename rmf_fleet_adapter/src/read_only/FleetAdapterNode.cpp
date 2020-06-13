@@ -68,7 +68,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     {
       node->_mirror = mirror_future.get();
       node->_negotiation = rmf_traffic_ros2::schedule::Negotiation(
-            *node, node->_mirror->snapshot_handle());
+        *node, node->_mirror->snapshot_handle());
 
       return node;
     }

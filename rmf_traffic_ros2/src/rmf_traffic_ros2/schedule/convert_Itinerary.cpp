@@ -44,7 +44,7 @@ std::vector<rmf_traffic::schedule::Itinerary> convert(
     for (const auto& from_route : from_itinerary.routes)
     {
       to_itinerary.emplace_back(
-            std::make_shared<rmf_traffic::Route>(convert(from_route)));
+        std::make_shared<rmf_traffic::Route>(convert(from_route)));
     }
 
     output.emplace_back(std::move(to_itinerary));
