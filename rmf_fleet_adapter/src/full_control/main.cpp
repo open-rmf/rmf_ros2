@@ -291,6 +291,8 @@ struct Connections : public std::enable_shared_from_this<Connections>
   std::unordered_map<std::string, FleetDriverRobotCommandHandlePtr>
   robots;
 
+  std::mutex mutex;
+
   void add_robot(
       const std::string& fleet_name,
       const rmf_fleet_msgs::msg::RobotState& state)
@@ -312,6 +314,8 @@ struct Connections : public std::enable_shared_from_this<Connections>
       const auto connections = c.lock();
       if (!connections)
         return;
+
+      std::lock_guard<std::mutex> lock(connections->mutex);
 
       command->set_updater(updater);
       connections->robots[robot_name] = command;
