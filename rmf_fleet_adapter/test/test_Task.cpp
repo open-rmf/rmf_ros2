@@ -301,16 +301,16 @@ SCENARIO("Test simple task")
       .subscribe(
         [](const rmf_fleet_adapter::Task::StatusMsg& msg)
   {
-    if ("A" == msg.status)
+    if (msg.status.find("A") != std::string::npos)
     {
       CHECK(msg.state <= 5);
     }
-    else if ("B" == msg.status)
+    else if (msg.status.find("B") != std::string::npos)
     {
       CHECK(5 < msg.state);
       CHECK(msg.state <= 15);
     }
-    else if ("C" == msg.status)
+    else if (msg.status.find("C") != std::string::npos)
     {
       CHECK(15 < msg.state);
       CHECK(msg.state <= 18);
@@ -388,7 +388,16 @@ SCENARIO("Test nested task")
       .subscribe(
         [&count_limits](const rmf_fleet_adapter::Task::StatusMsg& msg)
   {
-    const auto& limits = count_limits[msg.status];
+    std::pair<std::size_t, std::size_t> limits = {0, 0};
+    for (const auto& element : count_limits)
+    {
+      if (msg.status.find(element.first) != std::string::npos)
+      {
+        limits = element.second;
+        break;
+      }
+    }
+
     CHECK(limits.first < msg.state);
     CHECK(msg.state <= limits.second);
   },

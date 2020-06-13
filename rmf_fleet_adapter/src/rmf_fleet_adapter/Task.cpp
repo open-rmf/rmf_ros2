@@ -126,6 +126,9 @@ void Task::_start_next_phase()
           if (summary.STATE_COMPLETED == summary.state)
             summary.state = summary.STATE_ACTIVE;
 
+          summary.status += " | Remaining phases: "
+              + std::to_string(task->_pending_phases.size() + 1);
+
           task->_status_publisher.get_subscriber().on_next(summary);
         },
         [w = weak_from_this()](std::exception_ptr e)
