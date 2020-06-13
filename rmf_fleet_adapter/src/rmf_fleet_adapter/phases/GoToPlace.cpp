@@ -147,20 +147,23 @@ GoToPlace::Active::Active(
     _goal(std::move(goal)),
     _latest_time_estimate(original_time_estimate)
 {
-  _status_obs = _status_publisher.get_observable();
-
   _description = "Sending [" + _context->requester_id() + "] to ["
       + std::to_string(_goal.waypoint()) + "]";
   _negotiator_license = _context->set_negotiator(this);
 
   StatusMsg initial_msg;
-  initial_msg.status =
-      "Planning a move to [" + std::to_string(_goal.waypoint()) + "] for ["
-      + _context->requester_id() + "]";
+  initial_msg.status = "Finding a plan for [" + _context->requester_id()
+      + "] to go to [" + std::to_string(_goal.waypoint()) + "]";
+  initial_msg.start_time = _context->node()->now();
+  initial_msg.end_time = initial_msg.start_time;
+  _status_publisher.get_subscriber().on_next(initial_msg);
   const auto now = _context->node()->now();
   initial_msg.start_time = now;
   initial_msg.end_time = now + rclcpp::Duration(_latest_time_estimate);
-  _status_publisher.get_subscriber().on_next(initial_msg);
+
+  _status_obs = _status_publisher
+      .get_observable()
+      .start_with(initial_msg);
 }
 
 //==============================================================================
@@ -205,6 +208,22 @@ void GoToPlace::Active::find_plan()
 
     phase->execute_plan(*std::move(result));
   });
+
+  // TODO(MXG): Make the timeout configurable
+  _find_path_timer = _context->node()->create_wall_timer(
+        std::chrono::seconds(10),
+        [s = std::weak_ptr<services::FindPath>(_find_path_service),
+         p = weak_from_this(),
+         t = rclcpp::TimerBase::WeakPtr(_find_path_timer)]()
+  {
+    if (const auto service = s.lock())
+      service->interrupt();
+
+    const auto phase = p.lock();
+    const auto timer = t.lock();
+    if (phase && timer && phase->_find_path_timer == timer)
+      phase->_find_path_timer.reset();
+  });
 }
 
 //==============================================================================
@@ -246,6 +265,21 @@ void GoToPlace::Active::find_emergency_plan()
 
     phase->execute_plan(*std::move(result));
     phase->_performing_emergency_task = true;
+  });
+
+  _find_pullover_timer = _context->node()->create_wall_timer(
+        std::chrono::seconds(10),
+        [s = std::weak_ptr<services::FindEmergencyPullover>(_pullover_service),
+         p = weak_from_this(),
+         t = rclcpp::TimerBase::WeakPtr(_find_pullover_timer)]()
+  {
+    if (const auto service = s.lock())
+      service->interrupt();
+
+    const auto phase = p.lock();
+    const auto timer = t.lock();
+    if (phase && timer && phase->_find_pullover_timer == timer)
+      phase->_find_pullover_timer.reset();
   });
 }
 

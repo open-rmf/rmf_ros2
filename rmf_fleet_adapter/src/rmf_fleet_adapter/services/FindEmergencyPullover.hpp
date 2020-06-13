@@ -41,6 +41,8 @@ public:
   template<typename Subscriber>
   void operator()(const Subscriber& s);
 
+  void interrupt();
+
   static constexpr double compliance_leeway = 3.0;
 
 private:
@@ -55,6 +57,7 @@ private:
 
   ProgressEvaluator _greedy_evaluator;
   ProgressEvaluator _compliant_evaluator;
+  bool _interrupted = false;
 };
 
 } // namespace services

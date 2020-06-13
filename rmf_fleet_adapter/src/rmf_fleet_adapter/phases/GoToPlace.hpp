@@ -89,7 +89,9 @@ public:
     rmf_rxcpp::subscription_guard _status_subscription;
     rmf_rxcpp::subscription_guard _plan_subscription;
     std::shared_ptr<services::FindPath> _find_path_service;
+    rclcpp::TimerBase::SharedPtr _find_path_timer;
     std::shared_ptr<services::FindEmergencyPullover> _pullover_service;
+    rclcpp::TimerBase::SharedPtr _find_pullover_timer;
 
     using NegotiatePtr = std::shared_ptr<services::Negotiate>;
     using NegotiateServiceMap =

@@ -136,6 +136,7 @@ SCENARIO("Test loop requests")
   std::size_t completed_0_count = 0;
   bool at_least_one_incomplete_task_0 = false;
   rmf_task_msgs::msg::TaskSummary last_task_0_msg;
+  std::size_t finding_a_plan_0_count = 0;
 
   const std::string loop_1 = "loop_1";
   std::promise<bool> task_1_completed_promise;
@@ -143,14 +144,15 @@ SCENARIO("Test loop requests")
   std::size_t completed_1_count = 0;
   bool at_least_one_incomplete_task_1 = false;
   rmf_task_msgs::msg::TaskSummary last_task_1_msg;
+  std::size_t finding_a_plan_1_count = 0;
 
   const auto task_sub = adapter.node()->create_subscription<
       rmf_task_msgs::msg::TaskSummary>(
         rmf_fleet_adapter::TaskSummaryTopicName, rclcpp::SystemDefaultsQoS(),
         [&task_0_completed_promise, &loop_0, &at_least_one_incomplete_task_0,
-         &completed_0_count, &last_task_0_msg,
+         &completed_0_count, &last_task_0_msg, &finding_a_plan_0_count,
          &task_1_completed_promise, &loop_1, &at_least_one_incomplete_task_1,
-         &completed_1_count, &last_task_1_msg](
+         &completed_1_count, &last_task_1_msg, &finding_a_plan_1_count](
         const rmf_task_msgs::msg::TaskSummary::SharedPtr msg)
   {
     if (msg->STATE_COMPLETED == msg->state)
@@ -183,9 +185,17 @@ SCENARIO("Test loop requests")
     }
 
     if (msg->task_id == loop_0)
+    {
       last_task_0_msg = *msg;
+      if (msg->status.find("Finding a plan for") != std::string::npos)
+        ++finding_a_plan_0_count;
+    }
     else if (msg->task_id == loop_1)
+    {
       last_task_1_msg = *msg;
+      if (msg->status.find("Finding a plan for") != std::string::npos)
+        ++finding_a_plan_1_count;
+    }
   });
 
   const std::size_t n_loops = 5;
@@ -230,7 +240,7 @@ SCENARIO("Test loop requests")
   request.finish_name = east;
   adapter.request_loop(request);
 
-  const auto task_0_completed_status = task_0_completed_future.wait_for(10s);
+  const auto task_0_completed_status = task_0_completed_future.wait_for(60s);
   CHECK(task_0_completed_status == std::future_status::ready);
   CHECK(at_least_one_incomplete_task_0);
   if (task_0_completed_status != std::future_status::ready)
@@ -240,7 +250,7 @@ SCENARIO("Test loop requests")
               << std::endl;
   }
 
-  const auto task_1_completed_status = task_1_completed_future.wait_for(10s);
+  const auto task_1_completed_status = task_1_completed_future.wait_for(60s);
   CHECK(task_1_completed_status == std::future_status::ready);
   CHECK(at_least_one_incomplete_task_1);
   if (task_1_completed_status != std::future_status::ready)
@@ -283,10 +293,12 @@ SCENARIO("Test loop requests")
   CHECK((visited_north(v0, n_loops) | visited_south(v0, n_loops)));
   CHECK(visited_east(v0, n_loops));
   CHECK(completed_0_count == 1);
+  CHECK(finding_a_plan_0_count >= 2*n_loops - 1);
 
   const auto& v1 = robot_cmd_1->visited_wps();
   CHECK(robot_cmd_1->visited_wps().size() > 2);
   CHECK((visited_north(v1, n_loops) | visited_south(v1, n_loops)));
   CHECK(visited_east(v1, n_loops));
   CHECK(completed_1_count == 1);
+  CHECK(finding_a_plan_1_count >= 2*n_loops - 1);
 }

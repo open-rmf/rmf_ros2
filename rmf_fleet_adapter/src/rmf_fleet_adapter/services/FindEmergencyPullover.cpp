@@ -34,5 +34,13 @@ FindEmergencyPullover::FindEmergencyPullover(
   // Do nothing
 }
 
+//==============================================================================
+void FindEmergencyPullover::interrupt()
+{
+  _interrupted = true;
+  for (const auto& s : _search_jobs)
+    s->interrupt();
+}
+
 } // namespace services
 } // namespace rmf_fleet_adapter

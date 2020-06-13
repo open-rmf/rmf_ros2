@@ -111,8 +111,9 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
         resume_compliant = true;
     }
 
-    if (f->_compliant_evaluator.finished_count >= N_jobs
+    if ( (f->_compliant_evaluator.finished_count >= N_jobs
         && f->_greedy_evaluator.finished_count >= N_jobs)
+         || f->_interrupted)
     {
       if (f->_compliant_evaluator.best_result.progress)
         s.on_next(*f->_compliant_evaluator.best_result.progress);
