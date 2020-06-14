@@ -89,6 +89,8 @@ public:
   struct Empty { };
   const rxcpp::observable<Empty>& observe_interrupt() const;
 
+  void trigger_interrupt();
+
   /// Get a reference to the rclcpp node
   const std::shared_ptr<Node>& node();
 

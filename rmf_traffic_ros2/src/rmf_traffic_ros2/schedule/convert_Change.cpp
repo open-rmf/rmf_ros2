@@ -47,7 +47,6 @@ rmf_traffic::schedule::Change::Delay convert(
   const rmf_traffic_msgs::msg::ScheduleChangeDelay& from)
 {
   return rmf_traffic::schedule::Change::Delay{
-    rmf_traffic::Time(rmf_traffic::Duration(from.from_time)),
     rmf_traffic::Duration(from.delay)
   };
 }
@@ -57,7 +56,6 @@ rmf_traffic_msgs::msg::ScheduleChangeDelay convert(
   const rmf_traffic::schedule::Change::Delay& from)
 {
   rmf_traffic_msgs::msg::ScheduleChangeDelay output;
-  output.from_time = from.from().time_since_epoch().count();
   output.delay = from.duration().count();
   return output;
 }

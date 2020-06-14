@@ -275,7 +275,14 @@ auto FleetUpdateHandle::Implementation::estimate_loop(
     estimate.loop_end->time(estimate.time);
 
     if (estimate.time < best.time)
+    {
+      if (best.robot)
+        std::cout << "[" << estimate.robot->requester_id() << "] is better than ["
+                  << best.robot->requester_id() << "] by "
+                  << rmf_traffic::time::to_seconds(best.time - estimate.time)
+                  << "s" << std::endl;
       best = std::move(estimate);
+    }
   }
 
   if (best.robot)

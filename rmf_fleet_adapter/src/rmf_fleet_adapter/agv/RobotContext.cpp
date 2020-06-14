@@ -176,6 +176,12 @@ RobotContext::observe_interrupt() const
 }
 
 //==============================================================================
+void RobotContext::trigger_interrupt()
+{
+  _interrupt_publisher.get_subscriber().on_next(Empty{});
+}
+
+//==============================================================================
 const std::shared_ptr<rmf_fleet_adapter::agv::Node>& RobotContext::node()
 {
   return _node;

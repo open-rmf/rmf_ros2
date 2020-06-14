@@ -26,6 +26,118 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
+inline rmf_traffic::Time print_start(const rmf_traffic::Route& route)
+{
+  assert(route.trajectory().size() > 0);
+  std::cout << std::setprecision(3) << "(start) \n--> ";
+  std::cout << "(" << 0.0 << "; "
+            << route.trajectory().front().position().transpose()
+            << ") \n--> ";
+
+  return *route.trajectory().start_time();
+}
+
+//==============================================================================
+inline void print_route(
+    const rmf_traffic::Route& route,
+    const rmf_traffic::Time start_time)
+{
+  assert(route.trajectory().size() > 0);
+  for (auto it = ++route.trajectory().begin(); it
+       != route.trajectory().end(); ++it)
+  {
+    const auto& wp = *it;
+    if (wp.velocity().norm() > 1e-3)
+      continue;
+
+    const auto rel_time = wp.time() - start_time;
+    std::cout << "(" << rmf_traffic::time::to_seconds(rel_time) << "; "
+              << wp.position().transpose() << ") \n--> ";
+  }
+}
+
+//==============================================================================
+inline void print_itinerary(
+    const rmf_traffic::schedule::Itinerary& itinerary)
+{
+  if (itinerary.empty())
+  {
+    std::cout << "No plan needed!" << std::endl;
+  }
+  else
+  {
+    auto start_time = print_start(*itinerary.front());
+    for (const auto& r : itinerary)
+      print_route(*r, start_time);
+
+    std::cout << "(end)" << std::endl;
+  }
+}
+
+//==============================================================================
+inline void print_itinerary(const std::vector<rmf_traffic::Route>& itinerary)
+{
+  if (itinerary.empty())
+  {
+    std::cout << "No plan needed!" << std::endl;
+  }
+  else
+  {
+    auto start_time = print_start(itinerary.front());
+    for (const auto& r : itinerary)
+      print_route(r, start_time);
+
+    std::cout << "(end)" << std::endl;
+  }
+}
+
+//==============================================================================
+inline void print_itinerary(const rmf_traffic::schedule::Writer::Input& itinerary)
+{
+  if (itinerary.empty())
+  {
+    std::cout << " --> Empty itinerary" << std::endl;
+  }
+  else
+  {
+    auto start_time = print_start(*itinerary.front().route);
+    for (const auto& r : itinerary)
+      print_route(*r.route, start_time);
+
+    std::cout << "(end)" << std::endl;
+  }
+}
+
+//==============================================================================
+std::string index_or_null(rmf_utils::optional<std::size_t> i)
+{
+  if (i)
+    return std::to_string(*i);
+
+  return "null";
+}
+
+//==============================================================================
+inline void print_waypoints(const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints)
+{
+  if (waypoints.empty())
+  {
+    std::cout << " --| No waypoints" << std::endl;
+  }
+  else
+  {
+    auto start_time = waypoints.front().time();
+    for (const auto& wp : waypoints)
+    {
+      std::cout << " --| "
+                << rmf_traffic::time::to_seconds(wp.time() - start_time)
+                << " [" << index_or_null(wp.graph_index()) << "] "
+                << wp.position().transpose() << std::endl;
+    }
+  }
+}
+
+//==============================================================================
 auto GoToPlace::Active::observe() const -> const rxcpp::observable<StatusMsg>&
 {
   return _status_obs;
@@ -95,6 +207,8 @@ void GoToPlace::Active::respond(
   {
     if (auto active = w.lock())
     {
+      std::cout << " ===== Using negotiated itinerary for ["
+                << active->_context->requester_id() << "]" << std::endl;
       active->execute_plan(plan);
       return active->_context->itinerary().version();
     }
@@ -234,6 +348,7 @@ void GoToPlace::Active::find_plan()
     }
 
     phase->execute_plan(*std::move(result));
+    phase->_find_path_service = nullptr;
   });
 
   // TODO(MXG): Make the timeout configurable
@@ -293,6 +408,7 @@ void GoToPlace::Active::find_emergency_plan()
 
     phase->execute_plan(*std::move(result));
     phase->_performing_emergency_task = true;
+    phase->_pullover_service = nullptr;
   });
 
   _find_pullover_timer = _context->node()->create_wall_timer(
@@ -476,11 +592,10 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
    );
 
   _subtasks->begin();
-  _context->worker().schedule(
-        [c = _context, itinerary = _plan->get_itinerary()](const auto&)
-  {
-    c->itinerary().set(itinerary);
-  });
+  std::cout << " === SETTING NEW ITINERARY FOR [" << _context->requester_id() << "]" << std::endl;
+  _context->itinerary().set(_plan->get_itinerary());
+  print_itinerary(_context->itinerary().itinerary());
+  print_waypoints(_plan->get_waypoints());
 }
 
 //==============================================================================
@@ -490,6 +605,22 @@ std::shared_ptr<Task::ActivePhase> GoToPlace::Pending::begin()
       std::shared_ptr<Active>(new Active(_context, _goal, _time_estimate));
 
   active->find_plan();
+
+  _context->observe_interrupt()
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
+      .subscribe(
+        [a = active->weak_from_this()](const auto&)
+  {
+    const auto active = a.lock();
+    if (active && !(active->_find_path_service || active->_pullover_service))
+    {
+      RCLCPP_INFO(
+        active->_context->node()->get_logger(),
+        "Replanning for [%s] because of an interruption",
+        active->_context->requester_id().c_str());
+      active->find_plan();
+    }
+  });
 
   return active;
 }

@@ -505,7 +505,6 @@ void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
   std::unique_lock<std::mutex> lock(database_mutex);
   database->delay(
     delay.participant,
-    rmf_traffic::Time(rmf_traffic::Duration(delay.from_time)),
     rmf_traffic::Duration(delay.delay),
     delay.itinerary_version);
 

@@ -120,8 +120,7 @@ public:
         _last_reported_wait_time = next_wait_time;
 
         _context->schedule.push_delay(
-          rmf_traffic_ros2::convert(delay),
-          rmf_traffic_ros2::convert(now));
+          rmf_traffic_ros2::convert(delay));
         return;
       }
     }

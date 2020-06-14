@@ -158,20 +158,20 @@ public:
           impl->publish_rejection(
                 conflict_version, *parent, table->participant(), alternatives);
 
-          if (impl->worker)
-          {
-            const auto n_it = impl->negotiators->find(parent->participant());
-            if (n_it == impl->negotiators->end())
-              return;
+//          if (impl->worker)
+//          {
+//            const auto n_it = impl->negotiators->find(parent->participant());
+//            if (n_it == impl->negotiators->end())
+//              return;
 
-            impl->worker->schedule(
-                  [viewer = parent->viewer(),
-                   negotiator = n_it->second.get(),
-                   responder = make(impl, conflict_version, parent)]()
-            {
-              negotiator->respond(viewer, responder);
-            });
-          }
+//            impl->worker->schedule(
+//                  [viewer = parent->viewer(),
+//                   negotiator = n_it->second.get(),
+//                   responder = make(impl, conflict_version, parent)]()
+//            {
+//              negotiator->respond(viewer, responder);
+//            });
+//          }
         }
         else
         {
@@ -509,22 +509,6 @@ public:
 
     // TODO(MXG): Is the participating flag even relevant?
     participating = true;
-
-//    for (const auto p : msg.participants)
-//    {
-//      const auto it = negotiators->find(p);
-//      if (it != negotiators->end())
-//      {
-//        const auto table = negotiation.table(p, {});
-//        if (!table->submission())
-//        {
-//          std::cout << " %% Responding after the notice" << std::endl;
-//          it->second->respond(
-//            table->viewer(),
-//            Responder::make(this, msg.conflict_version, table));
-//        }
-//      }
-//    }
 
     std::vector<TablePtr> queue;
     for (const auto p : negotiation.participants())

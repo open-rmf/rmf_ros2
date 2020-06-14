@@ -308,7 +308,7 @@ bool FleetAdapterNode::handle_delay(
         return false;
 
       entry.route->trajectory().back().adjust_times(delay);
-      entry.schedule->push_delay(delay, current_time);
+      entry.schedule->push_delay(delay);
     }
 
     return true;
@@ -389,7 +389,7 @@ bool FleetAdapterNode::handle_delay(
       t_it->adjust_times(time_difference);
   }
 
-  entry.schedule->push_delay(time_difference, from_time);
+  entry.schedule->push_delay(time_difference);
 
   // Return true to indicate that the delay has been handled.
   return true;

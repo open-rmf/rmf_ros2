@@ -46,9 +46,7 @@ public:
 
   void push_routes(const std::vector<rmf_traffic::Route>& routes);
 
-  void push_delay(
-    const rmf_traffic::Duration duration,
-    const rmf_traffic::Time from_time);
+  void push_delay(const rmf_traffic::Duration duration);
 
   void set_negotiator(
       std::function<void(

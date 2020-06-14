@@ -17,6 +17,8 @@
 
 #include "estimation.hpp"
 
+#include <rmf_traffic_ros2/Time.hpp>
+
 //==============================================================================
 void check_path_finish(
     rclcpp::Node* node,
@@ -83,7 +85,18 @@ void estimate_path_traveling(
   const auto interp = rmf_traffic::agv::Interpolate::positions(
         *info.traits, std::chrono::steady_clock::now(), {{l.x, l.y, l.yaw}, p});
   const auto next_arrival = interp.back().time() - interp.front().time();
-  info.next_arrival_estimator(i_target_wp, next_arrival);
+  const auto now = rmf_traffic_ros2::convert(node->now());
+  if (target_wp.time() < now + next_arrival)
+  {
+    // It seems the robot cannot arrive on time, so we report the earliest that
+    // the robot can make it to its next target waypoint.
+    info.next_arrival_estimator(i_target_wp, next_arrival);
+  }
+  else
+  {
+    // It seems the robot will arrive on time, so we'll report that.
+    info.next_arrival_estimator(i_target_wp, target_wp.time() - now);
+  }
 
   rmf_utils::optional<std::size_t> lane_start;
   if (i_target_wp > 1)
@@ -173,8 +186,8 @@ void estimate_midlane_state(
           // needs to be triggered for the robot to approach the exit.
           //
           // TODO(MXG): This restriction isn't needed for reversing on door or
-          // lift events, so with some effort we could loosen this restriction to
-          // only apply to docking.
+          // lift events, so with some effort we could loosen this restriction
+          // to only apply to docking.
           lanes.push_back(reverse_lane->index());
         }
       }

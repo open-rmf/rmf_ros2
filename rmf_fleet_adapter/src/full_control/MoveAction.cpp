@@ -838,7 +838,7 @@ public:
 
       const auto from_time =
         rmf_traffic_ros2::convert(msg.location.t) - new_delay;
-      _context->schedule.push_delay(new_delay, from_time);
+      _context->schedule.push_delay(new_delay);
       _finish_estimate = new_finish_estimate;
     }
   }
@@ -885,7 +885,7 @@ public:
         _finish_estimate = new_finish_estimate;
         _tweaked_finish_estimate = _finish_estimate;
         _original_finish_estimate = _finish_estimate;
-        _context->schedule.push_delay(schedule_delay, now);
+        _context->schedule.push_delay(schedule_delay);
       }
     }
   }

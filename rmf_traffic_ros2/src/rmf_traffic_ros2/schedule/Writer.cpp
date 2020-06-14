@@ -223,13 +223,11 @@ public:
 
     void delay(
       const rmf_traffic::schedule::ParticipantId participant,
-      const rmf_traffic::Time from,
       const rmf_traffic::Duration duration,
       const rmf_traffic::schedule::ItineraryVersion version) final
     {
       Delay msg;
       msg.participant = participant;
-      msg.from_time = from.time_since_epoch().count();
       msg.delay = duration.count();
       msg.itinerary_version = version;
 

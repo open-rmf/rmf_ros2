@@ -68,11 +68,9 @@ void ScheduleManager::push_routes(const std::vector<rmf_traffic::Route>& routes)
 }
 
 //==============================================================================
-void ScheduleManager::push_delay(
-  const rmf_traffic::Duration duration,
-  const rmf_traffic::Time from_time)
+void ScheduleManager::push_delay(const rmf_traffic::Duration duration)
 {
-  _participant.delay(from_time, duration);
+  _participant.delay(duration);
 }
 
 //==============================================================================
