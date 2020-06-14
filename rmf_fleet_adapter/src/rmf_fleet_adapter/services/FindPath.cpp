@@ -26,14 +26,16 @@ FindPath::FindPath(
     rmf_traffic::agv::Plan::StartSet starts,
     rmf_traffic::agv::Plan::Goal goal,
     std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
-    rmf_traffic::schedule::ParticipantId participant_id)
+    rmf_traffic::schedule::ParticipantId participant_id,
+    const std::shared_ptr<const rmf_traffic::Profile>& profile)
 {
   _search_job = std::make_shared<jobs::SearchForPath>(
         std::move(planner),
         std::move(starts),
         std::move(goal),
         std::move(schedule),
-        participant_id);
+        participant_id,
+        profile);
 }
 
 //==============================================================================

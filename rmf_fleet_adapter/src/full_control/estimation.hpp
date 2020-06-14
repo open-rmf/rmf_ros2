@@ -53,6 +53,7 @@ void check_path_finish(
 
 //==============================================================================
 void estimate_path_traveling(
+    rclcpp::Node* node,
     const rmf_fleet_msgs::msg::RobotState& state,
     TravelInfo& info);
 
@@ -60,7 +61,7 @@ void estimate_path_traveling(
 void estimate_midlane_state(
     const rmf_fleet_msgs::msg::Location& l,
     rmf_utils::optional<std::size_t> lane_start,
-    const rmf_traffic::agv::Plan::Waypoint& target_wp,
+    std::size_t next_index,
     TravelInfo& info);
 
 //==============================================================================

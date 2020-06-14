@@ -98,6 +98,12 @@ RobotContext::description() const
 }
 
 //==============================================================================
+const std::shared_ptr<const rmf_traffic::Profile>& RobotContext::profile() const
+{
+  return _profile;
+}
+
+//==============================================================================
 const std::string& RobotContext::name() const
 {
   return _itinerary.description().name();
@@ -225,6 +231,9 @@ RobotContext::RobotContext(
     _requester_id(
       _itinerary.description().owner() + "/" + _itinerary.description().name())
 {
+  _profile = std::make_shared<rmf_traffic::Profile>(
+        _itinerary.description().profile());
+
   _interrupt_obs = _interrupt_publisher.get_observable();
 }
 

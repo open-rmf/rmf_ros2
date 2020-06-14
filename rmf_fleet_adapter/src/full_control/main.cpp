@@ -189,7 +189,7 @@ public:
         return check_path_finish(_node, state, _travel_info);
       }
 
-      return estimate_path_traveling(state, _travel_info);
+      return estimate_path_traveling(_node, state, _travel_info);
     }
     else if (_dock_finished_callback)
     {
@@ -331,18 +331,6 @@ std::shared_ptr<Connections> make_fleet(
   std::shared_ptr<Connections> connections = std::make_shared<Connections>();
   connections->adapter = adapter;
 
-  const std::string nav_graph_param_name = "nav_graph_file";
-  const std::string graph_file =
-      node->declare_parameter(nav_graph_param_name, std::string());
-  if (graph_file.empty())
-  {
-    RCLCPP_ERROR(
-          node->get_logger(),
-          "Missing [%s] parameter", nav_graph_param_name.c_str());
-
-    return nullptr;
-  }
-
   const std::string fleet_name_param_name = "fleet_name";
   const std::string fleet_name = node->declare_parameter(
         "fleet_name", std::string());
@@ -359,9 +347,26 @@ std::shared_ptr<Connections> make_fleet(
         rmf_fleet_adapter::get_traits_or_default(
         *node, 0.7, 0.3, 0.5, 1.5, 0.5, 1.5));
 
+  const std::string nav_graph_param_name = "nav_graph_file";
+  const std::string graph_file =
+      node->declare_parameter(nav_graph_param_name, std::string());
+  if (graph_file.empty())
+  {
+    RCLCPP_ERROR(
+          node->get_logger(),
+          "Missing [%s] parameter", nav_graph_param_name.c_str());
+
+    return nullptr;
+  }
+
   connections->graph =
       std::make_shared<rmf_traffic::agv::Graph>(
         rmf_fleet_adapter::agv::parse_graph(graph_file, *connections->traits));
+
+  std::cout << "The fleet [" << fleet_name
+            << "] has the following named waypoints:\n";
+  for (const auto& key : connections->graph->keys())
+    std::cout << " -- " << key.first << std::endl;
 
   connections->fleet = adapter->add_fleet(
         fleet_name, *connections->traits, *connections->graph);
@@ -399,7 +404,8 @@ std::shared_ptr<Connections> make_fleet(
     for (const auto& state : msg->robots)
     {
       const auto insertion = connections->robots.insert({state.name, nullptr});
-      if (insertion.second)
+      const bool new_robot = insertion.second;
+      if (new_robot)
       {
         // We have not seen this robot before, so let's add it to the fleet.
         connections->add_robot(fleet_name, state);

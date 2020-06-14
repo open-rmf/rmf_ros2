@@ -36,7 +36,7 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
     if (wp.is_parking_spot())
     {
       auto search = std::make_shared<jobs::SearchForPath>(
-            _planner, _starts, wp.index(), _schedule, _participant_id);
+          _planner, _starts, wp.index(), _schedule, _participant_id, _profile);
 
       // Be sure to initialize these individually and not in a single statement,
       // otherwise the logic might short-circuit one of the initialize() calls

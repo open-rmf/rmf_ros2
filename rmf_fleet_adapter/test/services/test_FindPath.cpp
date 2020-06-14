@@ -126,7 +126,8 @@ SCENARIO("Find a path")
 
     auto path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
           planner, rmf_traffic::agv::Plan::StartSet({start_0}),
-          goal_0, database->snapshot(), p0.id());
+          goal_0, database->snapshot(), p0.id(),
+          std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_0_promise;
     auto result_0_future = result_0_promise.get_future();
@@ -150,7 +151,8 @@ SCENARIO("Find a path")
     // itinerary in the database.
     path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
           planner, rmf_traffic::agv::Plan::StartSet({start_1}),
-          goal_1, database->snapshot(), p1.id());
+          goal_1, database->snapshot(), p1.id(),
+          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> pre_result_1_promise;
     auto pre_result_1_future = pre_result_1_promise.get_future();
@@ -188,7 +190,8 @@ SCENARIO("Find a path")
 
     path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
           planner, rmf_traffic::agv::Plan::StartSet({start_1}),
-          goal_1, database->snapshot(), p1.id());
+          goal_1, database->snapshot(), p1.id(),
+          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_1_promise;
     auto result_1_future = result_1_promise.get_future();
@@ -243,7 +246,8 @@ SCENARIO("Find a path")
 
     auto path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
           planner, rmf_traffic::agv::Plan::StartSet({start_1}), goal_1,
-          database->snapshot(), p1.id());
+          database->snapshot(), p1.id(),
+          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_1_promise;
     auto result_1_future = result_1_promise.get_future();

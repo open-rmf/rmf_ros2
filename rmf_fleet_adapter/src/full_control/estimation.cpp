@@ -18,7 +18,8 @@
 #include "estimation.hpp"
 
 //==============================================================================
-void check_path_finish(rclcpp::Node* node,
+void check_path_finish(
+    rclcpp::Node* node,
     const rmf_fleet_msgs::msg::RobotState& state,
     TravelInfo& info)
 {
@@ -31,7 +32,7 @@ void check_path_finish(rclcpp::Node* node,
   assert(wp.graph_index());
   info.last_known_wp = *wp.graph_index();
 
-  assert(info.waypoints.size() > 2);
+  assert(info.waypoints.size() >= 2);
 
   if (dist > 2.0)
   {
@@ -52,7 +53,8 @@ void check_path_finish(rclcpp::Node* node,
       "but we will proceed anyway.");
 
     const auto& last_wp = info.waypoints[info.waypoints.size()-2];
-    estimate_midlane_state(state.location, last_wp.graph_index(), wp, info);
+    estimate_midlane_state(
+          state.location, last_wp.graph_index(), info.waypoints.size()-1, info);
   }
   else
   {
@@ -68,6 +70,7 @@ void check_path_finish(rclcpp::Node* node,
 
 //==============================================================================
 void estimate_path_traveling(
+    rclcpp::Node* node,
     const rmf_fleet_msgs::msg::RobotState& state,
     TravelInfo& info)
 {
@@ -88,18 +91,21 @@ void estimate_path_traveling(
     lane_start = info.waypoints[i_target_wp-1].graph_index();
     if (lane_start)
       info.last_known_wp = *lane_start;
+
+    return estimate_midlane_state(l, lane_start, i_target_wp, info);
   }
 
-  return estimate_midlane_state(l, lane_start, target_wp, info);
+  estimate_state(node, state.location, info);
 }
 
 //==============================================================================
 void estimate_midlane_state(
     const rmf_fleet_msgs::msg::Location& l,
     rmf_utils::optional<std::size_t> lane_start,
-    const rmf_traffic::agv::Plan::Waypoint& target_wp,
+    const std::size_t next_index,
     TravelInfo& info)
 {
+  const auto& target_wp = info.waypoints.at(next_index);
   if (!lane_start && info.last_known_wp)
   {
     // Let's see if the current position is reasonably between the last known
@@ -126,38 +132,60 @@ void estimate_midlane_state(
     }
   }
 
-  if (lane_start)
+  const std::size_t target_gi = [&]() -> std::size_t
   {
-    std::vector<std::size_t> lanes;
-    const auto last_gi = *lane_start;
-    const auto target_gi = *target_wp.graph_index();
-    const auto* forward_lane = info.graph->lane_from(last_gi, target_gi);
-    assert(forward_lane);
-    lanes.push_back(forward_lane->index());
+    // At least one future waypoint must have a graph index
+    if (target_wp.graph_index())
+      return *target_wp.graph_index();
 
-    if (const auto* reverse_lane = info.graph->lane_from(target_gi, last_gi))
+    for (std::size_t i=next_index+1; i < info.waypoints.size(); ++i)
     {
-      if (!reverse_lane->entry().event())
-      {
-        // We don't allow the robot to turn back mid-lane if the reverse lane
-        // has an entry event, because if that entry event is docking, then it
-        // needs to be triggered for the robot to approach the exit.
-        //
-        // TODO(MXG): This restriction isn't needed for reversing on door or
-        // lift events, so with some effort we could loosen this restriction to
-        // only apply to docking.
-        lanes.push_back(reverse_lane->index());
-      }
+      const auto gi = info.waypoints[i].graph_index();
+      if (gi)
+        return *gi;
     }
 
-    info.updater->update_position({l.x, l.y, l.yaw}, std::move(lanes));
-    return;
+    throw std::runtime_error(
+        "CRITICAL ERROR: Remaining waypoint sequence has no graph indices");
+  }();
+
+  if (lane_start)
+  {
+    const auto last_gi = *lane_start;
+    if (last_gi == target_gi)
+    {
+      // This implies that the robot is either waiting at or rotating on the
+      // waypoint.
+      info.updater->update_position(target_gi, l.yaw);
+    }
+    else if (const auto* forward_lane=info.graph->lane_from(last_gi, target_gi))
+    {
+      // This implies that the robot is moving down a lane.
+      std::vector<std::size_t> lanes;
+      lanes.push_back(forward_lane->index());
+
+      if (const auto* reverse_lane = info.graph->lane_from(target_gi, last_gi))
+      {
+        if (!reverse_lane->entry().event())
+        {
+          // We don't allow the robot to turn back mid-lane if the reverse lane
+          // has an entry event, because if that entry event is docking, then it
+          // needs to be triggered for the robot to approach the exit.
+          //
+          // TODO(MXG): This restriction isn't needed for reversing on door or
+          // lift events, so with some effort we could loosen this restriction to
+          // only apply to docking.
+          lanes.push_back(reverse_lane->index());
+        }
+      }
+
+      info.updater->update_position({l.x, l.y, l.yaw}, std::move(lanes));
+    }
   }
 
   // The target should always have a graph index, because only the first
   // waypoint in a command should ever be lacking a graph index.
-  assert(target_wp.graph_index());
-  info.updater->update_position({l.x, l.y, l.yaw}, *target_wp.graph_index());
+  info.updater->update_position({l.x, l.y, l.yaw}, target_gi);
 }
 
 //==============================================================================

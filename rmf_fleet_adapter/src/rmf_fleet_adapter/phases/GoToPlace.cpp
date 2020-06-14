@@ -124,18 +124,40 @@ void GoToPlace::Active::respond(
           responder, std::move(approval_cb), evaluator);
   }
 
-  _negotiate_services[negotiate] =
+  auto negotiate_sub =
       rmf_rxcpp::make_job<services::Negotiate::Result>(negotiate)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [w = weak_from_this(), negotiate](const auto& result)
+        [w = weak_from_this(), negotiate, table_viewer](const auto& result)
   {
     if (auto phase = w.lock())
     {
+      std::cout << "[" << phase->_context->requester_id() << "] is responding ("
+                << result.service << ") to [";
+      for (const auto& s : table_viewer->sequence())
+        std::cout << " " << s.participant << ":" << s.version;
+      std::cout << " ]" << std::endl;
+
       result.respond();
       phase->_negotiate_services.erase(result.service);
     }
   });
+
+  using namespace std::chrono_literals;
+  const auto wait_duration = 2s + table_viewer->sequence().back().version * 10s;
+  auto negotiate_timer = _context->node()->create_wall_timer(
+        wait_duration,
+        [s = negotiate->weak_from_this()]
+  {
+    if (const auto service = s.lock())
+      service->interrupt();
+  });
+
+  _negotiate_services[negotiate] =
+      NegotiateManagers{
+        std::move(negotiate_sub),
+        std::move(negotiate_timer)
+  };
 }
 
 //==============================================================================
@@ -179,10 +201,15 @@ void GoToPlace::Active::find_plan()
   msg.end_time = msg.start_time;
   _status_publisher.get_subscriber().on_next(msg);
 
+  std::cout << "Creating a planning job for [" << _context->requester_id()
+            << "]: planner " << _context->planner() << " | starts "
+            << _context->location().size() << " | schedule "
+            << _context->schedule() << std::endl;
   _pullover_service = nullptr;
   _find_path_service = std::make_shared<services::FindPath>(
         _context->planner(), _context->location(), _goal,
-        _context->schedule()->snapshot(), _context->itinerary().id());
+        _context->schedule()->snapshot(), _context->itinerary().id(),
+        _context->profile());
 
   _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
         _find_path_service)
@@ -239,7 +266,8 @@ void GoToPlace::Active::find_emergency_plan()
   _find_path_service = nullptr;
   _pullover_service = std::make_shared<services::FindEmergencyPullover>(
         _context->planner(), _context->location(),
-        _context->schedule()->snapshot(), _context->itinerary().id());
+        _context->schedule()->snapshot(), _context->itinerary().id(),
+        _context->profile());
 
   _plan_subscription = rmf_rxcpp::make_job<
       services::FindEmergencyPullover::Result>(_pullover_service)
@@ -269,7 +297,7 @@ void GoToPlace::Active::find_emergency_plan()
 
   _find_pullover_timer = _context->node()->create_wall_timer(
         std::chrono::seconds(10),
-        [s = std::weak_ptr<services::FindEmergencyPullover>(_pullover_service),
+        [s = _pullover_service->weak_from_this(),
          p = weak_from_this(),
          t = rclcpp::TimerBase::WeakPtr(_find_pullover_timer)]()
   {

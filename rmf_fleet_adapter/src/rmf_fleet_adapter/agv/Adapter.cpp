@@ -34,6 +34,26 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
+class WorkerWrapper : public rmf_traffic_ros2::schedule::Negotiation::Worker
+{
+public:
+
+  WorkerWrapper(rxcpp::schedulers::worker worker)
+    : _worker(std::move(worker))
+  {
+    // Do nothing
+  }
+
+  void schedule(std::function<void ()> job) final
+  {
+    _worker.schedule([job = std::move(job)](const auto&) { job(); });
+  }
+
+private:
+  rxcpp::schedulers::worker _worker;
+};
+
+//==============================================================================
 class Adapter::Implementation
 {
 public:
@@ -55,6 +75,12 @@ public:
 
   std::vector<std::shared_ptr<FleetUpdateHandle>> fleets = {};
 
+  std::mutex mutex;
+
+  std::unordered_set<std::string> received_tasks;
+  std::map<rmf_traffic::Time, std::string> task_times;
+  rclcpp::TimerBase::SharedPtr task_purge_timer;
+
   Implementation(
       rxcpp::schedulers::worker worker_,
       std::shared_ptr<Node> node_,
@@ -72,6 +98,13 @@ public:
           DeliveryTopicName, default_qos,
           [this](Delivery::SharedPtr msg)
     {
+      std::lock_guard<std::mutex> lock(mutex);
+      if (!received_tasks.insert(msg->task_id).second)
+        return;
+
+      task_times.insert(
+          task_times.end(), {std::chrono::steady_clock::now(), msg->task_id});
+
       rmf_fleet_adapter::agv::request_delivery(*msg, fleets);
     });
 
@@ -79,7 +112,30 @@ public:
           LoopRequestTopicName, default_qos,
           [this](Loop::SharedPtr msg)
     {
+      std::lock_guard<std::mutex> lock(mutex);
+      if (!received_tasks.insert(msg->task_id).second)
+        return;
+
+      task_times.insert(
+          task_times.end(), {std::chrono::steady_clock::now(), msg->task_id});
+
       rmf_fleet_adapter::agv::request_loop(*msg, fleets);
+    });
+
+    task_purge_timer = node->create_wall_timer(
+          std::chrono::minutes(60), [this]()
+    {
+      // This purge of task ids is to prevent the log of tasks from growing
+      // infinitely.
+      const auto purge_end =
+          std::chrono::steady_clock::now() - std::chrono::minutes(60);
+
+      auto it = task_times.begin();
+      for (; it != task_times.end() && it->first < purge_end; ++it)
+        received_tasks.erase(it->second);
+
+      if (it != task_times.begin())
+        task_times.erase(task_times.begin(), it);
     });
   }
 
@@ -130,16 +186,15 @@ public:
 
         auto negotiation =
             std::make_shared<rmf_traffic_ros2::schedule::Negotiation>(
-              *node, mirror_manager.snapshot_handle());
+              *node, mirror_manager.snapshot_handle(),
+              std::make_shared<WorkerWrapper>(worker));
 
         return rmf_utils::make_unique_impl<Implementation>(
-              Implementation{
                 worker,
                 std::move(node),
                 std::move(negotiation),
                 std::make_shared<ParticipantFactoryRos2>(std::move(writer)),
-                std::move(mirror_manager)
-              });
+                std::move(mirror_manager));
       }
     }
 
@@ -164,12 +219,15 @@ std::shared_ptr<Adapter> Adapter::make(
     const rclcpp::NodeOptions& node_options,
     const rmf_utils::optional<rmf_traffic::Duration> discovery_timeout)
 {
-  Adapter adapter;
-  adapter._pimpl = Implementation::make(
+  auto pimpl = Implementation::make(
         node_name, node_options, discovery_timeout);
 
-  if (adapter._pimpl)
-    return std::make_shared<Adapter>(std::move(adapter));
+  if (pimpl)
+  {
+    auto adapter = std::shared_ptr<Adapter>(new Adapter);
+    adapter->_pimpl = std::move(pimpl);
+    return adapter;
+  }
 
   return nullptr;
 }

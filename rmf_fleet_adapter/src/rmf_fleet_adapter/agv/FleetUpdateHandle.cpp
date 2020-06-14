@@ -44,14 +44,23 @@ public:
       const TableViewerPtr& table_viewer,
       const ResponderPtr& responder) final
   {
+    std::cout << " ** Seeking response for table (" << table_viewer << ") [";
+    for (const auto& s : table_viewer->sequence())
+      std::cout << " " << s.participant << ":" << s.version;
+    std::cout << " ]" << std::endl;
     const auto negotiator = w_negotiator.lock();
     if (!negotiator)
     {
+      std::cout << "    ^ no negotiator" << std::endl;
       // If we no longer have access to the upstream negotiator, then we simply
       // forfeit.
       //
       // TODO(MXG): Consider issuing a warning here
       return responder->forfeit({});
+    }
+    else
+    {
+      std::cout << "    ^ negotiator: " << negotiator << std::endl;
     }
 
     negotiator->respond(table_viewer, responder);
@@ -157,11 +166,19 @@ auto FleetUpdateHandle::Implementation::estimate_loop(
   const auto& graph = planner->get_configuration().graph();
   const auto loop_start_wp = graph.find_waypoint(request.start_name);
   if (!loop_start_wp)
+  {
+    std::cout << " == No waypoint named [" << request.start_name
+              << "]" << std::endl;
     return rmf_utils::nullopt;
+  }
 
   const auto loop_end_wp = graph.find_waypoint(request.finish_name);
   if (!loop_end_wp)
+  {
+    std::cout << " == No waypoint named [" << request.finish_name << "]"
+              << std::endl;
     return rmf_utils::nullopt;
+  }
 
   const auto loop_start_goal =
       rmf_traffic::agv::Plan::Goal(loop_start_wp->index());
@@ -179,7 +196,10 @@ auto FleetUpdateHandle::Implementation::estimate_loop(
     auto start = mgr.expected_finish_location();
     const auto loop_init_plan = planner->plan(start, loop_start_goal);
     if (!loop_init_plan)
+    {
+      std::cout << " == Failed to find loop init plan" << std::endl;
       continue;
+    }
 
     rmf_traffic::Duration init_duration = std::chrono::seconds(0);
     if (loop_init_plan->get_waypoints().size() > 1)
@@ -210,14 +230,20 @@ auto FleetUpdateHandle::Implementation::estimate_loop(
     const auto loop_forward_plan =
         planner->plan(loop_forward_start, loop_end_goal);
     if (!loop_forward_plan)
+    {
+      std::cout << " == Failed to find loop forward plan" << std::endl;
       continue;
+    }
 
     // If the forward plan is empty then that means the start and end of the
     // loop are the same, making it a useless request.
     // TODO(MXG): We should probably make noise here instead of just ignoring
     // the request.
     if (loop_forward_plan->get_waypoints().empty())
+    {
+      std::cout << " == Loop forward plan is nothing" << std::endl;
       return rmf_utils::nullopt;
+    }
 
     estimate.loop_start = loop_forward_start.front();
 
@@ -290,7 +316,8 @@ void FleetUpdateHandle::add_robot(
 
   _pimpl->writer->async_make_participant(
         std::move(description),
-        [command = std::move(command),
+        [worker = _pimpl->worker,
+         command = std::move(command),
          start = std::move(start),
          handle_cb = std::move(handle_cb),
          fleet = shared_from_this()](
@@ -307,21 +334,31 @@ void FleetUpdateHandle::add_robot(
             fleet->_pimpl->worker
           });
 
-    // TODO(MXG): We need to perform this test because we do not currently
-    // support the distributed negotiation in unit test environments. We should
-    // create an abstract NegotiationRoom interface in rmf_traffic and use that
-    // instead.
-    if (fleet->_pimpl->negotiation)
+    // We schedule the following operations on the worker to make sure we do not
+    // have a multiple read/write race condition on the FleetUpdateHandle.
+    worker.schedule(
+          [context, fleet, handle_cb = std::move(handle_cb)](const auto&)
     {
-      context->_negotiation_license =
-          fleet->_pimpl->negotiation
-          ->register_negotiator(
-            context->itinerary().id(),
-            std::make_unique<LiaisonNegotiator>(context));
-    }
+      // TODO(MXG): We need to perform this test because we do not currently
+      // support the distributed negotiation in unit test environments. We
+      // should create an abstract NegotiationRoom interface in rmf_traffic and
+      // use that instead.
+      if (fleet->_pimpl->negotiation)
+      {
+        context->_negotiation_license =
+            fleet->_pimpl->negotiation
+            ->register_negotiator(
+              context->itinerary().id(),
+              std::make_unique<LiaisonNegotiator>(context));
+      }
 
-    fleet->_pimpl->task_managers.insert({context, context});
-    handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
+      std::cout << "Adding robot | planner: "
+                << context->planner() << " | schedule: "
+                << context->schedule() << std::endl;
+
+      fleet->_pimpl->task_managers.insert({context, context});
+      handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
+    });
   });
 }
 
@@ -378,12 +415,17 @@ void request_loop(
   FleetUpdateHandle::Implementation::LoopEstimate best;
   FleetUpdateHandle::Implementation* chosen_fleet = nullptr;
 
+  std::cout << " ==== REQUESTING LOOP" << std::endl;
+
   for (auto& fleet : fleets)
   {
     auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
     const auto estimate = fimpl.estimate_loop(request);
     if (!estimate)
+    {
+      std::cout << " === NO ESTIMATE FROM " << fimpl.name << std::endl;
       continue;
+    }
 
     if (estimate->time < best.time)
     {
@@ -393,8 +435,13 @@ void request_loop(
   }
 
   if (!chosen_fleet)
+  {
+    std::cout << " === NO QUALIFIED ROBOT" << std::endl;
     return;
+  }
 
+  std::cout << " === ASSIGNING LOOP TO " << best.robot->requester_id()
+            << std::endl;
   chosen_fleet->perform_loop(request, best);
 }
 

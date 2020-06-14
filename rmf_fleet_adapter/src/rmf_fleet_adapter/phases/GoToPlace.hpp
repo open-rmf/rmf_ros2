@@ -93,9 +93,14 @@ public:
     std::shared_ptr<services::FindEmergencyPullover> _pullover_service;
     rclcpp::TimerBase::SharedPtr _find_pullover_timer;
 
+    struct NegotiateManagers
+    {
+      rmf_rxcpp::subscription_guard subscription;
+      rclcpp::TimerBase::SharedPtr timer;
+    };
     using NegotiatePtr = std::shared_ptr<services::Negotiate>;
     using NegotiateServiceMap =
-        std::unordered_map<NegotiatePtr, rmf_rxcpp::subscription_guard>;
+        std::unordered_map<NegotiatePtr, NegotiateManagers>;
     NegotiateServiceMap _negotiate_services;
 
     std::shared_ptr<void> _negotiator_license;

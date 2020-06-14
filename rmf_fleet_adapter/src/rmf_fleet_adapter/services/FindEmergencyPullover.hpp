@@ -34,7 +34,8 @@ public:
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
       rmf_traffic::agv::Plan::StartSet starts,
       std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
-      rmf_traffic::schedule::ParticipantId participant_id);
+      rmf_traffic::schedule::ParticipantId participant_id,
+      std::shared_ptr<const rmf_traffic::Profile> profile);
 
   using Result = rmf_traffic::agv::Plan::Result;
 
@@ -51,6 +52,7 @@ private:
   rmf_traffic::agv::Plan::StartSet _starts;
   std::shared_ptr<const rmf_traffic::schedule::Snapshot> _schedule;
   rmf_traffic::schedule::ParticipantId _participant_id;
+  std::shared_ptr<const rmf_traffic::Profile> _profile;
 
   std::vector<std::shared_ptr<jobs::SearchForPath>> _search_jobs;
   rmf_rxcpp::subscription_guard _search_sub;

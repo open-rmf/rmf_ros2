@@ -128,7 +128,8 @@ SCENARIO("Emergency Pullover")
     auto pullover_service = std::make_shared<
         rmf_fleet_adapter::services::FindEmergencyPullover>(
           planner, rmf_traffic::agv::Plan::StartSet({start_0}),
-          database->snapshot(), p0.id());
+          database->snapshot(), p0.id(),
+          std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_0_promise;
     auto result_0_future = result_0_promise.get_future();
@@ -164,7 +165,8 @@ SCENARIO("Emergency Pullover")
     pullover_service = std::make_shared<
         rmf_fleet_adapter::services::FindEmergencyPullover>(
           planner, rmf_traffic::agv::Plan::StartSet({start_1}),
-          database->snapshot(), p1.id());
+          database->snapshot(), p1.id(),
+          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> pre_result_1_promise;
     auto pre_result_1_future = pre_result_1_promise.get_future();
@@ -204,7 +206,8 @@ SCENARIO("Emergency Pullover")
     pullover_service = std::make_shared<
         rmf_fleet_adapter::services::FindEmergencyPullover>(
           planner, rmf_traffic::agv::Plan::StartSet({start_1}),
-          database->snapshot(), p1.id());
+          database->snapshot(), p1.id(),
+          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_1_promise;
     auto result_1_future = result_1_promise.get_future();
@@ -259,7 +262,8 @@ SCENARIO("Emergency Pullover")
     auto pullover_service = std::make_shared<
         rmf_fleet_adapter::services::FindEmergencyPullover>(
           planner, rmf_traffic::agv::Plan::StartSet({start_1}),
-          database->snapshot(), p1.id());
+          database->snapshot(), p1.id(),
+          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_1_promise;
     auto result_1_future = result_1_promise.get_future();

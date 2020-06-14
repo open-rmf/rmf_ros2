@@ -63,6 +63,9 @@ public:
   /// Get the schedule description of this robot
   const rmf_traffic::schedule::ParticipantDescription& description() const;
 
+  /// Get the profile of this robot
+  const std::shared_ptr<const rmf_traffic::Profile>& profile() const;
+
   /// Get the name of this robot
   const std::string& name() const;
 
@@ -119,6 +122,7 @@ private:
   rmf_traffic::schedule::Participant _itinerary;
   std::shared_ptr<const Snappable> _schedule;
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
+  std::shared_ptr<const rmf_traffic::Profile> _profile;
 
   std::shared_ptr<void> _negotiation_license;
 

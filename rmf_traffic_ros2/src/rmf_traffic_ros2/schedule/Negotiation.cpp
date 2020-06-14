@@ -99,27 +99,94 @@ public:
       std::vector<rmf_traffic::Route> itinerary,
       std::function<UpdateVersion()> approval_callback) const final
     {
-      const bool accepted = table->submit(itinerary, table_version+1);
-      assert(accepted);
-      (void)(accepted);
+      if (table->submit(itinerary, table_version+1))
+      {
+        std::cout << " >> Submitting [" << table->participant() << ":"
+                  << table_version+1 << "] onto [";
+        for (const auto& s : table->sequence())
+          std::cout << " " << s.participant << ":" << s.version;
+        std::cout << " ]" << std::endl;
 
-      impl->approvals[conflict_version][table] = {
-        table->sequence(),
-        std::move(approval_callback)
-      };
+        impl->approvals[conflict_version][table] = {
+          table->sequence(),
+          std::move(approval_callback)
+        };
 
-      impl->publish_proposal(conflict_version, *table);
+        impl->publish_proposal(conflict_version, *table);
+
+        if (impl->worker)
+        {
+          for (const auto& c : table->children())
+          {
+            const auto n_it = impl->negotiators->find(c->participant());
+            if (n_it == impl->negotiators->end())
+              continue;
+
+            impl->worker->schedule(
+                  [viewer = c->viewer(),
+                   negotiator = n_it->second.get(),
+                   responder = make(impl, conflict_version, c)]()
+            {
+              negotiator->respond(viewer, responder);
+            });
+          }
+        }
+      }
+      else
+      {
+        std::cout << " !! Submission [" << table->participant() << ":"
+                  << table_version+1 << "] deprecated by [";
+        for (const auto& s : table->sequence())
+          std::cout << " " << s.participant << ":" << s.version;
+        std::cout << " ]" << std::endl;
+      }
     }
 
     void reject(const Alternatives& alternatives) const final
     {
-      if (parent)
+      if (parent && !parent->defunct())
       {
-        // We will reject the parent to communicate that this whole branch is
-        // infeasible
-        parent->reject(*parent_version, table->participant(), alternatives);
-        impl->publish_rejection(
-              conflict_version, *parent, table->participant(), alternatives);
+        // We will reject the parent to communicate that its proposal is not
+        // feasible for us.
+        if (parent->reject(*parent_version, table->participant(), alternatives))
+        {
+          std::cout << " >> Rejecting [";
+          for (const auto& s : table->sequence())
+            std::cout << " " << s.participant << ":" << s.version;
+          std::cout << " ] by [" << table->participant() << "]" << std::endl;
+
+          impl->publish_rejection(
+                conflict_version, *parent, table->participant(), alternatives);
+
+          if (impl->worker)
+          {
+            const auto n_it = impl->negotiators->find(parent->participant());
+            if (n_it == impl->negotiators->end())
+              return;
+
+            impl->worker->schedule(
+                  [viewer = parent->viewer(),
+                   negotiator = n_it->second.get(),
+                   responder = make(impl, conflict_version, parent)]()
+            {
+              negotiator->respond(viewer, responder);
+            });
+          }
+        }
+        else
+        {
+          std::cout << " !! Rejection [" << parent->participant() << ":"
+                    << *parent_version << "] deprecated by ["
+                    << parent->participant() << ":" << parent->version()
+                    << "]" << std::endl;
+        }
+      }
+      else if (parent->defunct())
+      {
+        std::cout << " !! Rejection [" << parent->participant() << ":"
+                  << *parent_version << "] deprecated because the parent ["
+                  << parent->participant() << ":" << parent->version()
+                  << "] is defunct" << std::endl;
       }
     }
 
@@ -135,6 +202,7 @@ public:
 
   rclcpp::Node& node;
   std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer;
+  std::shared_ptr<Worker> worker;
 
   using Repeat = rmf_traffic_msgs::msg::ScheduleConflictRepeat;
   using RepeatSub = rclcpp::Subscription<Repeat>;
@@ -211,9 +279,11 @@ public:
 
   Implementation(
     rclcpp::Node& node_,
-    std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer_)
+    std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer_,
+    std::shared_ptr<Worker> worker_)
   : node(node_),
     viewer(std::move(viewer_)),
+    worker(std::move(worker_)),
     negotiators(std::make_shared<NegotiatorMap>())
   {
     // TODO(MXG): Make the QoS configurable
@@ -334,6 +404,11 @@ public:
       const auto top = queue.back();
       queue.pop_back();
 
+      std::cout << " ## Popping (" << top << ") [";
+      for (const auto& s : top->sequence())
+        std::cout << " " << s.participant << ":" << s.version;
+      std::cout << " ] off the queue" << std::endl;
+
       if (top->defunct())
         continue;
 
@@ -435,20 +510,21 @@ public:
     // TODO(MXG): Is the participating flag even relevant?
     participating = true;
 
-    for (const auto p : msg.participants)
-    {
-      const auto it = negotiators->find(p);
-      if (it != negotiators->end())
-      {
-        const auto table = negotiation.table(p, {});
-        if (!table->submission())
-        {
-          it->second->respond(
-            table->viewer(),
-            Responder::make(this, msg.conflict_version, table));
-        }
-      }
-    }
+//    for (const auto p : msg.participants)
+//    {
+//      const auto it = negotiators->find(p);
+//      if (it != negotiators->end())
+//      {
+//        const auto table = negotiation.table(p, {});
+//        if (!table->submission())
+//        {
+//          std::cout << " %% Responding after the notice" << std::endl;
+//          it->second->respond(
+//            table->viewer(),
+//            Responder::make(this, msg.conflict_version, table));
+//        }
+//      }
+//    }
 
     std::vector<TablePtr> queue;
     for (const auto p : negotiation.participants())
@@ -469,6 +545,11 @@ public:
         + std::to_string(msg.conflict_version));
       return;
     }
+
+    std::cout << " $$ Received proposal message for [";
+    for (const auto& s : msg.to_accommodate)
+      std::cout << " " << s.participant << ":" << s.version;
+    std::cout << " ]" << std::endl;
 
     const bool participating = negotiate_it->second.participating;
     auto& room = negotiate_it->second.room;
@@ -502,8 +583,12 @@ public:
     const bool updated =
       received_table->submit(convert(msg.itinerary), msg.proposal_version);
 
+    std::cout << "    ^ have table (" << received_table << ")" << std::endl;
+
     if (!updated)
       return;
+
+    std::cout << "    ^ queuing response" << std::endl;
 
     std::vector<TablePtr> queue = room.check_cache(*negotiators);
 
@@ -893,8 +978,10 @@ public:
 //==============================================================================
 Negotiation::Negotiation(
   rclcpp::Node& node,
-  std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer)
-: _pimpl(rmf_utils::make_unique_impl<Implementation>(node, std::move(viewer)))
+  std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer,
+  std::shared_ptr<Worker> worker)
+: _pimpl(rmf_utils::make_unique_impl<Implementation>(
+           node, std::move(viewer), std::move(worker)))
 {
   // Do nothing
 }

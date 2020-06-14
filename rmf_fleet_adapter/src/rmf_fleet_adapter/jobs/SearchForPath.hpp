@@ -39,7 +39,8 @@ public:
       rmf_traffic::agv::Plan::StartSet starts,
       rmf_traffic::agv::Plan::Goal goal,
       std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
-      rmf_traffic::schedule::ParticipantId participant_id);
+      rmf_traffic::schedule::ParticipantId participant_id,
+      const std::shared_ptr<const rmf_traffic::Profile>& profile);
 
   enum class Type
   {
