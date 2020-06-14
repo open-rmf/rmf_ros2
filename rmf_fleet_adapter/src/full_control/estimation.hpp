@@ -70,4 +70,10 @@ void estimate_state(
     const rmf_fleet_msgs::msg::Location& state,
     TravelInfo& info);
 
+//==============================================================================
+void estimate_waypoint(
+    rclcpp::Node* node,
+    const rmf_fleet_msgs::msg::Location& state,
+    TravelInfo& info);
+
 #endif // SRC__FULL_CONTROL__ESTIMATION_HPP

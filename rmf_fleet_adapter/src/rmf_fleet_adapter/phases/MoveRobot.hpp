@@ -92,8 +92,6 @@ struct MoveRobot
     agv::RobotContextPtr _context;
     std::vector<rmf_traffic::agv::Plan::Waypoint> _waypoints;
     std::size_t _next_path_index = 0;
-    rmf_traffic::Duration _current_delay = rmf_traffic::Duration(0);
-    rmf_traffic::Duration _total_delay = rmf_traffic::Duration(0);
     bool _interrupted = false;
   };
 };
@@ -143,14 +141,16 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       return;
     }
 
+    const auto current_delay = action->_context->itinerary().delay();
+
     const rmf_traffic::Time t = action->_context->now();
     const auto previously_expected_arrival =
-        action->_waypoints[path_index].time() + action->_current_delay;
+        action->_waypoints[path_index].time() + current_delay;
     const auto newly_expected_arrival = t + estimate;
     const auto new_delay = newly_expected_arrival - previously_expected_arrival;
 
     if (!action->_interrupted &&
-        std::chrono::seconds(10) < action->_current_delay + new_delay)
+        std::chrono::seconds(10) < current_delay + new_delay)
     {
       action->_interrupted = true;
       action->_context->trigger_interrupt();
@@ -158,7 +158,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 
     if (std::chrono::milliseconds(500).count() < std::abs(new_delay.count()))
     {
-      action->_current_delay += new_delay;
       action->_context->worker().schedule(
             [context = action->_context, new_delay](const auto&)
       {

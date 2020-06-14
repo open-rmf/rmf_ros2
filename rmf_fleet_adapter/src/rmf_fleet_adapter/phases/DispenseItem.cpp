@@ -81,7 +81,7 @@ void DispenseItem::Action::_init_obs()
     {
       auto me = weak.lock();
       if (!me)
-        throw std::runtime_error("invalid state");
+        return Task::StatusMsg();
 
       return me->_get_status(std::get<0>(v), std::get<1>(v));
     })

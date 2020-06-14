@@ -107,7 +107,7 @@ void DoorClose::ActivePhase::_init_obs()
     {
       auto me = weak.lock();
       if (!me)
-        throw std::runtime_error("invalid state");
+        return Task::StatusMsg();
 
       me->_update_status(heartbeat);
       return me->_status;

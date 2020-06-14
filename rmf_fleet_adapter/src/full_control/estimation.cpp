@@ -40,9 +40,10 @@ void check_path_finish(
   {
     RCLCPP_ERROR(
       node->get_logger(),
-      "The robot is very far [%fm] from where it is supposed to be, but "
-      "its remaining path is empty. This means the robot believes it is"
-      "finished, but it is not where it is supposed to be.", dist);
+      "Robot named [%s] belonging to fleet [%s] is very far [%fm] from where "
+      "it is supposed to be, but its remaining path is empty. This means the "
+      "robot believes it is finished, but it is not where it's supposed to be.",
+      info.robot_name.c_str(), info.fleet_name.c_str(), dist);
     estimate_state(node, state.location, info);
     return;
   }
@@ -239,9 +240,52 @@ void estimate_state(
           node->get_logger(),
           "Robot named [%s] belonging to fleet [%s] is lost because we cannot "
           "figure out what floor it is on. Please publish the robot's current "
-          "floor name in the level_name field of its RobotState.");
+          "floor name in the level_name field of its RobotState.",
+          info.robot_name.c_str(), info.fleet_name.c_str());
     return;
   }
 
   info.updater->update_position(last_known_map, {l.x, l.y, l.yaw});
+}
+
+//==============================================================================
+void estimate_waypoint(
+    rclcpp::Node* node,
+    const rmf_fleet_msgs::msg::Location& l,
+    TravelInfo& info)
+{
+  std::string last_known_map = l.level_name;
+  if (last_known_map.empty() && info.last_known_wp)
+  {
+    last_known_map = info.graph->get_waypoint(*info.last_known_wp)
+        .get_map_name();
+  }
+
+  const Eigen::Vector2d p(l.x, l.y);
+  const rmf_traffic::agv::Graph::Waypoint* closest_wp = nullptr;
+  double nearest_dist = std::numeric_limits<double>::infinity();
+  for (std::size_t i=0; i < info.graph->num_waypoints(); ++i)
+  {
+    const auto& wp = info.graph->get_waypoint(i);
+    const Eigen::Vector2d p_wp = wp.get_location();
+    const double dist = (p - p_wp).norm();
+    if (dist < nearest_dist)
+    {
+      closest_wp = &wp;
+      nearest_dist = dist;
+    }
+  }
+
+  assert(closest_wp);
+
+  if (nearest_dist > 0.5)
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Robot named [%s] belonging to fleet [%s] is expected to be on a "
+      "waypoint, but the nearest waypoint is [%fm] away.",
+      info.robot_name.c_str(), info.fleet_name.c_str(), nearest_dist);
+  }
+
+  info.updater->update_position(closest_wp->index(), l.yaw);
 }

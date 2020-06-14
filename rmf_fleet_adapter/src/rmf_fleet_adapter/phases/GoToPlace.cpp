@@ -437,35 +437,43 @@ public:
 
   EventPhaseFactory(
       agv::RobotContextPtr context,
-      Task::PendingPhases& phases)
+      Task::PendingPhases& phases,
+      rmf_traffic::Time event_start_time,
+      bool& continuous)
     : _context(std::move(context)),
-      _phases(phases)
+      _phases(phases),
+      _event_start_time(event_start_time),
+      _continuous(continuous)
   {
     // Do nothing
   }
 
   void execute(const Dock& dock) final
   {
+    std::cout << "Creating phase to dock into [" << dock.dock_name() << "]" << std::endl;
     _phases.push_back(
           std::make_unique<phases::DockRobot::PendingPhase>(
             _context, dock.dock_name()));
+    _continuous = false;
   }
 
   void execute(const DoorOpen& open) final
   {
+    std::cout << "Creating phase to open door [" << open.name() << "]" << std::endl;
     const auto node = _context->node();
     _phases.push_back(
           std::make_unique<phases::DoorOpen::PendingPhase>(
             open.name(),
             _context->requester_id(),
-            node,
-            node->door_state(),
-            node->door_supervisor(),
-            node->door_request()));
+            _context,
+            _event_start_time + open.duration()));
+    _continuous = true;
   }
 
   void execute(const DoorClose& close) final
   {
+    std::cout << "Creating phase to close door [" << close.name() << "]" << std::endl;
+    // TODO(MXG): Account for event duration in this phase
     const auto node = _context->node();
     _phases.push_back(
           std::make_unique<phases::DoorClose::PendingPhase>(
@@ -474,19 +482,22 @@ public:
             node,
             node->door_supervisor(),
             node->door_request()));
+    _continuous = true;
   }
 
   void execute(const LiftDoorOpen& open) final
   {
+    std::cout << "Creating phase to use lift [" << open.lift_name() << "] on floor ["
+              << open.floor_name() << "]" << std::endl;
     const auto node = _context->node();
     _phases.push_back(
           std::make_unique<phases::RequestLift::PendingPhase>(
-            _context->requester_id(),
-            node,
             open.lift_name(),
             open.floor_name(),
-            node->lift_state(),
-            node->lift_request()));
+            _context,
+            _event_start_time + open.duration()));
+
+    _continuous = true;
   }
 
   void execute(const LiftDoorClose& /*close*/) final
@@ -502,6 +513,8 @@ public:
 private:
   agv::RobotContextPtr _context;
   Task::PendingPhases& _phases;
+  rmf_traffic::Time _event_start_time;
+  bool& _continuous;
 };
 
 } // anonymous namespace
@@ -513,12 +526,13 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
 
   std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints =
       _plan->get_waypoints();
+  std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
 
   Task::PendingPhases sub_phases;
   while (!waypoints.empty())
   {
-    std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
     auto it = waypoints.begin();
+    bool event_occurred = false;
     for (; it != waypoints.end(); ++it)
     {
       move_through.push_back(*it);
@@ -534,10 +548,20 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
 
         move_through.clear();
 
-        EventPhaseFactory factory(_context, sub_phases);
+        bool continuous = true;
+        EventPhaseFactory factory(_context, sub_phases, it->time(), continuous);
         it->event()->execute(factory);
 
+        if (continuous)
+        {
+          // Have the next sequence of waypoints begin with the event waypoint
+          // of this sequence.
+          move_through.push_back(*it);
+        }
+
+        // Erase all the used up waypoints.
         waypoints.erase(waypoints.begin(), it+1);
+        event_occurred = true;
         break;
       }
     }
@@ -550,14 +574,15 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
           std::make_unique<MoveRobot::PendingPhase>(_context, move_through));
     }
 
-    if (!move_through.empty())
+    if (!event_occurred)
     {
-      // If we made it into this if-statement, then we have reached the end of
-      // the waypoints, because otherwise an event would have interrupted the
-      // for-loop and cleared out the move_through sequence.
+      // If no event occurred on this loop, then we have reached the end of the
+      // waypoint sequence, and we should simply clear it out.
       waypoints.clear();
     }
   }
+
+
 
   _subtasks = Task::make(
         _description, std::move(sub_phases), _context->worker());

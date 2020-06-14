@@ -87,9 +87,9 @@ if (BUILD_TESTING)
     rmf_fleet_adapter_test
       test/main.cpp
       test/phases/TransportFixture.cpp
-      test/phases/DoorOpenTest.cpp
+      #test/phases/DoorOpenTest.cpp
       test/phases/DoorCloseTest.cpp
-      test/phases/RequestLiftTest.cpp
+      #test/phases/RequestLiftTest.cpp
       test/phases/DispenseItemTest.cpp
       test/phases/test_GoToPlace.cpp
       test/services/test_FindEmergencyPullover.cpp

@@ -19,11 +19,8 @@
 #define SRC__RMF_FLEET_ADAPTER__PHASES__REQUESTLIFT_HPP
 
 #include "../Task.hpp"
+#include "../agv/RobotContext.hpp"
 #include "rmf_fleet_adapter/StandardNames.hpp"
-
-#include <rmf_rxcpp/Transport.hpp>
-#include <rmf_lift_msgs/msg/lift_request.hpp>
-#include <rmf_lift_msgs/msg/lift_state.hpp>
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -35,12 +32,10 @@ struct RequestLift
   public:
 
     static std::shared_ptr<Action> make(
-      std::string requester_id,
-      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
       std::string lift_name,
       std::string destination,
-      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
-      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub);
+      agv::RobotContextPtr context,
+      rmf_traffic::Time expected_finish);
 
     inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
     {
@@ -49,28 +44,24 @@ struct RequestLift
 
   private:
 
-    std::weak_ptr<rmf_rxcpp::Transport> _transport;
     std::string _lift_name;
     std::string _destination;
-    rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> _lift_state_obs;
-    rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr _publisher;
+    agv::RobotContextPtr _context;
+    rmf_traffic::Time _expected_finish;
     rxcpp::observable<Task::StatusMsg> _obs;
-    std::string _session_id;
     rclcpp::TimerBase::SharedPtr _timer;
 
     Action(
-      std::string requester_id,
-      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
       std::string lift_name,
       std::string destination,
-      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
-      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub);
+      agv::RobotContextPtr context,
+      rmf_traffic::Time expected_finish);
 
     void _init_obs();
 
     Task::StatusMsg _get_status(const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
 
-    void _do_publish(const rclcpp::Node::SharedPtr& node);
+    void _do_publish();
   };
 
   class ActivePhase : public Task::ActivePhase
@@ -78,12 +69,10 @@ struct RequestLift
   public:
 
     ActivePhase(
-      std::string requester_id,
-      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
       std::string lift_name,
       std::string destination,
-      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
-      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub);
+      agv::RobotContextPtr context,
+      rmf_traffic::Time expected_finish);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -97,7 +86,6 @@ struct RequestLift
 
   private:
 
-    std::weak_ptr<rmf_rxcpp::Transport> _transport;
     std::string _lift_name;
     std::string _destination;
     rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> _lift_state_obs;
@@ -110,12 +98,10 @@ struct RequestLift
   public:
 
     PendingPhase(
-      std::string requester_id,
-      std::weak_ptr<rmf_rxcpp::Transport> transport,
       std::string lift_name,
       std::string destination,
-      rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> lift_state_obs,
-      rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr lift_request_pub);
+      agv::RobotContextPtr context,
+      rmf_traffic::Time expected_finish);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
 
@@ -124,12 +110,10 @@ struct RequestLift
     const std::string& description() const override;
 
   private:
-    std::string _requester_id;
-    std::weak_ptr<rmf_rxcpp::Transport> _transport;
     std::string _lift_name;
     std::string _destination;
-    rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> _lift_state_obs;
-    rclcpp::Publisher<rmf_lift_msgs::msg::LiftRequest>::SharedPtr _lift_request_pub;
+    agv::RobotContextPtr _context;
+    rmf_traffic::Time _expected_finish;
     std::string _description;
   };
 };

@@ -70,6 +70,7 @@ public:
 
     _current_dock_request.fleet_name = fleet_name;
     _current_dock_request.robot_name = robot_name;
+    _current_dock_request.mode.mode = _current_dock_request.mode.MODE_DOCKING;
 
     rmf_fleet_msgs::msg::ModeParameter p;
     p.name = "docking";
@@ -133,7 +134,7 @@ public:
 
     _dock_finished_callback = std::move(docking_finished_callback);
     _current_dock_request.parameters.front().value = dock_name;
-    _current_dock_request.task_id = ++_current_task_id;
+    _current_dock_request.task_id = std::to_string(++_current_task_id);
 
     _dock_requested_time = std::chrono::steady_clock::now();
     _mode_request_pub->publish(_current_dock_request);
@@ -179,6 +180,7 @@ public:
               _current_path_request.robot_name.c_str());
 
         _interrupted = true;
+        estimate_state(_node, state.location, _travel_info);
         return _travel_info.updater->interrupted();
       }
 
@@ -210,6 +212,7 @@ public:
 
       if (state.mode.mode != state.mode.MODE_DOCKING)
       {
+        estimate_waypoint(_node, state.location, _travel_info);
         _dock_finished_callback();
         _dock_finished_callback = nullptr;
       }
