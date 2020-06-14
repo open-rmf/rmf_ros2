@@ -26,118 +26,6 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-inline rmf_traffic::Time print_start(const rmf_traffic::Route& route)
-{
-  assert(route.trajectory().size() > 0);
-  std::cout << std::setprecision(3) << "(start) \n--> ";
-  std::cout << "(" << 0.0 << "; "
-            << route.trajectory().front().position().transpose()
-            << ") \n--> ";
-
-  return *route.trajectory().start_time();
-}
-
-//==============================================================================
-inline void print_route(
-    const rmf_traffic::Route& route,
-    const rmf_traffic::Time start_time)
-{
-  assert(route.trajectory().size() > 0);
-  for (auto it = ++route.trajectory().begin(); it
-       != route.trajectory().end(); ++it)
-  {
-    const auto& wp = *it;
-    if (wp.velocity().norm() > 1e-3)
-      continue;
-
-    const auto rel_time = wp.time() - start_time;
-    std::cout << "(" << rmf_traffic::time::to_seconds(rel_time) << "; "
-              << wp.position().transpose() << ") \n--> ";
-  }
-}
-
-//==============================================================================
-inline void print_itinerary(
-    const rmf_traffic::schedule::Itinerary& itinerary)
-{
-  if (itinerary.empty())
-  {
-    std::cout << "No plan needed!" << std::endl;
-  }
-  else
-  {
-    auto start_time = print_start(*itinerary.front());
-    for (const auto& r : itinerary)
-      print_route(*r, start_time);
-
-    std::cout << "(end)" << std::endl;
-  }
-}
-
-//==============================================================================
-inline void print_itinerary(const std::vector<rmf_traffic::Route>& itinerary)
-{
-  if (itinerary.empty())
-  {
-    std::cout << "No plan needed!" << std::endl;
-  }
-  else
-  {
-    auto start_time = print_start(itinerary.front());
-    for (const auto& r : itinerary)
-      print_route(r, start_time);
-
-    std::cout << "(end)" << std::endl;
-  }
-}
-
-//==============================================================================
-inline void print_itinerary(const rmf_traffic::schedule::Writer::Input& itinerary)
-{
-  if (itinerary.empty())
-  {
-    std::cout << " --> Empty itinerary" << std::endl;
-  }
-  else
-  {
-    auto start_time = print_start(*itinerary.front().route);
-    for (const auto& r : itinerary)
-      print_route(*r.route, start_time);
-
-    std::cout << "(end)" << std::endl;
-  }
-}
-
-//==============================================================================
-std::string index_or_null(rmf_utils::optional<std::size_t> i)
-{
-  if (i)
-    return std::to_string(*i);
-
-  return "null";
-}
-
-//==============================================================================
-inline void print_waypoints(const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints)
-{
-  if (waypoints.empty())
-  {
-    std::cout << " --| No waypoints" << std::endl;
-  }
-  else
-  {
-    auto start_time = waypoints.front().time();
-    for (const auto& wp : waypoints)
-    {
-      std::cout << " --| "
-                << rmf_traffic::time::to_seconds(wp.time() - start_time)
-                << " [" << index_or_null(wp.graph_index()) << "] "
-                << wp.position().transpose() << std::endl;
-    }
-  }
-}
-
-//==============================================================================
 auto GoToPlace::Active::observe() const -> const rxcpp::observable<StatusMsg>&
 {
   return _status_obs;
@@ -207,8 +95,6 @@ void GoToPlace::Active::respond(
   {
     if (auto active = w.lock())
     {
-      std::cout << " ===== Using negotiated itinerary for ["
-                << active->_context->requester_id() << "]" << std::endl;
       active->execute_plan(plan);
       return active->_context->itinerary().version();
     }
@@ -246,12 +132,6 @@ void GoToPlace::Active::respond(
   {
     if (auto phase = w.lock())
     {
-      std::cout << "[" << phase->_context->requester_id() << "] is responding ("
-                << result.service << ") to [";
-      for (const auto& s : table_viewer->sequence())
-        std::cout << " " << s.participant << ":" << s.version;
-      std::cout << " ]" << std::endl;
-
       result.respond();
       phase->_negotiate_services.erase(result.service);
     }
@@ -315,10 +195,6 @@ void GoToPlace::Active::find_plan()
   msg.end_time = msg.start_time;
   _status_publisher.get_subscriber().on_next(msg);
 
-  std::cout << "Creating a planning job for [" << _context->requester_id()
-            << "]: planner " << _context->planner() << " | starts "
-            << _context->location().size() << " | schedule "
-            << _context->schedule() << std::endl;
   _pullover_service = nullptr;
   _find_path_service = std::make_shared<services::FindPath>(
         _context->planner(), _context->location(), _goal,
@@ -450,7 +326,6 @@ public:
 
   void execute(const Dock& dock) final
   {
-    std::cout << "Creating phase to dock into [" << dock.dock_name() << "]" << std::endl;
     _phases.push_back(
           std::make_unique<phases::DockRobot::PendingPhase>(
             _context, dock.dock_name()));
@@ -459,7 +334,6 @@ public:
 
   void execute(const DoorOpen& open) final
   {
-    std::cout << "Creating phase to open door [" << open.name() << "]" << std::endl;
     const auto node = _context->node();
     _phases.push_back(
           std::make_unique<phases::DoorOpen::PendingPhase>(
@@ -472,7 +346,6 @@ public:
 
   void execute(const DoorClose& close) final
   {
-    std::cout << "Creating phase to close door [" << close.name() << "]" << std::endl;
     // TODO(MXG): Account for event duration in this phase
     const auto node = _context->node();
     _phases.push_back(
@@ -487,8 +360,6 @@ public:
 
   void execute(const LiftDoorOpen& open) final
   {
-    std::cout << "Creating phase to use lift [" << open.lift_name() << "] on floor ["
-              << open.floor_name() << "]" << std::endl;
     const auto node = _context->node();
     _phases.push_back(
           std::make_unique<phases::RequestLift::PendingPhase>(
@@ -617,10 +488,7 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
    );
 
   _subtasks->begin();
-  std::cout << " === SETTING NEW ITINERARY FOR [" << _context->requester_id() << "]" << std::endl;
   _context->itinerary().set(_plan->get_itinerary());
-  print_itinerary(_context->itinerary().itinerary());
-  print_waypoints(_plan->get_waypoints());
 }
 
 //==============================================================================

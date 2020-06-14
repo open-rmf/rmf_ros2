@@ -101,12 +101,6 @@ public:
     {
       if (table->submit(itinerary, table_version+1))
       {
-        std::cout << " >> Submitting [" << table->participant() << ":"
-                  << table_version+1 << "] onto [";
-        for (const auto& s : table->sequence())
-          std::cout << " " << s.participant << ":" << s.version;
-        std::cout << " ]" << std::endl;
-
         impl->approvals[conflict_version][table] = {
           table->sequence(),
           std::move(approval_callback)
@@ -132,14 +126,6 @@ public:
           }
         }
       }
-      else
-      {
-        std::cout << " !! Submission [" << table->participant() << ":"
-                  << table_version+1 << "] deprecated by [";
-        for (const auto& s : table->sequence())
-          std::cout << " " << s.participant << ":" << s.version;
-        std::cout << " ]" << std::endl;
-      }
     }
 
     void reject(const Alternatives& alternatives) const final
@@ -150,14 +136,12 @@ public:
         // feasible for us.
         if (parent->reject(*parent_version, table->participant(), alternatives))
         {
-          std::cout << " >> Rejecting [";
-          for (const auto& s : table->sequence())
-            std::cout << " " << s.participant << ":" << s.version;
-          std::cout << " ] by [" << table->participant() << "]" << std::endl;
-
           impl->publish_rejection(
                 conflict_version, *parent, table->participant(), alternatives);
 
+          // TODO(MXG): We don't schedule a response to the rejection for
+          // async negotiations, because the ROS2 subscription will do that for
+          // us whether we want it to or not.
 //          if (impl->worker)
 //          {
 //            const auto n_it = impl->negotiators->find(parent->participant());
@@ -173,20 +157,6 @@ public:
 //            });
 //          }
         }
-        else
-        {
-          std::cout << " !! Rejection [" << parent->participant() << ":"
-                    << *parent_version << "] deprecated by ["
-                    << parent->participant() << ":" << parent->version()
-                    << "]" << std::endl;
-        }
-      }
-      else if (parent->defunct())
-      {
-        std::cout << " !! Rejection [" << parent->participant() << ":"
-                  << *parent_version << "] deprecated because the parent ["
-                  << parent->participant() << ":" << parent->version()
-                  << "] is defunct" << std::endl;
       }
     }
 
@@ -404,11 +374,6 @@ public:
       const auto top = queue.back();
       queue.pop_back();
 
-      std::cout << " ## Popping (" << top << ") [";
-      for (const auto& s : top->sequence())
-        std::cout << " " << s.participant << ":" << s.version;
-      std::cout << " ] off the queue" << std::endl;
-
       if (top->defunct())
         continue;
 
@@ -530,11 +495,6 @@ public:
       return;
     }
 
-    std::cout << " $$ Received proposal message for [";
-    for (const auto& s : msg.to_accommodate)
-      std::cout << " " << s.participant << ":" << s.version;
-    std::cout << " ]" << std::endl;
-
     const bool participating = negotiate_it->second.participating;
     auto& room = negotiate_it->second.room;
     Negotiation& negotiation = room.negotiation;
@@ -567,12 +527,8 @@ public:
     const bool updated =
       received_table->submit(convert(msg.itinerary), msg.proposal_version);
 
-    std::cout << "    ^ have table (" << received_table << ")" << std::endl;
-
     if (!updated)
       return;
-
-    std::cout << "    ^ queuing response" << std::endl;
 
     std::vector<TablePtr> queue = room.check_cache(*negotiators);
 

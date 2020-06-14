@@ -75,6 +75,7 @@ public:
 
   std::vector<std::shared_ptr<FleetUpdateHandle>> fleets = {};
 
+  // TODO(MXG): This mutex probably isn't needed
   std::mutex mutex;
 
   std::unordered_set<std::string> received_tasks;

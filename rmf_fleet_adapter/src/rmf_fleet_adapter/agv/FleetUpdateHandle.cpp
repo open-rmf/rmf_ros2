@@ -44,23 +44,14 @@ public:
       const TableViewerPtr& table_viewer,
       const ResponderPtr& responder) final
   {
-    std::cout << " ** Seeking response for table (" << table_viewer << ") [";
-    for (const auto& s : table_viewer->sequence())
-      std::cout << " " << s.participant << ":" << s.version;
-    std::cout << " ]" << std::endl;
     const auto negotiator = w_negotiator.lock();
     if (!negotiator)
     {
-      std::cout << "    ^ no negotiator" << std::endl;
       // If we no longer have access to the upstream negotiator, then we simply
       // forfeit.
       //
       // TODO(MXG): Consider issuing a warning here
       return responder->forfeit({});
-    }
-    else
-    {
-      std::cout << "    ^ negotiator: " << negotiator << std::endl;
     }
 
     negotiator->respond(table_viewer, responder);
@@ -166,19 +157,11 @@ auto FleetUpdateHandle::Implementation::estimate_loop(
   const auto& graph = planner->get_configuration().graph();
   const auto loop_start_wp = graph.find_waypoint(request.start_name);
   if (!loop_start_wp)
-  {
-    std::cout << " == No waypoint named [" << request.start_name
-              << "]" << std::endl;
     return rmf_utils::nullopt;
-  }
 
   const auto loop_end_wp = graph.find_waypoint(request.finish_name);
   if (!loop_end_wp)
-  {
-    std::cout << " == No waypoint named [" << request.finish_name << "]"
-              << std::endl;
     return rmf_utils::nullopt;
-  }
 
   const auto loop_start_goal =
       rmf_traffic::agv::Plan::Goal(loop_start_wp->index());
@@ -196,10 +179,7 @@ auto FleetUpdateHandle::Implementation::estimate_loop(
     auto start = mgr.expected_finish_location();
     const auto loop_init_plan = planner->plan(start, loop_start_goal);
     if (!loop_init_plan)
-    {
-      std::cout << " == Failed to find loop init plan" << std::endl;
       continue;
-    }
 
     rmf_traffic::Duration init_duration = std::chrono::seconds(0);
     if (loop_init_plan->get_waypoints().size() > 1)
@@ -230,20 +210,14 @@ auto FleetUpdateHandle::Implementation::estimate_loop(
     const auto loop_forward_plan =
         planner->plan(loop_forward_start, loop_end_goal);
     if (!loop_forward_plan)
-    {
-      std::cout << " == Failed to find loop forward plan" << std::endl;
       continue;
-    }
 
     // If the forward plan is empty then that means the start and end of the
     // loop are the same, making it a useless request.
     // TODO(MXG): We should probably make noise here instead of just ignoring
     // the request.
     if (loop_forward_plan->get_waypoints().empty())
-    {
-      std::cout << " == Loop forward plan is nothing" << std::endl;
       return rmf_utils::nullopt;
-    }
 
     estimate.loop_start = loop_forward_start.front();
 
@@ -275,14 +249,7 @@ auto FleetUpdateHandle::Implementation::estimate_loop(
     estimate.loop_end->time(estimate.time);
 
     if (estimate.time < best.time)
-    {
-      if (best.robot)
-        std::cout << "[" << estimate.robot->requester_id() << "] is better than ["
-                  << best.robot->requester_id() << "] by "
-                  << rmf_traffic::time::to_seconds(best.time - estimate.time)
-                  << "s" << std::endl;
       best = std::move(estimate);
-    }
   }
 
   if (best.robot)
@@ -359,10 +326,6 @@ void FleetUpdateHandle::add_robot(
               std::make_unique<LiaisonNegotiator>(context));
       }
 
-      std::cout << "Adding robot | planner: "
-                << context->planner() << " | schedule: "
-                << context->schedule() << std::endl;
-
       fleet->_pimpl->task_managers.insert({context, context});
       handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
     });
@@ -422,17 +385,12 @@ void request_loop(
   FleetUpdateHandle::Implementation::LoopEstimate best;
   FleetUpdateHandle::Implementation* chosen_fleet = nullptr;
 
-  std::cout << " ==== REQUESTING LOOP" << std::endl;
-
   for (auto& fleet : fleets)
   {
     auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
     const auto estimate = fimpl.estimate_loop(request);
     if (!estimate)
-    {
-      std::cout << " === NO ESTIMATE FROM " << fimpl.name << std::endl;
       continue;
-    }
 
     if (estimate->time < best.time)
     {
@@ -442,13 +400,8 @@ void request_loop(
   }
 
   if (!chosen_fleet)
-  {
-    std::cout << " === NO QUALIFIED ROBOT" << std::endl;
     return;
-  }
 
-  std::cout << " === ASSIGNING LOOP TO " << best.robot->requester_id()
-            << std::endl;
   chosen_fleet->perform_loop(request, best);
 }
 

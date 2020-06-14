@@ -39,28 +39,6 @@ MoveRobot::ActivePhase::ActivePhase(
   _obs = make_cancellable(job, _cancel_subject.get_observable())
     .lift<Task::StatusMsg>(grab_while_active())
     .observe_on(rxcpp::identity_same_worker(_context->worker()));
-
-  auto display_wp = [this](const rmf_traffic::agv::Plan::Waypoint& wp) -> std::string
-  {
-    std::string str;
-    if (wp.graph_index())
-    {
-      str += "[";
-      const auto name = _context->navigation_graph().get_waypoint(*wp.graph_index()).name();
-      if (name)
-        str += *name + ":";
-      str += std::to_string(*wp.graph_index()) + "]";
-    }
-    else
-      str += "(" + std::to_string(wp.position().x()) + ", "
-          + std::to_string(wp.position().y()) + ")";
-
-    return str;
-  };
-
-  std::cout << "Commanding move through waypoints:\n";
-  for (const auto& wp : waypoints)
-    std::cout << " -- " << display_wp(wp) << std::endl;
 }
 
 //==============================================================================
@@ -106,29 +84,6 @@ MoveRobot::PendingPhase::PendingPhase(
   oss << "Move [" << _context->requester_id() << "] to ("
       << _waypoints.back().position().transpose() << ")";
   _description = oss.str();
-
-
-  auto display_wp = [this](const rmf_traffic::agv::Plan::Waypoint& wp) -> std::string
-  {
-    std::string str;
-    if (wp.graph_index())
-    {
-      str += "[";
-      const auto name = _context->navigation_graph().get_waypoint(*wp.graph_index()).name();
-      if (name)
-        str += *name + ":";
-      str += std::to_string(*wp.graph_index()) + "]";
-    }
-    else
-      str += "(" + std::to_string(wp.position().x()) + ", "
-          + std::to_string(wp.position().y()) + ")";
-
-    return str;
-  };
-
-  std::cout << "Creating phase to move through waypoints:\n";
-  for (const auto& wp : _waypoints)
-    std::cout << " -- " << display_wp(wp) << std::endl;
 }
 
 //==============================================================================
