@@ -13,11 +13,12 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
+include(GNUInstallDirs)
 
 if(BUILD_TESTING)
   find_package(rmf_cmake_uncrustify REQUIRED)
   find_file(uncrustify_config_file NAMES "share/format/rmf_code_style.cfg")
-                
+
   rmf_uncrustify(
     ARGN include src test
     CONFIG_FILE ${uncrustify_config_file}
@@ -279,8 +280,11 @@ target_include_directories(task_aggregator
 
 # -----------------------------------------------------------------------------
 
+ament_export_interfaces(rmf_fleet_adapter HAS_LIBRARY_TARGET)
+ament_export_dependencies(rmf_traffic_ros2)
+
 install(
-  TARGETS 
+  TARGETS
     rmf_fleet_adapter
     read_only
     full_control
@@ -289,6 +293,7 @@ install(
     robot_state_aggregator
     test_read_only_adapter
     task_aggregator
+  EXPORT rmf_fleet_adapter
   RUNTIME DESTINATION lib/rmf_fleet_adapter
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
@@ -299,6 +304,11 @@ install(
 install(DIRECTORY
   launch/
   DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY include/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 ament_package()
