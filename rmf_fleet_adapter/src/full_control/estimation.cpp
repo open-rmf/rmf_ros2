@@ -80,8 +80,21 @@ void estimate_path_traveling(
   assert(!state.path.empty());
   const std::size_t remaining_count = state.path.size();
   const std::size_t i_target_wp = info.waypoints.size() - remaining_count;
-  assert(0 < i_target_wp && i_target_wp < state.path.size());
-  const auto& target_wp = info.waypoints[i_target_wp];
+#ifndef NDEBUG
+  if (i_target_wp == 0)
+  {
+    assert(false && "Target waypoint should not be zero");
+  }
+
+  if (info.waypoints.size() <= i_target_wp)
+  {
+    std::cerr << "i_target_wp is too high: " << i_target_wp
+              << " | path.size(): " << info.waypoints.size() << std::endl;
+    assert(false);
+  }
+  assert(0 < i_target_wp && i_target_wp < info.waypoints.size());
+#endif
+  const auto& target_wp = info.waypoints.at(i_target_wp);
 
   const auto& l = state.location;
   const auto& p = target_wp.position();

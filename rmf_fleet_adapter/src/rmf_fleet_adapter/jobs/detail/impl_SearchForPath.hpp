@@ -97,6 +97,14 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
             *r.options().maximum_cost_estimate()
           : std::numeric_limits<double>::infinity();
 
+      auto opt_to_str = [](const auto& v) -> std::string
+      {
+        if (v)
+          return std::to_string(*v);
+
+        return "null";
+      };
+
       const auto& desc = search->_schedule->get_participant(
             search->_participant_id);
       // If the job has not succeeded, then something very suspicious is
@@ -110,7 +118,9 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       std::cerr << " --> (" << search->_goal.waypoint() << "). Maximum cost: "
                 << maximum_cost << " | Leeway factor: "
                 << search->_greedy_leeway << " | Current cost: " << current_cost
-                << std::endl;
+                << " | Saturated: " << r.saturated() << " (limit: "
+                << opt_to_str(r.options().saturation_limit())
+                << ") | interrupted: " << r.interrupted() << std::endl;
       assert(false);
 
       // We'll return the failed plan, I guess. If the greedy planner fails,
