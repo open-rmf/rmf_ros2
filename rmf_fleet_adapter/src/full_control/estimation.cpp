@@ -80,20 +80,6 @@ void estimate_path_traveling(
   assert(!state.path.empty());
   const std::size_t remaining_count = state.path.size();
   const std::size_t i_target_wp = info.waypoints.size() - remaining_count;
-#ifndef NDEBUG
-  if (i_target_wp == 0)
-  {
-    assert(false && "Target waypoint should not be zero");
-  }
-
-  if (info.waypoints.size() <= i_target_wp)
-  {
-    std::cerr << "i_target_wp is too high: " << i_target_wp
-              << " | path.size(): " << info.waypoints.size() << std::endl;
-    assert(false);
-  }
-  assert(0 < i_target_wp && i_target_wp < info.waypoints.size());
-#endif
   const auto& target_wp = info.waypoints.at(i_target_wp);
 
   const auto& l = state.location;
@@ -134,7 +120,7 @@ void estimate_midlane_state(
     const std::size_t next_index,
     TravelInfo& info)
 {
-  assert(next_index < info.waypoints.size());
+  assert(0 < next_index && next_index < info.waypoints.size());
   const auto& target_wp = info.waypoints.at(next_index);
   if (!lane_start && info.last_known_wp)
   {
