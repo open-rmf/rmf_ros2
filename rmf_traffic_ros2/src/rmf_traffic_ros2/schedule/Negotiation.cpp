@@ -487,11 +487,7 @@ public:
     const auto negotiate_it = negotiations.find(msg.conflict_version);
     if (negotiate_it == negotiations.end())
     {
-      RCLCPP_WARN(
-        node.get_logger(),
-        "[rmf_traffic_ros2::schedule::Negotiation::receive_proposal] "
-        "Received a proposal for an unknown negotiation: "
-        + std::to_string(msg.conflict_version));
+      // This negotiation has probably been completed already
       return;
     }
 

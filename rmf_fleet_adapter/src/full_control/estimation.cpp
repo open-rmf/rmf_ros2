@@ -77,8 +77,10 @@ void estimate_path_traveling(
     const rmf_fleet_msgs::msg::RobotState& state,
     TravelInfo& info)
 {
+  assert(!state.path.empty());
   const std::size_t remaining_count = state.path.size();
   const std::size_t i_target_wp = info.waypoints.size() - remaining_count;
+  assert(0 < i_target_wp && i_target_wp < state.path.size());
   const auto& target_wp = info.waypoints[i_target_wp];
 
   const auto& l = state.location;
@@ -119,6 +121,7 @@ void estimate_midlane_state(
     const std::size_t next_index,
     TravelInfo& info)
 {
+  assert(next_index < info.waypoints.size());
   const auto& target_wp = info.waypoints.at(next_index);
   if (!lane_start && info.last_known_wp)
   {
