@@ -20,6 +20,7 @@
 
 #include "RxOperators.hpp"
 #include "../Task.hpp"
+#include "../agv/RobotContext.hpp"
 #include "rmf_fleet_adapter/StandardNames.hpp"
 
 #include <rmf_rxcpp/Transport.hpp>
@@ -32,72 +33,16 @@ namespace phases {
 
 struct DispenseItem
 {
-  class Action : public std::enable_shared_from_this<Action>
+  class ActivePhase : public Task::ActivePhase, public std::enable_shared_from_this<ActivePhase>
   {
   public:
 
-    static std::shared_ptr<Action> make(
-      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
+    static std::shared_ptr<ActivePhase> make(
+      agv::RobotContextPtr context,
       std::string request_guid,
       std::string target,
       std::string transporter_type,
-      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
-      rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub);
-
-    inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
-    {
-      return _obs;
-    }
-
-  private:
-
-    std::weak_ptr<rmf_rxcpp::Transport> _transport;
-    std::string _request_guid;
-    std::string _target;
-    std::string _transporter_type;
-    std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
-    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> _result_obs;
-    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> _state_obs;
-    rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr _request_pub;
-    rxcpp::observable<Task::StatusMsg> _obs;
-    rclcpp::TimerBase::SharedPtr _timer;
-    bool _request_acknowledged = false;
-    builtin_interfaces::msg::Time _last_msg;
-
-    Action(
-      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
-      std::string request_guid,
-      std::string target,
-      std::string transporter_type,
-      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
-      rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub);
-
-    void _init_obs();
-
-    Task::StatusMsg _get_status(
-      const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result,
-      const rmf_dispenser_msgs::msg::DispenserState::SharedPtr& dispenser_state);
-
-    void _do_publish();
-  };
-
-  class ActivePhase : public Task::ActivePhase
-  {
-  public:
-
-    ActivePhase(
-      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
-      std::string request_guid,
-      std::string target,
-      std::string transporter_type,
-      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
-      rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub);
+      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -111,15 +56,31 @@ struct DispenseItem
 
   private:
 
-    std::weak_ptr<rmf_rxcpp::Transport> _transport;
+    agv::RobotContextPtr _context;
     std::string _request_guid;
     std::string _target;
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
-    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> _result_obs;
-    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> _state_obs;
     std::string _description;
-    std::shared_ptr<Action> _action;
+    rxcpp::observable<Task::StatusMsg> _obs;
+    rclcpp::TimerBase::SharedPtr _timer;
+    bool _request_acknowledged = false;
+    builtin_interfaces::msg::Time _last_msg;
+
+    ActivePhase(
+      agv::RobotContextPtr context,
+      std::string request_guid,
+      std::string target,
+      std::string transporter_type,
+      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items);
+
+    void _init_obs();
+
+    Task::StatusMsg _get_status(
+      const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result,
+      const rmf_dispenser_msgs::msg::DispenserState::SharedPtr& dispenser_state);
+
+    void _do_publish();
   };
 
   class PendingPhase : public Task::PendingPhase
@@ -127,14 +88,11 @@ struct DispenseItem
   public:
 
     PendingPhase(
-      std::weak_ptr<rmf_rxcpp::Transport> transport,
+      agv::RobotContextPtr context,
       std::string request_guid,
       std::string target,
       std::string transporter_type,
-      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> result_obs,
-      rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> state_obs,
-      rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr request_pub);
+      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
 
@@ -144,14 +102,11 @@ struct DispenseItem
 
   private:
 
-    std::weak_ptr<rmf_rxcpp::Transport> _transport;
+    agv::RobotContextPtr _context;
     std::string _request_guid;
     std::string _target;
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
-    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserResult::SharedPtr> _result_obs;
-    rxcpp::observable<rmf_dispenser_msgs::msg::DispenserState::SharedPtr> _state_obs;
-    rclcpp::Publisher<rmf_dispenser_msgs::msg::DispenserRequest>::SharedPtr _request_pub;
     std::string _description;
   };
 };

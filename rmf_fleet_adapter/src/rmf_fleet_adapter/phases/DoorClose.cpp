@@ -25,18 +25,14 @@ namespace phases {
 
 //==============================================================================
 std::shared_ptr<DoorClose::ActivePhase> DoorClose::ActivePhase::make(
+  agv::RobotContextPtr context,
   std::string door_name,
-  std::string request_id,
-  const std::shared_ptr<rmf_rxcpp::Transport>& transport,
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
-  rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub)
+  std::string request_id)
 {
   auto inst = std::shared_ptr<ActivePhase>(new ActivePhase(
+    std::move(context),
     std::move(door_name),
-    std::move(request_id),
-    transport,
-    std::move(supervisor_heartbeat_obs),
-    std::move(door_request_pub)
+    std::move(request_id)
   ));
   inst->_init_obs();
   return inst;
@@ -77,30 +73,26 @@ const std::string& DoorClose::ActivePhase::description() const
 //==============================================================================
 void DoorClose::ActivePhase::_init_obs()
 {
-  auto transport = _transport.lock();
-  if (!transport)
-    throw std::runtime_error("invalid transport");
-
   using rmf_door_msgs::msg::DoorRequest;
   using rmf_door_msgs::msg::SupervisorHeartbeat;
-  _obs = _supervisor_heartbeat_obs
-    .lift<SupervisorHeartbeat::SharedPtr>(on_subscribe([weak = weak_from_this(), transport]()
+  _obs = _context->node()->door_supervisor()
+    .lift<SupervisorHeartbeat::SharedPtr>(on_subscribe([weak = weak_from_this()]()
     {
       auto me = weak.lock();
       if (!me)
         return;
 
       me->_status.state = Task::StatusMsg::STATE_ACTIVE;
-      me->_publish_close_door(transport);
-      me->_timer = transport->create_wall_timer(
+      me->_publish_close_door();
+      me->_timer = me->_context->node()->create_wall_timer(
         std::chrono::milliseconds(1000),
-        [weak, transport]()
+        [weak]()
         {
           auto me = weak.lock();
           if (!me)
             return;
 
-          me->_publish_close_door(transport);
+          me->_publish_close_door();
         });
     }))
     .map([weak = weak_from_this()](const auto& heartbeat)
@@ -124,14 +116,14 @@ void DoorClose::ActivePhase::_init_obs()
 }
 
 //==============================================================================
-void DoorClose::ActivePhase::_publish_close_door(const rclcpp::Node::SharedPtr& node)
+void DoorClose::ActivePhase::_publish_close_door()
 {
   rmf_door_msgs::msg::DoorRequest msg{};
   msg.door_name = _door_name;
-  msg.request_time = node->now();
+  msg.request_time = _context->node()->now();
   msg.requested_mode.value = rmf_door_msgs::msg::DoorMode::MODE_CLOSED;
   msg.requester_id = _request_id;
-  _door_req_pub->publish(msg);
+  _context->node()->door_request()->publish(msg);
 }
 
 //==============================================================================
@@ -147,32 +139,24 @@ void DoorClose::ActivePhase::_update_status(
 
 //==============================================================================
 DoorClose::ActivePhase::ActivePhase(
+  agv::RobotContextPtr context,
   std::string door_name,
-  std::string request_id,
-  const std::shared_ptr<rmf_rxcpp::Transport>& transport,
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
-  rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub)
-  : _door_name{std::move(door_name)},
-    _request_id{std::move(request_id)},
-    _transport{transport},
-    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
-    _door_req_pub(std::move(door_request_pub))
+  std::string request_id)
+  : _context(std::move(context)),
+    _door_name(std::move(door_name)),
+    _request_id(std::move(request_id))
 {
   _description = "Closing door \"" + _door_name + "\"";
 }
 
 //==============================================================================
 DoorClose::PendingPhase::PendingPhase(
+  agv::RobotContextPtr context,
   std::string door_name,
-  std::string request_id,
-  std::weak_ptr<rmf_rxcpp::Transport> transport,
-  rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
-  rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub)
-  : _door_name{std::move(door_name)},
-    _request_id{std::move(request_id)},
-    _transport{std::move(transport)},
-    _supervisor_heartbeat_obs{std::move(supervisor_heartbeat_obs)},
-    _door_request_pub{std::move(door_request_pub)}
+  std::string request_id)
+  : _context(std::move(context)),
+    _door_name(std::move(door_name)),
+    _request_id(std::move(request_id))
 {
   _description = "Close door \"" + _door_name + "\"";
 }
@@ -180,16 +164,10 @@ DoorClose::PendingPhase::PendingPhase(
 //==============================================================================
 std::shared_ptr<Task::ActivePhase> DoorClose::PendingPhase::begin()
 {
-  auto transport = _transport.lock();
-  if (!transport)
-    throw std::runtime_error("invalid transport state");
-
   return DoorClose::ActivePhase::make(
+    _context,
     _door_name,
-    _request_id,
-    transport,
-    _supervisor_heartbeat_obs,
-    _door_request_pub);
+    _request_id);
 }
 
 //==============================================================================

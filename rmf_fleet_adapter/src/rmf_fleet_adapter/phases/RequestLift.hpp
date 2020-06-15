@@ -27,51 +27,14 @@ namespace phases {
 
 struct RequestLift
 {
-  class Action : public std::enable_shared_from_this<Action>
+  class ActivePhase : public Task::ActivePhase, public std::enable_shared_from_this<ActivePhase>
   {
   public:
 
-    static std::shared_ptr<Action> make(
+    static std::shared_ptr<ActivePhase> make(
+      agv::RobotContextPtr context,
       std::string lift_name,
       std::string destination,
-      agv::RobotContextPtr context,
-      rmf_traffic::Time expected_finish);
-
-    inline const rxcpp::observable<Task::StatusMsg>& get_observable() const
-    {
-      return _obs;
-    }
-
-  private:
-
-    std::string _lift_name;
-    std::string _destination;
-    agv::RobotContextPtr _context;
-    rmf_traffic::Time _expected_finish;
-    rxcpp::observable<Task::StatusMsg> _obs;
-    rclcpp::TimerBase::SharedPtr _timer;
-
-    Action(
-      std::string lift_name,
-      std::string destination,
-      agv::RobotContextPtr context,
-      rmf_traffic::Time expected_finish);
-
-    void _init_obs();
-
-    Task::StatusMsg _get_status(const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
-
-    void _do_publish();
-  };
-
-  class ActivePhase : public Task::ActivePhase
-  {
-  public:
-
-    ActivePhase(
-      std::string lift_name,
-      std::string destination,
-      agv::RobotContextPtr context,
       rmf_traffic::Time expected_finish);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
@@ -86,11 +49,25 @@ struct RequestLift
 
   private:
 
+    agv::RobotContextPtr _context;
     std::string _lift_name;
     std::string _destination;
-    rxcpp::observable<rmf_lift_msgs::msg::LiftState::SharedPtr> _lift_state_obs;
+    rmf_traffic::Time _expected_finish;
     std::string _description;
-    std::shared_ptr<Action> _action;
+    rxcpp::observable<Task::StatusMsg> _obs;
+    rclcpp::TimerBase::SharedPtr _timer;
+
+    ActivePhase(
+      agv::RobotContextPtr context,
+      std::string lift_name,
+      std::string destination,
+      rmf_traffic::Time expected_finish);
+
+    void _init_obs();
+
+    Task::StatusMsg _get_status(const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
+
+    void _do_publish();
   };
 
   class PendingPhase : public Task::PendingPhase
@@ -98,9 +75,9 @@ struct RequestLift
   public:
 
     PendingPhase(
+      agv::RobotContextPtr context,
       std::string lift_name,
       std::string destination,
-      agv::RobotContextPtr context,
       rmf_traffic::Time expected_finish);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
@@ -110,9 +87,9 @@ struct RequestLift
     const std::string& description() const override;
 
   private:
+    agv::RobotContextPtr _context;
     std::string _lift_name;
     std::string _destination;
-    agv::RobotContextPtr _context;
     rmf_traffic::Time _expected_finish;
     std::string _description;
   };

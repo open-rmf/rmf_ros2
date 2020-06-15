@@ -15,34 +15,37 @@
  *
 */
 
-#include "TransportFixture.hpp"
+#ifndef TEST__PHASES__TRANSPORTFIXTURE_HPP
+#define TEST__PHASES__TRANSPORTFIXTURE_HPP
+
+#include "rmf_rxcpp/Transport.hpp"
+
+#include <agv/RobotContext.hpp>
+#include <rmf_fleet_adapter/agv/test/MockAdapter.hpp>
 
 namespace rmf_fleet_adapter {
 namespace phases {
 namespace test {
 
-std::size_t TransportFixture::_node_counter = 0;
-std::size_t TransportFixture::_topic_counter = 0;
-
-TransportFixture::TransportFixture()
+struct MockAdapterFixture
 {
-  _context = std::make_shared<rclcpp::Context>();
-  _context->init(0, nullptr);
+  std::shared_ptr<agv::test::MockAdapter> adapter;
+  std::shared_ptr<agv::RobotContext> context;
+  std::shared_ptr<agv::Node> node;
+  std::shared_ptr<rclcpp::Node> ros_node;
 
-  transport = std::make_shared<rmf_rxcpp::Transport>(
-    rxcpp::schedulers::make_event_loop().create_worker(),
-    "test_transport_" + std::to_string(_node_counter++),
-    rclcpp::NodeOptions().context(_context));
+  MockAdapterFixture();
 
-  transport->start();
-}
+  ~MockAdapterFixture();
 
-TransportFixture::~TransportFixture()
-{
-  transport->stop();
-  rclcpp::shutdown(_context);
-}
+private:
+
+  static std::size_t _node_counter;
+  std::shared_ptr<rclcpp::Context> _context;
+};
 
 } // namespace test
 } // namespace phases
 } // namespace rmf_fleet_adapter
+
+#endif // TEST__PHASES__TRANSPORTFIXTURE_HPP

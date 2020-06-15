@@ -44,9 +44,9 @@ struct DoorOpen
   public:
 
     static std::shared_ptr<ActivePhase> make(
+      agv::RobotContextPtr context,
       std::string door_name,
       std::string request_id,
-      agv::RobotContextPtr context,
       rmf_traffic::Time expected_finish);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
@@ -61,9 +61,9 @@ struct DoorOpen
 
   private:
 
+    agv::RobotContextPtr _context;
     std::string _door_name;
     std::string _request_id;
-    agv::RobotContextPtr _context;
     rmf_traffic::Time _expected_finish;
     rxcpp::subjects::behavior<bool> _cancelled = rxcpp::subjects::behavior<bool>(false);
     rxcpp::observable<Task::StatusMsg> _obs;
@@ -73,9 +73,9 @@ struct DoorOpen
     std::shared_ptr<DoorClose::ActivePhase> _door_close_phase;
 
     ActivePhase(
+      agv::RobotContextPtr context,
       std::string door_name,
       std::string request_id,
-      agv::RobotContextPtr context,
       rmf_traffic::Time expected_finish);
 
     void _init_obs();
@@ -92,9 +92,9 @@ struct DoorOpen
   public:
 
     PendingPhase(
+      agv::RobotContextPtr context,
       std::string door_name,
       std::string request_id,
-      agv::RobotContextPtr context,
       rmf_traffic::Time expected_finish);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
@@ -105,11 +105,11 @@ struct DoorOpen
 
   private:
 
+    agv::RobotContextPtr _context;
     std::string _door_name;
     std::string _request_id;
-    agv::RobotContextPtr _context;
-    std::string _description;
     rmf_traffic::Time _expected_finish;
+    std::string _description;
   };
 };
 
