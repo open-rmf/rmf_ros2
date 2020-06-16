@@ -470,6 +470,7 @@ void ScheduleNode::mirror_update(
 void ScheduleNode::itinerary_set(const ItinerarySet& set)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
+  assert(!set.itinerary.empty());
   database->set(
     set.participant,
     rmf_traffic_ros2::convert(set.itinerary),

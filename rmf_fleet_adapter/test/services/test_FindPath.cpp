@@ -20,10 +20,13 @@
 #include <rmf_traffic/schedule/Database.hpp>
 #include <rmf_traffic/DetectConflict.hpp>
 
+#include <rmf_fleet_adapter/agv/parse_graph.hpp>
+
 #include <rmf_utils/catch.hpp>
 
 #include "../thread_cooldown.hpp"
 
+//==============================================================================
 SCENARIO("Find a path")
 {
   rmf_fleet_adapter_test::thread_cooldown = true;
@@ -281,4 +284,71 @@ SCENARIO("Find a path")
 
     CHECK(at_least_one_conflict);
   }
+}
+
+//==============================================================================
+SCENARIO("Office map")
+{
+  rmf_fleet_adapter_test::thread_cooldown = true;
+
+  rmf_traffic::Profile profile{
+    rmf_traffic::geometry::make_final_convex<
+      rmf_traffic::geometry::Circle>(1.0)
+  };
+
+  const rmf_traffic::agv::VehicleTraits traits{
+    {0.5, 0.75},
+    {0.6, 2.0},
+    profile
+  };
+
+  const auto graph = rmf_fleet_adapter::agv::parse_graph(
+        TEST_RESOURCES_DIR"/office_nav.yaml", traits);
+
+  auto database = std::make_shared<rmf_traffic::schedule::Database>();
+  auto p0 = rmf_traffic::schedule::make_participant(
+    rmf_traffic::schedule::ParticipantDescription{
+      "participant 1",
+      "test_Negotiator",
+      rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
+      profile
+    },
+    database);
+
+  rmf_traffic::agv::Planner::Configuration configuration{graph, traits};
+  const auto planner = std::make_shared<rmf_traffic::agv::Planner>(
+    configuration,
+    rmf_traffic::agv::Planner::Options{nullptr}
+  );
+
+  const auto now = std::chrono::steady_clock::now();
+  const auto starts =
+      rmf_traffic::agv::Plan::StartSet(
+  {
+    {now, 17, 2.7496, Eigen::Vector2d(7.75515, -5.7033)}
+  });
+
+  const auto goal = rmf_traffic::agv::Plan::Goal(10);
+
+  auto path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
+        planner, starts, goal, database->snapshot(), 0,
+        std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
+
+  std::promise<rmf_traffic::agv::Plan::Result> result_0_promise;
+  auto result_0_future = result_0_promise.get_future();
+  auto path_sub =
+      rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
+        path_service)
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+        [&result_0_promise](const auto& result)
+  {
+    result_0_promise.set_value(result);
+  });
+
+  using namespace std::chrono_literals;
+  const auto status_0 = result_0_future.wait_for(1s);
+  REQUIRE(std::future_status::ready == status_0);
+  const auto result_0 = result_0_future.get();
+  REQUIRE(result_0.success());
 }

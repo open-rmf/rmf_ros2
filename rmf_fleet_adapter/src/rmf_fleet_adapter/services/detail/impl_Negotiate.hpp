@@ -83,11 +83,11 @@ void Negotiate::operator()(const Subscriber& s)
             {
               responder->submit(
                     r->get_itinerary(),
-                    [r = std::move(r), approval = std::move(approval)]()
+                    [plan = *r, approval = std::move(approval)]()
                     -> UpdateVersion
               {
                 if (approval)
-                  return approval(*r);
+                  return approval(plan);
 
                 return rmf_utils::nullopt;
               });
@@ -106,9 +106,9 @@ void Negotiate::operator()(const Subscriber& s)
         s.on_next(
           Result{
             shared_from_this(),
-            [n = shared_from_this()]()
+            [alts = *_alternatives, responder = _responder]()
             {
-              n->_responder->reject(*n->_alternatives);
+              responder->reject(alts);
             }
           });
 

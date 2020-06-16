@@ -38,7 +38,14 @@ SearchForPath::SearchForPath(
   auto greedy_options = _planner->get_default_options();
   greedy_options.validator(nullptr);
 
-  auto greedy_setup = _planner->setup(_starts, _goal, greedy_options);
+  // TODO(MXG): This is a gross hack to side-step the saturation issue that
+  // happens when too many start conditions are given. That problem should be
+  // fixed after we've improved the planner's heuristic.
+  auto greedy_starts = _starts;
+  if (greedy_starts.size() > 1)
+    greedy_starts.erase(greedy_starts.begin()+1, greedy_starts.end());
+
+  auto greedy_setup = _planner->setup(greedy_starts, _goal, greedy_options);
   if (!greedy_setup.cost_estimate())
   {
     // If this ever happens, then there is a serious bug.

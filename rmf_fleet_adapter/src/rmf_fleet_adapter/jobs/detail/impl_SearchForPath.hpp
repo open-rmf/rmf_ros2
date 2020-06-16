@@ -105,6 +105,21 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
         return "null";
       };
 
+      const auto to_string = [](const rmf_traffic::agv::Plan::Start& start)
+      {
+        std::ostringstream oss;
+        oss << "[" << start.waypoint() << "] r:" << start.orientation();
+        if (start.lane())
+          oss << " | lane: " << *start.lane();
+        else
+          oss << " | no lane";
+
+        if (start.location())
+          oss << " | <" << start.location()->transpose() << ">";
+
+        return oss.str();
+      };
+
       const auto& desc = search->_schedule->get_participant(
             search->_participant_id);
       // If the job has not succeeded, then something very suspicious is
@@ -114,13 +129,19 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
                 << "acceptable greedy solution. Participant [" << desc->name()
                 << "] owned by [" << desc->owner() << "] Requested path";
       for (const auto& start : search->_starts)
-        std::cerr << " (" << start.waypoint() << ")";
+        std::cerr << " (" << to_string(start) << ")";
       std::cerr << " --> (" << search->_goal.waypoint() << "). Maximum cost: "
                 << maximum_cost << " | Leeway factor: "
                 << search->_greedy_leeway << " | Current cost: " << current_cost
                 << " | Saturated: " << r.saturated() << " (limit: "
                 << opt_to_str(r.options().saturation_limit())
                 << ") | interrupted: " << r.interrupted() << std::endl;
+      const auto& v = r.get_configuration().vehicle_traits();
+      std::cerr << "linear | v: " << v.linear().get_nominal_velocity()
+                << ", a: " << v.linear().get_nominal_acceleration()
+                << "\nangular | v: " << v.rotational().get_nominal_velocity()
+                << ", a: " << v.rotational().get_nominal_acceleration()
+                << std::endl;
       assert(false);
 
       // We'll return the failed plan, I guess. If the greedy planner fails,

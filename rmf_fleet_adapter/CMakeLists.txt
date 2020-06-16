@@ -123,6 +123,10 @@ if (BUILD_TESTING)
       ${std_msgs_LIBRARIES}
   )
 
+  target_compile_definitions(rmf_fleet_adapter_test
+    PRIVATE
+      "-DTEST_RESOURCES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test/resources/\"")
+
 endif ()
 
 # -----------------------------------------------------------------------------
