@@ -18,10 +18,12 @@
 #ifndef TEST__PHASES__TRANSPORTFIXTURE_HPP
 #define TEST__PHASES__TRANSPORTFIXTURE_HPP
 
-#include "rmf_rxcpp/Transport.hpp"
+#include <rmf_rxcpp/Transport.hpp>
 
 #include <agv/RobotContext.hpp>
 #include <rmf_fleet_adapter/agv/test/MockAdapter.hpp>
+
+#include "../mock/MockRobotCommand.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -30,9 +32,27 @@ namespace test {
 struct MockAdapterFixture
 {
   std::shared_ptr<agv::test::MockAdapter> adapter;
-  std::shared_ptr<agv::RobotContext> context;
+  std::shared_ptr<agv::FleetUpdateHandle> fleet;
   std::shared_ptr<agv::Node> node;
   std::shared_ptr<rclcpp::Node> ros_node;
+  rmf_traffic::agv::Graph graph;
+
+  struct RobotInfo
+  {
+    std::shared_ptr<agv::RobotContext> context;
+    std::shared_ptr<rmf_fleet_adapter_test::MockRobotCommand> command;
+  };
+
+  /// Add a robot for testing purposes and get its context
+  ///
+  /// \param[in] name
+  ///   The name for this robot.
+  ///
+  /// \param[in] profile
+  ///   Specify its profile. Leaving this as nullopt will use default profile.
+  RobotInfo add_robot(
+      const std::string& name = "test_robot",
+      rmf_utils::optional<rmf_traffic::Profile> profile = rmf_utils::nullopt);
 
   MockAdapterFixture();
 

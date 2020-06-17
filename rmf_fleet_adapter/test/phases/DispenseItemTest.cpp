@@ -56,6 +56,9 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
   items.emplace_back(std::move(item));
 
 
+  const auto info = add_robot();
+  const auto& context = info.context;
+
   auto dispenser_request_pub = adapter->node()->create_publisher<DispenserRequest>(
     DispenserRequestTopicName, 10);
   auto pending_phase = std::make_shared<DispenseItem::PendingPhase>(

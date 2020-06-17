@@ -24,6 +24,8 @@
 #include <rmf_task_msgs/msg/delivery.hpp>
 #include <rmf_task_msgs/msg/loop.hpp>
 
+#include <rmf_traffic/schedule/Snapshot.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 namespace test {

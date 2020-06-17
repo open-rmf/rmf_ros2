@@ -89,6 +89,9 @@ public:
            next_arrival_estimator = std::move(next_arrival_estimator),
            path_finished_callback = std::move(path_finished_callback)]
     {
+      if (_pause)
+        return;
+
       if (!_active)
         return;
 
@@ -159,8 +162,14 @@ public:
     return _visited_wps;
   }
 
+  void pause(bool on)
+  {
+    _pause = on;
+  }
+
 private:
   bool _active = false;
+  bool _pause = false;
   std::shared_ptr<rclcpp::Node> _node;
   rclcpp::TimerBase::SharedPtr _timer;
   std::size_t _current_waypoint_target = 0;

@@ -45,6 +45,9 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       received_requests_cv.notify_all();
     });
 
+  const auto info = add_robot();
+  const auto& context = info.context;
+
   std::string lift_name = "test_lift";
   std::string destination = "test_floor";
   auto pending_phase = std::make_shared<RequestLift::PendingPhase>(

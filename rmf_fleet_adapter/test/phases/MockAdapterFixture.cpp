@@ -16,7 +16,6 @@
 */
 
 #include "MockAdapterFixture.hpp"
-#include "../mock/MockRobotCommand.hpp"
 
 #include <agv/internal_FleetUpdateHandle.hpp>
 #include <agv/internal_RobotUpdateHandle.hpp>
@@ -29,6 +28,7 @@ namespace test {
 
 std::size_t MockAdapterFixture::_node_counter = 0;
 
+//==============================================================================
 MockAdapterFixture::MockAdapterFixture()
 {
   _context = std::make_shared<rclcpp::Context>();
@@ -41,7 +41,6 @@ MockAdapterFixture::MockAdapterFixture()
   ros_node = adapter->node();
 
   const std::string test_map_name = "test_map";
-  rmf_traffic::agv::Graph graph;
   graph.add_waypoint(test_map_name, {0.0, -10.0}); // 0
   graph.add_waypoint(test_map_name, {0.0, -5.0});  // 1
   graph.add_waypoint(test_map_name, {5.0, -5.0}).set_holding_point(true);  // 2
@@ -111,30 +110,52 @@ MockAdapterFixture::MockAdapterFixture()
     profile
   };
 
-  const auto fleet = adapter->add_fleet("test_fleet", traits, graph);
+  fleet = adapter->add_fleet("test_fleet", traits, graph);
 
   {
     const auto& pimpl = agv::FleetUpdateHandle::Implementation::get(*fleet);
     node = pimpl.node;
   }
 
+  adapter->start();
+}
+
+//==============================================================================
+auto MockAdapterFixture::add_robot(
+    const std::string& name,
+    rmf_utils::optional<rmf_traffic::Profile> input_profile) -> RobotInfo
+{
+  rmf_traffic::Profile profile =
+      [&]() -> rmf_traffic::Profile
+  {
+    if (input_profile)
+      return *input_profile;
+
+    return rmf_traffic::Profile{
+      rmf_traffic::geometry::make_final_convex<
+        rmf_traffic::geometry::Circle>(1.0)
+    };
+  }();
+
   const auto now = rmf_traffic_ros2::convert(adapter->node()->now());
   const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};
 
-  const auto robot_cmd = std::make_shared<rmf_fleet_adapter_test::MockRobotCommand>(
+  RobotInfo info;
+  info.command = std::make_shared<rmf_fleet_adapter_test::MockRobotCommand>(
     adapter->node(), graph);
+
   std::promise<bool> robot_added;
-  fleet->add_robot(robot_cmd, "test_robot", profile, starts,
-    [this, &robot_cmd, &robot_added](rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
+  fleet->add_robot(info.command, name, profile, starts,
+    [&info, &robot_added](rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
     {
       const auto& pimpl = agv::RobotUpdateHandle::Implementation::get(*updater);
-      context = pimpl.context.lock();
-      robot_cmd->updater = updater;
+      info.context = pimpl.context.lock();
+      info.command->updater = updater;
       robot_added.set_value(true);
     });
   robot_added.get_future().wait();
 
-  adapter->start();
+  return info;
 }
 
 MockAdapterFixture::~MockAdapterFixture()

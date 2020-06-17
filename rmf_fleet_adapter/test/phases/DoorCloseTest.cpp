@@ -47,6 +47,9 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       received_requests_cv.notify_all();
     });
 
+  const auto info = add_robot();
+  const auto& context = info.context;
+
   std::string door_name = "test_door";
   std::string request_id = "test_id";
   auto pending_phase = std::make_shared<DoorClose::PendingPhase>(

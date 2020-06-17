@@ -37,7 +37,9 @@ Negotiate::Negotiate(
     _approval(std::move(approval)),
     _evaluator(evaluator)
 {
-  // Do nothing
+  std::ostringstream oss;
+  oss << "+" << this << ":\n";
+  std::cout << oss.str() << std::flush;
 }
 
 //==============================================================================
@@ -114,6 +116,10 @@ Negotiate::~Negotiate()
   // TODO(MXG): Consider creating a simple Rule of Zero wrapper class for
   // _interrupted that will set its value to true upon destruction.
   *_interrupted = true;
+
+  std::ostringstream oss;
+  oss << "-" << this << ":\n";
+  std::cout << oss.str() << std::flush;
 }
 
 //==============================================================================
