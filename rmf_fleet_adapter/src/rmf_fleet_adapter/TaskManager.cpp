@@ -32,6 +32,8 @@ void TaskManager::queue_task(std::shared_ptr<Task> task, Start expected_finish)
   _queue.push_back(std::move(task));
   _expected_finish_location = std::move(expected_finish);
 
+  std::cout << "Queuing new task. New queue size: " << _queue.size() << std::endl;
+
   if (!_active_task)
   {
     _begin_next_task();
@@ -69,6 +71,7 @@ agv::ConstRobotContextPtr TaskManager::context() const
 //==============================================================================
 void TaskManager::_begin_next_task()
 {
+  std::cout << "Beginning next task. Queue size: " << _queue.size() << std::endl;
   if (_queue.empty())
   {
     _task_sub.unsubscribe();
@@ -110,6 +113,7 @@ void TaskManager::_begin_next_task()
     msg.state = msg.STATE_COMPLETED;
     this->_context->node()->task_summary()->publish(msg);
 
+    _active_task = nullptr;
     _begin_next_task();
   });
 
