@@ -43,14 +43,11 @@ std::shared_ptr<Task> make_delivery(
 
   phases.push_back(
         std::make_unique<phases::DispenseItem::PendingPhase>(
-          node,
+          context,
           request.task_id,
           request.pickup_dispenser,
           context->itinerary().description().owner(),
-          request.items,
-          node->dispenser_result(),
-          node->dispenser_state(),
-          node->dispenser_request()));
+          request.items));
 
   const auto dropoff_wp =
       graph.find_waypoint(request.dropoff_place_name)->index();
@@ -60,14 +57,11 @@ std::shared_ptr<Task> make_delivery(
 
   phases.push_back(
         std::make_unique<phases::DispenseItem::PendingPhase>(
-          node,
+          context,
           request.task_id,
           request.dropoff_dispenser,
           context->itinerary().description().owner(),
-          request.items,
-          node->dispenser_result(),
-          node->dispenser_state(),
-          node->dispenser_request()));
+          request.items));
 
   return Task::make(request.task_id, std::move(phases), context->worker());
 }

@@ -337,9 +337,9 @@ public:
     const auto node = _context->node();
     _phases.push_back(
           std::make_unique<phases::DoorOpen::PendingPhase>(
+            _context,
             open.name(),
             _context->requester_id(),
-            _context,
             _event_start_time + open.duration()));
     _continuous = true;
   }
@@ -350,11 +350,9 @@ public:
     const auto node = _context->node();
     _phases.push_back(
           std::make_unique<phases::DoorClose::PendingPhase>(
+            _context,
             close.name(),
-            _context->requester_id(),
-            node,
-            node->door_supervisor(),
-            node->door_request()));
+            _context->requester_id()));
     _continuous = true;
   }
 
@@ -363,9 +361,9 @@ public:
     const auto node = _context->node();
     _phases.push_back(
           std::make_unique<phases::RequestLift::PendingPhase>(
+            _context,
             open.lift_name(),
             open.floor_name(),
-            _context,
             _event_start_time + open.duration()));
 
     _continuous = true;

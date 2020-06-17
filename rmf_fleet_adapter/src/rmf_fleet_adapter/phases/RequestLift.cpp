@@ -22,39 +22,73 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-std::shared_ptr<RequestLift::Action> RequestLift::Action::make(
+std::shared_ptr<RequestLift::ActivePhase> RequestLift::ActivePhase::make(
+  agv::RobotContextPtr context,
   std::string lift_name,
   std::string destination,
-  agv::RobotContextPtr context,
   rmf_traffic::Time expected_finish)
 {
-  auto inst = std::shared_ptr<Action>(
-    new Action(
+  auto inst = std::shared_ptr<ActivePhase>(
+    new ActivePhase(
+      std::move(context),
       std::move(lift_name),
       std::move(destination),
-      std::move(context),
-      expected_finish
+      std::move(expected_finish)
   ));
   inst->_init_obs();
   return inst;
 }
 
 //==============================================================================
-RequestLift::Action::Action(
-  std::string lift_name,
-  std::string destination,
-  agv::RobotContextPtr context,
-  rmf_traffic::Time expected_finish)
-  : _lift_name{std::move(lift_name)},
-    _destination{std::move(destination)},
-    _context{std::move(context)},
-    _expected_finish{expected_finish}
+const rxcpp::observable<Task::StatusMsg>& RequestLift::ActivePhase::observe() const
 {
-  // no op
+  return _obs;
 }
 
 //==============================================================================
-void RequestLift::Action::_init_obs()
+rmf_traffic::Duration RequestLift::ActivePhase::estimate_remaining_time() const
+{
+  // TODO: implement
+  return rmf_traffic::Duration{0};
+}
+
+//==============================================================================
+void RequestLift::ActivePhase::emergency_alarm(bool on)
+{
+  // TODO: implement
+}
+
+//==============================================================================
+void RequestLift::ActivePhase::cancel()
+{
+  // TODO: implement
+}
+
+//==============================================================================
+const std::string& RequestLift::ActivePhase::description() const
+{
+  return _description;
+}
+
+//==============================================================================
+RequestLift::ActivePhase::ActivePhase(
+  agv::RobotContextPtr context,
+  std::string lift_name,
+  std::string destination,
+  rmf_traffic::Time expected_finish)
+  : _context(std::move(context)),
+    _lift_name(std::move(lift_name)),
+    _destination(std::move(destination)),
+    _expected_finish(std::move(expected_finish))
+{
+  std::ostringstream oss;
+  oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
+
+  _description = oss.str();
+}
+
+//==============================================================================
+void RequestLift::ActivePhase::_init_obs()
 {
   using rmf_lift_msgs::msg::LiftState;
 
@@ -118,7 +152,7 @@ void RequestLift::Action::_init_obs()
 }
 
 //==============================================================================
-Task::StatusMsg RequestLift::Action::_get_status(
+Task::StatusMsg RequestLift::ActivePhase::_get_status(
   const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state)
 {
   using rmf_lift_msgs::msg::LiftState;
@@ -134,7 +168,7 @@ Task::StatusMsg RequestLift::Action::_get_status(
 }
 
 //==============================================================================
-void RequestLift::Action::_do_publish()
+void RequestLift::ActivePhase::_do_publish()
 {
   rmf_lift_msgs::msg::LiftRequest msg{};
   msg.lift_name = _lift_name;
@@ -147,67 +181,15 @@ void RequestLift::Action::_do_publish()
 }
 
 //==============================================================================
-RequestLift::ActivePhase::ActivePhase(
-  std::string lift_name,
-  std::string destination,
-  agv::RobotContextPtr context,
-  rmf_traffic::Time expected_finish)
-  : _lift_name{std::move(lift_name)},
-    _destination{std::move(destination)},
-    _action{RequestLift::Action::make(
-      _lift_name,
-      _destination,
-      std::move(context),
-      expected_finish)
-    }
-{
-  std::ostringstream oss;
-  oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
-
-  _description = oss.str();
-}
-
-//==============================================================================
-const rxcpp::observable<Task::StatusMsg>& RequestLift::ActivePhase::observe() const
-{
-  return _action->get_observable();
-}
-
-//==============================================================================
-rmf_traffic::Duration RequestLift::ActivePhase::estimate_remaining_time() const
-{
-  // TODO: implement
-  return rmf_traffic::Duration{0};
-}
-
-//==============================================================================
-void RequestLift::ActivePhase::emergency_alarm(bool on)
-{
-  // TODO: implement
-}
-
-//==============================================================================
-void RequestLift::ActivePhase::cancel()
-{
-  // TODO: implement
-}
-
-//==============================================================================
-const std::string& RequestLift::ActivePhase::description() const
-{
-  return _description;
-}
-
-//==============================================================================
 RequestLift::PendingPhase::PendingPhase(
+  agv::RobotContextPtr context,
   std::string lift_name,
   std::string destination,
-  agv::RobotContextPtr context,
   rmf_traffic::Time expected_finish)
-  : _lift_name{std::move(lift_name)},
-    _destination{std::move(destination)},
-    _context{std::move(context)},
-    _expected_finish{expected_finish}
+  : _context(std::move(context)),
+    _lift_name(std::move(lift_name)),
+    _destination(std::move(destination)),
+    _expected_finish(std::move(expected_finish))
 {
   std::ostringstream oss;
   oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
@@ -218,10 +200,10 @@ RequestLift::PendingPhase::PendingPhase(
 //==============================================================================
 std::shared_ptr<Task::ActivePhase> RequestLift::PendingPhase::begin()
 {
-  return std::make_shared<RequestLift::ActivePhase>(
+  return ActivePhase::make(
+    _context,
     _lift_name,
     _destination,
-    _context,
     _expected_finish);
 }
 

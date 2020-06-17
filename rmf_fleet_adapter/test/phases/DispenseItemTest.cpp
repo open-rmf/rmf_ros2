@@ -15,7 +15,7 @@
  *
 */
 
-#include "TransportFixture.hpp"
+#include "MockAdapterFixture.hpp"
 
 #include <phases/DispenseItem.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
@@ -30,12 +30,12 @@ using rmf_dispenser_msgs::msg::DispenserRequest;
 using rmf_dispenser_msgs::msg::DispenserRequestItem;
 using rmf_dispenser_msgs::msg::DispenserState;
 
-SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
+SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
 {
   std::mutex m;
   std::condition_variable received_requests_cv;
   std::list<DispenserRequest> received_requests;
-  auto rcl_subscription = transport->create_subscription<DispenserRequest>(
+  auto rcl_subscription = adapter->node()->create_subscription<DispenserRequest>(
     DispenserRequestTopicName,
     10,
     [&](DispenserRequest::UniquePtr dispenser_request)
@@ -55,18 +55,15 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
   item.quantity = 1;
   items.emplace_back(std::move(item));
 
-  auto dispenser_result_obs = transport->create_observable<DispenserResult>(DispenserResultTopicName, 10);
-  auto dispenser_state_obs = transport->create_observable<DispenserState>(DispenserStateTopicName, 10);
-  auto dispenser_request_pub = transport->create_publisher<DispenserRequest>(DispenserRequestTopicName, 10);
+
+  auto dispenser_request_pub = adapter->node()->create_publisher<DispenserRequest>(
+    DispenserRequestTopicName, 10);
   auto pending_phase = std::make_shared<DispenseItem::PendingPhase>(
-    transport,
+    context,
     request_guid,
     target,
     transporter_type,
-    items,
-    dispenser_result_obs,
-    dispenser_state_obs,
-    dispenser_request_pub
+    items
   );
   auto active_phase = pending_phase->begin();
 
@@ -116,22 +113,22 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
 
     AND_WHEN("dispenser result is success")
     {
-      auto dispenser_result_pub = transport->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
-      auto dispenser_state_pub = transport->create_publisher<DispenserState>(DispenserStateTopicName, 10);
-      auto timer = transport->create_wall_timer(std::chrono::milliseconds(100), [&]()
+      auto result_pub = ros_node->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
+      auto state_pub = ros_node->create_publisher<DispenserState>(DispenserStateTopicName, 10);
+      auto timer = ros_node->create_wall_timer(std::chrono::milliseconds(100), [&]()
       {
         std::unique_lock<std::mutex> lk(m);
         DispenserResult result;
         result.request_guid = request_guid;
         result.status = DispenserResult::SUCCESS;
-        result.time = transport->now();
-        dispenser_result_pub->publish(result);
+        result.time = ros_node->now();
+        result_pub->publish(result);
 
         DispenserState state;
         state.guid = request_guid;
         state.mode = DispenserState::IDLE;
-        state.time = transport->now();
-        dispenser_state_pub->publish(state);
+        state.time = ros_node->now();
+        state_pub->publish(state);
       });
 
       THEN("it is completed")
@@ -149,22 +146,22 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
 
     AND_WHEN("dispenser result is failed")
     {
-      auto dispenser_result_pub = transport->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
-      auto dispenser_state_pub = transport->create_publisher<DispenserState>(DispenserStateTopicName, 10);
-      auto timer = transport->create_wall_timer(std::chrono::milliseconds(100), [&]()
+      auto result_pub = ros_node->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
+      auto state_pub = ros_node->create_publisher<DispenserState>(DispenserStateTopicName, 10);
+      auto timer = ros_node->create_wall_timer(std::chrono::milliseconds(100), [&]()
       {
         std::unique_lock<std::mutex> lk(m);
         DispenserResult result;
         result.request_guid = request_guid;
         result.status = DispenserResult::FAILED;
-        result.time = transport->now();
-        dispenser_result_pub->publish(result);
+        result.time = ros_node->now();
+        result_pub->publish(result);
 
         DispenserState state;
         state.guid = request_guid;
         state.mode = DispenserState::IDLE;
-        state.time = transport->now();
-        dispenser_state_pub->publish(state);
+        state.time = ros_node->now();
+        state_pub->publish(state);
       });
 
       THEN("it is failed")
@@ -182,8 +179,8 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
 
     AND_WHEN("request is acknowledged and request is no longer in queue")
     {
-      auto result_pub = transport->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
-      auto state_pub = transport->create_publisher<DispenserState>(DispenserStateTopicName, 10);
+      auto result_pub = ros_node->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
+      auto state_pub = ros_node->create_publisher<DispenserState>(DispenserStateTopicName, 10);
       auto interval = rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe([&](const auto&)
@@ -191,11 +188,11 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
           DispenserResult result;
           result.request_guid = request_guid;
           result.status = DispenserResult::ACKNOWLEDGED;
-          result.time = transport->now();
+          result.time = ros_node->now();
           result_pub->publish(result);
 
           DispenserState state;
-          state.time = transport->now();
+          state.time = ros_node->now();
           state.guid = target;
           state.mode = DispenserState::BUSY;
           state_pub->publish(state);
@@ -216,8 +213,8 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
 
     AND_WHEN("request acknowledged result arrives before request state in queue")
     {
-      auto result_pub = transport->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
-      auto state_pub = transport->create_publisher<DispenserState>(DispenserStateTopicName, 10);
+      auto result_pub = ros_node->create_publisher<DispenserResult>(DispenserResultTopicName, 10);
+      auto state_pub = ros_node->create_publisher<DispenserState>(DispenserStateTopicName, 10);
       auto interval = rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe([&](const auto&)
@@ -225,7 +222,7 @@ SCENARIO_METHOD(TransportFixture, "dispense item phase", "[phases]")
           DispenserResult result;
           result.request_guid = request_guid;
           result.status = DispenserResult::ACKNOWLEDGED;
-          result.time = transport->now();
+          result.time = ros_node->now();
           result_pub->publish(result);
 
           DispenserState state;

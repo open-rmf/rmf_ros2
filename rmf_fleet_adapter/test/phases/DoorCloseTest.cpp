@@ -15,7 +15,7 @@
  *
 */
 
-#include "TransportFixture.hpp"
+#include "MockAdapterFixture.hpp"
 
 #include <phases/DoorClose.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
@@ -32,12 +32,12 @@ using rmf_door_msgs::msg::SupervisorHeartbeat;
 using rmf_door_msgs::msg::DoorSessions;
 using rmf_door_msgs::msg::Session;
 
-SCENARIO_METHOD(TransportFixture, "door close phase", "[phases]")
+SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
 {
   std::mutex m;
   std::condition_variable received_requests_cv;
   std::list<DoorRequest::UniquePtr> received_requests;
-  auto rcl_subscription = transport->create_subscription<DoorRequest>(
+  auto rcl_subscription = adapter->node()->create_subscription<DoorRequest>(
     AdapterDoorRequestTopicName,
     10,
     [&](DoorRequest::UniquePtr door_request)
@@ -49,14 +49,10 @@ SCENARIO_METHOD(TransportFixture, "door close phase", "[phases]")
 
   std::string door_name = "test_door";
   std::string request_id = "test_id";
-  auto heartbeat_obs = transport->create_observable<SupervisorHeartbeat>(DoorSupervisorHeartbeatTopicName, 10);
-  auto door_request_pub = transport->create_publisher<DoorRequest>(AdapterDoorRequestTopicName, 10);
   auto pending_phase = std::make_shared<DoorClose::PendingPhase>(
+    context,
     door_name,
-    request_id,
-    transport,
-    heartbeat_obs,
-    door_request_pub
+    request_id
   );
   auto active_phase = pending_phase->begin();
 
@@ -91,14 +87,15 @@ SCENARIO_METHOD(TransportFixture, "door close phase", "[phases]")
       }
     }
 
-    auto door_state_pub = transport->create_publisher<DoorState>(DoorStateTopicName, 10);
-    auto heartbeat_pub = transport->create_publisher<SupervisorHeartbeat>(DoorSupervisorHeartbeatTopicName, 10);
+    auto door_state_pub = ros_node->create_publisher<DoorState>(DoorStateTopicName, 10);
+    auto heartbeat_pub = ros_node->create_publisher<SupervisorHeartbeat>(
+      DoorSupervisorHeartbeatTopicName, 10);
 
     auto publish_door_state = [&](uint32_t mode)
     {
       DoorState door_state;
       door_state.door_name = door_name;
-      door_state.door_time = transport->now();
+      door_state.door_time = ros_node->now();
       door_state.current_mode.value = mode;
       door_state_pub->publish(door_state);
     };

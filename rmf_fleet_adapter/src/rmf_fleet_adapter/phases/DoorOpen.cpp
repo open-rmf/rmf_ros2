@@ -27,17 +27,17 @@ namespace phases {
 
 //==============================================================================
 std::shared_ptr<DoorOpen::ActivePhase> DoorOpen::ActivePhase::make(
+  agv::RobotContextPtr context,
   std::string door_name,
   std::string request_id,
-  agv::RobotContextPtr context,
   rmf_traffic::Time expected_finish)
 {
   auto inst = std::shared_ptr<ActivePhase>(
     new ActivePhase(
+      std::move(context),
       std::move(door_name),
       std::move(request_id),
-      context,
-      expected_finish
+      std::move(expected_finish)
   ));
   inst->_init_obs();
   return inst;
@@ -45,14 +45,14 @@ std::shared_ptr<DoorOpen::ActivePhase> DoorOpen::ActivePhase::make(
 
 //==============================================================================
 DoorOpen::ActivePhase::ActivePhase(
+  agv::RobotContextPtr context,
   std::string door_name,
   std::string request_id,
-  agv::RobotContextPtr context,
   rmf_traffic::Time expected_finish)
-  : _door_name{std::move(door_name)},
-    _request_id{std::move(request_id)},
-    _context{std::move(context)},
-    _expected_finish(expected_finish)
+  :  _context(std::move(context)),
+    _door_name(std::move(door_name)),
+    _request_id(std::move(request_id)),
+    _expected_finish(std::move(expected_finish))
 {
   _description = "Opening door \"" + _door_name + "\"";
 }
@@ -167,11 +167,9 @@ void DoorOpen::ActivePhase::_init_obs()
         {
           auto transport = me->_context->node();
           me->_door_close_phase = DoorClose::ActivePhase::make(
+            me->_context,
             me->_door_name,
-            me->_request_id,
-            transport,
-            transport->door_supervisor(),
-            transport->door_request()
+            me->_request_id
           );
           me->_door_close_phase->observe().subscribe(s);
         }
@@ -181,7 +179,7 @@ void DoorOpen::ActivePhase::_init_obs()
 //==============================================================================
 void DoorOpen::ActivePhase::_publish_open_door()
 {
-  rmf_door_msgs::msg::DoorRequest msg{};
+  rmf_door_msgs::msg::DoorRequest msg;
   msg.door_name = _door_name;
   msg.request_time = _context->node()->now();
   msg.requested_mode.value = rmf_door_msgs::msg::DoorMode::MODE_OPEN;
@@ -206,14 +204,14 @@ void DoorOpen::ActivePhase::_update_status(
 
 //==============================================================================
 DoorOpen::PendingPhase::PendingPhase(
+  agv::RobotContextPtr context,
   std::string  door_name,
   std::string request_id,
-  agv::RobotContextPtr context,
   rmf_traffic::Time expected_finish)
-  : _door_name{std::move(door_name)},
-    _request_id{std::move(request_id)},
-    _context{std::move(context)},
-    _expected_finish(expected_finish)
+  :  _context(std::move(context)),
+    _door_name(std::move(door_name)),
+    _request_id(std::move(request_id)),
+    _expected_finish(std::move(expected_finish))
 {
   _description = "Open door \"" + _door_name + "\"";
 }
@@ -221,7 +219,7 @@ DoorOpen::PendingPhase::PendingPhase(
 //==============================================================================
 std::shared_ptr<Task::ActivePhase> DoorOpen::PendingPhase::begin()
 {
-  return ActivePhase::make(_door_name, _request_id, _context, _expected_finish);
+  return ActivePhase::make(_context, _door_name, _request_id, _expected_finish);
 }
 
 //==============================================================================

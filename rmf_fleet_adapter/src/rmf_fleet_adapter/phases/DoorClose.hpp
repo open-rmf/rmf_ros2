@@ -19,6 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__PHASES__DOORCLOSE_HPP
 
 #include "../Task.hpp"
+#include "../agv/RobotContext.hpp"
 
 #include <rmf_rxcpp/Transport.hpp>
 #include <rmf_door_msgs/msg/door_state.hpp>
@@ -42,11 +43,9 @@ struct DoorClose
   public:
 
     static std::shared_ptr<ActivePhase> make(
+      agv::RobotContextPtr context,
       std::string door_name,
-      std::string request_id,
-      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
-      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
-      rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub);
+      std::string request_id);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -60,26 +59,22 @@ struct DoorClose
 
   private:
 
+    agv::RobotContextPtr _context;
     std::string _door_name;
     std::string _request_id;
-    std::weak_ptr<rmf_rxcpp::Transport> _transport;
-    rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
     rxcpp::observable<Task::StatusMsg> _obs;
     std::string _description;
-    rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _door_req_pub;
     rclcpp::TimerBase::SharedPtr _timer;
     Task::StatusMsg _status;
 
     ActivePhase(
+      agv::RobotContextPtr context,
       std::string door_name,
-      std::string request_id,
-      const std::shared_ptr<rmf_rxcpp::Transport>& transport,
-      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
-      rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub);
+      std::string request_id);
 
     void _init_obs();
 
-    void _publish_close_door(const rclcpp::Node::SharedPtr& node);
+    void _publish_close_door();
 
     void _update_status(const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat);
   };
@@ -89,11 +84,9 @@ struct DoorClose
   public:
 
     PendingPhase(
+      agv::RobotContextPtr context,
       std::string door_name,
-      std::string request_id,
-      std::weak_ptr<rmf_rxcpp::Transport> transport,
-      rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> supervisor_heartbeat_obs,
-      rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr door_request_pub);
+      std::string request_id);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
 
@@ -103,11 +96,9 @@ struct DoorClose
 
   private:
 
+    agv::RobotContextPtr _context;
     std::string _door_name;
     std::string _request_id;
-    std::weak_ptr<rmf_rxcpp::Transport> _transport;
-    rxcpp::observable<rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr> _supervisor_heartbeat_obs;
-    rclcpp::Publisher<rmf_door_msgs::msg::DoorRequest>::SharedPtr _door_request_pub;
     std::string _description;
   };
 };
