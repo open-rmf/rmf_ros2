@@ -128,7 +128,7 @@ void GoToPlace::Active::respond(
       rmf_rxcpp::make_job<services::Negotiate::Result>(negotiate)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-        [w = weak_from_this(), negotiate, table_viewer](const auto& result)
+        [w = weak_from_this()](const auto& result)
   {
     if (auto phase = w.lock())
     {

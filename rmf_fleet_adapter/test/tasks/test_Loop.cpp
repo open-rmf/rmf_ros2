@@ -305,6 +305,10 @@ SCENARIO("Test loop requests")
   CHECK(finding_a_plan_0_count >= 2*n_loops - 1);
   if (finding_a_plan_0_count < 2*n_loops - 1)
   {
+    // Note(MXG): This is a flaky test, so we're printing out some extra output
+    // to hopefully offer more insight into what is happening. For some reason,
+    // it seems that not all of the status messages are getting through to the
+    // ROS subscriber, but I don't know why.
     std::cout << "The following plan finding statuses were received for "
               << loop_0 << ":\n";
     for (const auto& s : finding_a_plan_0_statuses)
@@ -319,6 +323,7 @@ SCENARIO("Test loop requests")
   CHECK(finding_a_plan_1_count >= 2*n_loops - 1);
   if (finding_a_plan_1_count < 2*n_loops - 1)
   {
+    // Note(MXG): See previous note.
     std::cout << "The following plan finding statuses were received for "
               << loop_1 << ":";
     for (const auto& s : finding_a_plan_1_statuses)

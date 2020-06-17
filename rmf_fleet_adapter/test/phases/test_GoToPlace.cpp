@@ -57,11 +57,6 @@ public:
     std::lock_guard<std::mutex> lock(*_mutex);
     _table->submit(itinerary, _table_version+1);
 
-    std::cout << "Submission for [";
-    for (const auto& s : _table->sequence())
-      std::cout << " " << s.participant << ":" << s.version;
-    std::cout << " ]" << std::endl;
-
     for (const auto& c : _table->children())
     {
       const auto n_it = _negotiators->at(c->participant());
@@ -108,7 +103,7 @@ private:
 
 };
 
-SCENARIO_METHOD(MockAdapterFixture, "go to place phase", "[phases]")
+SCENARIO_METHOD(MockAdapterFixture, "go to place negotiation", "[phases]")
 {
   const auto info_0 = add_robot("test_robot_0");
   info_0.command->pause(true);
