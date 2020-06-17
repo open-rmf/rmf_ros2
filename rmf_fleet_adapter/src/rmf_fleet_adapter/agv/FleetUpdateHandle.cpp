@@ -357,7 +357,7 @@ void request_delivery(
   for (auto& fleet : fleets)
   {
     auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
-    if (!fimpl.accept_delivery(request))
+    if (!fimpl.accept_delivery || !fimpl.accept_delivery(request))
       continue;
 
     const auto estimate = fimpl.estimate_delivery(request);
