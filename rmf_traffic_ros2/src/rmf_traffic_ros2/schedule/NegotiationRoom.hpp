@@ -20,10 +20,10 @@
 
 #include <rmf_traffic/schedule/Negotiation.hpp>
 #include <rmf_traffic/schedule/Negotiator.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_proposal.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_rejection.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_forfeit.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_key.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_proposal.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_rejection.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_forfeit.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_key.hpp>
 
 #include <list>
 
@@ -31,10 +31,10 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Negotiation::VersionedKeySequence convert(
-  const std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey>& from);
+  const std::vector<rmf_traffic_msgs::msg::NegotiationKey>& from);
 
 //==============================================================================
-std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey> convert(
+std::vector<rmf_traffic_msgs::msg::NegotiationKey> convert(
   const rmf_traffic::schedule::Negotiation::VersionedKeySequence& from);
 
 namespace schedule {
@@ -50,9 +50,9 @@ struct NegotiationRoom
   NegotiationRoom(rmf_traffic::schedule::Negotiation negotiation_);
 
   rmf_traffic::schedule::Negotiation negotiation;
-  std::list<rmf_traffic_msgs::msg::ScheduleConflictProposal> cached_proposals;
-  std::list<rmf_traffic_msgs::msg::ScheduleConflictRejection> cached_rejections;
-  std::list<rmf_traffic_msgs::msg::ScheduleConflictForfeit> cached_forfeits;
+  std::list<rmf_traffic_msgs::msg::NegotiationProposal> cached_proposals;
+  std::list<rmf_traffic_msgs::msg::NegotiationRejection> cached_rejections;
+  std::list<rmf_traffic_msgs::msg::NegotiationForfeit> cached_forfeits;
 
   std::vector<rmf_traffic::schedule::Negotiation::TablePtr> check_cache(
     const NegotiatorMap& negotiators);

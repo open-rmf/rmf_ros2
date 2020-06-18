@@ -23,14 +23,14 @@
 
 #include <rmf_traffic_ros2/StandardNames.hpp>
 
-#include <rmf_traffic_msgs/msg/schedule_conflict_ack.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_repeat.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_notice.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_refusal.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_forfeit.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_proposal.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_rejection.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_conclusion.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_ack.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_repeat.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_notice.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_refusal.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_forfeit.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_proposal.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_rejection.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_conclusion.hpp>
 
 #include <rclcpp/logging.hpp>
 
@@ -174,46 +174,46 @@ public:
   std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer;
   std::shared_ptr<Worker> worker;
 
-  using Repeat = rmf_traffic_msgs::msg::ScheduleConflictRepeat;
+  using Repeat = rmf_traffic_msgs::msg::NegotiationRepeat;
   using RepeatSub = rclcpp::Subscription<Repeat>;
   using RepeatPub = rclcpp::Publisher<Repeat>;
   RepeatSub::SharedPtr repeat_sub;
   RepeatPub::SharedPtr repeat_pub;
 
-  using Notice = rmf_traffic_msgs::msg::ScheduleConflictNotice;
+  using Notice = rmf_traffic_msgs::msg::NegotiationNotice;
   using NoticeSub = rclcpp::Subscription<Notice>;
   using NoticePub = rclcpp::Publisher<Notice>;
   NoticeSub::SharedPtr notice_sub;
   NoticePub::SharedPtr notice_pub;
 
-  using Refusal = rmf_traffic_msgs::msg::ScheduleConflictRefusal;
+  using Refusal = rmf_traffic_msgs::msg::NegotiationRefusal;
   using RefusalPub = rclcpp::Publisher<Refusal>;
   RefusalPub::SharedPtr refusal_pub;
 
-  using Proposal = rmf_traffic_msgs::msg::ScheduleConflictProposal;
+  using Proposal = rmf_traffic_msgs::msg::NegotiationProposal;
   using ProposalSub = rclcpp::Subscription<Proposal>;
   using ProposalPub = rclcpp::Publisher<Proposal>;
   ProposalSub::SharedPtr proposal_sub;
   ProposalPub::SharedPtr proposal_pub;
 
-  using Rejection = rmf_traffic_msgs::msg::ScheduleConflictRejection;
+  using Rejection = rmf_traffic_msgs::msg::NegotiationRejection;
   using RejectionSub = rclcpp::Subscription<Rejection>;
   using RejectionPub = rclcpp::Publisher<Rejection>;
   RejectionSub::SharedPtr rejection_sub;
   RejectionPub::SharedPtr rejection_pub;
 
-  using Forfeit = rmf_traffic_msgs::msg::ScheduleConflictForfeit;
+  using Forfeit = rmf_traffic_msgs::msg::NegotiationForfeit;
   using ForfeitSub = rclcpp::Subscription<Forfeit>;
   using ForfeitPub = rclcpp::Publisher<Forfeit>;
   ForfeitSub::SharedPtr forfeit_sub;
   ForfeitPub::SharedPtr forfeit_pub;
 
-  using Conclusion = rmf_traffic_msgs::msg::ScheduleConflictConclusion;
+  using Conclusion = rmf_traffic_msgs::msg::NegotiationConclusion;
   using ConclusionSub = rclcpp::Subscription<Conclusion>;
   ConclusionSub::SharedPtr conclusion_sub;
 
-  using ParticipantAck = rmf_traffic_msgs::msg::ScheduleConflictParticipantAck;
-  using Ack = rmf_traffic_msgs::msg::ScheduleConflictAck;
+  using ParticipantAck = rmf_traffic_msgs::msg::NegotiationParticipantAck;
+  using Ack = rmf_traffic_msgs::msg::NegotiationAck;
   using AckPub = rclcpp::Publisher<Ack>;
   AckPub::SharedPtr ack_pub;
 
@@ -260,67 +260,67 @@ public:
     const auto qos = rclcpp::ServicesQoS().reliable();
 
     repeat_sub = node.create_subscription<Repeat>(
-      ScheduleConflictRepeatTopicName, qos,
+      NegotiationRepeatTopicName, qos,
       [&](const Repeat::UniquePtr msg)
       {
         this->receive_repeat_request(*msg);
       });
 
     repeat_pub = node.create_publisher<Repeat>(
-      ScheduleConflictRepeatTopicName, qos);
+      NegotiationRepeatTopicName, qos);
 
     notice_sub = node.create_subscription<Notice>(
-      ScheduleConflictNoticeTopicName, qos,
+      NegotiationNoticeTopicName, qos,
       [&](const Notice::UniquePtr msg)
       {
         this->receive_notice(*msg);
       });
 
     notice_pub = node.create_publisher<Notice>(
-      ScheduleConflictNoticeTopicName, qos);
+      NegotiationNoticeTopicName, qos);
 
     refusal_pub = node.create_publisher<Refusal>(
-      ScheduleConflictRefusalTopicName, qos);
+      NegotiationRefusalTopicName, qos);
 
     proposal_sub = node.create_subscription<Proposal>(
-      ScheduleConflictProposalTopicName, qos,
+      NegotiationProposalTopicName, qos,
       [&](const Proposal::UniquePtr msg)
       {
         this->receive_proposal(*msg);
       });
 
     proposal_pub = node.create_publisher<Proposal>(
-      ScheduleConflictProposalTopicName, qos);
+      NegotiationProposalTopicName, qos);
 
     rejection_sub = node.create_subscription<Rejection>(
-      ScheduleConflictRejectionTopicName, qos,
+      NegotiationRejectionTopicName, qos,
       [&](const Rejection::UniquePtr msg)
       {
         this->receive_rejection(*msg);
       });
 
     rejection_pub = node.create_publisher<Rejection>(
-      ScheduleConflictRejectionTopicName, qos);
+      NegotiationRejectionTopicName, qos);
 
     forfeit_sub = node.create_subscription<Forfeit>(
-      ScheduleConflictForfeitTopicName, qos,
+      NegotiationForfeitTopicName, qos,
       [&](const Forfeit::UniquePtr msg)
       {
         this->receive_forfeit(*msg);
       });
 
     forfeit_pub = node.create_publisher<Forfeit>(
-      ScheduleConflictForfeitTopicName, qos);
+      NegotiationForfeitTopicName, qos);
 
     conclusion_sub = node.create_subscription<Conclusion>(
-      ScheduleConflictConclusionTopicName, qos,
+      NegotiationConclusionTopicName, qos,
       [&](const Conclusion::UniquePtr msg)
       {
         this->receive_conclusion(*msg);
       });
 
     ack_pub = node.create_publisher<Ack>(
-      ScheduleConflictAckTopicName, qos);
+      NegotiationAckTopicName, qos);
   }
 
   void receive_repeat_request(const Repeat& msg)

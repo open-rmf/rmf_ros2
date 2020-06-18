@@ -26,7 +26,7 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Negotiation::VersionedKeySequence convert(
-  const std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey>& from)
+  const std::vector<rmf_traffic_msgs::msg::NegotiationKey>& from)
 {
   rmf_traffic::schedule::Negotiation::VersionedKeySequence output;
   output.reserve(from.size());
@@ -37,14 +37,14 @@ rmf_traffic::schedule::Negotiation::VersionedKeySequence convert(
 }
 
 //==============================================================================
-std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey> convert(
+std::vector<rmf_traffic_msgs::msg::NegotiationKey> convert(
   const rmf_traffic::schedule::Negotiation::VersionedKeySequence& from)
 {
-  std::vector<rmf_traffic_msgs::msg::ScheduleConflictKey> output;
+  std::vector<rmf_traffic_msgs::msg::NegotiationKey> output;
   output.reserve(from.size());
   for (const auto& key : from)
   {
-    rmf_traffic_msgs::msg::ScheduleConflictKey msg;
+    rmf_traffic_msgs::msg::NegotiationKey msg;
     msg.participant = key.participant;
     msg.version = key.version;
     output.push_back(msg);
