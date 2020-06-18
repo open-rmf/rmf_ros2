@@ -75,6 +75,8 @@ public:
 
   void discard();
 
+  const rmf_traffic::schedule::Negotiator::ResponderPtr& responder() const;
+
   ~Negotiate();
 
 private:

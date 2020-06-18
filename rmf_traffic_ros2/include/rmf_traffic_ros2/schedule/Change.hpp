@@ -44,20 +44,6 @@ rmf_traffic_msgs::msg::ScheduleChangeDelay convert(
   const rmf_traffic::schedule::Change::Delay& from);
 
 //==============================================================================
-// TODO(MXG): Fix this. This function does not make much sense because of the
-// inconsistency between the rmf_traffic representation of an Erase and the
-// rmf_traffic_msgs representation.
-//rmf_traffic::schedule::Change::Erase convert(
-//    const rmf_traffic_msgs::msg::ScheduleChangeErase& from);
-
-//==============================================================================
-// TODO(MXG): Fix this. This function does not make much sense because of the
-// inconsistency between the rmf_traffic representation of an Erase and the
-// rmf_traffic_msgs representation.
-//rmf_traffic_msgs::msg::ScheduleChangeErase convert(
-//    const rmf_traffic::schedule::Change::Erase& from);
-
-//==============================================================================
 rmf_traffic::schedule::Change::RegisterParticipant convert(
   const rmf_traffic_msgs::msg::ScheduleRegister& from);
 

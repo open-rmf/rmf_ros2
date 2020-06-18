@@ -68,7 +68,6 @@ public:
     rmf_utils::impl_ptr<Implementation> _pimpl;
   };
 
-  // TODO(MXG): Put a mutex on this
   /// Get the viewer of the mirror that is being managed
   const rmf_traffic::schedule::Viewer& viewer() const;
 

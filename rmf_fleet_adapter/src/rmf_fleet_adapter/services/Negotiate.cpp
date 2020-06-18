@@ -105,6 +105,13 @@ void Negotiate::discard()
 }
 
 //==============================================================================
+const rmf_traffic::schedule::Negotiator::ResponderPtr&
+Negotiate::responder() const
+{
+  return _responder;
+}
+
+//==============================================================================
 Negotiate::~Negotiate()
 {
   // We violate the Rule of Three/Five/Zero here because it's a good idea to
