@@ -93,7 +93,7 @@ public:
     std::shared_ptr<services::FindEmergencyPullover> _pullover_service;
     rclcpp::TimerBase::SharedPtr _find_pullover_timer;
 
-    rxcpp::subscription _interrupt_subscription;
+    rmf_rxcpp::subscription_guard _interrupt_subscription;
 
     struct NegotiateManagers
     {
@@ -131,7 +131,6 @@ public:
     rmf_traffic::agv::Plan::Goal _goal;
     double _time_estimate;
     std::string _description;
-    rmf_rxcpp::subscription_guard _interrupt_sub;
   };
 
   /// Make a Task Phase for going to a place

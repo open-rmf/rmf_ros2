@@ -39,7 +39,7 @@ public:
   {
     if (auto node = _node.lock())
     {
-      _subscription = node->create_subscription<Message>(
+      _subscription = node->template create_subscription<Message>(
         _topic_name,
         _qos,
         [s](typename Message::SharedPtr msg)
