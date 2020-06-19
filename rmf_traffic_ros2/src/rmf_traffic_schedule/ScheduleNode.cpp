@@ -644,13 +644,7 @@ void ScheduleNode::receive_refusal(const ConflictRefusal& msg)
     active_conflicts.negotiation(msg.conflict_version);
 
   if (!negotiation_room)
-  {
-    RCLCPP_WARN(
-      get_logger(),
-      "Received refusal for unknown negotiation ["
-      + std::to_string(msg.conflict_version) + "]");
     return;
-  }
 
   std::string output = "Refused negotiation ["
     + std::to_string(msg.conflict_version) + "]";
@@ -672,13 +666,7 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
     active_conflicts.negotiation(msg.conflict_version);
 
   if (!negotiation_room)
-  {
-    RCLCPP_WARN(
-      get_logger(),
-      "Received proposal for unknown negotiation ["
-      + std::to_string(msg.conflict_version) + "]");
     return;
-  }
 
   auto& negotiation = negotiation_room->negotiation;
 
@@ -762,13 +750,7 @@ void ScheduleNode::receive_rejection(const ConflictRejection& msg)
   auto* negotiation_room = active_conflicts.negotiation(msg.conflict_version);
 
   if (!negotiation_room)
-  {
-    RCLCPP_WARN(
-      get_logger(),
-      "Received rejection for unknown negotiation ["
-      + std::to_string(msg.conflict_version) + "]");
     return;
-  }
 
   auto& negotiation = negotiation_room->negotiation;
 
@@ -812,13 +794,7 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
   auto* negotiation_room = active_conflicts.negotiation(msg.conflict_version);
 
   if (!negotiation_room)
-  {
-    RCLCPP_WARN(
-      get_logger(),
-      "Received forfeit for unknown negotiation ["
-      + std::to_string(msg.conflict_version) + "]");
     return;
-  }
 
   auto& negotiation = negotiation_room->negotiation;
 
