@@ -16,7 +16,7 @@
 */
 
 #include <rmf_traffic_ros2/geometry/Shape.hpp>
-#include <rmf_traffic_ros2/geometry/Box.hpp>
+//#include <rmf_traffic_ros2/geometry/Box.hpp>
 #include <rmf_traffic_ros2/geometry/Circle.hpp>
 
 #include "ShapeInternal.hpp"
@@ -43,7 +43,7 @@ public:
       std::lock_guard<std::mutex> lock(initialization_mutex);
       if (!initialized)
       {
-        add<rmf_traffic::geometry::Box>(rmf_traffic_msgs::msg::Shape::BOX);
+//        add<rmf_traffic::geometry::Box>(rmf_traffic_msgs::msg::Shape::BOX);
         add<rmf_traffic::geometry::Circle>(rmf_traffic_msgs::msg::Shape::CIRCLE);
         initialized = true;
       }
@@ -88,8 +88,8 @@ geometry::ShapeContext convert(
   using namespace rmf_traffic::geometry;
 
   geometry::ShapeContext context;
-  for (const auto& box : from.convex_shapes.boxes)
-    context.insert(make_final<Box>(convert(box)));
+//  for (const auto& box : from.convex_shapes.boxes)
+//    context.insert(make_final<Box>(convert(box)));
 
   for (const auto& circle : from.convex_shapes.circles)
     context.insert(make_final<Circle>(convert(circle)));
@@ -113,11 +113,11 @@ rmf_traffic_msgs::msg::ShapeContext convert(
   // TODO(MXG): Consider how this can be refactored to share the same code as
   // convert(ConvexShapeContext)
 
-  for (const auto& box : from.shapes.at(Shape::BOX))
-  {
-    context.convex_shapes.boxes.emplace_back(
-      convert(static_cast<const Box&>(box->source())));
-  }
+//  for (const auto& box : from.shapes.at(Shape::BOX))
+//  {
+//    context.convex_shapes.boxes.emplace_back(
+//      convert(static_cast<const Box&>(box->source())));
+//  }
 
   for (const auto& circle : from.shapes.at(Shape::CIRCLE))
   {

@@ -18,9 +18,7 @@ find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
 find_package(rmf_fleet_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
-
-# TODO(MXG): Consider splitting off the components that depend on yaml-cpp
-find_package(yaml-cpp REQUIRED)
+find_package(rclcpp REQUIRED)
 
 if(BUILD_TESTING)
   find_package(rmf_cmake_uncrustify REQUIRED)

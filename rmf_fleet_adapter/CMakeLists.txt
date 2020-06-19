@@ -146,10 +146,6 @@ target_link_libraries(read_only
 add_executable(full_control
   src/full_control/main.cpp
   src/full_control/estimation.cpp
-  src/full_control/FleetAdapterNode.cpp
-  src/full_control/MoveAction.cpp
-  src/full_control/DispenseAction.cpp
-  src/full_control/Tasks.cpp
 )
 
 target_link_libraries(full_control

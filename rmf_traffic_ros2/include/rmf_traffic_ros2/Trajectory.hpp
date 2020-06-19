@@ -24,11 +24,6 @@
 
 namespace rmf_traffic_ros2 {
 
-// TODO(MXG): Before the first release, we should consider giving these
-// functions an inline namespace to make sure that we can keep the ABI stable
-// even if we decide to change the definitions of the messages. Or we should
-// consider some other ABI conflict mitigation strategy.
-
 //==============================================================================
 /// Convert from a Trajectory message to a Trajectory instance.
 ///

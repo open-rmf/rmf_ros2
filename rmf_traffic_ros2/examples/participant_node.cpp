@@ -17,7 +17,7 @@
 
 #include <rmf_traffic_ros2/schedule/Writer.hpp>
 
-#include <rmf_traffic/geometry/Box.hpp>
+#include <rmf_traffic/geometry/Circle.hpp>
 
 #include <rclcpp/executors.hpp>
 #include <rclcpp/node.hpp>
@@ -56,7 +56,7 @@ std::shared_ptr<ParticipantNode> make_node()
     rmf_traffic::schedule::ParticipantDescription::Rx::Unresponsive,
     rmf_traffic::Profile{
       rmf_traffic::geometry::make_final_convex<
-        rmf_traffic::geometry::Box>(1.0, 2.0)
+        rmf_traffic::geometry::Circle>(1.0)
     }
   };
 

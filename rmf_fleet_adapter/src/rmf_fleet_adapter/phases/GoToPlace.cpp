@@ -135,6 +135,13 @@ void GoToPlace::Active::respond(
       result.respond();
       phase->_negotiate_services.erase(result.service);
     }
+    else
+    {
+      // We need to make sure we respond in some way so that we don't risk
+      // making a negotiation hang forever. If this task is dead, then we should
+      // at least respond by forfeiting.
+      result.service->responder()->forfeit({});
+    }
   });
 
   using namespace std::chrono_literals;

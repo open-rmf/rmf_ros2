@@ -183,45 +183,45 @@ ScheduleNode::ScheduleNode()
 
   const auto negotiation_qos = rclcpp::ServicesQoS().reliable();
   conflict_ack_sub = create_subscription<ConflictAck>(
-    rmf_traffic_ros2::ScheduleConflictAckTopicName, negotiation_qos,
+    rmf_traffic_ros2::NegotiationAckTopicName, negotiation_qos,
     [&](const ConflictAck::UniquePtr msg)
     {
       this->receive_conclusion_ack(*msg);
     });
 
   conflict_notice_pub = create_publisher<ConflictNotice>(
-    rmf_traffic_ros2::ScheduleConflictNoticeTopicName, negotiation_qos);
+    rmf_traffic_ros2::NegotiationNoticeTopicName, negotiation_qos);
 
   conflict_refusal_sub = create_subscription<ConflictRefusal>(
-    rmf_traffic_ros2::ScheduleConflictRefusalTopicName, negotiation_qos,
+    rmf_traffic_ros2::NegotiationRefusalTopicName, negotiation_qos,
     [&](const ConflictRefusal::UniquePtr msg)
     {
       this->receive_refusal(*msg);
     });
 
   conflict_proposal_sub = create_subscription<ConflictProposal>(
-    rmf_traffic_ros2::ScheduleConflictProposalTopicName, negotiation_qos,
+    rmf_traffic_ros2::NegotiationProposalTopicName, negotiation_qos,
     [&](const ConflictProposal::UniquePtr msg)
     {
       this->receive_proposal(*msg);
     });
 
   conflict_rejection_sub = create_subscription<ConflictRejection>(
-    rmf_traffic_ros2::ScheduleConflictRejectionTopicName, negotiation_qos,
+    rmf_traffic_ros2::NegotiationRejectionTopicName, negotiation_qos,
     [&](const ConflictRejection::UniquePtr msg)
     {
       this->receive_rejection(*msg);
     });
 
   conflict_forfeit_sub = create_subscription<ConflictForfeit>(
-    rmf_traffic_ros2::ScheduleConflictForfeitTopicName, negotiation_qos,
+    rmf_traffic_ros2::NegotiationForfeitTopicName, negotiation_qos,
     [&](const ConflictForfeit::UniquePtr msg)
     {
       this->receive_forfeit(*msg);
     });
 
   conflict_conclusion_pub = create_publisher<ConflictConclusion>(
-    rmf_traffic_ros2::ScheduleConflictConclusionTopicName, negotiation_qos);
+    rmf_traffic_ros2::NegotiationConclusionTopicName, negotiation_qos);
 
   conflict_check_quit = false;
   conflict_check_thread = std::thread(
