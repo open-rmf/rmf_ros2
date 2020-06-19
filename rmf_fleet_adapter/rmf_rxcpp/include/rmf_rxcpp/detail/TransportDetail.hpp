@@ -28,7 +28,7 @@ class SubscriptionWrapper
 {
 public:
 
-  SubscriptionWrapper(rclcpp::Node::SharedPtr node, std::string topic_name, const rclcpp::QoS& qos)
+  SubscriptionWrapper(rclcpp::Node::WeakPtr node, std::string topic_name, const rclcpp::QoS& qos)
   : _node{std::move(node)}, _topic_name{std::move(topic_name)}, _qos{qos}
   {
     // no op
@@ -37,14 +37,24 @@ public:
   template<typename Subscriber>
   void operator()(const Subscriber& s)
   {
-    _subscription = _node->create_subscription<Message>(_topic_name, _qos, [s](typename Message::SharedPtr msg)
+    if (auto node = _node.lock())
     {
-      s.on_next(msg);
-    });
+      _subscription = node->create_subscription<Message>(
+        _topic_name,
+        _qos,
+        [s](typename Message::SharedPtr msg)
+        {
+          s.on_next(msg);
+        });
+    }
+    else
+    {
+      s.on_completed();
+    }
   }
 private:
 
-  rclcpp::Node::SharedPtr _node;
+  rclcpp::Node::WeakPtr _node;
   std::string _topic_name;
   rclcpp::QoS _qos;
   typename rclcpp::Subscription<Message>::SharedPtr _subscription;

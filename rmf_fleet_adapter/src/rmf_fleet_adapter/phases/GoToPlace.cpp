@@ -497,7 +497,7 @@ std::shared_ptr<Task::ActivePhase> GoToPlace::Pending::begin()
 
   active->find_plan();
 
-  _context->observe_interrupt()
+  _interrupt_sub = _context->observe_interrupt()
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
         [a = active->weak_from_this()](const auto&)
