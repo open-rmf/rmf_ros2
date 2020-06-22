@@ -32,8 +32,6 @@ namespace agv {
 /// You will be given an instance of this class every time you add a new robot
 /// to your fleet. Use that instance to send updates to RoMi-H about your
 /// robot's state.
-///
-/// To remove the available of this robot, simply allow the instance to expire.
 class RobotUpdateHandle
 {
 public:
