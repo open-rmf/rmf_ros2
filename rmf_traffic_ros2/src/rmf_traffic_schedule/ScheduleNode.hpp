@@ -33,14 +33,14 @@
 #include <rmf_traffic_msgs/msg/itinerary_extend.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_set.hpp>
 
-#include <rmf_traffic_msgs/msg/schedule_conflict_ack.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_repeat.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_notice.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_refusal.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_forfeit.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_proposal.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_rejection.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_conclusion.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_ack.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_repeat.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_notice.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_refusal.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_forfeit.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_proposal.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_rejection.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_conclusion.hpp>
 
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
 
@@ -51,7 +51,7 @@
 #include <rmf_traffic_msgs/srv/register_participant.hpp>
 #include <rmf_traffic_msgs/srv/unregister_participant.hpp>
 
-#include <rmf_traffic_msgs/msg/schedule_conflict_notice.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_notice.hpp>
 
 #include <rmf_utils/Modular.hpp>
 
@@ -172,36 +172,36 @@ public:
   std::condition_variable conflict_check_cv;
   std::atomic_bool conflict_check_quit;
 
-  using ConflictAck = rmf_traffic_msgs::msg::ScheduleConflictAck;
+  using ConflictAck = rmf_traffic_msgs::msg::NegotiationAck;
   using ConflictAckSub = rclcpp::Subscription<ConflictAck>;
   ConflictAckSub::SharedPtr conflict_ack_sub;
   void receive_conclusion_ack(const ConflictAck& msg);
 
-  using ConflictNotice = rmf_traffic_msgs::msg::ScheduleConflictNotice;
+  using ConflictNotice = rmf_traffic_msgs::msg::NegotiationNotice;
   using ConflictNoticePub = rclcpp::Publisher<ConflictNotice>;
   ConflictNoticePub::SharedPtr conflict_notice_pub;
 
-  using ConflictRefusal = rmf_traffic_msgs::msg::ScheduleConflictRefusal;
+  using ConflictRefusal = rmf_traffic_msgs::msg::NegotiationRefusal;
   using ConflictRefusalSub = rclcpp::Subscription<ConflictRefusal>;
   ConflictRefusalSub::SharedPtr conflict_refusal_sub;
   void receive_refusal(const ConflictRefusal& msg);
 
-  using ConflictProposal = rmf_traffic_msgs::msg::ScheduleConflictProposal;
+  using ConflictProposal = rmf_traffic_msgs::msg::NegotiationProposal;
   using ConflictProposalSub = rclcpp::Subscription<ConflictProposal>;
   ConflictProposalSub::SharedPtr conflict_proposal_sub;
   void receive_proposal(const ConflictProposal& msg);
 
-  using ConflictRejection = rmf_traffic_msgs::msg::ScheduleConflictRejection;
+  using ConflictRejection = rmf_traffic_msgs::msg::NegotiationRejection;
   using ConflictRejectionSub = rclcpp::Subscription<ConflictRejection>;
   ConflictRejectionSub::SharedPtr conflict_rejection_sub;
   void receive_rejection(const ConflictRejection& msg);
 
-  using ConflictForfeit = rmf_traffic_msgs::msg::ScheduleConflictForfeit;
+  using ConflictForfeit = rmf_traffic_msgs::msg::NegotiationForfeit;
   using ConflictForfeitSub = rclcpp::Subscription<ConflictForfeit>;
   ConflictForfeitSub::SharedPtr conflict_forfeit_sub;
   void receive_forfeit(const ConflictForfeit& msg);
 
-  using ConflictConclusion = rmf_traffic_msgs::msg::ScheduleConflictConclusion;
+  using ConflictConclusion = rmf_traffic_msgs::msg::NegotiationConclusion;
   using ConflictConclusionPub = rclcpp::Publisher<ConflictConclusion>;
   ConflictConclusionPub::SharedPtr conflict_conclusion_pub;
 

@@ -23,14 +23,14 @@
 
 #include <rmf_traffic_ros2/StandardNames.hpp>
 
-#include <rmf_traffic_msgs/msg/schedule_conflict_ack.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_repeat.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_notice.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_refusal.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_forfeit.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_proposal.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_rejection.hpp>
-#include <rmf_traffic_msgs/msg/schedule_conflict_conclusion.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_ack.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_repeat.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_notice.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_refusal.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_forfeit.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_proposal.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_rejection.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_conclusion.hpp>
 
 #include <rclcpp/logging.hpp>
 
@@ -48,7 +48,7 @@ std::string table_to_string(
 }
 
 //==============================================================================
-template<typename T>
+template <typename T>
 std::string ptr_to_string(T* ptr)
 {
   std::stringstream str;
@@ -84,36 +84,79 @@ public:
       table(table_),
       table_version(table->version()),
       parent(table->parent()),
-      parent_version(parent ? OptVersion(parent->version()) : OptVersion())
+      parent_version(parent? OptVersion(parent->version()) : OptVersion())
     {
       // Do nothing
+    }
+
+    template<typename... Args>
+    static std::shared_ptr<Responder> make(Args&&... args)
+    {
+      return std::make_shared<Responder>(std::forward<Args>(args)...);
     }
 
     void submit(
       std::vector<rmf_traffic::Route> itinerary,
       std::function<UpdateVersion()> approval_callback) const final
     {
-      const bool accepted = table->submit(itinerary, table_version+1);
-      assert(accepted);
-      (void)(accepted);
+      if (table->submit(itinerary, table_version+1))
+      {
+        impl->approvals[conflict_version][table] = {
+          table->sequence(),
+          std::move(approval_callback)
+        };
 
-      impl->approvals[conflict_version][table] = {
-        table->sequence(),
-        std::move(approval_callback)
-      };
+        impl->publish_proposal(conflict_version, *table);
 
-      impl->publish_proposal(conflict_version, *table);
+        if (impl->worker)
+        {
+          for (const auto& c : table->children())
+          {
+            const auto n_it = impl->negotiators->find(c->participant());
+            if (n_it == impl->negotiators->end())
+              continue;
+
+            impl->worker->schedule(
+                  [viewer = c->viewer(),
+                   negotiator = n_it->second.get(),
+                   responder = make(impl, conflict_version, c)]()
+            {
+              negotiator->respond(viewer, responder);
+            });
+          }
+        }
+      }
     }
 
     void reject(const Alternatives& alternatives) const final
     {
-      if (parent)
+      if (parent && !parent->defunct())
       {
-        // We will reject the parent to communicate that this whole branch is
-        // infeasible
-        parent->reject(*parent_version, table->participant(), alternatives);
-        impl->publish_rejection(
-          conflict_version, *parent, table->participant(), alternatives);
+        // We will reject the parent to communicate that its proposal is not
+        // feasible for us.
+        if (parent->reject(*parent_version, table->participant(), alternatives))
+        {
+          impl->publish_rejection(
+                conflict_version, *parent, table->participant(), alternatives);
+
+          // TODO(MXG): We don't schedule a response to the rejection for
+          // async negotiations, because the ROS2 subscription will do that for
+          // us whether we want it to or not.
+//          if (impl->worker)
+//          {
+//            const auto n_it = impl->negotiators->find(parent->participant());
+//            if (n_it == impl->negotiators->end())
+//              return;
+
+//            impl->worker->schedule(
+//                  [viewer = parent->viewer(),
+//                   negotiator = n_it->second.get(),
+//                   responder = make(impl, conflict_version, parent)]()
+//            {
+//              negotiator->respond(viewer, responder);
+//            });
+//          }
+        }
       }
     }
 
@@ -129,47 +172,48 @@ public:
 
   rclcpp::Node& node;
   std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer;
+  std::shared_ptr<Worker> worker;
 
-  using Repeat = rmf_traffic_msgs::msg::ScheduleConflictRepeat;
+  using Repeat = rmf_traffic_msgs::msg::NegotiationRepeat;
   using RepeatSub = rclcpp::Subscription<Repeat>;
   using RepeatPub = rclcpp::Publisher<Repeat>;
   RepeatSub::SharedPtr repeat_sub;
   RepeatPub::SharedPtr repeat_pub;
 
-  using Notice = rmf_traffic_msgs::msg::ScheduleConflictNotice;
+  using Notice = rmf_traffic_msgs::msg::NegotiationNotice;
   using NoticeSub = rclcpp::Subscription<Notice>;
   using NoticePub = rclcpp::Publisher<Notice>;
   NoticeSub::SharedPtr notice_sub;
   NoticePub::SharedPtr notice_pub;
 
-  using Refusal = rmf_traffic_msgs::msg::ScheduleConflictRefusal;
+  using Refusal = rmf_traffic_msgs::msg::NegotiationRefusal;
   using RefusalPub = rclcpp::Publisher<Refusal>;
   RefusalPub::SharedPtr refusal_pub;
 
-  using Proposal = rmf_traffic_msgs::msg::ScheduleConflictProposal;
+  using Proposal = rmf_traffic_msgs::msg::NegotiationProposal;
   using ProposalSub = rclcpp::Subscription<Proposal>;
   using ProposalPub = rclcpp::Publisher<Proposal>;
   ProposalSub::SharedPtr proposal_sub;
   ProposalPub::SharedPtr proposal_pub;
 
-  using Rejection = rmf_traffic_msgs::msg::ScheduleConflictRejection;
+  using Rejection = rmf_traffic_msgs::msg::NegotiationRejection;
   using RejectionSub = rclcpp::Subscription<Rejection>;
   using RejectionPub = rclcpp::Publisher<Rejection>;
   RejectionSub::SharedPtr rejection_sub;
   RejectionPub::SharedPtr rejection_pub;
 
-  using Forfeit = rmf_traffic_msgs::msg::ScheduleConflictForfeit;
+  using Forfeit = rmf_traffic_msgs::msg::NegotiationForfeit;
   using ForfeitSub = rclcpp::Subscription<Forfeit>;
   using ForfeitPub = rclcpp::Publisher<Forfeit>;
   ForfeitSub::SharedPtr forfeit_sub;
   ForfeitPub::SharedPtr forfeit_pub;
 
-  using Conclusion = rmf_traffic_msgs::msg::ScheduleConflictConclusion;
+  using Conclusion = rmf_traffic_msgs::msg::NegotiationConclusion;
   using ConclusionSub = rclcpp::Subscription<Conclusion>;
   ConclusionSub::SharedPtr conclusion_sub;
 
-  using ParticipantAck = rmf_traffic_msgs::msg::ScheduleConflictParticipantAck;
-  using Ack = rmf_traffic_msgs::msg::ScheduleConflictAck;
+  using ParticipantAck = rmf_traffic_msgs::msg::NegotiationParticipantAck;
+  using Ack = rmf_traffic_msgs::msg::NegotiationAck;
   using AckPub = rclcpp::Publisher<Ack>;
   AckPub::SharedPtr ack_pub;
 
@@ -205,76 +249,78 @@ public:
 
   Implementation(
     rclcpp::Node& node_,
-    std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer_)
+    std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer_,
+    std::shared_ptr<Worker> worker_)
   : node(node_),
     viewer(std::move(viewer_)),
+    worker(std::move(worker_)),
     negotiators(std::make_shared<NegotiatorMap>())
   {
     // TODO(MXG): Make the QoS configurable
     const auto qos = rclcpp::ServicesQoS().reliable();
 
     repeat_sub = node.create_subscription<Repeat>(
-      ScheduleConflictRepeatTopicName, qos,
+      NegotiationRepeatTopicName, qos,
       [&](const Repeat::UniquePtr msg)
       {
         this->receive_repeat_request(*msg);
       });
 
     repeat_pub = node.create_publisher<Repeat>(
-      ScheduleConflictRepeatTopicName, qos);
+      NegotiationRepeatTopicName, qos);
 
     notice_sub = node.create_subscription<Notice>(
-      ScheduleConflictNoticeTopicName, qos,
+      NegotiationNoticeTopicName, qos,
       [&](const Notice::UniquePtr msg)
       {
         this->receive_notice(*msg);
       });
 
     notice_pub = node.create_publisher<Notice>(
-      ScheduleConflictNoticeTopicName, qos);
+      NegotiationNoticeTopicName, qos);
 
     refusal_pub = node.create_publisher<Refusal>(
-      ScheduleConflictRefusalTopicName, qos);
+      NegotiationRefusalTopicName, qos);
 
     proposal_sub = node.create_subscription<Proposal>(
-      ScheduleConflictProposalTopicName, qos,
+      NegotiationProposalTopicName, qos,
       [&](const Proposal::UniquePtr msg)
       {
         this->receive_proposal(*msg);
       });
 
     proposal_pub = node.create_publisher<Proposal>(
-      ScheduleConflictProposalTopicName, qos);
+      NegotiationProposalTopicName, qos);
 
     rejection_sub = node.create_subscription<Rejection>(
-      ScheduleConflictRejectionTopicName, qos,
+      NegotiationRejectionTopicName, qos,
       [&](const Rejection::UniquePtr msg)
       {
         this->receive_rejection(*msg);
       });
 
     rejection_pub = node.create_publisher<Rejection>(
-      ScheduleConflictRejectionTopicName, qos);
+      NegotiationRejectionTopicName, qos);
 
     forfeit_sub = node.create_subscription<Forfeit>(
-      ScheduleConflictForfeitTopicName, qos,
+      NegotiationForfeitTopicName, qos,
       [&](const Forfeit::UniquePtr msg)
       {
         this->receive_forfeit(*msg);
       });
 
     forfeit_pub = node.create_publisher<Forfeit>(
-      ScheduleConflictForfeitTopicName, qos);
+      NegotiationForfeitTopicName, qos);
 
     conclusion_sub = node.create_subscription<Conclusion>(
-      ScheduleConflictConclusionTopicName, qos,
+      NegotiationConclusionTopicName, qos,
       [&](const Conclusion::UniquePtr msg)
       {
         this->receive_conclusion(*msg);
       });
 
     ack_pub = node.create_publisher<Ack>(
-      ScheduleConflictAckTopicName, qos);
+      NegotiationAckTopicName, qos);
   }
 
   void receive_repeat_request(const Repeat& msg)
@@ -320,8 +366,8 @@ public:
   }
 
   void respond_to_queue(
-    std::vector<TablePtr> queue,
-    Version conflict_version)
+      std::vector<TablePtr> queue,
+      Version conflict_version)
   {
     while (!queue.empty())
     {
@@ -348,7 +394,7 @@ public:
 
         const auto& negotiator = n_it->second;
         negotiator->respond(
-          top->viewer(), Responder(this, conflict_version, top));
+              top->viewer(), Responder::make(this, conflict_version, top));
       }
 
       if (top->submission())
@@ -378,7 +424,7 @@ public:
 
 
     auto new_negotiation = Negotiation::make(
-      viewer->snapshot(), msg.participants);
+          viewer->snapshot(), msg.participants);
     if (!new_negotiation)
     {
       // TODO(MXG): This is a temporary hack to deal with situations where a
@@ -429,20 +475,6 @@ public:
     // TODO(MXG): Is the participating flag even relevant?
     participating = true;
 
-    for (const auto p : msg.participants)
-    {
-      const auto it = negotiators->find(p);
-      if (it != negotiators->end())
-      {
-        const auto table = negotiation.table(p, {});
-        if (!table->submission())
-        {
-          it->second->respond(
-            table->viewer(), Responder(this, msg.conflict_version, table));
-        }
-      }
-    }
-
     std::vector<TablePtr> queue;
     for (const auto p : negotiation.participants())
       queue.push_back(negotiation.table(p, {}));
@@ -455,11 +487,7 @@ public:
     const auto negotiate_it = negotiations.find(msg.conflict_version);
     if (negotiate_it == negotiations.end())
     {
-      RCLCPP_WARN(
-        node.get_logger(),
-        "[rmf_traffic_ros2::schedule::Negotiation::receive_proposal] "
-        "Received a proposal for an unknown negotiation: "
-        + std::to_string(msg.conflict_version));
+      // This negotiation has probably been completed already
       return;
     }
 
@@ -481,8 +509,7 @@ public:
         + std::to_string(msg.conflict_version) + "] that builds on an "
         "unknown table: [";
       for (const auto p : msg.to_accommodate)
-        error += " " + std::to_string(p.participant) + ":" + std::to_string(
-          p.version);
+        error += " " + std::to_string(p.participant) + ":" + std::to_string(p.version);
       error += " " + std::to_string(msg.for_participant) + " ]";
 
       RCLCPP_WARN(node.get_logger(), error);
@@ -540,8 +567,7 @@ public:
         + std::to_string(msg.conflict_version) + "] for an "
         "unknown table: [";
       for (const auto p : msg.table)
-        error += " " + std::to_string(p.participant) + ":" + std::to_string(
-          p.version);
+        error += " " + std::to_string(p.participant) + ":" + std::to_string(p.version);
       error += " ]";
 
       RCLCPP_WARN(node.get_logger(), error);
@@ -595,19 +621,18 @@ public:
   }
 
   void dump_conclusion_info(
-    const Conclusion& msg,
-    const Approvals::const_iterator& approval_callback_it,
-    const Negotiation& negotiation)
+      const Conclusion& msg,
+      const Approvals::const_iterator& approval_callback_it,
+      const Negotiation& negotiation)
   {
     const auto full_sequence = convert(msg.table);
 
     std::string err =
-      "\n !!!!!!!!!!!! Impossible situation encountered for Negotiation ["
-      + std::to_string(msg.conflict_version) + "] in node ["
-      + node.get_name() + "]: No approval callbacks found?? Sequence: [";
+        "\n !!!!!!!!!!!! Impossible situation encountered for Negotiation ["
+        + std::to_string(msg.conflict_version) + "] in node ["
+        + node.get_name() + "]: No approval callbacks found?? Sequence: [";
     for (const auto s : msg.table)
-      err += " " + std::to_string(s.participant) + ":" + std::to_string(
-        s.version);
+      err += " " + std::to_string(s.participant) + ":" + std::to_string(s.version);
     err += " ] ";
 
     if (msg.resolved)
@@ -621,23 +646,21 @@ public:
         err += "\n -- " + ptr_to_string(table.get()) + " |";
 
         for (const auto& s : table->sequence())
-          err += " " + std::to_string(s.participant) + ":" + std::to_string(
-            s.version);
+          err += " " + std::to_string(s.participant) + ":" + std::to_string(s.version);
       }
 
       err += "\nCurrent relevant tables in the negotiation:";
       for (std::size_t i = 1; i <= msg.table.size(); ++i)
       {
         std::vector<ParticipantId> sequence;
-        for (std::size_t j = 0; j < i; ++j)
+        for (std::size_t j=0; j < i; ++j)
           sequence.push_back(full_sequence[j].participant);
 
         const auto table = negotiation.table(sequence);
         err += "\n -- " + ptr_to_string(table.get()) + " |";
 
-        for (std::size_t j = 0; j < i; ++j)
-          err += " " + std::to_string(msg.table[j].participant) + ":" +
-            std::to_string(msg.table[j].version);
+        for (std::size_t j=0; j < i; ++j)
+          err += " " + std::to_string(msg.table[j].participant) + ":" + std::to_string(msg.table[j].version);
       }
     }
     else
@@ -681,7 +704,7 @@ public:
         for (std::size_t i = 1; i <= msg.table.size(); ++i)
         {
           const auto sequence = Negotiation::VersionedKeySequence(
-            full_sequence.begin(), full_sequence.begin()+i);
+                full_sequence.begin(), full_sequence.begin()+i);
           const auto participant = sequence.back().participant;
 
           const auto search = negotiation.find(sequence);
@@ -719,8 +742,8 @@ public:
             // We will do a brute-force search through our approval callbacks
             // to dig up the relevant one.
             for (auto a_it = approval_callbacks.begin();
-              a_it != approval_callbacks.end();
-              ++a_it)
+                 a_it != approval_callbacks.end();
+                 ++a_it)
             {
               if (a_it->second.sequence == sequence)
               {
@@ -891,8 +914,10 @@ public:
 //==============================================================================
 Negotiation::Negotiation(
   rclcpp::Node& node,
-  std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer)
-: _pimpl(rmf_utils::make_unique_impl<Implementation>(node, std::move(viewer)))
+  std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer,
+  std::shared_ptr<Worker> worker)
+: _pimpl(rmf_utils::make_unique_impl<Implementation>(
+           node, std::move(viewer), std::move(worker)))
 {
   // Do nothing
 }

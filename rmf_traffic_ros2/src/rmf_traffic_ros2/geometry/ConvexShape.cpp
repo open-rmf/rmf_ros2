@@ -16,7 +16,7 @@
 */
 
 #include <rmf_traffic_ros2/geometry/ConvexShape.hpp>
-#include <rmf_traffic_ros2/geometry/Box.hpp>
+//#include <rmf_traffic_ros2/geometry/Box.hpp>
 #include <rmf_traffic_ros2/geometry/Circle.hpp>
 
 #include "ShapeInternal.hpp"
@@ -43,7 +43,7 @@ public:
       std::lock_guard<std::mutex> lock(initialization_mutex);
       if (!initialized)
       {
-        add<rmf_traffic::geometry::Box>(rmf_traffic_msgs::msg::ConvexShape::BOX);
+//        add<rmf_traffic::geometry::Box>(rmf_traffic_msgs::msg::ConvexShape::BOX);
         add<rmf_traffic::geometry::Circle>(
           rmf_traffic_msgs::msg::ConvexShape::CIRCLE);
         initialized = true;
@@ -89,8 +89,8 @@ geometry::ConvexShapeContext convert(
   using namespace rmf_traffic::geometry;
 
   geometry::ConvexShapeContext context;
-  for (const auto& box : from.boxes)
-    context.insert(make_final_convex<Box>(convert(box)));
+//  for (const auto& box : from.boxes)
+//    context.insert(make_final_convex<Box>(convert(box)));
 
   for (const auto& circle : from.circles)
     context.insert(make_final_convex<Circle>(convert(circle)));
@@ -109,8 +109,8 @@ rmf_traffic_msgs::msg::ConvexShapeContext convert(
 
   rmf_traffic_msgs::msg::ConvexShapeContext context;
 
-  for (const auto& box : from.shapes.at(ConvexShape::BOX))
-    context.boxes.emplace_back(convert(static_cast<const Box&>(box->source())));
+//  for (const auto& box : from.shapes.at(ConvexShape::BOX))
+//    context.boxes.emplace_back(convert(static_cast<const Box&>(box->source())));
 
   for (const auto& circle : from.shapes.at(ConvexShape::CIRCLE))
     context.circles.emplace_back(convert(static_cast<const Circle&>(circle->

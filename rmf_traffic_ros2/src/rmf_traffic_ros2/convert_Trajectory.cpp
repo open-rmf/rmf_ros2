@@ -18,7 +18,6 @@
 #include <rmf_traffic_ros2/Trajectory.hpp>
 #include <rmf_traffic_ros2/geometry/ConvexShape.hpp>
 
-#include <rmf_traffic/geometry/Box.hpp>
 #include <rmf_traffic/geometry/Circle.hpp>
 
 #include <unordered_map>

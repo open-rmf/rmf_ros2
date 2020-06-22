@@ -13,11 +13,12 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
+include(GNUInstallDirs)
 
 if(BUILD_TESTING)
   find_package(rmf_cmake_uncrustify REQUIRED)
   find_file(uncrustify_config_file NAMES "share/format/rmf_code_style.cfg")
-                
+
   rmf_uncrustify(
     ARGN include src test
     CONFIG_FILE ${uncrustify_config_file}
@@ -43,12 +44,14 @@ endforeach()
 
 # -----------------------------------------------------------------------------
 
-add_library(rmf_fleet_adapter
-  src/rmf_fleet_adapter/make_trajectory.cpp
-  src/rmf_fleet_adapter/ParseGraph.cpp
-  src/rmf_fleet_adapter/ParseArgs.cpp
-  src/rmf_fleet_adapter/load_param.cpp
-  src/rmf_fleet_adapter/ScheduleManager.cpp
+add_subdirectory(rmf_rxcpp)
+
+# -----------------------------------------------------------------------------
+
+file(GLOB_RECURSE rmf_fleet_adapter_srcs "src/rmf_fleet_adapter/*.cpp")
+
+add_library(rmf_fleet_adapter SHARED
+  ${rmf_fleet_adapter_srcs}
 )
 
 target_link_libraries(rmf_fleet_adapter
@@ -57,6 +60,11 @@ target_link_libraries(rmf_fleet_adapter
     yaml-cpp
     ${rmf_fleet_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
+  PRIVATE
+    rmf_rxcpp
+    ${rmf_task_msgs_LIBRARIES}
+    ${rmf_door_msgs_LIBRARIES}
+    ${rmf_lift_msgs_LIBRARIES}
 )
 
 target_include_directories(rmf_fleet_adapter
@@ -66,7 +74,60 @@ target_include_directories(rmf_fleet_adapter
     ${rmf_traffic_ros2_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
+  PRIVATE
+    ${rmf_task_msgs_INCLUDE_DIRS}
+    ${rmf_door_msgs_INCLUDE_DIRS}
+    ${rmf_lift_msgs_INCLUDE_DIRS}
 )
+
+if (BUILD_TESTING)
+  find_package(ament_cmake_catch2 REQUIRED)
+  find_package(std_msgs REQUIRED)
+
+  ament_add_catch2(
+    rmf_fleet_adapter_test
+      test/main.cpp
+      test/phases/MockAdapterFixture.cpp
+      test/phases/DoorOpenTest.cpp
+      test/phases/DoorCloseTest.cpp
+      test/phases/RequestLiftTest.cpp
+      test/phases/DispenseItemTest.cpp
+      test/phases/test_GoToPlace.cpp
+      test/services/test_FindEmergencyPullover.cpp
+      test/services/test_FindPath.cpp
+      test/services/test_Negotiate.cpp
+      test/tasks/test_Delivery.cpp
+      test/tasks/test_Loop.cpp
+      test/test_Task.cpp
+  )
+  target_include_directories(rmf_fleet_adapter_test
+    PRIVATE
+      # private includes of rmf_fleet_adapter
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/rmf_fleet_adapter>
+      ${rmf_task_msgs_INCLUDE_DIRS}
+      ${rmf_door_msgs_INCLUDE_DIRS}
+      ${rmf_lift_msgs_INCLUDE_DIRS}
+
+      ${std_msgs_INCLUDE_DIRS}
+  )
+  target_link_libraries(rmf_fleet_adapter_test
+    PRIVATE
+      # private libraries of rmf_fleet_adapter
+      rmf_rxcpp
+      ${rmf_task_msgs_LIBRARIES}
+      ${rmf_door_msgs_LIBRARIES}
+      ${rmf_lift_msgs_LIBRARIES}
+
+      rmf_fleet_adapter
+      rmf_utils::rmf_utils
+      ${std_msgs_LIBRARIES}
+  )
+
+  target_compile_definitions(rmf_fleet_adapter_test
+    PRIVATE
+      "-DTEST_RESOURCES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test/resources/\"")
+
+endif ()
 
 # -----------------------------------------------------------------------------
 
@@ -84,10 +145,7 @@ target_link_libraries(read_only
 
 add_executable(full_control
   src/full_control/main.cpp
-  src/full_control/FleetAdapterNode.cpp
-  src/full_control/MoveAction.cpp
-  src/full_control/DispenseAction.cpp
-  src/full_control/Tasks.cpp
+  src/full_control/estimation.cpp
 )
 
 target_link_libraries(full_control
@@ -222,8 +280,11 @@ target_include_directories(task_aggregator
 
 # -----------------------------------------------------------------------------
 
+ament_export_interfaces(rmf_fleet_adapter HAS_LIBRARY_TARGET)
+ament_export_dependencies(rmf_traffic_ros2)
+
 install(
-  TARGETS 
+  TARGETS
     rmf_fleet_adapter
     read_only
     full_control
@@ -232,6 +293,7 @@ install(
     robot_state_aggregator
     test_read_only_adapter
     task_aggregator
+  EXPORT rmf_fleet_adapter
   RUNTIME DESTINATION lib/rmf_fleet_adapter
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
@@ -242,6 +304,11 @@ install(
 install(DIRECTORY
   launch/
   DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY include/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 ament_package()

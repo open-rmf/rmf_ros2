@@ -46,15 +46,13 @@ public:
 
   void push_routes(const std::vector<rmf_traffic::Route>& routes);
 
-  void push_delay(
-    const rmf_traffic::Duration duration,
-    const rmf_traffic::Time from_time);
+  void push_delay(const rmf_traffic::Duration duration);
 
   void set_negotiator(
-    std::function<void(
-      const rmf_traffic::schedule::Negotiation::Table::ViewerPtr&,
-      const rmf_traffic::schedule::Negotiator::Responder&,
-      const bool*)> negotiation_callback);
+      std::function<void(
+        const rmf_traffic::schedule::Negotiation::Table::ViewerPtr&,
+        const rmf_traffic::schedule::Negotiator::ResponderPtr&)>
+      negotiation_callback);
 
   rmf_traffic::schedule::Participant& participant();
 
@@ -70,13 +68,11 @@ private:
 
     void respond(
       const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-      const Responder& responder,
-      const bool* interrupt_flag) final;
+      const ResponderPtr& responder) final;
 
     std::function<void(
         rmf_traffic::schedule::Negotiation::Table::ViewerPtr,
-        const Responder&,
-        const bool*)> callback;
+        const ResponderPtr&)> callback;
   };
 
   rclcpp::Node* _node;

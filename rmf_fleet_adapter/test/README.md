@@ -1,3 +1,8 @@
+# Requirements
+
+gcc >= 8, There is a bug in gcc 7 that causes segfault when using rxcpp under certain scenarios.
+
+
 # Testing read\_only\_fleet\_adapter
 
 The read_only adapter is tested for four scenarios:

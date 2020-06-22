@@ -68,19 +68,16 @@ void ScheduleManager::push_routes(const std::vector<rmf_traffic::Route>& routes)
 }
 
 //==============================================================================
-void ScheduleManager::push_delay(
-  const rmf_traffic::Duration duration,
-  const rmf_traffic::Time from_time)
+void ScheduleManager::push_delay(const rmf_traffic::Duration duration)
 {
-  _participant.delay(from_time, duration);
+  _participant.delay(duration);
 }
 
 //==============================================================================
 void ScheduleManager::set_negotiator(
   std::function<void(
     const rmf_traffic::schedule::Negotiation::Table::ViewerPtr&,
-    const Negotiator::Responder&,
-    const bool*)> negotiation_callback)
+    const Negotiator::ResponderPtr&)> negotiation_callback)
 {
   if (_negotiator)
     _negotiator->callback = std::move(negotiation_callback);
@@ -108,13 +105,12 @@ ScheduleManager::description() const
 //==============================================================================
 void ScheduleManager::Negotiator::respond(
   const rmf_traffic::schedule::Negotiation::Table::ViewerPtr& table,
-  const Responder& responder,
-  const bool* interrupt_flag)
+  const ResponderPtr& responder)
 {
   if (!callback)
     return;
 
-  callback(table, responder, interrupt_flag);
+  callback(table, responder);
 }
 
 //==============================================================================

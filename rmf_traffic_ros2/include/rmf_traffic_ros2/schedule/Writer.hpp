@@ -30,7 +30,7 @@ namespace schedule {
 //==============================================================================
 /// The Writer class provides an API that allows a Node to create schedule
 /// Participants.
-class Writer : std::enable_shared_from_this<Writer>
+class Writer : public std::enable_shared_from_this<Writer>
 {
 public:
 

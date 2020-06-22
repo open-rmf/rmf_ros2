@@ -35,10 +35,29 @@ class Negotiation
 {
 public:
 
+  /// The Worker class can be used to make the Negotiation asynchronous.
+  class Worker
+  {
+  public:
+
+    /// Tell the worker to add a callback to its schedule. It is imperative that
+    /// this function is thread-safe.
+    virtual void schedule(std::function<void()> job) = 0;
+
+    virtual ~Worker() = default;
+  };
+
   /// Constructor
+  ///
+  /// \param[in] worker
+  ///   If a worker is provided, the Negotiation will be performed
+  ///   asynchronously. If it is not provided, then the Negotiators must be
+  ///   single-threaded, and their respond() functions must block until
+  ///   finished.
   Negotiation(
     rclcpp::Node& node,
-    std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer);
+    std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer,
+    std::shared_ptr<Worker> worker = nullptr);
 
   /// Register a negotiator with this Negotiation manager.
   ///
