@@ -66,6 +66,7 @@ void check_path_finish(
     info.updater->update_position(*wp.graph_index(), l.yaw);
   }
 
+  assert(info.path_finished_callback);
   info.path_finished_callback();
   info.path_finished_callback = nullptr;
   info.next_arrival_estimator = nullptr;
@@ -90,12 +91,14 @@ void estimate_path_traveling(
   const auto now = rmf_traffic_ros2::convert(node->now());
   if (target_wp.time() < now + next_arrival)
   {
+    assert(info.next_arrival_estimator);
     // It seems the robot cannot arrive on time, so we report the earliest that
     // the robot can make it to its next target waypoint.
     info.next_arrival_estimator(i_target_wp, next_arrival);
   }
   else
   {
+    assert(info.next_arrival_estimator);
     // It seems the robot will arrive on time, so we'll report that.
     info.next_arrival_estimator(i_target_wp, target_wp.time() - now);
   }

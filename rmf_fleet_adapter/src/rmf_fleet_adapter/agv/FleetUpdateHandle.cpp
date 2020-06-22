@@ -311,7 +311,8 @@ void FleetUpdateHandle::add_robot(
     // We schedule the following operations on the worker to make sure we do not
     // have a multiple read/write race condition on the FleetUpdateHandle.
     worker.schedule(
-          [context, fleet, handle_cb = std::move(handle_cb)](const auto&)
+          [context, fleet, node = fleet->_pimpl->node,
+           handle_cb = std::move(handle_cb)](const auto&)
     {
       // TODO(MXG): We need to perform this test because we do not currently
       // support the distributed negotiation in unit test environments. We
@@ -327,7 +328,19 @@ void FleetUpdateHandle::add_robot(
       }
 
       fleet->_pimpl->task_managers.insert({context, context});
-      handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
+      if (handle_cb)
+      {
+        handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
+      }
+      else
+      {
+        RCLCPP_WARN(
+          node->get_logger(),
+          "FleetUpdateHandle::add_robot(~) was not provided a callback to "
+          "receive the RobotUpdateHandle of the new robot. This means you will "
+          "not be able to update the state of the new robot. This is likely to "
+          "be a fleet adapter development error.");
+      }
     });
   });
 }

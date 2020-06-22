@@ -98,7 +98,7 @@ void Task::_start_next_phase()
   {
     // All phases are now complete
     _active_phase = nullptr;
-    _active_phase_subscription.unsubscribe();
+    _active_phase_subscription.get().unsubscribe();
     _status_publisher.get_subscriber().on_completed();
 
     return;

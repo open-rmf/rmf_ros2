@@ -136,7 +136,7 @@ private:
   rxcpp::subjects::subject<StatusMsg> _status_publisher;
   rxcpp::observable<StatusMsg> _status_obs;
 
-  rxcpp::subscription _active_phase_subscription;
+  rmf_rxcpp::subscription_guard _active_phase_subscription;
 
   rmf_utils::optional<builtin_interfaces::msg::Time> _initial_time;
 
