@@ -87,6 +87,7 @@ public:
       ArrivalEstimator next_arrival_estimator,
       RequestCompleted path_finished_callback) final
   {
+    std::lock_guard<std::mutex> lock(_mutex);
     _clear_last_command();
 
     _travel_info.waypoints = waypoints;
@@ -130,6 +131,7 @@ public:
       const std::string& dock_name,
       RequestCompleted docking_finished_callback) final
   {
+    std::lock_guard<std::mutex> lock(_mutex);
     _clear_last_command();
 
     _dock_finished_callback = std::move(docking_finished_callback);
@@ -142,6 +144,7 @@ public:
 
   void update_state(const rmf_fleet_msgs::msg::RobotState& state)
   {
+    std::lock_guard<std::mutex> lock(_mutex);
     if (_travel_info.path_finished_callback)
     {
       // If we have a path_finished_callback, then the robot should be
@@ -149,6 +152,9 @@ public:
 
       // There should not be a docking command happening
       assert(!_dock_finished_callback);
+
+      // The arrival estimator should be available
+      assert(_travel_info.next_arrival_estimator);
 
       if (state.task_id != _current_path_request.task_id)
       {
@@ -250,6 +256,8 @@ private:
   ModeRequestPub _mode_request_pub;
 
   uint32_t _current_task_id = 0;
+
+  std::mutex _mutex;
 
   void _clear_last_command()
   {
