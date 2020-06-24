@@ -67,6 +67,14 @@ PYBIND11_MODULE(rmf_adapter, m) {
              py::call_guard<py::scoped_ostream_redirect,
                             py::scoped_estream_redirect>())
         .def("update_position",
+             py::overload_cast<const Eigen::Vector3d&,
+                               std::size_t>(
+                 &agv::RobotUpdateHandle::update_position),
+             py::arg("position"),
+             py::arg("target_waypoint"),
+             py::call_guard<py::scoped_ostream_redirect,
+                            py::scoped_estream_redirect>())
+        .def("update_position",
              py::overload_cast<const std::string&,
                                const Eigen::Vector3d&,
                                const double,
