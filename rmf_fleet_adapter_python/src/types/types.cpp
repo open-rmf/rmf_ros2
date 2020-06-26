@@ -46,24 +46,28 @@ void bind_types(py::module &m) {
     .def("__call__", &std::mt19937::operator());
 
   py::class_<rmf_utils::optional<std::size_t> >(m_type, "OptionalULong")
+      .def(py::init<std::size_t>())
       .def_property_readonly("has_value",
                              &rmf_utils::optional<std::size_t>::has_value)
       .def_property_readonly("value", py::overload_cast<>(
           &rmf_utils::optional<std::size_t>::value));
 
   py::class_<rmf_utils::optional<double> >(m_type, "OptionalDouble")
+      .def(py::init<double>())
       .def_property_readonly("has_value",
                              &rmf_utils::optional<double>::has_value)
       .def_property_readonly("value", py::overload_cast<>(
           &rmf_utils::optional<double>::value));
 
   py::class_<rmf_utils::optional<Eigen::Vector2d> >(m_type, "OptionalVector2D")
+      .def(py::init<Eigen::Vector2d>())
       .def_property_readonly("has_value",
                              &rmf_utils::optional<Eigen::Vector2d>::has_value)
       .def_property_readonly("value", py::overload_cast<>(
           &rmf_utils::optional<Eigen::Vector2d>::value));
 
-  py::class_<rmf_utils::nullopt_t>(m_type, "NullOptional");
+  py::class_<rmf_utils::nullopt_t>(m_type, "NullOptional")
+      .def(py::init<>());
 
   py::class_<rmf_task_msgs::msg::Delivery>(m_type, "CPPDeliveryMsg")
       .def(py::init(&make_delivery_msg),
@@ -71,5 +75,36 @@ void bind_types(py::module &m) {
            py::arg("pickup_place_name") = "",
            py::arg("pickup_dispenser") = "",
            py::arg("dropoff_place_name") = "",
-           py::arg("dropoff_dispenser") = "");
+           py::arg("dropoff_dispenser") = "")
+      .def_property("task_id",
+                    [&](rmf_task_msgs::msg::Delivery& self){
+                        return self.task_id;},
+                    [&](rmf_task_msgs::msg::Delivery& self,
+                       std::string task_id){
+                        self.task_id = task_id;})
+      .def_property("pickup_place_name",
+                    [&](rmf_task_msgs::msg::Delivery& self){
+                        return self.pickup_place_name;},
+                    [&](rmf_task_msgs::msg::Delivery& self,
+                       std::string pickup_place_name){
+                        self.pickup_place_name = pickup_place_name;})
+      .def_property("pickup_dispenser",
+                    [&](rmf_task_msgs::msg::Delivery& self){
+                        return self.pickup_dispenser;},
+                    [&](rmf_task_msgs::msg::Delivery& self,
+                       std::string pickup_dispenser){
+                        self.pickup_dispenser = pickup_dispenser;})
+      .def_property("dropoff_place_name",
+                    [&](rmf_task_msgs::msg::Delivery& self){
+                        return self.dropoff_place_name;},
+                    [&](rmf_task_msgs::msg::Delivery& self,
+                       std::string dropoff_place_name){
+                        self.dropoff_place_name = dropoff_place_name;})
+      .def_property("dropoff_dispenser",
+                    [&](rmf_task_msgs::msg::Delivery& self){
+                        return self.dropoff_dispenser;},
+                    [&](rmf_task_msgs::msg::Delivery& self,
+                       std::string dropoff_dispenser){
+                        self.dropoff_dispenser = dropoff_dispenser;});
+                              // .def_property("pickup_place_name",
 }

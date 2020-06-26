@@ -164,8 +164,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
                                py::overload_cast<>(
                                    &agv::test::MockAdapter::node))
         .def("request_delivery", &agv::test::MockAdapter::request_delivery)
-        .def("start",
-            &agv::test::MockAdapter::start)
+        .def("start", &agv::test::MockAdapter::start)
         .def("stop", &agv::test::MockAdapter::stop)
         .def("now", [&](agv::test::MockAdapter& self) {
             return TimePoint(rmf_traffic_ros2::convert(self.node()->now())

@@ -76,6 +76,39 @@ void bind_plan(py::module &m) {
                     py::overload_cast<rmf_utils::optional<std::size_t> >(
                         &Start::lane));
 
+  // Rebound signature for compute_plan_starts
+  m_plan.def("compute_plan_starts",
+             [&](const rmf_traffic::agv::Graph& graph,
+                 const std::string& map_name,
+                 const Eigen::Vector3d pose,
+                 TimePoint start_time,
+                 const double max_merge_waypoint_distance,
+                 const double max_merge_lane_distance,
+                 const double min_lane_length) {
+                   using TimePointSteadyClock =
+                       std::chrono::time_point<std::chrono::steady_clock,
+                                               std::chrono::nanoseconds>;
+
+                   return rmf_traffic::agv::compute_plan_starts(
+                       graph,
+                       map_name,
+                       pose,
+                       TimePointSteadyClock(start_time.time_since_epoch()),
+                       max_merge_waypoint_distance,
+                       max_merge_lane_distance,
+                       min_lane_length
+                   );
+             },
+             py::arg("navigation_graph"),
+             py::arg("map_name"),
+             py::arg("position"),
+             py::arg("start_time"),
+             py::arg("max_merge_waypoint_distance") = 0.1,
+             py::arg("max_merge_lane_distance") = 1.0,
+             py::arg("min_lane_length") = 1e-8,
+             py::call_guard<py::scoped_ostream_redirect,
+                            py::scoped_estream_redirect>());
+
   // PLAN ======================================================================
   py::class_<Plan>(m_plan, "Plan")
       // Private constructor

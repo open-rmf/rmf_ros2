@@ -275,12 +275,17 @@ class MockRobotCommand(adpt.RobotCommandHandle):
                     print(type(lane.entry.event))
                     print("EVENT EXECUTE FOR LANE", i, "NOT IMPLEMENTED")
 
+        print("Registered Docks:", self.dock_to_wp, "\n")
+
     def follow_new_path(self,
                         waypoints,
                         next_arrival_estimator,  # function!
                         path_finished_callback):
         print("\n[RobotCommandHandle] Setting new path of %d waypoints..."
               % len(waypoints))
+        print("Waypoints:", [x.graph_index.value for x in waypoints])
+
+        self.stop()
 
         self.current_waypoint_target = 0
         self.active = True
@@ -293,8 +298,12 @@ class MockRobotCommand(adpt.RobotCommandHandle):
         )
 
     def stop(self):
-        self.timer.reset()
-        self.timer.cancel()
+        try:
+            self.timer.reset()
+            self.timer.cancel()
+        except Exception:
+            # For when a timer does not exist yet
+            pass
 
     def dock(self, dock_name, docking_finished_callback):
         assert dock_name in self.dock_to_wp
@@ -447,6 +456,15 @@ def main():
 
     cmd_node = Node("RobotCommandHandle")
 
+    # Test compute_plan_starts, which tries to place the robot on the navgraph
+    # Your robot MUST be near a waypoint or lane for this to work though!
+    starts = plan.compute_plan_starts(test_graph,
+                                      "test_map",
+                                      [[-10.0], [0.0], [0.0]],
+                                      adapter.now())
+    assert [x.waypoint for x in starts] == [3], [x.waypoint for x in starts]
+
+    # Alternatively, if you DO know where your robot is, place it directly!
     starts = [plan.Start(adapter.now(),
                          0,
                          0.0)]
@@ -539,6 +557,12 @@ def main():
 
     assert len(robot_cmd.visited_waypoints) == 6
     assert all([x in robot_cmd.visited_waypoints for x in [0, 5, 6, 7, 8, 10]])
+    assert robot_cmd.visited_waypoints[0] == 2
+    assert robot_cmd.visited_waypoints[5] == 4
+    assert robot_cmd.visited_waypoints[6] == 3
+    assert robot_cmd.visited_waypoints[7] == 1
+    assert robot_cmd.visited_waypoints[8] == 2
+    assert robot_cmd.visited_waypoints[10] == 1
     assert at_least_one_incomplete
 
     # Uncomment this to send a second request.
