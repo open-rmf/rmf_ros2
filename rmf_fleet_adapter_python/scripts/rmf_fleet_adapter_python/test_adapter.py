@@ -447,6 +447,15 @@ def main():
 
     cmd_node = Node("RobotCommandHandle")
 
+    # Test compute_plan_starts, which tries to place the robot on the navgraph
+    # Your robot MUST be near a waypoint or lane for this to work though!
+    starts = plan.compute_plan_starts(test_graph,
+                                      "test_map",
+                                      [[-10.0], [0.0], [0.0]],
+                                      adapter.now())
+    assert [x.waypoint for x in starts] == [3], [x.waypoint for x in starts]
+
+    # Alternatively, if you DO know where your robot is, place it directly!
     starts = [plan.Start(adapter.now(),
                          0,
                          0.0)]
