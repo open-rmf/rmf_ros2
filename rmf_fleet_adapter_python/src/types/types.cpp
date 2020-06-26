@@ -77,33 +77,33 @@ void bind_types(py::module &m) {
            py::arg("dropoff_place_name") = "",
            py::arg("dropoff_dispenser") = "")
       .def_property("task_id",
-                    [](rmf_task_msgs::msg::Delivery& self){
+                    [&](rmf_task_msgs::msg::Delivery& self){
                         return self.task_id;},
-                    [](rmf_task_msgs::msg::Delivery& self,
+                    [&](rmf_task_msgs::msg::Delivery& self,
                        std::string task_id){
                         self.task_id = task_id;})
       .def_property("pickup_place_name",
-                    [](rmf_task_msgs::msg::Delivery& self){
+                    [&](rmf_task_msgs::msg::Delivery& self){
                         return self.pickup_place_name;},
-                    [](rmf_task_msgs::msg::Delivery& self,
+                    [&](rmf_task_msgs::msg::Delivery& self,
                        std::string pickup_place_name){
                         self.pickup_place_name = pickup_place_name;})
       .def_property("pickup_dispenser",
-                    [](rmf_task_msgs::msg::Delivery& self){
+                    [&](rmf_task_msgs::msg::Delivery& self){
                         return self.pickup_dispenser;},
-                    [](rmf_task_msgs::msg::Delivery& self,
+                    [&](rmf_task_msgs::msg::Delivery& self,
                        std::string pickup_dispenser){
                         self.pickup_dispenser = pickup_dispenser;})
       .def_property("dropoff_place_name",
-                    [](rmf_task_msgs::msg::Delivery& self){
+                    [&](rmf_task_msgs::msg::Delivery& self){
                         return self.dropoff_place_name;},
-                    [](rmf_task_msgs::msg::Delivery& self,
+                    [&](rmf_task_msgs::msg::Delivery& self,
                        std::string dropoff_place_name){
                         self.dropoff_place_name = dropoff_place_name;})
       .def_property("dropoff_dispenser",
-                    [](rmf_task_msgs::msg::Delivery& self){
+                    [&](rmf_task_msgs::msg::Delivery& self){
                         return self.dropoff_dispenser;},
-                    [](rmf_task_msgs::msg::Delivery& self,
+                    [&](rmf_task_msgs::msg::Delivery& self,
                        std::string dropoff_dispenser){
                         self.dropoff_dispenser = dropoff_dispenser;});
                               // .def_property("pickup_place_name",
