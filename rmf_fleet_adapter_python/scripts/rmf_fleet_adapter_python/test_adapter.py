@@ -557,6 +557,12 @@ def main():
 
     assert len(robot_cmd.visited_waypoints) == 6
     assert all([x in robot_cmd.visited_waypoints for x in [0, 5, 6, 7, 8, 10]])
+    assert robot_cmd.visited_waypoints[0] == 2
+    assert robot_cmd.visited_waypoints[5] == 4
+    assert robot_cmd.visited_waypoints[6] == 3
+    assert robot_cmd.visited_waypoints[7] == 1
+    assert robot_cmd.visited_waypoints[8] == 2
+    assert robot_cmd.visited_waypoints[10] == 1
     assert at_least_one_incomplete
 
     # Uncomment this to send a second request.
