@@ -275,12 +275,17 @@ class MockRobotCommand(adpt.RobotCommandHandle):
                     print(type(lane.entry.event))
                     print("EVENT EXECUTE FOR LANE", i, "NOT IMPLEMENTED")
 
+        print("Registered Docks:", self.dock_to_wp, "\n")
+
     def follow_new_path(self,
                         waypoints,
                         next_arrival_estimator,  # function!
                         path_finished_callback):
         print("\n[RobotCommandHandle] Setting new path of %d waypoints..."
               % len(waypoints))
+        print("Waypoints:", [x.graph_index.value for x in waypoints])
+
+        self.stop()
 
         self.current_waypoint_target = 0
         self.active = True
@@ -293,8 +298,12 @@ class MockRobotCommand(adpt.RobotCommandHandle):
         )
 
     def stop(self):
-        self.timer.reset()
-        self.timer.cancel()
+        try:
+            self.timer.reset()
+            self.timer.cancel()
+        except Exception:
+            # For when a timer does not exist yet
+            pass
 
     def dock(self, dock_name, docking_finished_callback):
         assert dock_name in self.dock_to_wp
