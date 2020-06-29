@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/operators.h>
 #include <pybind11/eigen.h>
+#include <pybind11/chrono.h>
 
 #include <memory>
 #include <random>
@@ -8,6 +9,7 @@
 #include <rmf_utils/impl_ptr.hpp>
 #include <rmf_utils/clone_ptr.hpp>
 #include <rmf_utils/optional.hpp>
+#include <rmf_traffic/Time.hpp>
 
 #include <rmf_task_msgs/msg/delivery.hpp>
 
@@ -31,6 +33,8 @@ rmf_task_msgs::msg::Delivery make_delivery_msg(
 
   return request;
 }
+
+using Duration = rmf_traffic::Duration;
 
 void bind_types(py::module &m) {
   auto m_type = m.def_submodule("type");
@@ -65,6 +69,13 @@ void bind_types(py::module &m) {
                              &rmf_utils::optional<Eigen::Vector2d>::has_value)
       .def_property_readonly("value", py::overload_cast<>(
           &rmf_utils::optional<Eigen::Vector2d>::value));
+
+  py::class_<rmf_utils::optional<Duration> >(m_type, "OptionalDuration")
+      .def(py::init<Duration>())
+      .def_property_readonly("has_value",
+                             &rmf_utils::optional<Duration>::has_value)
+      .def_property_readonly("value", py::overload_cast<>(
+          &rmf_utils::optional<Duration>::value));
 
   py::class_<rmf_utils::nullopt_t>(m_type, "NullOptional")
       .def(py::init<>());

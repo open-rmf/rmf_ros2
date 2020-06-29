@@ -1,5 +1,6 @@
 import rmf_adapter.type as types
 import numpy as np
+import datetime
 
 
 # TYPES ======================================================================
@@ -40,3 +41,5 @@ def test_types():
     assert np.ndarray.all(
         types.OptionalVector2D([1, 2]).value == np.array([1, 2])
     )
+
+    assert types.OptionalDuration(datetime.timedelta(seconds=60))
