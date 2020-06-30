@@ -131,7 +131,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
         .def_static("make", &agv::Adapter::make,
              py::arg("node_name"),
              py::arg("node_options") = rclcpp::NodeOptions(),
-             py::arg("wait_time") = std::chrono::minutes(1),
+             py::arg("wait_time") = rmf_utils::optional<rmf_traffic::Duration>(
+                 rmf_utils::nullopt),
              py::call_guard<py::scoped_ostream_redirect,
                             py::scoped_estream_redirect>())
         .def("add_fleet", &agv::Adapter::add_fleet,
