@@ -18,7 +18,8 @@ The objective of this document is to provide the RMF code style guidelines for t
 ### C++
 #### Standard
 
-The `eloquent` release targeted C++14, however from version `foxy`, C++17 will be targeted.
+- The `eloquent` release uses C++14
+- The `foxy` release uses C++17
 
 #### Style
 
@@ -174,4 +175,3 @@ Python 3 is targeted for development.
 ### Style
 
 PEP8 guidelines for code format are adopted with 80 characters per line limit. `pycodestyle` is the linter of choice for python files.
-
