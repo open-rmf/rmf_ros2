@@ -30,7 +30,7 @@ The objective of this document is to provide the RMF code style guidelines for t
 **File Naming and Extensions**
   * Original files with public interfaces should follow `CamelCase` convention
   * Header files should use the `.hpp` extension and must include header guards
-  * Implementation files should use the .cpp extension.
+  * Implementation files should use the `.cpp` extension.
 
 **Braces**
   * Use open braces without indenting the braces for function, class, and struct definitions and on if, else, while, for, etc…
