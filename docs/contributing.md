@@ -156,7 +156,7 @@ public:
 
 **RMF Linter**
 
-Most of these styles and restrictions can be checked with the `ament_uncrustify` command line tool using this [configuration](https://github.com/osrf/rmf_core/blob/master/rmf_utils/test/format/rmf_code_style.cfg) file.
+Most of these styles and restrictions can be checked with the `ament_uncrustify` command line tool using [this configuration file](https://github.com/osrf/rmf_core/blob/master/rmf_utils/test/format/rmf_code_style.cfg).
 
 Example usage:
 ```
