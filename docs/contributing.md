@@ -86,7 +86,7 @@ public:
     _bar(bar),
     _baz(Baz(foo, bar))
   {
-  } 
+  }
 
   /// This is an example function
   ///
@@ -100,8 +100,8 @@ public:
   ///
   /// \return some result
   ResultType snake_case_member_functions(
-      InputValue in_value,
-      OutputValue& out_value) const;
+    InputValue in_value,
+    OutputValue& out_value) const;
 
 private:
   /* ... etc ... */
@@ -138,13 +138,13 @@ A class that defines an interface
 class AbstractInterfaceClass
 {
 public:
-  
+
   /// Only pure abstract member functions.
   /// No data fields or implemented
   ///functions
   virtual ReturnType pure_virtual_function(
-     SomeArgType arg1,
-     SomeArgType arg2) = 0;
+    SomeArgType arg1,
+    SomeArgType arg2) = 0;
 
 };
 ```
