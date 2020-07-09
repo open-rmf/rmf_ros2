@@ -51,7 +51,7 @@ The objective of this document is to provide the RMF code style guidelines for t
   * Class names should always use `CamelCase`
   * Privacy specifiers (`public`, `private`, `protected`) should not be indented
   * Only member functions are allowed in `public` scope in public APIs (no `public` data members)
-  * Two-space indent for other class statements
+  * Two-space indentation for other class statements
   * Leading colon between constructor and member initialization. No space/indent for constructor initializer list. Trailing commas between members.
   * Do not use `struct` in public APIs. Usage in internal implementation is allowed.
   * Abstract interface classes should contain only pure abstract member functions. No data fields or function implementations allowed
