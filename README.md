@@ -78,7 +78,7 @@ git clone https://github.com/osrf/rmf_core.git
 cd ../
 source /opt/ros/eloquent/setup.bash
 rosdep update
-rosdep install --from-paths src --ignore-src --rosdistro eloquent -yr
+rosdep install --from-paths src --ignore-src -yr
 colcon build --cmake-args -DCMAKE_BUILD_TYPE=RELEASE
 ```
 
