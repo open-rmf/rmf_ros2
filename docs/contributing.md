@@ -1,5 +1,9 @@
 # Contributing to RMF
-Contributions via pull requests to the various RMF-related repositories are welcome. In general, we expect contributors to follow the ROS 2 [contributing guidelines](https://index.ros.org/doc/ros2/Contributing/) with exception of the code style. The RMF codebases adopt slightly different guidelines from the ROS 2 [style guide](https://index.ros.org/doc/ros2/Contributing/Code-Style-Language-Versions/#codestyle). The objective of this document is to highlight these guidelines for the following languages
+
+Contributions via pull requests to the various RMF-related repositories are welcome.
+In general, we expect contributors to follow the [ROS 2 contributing guidelines](https://index.ros.org/doc/ros2/Contributing/), with the exception of code style.
+The RMF code adopts slightly different guidelines from the [ROS 2 style guide](https://index.ros.org/doc/ros2/Contributing/Code-Style-Language-Versions/#codestyle).
+The objective of this document is to provide the RMF code style guidelines for the following languages.
 
 * C++
     * Standard
@@ -14,7 +18,8 @@ Contributions via pull requests to the various RMF-related repositories are welc
 ### C++
 #### Standard
 
-The `eloquent` release targeted C++14, however from version `foxy`, C++17 will be targeted.
+- The `eloquent` release uses C++14
+- The `foxy` release uses C++17
 
 #### Style
 
@@ -24,8 +29,8 @@ The `eloquent` release targeted C++14, however from version `foxy`, C++17 will b
 
 **File Naming and Extensions**
   * Original files with public interfaces should follow `CamelCase` convention
-  * Header files should use the .hpp extension and must include header guards
-  * Implementation files should use the .cpp extension.
+  * Header files should use the `.hpp` extension and must include header guards
+  * Implementation files should use the `.cpp` extension.
 
 **Braces**
   * Use open braces without indenting the braces for function, class, and struct definitions and on if, else, while, for, etc…
@@ -44,12 +49,14 @@ The `eloquent` release targeted C++14, however from version `foxy`, C++17 will b
 
 **Classes**
   * Class names should always use `CamelCase`
-  * No space/indentation for privacy specifiers (`public`, `private`, `protected`)
-  * Only member functions and no data fields allowed inside `public` scope in public APIs
-  * Two-space indent for other class statements
-  * Leading colon between constructor and member initialization. No space/indent for constructor initializer list. Trailing commas between members.
+  * Privacy specifiers (`public`, `private`, `protected`) should not be indented
+  * Only member functions are allowed in `public` scope in public APIs (no `public` data members)
+  * Two-space indentation for other class statements
+  * Leading colon between a constructor and its member initialization list
+  * No space/indent for constructor initialization lists
+  * Trailing commas between members in the initialization lists
   * Do not use `struct` in public APIs. Usage in internal implementation is allowed.
-  * Abstract interface classes should contain only pure abstract member functions. No data fields or function implementations allowed
+  * Abstract interface classes should contain only pure abstract member functions. No data fields or function implementations are allowed
 
 
 
@@ -151,7 +158,7 @@ public:
 
 **RMF Linter**
 
-Most of these styles and restrictions can be checked with the `ament_uncrustify` command line tool using this [configuration](https://github.com/osrf/rmf_core/blob/master/rmf_utils/test/format/rmf_code_style.cfg) file.
+Most of these styles and restrictions can be checked with the `ament_uncrustify` command line tool using [this configuration file](https://github.com/osrf/rmf_core/blob/master/rmf_utils/test/format/rmf_code_style.cfg).
 
 Example usage:
 ```
@@ -170,5 +177,3 @@ Python 3 is targeted for development.
 ### Style
 
 PEP8 guidelines for code format are adopted with 80 characters per line limit. `pycodestyle` is the linter of choice for python files.
-
-
