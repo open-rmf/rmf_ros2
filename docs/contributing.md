@@ -56,7 +56,7 @@ The objective of this document is to provide the RMF code style guidelines for t
   * No space/indent for constructor initialization lists
   * Trailing commas between members in the initialization lists
   * Do not use `struct` in public APIs. Usage in internal implementation is allowed.
-  * Abstract interface classes should contain only pure abstract member functions. No data fields or function implementations allowed
+  * Abstract interface classes should contain only pure abstract member functions. No data fields or function implementations are allowed
 
 
 
