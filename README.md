@@ -93,4 +93,4 @@ CXX=g++-8 colcon build --cmake-args -DCMAKE_BUILD_TYPE=RELEASE
 [This repository](https://github.com/osrf/rmf_demos) holds a number of demonstrations and examples of working with `rmf_core` and the other packages in the RMF ecosystem.
 
 ## Contributing
-Guidelines on contributing to `rmf_core` and other RMF repositories can be found [here](docs/contributing.md)
+Guidelines on contributing to `rmf_core` and other RMF repositories can be found [here](docs/contributing.md).
