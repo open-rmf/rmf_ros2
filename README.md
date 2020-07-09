@@ -82,7 +82,7 @@ rosdep install --from-paths src --ignore-src --rosdistro eloquent -yr
 colcon build --cmake-args -DCMAKE_BUILD_TYPE=RELEASE
 ```
 
-To manually override the compiler version
+To manually override the compiler version, prefix the `colcon` command with the `CXX` parameter.
 ```
 sudo apt update && sudo apt install g++-8
 CXX=g++-8 colcon build --cmake-args -DCMAKE_BUILD_TYPE=RELEASE
