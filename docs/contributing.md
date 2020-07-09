@@ -29,7 +29,7 @@ The objective of this document is to provide the RMF code style guidelines for t
 
 **File Naming and Extensions**
   * Original files with public interfaces should follow `CamelCase` convention
-  * Header files should use the .hpp extension and must include header guards
+  * Header files should use the `.hpp` extension and must include header guards
   * Implementation files should use the .cpp extension.
 
 **Braces**
