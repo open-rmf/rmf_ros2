@@ -157,6 +157,6 @@ Example usage:
 cd workspace/
 wget https://raw.githubusercontent.com/osrf/rmf_core/master/rmf_utils/test/format/rmf_code_style.cfg
 source /opt/ros/foxy/setup.bash
-ament_uncrustify -c emf_code_style.cfg .
+ament_uncrustify -c rmf_code_style.cfg .
 ```
 The `--reformat` option may be passed into the `ament_uncrustify` call to apply the changes in place. However, this is recommended only after manually reviewing the changes.
