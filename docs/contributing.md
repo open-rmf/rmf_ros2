@@ -3,15 +3,7 @@
 Contributions via pull requests to the various RMF-related repositories are welcome.
 In general, we expect contributors to follow the [ROS 2 contributing guidelines](https://index.ros.org/doc/ros2/Contributing/), with the exception of code style.
 The RMF code adopts slightly different guidelines from the [ROS 2 style guide](https://index.ros.org/doc/ros2/Contributing/Code-Style-Language-Versions/#codestyle).
-The objective of this document is to provide the RMF code style guidelines for the following languages.
-
-* C++
-    * Standard
-    * Style
-
-* Python
-  * Version
-  * Style
+The objective of this document is to highlight the divergences of RMF code style from the ROS 2 style guide for C++.
 
 ## RMF Code Style 
 
@@ -168,12 +160,3 @@ source /opt/ros/foxy/setup.bash
 ament_uncrustify -c emf_code_style.cfg .
 ```
 The `--reformat` option may be passed into the `ament_uncrustify` call to apply the changes in place. However, this is recommended only after manually reviewing the changes.
-
-### Python
-### Version
-
-Python 3 is targeted for development.
-
-### Style
-
-PEP8 guidelines for code format are adopted with 80 characters per line limit. `pycodestyle` is the linter of choice for python files.
