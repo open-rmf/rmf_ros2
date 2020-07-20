@@ -22,6 +22,8 @@
 
 #include <rxcpp/rx-observable.hpp>
 
+#include <malloc.h>
+
 namespace rmf_fleet_adapter {
 
 //==============================================================================
@@ -100,6 +102,16 @@ void Task::_start_next_phase()
     _active_phase = nullptr;
     _active_phase_subscription.get().unsubscribe();
     _status_publisher.get_subscriber().on_completed();
+
+    // Sometimes difficult negotiations end up seizing an exceedingly large
+    // amount of RAM. This function is used to allow the operating system
+    // to take that RAM back after it's no longer needed. This is mostly
+    // superficial, but it helps us know that the fleet adapter isn't leaking
+    // huge amounts of memory.
+    //
+    // TODO(MXG): Remove this when the planner has been made more
+    // memory-efficient.
+    malloc_trim(0);
 
     return;
   }

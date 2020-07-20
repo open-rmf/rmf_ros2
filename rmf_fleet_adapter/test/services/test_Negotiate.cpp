@@ -380,7 +380,7 @@ public:
     if (_print)
     {
       std::cout << "    Responding to " << to_string(table_viewer)
-                << " (" << _n.get() << ")" << std::endl;
+                << " (" << _n.lock().get() << ")" << std::endl;
     }
 
     rmf_fleet_adapter::services::ProgressEvaluator evaluator;
@@ -398,10 +398,15 @@ public:
     auto sub = rmf_rxcpp::make_job<
         rmf_fleet_adapter::services::Negotiate::Result>(negotiate)
         .observe_on(rxcpp::identity_same_worker(_worker))
-        .subscribe([](const auto& result){ result.respond(); });
+        .subscribe([w = weak_from_this()](const auto& result)
+    {
+      result.respond();
+      if (const auto self = w.lock())
+        self->_services.erase(result.service);
+    });
 
     _subscriptions.emplace_back(std::move(sub));
-    _services.emplace_back(std::move(negotiate));
+    _services.insert(std::move(negotiate));
   }
 
 private:
@@ -409,9 +414,9 @@ private:
   rmf_traffic::agv::Plan::StartSet _starts;
   rmf_traffic::agv::Plan::Goal _goal;
   std::vector<rmf_rxcpp::subscription_guard> _subscriptions;
-  std::vector<std::shared_ptr<rmf_fleet_adapter::services::Negotiate>> _services;
+  std::unordered_set<std::shared_ptr<rmf_fleet_adapter::services::Negotiate>> _services;
   bool _print = false;
-  std::shared_ptr<rmf_traffic::schedule::Negotiation> _n;
+  std::weak_ptr<rmf_traffic::schedule::Negotiation> _n;
   rxcpp::schedulers::worker _worker;
 };
 
@@ -509,7 +514,7 @@ public:
     if (_print)
     {
       std::cout << "    Responding to " << to_string(table_viewer)
-                << " (" << _n.get() << ")" << std::endl;
+                << " (" << _n.lock().get() << ")" << std::endl;
     }
 
     rmf_fleet_adapter::services::ProgressEvaluator evaluator;
@@ -526,19 +531,24 @@ public:
     auto sub = rmf_rxcpp::make_job<
         rmf_fleet_adapter::services::Negotiate::Result>(std::move(negotiate))
         .observe_on(rxcpp::identity_same_worker(_worker))
-        .subscribe([](const auto& result){ result.respond(); });
+        .subscribe([w = weak_from_this()](const auto& result)
+    {
+      result.respond();
+      if (const auto self = w.lock())
+        self->_services.erase(result.service);
+    });
 
     _subscriptions.emplace_back(std::move(sub));
-    _services.emplace_back(std::move(negotiate));
+    _services.insert(std::move(negotiate));
   }
 
 private:
   std::shared_ptr<rmf_traffic::agv::Planner> _planner;
   rmf_traffic::agv::Plan::StartSet _starts;
   std::vector<rmf_rxcpp::subscription_guard> _subscriptions;
-  std::vector<std::shared_ptr<rmf_fleet_adapter::services::Negotiate>> _services;
+  std::unordered_set<std::shared_ptr<rmf_fleet_adapter::services::Negotiate>> _services;
   bool _print = false;
-  std::shared_ptr<rmf_traffic::schedule::Negotiation> _n;
+  std::weak_ptr<rmf_traffic::schedule::Negotiation> _n;
   rxcpp::schedulers::worker _worker;
 };
 
@@ -810,42 +820,40 @@ public:
 
   bool check_finished()
   {
+    if (!negotiation)
+      return true;
+
     if (!negotiation->ready() && !negotiation->complete())
       return false;
 
-    if (!_finished)
+    if (negotiation->ready())
     {
-      _finished = true;
-      if (negotiation->ready())
-      {
-        const auto winner = negotiation->evaluate(
-              rmf_traffic::schedule::QuickestFinishEvaluator());
+      const auto winner = negotiation->evaluate(
+            rmf_traffic::schedule::QuickestFinishEvaluator());
 
-        if (_print)
-        {
-          std::cout << "Successfully finished negotiation ("
-                    << negotiation.get() << ") with " << to_string(winner)
-                    << std::endl;
-        }
-
-        _solution.set_value(winner->proposal());
-      }
-      else
+      if (_print)
       {
-        std::cout << "Failed finish for negotiation (" << negotiation.get()
-                  << ")" << std::endl;
-        _solution.set_value(rmf_utils::nullopt);
+        std::cout << "Successfully finished negotiation ("
+                  << negotiation.get() << ") with " << to_string(winner)
+                  << std::endl;
       }
+
+      _solution.set_value(winner->proposal());
+    }
+    else
+    {
+      std::cout << "Failed finish for negotiation (" << negotiation.get()
+                << ")" << std::endl;
+      _solution.set_value(rmf_utils::nullopt);
     }
 
+    negotiation.reset();
     return true;
   }
 
   std::unordered_map<ParticipantId, std::shared_ptr<Negotiator>> negotiators;
   std::shared_ptr<rmf_traffic::schedule::Negotiation> negotiation;
   rxcpp::schedulers::worker worker;
-
-  bool _finished = false;
 
   std::promise<OptProposal> _solution;
 
@@ -1009,7 +1017,7 @@ SCENARIO("Test Plan Negotiation Between Two Participants")
     intentions.insert({p1.id(), { start_1, goal_1, planner }});
     intentions.insert({p2.id(), { start_2, goal_2, planner }});
 
-    auto room = std::make_shared<TestPathNegotiationRoom>(
+    const auto room = std::make_shared<TestPathNegotiationRoom>(
           database->snapshot(), intentions);
     auto future_proposal = room->solve();
     const auto status = future_proposal.wait_for(2min);

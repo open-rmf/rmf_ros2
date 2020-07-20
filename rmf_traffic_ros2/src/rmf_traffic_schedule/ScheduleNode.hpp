@@ -337,19 +337,19 @@ public:
       const auto wait_it = _waiting.find(p);
       if (wait_it == _waiting.end())
       {
-        assert(false);
         // TODO(MXG): We should probably output some warning here using
         // RCLCPP_WARN
         std::cout << "[ScheduleNode::ConflictRecord::acknowledge] We are NOT "
                   << "waiting for an acknowledgment from participant [" << p
-                  << "]" << std::endl;
+                  << "] for negotiation [" << negotiation_version << "]"
+                  << std::endl;
+        assert(false);
         return;
       }
 
       const auto expected_negotiation = wait_it->second.negotiation_version;
       if (expected_negotiation != negotiation_version)
       {
-        assert(false);
         // TODO(MXG): We should probably output some warning here using
         // RCLCPP_WARN
         std::cout << "[ScheduleNode::ConflictRecord::acknowledge] We are "
@@ -357,6 +357,7 @@ public:
                   << p << "] regarding negotiation [" << expected_negotiation
                   << "] but received an acknowledgment for negotiation ["
                   << negotiation_version << "] instead." << std::endl;
+        assert(false);
         return;
       }
 

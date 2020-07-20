@@ -327,6 +327,11 @@ void FleetUpdateHandle::add_robot(
               std::make_unique<LiaisonNegotiator>(context));
       }
 
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Added a robot named [%s] with participant ID [%d]",
+        context->name().c_str(), context->itinerary().id());
+
       fleet->_pimpl->task_managers.insert({context, context});
       if (handle_cb)
       {

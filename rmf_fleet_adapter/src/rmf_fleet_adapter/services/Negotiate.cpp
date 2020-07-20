@@ -105,6 +105,12 @@ void Negotiate::discard()
 }
 
 //==============================================================================
+bool Negotiate::discarded() const
+{
+  return _discarded || _viewer->defunct();
+}
+
+//==============================================================================
 const rmf_traffic::schedule::Negotiator::ResponderPtr&
 Negotiate::responder() const
 {

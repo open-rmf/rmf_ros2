@@ -75,6 +75,8 @@ public:
 
   void discard();
 
+  bool discarded() const;
+
   const rmf_traffic::schedule::Negotiator::ResponderPtr& responder() const;
 
   ~Negotiate();
@@ -107,7 +109,8 @@ private:
 
   std::unordered_set<JobPtr> _current_jobs;
   std::priority_queue<JobPtr, std::vector<JobPtr>, CompareJobs> _resume_jobs;
-  std::vector<JobPtr> _all_jobs; // Used to keep the jobs alive
+  std::vector<JobPtr> _queued_jobs; // Used to keep the jobs alive
+  JobPtr _best_job;
   rmf_rxcpp::subscription_guard _search_sub;
   std::shared_ptr<jobs::Rollout> _rollout_job;
   rmf_rxcpp::subscription_guard _rollout_sub;
