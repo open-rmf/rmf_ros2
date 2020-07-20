@@ -5,7 +5,7 @@ Changelog for package rmf_fleet_adapter
 Forthcoming
 -----------
 
-1.0.1 (2020-07-XX)
+1.0.1 (2020-07-20)
 ------------------
 * Interrupt dangling negotiation planning efforts to reduce memory usage: [#130](https://github.com/osrf/rmf_core/pull/130/)
 * Trim the amount of system memory that is committed to a fleet adapter after each task: [#130](https://github.com/osrf/rmf_core/pull/130/)
