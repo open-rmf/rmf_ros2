@@ -347,7 +347,7 @@ SCENARIO("Office map")
   });
 
   using namespace std::chrono_literals;
-  const auto status_0 = result_0_future.wait_for(1s);
+  const auto status_0 = result_0_future.wait_for(2min);
   REQUIRE(std::future_status::ready == status_0);
   const auto result_0 = result_0_future.get();
   REQUIRE(result_0.success());

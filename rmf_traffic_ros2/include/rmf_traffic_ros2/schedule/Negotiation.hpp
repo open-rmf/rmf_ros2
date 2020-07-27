@@ -59,6 +59,15 @@ public:
     std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer,
     std::shared_ptr<Worker> worker = nullptr);
 
+  /// Set the timeout duration for negotiators. If a negotiator does not respond
+  /// within this time limit, then the negotiation will automatically be
+  /// forfeited. This is important to prevent negotiations from getting hung
+  /// forever.
+  Negotiation& timeout_duration(rmf_traffic::Duration duration);
+
+  /// Get the current timeout duration setting.
+  rmf_traffic::Duration timeout_duration() const;
+
   /// Register a negotiator with this Negotiation manager.
   ///
   /// \param[in] for_participant

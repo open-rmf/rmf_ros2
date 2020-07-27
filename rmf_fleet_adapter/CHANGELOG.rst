@@ -5,6 +5,10 @@ Changelog for package rmf_fleet_adapter
 Forthcoming
 -----------
 
+1.0.2 (2020-07-27)
+------------------
+* Always respond to negotiations: [#138](https://github.com/osrf/rmf_core/pull/138)
+
 1.0.1 (2020-07-20)
 ------------------
 * Interrupt dangling negotiation planning efforts to reduce memory usage: [#130](https://github.com/osrf/rmf_core/pull/130/)

@@ -65,16 +65,6 @@ public:
   {
   public:
 
-    Implementation* const impl;
-    const rmf_traffic::schedule::Version conflict_version;
-
-    const rmf_traffic::schedule::Negotiation::TablePtr table;
-    rmf_traffic::schedule::Version table_version;
-
-    using OptVersion = rmf_utils::optional<rmf_traffic::schedule::Version>;
-    const rmf_traffic::schedule::Negotiation::TablePtr parent;
-    OptVersion parent_version;
-
     Responder(
       Implementation* const impl_,
       const rmf_traffic::schedule::Version version_,
@@ -90,15 +80,33 @@ public:
     }
 
     template<typename... Args>
-    static std::shared_ptr<Responder> make(Args&&... args)
+    static std::shared_ptr<Responder> make(
+        Args&&... args)
     {
-      return std::make_shared<Responder>(std::forward<Args>(args)...);
+      auto responder = std::make_shared<Responder>(std::forward<Args>(args)...);
+      rclcpp::Node& node = responder->impl->node;
+      responder->timer = node.create_wall_timer(
+            responder->impl->timeout,
+            [r = std::weak_ptr<Responder>(responder)]()
+      {
+        if (auto responder = r.lock())
+        {
+          responder->timer.reset();
+          responder->timeout();
+        }
+      });
+
+      return responder;
     }
 
     void submit(
       std::vector<rmf_traffic::Route> itinerary,
       std::function<UpdateVersion()> approval_callback) const final
     {
+      responded = true;
+      if (table->defunct())
+        return;
+
       if (table->submit(itinerary, table_version+1))
       {
         impl->approvals[conflict_version][table] = {
@@ -130,6 +138,7 @@ public:
 
     void reject(const Alternatives& alternatives) const final
     {
+      responded = true;
       if (parent && !parent->defunct())
       {
         // We will reject the parent to communicate that its proposal is not
@@ -162,17 +171,48 @@ public:
 
     void forfeit(const std::vector<ParticipantId>& /*blockers*/) const final
     {
-      // TODO(MXG): Consider using blockers to invite more participants into the
-      // negotiation
-      table->forfeit(table_version);
-      impl->publish_forfeit(conflict_version, *table);
+      responded = true;
+      if (!table->defunct())
+      {
+        // TODO(MXG): Consider using blockers to invite more participants into the
+        // negotiation
+        table->forfeit(table_version);
+        impl->publish_forfeit(conflict_version, *table);
+      }
     }
+
+    void timeout()
+    {
+      if (!responded)
+        forfeit({});
+    }
+
+    ~Responder()
+    {
+      timeout();
+    }
+
+  private:
+
+    Implementation* const impl;
+    const rmf_traffic::schedule::Version conflict_version;
+
+    const rmf_traffic::schedule::Negotiation::TablePtr table;
+    rmf_traffic::schedule::Version table_version;
+
+    using OptVersion = rmf_utils::optional<rmf_traffic::schedule::Version>;
+    const rmf_traffic::schedule::Negotiation::TablePtr parent;
+    OptVersion parent_version;
+
+    rclcpp::TimerBase::SharedPtr timer;
+    mutable bool responded = false;
 
   };
 
   rclcpp::Node& node;
   std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer;
   std::shared_ptr<Worker> worker;
+  rmf_traffic::Duration timeout = std::chrono::seconds(15);
 
   using Repeat = rmf_traffic_msgs::msg::NegotiationRepeat;
   using RepeatSub = rclcpp::Subscription<Repeat>;
@@ -920,6 +960,19 @@ Negotiation::Negotiation(
            node, std::move(viewer), std::move(worker)))
 {
   // Do nothing
+}
+
+//==============================================================================
+Negotiation& Negotiation::timeout_duration(rmf_traffic::Duration duration)
+{
+  _pimpl->timeout = duration;
+  return *this;
+}
+
+//==============================================================================
+rmf_traffic::Duration Negotiation::timeout_duration() const
+{
+  return _pimpl->timeout;
 }
 
 //==============================================================================
