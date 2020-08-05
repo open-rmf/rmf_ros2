@@ -159,6 +159,8 @@ public:
     rclcpp::Publisher<Erase>::SharedPtr erase_pub;
     rclcpp::Publisher<Clear>::SharedPtr clear_pub;
 
+    rclcpp::Context::SharedPtr context;
+
     using Register = rmf_traffic_msgs::srv::RegisterParticipant;
     using Unregister = rmf_traffic_msgs::srv::UnregisterParticipant;
 
@@ -187,6 +189,8 @@ public:
       clear_pub = node.create_publisher<Clear>(
         ItineraryClearTopicName,
         rclcpp::SystemDefaultsQoS().best_effort());
+
+      context = node.get_node_options().context();
 
       register_client =
         node.create_client<Register>(RegisterParticipantSrvName);
@@ -269,7 +273,7 @@ public:
       auto future = register_client->async_send_request(request);
       while (future.wait_for(100ms) != std::future_status::ready)
       {
-        if (!rclcpp::ok())
+        if (!rclcpp::ok(context))
         {
           // *INDENT-OFF*
           throw std::runtime_error(

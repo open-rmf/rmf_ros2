@@ -18,6 +18,7 @@
 #define RMF_FLEET_ADAPTER__AGV__ADAPTER_HPP
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
+#include <rmf_fleet_adapter/agv/TrafficLight.hpp>
 
 #include <rmf_traffic/agv/VehicleTraits.hpp>
 #include <rmf_traffic/agv/Graph.hpp>
@@ -97,6 +98,19 @@ public:
       const std::string& fleet_name,
       rmf_traffic::agv::VehicleTraits traits,
       rmf_traffic::agv::Graph navigation_graph);
+
+  /// Create a traffic light to help manage robots that can only support pause
+  /// and resume commands.
+  ///
+  /// \param[in] fleet_name
+  ///   The name of the fleet
+  void add_traffic_light(
+      std::shared_ptr<TrafficLight::CommandHandle> command,
+      const std::string& fleet_name,
+      const std::string& robot_name,
+      rmf_traffic::agv::VehicleTraits traits,
+      rmf_traffic::Profile profile,
+      std::function<void(TrafficLight::UpdateHandlePtr handle)> handle_cb);
 
   /// Get the rclcpp::Node that this adapter will be using for communication.
   std::shared_ptr<rclcpp::Node> node();

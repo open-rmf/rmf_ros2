@@ -15,6 +15,9 @@
  *
 */
 
+#ifndef RMF_FLEET_ADAPTER__TEST__MOCK__MOCKROBOTCOMMAND
+#define RMF_FLEET_ADAPTER__TEST__MOCK__MOCKROBOTCOMMAND
+
 #include <rmf_fleet_adapter/agv/RobotCommandHandle.hpp>
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
 
@@ -179,3 +182,5 @@ private:
 };
 
 } // namespace rmf_fleet_adapter_test
+
+#endif // RMF_FLEET_ADAPTER__TEST__MOCK__MOCKROBOTCOMMAND

@@ -5,6 +5,10 @@ Changelog for package rmf_traffic_ros2
 Forthcoming
 -----------
 
+1.1.0 (2020-09-XX)
+------------------
+* Add a schedule node factory to the public API: [#147](https://github.com/osrf/rmf_core/pull/147)
+
 1.0.2 (2020-07-27)
 ------------------
 * Always respond to negotiations: [#138](https://github.com/osrf/rmf_core/pull/138)

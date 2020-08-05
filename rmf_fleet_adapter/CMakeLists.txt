@@ -87,6 +87,7 @@ if (BUILD_TESTING)
   ament_add_catch2(
     rmf_fleet_adapter_test
       test/main.cpp
+      test/adapters/test_TrafficLight.cpp
       test/phases/MockAdapterFixture.cpp
       test/phases/DoorOpenTest.cpp
       test/phases/DoorCloseTest.cpp

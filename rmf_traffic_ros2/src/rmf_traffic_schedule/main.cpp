@@ -15,7 +15,7 @@
  *
 */
 
-#include "ScheduleNode.hpp"
+#include <rmf_traffic_ros2/schedule/Node.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -23,7 +23,7 @@ int main(int argc, char* argv[])
 {
   rclcpp::init(argc, argv);
 
-  const auto node = std::make_shared<rmf_traffic_schedule::ScheduleNode>();
+  const auto node = rmf_traffic_ros2::schedule::make_node();
 
   RCLCPP_INFO(
     node->get_logger(),

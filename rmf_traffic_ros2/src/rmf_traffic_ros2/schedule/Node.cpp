@@ -15,7 +15,7 @@
  *
 */
 
-#include "ScheduleNode.hpp"
+#include "internal_Node.hpp"
 
 #include <rmf_traffic_ros2/Route.hpp>
 #include <rmf_traffic_ros2/StandardNames.hpp>
@@ -35,7 +35,8 @@
 
 #include <unordered_map>
 
-namespace rmf_traffic_schedule {
+namespace rmf_traffic_ros2 {
+namespace schedule {
 
 //==============================================================================
 std::vector<ScheduleNode::ConflictSet> get_conflicts(
@@ -78,8 +79,8 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 }
 
 //==============================================================================
-ScheduleNode::ScheduleNode()
-: Node("rmf_traffic_schedule_node"),
+ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
+: Node("rmf_traffic_schedule_node", options),
   database(std::make_shared<rmf_traffic::schedule::Database>()),
   active_conflicts(database)
 {
@@ -231,7 +232,7 @@ ScheduleNode::ScheduleNode()
       const auto query_all = rmf_traffic::schedule::query_all();
       Version last_checked_version = 0;
 
-      while (rclcpp::ok() && !conflict_check_quit)
+      while (rclcpp::ok(get_node_options().context()) && !conflict_check_quit)
       {
         rmf_utils::optional<rmf_traffic::schedule::Patch> next_patch;
         rmf_traffic::schedule::Viewer::View view_changes;
@@ -841,4 +842,10 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
   }
 }
 
-} // namespace rmf_traffic_schedule
+std::shared_ptr<rclcpp::Node> make_node(const rclcpp::NodeOptions& options)
+{
+  return std::make_shared<ScheduleNode>(options);
+}
+
+} // namespace schedule
+} // namespace rmf_traffic_ros2

@@ -18,6 +18,7 @@
 #include <memory>
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
+#include <rmf_fleet_adapter/agv/TrafficLight.hpp>
 
 #include <rclcpp/node.hpp>
 
@@ -48,6 +49,13 @@ public:
       const std::string& fleet_name,
       rmf_traffic::agv::VehicleTraits traits,
       rmf_traffic::agv::Graph navigation_graph);
+
+  TrafficLight::UpdateHandlePtr add_traffic_light(
+      std::shared_ptr<TrafficLight::CommandHandle> command,
+      const std::string& fleet_name,
+      const std::string& robot_name,
+      rmf_traffic::agv::VehicleTraits traits,
+      rmf_traffic::Profile profile);
 
   /// Get the rclcpp Node for this adapter
   std::shared_ptr<rclcpp::Node> node();

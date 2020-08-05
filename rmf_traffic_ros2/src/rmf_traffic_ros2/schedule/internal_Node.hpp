@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_TRAFFIC_SCHEDULE__SCHEDULENODE_HPP
 #define SRC__RMF_TRAFFIC_SCHEDULE__SCHEDULENODE_HPP
 
-#include "../rmf_traffic_ros2/schedule/NegotiationRoom.hpp"
+#include "NegotiationRoom.hpp"
 
 #include <rmf_traffic/schedule/Database.hpp>
 #include <rmf_traffic/schedule/Negotiation.hpp>
@@ -58,14 +58,15 @@
 #include <set>
 #include <unordered_map>
 
-namespace rmf_traffic_schedule {
+namespace rmf_traffic_ros2 {
+namespace schedule {
 
 //==============================================================================
 class ScheduleNode : public rclcpp::Node
 {
 public:
 
-  ScheduleNode();
+  ScheduleNode(const rclcpp::NodeOptions& options);
 
   ~ScheduleNode();
 
@@ -396,6 +397,7 @@ public:
   std::mutex active_conflicts_mutex;
 };
 
-} // namespace rmf_traffic_schedule
+} // namespace schedule
+} // namespace rmf_traffic_ros2
 
 #endif // SRC__RMF_TRAFFIC_SCHEDULE__SCHEDULENODE_HPP

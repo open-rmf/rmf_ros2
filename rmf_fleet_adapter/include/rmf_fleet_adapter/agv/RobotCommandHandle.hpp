@@ -59,9 +59,10 @@ public:
   ///   other vehicles.
   ///
   /// \param[in] next_arrival_estimator
-  ///   Give an estimate for how long the robot will take to reach the path
-  ///   element of the specified index. You should still be calling
-  ///   RobotUpdateHandle::update_position() even as you call this function.
+  ///   Use this callback to give estimates for how long the robot will take to
+  ///   reach the path element of the specified index. You should still be
+  ///   calling RobotUpdateHandle::update_position() even as you call this
+  ///   function.
   ///
   /// \param[in] path_finished_callback
   ///   Trigger this callback when the robot is done following the new path.

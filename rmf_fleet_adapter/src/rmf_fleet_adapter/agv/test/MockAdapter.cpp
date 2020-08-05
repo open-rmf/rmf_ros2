@@ -18,6 +18,7 @@
 #include <rmf_fleet_adapter/agv/test/MockAdapter.hpp>
 
 #include "../internal_FleetUpdateHandle.hpp"
+#include "../internal_TrafficLight.hpp"
 
 #include <rmf_traffic/schedule/Database.hpp>
 
@@ -25,6 +26,7 @@ namespace rmf_fleet_adapter {
 namespace agv {
 namespace test {
 
+//==============================================================================
 class MockAdapter::Implementation
 {
 public:
@@ -40,7 +42,7 @@ public:
       node{Node::make(worker, node_name, node_options)},
       database{std::make_shared<rmf_traffic::schedule::Database>()}
   {
-
+    // Do nothing
   }
 
   std::vector<std::shared_ptr<FleetUpdateHandle>> fleets = {};
@@ -75,6 +77,33 @@ std::shared_ptr<FleetUpdateHandle> MockAdapter::add_fleet(
 
   _pimpl->fleets.push_back(fleet);
   return fleet;
+}
+
+//==============================================================================
+TrafficLight::UpdateHandlePtr MockAdapter::add_traffic_light(
+    std::shared_ptr<TrafficLight::CommandHandle> command,
+    const std::string& fleet_name,
+    const std::string& robot_name,
+    rmf_traffic::agv::VehicleTraits traits,
+    rmf_traffic::Profile profile)
+{
+  rmf_traffic::schedule::ParticipantDescription description(
+      robot_name,
+      fleet_name,
+      rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
+      profile);
+
+  auto participant = rmf_traffic::schedule::make_participant(
+        std::move(description), _pimpl->database, nullptr);
+
+  return TrafficLight::UpdateHandle::Implementation::make(
+        std::move(command),
+        std::move(participant),
+        std::move(traits),
+        _pimpl->database,
+        _pimpl->worker,
+        _pimpl->node,
+        nullptr);
 }
 
 //==============================================================================
