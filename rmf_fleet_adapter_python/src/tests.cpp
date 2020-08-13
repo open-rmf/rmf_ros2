@@ -20,7 +20,7 @@ void bind_tests(py::module &m) {
   m.def("test_shared_ptr",
         [](std::shared_ptr<agv::RobotCommandHandle> handle,
            std::string print_str = "DUMMY_DOCK_NAME",
-           std::function<void()> docking_finished_callback = [&](){})
+           std::function<void()> docking_finished_callback = [](){})
         {
           handle->dock(print_str, docking_finished_callback);
         },
