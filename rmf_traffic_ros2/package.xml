@@ -9,6 +9,7 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <depend>rmf_utils</depend>
   <depend>rmf_traffic</depend>
   <depend>rmf_traffic_msgs</depend>
   <depend>rmf_fleet_msgs</depend>

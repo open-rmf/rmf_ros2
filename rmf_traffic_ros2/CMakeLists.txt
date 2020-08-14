@@ -20,10 +20,16 @@ find_package(rmf_fleet_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 
+if (rmf_traffic_FOUND)
+  message(STATUS "found rmf_traffic")
+  message(STATUS "rmf_traffic_LIBRARIES: ${rmf_traffic_LIBRARIES}")
+  message(STATUS "rmf_traffic_INCLUDE_DIRS: ${rmf_traffic_INCLUDE_DIRS}")
+endif()
+
 if(BUILD_TESTING)
   find_package(rmf_cmake_uncrustify REQUIRED)
   find_file(uncrustify_config_file NAMES "share/format/rmf_code_style.cfg")
-                
+
   rmf_uncrustify(
     ARGN include src examples
     CONFIG_FILE ${uncrustify_config_file}
@@ -69,7 +75,6 @@ target_link_libraries(rmf_traffic_schedule
 # TODO(MXG): Consider creating a separate downstream package for these
 add_executable(participant_node examples/participant_node.cpp)
 target_link_libraries(participant_node PUBLIC rmf_traffic_ros2)
-
 
 #===============================================================================
 install(
