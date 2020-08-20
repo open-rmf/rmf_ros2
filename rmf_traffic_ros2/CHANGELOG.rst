@@ -8,6 +8,9 @@ Forthcoming
 1.1.0 (2020-09-XX)
 ------------------
 * Add a schedule node factory to the public API: [#147](https://github.com/osrf/rmf_core/pull/147)
+* Allow the Negotiation class to accept callbacks for Table updates: [#140](https://github.com/osrf/rmf_core/pull/140/)
+* Allow the Negotiation class to provide views for existing Tables: [#140](https://github.com/osrf/rmf_core/pull/140/)
+* Allow the Negotiation class to store up to a certain number of completed negotiations: [#140](https://github.com/osrf/rmf_core/pull/140/)
 
 1.0.2 (2020-07-27)
 ------------------

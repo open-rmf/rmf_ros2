@@ -287,6 +287,19 @@ public:
   using Approvals = std::unordered_map<Version, ApprovalCallbackMap>;
   Approvals approvals;
 
+  // Status update callbacks
+  using TableViewPtr = rmf_traffic::schedule::Negotiation::Table::ViewerPtr;
+  using StatusUpdateCallback =
+    std::function<void (uint64_t conflict_version, TableViewPtr& view)>;
+  StatusUpdateCallback status_callback;
+
+  using StatusConclusionCallback =
+    std::function<void (uint64_t conflict_version, bool success)>;
+  StatusConclusionCallback conclusion_callback;
+
+  uint retained_history_count = 0;
+  std::map<Version, rmf_traffic::schedule::Negotiation> history;
+
   Implementation(
     rclcpp::Node& node_,
     std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer_,
@@ -566,6 +579,12 @@ public:
     if (!updated)
       return;
 
+    if (status_callback)
+    {
+      auto table_view = received_table->viewer();
+      status_callback(msg.conflict_version, table_view);
+    }
+    
     std::vector<TablePtr> queue = room.check_cache(*negotiators);
 
     if (!participating)
@@ -602,7 +621,7 @@ public:
     if (!table)
     {
       std::string error =
-        "[rmf_traffic_ros2::schedule::Negotiation::receive_proposal] "
+        "[rmf_traffic_ros2::schedule::Negotiation::receive_rejection] "
         "Receieved a rejection for negotiation ["
         + std::to_string(msg.conflict_version) + "] for an "
         "unknown table: [";
@@ -621,6 +640,12 @@ public:
 
     if (!updated)
       return;
+
+    if (status_callback)
+    {
+      auto table_view = table->viewer();
+      status_callback(msg.conflict_version, table_view);
+    }
 
     std::vector<TablePtr> queue = room.check_cache(*negotiators);
 
@@ -656,6 +681,12 @@ public:
     }
 
     table->forfeit(msg.table.back().version);
+
+    if (status_callback)
+    {
+      auto table_view = table->viewer();
+      status_callback(msg.conflict_version, table_view);
+    }
 
     respond_to_queue(room.check_cache(*negotiators), msg.conflict_version);
   }
@@ -858,6 +889,19 @@ public:
         approvals.erase(approval_callback_it);
     }
 
+    if (conclusion_callback)
+      conclusion_callback(msg.conflict_version, msg.resolved);
+    
+    // add to retained history
+    if (retained_history_count > 0)
+    {
+      while (history.size() >= retained_history_count)
+        history.erase(history.begin());
+
+      history.emplace(
+        msg.conflict_version, std::move(negotiate_it->second.room.negotiation));
+    }
+    
     // Erase these entries because the negotiation has concluded
     negotiations.erase(negotiate_it);
   }
@@ -949,6 +993,56 @@ public:
 
     return std::make_shared<Handle>(for_participant, negotiators);
   }
+
+  void set_retained_history_count(uint count)
+  {
+    retained_history_count = count;
+  }
+
+  TableViewPtr table_view(
+    uint64_t conflict_version,
+    const std::vector<ParticipantId>& sequence) const
+  {
+    const auto negotiate_it = negotiations.find(conflict_version);
+    rmf_traffic::schedule::Negotiation::ConstTablePtr table;
+
+    if (negotiate_it == negotiations.end())
+    {
+      const auto history_it = history.find(conflict_version);
+      if (history_it == history.end())
+      {
+        RCLCPP_WARN(node.get_logger(), "Conflict version %llu does not exist."
+          "It may have been successful and wiped", conflict_version);
+        return nullptr;
+      }
+      
+      table = history_it->second.table(sequence);
+    }
+    else
+    {
+      const auto& room = negotiate_it->second.room;
+      const Negotiation& negotiation = room.negotiation;
+      table = negotiation.table(sequence);  
+    }
+
+    if (!table)
+    {
+      RCLCPP_WARN(node.get_logger(), "Table not found");
+      return nullptr;
+    }
+
+    return table->viewer();
+  }
+
+  void on_status_update(StatusUpdateCallback cb)
+  {
+    status_callback = cb;
+  }
+
+  void on_conclusion(StatusConclusionCallback cb)
+  {
+    conclusion_callback = cb;
+  }
 };
 
 //==============================================================================
@@ -963,6 +1057,18 @@ Negotiation::Negotiation(
 }
 
 //==============================================================================
+void Negotiation::on_status_update(StatusUpdateCallback cb)
+{
+  _pimpl->on_status_update(cb);
+}
+
+//==============================================================================
+void Negotiation::on_conclusion(StatusConclusionCallback cb)
+{
+  _pimpl->on_conclusion(cb);
+}
+
+//==============================================================================
 Negotiation& Negotiation::timeout_duration(rmf_traffic::Duration duration)
 {
   _pimpl->timeout = duration;
@@ -973,6 +1079,20 @@ Negotiation& Negotiation::timeout_duration(rmf_traffic::Duration duration)
 rmf_traffic::Duration Negotiation::timeout_duration() const
 {
   return _pimpl->timeout;
+}
+
+//==============================================================================
+Negotiation::TableViewPtr Negotiation::table_view(
+    uint64_t conflict_version,
+    const std::vector<ParticipantId>& sequence) const
+{
+  return _pimpl->table_view(conflict_version, sequence);
+}
+
+//==============================================================================
+void Negotiation::set_retained_history_count(uint count)
+{
+  return _pimpl->set_retained_history_count(count);
 }
 
 //==============================================================================
