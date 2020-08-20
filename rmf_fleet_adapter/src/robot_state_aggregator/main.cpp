@@ -56,12 +56,13 @@ private:
   : rclcpp::Node("robot_state_aggregator")
   {
     const auto default_qos = rclcpp::SystemDefaultsQoS();
+    const auto sensor_qos = rclcpp::SensorDataQoS();
 
     _fleet_state_pub = create_publisher<FleetState>(
       rmf_fleet_adapter::FleetStateTopicName, default_qos);
 
     _robot_state_sub = create_subscription<RobotState>(
-      "robot_state", default_qos,
+      "robot_state", sensor_qos,
       [&](RobotState::UniquePtr msg)
       {
         _robot_state_update(std::move(msg));
