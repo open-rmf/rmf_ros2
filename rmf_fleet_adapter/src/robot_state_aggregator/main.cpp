@@ -40,7 +40,7 @@ public:
     {
       RCLCPP_FATAL(
         node->get_logger(),
-        "Missing required parameter: [fleet_adapter]");
+        "Missing required parameter: [fleet_name]");
       return nullptr;
     }
 
