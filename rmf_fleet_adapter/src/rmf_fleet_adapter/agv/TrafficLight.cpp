@@ -211,8 +211,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_path(
       {
         // We use DoorOpen for lack of a better placeholder
         event = rmf_traffic::agv::Graph::Lane::Event::make(
-              rmf_traffic::agv::Graph::Lane::DoorOpen(
-                "", last_wp.mandatory_delay()));
+              rmf_traffic::agv::Graph::Lane::Wait(last_wp.mandatory_delay()));
       }
 
       graph.add_lane(rmf_traffic::agv::Graph::Lane::Node(i-1, event), i);

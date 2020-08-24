@@ -386,6 +386,11 @@ public:
     // Not supported yet
   }
 
+  void execute(const Wait&) final
+  {
+    // Do nothing
+  }
+
 private:
   agv::RobotContextPtr _context;
   Task::PendingPhases& _phases;
