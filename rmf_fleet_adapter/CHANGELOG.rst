@@ -8,6 +8,7 @@ Forthcoming
 1.1.0 (2020-09-XX)
 ------------------
 * Traffic Light API: [#147](https://github.com/osrf/rmf_core/pull/147)
+* Allow fleet adapters to adjust the maximum delay: [#148](https://github.com/osrf/rmf_core/pull/148)
 
 1.0.2 (2020-07-27)
 ------------------
