@@ -41,6 +41,13 @@ std::shared_ptr<RobotContext> RobotUpdateHandle::Implementation::get_context()
 }
 
 //==============================================================================
+std::shared_ptr<const RobotContext>
+RobotUpdateHandle::Implementation::get_context() const
+{
+  return const_cast<Implementation&>(*this).get_context();
+}
+
+//==============================================================================
 void RobotUpdateHandle::interrupted()
 {
   if (const auto context = _pimpl->get_context())
@@ -153,6 +160,32 @@ void RobotUpdateHandle::update_position(
       context->_location = std::move(starts);
     });
   }
+}
+
+//==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::maximum_delay(
+    rmf_utils::optional<rmf_traffic::Duration> value)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+          [context, value](const auto&)
+    {
+      context->maximum_delay(value);
+    });
+  }
+
+  return *this;
+}
+
+//==============================================================================
+rmf_utils::optional<rmf_traffic::Duration>
+RobotUpdateHandle::maximum_delay() const
+{
+  if (const auto context = _pimpl->get_context())
+    return context->maximum_delay();
+
+  return rmf_utils::nullopt;
 }
 
 //==============================================================================

@@ -55,6 +55,8 @@ public:
 
   std::shared_ptr<RobotContext> get_context();
 
+  std::shared_ptr<const RobotContext> get_context() const;
+
 };
 
 } // namespace agv

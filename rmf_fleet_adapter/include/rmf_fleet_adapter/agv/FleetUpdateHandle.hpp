@@ -84,6 +84,15 @@ public:
   /// adapter internally.
   FleetUpdateHandle& accept_delivery_requests(AcceptDeliveryRequest check);
 
+  /// Specify the default value for how high the delay of the current itinerary
+  /// can become before it gets interrupted and replanned. A nullopt value will
+  /// allow for an arbitrarily long delay to build up without being interrupted.
+  FleetUpdateHandle& default_maximum_delay(
+      rmf_utils::optional<rmf_traffic::Duration> value);
+
+  /// Get the default value for the maximum acceptable delay.
+  rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay() const;
+
   class Implementation;
 private:
   FleetUpdateHandle();

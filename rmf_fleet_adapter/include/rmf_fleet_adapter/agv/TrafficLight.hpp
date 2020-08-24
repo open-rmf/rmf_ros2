@@ -26,6 +26,7 @@
 #include <rclcpp/time.hpp>
 
 #include <rmf_utils/impl_ptr.hpp>
+#include <rmf_utils/optional.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -60,6 +61,18 @@ public:
     /// \param[in] new_path
     ///   Submit a new path that the robot intends to follow.
     std::size_t update_path(const std::vector<Waypoint>& new_path);
+
+    /// Set the maximum acceptable delay before the timing gets recomputed. Pass
+    /// in a nullopt to prevent the timing from ever being recomputed.
+    UpdateHandle& maximum_delay(
+        rmf_utils::optional<rmf_traffic::Duration> value);
+
+    /// Get the maximum acceptable delay before the timing gets recomputed.
+    ///
+    /// \note The setter for this field is run asynchronously, so it may take
+    /// some time before the getter has the same value that was given to the
+    /// setter.
+    rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
 
     class Implementation;
   private:

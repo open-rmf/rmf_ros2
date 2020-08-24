@@ -149,11 +149,16 @@ void MoveRobot::Action::operator()(const Subscriber& s)
     const auto newly_expected_arrival = t + estimate;
     const auto new_delay = newly_expected_arrival - previously_expected_arrival;
 
-    if (!action->_interrupted &&
-        std::chrono::seconds(10) < current_delay + new_delay)
+    if (!action->_interrupted)
     {
-      action->_interrupted = true;
-      action->_context->trigger_interrupt();
+      if (const auto max_delay = action->_context->maximum_delay())
+      {
+        if (*max_delay < current_delay + new_delay)
+        {
+          action->_interrupted = true;
+          action->_context->trigger_interrupt();
+        }
+      }
     }
 
     if (std::chrono::milliseconds(500).count() < std::abs(new_delay.count()))

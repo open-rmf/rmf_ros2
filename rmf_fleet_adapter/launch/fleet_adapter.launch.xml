@@ -17,7 +17,8 @@
   <arg name="footprint_radius" description="The radius of the footprint of the vehicles in this fleet"/>
   <arg name="vicinity_radius" description="The radius of the personal vicinity of the vehicles in this fleet"/>
   <arg name="perform_deliveries" default="false" description="Whether this fleet adapter can perform deliveries"/>
-  <arg name="delay_threshold" default="30.0" description="How long to wait before replanning" />
+  <arg name="delay_threshold" default="10.0" description="How long to wait before replanning" />
+  <arg name="disable_delay_threshold" default="false" description="Disable the delay_threshold behavior" />
   <arg name="retry_wait" default="10.0" description="How long a retry should wait before starting"/>
   <arg name="discovery_timeout" default="10.0" description="How long to wait on discovery before giving up"/>
   <arg name="reversible" default="true" description="Can the robot drive backwards"/>
@@ -45,6 +46,7 @@
     <param name="perform_deliveries" value="$(var perform_deliveries)"/>
 
     <param name="delay_threshold" value="$(var delay_threshold)"/>
+    <param name="disable_delay_threshold" value="$(var disable_delay_threshold)"/>
     <param name="retry_wait" value="$(var retry_wait)"/>
     <param name="discovery_timeout" value="$(var discovery_timeout)"/>
     <param name="reversible" value="$(var reversible)"/>

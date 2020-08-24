@@ -101,6 +101,12 @@ public:
   /// callbacks that can modify the state of the robot.
   const rxcpp::schedulers::worker& worker() const;
 
+  /// Get the maximum allowable delay for this robot
+  rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
+
+  /// Set the maximum allowable delay for this robot
+  RobotContext& maximum_delay(rmf_utils::optional<rmf_traffic::Duration> value);
+
   // Documentation inherited from rmf_traffic::schedule::Negotiator
   void respond(
       const TableViewerPtr& table_viewer,
@@ -117,7 +123,8 @@ private:
     std::shared_ptr<const Snappable> schedule,
     std::shared_ptr<const rmf_traffic::agv::Planner> planner,
     std::shared_ptr<Node> node,
-    const rxcpp::schedulers::worker& worker);
+    const rxcpp::schedulers::worker& worker,
+    rmf_utils::optional<rmf_traffic::Duration> maximum_delay);
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
@@ -133,6 +140,7 @@ private:
 
   std::shared_ptr<Node> _node;
   rxcpp::schedulers::worker _worker;
+  rmf_utils::optional<rmf_traffic::Duration> _maximum_delay;
   std::string _requester_id;
 
   rmf_traffic::schedule::Negotiator* _negotiator = nullptr;

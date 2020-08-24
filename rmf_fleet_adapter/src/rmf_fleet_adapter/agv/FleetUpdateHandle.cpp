@@ -305,7 +305,8 @@ void FleetUpdateHandle::add_robot(
             fleet->_pimpl->snappable,
             fleet->_pimpl->planner,
             fleet->_pimpl->node,
-            fleet->_pimpl->worker
+            fleet->_pimpl->worker,
+            fleet->_pimpl->default_maximum_delay
           });
 
     // We schedule the following operations on the worker to make sure we do not
@@ -356,6 +357,21 @@ FleetUpdateHandle& FleetUpdateHandle::accept_delivery_requests(
 {
   _pimpl->accept_delivery = std::move(check);
   return *this;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::default_maximum_delay(
+    rmf_utils::optional<rmf_traffic::Duration> value)
+{
+  _pimpl->default_maximum_delay = value;
+  return *this;
+}
+
+//==============================================================================
+rmf_utils::optional<rmf_traffic::Duration>
+FleetUpdateHandle::default_maximum_delay() const
+{
+  return _pimpl->default_maximum_delay;
 }
 
 //==============================================================================

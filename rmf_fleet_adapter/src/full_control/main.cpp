@@ -390,6 +390,17 @@ std::shared_ptr<Connections> make_fleet(
           [](const rmf_task_msgs::msg::Delivery&){ return true; });
   }
 
+  if (node->declare_parameter<bool>("disable_delay_threshold", false))
+  {
+    connections->fleet->default_maximum_delay(rmf_utils::nullopt);
+  }
+  else
+  {
+    connections->fleet->default_maximum_delay(
+          rmf_fleet_adapter::get_parameter_or_default_time(
+            *node, "delay_threshold", 10.0));
+  }
+
   connections->path_request_pub = node->create_publisher<
       rmf_fleet_msgs::msg::PathRequest>(
         rmf_fleet_adapter::PathRequestTopicName, rclcpp::SystemDefaultsQoS());

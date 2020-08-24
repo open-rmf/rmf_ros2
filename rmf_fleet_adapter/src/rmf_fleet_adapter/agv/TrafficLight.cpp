@@ -64,6 +64,8 @@ public:
 
   std::size_t processing_version = 0;
 
+  rmf_utils::optional<rmf_traffic::Duration> maximum_delay;
+
   std::shared_ptr<services::FindPath> find_path_service;
   rxcpp::subscription find_path_subscription;
 
@@ -648,8 +650,8 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
         const auto new_delay = now - *expected_time;
 
         // TODO(MXG): Make this threshold configurable
-        const auto delay_threshold = std::chrono::seconds(30);
-        if (new_delay < delay_threshold)
+        const auto max_delay = data->maximum_delay;
+        if (!max_delay || new_delay < *max_delay)
         {
           const auto time_shift = new_delay - data->itinerary.delay();
           if (time_shift > std::chrono::seconds(5))
@@ -926,6 +928,26 @@ std::size_t TrafficLight::UpdateHandle::update_path(
   });
 
   return version;
+}
+
+//==============================================================================
+auto TrafficLight::UpdateHandle::maximum_delay(
+    rmf_utils::optional<rmf_traffic::Duration> value) -> UpdateHandle&
+{
+  _pimpl->data->worker.schedule(
+        [data = _pimpl->data, value](const auto&)
+  {
+    data->maximum_delay = value;
+  });
+
+  return *this;
+}
+
+//==============================================================================
+rmf_utils::optional<rmf_traffic::Duration>
+TrafficLight::UpdateHandle::maximum_delay() const
+{
+  return _pimpl->data->maximum_delay;
 }
 
 } // namespace agv

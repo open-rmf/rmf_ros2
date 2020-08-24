@@ -20,6 +20,7 @@
 
 #include <rmf_traffic/Time.hpp>
 #include <rmf_utils/impl_ptr.hpp>
+#include <rmf_utils/optional.hpp>
 
 #include <Eigen/Geometry>
 
@@ -82,6 +83,19 @@ public:
       const double max_merge_waypoint_distance = 0.1,
       const double max_merge_lane_distance = 1.0,
       const double min_lane_length = 1e-8);
+
+  /// Specify how high the delay of the current itinerary can become before it
+  /// gets interrupted and replanned. A nullopt value will allow for an
+  /// arbitrarily long delay to build up without being interrupted.
+  RobotUpdateHandle& maximum_delay(
+      rmf_utils::optional<rmf_traffic::Duration> value);
+
+  /// Get the value for the maximum delay.
+  ///
+  /// \note The setter for the maximum_delay field is run asynchronously, so
+  /// it may take some time for the return value of this getter to match the
+  /// value that was given to the setter.
+  rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
 
   class Implementation;
 private:

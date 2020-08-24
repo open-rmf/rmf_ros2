@@ -200,6 +200,20 @@ const rxcpp::schedulers::worker& RobotContext::worker() const
 }
 
 //==============================================================================
+rmf_utils::optional<rmf_traffic::Duration> RobotContext::maximum_delay() const
+{
+  return _maximum_delay;
+}
+
+//==============================================================================
+RobotContext& RobotContext::maximum_delay(
+    rmf_utils::optional<rmf_traffic::Duration> value)
+{
+  _maximum_delay = value;
+  return *this;
+}
+
+//==============================================================================
 void RobotContext::respond(
     const TableViewerPtr& table_viewer,
     const ResponderPtr& responder)
@@ -226,7 +240,8 @@ RobotContext::RobotContext(
   std::shared_ptr<const Snappable> schedule,
   std::shared_ptr<const rmf_traffic::agv::Planner> planner,
   std::shared_ptr<rmf_fleet_adapter::agv::Node> node,
-  const rxcpp::schedulers::worker& worker)
+  const rxcpp::schedulers::worker& worker,
+  rmf_utils::optional<rmf_traffic::Duration> maximum_delay)
   : _command_handle(std::move(command_handle)),
     _location(std::move(_initial_location)),
     _itinerary(std::move(itinerary)),
@@ -234,6 +249,7 @@ RobotContext::RobotContext(
     _planner(std::move(planner)),
     _node(std::move(node)),
     _worker(worker),
+    _maximum_delay(maximum_delay),
     _requester_id(
       _itinerary.description().owner() + "/" + _itinerary.description().name())
 {
