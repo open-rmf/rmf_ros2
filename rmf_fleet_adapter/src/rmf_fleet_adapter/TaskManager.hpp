@@ -31,11 +31,11 @@ namespace rmf_fleet_adapter {
 /// optimal. A better task manager would queue tasks across the whole fleet
 /// instead of queuing tasks for each robot individually. We will attempt that
 /// in a later implementation.
-class TaskManager
+class TaskManager : public std::enable_shared_from_this<TaskManager>
 {
 public:
 
-  TaskManager(agv::RobotContextPtr context);
+  static std::shared_ptr<TaskManager> make(agv::RobotContextPtr context);
 
   using Start = rmf_traffic::agv::Plan::Start;
   using StartSet = rmf_traffic::agv::Plan::StartSet;
@@ -52,14 +52,20 @@ public:
   agv::ConstRobotContextPtr context() const;
 
 private:
+
+  TaskManager(agv::RobotContextPtr context);
+
   agv::RobotContextPtr _context;
   std::shared_ptr<Task> _active_task;
   std::vector<std::shared_ptr<Task>> _queue;
   rmf_utils::optional<Start> _expected_finish_location;
   rxcpp::subscription _task_sub;
+  rxcpp::subscription _emergency_sub;
 
   void _begin_next_task();
 };
+
+using TaskManagerPtr = std::shared_ptr<TaskManager>;
 
 } // namespace rmf_fleet_adapter
 

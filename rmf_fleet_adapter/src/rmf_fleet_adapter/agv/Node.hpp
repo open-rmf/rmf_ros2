@@ -29,6 +29,7 @@
 #include <rmf_lift_msgs/msg/lift_request.hpp>
 #include <rmf_lift_msgs/msg/lift_state.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -79,6 +80,10 @@ public:
   using DispenserStateObs = rxcpp::observable<DispenserState::SharedPtr>;
   const DispenserStateObs& dispenser_state() const;
 
+  using EmergencyNotice = std_msgs::msg::Bool;
+  using EmergencyNoticeObs = rxcpp::observable<EmergencyNotice::SharedPtr>;
+  const EmergencyNoticeObs& emergency_notice() const;
+
 private:
 
   Node(
@@ -95,6 +100,7 @@ private:
   DispenserRequestPub _dispenser_request_pub;
   DispenserResultObs _dispenser_result_obs;
   DispenserStateObs _dispenser_state_obs;
+  EmergencyNoticeObs _emergency_notice_obs;
 };
 
 } // namespace agv

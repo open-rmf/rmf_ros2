@@ -18,6 +18,7 @@
 #include "Node.hpp"
 
 #include <rmf_fleet_adapter/StandardNames.hpp>
+#include <rmf_traffic_ros2/StandardNames.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -50,6 +51,8 @@ std::shared_ptr<Node> Node::make(
         DispenserResultTopicName, default_qos);
   node->_dispenser_state_obs = node->create_observable<DispenserState>(
         DispenserStateTopicName, default_qos);
+  node->_emergency_notice_obs = node->create_observable<EmergencyNotice>(
+        rmf_traffic_ros2::EmergencyTopicName, default_qos);
 
   return node;
 }
@@ -116,6 +119,12 @@ auto Node::dispenser_result() const -> const DispenserResultObs&
 auto Node::dispenser_state() const -> const DispenserStateObs&
 {
   return _dispenser_state_obs;
+}
+
+//==============================================================================
+auto Node::emergency_notice() const -> const EmergencyNoticeObs&
+{
+  return _emergency_notice_obs;
 }
 
 } // namespace agv
