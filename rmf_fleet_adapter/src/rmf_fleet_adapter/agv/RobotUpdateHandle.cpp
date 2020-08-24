@@ -148,7 +148,7 @@ void RobotUpdateHandle::update_position(
       RCLCPP_ERROR(
             context->node()->get_logger(),
             "[RobotUpdateHandle::update_position] The robot [%s] has diverged "
-            "from its navigation graph, currently located at <%f, %f%, %f> on "
+            "from its navigation graph, currently located at <%f, %f, %f> on "
             "map [%s]", context->requester_id().c_str(),
             position[0], position[1], position[2], map_name.c_str());
       return;
