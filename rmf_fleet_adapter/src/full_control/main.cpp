@@ -127,6 +127,35 @@ public:
     // This is currently not used by the fleet drivers
   }
 
+  class DockFinder : public rmf_traffic::agv::Graph::Lane::Executor
+  {
+  public:
+
+    bool is_dock = false;
+
+    DockFinder(const std::string& dock_name)
+      : _dock_name(std::move(dock_name))
+    {
+      // Do nothing
+    }
+
+    void execute(const Dock& dock) final
+    {
+      if (dock.dock_name() == _dock_name)
+        is_dock = true;
+    }
+
+    void execute(const Wait&) final { }
+    void execute(const DoorOpen&) final { }
+    void execute(const LiftMove&) final { }
+    void execute(const DoorClose&) final { }
+    void execute(const LiftDoorOpen&) final { }
+    void execute(const LiftDoorClose&) final { }
+
+  private:
+    const std::string& _dock_name;
+  };
+
   void dock(
       const std::string& dock_name,
       RequestCompleted docking_finished_callback) final
@@ -140,6 +169,38 @@ public:
 
     _dock_requested_time = std::chrono::steady_clock::now();
     _mode_request_pub->publish(_current_dock_request);
+
+    // TODO(MXG): We should come up with a better way to identify the docking
+    // lanes.
+    _dock_target_wp = rmf_utils::nullopt;
+    DockFinder finder(dock_name);
+    for (std::size_t i=0; i < _travel_info.graph->num_lanes(); ++i)
+    {
+      const auto& lane = _travel_info.graph->get_lane(i);
+      const auto entry_event = lane.entry().event();
+      if (entry_event)
+      {
+        entry_event->execute(finder);
+        if (finder.is_dock)
+        {
+          _dock_target_wp = lane.entry().waypoint_index();
+          break;
+        }
+      }
+    }
+
+    assert(_dock_target_wp);
+
+    const auto& wp = _travel_info.graph->get_waypoint(*_dock_target_wp);
+    const std::string wp_name = wp.name()?
+          *wp.name() : std::to_string(wp.index());
+
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "Requesting robot [%s] of [%s] to dock into waypoint [%s]",
+      _current_path_request.robot_name.c_str(),
+      _current_path_request.fleet_name.c_str(),
+      wp_name.c_str());
   }
 
   void update_state(const rmf_fleet_msgs::msg::RobotState& state)
@@ -219,13 +280,10 @@ public:
       if (state.mode.mode != state.mode.MODE_DOCKING)
       {
         estimate_waypoint(_node, state.location, _travel_info);
+        _travel_info.last_known_wp = *_dock_target_wp;
         _dock_finished_callback();
         _dock_finished_callback = nullptr;
       }
-
-      // TODO(MXG): We ought to update the location of the robot while docking.
-      // It would be trivial if we had a convenient way to identify the docking
-      // lanes.
     }
     else
     {
@@ -251,6 +309,7 @@ private:
   bool _interrupted = false;
 
   rmf_fleet_msgs::msg::ModeRequest _current_dock_request;
+  rmf_utils::optional<std::size_t> _dock_target_wp;
   std::chrono::steady_clock::time_point _dock_requested_time;
   RequestCompleted _dock_finished_callback;
   ModeRequestPub _mode_request_pub;
