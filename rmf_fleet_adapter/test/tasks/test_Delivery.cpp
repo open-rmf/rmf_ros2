@@ -29,6 +29,10 @@
 #include <rmf_dispenser_msgs/msg/dispenser_state.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
 
+#include <rmf_ingestor_msgs/msg/ingestor_request.hpp>
+#include <rmf_ingestor_msgs/msg/ingestor_state.hpp>
+#include <rmf_ingestor_msgs/msg/ingestor_result.hpp>
+
 #include <rmf_utils/catch.hpp>
 
 #include "../thread_cooldown.hpp"
@@ -116,45 +120,45 @@ private:
 };
 
 //==============================================================================
-/// This mock dispenser will not publish any results; it will only publish
+/// This mock ingestor will not publish any results; it will only publish
 /// states. This is representative of network issues where a result might not
 /// actually arrive, but the state heartbeats can still get through.
-class MockFlakyDispenser
+class MockFlakyIngestor
 {
 public:
 
-  using DispenserRequest = rmf_dispenser_msgs::msg::DispenserRequest;
-  using DispenserState = rmf_dispenser_msgs::msg::DispenserState;
+  using IngestorRequest = rmf_ingestor_msgs::msg::IngestorRequest;
+  using IngestorState = rmf_ingestor_msgs::msg::IngestorState;
 
-  MockFlakyDispenser(
+  MockFlakyIngestor(
       std::shared_ptr<rclcpp::Node> node,
       std::string name)
     : _node(std::move(node)),
       _name(std::move(name))
   {
-    _request_sub = _node->create_subscription<DispenserRequest>(
-          rmf_fleet_adapter::DispenserRequestTopicName,
+    _request_sub = _node->create_subscription<IngestorRequest>(
+          rmf_fleet_adapter::IngestorRequestTopicName,
           rclcpp::SystemDefaultsQoS(),
-          [this](DispenserRequest::SharedPtr msg)
+          [this](IngestorRequest::SharedPtr msg)
     {
       _process_request(*msg);
     });
 
-    _state_pub = _node->create_publisher<DispenserState>(
-          rmf_fleet_adapter::DispenserStateTopicName,
+    _state_pub = _node->create_publisher<IngestorState>(
+          rmf_fleet_adapter::IngestorStateTopicName,
           rclcpp::SystemDefaultsQoS());
 
     using namespace std::chrono_literals;
     _timer = _node->create_wall_timer(
           100ms, [this]()
     {
-      DispenserState msg;
+      IngestorState msg;
       msg.guid = _name;
 
       if (_request_queue.empty())
-        msg.mode = DispenserState::IDLE;
+        msg.mode = IngestorState::IDLE;
       else
-        msg.mode = DispenserState::BUSY;
+        msg.mode = IngestorState::BUSY;
 
       msg.time = _node->now();
       msg.seconds_remaining = 0.1;
@@ -193,19 +197,19 @@ private:
 
   struct RequestEntry
   {
-    DispenserRequest request;
+    IngestorRequest request;
     std::size_t publish_count = 0;
   };
 
   std::shared_ptr<rclcpp::Node> _node;
   std::string _name;
-  rclcpp::Subscription<DispenserRequest>::SharedPtr _request_sub;
-  rclcpp::Publisher<DispenserState>::SharedPtr _state_pub;
+  rclcpp::Subscription<IngestorRequest>::SharedPtr _request_sub;
+  rclcpp::Publisher<IngestorState>::SharedPtr _state_pub;
   std::vector<RequestEntry> _request_queue;
   rclcpp::TimerBase::SharedPtr _timer;
   bool _fulfilled_promise = false;
 
-  void _process_request(const DispenserRequest& msg)
+  void _process_request(const IngestorRequest& msg)
   {
     if (msg.target_guid != _name)
     {
@@ -345,10 +349,10 @@ SCENARIO("Test Delivery")
         adapter.node(), quiet_dispenser_name);
   auto quiet_future = quiet_dispenser.success_promise.get_future();
 
-  const std::string flaky_dispenser_name = "flaky";
-  auto flaky_dispenser = MockFlakyDispenser(
-        adapter.node(), flaky_dispenser_name);
-  auto flaky_future = flaky_dispenser.success_promise.get_future();
+  const std::string flaky_ingestor_name = "flaky";
+  auto flaky_ingestor = MockFlakyIngestor(
+        adapter.node(), flaky_ingestor_name);
+  auto flaky_future = flaky_ingestor.success_promise.get_future();
 
   adapter.start();
 
@@ -359,7 +363,7 @@ SCENARIO("Test Delivery")
   request.pickup_dispenser = quiet_dispenser_name;
 
   request.dropoff_place_name = dropoff_name;
-  request.dropoff_dispenser = flaky_dispenser_name;
+  request.dropoff_ingestor = flaky_ingestor_name;
 
   adapter.request_delivery(request);
 

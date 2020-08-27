@@ -41,6 +41,10 @@ const std::string DispenserRequestTopicName = "dispenser_requests";
 const std::string DispenserResultTopicName = "dispenser_results";
 const std::string DispenserStateTopicName = "dispenser_states";
 
+const std::string IngestorRequestTopicName = "ingestor_requests";
+const std::string IngestorResultTopicName = "ingestor_results";
+const std::string IngestorStateTopicName = "ingestor_states";
+
 const std::string DeliveryTopicName = "delivery_requests";
 const std::string LoopRequestTopicName = "loop_requests";
 const std::string TaskSummaryTopicName = "task_summaries";

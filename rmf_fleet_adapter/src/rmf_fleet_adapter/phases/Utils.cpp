@@ -15,17 +15,18 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__PHASES__UTILS_HPP
-#define SRC__RMF_FLEET_ADAPTER__PHASES__UTILS_HPP
-
-#include <builtin_interfaces/msg/time.hpp>
+#include "Utils.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
 
-bool is_newer(const builtin_interfaces::msg::Time& a, const builtin_interfaces::msg::Time& b);
+bool is_newer(const builtin_interfaces::msg::Time& a, const builtin_interfaces::msg::Time& b)
+{
+  return a.sec > b.sec || (a.sec == b.sec && a.nanosec > b.nanosec);
+}
 
 } // namespace phases
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__PHASES__UTILS_HPP
+
+

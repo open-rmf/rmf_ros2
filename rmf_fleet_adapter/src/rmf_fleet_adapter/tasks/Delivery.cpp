@@ -16,6 +16,7 @@
 */
 
 #include "../phases/DispenseItem.hpp"
+#include "../phases/IngestItem.hpp"
 #include "../phases/GoToPlace.hpp"
 
 #include "Delivery.hpp"
@@ -35,8 +36,6 @@ std::shared_ptr<Task> make_delivery(
   const auto pickup_wp =
       graph.find_waypoint(request.pickup_place_name)->index();
 
-  const auto& node = context->node();
-
   Task::PendingPhases phases;
   phases.push_back(
         phases::GoToPlace::make(context, std::move(pickup_start), pickup_wp));
@@ -55,13 +54,23 @@ std::shared_ptr<Task> make_delivery(
   phases.push_back(
         phases::GoToPlace::make(context, std::move(dropoff_start), dropoff_wp));
 
+  std::vector<rmf_ingestor_msgs::msg::IngestorRequestItem> ingestor_items;
+  ingestor_items.reserve(request.items.size());
+  for(auto& dispenser_item : request.items){
+    rmf_ingestor_msgs::msg::IngestorRequestItem item{};
+    item.type_guid = dispenser_item.type_guid;
+    item.quantity = dispenser_item.quantity;
+    item.compartment_name = dispenser_item.compartment_name;
+    ingestor_items.push_back(std::move(item));
+  }
+
   phases.push_back(
-        std::make_unique<phases::DispenseItem::PendingPhase>(
+        std::make_unique<phases::IngestItem::PendingPhase>(
           context,
           request.task_id,
-          request.dropoff_dispenser,
+          request.dropoff_ingestor,
           context->itinerary().description().owner(),
-          request.items));
+          ingestor_items));
 
   return Task::make(request.task_id, std::move(phases), context->worker());
 }

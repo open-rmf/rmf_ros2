@@ -23,6 +23,9 @@
 #include <rmf_dispenser_msgs/msg/dispenser_request.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_result.hpp>
 #include <rmf_dispenser_msgs/msg/dispenser_state.hpp>
+#include <rmf_ingestor_msgs/msg/ingestor_state.hpp>
+#include <rmf_ingestor_msgs/msg/ingestor_result.hpp>
+#include <rmf_ingestor_msgs/msg/ingestor_request.hpp>
 #include <rmf_door_msgs/msg/door_state.hpp>
 #include <rmf_door_msgs/msg/door_request.hpp>
 #include <rmf_door_msgs/msg/supervisor_heartbeat.hpp>
@@ -84,6 +87,18 @@ public:
   using EmergencyNoticeObs = rxcpp::observable<EmergencyNotice::SharedPtr>;
   const EmergencyNoticeObs& emergency_notice() const;
 
+  using IngestorRequest = rmf_ingestor_msgs::msg::IngestorRequest;
+  using IngestorRequestPub = rclcpp::Publisher<IngestorRequest>::SharedPtr;
+  const IngestorRequestPub& ingestor_request() const;
+
+  using IngestorResult = rmf_ingestor_msgs::msg::IngestorResult;
+  using IngestorResultObs = rxcpp::observable<IngestorResult::SharedPtr>;
+  const IngestorResultObs& ingestor_result() const;
+
+  using IngestorState = rmf_ingestor_msgs::msg::IngestorState;
+  using IngestorStateObs = rxcpp::observable<IngestorState::SharedPtr>;
+  const IngestorStateObs& ingestor_state() const;
+
 private:
 
   Node(
@@ -101,6 +116,9 @@ private:
   DispenserResultObs _dispenser_result_obs;
   DispenserStateObs _dispenser_state_obs;
   EmergencyNoticeObs _emergency_notice_obs;
+  IngestorRequestPub _ingestor_request_pub;
+  IngestorResultObs _ingestor_result_obs;
+  IngestorStateObs _ingestor_state_obs;
 };
 
 } // namespace agv
