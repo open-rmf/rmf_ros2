@@ -54,9 +54,34 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
     context,
     lift_name,
     destination,
-    rmf_traffic::Time()
+    rmf_traffic::Time(),
+    RequestLift::Located::Outside
   );
   auto active_phase = pending_phase->begin();
+
+  WHEN("it is cancelled before its started")
+  {
+    active_phase->cancel();
+
+    THEN("it should not send lift requests")
+    {
+      bool received_open = false;
+      rxcpp::composite_subscription rx_sub;
+      auto subscription = adapter->node()->create_subscription<LiftRequest>(
+        AdapterLiftRequestTopicName,
+        10,
+        [&](LiftRequest::UniquePtr lift_request)
+        {
+          if (lift_request->request_type != LiftRequest::REQUEST_END_SESSION)
+            received_open = true;
+          else if (lift_request->request_type == LiftRequest::REQUEST_END_SESSION)
+            rx_sub.unsubscribe();
+        });
+      auto obs = active_phase->observe();
+      obs.as_blocking().subscribe(rx_sub);
+      CHECK(!received_open);
+    }
+  }
 
   WHEN("it is started")
   {
@@ -87,24 +112,6 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       {
         CHECK(lift_request.destination_floor == destination);
       }
-    }
-
-    THEN("cancelled, it should not do anything")
-    {
-      active_phase->cancel();
-      std::unique_lock<std::mutex> lk(m);
-
-      bool completed = status_updates_cv.wait_for(lk, std::chrono::seconds(1), [&]()
-      {
-        for (const auto& status : status_updates)
-        {
-          if (status.state == Task::StatusMsg::STATE_COMPLETED)
-            return true;
-        }
-        status_updates.clear();
-        return false;
-      });
-      CHECK(!completed);
     }
 
     AND_WHEN("lift is on destination floor")
@@ -139,6 +146,27 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       }
 
       timer.reset();
+    }
+
+    AND_WHEN("it is cancelled")
+    {
+      {
+        std::unique_lock<std::mutex> lk(m);
+        received_requests_cv.wait(lk, [&]()
+        {
+          return !received_requests.empty();
+        });
+        active_phase->cancel();
+      }
+
+      THEN("it should send END_SESSION request")
+      {
+        std::unique_lock<std::mutex> lk(m);
+        received_requests_cv.wait(lk, [&]()
+        {
+          return received_requests.back().request_type == LiftRequest::REQUEST_END_SESSION;
+        });
+      }
     }
 
     sub.unsubscribe();

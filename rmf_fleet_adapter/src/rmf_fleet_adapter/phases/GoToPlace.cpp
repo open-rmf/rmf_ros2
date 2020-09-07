@@ -333,6 +333,7 @@ public:
 
   void execute(const Dock& dock) final
   {
+    assert(!_moving_lift);
     _phases.push_back(
           std::make_unique<phases::DockRobot::PendingPhase>(
             _context, dock.dock_name()));
@@ -341,6 +342,7 @@ public:
 
   void execute(const DoorOpen& open) final
   {
+    assert(!_moving_lift);
     const auto node = _context->node();
     _phases.push_back(
           std::make_unique<phases::DoorOpen::PendingPhase>(
@@ -353,6 +355,8 @@ public:
 
   void execute(const DoorClose& close) final
   {
+    assert(!_moving_lift);
+
     // TODO(MXG): Account for event duration in this phase
     const auto node = _context->node();
     _phases.push_back(
@@ -363,27 +367,59 @@ public:
     _continuous = true;
   }
 
-  void execute(const LiftDoorOpen& open) final
+  void execute(const LiftSessionBegin& open) final
   {
+    assert(!_moving_lift);
     const auto node = _context->node();
     _phases.push_back(
           std::make_unique<phases::RequestLift::PendingPhase>(
             _context,
             open.lift_name(),
             open.floor_name(),
-            _event_start_time + open.duration()));
+            _event_start_time,
+            phases::RequestLift::Located::Outside));
 
     _continuous = true;
   }
 
-  void execute(const LiftDoorClose& /*close*/) final
+  void execute(const LiftMove& move) final
   {
-    // Not supported yet
+    // TODO(MXG): We should probably keep track of what lift is being moved to
+    // make sure we weren't given a broken nav graph
+    _lifting_duration += move.duration();
+    _moving_lift = true;
+
+    _continuous = true;
   }
 
-  void execute(const LiftMove& /*move*/) final
+  void execute(const LiftDoorOpen& open) final
   {
-    // Not supported yet
+    const auto node = _context->node();
+
+    // TODO(MXG): The time calculation here should be considered more carefully.
+    _phases.push_back(
+          std::make_unique<phases::RequestLift::PendingPhase>(
+            _context,
+            open.lift_name(),
+            open.floor_name(),
+            _event_start_time + open.duration() + _lifting_duration,
+            phases::RequestLift::Located::Inside));
+    _moving_lift = false;
+
+    _continuous = true;
+  }
+
+  void execute(const LiftSessionEnd& close) final
+  {
+    assert(!_moving_lift);
+    const auto node = _context->node();
+    _phases.push_back(
+          std::make_unique<phases::EndLiftSession::Pending>(
+            _context,
+            close.lift_name(),
+            close.floor_name()));
+
+    _continuous = true;
   }
 
   void execute(const Wait&) final
@@ -391,11 +427,18 @@ public:
     // Do nothing
   }
 
+  bool moving_lift() const
+  {
+    return _moving_lift;
+  }
+
 private:
   agv::RobotContextPtr _context;
   Task::PendingPhases& _phases;
   rmf_traffic::Time _event_start_time;
   bool& _continuous;
+  bool _moving_lift = false;
+  rmf_traffic::Duration _lifting_duration = rmf_traffic::Duration(0);
 };
 
 } // anonymous namespace
@@ -432,6 +475,33 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
         bool continuous = true;
         EventPhaseFactory factory(_context, sub_phases, it->time(), continuous);
         it->event()->execute(factory);
+        while (factory.moving_lift())
+        {
+          const auto last_it = it;
+          ++it;
+          if (!it->event())
+          {
+            const double dist =
+                (it->position().block<2,1>(0,0)
+                 - last_it->position().block<2,1>(0,0)).norm();
+
+            if (dist < 0.5)
+            {
+              // We'll assume that this is just a misalignment in the maps
+              continue;
+            }
+
+            // TODO(MXG): Figure out how to make this more robust. The current
+            // implementation would break if a plan tries to have a robot move
+            // itself while the lift is moving between floors.
+            _status_publisher.get_subscriber().on_error(
+              std::make_exception_ptr(std::runtime_error(
+                "We do not support any actions while inside a moving lift")));
+            return;
+          }
+
+          it->event()->execute(factory);
+        }
 
         if (continuous)
         {
@@ -462,7 +532,6 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
       waypoints.clear();
     }
   }
-
 
 
   _subtasks = Task::make(

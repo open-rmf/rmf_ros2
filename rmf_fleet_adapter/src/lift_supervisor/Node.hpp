@@ -57,6 +57,7 @@ private:
   using EmergencyNoticePub = rclcpp::Publisher<EmergencyNotice>;
   EmergencyNoticePub::SharedPtr _emergency_notice_pub;
 
+  std::unordered_map<std::string, LiftRequest::UniquePtr> _active_sessions;
 };
 
 } // namespace lift_supervisor

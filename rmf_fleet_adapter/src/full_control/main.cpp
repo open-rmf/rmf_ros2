@@ -147,10 +147,11 @@ public:
 
     void execute(const Wait&) final { }
     void execute(const DoorOpen&) final { }
-    void execute(const LiftMove&) final { }
     void execute(const DoorClose&) final { }
+    void execute(const LiftSessionBegin&) final { }
+    void execute(const LiftMove&) final { }
     void execute(const LiftDoorOpen&) final { }
-    void execute(const LiftDoorClose&) final { }
+    void execute(const LiftSessionEnd&) final { }
 
   private:
     const std::string& _dock_name;

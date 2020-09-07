@@ -15,35 +15,31 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__PHASES__REQUESTLIFT_HPP
-#define SRC__RMF_FLEET_ADAPTER__PHASES__REQUESTLIFT_HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__PHASES__ENDLIFTSESSION_HPP
+#define SRC__RMF_FLEET_ADAPTER__PHASES__ENDLIFTSESSION_HPP
 
 #include "../Task.hpp"
 #include "../agv/RobotContext.hpp"
 #include "rmf_fleet_adapter/StandardNames.hpp"
-#include "EndLiftSession.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
 
-struct RequestLift
+struct EndLiftSession
 {
-  enum class Located
-  {
-    Inside,
-    Outside
-  };
-
-  class ActivePhase : public Task::ActivePhase, public std::enable_shared_from_this<ActivePhase>
+  class Active : public Task::ActivePhase, public std::enable_shared_from_this<Active>
   {
   public:
 
-    static std::shared_ptr<ActivePhase> make(
+    static std::shared_ptr<Active> make(
+        agv::RobotContextPtr context,
+        std::string lift_name,
+        std::string destination);
+
+    Active(
       agv::RobotContextPtr context,
       std::string lift_name,
-      std::string destination,
-      rmf_traffic::Time expected_finish,
-      Located located);
+      std::string destination);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -60,42 +56,26 @@ struct RequestLift
     agv::RobotContextPtr _context;
     std::string _lift_name;
     std::string _destination;
-    rmf_traffic::Time _expected_finish;
-    rxcpp::subjects::behavior<bool> _cancelled = rxcpp::subjects::behavior<bool>(false);
     std::string _description;
     rxcpp::observable<Task::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
-    std::shared_ptr<EndLiftSession::Active> _lift_end_phase;
-    Located _located;
-
-    ActivePhase(
-      agv::RobotContextPtr context,
-      std::string lift_name,
-      std::string destination,
-      rmf_traffic::Time expected_finish,
-      Located located);
 
     void _init_obs();
-
-    Task::StatusMsg _get_status(const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
-
-    void _do_publish();
+    void _publish_session_end();
   };
 
-  class PendingPhase : public Task::PendingPhase
+  class Pending : public Task::PendingPhase
   {
   public:
 
-    PendingPhase(
+    Pending(
       agv::RobotContextPtr context,
       std::string lift_name,
-      std::string destination,
-      rmf_traffic::Time expected_finish,
-      Located located);
+      std::string destination);
 
-    std::shared_ptr<Task::ActivePhase> begin() override;
+    std::shared_ptr<Task::ActivePhase> begin() final;
 
-    rmf_traffic::Duration estimate_phase_duration() const override;
+    rmf_traffic::Duration estimate_phase_duration() const final;
 
     const std::string& description() const override;
 
@@ -103,8 +83,6 @@ struct RequestLift
     agv::RobotContextPtr _context;
     std::string _lift_name;
     std::string _destination;
-    rmf_traffic::Time _expected_finish;
-    Located _located;
     std::string _description;
   };
 };
@@ -112,4 +90,4 @@ struct RequestLift
 } // namespace phases
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__PHASES__REQUESTLIFT_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__PHASES__ENDLIFTSESSION_HPP
