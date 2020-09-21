@@ -291,7 +291,7 @@ target_include_directories(task_aggregator
 
 # -----------------------------------------------------------------------------
 
-ament_export_interfaces(rmf_fleet_adapter HAS_LIBRARY_TARGET)
+ament_export_targets(rmf_fleet_adapter HAS_LIBRARY_TARGET)
 ament_export_dependencies(rmf_traffic_ros2)
 
 install(

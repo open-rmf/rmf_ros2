@@ -11,6 +11,7 @@ Forthcoming
 * Allow the Negotiation class to accept callbacks for Table updates: [#140](https://github.com/osrf/rmf_core/pull/140/)
 * Allow the Negotiation class to provide views for existing Tables: [#140](https://github.com/osrf/rmf_core/pull/140/)
 * Allow the Negotiation class to store up to a certain number of completed negotiations: [#140](https://github.com/osrf/rmf_core/pull/140/)
+* Migrating to ROS2 Foxy: [#133](https://github.com/osrf/rmf_core/pull/133)
 
 1.0.2 (2020-07-27)
 ------------------

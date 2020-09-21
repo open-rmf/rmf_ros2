@@ -17,6 +17,8 @@
 
 #include "internal_Node.hpp"
 
+#include <cstring>
+
 #include <rmf_traffic_ros2/Route.hpp>
 #include <rmf_traffic_ros2/StandardNames.hpp>
 #include <rmf_traffic_ros2/Time.hpp>

@@ -90,7 +90,7 @@ public:
     // because the Database should never double-assign a ParticipantId
     stub_map[participant_id] = requester->stub;
 
-    return std::move(requester);
+    return requester;
   }
 
   void check_inconsistencies(const InconsistencyMsg& msg)

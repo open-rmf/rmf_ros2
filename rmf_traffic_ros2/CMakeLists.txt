@@ -55,7 +55,7 @@ target_include_directories(rmf_traffic_ros2
     ${rclcpp_INCLUDE_DIRS}
 )
 
-ament_export_interfaces(rmf_traffic_ros2 HAS_LIBRARY_TARGET)
+ament_export_targets(rmf_traffic_ros2 HAS_LIBRARY_TARGET)
 ament_export_dependencies(rmf_traffic rmf_traffic_msgs rclcpp)
 
 # TODO(MXG): Change these executables into shared libraries that can act as

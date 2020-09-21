@@ -242,12 +242,12 @@ SCENARIO("Test negotiated timing")
     const auto schedule_node =
         rmf_traffic_ros2::schedule::make_node(make_test_node_options());
 
-    rclcpp::executor::ExecutorArgs args;
-    args.context = schedule_node->get_node_options().context();
-    rclcpp::executors::SingleThreadedExecutor executor(args);
+    rclcpp::ExecutorOptions options;
+    options.context = schedule_node->get_node_options().context();
+    rclcpp::executors::SingleThreadedExecutor executor(options);
     executor.add_node(schedule_node);
 
-    while (!finished && rclcpp::ok(args.context))
+    while (!finished && rclcpp::ok(options.context))
       executor.spin_some();
   });
 

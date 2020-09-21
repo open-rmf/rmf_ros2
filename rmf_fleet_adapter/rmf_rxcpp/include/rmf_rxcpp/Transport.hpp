@@ -105,10 +105,10 @@ private:
   bool _node_added = false;
   std::condition_variable _spin_cv;
 
-  static rclcpp::executor::ExecutorArgs _make_exec_args(
+  static rclcpp::ExecutorOptions _make_exec_args(
       const rclcpp::NodeOptions& options)
   {
-    rclcpp::executor::ExecutorArgs exec_args;
+    rclcpp::ExecutorOptions exec_args;
     exec_args.context = options.context();
     return exec_args;
   }

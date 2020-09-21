@@ -9,7 +9,6 @@
   <node pkg="rmf_fleet_adapter"
         exec="robot_state_aggregator"
         name="$(var fleet_name)_state_aggregator"
-        node-name="$(var fleet_name)_state_aggregator"
         output="both">
 
     <param name="robot_prefix" value="$(var robot_prefix)"/>

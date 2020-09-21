@@ -27,7 +27,6 @@
   <node pkg="rmf_fleet_adapter"
         exec="$(var control_type)"
         name="$(var fleet_name)_fleet_adapter"
-        node-name="$(var fleet_name)_fleet_adapter"
         output="both">
 
     <param name="fleet_name" value="$(var fleet_name)"/>
