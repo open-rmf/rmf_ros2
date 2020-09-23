@@ -109,7 +109,6 @@ public:
       const std::string& fleet_name,
       const std::string& robot_name,
       rmf_traffic::agv::VehicleTraits traits,
-      rmf_traffic::Profile profile,
       std::function<void(TrafficLight::UpdateHandlePtr handle)> handle_cb);
 
   /// Get the rclcpp::Node that this adapter will be using for communication.

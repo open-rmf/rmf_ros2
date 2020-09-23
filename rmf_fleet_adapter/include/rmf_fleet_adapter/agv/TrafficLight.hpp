@@ -51,28 +51,15 @@ public:
     /// possible to get responses for old path updates that you no longer care
     /// about because you are operating off of a new path now. Save the return
     /// value of this function, and ignore all calls to
-    /// CommandHandle::receive_path_timing(~) whose version number is different
+    /// CommandHandle::receive_checkpoints(~) whose version number is different
     /// from the return value of your latest call to update_path(~).
     ///
-    /// This function should be called any time the robot changes its path, and
-    /// it may also be a good idea to call it if significant delays or
-    /// interruptions have accumulated.
+    /// This function should be called any time the robot changes the path that
+    /// it intends to follow.
     ///
     /// \param[in] new_path
     ///   Submit a new path that the robot intends to follow.
-    std::size_t update_path(const std::vector<Waypoint>& new_path);
-
-    /// Set the maximum acceptable delay before the timing gets recomputed. Pass
-    /// in a nullopt to prevent the timing from ever being recomputed.
-    UpdateHandle& maximum_delay(
-        rmf_utils::optional<rmf_traffic::Duration> value);
-
-    /// Get the maximum acceptable delay before the timing gets recomputed.
-    ///
-    /// \note The setter for this field is run asynchronously, so it may take
-    /// some time before the getter has the same value that was given to the
-    /// setter.
-    rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
+    std::size_t follow_new_path(const std::vector<Waypoint>& new_path);
 
     class Implementation;
   private:
@@ -86,53 +73,65 @@ public:
   {
   public:
 
-    /// Use this callback function to keep the fleet adapter up to date on the
-    /// progress of the vehicle.
-    ///
-    /// \param[in] path_index
-    ///   The index of the path element that the robot is currently moving
-    ///   towards.
+    /// After departing from a checkpoint, use this callback to keep your
+    /// location up to date.
     ///
     /// \param[in] location
-    ///   The current (x, y, yaw) location of the robot.
-    using ProgressCallback =
-        std::function<void(std::size_t path_index, Eigen::Vector3d location)>;
+    ///   The current <x, y, yaw> location of your robot.
+    using Departed = std::function<void(Eigen::Vector3d location)>;
 
-    /// Receive the required timing for a path that has been submitted.
+    /// Use this function to indicate that your robot is waiting for its next
+    /// batch of waypoints.
+    using OnStandby = std::function<void()>;
+
+    /// The Checkpoint struct contains information about when the robot may
+    /// depart from a Waypoint that was passed into
+    /// UpdateHandle::follow_new_path().
+    struct Checkpoint
+    {
+      /// The index of the new_path element that this Checkpoint is referring to
+      std::size_t waypoint_index;
+
+      /// The earliest time at which the robot is allowed to depart from this
+      /// checkpoint.
+      rclcpp::Time departure_time;
+
+      /// After the robot has departed from this checkpoint, you should
+      /// periodically trigger this callback with the current location of the
+      /// robot.
+      Departed departed;
+    };
+
+    /// Receive checkpoints for waypoints that have been submitted. Each
+    /// checkpoint refers to one of the waypoints that was provided by the
+    /// new_path argument of UpdateHandle::follow_new_path().
     ///
-    /// This function may get called multiple times for the same path version,
-    /// because the timing information may need to change as the traffic
-    /// schedule gets updated and conflicts occur.
+    /// This function may get triggered multiple times per path version. Each
+    /// call will contain a new continguous sequence of checkpoints. A robot
+    /// must not depart from a waypoint before it receives checkpoint
+    /// information for that waypoint.
+    ///
+    /// The next sequence of checkpoints will not be given until the on_standby
+    /// callback gets triggered.
     ///
     /// \param[in] version
     ///   The version number of the path whose timing is being provided. If this
     ///   version number does not match the latest path that you submitted, then
     ///   simply ignore and discard the timing information.
     ///
-    /// \param[in] departure_timing
-    ///   This is a vector of the earliest times that the vehicle is allowed to
-    ///   leave a given waypoint. The entries of this vector have a 1:1 mapping
-    ///   with the entries of the path vector that was submitted earlier. Each
-    ///   entry represents the earliest time that a robot is allowed to move
-    ///   past its corresponding waypoint. If the robot arrives at the waypoint
-    ///   before the given time, then the robot is obligated to pause until the
-    ///   given time arrives.
+    /// \param[in] checkpoints
+    ///   Receive a set of checkpoints that provide information about when the
+    ///   robot is allowed to depart each waypoint, and callback functions to
+    ///   keep the fleet adapter up to date on the robot's progress.
     ///
-    ///   \warning Sometimes a vehicle may need to pause after it has already
-    ///   departed one of its waypoints but before it reaches the next one. This
-    ///   will be conveyed by increasing the departure time of the last waypoint
-    ///   that it left. If the departure timing of the last waypoint that the
-    ///   robot departed from is increased to a value greater than the current
-    ///   clock time, then the robot is obligated to stop in place (wherever it
-    ///   happens to be) until the time is reached.
-    ///
-    /// \param[in] progress_updater
-    ///   Use this callback to update the traffic light on how the robot has
-    ///   progressed along the path.
-    virtual void receive_path_timing(
+    /// \param[in] on_standby
+    ///   Trigger this callback when the robot has arrived at the first waypoint
+    ///   that it has not received a checkpoint for, or when the robot has
+    ///   arrived at the last waypoint in its path.
+    virtual void receive_checkpoints(
         std::size_t version,
-        const std::vector<rclcpp::Time>& departure_timing,
-        ProgressCallback progress_updater) = 0;
+        std::vector<Checkpoint> checkpoints,
+        OnStandby on_standby) = 0;
 
     /// This function will be called when deadlock has occurred due to an
     /// unresolvable conflict. Human intervention may be required at this point,

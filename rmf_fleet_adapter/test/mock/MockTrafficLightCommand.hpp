@@ -32,15 +32,15 @@ class MockTrafficLightCommand
 {
 public:
 
-  void receive_path_timing(
-      std::size_t version,
-      const std::vector<rclcpp::Time>& timing,
-      ProgressCallback progress_updater) final
+  void receive_checkpoints(
+      const std::size_t version,
+      std::vector<Checkpoint> checkpoints,
+      std::function<void()> on_standby)
   {
     std::lock_guard<std::mutex> lock(mutex);
     current_version = version;
-    current_timing = timing;
-    current_progress_updater = std::move(progress_updater);
+    current_checkpoints = std::move(checkpoints);
+    standby_cb = std::move(on_standby);
     ++command_counter;
     cv.notify_all();
   }
@@ -52,8 +52,8 @@ public:
 
   rmf_utils::optional<std::size_t> current_version;
   std::size_t command_counter = 0;
-  std::vector<rclcpp::Time> current_timing;
-  ProgressCallback current_progress_updater;
+  std::vector<Checkpoint> current_checkpoints;
+  std::function<void()> standby_cb;
 
   std::mutex mutex;
   std::condition_variable cv;

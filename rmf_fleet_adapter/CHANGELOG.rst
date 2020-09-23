@@ -7,7 +7,7 @@ Forthcoming
 
 1.1.0 (2020-09-XX)
 ------------------
-* Traffic Light API: [#147](https://github.com/osrf/rmf_core/pull/147)
+* Traffic Light API: [#147](https://github.com/osrf/rmf_core/pull/147) [#176](https://github.com/osrf/rmf_core/pull/176)
 * Allow fleet adapters to adjust the maximum delay: [#148](https://github.com/osrf/rmf_core/pull/148)
 * Full Control Fleet Adapters respond to emergency alarm topic: [#162](https://github.com/osrf/rmf_core/pull/162)
 * Migrating to ROS2 Foxy: [#133](https://github.com/osrf/rmf_core/pull/133)

@@ -61,9 +61,9 @@ target_link_libraries(rmf_fleet_adapter
     yaml-cpp
     ${rmf_fleet_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
+    ${rmf_task_msgs_LIBRARIES}
   PRIVATE
     rmf_rxcpp
-    ${rmf_task_msgs_LIBRARIES}
     ${rmf_door_msgs_LIBRARIES}
     ${rmf_lift_msgs_LIBRARIES}
     ${rmf_dispenser_msgs_LIBRARIES}
@@ -77,8 +77,8 @@ target_include_directories(rmf_fleet_adapter
     ${rmf_traffic_ros2_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
-  PRIVATE
     ${rmf_task_msgs_INCLUDE_DIRS}
+  PRIVATE
     ${rmf_door_msgs_INCLUDE_DIRS}
     ${rmf_lift_msgs_INCLUDE_DIRS}
     ${rmf_dispenser_msgs_INCLUDE_DIRS}
@@ -152,30 +152,34 @@ target_link_libraries(read_only
 
 # -----------------------------------------------------------------------------
 
-add_executable(full_control
-  src/full_control/main.cpp
-  src/full_control/estimation.cpp
-)
+add_executable(full_control src/full_control/main.cpp)
 
 target_link_libraries(full_control
   PRIVATE
     rmf_fleet_adapter
-    ${rmf_task_msgs_LIBRARIES}
-    ${rmf_dispenser_msgs_LIBRARIES}
-    ${rmf_ingestor_msgs_LIBRARIES}
-    ${rmf_door_msgs_LIBRARIES}
-    ${rmf_lift_msgs_LIBRARIES}
-    ${std_msgs_LIBRARIES}
+    ${rmf_fleet_msgs_LIBRARIES}
 )
 
 target_include_directories(full_control
   PRIVATE
+    ${rmf_fleet_msgs_INCLUDE_DIRS}
+)
+
+# -----------------------------------------------------------------------------
+
+add_executable(mock_traffic_light src/mock_traffic_light/main.cpp)
+
+target_link_libraries(mock_traffic_light
+  PRIVATE
+    rmf_fleet_adapter
+    ${rmf_task_msgs_LIBRARIES}
+    ${rmf_fleet_msgs_LIBRARIES}
+)
+
+target_include_directories(mock_traffic_light
+  PRIVATE
     ${rmf_task_msgs_INCLUDE_DIRS}
-    ${rmf_dispenser_msgs_INCLUDE_DIRS}
-    ${rmf_ingestor_msgs_INCLUDE_DIRS}
-    ${rmf_door_msgs_INCLUDE_DIRS}
-    ${rmf_lift_msgs_INCLUDE_DIRS}
-    ${std_msgs_INCLUDE_DIRS}
+    ${rmf_fleet_msgs_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------
@@ -298,6 +302,7 @@ install(
   TARGETS
     rmf_fleet_adapter
     read_only
+    mock_traffic_light
     full_control
     lift_supervisor
     door_supervisor
