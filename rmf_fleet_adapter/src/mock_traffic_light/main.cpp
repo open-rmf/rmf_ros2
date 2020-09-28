@@ -118,7 +118,7 @@ public:
     _moving = true;
   }
 
-  void deadlock() final
+  void deadlock(std::vector<Blocker>) final
   {
     _deadlock = true;
     _stop_request.path.clear();

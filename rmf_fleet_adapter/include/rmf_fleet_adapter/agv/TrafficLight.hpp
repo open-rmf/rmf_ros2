@@ -19,6 +19,7 @@
 #define RMF_FLEET_ADAPTER__AGV__TRAFFICLIGHT_HPP
 
 #include <rmf_fleet_adapter/agv/Waypoint.hpp>
+#include <rmf_traffic/schedule/ParticipantDescription.hpp>
 
 #include <memory>
 #include <vector>
@@ -133,11 +134,28 @@ public:
         std::vector<Checkpoint> checkpoints,
         OnStandby on_standby) = 0;
 
+    /// This class is given to the deadlock() function to describe the
+    /// participants that are blocking the robot and creating the deadlock.
+    class Blocker
+    {
+    public:
+
+      /// Get the schedule participant ID of the blocker.
+      rmf_traffic::schedule::ParticipantId participand_id() const;
+
+      /// Get the description of the blocker.
+      const rmf_traffic::schedule::ParticipantDescription& description() const;
+
+      class Implementation;
+    private:
+      rmf_utils::impl_ptr<Implementation> _pimpl;
+    };
+
     /// This function will be called when deadlock has occurred due to an
     /// unresolvable conflict. Human intervention may be required at this point,
     /// because the RMF traffic negotiation system does not have a high enough
     /// level of control over the conflicting participants to resolve it.
-    virtual void deadlock() = 0;
+    virtual void deadlock(std::vector<Blocker> blockers) = 0;
 
     virtual ~CommandHandle() = default;
   };

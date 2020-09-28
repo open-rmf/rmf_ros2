@@ -45,7 +45,7 @@ public:
     cv.notify_all();
   }
 
-  void deadlock() final
+  void deadlock(std::vector<Blocker>) final
   {
     // Do nothing
   }
