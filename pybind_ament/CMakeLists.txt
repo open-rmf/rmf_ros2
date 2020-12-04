@@ -19,7 +19,7 @@ find_package(ament_cmake REQUIRED)
 include(ExternalProject)
 
 ExternalProject_Add(pybind11_src
-  URL "https://github.com/pybind/pybind11/archive/v2.5.0.zip"
+  URL "https://github.com/pybind/pybind11/archive/v2.6.0.zip"
   UPDATE_COMMAND ""
   CMAKE_ARGS -DPYBIND11_PYTHON_VERSION=${PYTHON_VERSION_STRING}
              -DPYBIND11_TEST:BOOL=OFF -DPYBIND11_INSTALL:BOOL=ON
@@ -40,6 +40,7 @@ install(
   ${PROJECT_BINARY_DIR}/share/cmake/pybind11/pybind11ConfigVersion.cmake
   ${PROJECT_BINARY_DIR}/share/cmake/pybind11/pybind11Targets.cmake
   ${PROJECT_BINARY_DIR}/share/cmake/pybind11/pybind11Tools.cmake
+  ${PROJECT_BINARY_DIR}/share/cmake/pybind11/pybind11Common.cmake
   DESTINATION share/pybind11/cmake
 )
 

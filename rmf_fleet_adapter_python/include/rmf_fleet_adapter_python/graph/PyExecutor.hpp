@@ -53,6 +53,17 @@ public:
     );
   }
 
+  void execute(const Lane::LiftSessionBegin& begin) override
+  {
+    PYBIND11_OVERLOAD_PURE_NAME(
+      void,
+      Lane::Executor,
+      "lift_session_begin_execute",
+      execute,
+      begin
+    );
+  }
+
   void execute(const Lane::LiftDoorOpen& open) override
   {
     PYBIND11_OVERLOAD_PURE_NAME(
@@ -64,14 +75,14 @@ public:
     );
   }
 
-  void execute(const Lane::LiftDoorClose& close) override
+  void execute(const Lane::LiftSessionEnd& end) override
   {
     PYBIND11_OVERLOAD_PURE_NAME(
       void,
       Lane::Executor,
-      "lift_door_close_execute",
+      "lift_session_end_execute",
       execute,
-      close
+      end 
     );
   }
 
@@ -94,6 +105,17 @@ public:
       "dock_execute",
       execute,
       dock
+    );
+  }
+
+  void execute(const Lane::Wait& wait) override
+  {
+    PYBIND11_OVERLOAD_PURE_NAME(
+      void,
+      Lane::Executor,
+      "wait_execute",
+      execute,
+      wait 
     );
   }
 };

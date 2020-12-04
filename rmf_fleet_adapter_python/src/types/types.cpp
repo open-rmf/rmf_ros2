@@ -2,9 +2,12 @@
 #include <pybind11/operators.h>
 #include <pybind11/eigen.h>
 #include <pybind11/chrono.h>
+#include <pybind11/stl.h>
+#include <optional>
 
 #include <memory>
 #include <random>
+#include <cstdint>
 
 #include <rmf_utils/impl_ptr.hpp>
 #include <rmf_utils/clone_ptr.hpp>
@@ -12,6 +15,7 @@
 #include <rmf_traffic/Time.hpp>
 
 #include <rmf_task_msgs/msg/delivery.hpp>
+#include <rmf_task_msgs/msg/loop.hpp>
 
 namespace py = pybind11;
 
@@ -20,7 +24,7 @@ rmf_task_msgs::msg::Delivery make_delivery_msg(
   std::string pickup_place_name,
   std::string pickup_dispenser,
   std::string dropoff_place_name,
-  std::string dropoff_dispenser)
+  std::string dropoff_ingestor)
 {
   rmf_task_msgs::msg::Delivery request;
   request.task_id = task_id;
@@ -29,7 +33,25 @@ rmf_task_msgs::msg::Delivery make_delivery_msg(
   request.pickup_dispenser = pickup_dispenser;
 
   request.dropoff_place_name = dropoff_place_name;
-  request.dropoff_dispenser = dropoff_dispenser;
+  request.dropoff_ingestor = dropoff_ingestor;
+
+  return request;
+}
+
+rmf_task_msgs::msg::Loop make_loop_msg(
+  std::string task_id,
+  std::string robot_type,
+  uint32_t num_loops,
+  std::string start_name,
+  std::string finish_name)
+{
+  rmf_task_msgs::msg::Loop request;
+  request.task_id = task_id;
+  request.robot_type = robot_type;
+  request.num_loops = num_loops;
+
+  request.start_name = start_name;
+  request.finish_name = finish_name;
 
   return request;
 }
@@ -49,44 +71,13 @@ void bind_types(py::module &m) {
     .def("discard", &std::mt19937::discard)
     .def("__call__", &std::mt19937::operator());
 
-  py::class_<rmf_utils::optional<std::size_t> >(m_type, "OptionalULong")
-      .def(py::init<std::size_t>())
-      .def_property_readonly("has_value",
-                             &rmf_utils::optional<std::size_t>::has_value)
-      .def_property_readonly("value", py::overload_cast<>(
-          &rmf_utils::optional<std::size_t>::value));
-
-  py::class_<rmf_utils::optional<double> >(m_type, "OptionalDouble")
-      .def(py::init<double>())
-      .def_property_readonly("has_value",
-                             &rmf_utils::optional<double>::has_value)
-      .def_property_readonly("value", py::overload_cast<>(
-          &rmf_utils::optional<double>::value));
-
-  py::class_<rmf_utils::optional<Eigen::Vector2d> >(m_type, "OptionalVector2D")
-      .def(py::init<Eigen::Vector2d>())
-      .def_property_readonly("has_value",
-                             &rmf_utils::optional<Eigen::Vector2d>::has_value)
-      .def_property_readonly("value", py::overload_cast<>(
-          &rmf_utils::optional<Eigen::Vector2d>::value));
-
-  py::class_<rmf_utils::optional<Duration> >(m_type, "OptionalDuration")
-      .def(py::init<Duration>())
-      .def_property_readonly("has_value",
-                             &rmf_utils::optional<Duration>::has_value)
-      .def_property_readonly("value", py::overload_cast<>(
-          &rmf_utils::optional<Duration>::value));
-
-  py::class_<rmf_utils::nullopt_t>(m_type, "NullOptional")
-      .def(py::init<>());
-
   py::class_<rmf_task_msgs::msg::Delivery>(m_type, "CPPDeliveryMsg")
       .def(py::init(&make_delivery_msg),
            py::arg("task_id") = "",
            py::arg("pickup_place_name") = "",
            py::arg("pickup_dispenser") = "",
            py::arg("dropoff_place_name") = "",
-           py::arg("dropoff_dispenser") = "")
+           py::arg("dropoff_ingestor") = "")
       .def_property("task_id",
                     [&](rmf_task_msgs::msg::Delivery& self){
                         return self.task_id;},
@@ -111,11 +102,48 @@ void bind_types(py::module &m) {
                     [&](rmf_task_msgs::msg::Delivery& self,
                        std::string dropoff_place_name){
                         self.dropoff_place_name = dropoff_place_name;})
-      .def_property("dropoff_dispenser",
+      .def_property("dropoff_ingestor",
                     [&](rmf_task_msgs::msg::Delivery& self){
-                        return self.dropoff_dispenser;},
+                        return self.dropoff_ingestor;},
                     [&](rmf_task_msgs::msg::Delivery& self,
-                       std::string dropoff_dispenser){
-                        self.dropoff_dispenser = dropoff_dispenser;});
-                              // .def_property("pickup_place_name",
+                       std::string dropoff_ingestor){
+                        self.dropoff_ingestor = dropoff_ingestor;});
+
+  py::class_<rmf_task_msgs::msg::Loop>(m_type, "CPPLoopMsg")
+      .def(py::init(&make_loop_msg),
+           py::arg("task_id") = "",
+           py::arg("robot_type") = "",
+           py::arg("num_loops") = "",
+           py::arg("start_name") = "",
+           py::arg("finish_name") = "")
+      .def_property("task_id",
+                    [&](rmf_task_msgs::msg::Loop& self){
+                        return self.task_id;},
+                    [&](rmf_task_msgs::msg::Loop& self,
+                       std::string task_id){
+                        self.task_id = task_id;})
+      .def_property("robot_type",
+                    [&](rmf_task_msgs::msg::Loop& self){
+                        return self.robot_type;},
+                    [&](rmf_task_msgs::msg::Loop& self,
+                       std::string robot_type){
+                        self.robot_type = robot_type;})
+      .def_property("num_loops",
+                    [&](rmf_task_msgs::msg::Loop& self){
+                        return self.num_loops;},
+                    [&](rmf_task_msgs::msg::Loop& self,
+                       uint32_t num_loops){
+                        self.num_loops = num_loops;})
+      .def_property("start_name",
+                    [&](rmf_task_msgs::msg::Loop& self){
+                        return self.start_name;},
+                    [&](rmf_task_msgs::msg::Loop& self,
+                       std::string start_name){
+                        self.start_name = start_name;})
+      .def_property("finish_name",
+                    [&](rmf_task_msgs::msg::Loop& self){
+                        return self.finish_name;},
+                    [&](rmf_task_msgs::msg::Loop& self,
+                       std::string finish_name){
+                        self.finish_name = finish_name;});
 }

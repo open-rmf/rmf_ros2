@@ -1,2 +1,6 @@
-
+*.eggs
 *.pyc
+tags
+*.swp
+*.swo
+compile_commands.json

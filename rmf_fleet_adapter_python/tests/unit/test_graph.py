@@ -31,13 +31,13 @@ def test_doors():
 # LIFTS =======================================================================
 # Doors
 def test_lift_doors():
-    lane.LiftDoor("lift_name", "floor_name", duration)
+    lane.LiftSessionBegin("lift_name", "floor_name", duration)
     lane.LiftDoorOpen("lift_name", "floor_name", duration)
-    lane.LiftDoorClose("lift_name", "floor_name", duration)
-    lift_door = lane.LiftDoor(duration=duration,
+    lane.LiftSessionEnd("lift_name", "floor_name", duration)
+
+    lift_door = lane.LiftSessionBegin(duration=duration,
                               lift_name="lift_name",
                               floor_name="floor_name")
-
     assert lift_door.lift_name == "lift_name"
     assert lift_door.floor_name == "floor_name"
     assert lift_door.duration == duration
@@ -53,19 +53,19 @@ def test_lift_doors():
 # Move
 def test_lift_moves():
     lane.LiftMove("lift_name", "destination_floor", duration)
-    lift_move = lane.LiftMove(duration=duration,
-                              lift_name="lift_name",
-                              destination_floor="destination_floor")
+    lift_move = lane.LiftMove(lift_name="lift_name",
+                              floor_name="floor_name",
+                              duration=duration)
 
     assert lift_move.lift_name == "lift_name"
-    assert lift_move.destination_floor == "destination_floor"
+    assert lift_move.floor_name == "floor_name"
     assert lift_move.duration == duration
 
     lift_move.lift_name = "lift!"
-    lift_move.destination_floor = "lift!"
+    lift_move.floor_name = "lift!"
     lift_move.duration = new_duration
     assert lift_move.lift_name == "lift!"
-    assert lift_move.destination_floor == "lift!"
+    assert lift_move.floor_name == "lift!"
     assert lift_move.duration == new_duration
 
 
@@ -95,17 +95,26 @@ class TestExecutor(lane.Executor):
     def door_close_execute(self, DoorClose):
         return DoorClose.name
 
+    def lift_session_begin_execute(self, LiftSessionBegin):
+        return LiftSessionBegin.lift_name
+
     def lift_door_open_execute(self, LiftDoorOpen):
         return LiftDoorOpen.lift_name
 
     def lift_door_close_execute(self, LiftDoorClose):
         return LiftDoorClose.lift_name
 
+    def lift_session_end_execute(self, LiftSessionEnd):
+        return LiftSessionEnd.lift_name
+
     def lift_move_execute(self, LiftMove):
         return LiftMove.lift_name
 
     def dock_execute(self, Dock):
         return Dock.dock_name
+
+    def wait_execute(Self, Wait):
+        return Wait.duration
 
 
 executor = TestExecutor()
@@ -117,24 +126,33 @@ def test_executor():
     ) == "door_open_name"
 
     assert executor.door_close_execute(
-        lane.DoorOpen("door_close_name", duration)
+        lane.DoorClose("door_close_name", duration)
     ) == "door_close_name"
 
-    assert executor.lift_door_open_execute(
-        lane.LiftDoorOpen("lift_door_open_name", "floor_name", duration)
-    ) == "lift_door_open_name"
+    assert executor.lift_session_begin_execute(
+        lane.LiftSessionBegin(
+            "lift_session_begin_name", "floor_name", duration)
+    ) == "lift_session_begin_name"
 
-    assert executor.lift_door_close_execute(
-        lane.LiftDoorClose("lift_door_close_name", "floor_name", duration)
-    ) == "lift_door_close_name"
+    assert executor.lift_door_open_execute(
+        lane.LiftDoorOpen("lift_session_end_name", "floor_name", duration)
+    ) == "lift_session_end_name"
+
+    assert executor.lift_session_end_execute(
+        lane.LiftSessionEnd("lift_session_end_name", "floor_name", duration)
+    ) == "lift_session_end_name"
 
     assert executor.lift_move_execute(
-        lane.LiftDoorClose("lift_name", "destination_floor", duration)
-    ) == "lift_name"
+        lane.LiftSessionEnd("lift_move_name", "floor_name", duration)
+    ) == "lift_move_name"
 
     assert executor.dock_execute(
         lane.Dock("dock_name", duration)
     ) == "dock_name"
+
+    assert executor.wait_execute(
+        lane.Wait(duration)
+    ) == duration
 
 
 # EVENT =======================================================================

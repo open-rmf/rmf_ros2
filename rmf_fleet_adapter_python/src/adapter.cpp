@@ -141,7 +141,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
              py::arg("navigation_graph"))
         .def_property_readonly("node",
                                py::overload_cast<>(&agv::Adapter::node))
-        // .def("request_delivery")  // Needless in Python API
+        // .def("request_delivery")  // Internally implemented, not exposed to end user
+        // .def("request_loop")      // Internally implemented, not exposed to end user
         .def("start", &agv::Adapter::start)
         .def("stop", &agv::Adapter::stop)
         .def("now", [&](agv::test::MockAdapter& self) {
@@ -164,7 +165,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
         .def_property_readonly("node",
                                py::overload_cast<>(
                                    &agv::test::MockAdapter::node))
-        .def("request_delivery", &agv::test::MockAdapter::request_delivery)
+        .def("request_delivery", &agv::test::MockAdapter::request_delivery) // Exposed for testing
+        .def("request_loop", &agv::test::MockAdapter::request_loop) // Exposed for testing
         .def("start", &agv::test::MockAdapter::start)
         .def("stop", &agv::test::MockAdapter::stop)
         .def("now", [&](agv::test::MockAdapter& self) {
