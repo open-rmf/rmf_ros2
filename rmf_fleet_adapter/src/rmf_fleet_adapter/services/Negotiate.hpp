@@ -43,7 +43,8 @@ public:
       rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
       rmf_traffic::schedule::Negotiator::ResponderPtr responder,
       ApprovalCallback approval,
-      ProgressEvaluator evaluator);
+      ProgressEvaluator evaluator,
+      std::vector<rmf_traffic::Route> initial_itinerary = {});
 
   static std::shared_ptr<Negotiate> path(
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
@@ -52,7 +53,8 @@ public:
       rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
       rmf_traffic::schedule::Negotiator::ResponderPtr responder,
       ApprovalCallback approval,
-      ProgressEvaluator evaluator);
+      ProgressEvaluator evaluator,
+      std::vector<rmf_traffic::Route> initial_itinerary = {});
 
   static std::shared_ptr<Negotiate> emergency_pullover(
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
@@ -91,6 +93,7 @@ private:
   rmf_traffic::schedule::Negotiator::TableViewerPtr _viewer;
   rmf_traffic::schedule::Negotiator::ResponderPtr _responder;
   ApprovalCallback _approval;
+  std::vector<rmf_traffic::Route> _initial_itinerary;
 
   using JobPtr = std::shared_ptr<jobs::Planning>;
   struct CompareJobs

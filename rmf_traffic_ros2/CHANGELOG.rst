@@ -2,7 +2,11 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1.1.0 (2020-09-XX)
+1.2.0 (2021-01-XX)
+------------------
+* Adding distributed blockade system hooks: [#226](https://github.com/osrf/rmf_core/pull/226)
+
+1.1.0 (2020-09-24)
 ------------------
 * Add a schedule node factory to the public API: [#147](https://github.com/osrf/rmf_core/pull/147)
 * Allow the Negotiation class to accept callbacks for Table updates: [#140](https://github.com/osrf/rmf_core/pull/140/)

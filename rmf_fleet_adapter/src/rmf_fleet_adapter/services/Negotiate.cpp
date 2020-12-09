@@ -28,13 +28,15 @@ Negotiate::Negotiate(
     rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
     rmf_traffic::schedule::Negotiator::ResponderPtr responder,
     ApprovalCallback approval,
-    const ProgressEvaluator evaluator)
+    const ProgressEvaluator evaluator,
+    std::vector<rmf_traffic::Route> initial_itinerary)
   : _planner(std::move(planner)),
     _starts(std::move(starts)),
     _goals(std::move(goals)),
     _viewer(std::move(viewer)),
     _responder(std::move(responder)),
     _approval(std::move(approval)),
+    _initial_itinerary(std::move(initial_itinerary)),
     _evaluator(evaluator)
 {
   // Do nothing
@@ -48,7 +50,8 @@ std::shared_ptr<Negotiate> Negotiate::path(
     rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
     rmf_traffic::schedule::Negotiator::ResponderPtr responder,
     ApprovalCallback approval,
-    const ProgressEvaluator evaluator)
+    const ProgressEvaluator evaluator,
+    std::vector<rmf_traffic::Route> initial_itinerary)
 {
   return std::make_shared<Negotiate>(
         std::move(planner),
@@ -57,7 +60,8 @@ std::shared_ptr<Negotiate> Negotiate::path(
         std::move(viewer),
         std::move(responder),
         std::move(approval),
-        evaluator);
+        evaluator,
+        std::move(initial_itinerary));
 }
 
 //==============================================================================

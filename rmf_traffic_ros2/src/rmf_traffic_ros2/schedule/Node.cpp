@@ -787,7 +787,6 @@ void ScheduleNode::receive_rejection(const ConflictRejection& msg)
   // TODO(MXG): This should be removed once we have a negotiation visualizer
   rmf_traffic_ros2::schedule::print_negotiation_status(msg.conflict_version,
     negotiation);
-
 }
 
 //==============================================================================

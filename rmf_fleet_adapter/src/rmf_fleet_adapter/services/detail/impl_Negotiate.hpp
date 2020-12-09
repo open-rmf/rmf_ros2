@@ -84,11 +84,22 @@ void Negotiate::operator()(const Subscriber& s)
           Result{
             shared_from_this(),
             [r = *_evaluator.best_result.progress,
+             initial_itinerary = std::move(_initial_itinerary),
              approval = std::move(_approval),
              responder = std::move(_responder)]()
             {
+              std::vector<rmf_traffic::Route> final_itinerary;
+              final_itinerary.reserve(
+                  initial_itinerary.size() + r->get_itinerary().size());
+
+              for (const auto& it : {initial_itinerary, r->get_itinerary()})
+              {
+                for (const auto& route : it)
+                  final_itinerary.push_back(route);
+              }
+
               responder->submit(
-                    r->get_itinerary(),
+                    std::move(final_itinerary),
                     [plan = *r, approval = std::move(approval)]()
                     -> UpdateVersion
               {

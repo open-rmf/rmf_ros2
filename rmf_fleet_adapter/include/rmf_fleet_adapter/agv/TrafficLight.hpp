@@ -80,10 +80,24 @@ public:
     /// \param[in] location
     ///   The current <x, y, yaw> location of your robot.
     using Departed = std::function<void(Eigen::Vector3d location)>;
+    using StoppedAt = Departed;
 
-    /// Use this function to indicate that your robot is waiting for its next
-    /// batch of waypoints.
+    /// Use this function signature to indicate that your robot is waiting for
+    /// its next batch of waypoints.
     using OnStandby = std::function<void()>;
+
+    /// Use this function signature to indicate that your robot cannot comply
+    /// with the given plan because it has already passed one of the waypoints
+    /// that it was not supposed to.
+    ///
+    /// When issuing a rejection, you should have the robot halt immediately and
+    /// trigger the rejection when the robot comes to a halt.
+    ///
+    /// Provide the last waypoint that was departed from, and the current
+    /// location of the robot once
+    using Reject = std::function<void(
+        std::size_t last_departed,
+        Eigen::Vector3d stopped_location)>;
 
     /// The Checkpoint struct contains information about when the robot may
     /// depart from a Waypoint that was passed into
@@ -112,8 +126,14 @@ public:
     /// must not depart from a waypoint before it receives checkpoint
     /// information for that waypoint.
     ///
-    /// The next sequence of checkpoints will not be given until the on_standby
-    /// callback gets triggered.
+    /// After traffic negotiations happen, it is possible that some checkpoint
+    /// departure times might get postponed or temporarily canceled. When that
+    /// happens, this function will get triggered again for the same checkpoint
+    /// indices. The latest values given by the checkpoints argument of this
+    /// function are the values that need to be obeyed.
+    ///
+    /// When receiving a repeated batch of checkpoints, all old checkpoints from
+    /// the new standby_at index and higher must be discarded.
     ///
     /// \param[in] version
     ///   The version number of the path whose timing is being provided. If this
@@ -125,14 +145,69 @@ public:
     ///   robot is allowed to depart each waypoint, and callback functions to
     ///   keep the fleet adapter up to date on the robot's progress.
     ///
+    /// \param[in] standby_at
+    ///   Trigger the on_standby callback and have the robot wait once it
+    ///   reaches this waypoint.
+    ///
     /// \param[in] on_standby
     ///   Trigger this callback when the robot has arrived at the first waypoint
     ///   that it has not received a checkpoint for, or when the robot has
     ///   arrived at the last waypoint in its path.
+    ///
+    /// \param[in] reject
+    ///   Trigger this callback if the plan must be rejected because the robot
+    ///   has already passed the standby_at checkpoint. If you trigger this
+    ///   callback, you must not trigger any of the new checkpoint departure
+    ///   callbacks. Vice-versa, if you trigger any of the new checkpoint
+    ///   departure callbacks, then you must not trigger this reject callback.
+    ///   Before triggering any of these newly received callbacks, first
+    ///   determine whether this new plan can be obeyed.
     virtual void receive_checkpoints(
         std::size_t version,
         std::vector<Checkpoint> checkpoints,
-        OnStandby on_standby) = 0;
+        std::size_t standby_at,
+        OnStandby on_standby,
+        Reject reject) = 0;
+
+    /// Immediately stop until the specified time.
+    ///
+    /// This command is canceled if resume() is called afterwards.
+    ///
+    /// If a subsequent call is made to immediately_stop_until(~), then the new
+    /// time overrides the old time, even if the new time is sooner.
+    ///
+    /// If the specified time has already passed by the time this function is
+    /// called, then there is no need to stop.
+    ///
+    /// \param[in] version
+    ///   The version number of the path whose timing is being provided. If this
+    ///   version number does not match the latest path that you submitted, then
+    ///   simply ignore and discard the timing information.
+    ///
+    /// \param[in] time
+    ///   The time to wait until
+    ///
+    /// \param[in] stopped_at
+    ///   Trigger this callback while the robot is stopped and update the
+    ///   location. As long as the robot truly comes to a stop, this only needs
+    ///   to be called once.
+    ///
+    /// \param[in] departed
+    ///   Trigger this callback when the robot departs from this stop.
+    virtual void immediately_stop_until(
+        std::size_t version,
+        rclcpp::Time time,
+        StoppedAt stopped_at,
+        Departed departed) = 0;
+
+    /// Resume travel, even if immediately_stop_until(~) was activated and the
+    /// given time has not been reached yet.
+    ///
+    /// \param[in] version
+    ///   The version number of the path whose timing is being provided. If this
+    ///   version number does not match the latest path that you submitted, then
+    ///   simply ignore and discard the timing information.
+    virtual void resume(std::size_t version) = 0;
 
     /// This class is given to the deadlock() function to describe the
     /// participants that are blocking the robot and creating the deadlock.
@@ -141,13 +216,14 @@ public:
     public:
 
       /// Get the schedule participant ID of the blocker.
-      rmf_traffic::schedule::ParticipantId participand_id() const;
+      rmf_traffic::schedule::ParticipantId participant_id() const;
 
       /// Get the description of the blocker.
       const rmf_traffic::schedule::ParticipantDescription& description() const;
 
       class Implementation;
     private:
+      Blocker();
       rmf_utils::impl_ptr<Implementation> _pimpl;
     };
 

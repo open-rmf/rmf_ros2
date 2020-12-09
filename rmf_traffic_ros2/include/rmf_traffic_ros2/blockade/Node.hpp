@@ -15,19 +15,19 @@
  *
 */
 
-#ifndef RMF_TRAFFIC_ROS2__SCHEDULE__NODE_HPP
-#define RMF_TRAFFIC_ROS2__SCHEDULE__NODE_HPP
+#ifndef RMF_TRAFFIC_ROS2__BLOCKADE__NODE_HPP
+#define RMF_TRAFFIC_ROS2__BLOCKADE__NODE_HPP
 
 #include <rclcpp/node.hpp>
 
 namespace rmf_traffic_ros2 {
-namespace schedule {
+namespace blockade {
 
-/// Make a ScheduleNode instance
+/// Make a blockade node instance
 std::shared_ptr<rclcpp::Node> make_node(
-  const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
+    const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
-} // namespace schedule
+} // namespace blockade
 } // namespace rmf_traffic_ros2
 
-#endif // RMF_TRAFFIC_ROS2__SCHEDULE__NODE_HPP
+#endif // RMF_TRAFFIC_ROS2__BLOCKADE__NODE_HPP

@@ -22,6 +22,8 @@
 
 #include <rmf_traffic/schedule/Database.hpp>
 
+#include <rmf_traffic_ros2/blockade/Writer.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 namespace test {
@@ -35,12 +37,17 @@ public:
   std::shared_ptr<Node> node;
   std::shared_ptr<rmf_traffic::schedule::Database> database;
 
+  // TODO(MXG): We should swap this out for a blockade Moderator that doesn't
+  // rely on ROS2
+  std::shared_ptr<rmf_traffic_ros2::blockade::Writer> blockade_writer;
+
   Implementation(
       const std::string& node_name,
       const rclcpp::NodeOptions& node_options)
     : worker{rxcpp::schedulers::make_event_loop().create_worker()},
       node{Node::make(worker, node_name, node_options)},
-      database{std::make_shared<rmf_traffic::schedule::Database>()}
+      database{std::make_shared<rmf_traffic::schedule::Database>()},
+      blockade_writer{rmf_traffic_ros2::blockade::Writer::make(*node)}
   {
     // Do nothing
   }
@@ -99,6 +106,7 @@ TrafficLight::UpdateHandlePtr MockAdapter::add_traffic_light(
   return TrafficLight::UpdateHandle::Implementation::make(
         std::move(command),
         std::move(participant),
+        _pimpl->blockade_writer,
         std::move(traits),
         _pimpl->database,
         _pimpl->worker,

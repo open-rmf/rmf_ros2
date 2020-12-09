@@ -35,7 +35,9 @@ public:
   void receive_checkpoints(
       const std::size_t version,
       std::vector<Checkpoint> checkpoints,
-      std::function<void()> on_standby)
+      const std::size_t,
+      std::function<void()> on_standby,
+      Reject)
   {
     std::lock_guard<std::mutex> lock(mutex);
     current_version = version;
@@ -46,6 +48,17 @@ public:
   }
 
   void deadlock(std::vector<Blocker>) final
+  {
+    // Do nothing
+  }
+
+  void immediately_stop_until(
+      std::size_t, rclcpp::Time, StoppedAt, Departed) final
+  {
+    // Do nothing
+  }
+
+  void resume(std::size_t) final
   {
     // Do nothing
   }

@@ -19,6 +19,7 @@
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/TrafficLight.hpp>
+#include <rmf_fleet_adapter/agv/EasyTrafficLight.hpp>
 
 #include <rmf_traffic/agv/VehicleTraits.hpp>
 #include <rmf_traffic/agv/Graph.hpp>
@@ -102,14 +103,79 @@ public:
   /// Create a traffic light to help manage robots that can only support pause
   /// and resume commands.
   ///
+  /// \param[in] command
+  ///   The handle for the traffic light to use to trigger commands. You must
+  ///   implement the TrafficLight::CommandHandle abstract interface for your
+  ///   robot or fleet.
+  ///
   /// \param[in] fleet_name
   ///   The name of the fleet
+  ///
+  /// \param[in] robot_name
+  ///   The name of the robot
+  ///
+  /// \param[in] traits
+  ///   The traits of the robot
+  ///
+  /// \param[in] handle_cb
+  ///   The callback that will be triggered when the traffic light handle is
+  ///   ready to be used. This callback will only be triggered once.
   void add_traffic_light(
       std::shared_ptr<TrafficLight::CommandHandle> command,
       const std::string& fleet_name,
       const std::string& robot_name,
       rmf_traffic::agv::VehicleTraits traits,
       std::function<void(TrafficLight::UpdateHandlePtr handle)> handle_cb);
+
+  using Blockers = std::vector<TrafficLight::CommandHandle::Blocker>;
+
+  /// Create an easy-to-use version of a traffic light to help manage robots
+  /// that can only support pause and resume commands.
+  ///
+  /// This API is much simpler to use than the standard traffic light API, but
+  /// it provides less information about the exact timing needed for the starts
+  /// and stops.
+  ///
+  /// This API should only be used for demo purposes, or if system integrators
+  /// can ensure very low-latency and reliable connections to the robots to
+  /// ensure that the commands arrive on time.
+  ///
+  /// \param[in] handle_callback
+  ///   The callback that will be triggered when the EasyTrafficLight handle is
+  ///   ready to be used. This callback will only be triggered once.
+  ///
+  /// \param[in] fleet_name
+  ///   The name of the fleet
+  ///
+  /// \param[in] robot_name
+  ///   The name of the robot
+  ///
+  /// \param[in] traits
+  ///   The traits of the robot
+  ///
+  /// \param[in] pause_callback
+  ///   The callback that should be triggered by the traffic light when an
+  ///   immediate pause is needed.
+  ///
+  /// \param[in] resume_callback
+  ///   The callback that will be triggered by the traffic light when the robot
+  ///   may resume moving forward.
+  ///
+  /// \param[in] blocker_callback
+  ///   The callback that will be triggered by the traffic light if there is a
+  ///   permanent blocker disrupting the ability of this vehicle to proceed.
+  ///   Manual intervention may be required in this circumstance. A callback
+  ///   does not need to be provided for this. Either way, an error message will
+  ///   be printed to the log.
+  void add_easy_traffic_light(
+      std::function<void(EasyTrafficLightPtr handle)> handle_callback,
+      const std::string& fleet_name,
+      const std::string& robot_name,
+      rmf_traffic::agv::VehicleTraits traits,
+      std::function<void()> pause_callback,
+      std::function<void()> resume_callback,
+      std::function<void(Blockers)> blocker_callback = nullptr);
+
 
   /// Get the rclcpp::Node that this adapter will be using for communication.
   std::shared_ptr<rclcpp::Node> node();

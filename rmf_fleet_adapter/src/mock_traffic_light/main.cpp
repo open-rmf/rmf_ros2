@@ -27,9 +27,11 @@
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
 // Fleet driver state/command messages
+#include <rmf_fleet_msgs/msg/location.hpp>
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
 #include <rmf_fleet_msgs/msg/path_request.hpp>
 #include <rmf_fleet_msgs/msg/mode_request.hpp>
+#include <rmf_fleet_msgs/msg/pause_request.hpp>
 
 // Loop request message
 #include <rmf_task_msgs/msg/loop.hpp>
@@ -41,19 +43,41 @@
 // the information provided by fleet drivers.
 #include "../rmf_fleet_adapter/estimation.hpp"
 
+// Utility to help with modular arithmetic
+#include <rmf_utils/Modular.hpp>
+
 #include <deque>
+
+namespace {
+//==============================================================================
+rmf_fleet_msgs::msg::Location make_location(
+    rclcpp::Time t,
+    const Eigen::Vector3d& p,
+    const std::string& map_name,
+    const std::size_t index)
+{
+  return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
+      .t(t)
+      .x(p[0]).y(p[1]).yaw(p[2])
+      .level_name(map_name)
+      .index(index);
+}
+
+} // anonymous namespace
 
 //==============================================================================
 class MockTrafficLightCommandHandle
-    : public rmf_fleet_adapter::agv::TrafficLight::CommandHandle
+    : public std::enable_shared_from_this<MockTrafficLightCommandHandle>
 {
 public:
 
   using PathRequestPub =
       rclcpp::Publisher<rmf_fleet_msgs::msg::PathRequest>::SharedPtr;
 
-  using ModeRequestPub =
-      rclcpp::Publisher<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr;
+  using PauseRequestPub =
+      rclcpp::Publisher<rmf_fleet_msgs::msg::PauseRequest>::SharedPtr;
+
+  using EasyTrafficLight = rmf_fleet_adapter::agv::EasyTrafficLight;
 
   MockTrafficLightCommandHandle(
       rclcpp::Node& node,
@@ -62,15 +86,21 @@ public:
       std::shared_ptr<const rmf_traffic::agv::Graph> graph,
       std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
       std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-      PathRequestPub path_request_pub)
+      PathRequestPub path_request_pub,
+      PauseRequestPub pause_request_pub)
     : _node(&node),
-      _path_request_pub(std::move(path_request_pub))
+      _path_request_pub(std::move(path_request_pub)),
+      _pause_request_pub(std::move(pause_request_pub))
   {
     _current_path_request.fleet_name = fleet_name;
     _current_path_request.robot_name = robot_name;
 
-    _stop_request.fleet_name = fleet_name;
-    _stop_request.robot_name = robot_name;
+    _pause_request = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::PauseRequest>()
+        .fleet_name(fleet_name)
+        .robot_name(robot_name)
+        .mode_request_id(0)
+        .type(_pause_request.TYPE_RESUME)
+        .at_checkpoint(0);
 
     _travel_info.graph = std::move(graph);
     _travel_info.traits = std::move(traits);
@@ -80,134 +110,152 @@ public:
     _planner = planner;
   }
 
-  void receive_checkpoints(
-    const std::size_t version,
-    std::vector<Checkpoint> checkpoints,
-    OnStandby on_standby) final
+  void set_update_handle(
+      rmf_fleet_adapter::agv::EasyTrafficLightPtr update_handle)
   {
-    std::lock_guard<std::mutex> lock(_mutex);
-    if (_path_version != version)
-      return;
-
-    _deadlock = false;
-
-    _checkpoints = std::move(checkpoints);
-    _on_standby = std::move(on_standby);
-
-    _current_path_request.path.clear();
-    _current_path_request.path.reserve(_checkpoints.size());
-
-    for (const auto& c : _checkpoints)
-    {
-      const auto i = c.waypoint_index;
-      assert(i < _current_path.size());
-
-      const auto& p = _current_path.at(i).position();
-
-      rmf_fleet_msgs::msg::Location location;
-      location.t = c.departure_time;
-      location.x = p[0];
-      location.y = p[1];
-      location.yaw = p[2];
-      location.level_name = _current_path[i].map_name();
-      _current_path_request.path.push_back(location);
-    }
-
-    _current_path_request.task_id = std::to_string(++_command_version);
-    _path_request_pub->publish(_current_path_request);
-    _moving = true;
+    _update = std::move(update_handle);
   }
 
-  void deadlock(std::vector<Blocker>) final
+  const std::string& name() const
   {
-    _deadlock = true;
-    _stop_request.path.clear();
-    _stop_request.path.push_back(_last_state.location);
-    _stop_request.task_id = std::to_string(++_command_version);
-    _path_request_pub->publish(_stop_request);
-    const auto l = _stop_request.path.front();
-
-    if (!_deadlock_timer)
-    {
-      _deadlock_timer = _node->create_wall_timer(
-            std::chrono::seconds(5),
-            [this]()
-      {
-        this->_deadlock_timer = nullptr;
-
-        if (this->_deadlock)
-          this->_restart_path();
-      });
-    }
-
-    RCLCPP_ERROR(_node->get_logger(), "Deadlock detected!");
-  }
-
-  void set_updater(
-      rmf_fleet_adapter::agv::TrafficLight::UpdateHandlePtr updater)
-  {
-    _path_updater = std::move(updater);
+    return _travel_info.robot_name;
   }
 
   void update_state(const rmf_fleet_msgs::msg::RobotState& state)
   {
     std::lock_guard<std::mutex> lock(_mutex);
+    if (_last_state.has_value())
+    {
+      // Skip over old messages
+      if (rmf_utils::modular(state.seq).less_than(_last_state->seq))
+        return;
+    }
+
     _last_state = state;
 
-    if (_deadlock)
+    if (!_update)
     {
-      if (_stop_request.task_id != state.task_id)
-        _path_request_pub->publish(_stop_request);
-
-      return;
+      throw std::runtime_error(
+            "Update handle has not been received by [" + _travel_info.robot_name
+            + "] owned by [" + _travel_info.fleet_name + "]!");
     }
 
     if (!_moving)
       return;
 
+    if (_pending_path_publish)
+    {
+      // Make sure that the robot knows it should wait at checkpoint 0 before
+      // we issue the path request.
+      if (_pause_request.mode_request_id == state.mode.mode_request_id)
+        _send_new_path_command();
+      else
+        _pause_request_pub->publish(_pause_request);
+
+      return;
+    }
+
+    if (_pause_request.mode_request_id != state.mode.mode_request_id)
+    {
+      // If the robot has the wrong mode request, then republish the command
+      _pause_request_pub->publish(_pause_request);
+      return;
+    }
+
     if (_current_path_request.task_id != state.task_id)
     {
+      // If the robot has the wrong path request ID, then resend this
       _path_request_pub->publish(_current_path_request);
+      return;
+    }
+
+    if (state.mode.mode == rmf_fleet_msgs::msg::RobotMode::MODE_ADAPTER_ERROR)
+    {
+      RCLCPP_ERROR(
+            _node->get_logger(),
+            "Uh oh!! An adapter error has occurred for [%s] owned by [%s]. "
+            "This really shouldn't happen for the traffic light, but there is "
+            "a TODO inside the source code for how to fix this if it ever does "
+            "occur");
+      // TODO(MXG): If this error ever gets printed, we can fix this issue by
+      // changing this code block to resend the path request, but with the
+      // first waypoint of the path request replaced by whatever the robot's
+      // current location is.
+      //
+      // However, I'm leaving this code to just issue a warning, because this
+      // really shouldn't happen, and the most likely cause would be if multiple
+      // independent sources are issuing commands to the same robot at the same
+      // time, which probably indicates that a different--more serious--bug is
+      // happening somewhere else in the system.
       return;
     }
 
     if (state.path.empty())
     {
-      if (_on_standby)
+      if (_end_waypoint_index.has_value())
       {
-        _on_standby();
-        _on_standby = nullptr;
+        // We can ignore the output of this function since there's no way to
+        // continue once the robot reaches the end. But we'll still call this
+        // function so that the traffic light knows our robot has reached its
+        // end goal.
+        (void)(_update->waiting_at(_end_waypoint_index.value()));
       }
 
-      assert(!_checkpoints.empty());
-      if (_checkpoints.back().waypoint_index == _current_path.size()-1)
-      {
-        _checkpoints.clear();
-        _moving = false;
-        _queue.pop_front();
-        _go_to_next_waypoint();
-        return;
-      }
-    }
-
-    _last_active_state = state;
-    const std::size_t ideal_checkpoint_num = state.path.size() + 1;
-    if (_checkpoints.size() < ideal_checkpoint_num)
-    {
-      // This means the robot has not started following its path yet
+      _moving = false;
+      _go_to_next_waypoint();
       return;
     }
-    else if (ideal_checkpoint_num < _checkpoints.size())
-    {
-      const std::size_t remove_N = _checkpoints.size() - ideal_checkpoint_num;
 
-      _checkpoints.erase(
-            _checkpoints.begin(),
-            _checkpoints.begin() + remove_N);
+    // Skip over old messages
+    if (state.path.front().index < _update->last_reached())
+    {
+      return;
     }
 
+    const std::size_t target = state.path.front().index;
+    _last_target = target;
     const auto& l = state.location;
-    _checkpoints.front().departed({l.x, l.y, l.yaw});
+    const Eigen::Vector3d p{l.x, l.y, l.yaw};
+    if (state.mode.mode == state.mode.MODE_PAUSED)
+    {
+      if (target == 0)
+      {
+        // If the current target is 0, then let's just assume that's where the
+        // robot is waiting.
+        _handle_waiting_instruction(_update->waiting_at(0));
+        return;
+      }
+
+      if (_pause_request.type == _pause_request.TYPE_PAUSE_IMMEDIATELY)
+      {
+        _handle_waiting_instruction(_update->waiting_after(target-1, p));
+        return;
+      }
+
+      if (_pause_request.type == _pause_request.TYPE_PAUSE_AT_CHECKPOINT)
+      {
+        if (_pause_request.at_checkpoint == target)
+        {
+          _handle_waiting_instruction(_update->waiting_at(target));
+          return;
+        }
+      }
+
+      _handle_waiting_instruction(_update->waiting_after(target-1, p));
+      return;
+    }
+
+    if (target == 0)
+    {
+      // If the robot is moving towards checkpoint 0 (which implies checkpoint 0
+      // is not the location that it actually started, which is suspicious, but
+      // whatever), then let's just tell the traffic light that the robot is
+      // waiting at checkpoint 0.
+      _handle_waiting_instruction(_update->waiting_at(0));
+      return;
+    }
+
+    _handle_moving_instruction(_update->moving_from(target-1, p), target);
   }
 
   std::size_t queue_size() const
@@ -228,12 +276,24 @@ public:
       _go_to_next_waypoint();
   }
 
+  void pause_immediately()
+  {
+    std::lock_guard<std::mutex> lock(_mutex);
+    _internal_pause_immediately();
+  }
+
+  void resume()
+  {
+    std::lock_guard<std::mutex> lock(_mutex);
+    _internal_resume();
+  }
+
   rmf_utils::optional<std::string> start_waypoint() const
   {
-    if (_moving || !_queue.empty())
+    if (_moving || !_queue.empty() || !_last_state.has_value())
       return rmf_utils::nullopt;
 
-    const auto& l = _last_state.location;
+    const auto& l = _last_state->location;
     const auto starts = rmf_traffic::agv::compute_plan_starts(
           _planner->get_configuration().graph(),
           l.level_name,
@@ -252,20 +312,15 @@ public:
     return rmf_utils::nullopt;
   }
 
-  const std::string& name() const
-  {
-    return _travel_info.robot_name;
-  }
-
 private:
 
   void _go_to_next_waypoint()
   {
     while (!_queue.empty())
     {
-      const std::string next = std::move(_queue.front());
+      const std::string next = _queue.front();
 
-      const auto& l = _last_state.location;
+      const auto& l = _last_state.value().location;
       const auto starts = rmf_traffic::agv::compute_plan_starts(
             _planner->get_configuration().graph(),
             l.level_name,
@@ -288,6 +343,7 @@ private:
               _node->get_logger(),
               "Could not find a goal named [%s] for robot [%s]",
               next.c_str(), _travel_info.robot_name.c_str());
+
         _queue.pop_front();
         continue;
       }
@@ -295,16 +351,25 @@ private:
       const auto result = _planner->plan(starts, goal->index());
       if (!result)
       {
-        RCLCPP_WARN(
+        RCLCPP_ERROR(
               _node->get_logger(),
               "Could not find a plan to get robot [%s] to waypoint [%s]",
               _travel_info.robot_name.c_str(), next.c_str());
+
         _queue.pop_front();
         continue;
       }
 
       if (result->get_waypoints().size() < 2)
       {
+        RCLCPP_INFO(
+              _node->get_logger(),
+              "[%s] owned by [%s] skipping queued waypoint goal of [%s] "
+              "because it is already there.",
+              _travel_info.robot_name.c_str(),
+              _travel_info.fleet_name.c_str(),
+              _queue.front().c_str());
+
         _queue.pop_front();
         continue;
       }
@@ -314,42 +379,93 @@ private:
     }
   }
 
+  void _handle_moving_instruction(
+      const EasyTrafficLight::MovingInstruction instruction,
+      const std::size_t target)
+  {
+    if (instruction == EasyTrafficLight::MovingInstruction::WaitAtNextCheckpoint)
+    {
+      _internal_pause_at_checkpoint(target);
+      return;
+    }
+
+    if (instruction == EasyTrafficLight::MovingInstruction::ContinueAtNextCheckpoint)
+    {
+      _internal_resume();
+      return;
+    }
+
+    if (instruction == EasyTrafficLight::MovingInstruction::PauseImmediately)
+    {
+      _internal_pause_immediately();
+      return;
+    }
+
+    if (instruction == EasyTrafficLight::MovingInstruction::MovingError)
+    {
+      RCLCPP_ERROR(
+        _node->get_logger(),
+        "Uh oh! Received a MovingError for robot [%s] of fleet [%s]",
+        _travel_info.robot_name.c_str(), _travel_info.fleet_name.c_str());
+    }
+  }
+
+  void _handle_waiting_instruction(
+      const EasyTrafficLight::WaitingInstruction instruction)
+  {
+    if (instruction == EasyTrafficLight::WaitingInstruction::Resume)
+    {
+      _internal_resume();
+      return;
+    }
+
+    if (instruction == EasyTrafficLight::WaitingInstruction::WaitingError)
+    {
+      RCLCPP_ERROR(
+        _node->get_logger(),
+        "Uh oh! Received a WaitingError for robot [%s] of fleet [%s]",
+        _travel_info.robot_name.c_str(), _travel_info.fleet_name.c_str());
+    }
+  }
+
   void _follow_new_path(
       const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints)
   {
+    _moving = true;
+    _last_target = 0;
     _current_path_request.path.clear();
 
-    _moving = false;
-    _last_target = 0;
     const auto& graph = _travel_info.graph;
     std::string first_level;
     for (const auto& wp : waypoints)
     {
       if (wp.graph_index())
       {
-        first_level = graph->get_waypoint(*wp.graph_index()).get_map_name();
+        first_level = graph->get_waypoint(wp.graph_index().value())
+            .get_map_name();
         break;
       }
     }
 
     const auto get_map_name = [&](rmf_utils::optional<std::size_t> index)
     {
-      if (index)
-        return graph->get_waypoint(*index).get_map_name();
+      if (index.has_value())
+        return graph->get_waypoint(index.value()).get_map_name();
 
       return first_level;
     };
 
-    _current_path.clear();
-    _current_path.reserve(waypoints.size());
+    std::vector<rmf_fleet_adapter::agv::Waypoint> new_path;
+    new_path.reserve(waypoints.size());
+
 
     for (std::size_t i=0; i < waypoints.size(); ++i)
     {
       const auto& wp = waypoints[i];
       if (i > 0)
       {
-        const auto last_x = _current_path.back().position().x();
-        const auto last_y = _current_path.back().position().y();
+        const auto last_x = new_path.back().position().x();
+        const auto last_y = new_path.back().position().y();
         const auto delta =
             (wp.position().block<2,1>(0,0)
              - Eigen::Vector2d(last_x, last_y)).norm();
@@ -360,64 +476,115 @@ private:
 
       const auto p = wp.position();
       const auto map_name = get_map_name(wp.graph_index());
-      _current_path.emplace_back(map_name, p);
+      new_path.emplace_back(map_name, p);
     }
 
-    _last_target = 0;
-    _path_version = _path_updater->follow_new_path(_current_path);
+    const auto now = _node->now();
+    _current_path_request.path.push_back(_last_state.value().location);
+    _current_path_request.path.front().index = 0;
+    for (std::size_t i=0; i < new_path.size(); ++i)
+    {
+      const auto& wp = new_path[i];
+      _current_path_request.path.push_back(
+            make_location(now, wp.position(), wp.map_name(), i));
+    }
+
+    RCLCPP_INFO(
+          _node->get_logger(),
+          "Moving [%s] owned by [%s] towards waypoint [%s]",
+          _travel_info.robot_name.c_str(),
+          _travel_info.fleet_name.c_str(),
+          _queue.front().c_str());
+
+    _end_waypoint_index = new_path.size() - 1;
+    _pending_path_publish = true;
+    _update->follow_new_path(new_path);
+
+    // We want the robot to wait at its first checkpoint until we get the
+    // go-ahead for it to move forward. So first we issue this pause request,
+    // and then once we know the robot will remain paused at waypoint 0, then
+    // we will issue the path command.
+    _internal_pause_at_checkpoint(0);
   }
 
-  void _restart_path()
+  void _internal_pause_immediately()
   {
-    _current_path.clear();
-    _current_path.reserve(_last_active_state.path.size() + 1);
+    if (_pause_request.type == _pause_request.TYPE_PAUSE_IMMEDIATELY)
+      return;
 
-    const auto& l0 = _last_state.location;
-    _current_path.emplace_back(
-          l0.level_name, Eigen::Vector3d{l0.x, l0.y, l0.yaw});
+    ++_pause_request.mode_request_id;
+    _pause_request.type = _pause_request.TYPE_PAUSE_IMMEDIATELY;
+    _pause_request_pub->publish(_pause_request);
+  }
 
-    _current_path_request.path.clear();
-    _current_path_request.path.push_back(l0);
-
-    const auto& last_path = _last_active_state.path;
-    for (const auto& l : last_path)
+  void _internal_pause_at_checkpoint(const std::size_t checkpoint)
+  {
+    if (_pause_request.type == _pause_request.TYPE_PAUSE_AT_CHECKPOINT)
     {
-      _current_path.emplace_back(
-            l.level_name, Eigen::Vector3d{l.x, l.y, l.yaw});
+      // Don't needlessly duplicate the command
+      if (_pause_request.at_checkpoint == checkpoint)
+        return;
     }
 
-    _last_target = 0;
-    _path_version = _path_updater->follow_new_path(_current_path);
+    ++_pause_request.mode_request_id;
+
+    if (checkpoint == _current_path_request.path.back().index)
+    {
+      // The traffic light will always tell us to stop at the last waypoint, but
+      // we don't want to instruct the slotcar plugin to pause there, because
+      // then it will keep the last waypoint in its future path forever, and
+      // we'll never be able to move to the next queue item. When we get this
+      // command, we'll just tell the slotcar to resume until the end.
+      _pause_request.type = _pause_request.TYPE_RESUME;
+    }
+    else
+    {
+      _pause_request.type = _pause_request.TYPE_PAUSE_AT_CHECKPOINT;
+      _pause_request.at_checkpoint = checkpoint;
+    }
+
+    _pause_request_pub->publish(_pause_request);
+  }
+
+  void _internal_resume()
+  {
+    if (_pause_request.type == _pause_request.TYPE_RESUME)
+      return;
+
+    _internal_pause_at_checkpoint(_last_target.value()+1);
+  }
+
+  void _send_new_path_command()
+  {
+    _current_path_request.task_id = std::to_string(++_path_command_version);
+    _path_request_pub->publish(_current_path_request);
+    _pending_path_publish = false;
   }
 
   std::deque<std::string> _queue;
 
   rclcpp::Node* _node;
   PathRequestPub _path_request_pub;
+  PauseRequestPub _pause_request_pub;
   rmf_fleet_msgs::msg::PathRequest _current_path_request;
+  rmf_fleet_msgs::msg::PauseRequest _pause_request;
 
-  rmf_fleet_msgs::msg::PathRequest _stop_request;
-  bool _deadlock = false;
-  std::shared_ptr<rclcpp::TimerBase> _deadlock_timer;
+  bool _pending_path_publish = false;
+  bool _moving = false;
 
   std::chrono::steady_clock::time_point _path_requested_time;
   TravelInfo _travel_info;
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
-  rmf_fleet_msgs::msg::RobotState _last_state;
-  rmf_fleet_msgs::msg::RobotState _last_active_state;
+  std::optional<rmf_fleet_msgs::msg::RobotState> _last_state;
+  std::optional<std::size_t> _last_target;
 
-  std::size_t _path_version = 0;
-  std::size_t _command_version = 0;
-  std::size_t _last_target = 0;
-  bool _moving = false;
-  std::vector<rmf_fleet_adapter::agv::Waypoint> _current_path;
+  std::size_t _path_command_version = 0;
 
-  std::vector<Checkpoint> _checkpoints;
-  OnStandby _on_standby;
+  std::optional<std::size_t> _end_waypoint_index;
 
   std::mutex _mutex;
 
-  rmf_fleet_adapter::agv::TrafficLight::UpdateHandlePtr _path_updater;
+  rmf_fleet_adapter::agv::EasyTrafficLightPtr _update;
 };
 
 using MockTrafficLightCommandHandlePtr =
@@ -450,6 +617,9 @@ struct Connections : public std::enable_shared_from_this<Connections>
   rclcpp::Publisher<rmf_fleet_msgs::msg::PathRequest>::SharedPtr
   path_request_pub;
 
+  rclcpp::Publisher<rmf_fleet_msgs::msg::PauseRequest>::SharedPtr
+  pause_request_pub;
+
   /// The publisher for sending out mode requests
   rclcpp::Publisher<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr
   mode_request_pub;
@@ -467,17 +637,30 @@ struct Connections : public std::enable_shared_from_this<Connections>
     const std::string robot_name = state.name;
     const auto command = std::make_shared<MockTrafficLightCommandHandle>(
           *adapter->node(), fleet_name, robot_name, graph, traits, planner,
-          path_request_pub);
+          path_request_pub, pause_request_pub);
 
-    adapter->add_traffic_light(
-          command, fleet_name, robot_name, *traits,
+    auto pause = [w = command->weak_from_this()]()
+    {
+      if (const auto command = w.lock())
+        command->pause_immediately();
+    };
+
+    auto resume = [w = command->weak_from_this()]()
+    {
+      if (const auto command = w.lock())
+        command->resume();
+    };
+
+    adapter->add_easy_traffic_light(
           [c = weak_from_this(), command, robot_name = robot_name](
-          rmf_fleet_adapter::agv::TrafficLight::UpdateHandlePtr updater)
+          rmf_fleet_adapter::agv::EasyTrafficLightPtr updater)
     {
       const auto connections = c.lock();
-      command->set_updater(std::move(updater));
+      command->set_update_handle(std::move(updater));
       connections->robots[robot_name] = command;
-    });
+    },
+    fleet_name, robot_name, *traits,
+    std::move(pause), std::move(resume));
   }
 };
 
@@ -517,10 +700,20 @@ std::shared_ptr<Connections> make_fleet(
     return nullptr;
   }
 
-  connections->graph =
+  auto graph =
       std::make_shared<rmf_traffic::agv::Graph>(
         rmf_fleet_adapter::agv::parse_graph(graph_file, *connections->traits));
 
+  // We add pseudo-events on every lane to force the planner to include every
+  // intermediate waypoint in its plan.
+  for (std::size_t i=0; i < graph->num_lanes(); ++i)
+  {
+    graph->get_lane(i).exit().event(
+          rmf_traffic::agv::Graph::Lane::Event::make(
+            rmf_traffic::agv::Graph::Lane::Wait(std::chrono::seconds(0))));
+  }
+
+  connections->graph = std::move(graph);
   std::cout << "The fleet [" << fleet_name
             << "] has the following named waypoints:\n";
   for (const auto& key : connections->graph->keys())
@@ -536,6 +729,10 @@ std::shared_ptr<Connections> make_fleet(
   connections->path_request_pub = node->create_publisher<
       rmf_fleet_msgs::msg::PathRequest>(
         rmf_fleet_adapter::PathRequestTopicName, rclcpp::SystemDefaultsQoS());
+
+  connections->pause_request_pub = node->create_publisher<
+      rmf_fleet_msgs::msg::PauseRequest>(
+        rmf_fleet_adapter::PauseRequestTopicName, rclcpp::SystemDefaultsQoS());
 
   connections->mode_request_pub = node->create_publisher<
       rmf_fleet_msgs::msg::ModeRequest>(

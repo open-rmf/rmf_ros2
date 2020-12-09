@@ -54,6 +54,19 @@ const std::string NegotiationForfeitTopicName = Prefix +
 const std::string NegotiationConclusionTopicName = Prefix +
   "negotiation_conclusion";
 
+const std::string BlockadeCancelTopicName = Prefix +
+  "blockade_cancel";
+const std::string BlockadeHeartbeatTopicName = Prefix +
+  "blockade_heartbeat";
+const std::string BlockadeReachedTopicName = Prefix +
+  "blockade_reached";
+const std::string BlockadeReadyTopicName = Prefix +
+  "blockade_ready";
+const std::string BlockadeReleaseTopicName = Prefix +
+  "blockade_release";
+const std::string BlockadeSetTopicName = Prefix +
+  "blockade_set";
+
 const std::string EmergencyTopicName = "fire_alarm_trigger";
 
 } // namespace rmf_traffic_ros2

@@ -2,6 +2,11 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+1.2.0 (2021-01-XX)
+------------------
+* Easy Traffic Light API: [#226](https://github.com/osrf/rmf_core/pull/226)
+* Gridlock-proof Traffic Light Implementation: [#226](https://github.com/osrf/rmf_core/pull/226)
+
 1.1.0 (2020-09-24)
 ------------------
 * Traffic Light API: [#147](https://github.com/osrf/rmf_core/pull/147) [#176](https://github.com/osrf/rmf_core/pull/176) [#180](https://github.com/osrf/rmf_core/pull/180)
