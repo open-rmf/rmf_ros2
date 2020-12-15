@@ -45,7 +45,18 @@ You may then probe the effects on the ROS2 graph by subscribing to the following
 - `/dispenser_states`
 - `/task_summaries`
 
+### Running Traffic Light Example
+This will showcase an example of having 2 "traffic light" robots using RMF.
 
+```bash
+# First Terminal
+ros2 run rmf_fleet_adapter_python schedule_blockade_nodes
+
+# Second Terminal
+ros2 run rmf_fleet_adapter_python traffic_light
+```
+
+---
 
 ## Creating your own RobotCommandHandle
 

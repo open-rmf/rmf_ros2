@@ -39,6 +39,7 @@ pybind11_add_module(rmf_adapter
   src/graph/lane.cpp
   src/geometry/shapes.cpp
   src/planner/planner.cpp
+  src/nodes/nodes.cpp
   src/vehicletraits/vehicletraits.cpp
 )
 target_link_libraries(rmf_adapter PRIVATE

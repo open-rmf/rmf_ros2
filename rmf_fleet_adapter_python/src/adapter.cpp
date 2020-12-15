@@ -11,6 +11,8 @@
 #include "rmf_fleet_adapter/agv/Adapter.hpp"
 #include "rmf_fleet_adapter/agv/test/MockAdapter.hpp"
 #include "rmf_fleet_adapter_python/PyRobotCommandHandle.hpp"
+#include <rmf_fleet_adapter/agv/Waypoint.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 namespace py = pybind11;
 namespace agv = rmf_fleet_adapter::agv;
@@ -24,6 +26,7 @@ void bind_shapes(py::module &);
 void bind_vehicletraits(py::module &);
 void bind_plan(py::module &);
 void bind_tests(py::module &);
+void bind_nodes(py::module &);
 
 PYBIND11_MODULE(rmf_adapter, m) {
     bind_types(m);
@@ -32,6 +35,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     bind_vehicletraits(m);
     bind_plan(m);
     bind_tests(m);
+    bind_nodes(m);
 
     // ROBOTCOMMAND HANDLE =====================================================
     // Abstract class
@@ -115,16 +119,95 @@ PYBIND11_MODULE(rmf_adapter, m) {
         .def("accept_delivery_requests",
              &agv::FleetUpdateHandle::accept_delivery_requests);
 
+    // EASY TRAFFIC LIGHT HANDLE ===============================================
+    py::class_<agv::Waypoint>(m, "Waypoint")
+      .def(py::init<std::string,
+                    Eigen::Vector3d,
+                    rmf_traffic::Duration,
+                    bool>(),
+           py::arg("map_name"),
+           py::arg("position"),
+           py::arg("mandatory_delay"),
+           py::arg("yield"))
+      .def_property("map_name",
+           py::overload_cast<>(&agv::Waypoint::map_name, py::const_),
+           py::overload_cast<std::string>(&agv::Waypoint::map_name))
+      .def_property("position",
+           py::overload_cast<>(&agv::Waypoint::position, py::const_),
+           py::overload_cast<Eigen::Vector3d>(&agv::Waypoint::position))
+      .def_property("mandatory_delay",
+           py::overload_cast<>(&agv::Waypoint::mandatory_delay, py::const_),
+           py::overload_cast<rmf_traffic::Duration>(
+               &agv::Waypoint::mandatory_delay))
+      .def_property("yield",
+           py::overload_cast<>(&agv::Waypoint::yield, py::const_),
+           py::overload_cast<bool>(&agv::Waypoint::yield));
+
+    // EASY TRAFFIC LIGHT HANDLE ===============================================
+    py::class_<agv::EasyTrafficLight,
+               std::shared_ptr<agv::EasyTrafficLight> >(
+                   m, "EasyTrafficLight", py::dynamic_attr())
+        .def("follow_new_path",
+            py::overload_cast<const std::vector<agv::Waypoint>&>(
+                &agv::EasyTrafficLight::follow_new_path),
+            py::arg("waypoint"),
+            py::call_guard<py::scoped_ostream_redirect,
+                            py::scoped_estream_redirect>())
+        .def("moving_from",
+            py::overload_cast<std::size_t, Eigen::Vector3d>(
+                &agv::EasyTrafficLight::moving_from),
+            py::arg("checkpoint"),
+            py::arg("location"))
+        .def("waiting_at",
+            py::overload_cast<std::size_t>(
+                &agv::EasyTrafficLight::waiting_at),
+            py::arg("checkpoint"))
+        .def("waiting_after",
+            py::overload_cast<std::size_t, Eigen::Vector3d>(
+                &agv::EasyTrafficLight::waiting_after),
+            py::arg("checkpoint"),
+            py::arg("location"))
+        .def("last_reached", &agv::EasyTrafficLight::last_reached);
+
+    // prefix traffic light
+    auto m_easy_traffic_light = m.def_submodule("easy_traffic_light");
+
+    py::enum_<agv::EasyTrafficLight::MovingInstruction>(
+        m_easy_traffic_light, "MovingInstruction")
+        .value("MovingError", 
+            agv::EasyTrafficLight::MovingInstruction::MovingError)
+        .value("ContinueAtNextCheckpoint", 
+            agv::EasyTrafficLight::MovingInstruction::ContinueAtNextCheckpoint)
+        .value("WaitAtNextCheckpoint", 
+            agv::EasyTrafficLight::MovingInstruction::WaitAtNextCheckpoint)        
+        .value("PauseImmediately", 
+            agv::EasyTrafficLight::MovingInstruction::PauseImmediately);
+
+    py::enum_<agv::EasyTrafficLight::WaitingInstruction>(
+        m_easy_traffic_light, "WaitingInstruction")
+        .value("WaitingError", 
+            agv::EasyTrafficLight::WaitingInstruction::WaitingError)
+        .value("Resume", 
+            agv::EasyTrafficLight::WaitingInstruction::Resume)     
+        .value("Wait", 
+            agv::EasyTrafficLight::WaitingInstruction::Wait);
+
     // ADAPTER =================================================================
     // Light wrappers
-    py::class_<rclcpp::NodeOptions>(m, "NodeOptions");
+    py::class_<rclcpp::NodeOptions>(m, "NodeOptions")
+        .def(py::init<>());
+
     py::class_<rclcpp::Node, std::shared_ptr<rclcpp::Node> >(m, "Node")
         .def("now", [&](rclcpp::Node& self){
             return rmf_traffic_ros2::convert(self.now());
         });
 
-    // Python rclcpp init call
+    // Python rclcpp init and spin call
     m.def("init_rclcpp", [](){ rclcpp::init(0, nullptr); });
+    m.def("spin_rclcpp", [](rclcpp::Node::SharedPtr node_pt){
+        rclcpp::spin(node_pt);});
+    m.def("spin_some_rclcpp", [](rclcpp::Node::SharedPtr node_pt){
+        rclcpp::spin_some(node_pt);});
 
     py::class_<agv::Adapter, std::shared_ptr<agv::Adapter> >(m, "Adapter")
         // .def(py::init<>())  // Private constructor
@@ -139,13 +222,19 @@ PYBIND11_MODULE(rmf_adapter, m) {
              py::arg("fleet_name"),
              py::arg("traits"),
              py::arg("navigation_graph"))
+        .def("add_easy_traffic_light", &agv::Adapter::add_easy_traffic_light,
+             py::arg("handle_callback"),
+             py::arg("fleet_name"),
+             py::arg("robot_name"),
+             py::arg("traits"),
+             py::arg("pause_callback"),
+             py::arg("resume_callback"),
+             py::arg("blocker_callback") = nullptr)
         .def_property_readonly("node",
                                py::overload_cast<>(&agv::Adapter::node))
-        // .def("request_delivery")  // Internally implemented, not exposed to end user
-        // .def("request_loop")      // Internally implemented, not exposed to end user
         .def("start", &agv::Adapter::start)
         .def("stop", &agv::Adapter::stop)
-        .def("now", [&](agv::test::MockAdapter& self) {
+        .def("now", [&](agv::Adapter& self) {
             return TimePoint(rmf_traffic_ros2::convert(self.node()->now())
                                  .time_since_epoch());
         });

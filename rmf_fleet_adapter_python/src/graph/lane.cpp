@@ -29,8 +29,12 @@ void bind_lane(py::module &m) {
                                                             //bool,
                                                             //std::size_t>))
        //Bind getters and setters to Python instance attributes/properties
-      .def_property_readonly("entry", &Lane::entry)
-      .def_property_readonly("exit", &Lane::exit)
+      .def_property_readonly("entry", 
+                    py::overload_cast<>(&Lane::entry),
+                    py::return_value_policy::reference_internal)
+      .def_property_readonly("exit",
+                            py::overload_cast<>(&Lane::exit),
+                            py::return_value_policy::reference_internal)
       .def_property_readonly("index", &Lane::index);
 
   // DOORS =====================================================================
@@ -194,7 +198,8 @@ void bind_lane(py::module &m) {
           )
       .def_property_readonly("waypoint_index", &Lane::Node::waypoint_index)
       // Return policy for rawpointer properties defaults to reference_internal
-      .def_property_readonly("event", &Lane::Node::event)
+      .def_property_readonly("event", 
+            py::overload_cast<>(&Lane::Node::event, py::const_))
       .def_property_readonly(
           "orientation_constraint", &Lane::Node::orientation_constraint);
 }

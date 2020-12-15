@@ -77,9 +77,7 @@ class CMakeBuild(build_ext):
 setup(
     name=package_name,
     version=__version__,
-    packages=['rmf_fleet_adapter_python'],
-    package_dir={'rmf_fleet_adapter_python':
-                 'scripts/rmf_fleet_adapter_python'},
+    packages=['examples', 'scripts'],
     author='methylDragon',
     author_email='methylDragon@gmail.com',
     url='',
@@ -90,7 +88,9 @@ setup(
     cmdclass={'build_ext': CMakeBuild},
     zip_safe=False,
     entry_points={'console_scripts': [
-        'test_adapter = rmf_fleet_adapter_python.test_adapter:main'
+        'test_adapter = scripts.test_adapter:main',
+        'schedule_blockade_nodes = examples.schedule_blockade_nodes:main',
+        'traffic_light = examples.traffic_light:main'
     ]},
     license='Apache License, Version 2.0',
     install_requires=['setuptools'],
