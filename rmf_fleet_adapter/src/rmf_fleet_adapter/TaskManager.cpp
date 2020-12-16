@@ -91,6 +91,12 @@ const agv::RobotContextPtr& TaskManager::context()
 }
 
 //==============================================================================
+const Task* TaskManager::current_task() const
+{
+  return _active_task.get();
+}
+
+//==============================================================================
 agv::ConstRobotContextPtr TaskManager::context() const
 {
   return _context;

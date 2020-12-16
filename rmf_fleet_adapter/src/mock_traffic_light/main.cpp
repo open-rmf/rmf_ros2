@@ -114,6 +114,7 @@ public:
       rmf_fleet_adapter::agv::EasyTrafficLightPtr update_handle)
   {
     _update = std::move(update_handle);
+    _update->fleet_state_publish_period(std::nullopt);
   }
 
   const std::string& name() const

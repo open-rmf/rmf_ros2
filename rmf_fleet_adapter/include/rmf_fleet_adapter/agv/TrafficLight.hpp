@@ -62,6 +62,12 @@ public:
     ///   Submit a new path that the robot intends to follow.
     std::size_t follow_new_path(const std::vector<Waypoint>& new_path);
 
+    /// Specify a period for how often the fleet state message is published for
+    /// this fleet. Passing in std::nullopt will disable the fleet state message
+    /// publishing. The default value is 1s.
+    UpdateHandle& fleet_state_publish_period(
+        std::optional<rmf_traffic::Duration> value);
+
     class Implementation;
   private:
     rmf_utils::unique_impl_ptr<Implementation> _pimpl;

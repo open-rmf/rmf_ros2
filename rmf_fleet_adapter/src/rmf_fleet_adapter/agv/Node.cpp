@@ -59,6 +59,8 @@ std::shared_ptr<Node> Node::make(
         IngestorResultTopicName, default_qos);
   node->_ingestor_state_obs = node->create_observable<IngestorState>(
         IngestorStateTopicName, default_qos);
+  node->_fleet_state_pub = node->create_publisher<FleetState>(
+        FleetStateTopicName, default_qos);
 
   return node;
 }
@@ -150,6 +152,11 @@ auto Node::ingestor_state() const -> const IngestorStateObs&
   return _ingestor_state_obs;
 }
 
+//==============================================================================
+auto Node::fleet_state() const -> const FleetStatePub&
+{
+  return _fleet_state_pub;
+}
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

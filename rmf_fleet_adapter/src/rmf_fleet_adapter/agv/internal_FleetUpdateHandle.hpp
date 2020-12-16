@@ -123,12 +123,23 @@ public:
   AcceptDeliveryRequest accept_delivery = nullptr;
   std::unordered_map<RobotContextPtr, std::shared_ptr<TaskManager>> task_managers = {};
 
+  rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr fleet_state_pub = nullptr;
+  rclcpp::TimerBase::SharedPtr fleet_state_timer = nullptr;
+
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
   {
     FleetUpdateHandle handle;
     handle._pimpl = rmf_utils::make_unique_impl<Implementation>(
           Implementation{std::forward<Args>(args)...});
+
+    handle._pimpl->fleet_state_pub = handle._pimpl->node->fleet_state();
+    handle._pimpl->fleet_state_timer = handle._pimpl->node->create_wall_timer(
+          std::chrono::seconds(1), [self = handle._pimpl.get()]()
+    {
+      self->publish_fleet_state();
+    });
+
     return std::make_shared<FleetUpdateHandle>(std::move(handle));
   }
 
@@ -174,6 +185,11 @@ public:
   void perform_loop(
       const rmf_task_msgs::msg::Loop& request,
       const LoopEstimate& estimate);
+
+  void fleet_state_publish_period(
+      std::optional<rmf_traffic::Duration> value);
+
+  void publish_fleet_state() const;
 };
 
 //==============================================================================

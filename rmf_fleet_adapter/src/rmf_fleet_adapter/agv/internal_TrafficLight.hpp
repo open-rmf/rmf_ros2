@@ -30,6 +30,8 @@
 
 #include <rxcpp/rx.hpp>
 
+#include "Node.hpp"
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -58,7 +60,7 @@ public:
       rmf_traffic::agv::VehicleTraits traits_,
       std::shared_ptr<rmf_traffic::schedule::Snappable> schedule_,
       rxcpp::schedulers::worker worker_,
-      std::shared_ptr<rclcpp::Node> node_);
+      std::shared_ptr<Node> node_);
 
   static std::shared_ptr<UpdateHandle> make(
       std::shared_ptr<CommandHandle> command,
@@ -67,7 +69,7 @@ public:
       rmf_traffic::agv::VehicleTraits traits,
       std::shared_ptr<rmf_traffic::schedule::Snappable> schedule,
       rxcpp::schedulers::worker worker,
-      std::shared_ptr<rclcpp::Node> node,
+      std::shared_ptr<Node> node,
       rmf_traffic_ros2::schedule::Negotiation* negotiation);
 
 };

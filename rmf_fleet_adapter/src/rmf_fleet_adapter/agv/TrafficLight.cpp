@@ -28,6 +28,11 @@
 #include <rmf_traffic/Motion.hpp>
 #include <rmf_traffic/DetectConflict.hpp>
 
+#include <rmf_fleet_msgs/msg/fleet_state.hpp>
+#include <rmf_fleet_msgs/msg/robot_state.hpp>
+#include <rmf_fleet_msgs/msg/robot_mode.hpp>
+#include <rmf_fleet_msgs/msg/location.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -49,7 +54,7 @@ public:
 
   rxcpp::schedulers::worker worker;
 
-  std::shared_ptr<rclcpp::Node> node;
+  std::shared_ptr<Node> node;
 
   std::optional<rclcpp::Time> last_immediate_stop;
 
@@ -97,6 +102,9 @@ public:
   /// trajectory while we wait for the blockade manager to give us permission
   /// to depart from a checkpoint
   rclcpp::TimerBase::SharedPtr waiting_timer;
+
+  rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr fleet_state_pub;
+  rclcpp::TimerBase::SharedPtr fleet_state_timer;
 
   struct NegotiateManagers
   {
@@ -184,6 +192,8 @@ public:
     return itinerary.description().name();
   }
 
+  void publish_fleet_state() const;
+
   Data(
       std::shared_ptr<CommandHandle> command_,
       rmf_traffic::blockade::Participant blockade_,
@@ -191,7 +201,7 @@ public:
       rmf_traffic::agv::VehicleTraits traits_,
       std::shared_ptr<rmf_traffic::schedule::Snappable> schedule_,
       rxcpp::schedulers::worker worker_,
-      std::shared_ptr<rclcpp::Node> node_)
+      std::shared_ptr<Node> node_)
     : command(std::move(command_)),
       itinerary(std::move(itinerary_)),
       blockade(std::move(blockade_)),
@@ -202,7 +212,13 @@ public:
       profile(std::make_shared<rmf_traffic::Profile>(
                 itinerary.description().profile()))
   {
-    // Do nothing
+    fleet_state_pub = node->fleet_state();
+    fleet_state_timer = node->create_wall_timer(
+          std::chrono::seconds(1),
+          [this]()
+    {
+      this->publish_fleet_state();
+    });
   }
 };
 
@@ -1678,6 +1694,70 @@ TrafficLight::UpdateHandle::Implementation::Data::current_location() const
 }
 
 //==============================================================================
+void TrafficLight::UpdateHandle::Implementation::Data
+::publish_fleet_state() const
+{
+  auto robot_mode = [&]()
+  {
+    if (current_range.begin == current_range.end)
+    {
+      return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotMode>()
+          .mode(rmf_fleet_msgs::msg::RobotMode::MODE_WAITING)
+          // NOTE(MXG): This field is currently only used by the fleet drivers.
+          // For now, we will just fill it with a zero.
+          .mode_request_id(0);
+    }
+
+    return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotMode>()
+        .mode(rmf_fleet_msgs::msg::RobotMode::MODE_MOVING)
+        // NOTE(MXG): This field is currently only used by the fleet drivers.
+        // For now, we will just fill it with a zero.
+        .mode_request_id(0);
+  }();
+
+  auto location = [&]() -> rmf_fleet_msgs::msg::Location
+  {
+    const auto& graph = planner->get_configuration().graph();
+    const auto& l = current_location();
+    const auto& wp = graph.get_waypoint(l.waypoint());
+    const Eigen::Vector2d p = l.location().value_or(wp.get_location());
+
+    return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
+      .t(rmf_traffic_ros2::convert(l.time()))
+      .x(p.x())
+      .y(p.y())
+      .yaw(l.orientation())
+      .level_name(wp.get_map_name())
+      // NOTE(MXG): This field is only used by the fleet drivers. For now, we
+      // will just fill it with a zero.
+      .index(0);
+  }();
+
+  const auto& fleet_name = itinerary.description().owner();
+  auto robot_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotState>()
+      .name(name())
+      .model(fleet_name)
+      // TODO(MXG): Have a way to fill this in
+      .task_id("")
+      // TODO(MXG): We could keep track of the seq value and increment it once
+      // with each publication. This is not currently an important feature
+      // outside of the fleet driver, so for now we just set it to zero.
+      .seq(0)
+      .mode(std::move(robot_mode))
+      // TODO(MXG): We should have an update function for this in the
+      // UpdateHandle class. For now we put in a bogus value to indicate to
+      // users that it should not be trusted.
+      .battery_percent(111.1)
+      .location(std::move(location))
+      .path({});
+
+  fleet_state_pub->publish(
+        rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
+        .name(fleet_name)
+        .robots({std::move(robot_state)}));
+}
+
+//==============================================================================
 class TrafficLight::UpdateHandle::Implementation::Negotiator
     : public rmf_traffic::schedule::Negotiator
 {
@@ -1875,7 +1955,7 @@ TrafficLight::UpdateHandle::Implementation::Implementation(
     rmf_traffic::agv::VehicleTraits traits_,
     std::shared_ptr<rmf_traffic::schedule::Snappable> schedule_,
     rxcpp::schedulers::worker worker_,
-    std::shared_ptr<rclcpp::Node> node_)
+    std::shared_ptr<Node> node_)
   : data(std::make_shared<Data>(
            std::move(command_),
            make_blockade(*blockade_writer, itinerary_, this),
@@ -1897,7 +1977,7 @@ TrafficLight::UpdateHandle::Implementation::make(
     rmf_traffic::agv::VehicleTraits traits,
     std::shared_ptr<rmf_traffic::schedule::Snappable> schedule,
     rxcpp::schedulers::worker worker,
-    std::shared_ptr<rclcpp::Node> node,
+    std::shared_ptr<Node> node,
     rmf_traffic_ros2::schedule::Negotiation* negotiation)
 {
   std::shared_ptr<UpdateHandle> handle = std::make_shared<UpdateHandle>();
@@ -1932,6 +2012,28 @@ std::size_t TrafficLight::UpdateHandle::follow_new_path(
   });
 
   return version;
+}
+
+//==============================================================================
+auto TrafficLight::UpdateHandle::fleet_state_publish_period(
+    std::optional<rmf_traffic::Duration> value) -> UpdateHandle&
+{
+  if (value.has_value())
+  {
+    _pimpl->data->fleet_state_timer =
+        _pimpl->data->node->create_wall_timer(
+          value.value(),
+          [self = _pimpl->data.get()]()
+    {
+      self->publish_fleet_state();
+    });
+  }
+  else
+  {
+    _pimpl->data->fleet_state_timer = nullptr;
+  }
+
+  return *this;
 }
 
 //==============================================================================

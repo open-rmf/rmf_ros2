@@ -553,6 +553,14 @@ std::size_t EasyTrafficLight::last_reached() const
 }
 
 //==============================================================================
+EasyTrafficLight& EasyTrafficLight::fleet_state_publish_period(
+    std::optional<rmf_traffic::Duration> value)
+{
+  _pimpl->update_handle->fleet_state_publish_period(value);
+  return *this;
+}
+
+//==============================================================================
 EasyTrafficLightPtr EasyTrafficLight::Implementation::make(
     TrafficLight::UpdateHandlePtr update_handle_,
     std::function<void()> pause_,

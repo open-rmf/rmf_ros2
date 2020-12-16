@@ -15,6 +15,12 @@
  *
 */
 
+#include <rmf_fleet_msgs/msg/robot_state.hpp>
+#include <rmf_fleet_msgs/msg/robot_mode.hpp>
+#include <rmf_fleet_msgs/msg/location.hpp>
+
+#include <rmf_traffic_ros2/Time.hpp>
+
 #include "internal_FleetUpdateHandle.hpp"
 #include "internal_RobotUpdateHandle.hpp"
 #include "RobotContext.hpp"
@@ -275,6 +281,98 @@ void FleetUpdateHandle::Implementation::perform_loop(
 }
 
 //==============================================================================
+void FleetUpdateHandle::Implementation::fleet_state_publish_period(
+    std::optional<rmf_traffic::Duration> value)
+{
+  if (value.has_value())
+  {
+    fleet_state_timer = node->create_wall_timer(
+          std::chrono::seconds(1), [this]() { this->publish_fleet_state(); });
+  }
+  else
+  {
+    fleet_state_timer = nullptr;
+  }
+}
+
+namespace {
+//==============================================================================
+rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
+{
+  const RobotContext& context = *mgr.context();
+
+  // TODO(MXG): We could be smarter about what mode we report
+  auto mode = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotMode>()
+      .mode(mgr.current_task()?
+              rmf_fleet_msgs::msg::RobotMode::MODE_MOVING
+            : rmf_fleet_msgs::msg::RobotMode::MODE_IDLE)
+      // NOTE(MXG): This field is currently only used by the fleet drivers.
+      // For now, we will just fill it with a zero.
+      .mode_request_id(0);
+
+  auto location = [&]() -> rmf_fleet_msgs::msg::Location
+  {
+    if (context.location().empty())
+    {
+      // TODO(MXG): We should emit some kind of critical error if this ever
+      // happens
+      return rmf_fleet_msgs::msg::Location();
+    }
+
+    const auto& graph = context.planner()->get_configuration().graph();
+    const auto& l = context.location().front();
+    const auto& wp = graph.get_waypoint(l.waypoint());
+    const Eigen::Vector2d p = l.location().value_or(wp.get_location());
+
+    return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
+      .t(rmf_traffic_ros2::convert(l.time()))
+      .x(p.x())
+      .y(p.y())
+      .yaw(l.orientation())
+      .level_name(wp.get_map_name())
+      // NOTE(MXG): This field is only used by the fleet drivers. For now, we
+      // will just fill it with a zero.
+      .index(0);
+  }();
+
+
+  return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotState>()
+      .name(context.name())
+      .model(context.description().owner())
+      .task_id(mgr.current_task()? mgr.current_task()->id() : "")
+      // TODO(MXG): We could keep track of the seq value and increment it once
+      // with each publication. This is not currently an important feature
+      // outside of the fleet driver, so for now we just set it to zero.
+      .seq(0)
+      .mode(std::move(mode))
+      // TODO(MXG): We should have an update function for this in the
+      // UpdateHandle class. For now we put in a bogus value to indicate to
+      // users that it should not be trusted.
+      .battery_percent(111.1)
+      .location(std::move(location))
+      // NOTE(MXG): The path field is only used by the fleet drivers. For now,
+      // we will just fill it with a zero. We could consider filling it in based
+      // on the robot's plan, but that seems redundant with the traffic schedule
+      // information.
+      .path({});
+}
+} // anonymous namespace
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::publish_fleet_state() const
+{
+  std::vector<rmf_fleet_msgs::msg::RobotState> robot_states;
+  for (const auto& [context, mgr] : task_managers)
+    robot_states.emplace_back(convert_state(*mgr));
+
+  auto fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
+      .name(name)
+      .robots(std::move(robot_states));
+
+  fleet_state_pub->publish(std::move(fleet_state));
+}
+
+//==============================================================================
 void FleetUpdateHandle::add_robot(
     std::shared_ptr<RobotCommandHandle> command,
     const std::string& name,
@@ -372,6 +470,14 @@ rmf_utils::optional<rmf_traffic::Duration>
 FleetUpdateHandle::default_maximum_delay() const
 {
   return _pimpl->default_maximum_delay;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::fleet_state_publish_period(
+    std::optional<rmf_traffic::Duration> value)
+{
+  _pimpl->fleet_state_publish_period(value);
+  return *this;
 }
 
 //==============================================================================

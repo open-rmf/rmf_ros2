@@ -51,6 +51,8 @@ public:
 
   agv::ConstRobotContextPtr context() const;
 
+  const Task* current_task() const;
+
 private:
 
   TaskManager(agv::RobotContextPtr context);

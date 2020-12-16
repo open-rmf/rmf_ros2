@@ -34,6 +34,8 @@
 #include <rmf_task_msgs/msg/task_summary.hpp>
 #include <std_msgs/msg/bool.hpp>
 
+#include <rmf_fleet_msgs/msg/fleet_state.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -99,6 +101,10 @@ public:
   using IngestorStateObs = rxcpp::observable<IngestorState::SharedPtr>;
   const IngestorStateObs& ingestor_state() const;
 
+  using FleetState = rmf_fleet_msgs::msg::FleetState;
+  using FleetStatePub = rclcpp::Publisher<FleetState>::SharedPtr;
+  const FleetStatePub& fleet_state() const;
+
 private:
 
   Node(
@@ -119,6 +125,8 @@ private:
   IngestorRequestPub _ingestor_request_pub;
   IngestorResultObs _ingestor_result_obs;
   IngestorStateObs _ingestor_state_obs;
+  FleetStatePub _fleet_state_pub;
+
 };
 
 } // namespace agv

@@ -88,10 +88,16 @@ public:
   /// can become before it gets interrupted and replanned. A nullopt value will
   /// allow for an arbitrarily long delay to build up without being interrupted.
   FleetUpdateHandle& default_maximum_delay(
-      rmf_utils::optional<rmf_traffic::Duration> value);
+      std::optional<rmf_traffic::Duration> value);
 
   /// Get the default value for the maximum acceptable delay.
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay() const;
+
+  /// Specify a period for how often the fleet state message is published for
+  /// this fleet. Passing in std::nullopt will disable the fleet state message
+  /// publishing. The default value is 1s.
+  FleetUpdateHandle& fleet_state_publish_period(
+      std::optional<rmf_traffic::Duration> value);
 
   class Implementation;
 private:

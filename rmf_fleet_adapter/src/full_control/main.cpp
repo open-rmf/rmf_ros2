@@ -439,8 +439,11 @@ std::shared_ptr<Connections> make_fleet(
   connections->fleet = adapter->add_fleet(
         fleet_name, *connections->traits, *connections->graph);
 
-  // If the perform_deliveries parameter is true, then we just blindly accept
-  // all delivery requests.
+  // We disable fleet state publishing for this fleet adapter because we expect
+  // the fleet drivers to publish these messages.
+  connections->fleet->fleet_state_publish_period(std::nullopt);
+
+  // If the perform_deliveries parameter is true, then we just blindly accept // all delivery requests.
   if (node->declare_parameter<bool>("perform_deliveries", false))
   {
     connections->fleet->accept_delivery_requests(
