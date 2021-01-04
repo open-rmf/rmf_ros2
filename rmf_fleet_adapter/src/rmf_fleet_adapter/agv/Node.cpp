@@ -33,6 +33,7 @@ std::shared_ptr<Node> Node::make(
         new Node(std::move(worker), node_name, options));
 
   auto default_qos = rclcpp::SystemDefaultsQoS();
+  default_qos.keep_last(100);
   node->_door_state_obs = node->create_observable<DoorState>(
         DoorStateTopicName, default_qos);
   node->_door_supervisor_obs = node->create_observable<DoorSupervisorState>(

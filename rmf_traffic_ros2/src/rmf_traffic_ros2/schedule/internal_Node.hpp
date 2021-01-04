@@ -325,6 +325,16 @@ public:
 
     void refuse(const Version version)
     {
+      const auto negotiation_it = _negotiations.find(version);
+      if (negotiation_it == _negotiations.end())
+        return;
+
+      const auto& participants =
+          negotiation_it->second->negotiation.participants();
+
+      for (const auto p : participants)
+        _version.erase(p);
+
       _negotiations.erase(version);
     }
 

@@ -188,7 +188,8 @@ Task::StatusMsg RequestLift::ActivePhase::_get_status(
   using rmf_lift_msgs::msg::LiftRequest;
   Task::StatusMsg status{};
   status.state = Task::StatusMsg::STATE_ACTIVE;
-  if (lift_state->current_floor == _destination &&
+  if (lift_state->lift_name == _lift_name &&
+      lift_state->current_floor == _destination &&
       lift_state->door_state == LiftState::DOOR_OPEN &&
       lift_state->session_id == _context->requester_id())
   {
@@ -196,6 +197,17 @@ Task::StatusMsg RequestLift::ActivePhase::_get_status(
     status.status = "success";
     _timer.reset();
   }
+  else if (lift_state->lift_name == _lift_name)
+  {
+    // TODO(MXG): Make this a more human-friendly message
+    status.status = "[" + _context->name() + "] still waiting for lift ["
+        + _lift_name + "]  current state: "
+        + lift_state->current_floor + " vs " + _destination + " | "
+        + std::to_string(static_cast<int>(lift_state->door_state))
+        + " vs " + std::to_string(static_cast<int>(LiftState::DOOR_OPEN))
+        + " | " + lift_state->session_id + " vs " + _context->requester_id();
+  }
+
   return status;
 }
 

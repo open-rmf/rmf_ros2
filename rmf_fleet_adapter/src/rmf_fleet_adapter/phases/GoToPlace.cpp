@@ -108,6 +108,7 @@ void GoToPlace::Active::respond(
     const auto& s = table_viewer->sequence();
     assert(s.size() >= 2);
     evaluator.compliant_leeway_base *= s[s.size()-2].version + 1;
+    evaluator.max_cost_threshold = 90.0 + 30.0*s[s.size()-2].version;
   }
 
   std::shared_ptr<services::Negotiate> negotiate;

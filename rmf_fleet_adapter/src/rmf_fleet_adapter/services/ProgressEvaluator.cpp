@@ -24,10 +24,12 @@ namespace services {
 ProgressEvaluator::ProgressEvaluator(
     const double compliant_leeway_base_,
     const double compliant_leeway_multiplier_,
-    const double estimate_leeway_)
+    const double estimate_leeway_,
+    const double max_cost_threshold_)
   : compliant_leeway_base(compliant_leeway_base_),
     compliant_leeway_multiplier(compliant_leeway_multiplier_),
-    estimate_leeway(estimate_leeway_)
+    estimate_leeway(estimate_leeway_),
+    max_cost_threshold(max_cost_threshold_)
 {
   // Do nothing
 }
@@ -78,9 +80,17 @@ bool ProgressEvaluator::evaluate(Result& progress)
     return false;
   }
 
+  if (progress.disconnected())
+  {
+    ++finished_count;
+    return false;
+  }
+
   const double dropdead_cost =
-      compliant_leeway_multiplier*progress.initial_cost_estimate()
-      + compliant_leeway_base;
+    std::min(
+      progress.ideal_cost().value() + max_cost_threshold,
+      compliant_leeway_multiplier*progress.ideal_cost().value()
+      + compliant_leeway_base);
 
   const bool giveup = dropdead_cost <= cost;
   if (!progress.success() && !giveup)

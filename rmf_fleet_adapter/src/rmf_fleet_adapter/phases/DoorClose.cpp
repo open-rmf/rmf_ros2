@@ -135,6 +135,11 @@ void DoorClose::ActivePhase::_update_status(
     _status.status = "success";
     _status.state = Task::StatusMsg::STATE_COMPLETED;
   }
+  else
+  {
+    _status.status = "[" + _context->name() + "] waiting for door ["
+        + _door_name + "] to close";
+  }
 }
 
 //==============================================================================
