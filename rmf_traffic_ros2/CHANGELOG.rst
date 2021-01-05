@@ -2,7 +2,7 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1.2.0 (2021-01-XX)
+1.2.0 (2021-01-05)
 ------------------
 * Adding distributed blockade system hooks: [#226](https://github.com/osrf/rmf_core/pull/226)
 
