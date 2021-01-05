@@ -164,7 +164,17 @@ public:
   std::string name;
   std::string owner;
 
-  mutable std::mutex mutex;
+  mutable std::mutex _mutex;
+  std::unique_lock<std::mutex> lock() const
+  {
+    std::unique_lock<std::mutex> l(_mutex, std::defer_lock);
+    while (!l.try_lock())
+    {
+      // Intentionally busy wait
+    }
+
+    return l;
+  }
 
   static EasyTrafficLightPtr make(
       TrafficLight::UpdateHandlePtr update_handle_,

@@ -28,7 +28,7 @@ void EasyTrafficLight::Implementation::CommandHandle::receive_checkpoints(
     OnStandby on_standby,
     Reject reject)
 {
-  std::lock_guard<std::mutex> lock(pimpl->_pimpl->mutex);
+  auto lock = pimpl->_pimpl->lock();
   pimpl->_pimpl->receive_checkpoints(
         version,
         std::move(checkpoints),
@@ -44,7 +44,7 @@ void EasyTrafficLight::Implementation::CommandHandle::immediately_stop_until(
     StoppedAt stopped_at,
     Departed departed)
 {
-  std::lock_guard<std::mutex> lock(pimpl->_pimpl->mutex);
+  auto lock = pimpl->_pimpl->lock();
   pimpl->_pimpl->immediately_stop_until(
         version, time, std::move(stopped_at), std::move(departed));
 }
@@ -53,7 +53,7 @@ void EasyTrafficLight::Implementation::CommandHandle::immediately_stop_until(
 void EasyTrafficLight::Implementation::CommandHandle::resume(
     const std::size_t version)
 {
-  std::lock_guard<std::mutex> lock(pimpl->_pimpl->mutex);
+  auto lock = pimpl->_pimpl->lock();
   pimpl->_pimpl->resume(version);
 }
 
@@ -61,7 +61,7 @@ void EasyTrafficLight::Implementation::CommandHandle::resume(
 void EasyTrafficLight::Implementation::CommandHandle::deadlock(
     std::vector<Blocker> blockers)
 {
-  std::lock_guard<std::mutex> lock(pimpl->_pimpl->mutex);
+  auto lock = pimpl->_pimpl->lock();
   pimpl->_pimpl->deadlock(std::move(blockers));
 }
 
@@ -515,7 +515,7 @@ auto EasyTrafficLight::Implementation::waiting_after(
 //==============================================================================
 void EasyTrafficLight::follow_new_path(const std::vector<Waypoint>& new_path)
 {
-  std::lock_guard<std::mutex> lock(_pimpl->mutex);
+  auto lock = _pimpl->lock();
   _pimpl->follow_new_path(new_path);
 }
 
@@ -524,7 +524,7 @@ auto EasyTrafficLight::moving_from(
     const std::size_t checkpoint,
     const Eigen::Vector3d location) -> MovingInstruction
 {
-  std::lock_guard<std::mutex> lock(_pimpl->mutex);
+  auto lock = _pimpl->lock();
   return _pimpl->moving_from(checkpoint, location);
 }
 
@@ -532,7 +532,7 @@ auto EasyTrafficLight::moving_from(
 auto EasyTrafficLight::waiting_at(
     const std::size_t checkpoint) -> WaitingInstruction
 {
-  std::lock_guard<std::mutex> lock(_pimpl->mutex);
+  auto lock = _pimpl->lock();
   return _pimpl->waiting_at(checkpoint);
 }
 
@@ -541,14 +541,14 @@ auto EasyTrafficLight::waiting_after(
     const std::size_t checkpoint,
     const Eigen::Vector3d location) -> WaitingInstruction
 {
-  std::lock_guard<std::mutex> lock(_pimpl->mutex);
+  auto lock = _pimpl->lock();
   return _pimpl->waiting_after(checkpoint, location);
 }
 
 //==============================================================================
 std::size_t EasyTrafficLight::last_reached() const
 {
-  std::lock_guard<std::mutex> lock(_pimpl->mutex);
+  auto lock = _pimpl->lock();
   return _pimpl->last_reached;
 }
 

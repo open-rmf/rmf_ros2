@@ -124,7 +124,7 @@ public:
 
   void update_state(const rmf_fleet_msgs::msg::RobotState& state)
   {
-    std::lock_guard<std::mutex> lock(_mutex);
+    auto lock = _lock();
     if (_last_state.has_value())
     {
       // Skip over old messages
@@ -266,7 +266,7 @@ public:
 
   void add_to_queue(const std::vector<std::string>& new_waypoints)
   {
-    std::unique_lock<std::mutex> lock(_mutex);
+    auto lock = _lock();
 
     const bool empty_queue = _queue.empty();
 
@@ -279,13 +279,13 @@ public:
 
   void pause_immediately()
   {
-    std::lock_guard<std::mutex> lock(_mutex);
+    auto lock = _lock();
     _internal_pause_immediately();
   }
 
   void resume()
   {
-    std::lock_guard<std::mutex> lock(_mutex);
+    auto lock = _lock();
     _internal_resume();
   }
 
@@ -583,9 +583,19 @@ private:
 
   std::optional<std::size_t> _end_waypoint_index;
 
-  std::mutex _mutex;
-
   rmf_fleet_adapter::agv::EasyTrafficLightPtr _update;
+
+  std::mutex _mutex;
+  std::unique_lock<std::mutex> _lock()
+  {
+    std::unique_lock<std::mutex> lock(_mutex, std::defer_lock);
+    while (!lock.try_lock())
+    {
+      // Intentionally busy wait
+    }
+
+    return lock;
+  }
 };
 
 using MockTrafficLightCommandHandlePtr =
@@ -627,8 +637,6 @@ struct Connections : public std::enable_shared_from_this<Connections>
 
   std::unordered_map<std::string, MockTrafficLightCommandHandlePtr> robots;
 
-  std::mutex mutex;
-
   std::unordered_set<std::string> received_task_ids;
 
   void add_traffic_light(
@@ -657,11 +665,27 @@ struct Connections : public std::enable_shared_from_this<Connections>
           rmf_fleet_adapter::agv::EasyTrafficLightPtr updater)
     {
       const auto connections = c.lock();
+      if (!connections)
+        return;
+
+      auto  lock = connections->lock();
       command->set_update_handle(std::move(updater));
       connections->robots[robot_name] = command;
     },
     fleet_name, robot_name, *traits,
     std::move(pause), std::move(resume));
+  }
+
+  std::mutex _mutex;
+  std::unique_lock<std::mutex> lock()
+  {
+    std::unique_lock<std::mutex> l(_mutex, std::defer_lock);
+    while (!l.try_lock())
+    {
+      // Intentional busy wait
+    }
+
+    return l;
   }
 };
 

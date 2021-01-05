@@ -153,7 +153,12 @@ void async_make_schedule_manager(
     &ready_mutex](
       rmf_traffic::schedule::Participant participant)
     {
-      std::lock_guard<std::mutex> lock(ready_mutex);
+      std::unique_lock<std::mutex> lock(ready_mutex, std::defer_lock);
+      while (!lock.try_lock())
+      {
+        // Intentional busy wait
+      }
+
       ready_callback(
         ScheduleManager{
           node,
