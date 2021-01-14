@@ -31,6 +31,7 @@ public:
 
   std::weak_ptr<RobotContext> context;
   std::string name;
+  RobotUpdateHandle::Unstable unstable = RobotUpdateHandle::Unstable();
   bool reported_loss = false;
 
   static std::shared_ptr<RobotUpdateHandle> make(RobotContextPtr context)
@@ -40,6 +41,8 @@ public:
     RobotUpdateHandle handle;
     handle._pimpl = rmf_utils::make_impl<Implementation>(
           Implementation{std::move(context), std::move(name)});
+    handle._pimpl->unstable._pimpl =
+      &RobotUpdateHandle::Implementation::get(handle);
     return std::make_shared<RobotUpdateHandle>(std::move(handle));
   }
 

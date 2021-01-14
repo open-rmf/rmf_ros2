@@ -9,6 +9,10 @@
 #include <rmf_traffic/schedule/Participant.hpp>
 #include <rmf_traffic/schedule/Snapshot.hpp>
 
+#include <rmf_task/agv/State.hpp>
+#include <rmf_task/agv/Constraints.hpp>
+#include <rmf_task/agv/TaskPlanner.hpp>
+
 #include <rclcpp/node.hpp>
 
 #include <rmf_rxcpp/Publisher.hpp>
@@ -112,6 +116,30 @@ public:
       const TableViewerPtr& table_viewer,
       const ResponderPtr& responder) final;
 
+  /// Set the state of this robot at the end of its current task
+  RobotContext& current_task_end_state(const rmf_task::agv::State& state);
+
+  /// Get a mutable reference to the state of this robot at the end of its
+  // current task
+  const rmf_task::agv::State& current_task_end_state() const;
+
+  /// Get the task planning constraints of this robot 
+  const rmf_task::agv::Constraints& task_planning_constraints() const;
+
+  /// Get the current battery state of charge
+  double current_battery_soc() const;
+
+  /// Set the current battery state of charge. Note: This function also
+  /// publishes the battery soc via _battery_soc_publisher. 
+  RobotContext& current_battery_soc(const double battery_soc);
+
+  // Get a reference to the battery soc observer of this robot.
+  const rxcpp::observable<double>& observe_battery_soc() const;
+
+  /// Get a mutable reference to the task planner for this robot
+  const std::shared_ptr<const rmf_task::agv::TaskPlanner>& task_planner() const;
+
+
 private:
   friend class FleetUpdateHandle;
   friend class RobotUpdateHandle;
@@ -124,7 +152,10 @@ private:
     std::shared_ptr<const rmf_traffic::agv::Planner> planner,
     std::shared_ptr<Node> node,
     const rxcpp::schedulers::worker& worker,
-    rmf_utils::optional<rmf_traffic::Duration> maximum_delay);
+    rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
+    rmf_task::agv::State state,
+    rmf_task::agv::Constraints task_planning_constraints,
+    std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner);
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
@@ -144,6 +175,14 @@ private:
   std::string _requester_id;
 
   rmf_traffic::schedule::Negotiator* _negotiator = nullptr;
+
+  /// Always call the current_battery_soc() setter to set a new value
+  double _current_battery_soc;
+  rxcpp::subjects::subject<double> _battery_soc_publisher;
+  rxcpp::observable<double> _battery_soc_obs;
+  rmf_task::agv::State _current_task_end_state;
+  rmf_task::agv::Constraints _task_planning_constraints;
+  std::shared_ptr<const rmf_task::agv::TaskPlanner> _task_planner;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

@@ -37,6 +37,8 @@ set(dep_pkgs
   rmf_task_msgs
   rmf_traffic
   rmf_traffic_ros2
+  rmf_battery
+  rmf_task
   std_msgs
 )
 foreach(pkg ${dep_pkgs})
@@ -58,6 +60,8 @@ add_library(rmf_fleet_adapter SHARED
 target_link_libraries(rmf_fleet_adapter
   PUBLIC
     rmf_traffic_ros2::rmf_traffic_ros2
+    rmf_battery::rmf_battery
+    rmf_task::rmf_task
     yaml-cpp
     ${rmf_fleet_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
@@ -78,6 +82,8 @@ target_include_directories(rmf_fleet_adapter
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
     ${rmf_task_msgs_INCLUDE_DIRS}
+    ${rmf_battery_INCLUDE_DIRS}
+    ${rmf_task_INCLUDE_DIRS}
   PRIVATE
     ${rmf_door_msgs_INCLUDE_DIRS}
     ${rmf_lift_msgs_INCLUDE_DIRS}
@@ -158,11 +164,13 @@ target_link_libraries(full_control
   PRIVATE
     rmf_fleet_adapter
     ${rmf_fleet_msgs_LIBRARIES}
+    ${rmf_task_msgs_LIBRARIES}
 )
 
 target_include_directories(full_control
   PRIVATE
     ${rmf_fleet_msgs_INCLUDE_DIRS}
+    ${rmf_task_msgs_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------

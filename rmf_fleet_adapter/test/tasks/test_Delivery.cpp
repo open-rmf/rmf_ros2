@@ -33,6 +33,10 @@
 #include <rmf_ingestor_msgs/msg/ingestor_state.hpp>
 #include <rmf_ingestor_msgs/msg/ingestor_result.hpp>
 
+#include <rmf_battery/agv/BatterySystem.hpp>
+#include <rmf_battery/agv/SimpleMotionPowerSink.hpp>
+#include <rmf_battery/agv/SimpleDevicePowerSink.hpp>
+
 #include <rmf_utils/catch.hpp>
 
 #include "../thread_cooldown.hpp"
@@ -50,22 +54,22 @@ public:
   using DispenserResult = rmf_dispenser_msgs::msg::DispenserResult;
 
   MockQuietDispenser(
-      std::shared_ptr<rclcpp::Node> node,
-      std::string name)
-    : _node(std::move(node)),
-      _name(std::move(name))
+    std::shared_ptr<rclcpp::Node> node,
+    std::string name)
+  : _node(std::move(node)),
+    _name(std::move(name))
   {
     _request_sub = _node->create_subscription<DispenserRequest>(
-          rmf_fleet_adapter::DispenserRequestTopicName,
-          rclcpp::SystemDefaultsQoS(),
-          [this](DispenserRequest::SharedPtr msg)
-    {
-      _process_request(*msg);
-    });
+      rmf_fleet_adapter::DispenserRequestTopicName,
+      rclcpp::SystemDefaultsQoS(),
+      [this](DispenserRequest::SharedPtr msg)
+      {
+        _process_request(*msg);
+      });
 
     _result_pub = _node->create_publisher<DispenserResult>(
-          rmf_fleet_adapter::DispenserResultTopicName,
-          rclcpp::SystemDefaultsQoS());
+      rmf_fleet_adapter::DispenserResultTopicName,
+      rclcpp::SystemDefaultsQoS());
   }
 
   std::promise<bool> success_promise;
@@ -93,20 +97,20 @@ private:
     {
       using namespace std::chrono_literals;
       _timer = _node->create_wall_timer(
-            10ms, [this, msg]()
-      {
-        _timer.reset();
-        _task_complete_map[msg.request_guid] = true;
+        10ms, [this, msg]()
+        {
+          _timer.reset();
+          _task_complete_map[msg.request_guid] = true;
 
-        DispenserResult result;
-        result.time = _node->now();
-        result.status = DispenserResult::SUCCESS;
-        result.source_guid = _name;
-        result.request_guid = msg.request_guid;
-        _result_pub->publish(result);
+          DispenserResult result;
+          result.time = _node->now();
+          result.status = DispenserResult::SUCCESS;
+          result.source_guid = _name;
+          result.request_guid = msg.request_guid;
+          _result_pub->publish(result);
 
-        success_promise.set_value(true);
-      });
+          success_promise.set_value(true);
+        });
     }
 
     DispenserResult result;
@@ -131,64 +135,64 @@ public:
   using IngestorState = rmf_ingestor_msgs::msg::IngestorState;
 
   MockFlakyIngestor(
-      std::shared_ptr<rclcpp::Node> node,
-      std::string name)
-    : _node(std::move(node)),
-      _name(std::move(name))
+    std::shared_ptr<rclcpp::Node> node,
+    std::string name)
+  : _node(std::move(node)),
+    _name(std::move(name))
   {
     _request_sub = _node->create_subscription<IngestorRequest>(
-          rmf_fleet_adapter::IngestorRequestTopicName,
-          rclcpp::SystemDefaultsQoS(),
-          [this](IngestorRequest::SharedPtr msg)
-    {
-      _process_request(*msg);
-    });
+      rmf_fleet_adapter::IngestorRequestTopicName,
+      rclcpp::SystemDefaultsQoS(),
+      [this](IngestorRequest::SharedPtr msg)
+      {
+        _process_request(*msg);
+      });
 
     _state_pub = _node->create_publisher<IngestorState>(
-          rmf_fleet_adapter::IngestorStateTopicName,
-          rclcpp::SystemDefaultsQoS());
+      rmf_fleet_adapter::IngestorStateTopicName,
+      rclcpp::SystemDefaultsQoS());
 
     using namespace std::chrono_literals;
     _timer = _node->create_wall_timer(
-          100ms, [this]()
-    {
-      IngestorState msg;
-      msg.guid = _name;
-
-      if (_request_queue.empty())
-        msg.mode = IngestorState::IDLE;
-      else
-        msg.mode = IngestorState::BUSY;
-
-      msg.time = _node->now();
-      msg.seconds_remaining = 0.1;
-
-      for (auto& r : _request_queue)
+      100ms, [this]()
       {
-        msg.request_guid_queue.push_back(r.request.request_guid);
-        ++r.publish_count;
-      }
+        IngestorState msg;
+        msg.guid = _name;
 
-      const std::size_t initial_count = _request_queue.size();
+        if (_request_queue.empty())
+          msg.mode = IngestorState::IDLE;
+        else
+          msg.mode = IngestorState::BUSY;
 
-      _request_queue.erase(std::remove_if(
-            _request_queue.begin(), _request_queue.end(),
-            [](const auto& r)
-      {
-        return r.publish_count > 2;
-      }), _request_queue.end());
+        msg.time = _node->now();
+        msg.seconds_remaining = 0.1;
 
-      if (_request_queue.size() < initial_count)
-      {
-        if (!_fulfilled_promise)
+        for (auto& r : _request_queue)
         {
-          _fulfilled_promise = true;
-          success_promise.set_value(true);
+          msg.request_guid_queue.push_back(r.request.request_guid);
+          ++r.publish_count;
         }
-      }
 
-      _state_pub->publish(msg);
-    });
+        const std::size_t initial_count = _request_queue.size();
+
+        _request_queue.erase(std::remove_if(
+          _request_queue.begin(), _request_queue.end(),
+          [](const auto& r)
+          {
+            return r.publish_count > 2;
+          }), _request_queue.end());
+
+        if (_request_queue.size() < initial_count)
+        {
+          if (!_fulfilled_promise)
+          {
+            _fulfilled_promise = true;
+            success_promise.set_value(true);
+          }
+        }
+
+        _state_pub->publish(msg);
+      });
   }
 
   std::promise<bool> success_promise;
@@ -264,14 +268,14 @@ SCENARIO("Test Delivery")
     };
 
   auto add_dock_lane = [&](
-      const std::size_t w0,
-      const std::size_t w1,
-      std::string dock_name)
-  {
-    using Lane = rmf_traffic::agv::Graph::Lane;
-    graph.add_lane({w0, Lane::Event::make(Lane::Dock(dock_name, 10s))}, w1);
-    graph.add_lane(w1, w0);
-  };
+    const std::size_t w0,
+    const std::size_t w1,
+    std::string dock_name)
+    {
+      using Lane = rmf_traffic::agv::Graph::Lane;
+      graph.add_lane({w0, Lane::Event::make(Lane::Dock(dock_name, 10s))}, w1);
+      graph.add_lane(w1, w0);
+    };
 
   add_bidir_lane(0, 1);  // 0   1
   add_bidir_lane(1, 2);  // 2   3
@@ -292,6 +296,7 @@ SCENARIO("Test Delivery")
   const std::string dropoff_name = "dropoff";
   REQUIRE(graph.add_key(dropoff_name, 10));
 
+  const std::string delivery_id = "test_delivery";
 
   rmf_traffic::Profile profile{
     rmf_traffic::geometry::make_final_convex<
@@ -307,65 +312,106 @@ SCENARIO("Test Delivery")
   auto rcl_context = std::make_shared<rclcpp::Context>();
   rcl_context->init(0, nullptr);
   rmf_fleet_adapter::agv::test::MockAdapter adapter(
-        "test_Delivery", rclcpp::NodeOptions().context(rcl_context));
+    "test_Delivery", rclcpp::NodeOptions().context(rcl_context));
 
   std::promise<bool> completed_promise;
   bool at_least_one_incomplete = false;
   auto completed_future = completed_promise.get_future();
   const auto task_sub = adapter.node()->create_subscription<
-      rmf_task_msgs::msg::TaskSummary>(
-        rmf_fleet_adapter::TaskSummaryTopicName, rclcpp::SystemDefaultsQoS(),
-        [&completed_promise, &at_least_one_incomplete](
-        const rmf_task_msgs::msg::TaskSummary::SharedPtr msg)
-  {
-    if (msg->STATE_COMPLETED == msg->state)
-      completed_promise.set_value(true);
-    else
-      at_least_one_incomplete = true;
-  });
+    rmf_task_msgs::msg::TaskSummary>(
+    rmf_fleet_adapter::TaskSummaryTopicName, rclcpp::SystemDefaultsQoS(),
+    [&completed_promise, &at_least_one_incomplete](
+      const rmf_task_msgs::msg::TaskSummary::SharedPtr msg)
+    {
+      if (msg->STATE_COMPLETED == msg->state)
+        completed_promise.set_value(true);
+      else
+        at_least_one_incomplete = true;
+    });
 
   const auto fleet = adapter.add_fleet("test_fleet", traits, graph);
-  fleet->accept_delivery_requests(
-        [](const rmf_task_msgs::msg::Delivery&)
-  {
-    // Accept all delivery requests
-    return true;
-  });
+
+  // Configure default battery param
+  using BatterySystem = rmf_battery::agv::BatterySystem;
+  using PowerSystem = rmf_battery::agv::PowerSystem;
+  using MechanicalSystem = rmf_battery::agv::MechanicalSystem;
+  using SimpleMotionPowerSink = rmf_battery::agv::SimpleMotionPowerSink;
+  using SimpleDevicePowerSink = rmf_battery::agv::SimpleDevicePowerSink;
+
+  auto battery_system = std::make_shared<BatterySystem>(
+    *BatterySystem::make(24.0, 40.0, 8.8));
+
+  auto mechanical_system = MechanicalSystem::make(70.0, 40.0, 0.22);
+  auto motion_sink = std::make_shared<SimpleMotionPowerSink>(
+    *battery_system, *mechanical_system);
+
+  auto ambient_power_system = PowerSystem::make(20.0);
+  auto ambient_sink = std::make_shared<SimpleDevicePowerSink>(
+    *battery_system, *ambient_power_system);
+
+  auto tool_power_system = PowerSystem::make(10.0);
+  auto tool_sink = std::make_shared<SimpleDevicePowerSink>(
+    *battery_system, *tool_power_system);
+
+  fleet->account_for_battery_drain(false);
+  fleet->set_recharge_threshold(0.2);
+  fleet->set_task_planner_params(
+    battery_system, motion_sink, ambient_sink, tool_sink);
+
+  fleet->accept_task_requests(
+    [&delivery_id](const rmf_task_msgs::msg::TaskProfile& task)
+    {
+      // Accept all delivery task requests
+      CHECK(task.description.task_type.type ==
+      rmf_task_msgs::msg::TaskType::TYPE_DELIVERY);
+      CHECK(task.task_id == delivery_id);
+      return true;
+    });
 
   const auto now = rmf_traffic_ros2::convert(adapter.node()->now());
   const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};
   auto robot_cmd = std::make_shared<
-      rmf_fleet_adapter_test::MockRobotCommand>(adapter.node(), graph);
+    rmf_fleet_adapter_test::MockRobotCommand>(adapter.node(), graph);
 
   fleet->add_robot(
-        robot_cmd, "T0", profile, starts,
-        [&robot_cmd](rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
-  {
-    robot_cmd->updater = std::move(updater);
-  });
+    robot_cmd, "T0", profile, starts,
+    [&robot_cmd](rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
+    {
+      // assume battery soc is full
+      updater->update_battery_soc(1.0);
+      robot_cmd->updater = std::move(updater);
+    });
 
   const std::string quiet_dispenser_name = "quiet";
   auto quiet_dispenser = MockQuietDispenser(
-        adapter.node(), quiet_dispenser_name);
+    adapter.node(), quiet_dispenser_name);
   auto quiet_future = quiet_dispenser.success_promise.get_future();
 
   const std::string flaky_ingestor_name = "flaky";
   auto flaky_ingestor = MockFlakyIngestor(
-        adapter.node(), flaky_ingestor_name);
+    adapter.node(), flaky_ingestor_name);
   auto flaky_future = flaky_ingestor.success_promise.get_future();
 
   adapter.start();
 
-  rmf_task_msgs::msg::Delivery request;
-  request.task_id = "test_delivery";
+  // Note: wait for task_manager to start, else TM will be suspicously "empty"
+  std::this_thread::sleep_for(1s);
 
-  request.pickup_place_name = pickup_name;
-  request.pickup_dispenser = quiet_dispenser_name;
+  // Dispatch Delivery Task
+  rmf_task_msgs::msg::TaskProfile task_profile;
+  task_profile.task_id = delivery_id;
+  task_profile.description.start_time = adapter.node()->now();
+  task_profile.description.task_type.type =
+    rmf_task_msgs::msg::TaskType::TYPE_DELIVERY;
 
-  request.dropoff_place_name = dropoff_name;
-  request.dropoff_ingestor = flaky_ingestor_name;
+  rmf_task_msgs::msg::Delivery delivery;
+  delivery.pickup_place_name = pickup_name;
+  delivery.pickup_dispenser = quiet_dispenser_name;
+  delivery.dropoff_place_name = dropoff_name;
+  delivery.dropoff_ingestor = flaky_ingestor_name;
 
-  adapter.request_delivery(request);
+  task_profile.description.delivery = delivery;
+  adapter.dispatch_task(task_profile);
 
   const auto quiet_status = quiet_future.wait_for(15s);
   REQUIRE(quiet_status == std::future_status::ready);

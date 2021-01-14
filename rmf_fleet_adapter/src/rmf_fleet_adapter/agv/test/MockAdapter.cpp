@@ -139,15 +139,28 @@ void MockAdapter::stop()
 }
 
 //==============================================================================
-void MockAdapter::request_delivery(const rmf_task_msgs::msg::Delivery& request)
+void MockAdapter::dispatch_task(const rmf_task_msgs::msg::TaskProfile& profile)
 {
-  rmf_fleet_adapter::agv::request_delivery(request, _pimpl->fleets);
-}
+  for (auto& fleet : _pimpl->fleets)
+  {
+    auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
+    if (!fimpl.accept_task)
+      continue;
 
-//==============================================================================
-void MockAdapter::request_loop(const rmf_task_msgs::msg::Loop& request)
-{
-  rmf_fleet_adapter::agv::request_loop(request, _pimpl->fleets);
+    // NOTE: althought the current adapter supports multiple fleets. The test
+    // here assumses using a single fleet for each adapter
+    rmf_task_msgs::msg::BidNotice bid;
+    bid.task_profile = profile;
+    fimpl.bid_notice_cb(
+      std::make_shared<rmf_task_msgs::msg::BidNotice>(bid));
+    
+    rmf_task_msgs::msg::DispatchRequest req;
+    req.task_profile = profile;
+    req.fleet_name = fimpl.name;
+    req.method = req.ADD;
+    fimpl.dispatch_request_cb(
+      std::make_shared<rmf_task_msgs::msg::DispatchRequest>(req));
+  }
 }
 
 } // namespace test

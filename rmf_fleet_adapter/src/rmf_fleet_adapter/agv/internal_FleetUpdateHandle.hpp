@@ -20,16 +20,33 @@
 
 #include <rmf_task_msgs/msg/loop.hpp>
 
+#include <rmf_task_msgs/msg/bid_proposal.hpp>
+#include <rmf_task_msgs/msg/bid_notice.hpp>
+#include <rmf_task_msgs/msg/dispatch_request.hpp>
+
+#include <rmf_task/agv/TaskPlanner.hpp>
+#include <rmf_task/Request.hpp>
+#include <rmf_task/requests/Clean.hpp>
+
+#include <rmf_fleet_msgs/msg/dock_summary.hpp>
+
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
+#include <rmf_fleet_adapter/StandardNames.hpp>
 
 #include "Node.hpp"
 #include "RobotContext.hpp"
 #include "../TaskManager.hpp"
 
 #include <rmf_traffic/schedule/Snapshot.hpp>
+#include <rmf_traffic/agv/Interpolate.hpp>
+#include <rmf_traffic/Trajectory.hpp>
 
 #include <rmf_traffic_ros2/schedule/Writer.hpp>
 #include <rmf_traffic_ros2/schedule/Negotiation.hpp>
+#include <rmf_traffic_ros2/Time.hpp>
+
+#include <iostream>
+#include <unordered_set>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -117,6 +134,15 @@ public:
   std::shared_ptr<rmf_traffic::schedule::Snappable> snappable;
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
 
+  // Task planner params
+  std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system = nullptr;
+  std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink = nullptr;
+  std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink = nullptr;
+  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink = nullptr;
+  bool drain_battery = true;
+  std::shared_ptr<rmf_task::agv::TaskPlanner> task_planner = nullptr;
+  bool initialized_task_planner = false;
+
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay =
       std::chrono::nanoseconds(std::chrono::seconds(10));
 
@@ -125,6 +151,45 @@ public:
 
   rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr fleet_state_pub = nullptr;
   rclcpp::TimerBase::SharedPtr fleet_state_timer = nullptr;
+
+  // Map task id to pair of <RequestPtr, Assignments>
+  using Assignments = rmf_task::agv::TaskPlanner::Assignments;
+  std::unordered_map<std::string,
+    std::pair<rmf_task::RequestPtr, Assignments>> task_map = {};
+
+  // Map of dock name to dock parameters
+  std::unordered_map<std::string,
+    rmf_fleet_msgs::msg::DockParameter> dock_param_map = {};
+
+  // Threshold soc for battery recharging
+  double recharge_threshold = 0.2;
+
+  // TODO Support for various charging configurations
+  std::unordered_set<std::size_t> charging_waypoints;
+  // We assume each robot has a designated charging waypoint
+  std::unordered_set<std::size_t> available_charging_waypoints;
+
+  double current_assignment_cost = 0.0;
+  // Map to store task id with assignments for BidNotice
+  std::unordered_map<std::string, Assignments> bid_notice_assignments = {};
+
+  AcceptTaskRequest accept_task = nullptr;
+
+  using BidNotice = rmf_task_msgs::msg::BidNotice;
+  using BidNoticeSub = rclcpp::Subscription<BidNotice>::SharedPtr;
+  BidNoticeSub bid_notice_sub = nullptr;
+
+  using BidProposal = rmf_task_msgs::msg::BidProposal;
+  using BidProposalPub = rclcpp::Publisher<BidProposal>::SharedPtr;
+  BidProposalPub bid_proposal_pub = nullptr;
+
+  using DispatchRequest = rmf_task_msgs::msg::DispatchRequest;
+  using DispatchRequestSub = rclcpp::Subscription<DispatchRequest>::SharedPtr;
+  DispatchRequestSub dispatch_request_sub = nullptr;
+
+  using DockSummary = rmf_fleet_msgs::msg::DockSummary;
+  using DockSummarySub = rclcpp::Subscription<DockSummary>::SharedPtr;
+  DockSummarySub dock_summary_sub = nullptr;
 
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
@@ -140,26 +205,65 @@ public:
       self->publish_fleet_state();
     });
 
+    // Create subs and pubs for bidding
+    auto default_qos = rclcpp::SystemDefaultsQoS();
+    auto transient_qos = rclcpp::QoS(10);; transient_qos.transient_local();
+    
+    // Publish BidProposal
+    handle._pimpl->bid_proposal_pub =
+      handle._pimpl->node->create_publisher<BidProposal>(
+        BidProposalTopicName, default_qos);
+
+    // Subscribe BidNotice
+    handle._pimpl->bid_notice_sub =
+      handle._pimpl->node->create_subscription<BidNotice>(
+        BidNoticeTopicName,
+        default_qos,
+        [p = handle._pimpl.get()](const BidNotice::SharedPtr msg)
+        {
+          p->bid_notice_cb(msg);
+        });
+
+    // Subscribe DispatchRequest
+    handle._pimpl->dispatch_request_sub =
+      handle._pimpl->node->create_subscription<DispatchRequest>(
+        DispatchRequestTopicName,
+        default_qos,
+        [p = handle._pimpl.get()](const DispatchRequest::SharedPtr msg)
+        {
+          p->dispatch_request_cb(msg);
+        });
+
+    // Subscribe DockSummary
+    handle._pimpl->dock_summary_sub =
+      handle._pimpl->node->create_subscription<DockSummary>(
+        DockSummaryTopicName,
+        transient_qos,
+        [p = handle._pimpl.get()](const DockSummary::SharedPtr msg)
+        {
+          p->dock_summary_cb(msg);
+        });
+
+    // Populate charging waypoints
+    const std::size_t num_waypoints =
+      handle._pimpl->planner->get_configuration().graph().num_waypoints();
+    for (std::size_t i = 0; i < num_waypoints; ++i)
+      handle._pimpl->charging_waypoints.insert(i);
+    handle._pimpl->available_charging_waypoints =
+      handle._pimpl->charging_waypoints;
+
     return std::make_shared<FleetUpdateHandle>(std::move(handle));
   }
 
-  struct DeliveryEstimate
-  {
-    rmf_traffic::Time time = rmf_traffic::Time::max();
-    RobotContextPtr robot = nullptr;
-    rmf_utils::optional<rmf_traffic::agv::Plan::Start> pickup_start;
-    rmf_utils::optional<rmf_traffic::agv::Plan::Start> dropoff_start;
-    rmf_utils::optional<rmf_traffic::agv::Plan::Start> finish;
-  };
+  void dock_summary_cb(const DockSummary::SharedPtr& msg);
 
-  struct LoopEstimate
-  {
-    rmf_traffic::Time time = rmf_traffic::Time::max();
-    RobotContextPtr robot = nullptr;
-    rmf_utils::optional<rmf_traffic::agv::Plan::Start> init_start;
-    rmf_utils::optional<rmf_traffic::agv::Plan::Start> loop_start;
-    rmf_utils::optional<rmf_traffic::agv::Plan::Start> loop_end;
-  };
+  void bid_notice_cb(const BidNotice::SharedPtr msg);
+
+  void dispatch_request_cb(const DispatchRequest::SharedPtr msg);
+
+  std::size_t get_nearest_charger(
+    const rmf_traffic::agv::Planner::Start& start,
+    const std::unordered_set<std::size_t>& charging_waypoints);
 
   static Implementation& get(FleetUpdateHandle& fleet)
   {
@@ -171,36 +275,11 @@ public:
     return *fleet._pimpl;
   }
 
-  // TODO(MXG): Come up with a better design for task dispatch
-  rmf_utils::optional<DeliveryEstimate> estimate_delivery(
-      const rmf_task_msgs::msg::Delivery& request) const;
-
-  void perform_delivery(
-      const rmf_task_msgs::msg::Delivery& request,
-      const DeliveryEstimate& estimate);
-
-  rmf_utils::optional<LoopEstimate> estimate_loop(
-      const rmf_task_msgs::msg::Loop& request) const;
-
-  void perform_loop(
-      const rmf_task_msgs::msg::Loop& request,
-      const LoopEstimate& estimate);
-
   void fleet_state_publish_period(
       std::optional<rmf_traffic::Duration> value);
 
   void publish_fleet_state() const;
 };
-
-//==============================================================================
-void request_delivery(
-    const rmf_task_msgs::msg::Delivery& request,
-    const std::vector<std::shared_ptr<FleetUpdateHandle>>& fleets);
-
-//==============================================================================
-void request_loop(
-    const rmf_task_msgs::msg::Loop& request,
-    const std::vector<std::shared_ptr<FleetUpdateHandle>>& fleets);
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

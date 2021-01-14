@@ -22,6 +22,8 @@
 #include "RequestLift.hpp"
 #include "DockRobot.hpp"
 
+#include <rmf_traffic/schedule/StubbornNegotiator.hpp>
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
@@ -89,6 +91,16 @@ void GoToPlace::Active::respond(
   const TableViewerPtr& table_viewer,
   const ResponderPtr& responder)
 {
+  if (_subtasks)
+  {
+    if (dynamic_cast<DockRobot::ActivePhase*>(_subtasks->current_phase().get()))
+    {
+      rmf_traffic::schedule::StubbornNegotiator(_context->itinerary())
+          .respond(table_viewer, responder);
+      return;
+    }
+  }
+
   auto approval_cb = [w = weak_from_this()](
       const rmf_traffic::agv::Plan& plan)
       -> rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion>
@@ -534,9 +546,17 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
     }
   }
 
-
+  // TODO: Make distinctions between task and subtasks to avoid passing
+  // dummy parameters for subtasks
+  rmf_traffic::Time dummy_time;
+  rmf_task::agv::State dummy_state{{dummy_time, 0, 0.0}, 0, 1.0};
   _subtasks = Task::make(
-        _description, std::move(sub_phases), _context->worker());
+        _description,
+        std::move(sub_phases),
+        _context->worker(),
+        dummy_time,
+        dummy_state,
+        nullptr);
 
   _status_subscription = _subtasks->observe()
       .observe_on(rxcpp::identity_same_worker(_context->worker()))

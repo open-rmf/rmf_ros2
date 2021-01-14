@@ -22,8 +22,7 @@
 
 #include <rclcpp/node.hpp>
 
-#include <rmf_task_msgs/msg/delivery.hpp>
-#include <rmf_task_msgs/msg/loop.hpp>
+#include <rmf_task_msgs/msg/task_profile.hpp>
 
 #include <rmf_traffic/schedule/Snapshot.hpp>
 
@@ -41,21 +40,21 @@ public:
 
   /// Create a mock adapter
   MockAdapter(
-      const std::string& node_name,
-      const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions());
+    const std::string& node_name,
+    const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions());
 
   /// Add a fleet to test
   std::shared_ptr<FleetUpdateHandle> add_fleet(
-      const std::string& fleet_name,
-      rmf_traffic::agv::VehicleTraits traits,
-      rmf_traffic::agv::Graph navigation_graph);
+    const std::string& fleet_name,
+    rmf_traffic::agv::VehicleTraits traits,
+    rmf_traffic::agv::Graph navigation_graph);
 
   TrafficLight::UpdateHandlePtr add_traffic_light(
-      std::shared_ptr<TrafficLight::CommandHandle> command,
-      const std::string& fleet_name,
-      const std::string& robot_name,
-      rmf_traffic::agv::VehicleTraits traits,
-      rmf_traffic::Profile profile);
+    std::shared_ptr<TrafficLight::CommandHandle> command,
+    const std::string& fleet_name,
+    const std::string& robot_name,
+    rmf_traffic::agv::VehicleTraits traits,
+    rmf_traffic::Profile profile);
 
   /// Get the rclcpp Node for this adapter
   std::shared_ptr<rclcpp::Node> node();
@@ -69,11 +68,8 @@ public:
   /// Stop this adapter from spinning
   void stop();
 
-  /// Submit a delivery request
-  void request_delivery(const rmf_task_msgs::msg::Delivery& request);
-
-  /// Submit a loop request
-  void request_loop(const rmf_task_msgs::msg::Loop& request);
+  /// Submit a task request
+  void dispatch_task(const rmf_task_msgs::msg::TaskProfile& profile);
 
   class Implementation;
 private:

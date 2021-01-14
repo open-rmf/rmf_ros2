@@ -22,8 +22,12 @@
 #include <memory>
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
+#include <rmf_traffic/Time.hpp>
 
 #include <rmf_task_msgs/msg/task_summary.hpp>
+
+#include <rmf_task/Request.hpp>
+#include <rmf_task/agv/State.hpp>
 
 #include <rmf_rxcpp/RxJobs.hpp>
 #include <rmf_rxcpp/Publisher.hpp>
@@ -96,7 +100,10 @@ public:
   static std::shared_ptr<Task> make(
       std::string id,
       PendingPhases phases,
-      rxcpp::schedulers::worker worker);
+      rxcpp::schedulers::worker worker,
+      rmf_traffic::Time deployment_time,
+      rmf_task::agv::State finish_state,
+      rmf_task::ConstRequestPtr request);
 
   void begin();
 
@@ -117,12 +124,24 @@ public:
 
   const std::string& id() const;
 
+  /// Get the request used to generate this task
+  const rmf_task::ConstRequestPtr request() const;
+
+  /// Get the deployment time of this Task
+  const rmf_traffic::Time deployment_time() const;
+
+  /// Get the finish state of this Task
+  const rmf_task::agv::State finish_state() const;
+
 private:
 
   Task(
       std::string id,
       PendingPhases phases,
-      rxcpp::schedulers::worker worker);
+      rxcpp::schedulers::worker worker,
+      rmf_traffic::Time deployment_time,
+      rmf_task::agv::State finish_state,
+      rmf_task::ConstRequestPtr request);
 
   std::string _id;
 
@@ -139,6 +158,10 @@ private:
   rmf_rxcpp::subscription_guard _active_phase_subscription;
 
   rmf_utils::optional<builtin_interfaces::msg::Time> _initial_time;
+
+  rmf_traffic::Time _deployment_time;
+  rmf_task::agv::State _finish_state;
+  rmf_task::ConstRequestPtr _request;
 
   void _start_next_phase();
 

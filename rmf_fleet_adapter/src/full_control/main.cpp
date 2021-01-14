@@ -31,12 +31,27 @@
 #include <rmf_fleet_msgs/msg/path_request.hpp>
 #include <rmf_fleet_msgs/msg/mode_request.hpp>
 
+// RMF Task messages
+#include <rmf_task_msgs/msg/task_type.hpp>
+#include <rmf_task_msgs/msg/task_profile.hpp>
+
 // ROS2 utilities for rmf_traffic
 #include <rmf_traffic_ros2/Time.hpp>
 
 // Utility functions for estimating where a robot is on the graph based on
 // the information provided by fleet drivers.
 #include "../rmf_fleet_adapter/estimation.hpp"
+
+// Public rmf_traffic API headers
+#include <rmf_traffic/agv/Interpolate.hpp>
+#include <rmf_traffic/Route.hpp>
+
+#include <rmf_battery/agv/BatterySystem.hpp>
+#include <rmf_battery/agv/SimpleMotionPowerSink.hpp>
+#include <rmf_battery/agv/SimpleDevicePowerSink.hpp>
+
+#include <Eigen/Geometry>
+#include <unordered_set>
 
 //==============================================================================
 class FleetDriverRobotCommandHandle
@@ -260,10 +275,10 @@ public:
     }
     else if (_dock_finished_callback)
     {
+      const auto now = std::chrono::steady_clock::now();
       // If we have a _dock_finished_callback, then the robot should be docking
       if (state.task_id != _current_dock_request.task_id)
       {
-        const auto now = std::chrono::steady_clock::now();
         if (std::chrono::milliseconds(200) < now - _dock_requested_time)
         {
           // We published the request a while ago, so we'll send it again in
@@ -281,6 +296,36 @@ public:
         _travel_info.last_known_wp = *_dock_target_wp;
         _dock_finished_callback();
         _dock_finished_callback = nullptr;
+
+        return;
+      }
+
+      // Update the schedule with the docking path of the robot
+      if (!state.path.empty() &&
+        std::chrono::seconds(1) < now - _dock_schedule_time)
+      {
+        std::vector<Eigen::Vector3d> positions;
+        positions.push_back(
+          {state.location.x, state.location.y, state.location.yaw});
+        for (const auto& p : state.path)
+          positions.push_back({p.x, p.y, p.yaw});
+
+        const rmf_traffic::Trajectory trajectory =
+          rmf_traffic::agv::Interpolate::positions(
+            *_travel_info.traits,
+            rmf_traffic_ros2::convert(state.location.t),
+            positions);
+
+        if (trajectory.size() < 2)
+          return;
+
+        if (auto participant =
+          _travel_info.updater->unstable().get_participant())
+        {
+          participant->set(
+            {rmf_traffic::Route{state.location.level_name, trajectory}});
+          _dock_schedule_time = now;
+        }
       }
     }
     else
@@ -289,6 +334,18 @@ public:
       // command
       estimate_state(_node, state.location, _travel_info);
     }
+
+    // Update battery soc
+    const double battery_soc = state.battery_percent / 100.0;
+    if (battery_soc >= 0.0 && battery_soc <= 1.0)
+      _travel_info.updater->update_battery_soc(battery_soc);
+    else
+      RCLCPP_ERROR(
+        _node->get_logger(),
+        "Battery percentage reported by the robot is outside of the valid "
+        "range [0,100] and hence the battery soc will not be updated. It is "
+        "critical to update the battery soc with a valid battery percentage "
+        "for task allocation planning.");
   }
 
   void set_updater(rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
@@ -309,6 +366,8 @@ private:
   rmf_fleet_msgs::msg::ModeRequest _current_dock_request;
   rmf_utils::optional<std::size_t> _dock_target_wp;
   std::chrono::steady_clock::time_point _dock_requested_time;
+  std::chrono::steady_clock::time_point _dock_schedule_time =
+    std::chrono::steady_clock::now();
   RequestCompleted _dock_finished_callback;
   ModeRequestPub _mode_request_pub;
 
@@ -463,12 +522,123 @@ std::shared_ptr<Connections> make_fleet(
   // the fleet drivers to publish these messages.
   connections->fleet->fleet_state_publish_period(std::nullopt);
 
-  // If the perform_deliveries parameter is true, then we just blindly accept // all delivery requests.
+  // Parameters required for task planner
+  // Battery system
+  auto battery_system_optional = rmf_fleet_adapter::get_battery_system(
+    *node, 24.0, 40.0, 8.8);
+  if (!battery_system_optional)
+  {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Invalid values supplied for battery system");
+    
+    return nullptr;
+  }
+  auto battery_system = std::make_shared<rmf_battery::agv::BatterySystem>(
+    *battery_system_optional);
+
+  // Mechanical system and motion_sink
+  auto mechanical_system_optional = rmf_fleet_adapter::get_mechanical_system(
+    *node, 70.0, 40.0, 0.22);
+  if (!mechanical_system_optional)
+  {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Invalid values supplied for mechanical system");
+    
+    return nullptr;
+  }
+  rmf_battery::agv::MechanicalSystem& mechanical_system =
+    *mechanical_system_optional;
+
+  std::shared_ptr<rmf_battery::agv::SimpleMotionPowerSink> motion_sink =
+    std::make_shared<rmf_battery::agv::SimpleMotionPowerSink>(
+      *battery_system, mechanical_system);
+
+  // Ambient power system
+  const double ambient_power_drain =
+    rmf_fleet_adapter::get_parameter_or_default(
+      *node, "ambient_power_drain", 20.0);
+  auto ambient_power_system = rmf_battery::agv::PowerSystem::make(
+    ambient_power_drain);
+  if (!ambient_power_system)
+  {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Invalid values supplied for ambient power system");
+    
+    return nullptr;
+  }
+  std::shared_ptr<rmf_battery::agv::SimpleDevicePowerSink> ambient_sink =
+    std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
+      *battery_system, *ambient_power_system);
+
+  // Tool power system
+  const double tool_power_drain = rmf_fleet_adapter::get_parameter_or_default(
+    *node, "tool_power_drain", 10.0);
+  auto tool_power_system = rmf_battery::agv::PowerSystem::make(
+    tool_power_drain);
+  if (!tool_power_system)
+  {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Invalid values supplied for tool power system");
+    
+    return nullptr;
+  }
+  std::shared_ptr<rmf_battery::agv::SimpleDevicePowerSink> tool_sink =
+    std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
+      *battery_system, *tool_power_system);
+
+  // Drain battery
+  const bool drain_battery = rmf_fleet_adapter::get_parameter_or_default(
+    *node, "drain_battery", false);
+  connections->fleet->account_for_battery_drain(drain_battery);
+
+  // Recharge threshold
+  const double recharge_threshold = rmf_fleet_adapter::get_parameter_or_default(
+    *node, "recharge_threshold", 0.2);
+
+  connections->fleet->set_recharge_threshold(recharge_threshold);
+
+  if (!connections->fleet->set_task_planner_params(
+        battery_system, motion_sink, ambient_sink, tool_sink))
+  {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Failed to initialize task planner parameters");
+
+    return nullptr;
+  }
+
+  std::unordered_set<uint8_t> task_types;
+  if (node->declare_parameter<bool>("perform_loop", false))
+  {
+    task_types.insert(rmf_task_msgs::msg::TaskType::TYPE_LOOP);
+  }
+
+  // If the perform_deliveries parameter is true, then we just blindly accept
+  // all delivery requests.
   if (node->declare_parameter<bool>("perform_deliveries", false))
   {
+    task_types.insert(rmf_task_msgs::msg::TaskType::TYPE_DELIVERY);
     connections->fleet->accept_delivery_requests(
           [](const rmf_task_msgs::msg::Delivery&){ return true; });
   }
+
+  if (node->declare_parameter<bool>("perform_cleaning", false))
+  {
+    task_types.insert(rmf_task_msgs::msg::TaskType::TYPE_CLEAN);
+  }
+
+  connections->fleet->accept_task_requests(
+    [task_types](const rmf_task_msgs::msg::TaskProfile& msg)
+    {
+      if (task_types.find(msg.description.task_type.type) != task_types.end())
+        return true;
+      
+      return false;
+    });
 
   if (node->declare_parameter<bool>("disable_delay_threshold", false))
   {

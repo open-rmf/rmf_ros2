@@ -25,6 +25,20 @@
   <arg name="transport_sleep" default="0.0" description="Use this value to limit the CPU usage."/>
   <arg name="output" default="screen"/>
 
+  <arg name="perform_loop" default="false" description="Whether this fleet adapter can perform loops"/>
+  <arg name="perform_cleaning" default="false" description="Whether this fleet adapter can perform cleaning"/>
+  <arg name="battery_voltage" description="The nominal voltage(V) of the battery in the vehicles in this fleet"/>
+  <arg name="battery_capacity" description="The nominal capacity(Ah) of the battery in the vehicles in this fleet"/>
+  <arg name="battery_charging_current" description="The nominal charging current(A) of the battery in the vehicles in this fleet"/>
+  <arg name="mass" description="The mass(kg) of the vehicles in this fleet"/>
+  <arg name="inertia" description="The inertia(kg.m^2) of the vehicles in this fleet"/>
+  <arg name="friction_coefficient" description="The friction coefficient of the vehicles in this fleet"/>
+  <arg name="ambient_power_drain" description="The power rating(W) of ambient devices (processors, sensors, etc.) of the vehicles in this fleet"/>
+  <arg name="tool_power_drain" description="The power rating(W) of special tools (vaccuum, cleaning systems, etc.) of the vehicles in this fleet"/>
+  <arg name="drain_battery" default="false" description="Whether battery drain should be considered while assigning tasks to vechiles in this fleet"/>
+  <arg name="recharge_threshold" default="0.2" description="The fraction of total battery capacity below which the robot must return to its charger"/>
+
+
   <node pkg="rmf_fleet_adapter"
         exec="$(var control_type)"
         name="$(var fleet_name)_fleet_adapter"
@@ -44,12 +58,25 @@
     <param name="vicinity_radius" value="$(var vicinity_radius)"/>
 
     <param name="perform_deliveries" value="$(var perform_deliveries)"/>
+    <param name="perform_loop" value="$(var perform_loop)"/>
+    <param name="perform_cleaning" value="$(var perform_cleaning)"/>
 
     <param name="delay_threshold" value="$(var delay_threshold)"/>
     <param name="disable_delay_threshold" value="$(var disable_delay_threshold)"/>
     <param name="retry_wait" value="$(var retry_wait)"/>
     <param name="discovery_timeout" value="$(var discovery_timeout)"/>
     <param name="reversible" value="$(var reversible)"/>
+
+    <param name="battery_voltage" value="$(var battery_voltage)"/>
+    <param name="battery_capacity" value="$(var battery_capacity)"/>
+    <param name="battery_charging_current" value="$(var battery_charging_current)"/>
+    <param name="mass" value="$(var mass)"/>
+    <param name="inertia" value="$(var inertia)"/>
+    <param name="friction_coefficient" value="$(var friction_coefficient)"/>
+    <param name="ambient_power_drain" value="$(var ambient_power_drain)"/>
+    <param name="tool_power_drain" value="$(var tool_power_drain)"/>
+    <param name="drain_battery" value="$(var drain_battery)"/>
+    <param name="recharge_threshold" value="$(var recharge_threshold)"/> 
 
     <param name="use_sim_time" value="$(var use_sim_time)"/>
     <param name="transport_sleep" value="$(var transport_sleep)"/>

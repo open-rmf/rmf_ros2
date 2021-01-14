@@ -111,6 +111,14 @@ rmf_traffic::agv::Graph parse_graph(
           wp.set_passthrough_point(true);
       }
 
+      const YAML::Node& charger_option = options["is_charger"];
+      if (charger_option)
+      {
+        const bool is_charger = charger_option.as<bool>();
+        if (is_charger)
+          wp.set_charger(true);
+      }
+
       const YAML::Node& lift_option = options["lift"];
       if (lift_option)
       {

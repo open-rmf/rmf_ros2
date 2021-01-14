@@ -21,17 +21,18 @@
 #include "../Task.hpp"
 #include "../agv/RobotContext.hpp"
 
-#include <rmf_task_msgs/msg/loop.hpp>
+#include <rmf_task/requests/Loop.hpp>
 
 namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-std::shared_ptr<Task> make_loop(const rmf_task_msgs::msg::Loop& request,
+std::shared_ptr<Task> make_loop(
+    const rmf_task::requests::ConstLoopRequestPtr request,
     const agv::RobotContextPtr& context,
-    rmf_utils::optional<rmf_traffic::agv::Plan::Start> init_start,
-    rmf_traffic::agv::Plan::Start loop_start,
-    rmf_utils::optional<rmf_traffic::agv::Plan::Start> loop_end);
+    const rmf_traffic::agv::Plan::Start start,
+    const rmf_traffic::Time deployment_time,
+    const rmf_task::agv::State finish_state);
 
 } // namespace tasks
 } // namespace rmf_fleet_adapter

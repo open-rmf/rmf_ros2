@@ -21,19 +21,18 @@
 #include "../Task.hpp"
 #include "../agv/RobotContext.hpp"
 
-#include <rmf_task_msgs/msg/delivery.hpp>
+#include <rmf_task/requests/Delivery.hpp>
 
 namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-// TODO(MXG): This is a sloppy design. We should have a task estimator + factory
-// interface to handle the task dispatch and creation pipeline more elegantly.
 std::shared_ptr<Task> make_delivery(
-    const rmf_task_msgs::msg::Delivery& request,
+    const rmf_task::requests::ConstDeliveryRequestPtr request,
     const agv::RobotContextPtr& context,
-    rmf_traffic::agv::Plan::Start pickup_start,
-    rmf_traffic::agv::Plan::Start dropoff_start);
+    const rmf_traffic::agv::Plan::Start pickup_start,
+    const rmf_traffic::Time deployment_time,
+    const rmf_task::agv::State finish_state);
 
 } // namespace tasks
 } // namespace rmf_fleet_adapter

@@ -22,9 +22,13 @@
 #include <rmf_utils/impl_ptr.hpp>
 #include <rmf_utils/optional.hpp>
 
+#include <rmf_traffic/schedule/Participant.hpp>
+
 #include <Eigen/Geometry>
 
 #include <vector>
+#include <memory>
+#include <functional>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -84,6 +88,15 @@ public:
       const double max_merge_lane_distance = 1.0,
       const double min_lane_length = 1e-8);
 
+  /// Set the waypoint where the charger for this robot is located.
+  /// If not specified, the nearest waypoint in the graph with the is_charger()
+  /// property will be assumed as the charger for this robot.
+  RobotUpdateHandle& set_charger_waypoint(const std::size_t charger_wp);
+
+  /// Update the current battery level of the robot by specifying its state of
+  /// charge as a fraction of its total charge capacity
+  void update_battery_soc(const double battery_soc);
+
   /// Specify how high the delay of the current itinerary can become before it
   /// gets interrupted and replanned. A nullopt value will allow for an
   /// arbitrarily long delay to build up without being interrupted.
@@ -98,6 +111,25 @@ public:
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
 
   class Implementation;
+
+  /// This API is experimental and will not be supported in the future. Users
+  /// are to avoid relying on these feature for any integration.
+  class Unstable
+  {
+  public:
+    /// Get the schedule participant of this robot
+    rmf_traffic::schedule::Participant* get_participant();
+
+  private:
+    friend Implementation;
+    Implementation* _pimpl;
+  };
+
+  /// Get a mutable reference to the unstable API extension
+  Unstable& unstable();
+  /// Get a const reference to the unstable API extension
+  const Unstable& unstable() const;
+
 private:
   RobotUpdateHandle();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
