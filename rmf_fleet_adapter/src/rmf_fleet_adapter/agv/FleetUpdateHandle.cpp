@@ -711,10 +711,8 @@ rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
       // outside of the fleet driver, so for now we just set it to zero.
       .seq(0)
       .mode(std::move(mode))
-      // TODO(MXG): We should have an update function for this in the
-      // UpdateHandle class. For now we put in a bogus value to indicate to
-      // users that it should not be trusted.
-      .battery_percent(111.1)
+      // We multiply by 100 to convert from the [0.0, 1.0] range to percentage
+      .battery_percent(context.current_battery_soc()*100.0)
       .location(std::move(location))
       // NOTE(MXG): The path field is only used by the fleet drivers. For now,
       // we will just fill it with a zero. We could consider filling it in based

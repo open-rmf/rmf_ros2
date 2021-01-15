@@ -553,6 +553,13 @@ std::size_t EasyTrafficLight::last_reached() const
 }
 
 //==============================================================================
+EasyTrafficLight& EasyTrafficLight::update_battery_soc(double battery_soc)
+{
+  _pimpl->update_handle->update_battery_soc(battery_soc);
+  return *this;
+}
+
+//==============================================================================
 EasyTrafficLight& EasyTrafficLight::fleet_state_publish_period(
     std::optional<rmf_traffic::Duration> value)
 {

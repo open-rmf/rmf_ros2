@@ -124,6 +124,10 @@ public:
   /// Get the last checkpoint that the traffic light knows has been reached.
   std::size_t last_reached() const;
 
+  /// Update the current battery level of the robot by specifying its state of
+  /// charge as a fraction of its total charge capacity.
+  EasyTrafficLight& update_battery_soc(double battery_soc);
+
   /// Specify a period for how often the fleet state message is published for
   /// this fleet. Passing in std::nullopt will disable the fleet state message
   /// publishing. The default value is 1s.

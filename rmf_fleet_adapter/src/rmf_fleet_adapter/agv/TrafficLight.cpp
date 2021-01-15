@@ -88,6 +88,9 @@ public:
 
   std::size_t processing_version = 0;
 
+  // The current state of charge of the battery
+  float current_battery_soc = -1.0;
+
   // TODO(MXG): Make this configurable
   rmf_traffic::Duration ready_timing_threshold = std::chrono::seconds(1);
 
@@ -1744,10 +1747,8 @@ void TrafficLight::UpdateHandle::Implementation::Data
       // outside of the fleet driver, so for now we just set it to zero.
       .seq(0)
       .mode(std::move(robot_mode))
-      // TODO(MXG): We should have an update function for this in the
-      // UpdateHandle class. For now we put in a bogus value to indicate to
-      // users that it should not be trusted.
-      .battery_percent(111.1)
+      // We multiply by 100 to convert from the [0.0, 1.0] range to percentage
+      .battery_percent(current_battery_soc*100.0)
       .location(std::move(location))
       .path({});
 
@@ -2012,6 +2013,19 @@ std::size_t TrafficLight::UpdateHandle::follow_new_path(
   });
 
   return version;
+}
+
+//==============================================================================
+auto TrafficLight::UpdateHandle::update_battery_soc(double battery_soc)
+-> UpdateHandle&
+{
+  _pimpl->data->worker.schedule(
+        [battery_soc, data = _pimpl->data](const auto&)
+  {
+    data->current_battery_soc = battery_soc;
+  });
+
+  return *this;
 }
 
 //==============================================================================
