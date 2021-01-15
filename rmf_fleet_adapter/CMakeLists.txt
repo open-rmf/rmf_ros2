@@ -83,7 +83,6 @@ target_include_directories(rmf_fleet_adapter
     ${rclcpp_INCLUDE_DIRS}
     ${rmf_task_msgs_INCLUDE_DIRS}
     ${rmf_battery_INCLUDE_DIRS}
-    ${rmf_task_INCLUDE_DIRS}
   PRIVATE
     ${rmf_door_msgs_INCLUDE_DIRS}
     ${rmf_lift_msgs_INCLUDE_DIRS}
@@ -305,6 +304,7 @@ target_include_directories(task_aggregator
 
 ament_export_targets(rmf_fleet_adapter HAS_LIBRARY_TARGET)
 ament_export_dependencies(
+  rmf_task
   rmf_traffic_ros2
   rmf_fleet_msgs
   rmf_door_msgs
