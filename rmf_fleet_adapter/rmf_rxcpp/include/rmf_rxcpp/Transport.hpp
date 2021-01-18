@@ -23,7 +23,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rxcpp/rx.hpp>
 #include <utility>
-#include <optional>
 
 namespace rmf_rxcpp {
 
@@ -39,12 +38,10 @@ public:
   explicit Transport(
       rxcpp::schedulers::worker worker,
       const std::string& node_name,
-      const rclcpp::NodeOptions& options = rclcpp::NodeOptions(),
-      const std::optional<std::chrono::nanoseconds>& wait_time = std::nullopt)
+      const rclcpp::NodeOptions& options = rclcpp::NodeOptions())
     : rclcpp::Node{node_name, options},
       _worker{std::move(worker)},
-      _executor(_make_exec_args(options)),
-      _wait_time(wait_time)
+      _executor(_make_exec_args(options))
   {
     // Do nothing
   }
@@ -60,27 +57,6 @@ public:
     if (!_node_added)
       _executor.add_node(shared_from_this());
 
-    const auto sleep_param = "transport_sleep";
-    declare_parameter<double>(sleep_param, 0.0);
-    if (has_parameter(sleep_param))
-    {
-      auto param = get_parameter(sleep_param);
-      if (param.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE)
-      {
-        RCLCPP_WARN(get_logger(), "Expected parameter %s to be double", sleep_param);
-      }
-      else
-      {
-        auto sleep_time = param.as_double();
-        if(sleep_time > 0)
-        {
-          _wait_time = {std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::duration<double, std::ratio<1,1000>>(sleep_time))};
-        }
-        RCLCPP_WARN(get_logger(), "Sleeping for %f", sleep_time);
-      }
-    }
-    
     _stopping = false;
     _schedule_spin();
   }
@@ -128,7 +104,6 @@ private:
   rclcpp::executors::SingleThreadedExecutor _executor;
   bool _node_added = false;
   std::condition_variable _spin_cv;
-  std::optional<std::chrono::nanoseconds> _wait_time;
 
   static rclcpp::ExecutorOptions _make_exec_args(
       const rclcpp::NodeOptions& options)
@@ -141,10 +116,7 @@ private:
   void _do_spin()
   {
     _executor.spin_some();
-    if (_wait_time)
-    {
-      rclcpp::sleep_for(*_wait_time);
-    }
+
     if (still_spinning())
       _schedule_spin();
   }

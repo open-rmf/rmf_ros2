@@ -22,7 +22,6 @@
   <arg name="retry_wait" default="10.0" description="How long a retry should wait before starting"/>
   <arg name="discovery_timeout" default="10.0" description="How long to wait on discovery before giving up"/>
   <arg name="reversible" default="true" description="Can the robot drive backwards"/>
-  <arg name="transport_sleep" default="0.0" description="Use this value to limit the CPU usage."/>
   <arg name="output" default="screen"/>
 
   <arg name="perform_loop" default="false" description="Whether this fleet adapter can perform loops"/>
@@ -79,7 +78,6 @@
     <param name="recharge_threshold" value="$(var recharge_threshold)"/> 
 
     <param name="use_sim_time" value="$(var use_sim_time)"/>
-    <param name="transport_sleep" value="$(var transport_sleep)"/>
   </node>
 
 </launch>
