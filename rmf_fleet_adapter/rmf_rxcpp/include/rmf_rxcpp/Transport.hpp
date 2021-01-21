@@ -26,6 +26,85 @@
 
 namespace rmf_rxcpp {
 
+class RxCppExecutor :
+    public rclcpp::Executor,
+    public std::enable_shared_from_this<RxCppExecutor>
+{
+public:
+  RxCppExecutor(
+    rxcpp::schedulers::worker worker,
+    const rclcpp::ExecutorOptions& options = rclcpp::ExecutorOptions())
+  : rclcpp::Executor{options},
+    _worker{std::move(worker)},
+    _stopping{false},
+    _work_scheduled{false}
+  {
+    // Do nothing
+  }
+
+  void spin() override
+  {
+    const auto keep_spinning = [&]()
+    {
+      return !_stopping && rclcpp::ok(context_);
+    };
+
+    while (keep_spinning())
+    {
+      _work_scheduled = true;
+      _worker.schedule([w = weak_from_this()](const auto&)
+      {
+        if (const auto& self = w.lock())
+        {
+          self->spin_some();
+
+          {
+            std::lock_guard<std::mutex> lock(self->_mutex);
+            self->_work_scheduled = false;
+          }
+
+          self->_cv.notify_all();
+        }
+      });
+
+      {
+        std::unique_lock<std::mutex> lock(_mutex);
+        while (_work_scheduled && keep_spinning())
+        {
+          // If work is already scheduled to be done, wait until there is no
+          // longer any work scheduled (or if we're no longer supposed to keep
+          // spinning).
+          _cv.wait_for(lock, std::chrono::milliseconds(50), [&]()
+          {
+            return !_work_scheduled || !keep_spinning();
+          });
+        }
+      }
+
+      // TODO(MXG): It would be better if we could check whether work is really
+      // available before we keep looping. Or if we could interrupt an
+      // indefinite wait when a stop is requested (maybe by creating a no-op
+      // timer callback?).
+      if (keep_spinning())
+        wait_for_work(std::chrono::milliseconds(50));
+    }
+  }
+
+  void stop()
+  {
+    _stopping = true;
+    _cv.notify_all();
+  }
+
+private:
+  rxcpp::schedulers::worker _worker;
+  bool _stopping;
+
+  bool _work_scheduled;
+  std::mutex _mutex;
+  std::condition_variable _cv;
+};
+
 // TODO(MXG): We define all the member functions of this class inline so that we
 // don't need to export/install rmf_rxcpp as its own shared library (linking to
 // it as a static library results in linking errors related to symbols not being
@@ -40,35 +119,69 @@ public:
       const std::string& node_name,
       const rclcpp::NodeOptions& options = rclcpp::NodeOptions())
     : rclcpp::Node{node_name, options},
-      _worker{std::move(worker)},
-      _executor(_make_exec_args(options))
+      _executor{std::make_shared<RxCppExecutor>(
+                  worker, _make_exec_args(options))}
   {
     // Do nothing
   }
 
-  /**
-   * Not threadsafe
-   */
   void start()
   {
-    if (!_stopping)
+    if (!_stopped && !_stopping)
       return;
 
-    if (!_node_added)
-      _executor.add_node(shared_from_this());
+    // If the spinning is being stopped, wait for the stopping to finish before
+    // we start back up.
+    stop();
 
+
+    if (!_node_added)
+    {
+      _executor->add_node(shared_from_this());
+      _node_added = true;
+    }
+
+    std::unique_lock<std::mutex> lock(_stopping_mutex);
+    _stopped = false;
     _stopping = false;
-    _schedule_spin();
+
+    _spin_thread = std::thread([&]()
+    {
+      _executor->spin();
+    });
   }
 
   void stop()
   {
-    _stopping = true;
+    if (_stopped)
+      return;
+
+    if (!_stopping.exchange(true))
+    {
+      _executor->stop();
+
+      if (_spin_thread.joinable())
+        _spin_thread.join();
+
+      {
+        std::lock_guard<std::mutex> lock(_stopping_mutex);
+        _stopping = false;
+        _stopped = true;
+      }
+
+      _stopped_cv.notify_all();
+    }
+    else
+    {
+      std::unique_lock<std::mutex> lock(_stopping_mutex);
+      if (!_stopped)
+        _stopped_cv.wait(lock, [&](){ return _stopped; });
+    }
   }
 
   std::condition_variable& spin_cv()
   {
-    return _spin_cv;
+    return _stopped_cv;
   }
 
   bool still_spinning() const
@@ -96,14 +209,20 @@ public:
     }).publish().ref_count().observe_on(rxcpp::observe_on_event_loop());
   }
 
-private:
+  ~Transport()
+  {
+    stop();
+  }
 
-  std::thread _spin_thread;
-  bool _stopping = true;
-  rxcpp::schedulers::worker _worker;
-  rclcpp::executors::SingleThreadedExecutor _executor;
+private:
+  std::atomic_bool _stopping = false;
+  bool _stopped = true;
+  std::mutex _stopping_mutex;
+
+  std::shared_ptr<RxCppExecutor> _executor;
   bool _node_added = false;
-  std::condition_variable _spin_cv;
+  std::condition_variable _stopped_cv;
+  std::thread _spin_thread;
 
   static rclcpp::ExecutorOptions _make_exec_args(
       const rclcpp::NodeOptions& options)
@@ -111,24 +230,6 @@ private:
     rclcpp::ExecutorOptions exec_args;
     exec_args.context = options.context();
     return exec_args;
-  }
-
-  void _do_spin()
-  {
-    _executor.spin_some();
-
-    if (still_spinning())
-      _schedule_spin();
-  }
-
-  void _schedule_spin()
-  {
-    _worker.schedule(
-          [w = weak_from_this()](const auto&)
-    {
-      if (const auto node = std::static_pointer_cast<Transport>(w.lock()))
-        node->_do_spin();
-    });
   }
 };
 
