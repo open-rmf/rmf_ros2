@@ -160,97 +160,110 @@ agv::ConstRobotContextPtr TaskManager::context() const
 void TaskManager::set_queue(
   const std::vector<TaskManager::Assignment>& assignments)
 {
-  std::lock_guard<std::mutex> guard(_mutex);
-  _queue.clear();
-
-  // We use dynamic cast to determine the type of request and then call the
-  // appropriate make(~) function to convert the request into a task
-  for (std::size_t i = 0; i < assignments.size(); ++i)
+  // We indent this block as _mutex is also locked in the _begin_next_task()
+  // function that is called at the end of this function.
   {
-    const auto& a = assignments[i];
-    auto start = _context->current_task_end_state().location();
-    if (i != 0)
-      start = assignments[i-1].state().location();
-    start.time(a.deployment_time());
-    rmf_task_msgs::msg::TaskType task_type_msg;
+    std::lock_guard<std::mutex> guard(_mutex);
+    _queue.clear();
 
-    if (const auto request =
-      std::dynamic_pointer_cast<const rmf_task::requests::Clean>(a.request()))
+    // We use dynamic cast to determine the type of request and then call the
+    // appropriate make(~) function to convert the request into a task
+    for (std::size_t i = 0; i < assignments.size(); ++i)
     {
-      task_type_msg.type = task_type_msg.TYPE_CLEAN;
-      auto task = rmf_fleet_adapter::tasks::make_clean(
-        request,
-        _context,
-        start,
-        a.deployment_time(),
-        a.state());
-      
-      _queue.push_back(task);
+      const auto& a = assignments[i];
+      auto start = _context->current_task_end_state().location();
+      if (i != 0)
+        start = assignments[i-1].state().location();
+      start.time(a.deployment_time());
+      rmf_task_msgs::msg::TaskType task_type_msg;
+
+      if (const auto request =
+        std::dynamic_pointer_cast<const rmf_task::requests::Clean>(a.request()))
+      {
+        task_type_msg.type = task_type_msg.TYPE_CLEAN;
+        auto task = rmf_fleet_adapter::tasks::make_clean(
+          request,
+          _context,
+          start,
+          a.deployment_time(),
+          a.state());
+        
+        _queue.push_back(task);
+      }
+
+      else if (const auto request =
+        std::dynamic_pointer_cast<const rmf_task::requests::ChargeBattery>(
+          a.request()))
+      {
+        task_type_msg.type = task_type_msg.TYPE_CHARGE_BATTERY;
+        const auto task = tasks::make_charge_battery(
+          request,
+          _context,
+          start,
+          a.deployment_time(),
+          a.state());
+
+        _queue.push_back(task);
+      }
+
+      else if (const auto request =
+        std::dynamic_pointer_cast<const rmf_task::requests::Delivery>(
+          a.request()))
+      {
+        task_type_msg.type = task_type_msg.TYPE_DELIVERY;
+        const auto task = tasks::make_delivery(
+          request,
+          _context,
+          start,
+          a.deployment_time(),
+          a.state());
+
+        _queue.push_back(task);
+      }
+
+      else if (const auto request =
+        std::dynamic_pointer_cast<const rmf_task::requests::Loop>(a.request()))
+      {
+        task_type_msg.type = task_type_msg.TYPE_LOOP;
+        const auto task = tasks::make_loop(
+          request,
+          _context,
+          start,
+          a.deployment_time(),
+          a.state());
+
+        _queue.push_back(task);
+      }
+
+      else
+      {
+        RCLCPP_WARN(
+          _context->node()->get_logger(),
+          "[TaskManager] Un-supported request type in assignment list. "
+          "Please update the implementation of TaskManager::set_queue() to "
+          "support request with task_id:[%s]",
+          a.request()->id().c_str());
+
+        continue;
+      }
+
+      // publish queued task
+      rmf_task_msgs::msg::TaskSummary msg;
+      msg.task_id = _queue.back()->id();
+      msg.task_profile.task_id = _queue.back()->id();
+      msg.state = msg.STATE_QUEUED;
+      msg.robot_name = _context->name();
+      msg.fleet_name = _context->description().owner();
+      msg.task_profile.description.task_type = task_type_msg;
+      msg.start_time = rmf_traffic_ros2::convert(
+        _queue.back()->deployment_time());
+      msg.start_time = rmf_traffic_ros2::convert(
+        _queue.back()->finish_state().finish_time());
+      this->_context->node()->task_summary()->publish(msg);
     }
-
-    else if (const auto request =
-      std::dynamic_pointer_cast<const rmf_task::requests::ChargeBattery>(
-        a.request()))
-    {
-      task_type_msg.type = task_type_msg.TYPE_CHARGE_BATTERY;
-      const auto task = tasks::make_charge_battery(
-        request,
-        _context,
-        start,
-        a.deployment_time(),
-        a.state());
-
-      _queue.push_back(task);
-    }
-
-    else if (const auto request =
-      std::dynamic_pointer_cast<const rmf_task::requests::Delivery>(
-        a.request()))
-    {
-      task_type_msg.type = task_type_msg.TYPE_DELIVERY;
-      const auto task = tasks::make_delivery(
-        request,
-        _context,
-        start,
-        a.deployment_time(),
-        a.state());
-
-      _queue.push_back(task);
-    }
-
-    else if (const auto request =
-      std::dynamic_pointer_cast<const rmf_task::requests::Loop>(a.request()))
-    {
-      task_type_msg.type = task_type_msg.TYPE_LOOP;
-      const auto task = tasks::make_loop(
-        request,
-        _context,
-        start,
-        a.deployment_time(),
-        a.state());
-
-      _queue.push_back(task);
-    }
-
-    else
-    {
-      continue;
-    }
-
-    // publish queued task
-    rmf_task_msgs::msg::TaskSummary msg;
-    msg.task_id = _queue.back()->id();
-    msg.task_profile.task_id = _queue.back()->id();
-    msg.state = msg.STATE_QUEUED;
-    msg.robot_name = _context->name();
-    msg.fleet_name = _context->description().owner();
-    msg.task_profile.description.task_type = task_type_msg;
-    msg.start_time = rmf_traffic_ros2::convert(
-      _queue.back()->deployment_time());
-    msg.start_time = rmf_traffic_ros2::convert(
-      _queue.back()->finish_state().finish_time());
-    this->_context->node()->task_summary()->publish(msg);
   }
+
+  _begin_next_task();
 }
 
 //==============================================================================
@@ -362,6 +375,7 @@ void TaskManager::_begin_next_task()
     });
 
     _active_task->begin();
+    _register_executed_task(_active_task->id());
   }
 }
 
@@ -478,5 +492,24 @@ void TaskManager::retreat_to_charger()
       _context->name().c_str());
   }
 }
+
+//==============================================================================
+const std::vector<std::string>& TaskManager::get_executed_tasks() const
+{
+  return _executed_task_registry;
+}
+
+//==============================================================================
+void TaskManager::_register_executed_task(const std::string& id)
+{
+  // Currently the choice of storing 100 executed tasks is arbitrary.
+  // TODO: Save a time stamp for when tasks are completed and cull entries after
+  // a certain time window instead.
+  if (_executed_task_registry.size() >= 100)
+    _executed_task_registry.erase(_executed_task_registry.begin());
+  
+  _executed_task_registry.push_back(id);
+}
+
 
 } // namespace rmf_fleet_adapter

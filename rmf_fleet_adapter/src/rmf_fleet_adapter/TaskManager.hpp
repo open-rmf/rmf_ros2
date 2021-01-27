@@ -73,6 +73,10 @@ public:
   /// when robot is idle and battery level drops below a retreat threshold.
   void retreat_to_charger();
 
+  /// Get the list of task ids for tasks that have started execution. 
+  /// The list will contain upto 100 latest task ids only.
+  const std::vector<std::string>& get_executed_tasks() const;  
+
 private:
 
   TaskManager(agv::RobotContextPtr context);
@@ -91,8 +95,17 @@ private:
   rclcpp::TimerBase::SharedPtr _task_timer;
   rclcpp::TimerBase::SharedPtr _retreat_timer;
 
+  // Container to keep track of tasks that have been started by this TaskManager
+  // Use the _register_executed_task() to populate this container.
+  std::vector<std::string> _executed_task_registry;
+
   /// Callback for task timer which begins next task if its deployment time has passed
   void _begin_next_task();
+
+  /// Function to register the task id of a task that has begun execution
+  /// The input task id will be inserted into the registry such that the max
+  /// size of the registry is 100.
+  void _register_executed_task(const std::string& id);
 };
 
 using TaskManagerPtr = std::shared_ptr<TaskManager>;

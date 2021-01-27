@@ -47,6 +47,7 @@
 
 #include <iostream>
 #include <unordered_set>
+#include <optional>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -173,6 +174,7 @@ public:
   // Map to store task id with assignments for BidNotice
   std::unordered_map<std::string, Assignments> bid_notice_assignments = {};
 
+  std::unordered_map<std::string, rmf_task::ConstRequestPtr> generated_requests;
   AcceptTaskRequest accept_task = nullptr;
 
   using BidNotice = rmf_task_msgs::msg::BidNotice;
@@ -264,6 +266,11 @@ public:
   std::size_t get_nearest_charger(
     const rmf_traffic::agv::Planner::Start& start,
     const std::unordered_set<std::size_t>& charging_waypoints);
+
+  std::optional<Assignments> allocate_tasks(
+    rmf_task::ConstRequestPtr request = nullptr) const;
+
+  bool is_valid_assignments(Assignments& assignments) const;
 
   static Implementation& get(FleetUpdateHandle& fleet)
   {
