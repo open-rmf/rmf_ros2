@@ -15,6 +15,10 @@ to many other subsystems, as shown in the following diagram.
 
 Answers to frequently asked questions can be found [here](docs/faq.md).
 
+## Roadmap
+
+A near-term roadmap of the entire RMF project (including and beyond `rmf_core`) can be found in the user manual [here](https://osrf.github.io/ros2multirobotbook/roadmap.html).
+
 ## Interfacing with rmf\_core
 
 There are several interface points with RMF core, as shown in the arrows
