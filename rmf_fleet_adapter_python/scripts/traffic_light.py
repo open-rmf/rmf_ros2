@@ -27,6 +27,8 @@ import rmf_adapter.easy_traffic_light as traffic_light
 import time
 from threading import Thread
 
+# assertion var
+visited_waypoints = []
 
 def init_graph():
     bot1_path = [1, 2, 3, 4, 5]
@@ -34,13 +36,13 @@ def init_graph():
 
     test_graph_vis = \
         """
-                            6 (bot2 end)
-                            |
+                             6 (bot2 end)
+                             |
         (bot1 start)         |
         1------2------3------4-----5 (bot1 end)
-                    |
-                    |
-                    0 (bot2 start)
+                      |
+                      |
+                      0 (bot2 start)
         """
     print(test_graph_vis)
     print(f"dummybot1 path {bot1_path}")
@@ -81,7 +83,7 @@ class MockTrafficLightHandle:
         self.handler.follow_new_path(_path)
 
     def move_robot(self, curr_checkpoint):
-        print(f"[{self.name}] wait to move from {curr_checkpoint}")
+        print(f"[{self.name}] wait at checkpoint {curr_checkpoint}")
         for _ in range(100):
             result = self.handler.waiting_at(curr_checkpoint)
             time.sleep(0.5)
@@ -89,13 +91,15 @@ class MockTrafficLightHandle:
                 break
 
         time.sleep(0.2)
-        wp = self.coordinates[self.path_checkpoints[curr_checkpoint + 1]]
-        result = self.handler.moving_from(curr_checkpoint, wp)
-        print(f"[{self.name}] moved to {curr_checkpoint + 1} \
-                result: {result}")
+        nxt_wp = self.path_checkpoints[curr_checkpoint + 1]
+        nxt_wp_coor = self.coordinates[nxt_wp]
+        result = self.handler.moving_from(curr_checkpoint, nxt_wp_coor)
+        print(f"[{self.name}] moved to {nxt_wp}, result: {result}")
         if result == traffic_light.MovingInstruction.MovingError:
             return False
         else:
+            # for assertion
+            visited_waypoints.append((self.name, nxt_wp))
             return True
 
 
@@ -156,6 +160,16 @@ def main():
     th2.start()
     th1.join()
     th2.join()
+
+    print(f"Sequence of visited waypoints: \n{visited_waypoints}")
+    assert visited_waypoints == [
+        ("dummybot2", 3), 
+        ("dummybot2", 4), 
+        ("dummybot1", 2), 
+        ("dummybot2", 6), 
+        ("dummybot1", 3), 
+        ("dummybot1", 4), 
+        ("dummybot1", 5)], "Sequence of visited waypoints is incorrect."
 
     print("Done Traffic Light Tutorial!")
     rclpy.shutdown()

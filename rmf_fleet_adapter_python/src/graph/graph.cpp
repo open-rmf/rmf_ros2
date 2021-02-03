@@ -54,6 +54,10 @@ void bind_graph(py::module &m) {
                     &Graph::Waypoint::is_parking_spot,
                     &Graph::Waypoint::set_parking_spot)
       .def("set_parking_spot", &Graph::Waypoint::set_parking_spot)
+      .def_property("charger",
+                    &Graph::Waypoint::is_charger,
+                    &Graph::Waypoint::set_charger)
+      .def("set_charger", &Graph::Waypoint::set_charger)
       .def_property_readonly("index", &Graph::Waypoint::index)
       .def_property_readonly("waypoint_name", &Graph::Waypoint::name);
 

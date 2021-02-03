@@ -348,7 +348,7 @@ class MockRobotCommand(adpt.RobotCommandHandle):
             print("[RobotUpdateHandle] UPDATING ROBOT POSITION:", 
                   previous_waypoint_graph_idx)
 
-            self.updater.update_position(
+            self.updater.update_current_waypoint(
                 previous_waypoint_graph_idx,
                 previous_waypoint.position[2]
             )

@@ -20,6 +20,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 find_package(rmf_fleet_adapter REQUIRED)
+find_package(rmf_task REQUIRED)
+find_package(rmf_task_ros2 REQUIRED)
+find_package(rmf_battery REQUIRED)
 find_package(rmf_task_msgs REQUIRED)
 
 include_directories(
@@ -41,15 +44,21 @@ pybind11_add_module(rmf_adapter
   src/planner/planner.cpp
   src/nodes/nodes.cpp
   src/vehicletraits/vehicletraits.cpp
+  src/battery/battery.cpp
 )
 target_link_libraries(rmf_adapter PRIVATE
-  rmf_fleet_adapter::rmf_fleet_adapter)
+  rmf_fleet_adapter::rmf_fleet_adapter
+  rmf_task_ros2::rmf_task_ros2)
 
 target_include_directories(rmf_adapter
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_ros2_INCLUDE_DIRS}
+    ${rmf_traffic_ros2_INCLUDE_DIRS}
+    ${rmf_battery_INCLUDE_DIRS}
+    ${rmf_task_INCLUDE_DIRS}
+    ${rmf_task_ros2_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
   PRIVATE
