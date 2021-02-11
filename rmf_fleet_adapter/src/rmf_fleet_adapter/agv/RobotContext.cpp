@@ -261,6 +261,28 @@ RobotContext::task_planner() const
 }
 
 //==============================================================================
+void RobotContext::set_lift_entry_watchdog(
+    RobotUpdateHandle::Unstable::Watchdog watchdog,
+    rmf_traffic::Duration wait_duration)
+{
+  _lift_watchdog = std::move(watchdog);
+  _lift_rewait_duration = wait_duration;
+}
+
+//==============================================================================
+const RobotUpdateHandle::Unstable::Watchdog&
+RobotContext::get_lift_watchdog() const
+{
+  return _lift_watchdog;
+}
+
+//==============================================================================
+rmf_traffic::Duration RobotContext::get_lift_rewait_duration() const
+{
+  return _lift_rewait_duration;
+}
+
+//==============================================================================
 void RobotContext::respond(
     const TableViewerPtr& table_viewer,
     const ResponderPtr& responder)

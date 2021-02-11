@@ -30,6 +30,7 @@
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
 #include <rmf_fleet_msgs/msg/path_request.hpp>
 #include <rmf_fleet_msgs/msg/mode_request.hpp>
+#include <rmf_fleet_msgs/srv/lift_clearance.hpp>
 
 // RMF Task messages
 #include <rmf_task_msgs/msg/task_type.hpp>
@@ -52,6 +53,24 @@
 
 #include <Eigen/Geometry>
 #include <unordered_set>
+
+//==============================================================================
+rmf_fleet_adapter::agv::RobotUpdateHandle::Unstable::Decision
+convert_decision(uint32_t decision)
+{
+  using namespace rmf_fleet_adapter::agv;
+  switch (decision)
+  {
+    case rmf_fleet_msgs::srv::LiftClearance::Response::DECISION_CLEAR:
+      return RobotUpdateHandle::Unstable::Decision::Clear;
+    case rmf_fleet_msgs::srv::LiftClearance::Response::DECISION_CROWDED:
+      return RobotUpdateHandle::Unstable::Decision::Crowded;
+  }
+
+  std::cerr << "Received undefined value for lift clearance service: "
+            << decision << std::endl;
+  return RobotUpdateHandle::Unstable::Decision::Undefined;
+}
 
 //==============================================================================
 class FleetDriverRobotCommandHandle
@@ -425,6 +444,10 @@ struct Connections : public std::enable_shared_from_this<Connections>
   rclcpp::Publisher<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr
   mode_request_pub;
 
+  /// The client for listening to whether there is clearance in a lift
+  rclcpp::Client<rmf_fleet_msgs::srv::LiftClearance>::SharedPtr
+  lift_watchdog_client;
+
   /// The container for robot update handles
   std::unordered_map<std::string, FleetDriverRobotCommandHandlePtr>
   robots;
@@ -452,6 +475,31 @@ struct Connections : public std::enable_shared_from_this<Connections>
         return;
 
       auto lock = connections->lock();
+
+      if (connections->lift_watchdog_client)
+      {
+        updater->unstable().set_lift_entry_watchdog(
+          [robot_name, client = connections->lift_watchdog_client](
+            const std::string& lift_name,
+            auto decide)
+        {
+          auto request =
+            std::make_shared<rmf_fleet_msgs::srv::LiftClearance::Request>(
+            rmf_fleet_msgs::build<rmf_fleet_msgs::srv::LiftClearance::Request>()
+            .robot_name(robot_name)
+            .lift_name(lift_name));
+
+          client->async_send_request(
+            request,
+            [decide](
+              rclcpp::Client<rmf_fleet_msgs::srv::LiftClearance>::SharedFuture response)
+          {
+            const auto r = response.get();
+            decide(convert_decision(r->decision));
+          });
+        });
+      }
+
       command->set_updater(updater);
       connections->robots[robot_name] = command;
     });
@@ -583,7 +631,7 @@ std::shared_ptr<Connections> make_fleet(
     RCLCPP_ERROR(
       node->get_logger(),
       "Invalid values supplied for tool power system");
-    
+
     return nullptr;
   }
   std::shared_ptr<rmf_battery::agv::SimpleDevicePowerSink> tool_sink =
@@ -691,6 +739,16 @@ std::shared_ptr<Connections> make_fleet(
       }
     }
   });
+
+  const std::string lift_clearance_srv =
+      node->declare_parameter<std::string>(
+        "experimental_lift_watchdog_service", "");
+  if (!lift_clearance_srv.empty())
+  {
+    connections->lift_watchdog_client =
+        node->create_client<rmf_fleet_msgs::srv::LiftClearance>(
+          lift_clearance_srv);
+  }
 
   return connections;
 }

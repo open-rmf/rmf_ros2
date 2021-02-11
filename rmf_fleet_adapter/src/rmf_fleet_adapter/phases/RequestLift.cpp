@@ -188,14 +188,96 @@ Task::StatusMsg RequestLift::ActivePhase::_get_status(
   using rmf_lift_msgs::msg::LiftRequest;
   Task::StatusMsg status{};
   status.state = Task::StatusMsg::STATE_ACTIVE;
-  if (lift_state->lift_name == _lift_name &&
+  if (!_rewaiting &&
+      lift_state->lift_name == _lift_name &&
       lift_state->current_floor == _destination &&
       lift_state->door_state == LiftState::DOOR_OPEN &&
       lift_state->session_id == _context->requester_id())
   {
-    status.state = Task::StatusMsg::STATE_COMPLETED;
-    status.status = "success";
-    _timer.reset();
+    bool completed = false;
+    const auto& watchdog = _context->get_lift_watchdog();
+
+    if (_watchdog_info)
+    {
+      std::lock_guard<std::mutex> lock(_watchdog_info->mutex);
+      if (_watchdog_info->decision.has_value())
+      {
+        switch (*_watchdog_info->decision)
+        {
+          case agv::RobotUpdateHandle::Unstable::Decision::Clear:
+          {
+            completed = true;
+            break;
+          }
+          case agv::RobotUpdateHandle::Unstable::Decision::Undefined:
+          {
+            RCLCPP_ERROR(
+              _context->node()->get_logger(),
+              "Received undefined decision for lift watchdog of [%s]. "
+              "Defaulting to a Crowded decision.",
+              _context->name().c_str());
+            // Intentionally drop to the next case
+            [[fallthrough]];
+          }
+          case agv::RobotUpdateHandle::Unstable::Decision::Crowded:
+          {
+            _rewaiting = true;
+
+            _lift_end_phase = EndLiftSession::Active::make(
+              _context, _lift_name, _destination);
+            _reset_session_subscription = _lift_end_phase->observe()
+                .subscribe([](const auto&)
+            {
+              // Do nothing
+            });
+
+            _rewait_timer = _context->node()->create_wall_timer(
+              _context->get_lift_rewait_duration(),
+              [w = weak_from_this()]()
+            {
+              if (const auto& me = w.lock())
+              {
+                me->_rewaiting = false;
+                me->_rewait_timer.reset();
+                me->_reset_session_subscription =
+                    rmf_rxcpp::subscription_guard();
+              }
+            });
+            break;
+          }
+        }
+
+        _watchdog_info.reset();
+      }
+    }
+    else if (_located == Located::Outside && watchdog)
+    {
+      _watchdog_info = std::make_shared<WatchdogInfo>();
+      watchdog(
+        _lift_name,
+        [info = _watchdog_info](
+          agv::RobotUpdateHandle::Unstable::Decision decision)
+      {
+        std::lock_guard<std::mutex> lock(info->mutex);
+        info->decision = decision;
+      });
+    }
+    else
+    {
+      completed = true;
+    }
+
+    if (completed)
+    {
+      status.state = Task::StatusMsg::STATE_COMPLETED;
+      status.status = "success";
+      _timer.reset();
+    }
+  }
+  else if (_rewaiting)
+  {
+    status.status = "[" + _context->name() + "] is waiting for lift ["
+        + _lift_name + "] to clear out";
   }
   else if (lift_state->lift_name == _lift_name)
   {
@@ -214,6 +296,9 @@ Task::StatusMsg RequestLift::ActivePhase::_get_status(
 //==============================================================================
 void RequestLift::ActivePhase::_do_publish()
 {
+  if (_rewaiting)
+    return;
+
   rmf_lift_msgs::msg::LiftRequest msg{};
   msg.lift_name = _lift_name;
   msg.destination_floor = _destination;

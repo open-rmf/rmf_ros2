@@ -67,6 +67,17 @@ struct RequestLift
     rclcpp::TimerBase::SharedPtr _timer;
     std::shared_ptr<EndLiftSession::Active> _lift_end_phase;
     Located _located;
+    rmf_rxcpp::subscription_guard _reset_session_subscription;
+
+    struct WatchdogInfo
+    {
+      std::mutex mutex;
+      std::optional<agv::RobotUpdateHandle::Unstable::Decision> decision;
+    };
+
+    std::shared_ptr<WatchdogInfo> _watchdog_info;
+    rclcpp::TimerBase::SharedPtr _rewait_timer;
+    bool _rewaiting = false;
 
     ActivePhase(
       agv::RobotContextPtr context,

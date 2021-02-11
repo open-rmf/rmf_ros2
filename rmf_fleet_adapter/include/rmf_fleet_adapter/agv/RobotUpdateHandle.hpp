@@ -120,6 +120,28 @@ public:
     /// Get the schedule participant of this robot
     rmf_traffic::schedule::Participant* get_participant();
 
+    enum class Decision
+    {
+      Undefined = 0,
+      Clear = 1,
+      Crowded = 2
+    };
+
+    /// A callback with this signature will be given to the watchdog when the
+    /// robot is ready to enter a lift. If the watchdog passes in a true, then
+    /// the robot will proceed to enter the lift. If the watchdog passes in a
+    /// false, then the fleet adapter will release its session with the lift and
+    /// resume later.
+    using Decide = std::function<void(Decision)>;
+
+    using Watchdog = std::function<void(const std::string&, Decide)>;
+
+    /// Set a callback that can be used to check whether the robot is clear to
+    /// enter the lift.
+    void set_lift_entry_watchdog(
+      Watchdog watchdog,
+      rmf_traffic::Duration wait_duration = std::chrono::seconds(10));
+
   private:
     friend Implementation;
     Implementation* _pimpl;

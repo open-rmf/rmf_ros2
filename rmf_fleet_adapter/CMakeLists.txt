@@ -211,6 +211,23 @@ target_include_directories(lift_supervisor
     ${std_msgs_INCLUDE_DIRS}
 )
 
+# -----------------------------------------------------------------------------
+
+add_executable(experimental_lift_watchdog
+  src/experimental_lift_watchdog/main.cpp
+)
+
+target_link_libraries(experimental_lift_watchdog
+  PRIVATE
+    ${rclcpp_LIBRARIES}
+    ${rmf_fleet_msgs_LIBRARIES}
+)
+
+target_include_directories(experimental_lift_watchdog
+  PRIVATE
+    ${rclcpp_INCLUDE_DIRS}
+    ${rmf_fleet_msgs_INCLUDE_DIRS}
+)
 
 # -----------------------------------------------------------------------------
 
@@ -320,6 +337,7 @@ install(
     mock_traffic_light
     full_control
     lift_supervisor
+    experimental_lift_watchdog
     door_supervisor
     robot_state_aggregator
     test_read_only_adapter

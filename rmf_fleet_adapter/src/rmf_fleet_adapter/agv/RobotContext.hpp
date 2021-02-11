@@ -139,6 +139,13 @@ public:
   /// Get a mutable reference to the task planner for this robot
   const std::shared_ptr<const rmf_task::agv::TaskPlanner>& task_planner() const;
 
+  void set_lift_entry_watchdog(
+    RobotUpdateHandle::Unstable::Watchdog watchdog,
+    rmf_traffic::Duration wait_duration);
+
+  const RobotUpdateHandle::Unstable::Watchdog& get_lift_watchdog() const;
+
+  rmf_traffic::Duration get_lift_rewait_duration() const;
 
 private:
   friend class FleetUpdateHandle;
@@ -183,6 +190,9 @@ private:
   rmf_task::agv::State _current_task_end_state;
   rmf_task::agv::Constraints _task_planning_constraints;
   std::shared_ptr<const rmf_task::agv::TaskPlanner> _task_planner;
+
+  RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
+  rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

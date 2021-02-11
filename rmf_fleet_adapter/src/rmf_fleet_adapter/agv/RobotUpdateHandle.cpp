@@ -252,6 +252,20 @@ RobotUpdateHandle::Unstable::get_participant()
   return nullptr;
 }
 
+//==============================================================================
+void RobotUpdateHandle::Unstable::set_lift_entry_watchdog(
+  Watchdog watchdog,
+  rmf_traffic::Duration wait_duration)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [context, watchdog = std::move(watchdog), wait_duration](const auto&)
+    {
+      context->set_lift_entry_watchdog(watchdog, wait_duration);
+    });
+  }
+}
 
 } // namespace agv
 } // namespace rmf_fleet_adapter
