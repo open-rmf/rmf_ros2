@@ -23,6 +23,7 @@
 #include <rmf_task_ros2/StandardNames.hpp>
 #include <rmf_task_ros2/TaskStatus.hpp>
 #include <rmf_task_msgs/msg/dispatch_request.hpp>
+#include <rmf_task_msgs/msg/dispatch_ack.hpp>
 
 namespace rmf_task_ros2 {
 namespace action {
@@ -92,7 +93,10 @@ public:
 private:
   Client(std::shared_ptr<rclcpp::Node> node);
 
+  void update_task_status(const TaskStatusPtr status);
+
   using RequestMsg = rmf_task_msgs::msg::DispatchRequest;
+  using AckMsg = rmf_task_msgs::msg::DispatchAck;
 
   std::shared_ptr<rclcpp::Node> _node;
   StatusCallback _on_change_callback;
@@ -100,6 +104,7 @@ private:
   std::unordered_map<TaskID, std::weak_ptr<TaskStatus>> _active_task_status;
   rclcpp::Publisher<RequestMsg>::SharedPtr _request_msg_pub;
   rclcpp::Subscription<StatusMsg>::SharedPtr _status_msg_sub;
+  rclcpp::Subscription<AckMsg>::SharedPtr _ack_msg_sub;
 };
 
 } // namespace action

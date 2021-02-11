@@ -53,7 +53,7 @@ Auctioneer::Implementation::Implementation(
       this->receive_proposal(*msg);
     });
 
-  timer = node->create_wall_timer(std::chrono::milliseconds(500), [&]()
+  timer = node->create_wall_timer(std::chrono::milliseconds(200), [&]()
       {
         this->check_bidding_process();
       });

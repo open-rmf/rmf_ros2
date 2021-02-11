@@ -23,6 +23,7 @@
 #include <rmf_task_ros2/StandardNames.hpp>
 #include <rmf_task_ros2/TaskStatus.hpp>
 #include <rmf_task_msgs/msg/dispatch_request.hpp>
+#include <rmf_task_msgs/msg/dispatch_ack.hpp>
 #include <rmf_traffic/Time.hpp>
 
 using TaskProfile = rmf_task_msgs::msg::TaskProfile;
@@ -76,6 +77,7 @@ private:
     const std::string& fleet_name);
 
   using RequestMsg = rmf_task_msgs::msg::DispatchRequest;
+  using AckMsg = rmf_task_msgs::msg::DispatchAck;
 
   std::shared_ptr<rclcpp::Node> _node;
   std::string _fleet_name;
@@ -83,6 +85,7 @@ private:
   CancelTaskCallback _cancel_task_cb_fn;
   rclcpp::Subscription<RequestMsg>::SharedPtr _request_msg_sub;
   rclcpp::Publisher<StatusMsg>::SharedPtr _status_msg_pub;
+  rclcpp::Publisher<AckMsg>::SharedPtr _ack_msg_pub;
 };
 
 } // namespace action

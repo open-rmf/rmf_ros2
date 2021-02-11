@@ -47,6 +47,7 @@ public:
 
   StatusCallback on_change_fn;
 
+  std::queue<bidding::BidNotice> queue_bidding_tasks;
   DispatchTasks active_dispatch_tasks;
   DispatchTasks terminal_dispatch_tasks;
   std::size_t task_counter = 0; // index for generating task_id
@@ -180,6 +181,9 @@ public:
     submitted_task.task_id =
       task_type_name[task_type] + std::to_string(task_counter++);
 
+    RCLCPP_INFO(node->get_logger(),
+      "Received Task Submission [%s]", submitted_task.task_id.c_str());
+
     // add task to internal cache
     TaskStatus status;
     status.task_profile = submitted_task;
@@ -193,7 +197,10 @@ public:
     bid_notice.task_profile = submitted_task;
     bid_notice.time_window = rmf_traffic_ros2::convert(
       rmf_traffic::time::from_seconds(bidding_time_window));
-    auctioneer->start_bidding(bid_notice);
+    queue_bidding_tasks.push(bid_notice);
+
+    if (queue_bidding_tasks.size() == 1)
+      auctioneer->start_bidding(queue_bidding_tasks.front());
 
     return submitted_task.task_id;
   }
@@ -203,7 +210,11 @@ public:
     // check if key exists
     const auto it = active_dispatch_tasks.find(task_id);
     if (it == active_dispatch_tasks.end())
+    {
+      RCLCPP_ERROR(node->get_logger(),
+        "Task [%s] is not found in active_tasks", task_id.c_str());
       return false;
+    }
 
     RCLCPP_WARN(node->get_logger(), "Cancel task: [%s]", task_id.c_str());
 
@@ -218,6 +229,42 @@ public:
         on_change_fn(cancel_task_status);
 
       return true;
+    }
+
+    // Charging task doesnt support cancel task
+    if (cancel_task_status->task_profile.description.task_type.type ==
+      rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY)
+    {
+      RCLCPP_ERROR(node->get_logger(), "Charging task is not cancelled-able");
+      return false;
+    }
+
+    // Curently cancel can only work on Queued Task in Fleet Adapter
+    if (cancel_task_status->state != TaskStatus::State::Queued)
+    {
+      RCLCPP_ERROR(node->get_logger(),
+        "Unable to cancel task [%s] as it is not a Queued Task",
+        task_id.c_str());
+      return false;
+    }
+
+    // Remove previous self-generated charging task from "active_dispatch_tasks"
+    // this is to prevent duplicated charging task (as certain queued charging
+    // tasks are not terminated when task is reassigned).
+    // TODO: a better way to impl this
+    for (auto it = active_dispatch_tasks.begin();
+      it != active_dispatch_tasks.end(); )
+    {
+      const auto type = it->second->task_profile.description.task_type.type;
+      const bool is_fleet_name =
+        (cancel_task_status->fleet_name == it->second->fleet_name);
+      const bool is_charging_task =
+        (type == rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY);
+
+      if (is_charging_task && is_fleet_name)
+        it = active_dispatch_tasks.erase(it);
+      else
+        ++it;
     }
 
     // Cancel action task, this will only send a cancel to FA. up to
@@ -261,6 +308,9 @@ public:
       if (on_change_fn)
         on_change_fn(pending_task_status);
 
+      queue_bidding_tasks.pop();
+      if (!queue_bidding_tasks.empty())
+        auctioneer->start_bidding(queue_bidding_tasks.front());
       return;
     }
 
@@ -294,9 +344,6 @@ public:
       winner->fleet_name,
       pending_task_status->task_profile,
       pending_task_status);
-
-    // Note: this might be untrue since task might be ignored by server
-    pending_task_status->state = TaskStatus::State::Queued;
   }
 
   void terminate_task(const TaskStatusPtr terminate_status)
@@ -340,6 +387,16 @@ public:
       active_dispatch_tasks[id] = status;
       RCLCPP_WARN(node->get_logger(),
         "Add previously unheard task: [%s]", id.c_str());
+    }
+
+    // check if there's a change in state for the previous completed bidding task
+    // TODO, better way to impl this
+    if (!queue_bidding_tasks.empty()
+      && id == queue_bidding_tasks.front().task_profile.task_id)
+    {
+      queue_bidding_tasks.pop();
+      if (!queue_bidding_tasks.empty())
+        auctioneer->start_bidding(queue_bidding_tasks.front());
     }
 
     if (on_change_fn)

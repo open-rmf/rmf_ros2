@@ -39,8 +39,8 @@ Client::Client(std::shared_ptr<rclcpp::Node> node)
     TaskStatusTopicName, dispatch_qos,
     [&](const std::unique_ptr<StatusMsg> msg)
     {
-      auto task_id = msg->task_profile.task_id;
-      // status update mode
+      const auto task_id = msg->task_profile.task_id;
+      // status update, check if task_id is previously known
       if (_active_task_status.count(task_id))
       {
         auto weak_status = _active_task_status[task_id].lock();
@@ -58,20 +58,12 @@ Client::Client(std::shared_ptr<rclcpp::Node> node)
         *weak_status = convert_status(*msg);
         weak_status->task_profile = cache_profile;
 
-        if (_on_change_callback)
-          _on_change_callback(weak_status);
-
-        // if active task terminated
         if (weak_status->is_terminated())
-        {
           RCLCPP_INFO(_node->get_logger(),
-          "Receive status from fleet [%s], task [%s] is now terminated",
+          "Received status from fleet [%s], task [%s] is now terminated",
           msg->fleet_name.c_str(), task_id.c_str());
-          _active_task_status.erase(task_id);
 
-          if (_on_terminate_callback)
-            _on_terminate_callback(weak_status);
-        }
+        update_task_status(weak_status);
       }
       else
       {
@@ -79,15 +71,75 @@ Client::Client(std::shared_ptr<rclcpp::Node> node)
         RCLCPP_DEBUG(_node->get_logger(),
         "[action] Unknown task: [%s]", task_id.c_str());
         auto task_status = std::make_shared<TaskStatus>(convert_status(*msg));
-
-        if (_on_change_callback)
-          _on_change_callback(task_status);
-
-        if (!task_status->is_terminated())
-          _active_task_status[task_id] = task_status;
+        _active_task_status[task_id] = task_status;
+        update_task_status(task_status);
       }
     });
+
+  _ack_msg_sub = _node->create_subscription<AckMsg>(
+    TaskAckTopicName, dispatch_qos,
+    [&](const std::unique_ptr<AckMsg> msg)
+    {
+      const auto task_id = msg->dispatch_request.task_profile.task_id;
+      const auto weak_status = _active_task_status[task_id].lock();
+
+      switch (msg->dispatch_request.method)
+      {
+        case RequestMsg::ADD:
+          if (msg->success)
+          {
+            // update this as pending
+            RCLCPP_INFO(_node->get_logger(),
+            "Received dispatch ack from fleet [%s] that task [%s] is queued",
+            msg->dispatch_request.fleet_name.c_str(), task_id.c_str());
+            weak_status->state = TaskStatus::State::Queued;
+          }
+          else
+          {
+            // update this as failed
+            RCLCPP_ERROR(_node->get_logger(),
+            "Received dispatch ack from fleet [%s] that task [%s] Add Failed",
+            msg->dispatch_request.fleet_name.c_str(), task_id.c_str());
+            weak_status->state = TaskStatus::State::Failed;
+          }
+          break;
+        case RequestMsg::CANCEL:
+          // update this as Canceled
+          if (msg->success)
+          {
+            RCLCPP_INFO(_node->get_logger(),
+            "Received dispatch ack from fleet [%s] that task [%s] is canceled",
+            msg->dispatch_request.fleet_name.c_str(), task_id.c_str());
+            weak_status->state = TaskStatus::State::Canceled;
+          }
+          break;
+        default:
+          RCLCPP_ERROR(_node->get_logger(), "Invalid Dispatch ack method");
+          return;
+      }
+
+      update_task_status(weak_status);
+    });
 }
+
+//==============================================================================
+void Client::update_task_status(const TaskStatusPtr status)
+{
+  // call on_change callback
+  if (_on_change_callback)
+    _on_change_callback(status);
+
+  // erase terminated task and call on_terminate callback
+  if (status->is_terminated())
+  {
+    _active_task_status.erase(status->task_profile.task_id);
+    if (_on_terminate_callback)
+      _on_terminate_callback(status);
+  }
+}
+
+//==============================================================================
+// check if task is updated TODO
 
 //==============================================================================
 void Client::add_task(

@@ -512,16 +512,26 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     return;
 
   const std::string id = msg->task_profile.task_id;
+  DispatchAck dispatch_ack;
+  dispatch_ack.dispatch_request = *msg;
+  dispatch_ack.success = false;
 
   if (msg->method == DispatchRequest::ADD)
   {
     const auto task_it = bid_notice_assignments.find(id);
     if (task_it == bid_notice_assignments.end())
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Received DispatchRequest for task_id:[%s] before receiving BidNotice. "
+        "This request will be ignored.");
+      dispatch_ack_pub->publish(dispatch_ack);
       return;
+    }
 
     RCLCPP_INFO(
       node->get_logger(),
-      "Bid for task_id:[%s] awarded to fleet [%s]",
+      "Bid for task_id:[%s] awarded to fleet [%s]. Processing request...",
       id.c_str(), name.c_str());
 
     auto& assignments = task_it->second;
@@ -532,7 +542,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
         node->get_logger(),
         "The number of available robots does not match that in the assignments "
         "for task_id:[%s]. This request will be ignored.", id.c_str());
-
+      dispatch_ack_pub->publish(dispatch_ack);
       return;
     }
 
@@ -547,6 +557,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
         "Unable to find generated request for task_id:[%s]. This request will "
         "be ignored.",
         id.c_str());
+      dispatch_ack_pub->publish(dispatch_ack); 
       return;
     }
 
@@ -564,6 +575,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
           "Unable to replan assignments when accommodating task_id:[%s]. This "
           "request will be ignored.",
           id.c_str());
+        dispatch_ack_pub->publish(dispatch_ack);
         return;
       }
       assignments = replan_results.value();
@@ -580,7 +592,10 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     }
 
     current_assignment_cost = task_planner->compute_cost(assignments);
-
+    assigned_requests.insert({id, request_it->second});
+    dispatch_ack.success = true;
+    dispatch_ack_pub->publish(dispatch_ack);
+  
     RCLCPP_INFO(
       node->get_logger(),
       "Assignments updated for robots in fleet [%s] to accommodate task_id:[%s]",
@@ -589,11 +604,91 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
 
   else if (msg->method == DispatchRequest::CANCEL)
   {
-    RCLCPP_WARN(
+    // We currently only support cancellation of a queued task.
+    // TODO: Support cancellation of an active task.
+
+    // When a queued task is to be cancelled, we simply re-plan and re-allocate
+    // task assignments for the request set containing all the queued tasks
+    // excluding the task to be cancelled.
+    if (cancelled_task_ids.find(id) != cancelled_task_ids.end())
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Request with task_id:[%s] has already been cancelled.",
+        id.c_str());
+
+      dispatch_ack.success = true;
+      dispatch_ack_pub->publish(dispatch_ack);
+      return;
+    }
+
+    auto request_to_cancel_it = assigned_requests.find(id);
+    if (request_to_cancel_it == assigned_requests.end())
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Unable to cancel task with task_id:[%s] as it is not assigned to "
+        "fleet:[%s].",
+        id.c_str(), name.c_str());
+
+      dispatch_ack_pub->publish(dispatch_ack);
+      return;
+    }
+
+    std::unordered_set<std::string> executed_tasks;
+    for (const auto& [context, mgr] : task_managers)
+    {
+      const auto& tasks = mgr->get_executed_tasks();
+      executed_tasks.insert(tasks.begin(), tasks.end());
+    }
+
+    // Check if received request is to cancel an active task
+    if (executed_tasks.find(id) != executed_tasks.end())
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Unable to cancel active task with task_id:[%s]. Only queued tasks may "
+        "be cancelled.",
+        id.c_str());
+
+      dispatch_ack_pub->publish(dispatch_ack);
+      return;
+    }  
+
+    // Re-plan assignments while ignoring request for task to be cancelled
+    const auto replan_results = allocate_tasks(
+      nullptr, request_to_cancel_it->second);
+    
+    if (!replan_results.has_value())
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Unable to re-plan assignments when cancelling task with task_id:[%s]",
+        id.c_str());
+
+      dispatch_ack_pub->publish(dispatch_ack);  
+      return;
+    }
+
+    const auto& assignments = replan_results.value();
+    std::size_t index = 0;
+    for (auto& t : task_managers)
+    {
+      t.second->set_queue(assignments[index]);
+      ++index;
+    }
+
+    current_assignment_cost = task_planner->compute_cost(assignments);
+
+    dispatch_ack.success = true;
+    dispatch_ack_pub->publish(dispatch_ack);
+    cancelled_task_ids.insert(id);
+  
+    RCLCPP_INFO(
       node->get_logger(),
-      "Cancellation of a task has not been implemented yet. Ignoring "
-      "DispatchRequest for task_id:[%s].",
-      id.c_str());
+      "Task with task_id:[%s] has successfully been cancelled. Assignments "
+      "updated for robots in fleet [%s].",
+      id.c_str(), name.c_str());
   }
 
   else
@@ -601,7 +696,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     RCLCPP_WARN(
       node->get_logger(),
       "Received DispatchRequest for task_id:[%s] with invalid method. Only "
-      "ADD and CANCEL methods are supported. The request will be ignored.",
+      "ADD and CANCEL methods are supported. This request will be ignored.",
       id.c_str());
     return;
   }
@@ -752,8 +847,9 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
 }
 
 //==============================================================================
-auto FleetUpdateHandle::Implementation:: allocate_tasks(
-  rmf_task::ConstRequestPtr request) const -> std::optional<Assignments>
+auto FleetUpdateHandle::Implementation::allocate_tasks(
+  rmf_task::ConstRequestPtr new_request,
+  rmf_task::ConstRequestPtr ignore_request) const -> std::optional<Assignments>
 {
   // Collate robot states, constraints and combine new requestptr with 
   // requestptr of non-charging tasks in task manager queues
@@ -762,10 +858,10 @@ auto FleetUpdateHandle::Implementation:: allocate_tasks(
   std::vector<rmf_task::ConstRequestPtr> pending_requests;
   std::string id = "";
 
-  if (request)
+  if (new_request)
   {
-    pending_requests.push_back(request);
-    id = request->id();
+    pending_requests.push_back(new_request);
+    id = new_request->id();
   }
 
   for (const auto& t : task_managers)
@@ -777,8 +873,32 @@ auto FleetUpdateHandle::Implementation:: allocate_tasks(
       pending_requests.end(), requests.begin(), requests.end());
   }
 
-  if (pending_requests.empty())
-    return std::nullopt;
+  // Remove the request to be ignored if present
+  if (ignore_request)
+  {
+    auto ignore_request_it = pending_requests.end();
+    for (auto it = pending_requests.begin(); it != pending_requests.end(); ++it)
+    {
+      auto pending_request = *it;
+      if (pending_request->id() == ignore_request->id())
+        ignore_request_it = it;
+    }
+    if (ignore_request_it != pending_requests.end())
+    {
+      pending_requests.erase(ignore_request_it);
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Request with task_id:[%s] will be ignored during task allocation.",
+        ignore_request->id().c_str());
+    }
+    else
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Request with task_id:[%s] is not present in any of the task queues.",
+        ignore_request->id().c_str());
+    }
+  }
 
   RCLCPP_INFO(
     node->get_logger(), 

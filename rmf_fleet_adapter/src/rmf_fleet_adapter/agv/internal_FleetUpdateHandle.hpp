@@ -23,6 +23,7 @@
 #include <rmf_task_msgs/msg/bid_proposal.hpp>
 #include <rmf_task_msgs/msg/bid_notice.hpp>
 #include <rmf_task_msgs/msg/dispatch_request.hpp>
+#include <rmf_task_msgs/msg/dispatch_ack.hpp>
 
 #include <rmf_task/agv/TaskPlanner.hpp>
 #include <rmf_task/Request.hpp>
@@ -174,7 +175,12 @@ public:
   // Map to store task id with assignments for BidNotice
   std::unordered_map<std::string, Assignments> bid_notice_assignments = {};
 
-  std::unordered_map<std::string, rmf_task::ConstRequestPtr> generated_requests;
+  std::unordered_map<
+    std::string, rmf_task::ConstRequestPtr> generated_requests = {};
+  std::unordered_map<
+    std::string, rmf_task::ConstRequestPtr> assigned_requests = {};
+  std::unordered_set<std::string> cancelled_task_ids = {};
+
   AcceptTaskRequest accept_task = nullptr;
 
   using BidNotice = rmf_task_msgs::msg::BidNotice;
@@ -188,6 +194,10 @@ public:
   using DispatchRequest = rmf_task_msgs::msg::DispatchRequest;
   using DispatchRequestSub = rclcpp::Subscription<DispatchRequest>::SharedPtr;
   DispatchRequestSub dispatch_request_sub = nullptr;
+
+  using DispatchAck = rmf_task_msgs::msg::DispatchAck;
+  using DispatchAckPub = rclcpp::Publisher<DispatchAck>::SharedPtr;
+  DispatchAckPub dispatch_ack_pub = nullptr;
 
   using DockSummary = rmf_fleet_msgs::msg::DockSummary;
   using DockSummarySub = rclcpp::Subscription<DockSummary>::SharedPtr;
@@ -215,6 +225,11 @@ public:
     handle._pimpl->bid_proposal_pub =
       handle._pimpl->node->create_publisher<BidProposal>(
         BidProposalTopicName, default_qos);
+
+    // Publish DispatchAck
+    handle._pimpl->dispatch_ack_pub =
+      handle._pimpl->node->create_publisher<DispatchAck>(
+        DispatchAckTopicName, default_qos);
 
     // Subscribe BidNotice
     handle._pimpl->bid_notice_sub =
@@ -267,9 +282,15 @@ public:
     const rmf_traffic::agv::Planner::Start& start,
     const std::unordered_set<std::size_t>& charging_waypoints);
 
+  /// Generate task assignments for a collection of task requests comprising of
+  /// task requests currently in TaskManager queues while optionally including a  
+  /// new request and while optionally ignoring a specific request.
   std::optional<Assignments> allocate_tasks(
-    rmf_task::ConstRequestPtr request = nullptr) const;
+    rmf_task::ConstRequestPtr new_request = nullptr,
+    rmf_task::ConstRequestPtr ignore_request = nullptr) const;
 
+  /// Helper function to check if assignments are valid. An assignment set is
+  /// invalid if one of the assignments has already begun execution.
   bool is_valid_assignments(Assignments& assignments) const;
 
   static Implementation& get(FleetUpdateHandle& fleet)

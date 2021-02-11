@@ -53,6 +53,7 @@ const std::string TaskSummaryTopicName = "task_summaries";
 const std::string BidNoticeTopicName = "rmf_task/bid_notice";
 const std::string BidProposalTopicName = "rmf_task/bid_proposal";
 const std::string DispatchRequestTopicName = "rmf_task/dispatch_request";
+const std::string DispatchAckTopicName = "rmf_task/dispatch_ack";
 
 const std::string DockSummaryTopicName = "dock_summary";
 

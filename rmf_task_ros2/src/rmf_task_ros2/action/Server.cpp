@@ -62,10 +62,9 @@ Server::Server(
 
       RCLCPP_INFO(_node->get_logger(),
       "[Action server] Received task request!");
-      StatusMsg status_msg;
-      status_msg.fleet_name = _fleet_name;
-      status_msg.state = StatusMsg::STATE_FAILED;
-      status_msg.task_profile = msg->task_profile;
+      AckMsg ack_msg;
+      ack_msg.dispatch_request = *msg;
+      ack_msg.success = false;
 
       switch (msg->method)
       {
@@ -73,22 +72,24 @@ Server::Server(
         case RequestMsg::ADD:
           {
             if (_add_task_cb_fn && _add_task_cb_fn(msg->task_profile))
-              status_msg.state = StatusMsg::STATE_QUEUED;
+              ack_msg.success = true;
             break;
           }
         // Cancel Request
         case RequestMsg::CANCEL:
           {
             if (_cancel_task_cb_fn && _cancel_task_cb_fn(msg->task_profile))
-              status_msg.state = StatusMsg::STATE_CANCELED;
+              ack_msg.success = true;
             break;
           }
         default:
           RCLCPP_ERROR(_node->get_logger(), "Request Method is not supported!");
       }
-
-      _status_msg_pub->publish(status_msg);
+      _ack_msg_pub->publish(ack_msg);
     });
+
+  _ack_msg_pub = _node->create_publisher<AckMsg>(
+    TaskAckTopicName, dispatch_qos);
 
   _status_msg_pub = _node->create_publisher<StatusMsg>(
     TaskStatusTopicName, dispatch_qos);
