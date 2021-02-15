@@ -47,7 +47,8 @@ void bind_nodes(py::module &m)
 
   // Make blockade_Node
   m_nodes.def("make_blockade", &rmf_traffic_ros2::blockade::make_node,
-              py::arg("options"));
+              py::arg("options"),
+              "make rmf ros2 blockade node");
 
   // Make Schedule Node
   m_nodes.def("make_schedule", &rmf_traffic_ros2::schedule::make_node,

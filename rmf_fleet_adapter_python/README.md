@@ -30,31 +30,60 @@ import rmf_adapter as adpt
 print(dir(adpt))
 ```
 
+## Description
 
+> Fleet adapters allow for interactions between `rmf_core` and robot fleets.
+>
+> High level pathing or task assignments can be issued to robots from `rmf_core`, and a fleet adapter will take those assignments and handle it in an implementation specific manner to direct individual robots to execute certain actions while monitoring and updating `rmf_core` on their high-level states via `rmf_core` robot update handles.
+>
+> For more information it is helpful to look at the docs for [rmf_core](https://github.com/osrf/rmf_core)
 
-## Running the Integration Test
+### Usage
 
-```shell
-ros2 run rmf_adapter_python test_adapter
+The bound APIs are almost identical to the `rmf_core` ones as well, so if the written documentation for these packages, and the Python usage examples in the scripts or tests are insufficient, you can also look into the relevant C++ implementations as a last resort.
+
+Alternatively, you may also explore any interfaces with:
+
+```python
+# To list any available members or methods
+dir(adpt.<WHATEVER_CLASS_YOU_WANT_TO_INSPECT>)
+
+# To see function signatures
+help(adpt.<WHATEVER_CLASS_YOU_WANT_TO_INSPECT>)
 ```
 
-You may then probe the effects on the ROS2 graph by subscribing to the following topics with `ros2 topic echo <TOPIC_NAME>`:
+### Binding Details
 
-- `/dispenser_requests`
-- `/dispenser_results`
-- `/dispenser_states`
-- `/task_summaries`
+This package contains Python bindings to C++ code that is found in `rmf_core` and its associated packages. It was implemented using [Pybind11](https://pybind11.readthedocs.io/).
 
-### Running Traffic Light Example
-This will showcase an example of having 2 "traffic light" robots using RMF.
+Do note that as a result of that, if one needs to inspect the source, there are no Python implementations of any of the bound code, and it would be advisable to look directly into the appropriate [rmf_fleet_adapter](https://github.com/osrf/rmf_core/tree/develop/rmf_fleet_adapter) package, that contains the C++ code.. Additionally, C++ objects will get instantiated (generally) as references that can be used or called using the appropriate bound methods on the Python side.
 
-```bash
-# First Terminal
-ros2 run rmf_fleet_adapter_python schedule_blockade_nodes
+Some of these bindings allow you to **override virtual methods that would normally be called in the C++ side with Python code** that you write in your Python scripts!
 
-# Second Terminal
-ros2 run rmf_fleet_adapter_python traffic_light
-```
+
+
+### Features
+
+There are enough functionalities bound to implement your own fleet adapters to communicate with the rest of the `rmf_core` systems in the ROS2 graph. Allowing you to:
+
+- `Adapter/MockAdapter`: **Communicate with rmf_core by adding fleets or requesting deliveries**
+- `RobotCommandHandle`: **Specify custom robot command handles** that can take commands from the `rmf_core` packages and implement or execute the following robot behaviors:
+  - Docking
+  - Path assignment
+  - Starting
+  - Stopping
+  - RobotUpdateHandle: **Update robot statuses** 
+- `Executor`: **Implement new event handlers** for:
+  - Docking
+  - Door operation
+  - Lift door operation
+  - Lift moving
+- `Graph`: **Specify map geometries as they relate to waypoints and lanes**
+- `VehicleTraits`: **Specify robot vehicle traits**, including:
+  - Footprint
+  - Kinematic limits
+
+Additionally, when you pair this with `rclpy`, you can interact with the other ROS2 message interfaces provided by `rmf_core`, and essentially write your own fleet adapter in Python!
 
 ---
 
@@ -138,14 +167,6 @@ adpt.test_shared_ptr(command_handler,
 # With default args!
 adpt.test_shared_ptr(command_handler,
                      docking_finish_callback=lambda: print("wow"))
-
-# adpt.test_shared_ptr binds:
-# [](std::shared_ptr<rmf_mock_adapter::RobotCommandHandle> handle,
-#    std::string dock_name = "DUMMY_DOCK_NAME",
-#    std::function<void()> docking_finished_callback = [&](){})
-# {
-#   handle->dock(dock_name, docking_finished_callback);
-# }
 ```
 
 
@@ -271,11 +292,13 @@ However, if you have already done that, relevant points are to:
    - And instantiating its traits: `traits.VehicleTraits()`
 9. Create an adapter: `adpt.Adapter()` or `adpt.MockAdapter()`
 10. Attach a new fleet: `add_fleet()`
-11. Create a list of Plan Starts: `[plan.Start()]`
+11. Define a callback function for task acceptance: `accept_task_requests()`
+12. Set battery related parameters: `set_recharge_threshold()` and `set_task_planner_params()`
+13. Create a list of Plan Starts: `[plan.Start()]`
     - You will need to pass in a C++ starting time object, which you can obtain using the `now()` method from your instantiated `Adapter/MockAdapter`
-12. And add your robots to your fleet: `add_robot()`
-13. Then simply request your deliveries!: `request_delivery()`
-14. Then spin your `rclpy` nodes if you have any!: `spin()`, `spin_once()`
+14. And add your robots to your fleet: `add_robot()`
+15. Then simply request your deliveries!: `request_delivery()`
+16. Then spin your `rclpy` nodes if you have any!: `spin()`, `spin_once()`
 
 T​hen you're done! :tada:
 
