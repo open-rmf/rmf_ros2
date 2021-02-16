@@ -30,6 +30,9 @@ class EasyTrafficLight : public std::enable_shared_from_this<EasyTrafficLight>
 public:
 
   /// Update the traffic light with a new path for your robot.
+  ///
+  /// \warning This function will throw an exception if there are less than 2
+  /// waypoints in the path.
   void follow_new_path(const std::vector<Waypoint>& new_path);
 
   /// This instruction is given for moving updates. It
@@ -123,6 +126,18 @@ public:
 
   /// Get the last checkpoint that the traffic light knows has been reached.
   std::size_t last_reached() const;
+
+  /// Update the location of the robot while it is idle. This means the robot is
+  /// sitting somewhere without the intention of going anywhere.
+  ///
+  /// \param[in] map_name
+  ///   The name of the reference map where the robot is located.
+  ///
+  /// \param[in] position
+  ///   The (x, y, yaw) coordinates of the robot.
+  EasyTrafficLight& update_idle_location(
+    std::string map_name,
+    Eigen::Vector3d position);
 
   /// Update the current battery level of the robot by specifying its state of
   /// charge as a fraction of its total charge capacity.

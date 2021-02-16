@@ -108,6 +108,8 @@ public:
 
   void follow_new_path(const std::vector<Waypoint>& new_path);
 
+  void clear();
+
   void accept_new_checkpoints();
 
   std::optional<MovingInstruction> handle_new_checkpoints_moving(
