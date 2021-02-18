@@ -95,7 +95,10 @@ void Negotiate::operator()(const Subscriber& s)
               for (const auto& it : {initial_itinerary, r->get_itinerary()})
               {
                 for (const auto& route : it)
-                  final_itinerary.push_back(route);
+                {
+                  if (route.trajectory().size() > 1)
+                    final_itinerary.push_back(route);
+                }
               }
 
               responder->submit(

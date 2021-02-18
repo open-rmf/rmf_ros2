@@ -310,7 +310,7 @@ public:
     negotiators(std::make_shared<NegotiatorMap>())
   {
     // TODO(MXG): Make the QoS configurable
-    const auto qos = rclcpp::ServicesQoS().reliable();
+    const auto qos = rclcpp::ServicesQoS().reliable().keep_last(1000);
 
     repeat_sub = node.create_subscription<Repeat>(
       NegotiationRepeatTopicName, qos,
@@ -745,7 +745,6 @@ public:
     }
 
     print_negotiation_status(msg.conflict_version, negotiation);
-    std::cout << err << "\n ------ Finished dump ------ " << std::endl;
   }
 
   void receive_conclusion(const Conclusion& msg)

@@ -37,6 +37,7 @@ public:
   : rclcpp::Executor{options},
     _worker{std::move(worker)},
     _stopping{false},
+    _stopped{true},
     _work_scheduled{false}
   {
     // Do nothing
@@ -44,6 +45,8 @@ public:
 
   void spin() override
   {
+    _stopping = false;
+    _stopped = false;
     const auto keep_spinning = [&]()
     {
       return !_stopping && rclcpp::ok(context_);
@@ -88,6 +91,9 @@ public:
       if (keep_spinning())
         wait_for_work(std::chrono::milliseconds(50));
     }
+
+    _stopped = true;
+    _stopped_cv.notify_all();
   }
 
   void stop()
@@ -96,9 +102,21 @@ public:
     _cv.notify_all();
   }
 
+  std::condition_variable& stopped_cv()
+  {
+    return _stopped_cv;
+  }
+
+  bool stopped() const
+  {
+    return _stopped;
+  }
+
 private:
   rxcpp::schedulers::worker _worker;
   bool _stopping;
+  bool _stopped;
+  std::condition_variable _stopped_cv;
 
   bool _work_scheduled;
   std::mutex _mutex;
@@ -127,13 +145,12 @@ public:
 
   void start()
   {
-    if (!_stopped && !_stopping)
+    if (!_executor->stopped() && !_stopping)
       return;
 
     // If the spinning is being stopped, wait for the stopping to finish before
     // we start back up.
     stop();
-
 
     if (!_node_added)
     {
@@ -142,7 +159,6 @@ public:
     }
 
     std::unique_lock<std::mutex> lock(_stopping_mutex);
-    _stopped = false;
     _stopping = false;
 
     _spin_thread = std::thread([&]()
@@ -153,7 +169,7 @@ public:
 
   void stop()
   {
-    if (_stopped)
+    if (_executor->stopped())
       return;
 
     if (!_stopping.exchange(true))
@@ -166,22 +182,22 @@ public:
       {
         std::lock_guard<std::mutex> lock(_stopping_mutex);
         _stopping = false;
-        _stopped = true;
       }
-
-      _stopped_cv.notify_all();
     }
     else
     {
       std::unique_lock<std::mutex> lock(_stopping_mutex);
-      if (!_stopped)
-        _stopped_cv.wait(lock, [&](){ return _stopped; });
+      if (!_executor->stopped())
+      {
+        _executor->stopped_cv().wait(
+              lock, [&](){ return _executor->stopped(); });
+      }
     }
   }
 
   std::condition_variable& spin_cv()
   {
-    return _stopped_cv;
+    return _executor->stopped_cv();
   }
 
   bool still_spinning() const
@@ -216,12 +232,10 @@ public:
 
 private:
   std::atomic_bool _stopping = false;
-  bool _stopped = true;
   std::mutex _stopping_mutex;
 
   std::shared_ptr<RxCppExecutor> _executor;
   bool _node_added = false;
-  std::condition_variable _stopped_cv;
   std::thread _spin_thread;
 
   static rclcpp::ExecutorOptions _make_exec_args(

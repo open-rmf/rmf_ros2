@@ -81,12 +81,14 @@ public:
     rclcpp::Time time;
     StoppedAt stopped_at;
     Departed departed;
+    std::size_t path_version;
   };
 
   struct ResumeInfo
   {
     std::size_t checkpoint;
     Departed departed;
+    std::size_t path_version;
   };
 
   void receive_checkpoints(

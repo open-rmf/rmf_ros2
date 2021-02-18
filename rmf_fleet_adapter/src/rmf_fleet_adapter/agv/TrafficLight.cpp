@@ -98,7 +98,7 @@ public:
   float current_battery_soc = -1.0;
 
   // TODO(MXG): Make this configurable
-  rmf_traffic::Duration ready_timing_threshold = std::chrono::seconds(1);
+  rmf_traffic::Duration ready_timing_threshold = std::chrono::seconds(20);
 
   std::shared_ptr<services::FindPath> find_path_service;
   rxcpp::subscription find_path_subscription;
@@ -171,7 +171,8 @@ public:
 
   void watch_for_ready(
       std::size_t path_version,
-      std::size_t checkpoint_id);
+      std::size_t checkpoint_id,
+      bool assume_reached_checkpoint);
 
   bool check_if_ready(
       std::size_t path_version,
@@ -422,7 +423,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::plan_timing(
 namespace {
 
 //==============================================================================
-rmf_utils::optional<rmf_traffic::Time> linear_interpolate_time(
+std::optional<rmf_traffic::Time> linear_interpolate_time(
     const rmf_traffic::Trajectory::Waypoint& wp0,
     const rmf_traffic::Trajectory::Waypoint& wp1,
     const Eigen::Vector2d& p)
@@ -555,7 +556,7 @@ rmf_utils::optional<rmf_traffic::Time> interpolate_time(
     const auto gi_0 = wp0.graph_index();
     const auto gi_1 = wp1.graph_index();
 
-    if (gi_1 && (!gi_0 || (*gi_0 != *gi_1)))
+    if (gi_1.has_value() && (!gi_0.has_value() || (*gi_0 != *gi_1)))
     {
       // Check if the robot is traversing a lane
       const Eigen::Vector2d p0 = wp0.position().block<2,1>(0,0);
@@ -576,10 +577,13 @@ rmf_utils::optional<rmf_traffic::Time> interpolate_time(
       if (deviation > deviation_threshold)
         return rmf_utils::nullopt;
 
-      // If the vehicle is behind the lane then we should recompute the timing
-      // information.
       if (traversal < 0.0)
-        return rmf_utils::nullopt;
+      {
+        // If the vehicle is behind the lane then we should project the lane
+        // backwards to meet it
+        const double s = traversal/traits.linear().get_nominal_velocity();
+        return wp0.time() + rmf_traffic::time::from_seconds(s);
+      }
 
       try
       {
@@ -661,6 +665,8 @@ void update_itineraries(
     std::vector<rmf_traffic::Route>& active_itinerary,
     const std::vector<rmf_traffic::Route>& plan_itinerary)
 {
+  // TODO(MXG): Revisit the way we keep the schedule up to date, since we can
+  // probably do better.
   for (const auto& r : active_itinerary)
     stashed_itinerary.push_back(r);
   active_itinerary.clear();
@@ -690,104 +696,6 @@ void update_itineraries(
 }
 
 //==============================================================================
-std::vector<rmf_traffic::Route> get_reserved_itinerary(
-    const std::vector<rmf_traffic::Route>& stashed_itinerary,
-    const std::vector<rmf_traffic::Route>& active_itinerary,
-    const rmf_traffic::Duration delay)
-{
-  std::vector<rmf_traffic::Route> full_itinerary;
-  full_itinerary.reserve(stashed_itinerary.size() + active_itinerary.size());
-
-  for (const auto& it : {stashed_itinerary, active_itinerary})
-  {
-    for (const auto& r : it)
-      full_itinerary.push_back(r);
-  }
-
-  for (auto& r : full_itinerary)
-  {
-    assert(!r.trajectory().empty());
-    r.trajectory().front().adjust_times(delay);
-  }
-
-  return full_itinerary;
-}
-
-//==============================================================================
-bool conflicts_with_reservations(
-    const rmf_traffic::schedule::Negotiator::TableViewerPtr& table_viewer,
-    const std::vector<rmf_traffic::Route>& reservation,
-    const rmf_traffic::Profile& profile)
-{
-  const auto& proposals = table_viewer->base_proposals();
-
-  for (const auto& p : proposals)
-  {
-    const auto other_participant = table_viewer->get_description(p.participant);
-    assert(other_participant);
-    const auto& other_profile = other_participant->profile();
-
-    for (const auto& other_r : p.itinerary)
-    {
-      for (const auto& r : reservation)
-      {
-        if (r.map() != other_r->map())
-          continue;
-
-        if (rmf_traffic::DetectConflict::between(
-              profile,
-              r.trajectory(),
-              other_profile,
-              other_r->trajectory()))
-          return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-//==============================================================================
-rmf_traffic::schedule::Negotiation::Alternatives make_reservation_alts(
-    const std::shared_ptr<
-      const TrafficLight::UpdateHandle::Implementation::Data>& data)
-{
-  using namespace std::chrono_literals;
-
-  rmf_traffic::schedule::Negotiation::Alternatives alts;
-
-  const auto now = rmf_traffic_ros2::convert(data->node->now());
-
-  rmf_traffic::schedule::Itinerary preferred_itinerary;
-  for (const auto& itinerary : {data->stashed_itinerary, data->active_itinerary})
-  {
-    for (const auto& r : itinerary)
-      preferred_itinerary.push_back(std::make_shared<rmf_traffic::Route>(r));
-  }
-
-  alts.emplace_back(std::move(preferred_itinerary));
-
-  if (data->last_known_location.has_value())
-  {
-    // TODO(MXG): Should we do something about the situation where we don't know
-    // the latest location? Maybe just add a stop_and_sit on the first waypoint?
-    rmf_traffic::Trajectory stop_and_sit;
-    stop_and_sit.insert(
-      now, data->last_known_location->position, Eigen::Vector3d::Zero());
-    stop_and_sit.insert(
-      now + 10s, data->last_known_location->position, Eigen::Vector3d::Zero());
-
-    const auto& graph = data->planner->get_configuration().graph();
-    const auto& wp = graph.get_waypoint(data->blockade.last_reached());
-    auto stop_and_sit_route = std::make_shared<rmf_traffic::Route>(
-          wp.get_map_name(), std::move(stop_and_sit));
-    alts.push_back({std::move(stop_and_sit_route)});
-  }
-
-  return alts;
-}
-
-//==============================================================================
 void update_active_itinerary(
     std::vector<rmf_traffic::Route>& active_itinerary,
     const std::vector<rmf_traffic::Route>& plan_itinerary,
@@ -798,7 +706,10 @@ void update_active_itinerary(
   {
     const auto& wp = *it;
 
-    for (auto i=active_itinerary.size()-1; i <= wp.itinerary_index(); ++i)
+    const std::size_t initial_i = active_itinerary.empty()?
+          0 : active_itinerary.size()-1;
+
+    for (auto i=initial_i; i <= wp.itinerary_index(); ++i)
     {
       const auto& route = plan_itinerary.at(i);
       const auto& planned = route.trajectory();
@@ -912,7 +823,6 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
   }
 
   const auto now = node->now();
-  awaiting_confirmation = true;
 
   bool resend_checkpoints = (first_wp.value() < current_range.end) || rejected;
 
@@ -937,6 +847,8 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
       }
     }
   }
+
+  awaiting_confirmation = true;
 
   if (immediately_stop_until.has_value())
   {
@@ -1061,7 +973,7 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
     if (!immediately_stop_until.has_value())
       awaiting_confirmation = false;
 
-    watch_for_ready(version, next_departure_checkpoint);
+    watch_for_ready(version, next_departure_checkpoint, false);
   }
 
   return itinerary.version();
@@ -1111,7 +1023,6 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_location(
   worker.schedule(
         [w = weak_from_this(),
          path_version,
-         plan_version,
          waypoints,
          location,
          now,
@@ -1139,16 +1050,27 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_location(
           .get_waypoint(checkpoint_index).get_map_name(),
         location
     };
+
     data->blockade.reached(checkpoint_index);
 
-    if (plan_version != data->current_plan_version)
+    if (data->awaiting_confirmation)
     {
-      // We won't adjust timing based on this update since it's part of a
-      // deprecated plan.
-      return;
+      if (checkpoint_index < data->current_range.end)
+      {
+        data->approve(data->current_path_version, data->current_plan_version);
+      }
+      else
+      {
+        data->reject(
+          data->current_path_version,
+          data->current_plan_version,
+          checkpoint_index,
+          location);
+      }
     }
 
     assert(checkpoint_index < data->arrival_timing.size());
+
     const auto expected_time = interpolate_time(
           now, data->traits, waypoints, location);
 
@@ -1158,7 +1080,13 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_location(
       const auto time_shift = new_delay - data->itinerary.delay();
       const auto threshold = std::chrono::seconds(1);
       if (time_shift < -threshold || threshold < time_shift)
+      {
         data->itinerary.delay(time_shift);
+      }
+
+      // Check whether the next waypoint is ready based on the current timing
+      // predictions.
+      data->check_if_ready(path_version, checkpoint_index+1);
 
       return;
     }
@@ -1166,7 +1094,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_location(
     RCLCPP_WARN(
       data->node->get_logger(),
       "Failed to compute timing estimate for [%s] owned by [%s] "
-      "moving away from checkpoint index [%d]",
+      "moving away from checkpoint index [%d].",
       data->itinerary.description().name().c_str(),
       data->itinerary.description().owner().c_str(),
       checkpoint_index);
@@ -1413,7 +1341,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::send_checkpoints(
     auto on_standby =
         [w = weak_from_this(),
          approval_callback = approval_callback,
-         version = current_path_version,
+         path_version = current_path_version,
          standby_checkpoint = current_range.end]()
     {
       approval_callback();
@@ -1422,11 +1350,11 @@ void TrafficLight::UpdateHandle::Implementation::Data::send_checkpoints(
       {
         data->worker.schedule(
               [w = data->weak_from_this(),
-               version,
+               path_version,
                standby_checkpoint](const auto&)
         {
           if (const auto data = w.lock())
-            data->watch_for_ready(version, standby_checkpoint);
+            data->watch_for_ready(path_version, standby_checkpoint, true);
         });
       }
     };
@@ -1460,7 +1388,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::send_checkpoints(
   auto on_standby =
       [w = weak_from_this(),
        approval_callback = approval_callback,
-       version = current_path_version,
+       path_version = current_path_version,
        standby_checkpoint = current_range.end]()
   {
     approval_callback();
@@ -1469,11 +1397,11 @@ void TrafficLight::UpdateHandle::Implementation::Data::send_checkpoints(
     {
      data->worker.schedule(
            [w = data->weak_from_this(),
-            version,
+            path_version,
             standby_checkpoint](const auto&)
      {
        if (const auto data = w.lock())
-         data->watch_for_ready(version, standby_checkpoint);
+         data->watch_for_ready(path_version, standby_checkpoint, true);
      });
     }
   };
@@ -1496,12 +1424,16 @@ void TrafficLight::UpdateHandle::Implementation::Data::send_checkpoints(
 //==============================================================================
 void TrafficLight::UpdateHandle::Implementation::Data::watch_for_ready(
     const std::size_t path_version,
-    const std::size_t checkpoint_id)
+    const std::size_t checkpoint_id,
+    const bool assume_reached_checkpoint)
 {
   if (path_version != current_path_version)
     return;
 
-  blockade.reached(checkpoint_id);
+  if (assume_reached_checkpoint)
+  {
+    blockade.reached(checkpoint_id);
+  }
 
   if (check_if_finished(checkpoint_id))
     return;
@@ -1549,10 +1481,22 @@ bool TrafficLight::UpdateHandle::Implementation::Data::check_if_ready(
   // If we are waiting for an approval or a rejection, then we should not
   // ready-up any more waypoints.
   if (awaiting_confirmation)
+  {
+    if (checkpoint_id <= current_range.end)
+    {
+      approve(current_path_version, current_plan_version);
+    }
+    else
+    {
+      reject(current_path_version, current_plan_version,
+             checkpoint_id-1, last_known_location.value().position);
+    }
+
     return false;
+  }
 
   const auto ready_time = depart_it->second;
-  const auto now = node->now();
+  const auto now = node->now() - itinerary.delay();
 
   if (now + ready_timing_threshold <= ready_time)
     return false;
@@ -1812,55 +1756,7 @@ void TrafficLight::UpdateHandle::Implementation::Negotiator::respond(
     return responder->submit({});
   }
 
-  auto reservation = get_reserved_itinerary(
-        data->stashed_itinerary,
-        data->active_itinerary,
-        data->itinerary.delay());
-
-  const bool reservation_conflict =
-      conflicts_with_reservations(
-        table_viewer,
-        reservation,
-        data->itinerary.description().profile());
-
-  if (reservation_conflict)
-  {
-    const bool first_attempt = [&]() -> bool
-    {
-      if (table_viewer->rejected())
-        return false;
-
-      if (table_viewer->parent_id().has_value())
-      {
-        const auto& s = table_viewer->sequence();
-        assert(s.size() >= 2);
-        if (s[s.size()-2].version > 1)
-          return false;
-      }
-
-      return true;
-    }();
-
-    if (first_attempt)
-    {
-      return responder->reject(make_reservation_alts(data));
-    }
-  }
-
-  auto start = [&]() -> rmf_traffic::agv::Plan::Start
-  {
-    if (reservation_conflict)
-      return data->current_location();
-
-    const auto& start_wp = data->pending_waypoints.front();
-    return rmf_traffic::agv::Plan::Start(
-      start_wp.time() + data->itinerary.delay(),
-      *start_wp.graph_index(),
-      start_wp.position()[2]);
-  }();
-
-  if (reservation_conflict)
-    reservation.clear();
+  auto start = data->current_location();
 
   rmf_traffic::agv::Plan::Goal goal(
         data->planner->get_configuration().graph().num_waypoints()-1);
@@ -1878,6 +1774,12 @@ void TrafficLight::UpdateHandle::Implementation::Negotiator::respond(
     if (!data->valid_plan(version, plan))
       return std::nullopt;
 
+    if (!data->planner)
+    {
+      // The robot has already finished the path that was being negotiatied
+      return std::nullopt;
+    }
+
     return data->update_timing(version, data->path, plan, data->planner);
   };
 
@@ -1894,8 +1796,7 @@ void TrafficLight::UpdateHandle::Implementation::Negotiator::respond(
 
   auto negotiate = services::Negotiate::path(
         data->planner, {std::move(start)}, std::move(goal),
-        table_viewer, responder, std::move(approval_cb), std::move(evaluator),
-        std::move(reservation));
+        table_viewer, responder, std::move(approval_cb), std::move(evaluator));
 
   auto negotiate_sub =
       rmf_rxcpp::make_job<services::Negotiate::Result>(negotiate)
