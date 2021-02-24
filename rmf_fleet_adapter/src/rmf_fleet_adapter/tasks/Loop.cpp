@@ -24,34 +24,40 @@ namespace tasks {
 
 //==============================================================================
 std::shared_ptr<Task> make_loop(
-    const rmf_task::requests::ConstLoopRequestPtr request,
+    const rmf_task::ConstRequestPtr request,
     const agv::RobotContextPtr& context,
     const rmf_traffic::agv::Plan::Start start,
     const rmf_traffic::Time deployment_time,
     const rmf_task::agv::State finish_state)
 {
+  std::shared_ptr<const rmf_task::requests::LoopDescription> description =
+    std::dynamic_pointer_cast<
+      const rmf_task::requests::LoopDescription>(request->description());
+
+  if (description == nullptr)
+    return nullptr;
 
   Task::PendingPhases phases;
-  const auto loop_start = request->loop_start(start);
-  const auto loop_end = request->loop_end(loop_start);
+  const auto loop_start = description->loop_start(start);
+  const auto loop_end = description->loop_end(loop_start);
 
   phases.push_back(
     phases::GoToPlace::make(
-      context, std::move(start), request->start_waypoint()));
+      context, std::move(start), description->start_waypoint()));
 
   phases.push_back(
     phases::GoToPlace::make(
-      context, loop_start, request->finish_waypoint()));
+      context, loop_start, description->finish_waypoint()));
 
-  for (std::size_t i = 1; i < request->num_loops(); ++i)
+  for (std::size_t i = 1; i < description->num_loops(); ++i)
   {
     phases.push_back(
       phases::GoToPlace::make(
-        context, loop_end, request->start_waypoint()));
+        context, loop_end, description->start_waypoint()));
 
     phases.push_back(
       phases::GoToPlace::make(
-        context, loop_start, request->finish_waypoint()));
+        context, loop_start, description->finish_waypoint()));
   }
 
   return Task::make(

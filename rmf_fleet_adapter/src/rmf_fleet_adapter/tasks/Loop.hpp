@@ -28,7 +28,7 @@ namespace tasks {
 
 //==============================================================================
 std::shared_ptr<Task> make_loop(
-    const rmf_task::requests::ConstLoopRequestPtr request,
+    const rmf_task::ConstRequestPtr request,
     const agv::RobotContextPtr& context,
     const rmf_traffic::agv::Plan::Start start,
     const rmf_traffic::Time deployment_time,

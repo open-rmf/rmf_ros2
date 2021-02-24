@@ -28,7 +28,7 @@ namespace tasks {
 
 //==============================================================================
 std::shared_ptr<Task> make_delivery(
-    const rmf_task::requests::ConstDeliveryRequestPtr request,
+    const rmf_task::ConstRequestPtr request,
     const agv::RobotContextPtr& context,
     const rmf_traffic::agv::Plan::Start pickup_start,
     const rmf_traffic::Time deployment_time,

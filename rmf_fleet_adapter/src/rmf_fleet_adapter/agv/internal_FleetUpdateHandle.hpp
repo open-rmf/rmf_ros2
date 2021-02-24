@@ -28,6 +28,7 @@
 #include <rmf_task/agv/TaskPlanner.hpp>
 #include <rmf_task/Request.hpp>
 #include <rmf_task/requests/Clean.hpp>
+#include <rmf_task/BinaryPriorityScheme.hpp>
 
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
 
@@ -142,6 +143,8 @@ public:
   std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink = nullptr;
   std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink = nullptr;
   bool drain_battery = true;
+  std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
+    rmf_task::BinaryPriorityScheme::make_cost_calculator();
   std::shared_ptr<rmf_task::agv::TaskPlanner> task_planner = nullptr;
   bool initialized_task_planner = false;
 

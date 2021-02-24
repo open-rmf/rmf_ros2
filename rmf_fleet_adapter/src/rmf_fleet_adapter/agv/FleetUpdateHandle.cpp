@@ -154,6 +154,13 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   std::string id = msg->task_profile.task_id;
   const auto& graph = planner->get_configuration().graph();
 
+  // Generate the priority of the request. The current implementation supports
+  // binary priority
+  auto priority =
+    task_profile.description.priority.value > 0 ?
+    rmf_task::BinaryPriorityScheme::make_high_priority() :
+    rmf_task::BinaryPriorityScheme::make_low_priority();  
+
   // Process Cleaning task
   if (task_type.type == rmf_task_msgs::msg::TaskType::TYPE_CLEAN)
   {
@@ -239,7 +246,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       tool_sink,
       planner,
       start_time,
-      drain_battery);
+      drain_battery,
+      priority);
 
     RCLCPP_INFO(
       node->get_logger(),
@@ -334,7 +342,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       ambient_sink,
       planner,
       start_time,
-      drain_battery);
+      drain_battery,
+      priority);
 
     RCLCPP_INFO(
       node->get_logger(),
@@ -407,7 +416,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       ambient_sink,
       planner,
       start_time,
-      drain_battery);
+      drain_battery,
+      priority);
 
     RCLCPP_INFO(
       node->get_logger(),
@@ -1111,7 +1121,8 @@ bool FleetUpdateHandle::set_task_planner_params(
         *battery_system,
         motion_sink,
         ambient_sink,
-        _pimpl->planner);
+        _pimpl->planner,
+        _pimpl->cost_calculator);
     
     _pimpl->task_planner = std::make_shared<rmf_task::agv::TaskPlanner>(
       task_config);

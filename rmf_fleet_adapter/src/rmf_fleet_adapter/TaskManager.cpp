@@ -176,9 +176,9 @@ void TaskManager::set_queue(
         start = assignments[i-1].state().location();
       start.time(a.deployment_time());
       rmf_task_msgs::msg::TaskType task_type_msg;
-
-      if (const auto request =
-        std::dynamic_pointer_cast<const rmf_task::requests::Clean>(a.request()))
+      const auto request = a.request();
+      if (std::dynamic_pointer_cast<
+        const rmf_task::requests::CleanDescription>(request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_CLEAN;
         auto task = rmf_fleet_adapter::tasks::make_clean(
@@ -191,9 +191,9 @@ void TaskManager::set_queue(
         _queue.push_back(task);
       }
 
-      else if (const auto request =
-        std::dynamic_pointer_cast<const rmf_task::requests::ChargeBattery>(
-          a.request()))
+      else if (std::dynamic_pointer_cast<
+        const rmf_task::requests::ChargeBatteryDescription>(
+          request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_CHARGE_BATTERY;
         const auto task = tasks::make_charge_battery(
@@ -206,9 +206,9 @@ void TaskManager::set_queue(
         _queue.push_back(task);
       }
 
-      else if (const auto request =
-        std::dynamic_pointer_cast<const rmf_task::requests::Delivery>(
-          a.request()))
+      else if (std::dynamic_pointer_cast<
+        const rmf_task::requests::DeliveryDescription>(
+          request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_DELIVERY;
         const auto task = tasks::make_delivery(
@@ -221,8 +221,8 @@ void TaskManager::set_queue(
         _queue.push_back(task);
       }
 
-      else if (const auto request =
-        std::dynamic_pointer_cast<const rmf_task::requests::Loop>(a.request()))
+      else if (std::dynamic_pointer_cast<
+        const rmf_task::requests::LoopDescription>(request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_LOOP;
         const auto task = tasks::make_loop(
@@ -273,8 +273,9 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
   requests.reserve(_queue.size());
   for (const auto& task : _queue)
   {
-    if (std::dynamic_pointer_cast<const rmf_task::requests::ChargeBattery>(
-      task->request()))
+    if (std::dynamic_pointer_cast<
+      const rmf_task::requests::ChargeBatteryDescription>(
+        task->request()->description()))
       continue;
     requests.push_back(task->request());
   }
@@ -461,7 +462,7 @@ void TaskManager::retreat_to_charger()
       task_planner_config->planner(),
       current_state.finish_time());
 
-    const auto finish = charging_request->estimate_finish(
+    const auto finish = charging_request->description()->estimate_finish(
       current_state,
       _context->task_planning_constraints(),
       estimate_cache);
