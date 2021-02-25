@@ -19,6 +19,7 @@ find_package(rmf_traffic_msgs REQUIRED)
 find_package(rmf_fleet_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 if (rmf_traffic_FOUND)
   message(STATUS "found rmf_traffic")
@@ -27,6 +28,7 @@ if (rmf_traffic_FOUND)
 endif()
 
 if(BUILD_TESTING)
+  find_package(ament_cmake_catch2 QUIET)
   find_package(rmf_cmake_uncrustify REQUIRED)
   find_file(uncrustify_config_file NAMES "share/format/rmf_code_style.cfg")
 
@@ -34,6 +36,17 @@ if(BUILD_TESTING)
     ARGN include src examples
     CONFIG_FILE ${uncrustify_config_file}
     MAX_LINE_LENGTH 80
+  )
+
+  file(GLOB_RECURSE unit_test_srcs "test/*.cpp")
+
+  ament_add_catch2(
+    test_rmf_traffic_ros2 test/main.cpp ${unit_test_srcs}
+    TIMEOUT 300)
+
+  target_link_libraries(test_rmf_traffic_ros2
+      rmf_traffic_ros2
+      yaml-cpp
   )
 endif()
 
@@ -45,6 +58,7 @@ target_link_libraries(rmf_traffic_ros2
     rmf_traffic::rmf_traffic
     ${rmf_traffic_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
+    yaml-cpp
 )
 
 target_include_directories(rmf_traffic_ros2

@@ -31,6 +31,15 @@
 #include <rmf_traffic_msgs/srv/unregister_participant.hpp>
 
 namespace rmf_traffic_ros2 {
+
+//==============================================================================
+rmf_traffic::schedule::Writer::Registration convert(
+  const rmf_traffic_msgs::srv::RegisterParticipant::Response& msg)
+{
+  return rmf_traffic::schedule::Writer::Registration(
+    msg.participant_id, msg.last_itinerary_version, msg.last_route_id);
+}
+
 namespace schedule {
 
 namespace {
@@ -262,7 +271,7 @@ public:
       clear_pub->publish(std::move(msg));
     }
 
-    rmf_traffic::schedule::ParticipantId register_participant(
+    Registration register_participant(
       rmf_traffic::schedule::ParticipantDescription participant_info) final
     {
       using namespace std::chrono_literals;
@@ -293,7 +302,7 @@ public:
         // *INDENT-ON*
       }
 
-      return response->participant_id;
+      return convert(*response);
     }
 
     void unregister_participant(

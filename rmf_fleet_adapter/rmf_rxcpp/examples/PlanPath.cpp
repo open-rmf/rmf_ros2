@@ -295,7 +295,7 @@ struct MetaPlannerAction
       rmf_traffic::schedule::ItineraryVersion v = 0;
       rmf_traffic::schedule::Version r = 0;
       for (const auto& route : alternative)
-        database.extend(p, {{r, route}}, v++);
+        database.extend(p.id(), {{r, route}}, v++);
 
       planner_actions.emplace_back(std::make_shared<PlannerAction>(
               std::move(database), config, start_B, goal_B, sync_failure));
