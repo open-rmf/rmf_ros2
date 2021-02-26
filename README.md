@@ -41,7 +41,7 @@ ros2 run rmf_fleet_adapter_python traffic_light
 
 For more details, please read [this README](/rmf_fleet_adapter_python/README.md).
 
-### Contributions
-
-- Before making a PR, please make sure that the doc is up to date, generate docs via: `cd docs && bash gen_docs.sh`
+## Notes
+- The py api bindings are mainly experimental. Use with caution.
+- Current CI and docs gen are using rolling release of RMF
 - More bindings, tests, and examples are welcome!
