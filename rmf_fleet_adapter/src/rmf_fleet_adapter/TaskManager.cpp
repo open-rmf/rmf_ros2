@@ -31,6 +31,8 @@
 #include "tasks/Delivery.hpp"
 #include "tasks/Loop.hpp"
 
+#include "phases/ResponsiveWait.hpp"
+
 namespace rmf_fleet_adapter {
 
 //==============================================================================
@@ -76,9 +78,9 @@ TaskManagerPtr TaskManager::make(agv::RobotContextPtr context)
 
 //==============================================================================
 TaskManager::TaskManager(agv::RobotContextPtr context)
-  : _context(std::move(context))
+: _context(std::move(context))
 {
-  // Do nothing
+  _begin_waiting();
 }
 
 //==============================================================================
@@ -131,10 +133,10 @@ auto TaskManager::expected_finish_state() const -> State
   auto location = finish_state.location();
   location.time(rmf_traffic_ros2::convert(_context->node()->now()));
   finish_state.location(location);
-  
+
   const double current_battery_soc = _context->current_battery_soc();
   finish_state.battery_soc(current_battery_soc);
-  
+
   return finish_state;
 }
 
@@ -187,7 +189,7 @@ void TaskManager::set_queue(
           start,
           a.deployment_time(),
           a.state());
-        
+
         _queue.push_back(task);
       }
 
@@ -292,14 +294,15 @@ void TaskManager::_begin_next_task()
 
   if (_queue.empty())
   {
-    // _task_sub.unsubscribe();
-    // _expected_finish_location = rmf_utils::nullopt;
+    if (!_waiting)
+      _begin_waiting();
 
-    // RCLCPP_INFO(
-    //       _context->node()->get_logger(),
-    //       "Finished all remaining tasks for [%s]",
-    //       _context->requester_id().c_str());
+    return;
+  }
 
+  if (_waiting)
+  {
+    _waiting->cancel();
     return;
   }
 
@@ -378,6 +381,70 @@ void TaskManager::_begin_next_task()
     _active_task->begin();
     _register_executed_task(_active_task->id());
   }
+  else
+  {
+    if (!_waiting)
+      _begin_waiting();
+  }
+}
+
+//==============================================================================
+void TaskManager::_begin_waiting()
+{
+  const std::size_t waiting_point = _context->location().front().waypoint();
+
+  _waiting = phases::ResponsiveWait::make_indefinite(
+        _context, waiting_point)->begin();
+
+  _task_sub = _waiting->observe()
+    .observe_on(rxcpp::identity_same_worker(_context->worker()))
+    .subscribe(
+      [this](Task::StatusMsg msg)
+      {
+        msg.task_id = _context->requester_id() + ":waiting";
+        msg.robot_name = _context->name();
+        msg.fleet_name = _context->description().owner();
+        // TODO: Fill in end_time with the beginning time of the next task if
+        // the next task is known.
+        msg.start_time = _context->node()->now();
+        msg.end_time = msg.start_time;
+
+        _context->node()->task_summary()->publish(msg);
+      },
+      [this](std::exception_ptr e)
+      {
+        rmf_task_msgs::msg::TaskSummary msg;
+        msg.state = msg.STATE_FAILED;
+
+        try {
+          std::rethrow_exception(e);
+        }
+        catch (const std::exception& e) {
+          msg.status = e.what();
+        }
+
+        msg.task_id = _context->requester_id() + ":waiting";
+        msg.robot_name = _context->name();
+        msg.fleet_name = _context->description().owner();
+        msg.start_time = rmf_traffic_ros2::convert(
+          _active_task->deployment_time());
+        msg.end_time = rmf_traffic_ros2::convert(
+          _active_task->finish_state().finish_time());
+        _context->node()->task_summary()->publish(msg);
+
+        RCLCPP_WARN(
+          _context->node()->get_logger(),
+          "Robot [%s] encountered an error while doing a ResponsiveWait: %s",
+          _context->requester_id().c_str(), msg.status.c_str());
+
+        // Go back to waiting if an error has occurred
+        _begin_waiting();
+      },
+      [this]()
+      {
+        _waiting = nullptr;
+        _begin_next_task();
+      });
 }
 
 //==============================================================================

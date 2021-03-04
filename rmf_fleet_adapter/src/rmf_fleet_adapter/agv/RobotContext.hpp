@@ -184,7 +184,7 @@ private:
   rmf_traffic::schedule::Negotiator* _negotiator = nullptr;
 
   /// Always call the current_battery_soc() setter to set a new value
-  double _current_battery_soc;
+  double _current_battery_soc = 1.0;
   rxcpp::subjects::subject<double> _battery_soc_publisher;
   rxcpp::observable<double> _battery_soc_obs;
   rmf_task::agv::State _current_task_end_state;

@@ -88,6 +88,11 @@ private:
   rxcpp::subscription _task_sub;
   rxcpp::subscription _emergency_sub;
 
+  /// This phase will kick in automatically when no task is being executed. It
+  /// will ensure that the agent continues to respond to traffic negotiations so
+  /// it does not become a blocker for other traffic participants.
+  std::shared_ptr<Task::ActivePhase> _waiting;
+
   // TODO: Eliminate the need for a mutex by redesigning the use of the task
   // manager so that modifications of shared data only happen on designated
   // rxcpp worker
@@ -101,6 +106,9 @@ private:
 
   /// Callback for task timer which begins next task if its deployment time has passed
   void _begin_next_task();
+
+  /// Begin responsively waiting for the next task
+  void _begin_waiting();
 
   /// Function to register the task id of a task that has begun execution
   /// The input task id will be inserted into the registry such that the max

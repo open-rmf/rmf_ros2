@@ -238,6 +238,23 @@ public:
   void update_state(const rmf_fleet_msgs::msg::RobotState& state)
   {
     auto lock = _lock();
+
+    // Update battery soc
+    const double battery_soc = state.battery_percent / 100.0;
+    if (battery_soc >= 0.0 && battery_soc <= 1.0)
+    {
+      _travel_info.updater->update_battery_soc(battery_soc);
+    }
+    else
+    {
+      RCLCPP_ERROR(
+        _node->get_logger(),
+        "Battery percentage reported by the robot is outside of the valid "
+        "range [0,100] and hence the battery soc will not be updated. It is "
+        "critical to update the battery soc with a valid battery percentage "
+        "for task allocation planning.");
+    }
+
     if (_travel_info.path_finished_callback)
     {
       // If we have a path_finished_callback, then the robot should be
@@ -353,18 +370,6 @@ public:
       // command
       estimate_state(_node, state.location, _travel_info);
     }
-
-    // Update battery soc
-    const double battery_soc = state.battery_percent / 100.0;
-    if (battery_soc >= 0.0 && battery_soc <= 1.0)
-      _travel_info.updater->update_battery_soc(battery_soc);
-    else
-      RCLCPP_ERROR(
-        _node->get_logger(),
-        "Battery percentage reported by the robot is outside of the valid "
-        "range [0,100] and hence the battery soc will not be updated. It is "
-        "critical to update the battery soc with a valid battery percentage "
-        "for task allocation planning.");
   }
 
   void set_updater(rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)

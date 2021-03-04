@@ -56,7 +56,7 @@ public:
     void cancel() final;
 
     // Documentation inherited from ActivePhase
-    const std::string & description() const final;
+    const std::string& description() const final;
 
     // Documentation inherited from Negotiator
     void respond(
