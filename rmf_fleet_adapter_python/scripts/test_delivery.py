@@ -10,6 +10,7 @@ import rmf_adapter.graph as graph
 import rmf_adapter.battery as battery
 import rmf_adapter.plan as plan
 import rmf_adapter.type as Type
+import rmf_adapter.schedule as schedule
 
 from rmf_fleet_adapter_python.test_utils import MockRobotCommand
 from rmf_fleet_adapter_python.test_utils import MockDispenser, MockIngestor
@@ -231,14 +232,36 @@ def main():
         0, 0, 5, 5, 6, 6, 7,
         6, 5, 5, 8, 8, 10], error_msg
 
+    # check if unstable partcipant works
+    # this is helpful for to update the robot when it is
+    print("Update a custom itinerary to fleet adapter")
+    traj = schedule.make_trajectory(
+        robot_traits,
+        adapter.now(),
+        [[3, 0, 0], [1, 1, 0], [2, 1, 0]])
+    route = schedule.Route("test_map", traj)
+
+    participant = robot_cmd.updater.get_unstable_participant()
+    routeid = participant.last_route_id
+    participant.set_itinerary([route])
+    new_routeid = participant.last_route_id
+    print(f"Previous route id: {routeid} , new route id: {new_routeid}")
+    assert routeid != new_routeid
+
+    # TODO(YL) There's an issue with during shutdown of the adapter, occurs
+    # when set_itinerary() function above is used. Similarly with a non-mock 
+    # adpater, will need to address this in near future
+    print("\n~ Shutting Down everything ~")
+
     cmd_node.destroy_node()
     observer.destroy_node()
     dispenser.destroy_node()
     ingestor.destroy_node()
 
+    robot_cmd.stop()
+    adapter.stop()
     rclpy_executor.shutdown()
     rclpy.shutdown()
-
 
 if __name__ == "__main__":
     main()

@@ -168,7 +168,14 @@ void bind_graph(py::module &m) {
       .def("get_lane", py::overload_cast<std::size_t>(&Graph::get_lane))
       .def("get_lane", py::overload_cast<std::size_t>(
           &Graph::get_lane, py::const_))
-      .def_property_readonly("num_lanes", &Graph::num_lanes);
+      .def("lane_from", py::overload_cast<std::size_t, std::size_t>(
+        &Graph::lane_from))
+      .def("lane_from", py::overload_cast<std::size_t, std::size_t>(
+        &Graph::lane_from, py::const_))
+      .def_property_readonly("num_lanes", &Graph::num_lanes)
+      .def("lanes_from_waypoint",
+          py::overload_cast<std::size_t>(&Graph::lanes_from, py::const_),
+          py::arg("wp_index"));
 
   // PARSE GRAPH ==============================================================
   // Helper function to parse a graph from a yaml file

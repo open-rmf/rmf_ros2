@@ -52,6 +52,6 @@ void bind_shapes(py::module &m)
       [](double radius) {
         return std::make_shared<geometry::FinalConvexShape>(
             geometry::Circle(std::forward<double>(radius)).finalize_convex());
-      }),
-      py::arg("radius");
+      },
+      py::arg("radius"));
 }

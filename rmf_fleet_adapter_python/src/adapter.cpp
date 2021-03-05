@@ -33,6 +33,7 @@ void bind_plan(py::module &);
 void bind_tests(py::module &);
 void bind_nodes(py::module &);
 void bind_battery(py::module &);
+void bind_schedule(py::module &);
 
 PYBIND11_MODULE(rmf_adapter, m) {
     bind_types(m);
@@ -43,6 +44,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     bind_tests(m);
     bind_nodes(m);
     bind_battery(m);
+    bind_schedule(m);
 
     // ROBOTCOMMAND HANDLE =====================================================
     // Abstract class
@@ -99,6 +101,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
              py::arg("min_lane_length") = 1e-8,
              py::call_guard<py::scoped_ostream_redirect,
                             py::scoped_estream_redirect>())
+        .def("set_charger_waypoint", &agv::RobotUpdateHandle::set_charger_waypoint,
+             py::arg("charger_wp"),
+             py::call_guard<py::scoped_ostream_redirect,
+                            py::scoped_estream_redirect>())
         .def("update_battery_soc", &agv::RobotUpdateHandle::update_battery_soc,
              py::arg("battery_soc"),
              py::call_guard<py::scoped_ostream_redirect,
@@ -108,7 +114,16 @@ PYBIND11_MODULE(rmf_adapter, m) {
                  &agv::RobotUpdateHandle::maximum_delay, py::const_),
              [&](agv::RobotUpdateHandle& self){
                  return self.maximum_delay();
-             });
+             })
+        .def("set_infinite_delay",
+             [&](agv::RobotUpdateHandle& self){
+                self.maximum_delay(rmf_utils::nullopt);
+             })
+        .def("get_unstable_participant",
+             [&](agv::RobotUpdateHandle& self){
+                return self.unstable().get_participant();
+             },
+             "Experimental API to access the schedule participant");
 
     // FLEETUPDATE HANDLE ======================================================
     py::class_<agv::FleetUpdateHandle,
@@ -222,7 +237,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
                 &agv::EasyTrafficLight::waiting_after),
             py::arg("checkpoint"),
             py::arg("location"))
-        .def("last_reached", &agv::EasyTrafficLight::last_reached);
+        .def("last_reached", &agv::EasyTrafficLight::last_reached)
+        .def("update_idle_location",
+            py::overload_cast<std::string, Eigen::Vector3d>(
+                &agv::EasyTrafficLight::update_idle_location),
+            py::arg("map_name"),
+            py::arg("position"));
 
     // prefix traffic light
     auto m_easy_traffic_light = m.def_submodule("easy_traffic_light");
