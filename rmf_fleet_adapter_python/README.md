@@ -1,5 +1,5 @@
 # rmf_fleet_adapter_python
-Python bindings for [rmf_fleet_adapter](https://github.com/osrf/rmf_core/tree/master/rmf_fleet_adapter)
+Python bindings for [rmf_fleet_adapter](https://github.com/open-rmf/rmf_ros2/tree/master/rmf_fleet_adapter)
 
 
 
@@ -18,6 +18,35 @@ The `MockAdapter` and `Adapter` both do this. But the difference is that `MockAd
 - Place the `pybind_ament` and `rmf_fleet_adapter_python` packages in your ROS2 workspace, and run `colcon build` as per normal.
 
 
+
+## Running Examples
+
+Integration test script for rmf loop and delivery task:
+
+```shell
+ros2 run rmf_fleet_adapter_python test_adapter
+```
+
+You may then probe the effects on the ROS2 graph by subscribing to the following topics with `ros2 topic echo <TOPIC_NAME>`:
+- <TOPIC_NAME>: `/dispenser_requests`, `/dispenser_results`, `ingestor_requests`, `ingestor_results`, `/task_summaries`
+
+###  Traffic Light Example
+This will showcase an example of having 2 "traffic light" robots using RMF.
+
+```bash
+# First Terminal
+ros2 run rmf_fleet_adapter_python schedule_blockade_nodes
+
+# Second Terminal
+ros2 run rmf_fleet_adapter_python traffic_light
+```
+
+For more details, please read [this README](/rmf_fleet_adapter_python/README.md).
+
+## Notes
+- The py api bindings are mainly experimental. Use with caution.
+- Current CI and docs gen are using rolling release of RMF
+- More bindings, tests, and examples are welcome!
 
 ## Using the Bindings
 

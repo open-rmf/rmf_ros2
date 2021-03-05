@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>Ament wrapper package for pybind11</description>
   <maintainer email="methylDragon@gmail.com">methylDragon</maintainer>
-  <license>TODO: License declaration</license>
+  <license>Apache 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
