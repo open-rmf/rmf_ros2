@@ -123,6 +123,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
              [&](agv::RobotUpdateHandle& self){
                 return self.unstable().get_participant();
              },
+             py::return_value_policy::reference_internal,
              "Experimental API to access the schedule participant");
 
     // FLEETUPDATE HANDLE ======================================================
