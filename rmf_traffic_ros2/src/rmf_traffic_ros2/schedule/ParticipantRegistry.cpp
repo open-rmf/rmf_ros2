@@ -22,6 +22,12 @@
 namespace rmf_traffic_ros2 {
 namespace schedule {
 
+//============================================================================
+bool operator!=(const rmf_traffic::Profile p1, const rmf_traffic::Profile p2) 
+{
+  return rmf_traffic_ros2::convert(p1) != rmf_traffic_ros2::convert(p2);
+}
+
 //=============================================================================
 struct UniqueId
 {
@@ -63,15 +69,27 @@ public:
     std::lock_guard<std::mutex> lock(_mutex);
     const UniqueId key = {description.name(), description.owner()};
     const auto it = _id_from_name.find(key);
+    
     if (it != _id_from_name.end())
     {
       const auto id = it->second;
+      auto description_it = _description.find(id);
+      //Check if footprint has changed
+      if (description_it->second.profile() != description.profile()
+      || description_it->second.responsiveness() != description.responsiveness())
+      {
+        _database->update_description(id, description);
+        description_it->second = description;
+        write_to_file({AtomicOperation::OpType::Update, description});
+      }
+      
       return Registration(
         id, _database->itinerary_version(id), _database->last_route_id(id));
     }
 
     const auto registration = _database->register_participant(description);
     _id_from_name[key] = registration.id();
+    _description.insert({registration.id(), description});
 
     write_to_file({AtomicOperation::OpType::Add, description});
     return registration;
@@ -115,7 +133,8 @@ private:
   //==========================================================================
   void execute(AtomicOperation operation)
   {
-    if(operation.operation == AtomicOperation::OpType::Add)
+    if(operation.operation == AtomicOperation::OpType::Add
+      || operation.operation == AtomicOperation::OpType::Update)
     {
       add_or_retrieve_participant(operation.description);
     }
@@ -124,6 +143,7 @@ private:
   //==========================================================================
   bool _currently_restoring;
   std::unordered_map<UniqueId, ParticipantId, UniqueIdHasher> _id_from_name;
+  std::unordered_map<ParticipantId, ParticipantDescription> _description;
   std::shared_ptr<Database> _database; 
   std::unique_ptr<AbstractParticipantLogger> _logger;
   std::mutex _mutex;
