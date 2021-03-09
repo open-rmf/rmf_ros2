@@ -53,6 +53,11 @@ public:
   void write_operation(AtomicOperation operation)
   {
     std::lock_guard<std::mutex> file_lock(_mutex);
+    
+    if(operation.operation == AtomicOperation::OpType::Update)
+    {
+      // Rewrite whole yaml file.
+    }
 
     //We will use YAML's block sequence format as this friendly for appending
     //We only need to write the latest changes to the file.
