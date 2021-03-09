@@ -93,16 +93,16 @@ ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
     "log_file_location", 
     log_file_name, 
     ".rmf_schedule_node.yaml");
-  
+
   try
   {
     auto participant_logger = std::make_unique<YamlLogger>(log_file_name);
-    
+
     participant_registry = 
       std::make_shared<ParticipantRegistry>(
         std::move(participant_logger),
         database);
-    
+
     RCLCPP_INFO(get_logger(), 
       "Successfully loaded logfile %s ",
       log_file_name.c_str());
@@ -149,18 +149,14 @@ ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
     const UnregisterParticipant::Response::SharedPtr response)
     { this->unregister_participant(request_header, request, response); });
 
-  mirror_update_service =
-    create_service<MirrorUpdate>(
-    rmf_traffic_ros2::MirrorUpdateServiceName,
-    [=](const std::shared_ptr<rmw_request_id_t> request_header,
-    const MirrorUpdate::Request::SharedPtr request,
-    const MirrorUpdate::Response::SharedPtr response)
-    { this->mirror_update(request_header, request, response); });
-
-  mirror_wakeup_publisher =
-    create_publisher<MirrorWakeup>(
-    rmf_traffic_ros2::MirrorWakeupTopicName,
-    rclcpp::SystemDefaultsQoS());
+  request_changes_sub =
+    create_subscription<RequestChanges>(
+    rmf_traffic_ros2::RequestChangesTopicName,
+    rclcpp::SystemDefaultsQoS().best_effort(),
+    [=](const RequestChanges::UniquePtr msg)
+    {
+      this->request_changes(*msg);
+    });
 
   itinerary_set_sub =
     create_subscription<ItinerarySet>(
@@ -340,32 +336,106 @@ void ScheduleNode::register_query(
   const RegisterQuery::Request::SharedPtr& request,
   const RegisterQuery::Response::SharedPtr& response)
 {
+  rmf_traffic::schedule::Query new_query =
+    rmf_traffic_ros2::convert(request->query);
+  bool query_exists = false;
   uint64_t query_id = last_query_id;
-  uint64_t attempts = 0;
-  do
+  // Search for an existing query with the same search parameters
+  for (const auto& [existing_query_id, existing_query] : registered_queries)
   {
-    ++query_id;
-    ++attempts;
-    if (attempts == std::numeric_limits<uint64_t>::max())
+    if (existing_query == new_query)
     {
-      // I suspect a computer would run out of RAM before we reach this point,
-      // but there's no harm in double-checking.
-      response->error = "No more space for additional queries to be registered";
+      query_exists = true;
+      query_id = existing_query_id;
+      break;
+    }
+  }
+
+  if (query_exists)
+  {
+    // Query exists and query_id will be the existing query.
+
+    // Reset the latest version sent for this query to the oldest version of the
+    // database. This will ensure that the new participant receives all
+    // currently-relevant information from the database, not just the next
+    // change to come in.
+
+    // Find the update publisher for this query
+    const auto query_topic = mirror_update_topics.find(query_id);
+    if (query_topic == mirror_update_topics.end())
+    {
+      // Missing query update topic; something has gone very wrong.
+      // TODO(Geoff): Make a new topic if an existing one can't be found? Or
+      // respond with failure to the request?
       RCLCPP_ERROR(
         get_logger(),
-        "[ScheduleNode::register_query] " + response->error);
-      return;
+        "[ScheduleNode::register_query] Could not find mirror update topic for "
+        "existing query ID " + std::to_string(query_id));
     }
-  } while (registered_queries.find(query_id) != registered_queries.end());
+    else
+    {
+      mirror_update_topics.insert_or_assign(
+        query_id,
+        std::make_pair(query_topic->second.first, std::nullopt));
+    }
 
-  last_query_id = query_id;
-  registered_queries.insert(
-    std::make_pair(query_id, rmf_traffic_ros2::convert(request->query)));
+    RCLCPP_INFO(
+      get_logger(),
+      "[" + std::to_string(query_id) + "] Added participant to query");
+  }
+  else
+  {
+    // If the query does not exist, then query_id is still at last_query_id.
+    // Find an unused query ID, store the query, and create a topic to publish
+    // updates that match it.
+    uint64_t attempts = 0;
+    do
+    {
+      ++query_id;
+      ++attempts;
+      if (attempts == std::numeric_limits<uint64_t>::max())
+      {
+        // I suspect a computer would run out of RAM before we reach this point,
+        // but there's no harm in double-checking.
+        response->error =
+          "No more space for additional queries to be registered";
+        RCLCPP_ERROR(
+          get_logger(),
+          "[ScheduleNode::register_query] " + response->error);
+        return;
+      }
+    } while (registered_queries.find(query_id) != registered_queries.end());
 
+    last_query_id = query_id;
+    registered_queries.insert(
+      std::make_pair(query_id, rmf_traffic_ros2::convert(request->query)));
+
+    MirrorUpdateTopicPublisher update_topic_publisher =
+      create_publisher<MirrorUpdate>(
+      rmf_traffic_ros2::QueryUpdateTopicNameBase + std::to_string(query_id),
+      rclcpp::SystemDefaultsQoS());
+    // Start the latest version sent for this query at the oldest version of the
+    // database. This will cause the new participant to be updated with all
+    // currently-relevant information from the database, not just the next
+    // change to come in.
+    MirrorUpdateTopic update_topic = std::make_pair(
+      update_topic_publisher,
+      std::nullopt);
+    mirror_update_topics.insert(std::make_pair(query_id, update_topic));
+
+    RCLCPP_INFO(
+      get_logger(),
+      "[" + std::to_string(query_id) + "] Registered query");
+  }
+
+  // If query does exist, query_id is already at the existing query ID and a
+  // topic already exists. Return the query ID to the client without creating a
+  // new topic or query.
   response->query_id = query_id;
-  RCLCPP_INFO(
-    get_logger(),
-    "[" + std::to_string(query_id) + "] Registered query");
+
+  // TODO(Geoff): Trigger an update here so that the newly-registered query
+  // mirror gets the database contents sent to it. Otherwise it will have to
+  // wait until the next change is made in the database.
 }
 
 //==============================================================================
@@ -387,12 +457,36 @@ void ScheduleNode::unregister_query(
     return;
   }
 
-  registered_queries.erase(it);
-  response->confirmation = true;
+  // Find the update publisher for this query
+  const auto query_topic = mirror_update_topics.find(request->query_id);
+  if (query_topic != mirror_update_topics.end())
+  {
+    // If the topic has just one subscriber (or zero, in case there is some kind
+    // of race condition with the subscriber) then remove the publisher and the
+    // query.
+    if (query_topic->second.first->get_subscription_count() <= 1)
+    {
+      mirror_update_topics.erase(query_topic);
+      registered_queries.erase(it);
+      RCLCPP_INFO(
+        get_logger(),
+        "[" + std::to_string(request->query_id) + "] Unregistered query");
+    }
+    // Otherwise do nothing because there are other participants still listening
+    // to the query.
+  }
+  else
+  {
+    // Missing query update topic; not a fatal error for removing the
+    // registration or continued operation, but still a sign that something has
+    // gone wrong.
+    RCLCPP_ERROR(
+      get_logger(),
+      "[ScheduleNode::unregister_query] Could not find mirror update topic to "
+      "remove for query ID " + std::to_string(request->query_id));
+  }
 
-  RCLCPP_INFO(
-    get_logger(),
-    "[" + std::to_string(request->query_id) + "] Unregistered query");
+  response->confirmation = true;
 }
 
 //==============================================================================
@@ -462,7 +556,7 @@ void ScheduleNode::unregister_participant(
     // unregistering it will invalidate the pointer p.
     const std::string name = p->name();
     const std::string owner = p->owner();
-    
+
     auto version = database->itinerary_version(request->participant_id);
     database->erase(request->participant_id, version);
     response->confirmation = true;
@@ -484,28 +578,30 @@ void ScheduleNode::unregister_participant(
 }
 
 //==============================================================================
-void ScheduleNode::mirror_update(
-  const std::shared_ptr<rmw_request_id_t>& /*request_header*/,
-  const MirrorUpdate::Request::SharedPtr& request,
-  const MirrorUpdate::Response::SharedPtr& response)
+void ScheduleNode::request_changes(const RequestChanges& request)
 {
-  const auto query_it = registered_queries.find(request->query_id);
-  if (query_it == registered_queries.end())
+  const auto query_topic = mirror_update_topics.find(request.query_id);
+  if (query_topic == mirror_update_topics.end())
   {
-    response->error = "Unrecognized query_id: "
-      + std::to_string(request->query_id);
-    RCLCPP_WARN(
+    // Missing query update topic; something has gone very wrong.
+    RCLCPP_ERROR(
       get_logger(),
-      "[ScheduleNode::mirror_update] " + response->error);
-    return;
+      "[ScheduleNode::request_changes] Could not find mirror update topic "
+      "for query ID " + std::to_string(request.query_id));
   }
-
-  rmf_utils::optional<rmf_traffic::schedule::Version> version;
-  if (!request->initial_request)
-    version = request->latest_mirror_version;
-
-  response->patch =
-    rmf_traffic_ros2::convert(database->changes(query_it->second, version));
+  else
+  {
+    // Tell the next update to send the changes since the requested version by
+    // resetting the last sent version number to the requested version
+    mirror_update_topics.insert_or_assign(
+      request.query_id,
+      std::make_pair(query_topic->second.first, request.version));
+    // Force-send the next update
+    // TODO(Geoff): This is a hacky work-around for missed full updates. It
+    // will cause extraneous updates to be sent to all mirrors. It should be
+    // removed when the synchronisation scheme is fixed.
+    update_mirrors();
+  }
 }
 
 //==============================================================================
@@ -522,7 +618,7 @@ void ScheduleNode::itinerary_set(const ItinerarySet& set)
 
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(set.participant, set.itinerary_version);
-  wakeup_mirrors();
+  update_mirrors();
 }
 
 //==============================================================================
@@ -539,7 +635,7 @@ void ScheduleNode::itinerary_extend(const ItineraryExtend& extend)
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
     extend.participant, database->itinerary_version(extend.participant));
-  wakeup_mirrors();
+  update_mirrors();
 }
 
 //==============================================================================
@@ -556,7 +652,7 @@ void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
     delay.participant, database->itinerary_version(delay.participant));
-  wakeup_mirrors();
+  update_mirrors();
 }
 
 //==============================================================================
@@ -574,7 +670,7 @@ void ScheduleNode::itinerary_erase(const ItineraryErase& erase)
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
     erase.participant, database->itinerary_version(erase.participant));
-  wakeup_mirrors();
+  update_mirrors();
 }
 
 //==============================================================================
@@ -588,7 +684,7 @@ void ScheduleNode::itinerary_clear(const ItineraryClear& clear)
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
     clear.participant, database->itinerary_version(clear.participant));
-  wakeup_mirrors();
+  update_mirrors();
 }
 
 //==============================================================================
@@ -607,11 +703,38 @@ void ScheduleNode::publish_inconsistencies(
 }
 
 //==============================================================================
-void ScheduleNode::wakeup_mirrors()
+void ScheduleNode::update_mirrors()
 {
-  rmf_traffic_msgs::msg::MirrorWakeup msg;
-  msg.latest_version = database->latest_version();
-  mirror_wakeup_publisher->publish(msg);
+  rmf_traffic_msgs::msg::MirrorUpdate msg;
+  msg.database_version = database->latest_version();
+
+  for (auto query_it: registered_queries) {
+    msg.query_id = query_it.first;
+    const auto query_topic = mirror_update_topics.find(query_it.first);
+    if (query_topic != mirror_update_topics.end())
+    {
+      msg.patch = rmf_traffic_ros2::convert(
+        database->changes(query_it.second, query_topic->second.second));
+      query_topic->second.first->publish(msg);
+      // Update the latest version sent to this topic
+      mirror_update_topics.insert_or_assign(
+        query_it.first,
+        std::make_pair(query_topic->second.first, msg.database_version));
+      RCLCPP_DEBUG(
+        get_logger(),
+        "[ScheduleNode::update_mirrors] Updated query " +
+        std::to_string(query_it.first));
+    }
+    else
+    {
+      // Missing query update topic; not a fatal error, but still a sign that
+      // something has gone wrong.
+      RCLCPP_ERROR(
+        get_logger(),
+        "[ScheduleNode::update_mirrors] Could not find mirror update topic "
+        "to remove for query ID " + std::to_string(query_it.first));
+    }
+  }
 
   conflict_check_cv.notify_all();
 }
