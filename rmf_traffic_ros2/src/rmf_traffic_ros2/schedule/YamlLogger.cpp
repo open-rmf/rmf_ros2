@@ -36,6 +36,7 @@ public:
     {
       std::filesystem::create_directories(
             std::filesystem::absolute(file_path).parent_path());
+      _initial_buffer_size = 0;
       return;
     }
 
