@@ -62,7 +62,11 @@ public:
     if(operation.operation == AtomicOperation::OpType::Update)
     {
       auto index = _name_to_index[uuid];
-      _buffer[index] = serialize(operation.description);
+      AtomicOperation op {
+        AtomicOperation::OpType::Add,
+        operation.description
+      };
+      _buffer[index] = serialize(op);
     }
     else if(operation.operation == AtomicOperation::OpType::Add)
     {
