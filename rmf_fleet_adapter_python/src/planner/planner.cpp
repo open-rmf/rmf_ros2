@@ -7,6 +7,8 @@
 #include "rmf_traffic_ros2/Time.hpp"
 #include <rmf_traffic/agv/Planner.hpp>
 
+#include <stdexcept>
+
 namespace py = pybind11;
 
 using Plan = rmf_traffic::agv::Plan;
@@ -46,6 +48,12 @@ Start make_start(TimePoint initial_time,
                initial_orientation,
                location,
                initial_lane);
+}
+
+Planner make_planner(Configuration config)
+{
+  const auto default_options = Options{nullptr};
+  return Planner(config, default_options);
 }
 
 void bind_plan(py::module &m) {
@@ -150,32 +158,41 @@ void bind_plan(py::module &m) {
 
   // Configuration =============================================================
   py::class_<Configuration>(m_plan, "Configuration")
-      .def(py::init<Graph, VehicleTraits, Interpolate::Options>(),
+      .def(py::init<Graph, VehicleTraits>(),
            py::arg("graph"),
-           py::arg("traits"),
-           py::arg("interpolation") = Interpolate::Options())
+           py::arg("traits"))
       .def_property_readonly("graph", &Configuration::graph)
-      .def_property_readonly("traits", &Configuration::vehicle_traits)
-      .def_property_readonly("interpolation", &Configuration::interpolation);
+      .def_property_readonly("traits", &Configuration::vehicle_traits);
   
   // Options =============================================================
   // TODO
-
+  // Light wrappers
+  py::class_<Interpolate::Options>(m, "InterpolateOptions")
+      .def(py::init<>());
+ 
   // Planner ===================================================================
   py::class_<Planner>(m_plan, "Planner")
-      .def(py::init<Configuration, Options>(),
-           py::arg("config"),
-           py::arg("options") = Planner::Options{nullptr})
-      .def("plan",
+      .def(py::init([&](Configuration& config)
+          {
+            return new Planner(config, Planner::Options{nullptr} );
+          }),
+          py::arg("config"))
+      .def("get_plan_waypoints",
           [&](Planner& self,
-              Start& start,
+              Start start,
               Goal goal)
           {
-            auto result = self.plan(start, goal);
-            return *result;
+            const auto result = self.plan(start, goal);
+            if (result.success())
+            {
+              const auto& waypoints = result->get_waypoints();
+              return waypoints;
+            }
+
+            throw std::runtime_error("Unable to generate a plan");
+
           },
           py::arg("start"), py::arg("goal"),
-          py::call_guard<py::scoped_ostream_redirect,
-                         py::scoped_estream_redirect>());
+          py::return_value_policy::reference_internal);
 
 }
