@@ -18,6 +18,9 @@ using Goal = Planner::Goal;
 using Options = Planner::Options;
 using Configuration = Planner::Configuration;
 using Result = Planner::Result;
+using Graph = rmf_traffic::agv::Graph;
+using VehicleTraits = rmf_traffic::agv::VehicleTraits;
+using Interpolate = rmf_traffic::agv::Interpolate;
 
 using TimePoint = std::chrono::time_point<std::chrono::system_clock,
                                           std::chrono::nanoseconds>;
@@ -144,4 +147,35 @@ void bind_plan(py::module &m) {
                     py::overload_cast<>(&Plan::Goal::orientation, py::const_),
                     py::overload_cast<double>(&Plan::Goal::orientation))
       .def("any_orientation", &Plan::Goal::any_orientation);
+
+  // Configuration =============================================================
+  py::class_<Configuration>(m_plan, "Configuration")
+      .def(py::init<Graph, VehicleTraits, Interpolate::Options>(),
+           py::arg("graph"),
+           py::arg("traits"),
+           py::arg("interpolation") = Interpolate::Options())
+      .def_property_readonly("graph", &Configuration::graph)
+      .def_property_readonly("traits", &Configuration::vehicle_traits)
+      .def_property_readonly("interpolation", &Configuration::interpolation);
+  
+  // Options =============================================================
+  // TODO
+
+  // Planner ===================================================================
+  py::class_<Planner>(m_plan, "Planner")
+      .def(py::init<Configuration, Options>(),
+           py::arg("config"),
+           py::arg("options") = Planner::Options{nullptr})
+      .def("plan",
+          [&](Planner& self,
+              Start& start,
+              Goal goal)
+          {
+            auto result = self.plan(start, goal);
+            return *result;
+          },
+          py::arg("start"), py::arg("goal"),
+          py::call_guard<py::scoped_ostream_redirect,
+                         py::scoped_estream_redirect>());
+
 }
