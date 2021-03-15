@@ -1,11 +1,12 @@
+#! /usr/bin/env python3 
+
 import rmf_adapter.vehicletraits as traits
 import rmf_adapter.geometry as geometry
 import rmf_adapter.graph as graph
 import rmf_adapter.graph.lane as lane
 import rmf_adapter.plan as plan
 
-from datetime import timedelta
-
+import datetime
 
 """
                   10
@@ -39,6 +40,22 @@ nav_graph.add_waypoint(map_name, [5.0, 5.0]) \
 nav_graph.add_waypoint(map_name, [0.0, 10.0]) \
     .set_parking_spot(True)  # 10
 
+lanes = [[0, 1],
+         [1, 2],
+         [1, 5],
+         [2, 6],
+         [3, 4],
+         [4, 5],
+         [5, 6],
+         [6, 7],
+         [5, 8],
+         [6, 9],
+         [8, 9],
+         [8, 10]]
+for _lane in lanes:
+    nav_graph.add_bidir_lane(*_lane)
+assert nav_graph.num_lanes == 24
+
 profile = traits.Profile(geometry.make_final_convex_circle(1.0),
     geometry.make_final_convex_circle(1.5))
 vehicle_traits = traits.VehicleTraits(
@@ -51,11 +68,10 @@ config = plan.Configuration(nav_graph, vehicle_traits)
 planner = plan.Planner(config)
 assert(planner)
 
-
 start = plan.Start(
-    timedelta(seconds=0),
+    datetime.datetime.today(),
     0,
     0.0)
 goal = plan.Goal(7)
-computed_plan = planner.plan(start, goal)
-assert(computed_plan)
+waypoints = planner.get_plan_waypoints(start, goal)
+assert(waypoints)
