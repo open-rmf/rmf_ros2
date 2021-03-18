@@ -164,9 +164,6 @@ void bind_plan(py::module &m) {
   
   // Options =============================================================
   // TODO
-  // Light wrappers
-  py::class_<Interpolate::Options>(m, "InterpolateOptions")
-      .def(py::init<>());
  
   // Planner ===================================================================
   py::class_<Planner>(m_plan, "Planner")
