@@ -7,8 +7,6 @@
 #include "rmf_traffic_ros2/Time.hpp"
 #include <rmf_traffic/agv/Planner.hpp>
 
-#include <stdexcept>
-
 namespace py = pybind11;
 
 using Plan = rmf_traffic::agv::Plan;
@@ -182,14 +180,14 @@ void bind_plan(py::module &m) {
               Start start,
               Goal goal)
           {
+            std::vector<Plan::Waypoint> waypoints;
             const auto result = self.plan(start, goal);
             if (result.success())
             {
-              const auto& waypoints = result->get_waypoints();
-              return waypoints;
+              waypoints = result->get_waypoints();
             }
 
-            throw std::runtime_error("Unable to generate a plan");
+            return waypoints;
 
           },
           py::arg("start"), py::arg("goal"),
