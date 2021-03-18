@@ -39,7 +39,8 @@ struct AtomicOperation
 {
   enum class OpType : uint8_t
   {
-    Add = 0
+    Add = 0,
+    Update = 1
   };
   OpType operation;
   ParticipantDescription description;
