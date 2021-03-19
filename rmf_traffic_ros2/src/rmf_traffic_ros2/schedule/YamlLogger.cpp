@@ -74,8 +74,7 @@ public:
       _name_to_index[uuid] = index;
       _buffer.push_back(serialize(operation));
     }
-    
-    
+
     std::ofstream file(_file_path);
     file << _buffer;
   }
@@ -93,15 +92,15 @@ public:
     
     std::string uuid = operation.description.name() + 
       operation.description.owner();
-    
+
     _name_to_index[uuid] = _counter;
-    _counter++;
-    
-    return {operation};
+    ++_counter;
+
+    return operation;
   }
 
 private:
-  YAML::Node _buffer; ///used when loading the file
+  YAML::Node _buffer; // used when loading the file
   std::size_t _initial_buffer_size;
   std::unordered_map<std::string, std::size_t> _name_to_index;
   std::size_t _counter;

@@ -305,13 +305,14 @@ public:
       return convert(*response);
     }
 
-    void update_description(rmf_traffic::schedule::ParticipantId,
+    void update_description(
+      rmf_traffic::schedule::ParticipantId,
       rmf_traffic::schedule::ParticipantDescription participant_info)
     {
-      //For the ROS2 implememntation since each robot is uniquely 
-      //identified by its owner and name the registration service 
-      //handles updating of participant info as well. 
-      register_participant(participant_info);
+      // Since each robot is uniquely identified by its owner and name pair in
+      // the ROS2 implementation, the registration service handles updating of
+      // participant info as well.
+      register_participant(std::move(participant_info));
     }
 
     void unregister_participant(

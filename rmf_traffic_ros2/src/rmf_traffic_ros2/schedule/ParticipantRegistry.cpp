@@ -17,18 +17,21 @@
 
 #include <mutex>
 #include <rmf_traffic_ros2/schedule/ParticipantRegistry.hpp>
+#include <rmf_traffic_ros2/schedule/ParticipantDescription.hpp>
 #include "internal_YamlSerialization.hpp"
 
 namespace rmf_traffic_ros2 {
 namespace schedule {
 
-//============================================================================
-bool operator!=(const rmf_traffic::Profile p1, const rmf_traffic::Profile p2) 
+//==============================================================================
+bool operator!=(
+  const rmf_traffic::schedule::ParticipantDescription& p1,
+  const rmf_traffic::schedule::ParticipantDescription& p2)
 {
   return rmf_traffic_ros2::convert(p1) != rmf_traffic_ros2::convert(p2);
 }
 
-//=============================================================================
+//==============================================================================
 struct UniqueId
 {
   std::string name;
@@ -40,7 +43,7 @@ struct UniqueId
   }
 };
 
-//=============================================================================
+//==============================================================================
 struct UniqueIdHasher
 {
   std::size_t operator()(UniqueId id) const
@@ -49,56 +52,60 @@ struct UniqueIdHasher
   }
 };
 
-//=============================================================================
+//==============================================================================
 class ParticipantRegistry::Implementation
 {
 public:
   //===========================================================================
   Implementation(
-    std::unique_ptr<AbstractParticipantLogger>  logger, 
-    std::shared_ptr<Database> db):
-    _database(db),
+    std::unique_ptr<AbstractParticipantLogger> logger,
+    std::shared_ptr<Database> db)
+  : _database(db),
     _logger(std::move(logger))
-  { 
-    init();
+  {
+    while(auto record = _logger->read_next_record())
+    {
+      execute(*record);
+    }
   }
 
   //===========================================================================
-  Registration add_or_retrieve_participant(ParticipantDescription description)
+  Registration add_or_retrieve_participant(
+    ParticipantDescription new_description)
   {
     std::lock_guard<std::mutex> lock(_mutex);
-    const UniqueId key = {description.name(), description.owner()};
+    const UniqueId key = {new_description.name(), new_description.owner()};
     const auto it = _id_from_name.find(key);
-    
+
     if (it != _id_from_name.end())
     {
       const auto id = it->second;
-      auto description_it = _description.find(id);
-      //Check if footprint has changed
-      if (description_it->second.profile() != description.profile()
-      || description_it->second.responsiveness() != description.responsiveness())
+      auto& description_entry = _description.at(id);
+
+      // Check if footprint has changed
+      if (description_entry != new_description)
       {
-        _database->update_description(id, description);
-        description_it->second = description;
-        write_to_file({AtomicOperation::OpType::Update, description});
+        _database->update_description(id, new_description);
+        description_entry = new_description;
+        write_to_file({AtomicOperation::OpType::Update, new_description});
       }
-      
+
       return Registration(
         id, _database->itinerary_version(id), _database->last_route_id(id));
     }
 
-    const auto registration = _database->register_participant(description);
+    const auto registration = _database->register_participant(new_description);
     _id_from_name[key] = registration.id();
-    _description.insert({registration.id(), description});
+    _description.insert_or_assign(registration.id(), new_description);
 
-    write_to_file({AtomicOperation::OpType::Add, description});
+    write_to_file({AtomicOperation::OpType::Add, new_description});
     return registration;
   }
 
   //===========================================================================
   std::optional<ParticipantId> participant_exists(
-    std::string name,
-    std::string owner)
+    const std::string& name,
+    const std::string& owner)
   {
     UniqueId key = {name, owner};
     auto id = _id_from_name.find(key);
@@ -108,26 +115,12 @@ public:
     }
     return {id->second};
   }
-  
+
 private:
   //===========================================================================
   void write_to_file(AtomicOperation op)
   {
-    //if restoring in progress don't update the log
-    if(_currently_restoring) return;
-    
     _logger->write_operation(op);
-  }
- 
-  //===========================================================================
-  void init()
-  {
-    _currently_restoring = true;
-    while(auto record = _logger->read_next_record())
-    {
-      execute(*record);
-    }
-    _currently_restoring= false;
   }
 
   //==========================================================================
@@ -141,7 +134,6 @@ private:
   }
 
   //==========================================================================
-  bool _currently_restoring;
   std::unordered_map<UniqueId, ParticipantId, UniqueIdHasher> _id_from_name;
   std::unordered_map<ParticipantId, ParticipantDescription> _description;
   std::shared_ptr<Database> _database; 
@@ -153,10 +145,10 @@ private:
 ParticipantRegistry::ParticipantRegistry(
   std::unique_ptr<AbstractParticipantLogger> logger,
   std::shared_ptr<Database> database)
-:_pimpl(rmf_utils::make_unique_impl<Implementation>(
+: _pimpl(rmf_utils::make_unique_impl<Implementation>(
   std::move(logger), database))
 {
-  //Do nothing
+  // Do nothing
 }
 
 //=============================================================================
@@ -164,7 +156,7 @@ ParticipantRegistry::Registration
 ParticipantRegistry::add_or_retrieve_participant(
   ParticipantDescription description)
 {
-  return _pimpl->add_or_retrieve_participant(description);
+  return _pimpl->add_or_retrieve_participant(std::move(description));
 }
 
 } // namespace schedule
