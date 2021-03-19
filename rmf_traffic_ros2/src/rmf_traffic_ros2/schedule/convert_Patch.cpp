@@ -90,6 +90,7 @@ rmf_traffic_msgs::msg::SchedulePatch convert(
     output.unregister_participants.emplace_back(u.id());
 
   convert_vector(output.register_participants, from.registered());
+  convert_vector(output.updated_footprints, from.updated());
 
   output.participants.reserve(from.size());
   for (const auto& p : from)
@@ -121,7 +122,10 @@ rmf_traffic::schedule::Patch convert(
     std::move(unregister),
     convert_vector<rmf_traffic::schedule::Change::RegisterParticipant>(
       from.register_participants),
-    convert_vector<rmf_traffic::schedule::Patch::Participant>(from.participants),
+    convert_vector<rmf_traffic::schedule::Change::UpdateParticipantInfo>(
+      from.updated_footprints),
+    convert_vector<rmf_traffic::schedule::Patch::Participant>(
+      from.participants),
     std::move(cull),
     from.latest_version
   };

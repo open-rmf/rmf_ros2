@@ -30,13 +30,11 @@ SCENARIO("Test idempotency of shape type")
   YAML::Node node;
 
   // Check "None"
-  auto serialized = serialize_shape_type(
-    rmf_traffic_msgs::msg::ConvexShape::NONE);
-  node["type"] = serialized;  
-  CHECK(shape_type(node["type"]) == rmf_traffic_msgs::msg::ConvexShape::NONE);
+  REQUIRE_THROWS(serialize_shape_type(
+    rmf_traffic_msgs::msg::ConvexShape::NONE));
 
   // Check "Box"
-  serialized = serialize_shape_type(rmf_traffic_msgs::msg::ConvexShape::BOX);
+  auto serialized = serialize_shape_type(rmf_traffic_msgs::msg::ConvexShape::BOX);
   node["type"] = serialized;
   CHECK(shape_type(node["type"]) == rmf_traffic_msgs::msg::ConvexShape::BOX);
 
@@ -148,8 +146,8 @@ SCENARIO("Participant registry restores participants from logger")
   
   GIVEN("A stubbed out logger")
   {
-    std::vector<AtomicOperation>* journal;
-    auto logger = std::make_unique<TestOperationLogger>(journal);
+    std::vector<AtomicOperation> journal;
+    auto logger = std::make_unique<TestOperationLogger>(&journal);
     WHEN("Creating a new DB without errors")
     {
       auto db1 = std::make_shared<Database>();
@@ -161,7 +159,7 @@ SCENARIO("Participant registry restores participants from logger")
       THEN("Restoring DB")
       {
         auto db2 = std::make_shared<Database>();
-         auto logger2 = std::make_unique<TestOperationLogger>(journal);
+         auto logger2 = std::make_unique<TestOperationLogger>(&journal);
         ParticipantRegistry registry2(std::move(logger2), db2);
         auto restored_participants = db2->participant_ids();
         REQUIRE(restored_participants.count(participant_id1.id()) > 0);
