@@ -18,6 +18,9 @@ using Goal = Planner::Goal;
 using Options = Planner::Options;
 using Configuration = Planner::Configuration;
 using Result = Planner::Result;
+using Graph = rmf_traffic::agv::Graph;
+using VehicleTraits = rmf_traffic::agv::VehicleTraits;
+using Interpolate = rmf_traffic::agv::Interpolate;
 
 using TimePoint = std::chrono::time_point<std::chrono::system_clock,
                                           std::chrono::nanoseconds>;
@@ -43,6 +46,12 @@ Start make_start(TimePoint initial_time,
                initial_orientation,
                location,
                initial_lane);
+}
+
+Planner make_planner(Configuration config)
+{
+  const auto default_options = Options{nullptr};
+  return Planner(config, default_options);
 }
 
 void bind_plan(py::module &m) {
@@ -144,4 +153,41 @@ void bind_plan(py::module &m) {
                     py::overload_cast<>(&Plan::Goal::orientation, py::const_),
                     py::overload_cast<double>(&Plan::Goal::orientation))
       .def("any_orientation", &Plan::Goal::any_orientation);
+
+  // Configuration =============================================================
+  py::class_<Configuration>(m_plan, "Configuration")
+      .def(py::init<Graph, VehicleTraits>(),
+           py::arg("graph"),
+           py::arg("traits"))
+      .def_property_readonly("graph", &Configuration::graph)
+      .def_property_readonly("traits", &Configuration::vehicle_traits);
+  
+  // Options =============================================================
+  // TODO
+ 
+  // Planner ===================================================================
+  py::class_<Planner>(m_plan, "Planner")
+      .def(py::init([&](Configuration& config)
+          {
+            return new Planner(config, Planner::Options{nullptr} );
+          }),
+          py::arg("config"))
+      .def("get_plan_waypoints",
+          [&](Planner& self,
+              Start start,
+              Goal goal)
+          {
+            std::vector<Plan::Waypoint> waypoints;
+            const auto result = self.plan(start, goal);
+            if (result.success())
+            {
+              waypoints = result->get_waypoints();
+            }
+
+            return waypoints;
+
+          },
+          py::arg("start"), py::arg("goal"),
+          py::return_value_policy::reference_internal);
+
 }
