@@ -276,7 +276,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::class_<rclcpp::Node, std::shared_ptr<rclcpp::Node> >(m, "Node")
         .def("now", [](rclcpp::Node& self){
             return rmf_traffic_ros2::convert(self.now());
-        });
+        })
+        .def("use_sim_time", [](rclcpp::Node& self)
+            {
+              rclcpp::Parameter param("use_sim_time", true);
+              self.set_parameter(param);
+            });
 
     // Python rclcpp init and spin call
     m.def("init_rclcpp", [](){ rclcpp::init(0, nullptr); });
