@@ -467,11 +467,26 @@ struct Connections : public std::enable_shared_from_this<Connections>
           path_request_pub, mode_request_pub);
 
     const auto& l = state.location;
+    const auto& starts = rmf_traffic::agv::compute_plan_starts(
+        *graph, state.location.level_name, {l.x, l.y, l.yaw},
+        rmf_traffic_ros2::convert(adapter->node()->now()));
+    if (starts.empty())
+    {
+      RCLCPP_ERROR(
+        adapter->node()->get_logger(),
+        "Unable to compute a StartSet for robot [%s]. This can happen if the "
+        "level_name in the RobotState message does not match any of the "
+        "map names in the navigation graph supplied or if the location "
+        "reported in the RobotState message is far way from the navigation "
+        "graph. This robot will not be added to the fleet [%s]",
+        state.name.c_str(),
+        fleet_name.c_str());
+
+        return;
+    }
     fleet->add_robot(
           command, robot_name, traits->profile(),
-          rmf_traffic::agv::compute_plan_starts(
-            *graph, state.location.level_name, {l.x, l.y, l.yaw},
-            rmf_traffic_ros2::convert(adapter->node()->now())),
+          starts,
           [c = weak_from_this(), command, robot_name = std::move(robot_name)](
           const rmf_fleet_adapter::agv::RobotUpdateHandlePtr& updater)
     {
