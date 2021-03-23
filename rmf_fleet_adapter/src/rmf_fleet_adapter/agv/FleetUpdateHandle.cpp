@@ -152,7 +152,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     rmf_traffic_ros2::convert(task_profile.description.start_time);
   // TODO (YV) get rid of ID field in RequestPtr
   std::string id = msg->task_profile.task_id;
-  const auto& graph = planner->get_configuration().graph();
+  const auto& graph = (*planner)->get_configuration().graph();
 
   // Generate the priority of the request. The current implementation supports
   // binary priority
@@ -222,7 +222,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       positions.push_back({location.x, location.y, location.yaw});
     rmf_traffic::Trajectory cleaning_trajectory =
       rmf_traffic::agv::Interpolate::positions(
-        planner->get_configuration().vehicle_traits(),
+        (*planner)->get_configuration().vehicle_traits(),
         start_time,
         positions);
     
@@ -340,7 +340,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       delivery.items,
       motion_sink,
       ambient_sink,
-      planner,
+      *planner,
       start_time,
       drain_battery,
       priority);
@@ -414,7 +414,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       loop.num_loops,
       motion_sink,
       ambient_sink,
-      planner,
+      *planner,
       start_time,
       drain_battery,
       priority);
@@ -1015,6 +1015,7 @@ void FleetUpdateHandle::add_robot(
             fleet->_pimpl->planner,
             fleet->_pimpl->node,
             fleet->_pimpl->worker,
+            fleet->_pimpl->lane_closures,
             fleet->_pimpl->default_maximum_delay,
             state,
             task_planning_constraints,
@@ -1061,6 +1062,36 @@ void FleetUpdateHandle::add_robot(
       }
     });
   });
+}
+
+//==============================================================================
+void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this(), lane_indices = std::move(lane_indices)](const auto&)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      for (const auto& lane : lane_indices)
+        self->_pimpl->lane_closures->close(lane);
+    });
+}
+
+//==============================================================================
+void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this(), lane_indices = std::move(lane_indices)](const auto&)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      for (const auto& lane : lane_indices)
+        self->_pimpl->lane_closures->open(lane);
+    });
 }
 
 //==============================================================================

@@ -118,14 +118,14 @@ const std::string& RobotContext::requester_id() const
 //==============================================================================
 const rmf_traffic::agv::Graph& RobotContext::navigation_graph() const
 {
-  return _planner->get_configuration().graph();
+  return (*_planner)->get_configuration().graph();
 }
 
 //==============================================================================
 const std::shared_ptr<const rmf_traffic::agv::Planner>&
 RobotContext::planner() const
 {
-  return _planner;
+  return *_planner;
 }
 
 //==============================================================================
@@ -197,6 +197,12 @@ std::shared_ptr<const Node> RobotContext::node() const
 const rxcpp::schedulers::worker& RobotContext::worker() const
 {
   return _worker;
+}
+
+//==============================================================================
+const rmf_traffic::agv::LaneClosure& RobotContext::lane_closures() const
+{
+  return *_lane_closure;
 }
 
 //==============================================================================
@@ -307,7 +313,7 @@ RobotContext::RobotContext(
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
   rmf_traffic::schedule::Participant itinerary,
   std::shared_ptr<const Snappable> schedule,
-  std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+  std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
   std::shared_ptr<rmf_fleet_adapter::agv::Node> node,
   const rxcpp::schedulers::worker& worker,
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
