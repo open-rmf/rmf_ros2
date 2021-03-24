@@ -209,11 +209,13 @@ std::shared_ptr<FleetUpdateHandle> Adapter::add_fleet(
     rmf_traffic::agv::VehicleTraits traits,
     rmf_traffic::agv::Graph navigation_graph)
 {
-  auto planner = std::make_shared<rmf_traffic::agv::Planner>(
+  auto planner =
+    std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(
+      std::make_shared<rmf_traffic::agv::Planner>(
         rmf_traffic::agv::Planner::Configuration(
           std::move(navigation_graph),
           std::move(traits)),
-        rmf_traffic::agv::Planner::Options(nullptr));
+        rmf_traffic::agv::Planner::Options(nullptr)));
 
   auto fleet = FleetUpdateHandle::Implementation::make(
         fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,

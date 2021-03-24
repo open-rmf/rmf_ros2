@@ -244,7 +244,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       motion_sink,
       ambient_sink,
       tool_sink,
-      planner,
+      *planner,
       start_time,
       drain_battery,
       priority);
@@ -742,7 +742,7 @@ std::size_t FleetUpdateHandle::Implementation::get_nearest_charger(
   const std::unordered_set<std::size_t>& charging_waypoints)
 {
   assert(!charging_waypoints.empty());
-  const auto& graph = planner->get_configuration().graph();
+  const auto& graph = (*planner)->get_configuration().graph();
   Eigen::Vector2d p = graph.get_waypoint(start.waypoint()).get_location();
 
   if (start.location().has_value())
@@ -1015,7 +1015,6 @@ void FleetUpdateHandle::add_robot(
             fleet->_pimpl->planner,
             fleet->_pimpl->node,
             fleet->_pimpl->worker,
-            fleet->_pimpl->lane_closures,
             fleet->_pimpl->default_maximum_delay,
             state,
             task_planning_constraints,
@@ -1074,8 +1073,33 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
       if (!self)
         return;
 
+      const auto& current_lane_closures =
+        (*self->_pimpl->planner)->get_configuration().lane_closures();
+
+      bool any_changes = false;
       for (const auto& lane : lane_indices)
-        self->_pimpl->lane_closures->close(lane);
+      {
+        if (current_lane_closures.is_open(lane))
+        {
+          any_changes = true;
+          break;
+        }
+      }
+
+      if (!any_changes)
+      {
+        // No changes are needed to the planner
+        return;
+      }
+
+      auto new_config = (*self->_pimpl->planner)->get_configuration();
+      auto& new_lane_closures = new_config.lane_closures();
+      for (const auto& lane : lane_indices)
+        new_lane_closures.close(lane);
+
+      *self->_pimpl->planner =
+        std::make_shared<const rmf_traffic::agv::Planner>(
+          new_config, rmf_traffic::agv::Planner::Options(nullptr));
     });
 }
 
@@ -1089,8 +1113,33 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
       if (!self)
         return;
 
+      const auto& current_lane_closures =
+        (*self->_pimpl->planner)->get_configuration().lane_closures();
+
+      bool any_changes = false;
       for (const auto& lane : lane_indices)
-        self->_pimpl->lane_closures->open(lane);
+      {
+        if (current_lane_closures.is_closed(lane))
+        {
+          any_changes = true;
+          break;
+        }
+      }
+
+      if (!any_changes)
+      {
+        // No changes are needed to the planner
+        return;
+      }
+
+      auto new_config = (*self->_pimpl->planner)->get_configuration();
+      auto& new_lane_closures = new_config.lane_closures();
+      for (const auto& lane : lane_indices)
+        new_lane_closures.open(lane);
+
+      *self->_pimpl->planner =
+        std::make_shared<const rmf_traffic::agv::Planner>(
+            new_config, rmf_traffic::agv::Planner::Options(nullptr));
     });
 }
 
@@ -1147,17 +1196,17 @@ bool FleetUpdateHandle::set_task_planner_params(
     _pimpl->ambient_sink = ambient_sink;
     _pimpl->tool_sink = tool_sink;
 
-    std::shared_ptr<rmf_task::agv::TaskPlanner::Configuration> task_config =
-      std::make_shared<rmf_task::agv::TaskPlanner::Configuration>(
+    auto task_config =
+      rmf_task::agv::TaskPlanner::Configuration(
         *battery_system,
         motion_sink,
         ambient_sink,
-        _pimpl->planner,
+        *_pimpl->planner,
         _pimpl->cost_calculator);
-    
+
     _pimpl->task_planner = std::make_shared<rmf_task::agv::TaskPlanner>(
-      task_config);
-    
+      std::move(task_config));
+
     _pimpl->initialized_task_planner = true;
 
     return _pimpl->initialized_task_planner;

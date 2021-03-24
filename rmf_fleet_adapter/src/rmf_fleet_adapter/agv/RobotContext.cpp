@@ -200,12 +200,6 @@ const rxcpp::schedulers::worker& RobotContext::worker() const
 }
 
 //==============================================================================
-const rmf_traffic::agv::LaneClosure& RobotContext::lane_closures() const
-{
-  return *_lane_closure;
-}
-
-//==============================================================================
 rmf_utils::optional<rmf_traffic::Duration> RobotContext::maximum_delay() const
 {
   return _maximum_delay;

@@ -137,8 +137,6 @@ public:
   std::shared_ptr<ParticipantFactory> writer;
   std::shared_ptr<rmf_traffic::schedule::Snappable> snappable;
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
-  std::shared_ptr<rmf_traffic::agv::LaneClosure> lane_closures =
-    std::make_shared<rmf_traffic::agv::LaneClosure>();
 
   // Task planner params
   std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system = nullptr;
@@ -269,7 +267,7 @@ public:
 
     // Populate charging waypoints
     const std::size_t num_waypoints =
-      handle._pimpl->planner->get_configuration().graph().num_waypoints();
+      (*handle._pimpl->planner)->get_configuration().graph().num_waypoints();
     for (std::size_t i = 0; i < num_waypoints; ++i)
       handle._pimpl->charging_waypoints.insert(i);
     handle._pimpl->available_charging_waypoints =
