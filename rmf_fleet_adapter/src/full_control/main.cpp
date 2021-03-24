@@ -476,7 +476,7 @@ struct Connections : public std::enable_shared_from_this<Connections>
       RCLCPP_ERROR(
         adapter->node()->get_logger(),
         "Unable to compute a StartSet for robot [%s] using level_name [%s] and "
-        "location [%f,%f,%f] specified in its RobotState message. This can "
+        "location [%f, %f, %f] specified in its RobotState message. This can "
         "happen if the level_name in the RobotState message does not match any "
         "of the map names in the navigation graph supplied or if the location "
         "reported in the RobotState message is far way from the navigation "
