@@ -1116,8 +1116,8 @@ bool FleetUpdateHandle::set_task_planner_params(
     _pimpl->ambient_sink = ambient_sink;
     _pimpl->tool_sink = tool_sink;
 
-    std::shared_ptr<rmf_task::agv::TaskPlanner::Configuration> task_config =
-      std::make_shared<rmf_task::agv::TaskPlanner::Configuration>(
+    rmf_task::agv::TaskPlanner::Configuration task_config =
+      rmf_task::agv::TaskPlanner::Configuration(
         *battery_system,
         motion_sink,
         ambient_sink,
