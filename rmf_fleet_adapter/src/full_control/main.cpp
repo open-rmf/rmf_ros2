@@ -53,6 +53,7 @@
 
 #include <Eigen/Geometry>
 #include <unordered_set>
+#include <stdexcept>
 
 //==============================================================================
 rmf_fleet_adapter::agv::RobotUpdateHandle::Unstable::Decision
@@ -485,7 +486,9 @@ struct Connections : public std::enable_shared_from_this<Connections>
         l.x, l.y, l.yaw,
         fleet_name.c_str());
 
-        return;
+        throw std::runtime_error(
+          "[full_control][Connections::add_robot] Empty StartSet generated.");
+
     }
     fleet->add_robot(
           command, robot_name, traits->profile(),
