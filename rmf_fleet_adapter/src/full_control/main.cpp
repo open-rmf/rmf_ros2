@@ -123,6 +123,7 @@ public:
     auto lock = _lock();
     _clear_last_command();
 
+    _travel_info.target_plan_index = std::nullopt;
     _travel_info.waypoints = waypoints;
     _travel_info.next_arrival_estimator = std::move(next_arrival_estimator);
     _travel_info.path_finished_callback = std::move(path_finished_callback);
