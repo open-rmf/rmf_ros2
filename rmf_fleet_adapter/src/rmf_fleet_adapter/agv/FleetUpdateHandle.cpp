@@ -989,8 +989,9 @@ void FleetUpdateHandle::add_robot(
   if (start.empty())
   {
     throw std::runtime_error(
-      "[FleetUpdateHandle::add_robot] StartSet is empty. The function requires"
-      "at least one rmf_traffic::agv::Plan::Start to be specified");
+      "[FleetUpdateHandle::add_robot] StartSet is empty. Adding a robot to a "
+      "fleet requires at least one rmf_traffic::agv::Plan::Start to be "
+      "specified.");
   }
 
   rmf_traffic::schedule::ParticipantDescription description(
