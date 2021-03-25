@@ -469,7 +469,7 @@ void TaskManager::retreat_to_charger()
   const double retreat_threshold = 1.2 * threshold_soc;
   const double current_battery_soc = _context->current_battery_soc();
 
-  const auto task_planner_config = task_planner->config();
+  const auto& task_planner_config = task_planner->config();
   const auto estimate_cache = task_planner->estimate_cache();
 
   double retreat_battery_drain = 0.0;

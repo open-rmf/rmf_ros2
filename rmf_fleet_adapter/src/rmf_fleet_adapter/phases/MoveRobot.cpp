@@ -55,7 +55,7 @@ rmf_traffic::Duration MoveRobot::ActivePhase::estimate_remaining_time() const
 }
 
 //==============================================================================
-void MoveRobot::ActivePhase::emergency_alarm(bool on)
+void MoveRobot::ActivePhase::emergency_alarm(bool)
 {
   // TODO: implement
 }

@@ -42,6 +42,7 @@
 #include <rmf_traffic/schedule/Snapshot.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>
 #include <rmf_traffic/Trajectory.hpp>
+#include <rmf_traffic/agv/LaneClosure.hpp>
 
 #include <rmf_traffic_ros2/schedule/Writer.hpp>
 #include <rmf_traffic_ros2/schedule/Negotiation.hpp>
@@ -130,7 +131,7 @@ class FleetUpdateHandle::Implementation
 public:
 
   std::string name;
-  std::shared_ptr<rmf_traffic::agv::Planner> planner;
+  std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner;
   std::shared_ptr<Node> node;
   rxcpp::schedulers::worker worker;
   std::shared_ptr<ParticipantFactory> writer;
@@ -170,9 +171,9 @@ public:
   double recharge_threshold = 0.2;
 
   // TODO Support for various charging configurations
-  std::unordered_set<std::size_t> charging_waypoints;
+  std::unordered_set<std::size_t> charging_waypoints = {};
   // We assume each robot has a designated charging waypoint
-  std::unordered_set<std::size_t> available_charging_waypoints;
+  std::unordered_set<std::size_t> available_charging_waypoints = {};
 
   double current_assignment_cost = 0.0;
   // Map to store task id with assignments for BidNotice
@@ -266,7 +267,7 @@ public:
 
     // Populate charging waypoints
     const std::size_t num_waypoints =
-      handle._pimpl->planner->get_configuration().graph().num_waypoints();
+      (*handle._pimpl->planner)->get_configuration().graph().num_waypoints();
     for (std::size_t i = 0; i < num_waypoints; ++i)
       handle._pimpl->charging_waypoints.insert(i);
     handle._pimpl->available_charging_waypoints =
