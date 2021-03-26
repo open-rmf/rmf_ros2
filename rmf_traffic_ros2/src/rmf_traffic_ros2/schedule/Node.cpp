@@ -149,6 +149,11 @@ ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
     const UnregisterParticipant::Response::SharedPtr response)
     { this->unregister_participant(request_header, request, response); });
 
+  participants_info_pub =
+    create_publisher<ParticipantsInfo>(
+    rmf_traffic_ros2::ParticipantsInfoTopicName,
+    rclcpp::SystemDefaultsQoS().reliable().keep_last(1).transient_local());
+
   request_changes_sub =
     create_subscription<RequestChanges>(
     rmf_traffic_ros2::RequestChangesTopicName,
@@ -279,12 +284,18 @@ ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
             continue;
           }
 
+          rmf_traffic::schedule::ParticipantDescriptionsMap participants;
+          for (const auto& id: database->participant_ids())
+          {
+            participants.insert({id, *database->get_participant(id)});
+          }
           next_patch = database->changes(query_all, last_checked_version);
 
           // TODO(MXG): Check whether the database really needs to remain locked
           // during this update.
           try
           {
+            mirror.update_participants_info(participants);
             mirror.update(*next_patch);
             view_changes = database->query(query_all, last_checked_version);
             last_checked_version = next_patch->latest_version();
@@ -381,7 +392,7 @@ void ScheduleNode::register_query(
 
     RCLCPP_INFO(
       get_logger(),
-      "[" + std::to_string(query_id) + "] Added participant to query");
+      "[" + std::to_string(query_id) + "] Added mirror to query");
   }
   else
   {
@@ -427,6 +438,8 @@ void ScheduleNode::register_query(
       get_logger(),
       "[" + std::to_string(query_id) + "] Registered query");
   }
+  // Make sure the query watcher learns about the participants
+  broadcast_participants();
 
   // If query does exist, query_id is already at the existing query ID and a
   // topic already exists. Return the query ID to the client without creating a
@@ -451,7 +464,7 @@ void ScheduleNode::unregister_query(
       + std::to_string(request->query_id) + "]";
     response->confirmation = false;
 
-    RCLCPP_WARN(
+    RCLCPP_INFO(
       get_logger(),
       "[ScheduleNode::unregister_query] " + response->error);
     return;
@@ -518,6 +531,8 @@ void ScheduleNode::register_participant(
       "Registered participant [" + std::to_string(response->participant_id)
       + "] named [" + request->description.name + "] owned by ["
       + request->description.owner + "]");
+
+    broadcast_participants();
   }
   catch (const std::exception& e)
   {
@@ -565,6 +580,8 @@ void ScheduleNode::unregister_participant(
       get_logger(),
       "Unregistered participant [" + std::to_string(request->participant_id)
       +"] named [" + name + "] owned by [" + owner + "]");
+
+    broadcast_participants();
   }
   catch (const std::exception& e)
   {
@@ -575,6 +592,22 @@ void ScheduleNode::unregister_participant(
     response->error = e.what();
     response->confirmation = false;
   }
+}
+
+//==============================================================================
+void ScheduleNode::broadcast_participants()
+{
+  ParticipantsInfo msg;
+
+  for (const auto& id: database->participant_ids())
+  {
+    SingleParticipantInfo participant;
+    participant.id = id;
+    participant.description = rmf_traffic_ros2::convert(
+      *database->get_participant(id));
+    msg.participants.push_back(participant);
+  }
+  participants_info_pub->publish(msg);
 }
 
 //==============================================================================

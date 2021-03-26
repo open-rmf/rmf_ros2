@@ -26,6 +26,8 @@
 #include <rclcpp/node.hpp>
 
 #include <rmf_traffic_msgs/msg/mirror_update.hpp>
+#include <rmf_traffic_msgs/msg/participant.hpp>
+#include <rmf_traffic_msgs/msg/participants.hpp>
 #include <rmf_traffic_msgs/msg/request_changes.hpp>
 
 #include <rmf_traffic_msgs/msg/itinerary_clear.hpp>
@@ -127,6 +129,11 @@ public:
   using MirrorUpdateTopicsMap =
     std::unordered_map<uint64_t, MirrorUpdateTopic>;
   MirrorUpdateTopicsMap mirror_update_topics;
+
+  using SingleParticipantInfo = rmf_traffic_msgs::msg::Participant;
+  using ParticipantsInfo = rmf_traffic_msgs::msg::Participants;
+  void broadcast_participants();
+  rclcpp::Publisher<ParticipantsInfo>::SharedPtr participants_info_pub;
 
   using RequestChanges = rmf_traffic_msgs::msg::RequestChanges;
   void request_changes(const RequestChanges& request);

@@ -69,7 +69,7 @@ public:
     std::lock_guard<std::mutex> lock(_mutex);
     const UniqueId key = {description.name(), description.owner()};
     const auto it = _id_from_name.find(key);
-    
+
     if (it != _id_from_name.end())
     {
       const auto id = it->second;
@@ -82,7 +82,7 @@ public:
         description_it->second = description;
         write_to_file({AtomicOperation::OpType::Update, description});
       }
-      
+
       return Registration(
         id, _database->itinerary_version(id), _database->last_route_id(id));
     }

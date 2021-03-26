@@ -17,11 +17,14 @@
 
 #include <rclcpp/logger.hpp>
 #include <rmf_traffic_ros2/StandardNames.hpp>
+#include <rmf_traffic_ros2/schedule/ParticipantDescription.hpp>
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 #include <rmf_traffic_ros2/schedule/Patch.hpp>
 #include <rmf_traffic_ros2/schedule/Query.hpp>
 
 #include <rmf_traffic_msgs/msg/mirror_update.hpp>
+#include <rmf_traffic_msgs/msg/participant.hpp>
+#include <rmf_traffic_msgs/msg/participants.hpp>
 #include <rmf_traffic_msgs/msg/request_changes.hpp>
 
 #include <rmf_traffic_msgs/srv/register_query.hpp>
@@ -31,6 +34,10 @@
 
 namespace rmf_traffic_ros2 {
 namespace schedule {
+
+using SingleParticipantInfo = rmf_traffic_msgs::msg::Participant;
+using ParticipantsInfo = rmf_traffic_msgs::msg::Participants;
+using ParticipantsInfoSub = rclcpp::Subscription<ParticipantsInfo>::SharedPtr;
 
 using MirrorUpdate = rmf_traffic_msgs::msg::MirrorUpdate;
 using MirrorUpdateSub = rclcpp::Subscription<MirrorUpdate>::SharedPtr;
@@ -51,6 +58,7 @@ public:
   Options options;
   UnregisterQueryClient unregister_query_client;
   MirrorUpdateSub mirror_update_sub;
+  ParticipantsInfoSub participants_info_sub;
   RequestChangesPub request_changes_pub;
   uint64_t query_id = 0;
 
@@ -71,6 +79,14 @@ public:
     query_id(_query_id),
     mirror(std::make_shared<rmf_traffic::schedule::Mirror>())
   {
+    participants_info_sub = node.create_subscription<ParticipantsInfo>(
+      ParticipantsInfoTopicName,
+      rclcpp::SystemDefaultsQoS().reliable().keep_last(1).transient_local(),
+      [&](const ParticipantsInfo::SharedPtr msg)
+      {
+        handle_participants_info(msg);
+      });
+
     mirror_update_sub = node.create_subscription<MirrorUpdate>(
       QueryUpdateTopicNameBase + std::to_string(query_id),
       rclcpp::SystemDefaultsQoS(),
@@ -82,6 +98,30 @@ public:
     request_changes_pub = node.create_publisher<RequestChanges>(
       rmf_traffic_ros2::RequestChangesTopicName,
       rclcpp::SystemDefaultsQoS());
+  }
+
+  void handle_participants_info(const ParticipantsInfo::SharedPtr msg)
+  {
+    try
+    {
+      std::mutex* update_mutex = options.update_mutex();
+      if (update_mutex)
+      {
+        std::lock_guard<std::mutex> lock(*update_mutex);
+        mirror->update_participants_info(convert(*msg));
+      }
+      else
+      {
+        mirror->update_participants_info(convert(*msg));
+      }
+    }
+    catch (const std::exception& e)
+    {
+      RCLCPP_ERROR(
+        node.get_logger(),
+        "[rmf_traffic_ros2::MirrorManager] Failed to update participant info: "
+        + std::string(e.what()));
+    }
   }
 
   void handle_update(const MirrorUpdate::SharedPtr msg)
