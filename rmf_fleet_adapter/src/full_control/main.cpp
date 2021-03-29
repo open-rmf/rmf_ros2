@@ -73,6 +73,75 @@ convert_decision(uint32_t decision)
 }
 
 //==============================================================================
+struct DistanceFromGraph
+{
+  double value;
+  std::size_t index;
+
+  enum Type
+  {
+    Waypoint = 0,
+    Lane
+  };
+  Type type;
+};
+
+//==============================================================================
+std::optional<DistanceFromGraph> distance_from_graph(
+  const rmf_fleet_msgs::msg::Location& l,
+  const rmf_traffic::agv::Graph& graph)
+{
+  std::optional<DistanceFromGraph> output;
+  const Eigen::Vector2d p = {l.x, l.y};
+  const std::string& map = l.level_name;
+
+  for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
+  {
+    const auto& wp = graph.get_waypoint(i);
+    if (wp.get_map_name() != map)
+      continue;
+
+    const double dist = (wp.get_location() - p).norm();
+    if (!output.has_value() || (dist < output->value))
+    {
+      output = DistanceFromGraph{dist, i, DistanceFromGraph::Waypoint};
+    }
+  }
+
+  for (std::size_t i = 0; i < graph.num_lanes(); ++i)
+  {
+    const auto& lane = graph.get_lane(i);
+    const auto& wp0 = graph.get_waypoint(lane.entry().waypoint_index());
+    const auto& wp1 = graph.get_waypoint(lane.exit().waypoint_index());
+
+    if (map != wp0.get_map_name() && map != wp1.get_map_name())
+      continue;
+
+    const Eigen::Vector2d p0 = wp0.get_location();
+    const Eigen::Vector2d p1 = wp1.get_location();
+
+    const Eigen::Vector2d dp = p - p0;
+    const Eigen::Vector2d dp1 = p1 - p0;
+
+    const double lane_length = dp1.norm();
+    if (lane_length < 1e-8)
+      continue;
+
+    const double u = dp.dot(dp1)/lane_length;
+    if (u < 0 || lane_length < u)
+      continue;
+
+    const double dist = (dp - u*dp1/lane_length).norm();
+    if (!output.has_value() || (dist < output->value))
+    {
+      output = DistanceFromGraph{dist, i, DistanceFromGraph::Lane};
+    }
+  }
+
+  return output;
+}
+
+//==============================================================================
 class FleetDriverRobotCommandHandle
     : public rmf_fleet_adapter::agv::RobotCommandHandle
 {
@@ -470,8 +539,46 @@ struct Connections : public std::enable_shared_from_this<Connections>
     const auto& starts = rmf_traffic::agv::compute_plan_starts(
         *graph, state.location.level_name, {l.x, l.y, l.yaw},
         rmf_traffic_ros2::convert(adapter->node()->now()));
+
     if (starts.empty())
     {
+      const std::optional<DistanceFromGraph> distance =
+        distance_from_graph(state.location, *graph);
+
+      std::string hint;
+      if (!distance.has_value())
+      {
+        hint = "None of the waypoints in the graph are on a map called ["
+          + l.level_name + "].";
+      }
+      else
+      {
+        const auto to_name = [&](const std::size_t index) -> std::string
+        {
+          const auto& wp = graph->get_waypoint(index);
+          if (wp.name())
+            return *wp.name();
+
+          return "#" + std::to_string(index);
+        };
+
+        if (distance->type == DistanceFromGraph::Lane)
+        {
+          const auto& lane = graph->get_lane(distance->index);
+          hint = "The closest lane on the navigation graph ["
+            + std::to_string(distance->index) + "] connects waypoint ["
+            + to_name(lane.entry().waypoint_index()) + "] to ["
+            + to_name(lane.exit().waypoint_index()) + "] and is a distance of ["
+            + std::to_string(distance->value) + "m] from the robot.";
+        }
+        else
+        {
+          hint = "The closest waypoint on the navigation graph ["
+            + to_name(distance->index) + "] is a distance of ["
+            + std::to_string(distance->value) + "m] from the robot.";
+        }
+      }
+
       RCLCPP_ERROR(
         adapter->node()->get_logger(),
         "Unable to compute a StartSet for robot [%s] using level_name [%s] and "
@@ -479,14 +586,17 @@ struct Connections : public std::enable_shared_from_this<Connections>
         "happen if the level_name in the RobotState message does not match any "
         "of the map names in the navigation graph supplied or if the location "
         "reported in the RobotState message is far way from the navigation "
-        "graph. This robot will not be added to the fleet [%s].",
+        "graph. This robot will not be added to the fleet [%s]. The following "
+        "hint may help with debugging: %s",
         state.name.c_str(),
         state.location.level_name.c_str(),
         l.x, l.y, l.yaw,
-        fleet_name.c_str());
+        fleet_name.c_str(),
+        hint.c_str());
 
       return;
     }
+
     fleet->add_robot(
           command, robot_name, traits->profile(),
           starts,
