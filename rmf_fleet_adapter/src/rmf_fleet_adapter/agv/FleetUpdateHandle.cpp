@@ -39,6 +39,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
+#include <stdexcept>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -984,7 +985,15 @@ void FleetUpdateHandle::add_robot(
     rmf_traffic::agv::Plan::StartSet start,
     std::function<void(std::shared_ptr<RobotUpdateHandle>)> handle_cb)
 {
-  assert(!start.empty());
+  
+  if (start.empty())
+  {
+    throw std::runtime_error(
+      "[FleetUpdateHandle::add_robot] StartSet is empty. Adding a robot to a "
+      "fleet requires at least one rmf_traffic::agv::Plan::Start to be "
+      "specified.");
+  }
+
   rmf_traffic::schedule::ParticipantDescription description(
         name,
         _pimpl->name,
