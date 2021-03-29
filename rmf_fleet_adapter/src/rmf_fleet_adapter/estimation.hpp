@@ -43,6 +43,8 @@ struct TravelInfo
 
   std::string fleet_name;
   std::string robot_name;
+
+  std::optional<std::size_t> target_plan_index = std::nullopt;
 };
 
 //==============================================================================

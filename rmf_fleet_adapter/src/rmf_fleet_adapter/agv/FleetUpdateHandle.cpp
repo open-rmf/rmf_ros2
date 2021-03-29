@@ -153,7 +153,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     rmf_traffic_ros2::convert(task_profile.description.start_time);
   // TODO (YV) get rid of ID field in RequestPtr
   std::string id = msg->task_profile.task_id;
-  const auto& graph = planner->get_configuration().graph();
+  const auto& graph = (*planner)->get_configuration().graph();
 
   // Generate the priority of the request. The current implementation supports
   // binary priority
@@ -223,7 +223,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       positions.push_back({location.x, location.y, location.yaw});
     rmf_traffic::Trajectory cleaning_trajectory =
       rmf_traffic::agv::Interpolate::positions(
-        planner->get_configuration().vehicle_traits(),
+        (*planner)->get_configuration().vehicle_traits(),
         start_time,
         positions);
     
@@ -245,7 +245,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       motion_sink,
       ambient_sink,
       tool_sink,
-      planner,
+      *planner,
       start_time,
       drain_battery,
       priority);
@@ -341,7 +341,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       delivery.items,
       motion_sink,
       ambient_sink,
-      planner,
+      *planner,
       start_time,
       drain_battery,
       priority);
@@ -415,7 +415,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       loop.num_loops,
       motion_sink,
       ambient_sink,
-      planner,
+      *planner,
       start_time,
       drain_battery,
       priority);
@@ -743,7 +743,7 @@ std::size_t FleetUpdateHandle::Implementation::get_nearest_charger(
   const std::unordered_set<std::size_t>& charging_waypoints)
 {
   assert(!charging_waypoints.empty());
-  const auto& graph = planner->get_configuration().graph();
+  const auto& graph = (*planner)->get_configuration().graph();
   Eigen::Vector2d p = graph.get_waypoint(start.waypoint()).get_location();
 
   if (start.location().has_value())
@@ -1073,6 +1073,86 @@ void FleetUpdateHandle::add_robot(
 }
 
 //==============================================================================
+void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this(), lane_indices = std::move(lane_indices)](const auto&)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      const auto& current_lane_closures =
+        (*self->_pimpl->planner)->get_configuration().lane_closures();
+
+      bool any_changes = false;
+      for (const auto& lane : lane_indices)
+      {
+        if (current_lane_closures.is_open(lane))
+        {
+          any_changes = true;
+          break;
+        }
+      }
+
+      if (!any_changes)
+      {
+        // No changes are needed to the planner
+        return;
+      }
+
+      auto new_config = (*self->_pimpl->planner)->get_configuration();
+      auto& new_lane_closures = new_config.lane_closures();
+      for (const auto& lane : lane_indices)
+        new_lane_closures.close(lane);
+
+      *self->_pimpl->planner =
+        std::make_shared<const rmf_traffic::agv::Planner>(
+          new_config, rmf_traffic::agv::Planner::Options(nullptr));
+    });
+}
+
+//==============================================================================
+void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this(), lane_indices = std::move(lane_indices)](const auto&)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      const auto& current_lane_closures =
+        (*self->_pimpl->planner)->get_configuration().lane_closures();
+
+      bool any_changes = false;
+      for (const auto& lane : lane_indices)
+      {
+        if (current_lane_closures.is_closed(lane))
+        {
+          any_changes = true;
+          break;
+        }
+      }
+
+      if (!any_changes)
+      {
+        // No changes are needed to the planner
+        return;
+      }
+
+      auto new_config = (*self->_pimpl->planner)->get_configuration();
+      auto& new_lane_closures = new_config.lane_closures();
+      for (const auto& lane : lane_indices)
+        new_lane_closures.open(lane);
+
+      *self->_pimpl->planner =
+        std::make_shared<const rmf_traffic::agv::Planner>(
+            new_config, rmf_traffic::agv::Planner::Options(nullptr));
+    });
+}
+
+//==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
     AcceptTaskRequest check)
 {
@@ -1125,17 +1205,17 @@ bool FleetUpdateHandle::set_task_planner_params(
     _pimpl->ambient_sink = ambient_sink;
     _pimpl->tool_sink = tool_sink;
 
-    rmf_task::agv::TaskPlanner::Configuration task_config =
+    auto task_config =
       rmf_task::agv::TaskPlanner::Configuration(
         *battery_system,
         motion_sink,
         ambient_sink,
-        _pimpl->planner,
+        *_pimpl->planner,
         _pimpl->cost_calculator);
-    
+
     _pimpl->task_planner = std::make_shared<rmf_task::agv::TaskPlanner>(
-      task_config);
-    
+      std::move(task_config));
+
     _pimpl->initialized_task_planner = true;
 
     return _pimpl->initialized_task_planner;

@@ -55,7 +55,7 @@ rmf_traffic::Duration IngestItem::ActivePhase::estimate_remaining_time() const
 }
 
 //==============================================================================
-void IngestItem::ActivePhase::emergency_alarm(bool on)
+void IngestItem::ActivePhase::emergency_alarm(bool)
 {
   // TODO: implement
 }

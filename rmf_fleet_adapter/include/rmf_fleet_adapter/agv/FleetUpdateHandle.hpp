@@ -68,6 +68,12 @@ public:
       rmf_traffic::agv::Plan::StartSet start,
       std::function<void(std::shared_ptr<RobotUpdateHandle> handle)> handle_cb);
 
+  /// Specify a set of lanes that should be closed.
+  void close_lanes(std::vector<std::size_t> lane_indices);
+
+  /// Specify a set of lanes that should be open.
+  void open_lanes(std::vector<std::size_t> lane_indices);
+
   /// Set the parameters required for task planning
   ///
   /// \param[in] battery_system

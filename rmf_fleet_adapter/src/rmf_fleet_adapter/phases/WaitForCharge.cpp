@@ -38,7 +38,7 @@ rmf_traffic::Duration WaitForCharge::Active::estimate_remaining_time() const
 }
 
 //==============================================================================
-void WaitForCharge::Active::emergency_alarm(const bool value)
+void WaitForCharge::Active::emergency_alarm(const bool)
 {
   // Assume charging station is a holding point
 }

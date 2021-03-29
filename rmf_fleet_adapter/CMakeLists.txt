@@ -319,6 +319,38 @@ target_include_directories(task_aggregator
 
 # -----------------------------------------------------------------------------
 
+add_executable(open_lanes src/open_lanes/main.cpp)
+
+target_link_libraries(open_lanes
+  PRIVATE
+    ${rmf_fleet_msgs_LIBRARIES}
+    rclcpp::rclcpp
+    rmf_fleet_adapter
+)
+
+target_include_directories(open_lanes
+  PRIVATE
+    ${rmf_fleet_msgs_INCLUDE_DIRS}
+)
+
+# -----------------------------------------------------------------------------
+
+add_executable(close_lanes src/close_lanes/main.cpp)
+
+target_link_libraries(close_lanes
+  PRIVATE
+    ${rmf_fleet_msgs_LIBRARIES}
+    rclcpp::rclcpp
+    rmf_fleet_adapter
+)
+
+target_include_directories(close_lanes
+  PRIVATE
+    ${rmf_fleet_msgs_INCLUDE_DIRS}
+)
+
+# -----------------------------------------------------------------------------
+
 ament_export_targets(rmf_fleet_adapter HAS_LIBRARY_TARGET)
 ament_export_dependencies(
   rmf_task
@@ -342,6 +374,8 @@ install(
     robot_state_aggregator
     test_read_only_adapter
     task_aggregator
+    open_lanes
+    close_lanes
   EXPORT rmf_fleet_adapter
   RUNTIME DESTINATION lib/rmf_fleet_adapter
   LIBRARY DESTINATION lib

@@ -49,7 +49,7 @@ rmf_traffic::Duration DockRobot::ActivePhase::estimate_remaining_time() const
 }
 
 //==============================================================================
-void DockRobot::ActivePhase::emergency_alarm(bool on)
+void DockRobot::ActivePhase::emergency_alarm(bool)
 {
   // TODO: implement
 }
