@@ -86,12 +86,6 @@ rmf_traffic_msgs::msg::SchedulePatch convert(
 {
   rmf_traffic_msgs::msg::SchedulePatch output;
 
-  for (const auto& u : from.unregistered())
-    output.unregister_participants.emplace_back(u.id());
-
-  convert_vector(output.register_participants, from.registered());
-  convert_vector(output.updated_footprints, from.updated());
-
   output.participants.reserve(from.size());
   for (const auto& p : from)
     output.participants.emplace_back(convert(p));
@@ -108,22 +102,11 @@ rmf_traffic_msgs::msg::SchedulePatch convert(
 rmf_traffic::schedule::Patch convert(
   const rmf_traffic_msgs::msg::SchedulePatch& from)
 {
-  // TODO(MXG): Fix the Patch API to make this more elegant
-  std::vector<rmf_traffic::schedule::Change::UnregisterParticipant> unregister;
-  unregister.reserve(from.unregister_participants.size());
-  for (const auto& u : from.unregister_participants)
-    unregister.emplace_back(u);
-
   rmf_utils::optional<rmf_traffic::schedule::Change::Cull> cull;
   if (!from.cull.empty())
     cull = convert(from.cull.front());
 
   return rmf_traffic::schedule::Patch{
-    std::move(unregister),
-    convert_vector<rmf_traffic::schedule::Change::RegisterParticipant>(
-      from.register_participants),
-    convert_vector<rmf_traffic::schedule::Change::UpdateParticipantInfo>(
-      from.updated_footprints),
     convert_vector<rmf_traffic::schedule::Patch::Participant>(
       from.participants),
     std::move(cull),
