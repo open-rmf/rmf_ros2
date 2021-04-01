@@ -156,7 +156,7 @@ private:
     std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
     rmf_traffic::schedule::Participant itinerary,
     std::shared_ptr<const Snappable> schedule,
-    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+    std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
     std::shared_ptr<Node> node,
     const rxcpp::schedulers::worker& worker,
     rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
@@ -168,7 +168,7 @@ private:
   std::vector<rmf_traffic::agv::Plan::Start> _location;
   rmf_traffic::schedule::Participant _itinerary;
   std::shared_ptr<const Snappable> _schedule;
-  std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
+  std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> _planner;
   std::shared_ptr<const rmf_traffic::Profile> _profile;
 
   std::shared_ptr<void> _negotiation_license;

@@ -79,8 +79,10 @@ void estimate_path_traveling(
     TravelInfo& info)
 {
   assert(!state.path.empty());
+
   const std::size_t remaining_count = state.path.size();
   const std::size_t i_target_wp = info.waypoints.size() - remaining_count;
+  info.target_plan_index = i_target_wp;
   const auto& target_wp = info.waypoints.at(i_target_wp);
 
   const auto& l = state.location;
