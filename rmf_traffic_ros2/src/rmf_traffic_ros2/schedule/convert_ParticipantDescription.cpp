@@ -18,8 +18,6 @@
 #include <rmf_traffic_ros2/schedule/ParticipantDescription.hpp>
 #include <rmf_traffic_ros2/Profile.hpp>
 
-#include <iostream>
-
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
