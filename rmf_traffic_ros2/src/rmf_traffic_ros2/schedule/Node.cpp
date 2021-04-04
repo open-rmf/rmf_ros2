@@ -438,8 +438,6 @@ void ScheduleNode::register_query(
       get_logger(),
       "[" + std::to_string(query_id) + "] Registered query");
   }
-  // Make sure the query watcher learns about the participants
-  broadcast_participants();
 
   // If query does exist, query_id is already at the existing query ID and a
   // topic already exists. Return the query ID to the client without creating a
