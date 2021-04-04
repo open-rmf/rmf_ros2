@@ -443,10 +443,6 @@ void ScheduleNode::register_query(
   // topic already exists. Return the query ID to the client without creating a
   // new topic or query.
   response->query_id = query_id;
-
-  // TODO(Geoff): Trigger an update here so that the newly-registered query
-  // mirror gets the database contents sent to it. Otherwise it will have to
-  // wait until the next change is made in the database.
 }
 
 //==============================================================================
