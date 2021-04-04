@@ -742,15 +742,18 @@ void ScheduleNode::update_mirrors()
     {
       msg.patch = rmf_traffic_ros2::convert(
         database->changes(query_it.second, query_topic->second.second));
-      query_topic->second.first->publish(msg);
-      // Update the latest version sent to this topic
-      mirror_update_topics.insert_or_assign(
-        query_it.first,
-        std::make_pair(query_topic->second.first, msg.database_version));
-      RCLCPP_DEBUG(
-        get_logger(),
-        "[ScheduleNode::update_mirrors] Updated query " +
-        std::to_string(query_it.first));
+      if (!msg.patch.participants.empty() || !msg.patch.cull.empty())
+      {
+        query_topic->second.first->publish(msg);
+        // Update the latest version sent to this topic
+        mirror_update_topics.insert_or_assign(
+          query_it.first,
+          std::make_pair(query_topic->second.first, msg.database_version));
+        RCLCPP_DEBUG(
+          get_logger(),
+          "[ScheduleNode::update_mirrors] Updated query " +
+          std::to_string(query_it.first));
+      }
     }
     else
     {
