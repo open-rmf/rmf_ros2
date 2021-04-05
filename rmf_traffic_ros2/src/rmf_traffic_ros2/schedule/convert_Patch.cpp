@@ -93,6 +93,10 @@ rmf_traffic_msgs::msg::SchedulePatch convert(
   if (const auto& cull = from.cull())
     output.cull.emplace_back(convert(*cull));
 
+  output.has_base_version = from.base_version().has_value();
+  if (from.base_version().has_value())
+    output.base_version = *from.base_version();
+
   output.latest_version = from.latest_version();
 
   return output;
@@ -102,14 +106,19 @@ rmf_traffic_msgs::msg::SchedulePatch convert(
 rmf_traffic::schedule::Patch convert(
   const rmf_traffic_msgs::msg::SchedulePatch& from)
 {
-  rmf_utils::optional<rmf_traffic::schedule::Change::Cull> cull;
+  std::optional<rmf_traffic::schedule::Change::Cull> cull;
   if (!from.cull.empty())
     cull = convert(from.cull.front());
+
+  std::optional<rmf_traffic::schedule::Version> base_version;
+  if (from.has_base_version)
+    base_version = from.base_version;
 
   return rmf_traffic::schedule::Patch{
     convert_vector<rmf_traffic::schedule::Patch::Participant>(
       from.participants),
     std::move(cull),
+    base_version,
     from.latest_version
   };
 }

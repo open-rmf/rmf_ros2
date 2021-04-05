@@ -134,11 +134,13 @@ public:
       if (update_mutex)
       {
         std::lock_guard<std::mutex> lock(*update_mutex);
-        mirror->update(patch);
+        if (!mirror->update(patch))
+          request_update(mirror->latest_version());
       }
       else
       {
-        mirror->update(patch);
+        if (!mirror->update(patch))
+          request_update(mirror->latest_version());
       }
     }
     catch (const std::exception& e)

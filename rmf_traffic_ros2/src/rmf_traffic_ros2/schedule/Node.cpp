@@ -643,7 +643,7 @@ void ScheduleNode::request_changes(const RequestChanges& request)
   }
   else
   {
-    auto mirror_update_topic_info = query_topic->second;
+    auto& mirror_update_topic_info = query_topic->second;
     // Tell the next update to send the changes since the requested version by
     // resetting the last sent version number to the requested version,
     // which may be std::nullopt if a full update is requested
@@ -655,9 +655,7 @@ void ScheduleNode::request_changes(const RequestChanges& request)
     {
       mirror_update_topic_info.last_sent_version = request.version;
     }
-    mirror_update_topics.insert_or_assign(
-      request.query_id,
-      mirror_update_topic_info);
+
     // Force-send the next update
     update_mirrors();
   }
@@ -767,29 +765,30 @@ void ScheduleNode::update_mirrors()
   rmf_traffic_msgs::msg::MirrorUpdate msg;
   msg.database_version = database->latest_version();
 
-  for (auto query_it: registered_queries) {
+  for (const auto& query_it : registered_queries)
+  {
     msg.query_id = query_it.first;
     const auto query_topic = mirror_update_topics.find(query_it.first);
     if (query_topic != mirror_update_topics.end())
     {
-      auto mirror_update_topic_info = query_topic->second;
-      msg.patch = rmf_traffic_ros2::convert(
-        database->changes(
-          query_it.second,
-          mirror_update_topic_info.last_sent_version.value_or(0)));
-      if (!msg.patch.participants.empty() || !msg.patch.cull.empty())
-      {
-        mirror_update_topic_info.publisher->publish(msg);
-        mirror_update_topic_info.last_sent_version = msg.database_version;
-        // Update the latest version sent to this topic
-        mirror_update_topics.insert_or_assign(
-          query_it.first,
-          mirror_update_topic_info);
-        RCLCPP_DEBUG(
-          get_logger(),
-          "[ScheduleNode::update_mirrors] Updated query " +
-          std::to_string(query_it.first));
-      }
+      auto& mirror_update_topic_info = query_topic->second;
+      const auto patch = database->changes(
+        query_it.second,
+        mirror_update_topic_info.last_sent_version);
+
+      if (patch.size() == 0 && !patch.cull())
+        continue;
+
+      msg.patch = rmf_traffic_ros2::convert(patch);
+      mirror_update_topic_info.publisher->publish(msg);
+
+      // Update the latest version sent to this topic
+      mirror_update_topic_info.last_sent_version = msg.database_version;
+
+      RCLCPP_DEBUG(
+        get_logger(),
+        "[ScheduleNode::update_mirrors] Updated query " +
+        std::to_string(query_it.first));
     }
     else
     {
