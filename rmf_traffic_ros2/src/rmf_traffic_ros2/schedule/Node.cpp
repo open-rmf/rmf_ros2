@@ -398,13 +398,11 @@ void ScheduleNode::register_query(
     }
     else
     {
-      auto [ pub, update_version, mirror_count ] = query_topic->second;
+      auto mirror_update_topic_info = query_topic->second;
+      mirror_update_topic_info.subscriber_count += 1;
       mirror_update_topics.insert_or_assign(
         query_id,
-        std::make_tuple(
-          pub,
-          std::nullopt,
-          mirror_count + 1));
+        mirror_update_topic_info);
     }
 
     RCLCPP_INFO(
@@ -446,10 +444,11 @@ void ScheduleNode::register_query(
     // database. This will cause the new participant to be updated with all
     // currently-relevant information from the database, not just the next
     // change to come in.
-    MirrorUpdateTopic update_topic = std::make_tuple(
+    MirrorUpdateTopicInfo update_topic {
       update_topic_publisher,
       std::nullopt,
-      1);
+      1
+    };
     mirror_update_topics.insert(std::make_pair(query_id, update_topic));
 
     RCLCPP_INFO(
@@ -500,9 +499,11 @@ void ScheduleNode::unregister_query(
     // Otherwise reduce the mirror count by one
     else
     {
+      auto mirror_update_topic_info = query_topic->second;
+      mirror_update_topic_info.subscriber_count -= 1;
       mirror_update_topics.insert_or_assign(
         request->query_id,
-        std::make_tuple(pub, update_version, mirror_count - 1));
+        mirror_update_topic_info);
     }
   }
   else
@@ -642,22 +643,21 @@ void ScheduleNode::request_changes(const RequestChanges& request)
   }
   else
   {
-    auto [ pub, update_version, mirror_count ] = query_topic->second;
+    auto mirror_update_topic_info = query_topic->second;
     // Tell the next update to send the changes since the requested version by
     // resetting the last sent version number to the requested version,
     // which may be std::nullopt if a full update is requested
     if (request.full_update)
     {
-      mirror_update_topics.insert_or_assign(
-        request.query_id,
-        std::make_tuple(pub, std::nullopt, mirror_count));
+      mirror_update_topic_info.last_sent_version = std::nullopt;
     }
     else
     {
-      mirror_update_topics.insert_or_assign(
-        request.query_id,
-        std::make_tuple(pub, request.version, mirror_count));
+      mirror_update_topic_info.last_sent_version = request.version;
     }
+    mirror_update_topics.insert_or_assign(
+      request.query_id,
+      mirror_update_topic_info);
     // Force-send the next update
     update_mirrors();
   }
@@ -772,16 +772,19 @@ void ScheduleNode::update_mirrors()
     const auto query_topic = mirror_update_topics.find(query_it.first);
     if (query_topic != mirror_update_topics.end())
     {
-      auto [ pub, update_version, mirror_count ] = query_topic->second;
+      auto mirror_update_topic_info = query_topic->second;
       msg.patch = rmf_traffic_ros2::convert(
-        database->changes(query_it.second, update_version.value_or(0)));
+        database->changes(
+          query_it.second,
+          mirror_update_topic_info.last_sent_version.value_or(0)));
       if (!msg.patch.participants.empty() || !msg.patch.cull.empty())
       {
-        pub->publish(msg);
+        mirror_update_topic_info.publisher->publish(msg);
+        mirror_update_topic_info.last_sent_version = msg.database_version;
         // Update the latest version sent to this topic
         mirror_update_topics.insert_or_assign(
           query_it.first,
-          std::make_tuple(pub, msg.database_version, mirror_count));
+          mirror_update_topic_info);
         RCLCPP_DEBUG(
           get_logger(),
           "[ScheduleNode::update_mirrors] Updated query " +
