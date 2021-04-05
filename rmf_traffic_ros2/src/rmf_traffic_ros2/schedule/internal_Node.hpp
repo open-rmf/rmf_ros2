@@ -62,7 +62,6 @@
 #include <set>
 #include <unordered_map>
 #include <utility>
-#include <tuple>
 
 namespace rmf_traffic_ros2 {
 namespace schedule {
@@ -124,12 +123,14 @@ public:
 
   using MirrorUpdate = rmf_traffic_msgs::msg::MirrorUpdate;
   using MirrorUpdateTopicPublisher = rclcpp::Publisher<MirrorUpdate>::SharedPtr;
-  using MirrorUpdateTopic = std::tuple<
-    MirrorUpdateTopicPublisher,
-    std::optional<rmf_traffic::schedule::Version>,
-    uint64_t>;
+  struct MirrorUpdateTopicInfo
+  {
+    MirrorUpdateTopicPublisher publisher;
+    std::optional<rmf_traffic::schedule::Version> last_sent_version;
+    std::size_t subscriber_count;
+  };
   using MirrorUpdateTopicsMap =
-    std::unordered_map<uint64_t, MirrorUpdateTopic>;
+    std::unordered_map<uint64_t, MirrorUpdateTopicInfo>;
   MirrorUpdateTopicsMap mirror_update_topics;
 
   using SingleParticipantInfo = rmf_traffic_msgs::msg::Participant;
