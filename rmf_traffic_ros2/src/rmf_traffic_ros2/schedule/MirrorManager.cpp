@@ -152,16 +152,30 @@ public:
     }
   }
 
-  void request_update(uint64_t minimum_version=0)
+  void request_update(std::optional<uint64_t> minimum_version = std::nullopt)
   {
     RequestChanges request;
     request.query_id = query_id;
-    request.version = minimum_version;
-    RCLCPP_INFO(
-      node.get_logger(),
-      "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
-      "for query ID [" + std::to_string(request.query_id) +
-      "] since version [" + std::to_string(request.version) + "]");
+    if (minimum_version.has_value())
+    {
+      request.version = minimum_version.value();
+      request.full_update = false;
+      RCLCPP_INFO(
+        node.get_logger(),
+        "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
+        "for query ID [" + std::to_string(request.query_id) +
+        "] since version [" + std::to_string(request.version) + "]");
+    }
+    else
+    {
+      RCLCPP_INFO(
+        node.get_logger(),
+        "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
+        "for query ID [" + std::to_string(request.query_id) +
+        "] since beginning of recorded history");
+      request.version = 0;
+      request.full_update = true;
+    }
     request_changes_pub->publish(request);
   }
 

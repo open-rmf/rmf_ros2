@@ -620,13 +620,19 @@ void ScheduleNode::request_changes(const RequestChanges& request)
   {
     // Tell the next update to send the changes since the requested version by
     // resetting the last sent version number to the requested version
-    mirror_update_topics.insert_or_assign(
-      request.query_id,
-      std::make_pair(query_topic->second.first, request.version));
+    if (request.full_update)
+    {
+      mirror_update_topics.insert_or_assign(
+        request.query_id,
+        std::make_pair(query_topic->second.first, 0));
+    }
+    else
+    {
+      mirror_update_topics.insert_or_assign(
+        request.query_id,
+        std::make_pair(query_topic->second.first, request.version));
+    }
     // Force-send the next update
-    // TODO(Geoff): This is a hacky work-around for missed full updates. It
-    // will cause extraneous updates to be sent to all mirrors. It should be
-    // removed when the synchronisation scheme is fixed.
     update_mirrors();
   }
 }
