@@ -416,6 +416,12 @@ public:
   ConflictRecord active_conflicts;
   std::mutex active_conflicts_mutex;
   std::shared_ptr<ParticipantRegistry> participant_registry;
+
+  // TODO(MXG): Build this into the Database/Mirror class, tracking participant
+  // description versions separately from itinerary versions.
+  std::size_t last_known_participants_version = 0;
+  std::size_t current_participants_version = 1;
+
 };
 
 } // namespace schedule

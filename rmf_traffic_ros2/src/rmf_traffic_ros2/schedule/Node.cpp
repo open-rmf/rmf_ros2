@@ -277,25 +277,38 @@ ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
             && !conflict_check_quit;
           });
 
-          if (database->latest_version() == last_checked_version
-          || conflict_check_quit)
+          if ( (database->latest_version() == last_checked_version
+            && last_known_participants_version == current_participants_version)
+            || conflict_check_quit)
           {
             // This is a casual wakeup to check if we're supposed to quit yet
             continue;
           }
 
-          rmf_traffic::schedule::ParticipantDescriptionsMap participants;
-          for (const auto& id: database->participant_ids())
+          if (last_known_participants_version != current_participants_version)
           {
-            participants.insert({id, *database->get_participant(id)});
-          }
-          next_patch = database->changes(query_all, last_checked_version);
+            last_known_participants_version = current_participants_version;
+            rmf_traffic::schedule::ParticipantDescriptionsMap participants;
+            for (const auto& id: database->participant_ids())
+            {
+              participants.insert({id, *database->get_participant(id)});
+            }
 
+            try
+            {
+              mirror.update_participants_info(participants);
+            }
+            catch (const std::exception& e)
+            {
+              RCLCPP_ERROR(get_logger(), e.what());
+            }
+          }
+
+          next_patch = database->changes(query_all, last_checked_version);
           // TODO(MXG): Check whether the database really needs to remain locked
           // during this update.
           try
           {
-            mirror.update_participants_info(participants);
             mirror.update(*next_patch);
             view_changes = database->query(query_all, last_checked_version);
             last_checked_version = next_patch->latest_version();
@@ -601,6 +614,7 @@ void ScheduleNode::unregister_participant(
 //==============================================================================
 void ScheduleNode::broadcast_participants()
 {
+  ++current_participants_version;
   ParticipantsInfo msg;
 
   for (const auto& id: database->participant_ids())
