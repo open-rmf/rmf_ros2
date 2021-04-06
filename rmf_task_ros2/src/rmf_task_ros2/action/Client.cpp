@@ -40,6 +40,9 @@ Client::Client(std::shared_ptr<rclcpp::Node> node)
     [&](const std::unique_ptr<StatusMsg> msg)
     {
       const auto task_id = msg->task_profile.task_id;
+      if (task_id.empty())
+        return;
+
       // status update, check if task_id is previously known
       if (_active_task_status.count(task_id))
       {
