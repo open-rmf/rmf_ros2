@@ -63,10 +63,12 @@ public:
   : _database(db),
     _logger(std::move(logger))
   {
+    _reading_from_log = true;
     while(auto record = _logger->read_next_record())
     {
       execute(*record);
     }
+    _reading_from_log = false;
   }
 
   //===========================================================================
@@ -120,6 +122,16 @@ private:
   //===========================================================================
   void write_to_file(AtomicOperation op)
   {
+    if (_reading_from_log)
+    {
+      // add_or_retrieve_participant will be called when we are reading the
+      // file during startup, which will call this function with the entries
+      // loaded from the file. We do not want to write those entries back into
+      // the file since that's where they came from. So we will skip this step
+      // when reading entries from the log.
+      return;
+    }
+
     _logger->write_operation(op);
   }
 
@@ -139,6 +151,7 @@ private:
   std::shared_ptr<Database> _database; 
   std::unique_ptr<AbstractParticipantLogger> _logger;
   std::mutex _mutex;
+  bool _reading_from_log = false;
 };
 
 //=============================================================================
