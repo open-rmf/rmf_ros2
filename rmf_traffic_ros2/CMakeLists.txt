@@ -110,7 +110,11 @@ install(
 )
 
 install(
-  TARGETS rmf_traffic_ros2 rmf_traffic_schedule rmf_traffic_blockade
+  TARGETS
+    rmf_traffic_ros2
+    rmf_traffic_schedule
+    rmf_traffic_blockade
+    update_participant
   EXPORT rmf_traffic_ros2
   RUNTIME DESTINATION lib/rmf_traffic_ros2
   LIBRARY DESTINATION lib

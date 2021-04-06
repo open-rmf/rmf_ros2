@@ -63,10 +63,22 @@ int main(int argc, char* argv[])
   const auto client = node->create_client<Service>(
     rmf_traffic_ros2::RegisterParticipantSrvName);
 
+  using namespace std::chrono_literals;
+
+  const auto start = std::chrono::steady_clock::now();
+  while (!client->service_is_ready())
+  {
+    if (std::chrono::steady_clock::now() - start > 10s)
+    {
+      std::cerr << "Unable to find the schedule node :(" << std::endl;
+      return 1;
+    }
+
+    rclcpp::spin_some(node);
+  }
+
   auto future_response = client->async_send_request(
     std::make_shared<Request>(request));
-
-  using namespace std::chrono_literals;
 
   rclcpp::spin_until_future_complete(node, future_response, 10s);
 
