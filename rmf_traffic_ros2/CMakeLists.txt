@@ -100,6 +100,10 @@ add_executable(participant_node examples/participant_node.cpp)
 target_link_libraries(participant_node PUBLIC rmf_traffic_ros2)
 
 #===============================================================================
+add_executable(update_participant src/update_participant/main.cpp)
+target_link_libraries(update_participant PRIVATE rmf_traffic_ros2)
+
+#===============================================================================
 install(
   DIRECTORY include/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
