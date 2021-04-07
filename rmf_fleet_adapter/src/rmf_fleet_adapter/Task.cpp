@@ -89,6 +89,18 @@ const std::string& Task::id() const
 }
 
 //==============================================================================
+const rmf_task_msgs::msg::TaskProfile Task::profile_msg() const
+{
+  return _profile_msg;
+}
+
+//==============================================================================
+void Task::profile_msg(const rmf_task_msgs::msg::TaskProfile& profile)
+{
+  _profile_msg = profile;
+}
+
+//==============================================================================
 const rmf_task::ConstRequestPtr Task::request() const
 {
   return _request;

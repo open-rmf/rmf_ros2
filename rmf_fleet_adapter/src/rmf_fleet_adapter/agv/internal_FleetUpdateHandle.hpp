@@ -152,16 +152,12 @@ public:
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay =
       std::chrono::nanoseconds(std::chrono::seconds(10));
 
-  AcceptDeliveryRequest accept_delivery = nullptr;
-  std::unordered_map<RobotContextPtr, std::shared_ptr<TaskManager>> task_managers = {};
-
+  std::vector<std::shared_ptr<TaskManager>> task_managers;
+  
   rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr fleet_state_pub = nullptr;
   rclcpp::TimerBase::SharedPtr fleet_state_timer = nullptr;
 
-  // Map task id to pair of <RequestPtr, Assignments>
   using Assignments = rmf_task::agv::TaskPlanner::Assignments;
-  std::unordered_map<std::string,
-    std::pair<rmf_task::RequestPtr, Assignments>> task_map = {};
 
   // Map of dock name to dock parameters
   std::unordered_map<std::string,
@@ -176,13 +172,14 @@ public:
   std::unordered_set<std::size_t> available_charging_waypoints = {};
 
   double current_assignment_cost = 0.0;
-  // Map to store task id with assignments for BidNotice
-  std::unordered_map<std::string, Assignments> bid_notice_assignments = {};
+  
+  // Map to store task id with the profile msg of the received tasks
+  using TaskProfile = rmf_task_msgs::msg::TaskProfile;
+  std::unordered_map<std::string, TaskProfile> received_task_profiles = {};
+  
+  // Tuple which stored the latest received BidNotice
+  std::tuple<rmf_task::ConstRequestPtr, Assignments> latest_bid_notice_assignments;
 
-  std::unordered_map<
-    std::string, rmf_task::ConstRequestPtr> generated_requests = {};
-  std::unordered_map<
-    std::string, rmf_task::ConstRequestPtr> assigned_requests = {};
   std::unordered_set<std::string> cancelled_task_ids = {};
 
   AcceptTaskRequest accept_task = nullptr;
@@ -206,6 +203,8 @@ public:
   using DockSummary = rmf_fleet_msgs::msg::DockSummary;
   using DockSummarySub = rclcpp::Subscription<DockSummary>::SharedPtr;
   DockSummarySub dock_summary_sub = nullptr;
+
+  using TaskType = rmf_task_msgs::msg::TaskType;
 
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
@@ -291,7 +290,7 @@ public:
   /// new request and while optionally ignoring a specific request.
   std::optional<Assignments> allocate_tasks(
     rmf_task::ConstRequestPtr new_request = nullptr,
-    rmf_task::ConstRequestPtr ignore_request = nullptr) const;
+    std::string ignore_request_id = "") const;
 
   /// Helper function to check if assignments are valid. An assignment set is
   /// invalid if one of the assignments has already begun execution.

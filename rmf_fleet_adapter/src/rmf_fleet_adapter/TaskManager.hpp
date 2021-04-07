@@ -45,13 +45,10 @@ public:
   using StartSet = rmf_traffic::agv::Plan::StartSet;
   using Assignment = rmf_task::agv::TaskPlanner::Assignment;
   using State = rmf_task::agv::State;
+  using TaskProfile = rmf_task_msgs::msg::TaskProfile;
 
   /// Add a task to the queue of this manager.
-  void queue_task(std::shared_ptr<Task> task, Start expected_finish);
-
-  /// The location where we expect this robot to be at the end of its current
-  /// task queue.
-  StartSet expected_finish_location() const;
+  void queue_task(std::shared_ptr<Task> task);
 
   const agv::RobotContextPtr& context();
 
@@ -60,8 +57,16 @@ public:
   const Task* current_task() const;
 
   /// Set the queue for this task manager with assignments generated from the
-  /// task planner
-  void set_queue(const std::vector<Assignment>& assignments);
+  /// task planner, arg 'task_profiles' is merely used for status publishing.
+  void set_queue(
+    const std::vector<Assignment>& assignments,
+    const std::unordered_map<std::string, TaskProfile>& task_profiles = {});
+
+  /// set a vector of tasks
+  void set_queue(const std::vector<std::shared_ptr<Task>>& tasks);
+
+  // get tasks in the queue
+  const std::vector<std::shared_ptr<Task>> task_queue() const;
 
   /// Get the non-charging requests among pending tasks
   const std::vector<rmf_task::ConstRequestPtr> requests() const;
@@ -84,7 +89,6 @@ private:
   agv::RobotContextPtr _context;
   std::shared_ptr<Task> _active_task;
   std::vector<std::shared_ptr<Task>> _queue;
-  rmf_utils::optional<Start> _expected_finish_location;
   rxcpp::subscription _task_sub;
   rxcpp::subscription _emergency_sub;
 

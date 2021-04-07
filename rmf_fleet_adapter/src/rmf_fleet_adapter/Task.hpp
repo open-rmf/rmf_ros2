@@ -40,6 +40,7 @@ class Task : public std::enable_shared_from_this<Task>
 public:
 
   using StatusMsg = rmf_task_msgs::msg::TaskSummary;
+  using TaskProfile = rmf_task_msgs::msg::TaskProfile;
 
   /// This class represents the active phase of a Task. It provides an
   /// observable that the Task can track to stay up-to-date on the status and to
@@ -124,6 +125,12 @@ public:
 
   const std::string& id() const;
 
+  /// Get the profile msg, for publish status msg
+  const TaskProfile profile_msg() const;
+
+  /// Set the profile msg, for publish status msg
+  void profile_msg(const TaskProfile& profile);
+
   /// Get the request used to generate this task
   const rmf_task::ConstRequestPtr request() const;
 
@@ -162,6 +169,7 @@ private:
   rmf_traffic::Time _deployment_time;
   rmf_task::agv::State _finish_state;
   rmf_task::ConstRequestPtr _request;
+  TaskProfile _profile_msg;
 
   void _start_next_phase();
 
