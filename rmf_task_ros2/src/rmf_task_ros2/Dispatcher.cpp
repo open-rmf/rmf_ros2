@@ -85,31 +85,11 @@ public:
         const std::shared_ptr<SubmitTaskSrv::Request> request,
         std::shared_ptr<SubmitTaskSrv::Response> response)
       {
-        switch (request->evaluator)
-        {
-          using namespace rmf_task_ros2::bidding;
-          case SubmitTaskSrv::Request::LOWEST_DIFF_COST_EVAL:
-            this->auctioneer->select_evaluator(
-              std::make_shared<LeastFleetDiffCostEvaluator>());
-            break;
-          case SubmitTaskSrv::Request::LOWEST_COST_EVAL:
-            this->auctioneer->select_evaluator(
-              std::make_shared<LeastFleetCostEvaluator>());
-            break;
-          case SubmitTaskSrv::Request::QUICKEST_FINISH_EVAL:
-            this->auctioneer->select_evaluator(
-              std::make_shared<QuickestFinishEvaluator>());
-            break;
-          default:
-            RCLCPP_WARN(this->node->get_logger(),
-            "Selected Evaluator is invalid, switch back to previous");
-            break;
-        }
-
         const auto id = this->submit_task(request->description);
         if (id == std::nullopt)
         {
           response->success = false;
+          response->message = "Task type is invalid";
           return;
         }
 
