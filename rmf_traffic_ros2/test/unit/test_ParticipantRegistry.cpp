@@ -155,6 +155,8 @@ SCENARIO("Participant registry restores participants from logger")
       const auto participant_id1 = registry1.add_or_retrieve_participant(p1);
       const auto participant_id2 = registry1.add_or_retrieve_participant(p2);
       const auto participant_id3 = registry1.add_or_retrieve_participant(p3);
+
+      std::vector<AtomicOperation> journal_old = journal;
   
       THEN("Restoring DB")
       {
@@ -167,8 +169,11 @@ SCENARIO("Participant registry restores participants from logger")
         REQUIRE(restored_participants.count(participant_id3.id()) > 0);
         REQUIRE(restored_participants.size() == 3);
 
-        // Checks that the logs have not accidentally grown or shrunk
-        REQUIRE(journal.size() == 3); 
+        // Checks that the logs have not accidentally grown or shrunk or been
+        // mutated.
+        REQUIRE(journal.size() == 3);
+        for(std::size_t i = 0; i < journal.size(); i++)
+          REQUIRE(journal[i] == journal_old[i]);
   
         auto _p1 = db2->get_participant(participant_id1.id());
         auto _p2 = db2->get_participant(participant_id2.id());
