@@ -21,7 +21,6 @@ endif()
 
 find_package(rmf_fleet_adapter REQUIRED)
 find_package(rmf_task REQUIRED)
-find_package(rmf_task_ros2 REQUIRED)
 find_package(rmf_battery REQUIRED)
 find_package(rmf_task_msgs REQUIRED)
 
@@ -48,8 +47,7 @@ pybind11_add_module(rmf_adapter
   src/schedule/schedule.cpp
 )
 target_link_libraries(rmf_adapter PRIVATE
-  rmf_fleet_adapter::rmf_fleet_adapter
-  rmf_task_ros2::rmf_task_ros2)
+  rmf_fleet_adapter::rmf_fleet_adapter)
 
 target_include_directories(rmf_adapter
   PUBLIC
@@ -59,7 +57,6 @@ target_include_directories(rmf_adapter
     ${rmf_traffic_ros2_INCLUDE_DIRS}
     ${rmf_battery_INCLUDE_DIRS}
     ${rmf_task_INCLUDE_DIRS}
-    ${rmf_task_ros2_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
   PRIVATE

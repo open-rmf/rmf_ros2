@@ -31,11 +31,8 @@
 
 #include <rmf_traffic_ros2/blockade/Node.hpp>
 #include <rmf_traffic_ros2/schedule/Node.hpp>
-#include <rmf_task_ros2/Dispatcher.hpp>
 
 namespace py = pybind11;
-using Dispatcher = rmf_task_ros2::Dispatcher;
-using TaskStatus = rmf_task_ros2::TaskStatus;
 
 /// Create a ros2 node of different major node components in RMF
 /// TODO (YL): Might move these nodes static functions to a different repo as
@@ -53,48 +50,4 @@ void bind_nodes(py::module &m)
   // Make Schedule Node
   m_nodes.def("make_schedule", &rmf_traffic_ros2::schedule::make_node,
               py::arg("options"));
-
-  /// Dispatcher Node Class
-  /// \brief Create a simple dispatcher node api mainly for testing
-  py::class_<Dispatcher, std::shared_ptr<Dispatcher>>(
-      m_nodes, "DispatcherNode")
-      .def_static("make_node", &Dispatcher::make_node,
-                  // py::arg("dispatcher_node_name"), TODO Remove in next version
-                  py::call_guard<py::scoped_ostream_redirect,
-                                 py::scoped_estream_redirect>())
-      // .def("submit_task",
-      //      py::overload_cast<const Dispatcher::TaskDescription&>(
-      //       &Dispatcher::submit_task),
-      //      py::arg("task_description"))
-      .def("cancel_task", &Dispatcher::cancel_task,
-           py::arg("task_id"))
-      .def("spin", &Dispatcher::spin,
-           "This is a blocking spin")
-      .def("node", &Dispatcher::node)
-      .def("get_active_task_ids", [](Dispatcher &self) {
-        std::vector<std::string> task_ids;
-        for (auto task : self.active_tasks())
-        {
-          task_ids.push_back(task.first);
-        }
-        return task_ids;
-      })
-      .def("get_terminated_task_ids", [](Dispatcher &self) {
-        std::vector<std::string> task_ids;
-        for (auto task : self.terminated_tasks())
-        {
-          task_ids.push_back(task.first);
-        }
-        return task_ids;
-      })
-      .def("get_task_state", &Dispatcher::get_task_state, py::arg("task_id"));
-
-  py::enum_<TaskStatus::State>(
-      m_nodes, "TaskState")
-      .value("Queued", TaskStatus::State::Queued)
-      .value("Executing", TaskStatus::State::Executing)
-      .value("Completed", TaskStatus::State::Completed)
-      .value("Failed", TaskStatus::State::Failed)
-      .value("Canceled", TaskStatus::State::Canceled)
-      .value("Pending", TaskStatus::State::Pending);
 }
