@@ -15,14 +15,18 @@
  *
 */
 
+#include <rclcpp/logger.hpp>
 #include <rmf_traffic_ros2/StandardNames.hpp>
+#include <rmf_traffic_ros2/schedule/ParticipantDescription.hpp>
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 #include <rmf_traffic_ros2/schedule/Patch.hpp>
 #include <rmf_traffic_ros2/schedule/Query.hpp>
 
-#include <rmf_traffic_msgs/msg/mirror_wakeup.hpp>
+#include <rmf_traffic_msgs/msg/mirror_update.hpp>
+#include <rmf_traffic_msgs/msg/participant.hpp>
+#include <rmf_traffic_msgs/msg/participants.hpp>
+#include <rmf_traffic_msgs/msg/request_changes.hpp>
 
-#include <rmf_traffic_msgs/srv/mirror_update.hpp>
 #include <rmf_traffic_msgs/srv/register_query.hpp>
 #include <rmf_traffic_msgs/srv/unregister_query.hpp>
 
@@ -31,15 +35,19 @@
 namespace rmf_traffic_ros2 {
 namespace schedule {
 
-using MirrorUpdate = rmf_traffic_msgs::srv::MirrorUpdate;
-using MirrorUpdateClient = rclcpp::Client<MirrorUpdate>::SharedPtr;
-using MirrorUpdateFuture = rclcpp::Client<MirrorUpdate>::SharedFuture;
+using SingleParticipantInfo = rmf_traffic_msgs::msg::Participant;
+using ParticipantsInfo = rmf_traffic_msgs::msg::Participants;
+using ParticipantsInfoSub = rclcpp::Subscription<ParticipantsInfo>::SharedPtr;
+
+using MirrorUpdate = rmf_traffic_msgs::msg::MirrorUpdate;
+using MirrorUpdateSub = rclcpp::Subscription<MirrorUpdate>::SharedPtr;
+
+using RequestChanges = rmf_traffic_msgs::msg::RequestChanges;
+using RequestChangesPub = rclcpp::Publisher<RequestChanges>::SharedPtr;
 
 using UnregisterQuery = rmf_traffic_msgs::srv::UnregisterQuery;
 using UnregisterQueryClient = rclcpp::Client<UnregisterQuery>::SharedPtr;
 
-using MirrorWakeup = rmf_traffic_msgs::msg::MirrorWakeup;
-using MirrorWakeupSub = rclcpp::Subscription<MirrorWakeup>::SharedPtr;
 
 //==============================================================================
 class MirrorManager::Implementation
@@ -48,16 +56,15 @@ public:
 
   rclcpp::Node& node;
   Options options;
-  MirrorUpdateClient mirror_update_client;
   UnregisterQueryClient unregister_query_client;
-  MirrorWakeupSub mirror_wakeup_sub;
-
-  MirrorUpdate::Request::SharedPtr request_msg;
+  MirrorUpdateSub mirror_update_sub;
+  ParticipantsInfoSub participants_info_sub;
+  RequestChangesPub request_changes_pub;
+  uint64_t query_id = 0;
 
   std::shared_ptr<rmf_traffic::schedule::Mirror> mirror;
 
-  bool initial_request = true;
-  bool waiting_for_reply = false;
+  bool initial_update = true;
 
   rmf_traffic::schedule::Version next_minimum_version = 0;
 
@@ -65,102 +72,119 @@ public:
     rclcpp::Node& _node,
     Options _options,
     uint64_t _query_id,
-    MirrorUpdateClient _mirror_update_client,
     UnregisterQueryClient _unregister_query_client)
   : node(_node),
     options(std::move(_options)),
-    mirror_update_client(std::move(_mirror_update_client)),
     unregister_query_client(std::move(_unregister_query_client)),
-    request_msg(std::make_shared<MirrorUpdate::Request>()),
+    query_id(_query_id),
     mirror(std::make_shared<rmf_traffic::schedule::Mirror>())
   {
-    mirror_wakeup_sub = node.create_subscription<MirrorWakeup>(
-      MirrorWakeupTopicName, rclcpp::SystemDefaultsQoS(),
-      [&](const MirrorWakeup::SharedPtr msg)
+    participants_info_sub = node.create_subscription<ParticipantsInfo>(
+      ParticipantsInfoTopicName,
+      rclcpp::SystemDefaultsQoS().reliable().keep_last(1).transient_local(),
+      [&](const ParticipantsInfo::SharedPtr msg)
       {
-        trigger_wakeup(msg->latest_version);
+        handle_participants_info(msg);
       });
 
-    request_msg->query_id = _query_id;
+    mirror_update_sub = node.create_subscription<MirrorUpdate>(
+      QueryUpdateTopicNameBase + std::to_string(query_id),
+      rclcpp::SystemDefaultsQoS(),
+      [&](const MirrorUpdate::SharedPtr msg)
+      {
+        handle_update(msg);
+      });
+
+    request_changes_pub = node.create_publisher<RequestChanges>(
+      rmf_traffic_ros2::RequestChangesTopicName,
+      rclcpp::SystemDefaultsQoS());
   }
 
-  void trigger_wakeup(uint64_t minimum_version)
+  void handle_participants_info(const ParticipantsInfo::SharedPtr msg)
   {
-    if (options.update_on_wakeup())
-      update(minimum_version);
-  }
-
-  void update(
-    uint64_t minimum_version,
-    const rmf_traffic::Duration wait = rmf_traffic::Duration(0))
-  {
-    if (waiting_for_reply)
+    try
     {
-      next_minimum_version = minimum_version;
-      return;
-    }
-
-    waiting_for_reply = true;
-    // TODO(MXG): What if the latest version has wrapped around the integer
-    // overflow, but this is a fresh mirror starting up? We should have a ROS2
-    // service to ask the schedule database what its oldest version is, and
-    // initialize this value to that. Or maybe the mirror wakeup can publish
-    // both its oldest and latest version.
-    // This is also relevant to the next_minimum_version value.
-    request_msg->latest_mirror_version = mirror->latest_version();
-    request_msg->minimum_patch_version = minimum_version;
-    request_msg->initial_request = initial_request;
-    initial_request = false;
-
-    const auto future = mirror_update_client->async_send_request(
-      request_msg,
-      [&](const MirrorUpdateFuture response_future)
+      std::mutex* update_mutex = options.update_mutex();
+      if (update_mutex)
       {
-        const auto response = response_future.get();
+        std::lock_guard<std::mutex> lock(*update_mutex);
+        mirror->update_participants_info(convert(*msg));
+      }
+      else
+      {
+        mirror->update_participants_info(convert(*msg));
+      }
+    }
+    catch (const std::exception& e)
+    {
+      RCLCPP_ERROR(
+        node.get_logger(),
+        "[rmf_traffic_ros2::MirrorManager] Failed to update participant info: "
+        + std::string(e.what()));
+    }
+  }
 
-        try
-        {
-          const rmf_traffic::schedule::Patch patch =
-          convert(response->patch);
+  void handle_update(const MirrorUpdate::SharedPtr msg)
+  {
+    try
+    {
+      const rmf_traffic::schedule::Patch patch = convert(msg->patch);
 
-          RCLCPP_DEBUG(
-            node.get_logger(),
-            "Updating mirror ["
-            + std::to_string(response->patch.latest_version)
-            + "]: " + std::to_string(patch.size()) + " changes");
+      std::mutex* update_mutex = options.update_mutex();
+      if (update_mutex)
+      {
+        std::lock_guard<std::mutex> lock(*update_mutex);
+        if (!mirror->update(patch))
+          request_update(mirror->latest_version());
+      }
+      else
+      {
+        if (!mirror->update(patch))
+          request_update(mirror->latest_version());
+      }
+    }
+    catch (const std::exception& e)
+    {
+      RCLCPP_ERROR(
+        node.get_logger(),
+        "[rmf_traffic_ros2::MirrorManager] Failed to deserialize Patch "
+        "message: " + std::string(e.what()));
+      // Get a full update in case we're just missing some information
+      request_update();
+    }
+  }
 
-          std::mutex* update_mutex = options.update_mutex();
-          if (update_mutex)
-          {
-            std::lock_guard<std::mutex> lock(*update_mutex);
-            mirror->update(patch);
-          }
-          else
-          {
-            mirror->update(patch);
-          }
-
-          waiting_for_reply = false;
-          if (patch.latest_version() < next_minimum_version)
-            update(next_minimum_version);
-        }
-        catch (const std::exception& e)
-        {
-          RCLCPP_ERROR(
-            node.get_logger(),
-            "[rmf_traffic_ros2::MirrorManager] Failed to deserialize Patch "
-            "message: " + std::string(e.what()));
-        }
-      });
-
-    if (wait > rmf_traffic::Duration(0))
-      future.wait_for(wait);
+  void request_update(std::optional<uint64_t> minimum_version = std::nullopt)
+  {
+    RequestChanges request;
+    request.query_id = query_id;
+    if (minimum_version.has_value())
+    {
+      request.version = minimum_version.value();
+      request.full_update = false;
+      RCLCPP_INFO(
+        node.get_logger(),
+        "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
+        "for query ID [" + std::to_string(request.query_id) +
+        "] since version [" + std::to_string(request.version) + "]");
+    }
+    else
+    {
+      RCLCPP_INFO(
+        node.get_logger(),
+        "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
+        "for query ID [" + std::to_string(request.query_id) +
+        "] since beginning of recorded history");
+      request.version = 0;
+      request.full_update = true;
+    }
+    request_changes_pub->publish(request);
   }
 
   ~Implementation()
   {
     UnregisterQuery::Request msg;
-    msg.query_id = request_msg->query_id;
+    msg.query_id = query_id;
     unregister_query_client->async_send_request(
       std::make_shared<UnregisterQuery::Request>(std::move(msg)));
   }
@@ -240,9 +264,9 @@ MirrorManager::snapshot_handle() const
 }
 
 //==============================================================================
-void MirrorManager::update(const rmf_traffic::Duration wait)
+void MirrorManager::update()
 {
-  _pimpl->update(_pimpl->mirror->latest_version(), wait);
+  _pimpl->request_update(_pimpl->mirror->latest_version());
 }
 
 //==============================================================================
@@ -278,7 +302,6 @@ public:
   using RegisterQueryFuture = rclcpp::Client<RegisterQuery>::SharedFuture;
   using UnregisterQueryFuture = rclcpp::Client<UnregisterQuery>::SharedFuture;
   RegisterQueryClient register_query_client;
-  MirrorUpdateClient mirror_update_client;
   UnregisterQueryClient unregister_query_client;
 
   std::atomic_bool abandon_discovery;
@@ -301,9 +324,6 @@ public:
     register_query_client =
       node.create_client<RegisterQuery>(RegisterQueryServiceName);
 
-    mirror_update_client =
-      node.create_client<MirrorUpdate>(MirrorUpdateServiceName);
-
     unregister_query_client =
       node.create_client<UnregisterQuery>(UnregisterQueryServiceName);
 
@@ -319,7 +339,6 @@ public:
     while (!abandon_discovery && !ready)
     {
       ready = register_query_client->wait_for_service(timeout);
-      ready = ready && mirror_update_client->wait_for_service(timeout);
       ready = ready && unregister_query_client->wait_for_service(timeout);
     }
 
@@ -375,7 +394,6 @@ public:
       node,
       std::move(options),
       registration.query_id,
-      std::move(mirror_update_client),
       std::move(unregister_query_client));
   }
 

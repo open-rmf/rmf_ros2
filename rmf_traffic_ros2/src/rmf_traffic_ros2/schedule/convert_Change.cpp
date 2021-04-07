@@ -61,46 +61,6 @@ rmf_traffic_msgs::msg::ScheduleChangeDelay convert(
 }
 
 //==============================================================================
-rmf_traffic::schedule::Change::RegisterParticipant convert(
-  const rmf_traffic_msgs::msg::ScheduleRegister& from)
-{
-  return rmf_traffic::schedule::Change::RegisterParticipant{
-    from.participant_id,
-    convert(from.description)
-  };
-}
-
-//==============================================================================
-rmf_traffic_msgs::msg::ScheduleRegister convert(
-  const rmf_traffic::schedule::Change::RegisterParticipant& from)
-{
-  rmf_traffic_msgs::msg::ScheduleRegister output;
-  output.participant_id = from.id();
-  output.description = convert(from.description());
-  return output;
-}
-
-//==============================================================================
-rmf_traffic_msgs::msg::ScheduleUpdateParticipant convert(
-  const rmf_traffic::schedule::Change::UpdateParticipantInfo& from)
-{
-  rmf_traffic_msgs::msg::ScheduleUpdateParticipant output;
-  output.participant_id = from.id();
-  output.description = convert(from.description());
-  return output;
-}
-
-//==============================================================================
-rmf_traffic::schedule::Change::UpdateParticipantInfo convert(
-  const rmf_traffic_msgs::msg::ScheduleUpdateParticipant& from)
-{
-   return rmf_traffic::schedule::Change::UpdateParticipantInfo{
-    from.participant_id,
-    convert(from.description)
-  };
-}
-
-//==============================================================================
 rmf_traffic::schedule::Change::Cull convert(
   const rmf_traffic_msgs::msg::ScheduleChangeCull& from)
 {

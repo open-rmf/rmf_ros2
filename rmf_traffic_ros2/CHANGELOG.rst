@@ -4,6 +4,8 @@ Changelog for package rmf_traffic_ros2
 
 1.3.0 (2021-XX-XX)
 ------------------
+* Use topics to update schedule mirrors: [#17](https://github.com/open-rmf/rmf_ros2/pull/17)
+* Allow participant descriptions to update: [#17](https://github.com/open-rmf/rmf_ros2/pull/17)
 * Add persistence to Traffic Schedule Participant IDs: [#242](https://github.com/osrf/rmf_core/pull/242)
 
 1.2.0 (2021-01-05)

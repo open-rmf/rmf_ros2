@@ -89,7 +89,7 @@ public:
     }
 
     auto operation = atomic_operation(_buffer[_counter]);
-    
+
     std::string uuid = operation.description.name() + 
       operation.description.owner();
 
