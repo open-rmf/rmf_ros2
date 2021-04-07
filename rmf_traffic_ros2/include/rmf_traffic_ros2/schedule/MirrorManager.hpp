@@ -76,13 +76,9 @@ public:
 
   /// Attempt to update this mirror immediately.
   ///
-  /// \param[in] wait
-  ///   How long to block the current thread while waiting for the mirror to
-  ///   update. By default this will not block at all.
-  ///
   // TODO(MXG): Consider allowing this function to accept a callback that will
   // get triggered when the update is complete.
-  void update(rmf_traffic::Duration wait = rmf_traffic::Duration(0));
+  void update();
 
   /// Get the options for this mirror manager
   const Options& get_options() const;

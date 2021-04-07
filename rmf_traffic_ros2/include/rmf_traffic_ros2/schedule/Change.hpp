@@ -22,9 +22,7 @@
 
 #include <rmf_traffic_msgs/msg/schedule_change_add.hpp>
 #include <rmf_traffic_msgs/msg/schedule_change_delay.hpp>
-#include <rmf_traffic_msgs/msg/schedule_register.hpp>
 #include <rmf_traffic_msgs/msg/schedule_change_cull.hpp>
-#include <rmf_traffic_msgs/msg/schedule_update_participant.hpp>
 
 namespace rmf_traffic_ros2 {
 
@@ -43,22 +41,6 @@ rmf_traffic::schedule::Change::Delay convert(
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleChangeDelay convert(
   const rmf_traffic::schedule::Change::Delay& from);
-
-//==============================================================================
-rmf_traffic::schedule::Change::RegisterParticipant convert(
-  const rmf_traffic_msgs::msg::ScheduleRegister& from);
-
-//==============================================================================
-rmf_traffic_msgs::msg::ScheduleRegister convert(
-  const rmf_traffic::schedule::Change::RegisterParticipant& from);
-
-//==============================================================================
-rmf_traffic_msgs::msg::ScheduleUpdateParticipant convert(
-  const rmf_traffic::schedule::Change::UpdateParticipantInfo& from);
-
-//==============================================================================
-rmf_traffic::schedule::Change::UpdateParticipantInfo convert(
-  const rmf_traffic_msgs::msg::ScheduleUpdateParticipant& from);
 
 //==============================================================================
 rmf_traffic::schedule::ParticipantId convert(
