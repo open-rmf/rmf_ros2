@@ -166,7 +166,9 @@ SCENARIO("Participant registry restores participants from logger")
         REQUIRE(restored_participants.count(participant_id2.id()) > 0);
         REQUIRE(restored_participants.count(participant_id3.id()) > 0);
         REQUIRE(restored_participants.size() == 3);
-        REQUIRE(journal.size() == 3);
+
+        // Checks that the logs have not accidentally grown or shrunk
+        REQUIRE(journal.size() == 3); 
   
         auto _p1 = db2->get_participant(participant_id1.id());
         auto _p2 = db2->get_participant(participant_id2.id());
