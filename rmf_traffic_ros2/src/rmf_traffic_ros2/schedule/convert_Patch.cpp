@@ -18,6 +18,11 @@
 #include <rmf_traffic_ros2/schedule/Patch.hpp>
 #include <rmf_traffic_ros2/schedule/Change.hpp>
 
+#include <rmf_traffic_msgs/msg/schedule_participant_patch.hpp>
+#include <rmf_traffic_msgs/msg/schedule_change_cull.hpp>
+#include <rmf_traffic_msgs/msg/schedule_change_add.hpp>
+#include <rmf_traffic_msgs/msg/schedule_change_delay.hpp>
+
 using Time = rmf_traffic::Time;
 using Duration = rmf_traffic::Duration;
 
@@ -54,16 +59,15 @@ std::vector<T_out> convert_vector(
 rmf_traffic_msgs::msg::ScheduleParticipantPatch convert(
   const rmf_traffic::schedule::Patch::Participant& from)
 {
-  rmf_traffic_msgs::msg::ScheduleParticipantPatch output;
-  output.participant_id = from.participant_id();
-
-  output.erasures = from.erasures().ids();
-  output.additions = convert_vector<rmf_traffic_msgs::msg::ScheduleChangeAdd>(
-    from.additions().items());
-  output.delays = convert_vector<rmf_traffic_msgs::msg::ScheduleChangeDelay>(
-    from.delays());
-
-  return output;
+  return
+    rmf_traffic_msgs::build<rmf_traffic_msgs::msg::ScheduleParticipantPatch>()
+      .participant_id(from.participant_id())
+      .itinerary_version(from.itinerary_version())
+      .erasures(from.erasures().ids())
+      .delays(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeDelay>(
+        from.delays()))
+      .additions(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeAdd>(
+        from.additions().items()));
 }
 
 //==============================================================================
@@ -72,6 +76,7 @@ rmf_traffic::schedule::Patch::Participant convert(
 {
   return rmf_traffic::schedule::Patch::Participant{
     from.participant_id,
+    from.itinerary_version,
     rmf_traffic::schedule::Change::Erase{from.erasures},
     convert_vector<rmf_traffic::schedule::Change::Delay>(from.delays),
     rmf_traffic::schedule::Change::Add{
