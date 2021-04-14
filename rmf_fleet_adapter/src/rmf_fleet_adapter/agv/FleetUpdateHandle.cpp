@@ -104,17 +104,28 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   if (task_managers.empty())
     return;
 
-  if (msg->task_profile.task_id.empty())
+  const std::string id = msg->task_profile.task_id;
+
+  if (id.empty())
     return;
 
-  if (received_task_profiles.find(msg->task_profile.task_id)
-      != received_task_profiles.end())
+  // Will check if tasks is queued or active
+  if (is_queued(id))
   {
     RCLCPP_WARN(
       node->get_logger(),
-      "Task [%s] has been submitted by Fleet [%s] previously",
-      msg->task_profile.task_id.c_str(),
-      name.c_str());
+      "Task [%s] is currently queued in Fleet [%s]",
+      id.c_str(), name.c_str());
+    return;
+  }
+
+  // Will check if tasks is an active current task
+  if (is_current(id))
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Task [%s] is currently executing by Fleet [%s]",
+      id.c_str(), name.c_str());
     return;
   }
 
@@ -125,7 +136,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       "Fleet [%s] is not configured to accept any task requests. Use "
       "FleetUpdateHadndle::accept_task_requests(~) to define a callback "
       "for accepting requests", name.c_str());
-
     return;
   }
 
@@ -134,10 +144,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     RCLCPP_INFO(
       node->get_logger(),
       "Fleet [%s] is configured to not accept task [%s]",
-      name.c_str(),
-      msg->task_profile.task_id.c_str());
-
-      return;
+      name.c_str(), id.c_str());
+    return;
   }
 
   if (!task_planner
@@ -148,7 +156,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       "Fleet [%s] is not configured with parameters for task planning."
       "Use FleetUpdateHandle::set_task_planner_params(~) to set the "
       "parameters required.", name.c_str());
-
     return;
   }
 
@@ -159,7 +166,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   const rmf_traffic::Time start_time = 
     rmf_traffic_ros2::convert(task_profile.description.start_time);
   // TODO (YV) get rid of ID field in RequestPtr
-  const std::string id = msg->task_profile.task_id;
   const auto& graph = (*planner)->get_configuration().graph();
 
   // Generate the priority of the request. The current implementation supports
@@ -555,17 +561,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
       return;
     }
 
-    std::unordered_set<std::string> executed_tasks;
-    std::unordered_set<std::string> queued_tasks;
-    for (const auto& mgr : task_managers)
-    {
-      if (mgr->current_task())
-        executed_tasks.insert(mgr->current_task()->id());
-      for (const auto& tsk : mgr->task_queue())
-        queued_tasks.insert(tsk->id());
-    }
-
-    if (queued_tasks.find(id) == queued_tasks.end())
+    if (!is_queued(id))
     {
       RCLCPP_WARN(
         node->get_logger(),
@@ -578,7 +574,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     }
 
     // Check if received request is to cancel an active task
-    if (executed_tasks.find(id) != executed_tasks.end())
+    if (is_current(id))
     {
       RCLCPP_WARN(
         node->get_logger(),
@@ -639,7 +635,30 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
 auto FleetUpdateHandle::Implementation::is_valid_assignments(
   Assignments& assignments) const -> bool
 {
-  // This checks if the current assignments are all queued in task managers
+  std::size_t assignment_size = 0;
+  std::size_t queued_task_size = 0;
+  for (const auto& agent : assignments)
+  {
+    for (const auto& a : agent)
+    {
+      // If ID exists doesnt exist in queue_tasks
+      if (!is_queued(a.request()->id()))
+        return false;
+      assignment_size++;
+    }
+  }
+
+  // Also check if size of total queued tasks is the same as assignments
+  for (const auto& mgr : task_managers)
+    queued_task_size += mgr->task_queue().size();
+
+  return (queued_task_size == assignment_size);
+}
+
+//==============================================================================
+bool FleetUpdateHandle::Implementation::is_queued(
+  const std::string& task_id ) const
+{
   std::unordered_set<std::string> queued_tasks;
   for (const auto& mgr : task_managers)
   {
@@ -647,20 +666,19 @@ auto FleetUpdateHandle::Implementation::is_valid_assignments(
       queued_tasks.insert(task->id());
   }
 
-  size_t assignment_size = 0;
-  for (const auto& agent : assignments)
-  {
-    for (const auto& a : agent)
-    {
-      // If ID exists doesnt exist in queue_tasks
-      if (queued_tasks.find(a.request()->id()) == queued_tasks.end())
-        return false;
-      assignment_size++;
-    }
-  }
+  return (queued_tasks.find(task_id) != queued_tasks.end());
+}
 
-  // Also check if size of total queued tasks is the same as assignments
-  return (queued_tasks.size() == assignment_size);
+//==============================================================================
+bool FleetUpdateHandle::Implementation::is_current(
+  const std::string& task_id ) const
+{
+  std::unordered_set<std::string> current_tasks;
+  for (const auto& mgr : task_managers)
+    if (mgr->current_task())
+      current_tasks.insert(mgr->current_task()->id());
+
+  return (current_tasks.find(task_id) != current_tasks.end());
 }
 
 //==============================================================================

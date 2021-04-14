@@ -309,10 +309,8 @@ SCENARIO("Test Delivery")
     profile
   };
 
-  auto rcl_context = std::make_shared<rclcpp::Context>();
-  rcl_context->init(0, nullptr);
-  rmf_fleet_adapter::agv::test::MockAdapter adapter(
-    "test_Delivery", rclcpp::NodeOptions().context(rcl_context));
+  rclcpp::init(0, nullptr);
+  rmf_fleet_adapter::agv::test::MockAdapter adapter("test_Delivery");
 
   std::promise<bool> completed_promise;
   bool at_least_one_incomplete = false;
@@ -436,4 +434,5 @@ SCENARIO("Test Delivery")
   CHECK(at_least_one_incomplete);
 
   adapter.stop();
+  rclcpp::shutdown();
 }

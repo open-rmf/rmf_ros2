@@ -296,6 +296,12 @@ public:
   /// invalid if one of the assignments has already begun execution.
   bool is_valid_assignments(Assignments& assignments) const;
 
+  /// Helper function to check if a task is queued in Fleet Adapter
+  bool is_queued(const std::string& task_id ) const;
+
+  /// Helper function to check if a task is active/executing in Fleet Adapter
+  bool is_current(const std::string& task_id ) const;
+
   static Implementation& get(FleetUpdateHandle& fleet)
   {
     return *fleet._pimpl;
