@@ -50,7 +50,10 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
   for (const auto participant : participants)
   {
     const auto itinerary = *viewer.get_itinerary(participant);
-    const auto& description = *viewer.get_participant(participant);
+    const auto description = viewer.get_participant(participant);
+    if (!description)
+      continue;
+
     for (auto vc = view_changes.begin(); vc != view_changes.end(); ++vc)
     {
       if (vc->participant == participant)
@@ -68,7 +71,7 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
         if (rmf_traffic::DetectConflict::between(
             vc->description.profile(),
             vc->route.trajectory(),
-            description.profile(),
+            description->profile(),
             route->trajectory()))
         {
           conflicts.push_back({participant, vc->participant});
