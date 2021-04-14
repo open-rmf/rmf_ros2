@@ -178,10 +178,12 @@ void GoToPlace::Active::respond(
 GoToPlace::Active::Active(
   agv::RobotContextPtr context,
   rmf_traffic::agv::Plan::Goal goal,
-  double original_time_estimate)
-  : _context(std::move(context)),
-    _goal(std::move(goal)),
-    _latest_time_estimate(original_time_estimate)
+  double original_time_estimate,
+  std::optional<rmf_traffic::Duration> tail_period)
+: _context(std::move(context)),
+  _goal(std::move(goal)),
+  _latest_time_estimate(original_time_estimate),
+  _tail_period(tail_period)
 {
   _description = "Sending [" + _context->requester_id() + "] to ["
       + std::to_string(_goal.waypoint()) + "]";
@@ -480,7 +482,7 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
         {
           sub_phases.push_back(
               std::make_unique<MoveRobot::PendingPhase>(
-                  _context, move_through));
+                  _context, move_through, _tail_period));
         }
 
         move_through.clear();
@@ -535,7 +537,8 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
       /// If we have more than one waypoint to move through, then create a
       /// moving phase.
       sub_phases.push_back(
-          std::make_unique<MoveRobot::PendingPhase>(_context, move_through));
+          std::make_unique<MoveRobot::PendingPhase>(
+            _context, move_through, _tail_period));
     }
 
     if (!event_occurred)
@@ -595,7 +598,8 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
 std::shared_ptr<Task::ActivePhase> GoToPlace::Pending::begin()
 {
   auto active =
-      std::shared_ptr<Active>(new Active(_context, _goal, _time_estimate));
+    std::shared_ptr<Active>(
+      new Active(_context, _goal, _time_estimate, _tail_period));
 
   active->find_plan();
 
@@ -634,19 +638,22 @@ const std::string& GoToPlace::Pending::description() const
 GoToPlace::Pending::Pending(
   agv::RobotContextPtr context,
   rmf_traffic::agv::Plan::Goal goal,
-  double time_estimate)
+  double time_estimate,
+  std::optional<rmf_traffic::Duration> tail_period)
 : _context(std::move(context)),
   _goal(std::move(goal)),
-  _time_estimate(time_estimate)
+  _time_estimate(time_estimate),
+  _tail_period(tail_period)
 {
   _description = "Send robot to [" + std::to_string(_goal.waypoint()) + "]";
 }
 
 //==============================================================================
 auto GoToPlace::make(
-    agv::RobotContextPtr context,
-    rmf_traffic::agv::Plan::Start start_estimate,
-    rmf_traffic::agv::Plan::Goal goal) -> std::unique_ptr<Pending>
+  agv::RobotContextPtr context,
+  rmf_traffic::agv::Plan::Start start_estimate,
+  rmf_traffic::agv::Plan::Goal goal,
+  std::optional<rmf_traffic::Duration> tail_period) -> std::unique_ptr<Pending>
 {
   auto estimate_options = context->planner()->get_default_options();
   estimate_options.validator(nullptr);
@@ -666,7 +673,7 @@ auto GoToPlace::make(
 
   const double cost = *estimate.cost_estimate();
   return std::unique_ptr<Pending>(
-        new Pending(std::move(context), std::move(goal), cost));
+        new Pending(std::move(context), std::move(goal), cost, tail_period));
 }
 
 } // namespace phases
