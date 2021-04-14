@@ -104,7 +104,12 @@ void ResponsiveWait::Active::_begin_movement()
       "bug in rmf_fleet_adapter. Please report it to the maintainers.");
   }
 
-  _movement = GoToPlace::make(_info.context, start_estimate, goal)->begin();
+  std::optional<rmf_traffic::Duration> tail;
+  if (_info.period.has_value())
+    tail = std::chrono::seconds(1);
+
+  _movement = GoToPlace::make(
+    _info.context, start_estimate, goal, tail)->begin();
 
   _movement_subscription =
     _movement->observe()
