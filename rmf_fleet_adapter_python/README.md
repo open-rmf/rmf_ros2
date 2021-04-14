@@ -24,7 +24,7 @@ The `MockAdapter` and `Adapter` both do this. But the difference is that `MockAd
 Integration test script for rmf loop and delivery task:
 
 ```shell
-ros2 run rmf_fleet_adapter_python test_adapter
+ros2 run rmf_fleet_adapter_python test_adapter.py
 ```
 
 You may then probe the effects on the ROS2 graph by subscribing to the following topics with `ros2 topic echo <TOPIC_NAME>`:

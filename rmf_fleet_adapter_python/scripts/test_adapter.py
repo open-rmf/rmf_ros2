@@ -1,6 +1,7 @@
-import rmf_fleet_adapter_python.test_delivery as test_delivery
-import rmf_fleet_adapter_python.test_loop as test_loop
+#!/usr/bin/env python3
 
+import test_delivery
+import test_loop
 
 def main():
     test_delivery.main()

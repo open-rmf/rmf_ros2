@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import rclpy
 import time
 from rclpy.executors import SingleThreadedExecutor
@@ -11,9 +13,9 @@ import rmf_adapter.battery as battery
 import rmf_adapter.plan as plan
 import rmf_adapter.type as Type
 
-from rmf_fleet_adapter_python.test_utils import MockRobotCommand
-from rmf_fleet_adapter_python.test_utils import MockDispenser, MockIngestor
-from rmf_fleet_adapter_python.test_utils import TaskSummaryObserver
+from test_utils import MockRobotCommand
+from test_utils import MockDispenser, MockIngestor
+from test_utils import TaskSummaryObserver
 
 from functools import partial
 
