@@ -8,4 +8,9 @@
   <license>Apache License 2.0</license>
   <depend>pybind_ament</depend>
   <depend>rmf_fleet_adapter</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+
 </package>

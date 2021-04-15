@@ -68,7 +68,8 @@ public:
     Active(
         agv::RobotContextPtr context,
         rmf_traffic::agv::Plan::Goal goal,
-        double original_time_estimate);
+        double original_time_estimate,
+        std::optional<rmf_traffic::Duration> tail_period);
 
     void find_plan();
 
@@ -92,6 +93,7 @@ public:
     rclcpp::TimerBase::SharedPtr _find_path_timer;
     std::shared_ptr<services::FindEmergencyPullover> _pullover_service;
     rclcpp::TimerBase::SharedPtr _find_pullover_timer;
+    std::optional<rmf_traffic::Duration> _tail_period;
 
     rmf_rxcpp::subscription_guard _interrupt_subscription;
 
@@ -126,10 +128,12 @@ public:
     Pending(
         agv::RobotContextPtr context,
         rmf_traffic::agv::Plan::Goal goal,
-        double time_estimate);
+        double time_estimate,
+        std::optional<rmf_traffic::Duration> tail_period);
     agv::RobotContextPtr _context;
     rmf_traffic::agv::Plan::Goal _goal;
     double _time_estimate;
+    std::optional<rmf_traffic::Duration> _tail_period;
     std::string _description;
   };
 
@@ -137,7 +141,8 @@ public:
   static std::unique_ptr<Pending> make(
     agv::RobotContextPtr context,
     rmf_traffic::agv::Plan::Start start_estimate,
-    rmf_traffic::agv::Plan::Goal goal);
+    rmf_traffic::agv::Plan::Goal goal,
+    std::optional<rmf_traffic::Duration> tail_period = std::nullopt);
 
 };
 
