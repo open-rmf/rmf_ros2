@@ -86,7 +86,25 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-# TODO: test?
-# ament_add_pytest_test(${_test_name} ${_test_path}
+# Unit Tests
+find_package(ament_cmake_pytest REQUIRED)
+
+if(BUILD_TESTING)
+  set(_rmf_fleet_adapter_python_tests
+    tests/unit/test_geometry.py
+    tests/unit/test_graph.py
+    tests/unit/test_RobotCommandHandle.py
+    tests/unit/test_types.py
+    tests/unit/test_vehicletraits.py
+  )
+
+  foreach(_test_path ${_rmf_fleet_adapter_python_tests})
+    get_filename_component(_test_name ${_test_path} NAME_WE)
+    ament_add_pytest_test(${_test_name} ${_test_path}
+      TIMEOUT 120
+      WERROR ON
+    )
+  endforeach()
+endif()
 
 ament_package()
