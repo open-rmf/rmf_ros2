@@ -29,11 +29,10 @@ include_directories(
   ${rmf_fleet_adapter_INCLUDE_DIRS}
 )
 
-# pybind11 is installed by the pybind_ament package
-# You must have the pybind_ament package in your workspace somewhere!
+find_package(pybind11_vendor REQUIRED)
 find_package(pybind11 REQUIRED)
 
-pybind11_add_module(rmf_adapter
+pybind11_add_module(rmf_adapter SHARED
   src/adapter.cpp
   src/tests.cpp
   src/types/types.cpp
@@ -46,6 +45,7 @@ pybind11_add_module(rmf_adapter
   src/battery/battery.cpp
   src/schedule/schedule.cpp
 )
+
 target_link_libraries(rmf_adapter PRIVATE
   rmf_fleet_adapter::rmf_fleet_adapter)
 
@@ -65,4 +65,46 @@ target_include_directories(rmf_adapter
     ${rmf_lift_msgs_INCLUDE_DIRS}
 )
 
-# NO AMENT PACKAGE! That's settled by setup.py
+# Locate ament_package template files.
+set(PYTHON_INSTALL_DIR "lib/python${PYTHON_MAJOR_MINOR}/site-packages")
+
+# Install library for actual use
+install(TARGETS rmf_adapter
+  DESTINATION "${PYTHON_INSTALL_DIR}"
+)
+
+# Install Python modules
+ament_python_install_package(${PROJECT_NAME})
+
+install(PROGRAMS
+  scripts/test_adapter.py
+  scripts/test_utils.py
+  scripts/test_loop.py
+  scripts/test_delivery.py
+  scripts/traffic_light.py
+  scripts/schedule_blockade_nodes.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Unit Tests
+find_package(ament_cmake_pytest REQUIRED)
+
+if(BUILD_TESTING)
+  set(_rmf_fleet_adapter_python_tests
+    tests/unit/test_geometry.py
+    tests/unit/test_graph.py
+    tests/unit/test_RobotCommandHandle.py
+    tests/unit/test_types.py
+    tests/unit/test_vehicletraits.py
+  )
+
+  foreach(_test_path ${_rmf_fleet_adapter_python_tests})
+    get_filename_component(_test_name ${_test_path} NAME_WE)
+    ament_add_pytest_test(${_test_name} ${_test_path}
+      TIMEOUT 120
+      WERROR ON
+    )
+  endforeach()
+endif()
+
+ament_package()

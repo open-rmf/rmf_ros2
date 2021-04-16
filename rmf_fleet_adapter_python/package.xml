@@ -6,11 +6,13 @@
   <description>Python bindings for the rmf_fleet_adapter</description>
   <maintainer email="methylDragon@gmail.com">methylDragon</maintainer>
   <license>Apache License 2.0</license>
-  <depend>pybind_ament</depend>
+
+  <depend>pybind11_vendor</depend>
+  <depend>rclpy</depend>
   <depend>rmf_fleet_adapter</depend>
 
   <export>
-    <build_type>ament_python</build_type>
+    <build_type>ament_cmake</build_type>
   </export>
 
 </package>
