@@ -31,34 +31,41 @@ TEST_CASE("publish subscribe loopback", "[Transport]")
   context->init(0, nullptr);
 
   auto transport = std::make_shared<rmf_rxcpp::Transport>(
-        rxcpp::schedulers::make_event_loop().create_worker(),
-        "test_transport_" + std::to_string(node_counter++),
-        rclcpp::NodeOptions().context(context));
+    rxcpp::schedulers::make_event_loop().create_worker(),
+    "test_transport_" + std::to_string(node_counter++),
+    rclcpp::NodeOptions().context(context));
 
   transport->start();
 
-  const std::string topic_name = "test_topic_" + std::to_string(topic_counter++);
-  auto publisher = transport->create_publisher<std_msgs::msg::String>(topic_name, 10);
-  auto obs = transport->create_observable<std_msgs::msg::String>(topic_name, 10);
+  const std::string topic_name = "test_topic_" +
+    std::to_string(topic_counter++);
+  auto publisher = transport->create_publisher<std_msgs::msg::String>(
+    topic_name, 10);
+  auto obs =
+    transport->create_observable<std_msgs::msg::String>(topic_name, 10);
 
   SECTION("can receive subscription")
   {
     std_msgs::msg::String msg{};
     msg.data = "hello";
-    auto timer = transport->create_wall_timer(std::chrono::milliseconds(100), [&publisher, &msg]()
-    {
-      publisher->publish(msg);
-    });
+    auto timer =
+      transport->create_wall_timer(std::chrono::milliseconds(100),
+        [&publisher, &msg]()
+        {
+          publisher->publish(msg);
+        });
 
     bool received = false;
-    auto j = rmf_rxcpp::make_leaky_job<std_msgs::msg::String>([&obs, &received](const auto& s)
-    {
-      obs.subscribe([s, &received](const auto&)
-      {
-        received = true;
-        s.on_completed();
-      });
-    });
+    auto j =
+      rmf_rxcpp::make_leaky_job<std_msgs::msg::String>([&obs,
+        &received](const auto& s)
+        {
+          obs.subscribe([s, &received](const auto&)
+          {
+            received = true;
+            s.on_completed();
+          });
+        });
     j.as_blocking().subscribe();
     REQUIRE(received);
     REQUIRE(transport->count_subscribers(topic_name) == 1);

@@ -51,8 +51,8 @@ struct MockAdapterFixture
   /// \param[in] profile
   ///   Specify its profile. Leaving this as nullopt will use default profile.
   RobotInfo add_robot(
-      const std::string& name = "test_robot",
-      rmf_utils::optional<rmf_traffic::Profile> profile = rmf_utils::nullopt);
+    const std::string& name = "test_robot",
+    rmf_utils::optional<rmf_traffic::Profile> profile = rmf_utils::nullopt);
 
   MockAdapterFixture();
 

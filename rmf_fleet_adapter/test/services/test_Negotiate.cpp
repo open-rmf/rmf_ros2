@@ -68,7 +68,7 @@ generate_test_graph_data(std::string map_name, VertexMap vertices,
   {
     // Adding to rmf_traffic::agv::Graph
     graph.add_waypoint(map_name, it->second.first)
-        .set_holding_point(it->second.second);
+    .set_holding_point(it->second.second);
 
     // Book keeping
     vertex_id_to_idx.insert({it->first, current_idx});
@@ -107,10 +107,10 @@ get_participant_itinerary(
 
 //==============================================================================
 bool no_conflicts(
-    const rmf_traffic::Profile& p0,
-    const rmf_traffic::schedule::Itinerary& i0,
-    const rmf_traffic::Profile& p1,
-    const rmf_traffic::schedule::Itinerary& i1)
+  const rmf_traffic::Profile& p0,
+  const rmf_traffic::schedule::Itinerary& i0,
+  const rmf_traffic::Profile& p1,
+  const rmf_traffic::schedule::Itinerary& i1)
 {
   for (const auto& r0 : i0)
   {
@@ -120,8 +120,8 @@ bool no_conflicts(
         continue;
 
       if (rmf_traffic::DetectConflict::between(
-            p0, r0->trajectory(),
-            p1, r1->trajectory()))
+          p0, r0->trajectory(),
+          p1, r1->trajectory()))
         return false;
     }
   }
@@ -131,19 +131,19 @@ bool no_conflicts(
 
 //==============================================================================
 bool no_conflicts(
-    const rmf_traffic::schedule::Participant& p0,
-    const rmf_traffic::schedule::Itinerary& i0,
-    const rmf_traffic::schedule::Participant& p1,
-    const rmf_traffic::schedule::Itinerary& i1)
+  const rmf_traffic::schedule::Participant& p0,
+  const rmf_traffic::schedule::Itinerary& i0,
+  const rmf_traffic::schedule::Participant& p1,
+  const rmf_traffic::schedule::Itinerary& i1)
 {
   return no_conflicts(
-        p0.description().profile(), i0,
-        p1.description().profile(), i1);
+    p0.description().profile(), i0,
+    p1.description().profile(), i1);
 }
 
 //==============================================================================
 rmf_traffic::schedule::Itinerary convert(
-    const rmf_traffic::schedule::Writer::Input& routes)
+  const rmf_traffic::schedule::Writer::Input& routes)
 {
   rmf_traffic::schedule::Itinerary output;
   output.reserve(routes.size());
@@ -166,12 +166,12 @@ inline rmf_traffic::Time print_start(const rmf_traffic::Route& route)
 
 //==============================================================================
 inline void print_route(
-    const rmf_traffic::Route& route,
-    const rmf_traffic::Time start_time)
+  const rmf_traffic::Route& route,
+  const rmf_traffic::Time start_time)
 {
   assert(route.trajectory().size() > 0);
   for (auto it = ++route.trajectory().begin(); it
-       != route.trajectory().end(); ++it)
+    != route.trajectory().end(); ++it)
   {
     const auto& wp = *it;
     if (wp.velocity().norm() > 1e-3)
@@ -185,7 +185,7 @@ inline void print_route(
 
 //==============================================================================
 inline void print_itinerary(
-    const rmf_traffic::schedule::Itinerary& itinerary)
+  const rmf_traffic::schedule::Itinerary& itinerary)
 {
   if (itinerary.empty())
   {
@@ -298,7 +298,7 @@ std::string to_string(const TableViewPtr& table)
   for (const auto& p : table->sequence())
   {
     out += " " + std::to_string(p.participant)
-        + ":" + std::to_string(p.version);
+      + ":" + std::to_string(p.version);
   }
   out += " ]";
 
@@ -307,8 +307,8 @@ std::string to_string(const TableViewPtr& table)
 
 //==============================================================================
 class TestPathNegotiator
-    : public rmf_traffic::schedule::Negotiator,
-      public std::enable_shared_from_this<TestPathNegotiator>
+  : public rmf_traffic::schedule::Negotiator,
+  public std::enable_shared_from_this<TestPathNegotiator>
 {
 public:
 
@@ -345,12 +345,12 @@ public:
   using Intentions = std::unordered_map<ParticipantId, Intention>;
 
   TestPathNegotiator(
-      std::shared_ptr<rmf_traffic::agv::Planner> planner,
-      rmf_traffic::agv::Plan::StartSet starts,
-      rmf_traffic::agv::Plan::Goal goal)
-    : _planner(std::move(planner)),
-      _starts(std::move(starts)),
-      _goal(std::move(goal))
+    std::shared_ptr<rmf_traffic::agv::Planner> planner,
+    rmf_traffic::agv::Plan::StartSet starts,
+    rmf_traffic::agv::Plan::Goal goal)
+  : _planner(std::move(planner)),
+    _starts(std::move(starts)),
+    _goal(std::move(goal))
   {
     // Do nothing
   }
@@ -361,7 +361,8 @@ public:
     return *this;
   }
 
-  TestPathNegotiator& n(std::shared_ptr<rmf_traffic::schedule::Negotiation> negotiation)
+  TestPathNegotiator& n(
+    std::shared_ptr<rmf_traffic::schedule::Negotiation> negotiation)
   {
     _n = std::move(negotiation);
     return *this;
@@ -374,8 +375,8 @@ public:
   }
 
   void respond(
-      const TableViewerPtr& table_viewer,
-      const ResponderPtr& responder) final
+    const TableViewerPtr& table_viewer,
+    const ResponderPtr& responder) final
   {
     if (_print)
     {
@@ -392,18 +393,18 @@ public:
     }
 
     auto negotiate = rmf_fleet_adapter::services::Negotiate::path(
-          _planner, _starts, _goal, table_viewer, responder, nullptr,
-          evaluator);
+      _planner, _starts, _goal, table_viewer, responder, nullptr,
+      evaluator);
 
     auto sub = rmf_rxcpp::make_job<
-        rmf_fleet_adapter::services::Negotiate::Result>(negotiate)
-        .observe_on(rxcpp::identity_same_worker(_worker))
-        .subscribe([w = weak_from_this()](const auto& result)
-    {
-      result.respond();
-      if (const auto self = w.lock())
-        self->_services.erase(result.service);
-    });
+      rmf_fleet_adapter::services::Negotiate::Result>(negotiate)
+      .observe_on(rxcpp::identity_same_worker(_worker))
+      .subscribe([w = weak_from_this()](const auto& result)
+        {
+          result.respond();
+          if (const auto self = w.lock())
+            self->_services.erase(result.service);
+        });
 
     _subscriptions.emplace_back(std::move(sub));
     _services.insert(std::move(negotiate));
@@ -414,7 +415,8 @@ private:
   rmf_traffic::agv::Plan::StartSet _starts;
   rmf_traffic::agv::Plan::Goal _goal;
   std::vector<rmf_rxcpp::subscription_guard> _subscriptions;
-  std::unordered_set<std::shared_ptr<rmf_fleet_adapter::services::Negotiate>> _services;
+  std::unordered_set<std::shared_ptr<rmf_fleet_adapter::services::Negotiate>>
+  _services;
   bool _print = false;
   std::weak_ptr<rmf_traffic::schedule::Negotiation> _n;
   rxcpp::schedulers::worker _worker;
@@ -440,7 +442,7 @@ make_negotiators(const TestPathNegotiator::Intentions& intentions)
       std::make_pair(
         participant,
         std::make_shared<TestPathNegotiator>(
-              intention.planner, intention.start, intention.goal)));
+          intention.planner, intention.start, intention.goal)));
   }
 
   return negotiators;
@@ -448,8 +450,8 @@ make_negotiators(const TestPathNegotiator::Intentions& intentions)
 
 //==============================================================================
 class TestEmergencyNegotiator
-    : public rmf_traffic::schedule::Negotiator,
-      public std::enable_shared_from_this<TestEmergencyNegotiator>
+  : public rmf_traffic::schedule::Negotiator,
+  public std::enable_shared_from_this<TestEmergencyNegotiator>
 {
 public:
 
@@ -481,10 +483,10 @@ public:
   using Intentions = std::unordered_map<ParticipantId, Intention>;
 
   TestEmergencyNegotiator(
-      std::shared_ptr<rmf_traffic::agv::Planner> planner,
-      rmf_traffic::agv::Plan::StartSet starts)
-    : _planner(std::move(planner)),
-      _starts(std::move(starts))
+    std::shared_ptr<rmf_traffic::agv::Planner> planner,
+    rmf_traffic::agv::Plan::StartSet starts)
+  : _planner(std::move(planner)),
+    _starts(std::move(starts))
   {
     // Do nothing
   }
@@ -495,7 +497,8 @@ public:
     return *this;
   }
 
-  TestEmergencyNegotiator& n(std::shared_ptr<rmf_traffic::schedule::Negotiation> negotiation)
+  TestEmergencyNegotiator& n(
+    std::shared_ptr<rmf_traffic::schedule::Negotiation> negotiation)
   {
     _n = std::move(negotiation);
     return *this;
@@ -508,8 +511,8 @@ public:
   }
 
   void respond(
-      const TableViewerPtr& table_viewer,
-      const ResponderPtr& responder) final
+    const TableViewerPtr& table_viewer,
+    const ResponderPtr& responder) final
   {
     if (_print)
     {
@@ -526,17 +529,17 @@ public:
     }
 
     auto negotiate = rmf_fleet_adapter::services::Negotiate::emergency_pullover(
-          _planner, _starts, table_viewer, responder, nullptr, evaluator);
+      _planner, _starts, table_viewer, responder, nullptr, evaluator);
 
     auto sub = rmf_rxcpp::make_job<
-        rmf_fleet_adapter::services::Negotiate::Result>(std::move(negotiate))
-        .observe_on(rxcpp::identity_same_worker(_worker))
-        .subscribe([w = weak_from_this()](const auto& result)
-    {
-      result.respond();
-      if (const auto self = w.lock())
-        self->_services.erase(result.service);
-    });
+      rmf_fleet_adapter::services::Negotiate::Result>(std::move(negotiate))
+      .observe_on(rxcpp::identity_same_worker(_worker))
+      .subscribe([w = weak_from_this()](const auto& result)
+        {
+          result.respond();
+          if (const auto self = w.lock())
+            self->_services.erase(result.service);
+        });
 
     _subscriptions.emplace_back(std::move(sub));
     _services.insert(std::move(negotiate));
@@ -546,7 +549,8 @@ private:
   std::shared_ptr<rmf_traffic::agv::Planner> _planner;
   rmf_traffic::agv::Plan::StartSet _starts;
   std::vector<rmf_rxcpp::subscription_guard> _subscriptions;
-  std::unordered_set<std::shared_ptr<rmf_fleet_adapter::services::Negotiate>> _services;
+  std::unordered_set<std::shared_ptr<rmf_fleet_adapter::services::Negotiate>>
+  _services;
   bool _print = false;
   std::weak_ptr<rmf_traffic::schedule::Negotiation> _n;
   rxcpp::schedulers::worker _worker;
@@ -572,7 +576,7 @@ make_negotiators(const TestEmergencyNegotiator::Intentions& intentions)
       {
         participant,
         std::make_shared<TestEmergencyNegotiator>(
-            intention.planner, intention.start)
+          intention.planner, intention.start)
       });
   }
 
@@ -582,7 +586,7 @@ make_negotiators(const TestEmergencyNegotiator::Intentions& intentions)
 //==============================================================================
 template<typename NegotiatorT>
 class NegotiationRoom
-    : public std::enable_shared_from_this<NegotiationRoom<NegotiatorT>>
+  : public std::enable_shared_from_this<NegotiationRoom<NegotiatorT>>
 {
 public:
 
@@ -594,23 +598,23 @@ public:
   {
   public:
     Responder(
-        std::shared_ptr<NegotiationRoom<Negotiator>> room,
-        rmf_traffic::schedule::Negotiation::TablePtr table)
-      : _room(std::move(room)),
-        _table(std::move(table))
+      std::shared_ptr<NegotiationRoom<Negotiator>> room,
+      rmf_traffic::schedule::Negotiation::TablePtr table)
+    : _room(std::move(room)),
+      _table(std::move(table))
     {
       // Do nothing
     }
 
     template<typename... Args>
-    static std::shared_ptr<Responder> make(Args&&... args)
+    static std::shared_ptr<Responder> make(Args&& ... args)
     {
       return std::make_shared<Responder>(std::forward<Args>(args)...);
     }
 
     void submit(
-        std::vector<rmf_traffic::Route> itinerary,
-        ApprovalCallback approval_callback = nullptr) const final
+      std::vector<rmf_traffic::Route> itinerary,
+      ApprovalCallback approval_callback = nullptr) const final
     {
       const auto room = _room.lock();
       if (!room)
@@ -640,7 +644,7 @@ public:
       }
 
       rmf_traffic::schedule::SimpleResponder(_table)
-          .submit(std::move(itinerary), std::move(approval_callback));
+      .submit(std::move(itinerary), std::move(approval_callback));
 
       if (room->_print)
       {
@@ -671,7 +675,7 @@ public:
           }
 
           n.second->print(room->_print).n(room->negotiation).w(room->worker)
-              .respond(respond_to->viewer(), make(room, respond_to));
+          .respond(respond_to->viewer(), make(room, respond_to));
         }
       }
     }
@@ -711,8 +715,8 @@ public:
         }
 
         room->negotiators.at(parent->participant())
-            ->print(room->_print).n(room->negotiation).w(room->worker)
-            .respond(parent->viewer(), make(room, parent));
+        ->print(room->_print).n(room->negotiation).w(room->worker)
+        .respond(parent->viewer(), make(room, parent));
       }
     }
 
@@ -800,8 +804,8 @@ public:
 
       const auto& negotiator = n.second;
       negotiator->print(_print).n(negotiation).w(worker).respond(
-            table->viewer(),
-            Responder::make(this->shared_from_this(), table));
+        table->viewer(),
+        Responder::make(this->shared_from_this(), table));
     }
 
     return _solution.get_future();
@@ -829,7 +833,7 @@ public:
     if (negotiation->ready())
     {
       const auto winner = negotiation->evaluate(
-            rmf_traffic::schedule::QuickestFinishEvaluator());
+        rmf_traffic::schedule::QuickestFinishEvaluator());
 
       if (_print)
       {
@@ -986,7 +990,7 @@ SCENARIO("Test Plan Negotiation Between Two Participants")
   p1.set(plan_1->get_itinerary());
 
   const auto start_2 =
-      rmf_traffic::agv::Plan::Start(start_time, 7, 0.0*M_PI/180.0);
+    rmf_traffic::agv::Plan::Start(start_time, 7, 0.0*M_PI/180.0);
   const auto goal_2 = rmf_traffic::agv::Plan::Goal(3);
 
   const auto plan_2 = planner->plan(start_2, goal_2);
@@ -994,7 +998,7 @@ SCENARIO("Test Plan Negotiation Between Two Participants")
   p2.set(plan_2->get_itinerary());
 
   CHECK_FALSE(
-        no_conflicts(p1, convert(p1.itinerary()), p2, convert(p2.itinerary())));
+    no_conflicts(p1, convert(p1.itinerary()), p2, convert(p2.itinerary())));
 
   WHEN("Participants Crossing Paths")
   {
@@ -1018,7 +1022,7 @@ SCENARIO("Test Plan Negotiation Between Two Participants")
     intentions.insert({p2.id(), { start_2, goal_2, planner }});
 
     const auto room = std::make_shared<TestPathNegotiationRoom>(
-          database->snapshot(), intentions);
+      database->snapshot(), intentions);
     auto future_proposal = room->solve();
     const auto status = future_proposal.wait_for(2min);
     REQUIRE(status == std::future_status::ready);
@@ -1030,9 +1034,9 @@ SCENARIO("Test Plan Negotiation Between Two Participants")
     auto p1_itinerary = get_participant_itinerary(proposal, p1.id()).value();
     auto p2_itinerary = get_participant_itinerary(proposal, p2.id()).value();
     CHECK(p1_itinerary.back()->trajectory().back().position().segment(0, 2)
-          == graph.get_waypoint(goal_1.waypoint()).get_location());
+      == graph.get_waypoint(goal_1.waypoint()).get_location());
     CHECK(p2_itinerary.back()->trajectory().back().position().segment(0, 2)
-          == graph.get_waypoint(goal_2.waypoint()).get_location());
+      == graph.get_waypoint(goal_2.waypoint()).get_location());
 
     CHECK(no_conflicts(p1, p1_itinerary, p2, p2_itinerary));
   }
@@ -1085,7 +1089,7 @@ SCENARIO("Multi-participant negotiation")
   graph.add_waypoint(test_map_name, { 0.0, -5.0}); // 0
   graph.add_waypoint(test_map_name, {-5.0, 0.0}); // 1
   graph.add_waypoint(test_map_name, { 0.0, 0.0}); // 2
-  graph.add_waypoint(test_map_name, { 5.0,  0.0}); // 3
+  graph.add_waypoint(test_map_name, { 5.0, 0.0}); // 3
   graph.add_waypoint(test_map_name, { 0.0, 5.0}); // 4
 
   /*
@@ -1119,7 +1123,7 @@ SCENARIO("Multi-participant negotiation")
 
   rmf_traffic::agv::Planner::Configuration configuration{graph, traits};
   const auto planner = std::make_shared<rmf_traffic::agv::Planner>(
-        configuration, rmf_traffic::agv::Plan::Options(nullptr));
+    configuration, rmf_traffic::agv::Plan::Options(nullptr));
 
   const std::size_t goal_0 = 3;
   const std::size_t goal_1 = 4;
@@ -1131,7 +1135,7 @@ SCENARIO("Multi-participant negotiation")
   intentions.insert({2, { {time, 3, 0.0}, goal_2, planner}});
 
   const auto room = std::make_shared<TestPathNegotiationRoom>(
-        database->snapshot(), intentions);
+    database->snapshot(), intentions);
   auto future_proposal = room->solve();
   const auto status = future_proposal.wait_for(2min);
   REQUIRE(status == std::future_status::ready);
@@ -1144,11 +1148,11 @@ SCENARIO("Multi-participant negotiation")
   auto p1_itinerary = get_participant_itinerary(proposal, 1).value();
   auto p2_itinerary = get_participant_itinerary(proposal, 2).value();
   CHECK(p0_itinerary.back()->trajectory().back().position()
-        .segment(0, 2) == graph.get_waypoint(goal_0).get_location());
+    .segment(0, 2) == graph.get_waypoint(goal_0).get_location());
   CHECK(p1_itinerary.back()->trajectory().back().position()
-        .segment(0, 2) == graph.get_waypoint(goal_1).get_location());
+    .segment(0, 2) == graph.get_waypoint(goal_1).get_location());
   CHECK(p2_itinerary.back()->trajectory().back().position()
-        .segment(0, 2) == graph.get_waypoint(goal_2).get_location());
+    .segment(0, 2) == graph.get_waypoint(goal_2).get_location());
 
   CHECK(no_conflicts(profile, p0_itinerary, profile, p1_itinerary));
   CHECK(no_conflicts(profile, p0_itinerary, profile, p2_itinerary));
@@ -1193,23 +1197,23 @@ SCENARIO("A single lane with an alcove holding space")
   auto vertex_id_to_idx = graph_data.second;
 
   const auto a0_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a0_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a0_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto a1_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a1_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a1_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto now = std::chrono::steady_clock::now();
 
   GIVEN("2 Participants")
   {
     auto p0 = rmf_traffic::schedule::make_participant(
-        a0_config.description, database);
+      a0_config.description, database);
     auto p1 = rmf_traffic::schedule::make_participant(
-        a1_config.description, database);
+      a1_config.description, database);
 
     WHEN("Schedule:[], Negotiation:[p0(A->D), p1(D->A)]")
     {
@@ -1228,14 +1232,14 @@ SCENARIO("A single lane with an alcove holding space")
           TestPathNegotiator::Intention{
             {now, vertex_id_to_idx["D"], 0.0},
             vertex_id_to_idx["A"], // Goal Vertex
-            a1_planner// Planner Configuration ( Preset )
+            a1_planner // Planner Configuration ( Preset )
           }
         });
 
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -1249,9 +1253,9 @@ SCENARIO("A single lane with an alcove holding space")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["D"].first);
+          .segment(0, 2) == vertices["D"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["A"].first);
+          .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1281,7 +1285,7 @@ SCENARIO("A single lane with an alcove holding space")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         REQUIRE(room);
 
         auto future_proposal = room->solve();
@@ -1297,9 +1301,9 @@ SCENARIO("A single lane with an alcove holding space")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["D"].first);
+          .segment(0, 2) == vertices["D"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["A"].first);
+          .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1329,7 +1333,7 @@ SCENARIO("A single lane with an alcove holding space")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         REQUIRE(room);
 
         auto future_proposal = room->solve();
@@ -1345,9 +1349,9 @@ SCENARIO("A single lane with an alcove holding space")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["D"].first);
+          .segment(0, 2) == vertices["D"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["A"].first);
+          .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1377,7 +1381,7 @@ SCENARIO("A single lane with an alcove holding space")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         REQUIRE(room);
 
         auto future_proposal = room->solve();
@@ -1389,14 +1393,14 @@ SCENARIO("A single lane with an alcove holding space")
         const auto& proposal = *proposal_opt;
 
         auto p0_itinerary =
-            get_participant_itinerary(proposal, p0.id()).value();
+          get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
-            get_participant_itinerary(proposal, p1.id()).value();
+          get_participant_itinerary(proposal, p1.id()).value();
 
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["D"].first);
+          .segment(0, 2) == vertices["D"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["A"].first);
+          .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1451,21 +1455,21 @@ SCENARIO("A single lane with a alternate one way path")
     a1_config.traits};
 
   const auto a0_planner =
-      std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Planner::Configuration(graph, a0_config.traits),
-        rmf_traffic::agv::Planner::Options(nullptr));
+    std::make_shared<rmf_traffic::agv::Planner>(
+    rmf_traffic::agv::Planner::Configuration(graph, a0_config.traits),
+    rmf_traffic::agv::Planner::Options(nullptr));
 
   const auto a1_planner =
-      std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Planner::Configuration(graph, a1_config.traits),
-        rmf_traffic::agv::Planner::Options(nullptr));
+    std::make_shared<rmf_traffic::agv::Planner>(
+    rmf_traffic::agv::Planner::Configuration(graph, a1_config.traits),
+    rmf_traffic::agv::Planner::Options(nullptr));
 
   GIVEN("2 Participants")
   {
     auto p0 = rmf_traffic::schedule::make_participant(
-        a0_config.description, database);
+      a0_config.description, database);
     auto p1 = rmf_traffic::schedule::make_participant(
-        a1_config.description, database);
+      a1_config.description, database);
     WHEN("Schedule:[], Negotiation:[p0(A->D), p1(C->A)]")
     {
       TestPathNegotiator::Intentions intentions;
@@ -1490,7 +1494,7 @@ SCENARIO("A single lane with a alternate one way path")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -1504,9 +1508,9 @@ SCENARIO("A single lane with a alternate one way path")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["D"].first);
+          .segment(0, 2) == vertices["D"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["A"].first);
+          .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1536,7 +1540,7 @@ SCENARIO("A single lane with a alternate one way path")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -1546,14 +1550,14 @@ SCENARIO("A single lane with a alternate one way path")
         const auto& proposal = *proposal_opt;
 
         auto p0_itinerary =
-            get_participant_itinerary(proposal, p0.id()).value();
+          get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
-            get_participant_itinerary(proposal, p1.id()).value();
+          get_participant_itinerary(proposal, p1.id()).value();
 
         CHECK(p0_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["D"].first);
+          .segment(0, 2) == vertices["D"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["A"].first);
+          .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1602,28 +1606,28 @@ SCENARIO("A single lane with a alternate two way path")
   auto vertex_id_to_idx = graph_data.second;
 
   const auto a0_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a0_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a0_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto a1_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a1_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a1_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto a2_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a2_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a2_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto now = std::chrono::steady_clock::now();
 
   GIVEN("2 Participants")
   {
     auto p0 = rmf_traffic::schedule::make_participant(
-        a0_config.description, database);
+      a0_config.description, database);
     auto p1 = rmf_traffic::schedule::make_participant(
-        a1_config.description, database);
+      a1_config.description, database);
     WHEN("Schedule:[], Negotiation:[p0(A->D), p1(C->A)]")
     {
       TestPathNegotiator::Intentions intentions;
@@ -1648,7 +1652,7 @@ SCENARIO("A single lane with a alternate two way path")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -1664,9 +1668,9 @@ SCENARIO("A single lane with a alternate two way path")
           get_participant_itinerary(proposal, p1.id()).value();
 
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["D"].first);
+          .segment(0, 2) == vertices["D"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["A"].first);
+          .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1696,7 +1700,7 @@ SCENARIO("A single lane with a alternate two way path")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -1706,14 +1710,14 @@ SCENARIO("A single lane with a alternate two way path")
         const auto& proposal = *proposal_opt;
 
         auto p0_itinerary =
-            get_participant_itinerary(proposal, p0.id()).value();
+          get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
-            get_participant_itinerary(proposal, p1.id()).value();
+          get_participant_itinerary(proposal, p1.id()).value();
 
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["D"].first);
+          .segment(0, 2) == vertices["D"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["A"].first);
+          .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1770,28 +1774,28 @@ SCENARIO("A single loop with alcoves at each vertex")
   auto vertex_id_to_idx = graph_data.second;
 
   const auto a0_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a0_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a0_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto a1_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a1_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a1_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto a2_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a2_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a2_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto now = std::chrono::steady_clock::now();
 
   GIVEN("2 Participants")
   {
     auto p0 = rmf_traffic::schedule::make_participant(
-        a0_config.description, database);
+      a0_config.description, database);
     auto p1 = rmf_traffic::schedule::make_participant(
-        a1_config.description, database);
+      a1_config.description, database);
 
     WHEN("Schedule:[], Negotiation:[pO(A'->C'), p1(B'->D')]")
     {
@@ -1817,7 +1821,7 @@ SCENARIO("A single loop with alcoves at each vertex")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -1831,9 +1835,9 @@ SCENARIO("A single loop with alcoves at each vertex")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["C'"].first);
+          .segment(0, 2) == vertices["C'"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["D'"].first);
+          .segment(0, 2) == vertices["D'"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1863,7 +1867,7 @@ SCENARIO("A single loop with alcoves at each vertex")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -1877,9 +1881,9 @@ SCENARIO("A single loop with alcoves at each vertex")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["C'"].first);
+          .segment(0, 2) == vertices["C'"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["B'"].first);
+          .segment(0, 2) == vertices["B'"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1909,7 +1913,7 @@ SCENARIO("A single loop with alcoves at each vertex")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -1923,9 +1927,9 @@ SCENARIO("A single loop with alcoves at each vertex")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["D'"].first);
+          .segment(0, 2) == vertices["D'"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["B'"].first);
+          .segment(0, 2) == vertices["B'"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -1936,11 +1940,11 @@ SCENARIO("A single loop with alcoves at each vertex")
   GIVEN("3 Participants")
   {
     auto p0 = rmf_traffic::schedule::make_participant(
-        a0_config.description, database);
+      a0_config.description, database);
     auto p1 = rmf_traffic::schedule::make_participant(
-        a1_config.description, database);
+      a1_config.description, database);
     auto p2 = rmf_traffic::schedule::make_participant(
-        a2_config.description, database);
+      a2_config.description, database);
 
     WHEN("Schedule:[], Negotiation:[pO(A'->C'), p1(B'->D'), p2(D'->B')]")
     {
@@ -1975,7 +1979,7 @@ SCENARIO("A single loop with alcoves at each vertex")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -1991,11 +1995,11 @@ SCENARIO("A single loop with alcoves at each vertex")
         auto p2_itinerary =
           get_participant_itinerary(proposal, p2.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["C'"].first);
+          .segment(0, 2) == vertices["C'"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["D'"].first);
+          .segment(0, 2) == vertices["D'"].first);
         CHECK(p2_itinerary.back()->trajectory().back().position()
-              .segment(0, 2) == vertices["B'"].first);
+          .segment(0, 2) == vertices["B'"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
         CHECK(no_conflicts(p0, p0_itinerary, p2, p2_itinerary));
@@ -2099,9 +2103,9 @@ SCENARIO("fan-in-fan-out bottleneck")
   auto vertex_id_to_idx = graph_data.second;
 
   auto set_parking_spot = [&](const std::string& wp)
-  {
-    graph.get_waypoint(vertex_id_to_idx[wp]).set_parking_spot(true);
-  };
+    {
+      graph.get_waypoint(vertex_id_to_idx[wp]).set_parking_spot(true);
+    };
   set_parking_spot("A");
   set_parking_spot("C");
   set_parking_spot("E");
@@ -2110,9 +2114,9 @@ SCENARIO("fan-in-fan-out bottleneck")
   set_parking_spot("Z");
 
   auto set_passthrough_point = [&](const std::string& wp)
-  {
-    graph.get_waypoint(vertex_id_to_idx[wp]).set_passthrough_point(true);
-  };
+    {
+      graph.get_waypoint(vertex_id_to_idx[wp]).set_passthrough_point(true);
+    };
   set_passthrough_point("A'");
   set_passthrough_point("B'");
   set_passthrough_point("C'");
@@ -2126,26 +2130,26 @@ SCENARIO("fan-in-fan-out bottleneck")
   set_passthrough_point("Z'");
 
   const auto a0_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a0_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a0_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto a1_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a1_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a1_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto a2_planner = std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Plan::Configuration(
-          graph, a2_config.traits),
-        rmf_traffic::agv::Plan::Options(nullptr));
+    rmf_traffic::agv::Plan::Configuration(
+      graph, a2_config.traits),
+    rmf_traffic::agv::Plan::Options(nullptr));
 
   const auto now = std::chrono::steady_clock::now();
 
   GIVEN("1 Participant")
   {
     auto p0 = rmf_traffic::schedule::make_participant(
-          a0_config.description, database);
+      a0_config.description, database);
 
     WHEN("Schedule:[], Negotiation:[p0(A->Z)]")
     {
@@ -2162,7 +2166,7 @@ SCENARIO("fan-in-fan-out bottleneck")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -2174,7 +2178,7 @@ SCENARIO("fan-in-fan-out bottleneck")
         auto p0_itinerary = get_participant_itinerary(proposal, p0.id());
         CHECK(p0_itinerary);
         CHECK(p0_itinerary->back()->trajectory().back().position()
-                .segment(0, 2) == vertices["Z"].first);
+          .segment(0, 2) == vertices["Z"].first);
       }
     }
 
@@ -2193,7 +2197,7 @@ SCENARIO("fan-in-fan-out bottleneck")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -2205,7 +2209,7 @@ SCENARIO("fan-in-fan-out bottleneck")
         auto p0_itinerary = get_participant_itinerary(proposal, p0.id());
         CHECK(p0_itinerary);
         CHECK(p0_itinerary->back()->trajectory().back().position()
-                .segment(0, 2) == vertices["C"].first);
+          .segment(0, 2) == vertices["C"].first);
       }
     }
   }
@@ -2213,9 +2217,9 @@ SCENARIO("fan-in-fan-out bottleneck")
   GIVEN("2 Participants")
   {
     auto p0 = rmf_traffic::schedule::make_participant(
-        a0_config.description, database);
+      a0_config.description, database);
     auto p1 = rmf_traffic::schedule::make_participant(
-        a1_config.description, database);
+      a1_config.description, database);
 
     WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(E->V)]")
     {
@@ -2241,7 +2245,7 @@ SCENARIO("fan-in-fan-out bottleneck")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -2251,15 +2255,15 @@ SCENARIO("fan-in-fan-out bottleneck")
         const auto& proposal = *proposal_opt;
 
         auto p0_itinerary =
-            get_participant_itinerary(proposal, p0.id()).value();
+          get_participant_itinerary(proposal, p0.id()).value();
 
         auto p1_itinerary =
-            get_participant_itinerary(proposal, p1.id()).value();
+          get_participant_itinerary(proposal, p1.id()).value();
 
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["Z"].first);
+          .segment(0, 2) == vertices["Z"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["V"].first);
+          .segment(0, 2) == vertices["V"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -2289,7 +2293,7 @@ SCENARIO("fan-in-fan-out bottleneck")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -2303,9 +2307,9 @@ SCENARIO("fan-in-fan-out bottleneck")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["Z"].first);
+          .segment(0, 2) == vertices["Z"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["E"].first);
+          .segment(0, 2) == vertices["E"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -2335,7 +2339,7 @@ SCENARIO("fan-in-fan-out bottleneck")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -2349,9 +2353,9 @@ SCENARIO("fan-in-fan-out bottleneck")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["X"].first);
+          .segment(0, 2) == vertices["X"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["Z"].first);
+          .segment(0, 2) == vertices["Z"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -2381,7 +2385,7 @@ SCENARIO("fan-in-fan-out bottleneck")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -2395,9 +2399,9 @@ SCENARIO("fan-in-fan-out bottleneck")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["Z"].first);
+          .segment(0, 2) == vertices["Z"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["C"].first);
+          .segment(0, 2) == vertices["C"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
       }
@@ -2407,11 +2411,11 @@ SCENARIO("fan-in-fan-out bottleneck")
   GIVEN("3 Participants")
   {
     auto p0 = rmf_traffic::schedule::make_participant(
-          a0_config.description, database);
+      a0_config.description, database);
     auto p1 = rmf_traffic::schedule::make_participant(
-          a1_config.description, database);
+      a1_config.description, database);
     auto p2 = rmf_traffic::schedule::make_participant(
-          a2_config.description, database);
+      a2_config.description, database);
 
     WHEN("Schedule:[], Negotiation:[p0(A->Z), p1(E->V), p2(C->X)]")
     {
@@ -2446,7 +2450,7 @@ SCENARIO("fan-in-fan-out bottleneck")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -2462,11 +2466,11 @@ SCENARIO("fan-in-fan-out bottleneck")
         auto p2_itinerary =
           get_participant_itinerary(proposal, p2.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["Z"].first);
+          .segment(0, 2) == vertices["Z"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["V"].first);
+          .segment(0, 2) == vertices["V"].first);
         CHECK(p2_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["X"].first);
+          .segment(0, 2) == vertices["X"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
         CHECK(no_conflicts(p0, p0_itinerary, p2, p2_itinerary));
@@ -2507,7 +2511,7 @@ SCENARIO("fan-in-fan-out bottleneck")
       THEN("Valid Proposal is found")
       {
         const auto room = std::make_shared<TestPathNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -2523,11 +2527,11 @@ SCENARIO("fan-in-fan-out bottleneck")
         auto p2_itinerary =
           get_participant_itinerary(proposal, p2.id()).value();
         CHECK(p0_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["Z"].first);
+          .segment(0, 2) == vertices["Z"].first);
         CHECK(p1_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["V"].first);
+          .segment(0, 2) == vertices["V"].first);
         CHECK(p2_itinerary.back()->trajectory().back().position()
-                .segment(0, 2) == vertices["C"].first);
+          .segment(0, 2) == vertices["C"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
         CHECK(no_conflicts(p0, p0_itinerary, p2, p2_itinerary));
@@ -2565,7 +2569,7 @@ SCENARIO("fan-in-fan-out bottleneck")
       THEN("Valid proposal is found")
       {
         const auto room = std::make_shared<TestEmergencyNegotiationRoom>(
-              database->snapshot(), intentions);
+          database->snapshot(), intentions);
         auto future_proposal = room->solve();
         const auto status = future_proposal.wait_for(2min);
         REQUIRE(status == std::future_status::ready);
@@ -2575,23 +2579,23 @@ SCENARIO("fan-in-fan-out bottleneck")
         const auto& proposal = *proposal_opt;
 
         auto at_parking_spot = [&](const rmf_traffic::schedule::Itinerary& it)
-            -> bool
-        {
-          for (std::size_t i=0; i < graph.num_waypoints(); ++i)
+          -> bool
           {
-            const auto& wp = graph.get_waypoint(i);
-            if (!wp.is_parking_spot())
-              continue;
+            for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
+            {
+              const auto& wp = graph.get_waypoint(i);
+              if (!wp.is_parking_spot())
+                continue;
 
-            const Eigen::Vector2d p =
-                it.back()->trajectory().back().position().block<2,1>(0,0);
+              const Eigen::Vector2d p =
+                it.back()->trajectory().back().position().block<2, 1>(0, 0);
 
-            if ( (p - wp.get_location()).norm() < 1e-3 )
-              return true;
-          }
+              if ( (p - wp.get_location()).norm() < 1e-3)
+                return true;
+            }
 
-          return false;
-        };
+            return false;
+          };
 
         auto p0_itinerary =
           get_participant_itinerary(proposal, p0.id()).value();

@@ -74,7 +74,8 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
         {
           if (lift_request->request_type != LiftRequest::REQUEST_END_SESSION)
             received_open = true;
-          else if (lift_request->request_type == LiftRequest::REQUEST_END_SESSION)
+          else if (lift_request->request_type ==
+          LiftRequest::REQUEST_END_SESSION)
             rx_sub.unsubscribe();
         });
       auto obs = active_phase->observe();
@@ -99,7 +100,10 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
     {
       std::unique_lock<std::mutex> lk(m);
       if (received_requests.empty())
-        received_requests_cv.wait(lk, [&]() { return !received_requests.empty(); });
+        received_requests_cv.wait(lk, [&]()
+          {
+            return !received_requests.empty();
+          });
       CHECK(received_requests.size() == 1);
       CHECK(received_requests.front().destination_floor == destination);
     }
@@ -107,7 +111,10 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
     THEN("it should continuously send lift requests")
     {
       std::unique_lock<std::mutex> lk(m);
-      received_requests_cv.wait(lk, [&]() { return received_requests.size() >= 3; });
+      received_requests_cv.wait(lk, [&]()
+        {
+          return received_requests.size() >= 3;
+        });
       for (const auto& lift_request : received_requests)
       {
         CHECK(lift_request.destination_floor == destination);
@@ -116,32 +123,35 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
 
     AND_WHEN("lift is on destination floor")
     {
-      auto lift_state_pub = ros_node->create_publisher<LiftState>(LiftStateTopicName, 10);
+      auto lift_state_pub = ros_node->create_publisher<LiftState>(
+        LiftStateTopicName, 10);
       rclcpp::TimerBase::SharedPtr timer;
       std::function<void()> publish_lift_state = [&]()
-      {
-        std::unique_lock<std::mutex> lk(m);
-        LiftState lift_state;
-        lift_state.lift_name = lift_name;
-        lift_state.lift_time = ros_node->now();
-        lift_state.motion_state = LiftState::MOTION_STOPPED;
-        lift_state.destination_floor = destination;
-        lift_state.current_floor = destination;
-        lift_state.session_id = session_id;
-        lift_state.door_state = LiftState::DOOR_OPEN;
-        lift_state.current_mode = LiftState::MODE_AGV;
-        lift_state_pub->publish(lift_state);
-        timer = ros_node->create_wall_timer(std::chrono::milliseconds(100), publish_lift_state);
-      };
+        {
+          std::unique_lock<std::mutex> lk(m);
+          LiftState lift_state;
+          lift_state.lift_name = lift_name;
+          lift_state.lift_time = ros_node->now();
+          lift_state.motion_state = LiftState::MOTION_STOPPED;
+          lift_state.destination_floor = destination;
+          lift_state.current_floor = destination;
+          lift_state.session_id = session_id;
+          lift_state.door_state = LiftState::DOOR_OPEN;
+          lift_state.current_mode = LiftState::MODE_AGV;
+          lift_state_pub->publish(lift_state);
+          timer = ros_node->create_wall_timer(std::chrono::milliseconds(
+                100), publish_lift_state);
+        };
       publish_lift_state();
 
       THEN("it is completed")
       {
         std::unique_lock<std::mutex> lk(m);
-        bool completed = status_updates_cv.wait_for(lk, std::chrono::milliseconds(1000), [&]()
-        {
-          return status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
-        });
+        bool completed = status_updates_cv.wait_for(lk, std::chrono::milliseconds(
+              1000), [&]()
+            {
+              return status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+            });
         CHECK(completed);
       }
 
@@ -153,9 +163,9 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(m);
         received_requests_cv.wait(lk, [&]()
-        {
-          return !received_requests.empty();
-        });
+          {
+            return !received_requests.empty();
+          });
         active_phase->cancel();
       }
 
@@ -163,9 +173,9 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(m);
         received_requests_cv.wait(lk, [&]()
-        {
-          return received_requests.back().request_type == LiftRequest::REQUEST_END_SESSION;
-        });
+          {
+            return received_requests.back().request_type == LiftRequest::REQUEST_END_SESSION;
+          });
       }
     }
 

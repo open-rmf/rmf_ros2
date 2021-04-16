@@ -71,20 +71,22 @@ MockAdapterFixture::MockAdapterFixture()
    **/
 
   auto add_bidir_lane = [&](const std::size_t w0, const std::size_t w1)
-  {
-    graph.add_lane(w0, w1);
-    graph.add_lane(w1, w0);
-  };
+    {
+      graph.add_lane(w0, w1);
+      graph.add_lane(w1, w0);
+    };
 
   auto add_dock_lane = [&](
     const std::size_t w0,
     const std::size_t w1,
     std::string dock_name)
-  {
-    using Lane = rmf_traffic::agv::Graph::Lane;
-    graph.add_lane({w0, Lane::Event::make(Lane::Dock(dock_name, std::chrono::seconds(10)))}, w1);
-    graph.add_lane(w1, w0);
-  };
+    {
+      using Lane = rmf_traffic::agv::Graph::Lane;
+      graph.add_lane({w0,
+          Lane::Event::make(Lane::Dock(dock_name, std::chrono::seconds(
+            10)))}, w1);
+      graph.add_lane(w1, w0);
+    };
 
   add_bidir_lane(0, 1);  // 0   1
   add_bidir_lane(1, 2);  // 2   3
@@ -122,20 +124,20 @@ MockAdapterFixture::MockAdapterFixture()
 
 //==============================================================================
 auto MockAdapterFixture::add_robot(
-    const std::string& name,
-    rmf_utils::optional<rmf_traffic::Profile> input_profile) -> RobotInfo
+  const std::string& name,
+  rmf_utils::optional<rmf_traffic::Profile> input_profile) -> RobotInfo
 {
   rmf_traffic::Profile profile =
-      [&]() -> rmf_traffic::Profile
-  {
-    if (input_profile)
-      return *input_profile;
+    [&]() -> rmf_traffic::Profile
+    {
+      if (input_profile)
+        return *input_profile;
 
-    return rmf_traffic::Profile{
+      return rmf_traffic::Profile{
       rmf_traffic::geometry::make_final_convex<
         rmf_traffic::geometry::Circle>(1.0)
-    };
-  }();
+      };
+    } ();
 
   const auto now = rmf_traffic_ros2::convert(adapter->node()->now());
   const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};

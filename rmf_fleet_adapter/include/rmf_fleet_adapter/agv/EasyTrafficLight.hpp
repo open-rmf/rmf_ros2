@@ -85,8 +85,8 @@ public:
   /// your robot has not physically reached checkpoint+1 yet.
   [[nodiscard]]
   MovingInstruction moving_from(
-      std::size_t checkpoint,
-      Eigen::Vector3d location);
+    std::size_t checkpoint,
+    Eigen::Vector3d location);
 
   enum class WaitingInstruction : uint8_t
   {
@@ -121,8 +121,8 @@ public:
   ///   The location where the robot is waiting.
   [[nodiscard]]
   WaitingInstruction waiting_after(
-      std::size_t checkpoint,
-      Eigen::Vector3d location);
+    std::size_t checkpoint,
+    Eigen::Vector3d location);
 
   /// Get the last checkpoint that the traffic light knows has been reached.
   std::size_t last_reached() const;
@@ -147,7 +147,7 @@ public:
   /// this fleet. Passing in std::nullopt will disable the fleet state message
   /// publishing. The default value is 1s.
   EasyTrafficLight& fleet_state_publish_period(
-      std::optional<rmf_traffic::Duration> value);
+    std::optional<rmf_traffic::Duration> value);
 
   class Implementation;
 private:

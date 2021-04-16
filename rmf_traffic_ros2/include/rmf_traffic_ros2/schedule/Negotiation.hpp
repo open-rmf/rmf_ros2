@@ -71,7 +71,7 @@ public:
   using TableViewPtr = rmf_traffic::schedule::Negotiation::Table::ViewerPtr;
   using StatusUpdateCallback =
     std::function<void (uint64_t conflict_version, TableViewPtr table_view)>;
-  
+
   /// Register a callback with this Negotiation manager that triggers
   /// on negotiation status updates.
   ///
@@ -81,7 +81,7 @@ public:
 
   using StatusConclusionCallback =
     std::function<void (uint64_t conflict_version, bool success)>;
-  
+
   /// Register a callback with this Negotiation manager that triggers
   /// on negotiation status conclusions.
   ///

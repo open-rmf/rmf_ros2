@@ -26,8 +26,8 @@ namespace test {
 
 using NegotiatorMap =
   std::unordered_map<
-    rmf_traffic::schedule::ParticipantId,
-    std::shared_ptr<rmf_traffic::schedule::Negotiator>
+  rmf_traffic::schedule::ParticipantId,
+  std::shared_ptr<rmf_traffic::schedule::Negotiator>
   >;
 using NegotiatorMapPtr = std::shared_ptr<NegotiatorMap>;
 
@@ -36,23 +36,23 @@ class Responder : public rmf_traffic::schedule::Negotiator::Responder
 public:
 
   Responder(
-      rmf_traffic::schedule::Negotiation::TablePtr table,
-      NegotiatorMapPtr negotiators,
-      std::shared_ptr<std::condition_variable> cv,
-      std::shared_ptr<std::mutex> mutex)
-    : _table(std::move(table)),
-      _table_version(_table->version()),
-      _negotiators(std::move(negotiators)),
-      _cv(std::move(cv)),
-      _mutex(std::move(mutex))
+    rmf_traffic::schedule::Negotiation::TablePtr table,
+    NegotiatorMapPtr negotiators,
+    std::shared_ptr<std::condition_variable> cv,
+    std::shared_ptr<std::mutex> mutex)
+  : _table(std::move(table)),
+    _table_version(_table->version()),
+    _negotiators(std::move(negotiators)),
+    _cv(std::move(cv)),
+    _mutex(std::move(mutex))
   {
     if (const auto parent = _table->parent())
       _parent_version = parent->version();
   }
 
   void submit(
-      std::vector<rmf_traffic::Route> itinerary,
-      ApprovalCallback = nullptr) const final
+    std::vector<rmf_traffic::Route> itinerary,
+    ApprovalCallback = nullptr) const final
   {
     std::lock_guard<std::mutex> lock(*_mutex);
     _table->submit(itinerary, _table_version+1);
@@ -61,8 +61,8 @@ public:
     {
       const auto n_it = _negotiators->at(c->participant());
       n_it->respond(
-            c->viewer(),
-            std::make_shared<Responder>(c, _negotiators, _cv, _mutex));
+        c->viewer(),
+        std::make_shared<Responder>(c, _negotiators, _cv, _mutex));
     }
 
     _cv->notify_all();
@@ -80,8 +80,8 @@ public:
     parent->reject(*_parent_version, _table->participant(), alternatives);
 
     _negotiators->at(parent->participant())->respond(
-          parent->viewer(),
-          std::make_shared<Responder>(parent, _negotiators, _cv, _mutex));
+      parent->viewer(),
+      std::make_shared<Responder>(parent, _negotiators, _cv, _mutex));
 
     _cv->notify_all();
   }
@@ -135,28 +135,28 @@ SCENARIO_METHOD(MockAdapterFixture, "go to place negotiation", "[phases]")
   auto cv = std::make_shared<std::condition_variable>();
   auto mutex = std::make_shared<std::mutex>();
   auto negotiation = rmf_traffic::schedule::Negotiation::make(
-        context_0->schedule()->snapshot(),
-        {context_0->itinerary().id(), context_1->itinerary().id()});
+    context_0->schedule()->snapshot(),
+    {context_0->itinerary().id(), context_1->itinerary().id()});
 
   const auto table_0 = negotiation->table(context_0->itinerary().id(), {});
   context_0->respond(
-        table_0->viewer(),
-        std::make_shared<Responder>(table_0, negotiators, cv, mutex));
+    table_0->viewer(),
+    std::make_shared<Responder>(table_0, negotiators, cv, mutex));
 
   const auto table_1 = negotiation->table(context_1->itinerary().id(), {});
   context_1->respond(
-        table_1->viewer(),
-        std::make_shared<Responder>(table_1, negotiators, cv, mutex));
+    table_1->viewer(),
+    std::make_shared<Responder>(table_1, negotiators, cv, mutex));
 
   using namespace std::chrono_literals;
   const auto giveup = std::chrono::steady_clock::now() + 30s;
 
   std::unique_lock<std::mutex> lock(*mutex);
   cv->wait(lock, [&]()
-  {
-    return negotiation->ready() || negotiation->complete()
-        || giveup < std::chrono::steady_clock::now();
-  });
+    {
+      return negotiation->ready() || negotiation->complete()
+      || giveup < std::chrono::steady_clock::now();
+    });
 
   CHECK(negotiation->ready());
 }

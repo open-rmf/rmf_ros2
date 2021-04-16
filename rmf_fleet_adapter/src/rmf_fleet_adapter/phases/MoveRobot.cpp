@@ -45,7 +45,8 @@ MoveRobot::ActivePhase::ActivePhase(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& MoveRobot::ActivePhase::observe() const
+const rxcpp::observable<Task::StatusMsg>& MoveRobot::ActivePhase::observe()
+const
 {
   return _obs;
 }
@@ -116,9 +117,9 @@ MoveRobot::Action::Action(
   agv::RobotContextPtr& context,
   std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
   std::optional<rmf_traffic::Duration> tail_period)
-  : _context{context},
-    _waypoints{waypoints},
-    _tail_period{tail_period}
+: _context{context},
+  _waypoints{waypoints},
+  _tail_period{tail_period}
 {
   // no op
 }

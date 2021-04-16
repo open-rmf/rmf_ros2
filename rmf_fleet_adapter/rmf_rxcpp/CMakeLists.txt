@@ -29,7 +29,9 @@ if(BUILD_TESTING)
   find_package(rmf_utils REQUIRED)
   find_package(std_msgs REQUIRED)
   find_package(rmf_cmake_uncrustify REQUIRED)
-  find_file(uncrustify_config_file NAMES "share/format/rmf_code_style.cfg")
+  find_file(uncrustify_config_file NAMES 
+    NAMES "rmf_code_style.cfg"
+    PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
 
   rmf_uncrustify(
     ARGN include src test

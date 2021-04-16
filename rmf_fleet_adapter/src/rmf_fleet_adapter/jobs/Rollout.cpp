@@ -22,14 +22,14 @@ namespace jobs {
 
 //==============================================================================
 Rollout::Rollout(
-    rmf_traffic::agv::Planner::Result result,
-    rmf_traffic::schedule::ParticipantId blocker,
-    rmf_traffic::Duration span,
-    rmf_utils::optional<std::size_t> max_rollouts)
-  : _rollout(std::move(result)),
-    _blocker(blocker),
-    _span(span),
-    _max_rollouts(max_rollouts)
+  rmf_traffic::agv::Planner::Result result,
+  rmf_traffic::schedule::ParticipantId blocker,
+  rmf_traffic::Duration span,
+  rmf_utils::optional<std::size_t> max_rollouts)
+: _rollout(std::move(result)),
+  _blocker(blocker),
+  _span(span),
+  _max_rollouts(max_rollouts)
 {
   // Do nothing
 }

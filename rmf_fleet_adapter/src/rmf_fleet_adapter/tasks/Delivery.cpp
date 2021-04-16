@@ -28,17 +28,17 @@ namespace tasks {
 
 //==============================================================================
 std::shared_ptr<Task> make_delivery(
-    const rmf_task::ConstRequestPtr request,
-    const agv::RobotContextPtr& context,
-    const rmf_traffic::agv::Plan::Start pickup_start,
-    const rmf_traffic::Time deployment_time,
-    const rmf_task::agv::State finish_state)
+  const rmf_task::ConstRequestPtr request,
+  const agv::RobotContextPtr& context,
+  const rmf_traffic::agv::Plan::Start pickup_start,
+  const rmf_traffic::Time deployment_time,
+  const rmf_task::agv::State finish_state)
 {
 
   std::shared_ptr<const rmf_task::requests::DeliveryDescription> description =
     std::dynamic_pointer_cast<
-      const rmf_task::requests::DeliveryDescription>(request->description());
-  
+    const rmf_task::requests::DeliveryDescription>(request->description());
+
   if (description == nullptr)
     return nullptr;
 
@@ -49,12 +49,12 @@ std::shared_ptr<Task> make_delivery(
       description->pickup_waypoint()));
 
   phases.push_back(
-        std::make_unique<phases::DispenseItem::PendingPhase>(
-          context,
-          request->id(),
-          description->pickup_dispenser(),
-          context->itinerary().description().owner(),
-          description->items()));
+    std::make_unique<phases::DispenseItem::PendingPhase>(
+      context,
+      request->id(),
+      description->pickup_dispenser(),
+      context->itinerary().description().owner(),
+      description->items()));
 
   auto dropoff_start = description->dropoff_start(pickup_start);
   phases.push_back(
@@ -66,7 +66,8 @@ std::shared_ptr<Task> make_delivery(
 
   std::vector<rmf_ingestor_msgs::msg::IngestorRequestItem> ingestor_items;
   ingestor_items.reserve(description->items().size());
-  for(const auto& dispenser_item : description->items()){
+  for (const auto& dispenser_item : description->items())
+  {
     rmf_ingestor_msgs::msg::IngestorRequestItem item{};
     item.type_guid = dispenser_item.type_guid;
     item.quantity = dispenser_item.quantity;
@@ -75,12 +76,12 @@ std::shared_ptr<Task> make_delivery(
   }
 
   phases.push_back(
-        std::make_unique<phases::IngestItem::PendingPhase>(
-          context,
-          request->id(),
-          description->dropoff_ingestor(),
-          context->itinerary().description().owner(),
-          ingestor_items));
+    std::make_unique<phases::IngestItem::PendingPhase>(
+      context,
+      request->id(),
+      description->dropoff_ingestor(),
+      context->itinerary().description().owner(),
+      ingestor_items));
 
   return Task::make(
     request->id(),

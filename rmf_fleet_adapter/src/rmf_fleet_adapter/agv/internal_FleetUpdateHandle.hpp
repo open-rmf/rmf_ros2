@@ -66,8 +66,8 @@ public:
   using ReadyCallback = std::function<void(rmf_traffic::schedule::Participant)>;
 
   virtual void async_make_participant(
-      rmf_traffic::schedule::ParticipantDescription description,
-      ReadyCallback ready_callback) = 0;
+    rmf_traffic::schedule::ParticipantDescription description,
+    ReadyCallback ready_callback) = 0;
 
   virtual ~ParticipantFactory() = default;
 };
@@ -78,21 +78,21 @@ class SimpleParticipantFactory : public ParticipantFactory
 public:
 
   SimpleParticipantFactory(
-      std::shared_ptr<rmf_traffic::schedule::Writer> writer)
-    : _writer{std::move(writer)}
+    std::shared_ptr<rmf_traffic::schedule::Writer> writer)
+  : _writer{std::move(writer)}
   {
     // Do nothing
   }
 
   void async_make_participant(
-      rmf_traffic::schedule::ParticipantDescription description,
-      ReadyCallback ready_callback) final
+    rmf_traffic::schedule::ParticipantDescription description,
+    ReadyCallback ready_callback) final
   {
     ready_callback(
-        rmf_traffic::schedule::make_participant(
-          std::move(description),
-          _writer,
-          nullptr)
+      rmf_traffic::schedule::make_participant(
+        std::move(description),
+        _writer,
+        nullptr)
     );
   }
 
@@ -106,19 +106,19 @@ class ParticipantFactoryRos2 : public ParticipantFactory
 public:
 
   ParticipantFactoryRos2(
-      rmf_traffic_ros2::schedule::WriterPtr writer)
-    : _writer{std::move(writer)}
+    rmf_traffic_ros2::schedule::WriterPtr writer)
+  : _writer{std::move(writer)}
   {
     // Do nothing
   }
 
   void async_make_participant(
-      rmf_traffic::schedule::ParticipantDescription description,
-      ReadyCallback ready_callback) final
+    rmf_traffic::schedule::ParticipantDescription description,
+    ReadyCallback ready_callback) final
   {
     _writer->async_make_participant(
-          std::move(description),
-          std::move(ready_callback));
+      std::move(description),
+      std::move(ready_callback));
   }
 
 private:
@@ -150,12 +150,15 @@ public:
   bool initialized_task_planner = false;
 
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay =
-      std::chrono::nanoseconds(std::chrono::seconds(10));
+    std::chrono::nanoseconds(std::chrono::seconds(10));
 
   AcceptDeliveryRequest accept_delivery = nullptr;
-  std::unordered_map<RobotContextPtr, std::shared_ptr<TaskManager>> task_managers = {};
+  std::unordered_map<RobotContextPtr,
+    std::shared_ptr<TaskManager>> task_managers = {};
 
-  rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr fleet_state_pub = nullptr;
+  rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr fleet_state_pub
+    =
+    nullptr;
   rclcpp::TimerBase::SharedPtr fleet_state_timer = nullptr;
 
   // Map task id to pair of <RequestPtr, Assignments>
@@ -208,62 +211,62 @@ public:
   DockSummarySub dock_summary_sub = nullptr;
 
   template<typename... Args>
-  static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
+  static std::shared_ptr<FleetUpdateHandle> make(Args&& ... args)
   {
     FleetUpdateHandle handle;
     handle._pimpl = rmf_utils::make_unique_impl<Implementation>(
-          Implementation{std::forward<Args>(args)...});
+      Implementation{std::forward<Args>(args)...});
 
     handle._pimpl->fleet_state_pub = handle._pimpl->node->fleet_state();
     handle._pimpl->fleet_state_timer = handle._pimpl->node->create_wall_timer(
-          std::chrono::seconds(1), [self = handle._pimpl.get()]()
-    {
-      self->publish_fleet_state();
-    });
+      std::chrono::seconds(1), [self = handle._pimpl.get()]()
+      {
+        self->publish_fleet_state();
+      });
 
     // Create subs and pubs for bidding
     auto default_qos = rclcpp::SystemDefaultsQoS();
-    auto transient_qos = rclcpp::QoS(10);; transient_qos.transient_local();
-    
+    auto transient_qos = rclcpp::QoS(10);  transient_qos.transient_local();
+
     // Publish BidProposal
     handle._pimpl->bid_proposal_pub =
       handle._pimpl->node->create_publisher<BidProposal>(
-        BidProposalTopicName, default_qos);
+      BidProposalTopicName, default_qos);
 
     // Publish DispatchAck
     handle._pimpl->dispatch_ack_pub =
       handle._pimpl->node->create_publisher<DispatchAck>(
-        DispatchAckTopicName, default_qos);
+      DispatchAckTopicName, default_qos);
 
     // Subscribe BidNotice
     handle._pimpl->bid_notice_sub =
       handle._pimpl->node->create_subscription<BidNotice>(
-        BidNoticeTopicName,
-        default_qos,
-        [p = handle._pimpl.get()](const BidNotice::SharedPtr msg)
-        {
-          p->bid_notice_cb(msg);
-        });
+      BidNoticeTopicName,
+      default_qos,
+      [p = handle._pimpl.get()](const BidNotice::SharedPtr msg)
+      {
+        p->bid_notice_cb(msg);
+      });
 
     // Subscribe DispatchRequest
     handle._pimpl->dispatch_request_sub =
       handle._pimpl->node->create_subscription<DispatchRequest>(
-        DispatchRequestTopicName,
-        default_qos,
-        [p = handle._pimpl.get()](const DispatchRequest::SharedPtr msg)
-        {
-          p->dispatch_request_cb(msg);
-        });
+      DispatchRequestTopicName,
+      default_qos,
+      [p = handle._pimpl.get()](const DispatchRequest::SharedPtr msg)
+      {
+        p->dispatch_request_cb(msg);
+      });
 
     // Subscribe DockSummary
     handle._pimpl->dock_summary_sub =
       handle._pimpl->node->create_subscription<DockSummary>(
-        DockSummaryTopicName,
-        transient_qos,
-        [p = handle._pimpl.get()](const DockSummary::SharedPtr msg)
-        {
-          p->dock_summary_cb(msg);
-        });
+      DockSummaryTopicName,
+      transient_qos,
+      [p = handle._pimpl.get()](const DockSummary::SharedPtr msg)
+      {
+        p->dock_summary_cb(msg);
+      });
 
     // Populate charging waypoints
     const std::size_t num_waypoints =
@@ -287,7 +290,7 @@ public:
     const std::unordered_set<std::size_t>& charging_waypoints);
 
   /// Generate task assignments for a collection of task requests comprising of
-  /// task requests currently in TaskManager queues while optionally including a  
+  /// task requests currently in TaskManager queues while optionally including a
   /// new request and while optionally ignoring a specific request.
   std::optional<Assignments> allocate_tasks(
     rmf_task::ConstRequestPtr new_request = nullptr,
@@ -308,7 +311,7 @@ public:
   }
 
   void fleet_state_publish_period(
-      std::optional<rmf_traffic::Duration> value);
+    std::optional<rmf_traffic::Duration> value);
 
   void publish_fleet_state() const;
 };

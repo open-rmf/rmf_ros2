@@ -42,12 +42,12 @@ public:
   std::shared_ptr<rmf_traffic_ros2::blockade::Writer> blockade_writer;
 
   Implementation(
-      const std::string& node_name,
-      const rclcpp::NodeOptions& node_options)
-    : worker{rxcpp::schedulers::make_event_loop().create_worker()},
-      node{Node::make(worker, node_name, node_options)},
-      database{std::make_shared<rmf_traffic::schedule::Database>()},
-      blockade_writer{rmf_traffic_ros2::blockade::Writer::make(*node)}
+    const std::string& node_name,
+    const rclcpp::NodeOptions& node_options)
+  : worker{rxcpp::schedulers::make_event_loop().create_worker()},
+    node{Node::make(worker, node_name, node_options)},
+    database{std::make_shared<rmf_traffic::schedule::Database>()},
+    blockade_writer{rmf_traffic_ros2::blockade::Writer::make(*node)}
   {
     // Do nothing
   }
@@ -58,31 +58,31 @@ public:
 
 //==============================================================================
 MockAdapter::MockAdapter(
-    const std::string& node_name,
-    const rclcpp::NodeOptions& node_options)
-  : _pimpl{rmf_utils::make_unique_impl<Implementation>(node_name, node_options)}
+  const std::string& node_name,
+  const rclcpp::NodeOptions& node_options)
+: _pimpl{rmf_utils::make_unique_impl<Implementation>(node_name, node_options)}
 {
   // Do nothing
 }
 
 //==============================================================================
 std::shared_ptr<FleetUpdateHandle> MockAdapter::add_fleet(
-    const std::string& fleet_name,
-    rmf_traffic::agv::VehicleTraits traits,
-    rmf_traffic::agv::Graph navigation_graph)
+  const std::string& fleet_name,
+  rmf_traffic::agv::VehicleTraits traits,
+  rmf_traffic::agv::Graph navigation_graph)
 {
   auto planner =
     std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(
-      std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Planner::Configuration(
-          std::move(navigation_graph),
-          std::move(traits)),
-        rmf_traffic::agv::Planner::Options(nullptr)));
+    std::make_shared<rmf_traffic::agv::Planner>(
+      rmf_traffic::agv::Planner::Configuration(
+        std::move(navigation_graph),
+        std::move(traits)),
+      rmf_traffic::agv::Planner::Options(nullptr)));
 
   auto fleet = FleetUpdateHandle::Implementation::make(
-        fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
-        std::make_shared<SimpleParticipantFactory>(_pimpl->database),
-        _pimpl->database, nullptr);
+    fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
+    std::make_shared<SimpleParticipantFactory>(_pimpl->database),
+    _pimpl->database, nullptr);
 
   _pimpl->fleets.push_back(fleet);
   return fleet;
@@ -90,30 +90,30 @@ std::shared_ptr<FleetUpdateHandle> MockAdapter::add_fleet(
 
 //==============================================================================
 TrafficLight::UpdateHandlePtr MockAdapter::add_traffic_light(
-    std::shared_ptr<TrafficLight::CommandHandle> command,
-    const std::string& fleet_name,
-    const std::string& robot_name,
-    rmf_traffic::agv::VehicleTraits traits,
-    rmf_traffic::Profile profile)
+  std::shared_ptr<TrafficLight::CommandHandle> command,
+  const std::string& fleet_name,
+  const std::string& robot_name,
+  rmf_traffic::agv::VehicleTraits traits,
+  rmf_traffic::Profile profile)
 {
   rmf_traffic::schedule::ParticipantDescription description(
-      robot_name,
-      fleet_name,
-      rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
-      profile);
+    robot_name,
+    fleet_name,
+    rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
+    profile);
 
   auto participant = rmf_traffic::schedule::make_participant(
-        std::move(description), _pimpl->database, nullptr);
+    std::move(description), _pimpl->database, nullptr);
 
   return TrafficLight::UpdateHandle::Implementation::make(
-        std::move(command),
-        std::move(participant),
-        _pimpl->blockade_writer,
-        std::move(traits),
-        _pimpl->database,
-        _pimpl->worker,
-        _pimpl->node,
-        nullptr);
+    std::move(command),
+    std::move(participant),
+    _pimpl->blockade_writer,
+    std::move(traits),
+    _pimpl->database,
+    _pimpl->worker,
+    _pimpl->node,
+    nullptr);
 }
 
 //==============================================================================
@@ -155,7 +155,7 @@ void MockAdapter::dispatch_task(const rmf_task_msgs::msg::TaskProfile& profile)
     bid.task_profile = profile;
     fimpl.bid_notice_cb(
       std::make_shared<rmf_task_msgs::msg::BidNotice>(bid));
-    
+
     rmf_task_msgs::msg::DispatchRequest req;
     req.task_profile = profile;
     req.fleet_name = fimpl.name;

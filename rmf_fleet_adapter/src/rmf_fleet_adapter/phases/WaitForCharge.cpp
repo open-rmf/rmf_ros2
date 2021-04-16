@@ -21,7 +21,8 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-auto WaitForCharge::Active::observe() const -> const rxcpp::observable<StatusMsg>&
+auto WaitForCharge::Active::observe() const -> const rxcpp::observable<StatusMsg>
+&
 {
   return _status_obs;
 }
@@ -32,8 +33,9 @@ rmf_traffic::Duration WaitForCharge::Active::estimate_remaining_time() const
   const double capacity = _battery_system.capacity();
   const double charging_current = _battery_system.charging_current();
   const double time_estimate =
-      3600.0 * capacity * (_charge_to_soc - _context->current_battery_soc()) / charging_current;
-  
+    3600.0 * capacity * (_charge_to_soc - _context->current_battery_soc()) /
+    charging_current;
+
   return rmf_traffic::time::from_seconds(time_estimate);
 }
 
@@ -65,7 +67,7 @@ WaitForCharge::Active::Active(
   _charge_to_soc(charge_to_soc)
 {
   _description = "Charging [" + _context->requester_id() + "] to ["
-      + std::to_string(100.0 * _charge_to_soc) + "]";
+    + std::to_string(100.0 * _charge_to_soc) + "]";
 
 
   StatusMsg initial_msg;
@@ -76,8 +78,8 @@ WaitForCharge::Active::Active(
   initial_msg.end_time = now + estimate_remaining_time();
 
   _status_obs = _status_publisher
-      .get_observable()
-      .start_with(initial_msg);
+    .get_observable()
+    .start_with(initial_msg);
 
 }
 
@@ -85,26 +87,26 @@ WaitForCharge::Active::Active(
 std::shared_ptr<Task::ActivePhase> WaitForCharge::Pending::begin()
 {
   auto active =
-      std::shared_ptr<Active>(new Active(
+    std::shared_ptr<Active>(new Active(
         _context, _battery_system, _charge_to_soc));
 
   active->_battery_soc_subscription = _context->observe_battery_soc()
-      .observe_on(rxcpp::identity_same_worker(_context->worker()))
-      .subscribe(
-        [a = active->weak_from_this()](const double battery_soc)
-        {
-          const auto active = a.lock();
+    .observe_on(rxcpp::identity_same_worker(_context->worker()))
+    .subscribe(
+    [a = active->weak_from_this()](const double battery_soc)
+    {
+      const auto active = a.lock();
 
-          if (!active)
-            return;
+      if (!active)
+        return;
 
-          if(active->_charge_to_soc <= battery_soc)
-          {
-            active->_status_publisher.get_subscriber().on_completed();
-          }
-          // TODO Publish warning message to alert user if battery is not
-          // charging at expected rate
-        });
+      if (active->_charge_to_soc <= battery_soc)
+      {
+        active->_status_publisher.get_subscriber().on_completed();
+      }
+      // TODO Publish warning message to alert user if battery is not
+      // charging at expected rate
+    });
 
   return active;
 }
@@ -138,18 +140,19 @@ WaitForCharge::Pending::Pending(
 
 //==============================================================================
 auto WaitForCharge::make(
-    agv::RobotContextPtr context,
-    rmf_battery::agv::BatterySystem battery_system,
-    double charge_to_soc) -> std::unique_ptr<Pending>
+  agv::RobotContextPtr context,
+  rmf_battery::agv::BatterySystem battery_system,
+  double charge_to_soc) -> std::unique_ptr<Pending>
 {
 
   const double capacity = battery_system.capacity();
   const double charging_current = battery_system.charging_current();
   const double time_estimate =
-    3600.0 * capacity * (charge_to_soc - context->current_battery_soc()) / charging_current;
-  
+    3600.0 * capacity * (charge_to_soc - context->current_battery_soc()) /
+    charging_current;
+
   return std::unique_ptr<Pending>(
-        new Pending(context, battery_system, charge_to_soc, time_estimate));
+    new Pending(context, battery_system, charge_to_soc, time_estimate));
 }
 
 } // namespace phases

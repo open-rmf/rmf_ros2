@@ -45,16 +45,16 @@ class Node : public rmf_rxcpp::Transport
 public:
 
   static std::shared_ptr<Node> make(
-      rxcpp::schedulers::worker worker,
-      const std::string& node_name,
-      const rclcpp::NodeOptions& options);
+    rxcpp::schedulers::worker worker,
+    const std::string& node_name,
+    const rclcpp::NodeOptions& options);
 
   using DoorState = rmf_door_msgs::msg::DoorState;
   using DoorStateObs = rxcpp::observable<DoorState::SharedPtr>;
   const DoorStateObs& door_state() const;
 
   using DoorSupervisorState = rmf_door_msgs::msg::SupervisorHeartbeat;
-  using DoorSupervisorObs =   rxcpp::observable<DoorSupervisorState::SharedPtr>;
+  using DoorSupervisorObs = rxcpp::observable<DoorSupervisorState::SharedPtr>;
   const DoorSupervisorObs& door_supervisor() const;
 
   using DoorRequest = rmf_door_msgs::msg::DoorRequest;
@@ -108,9 +108,9 @@ public:
 private:
 
   Node(
-      rxcpp::schedulers::worker worker,
-      const std::string& node_name,
-      const rclcpp::NodeOptions& options);
+    rxcpp::schedulers::worker worker,
+    const std::string& node_name,
+    const rclcpp::NodeOptions& options);
 
   DoorStateObs _door_state_obs;
   DoorSupervisorObs _door_supervisor_obs;

@@ -28,16 +28,16 @@ namespace rmf_fleet_adapter_test {
 
 //==============================================================================
 class MockTrafficLightCommand
-    : public rmf_fleet_adapter::agv::TrafficLight::CommandHandle
+  : public rmf_fleet_adapter::agv::TrafficLight::CommandHandle
 {
 public:
 
   void receive_checkpoints(
-      const std::size_t version,
-      std::vector<Checkpoint> checkpoints,
-      const std::size_t,
-      std::function<void()> on_standby,
-      Reject)
+    const std::size_t version,
+    std::vector<Checkpoint> checkpoints,
+    const std::size_t,
+    std::function<void()> on_standby,
+    Reject)
   {
     std::lock_guard<std::mutex> lock(mutex);
     current_version = version;
@@ -53,7 +53,7 @@ public:
   }
 
   void immediately_stop_until(
-      std::size_t, rclcpp::Time, StoppedAt, Departed) final
+    std::size_t, rclcpp::Time, StoppedAt, Departed) final
   {
     // Do nothing
   }

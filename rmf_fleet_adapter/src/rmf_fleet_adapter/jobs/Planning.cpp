@@ -22,18 +22,18 @@ namespace jobs {
 
 //==============================================================================
 Planning::Planning(
-    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-    const rmf_traffic::agv::Plan::StartSet& starts,
-    rmf_traffic::agv::Plan::Goal goal,
-    rmf_traffic::agv::Plan::Options options)
-  : _current_result(planner->setup(starts, std::move(goal), std::move(options)))
+  std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+  const rmf_traffic::agv::Plan::StartSet& starts,
+  rmf_traffic::agv::Plan::Goal goal,
+  rmf_traffic::agv::Plan::Options options)
+: _current_result(planner->setup(starts, std::move(goal), std::move(options)))
 {
   _current_result->options().saturation_limit(10000);
 }
 
 //==============================================================================
 Planning::Planning(rmf_traffic::agv::Planner::Result _setup)
-  : _current_result(std::move(_setup))
+: _current_result(std::move(_setup))
 {
   _current_result->options().saturation_limit(10000);
 }

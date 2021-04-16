@@ -39,9 +39,9 @@ static std::size_t node_count = 0;
 
 //==============================================================================
 std::vector<rmf_fleet_adapter::agv::Waypoint> make_path(
-    const rmf_traffic::agv::Graph& graph,
-    const std::vector<std::size_t>& wp_indices,
-    const double orientation)
+  const rmf_traffic::agv::Graph& graph,
+  const std::vector<std::size_t>& wp_indices,
+  const double orientation)
 {
   std::vector<rmf_fleet_adapter::agv::Waypoint> path;
   for (auto index : wp_indices)
@@ -49,7 +49,7 @@ std::vector<rmf_fleet_adapter::agv::Waypoint> make_path(
     const auto& wp = graph.get_waypoint(index);
     Eigen::Vector3d p;
     p[2] = orientation;
-    p.block<2,1>(0,0) = wp.get_location();
+    p.block<2, 1>(0, 0) = wp.get_location();
     path.emplace_back(wp.get_map_name(), p);
   }
 
@@ -148,18 +148,18 @@ SCENARIO("Test new path timing")
   auto rcl_context = std::make_shared<rclcpp::Context>();
   rcl_context->init(0, nullptr);
   rmf_fleet_adapter::agv::test::MockAdapter adapter(
-        "test_TrafficLight_" + std::to_string(++node_count),
-        rclcpp::NodeOptions().context(rcl_context));
+    "test_TrafficLight_" + std::to_string(++node_count),
+    rclcpp::NodeOptions().context(rcl_context));
 
   auto command_0 =
-      std::make_shared<rmf_fleet_adapter_test::MockTrafficLightCommand>();
+    std::make_shared<rmf_fleet_adapter_test::MockTrafficLightCommand>();
   auto update_0 = adapter.add_traffic_light(
-        command_0, "fleet_0", "robot_0", traits, profile);
+    command_0, "fleet_0", "robot_0", traits, profile);
 
   auto command_1 =
-      std::make_shared<rmf_fleet_adapter_test::MockTrafficLightCommand>();
+    std::make_shared<rmf_fleet_adapter_test::MockTrafficLightCommand>();
   auto update_1 = adapter.add_traffic_light(
-        command_1, "fleet_1", "robot_1", traits, profile);
+    command_1, "fleet_1", "robot_1", traits, profile);
 
   adapter.start();
 
@@ -171,8 +171,8 @@ SCENARIO("Test new path timing")
     update_0->follow_new_path(path_0);
     std::unique_lock<std::mutex> lock_0(command_0->mutex);
     command_0->cv.wait_for(
-          lock_0, 100ms,
-          [command_0](){ return command_0->current_version.has_value(); });
+      lock_0, 100ms,
+      [command_0]() { return command_0->current_version.has_value(); });
     REQUIRE(command_0->current_version.has_value());
     CHECK(path_0.size() == command_0->current_checkpoints.size());
 
@@ -180,23 +180,23 @@ SCENARIO("Test new path timing")
     update_1->follow_new_path(path_1);
     std::unique_lock<std::mutex> lock_1(command_1->mutex);
     command_1->cv.wait_for(
-          lock_1, 100ms,
-          [command_1](){ return command_1->current_version.has_value(); });
+      lock_1, 100ms,
+      [command_1]() { return command_1->current_version.has_value(); });
     REQUIRE(command_1->current_version.has_value());
     CHECK(path_1.size() == command_1->current_checkpoints.size());
 
     REQUIRE(command_0->current_checkpoints.size()
-            == command_1->current_checkpoints.size());
+      == command_1->current_checkpoints.size());
 
     // They would normally collide at index==2, so from index==2 onwards,
     // the path of command_1 must be lagging behind the path of command_0 by
     // at least the planner's default minimum holding time, or else the
     // planner might not have actually avoided the collision as intended.
-    for (std::size_t i=2; i < command_0->current_checkpoints.size(); ++i)
+    for (std::size_t i = 2; i < command_0->current_checkpoints.size(); ++i)
     {
       CHECK(command_1->current_checkpoints[i].departure_time
-            - command_0->current_checkpoints[i].departure_time
-            >= rmf_traffic::agv::Planner::Options::DefaultMinHoldingTime);
+        - command_0->current_checkpoints[i].departure_time
+        >= rmf_traffic::agv::Planner::Options::DefaultMinHoldingTime);
     }
   }
 
@@ -208,8 +208,8 @@ SCENARIO("Test new path timing")
     update_0->follow_new_path(path_0);
     std::unique_lock<std::mutex> lock_0(command_0->mutex);
     command_0->cv.wait_for(
-          lock_0, 100ms,
-          [command_0](){ return command_0->current_version.has_value(); });
+      lock_0, 100ms,
+      [command_0]() { return command_0->current_version.has_value(); });
     REQUIRE(command_0->current_version.has_value());
     CHECK(path_0.size() == command_0->current_checkpoints.size());
 
@@ -217,16 +217,16 @@ SCENARIO("Test new path timing")
     update_1->follow_new_path(path_1);
     std::unique_lock<std::mutex> lock_1(command_1->mutex);
     command_1->cv.wait_for(
-          lock_1, 100ms,
-          [command_1](){ return command_1->current_version.has_value(); });
+      lock_1, 100ms,
+      [command_1]() { return command_1->current_version.has_value(); });
     REQUIRE(command_1->current_version.has_value());
     CHECK(path_1.size() == command_1->current_checkpoints.size());
 
     for (std::size_t index : {0, 1, 2})
     {
       CHECK(command_1->current_checkpoints[index].departure_time
-            - command_0->current_checkpoints[index].departure_time
-            >= rmf_traffic::agv::Planner::Options::DefaultMinHoldingTime);
+        - command_0->current_checkpoints[index].departure_time
+        >= rmf_traffic::agv::Planner::Options::DefaultMinHoldingTime);
     }
   }
 }

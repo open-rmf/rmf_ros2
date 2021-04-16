@@ -73,9 +73,9 @@ public:
   /// when robot is idle and battery level drops below a retreat threshold.
   void retreat_to_charger();
 
-  /// Get the list of task ids for tasks that have started execution. 
+  /// Get the list of task ids for tasks that have started execution.
   /// The list will contain upto 100 latest task ids only.
-  const std::vector<std::string>& get_executed_tasks() const;  
+  const std::vector<std::string>& get_executed_tasks() const;
 
 private:
 

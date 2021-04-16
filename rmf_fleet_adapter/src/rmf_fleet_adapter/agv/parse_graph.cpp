@@ -37,14 +37,14 @@ rmf_traffic::agv::Graph parse_graph(
   if (!levels)
   {
     throw std::runtime_error(
-          "Graph file [" + graph_file + "] is missing the [levels] key");
+            "Graph file [" + graph_file + "] is missing the [levels] key");
   }
 
   if (!levels.IsMap())
   {
     throw std::runtime_error(
-          "The [levels] key does not point to a map in graph file ["
-          + graph_file + "]");
+            "The [levels] key does not point to a map in graph file ["
+            + graph_file + "]");
   }
 
   using Constraint = rmf_traffic::agv::Graph::OrientationConstraint;
@@ -80,8 +80,8 @@ rmf_traffic::agv::Graph parse_graph(
           if (!graph.add_key(name, wp.index()))
           {
             throw std::runtime_error(
-              "Duplicated waypoint name [" + name + "] in graph ["
-                  + graph_file + "]");
+                    "Duplicated waypoint name [" + name + "] in graph ["
+                    + graph_file + "]");
           }
         }
       }
@@ -159,11 +159,11 @@ rmf_traffic::agv::Graph parse_graph(
         else
         {
           throw std::runtime_error(
-            "Unrecognized orientation constraint label given to lane ["
-            + std::to_string(lane[0].as<std::size_t>() + vnum) + ", "
-            + std::to_string(lane[1].as<std::size_t>() + vnum) + "]: ["
-            + constraint_label + "] in graph ["
-            + graph_file + "]");
+                  "Unrecognized orientation constraint label given to lane ["
+                  + std::to_string(lane[0].as<std::size_t>() + vnum) + ", "
+                  + std::to_string(lane[1].as<std::size_t>() + vnum) + "]: ["
+                  + constraint_label + "] in graph ["
+                  + graph_file + "]");
         }
       }
 
@@ -187,7 +187,7 @@ rmf_traffic::agv::Graph parse_graph(
           // Entering lift
           const std::string& lift_name = lift_of_end->second;
           entry_event = Event::make(
-                Lane::LiftSessionBegin(lift_name, map_name, duration));
+            Lane::LiftSessionBegin(lift_name, map_name, duration));
         }
         else if (begin_in_lift && end_in_lift)
         {
@@ -196,11 +196,12 @@ rmf_traffic::agv::Graph parse_graph(
             // If these are two lift waypoints on the same floor, then they
             // should be inside the same lift
             throw std::runtime_error(
-              "Inconsistency in building map. Map [" + map_name + "] has two "
-              "connected waypoints [" + std::to_string(begin) + " -> "
-              + std::to_string(end) + "] that are in different lifts ["
-              + lift_of_begin->second + " -> " + lift_of_end->second
-              + "]. This is not supported!");
+                    "Inconsistency in building map. Map [" + map_name + "] has two "
+                    "connected waypoints [" + std::to_string(
+                      begin) + " -> "
+                    + std::to_string(end) + "] that are in different lifts ["
+                    + lift_of_begin->second + " -> " + lift_of_end->second
+                    + "]. This is not supported!");
           }
 
           // If we make it here, then both waypoints are inside the same lift,
@@ -212,10 +213,10 @@ rmf_traffic::agv::Graph parse_graph(
           // Exiting lift
           const std::string& lift_name = lift_of_begin->second;
           entry_event = Event::make(
-                Lane::LiftDoorOpen(lift_name, map_name, duration));
+            Lane::LiftDoorOpen(lift_name, map_name, duration));
           exit_event = Event::make(
-                Lane::LiftSessionEnd(lift_name, map_name,
-                                     rmf_traffic::Duration(0)));
+            Lane::LiftSessionEnd(lift_name, map_name,
+            rmf_traffic::Duration(0)));
         }
       }
       else
@@ -230,8 +231,8 @@ rmf_traffic::agv::Graph parse_graph(
           if (!lift_name_option)
           {
             throw std::runtime_error(
-              "Missing [demo_mock_lift_name] parameter which is required for "
-              "mock lifts");
+                    "Missing [demo_mock_lift_name] parameter which is required for "
+                    "mock lifts");
           }
 
           // TODO(MXG): This implementation is not air tight. After a robot has
@@ -246,7 +247,7 @@ rmf_traffic::agv::Graph parse_graph(
             Lane::LiftSessionBegin(lift_name, floor_name, duration));
           exit_event = Event::make(
             Lane::LiftSessionEnd(lift_name, floor_name,
-                                 rmf_traffic::Duration(0)));
+            rmf_traffic::Duration(0)));
         }
         else if (const YAML::Node door_name_option = options["door_name"])
         {
@@ -291,13 +292,13 @@ rmf_traffic::agv::Graph parse_graph(
       const rmf_traffic::Duration duration = std::chrono::seconds(1);
 
       entry_event = Event::make(Lane::LiftMove(
-        lift.first, graph.get_waypoint(wps[i+1]).get_map_name(), duration));
+            lift.first, graph.get_waypoint(wps[i+1]).get_map_name(), duration));
       graph.add_lane(
         {wps[i], entry_event},
         {wps[i+1], exit_event});
 
       entry_event = Event::make(Lane::LiftMove(
-        lift.first, graph.get_waypoint(wps[i]).get_map_name(), duration));
+            lift.first, graph.get_waypoint(wps[i]).get_map_name(), duration));
       graph.add_lane(
         {wps[i+1], entry_event},
         {wps[i], exit_event});

@@ -27,8 +27,8 @@
 namespace rmf_rxcpp {
 
 class RxCppExecutor :
-    public rclcpp::Executor,
-    public std::enable_shared_from_this<RxCppExecutor>
+  public rclcpp::Executor,
+  public std::enable_shared_from_this<RxCppExecutor>
 {
 public:
   RxCppExecutor(
@@ -48,27 +48,27 @@ public:
     _stopping = false;
     _stopped = false;
     const auto keep_spinning = [&]()
-    {
-      return !_stopping && rclcpp::ok(context_);
-    };
+      {
+        return !_stopping && rclcpp::ok(context_);
+      };
 
     while (keep_spinning())
     {
       _work_scheduled = true;
       _worker.schedule([w = weak_from_this()](const auto&)
-      {
-        if (const auto& self = w.lock())
         {
-          self->spin_some();
-
+          if (const auto& self = w.lock())
           {
-            std::lock_guard<std::mutex> lock(self->_mutex);
-            self->_work_scheduled = false;
-          }
+            self->spin_some();
 
-          self->_cv.notify_all();
-        }
-      });
+            {
+              std::lock_guard<std::mutex> lock(self->_mutex);
+              self->_work_scheduled = false;
+            }
+
+            self->_cv.notify_all();
+          }
+        });
 
       {
         std::unique_lock<std::mutex> lock(_mutex);
@@ -78,9 +78,9 @@ public:
           // longer any work scheduled (or if we're no longer supposed to keep
           // spinning).
           _cv.wait_for(lock, std::chrono::milliseconds(50), [&]()
-          {
-            return !_work_scheduled || !keep_spinning();
-          });
+            {
+              return !_work_scheduled || !keep_spinning();
+            });
         }
       }
 
@@ -133,12 +133,12 @@ class Transport : public rclcpp::Node
 public:
 
   explicit Transport(
-      rxcpp::schedulers::worker worker,
-      const std::string& node_name,
-      const rclcpp::NodeOptions& options = rclcpp::NodeOptions())
-    : rclcpp::Node{node_name, options},
-      _executor{std::make_shared<RxCppExecutor>(
-                  worker, _make_exec_args(options))}
+    rxcpp::schedulers::worker worker,
+    const std::string& node_name,
+    const rclcpp::NodeOptions& options = rclcpp::NodeOptions())
+  : rclcpp::Node{node_name, options},
+    _executor{std::make_shared<RxCppExecutor>(
+        worker, _make_exec_args(options))}
   {
     // Do nothing
   }
@@ -162,9 +162,9 @@ public:
     _stopping = false;
 
     _spin_thread = std::thread([&]()
-    {
-      _executor->spin();
-    });
+        {
+          _executor->spin();
+        });
   }
 
   void stop()
@@ -190,7 +190,7 @@ public:
       if (!_executor->stopped())
       {
         _executor->stopped_cv().wait(
-              lock, [&](){ return _executor->stopped(); });
+          lock, [&]() { return _executor->stopped(); });
       }
     }
   }
@@ -219,10 +219,11 @@ public:
   {
     auto wrapper = std::make_shared<detail::SubscriptionWrapper<Message>>(
       shared_from_this(), topic_name, qos);
-    return rxcpp::observable<>::create<typename Message::SharedPtr>([wrapper](const auto& s)
-    {
-      (*wrapper)(s);
-    }).publish().ref_count().observe_on(rxcpp::observe_on_event_loop());
+    return rxcpp::observable<>::create<typename Message::SharedPtr>([wrapper](
+          const auto& s)
+        {
+          (*wrapper)(s);
+        }).publish().ref_count().observe_on(rxcpp::observe_on_event_loop());
   }
 
   ~Transport()
@@ -239,7 +240,7 @@ private:
   std::thread _spin_thread;
 
   static rclcpp::ExecutorOptions _make_exec_args(
-      const rclcpp::NodeOptions& options)
+    const rclcpp::NodeOptions& options)
   {
     rclcpp::ExecutorOptions exec_args;
     exec_args.context = options.context();

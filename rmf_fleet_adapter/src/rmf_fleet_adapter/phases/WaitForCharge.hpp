@@ -34,9 +34,9 @@ public:
   using StatusMsg = Task::StatusMsg;
   class Pending;
 
-  class Active 
+  class Active
     : public Task::ActivePhase,
-      public std::enable_shared_from_this<Active>
+    public std::enable_shared_from_this<Active>
   {
   public:
 
@@ -53,8 +53,8 @@ public:
     void cancel() final;
 
     // Documentation inherited from ActivePhase
-    const std::string & description() const final;
-  
+    const std::string& description() const final;
+
   private:
     friend class Pending;
     Active(
@@ -83,7 +83,7 @@ public:
 
     // Documentation inherited
     const std::string& description() const final;
-  
+
   private:
     friend class WaitForCharge;
     Pending(

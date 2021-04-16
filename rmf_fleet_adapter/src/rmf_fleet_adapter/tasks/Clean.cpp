@@ -24,15 +24,15 @@ namespace tasks {
 
 //==============================================================================
 std::shared_ptr<Task> make_clean(
-    const rmf_task::ConstRequestPtr request,
-    const agv::RobotContextPtr& context,
-    const rmf_traffic::agv::Plan::Start clean_start,
-    const rmf_traffic::Time deployment_time,
-    const rmf_task::agv::State finish_state)
+  const rmf_task::ConstRequestPtr request,
+  const agv::RobotContextPtr& context,
+  const rmf_traffic::agv::Plan::Start clean_start,
+  const rmf_traffic::Time deployment_time,
+  const rmf_task::agv::State finish_state)
 {
-  std::shared_ptr<const rmf_task::requests::CleanDescription> description = 
+  std::shared_ptr<const rmf_task::requests::CleanDescription> description =
     std::dynamic_pointer_cast<
-      const rmf_task::requests::CleanDescription>(request->description());
+    const rmf_task::requests::CleanDescription>(request->description());
 
   if (description == nullptr)
     return nullptr;
@@ -42,9 +42,9 @@ std::shared_ptr<Task> make_clean(
   rmf_traffic::agv::Planner::Goal end_goal{description->end_waypoint()};
   Task::PendingPhases phases;
   phases.push_back(
-        phases::GoToPlace::make(context, std::move(clean_start), clean_goal));
+    phases::GoToPlace::make(context, std::move(clean_start), clean_goal));
   phases.push_back(
-        phases::GoToPlace::make(context, std::move(end_start), end_goal));
+    phases::GoToPlace::make(context, std::move(end_start), end_goal));
 
   return Task::make(
     request->id(),

@@ -33,7 +33,7 @@ namespace blockade {
 namespace {
 //==============================================================================
 class RectifierFactory
-    : public rmf_traffic::blockade::RectificationRequesterFactory
+  : public rmf_traffic::blockade::RectificationRequesterFactory
 {
 public:
 
@@ -52,7 +52,7 @@ public:
     std::shared_ptr<RectifierStub> stub;
 
     Requester(rmf_traffic::blockade::Rectifier rectifier_)
-      : rectifier(std::move(rectifier_))
+    : rectifier(std::move(rectifier_))
     {
       // The stub field gets initialized later by make(...)
     }
@@ -89,22 +89,22 @@ public:
   std::mutex factory_mutex;
 
   RectifierFactory(
-      rclcpp::Node& node,
-      std::shared_ptr<rmf_traffic::blockade::Writer> writer)
-    : weak_writer(std::move(writer))
+    rclcpp::Node& node,
+    std::shared_ptr<rmf_traffic::blockade::Writer> writer)
+  : weak_writer(std::move(writer))
   {
     heartbeat_sub = node.create_subscription<HeartbeatMsg>(
-          BlockadeHeartbeatTopicName,
-          rclcpp::SystemDefaultsQoS().reliable(),
-          [&](const HeartbeatMsg::UniquePtr msg)
-    {
-      check_status(*msg);
-    });
+      BlockadeHeartbeatTopicName,
+      rclcpp::SystemDefaultsQoS().reliable(),
+      [&](const HeartbeatMsg::UniquePtr msg)
+      {
+        check_status(*msg);
+      });
   }
 
   std::unique_ptr<rmf_traffic::blockade::RectificationRequester> make(
-      rmf_traffic::blockade::Rectifier rectifier,
-      rmf_traffic::blockade::ParticipantId participant_id) final
+    rmf_traffic::blockade::Rectifier rectifier,
+    rmf_traffic::blockade::ParticipantId participant_id) final
   {
     auto c_it = pending_callbacks.find(participant_id);
     assert(c_it != pending_callbacks.end());
@@ -114,10 +114,10 @@ public:
 
     auto requester = std::make_unique<Requester>(std::move(rectifier));
     requester->stub = std::make_shared<RectifierStub>(
-          RectifierStub{
-            *requester,
-            std::nullopt,
-            std::move(callback)});
+      RectifierStub{
+        *requester,
+        std::nullopt,
+        std::move(callback)});
 
     stub_map.insert({participant_id, requester->stub});
 
@@ -222,8 +222,8 @@ class Writer::Implementation
 public:
 
   class Transport
-      : public rmf_traffic::blockade::Writer,
-        public std::enable_shared_from_this<Transport>
+    : public rmf_traffic::blockade::Writer,
+    public std::enable_shared_from_this<Transport>
   {
   public:
     std::shared_ptr<RectifierFactory> rectifier_factory;
@@ -245,7 +245,7 @@ public:
     {
       auto transport = std::make_shared<Transport>(node);
       transport->rectifier_factory =
-          std::make_shared<RectifierFactory>(node, transport);
+        std::make_shared<RectifierFactory>(node, transport);
 
       return transport;
     }
@@ -253,24 +253,24 @@ public:
     Transport(rclcpp::Node& node)
     {
       set_pub = node.create_publisher<Set>(
-            BlockadeSetTopicName,
-            rclcpp::SystemDefaultsQoS().best_effort());
+        BlockadeSetTopicName,
+        rclcpp::SystemDefaultsQoS().best_effort());
 
       ready_pub = node.create_publisher<Ready>(
-            BlockadeReadyTopicName,
-            rclcpp::SystemDefaultsQoS().best_effort());
+        BlockadeReadyTopicName,
+        rclcpp::SystemDefaultsQoS().best_effort());
 
       reached_pub = node.create_publisher<Reached>(
-            BlockadeReachedTopicName,
-            rclcpp::SystemDefaultsQoS().best_effort());
+        BlockadeReachedTopicName,
+        rclcpp::SystemDefaultsQoS().best_effort());
 
       release_pub = node.create_publisher<Release>(
-            BlockadeReleaseTopicName,
-            rclcpp::SystemDefaultsQoS().best_effort());
+        BlockadeReleaseTopicName,
+        rclcpp::SystemDefaultsQoS().best_effort());
 
       cancel_pub = node.create_publisher<Cancel>(
-            BlockadeCancelTopicName,
-            rclcpp::SystemDefaultsQoS().best_effort());
+        BlockadeCancelTopicName,
+        rclcpp::SystemDefaultsQoS().best_effort());
     }
 
     using ParticipantId = rmf_traffic::blockade::ParticipantId;
@@ -278,20 +278,20 @@ public:
     using CheckpointId = rmf_traffic::blockade::CheckpointId;
 
     rmf_traffic::blockade::Participant make_participant(
-        ParticipantId id,
-        double radius,
-        NewRangeCallback range_cb)
+      ParticipantId id,
+      double radius,
+      NewRangeCallback range_cb)
     {
       std::unique_lock<std::mutex> lock(rectifier_factory->factory_mutex);
       rectifier_factory->pending_callbacks.insert({id, std::move(range_cb)});
       return rmf_traffic::blockade::make_participant(
-            id, radius, shared_from_this(), rectifier_factory);
+        id, radius, shared_from_this(), rectifier_factory);
     }
 
     void set(
-        const ParticipantId participant_id,
-        const ReservationId reservation_id,
-        const Reservation& reservation) final
+      const ParticipantId participant_id,
+      const ReservationId reservation_id,
+      const Reservation& reservation) final
     {
       std::vector<Checkpoint> checkpoints;
       checkpoints.reserve(reservation.path.size());
@@ -307,66 +307,66 @@ public:
       }
 
       auto msg =
-          rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeSet>()
-          .participant(participant_id)
-          .reservation(reservation_id)
-          .radius(reservation.radius)
-          .path(std::move(checkpoints));
+        rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeSet>()
+        .participant(participant_id)
+        .reservation(reservation_id)
+        .radius(reservation.radius)
+        .path(std::move(checkpoints));
 
       set_pub->publish(msg);
     }
 
     void ready(
-        const ParticipantId participant_id,
-        const ReservationId reservation_id,
-        const CheckpointId checkpoint) final
+      const ParticipantId participant_id,
+      const ReservationId reservation_id,
+      const CheckpointId checkpoint) final
     {
       auto msg =
-          rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeReady>()
-          .participant(participant_id)
-          .reservation(reservation_id)
-          .checkpoint(checkpoint);
+        rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeReady>()
+        .participant(participant_id)
+        .reservation(reservation_id)
+        .checkpoint(checkpoint);
 
       ready_pub->publish(msg);
     }
 
     void release(
-        ParticipantId participant_id,
-        ReservationId reservation_id,
-        CheckpointId checkpoint) final
+      ParticipantId participant_id,
+      ReservationId reservation_id,
+      CheckpointId checkpoint) final
     {
       auto msg =
-          rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeRelease>()
-          .participant(participant_id)
-          .reservation(reservation_id)
-          .checkpoint(checkpoint);
+        rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeRelease>()
+        .participant(participant_id)
+        .reservation(reservation_id)
+        .checkpoint(checkpoint);
 
       release_pub->publish(msg);
     }
 
     void reached(
-        const ParticipantId participant_id,
-        const ReservationId reservation_id,
-        const CheckpointId checkpoint) final
+      const ParticipantId participant_id,
+      const ReservationId reservation_id,
+      const CheckpointId checkpoint) final
     {
       auto msg =
-          rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeReached>()
-          .participant(participant_id)
-          .reservation(reservation_id)
-          .checkpoint(checkpoint);
+        rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeReached>()
+        .participant(participant_id)
+        .reservation(reservation_id)
+        .checkpoint(checkpoint);
 
       reached_pub->publish(msg);
     }
 
     void cancel(
-        const ParticipantId participant_id,
-        const ReservationId reservation_id) final
+      const ParticipantId participant_id,
+      const ReservationId reservation_id) final
     {
       auto msg =
-          rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeCancel>()
-          .participant(participant_id)
-          .all_reservations(false)
-          .reservation(reservation_id);
+        rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeCancel>()
+        .participant(participant_id)
+        .all_reservations(false)
+        .reservation(reservation_id);
 
       cancel_pub->publish(msg);
     }
@@ -374,17 +374,17 @@ public:
     void cancel(ParticipantId participant_id) final
     {
       auto msg =
-          rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeCancel>()
-          .participant(participant_id)
-          .all_reservations(true)
-          .reservation(0);
+        rmf_traffic_msgs::build<rmf_traffic_msgs::msg::BlockadeCancel>()
+        .participant(participant_id)
+        .all_reservations(true)
+        .reservation(0);
 
       cancel_pub->publish(msg);
     }
   };
 
   Implementation(rclcpp::Node& node)
-    : transport(Transport::make(node))
+  : transport(Transport::make(node))
   {
     // Do nothing
   }
@@ -400,17 +400,17 @@ std::shared_ptr<Writer> Writer::make(rclcpp::Node& node)
 
 //==============================================================================
 rmf_traffic::blockade::Participant Writer::make_participant(
-    const rmf_traffic::blockade::ParticipantId id,
-    const double radius,
-    NewRangeCallback new_range_cb)
+  const rmf_traffic::blockade::ParticipantId id,
+  const double radius,
+  NewRangeCallback new_range_cb)
 {
   return _pimpl->transport->make_participant(
-        id, radius, std::move(new_range_cb));
+    id, radius, std::move(new_range_cb));
 }
 
 //==============================================================================
 Writer::Writer(rclcpp::Node& node)
-  : _pimpl(rmf_utils::make_unique_impl<Implementation>(node))
+: _pimpl(rmf_utils::make_unique_impl<Implementation>(node))
 {
   // Do nothing
 }

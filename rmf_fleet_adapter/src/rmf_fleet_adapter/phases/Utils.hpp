@@ -23,7 +23,8 @@
 namespace rmf_fleet_adapter {
 namespace phases {
 
-bool is_newer(const builtin_interfaces::msg::Time& a, const builtin_interfaces::msg::Time& b);
+bool is_newer(const builtin_interfaces::msg::Time& a,
+  const builtin_interfaces::msg::Time& b);
 
 } // namespace phases
 } // namespace rmf_fleet_adapter
