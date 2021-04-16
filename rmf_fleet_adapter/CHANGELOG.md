@@ -1,6 +1,4 @@
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Changelog for package rmf_fleet_adapter
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+## Changelog for package rmf_fleet_adapter
 
 1.3.0 (2021-XX-XX)
 ------------------
