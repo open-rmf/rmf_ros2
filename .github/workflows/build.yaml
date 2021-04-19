@@ -5,8 +5,6 @@ jobs:
     name: Build and test
     runs-on: ubuntu-20.04
     steps:
-      - name: pwd
-        run: pwd
       - name: deps
         uses: ros-tooling/setup-ros@v0.1
         with:
