@@ -179,9 +179,11 @@ void TaskManager::set_queue(
       start.time(a.deployment_time());
       rmf_task_msgs::msg::TaskType task_type_msg;
       const auto request = a.request();
-      if (std::dynamic_pointer_cast<
-          const rmf_task::requests::CleanDescription>(request->description()) !=
-        nullptr)
+
+      using namespace rmf_task::requests;
+
+      if (std::dynamic_pointer_cast<const CleanDescription>(
+          request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_CLEAN;
         auto task = rmf_fleet_adapter::tasks::make_clean(
@@ -194,8 +196,7 @@ void TaskManager::set_queue(
         _queue.push_back(task);
       }
 
-      else if (std::dynamic_pointer_cast<
-          const rmf_task::requests::ChargeBatteryDescription>(
+      else if (std::dynamic_pointer_cast<const ChargeBatteryDescription>(
           request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_CHARGE_BATTERY;
@@ -209,8 +210,7 @@ void TaskManager::set_queue(
         _queue.push_back(task);
       }
 
-      else if (std::dynamic_pointer_cast<
-          const rmf_task::requests::DeliveryDescription>(
+      else if (std::dynamic_pointer_cast<const DeliveryDescription>(
           request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_DELIVERY;
@@ -224,9 +224,8 @@ void TaskManager::set_queue(
         _queue.push_back(task);
       }
 
-      else if (std::dynamic_pointer_cast<
-          const rmf_task::requests::LoopDescription>(request->description()) !=
-        nullptr)
+      else if (std::dynamic_pointer_cast<const LoopDescription>(
+          request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_LOOP;
         const auto task = tasks::make_loop(
@@ -273,14 +272,17 @@ void TaskManager::set_queue(
 //==============================================================================
 const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
 {
+  using namespace rmf_task::requests;
   std::vector<rmf_task::ConstRequestPtr> requests;
   requests.reserve(_queue.size());
   for (const auto& task : _queue)
   {
-    if (std::dynamic_pointer_cast<
-        const rmf_task::requests::ChargeBatteryDescription>(
+    if (std::dynamic_pointer_cast<const ChargeBatteryDescription>(
         task->request()->description()))
+    {
       continue;
+    }
+
     requests.push_back(task->request());
   }
   return requests;

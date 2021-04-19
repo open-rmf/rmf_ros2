@@ -530,9 +530,11 @@ rmf_traffic::Time interpolate_time(
     }
   }
 
+  // *INDENT-OFF*
   throw std::runtime_error(
-          "[rmf_fleet_adapter::agv::TrafficLight] Failed to interpolate an "
-          "intermediary waypoint.");
+    "[rmf_fleet_adapter::agv::TrafficLight] Failed to interpolate an "
+    "intermediary waypoint.");
+  // *INDENT-ON*
 }
 
 //==============================================================================
@@ -1661,8 +1663,8 @@ TrafficLight::UpdateHandle::Implementation::Data::current_location() const
 }
 
 //==============================================================================
-void TrafficLight::UpdateHandle::Implementation::Data::publish_fleet_state()
-const
+void
+TrafficLight::UpdateHandle::Implementation::Data::publish_fleet_state() const
 {
   if (!last_known_location.has_value())
     return;

@@ -84,8 +84,8 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
           }
           else
           {
-            const double best_greedy_cost =
-            (*f->_greedy_evaluator.best_result.progress)->get_cost();
+            const double best_greedy_cost
+              = (*f->_greedy_evaluator.best_result.progress)->get_cost();
             const double compliant_cost = *compliant_progress.cost_estimate();
 
             if (best_greedy_cost * compliance_leeway < compliant_cost)
@@ -105,7 +105,7 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       }
 
       if (jobs::SearchForPath::Type::compliant == progress.type
-      && resume_compliant)
+        && resume_compliant)
       {
         if (f->_compliant_evaluator.evaluate(compliant->progress()))
           resume_compliant = true;

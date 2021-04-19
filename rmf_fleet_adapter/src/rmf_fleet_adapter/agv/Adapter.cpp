@@ -111,11 +111,13 @@ public:
   {
     if (!rclcpp::ok(node_options.context()))
     {
+      // *INDENT-OFF*
       throw std::runtime_error(
-              "rclcpp must be initialized before creating an Adapter! "
-              "Use rclcpp::init(int argc, char* argv[]) or "
-              "rclcpp::Context::init(int argc, char* argv[]) before calling "
-              "rmf_fleet_adapter::agv::Adapter::make(~)");
+        "rclcpp must be initialized before creating an Adapter! Use "
+        "rclcpp::init(int argc, char* argv[]) or "
+        "rclcpp::Context::init(int argc, char* argv[]) before calling "
+        "rmf_fleet_adapter::agv::Adapter::make(~)");
+      // *INDENT-ON*
     }
 
     const auto worker = rxcpp::schedulers::make_event_loop().create_worker();
@@ -188,10 +190,9 @@ std::shared_ptr<Adapter> Adapter::init_and_make(
 std::shared_ptr<Adapter> Adapter::make(
   const std::string& node_name,
   const rclcpp::NodeOptions& node_options,
-  const rmf_utils::optional<rmf_traffic::Duration> discovery_timeout)
+  const std::optional<rmf_traffic::Duration> discovery_timeout)
 {
-  auto pimpl = Implementation::make(
-    node_name, node_options, discovery_timeout);
+  auto pimpl = Implementation::make(node_name, node_options, discovery_timeout);
 
   if (pimpl)
   {
@@ -366,8 +367,7 @@ void Adapter::add_easy_traffic_light(
     robot_name](
       TrafficLight::UpdateHandlePtr update_handle)
     {
-      EasyTrafficLightPtr easy_handle =
-      EasyTrafficLight::Implementation::make(
+      EasyTrafficLightPtr easy_handle = EasyTrafficLight::Implementation::make(
         std::move(update_handle),
         std::move(pause_callback),
         std::move(resume_callback),

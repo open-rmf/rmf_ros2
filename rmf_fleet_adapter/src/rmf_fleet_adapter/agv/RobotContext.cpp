@@ -228,8 +228,8 @@ RobotContext& RobotContext::current_task_end_state(
 }
 
 //==============================================================================
-const rmf_task::agv::Constraints& RobotContext::task_planning_constraints()
-const
+const rmf_task::agv::Constraints&
+RobotContext::task_planning_constraints() const
 {
   return _task_planning_constraints;
 }

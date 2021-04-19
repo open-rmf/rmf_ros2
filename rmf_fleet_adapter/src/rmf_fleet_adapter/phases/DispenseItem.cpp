@@ -42,8 +42,8 @@ std::shared_ptr<DispenseItem::ActivePhase> DispenseItem::ActivePhase::make(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& DispenseItem::ActivePhase::observe()
-const
+const rxcpp::observable<Task::StatusMsg>&
+DispenseItem::ActivePhase::observe() const
 {
   return _obs;
 }
@@ -255,8 +255,8 @@ std::shared_ptr<Task::ActivePhase> DispenseItem::PendingPhase::begin()
 }
 
 //==============================================================================
-rmf_traffic::Duration DispenseItem::PendingPhase::estimate_phase_duration()
-const
+rmf_traffic::Duration
+DispenseItem::PendingPhase::estimate_phase_duration() const
 {
   // TODO: implement
   return rmf_traffic::Duration{0};

@@ -21,8 +21,8 @@ namespace rmf_fleet_adapter {
 namespace phases {
 
 //==============================================================================
-auto WaitForCharge::Active::observe() const -> const rxcpp::observable<StatusMsg>
-&
+auto WaitForCharge::Active::observe() const
+-> const rxcpp::observable<StatusMsg>&
 {
   return _status_obs;
 }

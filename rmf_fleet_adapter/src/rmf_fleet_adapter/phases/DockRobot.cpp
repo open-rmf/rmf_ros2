@@ -36,8 +36,8 @@ DockRobot::ActivePhase::ActivePhase(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& DockRobot::ActivePhase::observe()
-const
+const rxcpp::observable<Task::StatusMsg>&
+DockRobot::ActivePhase::observe() const
 {
   return _obs;
 }

@@ -39,8 +39,8 @@ std::shared_ptr<DoorClose::ActivePhase> DoorClose::ActivePhase::make(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& DoorClose::ActivePhase::observe()
-const
+const rxcpp::observable<Task::StatusMsg>&
+DoorClose::ActivePhase::observe() const
 {
   return _obs;
 }

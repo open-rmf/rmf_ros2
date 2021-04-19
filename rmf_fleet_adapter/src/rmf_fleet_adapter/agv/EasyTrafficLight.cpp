@@ -571,10 +571,11 @@ void EasyTrafficLight::follow_new_path(const std::vector<Waypoint>& new_path)
 {
   if (new_path.size() < 2)
   {
+    // *INDENT-OFF*
     throw std::runtime_error(
-            "[EasyTrafficLight::follow_new_path] Invalid number of waypoints given ["
-            + std::to_string(
-              new_path.size()) + "]. Must be at least 2.");
+      "[EasyTrafficLight::follow_new_path] Invalid number of waypoints given ["
+      + std::to_string(new_path.size()) + "]. Must be at least 2.");
+    // *INDENT-ON*
   }
 
   auto lock = _pimpl->lock();

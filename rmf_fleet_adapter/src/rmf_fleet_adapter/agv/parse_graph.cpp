@@ -36,15 +36,19 @@ rmf_traffic::agv::Graph parse_graph(
   const YAML::Node levels = graph_config["levels"];
   if (!levels)
   {
+    // *INDENT-OFF*
     throw std::runtime_error(
-            "Graph file [" + graph_file + "] is missing the [levels] key");
+      "Graph file [" + graph_file + "] is missing the [levels] key");
+    // *INDENT-ON*
   }
 
   if (!levels.IsMap())
   {
+    // *INDENT-OFF*
     throw std::runtime_error(
-            "The [levels] key does not point to a map in graph file ["
-            + graph_file + "]");
+      "The [levels] key does not point to a map in graph file ["
+      + graph_file + "]");
+    // *INDENT-ON*
   }
 
   using Constraint = rmf_traffic::agv::Graph::OrientationConstraint;
@@ -79,9 +83,11 @@ rmf_traffic::agv::Graph parse_graph(
         {
           if (!graph.add_key(name, wp.index()))
           {
+            // *INDENT-OFF*
             throw std::runtime_error(
-                    "Duplicated waypoint name [" + name + "] in graph ["
-                    + graph_file + "]");
+              "Duplicated waypoint name [" + name + "] in graph ["
+              + graph_file + "]");
+            // *INDENT-ON*
           }
         }
       }
@@ -158,12 +164,14 @@ rmf_traffic::agv::Graph parse_graph(
         }
         else
         {
+          // *INDENT-OFF*
           throw std::runtime_error(
-                  "Unrecognized orientation constraint label given to lane ["
-                  + std::to_string(lane[0].as<std::size_t>() + vnum) + ", "
-                  + std::to_string(lane[1].as<std::size_t>() + vnum) + "]: ["
-                  + constraint_label + "] in graph ["
-                  + graph_file + "]");
+            "Unrecognized orientation constraint label given to lane ["
+            + std::to_string(lane[0].as<std::size_t>() + vnum) + ", "
+            + std::to_string(lane[1].as<std::size_t>() + vnum) + "]: ["
+            + constraint_label + "] in graph ["
+            + graph_file + "]");
+          // *INDENT-ON*
         }
       }
 
@@ -195,13 +203,15 @@ rmf_traffic::agv::Graph parse_graph(
           {
             // If these are two lift waypoints on the same floor, then they
             // should be inside the same lift
+            // *INDENT-OFF*
             throw std::runtime_error(
-                    "Inconsistency in building map. Map [" + map_name + "] has two "
-                    "connected waypoints [" + std::to_string(
-                      begin) + " -> "
-                    + std::to_string(end) + "] that are in different lifts ["
-                    + lift_of_begin->second + " -> " + lift_of_end->second
-                    + "]. This is not supported!");
+              "Inconsistency in building map. Map [" + map_name + "] has two "
+              "connected waypoints [" + std::to_string(
+                begin) + " -> "
+              + std::to_string(end) + "] that are in different lifts ["
+              + lift_of_begin->second + " -> " + lift_of_end->second
+              + "]. This is not supported!");
+            // *INDENT-ON*
           }
 
           // If we make it here, then both waypoints are inside the same lift,
@@ -230,9 +240,11 @@ rmf_traffic::agv::Graph parse_graph(
 
           if (!lift_name_option)
           {
+            // *INDENT-OFF*
             throw std::runtime_error(
-                    "Missing [demo_mock_lift_name] parameter which is required for "
-                    "mock lifts");
+              "Missing [demo_mock_lift_name] parameter which is required for "
+              "mock lifts");
+            // *INDENT-ON*
           }
 
           // TODO(MXG): This implementation is not air tight. After a robot has

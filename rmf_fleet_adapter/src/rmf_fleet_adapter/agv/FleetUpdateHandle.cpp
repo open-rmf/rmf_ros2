@@ -1085,8 +1085,8 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
       if (!self)
         return;
 
-      const auto& current_lane_closures =
-      (*self->_pimpl->planner)->get_configuration().lane_closures();
+      const auto& current_lane_closures
+        = (*self->_pimpl->planner)->get_configuration().lane_closures();
 
       bool any_changes = false;
       for (const auto& lane : lane_indices)
@@ -1109,8 +1109,8 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
       for (const auto& lane : lane_indices)
         new_lane_closures.close(lane);
 
-      *self->_pimpl->planner =
-      std::make_shared<const rmf_traffic::agv::Planner>(
+      *self->_pimpl->planner
+        = std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
     });
 }
@@ -1125,8 +1125,8 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
       if (!self)
         return;
 
-      const auto& current_lane_closures =
-      (*self->_pimpl->planner)->get_configuration().lane_closures();
+      const auto& current_lane_closures
+        = (*self->_pimpl->planner)->get_configuration().lane_closures();
 
       bool any_changes = false;
       for (const auto& lane : lane_indices)
@@ -1149,8 +1149,8 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
       for (const auto& lane : lane_indices)
         new_lane_closures.open(lane);
 
-      *self->_pimpl->planner =
-      std::make_shared<const rmf_traffic::agv::Planner>(
+      *self->_pimpl->planner
+        = std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
     });
 }
@@ -1173,14 +1173,14 @@ FleetUpdateHandle& FleetUpdateHandle::accept_delivery_requests(
 
 //==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::default_maximum_delay(
-  rmf_utils::optional<rmf_traffic::Duration> value)
+  std::optional<rmf_traffic::Duration> value)
 {
   _pimpl->default_maximum_delay = value;
   return *this;
 }
 
 //==============================================================================
-rmf_utils::optional<rmf_traffic::Duration>
+std::optional<rmf_traffic::Duration>
 FleetUpdateHandle::default_maximum_delay() const
 {
   return _pimpl->default_maximum_delay;

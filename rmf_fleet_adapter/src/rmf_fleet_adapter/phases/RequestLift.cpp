@@ -43,8 +43,8 @@ std::shared_ptr<RequestLift::ActivePhase> RequestLift::ActivePhase::make(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& RequestLift::ActivePhase::observe()
-const
+const rxcpp::observable<Task::StatusMsg>&
+RequestLift::ActivePhase::observe() const
 {
   return _obs;
 }

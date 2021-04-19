@@ -163,7 +163,7 @@ public:
     std::optional<rmf_traffic::Duration> value);
 
   /// Get the default value for the maximum acceptable delay.
-  rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay() const;
+  std::optional<rmf_traffic::Duration> default_maximum_delay() const;
 
   /// Specify a period for how often the fleet state message is published for
   /// this fleet. Passing in std::nullopt will disable the fleet state message

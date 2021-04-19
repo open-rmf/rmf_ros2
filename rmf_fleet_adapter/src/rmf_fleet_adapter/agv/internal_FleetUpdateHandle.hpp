@@ -156,9 +156,8 @@ public:
   std::unordered_map<RobotContextPtr,
     std::shared_ptr<TaskManager>> task_managers = {};
 
-  rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr fleet_state_pub
-    =
-    nullptr;
+  rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr
+    fleet_state_pub = nullptr;
   rclcpp::TimerBase::SharedPtr fleet_state_timer = nullptr;
 
   // Map task id to pair of <RequestPtr, Assignments>

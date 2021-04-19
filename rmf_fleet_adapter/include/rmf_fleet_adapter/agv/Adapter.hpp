@@ -51,8 +51,7 @@ public:
   /// \sa make()
   static std::shared_ptr<Adapter> init_and_make(
     const std::string& node_name,
-    rmf_utils::optional<rmf_traffic::Duration> discovery_timeout =
-    rmf_utils::nullopt);
+    std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt);
 
   /// Make an adapter instance. This will instantiate an rclcpp::Node and allow
   /// you to add fleets to be adapted.
@@ -77,8 +76,7 @@ public:
   static std::shared_ptr<Adapter> make(
     const std::string& node_name,
     const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions(),
-    rmf_utils::optional<rmf_traffic::Duration> discovery_timeout =
-    rmf_utils::nullopt);
+    std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt);
 
   /// Add a fleet to be adapted.
   ///

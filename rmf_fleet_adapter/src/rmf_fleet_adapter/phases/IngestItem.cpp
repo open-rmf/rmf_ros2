@@ -42,8 +42,8 @@ std::shared_ptr<IngestItem::ActivePhase> IngestItem::ActivePhase::make(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& IngestItem::ActivePhase::observe()
-const
+const rxcpp::observable<Task::StatusMsg>&
+IngestItem::ActivePhase::observe() const
 {
   return _obs;
 }

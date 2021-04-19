@@ -51,8 +51,10 @@ RobotUpdateHandle::Implementation::get_context() const
 void RobotUpdateHandle::interrupted()
 {
   if (const auto context = _pimpl->get_context())
+  {
     context->_interrupt_publisher.get_subscriber().on_next(
       RobotContext::Empty());
+  }
 }
 
 //==============================================================================
@@ -83,9 +85,11 @@ void RobotUpdateHandle::update_position(
   {
     if (lanes.empty())
     {
+      // *INDENT-OFF*
       throw std::runtime_error(
-              "[RobotUpdateHandle::update_position] No lanes specified for "
-              "function signature that requires at least one lane.");
+        "[RobotUpdateHandle::update_position] No lanes specified for "
+        "function signature that requires at least one lane.");
+      // *INDENT-ON*
     }
 
     const auto now = rmf_traffic_ros2::convert(context->node()->now());
