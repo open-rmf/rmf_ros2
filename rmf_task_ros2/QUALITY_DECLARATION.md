@@ -48,7 +48,7 @@ All launch files in the installed `launch` directory are considered part of the 
 
 ### Contributor Origin [2.ii]
 
-`rmf_task_ros2` does not require a confirmation of contributor origin.
+`rmf_task_ros2` uses DCO as its confirmation of contributor origin policy. More information can be found in [CONTRIBUTING](../CONTRIBUTING.md).
 
 ### Peer Review Policy [2.iii]
 
@@ -58,7 +58,7 @@ All pull requests must have at least 1 peer review.
 
 All pull requests must pass CI on all platforms supported by RMF.
 
-The most recent CI results can be seen on [the workflow page](https://github.com/open-rmf/rmf_core_ros2/actions).
+The most recent CI results can be seen on [the workflow page](https://github.com/open-rmf/rmf_ros2/actions).
 
 ### Documentation Policy [2.v]
 
@@ -94,14 +94,14 @@ This quality declaration has not been externally peer-reviewed and is not regist
 ### Feature Testing [4.i]
 
 Each feature in `rmf_task_ros2` has corresponding tests which simulate typical usage.
-They are located in the [`test`](https://github.com/open-rmf/rmf_core_ros2/tree/master/rmf_task_ros2/test) directory.
+They are located in the [`test`](https://github.com/open-rmf/rmf_ros2/tree/main/rmf_task_ros2/test) directory.
 New features are required to have tests before being added.
 
 ### Public API Testing [4.ii]
 
 Each part of the public API has tests, and new additions or changes to the public API require tests before being added.
 The tests are not run automatically.
-They are located in the [`test`](https://github.com/open-rmf/rmf_core_ros2/tree/master/rmf_task_ros2/test) directory.
+They are located in the [`test`](https://github.com/open-rmf/rmf_ros2/tree/main/rmf_task_ros2/test) directory.
 
 ### Coverage [4.iii]
 
@@ -125,23 +125,23 @@ Below are the required direct runtime ROS dependencies of `rmf_task_ros2` and th
 
 #### rmf\_utils
 
-`rmf_utils` is [**Quality Level 4**](https://github.com/open-rmf/rmf_utils/blob/master/rmf_core_utils/QUALITY_DECLARATION.md).
+`rmf_utils` is [**Quality Level 4**](https://github.com/open-rmf/rmf_utils/blob/main/rmf_utils/QUALITY_DECLARATION.md).
 
 #### rmf\_traffic
 
-`rmf_traffic` is [**Quality Level 4**](https://github.com/open-rmf/rmf_traffic/blob/master/rmf_traffic/QUALITY_DECLARATION.md).
+`rmf_traffic` is [**Quality Level 4**](https://github.com/open-rmf/rmf_traffic/blob/main/rmf_traffic/QUALITY_DECLARATION.md).
 
 #### rmf\_traffic\_ros2
 
-`rmf_traffic_ros2` is [**Quality Level 4**](https://github.com/open-rmf/rmf_core_ros2/blob/master/rmf_traffic_ros2/QUALITY_DECLARATION.md).
+`rmf_traffic_ros2` is [**Quality Level 4**](https://github.com/open-rmf/rmf_ros2/blob/main/rmf_traffic_ros2/QUALITY_DECLARATION.md).
 
 #### rmf\_task\_msgs
 
-`rmf_task_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_core_msgs/blob/master/rmf_task_msgs/QUALITY_DECLARATION.md).
+`rmf_task_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_internal_msgs/blob/main/rmf_task_msgs/QUALITY_DECLARATION.md).
 
 #### rclcpp
 
-`rclcpp` is [**Quality Level 3**](https://github.com/ros2/rclcpp/blob/master/rclcpp/QUALITY_DECLARATION.md).
+`rclcpp` is [**Quality Level 1**](https://github.com/ros2/rclcpp/blob/main/rclcpp/QUALITY_DECLARATION.md).
 
 ### Optional Direct Runtime ROS Dependencies [5.ii]
 
@@ -160,7 +160,7 @@ Below are the required direct runtime ROS dependencies of `rmf_task_ros2` and th
 ### Target platforms [6.i]
 
 `rmf_task_ros2` does not support all of the tier 1 platforms as described in [REP-2000](https://www.ros.org/reps/rep-2000.html#support-tiers).
-`rmf_task_ros2` supports ROS Eloquent.
+`rmf_task_ros2` supports ROS Foxy.
 
 ## Security [7]
 

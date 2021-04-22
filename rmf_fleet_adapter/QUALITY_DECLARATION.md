@@ -48,7 +48,7 @@ All launch files in the installed `launch` directory are considered part of the 
 
 ### Contributor Origin [2.ii]
 
-`rmf_fleet_adapter` does not require a confirmation of contributor origin.
+`rmf_fleet_adapter` uses DCO as its confirmation of contributor origin policy. More information can be found in [CONTRIBUTING](../CONTRIBUTING.md).
 
 ### Peer Review Policy [2.iii]
 
@@ -58,7 +58,7 @@ All pull requests must have at least 1 peer review.
 
 All pull requests must pass CI on all platforms supported by RMF.
 
-The most recent CI results can be seen on [the workflow page](https://github.com/open-rmf/rmf_core_ros2/actions).
+The most recent CI results can be seen on [the workflow page](https://github.com/open-rmf/rmf_ros2/actions).
 
 ### Documentation Policy [2.v]
 
@@ -94,14 +94,14 @@ This quality declaration has not been externally peer-reviewed and is not regist
 ### Feature Testing [4.i]
 
 Each feature in `rmf_fleet_adapter` has corresponding tests which simulate typical usage.
-They are located in the [`test`](https://github.com/open-rmf/rmf_core_ros2/tree/master/rmf_fleet_adapter/test) directory.
+They are located in the [`test`](https://github.com/open-rmf/rmf_ros2/tree/master/rmf_fleet_adapter/test) directory.
 New features are required to have tests before being added.
 
 ### Public API Testing [4.ii]
 
 Each part of the public API has tests, and new additions or changes to the public API require tests before being added.
 The tests are not run automatically.
-They are located in the [`test`](https://github.com/open-rmf/rmf_core_ros2/tree/master/rmf_fleet_adapter/test) directory.
+They are located in the [`test`](https://github.com/open-rmf/rmf_ros2/tree/master/rmf_fleet_adapter/test) directory.
 
 ### Coverage [4.iii]
 
@@ -125,43 +125,43 @@ Below are the required direct runtime ROS dependencies of `rmf_fleet_adapter` an
 
 #### rmf_utils
 
-`rmf_utils` is [**Quality Level 4**](https://github.com/open-rmf/rmf_utils/blob/master/rmf_core_utils/QUALITY_DECLARATION.md).
+`rmf_utils` is [**Quality Level 4**](https://github.com/open-rmf/rmf_utils/blob/main/rmf_utils/QUALITY_DECLARATION.md).
 
 #### rmf_door_msgs
 
-`rmf_door_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_core_msgs/blob/master/rmf_door_msgs/QUALITY_DECLARATION.md).
+`rmf_door_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_internal_msgs/blob/main/rmf_door_msgs/QUALITY_DECLARATION.md).
 
 #### rmf_ingestor_msgs
 
-`rmf_ingestor_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_core_msgs/blob/master/rmf_ingestor_msgs/QUALITY_DECLARATION.md).
+`rmf_ingestor_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_internal_msgs/blob/main/rmf_ingestor_msgs/QUALITY_DECLARATION.md).
 
 #### rmf_dispenser_msgs
 
-`rmf_dispenser_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_core_msgs/blob/master/rmf_dispenser_msgs/QUALITY_DECLARATION.md).
+`rmf_dispenser_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_internal_msgs/blob/main/rmf_dispenser_msgs/QUALITY_DECLARATION.md).
 
 #### rmf_fleet_msgs
 
-`rmf_fleet_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_core_msgs/blob/master/rmf_fleet_msgs/QUALITY_DECLARATION.md).
+`rmf_fleet_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_internal_msgs/blob/main/rmf_fleet_msgs/QUALITY_DECLARATION.md).
 
 #### rmf_lift_msgs
 
-`rmf_lift_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_core_msgs/blob/master/rmf_lift_msgs/QUALITY_DECLARATION.md).
+`rmf_lift_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_internal_msgs/blob/main/rmf_lift_msgs/QUALITY_DECLARATION.md).
 
 #### rmf_task_msgs
 
-`rmf_task_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_core_msgs/blob/master/rmf_task_msgs/QUALITY_DECLARATION.md).
+`rmf_task_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_internal_msgs/blob/main/rmf_task_msgs/QUALITY_DECLARATION.md).
 
 #### rmf_traffic
 
-`rmf_traffic` is [**Quality Level 4**](https://github.com/open-rmf/rmf_traffic/blob/master/rmf_traffic/QUALITY_DECLARATION.md).
+`rmf_traffic` is [**Quality Level 4**](https://github.com/open-rmf/rmf_traffic/blob/main/rmf_traffic/QUALITY_DECLARATION.md).
 
 #### rmf_traffic_ros2
 
-`rmf_traffic_ros2` is [**Quality Level 4**](https://github.com/open-rmf/rmf_core_ros2/blob/master/rmf_traffic_ros2/QUALITY_DECLARATION.md).
+`rmf_traffic_ros2` is [**Quality Level 4**](https://github.com/open-rmf/rmf_ros2/blob/main/rmf_traffic_ros2/QUALITY_DECLARATION.md).
 
 #### rmf_traffic_msgs
 
-`rmf_traffic_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_core_msgs/blob/master/rmf_traffic_msgs/QUALITY_DECLARATION.md).
+`rmf_traffic_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_internal_msgs/blob/main/rmf_traffic_msgs/QUALITY_DECLARATION.md).
 
 
 ### Optional Direct Runtime ROS Dependencies [5.ii]
@@ -178,7 +178,7 @@ This is assumed to be **Quality Level 2** due to its wide use, provided document
 ### Target platforms [6.i]
 
 `rmf_fleet_adapter` does not support all of the tier 1 platforms as described in [REP-2000](https://www.ros.org/reps/rep-2000.html#support-tiers).
-`rmf_fleet_adapter` supports ROS Eloquent.
+`rmf_fleet_adapter` supports ROS Foxy.
 
 ## Security [7]
 
