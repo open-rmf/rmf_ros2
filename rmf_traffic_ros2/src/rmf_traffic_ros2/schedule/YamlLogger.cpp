@@ -27,7 +27,7 @@ namespace schedule {
 class YamlLogger::Implementation 
 {
 public:
-  
+  //===========================================================================
   Implementation(std::string file_path):
   _file_path(file_path)
   {
@@ -36,6 +36,7 @@ public:
     {
       std::filesystem::create_directories(
             std::filesystem::absolute(file_path).parent_path());
+      _initial_buffer_size = 0;
       return;
     }
 
@@ -48,60 +49,79 @@ public:
         "Malformatted file - Expected the root format of the"\
         " document to be a yaml sequence");
     }
+    _initial_buffer_size = _buffer.size();
   }
 
+  //=========================================================================
   void write_operation(AtomicOperation operation)
   {
+    std::string uuid = operation.description.name() 
+        + operation.description.owner();
     std::lock_guard<std::mutex> file_lock(_mutex);
 
-    //We will use YAML's block sequence format as this friendly for appending
-    //We only need to write the latest changes to the file.
-    YAML::Emitter emmiter;
-    emmiter << YAML::BeginSeq;
-    emmiter << serialize(operation);
-    emmiter << YAML::EndSeq;
-    assert(emmiter.good());
-
-    std::ofstream outfile;
-    outfile.open(_file_path, std::ofstream::out | std::ofstream::app);
-    if(!outfile.is_open())
+    if(operation.operation == AtomicOperation::OpType::Update)
     {
-      //Unable to open the logfile successfully
-      //TODO: Figure out a way to log this error.
-      return;
+      auto index = _name_to_index[uuid];
+      AtomicOperation op {
+        AtomicOperation::OpType::Add,
+        operation.description
+      };
+      _buffer[index] = serialize(op);
     }
-    outfile << emmiter.c_str() << std::endl;
-    outfile.close();
+    else if(operation.operation == AtomicOperation::OpType::Add)
+    {
+      auto index = _buffer.size();
+      _name_to_index[uuid] = index;
+      _buffer.push_back(serialize(operation));
+    }
+
+    std::ofstream file(_file_path);
+    file << _buffer;
   }
 
+  //===========================================================================
   std::optional<AtomicOperation> read_next_record()
   {
-    if(_counter >= _buffer.size())
+    if(_counter >= _initial_buffer_size)
     {
       //We have reached the end of the file, restoration is complete.   
       return std::nullopt;
     }
-    return {atomic_operation(_buffer[_counter++])};
+
+    auto operation = atomic_operation(_buffer[_counter]);
+
+    std::string uuid = operation.description.name() + 
+      operation.description.owner();
+
+    _name_to_index[uuid] = _counter;
+    ++_counter;
+
+    return operation;
   }
 
 private:
-  YAML::Node _buffer; ///used when loading the file
+  YAML::Node _buffer; // used when loading the file
+  std::size_t _initial_buffer_size;
+  std::unordered_map<std::string, std::size_t> _name_to_index;
   std::size_t _counter;
   std::string _file_path;
   std::mutex _mutex;
 };
 
+//=============================================================================
 YamlLogger::YamlLogger(std::string file_path): 
   _pimpl(rmf_utils::make_unique_impl<Implementation>(file_path))
 {
   // Do nothing
 }
 
+//=============================================================================
 void YamlLogger::write_operation(AtomicOperation operation)
 {
   _pimpl->write_operation(operation);
 }
 
+//=============================================================================
 std::optional<AtomicOperation> YamlLogger::read_next_record()
 {
   return _pimpl->read_next_record();

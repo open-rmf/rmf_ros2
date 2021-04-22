@@ -55,7 +55,7 @@ rmf_traffic::Duration DispenseItem::ActivePhase::estimate_remaining_time() const
 }
 
 //==============================================================================
-void DispenseItem::ActivePhase::emergency_alarm(bool on)
+void DispenseItem::ActivePhase::emergency_alarm(bool)
 {
   // TODO: implement
 }

@@ -1,0 +1,46 @@
+name: build and test
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    container:
+      image: docker://ros:foxy-ros-base-focal
+    steps:
+    - name: download-deps
+      run: |
+        sudo apt update
+        sudo apt install -y wget
+        wget https://packages.osrfoundation.org/gazebo.key -O - | sudo apt-key add -
+        sudo sh -c 'echo "deb http://packages.osrfoundation.org/gazebo/ubuntu-stable `lsb_release -cs` main" > /etc/apt/sources.list.d/gazebo-stable.list'
+        sudo apt update && sudo apt install \
+          git cmake python3-pydocstyle curl libyaml-cpp-dev -y
+    - name: workspace
+      run: |
+        mkdir -p rmf_ws/src
+        cd rmf_ws/src
+        git clone https://github.com/osrf/rmf_core.git
+    - name: checkout
+      uses: actions/checkout@v2
+      with:
+        path: rmf_ws/src/rmf_fleet_adapter_python
+    - name: ros-deps
+      run: |
+        cd rmf_ws
+        rosdep update
+        rosdep install --from-paths src --ignore-src --rosdistro foxy -yr
+    - name: build
+      shell: bash
+      run: |
+        cd rmf_ws
+        source /opt/ros/foxy/setup.bash
+        colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+    - name: test
+      shell: bash
+      run: |
+        cd rmf_ws/
+        source install/setup.bash
+        colcon test --packages-select rmf_fleet_adapter_python

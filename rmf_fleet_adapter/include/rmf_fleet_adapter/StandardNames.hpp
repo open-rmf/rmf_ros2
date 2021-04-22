@@ -57,6 +57,9 @@ const std::string DispatchAckTopicName = "rmf_task/dispatch_ack";
 
 const std::string DockSummaryTopicName = "dock_summary";
 
+const std::string LaneClosureRequestTopicName = "lane_closure_requests";
+const std::string ClosedLaneTopicName = "closed_lanes";
+
 } // namespace rmf_fleet_adapter
 
 #endif // RMF_FLEET_ADAPTER__STANDARDNAMES_HPP

@@ -79,7 +79,8 @@ auto Task::pending_phases() const -> const PendingPhases&
 void Task::cancel()
 {
   _pending_phases.clear();
-  _active_phase->cancel();
+  if (_active_phase)
+    _active_phase->cancel();
 }
 
 //==============================================================================

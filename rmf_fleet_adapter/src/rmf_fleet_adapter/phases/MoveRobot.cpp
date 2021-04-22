@@ -24,8 +24,10 @@ namespace phases {
 //==============================================================================
 MoveRobot::ActivePhase::ActivePhase(
   agv::RobotContextPtr context,
-  std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints)
-  : _context{std::move(context)}
+  std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints,
+  std::optional<rmf_traffic::Duration> tail_period)
+: _context{std::move(context)},
+  _tail_period(tail_period)
 {
   std::ostringstream oss;
   oss << "Moving [" << _context->requester_id() << "]: ("
@@ -33,7 +35,8 @@ MoveRobot::ActivePhase::ActivePhase(
       << ") -> (" << waypoints.back().position().transpose() << ")";
   _description = oss.str();
 
-  _action = std::make_shared<MoveRobot::Action>(_context, waypoints);
+  _action = std::make_shared<MoveRobot::Action>(
+    _context, waypoints, _tail_period);
 
   auto job = rmf_rxcpp::make_job<Task::StatusMsg>(_action);
   _obs = make_cancellable(job, _cancel_subject.get_observable())
@@ -55,7 +58,7 @@ rmf_traffic::Duration MoveRobot::ActivePhase::estimate_remaining_time() const
 }
 
 //==============================================================================
-void MoveRobot::ActivePhase::emergency_alarm(bool on)
+void MoveRobot::ActivePhase::emergency_alarm(bool)
 {
   // TODO: implement
 }
@@ -76,9 +79,11 @@ const std::string& MoveRobot::ActivePhase::description() const
 //==============================================================================
 MoveRobot::PendingPhase::PendingPhase(
   agv::RobotContextPtr context,
-  std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints)
-  : _context{std::move(context)},
-    _waypoints{std::move(waypoints)}
+  std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints,
+  std::optional<rmf_traffic::Duration> tail_period)
+: _context{std::move(context)},
+  _waypoints{std::move(waypoints)},
+  _tail_period(tail_period)
 {
   std::ostringstream oss;
   oss << "Move [" << _context->requester_id() << "] to ("
@@ -89,7 +94,8 @@ MoveRobot::PendingPhase::PendingPhase(
 //==============================================================================
 std::shared_ptr<Task::ActivePhase> MoveRobot::PendingPhase::begin()
 {
-  return std::make_shared<MoveRobot::ActivePhase>(_context, _waypoints);
+  return std::make_shared<MoveRobot::ActivePhase>(
+    _context, _waypoints, _tail_period);
 }
 
 //==============================================================================
@@ -106,10 +112,13 @@ const std::string& MoveRobot::PendingPhase::description() const
 }
 
 //==============================================================================
-MoveRobot::Action::Action(agv::RobotContextPtr& context,
-  std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints)
+MoveRobot::Action::Action(
+  agv::RobotContextPtr& context,
+  std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
+  std::optional<rmf_traffic::Duration> tail_period)
   : _context{context},
-    _waypoints{waypoints}
+    _waypoints{waypoints},
+    _tail_period{tail_period}
 {
   // no op
 }

@@ -31,6 +31,8 @@
 #include <rmf_fleet_msgs/msg/path_request.hpp>
 #include <rmf_fleet_msgs/msg/mode_request.hpp>
 #include <rmf_fleet_msgs/srv/lift_clearance.hpp>
+#include <rmf_fleet_msgs/msg/lane_request.hpp>
+#include <rmf_fleet_msgs/msg/closed_lanes.hpp>
 
 // RMF Task messages
 #include <rmf_task_msgs/msg/task_type.hpp>
@@ -70,6 +72,75 @@ convert_decision(uint32_t decision)
   std::cerr << "Received undefined value for lift clearance service: "
             << decision << std::endl;
   return RobotUpdateHandle::Unstable::Decision::Undefined;
+}
+
+//==============================================================================
+struct DistanceFromGraph
+{
+  double value;
+  std::size_t index;
+
+  enum Type
+  {
+    Waypoint = 0,
+    Lane
+  };
+  Type type;
+};
+
+//==============================================================================
+std::optional<DistanceFromGraph> distance_from_graph(
+  const rmf_fleet_msgs::msg::Location& l,
+  const rmf_traffic::agv::Graph& graph)
+{
+  std::optional<DistanceFromGraph> output;
+  const Eigen::Vector2d p = {l.x, l.y};
+  const std::string& map = l.level_name;
+
+  for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
+  {
+    const auto& wp = graph.get_waypoint(i);
+    if (wp.get_map_name() != map)
+      continue;
+
+    const double dist = (wp.get_location() - p).norm();
+    if (!output.has_value() || (dist < output->value))
+    {
+      output = DistanceFromGraph{dist, i, DistanceFromGraph::Waypoint};
+    }
+  }
+
+  for (std::size_t i = 0; i < graph.num_lanes(); ++i)
+  {
+    const auto& lane = graph.get_lane(i);
+    const auto& wp0 = graph.get_waypoint(lane.entry().waypoint_index());
+    const auto& wp1 = graph.get_waypoint(lane.exit().waypoint_index());
+
+    if (map != wp0.get_map_name() && map != wp1.get_map_name())
+      continue;
+
+    const Eigen::Vector2d p0 = wp0.get_location();
+    const Eigen::Vector2d p1 = wp1.get_location();
+
+    const Eigen::Vector2d dp = p - p0;
+    const Eigen::Vector2d dp1 = p1 - p0;
+
+    const double lane_length = dp1.norm();
+    if (lane_length < 1e-8)
+      continue;
+
+    const double u = dp.dot(dp1)/lane_length;
+    if (u < 0 || lane_length < u)
+      continue;
+
+    const double dist = (dp - u*dp1/lane_length).norm();
+    if (!output.has_value() || (dist < output->value))
+    {
+      output = DistanceFromGraph{dist, i, DistanceFromGraph::Lane};
+    }
+  }
+
+  return output;
 }
 
 //==============================================================================
@@ -121,6 +192,7 @@ public:
     auto lock = _lock();
     _clear_last_command();
 
+    _travel_info.target_plan_index = std::nullopt;
     _travel_info.waypoints = waypoints;
     _travel_info.next_arrival_estimator = std::move(next_arrival_estimator);
     _travel_info.path_finished_callback = std::move(path_finished_callback);
@@ -238,6 +310,7 @@ public:
   void update_state(const rmf_fleet_msgs::msg::RobotState& state)
   {
     auto lock = _lock();
+    _last_known_state = state;
 
     // Update battery soc
     const double battery_soc = state.battery_percent / 100.0;
@@ -254,6 +327,10 @@ public:
         "critical to update the battery soc with a valid battery percentage "
         "for task allocation planning.");
     }
+
+    // Reset these each time. They will get filled in by the estimation
+    // functions as necessary.
+    _travel_info.target_plan_index = std::nullopt;
 
     if (_travel_info.path_finished_callback)
     {
@@ -377,6 +454,90 @@ public:
     _travel_info.updater = std::move(updater);
   }
 
+  void newly_closed_lanes(const std::unordered_set<std::size_t>& closed_lanes)
+  {
+    bool need_to_replan = false;
+
+    if (_travel_info.target_plan_index.has_value())
+    {
+      const auto& target_wp =
+        _travel_info.waypoints.at(*_travel_info.target_plan_index);
+
+      const auto& current_lanes = target_wp.approach_lanes();
+      for (const auto& l : current_lanes)
+      {
+        if (closed_lanes.count(l))
+        {
+          need_to_replan = true;
+          const auto& lane = _travel_info.graph->get_lane(l);
+          const auto& loc = _last_known_state->location;
+          const Eigen::Vector2d p = {loc.x, loc.y};
+
+          const auto& wp0 =
+            _travel_info.graph->get_waypoint(lane.entry().waypoint_index());
+          const Eigen::Vector2d p0 = wp0.get_location();
+
+          const auto& wp1 =
+            _travel_info.graph->get_waypoint(lane.exit().waypoint_index());
+          const Eigen::Vector2d p1 = wp1.get_location();
+
+          const bool before_blocked_lane = (p-p0).dot(p1-p0) < 0.0;
+          const bool after_blocked_lane = (p-p1).dot(p1-p0) >= 0.0;
+          if (!before_blocked_lane && !after_blocked_lane)
+          {
+            // The robot is currently on a lane that has been closed. We take
+            // this to mean that the robot needs to reverse.
+            const Eigen::Vector3d position = {p.x(), p.y(), loc.yaw};
+            const auto& return_waypoint = wp0.index();
+            const auto* reverse_lane =
+              _travel_info.graph->lane_from(wp1.index(), wp0.index());
+
+            if (reverse_lane)
+            {
+              // We know what lane will reverse us back to the beginning of our
+              // current lane, so we will update our position by saying that we
+              // are on that lane.
+              std::vector<std::size_t> lanes;
+              lanes.push_back(reverse_lane->index());
+              _travel_info.updater->update_position(position, lanes);
+            }
+            else
+            {
+              // There isn't an explicit lane for getting back to the beginning of
+              // our current lane, so we will update with only our current
+              // position and the waypoint index that we intend to return to.
+              _travel_info.updater->update_position(position, return_waypoint);
+            }
+          }
+        }
+      }
+    }
+
+    if (!need_to_replan && _travel_info.target_plan_index.has_value())
+    {
+      // Check if the remainder of the current plan has been invalidated by the
+      // lane closure.
+      const auto next_index = *_travel_info.target_plan_index;
+      for (std::size_t i = next_index; i < _travel_info.waypoints.size(); ++i)
+      {
+        for (const auto& lane : _travel_info.waypoints[i].approach_lanes())
+        {
+          if (closed_lanes.count(lane))
+          {
+            need_to_replan = true;
+            break;
+          }
+        }
+
+        if (need_to_replan)
+          break;
+      }
+    }
+
+    if (need_to_replan)
+      _travel_info.updater->interrupted();
+  }
+
 private:
 
   rclcpp::Node* _node;
@@ -385,6 +546,7 @@ private:
   rmf_fleet_msgs::msg::PathRequest _current_path_request;
   std::chrono::steady_clock::time_point _path_requested_time;
   TravelInfo _travel_info;
+  std::optional<rmf_fleet_msgs::msg::RobotState> _last_known_state;
   bool _interrupted = false;
 
   rmf_fleet_msgs::msg::ModeRequest _current_dock_request;
@@ -453,6 +615,17 @@ struct Connections : public std::enable_shared_from_this<Connections>
   rclcpp::Client<rmf_fleet_msgs::srv::LiftClearance>::SharedPtr
   lift_watchdog_client;
 
+  /// The topic subscription for listening for lane closure requests
+  rclcpp::Subscription<rmf_fleet_msgs::msg::LaneRequest>::SharedPtr
+  lane_closure_request_sub;
+
+  /// The publisher for sending out closed lane statuses
+  rclcpp::Publisher<rmf_fleet_msgs::msg::ClosedLanes>::SharedPtr
+  closed_lanes_pub;
+
+  /// Container for remembering which lanes are currently closed
+  std::unordered_set<std::size_t> closed_lanes;
+
   /// The container for robot update handles
   std::unordered_map<std::string, FleetDriverRobotCommandHandlePtr>
   robots;
@@ -467,11 +640,70 @@ struct Connections : public std::enable_shared_from_this<Connections>
           path_request_pub, mode_request_pub);
 
     const auto& l = state.location;
+    const auto& starts = rmf_traffic::agv::compute_plan_starts(
+        *graph, state.location.level_name, {l.x, l.y, l.yaw},
+        rmf_traffic_ros2::convert(adapter->node()->now()));
+
+    if (starts.empty())
+    {
+      const std::optional<DistanceFromGraph> distance =
+        distance_from_graph(state.location, *graph);
+
+      std::string hint;
+      if (!distance.has_value())
+      {
+        hint = "None of the waypoints in the graph are on a map called ["
+          + l.level_name + "].";
+      }
+      else
+      {
+        const auto to_name = [&](const std::size_t index) -> std::string
+        {
+          const auto& wp = graph->get_waypoint(index);
+          if (wp.name())
+            return *wp.name();
+
+          return "#" + std::to_string(index);
+        };
+
+        if (distance->type == DistanceFromGraph::Lane)
+        {
+          const auto& lane = graph->get_lane(distance->index);
+          hint = "The closest lane on the navigation graph ["
+            + std::to_string(distance->index) + "] connects waypoint ["
+            + to_name(lane.entry().waypoint_index()) + "] to ["
+            + to_name(lane.exit().waypoint_index()) + "] and is a distance of ["
+            + std::to_string(distance->value) + "m] from the robot.";
+        }
+        else
+        {
+          hint = "The closest waypoint on the navigation graph ["
+            + to_name(distance->index) + "] is a distance of ["
+            + std::to_string(distance->value) + "m] from the robot.";
+        }
+      }
+
+      RCLCPP_ERROR(
+        adapter->node()->get_logger(),
+        "Unable to compute a StartSet for robot [%s] using level_name [%s] and "
+        "location [%f, %f, %f] specified in its RobotState message. This can "
+        "happen if the level_name in the RobotState message does not match any "
+        "of the map names in the navigation graph supplied or if the location "
+        "reported in the RobotState message is far way from the navigation "
+        "graph. This robot will not be added to the fleet [%s]. The following "
+        "hint may help with debugging: %s",
+        state.name.c_str(),
+        state.location.level_name.c_str(),
+        l.x, l.y, l.yaw,
+        fleet_name.c_str(),
+        hint.c_str());
+
+      return;
+    }
+
     fleet->add_robot(
           command, robot_name, traits->profile(),
-          rmf_traffic::agv::compute_plan_starts(
-            *graph, state.location.level_name, {l.x, l.y, l.yaw},
-            rmf_traffic_ros2::convert(adapter->node()->now())),
+          starts,
           [c = weak_from_this(), command, robot_name = std::move(robot_name)](
           const rmf_fleet_adapter::agv::RobotUpdateHandlePtr& updater)
     {
@@ -574,6 +806,50 @@ std::shared_ptr<Connections> make_fleet(
   // We disable fleet state publishing for this fleet adapter because we expect
   // the fleet drivers to publish these messages.
   connections->fleet->fleet_state_publish_period(std::nullopt);
+
+  connections->closed_lanes_pub =
+    adapter->node()->create_publisher<rmf_fleet_msgs::msg::ClosedLanes>(
+      rmf_fleet_adapter::ClosedLaneTopicName,
+      rclcpp::SystemDefaultsQoS().reliable().keep_last(1).transient_local());
+
+  connections->lane_closure_request_sub =
+    adapter->node()->create_subscription<rmf_fleet_msgs::msg::LaneRequest>(
+      rmf_fleet_adapter::LaneClosureRequestTopicName,
+      rclcpp::SystemDefaultsQoS(),
+      [w = connections->weak_from_this(), fleet_name](
+        rmf_fleet_msgs::msg::LaneRequest::UniquePtr request_msg)
+  {
+    const auto connections = w.lock();
+    if (!connections)
+      return;
+
+    connections->fleet->open_lanes(request_msg->open_lanes);
+    connections->fleet->close_lanes(request_msg->close_lanes);
+
+    std::unordered_set<std::size_t> newly_closed_lanes;
+    for (const auto& l : request_msg->close_lanes)
+    {
+      if (connections->closed_lanes.count(l) == 0)
+        newly_closed_lanes.insert(l);
+
+      connections->closed_lanes.insert(l);
+    }
+
+    for (const auto& l : request_msg->open_lanes)
+      connections->closed_lanes.erase(l);
+
+    for (auto& [_, robot] : connections->robots)
+      robot->newly_closed_lanes(newly_closed_lanes);
+
+    rmf_fleet_msgs::msg::ClosedLanes state_msg;
+    state_msg.fleet_name = fleet_name;
+    state_msg.closed_lanes.insert(
+      state_msg.closed_lanes.begin(),
+      connections->closed_lanes.begin(),
+      connections->closed_lanes.end());
+
+    connections->closed_lanes_pub->publish(state_msg);
+  });
 
   // Parameters required for task planner
   // Battery system
@@ -689,7 +965,7 @@ std::shared_ptr<Connections> make_fleet(
     {
       if (task_types.find(msg.description.task_type.type) != task_types.end())
         return true;
-      
+
       return false;
     });
 

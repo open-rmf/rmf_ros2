@@ -25,7 +25,10 @@
 
 #include <rclcpp/node.hpp>
 
-#include <rmf_traffic_msgs/msg/mirror_wakeup.hpp>
+#include <rmf_traffic_msgs/msg/mirror_update.hpp>
+#include <rmf_traffic_msgs/msg/participant.hpp>
+#include <rmf_traffic_msgs/msg/participants.hpp>
+#include <rmf_traffic_msgs/msg/request_changes.hpp>
 
 #include <rmf_traffic_msgs/msg/itinerary_clear.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_delay.hpp>
@@ -44,9 +47,7 @@
 
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
 
-#include <rmf_traffic_msgs/srv/mirror_update.hpp>
 #include <rmf_traffic_msgs/srv/register_query.hpp>
-#include <rmf_traffic_msgs/srv/mirror_update.h>
 #include <rmf_traffic_msgs/srv/unregister_query.hpp>
 #include <rmf_traffic_msgs/srv/register_participant.hpp>
 #include <rmf_traffic_msgs/srv/unregister_participant.hpp>
@@ -57,8 +58,10 @@
 
 #include <rmf_utils/Modular.hpp>
 
+#include <optional>
 #include <set>
 #include <unordered_map>
+#include <utility>
 
 namespace rmf_traffic_ros2 {
 namespace schedule {
@@ -118,20 +121,26 @@ public:
   UnregisterParticipantSrv::SharedPtr unregister_participant_service;
 
 
-  using MirrorUpdate = rmf_traffic_msgs::srv::MirrorUpdate;
-  using MirrorUpdateService = rclcpp::Service<MirrorUpdate>;
+  using MirrorUpdate = rmf_traffic_msgs::msg::MirrorUpdate;
+  using MirrorUpdateTopicPublisher = rclcpp::Publisher<MirrorUpdate>::SharedPtr;
+  struct MirrorUpdateTopicInfo
+  {
+    MirrorUpdateTopicPublisher publisher;
+    std::optional<rmf_traffic::schedule::Version> last_sent_version;
+    std::size_t subscriber_count;
+  };
+  using MirrorUpdateTopicsMap =
+    std::unordered_map<uint64_t, MirrorUpdateTopicInfo>;
+  MirrorUpdateTopicsMap mirror_update_topics;
 
-  void mirror_update(
-    const request_id_ptr& request_header,
-    const MirrorUpdate::Request::SharedPtr& request,
-    const MirrorUpdate::Response::SharedPtr& response);
+  using SingleParticipantInfo = rmf_traffic_msgs::msg::Participant;
+  using ParticipantsInfo = rmf_traffic_msgs::msg::Participants;
+  void broadcast_participants();
+  rclcpp::Publisher<ParticipantsInfo>::SharedPtr participants_info_pub;
 
-  MirrorUpdateService::SharedPtr mirror_update_service;
-
-
-  using MirrorWakeup = rmf_traffic_msgs::msg::MirrorWakeup;
-  using MirrorWakeupPublisher = rclcpp::Publisher<MirrorWakeup>;
-  MirrorWakeupPublisher::SharedPtr mirror_wakeup_publisher;
+  using RequestChanges = rmf_traffic_msgs::msg::RequestChanges;
+  void request_changes(const RequestChanges& request);
+  rclcpp::Subscription<RequestChanges>::SharedPtr request_changes_sub;
 
   using ItinerarySet = rmf_traffic_msgs::msg::ItinerarySet;
   void itinerary_set(const ItinerarySet& set);
@@ -157,7 +166,7 @@ public:
   rclcpp::Publisher<InconsistencyMsg>::SharedPtr inconsistency_pub;
   void publish_inconsistencies(rmf_traffic::schedule::ParticipantId id);
 
-  void wakeup_mirrors();
+  void update_mirrors();
 
   // TODO(MXG): Consider using libguarded instead of a database_mutex
   std::mutex database_mutex;
@@ -403,12 +412,17 @@ public:
     std::unordered_map<ParticipantId, Wait> _waiting;
     std::shared_ptr<const rmf_traffic::schedule::Snappable> _viewer;
     Version _next_negotiation_version = 0;
-    
   };
 
   ConflictRecord active_conflicts;
   std::mutex active_conflicts_mutex;
   std::shared_ptr<ParticipantRegistry> participant_registry;
+
+  // TODO(MXG): Build this into the Database/Mirror class, tracking participant
+  // description versions separately from itinerary versions.
+  std::size_t last_known_participants_version = 0;
+  std::size_t current_participants_version = 1;
+
 };
 
 } // namespace schedule

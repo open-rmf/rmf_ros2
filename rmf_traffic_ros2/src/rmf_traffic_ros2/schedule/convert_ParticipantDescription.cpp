@@ -46,4 +46,36 @@ rmf_traffic_msgs::msg::ParticipantDescription convert(
   return output;
 }
 
+//==============================================================================
+rmf_traffic::schedule::ParticipantDescriptionsMap convert(
+  const rmf_traffic_msgs::msg::Participants& from)
+{
+  rmf_traffic::schedule::ParticipantDescriptionsMap output;
+  for (const auto& participant: from.participants)
+  {
+    std::pair<
+      rmf_traffic::schedule::ParticipantId,
+      rmf_traffic::schedule::ParticipantDescription> to_insert{
+        participant.id,
+        convert(participant.description)};
+    output.insert(to_insert);
+  }
+  return output;
+}
+
+//==============================================================================
+rmf_traffic_msgs::msg::Participants convert(
+  const rmf_traffic::schedule::ParticipantDescriptionsMap& from)
+{
+  rmf_traffic_msgs::msg::Participants output;
+  for (const auto& [id, description]: from)
+  {
+    rmf_traffic_msgs::msg::Participant participant;
+    participant.id = id;
+    participant.description = convert(description);
+    output.participants.push_back(participant);
+  }
+  return output;
+}
+
 } // namespace rmf_traffic_ros2

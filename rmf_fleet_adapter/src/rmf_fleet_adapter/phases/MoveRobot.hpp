@@ -21,6 +21,8 @@
 #include "../Task.hpp"
 #include "../agv/RobotContext.hpp"
 
+#include <rmf_traffic_ros2/Time.hpp>
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
@@ -34,7 +36,8 @@ struct MoveRobot
 
     ActivePhase(
       agv::RobotContextPtr context,
-      std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints);
+      std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints,
+      std::optional<rmf_traffic::Duration> tail_period);
 
     const rxcpp::observable<Task::StatusMsg>& observe() const override;
 
@@ -53,6 +56,7 @@ struct MoveRobot
     std::shared_ptr<Action> _action;
     rxcpp::observable<Task::StatusMsg> _obs;
     rxcpp::subjects::subject<bool> _cancel_subject;
+    std::optional<rmf_traffic::Duration> _tail_period;
   };
 
   class PendingPhase : public Task::PendingPhase
@@ -61,7 +65,8 @@ struct MoveRobot
 
     PendingPhase(
       agv::RobotContextPtr context,
-      std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints);
+      std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints,
+      std::optional<rmf_traffic::Duration> tail_period);
 
     std::shared_ptr<Task::ActivePhase> begin() override;
 
@@ -73,6 +78,7 @@ struct MoveRobot
 
     agv::RobotContextPtr _context;
     std::vector<rmf_traffic::agv::Plan::Waypoint> _waypoints;
+    std::optional<rmf_traffic::Duration> _tail_period;
     std::string _description;
   };
 
@@ -82,7 +88,8 @@ struct MoveRobot
 
     Action(
       agv::RobotContextPtr& context,
-      std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints);
+      std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
+      std::optional<rmf_traffic::Duration> tail_period);
 
     template<typename Subscriber>
     void operator()(const Subscriber& s);
@@ -91,6 +98,8 @@ struct MoveRobot
 
     agv::RobotContextPtr _context;
     std::vector<rmf_traffic::agv::Plan::Waypoint> _waypoints;
+    std::optional<rmf_traffic::Duration> _tail_period;
+    std::optional<rmf_traffic::Time> _last_tail_bump;
     std::size_t _next_path_index = 0;
     bool _interrupted = false;
   };
@@ -107,6 +116,24 @@ void MoveRobot::Action::operator()(const Subscriber& s)
     const auto action = w_action.lock();
     if (!action)
       return;
+
+    if (path_index == action->_waypoints.size()-1
+        && estimate < std::chrono::seconds(1)
+        && action->_tail_period.has_value())
+    {
+      const auto now = action->_context->now();
+      if (!action->_last_tail_bump.has_value()
+          || *action->_last_tail_bump + *action->_tail_period < now)
+      {
+        action->_last_tail_bump = now;
+        action->_context->worker().schedule(
+          [context = action->_context, bump = *action->_tail_period](
+            const auto&)
+        {
+          context->itinerary().delay(bump);
+        });
+      }
+    }
 
     if (path_index != action->_next_path_index)
     {

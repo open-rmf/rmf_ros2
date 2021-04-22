@@ -100,13 +100,21 @@ add_executable(participant_node examples/participant_node.cpp)
 target_link_libraries(participant_node PUBLIC rmf_traffic_ros2)
 
 #===============================================================================
+add_executable(update_participant src/update_participant/main.cpp)
+target_link_libraries(update_participant PRIVATE rmf_traffic_ros2)
+
+#===============================================================================
 install(
   DIRECTORY include/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 install(
-  TARGETS rmf_traffic_ros2 rmf_traffic_schedule rmf_traffic_blockade
+  TARGETS
+    rmf_traffic_ros2
+    rmf_traffic_schedule
+    rmf_traffic_blockade
+    update_participant
   EXPORT rmf_traffic_ros2
   RUNTIME DESTINATION lib/rmf_traffic_ros2
   LIBRARY DESTINATION lib

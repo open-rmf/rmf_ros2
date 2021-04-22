@@ -21,6 +21,7 @@
 #include <rmf_traffic/schedule/ParticipantDescription.hpp>
 
 #include <rmf_traffic_msgs/msg/participant_description.hpp>
+#include <rmf_traffic_msgs/msg/participants.hpp>
 
 namespace rmf_traffic_ros2 {
 
@@ -31,6 +32,14 @@ rmf_traffic::schedule::ParticipantDescription convert(
 //==============================================================================
 rmf_traffic_msgs::msg::ParticipantDescription convert(
   const rmf_traffic::schedule::ParticipantDescription& from);
+
+//==============================================================================
+rmf_traffic::schedule::ParticipantDescriptionsMap convert(
+  const rmf_traffic_msgs::msg::Participants& from);
+
+//==============================================================================
+rmf_traffic_msgs::msg::Participants convert(
+  const rmf_traffic::schedule::ParticipantDescriptionsMap& from);
 
 } // namespace rmf_traffic_ros2
 

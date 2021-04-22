@@ -30,13 +30,11 @@ SCENARIO("Test idempotency of shape type")
   YAML::Node node;
 
   // Check "None"
-  auto serialized = serialize_shape_type(
-    rmf_traffic_msgs::msg::ConvexShape::NONE);
-  node["type"] = serialized;  
-  CHECK(shape_type(node["type"]) == rmf_traffic_msgs::msg::ConvexShape::NONE);
+  REQUIRE_THROWS(serialize_shape_type(
+    rmf_traffic_msgs::msg::ConvexShape::NONE));
 
   // Check "Box"
-  serialized = serialize_shape_type(rmf_traffic_msgs::msg::ConvexShape::BOX);
+  auto serialized = serialize_shape_type(rmf_traffic_msgs::msg::ConvexShape::BOX);
   node["type"] = serialized;
   CHECK(shape_type(node["type"]) == rmf_traffic_msgs::msg::ConvexShape::BOX);
 
@@ -148,8 +146,8 @@ SCENARIO("Participant registry restores participants from logger")
   
   GIVEN("A stubbed out logger")
   {
-    std::vector<AtomicOperation>* journal;
-    auto logger = std::make_unique<TestOperationLogger>(journal);
+    std::vector<AtomicOperation> journal;
+    auto logger = std::make_unique<TestOperationLogger>(&journal);
     WHEN("Creating a new DB without errors")
     {
       auto db1 = std::make_shared<Database>();
@@ -157,17 +155,25 @@ SCENARIO("Participant registry restores participants from logger")
       const auto participant_id1 = registry1.add_or_retrieve_participant(p1);
       const auto participant_id2 = registry1.add_or_retrieve_participant(p2);
       const auto participant_id3 = registry1.add_or_retrieve_participant(p3);
+
+      std::vector<AtomicOperation> journal_old = journal;
   
       THEN("Restoring DB")
       {
         auto db2 = std::make_shared<Database>();
-         auto logger2 = std::make_unique<TestOperationLogger>(journal);
+         auto logger2 = std::make_unique<TestOperationLogger>(&journal);
         ParticipantRegistry registry2(std::move(logger2), db2);
         auto restored_participants = db2->participant_ids();
         REQUIRE(restored_participants.count(participant_id1.id()) > 0);
         REQUIRE(restored_participants.count(participant_id2.id()) > 0);
         REQUIRE(restored_participants.count(participant_id3.id()) > 0);
         REQUIRE(restored_participants.size() == 3);
+
+        // Checks that the logs have not accidentally grown or shrunk or been
+        // mutated.
+        REQUIRE(journal.size() == 3);
+        for(std::size_t i = 0; i < journal.size(); i++)
+          REQUIRE(journal[i] == journal_old[i]);
   
         auto _p1 = db2->get_participant(participant_id1.id());
         auto _p2 = db2->get_participant(participant_id2.id());
