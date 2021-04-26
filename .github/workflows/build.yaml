@@ -9,70 +9,15 @@ jobs:
         uses: ros-tooling/setup-ros@v0.1
         with:
           required-ros-distributions: foxy
-
-      - name: rmf_traffic_ros2
+      - name: build_and_test
         uses: ros-tooling/action-ros-ci@v0.2
         with:
           target-ros2-distro: foxy
           # build all packages listed in the meta package
           package-name: |
-            rmf_traffic_ros2
-          vcs-repo-file-url: |
-            https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
-          colcon-defaults: |
-            {
-              "build": {
-                "cmake-args": [
-                  "-DCMAKE_C_FLAGS='--coverage -fsanitize=thread -O2 -g -fno-omit-frame-pointer'",
-                  "-DCMAKE_CXX_FLAGS='--coverage -fsanitize=thread -O2 -g -fno-omit-frame-pointer'"
-                ]
-              }
-            }
-
-      - name: rmf_task_ros2
-        uses: ros-tooling/action-ros-ci@v0.2
-        with:
-          target-ros2-distro: foxy
-          # build all packages listed in the meta package
-          package-name: |
-            rmf_task_ros2
-          vcs-repo-file-url: |
-            https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
-          colcon-defaults: |
-            {
-              "build": {
-                "cmake-args": [
-                  "-DCMAKE_C_FLAGS='--coverage -fsanitize=thread -O2 -g -fno-omit-frame-pointer'",
-                  "-DCMAKE_CXX_FLAGS='--coverage -fsanitize=thread -O2 -g -fno-omit-frame-pointer'"
-                ]
-              }
-            }
-
-      - name: rmf_fleet_adapter
-        uses: ros-tooling/action-ros-ci@v0.2
-        with:
-          target-ros2-distro: foxy
-          # build all packages listed in the meta package
-          package-name: |
-            rmf_fleet_adapter
-          vcs-repo-file-url: |
-            https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
-          colcon-defaults: |
-            {
-              "build": {
-                "cmake-args": [
-                  "-DCMAKE_C_FLAGS='--coverage -fsanitize=thread -O2 -g -fno-omit-frame-pointer'",
-                  "-DCMAKE_CXX_FLAGS='--coverage -fsanitize=thread -O2 -g -fno-omit-frame-pointer'"
-                ]
-              }
-            }
-
-      - name: rmf_fleet_adapter_python
-        uses: ros-tooling/action-ros-ci@v0.2
-        with:
-          target-ros2-distro: foxy
-          # build all packages listed in the meta package
-          package-name: |
+            rmf_traffic_ros2 |
+            rmf_task_ros2 |
+            rmf_fleet_adapter |
             rmf_fleet_adapter_python
           vcs-repo-file-url: |
             https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
@@ -85,7 +30,6 @@ jobs:
                 ]
               }
             }
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1
         with:
