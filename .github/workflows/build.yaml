@@ -15,7 +15,10 @@ jobs:
           target-ros2-distro: foxy
           # build all packages listed in the meta package
           package-name: |
-            rmf_traffic_ros2 rmf_task_ros2 rmf_fleet_adapter rmf_fleet_adapter_python
+            rmf_traffic_ros2
+            rmf_task_ros2
+            rmf_fleet_adapter
+            rmf_fleet_adapter_python
           vcs-repo-file-url: |
             https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
           colcon-defaults: |
