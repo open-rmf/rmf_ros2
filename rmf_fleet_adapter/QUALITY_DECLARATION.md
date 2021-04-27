@@ -48,7 +48,8 @@ All launch files in the installed `launch` directory are considered part of the 
 
 ### Contributor Origin [2.ii]
 
-`rmf_fleet_adapter` uses DCO as its confirmation of contributor origin policy. More information can be found in [CONTRIBUTING](../CONTRIBUTING.md).
+`rmf_fleet_adapter` uses DCO as its confirmation of contributor origin policy.
+More information can be found in [CONTRIBUTING](../CONTRIBUTING.md).
 
 ### Peer Review Policy [2.iii]
 
