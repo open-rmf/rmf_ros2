@@ -13,6 +13,8 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(stubborn_buddies QUIET)
+find_package(stubborn_buddies_msg QUIET)
 include(GNUInstallDirs)
 
 if(BUILD_TESTING)
@@ -28,6 +30,7 @@ endif()
 
 set(dep_pkgs
   rclcpp
+  rclcpp_components
   rmf_utils
   rmf_dispenser_msgs
   rmf_ingestor_msgs
@@ -251,21 +254,85 @@ target_include_directories(door_supervisor
 
 # -----------------------------------------------------------------------------
 
-add_executable(robot_state_aggregator
+add_library(robot_state_aggregator_main SHARED
   src/robot_state_aggregator/main.cpp
 )
 
-target_link_libraries(robot_state_aggregator
+target_include_directories(robot_state_aggregator_main
   PRIVATE
-    rmf_fleet_adapter
-    ${rclcpp_LIBRARIES}
-    ${rmf_fleet_msgs_LIBRARIES}
-)
-
-target_include_directories(robot_state_aggregator
-  PRIVATE
+    include
     ${rclcpp_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
+    ${stubborn_buddies_msgs_INCLUDE_DIRS})
+
+target_compile_definitions(robot_state_aggregator_main
+  PRIVATE "COMPOSITION_BUILDING_DLL"
+)
+
+if (stubborn_buddies_msgs_FOUND)
+  ament_target_dependencies(robot_state_aggregator_main
+    "rclcpp"
+    "rclcpp_components"
+    "std_msgs"
+    "stubborn_buddies_msgs"
+    "rmf_fleet_msgs"
+  )
+else (NOT stubborn_buddies_msgs_FOUND)
+  ament_target_dependencies(robot_state_aggregator_main
+    "rclcpp"
+    "rclcpp_components"
+    "std_msgs"
+    "rmf_fleet_msgs"
+  )
+endif()
+
+
+rclcpp_components_register_nodes(robot_state_aggregator_main
+  "RobotStateAggregator"
+)
+
+set(node_plugins "${node_plugins}RobotStateAggregator;
+    $<TARGET_FILE:robot_state_aggregator_main>\n")
+
+# since the package installs libraries without exporting them
+# it needs to make sure that the library path is being exported
+if(NOT WIN32)
+  ament_environment_hooks(
+    "${ament_cmake_package_templates_ENVIRONMENT_HOOK_LIBRARY_PATH}")
+endif()
+
+add_executable(robot_state_aggregator
+  src/robot_state_aggregator/linktime_composition.cpp
+)
+
+if (stubborn_buddies_FOUND)
+  message("STUBBORN BUDDIES FOUND: Adding failover capabilites")
+  add_compile_definitions(FAILOVER_MODE)
+  set(robot_state_aggregator_main_libs
+    robot_state_aggregator_main
+    stubborn_buddies::lifecycle_watchdog
+    stubborn_buddies::lifecycle_heartbeat
+  )
+else (NOT stubborn_buddies_FOUND)
+  set(robot_state_aggregator_main_libs
+    robot_state_aggregator_main
+  )
+endif()
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  set(robot_state_aggregator_main_libs
+    "-Wl,--no-as-needed"
+    ${robot_state_aggregator_main_libs}
+    "-Wl,--as-needed")
+endif()
+
+target_link_libraries(robot_state_aggregator
+  ${robot_state_aggregator_main_libs})
+
+ament_target_dependencies(robot_state_aggregator
+  "class_loader"
+  "rclcpp"
+  "rclcpp_components"
 )
 
 # -----------------------------------------------------------------------------
@@ -376,6 +443,7 @@ install(
     task_aggregator
     open_lanes
     close_lanes
+    robot_state_aggregator_main
   EXPORT rmf_fleet_adapter
   RUNTIME DESTINATION lib/rmf_fleet_adapter
   LIBRARY DESTINATION lib
