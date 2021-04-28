@@ -2,19 +2,54 @@
 
 <launch>
 
+  <arg name="failover_mode" default="false"/>
   <arg name="robot_prefix" default="" description="The prefix that this aggregator should look for in the incoming robot names"/>
   <arg name="fleet_name" description="The name that will be published in the outgoing fleet state"/>
   <arg name="use_sim_time" default="false" description="Use the /clock topic for time to sync with simulation"/>
 
-  <node pkg="rmf_fleet_adapter"
-        exec="robot_state_aggregator"
-        name="$(var fleet_name)_state_aggregator"
-        output="both">
+  <!-- failover mode was set -->
+  <group if="$(var failover_mode)">
 
-    <param name="robot_prefix" value="$(var robot_prefix)"/>
-    <param name="fleet_name" value="$(var fleet_name)"/>
-    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    <arg name="verbose" default="false" description="Extra verbosity" />
+    <!-- Launching Yin -->
+    <include file="$(find-pkg-share rmf_fleet_adapter)/robot_state_aggregator.composition.launch.xml">
+      <arg name="active_node" value="true"/>
+      <arg name="subns" value="yin"/>
+      <arg name="buddy_subns" value="yang"/>
 
-  </node>
+      <arg name="robot_prefix" value="$(var robot_prefix)"/>
+      <arg name="fleet_name" value="$(var fleet_name)"/>
+      <arg name="use_sim_time" value="$(var use_sim_time)"/>
+      <arg name="failover_mode" value="$(var failover_mode)"/>
+    </include>
+
+    <!-- Launching Yang -->
+    <include file="$(find-pkg-share rmf_fleet_adapter)/robot_state_aggregator.composition.launch.xml">
+      <arg name="active_node" value="false"/>
+      <arg name="subns" value="yang"/>
+      <arg name="buddy_subns" value="yin"/>
+
+      <arg name="robot_prefix" value="$(var robot_prefix)"/>
+      <arg name="fleet_name" value="$(var fleet_name)"/>
+      <arg name="use_sim_time" value="$(var use_sim_time)"/>
+      <arg name="failover_mode" value="$(var failover_mode)"/>
+    </include>
+  </group>
+
+  <!-- Running without failover -->
+  <group unless="$(var failover_mode)">
+
+    <node pkg="rmf_fleet_adapter"
+      exec="robot_state_aggregator"
+      name="$(var fleet_name)_state_aggregator"
+      output="both">
+
+      <param name="robot_prefix" value="$(var robot_prefix)"/>
+      <param name="fleet_name" value="$(var fleet_name)"/>
+      <param name="use_sim_time" value="$(var use_sim_time)"/>
+      <param name="active_node" value="true"/>
+      <param name="failover_mode" value="$(var failover_mode)"/>
+    </node>
+  </group>
 
 </launch>
