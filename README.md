@@ -14,7 +14,7 @@ Answers to frequently asked questions can be found [here](docs/faq.md).
 
 ## RMF
 
-More about RMF, including build instructions, can be found [here](https://github.com/open-rmf/rmf)
+More about RMF, including build instructions, can be found [here](https://github.com/open-rmf/rmf).
 
 ## Support
 
@@ -23,4 +23,4 @@ If you need support on RMF (e.g. bug reports, feature requests), you can find ou
 For general questions about RMF, you are encouraged to visit the [discussion board](https://github.com/open-rmf/rmf/discussions).
 
 ## Contributing
-Guidelines on contributing to `rmf_traffic` can be found [here](CONTRIBUTING.md).
+Guidelines on contributing to this repo can be found [here](CONTRIBUTING.md).
