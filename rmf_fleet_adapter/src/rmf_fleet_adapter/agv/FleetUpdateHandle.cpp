@@ -739,8 +739,7 @@ auto FleetUpdateHandle::Implementation::is_valid_assignments(
 
 //==============================================================================
 std::optional<std::size_t> FleetUpdateHandle::Implementation::get_nearest_charger(
-  const rmf_traffic::agv::Planner::Start& start,
-  const std::unordered_set<std::size_t>& charging_waypoints)
+  const rmf_traffic::agv::Planner::Start& start)
 {
   if (charging_waypoints.empty())
     return std::nullopt;
@@ -1011,8 +1010,7 @@ void FleetUpdateHandle::add_robot(
          fleet = shared_from_this()](
         rmf_traffic::schedule::Participant participant)
   {
-    const auto charger_wp = fleet->_pimpl->get_nearest_charger(
-        start[0], fleet->_pimpl->charging_waypoints);
+    const auto charger_wp = fleet->_pimpl->get_nearest_charger(start[0]);
     
     if (!charger_wp.has_value())
     {

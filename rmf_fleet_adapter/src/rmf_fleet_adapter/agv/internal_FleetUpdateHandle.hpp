@@ -172,8 +172,6 @@ public:
 
   // TODO Support for various charging configurations
   std::unordered_set<std::size_t> charging_waypoints = {};
-  // We assume each robot has a designated charging waypoint
-  std::unordered_set<std::size_t> available_charging_waypoints = {};
 
   double current_assignment_cost = 0.0;
   // Map to store task id with assignments for BidNotice
@@ -272,8 +270,6 @@ public:
       if (graph.get_waypoint(i).is_charger())
         handle._pimpl->charging_waypoints.insert(i);
     }
-    handle._pimpl->available_charging_waypoints =
-      handle._pimpl->charging_waypoints;
 
     return std::make_shared<FleetUpdateHandle>(std::move(handle));
   }
@@ -285,8 +281,7 @@ public:
   void dispatch_request_cb(const DispatchRequest::SharedPtr msg);
 
   std::optional<std::size_t> get_nearest_charger(
-    const rmf_traffic::agv::Planner::Start& start,
-    const std::unordered_set<std::size_t>& charging_waypoints);
+    const rmf_traffic::agv::Planner::Start& start);
 
   /// Generate task assignments for a collection of task requests comprising of
   /// task requests currently in TaskManager queues while optionally including a  
