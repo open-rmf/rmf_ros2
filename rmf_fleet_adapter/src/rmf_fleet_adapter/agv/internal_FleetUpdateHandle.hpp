@@ -266,10 +266,12 @@ public:
         });
 
     // Populate charging waypoints
-    const std::size_t num_waypoints =
-      (*handle._pimpl->planner)->get_configuration().graph().num_waypoints();
-    for (std::size_t i = 0; i < num_waypoints; ++i)
-      handle._pimpl->charging_waypoints.insert(i);
+    const auto& graph = (*handle._pimpl->planner)->get_configuration().graph();
+    for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
+    {
+      if (graph.get_waypoint(i).is_charger())
+        handle._pimpl->charging_waypoints.insert(i);
+    }
     handle._pimpl->available_charging_waypoints =
       handle._pimpl->charging_waypoints;
 
@@ -282,7 +284,7 @@ public:
 
   void dispatch_request_cb(const DispatchRequest::SharedPtr msg);
 
-  std::size_t get_nearest_charger(
+  std::optional<std::size_t> get_nearest_charger(
     const rmf_traffic::agv::Planner::Start& start,
     const std::unordered_set<std::size_t>& charging_waypoints);
 
