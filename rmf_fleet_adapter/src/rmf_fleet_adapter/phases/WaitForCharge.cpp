@@ -132,7 +132,7 @@ std::shared_ptr<Task::ActivePhase> WaitForCharge::Pending::begin()
 
             RCLCPP_INFO(
               active->_context->node()->get_logger(),
-              "Robot [%s] is still waiting for its battery to charge to %.1f%% . "
+              "Robot [%s] is still waiting for its battery to charge to %.1f%%. "
               "The current battery percentage is %.1f%%. The robot is charging at "
               "an average rate of %.1f Ampere/hour. The expected charging rate is  "
               "%.1f Ampere/hour. If the battery percentage has not been rising, "
