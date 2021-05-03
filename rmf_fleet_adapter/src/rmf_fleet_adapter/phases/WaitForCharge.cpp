@@ -68,8 +68,10 @@ WaitForCharge::Active::Active(
 {
 
   _last_update_time = start_time;
-
   _initial_battery_soc = _context->current_battery_soc();
+  _expected_charging_rate = (100.0 / (
+    _battery_system.capacity() /
+    _battery_system.charging_current()));
 
   _description = "Charging [" + _context->requester_id() + "] to ["
       + std::to_string(100.0 * _charge_to_soc) + "]";
@@ -125,23 +127,20 @@ std::shared_ptr<Task::ActivePhase> WaitForCharge::Pending::begin()
             const double elapsed_seconds = 
               (now - active->_start_time).count() / 1e9;
             const double average_charging_rate =
-              delta_soc / (elapsed_seconds / 3600.0);
-            const double expected_charging_rate =
-              active->_battery_system.capacity() /
-              active->_battery_system.charging_current();
+              100.0 * delta_soc / (elapsed_seconds / 3600.0);
 
             RCLCPP_INFO(
               active->_context->node()->get_logger(),
               "Robot [%s] is still waiting for its battery to charge to %.1f%%. "
-              "The current battery percentage is %.1f%%. The robot is charging at "
-              "an average rate of %.1f Ampere/hour. The expected charging rate is  "
-              "%.1f Ampere/hour. If the battery percentage has not been rising, "
+              "The current battery percentage is %.1f%%. The robot is charging "
+              "at an average rate of %.1f %%/hour. The expected charging rate "
+              "is %.1f %%/hour. If the battery percentage has not been rising, "
               "please check that the robot is connected to its charger.",
               active->_context->name().c_str(),
               active->_charge_to_soc * 100.0,
               battery_soc * 100,
               average_charging_rate,
-              expected_charging_rate);
+              active->_expected_charging_rate);
             
             active->_last_update_time = now;
           }

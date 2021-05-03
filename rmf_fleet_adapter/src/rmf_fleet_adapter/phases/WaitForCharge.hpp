@@ -75,6 +75,7 @@ public:
     rmf_traffic::Time _start_time;
     rmf_traffic::Time _last_update_time;
     double _initial_battery_soc;
+    double _expected_charging_rate; // % per hour
 
   };
 
