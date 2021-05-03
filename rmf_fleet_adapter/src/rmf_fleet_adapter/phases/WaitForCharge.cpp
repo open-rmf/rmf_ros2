@@ -66,7 +66,6 @@ WaitForCharge::Active::Active(
   _charge_to_soc(charge_to_soc),
   _start_time(start_time)
 {
-
   _last_update_time = start_time;
   _initial_battery_soc = _context->current_battery_soc();
   _expected_charging_rate = (100.0 / (

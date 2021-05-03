@@ -744,23 +744,16 @@ std::optional<std::size_t> FleetUpdateHandle::Implementation::get_nearest_charge
   if (charging_waypoints.empty())
     return std::nullopt;
 
-  const auto& graph = (*planner)->get_configuration().graph();
-  Eigen::Vector2d p = graph.get_waypoint(start.waypoint()).get_location();
-
-  if (start.location().has_value())
-    p = *start.location();
-
-  double min_dist = std::numeric_limits<double>::max();
-  std::size_t nearest_charger = 0;
+  double min_cost = std::numeric_limits<double>::max();
+  std::optional<std::size_t> nearest_charger = std::nullopt;
   for (const auto& wp : charging_waypoints)
   {
-    const auto loc = graph.get_waypoint(wp).get_location();
-    // TODO: Replace this with a planner call
-    // when the performance improvements are finished
-    const double dist = (loc - p).norm();
-    if (dist < min_dist)
+    const rmf_traffic::agv::Planner::Goal goal{wp};
+    const auto& planner_result = (*planner)->plan(start, goal);
+    const auto ideal_cost = planner_result.ideal_cost();
+    if (ideal_cost.has_value() && ideal_cost.value() < min_cost)
     {
-      min_dist = dist;
+      min_cost = ideal_cost.value();
       nearest_charger = wp;
     }
   }
@@ -1016,7 +1009,7 @@ void FleetUpdateHandle::add_robot(
     {
       throw std::runtime_error(
         "[FleetUpdateHandle::add_robot] Unable to find nearest charging "
-        "waypoint. Adding a robot to a fleet requires atleast one charging"
+        "waypoint. Adding a robot to a fleet requires at least one charging"
         "waypoint to be present in its navigation graph.");
     }
 
