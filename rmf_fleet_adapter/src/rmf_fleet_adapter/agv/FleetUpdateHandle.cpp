@@ -749,7 +749,7 @@ std::optional<std::size_t> FleetUpdateHandle::Implementation::get_nearest_charge
   for (const auto& wp : charging_waypoints)
   {
     const rmf_traffic::agv::Planner::Goal goal{wp};
-    const auto& planner_result = (*planner)->plan(start, goal);
+    const auto& planner_result = (*planner)->setup(start, goal);
     const auto ideal_cost = planner_result.ideal_cost();
     if (ideal_cost.has_value() && ideal_cost.value() < min_cost)
     {
