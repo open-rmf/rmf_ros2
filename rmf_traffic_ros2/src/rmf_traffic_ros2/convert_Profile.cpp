@@ -25,6 +25,8 @@ rmf_traffic::Profile convert(const rmf_traffic_msgs::msg::Profile& from)
 {
   const geometry::ConvexShapeContext context = convert(from.shape_context);
 
+  // TODO: account for multiple geometries
+
   return rmf_traffic::Profile{
     context.at(from.footprint),
     context.at(from.vicinity)
@@ -36,9 +38,14 @@ rmf_traffic_msgs::msg::Profile convert(const rmf_traffic::Profile& from)
 {
   geometry::ConvexShapeContext context;
 
+  // TODO: account for multiple geometries
+  
   rmf_traffic_msgs::msg::Profile profile;
-  profile.footprint = context.insert(from.footprint());
-  profile.vicinity = context.insert(from.vicinity());
+  if (!from.footprint().empty())
+    profile.footprint = context.insert(from.footprint()[0]);
+
+  if (!from.vicinity().empty())
+    profile.vicinity = context.insert(from.vicinity()[0]);
   profile.shape_context = convert(context);
 
   return profile;

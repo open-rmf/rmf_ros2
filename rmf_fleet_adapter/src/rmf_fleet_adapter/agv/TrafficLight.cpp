@@ -1838,8 +1838,11 @@ rmf_traffic::blockade::Participant make_blockade(
     const rmf_traffic::schedule::Participant& itinerary,
     TrafficLight::UpdateHandle::Implementation* impl)
 {
-  const double radius = itinerary.description().profile()
-      .vicinity()->get_characteristic_length();
+  // TODO (ddengster): account for multiple geometries
+  const auto vicinities = itinerary.description().profile().vicinity();
+  assert(!vicinities.empty());
+
+  const double radius = vicinities[0]->get_characteristic_length();
 
   auto new_range_cb =
       [impl](
