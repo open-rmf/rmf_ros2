@@ -41,11 +41,8 @@ rmf_traffic_msgs::msg::Profile convert(const rmf_traffic::Profile& from)
   // TODO: account for multiple geometries
   
   rmf_traffic_msgs::msg::Profile profile;
-  if (!from.footprint().empty())
-    profile.footprint = context.insert(from.footprint()[0]);
-
-  if (!from.vicinity().empty())
-    profile.vicinity = context.insert(from.vicinity()[0]);
+  profile.footprint = context.insert(from.footprint()[0]);
+  profile.vicinity = context.insert(from.vicinity()[0]);
   profile.shape_context = convert(context);
 
   return profile;
