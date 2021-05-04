@@ -738,28 +738,22 @@ auto FleetUpdateHandle::Implementation::is_valid_assignments(
 }
 
 //==============================================================================
-std::size_t FleetUpdateHandle::Implementation::get_nearest_charger(
-  const rmf_traffic::agv::Planner::Start& start,
-  const std::unordered_set<std::size_t>& charging_waypoints)
+std::optional<std::size_t> FleetUpdateHandle::Implementation::get_nearest_charger(
+  const rmf_traffic::agv::Planner::Start& start)
 {
-  assert(!charging_waypoints.empty());
-  const auto& graph = (*planner)->get_configuration().graph();
-  Eigen::Vector2d p = graph.get_waypoint(start.waypoint()).get_location();
+  if (charging_waypoints.empty())
+    return std::nullopt;
 
-  if (start.location().has_value())
-    p = *start.location();
-
-  double min_dist = std::numeric_limits<double>::max();
-  std::size_t nearest_charger = 0;
+  double min_cost = std::numeric_limits<double>::max();
+  std::optional<std::size_t> nearest_charger = std::nullopt;
   for (const auto& wp : charging_waypoints)
   {
-    const auto loc = graph.get_waypoint(wp).get_location();
-    // TODO: Replace this with a planner call
-    // when the performance improvements are finished
-    const double dist = (loc - p).norm();
-    if (dist < min_dist)
+    const rmf_traffic::agv::Planner::Goal goal{wp};
+    const auto& planner_result = (*planner)->setup(start, goal);
+    const auto ideal_cost = planner_result.ideal_cost();
+    if (ideal_cost.has_value() && ideal_cost.value() < min_cost)
     {
-      min_dist = dist;
+      min_cost = ideal_cost.value();
       nearest_charger = wp;
     }
   }
@@ -1009,10 +1003,18 @@ void FleetUpdateHandle::add_robot(
          fleet = shared_from_this()](
         rmf_traffic::schedule::Participant participant)
   {
-    const std::size_t charger_wp = fleet->_pimpl->get_nearest_charger(
-        start[0], fleet->_pimpl->charging_waypoints);
+    const auto charger_wp = fleet->_pimpl->get_nearest_charger(start[0]);
+    
+    if (!charger_wp.has_value())
+    {
+      throw std::runtime_error(
+        "[FleetUpdateHandle::add_robot] Unable to find nearest charging "
+        "waypoint. Adding a robot to a fleet requires at least one charging"
+        "waypoint to be present in its navigation graph.");
+    }
+
     rmf_task::agv::State state = rmf_task::agv::State{
-      start[0], charger_wp, 1.0};
+      start[0], charger_wp.value(), 1.0};
     rmf_task::agv::Constraints task_planning_constraints =
       rmf_task::agv::Constraints{fleet->_pimpl->recharge_threshold};
     auto context = std::make_shared<RobotContext>(
