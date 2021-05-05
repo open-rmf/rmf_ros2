@@ -63,7 +63,6 @@ std::shared_ptr<Task> make_delivery(
       std::move(dropoff_start),
       description->dropoff_waypoint()));
 
-
   std::vector<rmf_ingestor_msgs::msg::IngestorRequestItem> ingestor_items;
   ingestor_items.reserve(description->items().size());
   for(const auto& dispenser_item : description->items()){

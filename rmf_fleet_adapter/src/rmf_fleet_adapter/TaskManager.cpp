@@ -460,16 +460,19 @@ void TaskManager::retreat_to_charger()
   if (!task_planner)
     return;
 
+  if (!task_planner->configuration().drain_battery())
+    return;
+
   const auto current_state = expected_finish_state();
   if (current_state.waypoint() == current_state.charging_waypoint())
     return;
 
-  const double threshold_soc =
-    _context->task_planning_constraints().threshold_soc();
-  const double retreat_threshold = 1.2 * threshold_soc;
+  const auto& constraints = task_planner->configuration().constraints();
+  const double threshold_soc = constraints.threshold_soc();
+  const double retreat_threshold = 1.2 * threshold_soc; // safety factor
   const double current_battery_soc = _context->current_battery_soc();
 
-  const auto& task_planner_config = task_planner->config();
+  const auto& parameters = task_planner->configuration().parameters();
   const auto estimate_cache = task_planner->estimate_cache();
 
   double retreat_battery_drain = 0.0;
@@ -485,7 +488,7 @@ void TaskManager::retreat_to_charger()
   {
     const rmf_traffic::agv::Planner::Goal retreat_goal{
       current_state.charging_waypoint()};
-    const auto result_to_charger = task_planner_config.planner()->plan(
+    const auto result_to_charger = parameters.planner()->plan(
       current_state.location(), retreat_goal);
 
     // We assume we can always compute a plan
@@ -502,10 +505,10 @@ void TaskManager::retreat_to_charger()
         finish_time - itinerary_start_time;
 
       dSOC_motion =
-        task_planner_config.motion_sink()->compute_change_in_charge(
+        parameters.motion_sink()->compute_change_in_charge(
           trajectory);
       dSOC_device =
-        task_planner_config.ambient_sink()->compute_change_in_charge(
+        parameters.ambient_sink()->compute_change_in_charge(
           rmf_traffic::time::to_seconds(itinerary_duration));
       retreat_battery_drain += dSOC_motion + dSOC_device;
       retreat_duration +=itinerary_duration;
@@ -523,16 +526,18 @@ void TaskManager::retreat_to_charger()
   {
     // Add a new charging task to the task queue
     auto charging_request = rmf_task::requests::ChargeBattery::make(
-      task_planner_config.battery_system(),
-      task_planner_config.motion_sink(),
-      task_planner_config.ambient_sink(),
-      task_planner_config.planner(),
-      current_state.finish_time());
+      parameters.battery_system(),
+      parameters.motion_sink(),
+      parameters.ambient_sink(),
+      parameters.planner(),
+      current_state.finish_time(),
+      constraints.recharge_soc());
 
     const auto finish = charging_request->description()->estimate_finish(
       current_state,
-      _context->task_planning_constraints(),
-      estimate_cache);
+      constraints,
+      estimate_cache,
+      task_planner->configuration().drain_battery());
     
     if (!finish)
       return;

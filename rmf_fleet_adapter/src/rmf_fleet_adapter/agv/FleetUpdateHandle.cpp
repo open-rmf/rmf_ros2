@@ -28,6 +28,8 @@
 #include "../tasks/Delivery.hpp"
 #include "../tasks/Loop.hpp"
 
+#include <rmf_task/agv/Constraints.hpp>
+#include <rmf_task/agv/Parameters.hpp>
 #include <rmf_task/requests/Clean.hpp>
 #include <rmf_task/requests/Delivery.hpp>
 #include <rmf_task/requests/Loop.hpp>
@@ -102,11 +104,25 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   const BidNotice::SharedPtr msg)
 {
   if (task_managers.empty())
+  {
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Fleet [%s] does not have any robots to accept task [%s]. Use "
+      "FleetUpdateHadndle::add_robot(~) to add robots to this fleet. ",
+      name.c_str(), msg->task_profile.task_id.c_str());
     return;
+  }
 
   if (msg->task_profile.task_id.empty())
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Received BidNotice for a task with invalid task_id. Request will be "
+      "ignored.");
     return;
+  }
 
+  // TODO remove this block when we support task revival
   if (bid_notice_assignments.find(msg->task_profile.task_id)
       != bid_notice_assignments.end())
     return;
@@ -133,8 +149,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       return;
   }
 
-  if (!task_planner
-    || !initialized_task_planner)
+  if (!task_planner)
   {
     RCLCPP_WARN(
       node->get_logger(),
@@ -161,6 +176,10 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     task_profile.description.priority.value > 0 ?
     rmf_task::BinaryPriorityScheme::make_high_priority() :
     rmf_task::BinaryPriorityScheme::make_low_priority();  
+
+  const auto& parameters = task_planner->configuration().parameters();
+  const auto motion_sink = parameters.motion_sink();
+  const auto ambient_sink = parameters.ambient_sink();
 
   // Process Cleaning task
   if (task_type.type == rmf_task_msgs::msg::TaskType::TYPE_CLEAN)
@@ -247,7 +266,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       tool_sink,
       *planner,
       start_time,
-      drain_battery,
       priority);
 
     RCLCPP_INFO(
@@ -343,7 +361,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       ambient_sink,
       *planner,
       start_time,
-      drain_battery,
       priority);
 
     RCLCPP_INFO(
@@ -417,7 +434,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       ambient_sink,
       *planner,
       start_time,
-      drain_battery,
       priority);
 
     RCLCPP_INFO(
@@ -859,7 +875,6 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   // Collate robot states, constraints and combine new requestptr with 
   // requestptr of non-charging tasks in task manager queues
   std::vector<rmf_task::agv::State> states;
-  std::vector<rmf_task::agv::Constraints> constraints_set;
   std::vector<rmf_task::ConstRequestPtr> pending_requests;
   std::string id = "";
 
@@ -872,7 +887,6 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   for (const auto& t : task_managers)
   {
     states.push_back(t.second->expected_finish_state());
-    constraints_set.push_back(t.first->task_planning_constraints());
     const auto requests = t.second->requests();
     pending_requests.insert(
       pending_requests.end(), requests.begin(), requests.end());
@@ -914,7 +928,6 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   const auto result = task_planner->optimal_plan(
     rmf_traffic_ros2::convert(node->now()),
     states,
-    constraints_set,
     pending_requests,
     nullptr);
 
@@ -1015,8 +1028,6 @@ void FleetUpdateHandle::add_robot(
 
     rmf_task::agv::State state = rmf_task::agv::State{
       start[0], charger_wp.value(), 1.0};
-    rmf_task::agv::Constraints task_planning_constraints =
-      rmf_task::agv::Constraints{fleet->_pimpl->recharge_threshold};
     auto context = std::make_shared<RobotContext>(
           RobotContext{
             std::move(command),
@@ -1028,7 +1039,6 @@ void FleetUpdateHandle::add_robot(
             fleet->_pimpl->worker,
             fleet->_pimpl->default_maximum_delay,
             state,
-            task_planning_constraints,
             fleet->_pimpl->task_planner
           });
 
@@ -1193,50 +1203,44 @@ FleetUpdateHandle& FleetUpdateHandle::fleet_state_publish_period(
   return *this;
 }
 
+//==============================================================================
 bool FleetUpdateHandle::set_task_planner_params(
     std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
     std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
     std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
-    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink)
+    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+    double recharge_threshold,
+    double recharge_soc,
+    bool account_for_battery_drain)
 {
-  if (battery_system && motion_sink && ambient_sink && tool_sink)
+  if (battery_system &&
+    motion_sink &&
+    ambient_sink &&
+    tool_sink &&
+    (recharge_threshold >= 0.0 && recharge_threshold <= 1.0) &&
+    (recharge_soc >= 0.0 && recharge_threshold <= 1.0))
   {
-
-    _pimpl->battery_system  = battery_system;
-    _pimpl->motion_sink = motion_sink;
-    _pimpl->ambient_sink = ambient_sink;
     _pimpl->tool_sink = tool_sink;
-
-    auto task_config =
-      rmf_task::agv::TaskPlanner::Configuration(
-        *battery_system,
-        motion_sink,
-        ambient_sink,
-        *_pimpl->planner,
-        _pimpl->cost_calculator);
-
+    const rmf_task::agv::Parameters parameters{
+      *battery_system,
+      motion_sink,
+      ambient_sink,
+      *_pimpl->planner};
+    const rmf_task::agv::Constraints constraints{
+      recharge_threshold,
+      recharge_soc};
+    const rmf_task::agv::TaskPlanner::Configuration task_config{
+      parameters,
+      constraints,
+      _pimpl->cost_calculator,
+      account_for_battery_drain};
     _pimpl->task_planner = std::make_shared<rmf_task::agv::TaskPlanner>(
       std::move(task_config));
 
-    _pimpl->initialized_task_planner = true;
-
-    return _pimpl->initialized_task_planner;
+    return true;
   }
 
     return false;
-}
-
-bool FleetUpdateHandle::account_for_battery_drain(bool value)
-{
-  _pimpl->drain_battery = value;
-  return _pimpl->drain_battery;
-}
-//==============================================================================
-FleetUpdateHandle& FleetUpdateHandle::set_recharge_threshold(
-  const double threshold)
-{
-  _pimpl->recharge_threshold = threshold;
-  return *this;
 }
 
 //==============================================================================
