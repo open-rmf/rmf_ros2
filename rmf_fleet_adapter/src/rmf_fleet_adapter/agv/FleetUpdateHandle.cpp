@@ -678,8 +678,6 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
 auto FleetUpdateHandle::Implementation::is_valid_assignments(
   Assignments& assignments) const -> bool
 {
-  std::size_t assignment_size = 0;
-  std::size_t queued_task_size = 0;
   for (const auto& agent : assignments)
   {
     for (const auto& a : agent)
@@ -687,15 +685,9 @@ auto FleetUpdateHandle::Implementation::is_valid_assignments(
       // If ID doesnt exist in queue_tasks
       if (!is_task_queued(a.request()->id()))
         return false;
-      assignment_size++;
     }
   }
-
-  // Also check if size of total queued tasks is the same as assignments
-  for (const auto& mgr : task_managers)
-    queued_task_size += mgr->task_queue().size();
-
-  return (queued_task_size == assignment_size);
+  return true;
 }
 
 //==============================================================================

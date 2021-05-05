@@ -47,9 +47,6 @@ public:
   using State = rmf_task::agv::State;
   using TaskProfile = rmf_task_msgs::msg::TaskProfile;
 
-  /// Add a task to the queue of this manager.
-  void queue_task(std::shared_ptr<Task> task);
-
   const agv::RobotContextPtr& context();
 
   agv::ConstRobotContextPtr context() const;
@@ -61,9 +58,6 @@ public:
   void set_queue(
     const std::vector<Assignment>& assignments,
     const std::unordered_map<std::string, TaskProfile>& task_profiles = {});
-
-  /// set a vector of tasks
-  void set_queue(const std::vector<std::shared_ptr<Task>>& tasks);
 
   // get tasks in the queue
   const std::vector<std::shared_ptr<Task>> task_queue() const;
@@ -107,6 +101,12 @@ private:
   // Container to keep track of tasks that have been started by this TaskManager
   // Use the _register_executed_task() to populate this container.
   std::vector<std::string> _executed_task_registry;
+
+  /// set a vector of tasks
+  void _set_queue(const std::vector<std::shared_ptr<Task>>& tasks);
+
+  /// Add a task to the queue of this manager.
+  void _queue_task(std::shared_ptr<Task> task);
 
   /// Callback for task timer which begins next task if its deployment time has passed
   void _begin_next_task();

@@ -103,7 +103,7 @@ TaskManager::TaskManager(agv::RobotContextPtr context)
 }
 
 //==============================================================================
-void TaskManager::queue_task(std::shared_ptr<Task> task)
+void TaskManager::_queue_task(std::shared_ptr<Task> task)
 {
   {
     std::lock_guard<std::mutex> guard(_mutex);
@@ -170,7 +170,7 @@ const std::vector<std::shared_ptr<Task>> TaskManager::task_queue() const
 }
 
 //==============================================================================
-void TaskManager::set_queue(
+void TaskManager::_set_queue(
   const std::vector<std::shared_ptr<Task>>& tasks)
 {
   // We indent this block as _mutex is also locked in the _begin_next_task()
@@ -181,7 +181,7 @@ void TaskManager::set_queue(
   }
 
   for (const auto t : tasks)
-    queue_task(t);
+    _queue_task(t);
 }
 
 //==============================================================================
@@ -260,7 +260,7 @@ void TaskManager::set_queue(
     task->task_profile_msg(profile);
     task_queue.push_back(task);
   }
-  this->set_queue(task_queue);
+  this->_set_queue(task_queue);
 }
 
 //==============================================================================
