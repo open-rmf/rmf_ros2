@@ -173,14 +173,10 @@ public:
 
   double current_assignment_cost = 0.0;
   
-  // Map to store task id with the profile msg of the received tasks
   using TaskProfile = rmf_task_msgs::msg::TaskProfile;
-  std::unordered_map<std::string, TaskProfile> received_task_profiles = {};
-  
+
   // Tuple which stored the latest received BidNotice
   std::tuple<rmf_task::ConstRequestPtr, Assignments> latest_bid_notice_assignments;
-
-  std::unordered_set<std::string> cancelled_task_ids = {};
 
   AcceptTaskRequest accept_task = nullptr;
 
@@ -297,10 +293,13 @@ public:
   bool is_valid_assignments(Assignments& assignments) const;
 
   /// Helper function to check if a task is queued in Fleet Adapter
-  bool is_queued(const std::string& task_id ) const;
+  bool is_task_queued(const std::string& task_id ) const;
 
   /// Helper function to check if a task is active/executing in Fleet Adapter
-  bool is_current(const std::string& task_id ) const;
+  bool is_task_active(const std::string& task_id ) const;
+
+  /// Helper function to get all current and queued task profiles
+  std::unordered_map<std::string, TaskProfile> get_task_profiles() const;
 
   static Implementation& get(FleetUpdateHandle& fleet)
   {

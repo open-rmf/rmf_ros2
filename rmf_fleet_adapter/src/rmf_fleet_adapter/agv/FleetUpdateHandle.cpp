@@ -104,27 +104,27 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   if (task_managers.empty())
     return;
 
-  const std::string id = msg->task_profile.task_id;
+  const std::string& id = msg->task_profile.task_id;
 
   if (id.empty())
     return;
 
-  // Will check if tasks is queued or active
-  if (is_queued(id))
+  // Will check if tasks is queued
+  if (is_task_queued(id))
   {
     RCLCPP_WARN(
       node->get_logger(),
-      "Task [%s] is currently queued in Fleet [%s]",
+      "Task [%s] is currently queued in Fleet [%s], bid notice is ignored",
       id.c_str(), name.c_str());
     return;
   }
 
   // Will check if tasks is an active current task
-  if (is_current(id))
+  if (is_task_active(id))
   {
     RCLCPP_WARN(
       node->get_logger(),
-      "Task [%s] is currently executing by Fleet [%s]",
+      "Task [%s] is currently executing by Fleet [%s], bid notice is ignored",
       id.c_str(), name.c_str());
     return;
   }
@@ -184,7 +184,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     {
       RCLCPP_ERROR(
         node->get_logger(),
-        "Clean Msg is invalid/invalid."
+        "Required param [clean.start_waypoint] missing in TaskProfile."
         "Rejecting BidNotice with task_id:[%s]", id.c_str());
       return;
     }
@@ -269,46 +269,77 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
   else if (task_type.type == TaskType::TYPE_DELIVERY)
   {
-    const auto& del = task_profile.description.delivery;
+    const auto& delivery = task_profile.description.delivery;
 
-    if (del.pickup_place_name.empty()  || del.pickup_dispenser.empty() ||
-        del.dropoff_place_name.empty() || del.dropoff_ingestor.empty())
+    if (delivery.pickup_place_name.empty())
     {
-      RCLCPP_ERROR(node->get_logger(),
-                  "Delivery Msg is invalid/invalid."
-                  "Rejecting BidNotice with task_id:[%s]", id.c_str());
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Required param [delivery.pickup_place_name] missing in TaskProfile."
+        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+
       return;
     }
 
-    const auto pickup_wp = graph.find_waypoint(del.pickup_place_name);
+    if (delivery.pickup_dispenser.empty())
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Required param [delivery.pickup_dispenser] missing in TaskProfile."
+        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+
+      return;
+    }
+
+    if (delivery.dropoff_place_name.empty())
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Required param [delivery.dropoff_place_name] missing in TaskProfile."
+        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+
+      return;
+    }
+
+    if (delivery.dropoff_ingestor.empty())
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Required param [delivery.dropoff_ingestor] missing in TaskProfile."
+        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+
+      return;
+    }
+
+    const auto pickup_wp = graph.find_waypoint(delivery.pickup_place_name);
     if (!pickup_wp)
     {
       RCLCPP_INFO(
         node->get_logger(),
         "Fleet [%s] does not have a named waypoint [%s] configured in its "
         "nav graph. Rejecting BidNotice with task_id:[%s]",
-        name.c_str(), del.pickup_place_name.c_str(), id.c_str());
+        name.c_str(), delivery.pickup_place_name.c_str(), id.c_str());
         return;
     }
 
-    const auto dropoff_wp = graph.find_waypoint(del.dropoff_place_name);
+    const auto dropoff_wp = graph.find_waypoint(delivery.dropoff_place_name);
     if (!dropoff_wp)
     {
       RCLCPP_INFO(
         node->get_logger(),
         "Fleet [%s] does not have a named waypoint [%s] configured in its "
         "nav graph. Rejecting BidNotice with task_id:[%s]",
-        name.c_str(), del.dropoff_place_name.c_str(), id.c_str());
+        name.c_str(), delivery.dropoff_place_name.c_str(), id.c_str());
         return;
     }
 
     new_request = rmf_task::requests::Delivery::make(
       id,
       pickup_wp->index(),
-      del.pickup_dispenser,
+      delivery.pickup_dispenser,
       dropoff_wp->index(),
-      del.dropoff_ingestor,
-      del.items,
+      delivery.dropoff_ingestor,
+      delivery.items,
       motion_sink,
       ambient_sink,
       *planner,
@@ -324,12 +355,33 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   {
     const auto& loop = task_profile.description.loop;
     
-    if (loop.start_name.empty() || loop.finish_name.empty() ||
-        loop.num_loops == 0)
+    if (loop.start_name.empty())
     {
-      RCLCPP_ERROR(node->get_logger(),
-                  "Loop Msg is invalid/invalid."
-                  "Rejecting BidNotice with task_id:[%s]", id.c_str());
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Required param [loop.start_name] missing in TaskProfile."
+        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+
+      return;
+    }
+
+    if (loop.finish_name.empty())
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Required param [loop.finish_name] missing in TaskProfile."
+        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+
+      return;
+    }
+
+    if (loop.num_loops < 1)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Required param [loop.num_loops: %d] in TaskProfile is invalid."
+        "Rejecting BidNotice with task_id:[%s]" , loop.num_loops, id.c_str());
+
       return;
     }
 
@@ -352,7 +404,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         node->get_logger(),
         "Fleet [%s] does not have a named waypoint [%s] configured in its "
         "nav graph. Rejecting BidNotice with task_id:[%s]",
-        name.c_str(), loop.start_name.c_str(), id.c_str());
+        name.c_str(), loop.finish_name.c_str(), id.c_str());
 
         return;
     }
@@ -460,7 +512,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
   // Store assignments in internal map
   latest_bid_notice_assignments  = {new_request, assignments};
-  received_task_profiles.insert({id, task_profile});
 }
 
 //==============================================================================
@@ -527,9 +578,12 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     }
 
     // set assignments to taskmangaer of each robot
+    auto task_profiles = get_task_profiles();
+    task_profiles.insert({id, msg->task_profile});
+
     assert(assignments.size() == task_managers.size());
     for (std::size_t i = 0; i < task_managers.size(); ++i)
-      task_managers[i]->set_queue(assignments[i], received_task_profiles);
+      task_managers[i]->set_queue(assignments[i], task_profiles);
 
     current_assignment_cost = task_planner->compute_cost(assignments);
     dispatch_ack.success = true;
@@ -549,38 +603,27 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     // When a queued task is to be cancelled, we simply re-plan and re-allocate
     // task assignments for the request set containing all the queued tasks
     // excluding the task to be cancelled.
-    if (cancelled_task_ids.find(id) != cancelled_task_ids.end())
-    {
-      RCLCPP_WARN(
-        node->get_logger(),
-        "Request with task_id:[%s] has already been cancelled.",
-        id.c_str());
-
-      dispatch_ack.success = true;
-      dispatch_ack_pub->publish(dispatch_ack);
-      return;
-    }
-
-    if (!is_queued(id))
-    {
-      RCLCPP_WARN(
-        node->get_logger(),
-        "Unable to cancel task with task_id:[%s] as it is not queued to "
-        "fleet:[%s].",
-        id.c_str(), name.c_str());
-
-      dispatch_ack_pub->publish(dispatch_ack);
-      return;
-    }
 
     // Check if received request is to cancel an active task
-    if (is_current(id))
+    if (is_task_active(id))
     {
       RCLCPP_WARN(
         node->get_logger(),
         "Unable to cancel active task with task_id:[%s]. Only queued tasks may "
         "be cancelled.",
         id.c_str());
+
+      dispatch_ack_pub->publish(dispatch_ack);
+      return;
+    }
+
+    if (!is_task_queued(id))
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Unable to cancel task with task_id:[%s] as it is not queued to "
+        "fleet:[%s].",
+        id.c_str(), name.c_str());
 
       dispatch_ack_pub->publish(dispatch_ack);
       return;
@@ -601,16 +644,16 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     }
 
     // set assignments to taskmangaer of each robot
-    const auto& assignments = replan_results.value();
-    assert(assignments.size() == task_managers.size());
+    const auto& assignments = replan_results.value();  
+    auto task_profiles = get_task_profiles();
+    task_profiles.insert({id, msg->task_profile});
     for (std::size_t i = 0; i < task_managers.size(); ++i)
-      task_managers[i]->set_queue(assignments[i], received_task_profiles);
+      task_managers[i]->set_queue(assignments[i], task_profiles);
 
     current_assignment_cost = task_planner->compute_cost(assignments);
 
     dispatch_ack.success = true;
     dispatch_ack_pub->publish(dispatch_ack);
-    cancelled_task_ids.insert(id);
   
     RCLCPP_INFO(
       node->get_logger(),
@@ -641,8 +684,8 @@ auto FleetUpdateHandle::Implementation::is_valid_assignments(
   {
     for (const auto& a : agent)
     {
-      // If ID exists doesnt exist in queue_tasks
-      if (!is_queued(a.request()->id()))
+      // If ID doesnt exist in queue_tasks
+      if (!is_task_queued(a.request()->id()))
         return false;
       assignment_size++;
     }
@@ -656,29 +699,51 @@ auto FleetUpdateHandle::Implementation::is_valid_assignments(
 }
 
 //==============================================================================
-bool FleetUpdateHandle::Implementation::is_queued(
+auto FleetUpdateHandle::Implementation::get_task_profiles() const
+  -> std::unordered_map<std::string, TaskProfile>
+{
+  std::unordered_map<std::string, TaskProfile> task_profiles;
+  for (const auto& mgr : task_managers)
+  {
+    for (const auto task : mgr->task_queue())
+    {
+      task_profiles.insert({task->id(), task->task_profile_msg()});
+    }
+
+    const auto task = mgr->current_task();
+    if (task)
+      task_profiles.insert({task->id(), task->task_profile_msg()});
+  }
+  return task_profiles;
+}
+
+//==============================================================================
+bool FleetUpdateHandle::Implementation::is_task_queued(
   const std::string& task_id ) const
 {
   std::unordered_set<std::string> queued_tasks;
   for (const auto& mgr : task_managers)
   {
     for (const auto task : mgr->task_queue())
-      queued_tasks.insert(task->id());
+    {
+      if (task->id() == task_id)
+        return true;
+    }
   }
-
-  return (queued_tasks.find(task_id) != queued_tasks.end());
+  return false;
 }
 
 //==============================================================================
-bool FleetUpdateHandle::Implementation::is_current(
+bool FleetUpdateHandle::Implementation::is_task_active(
   const std::string& task_id ) const
 {
   std::unordered_set<std::string> current_tasks;
   for (const auto& mgr : task_managers)
-    if (mgr->current_task())
-      current_tasks.insert(mgr->current_task()->id());
-
-  return (current_tasks.find(task_id) != current_tasks.end());
+  {
+    if (mgr->current_task() && mgr->current_task()->id() == task_id)
+      return true;
+  }
+  return false;
 }
 
 //==============================================================================
@@ -823,16 +888,11 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   {
     states.push_back(t->expected_finish_state());
     constraints_set.push_back(t->context()->task_planning_constraints());
-    
-    for (const auto task : t->task_queue())
-    {
-      // ignore auto allocated charging task.
-      // TODO: categorize a task if it is self-generated by adpater's task planner
-      const auto type = task->profile_msg().description.task_type.type;
-      if (type == TaskType::TYPE_CHARGE_BATTERY)
-        continue;
 
-      if (task->id() == ignore_request_id )
+    // This will identify the ignored task for allocation
+    for (const auto req : t->requests())
+    {
+      if (req->id() == ignore_request_id)
       {
         RCLCPP_INFO(
           node->get_logger(),
@@ -840,9 +900,8 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
           ignore_request_id.c_str());
         continue;
       }
-
-      pending_requests.push_back(task->request());
-    }
+      pending_requests.push_back(req);
+    }  
   }
 
   RCLCPP_INFO(
@@ -1125,6 +1184,7 @@ FleetUpdateHandle& FleetUpdateHandle::fleet_state_publish_period(
   return *this;
 }
 
+//==============================================================================
 bool FleetUpdateHandle::set_task_planner_params(
     std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
     std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
@@ -1146,7 +1206,7 @@ bool FleetUpdateHandle::set_task_planner_params(
         ambient_sink,
         *_pimpl->planner,
         _pimpl->cost_calculator);
-    
+
     _pimpl->task_planner = std::make_shared<rmf_task::agv::TaskPlanner>(
       std::move(task_config));
     
@@ -1158,11 +1218,13 @@ bool FleetUpdateHandle::set_task_planner_params(
     return false;
 }
 
+//==============================================================================
 bool FleetUpdateHandle::account_for_battery_drain(bool value)
 {
   _pimpl->drain_battery = value;
   return _pimpl->drain_battery;
 }
+
 //==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::set_recharge_threshold(
   const double threshold)

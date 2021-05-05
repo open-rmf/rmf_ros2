@@ -46,7 +46,7 @@ void populate_task_summary(
   if (task != nullptr)
   {
     msg.task_id = task->id(); // duplicated
-    msg.task_profile = task->profile_msg();
+    msg.task_profile = task->task_profile_msg();
     msg.start_time = rmf_traffic_ros2::convert(
       task->deployment_time());
     msg.end_time = rmf_traffic_ros2::convert(
@@ -97,7 +97,7 @@ TaskManagerPtr TaskManager::make(agv::RobotContextPtr context)
 
 //==============================================================================
 TaskManager::TaskManager(agv::RobotContextPtr context)
-  : _context(std::move(context))
+: _context(std::move(context))
 {
   _begin_waiting();
 }
@@ -257,7 +257,7 @@ void TaskManager::set_queue(
       continue;
     }
 
-    task->profile_msg(profile);
+    task->task_profile_msg(profile);
     task_queue.push_back(task);
   }
   this->set_queue(task_queue);

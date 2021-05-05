@@ -90,15 +90,15 @@ const std::string& Task::id() const
 }
 
 //==============================================================================
-const rmf_task_msgs::msg::TaskProfile Task::profile_msg() const
+const rmf_task_msgs::msg::TaskProfile Task::task_profile_msg() const
 {
-  return _profile_msg;
+  return _task_profile_msg;
 }
 
 //==============================================================================
-void Task::profile_msg(const rmf_task_msgs::msg::TaskProfile& profile)
+void Task::task_profile_msg(const rmf_task_msgs::msg::TaskProfile& profile)
 {
-  _profile_msg = profile;
+  _task_profile_msg = profile;
 }
 
 //==============================================================================

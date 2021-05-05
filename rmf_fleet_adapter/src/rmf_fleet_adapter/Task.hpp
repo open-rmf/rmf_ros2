@@ -126,10 +126,10 @@ public:
   const std::string& id() const;
 
   /// Get the profile msg, for publish status msg
-  const TaskProfile profile_msg() const;
+  const TaskProfile task_profile_msg() const;
 
   /// Set the profile msg, for publish status msg
-  void profile_msg(const TaskProfile& profile);
+  void task_profile_msg(const TaskProfile& profile);
 
   /// Get the request used to generate this task
   const rmf_task::ConstRequestPtr request() const;
@@ -169,7 +169,7 @@ private:
   rmf_traffic::Time _deployment_time;
   rmf_task::agv::State _finish_state;
   rmf_task::ConstRequestPtr _request;
-  TaskProfile _profile_msg;
+  TaskProfile _task_profile_msg;
 
   void _start_next_phase();
 

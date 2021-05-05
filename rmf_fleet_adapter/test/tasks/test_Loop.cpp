@@ -176,8 +176,6 @@ SCENARIO("Test loop requests")
 
           ++completed_1_count;
         }
-        // else
-        //   CHECK(false); // this will fail as responsiveWait is active
       }
       else
       {
@@ -185,8 +183,6 @@ SCENARIO("Test loop requests")
           at_least_one_incomplete_task_0 = true;
         else if (msg->task_id == loop_1)
           at_least_one_incomplete_task_1 = true;
-        // else
-        //   CHECK(false);
       }
 
       if (msg->task_id == loop_0)
