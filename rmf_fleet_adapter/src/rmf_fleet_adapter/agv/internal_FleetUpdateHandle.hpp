@@ -139,7 +139,6 @@ public:
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
 
   // Task planner params
-  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink = nullptr;
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
     rmf_task::BinaryPriorityScheme::make_cost_calculator();
   std::shared_ptr<rmf_task::agv::TaskPlanner> task_planner = nullptr;

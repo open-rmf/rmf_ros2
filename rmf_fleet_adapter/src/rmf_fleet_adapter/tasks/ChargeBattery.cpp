@@ -32,9 +32,9 @@ std::shared_ptr<Task> make_charge_battery(
     const rmf_traffic::Time deployment_time,
     const rmf_task::agv::State finish_state)
 {
-  std::shared_ptr<const rmf_task::requests::ChargeBatteryDescription>
+  std::shared_ptr<const rmf_task::requests::ChargeBattery::Description>
   description = std::dynamic_pointer_cast<
-    const rmf_task::requests::ChargeBatteryDescription>(request->description());
+    const rmf_task::requests::ChargeBattery::Description>(request->description());
 
   if (description == nullptr)
     return nullptr;
@@ -46,7 +46,9 @@ std::shared_ptr<Task> make_charge_battery(
     phases::GoToPlace::make(context, std::move(start), goal));
   phases.push_back(
     phases::WaitForCharge::make(
-    context, description->battery_system(), description->max_charge_soc()));
+    context,
+    context->task_planner()->configuration().parameters().battery_system(),
+    description->max_charge_soc()));
 
   return Task::make(
     request->id(),

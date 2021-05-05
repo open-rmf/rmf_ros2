@@ -136,6 +136,10 @@ public:
   /// Get a mutable reference to the task planner for this robot
   const std::shared_ptr<const rmf_task::agv::TaskPlanner>& task_planner() const;
 
+  /// Set the task planner for this robot
+  RobotContext& task_planner(
+    const std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner);
+
   void set_lift_entry_watchdog(
     RobotUpdateHandle::Unstable::Watchdog watchdog,
     rmf_traffic::Duration wait_duration);

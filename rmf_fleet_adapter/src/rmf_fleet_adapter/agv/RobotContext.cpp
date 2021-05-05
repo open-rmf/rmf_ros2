@@ -255,6 +255,15 @@ RobotContext::task_planner() const
 }
 
 //==============================================================================
+auto RobotContext::task_planner(
+  const std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner)
+  -> RobotContext&
+{
+  _task_planner = task_planner;
+  return *this;
+}
+
+//==============================================================================
 void RobotContext::set_lift_entry_watchdog(
     RobotUpdateHandle::Unstable::Watchdog watchdog,
     rmf_traffic::Duration wait_duration)

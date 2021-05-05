@@ -175,11 +175,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   auto priority =
     task_profile.description.priority.value > 0 ?
     rmf_task::BinaryPriorityScheme::make_high_priority() :
-    rmf_task::BinaryPriorityScheme::make_low_priority();  
-
-  const auto& parameters = task_planner->configuration().parameters();
-  const auto motion_sink = parameters.motion_sink();
-  const auto ambient_sink = parameters.ambient_sink();
+    rmf_task::BinaryPriorityScheme::make_low_priority();
 
   // Process Cleaning task
   if (task_type.type == rmf_task_msgs::msg::TaskType::TYPE_CLEAN)
@@ -261,10 +257,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       start_wp->index(),
       finish_wp->index(),
       cleaning_trajectory,
-      motion_sink,
-      ambient_sink,
-      tool_sink,
-      *planner,
       start_time,
       priority);
 
@@ -357,9 +349,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       dropoff_wp->index(),
       delivery.dropoff_ingestor,
       delivery.items,
-      motion_sink,
-      ambient_sink,
-      *planner,
       start_time,
       priority);
 
@@ -430,9 +419,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       start_wp->index(),
       finish_wp->index(),
       loop.num_loops,
-      motion_sink,
-      ambient_sink,
-      *planner,
       start_time,
       priority);
 
@@ -1220,22 +1206,29 @@ bool FleetUpdateHandle::set_task_planner_params(
     (recharge_threshold >= 0.0 && recharge_threshold <= 1.0) &&
     (recharge_soc >= 0.0 && recharge_threshold <= 1.0))
   {
-    _pimpl->tool_sink = tool_sink;
     const rmf_task::agv::Parameters parameters{
+      *_pimpl->planner,
       *battery_system,
       motion_sink,
       ambient_sink,
-      *_pimpl->planner};
+      tool_sink};
     const rmf_task::agv::Constraints constraints{
       recharge_threshold,
-      recharge_soc};
+      recharge_soc,
+      account_for_battery_drain};
     const rmf_task::agv::TaskPlanner::Configuration task_config{
       parameters,
       constraints,
-      _pimpl->cost_calculator,
-      account_for_battery_drain};
+      _pimpl->cost_calculator};
     _pimpl->task_planner = std::make_shared<rmf_task::agv::TaskPlanner>(
       std::move(task_config));
+
+    // Here we update the task planner in all the RobotContexts.
+    // The TaskManagers rely on the parameters in the task planner for
+    // automatic retreat. Hence, we also update them whenever the
+    // task planner here is updated. 
+    for (const auto& t : _pimpl->task_managers)
+      t.first->task_planner(_pimpl->task_planner);
 
     return true;
   }

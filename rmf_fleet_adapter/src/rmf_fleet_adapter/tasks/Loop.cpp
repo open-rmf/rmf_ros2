@@ -30,34 +30,74 @@ std::shared_ptr<Task> make_loop(
     const rmf_traffic::Time deployment_time,
     const rmf_task::agv::State finish_state)
 {
-  std::shared_ptr<const rmf_task::requests::LoopDescription> description =
+  std::shared_ptr<const rmf_task::requests::Loop::Description> description =
     std::dynamic_pointer_cast<
-      const rmf_task::requests::LoopDescription>(request->description());
+      const rmf_task::requests::Loop::Description>(request->description());
 
   if (description == nullptr)
     return nullptr;
 
+  const auto start_waypoint = description->start_waypoint();
+  const auto finish_waypoint = description->finish_waypoint();
+
+  const auto loop_start = [&]() -> rmf_traffic::agv::Planner::Start
+    {
+      if (start.waypoint() == start_waypoint)
+        return start;
+
+      rmf_traffic::agv::Planner::Goal goal{start_waypoint};
+
+      const auto result = context->planner()->plan(start, goal);
+      // We assume we can always compute a plan
+      const auto& trajectory =
+        result->get_itinerary().back().trajectory();
+      const auto& finish_time = *trajectory.finish_time();
+      const double orientation = trajectory.back().position()[2];
+
+      return rmf_traffic::agv::Planner::Start{
+        finish_time,
+        start_waypoint,
+        orientation};
+    }(); 
+
+  const auto loop_end = [&]() -> rmf_traffic::agv::Planner::Start
+    {
+      if (loop_start.waypoint() == finish_waypoint)
+        return loop_start;
+
+      rmf_traffic::agv::Planner::Goal goal{finish_waypoint};
+
+      const auto result = context->planner()->plan(loop_start, goal);
+      // We assume we can always compute a plan
+      const auto& trajectory =
+        result->get_itinerary().back().trajectory();
+      const auto& finish_time = *trajectory.finish_time();
+      const double orientation = trajectory.back().position()[2];
+
+      return rmf_traffic::agv::Planner::Start{
+        finish_time,
+        finish_waypoint,
+        orientation};
+    }();
+
   Task::PendingPhases phases;
-  const auto loop_start = description->loop_start(start);
-  const auto loop_end = description->loop_end(loop_start);
+  phases.push_back(
+    phases::GoToPlace::make(
+      context, std::move(start), start_waypoint));
 
   phases.push_back(
     phases::GoToPlace::make(
-      context, std::move(start), description->start_waypoint()));
-
-  phases.push_back(
-    phases::GoToPlace::make(
-      context, loop_start, description->finish_waypoint()));
+      context, loop_start, finish_waypoint));
 
   for (std::size_t i = 1; i < description->num_loops(); ++i)
   {
     phases.push_back(
       phases::GoToPlace::make(
-        context, loop_end, description->start_waypoint()));
+        context, loop_end, start_waypoint));
 
     phases.push_back(
       phases::GoToPlace::make(
-        context, loop_start, description->finish_waypoint()));
+        context, loop_start, finish_waypoint));
   }
 
   return Task::make(

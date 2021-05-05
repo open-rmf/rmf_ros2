@@ -180,7 +180,7 @@ void TaskManager::set_queue(
       rmf_task_msgs::msg::TaskType task_type_msg;
       const auto request = a.request();
       if (std::dynamic_pointer_cast<
-        const rmf_task::requests::CleanDescription>(request->description()) != nullptr)
+        const rmf_task::requests::Clean::Description>(request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_CLEAN;
         auto task = rmf_fleet_adapter::tasks::make_clean(
@@ -194,7 +194,7 @@ void TaskManager::set_queue(
       }
 
       else if (std::dynamic_pointer_cast<
-        const rmf_task::requests::ChargeBatteryDescription>(
+        const rmf_task::requests::ChargeBattery::Description>(
           request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_CHARGE_BATTERY;
@@ -209,7 +209,7 @@ void TaskManager::set_queue(
       }
 
       else if (std::dynamic_pointer_cast<
-        const rmf_task::requests::DeliveryDescription>(
+        const rmf_task::requests::Delivery::Description>(
           request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_DELIVERY;
@@ -224,7 +224,7 @@ void TaskManager::set_queue(
       }
 
       else if (std::dynamic_pointer_cast<
-        const rmf_task::requests::LoopDescription>(request->description()) != nullptr)
+        const rmf_task::requests::Loop::Description>(request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_LOOP;
         const auto task = tasks::make_loop(
@@ -276,7 +276,7 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
   for (const auto& task : _queue)
   {
     if (std::dynamic_pointer_cast<
-      const rmf_task::requests::ChargeBatteryDescription>(
+      const rmf_task::requests::ChargeBattery::Description>(
         task->request()->description()))
       continue;
     requests.push_back(task->request());
@@ -460,7 +460,7 @@ void TaskManager::retreat_to_charger()
   if (!task_planner)
     return;
 
-  if (!task_planner->configuration().drain_battery())
+  if (!task_planner->configuration().constraints().drain_battery())
     return;
 
   const auto current_state = expected_finish_state();
@@ -525,19 +525,17 @@ void TaskManager::retreat_to_charger()
     (battery_soc_after_retreat > threshold_soc))
   {
     // Add a new charging task to the task queue
-    auto charging_request = rmf_task::requests::ChargeBattery::make(
-      parameters.battery_system(),
-      parameters.motion_sink(),
-      parameters.ambient_sink(),
-      parameters.planner(),
+    const auto charging_request = rmf_task::requests::ChargeBattery::make(
       current_state.finish_time(),
       constraints.recharge_soc());
+    const auto model = charging_request->description()->make_model(
+      current_state.finish_time(),
+      parameters);
 
-    const auto finish = charging_request->description()->estimate_finish(
+    const auto finish = model->estimate_finish(
       current_state,
       constraints,
-      estimate_cache,
-      task_planner->configuration().drain_battery());
+      estimate_cache);
     
     if (!finish)
       return;
