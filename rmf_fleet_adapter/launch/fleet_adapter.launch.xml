@@ -78,6 +78,7 @@
     <param name="tool_power_drain" value="$(var tool_power_drain)"/>
     <param name="drain_battery" value="$(var drain_battery)"/>
     <param name="recharge_threshold" value="$(var recharge_threshold)"/> 
+    <param name="recharge_soc" value="$(var recharge_soc)"/> 
 
     <param name="experimental_lift_watchdog_service" value="$(var experimental_lift_watchdog_service)"/>
 
