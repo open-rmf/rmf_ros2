@@ -473,12 +473,12 @@ void TaskManager::retreat_to_charger()
   const double current_battery_soc = _context->current_battery_soc();
 
   const auto& parameters = task_planner->configuration().parameters();
-  const auto estimate_cache = task_planner->estimate_cache();
+  auto& estimate_cache = *(task_planner->estimate_cache());
 
   double retreat_battery_drain = 0.0;
   const auto endpoints = std::make_pair(current_state.waypoint(),
     current_state.charging_waypoint());
-  const auto& cache_result = estimate_cache->get(endpoints);
+  const auto& cache_result = estimate_cache.get(endpoints);
 
   if (cache_result)
   {
@@ -514,7 +514,7 @@ void TaskManager::retreat_to_charger()
       retreat_duration +=itinerary_duration;
       itinerary_start_time = finish_time;
     }
-    estimate_cache->set(endpoints, retreat_duration,
+    estimate_cache.set(endpoints, retreat_duration,
       retreat_battery_drain);
   }
 
@@ -526,8 +526,7 @@ void TaskManager::retreat_to_charger()
   {
     // Add a new charging task to the task queue
     const auto charging_request = rmf_task::requests::ChargeBattery::make(
-      current_state.finish_time(),
-      constraints.recharge_soc());
+      current_state.finish_time());
     const auto model = charging_request->description()->make_model(
       current_state.finish_time(),
       parameters);

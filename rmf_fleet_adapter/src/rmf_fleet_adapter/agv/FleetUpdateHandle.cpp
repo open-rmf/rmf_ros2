@@ -253,10 +253,10 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     }
 
     new_request = rmf_task::requests::Clean::make(
-      id,
       start_wp->index(),
       finish_wp->index(),
       cleaning_trajectory,
+      id,
       start_time,
       priority);
 
@@ -343,12 +343,12 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     }
 
     new_request = rmf_task::requests::Delivery::make(
-      id,
       pickup_wp->index(),
       delivery.pickup_dispenser,
       dropoff_wp->index(),
       delivery.dropoff_ingestor,
       delivery.items,
+      id,
       start_time,
       priority);
 
@@ -415,10 +415,10 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     }
 
     new_request = rmf_task::requests::Loop::make(
-      id,
       start_wp->index(),
       finish_wp->index(),
       loop.num_loops,
+      id,
       start_time,
       priority);
 

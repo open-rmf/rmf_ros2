@@ -48,7 +48,7 @@ std::shared_ptr<Task> make_charge_battery(
     phases::WaitForCharge::make(
     context,
     context->task_planner()->configuration().parameters().battery_system(),
-    description->max_charge_soc()));
+    context->task_planner()->configuration().constraints().recharge_soc()));
 
   return Task::make(
     request->id(),
