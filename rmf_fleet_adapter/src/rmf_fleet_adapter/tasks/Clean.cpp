@@ -48,25 +48,29 @@ std::shared_ptr<Task> make_clean(
   // cleaning.
   const auto end_start = [&]() -> rmf_traffic::agv::Planner::Start
     {
-      if (start_waypoint == end_waypoint)
-        return clean_start;
-      
-      rmf_traffic::agv::Planner::Goal goal{start_waypoint};
-      const auto result = context->planner()->plan(clean_start, goal);
-      // We assume we can always compute a plan
-      const auto& trajectory =
-        result->get_itinerary().back().trajectory();
-      const auto& finish_time = *trajectory.finish_time();
-      const double orientation = trajectory.back().position()[2];
+      auto initial_time = clean_start.time();
+      double orientation = clean_start.orientation();
+      // If the robot is not at its cleaning start_waypoint, we calculate the
+      // time it takes to travel from clean_start to start_waypoint
+      if (clean_start.waypoint() != start_waypoint)
+      {
+        rmf_traffic::agv::Planner::Goal goal{start_waypoint};
+        const auto result = context->planner()->plan(clean_start, goal);
+        // We assume we can always compute a plan
+        const auto& trajectory =
+          result->get_itinerary().back().trajectory();
+        initial_time = *trajectory.finish_time();
+        orientation = trajectory.back().position()[2];
+      }      
 
-      // Get the invariant duration
+      // Get the duration of the cleaning process
       const auto request_model = description->make_model(
         clean_start.time(),
         context->task_planner()->configuration().parameters());
       const auto invariant_duration = request_model->invariant_duration();
 
       return rmf_traffic::agv::Planner::Start{
-        finish_time + invariant_duration,
+        initial_time + invariant_duration,
         start_waypoint,
         orientation};
     }();
