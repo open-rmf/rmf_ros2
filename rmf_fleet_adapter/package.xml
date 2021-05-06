@@ -23,6 +23,8 @@
   <depend>rmf_traffic_msgs</depend>
   <depend>rmf_battery</depend>
   <depend>rmf_task</depend>
+  <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies</depend>
+  <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies_msgs</depend>
 
   <build_depend>eigen</build_depend>
   <build_depend>yaml-cpp</build_depend>
