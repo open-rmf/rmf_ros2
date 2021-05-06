@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5.0)
 
 project(rmf_fleet_adapter)
 
-if (NOT CMAKE_CXX_STANDARD)
+if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 14)
 endif()
 
@@ -13,8 +13,10 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
-find_package(stubborn_buddies QUIET)
-find_package(stubborn_buddies_msg QUIET)
+if($ENV{RMF_ENABLE_FAILOVER} EQUAL 1)
+  find_package(stubborn_buddies REQUIRED)
+  find_package(stubborn_buddies_msgs REQUIRED)
+endif()
 include(GNUInstallDirs)
 
 if(BUILD_TESTING)
@@ -255,7 +257,7 @@ target_include_directories(door_supervisor
 # -----------------------------------------------------------------------------
 
 add_library(robot_state_aggregator_main SHARED
-  src/robot_state_aggregator/main.cpp
+  src/robot_state_aggregator/RobotStateAggregator.cpp
 )
 
 target_include_directories(robot_state_aggregator_main
@@ -269,7 +271,7 @@ target_compile_definitions(robot_state_aggregator_main
   PRIVATE "COMPOSITION_BUILDING_DLL"
 )
 
-if (stubborn_buddies_msgs_FOUND)
+if($ENV{RMF_ENABLE_FAILOVER} EQUAL 1)
   ament_target_dependencies(robot_state_aggregator_main
     "rclcpp"
     "rclcpp_components"
@@ -277,7 +279,7 @@ if (stubborn_buddies_msgs_FOUND)
     "stubborn_buddies_msgs"
     "rmf_fleet_msgs"
   )
-else (NOT stubborn_buddies_msgs_FOUND)
+else()
   ament_target_dependencies(robot_state_aggregator_main
     "rclcpp"
     "rclcpp_components"
@@ -302,18 +304,17 @@ if(NOT WIN32)
 endif()
 
 add_executable(robot_state_aggregator
-  src/robot_state_aggregator/linktime_composition.cpp
+  src/robot_state_aggregator/main.cpp
 )
 
-if (stubborn_buddies_FOUND)
-  message("STUBBORN BUDDIES FOUND: Adding failover capabilites")
+if($ENV{RMF_ENABLE_FAILOVER} EQUAL 1)
   add_compile_definitions(FAILOVER_MODE)
   set(robot_state_aggregator_main_libs
     robot_state_aggregator_main
     stubborn_buddies::lifecycle_watchdog
     stubborn_buddies::lifecycle_heartbeat
   )
-else (NOT stubborn_buddies_FOUND)
+else()
   set(robot_state_aggregator_main_libs
     robot_state_aggregator_main
   )
