@@ -309,7 +309,15 @@ void TaskManager::_begin_next_task()
   const rmf_traffic::Time now = rmf_traffic_ros2::convert(
     _context->node()->now());
   const auto next_task = _queue.front();
-  const auto deployment_time = next_task->deployment_time();
+  // We take the minimum of the two to deal with cases where the deployment_time
+  // as computed by the task planner is greater than the earliest_start_time
+  // which is greater than now. This can happen for example if the previous task
+  // completed earlier than estimated.
+  // TODO: Reactively replan task assignments across agents in a fleet every
+  // time as task is completed.
+  const auto deployment_time = std::min(
+    next_task->deployment_time(),
+    next_task->request()->earliest_start_time());
 
   if (now >= deployment_time)
   {
