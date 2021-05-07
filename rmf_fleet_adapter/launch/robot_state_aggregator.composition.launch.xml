@@ -1,0 +1,37 @@
+<?xml version='1.0' ?>
+
+<launch>
+
+  <arg name="robot_prefix" default="" description="The prefix that this aggregator should look for in the incoming robot names"/>
+  <arg name="fleet_name" description="The name that will be published in the outgoing fleet state"/>
+  <arg name="use_sim_time" default="false" description="Use the /clock topic for time to sync with simulation"/>
+  
+  <arg name="subns" default="yin" description="Names the composition of nodes"/>
+  <arg name="buddy_subns" default="yang" descrption="Names the buddy composition of nodes" />
+  <arg name="active_node" default="true" description="Indicates if this is the active node"/>
+  <arg name="verbose" default="true" description="Extra verbosity" />
+  <arg name="failover_mode" default="false" description="Sets failover mode on or off"/>
+
+  <node pkg="rmf_fleet_adapter"
+    exec="robot_state_aggregator"
+    output="both"
+          
+    namespace="/$(var fleet_name)_state_aggregator/$(var subns)">
+
+    <param name="robot_prefix" value="$(var robot_prefix)"/>
+    <param name="fleet_name" value="$(var fleet_name)"/>
+    <param name="use_sim_time" value="$(var use_sim_time)"/>
+    
+    <param name="failover_mode" value="$(var failover_mode)"/>
+    <param name="active_node" value="$(var active_node)" />
+    <param name="subns" value="$(var subns)" />
+    <param name="buddy_subns" value="$(var buddy_subns)" />
+    <param name="namespace" value="$(var fleet_name)_state_aggregator" />
+    <param name="verbose" value="$(var verbose)" />
+    <param name="run_composition_command" value="ros2 launch rmf_fleet_adapter robot_state_aggregator.composition.launch.xml 
+           active_node:=false verbose:=$(var verbose) buddy_subns:=$(var subns) subns:=$(var buddy_subns) 
+           fleet_name:=$(var fleet_name) failover_mode:=$(var failover_mode)&amp;" />
+           
+  </node>
+
+</launch>
