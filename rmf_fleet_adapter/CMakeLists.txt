@@ -13,9 +13,11 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
-if($ENV{RMF_ENABLE_FAILOVER} EQUAL 1)
-  find_package(stubborn_buddies REQUIRED)
-  find_package(stubborn_buddies_msgs REQUIRED)
+if(DEFINED ENV{RMF_ENABLE_FAILOVER})
+   if($ENV{RMF_ENABLE_FAILOVER} EQUAL 1)
+    find_package(stubborn_buddies REQUIRED)
+    find_package(stubborn_buddies_msgs REQUIRED)
+  endif()
 endif()
 include(GNUInstallDirs)
 
@@ -271,14 +273,24 @@ target_compile_definitions(robot_state_aggregator_main
   PRIVATE "COMPOSITION_BUILDING_DLL"
 )
 
-if($ENV{RMF_ENABLE_FAILOVER} EQUAL 1)
-  ament_target_dependencies(robot_state_aggregator_main
-    "rclcpp"
-    "rclcpp_components"
-    "std_msgs"
-    "stubborn_buddies_msgs"
-    "rmf_fleet_msgs"
-  )
+
+if(DEFINED ENV{RMF_ENABLE_FAILOVER})
+  if($ENV{RMF_ENABLE_FAILOVER} EQUAL 1)
+    ament_target_dependencies(robot_state_aggregator_main
+      "rclcpp"
+      "rclcpp_components"
+      "std_msgs"
+      "stubborn_buddies_msgs"
+      "rmf_fleet_msgs"
+    )
+  else()
+    ament_target_dependencies(robot_state_aggregator_main
+      "rclcpp"
+      "rclcpp_components"
+      "std_msgs"
+      "rmf_fleet_msgs"
+    )
+  endif()
 else()
   ament_target_dependencies(robot_state_aggregator_main
     "rclcpp"
@@ -287,7 +299,6 @@ else()
     "rmf_fleet_msgs"
   )
 endif()
-
 
 rclcpp_components_register_nodes(robot_state_aggregator_main
   "RobotStateAggregator"
@@ -307,18 +318,25 @@ add_executable(robot_state_aggregator
   src/robot_state_aggregator/main.cpp
 )
 
-if($ENV{RMF_ENABLE_FAILOVER} EQUAL 1)
-  add_compile_definitions(FAILOVER_MODE)
-  set(robot_state_aggregator_main_libs
-    robot_state_aggregator_main
-    stubborn_buddies::lifecycle_watchdog
-    stubborn_buddies::lifecycle_heartbeat
-  )
+if(DEFINED ENV{RMF_ENABLE_FAILOVER})
+  if($ENV{RMF_ENABLE_FAILOVER} EQUAL 1)
+    add_compile_definitions(FAILOVER_MODE)
+    set(robot_state_aggregator_main_libs
+      robot_state_aggregator_main
+      stubborn_buddies::lifecycle_watchdog
+      stubborn_buddies::lifecycle_heartbeat
+    )
+  else()
+    set(robot_state_aggregator_main_libs
+      robot_state_aggregator_main
+    )
+  endif()
 else()
   set(robot_state_aggregator_main_libs
     robot_state_aggregator_main
   )
 endif()
+
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   set(robot_state_aggregator_main_libs
