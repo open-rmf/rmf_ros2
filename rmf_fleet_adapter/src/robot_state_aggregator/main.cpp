@@ -1,128 +1,102 @@
-/*
- * Copyright (C) 2019 Open Source Robotics Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
-*/
+// Copyright 2016 Open Source Robotics Foundation, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-#include <rclcpp/rclcpp.hpp>
+#include <memory>
+#include <string>
+#include <vector>
+#include <iostream>
 
-#include <rmf_fleet_msgs/msg/robot_state.hpp>
-#include <rmf_fleet_msgs/msg/fleet_state.hpp>
+#include "class_loader/class_loader.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_components/node_factory.hpp"
 
-#include <rmf_fleet_adapter/StandardNames.hpp>
-
-using RobotState = rmf_fleet_msgs::msg::RobotState;
-using FleetState = rmf_fleet_msgs::msg::FleetState;
-
-class RobotStateAggregator : public rclcpp::Node
-{
-public:
-
-  static std::shared_ptr<RobotStateAggregator> make()
-  {
-    const auto node = std::shared_ptr<RobotStateAggregator>(
-      new RobotStateAggregator);
-
-    const auto prefix = node->declare_parameter("robot_prefix", "");
-    const auto fleet_name = node->declare_parameter("fleet_name", "");
-    if (fleet_name.empty())
-    {
-      RCLCPP_FATAL(
-        node->get_logger(),
-        "Missing required parameter: [fleet_name]");
-      return nullptr;
-    }
-
-    node->_prefix = std::move(prefix);
-    node->_fleet_name = std::move(fleet_name);
-
-    return node;
-  }
-
-private:
-
-  RobotStateAggregator()
-  : rclcpp::Node("robot_state_aggregator")
-  {
-    const auto default_qos = rclcpp::SystemDefaultsQoS();
-    const auto sensor_qos = rclcpp::SensorDataQoS();
-
-    _fleet_state_pub = create_publisher<FleetState>(
-      rmf_fleet_adapter::FleetStateTopicName, default_qos);
-
-    _robot_state_sub = create_subscription<RobotState>(
-      "robot_state", sensor_qos,
-      [&](RobotState::UniquePtr msg)
-      {
-        _robot_state_update(std::move(msg));
-      });
-  }
-
-  std::string _prefix;
-  std::string _fleet_name;
-
-  std::unordered_map<std::string, std::unique_ptr<RobotState>> _latest_states;
-
-  rclcpp::Publisher<FleetState>::SharedPtr _fleet_state_pub;
-
-  rclcpp::Subscription<RobotState>::SharedPtr _robot_state_sub;
-  void _robot_state_update(RobotState::UniquePtr msg)
-  {
-    const std::string& name = msg->name;
-    if (name.size() < _prefix.size())
-      return;
-
-    if (name.substr(0, _prefix.size()) != _prefix)
-      return;
-
-    const auto insertion = _latest_states.insert(std::make_pair(name, nullptr));
-    const auto it = insertion.first;
-    bool updated = false;
-    if (insertion.second)
-    {
-      it->second = std::move(msg);
-      updated = true;
-    }
-    else
-    {
-      if (rclcpp::Time(it->second->location.t) < rclcpp::Time(msg->location.t) )
-      {
-        it->second = std::move(msg);
-        updated = true;
-      }
-    }
-
-    if (updated)
-    {
-      FleetState fleet;
-      fleet.name = _fleet_name;
-      for (const auto& robot_state : _latest_states)
-        fleet.robots.emplace_back(*robot_state.second);
-
-      _fleet_state_pub->publish(fleet);
-    }
-  }
-
-};
+#define LINKTIME_COMPOSITION_LOGGER_NAME "linktime_composition"
 
 int main(int argc, char* argv[])
 {
-  rclcpp::init(argc, argv);
-  const auto node = RobotStateAggregator::make();
-  if (!node)
-    return 1;
+  // Force flush of the stdout buffer.
+  setvbuf(stdout, NULL, _IONBF, BUFSIZ);
 
-  rclcpp::spin(node);
+  rclcpp::init(argc, argv);
+  rclcpp::Logger logger = rclcpp::get_logger(LINKTIME_COMPOSITION_LOGGER_NAME);
+  rclcpp::executors::SingleThreadedExecutor exec;
+  rclcpp::NodeOptions options;
+  std::vector<class_loader::ClassLoader*> loaders;
+  std::vector<rclcpp_components::NodeInstanceWrapper> node_wrappers;
+
+  std::vector<std::string> libraries = 
+  {
+    // all classes from libraries linked by the linker (rather then dlopen)
+    // are registered under the library_path ""
+    "",
+  };
+
+  //Easy way to catch the failover parameter
+  auto dummy_node = std::make_shared<rclcpp::Node>("dumy_node");
+  bool failover_mode = dummy_node->declare_parameter("failover_mode", false);
+  dummy_node.reset();
+
+#ifndef FAILOVER_MODE
+  if (failover_mode)
+  {
+    RCLCPP_ERROR(logger, "robot_state_aggregator was compiled without failover"
+                 " support. Make sure you have the required libraries and the"
+                 " environment variable $RMF_ENABLE_FAILOVER is set during"
+                 " compilation.");
+    return 1;
+  }
+#endif
+
+  for (auto library : libraries)
+  {
+    RCLCPP_INFO(logger, "Library");
+
+    auto loader = new class_loader::ClassLoader(library);
+    auto classes =
+      loader->getAvailableClasses<rclcpp_components::NodeFactory>();
+
+    for (auto clazz : classes)
+    {
+      RCLCPP_INFO(logger, "before if %s", clazz.c_str());
+      if (failover_mode || 
+         ((clazz.compare("rclcpp_components::NodeFactoryTemplate"
+         "<lifecycle_heartbeat::LifecycleHeartbeat>") != 0) &&
+         ((clazz.compare("rclcpp_components::NodeFactoryTemplate"
+         "<lifecycle_watchdog::LifecycleWatchdog>") != 0))))
+      {
+        RCLCPP_INFO(logger, "Instantiate class %s", clazz.c_str());
+        auto node_factory =
+          loader->createInstance<rclcpp_components::NodeFactory>(clazz);
+        auto wrapper = node_factory->create_node_instance(options);
+        auto node = wrapper.get_node_base_interface();
+
+        node_wrappers.push_back(wrapper);
+        exec.add_node(node);
+      }
+
+    }
+    loaders.push_back(loader);
+  }
+  exec.spin();
+
+  for (auto wrapper : node_wrappers)
+  {
+    exec.remove_node(wrapper.get_node_base_interface());
+  }
+  node_wrappers.clear();
+
   rclcpp::shutdown();
+
+  return 0;
 }
