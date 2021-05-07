@@ -81,6 +81,12 @@ const std::string& EndLiftSession::Active::description() const
 }
 
 //==============================================================================
+u_int32_t EndLiftSession::Active::type() const
+{
+  return Task::PhaseMsg::PHASE_ENDLIFTSESSION;
+}
+
+//==============================================================================
 void EndLiftSession::Active::_init_obs()
 {
   using rmf_lift_msgs::msg::LiftRequest;
@@ -178,6 +184,12 @@ rmf_traffic::Duration EndLiftSession::Pending::estimate_phase_duration() const
 const std::string& EndLiftSession::Pending::description() const
 {
   return _description;
+}
+
+//==============================================================================
+u_int32_t EndLiftSession::Pending::type() const
+{
+  return Task::PhaseMsg::PHASE_ENDLIFTSESSION;
 }
 
 } // namespace phases

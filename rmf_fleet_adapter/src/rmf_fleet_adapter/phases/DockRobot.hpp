@@ -47,6 +47,8 @@ struct DockRobot
 
     const std::string& description() const override;
 
+    u_int32_t type() const override;
+
   private:
     friend class Action;
 
@@ -70,6 +72,8 @@ struct DockRobot
     rmf_traffic::Duration estimate_phase_duration() const override;
 
     const std::string& description() const override;
+
+    u_int32_t type() const override;
 
   private:
 

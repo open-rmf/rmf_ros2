@@ -87,6 +87,12 @@ const std::string& GoToPlace::Active::description() const
 }
 
 //==============================================================================
+u_int32_t GoToPlace::Active::type() const
+{
+  return Task::PhaseMsg::PHASE_GOTOPLACE;
+}
+
+//==============================================================================
 void GoToPlace::Active::respond(
   const TableViewerPtr& table_viewer,
   const ResponderPtr& responder)
@@ -632,6 +638,12 @@ rmf_traffic::Duration GoToPlace::Pending::estimate_phase_duration() const
 const std::string& GoToPlace::Pending::description() const
 {
   return _description;
+}
+
+//==============================================================================
+u_int32_t GoToPlace::Pending::type() const
+{
+  return Task::PhaseMsg::PHASE_GOTOPLACE;
 }
 
 //==============================================================================

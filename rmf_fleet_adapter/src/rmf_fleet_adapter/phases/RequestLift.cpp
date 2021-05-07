@@ -74,6 +74,12 @@ const std::string& RequestLift::ActivePhase::description() const
 }
 
 //==============================================================================
+u_int32_t RequestLift::ActivePhase::type() const
+{
+  return Task::PhaseMsg::PHASE_REQUESTLIFT;
+}
+
+//==============================================================================
 RequestLift::ActivePhase::ActivePhase(
   agv::RobotContextPtr context,
   std::string lift_name,
@@ -350,6 +356,12 @@ rmf_traffic::Duration RequestLift::PendingPhase::estimate_phase_duration() const
 const std::string& RequestLift::PendingPhase::description() const
 {
   return _description;
+}
+
+//==============================================================================
+u_int32_t RequestLift::PendingPhase::type() const
+{
+  return Task::PhaseMsg::PHASE_REQUESTLIFT;
 }
 
 } // namespace phases

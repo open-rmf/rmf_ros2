@@ -89,6 +89,12 @@ const std::string& DoorOpen::ActivePhase::description() const
 }
 
 //==============================================================================
+u_int32_t DoorOpen::ActivePhase::type() const
+{
+  return Task::PhaseMsg::PHASE_OPENDOOR;
+}
+
+//==============================================================================
 void DoorOpen::ActivePhase::_init_obs()
 {
   auto transport = _context->node();
@@ -238,6 +244,12 @@ rmf_traffic::Duration DoorOpen::PendingPhase::estimate_phase_duration() const
 const std::string& DoorOpen::PendingPhase::description() const
 {
   return _description;
+}
+
+//==============================================================================
+u_int32_t DoorOpen::PendingPhase::type() const
+{
+  return Task::PhaseMsg::PHASE_OPENDOOR;
 }
 
 } // namespace phases

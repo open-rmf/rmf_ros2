@@ -71,6 +71,12 @@ const std::string& DoorClose::ActivePhase::description() const
 }
 
 //==============================================================================
+u_int32_t DoorClose::ActivePhase::type() const
+{
+  return Task::PhaseMsg::PHASE_CLOSEDOOR;
+}
+
+//==============================================================================
 void DoorClose::ActivePhase::_init_obs()
 {
   using rmf_door_msgs::msg::DoorRequest;
@@ -186,6 +192,12 @@ rmf_traffic::Duration DoorClose::PendingPhase::estimate_phase_duration() const
 const std::string& DoorClose::PendingPhase::description() const
 {
   return _description;
+}
+
+//==============================================================================
+u_int32_t DoorClose::PendingPhase::type() const
+{
+  return Task::PhaseMsg::PHASE_CLOSEDOOR;
 }
 
 } // namespace phases

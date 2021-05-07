@@ -62,6 +62,9 @@ public:
     // Documentation inherited
     const std::string& description() const final;
 
+    // Documentation inherited
+    u_int32_t type() const override;
+
   private:
     friend class Pending;
     Active(PhaseInfo info);
@@ -87,6 +90,9 @@ public:
 
     // Documentation inherited
     const std::string& description() const final;
+
+    // Documentation inherited
+    u_int32_t type() const override;
 
   private:
     friend class ResponsiveWait;

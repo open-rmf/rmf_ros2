@@ -51,6 +51,8 @@ struct EndLiftSession
 
     const std::string& description() const override;
 
+    u_int32_t type() const override;
+
   private:
 
     agv::RobotContextPtr _context;
@@ -78,6 +80,8 @@ struct EndLiftSession
     rmf_traffic::Duration estimate_phase_duration() const final;
 
     const std::string& description() const override;
+
+    u_int32_t type() const override;
 
   private:
     agv::RobotContextPtr _context;

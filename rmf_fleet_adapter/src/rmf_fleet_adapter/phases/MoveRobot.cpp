@@ -76,6 +76,13 @@ const std::string& MoveRobot::ActivePhase::description() const
   return _description;
 }
 
+
+//==============================================================================
+u_int32_t MoveRobot::ActivePhase::type() const
+{
+  return Task::PhaseMsg::PHASE_MOVEROBOT;
+}
+
 //==============================================================================
 MoveRobot::PendingPhase::PendingPhase(
   agv::RobotContextPtr context,
@@ -109,6 +116,12 @@ rmf_traffic::Duration MoveRobot::PendingPhase::estimate_phase_duration() const
 const std::string& MoveRobot::PendingPhase::description() const
 {
   return _description;
+}
+
+//==============================================================================
+u_int32_t MoveRobot::PendingPhase::type() const
+{
+  return Task::PhaseMsg::PHASE_MOVEROBOT;
 }
 
 //==============================================================================

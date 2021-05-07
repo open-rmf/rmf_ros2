@@ -49,6 +49,8 @@ struct MoveRobot
 
     const std::string& description() const override;
 
+    u_int32_t type() const override;
+
   private:
 
     agv::RobotContextPtr _context;
@@ -73,6 +75,8 @@ struct MoveRobot
     rmf_traffic::Duration estimate_phase_duration() const override;
 
     const std::string& description() const override;
+
+    u_int32_t type() const override;
 
   private:
 

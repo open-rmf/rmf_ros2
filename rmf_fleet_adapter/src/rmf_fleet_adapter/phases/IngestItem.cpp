@@ -73,6 +73,12 @@ const std::string& IngestItem::ActivePhase::description() const
 }
 
 //==============================================================================
+u_int32_t IngestItem::ActivePhase::type() const
+{
+  return Task::PhaseMsg::PHASE_INGESTITEM;
+}
+
+//==============================================================================
 IngestItem::ActivePhase::ActivePhase(
   agv::RobotContextPtr context,
   std::string request_guid,
@@ -262,6 +268,12 @@ rmf_traffic::Duration IngestItem::PendingPhase::estimate_phase_duration() const
 const std::string& IngestItem::PendingPhase::description() const
 {
   return _description;
+}
+
+//==============================================================================
+u_int32_t IngestItem::PendingPhase::type() const
+{
+  return Task::PhaseMsg::PHASE_INGESTITEM;
 }
 
 } // namespace phases

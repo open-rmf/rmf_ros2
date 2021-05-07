@@ -116,6 +116,11 @@ public:
       return _desc;
     }
 
+    u_int32_t type() const final
+    {
+      return 0;
+    }
+
   private:
 
     std::shared_ptr<Job> _job;
@@ -154,6 +159,11 @@ public:
     const std::string & description() const final
     {
       return _desc;
+    }
+
+    u_int32_t type() const final
+    {
+      return 0;
     }
 
   private:
@@ -235,6 +245,11 @@ public:
       return _desc;
     }
 
+    u_int32_t type() const final
+    {
+      return 0;
+    }
+
   private:
 
     std::shared_ptr<rmf_fleet_adapter::Task> _subtasks;
@@ -272,6 +287,11 @@ public:
     const std::string & description() const final
     {
       return _desc;
+    }
+
+    u_int32_t type() const final
+    {
+      return 0;
     }
 
   private:

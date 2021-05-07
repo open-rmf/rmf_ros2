@@ -58,6 +58,9 @@ public:
     // Documentation inherited from ActivePhase
     const std::string& description() const final;
 
+    // Documentation inherited from ActivePhase
+    u_int32_t type() const final;
+
     // Documentation inherited from Negotiator
     void respond(
         const TableViewerPtr& table_viewer,
@@ -122,6 +125,9 @@ public:
 
     // Documentation inherited
     const std::string& description() const final;
+
+    // Documentation inherited from ActivePhase
+    u_int32_t type() const final;
 
   private:
     friend class GoToPlace;

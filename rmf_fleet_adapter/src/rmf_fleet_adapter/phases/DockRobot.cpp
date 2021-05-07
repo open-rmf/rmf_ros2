@@ -67,6 +67,12 @@ const std::string& DockRobot::ActivePhase::description() const
 }
 
 //==============================================================================
+u_int32_t DockRobot::ActivePhase::type() const
+{
+  return Task::PhaseMsg::PHASE_DOCKROBOT;
+}
+
+//==============================================================================
 DockRobot::PendingPhase::PendingPhase(
   agv::RobotContextPtr context,
   std::string dock_name)
@@ -95,6 +101,12 @@ rmf_traffic::Duration DockRobot::PendingPhase::estimate_phase_duration() const
 const std::string& DockRobot::PendingPhase::description() const
 {
   return _description;
+}
+
+//==============================================================================
+u_int32_t DockRobot::PendingPhase::type() const
+{
+  return Task::PhaseMsg::PHASE_DOCKROBOT;
 }
 
 //==============================================================================

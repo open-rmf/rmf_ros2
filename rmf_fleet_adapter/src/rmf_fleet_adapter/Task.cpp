@@ -174,6 +174,17 @@ void Task::_start_next_phase()
           summary.status += " | Remaining phases: "
               + std::to_string(task->_pending_phases.size() + 1);
 
+          PhaseMsg phase;
+          phase.current_phase = task->_active_phase->type();
+          for (const auto& pending_phase : task->_pending_phases)
+            phase.pending_phases.push_back(pending_phase->type());
+          phase.completed_phases = task->_completed_phases_type;
+          summary.phases.push_back(phase);
+
+          // add all phases by one level
+          for (auto& ph : summary.phases)
+            ph.tree_level += 1;
+
           task->_status_publisher.get_subscriber().on_next(summary);
         },
         [w = weak_from_this()](std::exception_ptr e)
@@ -207,6 +218,9 @@ void Task::_start_next_phase()
           const auto task = w.lock();
           if (!task)
             return;
+
+          // cache the type of the completd phase
+          task->_completed_phases_type.push_back(task->_active_phase->type());
 
           // We have received a completion notice from the phase
           task->_start_next_phase();

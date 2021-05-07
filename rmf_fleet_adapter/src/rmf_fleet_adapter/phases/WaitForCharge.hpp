@@ -56,7 +56,9 @@ public:
 
     // Documentation inherited from ActivePhase
     const std::string & description() const final;
-  
+
+    u_int32_t type() const override;
+
   private:
     friend class Pending;
     Active(
@@ -90,7 +92,10 @@ public:
 
     // Documentation inherited
     const std::string& description() const final;
-  
+
+    // Documentation inherited
+    u_int32_t type() const override;
+
   private:
     friend class WaitForCharge;
     Pending(

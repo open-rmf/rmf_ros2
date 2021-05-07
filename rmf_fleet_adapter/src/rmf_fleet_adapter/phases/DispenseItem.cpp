@@ -73,6 +73,12 @@ const std::string& DispenseItem::ActivePhase::description() const
 }
 
 //==============================================================================
+u_int32_t DispenseItem::ActivePhase::type() const
+{
+  return Task::PhaseMsg::PHASE_DISPENSEITEM;
+}
+
+//==============================================================================
 DispenseItem::ActivePhase::ActivePhase(
   agv::RobotContextPtr context,
   std::string request_guid,
@@ -262,6 +268,12 @@ rmf_traffic::Duration DispenseItem::PendingPhase::estimate_phase_duration() cons
 const std::string& DispenseItem::PendingPhase::description() const
 {
   return _description;
+}
+
+//==============================================================================
+u_int32_t DispenseItem::PendingPhase::type() const
+{
+  return Task::PhaseMsg::PHASE_DISPENSEITEM;
 }
 
 } // namespace phases
