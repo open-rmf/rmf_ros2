@@ -139,15 +139,9 @@ public:
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
 
   // Task planner params
-  std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system = nullptr;
-  std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink = nullptr;
-  std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink = nullptr;
-  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink = nullptr;
-  bool drain_battery = true;
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
     rmf_task::BinaryPriorityScheme::make_cost_calculator();
   std::shared_ptr<rmf_task::agv::TaskPlanner> task_planner = nullptr;
-  bool initialized_task_planner = false;
 
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay =
       std::chrono::nanoseconds(std::chrono::seconds(10));
@@ -166,9 +160,6 @@ public:
   // Map of dock name to dock parameters
   std::unordered_map<std::string,
     rmf_fleet_msgs::msg::DockParameter> dock_param_map = {};
-
-  // Threshold soc for battery recharging
-  double recharge_threshold = 0.2;
 
   // TODO Support for various charging configurations
   std::unordered_set<std::size_t> charging_waypoints = {};

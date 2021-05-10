@@ -322,7 +322,7 @@ However, if you have already done that, relevant points are to:
 9. Create an adapter: `adpt.Adapter()` or `adpt.MockAdapter()`
 10. Attach a new fleet: `add_fleet()`
 11. Define a callback function for task acceptance: `accept_task_requests()`
-12. Set battery related parameters: `set_recharge_threshold()` and `set_task_planner_params()`
+12. Set task planner parameters: `set_task_planner_params()`
 13. Create a list of Plan Starts: `[plan.Start()]`
     - You will need to pass in a C++ starting time object, which you can obtain using the `now()` method from your instantiated `Adapter/MockAdapter`
 14. And add your robots to your fleet: `add_robot()`
