@@ -176,8 +176,11 @@ void Task::_start_next_phase()
 
           PhaseMsg phase;
           phase.current_phase = task->_active_phase->type();
-          for (const auto& pending_phase : task->_pending_phases)
-            phase.pending_phases.push_back(pending_phase->type());
+
+          // reverse pending phase according to impl sequence
+          for(int i = task->_pending_phases.size()-1; i >= 0; i--)
+            phase.pending_phases.push_back(task->_pending_phases[i]->type());
+
           phase.completed_phases = task->_completed_phases_type;
           summary.phases.push_back(phase);
 
