@@ -35,18 +35,22 @@ std::shared_ptr<Task> make_delivery(
     const rmf_task::agv::State finish_state)
 {
 
-  std::shared_ptr<const rmf_task::requests::DeliveryDescription> description =
+  std::shared_ptr<const rmf_task::requests::Delivery::Description> description =
     std::dynamic_pointer_cast<
-      const rmf_task::requests::DeliveryDescription>(request->description());
+      const rmf_task::requests::Delivery::Description>(request->description());
   
   if (description == nullptr)
     return nullptr;
-
+  
+  const auto pickup_waypoint = description->pickup_waypoint();
+  const auto dropoff_waypoint = description->dropoff_waypoint();
+  
   Task::PendingPhases phases;
   phases.push_back(
     phases::GoToPlace::make(
-      context, std::move(pickup_start),
-      description->pickup_waypoint()));
+      context,
+      std::move(pickup_start),
+      pickup_waypoint));
 
   phases.push_back(
         std::make_unique<phases::DispenseItem::PendingPhase>(
@@ -56,13 +60,32 @@ std::shared_ptr<Task> make_delivery(
           context->itinerary().description().owner(),
           description->items()));
 
-  auto dropoff_start = description->dropoff_start(pickup_start);
+  const auto dropoff_start = [&]() -> rmf_traffic::agv::Planner::Start
+    {
+
+      if (pickup_start.waypoint() == pickup_waypoint)
+        return pickup_start;
+
+      rmf_traffic::agv::Planner::Goal goal{pickup_waypoint};
+
+      const auto result = context->planner()->plan(pickup_start, goal);
+      // We assume we can always compute a plan
+      const auto& trajectory =
+        result->get_itinerary().back().trajectory();
+      const auto& finish_time = *trajectory.finish_time();
+      const double orientation = trajectory.back().position()[2];
+
+      return rmf_traffic::agv::Planner::Start{
+        finish_time,
+        pickup_waypoint,
+        orientation};
+    }();
+
   phases.push_back(
     phases::GoToPlace::make(
       context,
       std::move(dropoff_start),
-      description->dropoff_waypoint()));
-
+      dropoff_waypoint));
 
   std::vector<rmf_ingestor_msgs::msg::IngestorRequestItem> ingestor_items;
   ingestor_items.reserve(description->items().size());

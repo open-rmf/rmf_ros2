@@ -180,7 +180,7 @@ void TaskManager::set_queue(
       rmf_task_msgs::msg::TaskType task_type_msg;
       const auto request = a.request();
       if (std::dynamic_pointer_cast<
-        const rmf_task::requests::CleanDescription>(request->description()) != nullptr)
+        const rmf_task::requests::Clean::Description>(request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_CLEAN;
         auto task = rmf_fleet_adapter::tasks::make_clean(
@@ -194,7 +194,7 @@ void TaskManager::set_queue(
       }
 
       else if (std::dynamic_pointer_cast<
-        const rmf_task::requests::ChargeBatteryDescription>(
+        const rmf_task::requests::ChargeBattery::Description>(
           request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_CHARGE_BATTERY;
@@ -209,7 +209,7 @@ void TaskManager::set_queue(
       }
 
       else if (std::dynamic_pointer_cast<
-        const rmf_task::requests::DeliveryDescription>(
+        const rmf_task::requests::Delivery::Description>(
           request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_DELIVERY;
@@ -224,7 +224,7 @@ void TaskManager::set_queue(
       }
 
       else if (std::dynamic_pointer_cast<
-        const rmf_task::requests::LoopDescription>(request->description()) != nullptr)
+        const rmf_task::requests::Loop::Description>(request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_LOOP;
         const auto task = tasks::make_loop(
@@ -276,7 +276,7 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
   for (const auto& task : _queue)
   {
     if (std::dynamic_pointer_cast<
-      const rmf_task::requests::ChargeBatteryDescription>(
+      const rmf_task::requests::ChargeBattery::Description>(
         task->request()->description()))
       continue;
     requests.push_back(task->request());
@@ -309,7 +309,15 @@ void TaskManager::_begin_next_task()
   const rmf_traffic::Time now = rmf_traffic_ros2::convert(
     _context->node()->now());
   const auto next_task = _queue.front();
-  const auto deployment_time = next_task->deployment_time();
+  // We take the minimum of the two to deal with cases where the deployment_time
+  // as computed by the task planner is greater than the earliest_start_time
+  // which is greater than now. This can happen for example if the previous task
+  // completed earlier than estimated.
+  // TODO: Reactively replan task assignments across agents in a fleet every
+  // time as task is completed.
+  const auto deployment_time = std::min(
+    next_task->deployment_time(),
+    next_task->request()->earliest_start_time());
 
   if (now >= deployment_time)
   {
@@ -460,22 +468,25 @@ void TaskManager::retreat_to_charger()
   if (!task_planner)
     return;
 
+  if (!task_planner->configuration().constraints().drain_battery())
+    return;
+
   const auto current_state = expected_finish_state();
   if (current_state.waypoint() == current_state.charging_waypoint())
     return;
 
-  const double threshold_soc =
-    _context->task_planning_constraints().threshold_soc();
-  const double retreat_threshold = 1.2 * threshold_soc;
+  const auto& constraints = task_planner->configuration().constraints();
+  const double threshold_soc = constraints.threshold_soc();
+  const double retreat_threshold = 1.2 * threshold_soc; // safety factor
   const double current_battery_soc = _context->current_battery_soc();
 
-  const auto& task_planner_config = task_planner->config();
-  const auto estimate_cache = task_planner->estimate_cache();
+  const auto& parameters = task_planner->configuration().parameters();
+  auto& estimate_cache = *(task_planner->estimate_cache());
 
   double retreat_battery_drain = 0.0;
   const auto endpoints = std::make_pair(current_state.waypoint(),
     current_state.charging_waypoint());
-  const auto& cache_result = estimate_cache->get(endpoints);
+  const auto& cache_result = estimate_cache.get(endpoints);
 
   if (cache_result)
   {
@@ -485,7 +496,7 @@ void TaskManager::retreat_to_charger()
   {
     const rmf_traffic::agv::Planner::Goal retreat_goal{
       current_state.charging_waypoint()};
-    const auto result_to_charger = task_planner_config.planner()->plan(
+    const auto result_to_charger = parameters.planner()->plan(
       current_state.location(), retreat_goal);
 
     // We assume we can always compute a plan
@@ -502,16 +513,16 @@ void TaskManager::retreat_to_charger()
         finish_time - itinerary_start_time;
 
       dSOC_motion =
-        task_planner_config.motion_sink()->compute_change_in_charge(
+        parameters.motion_sink()->compute_change_in_charge(
           trajectory);
       dSOC_device =
-        task_planner_config.ambient_sink()->compute_change_in_charge(
+        parameters.ambient_sink()->compute_change_in_charge(
           rmf_traffic::time::to_seconds(itinerary_duration));
       retreat_battery_drain += dSOC_motion + dSOC_device;
       retreat_duration +=itinerary_duration;
       itinerary_start_time = finish_time;
     }
-    estimate_cache->set(endpoints, retreat_duration,
+    estimate_cache.set(endpoints, retreat_duration,
       retreat_battery_drain);
   }
 
@@ -522,16 +533,15 @@ void TaskManager::retreat_to_charger()
     (battery_soc_after_retreat > threshold_soc))
   {
     // Add a new charging task to the task queue
-    auto charging_request = rmf_task::requests::ChargeBattery::make(
-      task_planner_config.battery_system(),
-      task_planner_config.motion_sink(),
-      task_planner_config.ambient_sink(),
-      task_planner_config.planner(),
+    const auto charging_request = rmf_task::requests::ChargeBattery::make(
       current_state.finish_time());
+    const auto model = charging_request->description()->make_model(
+      current_state.finish_time(),
+      parameters);
 
-    const auto finish = charging_request->description()->estimate_finish(
+    const auto finish = model->estimate_finish(
       current_state,
-      _context->task_planning_constraints(),
+      constraints,
       estimate_cache);
     
     if (!finish)
