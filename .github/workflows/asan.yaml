@@ -1,0 +1,37 @@
+name: asan
+on: [push, pull_request]
+jobs:
+  asan:
+    name: asan
+    runs-on: ubuntu-20.04
+    steps:
+      - name: deps
+        uses: ros-tooling/setup-ros@v0.1
+        with:
+          required-ros-distributions: foxy
+      - name: build_and_test
+        uses: ros-tooling/action-ros-ci@v0.2
+        with:
+          target-ros2-distro: foxy
+          # build all packages listed in the meta package
+          package-name: |
+            rmf_traffic_ros2
+            rmf_task_ros2
+            rmf_fleet_adapter
+            rmf_fleet_adapter_python
+          vcs-repo-file-url: |
+            https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
+          colcon-defaults: |
+            {
+              "build": {
+                "mixin": ["asan"],
+                "cmake-args": ["-DCMAKE_BUILD_TYPE=Debug"]
+              }
+            }
+          colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
+      - name: upload_test_stream
+        uses: actions/upload-artifact@v2
+        with:
+          name: colcon-test-logs
+          path: ${{ steps.build_and_test.outputs.ros-workspace-directory-name }}/log/latest_test/rmf_traffic/streams.log
+        if: always()
