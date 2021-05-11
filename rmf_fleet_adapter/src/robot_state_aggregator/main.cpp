@@ -60,22 +60,18 @@ int main(int argc, char* argv[])
 
   for (auto library : libraries)
   {
-    RCLCPP_INFO(logger, "Library");
-
     auto loader = new class_loader::ClassLoader(library);
     auto classes =
       loader->getAvailableClasses<rclcpp_components::NodeFactory>();
 
     for (auto clazz : classes)
     {
-      RCLCPP_INFO(logger, "before if %s", clazz.c_str());
       if (failover_mode || 
          ((clazz.compare("rclcpp_components::NodeFactoryTemplate"
          "<lifecycle_heartbeat::LifecycleHeartbeat>") != 0) &&
          ((clazz.compare("rclcpp_components::NodeFactoryTemplate"
          "<lifecycle_watchdog::LifecycleWatchdog>") != 0))))
       {
-        RCLCPP_INFO(logger, "Instantiate class %s", clazz.c_str());
         auto node_factory =
           loader->createInstance<rclcpp_components::NodeFactory>(clazz);
         auto wrapper = node_factory->create_node_instance(options);
