@@ -74,7 +74,8 @@ public:
   /// Specify a set of lanes that should be open.
   void open_lanes(std::vector<std::size_t> lane_indices);
 
-  /// Set the parameters required for task planning
+  /// Set the parameters required for task planning. Without calling this
+  /// function, this fleet will not bid for and accept tasks.
   ///
   /// \param[in] battery_system
   ///   Specify the battery system used by the vehicles in this fleet.
@@ -88,29 +89,32 @@ public:
   /// \param[in] tool_sink
   ///   Specify the device sink for special tools used by the vehicles in this fleet.
   ///
+  /// \param[in] recharge_threshold
+  ///   The threshold for state of charge below which robots in this fleet
+  ///   will cease to operate and require recharging. A value between 0.0 and
+  ///   1.0 should be specified.
+  ///
+  /// \param[in] recharge_soc
+  ///   The state of charge to which robots in this fleet should be charged up
+  ///   to by automatic recharging tasks. A value between 0.0 and 1.0 should be
+  ///   specified.
+  ///
+  /// \param[in] account_for_battery_drain
+  ///   Specify whether battery drain is to be considered while allocating tasks.
+  ///   If false, battery drain will not be considered when planning for tasks.
+  ///   As a consequence, charging tasks will not be automatically assigned to
+  ///   vehicles in this fleet when battery levels fall below the
+  ///   recharge_threshold.
+  ///
   /// \return true if task planner parameters were successfully updated.
   bool set_task_planner_params(
     std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
     std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
     std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
-    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink);
-
-  /// Specify whether battery drain is to be considered while allocating tasks.
-  /// By default battery drain is considered.
-  ///
-  /// \param[in] value
-  ///   If false, battery drain will not be considered when planning for tasks.
-  ///   As a consequence, charging tasks will not be automatically assigned to
-  ///   vehicles in this fleet when battery levels fall below their thresholds.
-  bool account_for_battery_drain(bool value = true);
-
-  /// Set the threshold for state of charge below which robots in this fleet
-  /// will cease to operate and require recharging. A value between 0.0 and 1.0
-  /// should be specified. Default value is 0.2.
-  ///
-  /// \param[in] threshold
-  ///   Threshold as a fraction of the total battery capacity
-  FleetUpdateHandle& set_recharge_threshold(const double threshold);
+    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+    double recharge_threshold,
+    double recharge_soc,
+    bool account_for_battery_drain);
 
   /// A callback function that evaluates whether a fleet will accept a task
   /// request

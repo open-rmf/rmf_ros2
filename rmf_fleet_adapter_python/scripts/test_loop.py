@@ -137,9 +137,8 @@ def main():
     tool_power_sys = battery.PowerSystem.make(10.0)
     tool_sink = battery.SimpleDevicePowerSink(battery_sys, tool_power_sys)
 
-    fleet.set_recharge_threshold(0.2)
     b_success = fleet.set_task_planner_params(
-        battery_sys, motion_sink, ambient_sink, tool_sink)
+        battery_sys, motion_sink, ambient_sink, tool_sink, 0.2, 1.0, False)
 
     assert b_success, "set battery param failed"
 

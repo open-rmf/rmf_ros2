@@ -351,10 +351,8 @@ SCENARIO("Test Delivery")
   auto tool_sink = std::make_shared<SimpleDevicePowerSink>(
     *battery_system, *tool_power_system);
 
-  fleet->account_for_battery_drain(false);
-  fleet->set_recharge_threshold(0.2);
   fleet->set_task_planner_params(
-    battery_system, motion_sink, ambient_sink, tool_sink);
+    battery_system, motion_sink, ambient_sink, tool_sink, 0.2, 1.0, false);
 
   fleet->accept_task_requests(
     [&delivery_id](const rmf_task_msgs::msg::TaskProfile& task)
