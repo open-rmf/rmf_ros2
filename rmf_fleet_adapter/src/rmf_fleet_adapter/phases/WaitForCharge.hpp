@@ -23,6 +23,8 @@
 
 #include <rmf_battery/agv/BatterySystem.hpp>
 
+#include <rmf_traffic/Time.hpp>
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
@@ -60,7 +62,8 @@ public:
     Active(
       agv::RobotContextPtr context,
       rmf_battery::agv::BatterySystem battery_system,
-      double charge_to_soc);
+      double charge_to_soc,
+      rmf_traffic::Time start_time);
 
     agv::RobotContextPtr _context;
     rmf_battery::agv::BatterySystem _battery_system;
@@ -69,6 +72,10 @@ public:
     rxcpp::observable<StatusMsg> _status_obs;
     rxcpp::subjects::subject<StatusMsg> _status_publisher;
     rmf_rxcpp::subscription_guard _battery_soc_subscription;
+    rmf_traffic::Time _start_time;
+    rmf_traffic::Time _last_update_time;
+    double _initial_battery_soc;
+    double _expected_charging_rate; // % per hour
 
   };
 

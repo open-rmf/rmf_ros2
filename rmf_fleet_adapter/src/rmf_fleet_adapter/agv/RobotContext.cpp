@@ -228,13 +228,6 @@ RobotContext& RobotContext::current_task_end_state(
 }
 
 //==============================================================================
-const rmf_task::agv::Constraints&
-RobotContext::task_planning_constraints() const
-{
-  return _task_planning_constraints;
-}
-
-//==============================================================================
 double RobotContext::current_battery_soc() const
 {
   return _current_battery_soc;
@@ -259,6 +252,15 @@ const std::shared_ptr<const rmf_task::agv::TaskPlanner>&
 RobotContext::task_planner() const
 {
   return _task_planner;
+}
+
+//==============================================================================
+auto RobotContext::task_planner(
+  const std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner)
+-> RobotContext&
+{
+  _task_planner = task_planner;
+  return *this;
 }
 
 //==============================================================================
@@ -313,7 +315,6 @@ RobotContext::RobotContext(
   const rxcpp::schedulers::worker& worker,
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
   rmf_task::agv::State state,
-  rmf_task::agv::Constraints task_planning_constraints,
   std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner)
 : _command_handle(std::move(command_handle)),
   _location(std::move(_initial_location)),
@@ -326,7 +327,6 @@ RobotContext::RobotContext(
   _requester_id(
     _itinerary.description().owner() + "/" + _itinerary.description().name()),
   _current_task_end_state(state),
-  _task_planning_constraints(task_planning_constraints),
   _task_planner(std::move(task_planner))
 {
   _profile = std::make_shared<rmf_traffic::Profile>(

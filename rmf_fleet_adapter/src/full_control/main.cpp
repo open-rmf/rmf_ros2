@@ -923,16 +923,20 @@ std::shared_ptr<Connections> make_fleet(
   // Drain battery
   const bool drain_battery = rmf_fleet_adapter::get_parameter_or_default(
     *node, "drain_battery", false);
-  connections->fleet->account_for_battery_drain(drain_battery);
-
   // Recharge threshold
   const double recharge_threshold = rmf_fleet_adapter::get_parameter_or_default(
     *node, "recharge_threshold", 0.2);
-
-  connections->fleet->set_recharge_threshold(recharge_threshold);
-
+  // Recharge state of charge
+  const double recharge_soc = rmf_fleet_adapter::get_parameter_or_default(
+    *node, "recharge_soc", 1.0);
   if (!connections->fleet->set_task_planner_params(
-      battery_system, motion_sink, ambient_sink, tool_sink))
+      battery_system,
+      motion_sink,
+      ambient_sink,
+      tool_sink,
+      recharge_threshold,
+      recharge_soc,
+      drain_battery))
   {
     RCLCPP_ERROR(
       node->get_logger(),

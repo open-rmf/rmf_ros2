@@ -170,11 +170,25 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 
       const auto current_delay = action->_context->itinerary().delay();
 
-      const rmf_traffic::Time t = action->_context->now();
-      const auto previously_expected_arrival =
-      action->_waypoints[path_index].time() + current_delay;
-      const auto newly_expected_arrival = t + estimate;
-      const auto new_delay = newly_expected_arrival - previously_expected_arrival;
+      const rmf_traffic::Time now = action->_context->now();
+      const auto planned_time = action->_waypoints[path_index].time();
+      const auto previously_expected_arrival = planned_time + current_delay;
+      const auto newly_expected_arrival = now + estimate;
+
+      const auto new_delay = [&]() -> rmf_traffic::Duration
+      {
+        if (newly_expected_arrival < planned_time)
+        {
+          // If the robot is running ahead of time, we should actually fall back
+          // to the original timing prediction, with the assumption that the
+          // robot will stop and wait at the waypoint after arriving.
+          return planned_time - previously_expected_arrival;
+        }
+
+        // Otherwise we will adjust the time to match up with the latest
+        // expectations
+        return newly_expected_arrival - previously_expected_arrival;
+      } ();
 
       if (!action->_interrupted)
       {

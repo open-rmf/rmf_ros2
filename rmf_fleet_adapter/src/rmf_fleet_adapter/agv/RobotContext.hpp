@@ -123,9 +123,6 @@ public:
   // current task
   const rmf_task::agv::State& current_task_end_state() const;
 
-  /// Get the task planning constraints of this robot
-  const rmf_task::agv::Constraints& task_planning_constraints() const;
-
   /// Get the current battery state of charge
   double current_battery_soc() const;
 
@@ -138,6 +135,10 @@ public:
 
   /// Get a mutable reference to the task planner for this robot
   const std::shared_ptr<const rmf_task::agv::TaskPlanner>& task_planner() const;
+
+  /// Set the task planner for this robot
+  RobotContext& task_planner(
+    const std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner);
 
   void set_lift_entry_watchdog(
     RobotUpdateHandle::Unstable::Watchdog watchdog,
@@ -161,7 +162,6 @@ private:
     const rxcpp::schedulers::worker& worker,
     rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
     rmf_task::agv::State state,
-    rmf_task::agv::Constraints task_planning_constraints,
     std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner);
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
@@ -188,7 +188,6 @@ private:
   rxcpp::subjects::subject<double> _battery_soc_publisher;
   rxcpp::observable<double> _battery_soc_obs;
   rmf_task::agv::State _current_task_end_state;
-  rmf_task::agv::Constraints _task_planning_constraints;
   std::shared_ptr<const rmf_task::agv::TaskPlanner> _task_planner;
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;

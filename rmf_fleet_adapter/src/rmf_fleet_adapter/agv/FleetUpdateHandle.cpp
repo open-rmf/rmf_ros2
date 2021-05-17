@@ -28,6 +28,8 @@
 #include "../tasks/Delivery.hpp"
 #include "../tasks/Loop.hpp"
 
+#include <rmf_task/agv/Constraints.hpp>
+#include <rmf_task/agv/Parameters.hpp>
 #include <rmf_task/requests/Clean.hpp>
 #include <rmf_task/requests/Delivery.hpp>
 #include <rmf_task/requests/Loop.hpp>
@@ -102,11 +104,25 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   const BidNotice::SharedPtr msg)
 {
   if (task_managers.empty())
+  {
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Fleet [%s] does not have any robots to accept task [%s]. Use "
+      "FleetUpdateHadndle::add_robot(~) to add robots to this fleet. ",
+      name.c_str(), msg->task_profile.task_id.c_str());
     return;
+  }
 
   if (msg->task_profile.task_id.empty())
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Received BidNotice for a task with invalid task_id. Request will be "
+      "ignored.");
     return;
+  }
 
+  // TODO remove this block when we support task revival
   if (bid_notice_assignments.find(msg->task_profile.task_id)
     != bid_notice_assignments.end())
     return;
@@ -133,8 +149,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     return;
   }
 
-  if (!task_planner
-    || !initialized_task_planner)
+  if (!task_planner)
   {
     RCLCPP_WARN(
       node->get_logger(),
@@ -238,16 +253,11 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     }
 
     new_request = rmf_task::requests::Clean::make(
-      id,
       start_wp->index(),
       finish_wp->index(),
       cleaning_trajectory,
-      motion_sink,
-      ambient_sink,
-      tool_sink,
-      *planner,
+      id,
       start_time,
-      drain_battery,
       priority);
 
     RCLCPP_INFO(
@@ -333,17 +343,13 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     }
 
     new_request = rmf_task::requests::Delivery::make(
-      id,
       pickup_wp->index(),
       delivery.pickup_dispenser,
       dropoff_wp->index(),
       delivery.dropoff_ingestor,
       delivery.items,
-      motion_sink,
-      ambient_sink,
-      *planner,
+      id,
       start_time,
-      drain_battery,
       priority);
 
     RCLCPP_INFO(
@@ -409,15 +415,11 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     }
 
     new_request = rmf_task::requests::Loop::make(
-      id,
       start_wp->index(),
       finish_wp->index(),
       loop.num_loops,
-      motion_sink,
-      ambient_sink,
-      *planner,
+      id,
       start_time,
-      drain_battery,
       priority);
 
     RCLCPP_INFO(
@@ -740,28 +742,23 @@ auto FleetUpdateHandle::Implementation::is_valid_assignments(
 }
 
 //==============================================================================
-std::size_t FleetUpdateHandle::Implementation::get_nearest_charger(
-  const rmf_traffic::agv::Planner::Start& start,
-  const std::unordered_set<std::size_t>& charging_waypoints)
+std::optional<std::size_t> FleetUpdateHandle::Implementation::
+get_nearest_charger(
+  const rmf_traffic::agv::Planner::Start& start)
 {
-  assert(!charging_waypoints.empty());
-  const auto& graph = (*planner)->get_configuration().graph();
-  Eigen::Vector2d p = graph.get_waypoint(start.waypoint()).get_location();
+  if (charging_waypoints.empty())
+    return std::nullopt;
 
-  if (start.location().has_value())
-    p = *start.location();
-
-  double min_dist = std::numeric_limits<double>::max();
-  std::size_t nearest_charger = 0;
+  double min_cost = std::numeric_limits<double>::max();
+  std::optional<std::size_t> nearest_charger = std::nullopt;
   for (const auto& wp : charging_waypoints)
   {
-    const auto loc = graph.get_waypoint(wp).get_location();
-    // TODO: Replace this with a planner call
-    // when the performance improvements are finished
-    const double dist = (loc - p).norm();
-    if (dist < min_dist)
+    const rmf_traffic::agv::Planner::Goal goal{wp};
+    const auto& planner_result = (*planner)->setup(start, goal);
+    const auto ideal_cost = planner_result.ideal_cost();
+    if (ideal_cost.has_value() && ideal_cost.value() < min_cost)
     {
-      min_dist = dist;
+      min_cost = ideal_cost.value();
       nearest_charger = wp;
     }
   }
@@ -867,7 +864,6 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   // Collate robot states, constraints and combine new requestptr with
   // requestptr of non-charging tasks in task manager queues
   std::vector<rmf_task::agv::State> states;
-  std::vector<rmf_task::agv::Constraints> constraints_set;
   std::vector<rmf_task::ConstRequestPtr> pending_requests;
   std::string id = "";
 
@@ -880,7 +876,6 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   for (const auto& t : task_managers)
   {
     states.push_back(t.second->expected_finish_state());
-    constraints_set.push_back(t.first->task_planning_constraints());
     const auto requests = t.second->requests();
     pending_requests.insert(
       pending_requests.end(), requests.begin(), requests.end());
@@ -922,7 +917,6 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   const auto result = task_planner->optimal_plan(
     rmf_traffic_ros2::convert(node->now()),
     states,
-    constraints_set,
     pending_requests,
     nullptr);
 
@@ -990,10 +984,12 @@ void FleetUpdateHandle::add_robot(
 
   if (start.empty())
   {
+    // *INDENT-OFF*
     throw std::runtime_error(
-            "[FleetUpdateHandle::add_robot] StartSet is empty. Adding a robot to a "
-            "fleet requires at least one rmf_traffic::agv::Plan::Start to be "
-            "specified.");
+      "[FleetUpdateHandle::add_robot] StartSet is empty. Adding a robot to a "
+      "fleet requires at least one rmf_traffic::agv::Plan::Start to be "
+      "specified.");
+    // *INDENT-ON*
   }
 
   rmf_traffic::schedule::ParticipantDescription description(
@@ -1011,12 +1007,20 @@ void FleetUpdateHandle::add_robot(
     fleet = shared_from_this()](
       rmf_traffic::schedule::Participant participant)
     {
-      const std::size_t charger_wp = fleet->_pimpl->get_nearest_charger(
-        start[0], fleet->_pimpl->charging_waypoints);
+      const auto charger_wp = fleet->_pimpl->get_nearest_charger(start[0]);
+
+      if (!charger_wp.has_value())
+      {
+        // *INDENT-OFF*
+        throw std::runtime_error(
+          "[FleetUpdateHandle::add_robot] Unable to find nearest charging "
+          "waypoint. Adding a robot to a fleet requires at least one charging"
+          "waypoint to be present in its navigation graph.");
+        // *INDENT-ON*
+      }
+
       rmf_task::agv::State state = rmf_task::agv::State{
-        start[0], charger_wp, 1.0};
-      rmf_task::agv::Constraints task_planning_constraints =
-      rmf_task::agv::Constraints{fleet->_pimpl->recharge_threshold};
+        start[0], charger_wp.value(), 1.0};
       auto context = std::make_shared<RobotContext>(
         RobotContext{
           std::move(command),
@@ -1028,7 +1032,6 @@ void FleetUpdateHandle::add_robot(
           fleet->_pimpl->worker,
           fleet->_pimpl->default_maximum_delay,
           state,
-          task_planning_constraints,
           fleet->_pimpl->task_planner
         });
 
@@ -1085,8 +1088,8 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
       if (!self)
         return;
 
-      const auto& current_lane_closures
-        = (*self->_pimpl->planner)->get_configuration().lane_closures();
+      const auto& current_lane_closures =
+      (*self->_pimpl->planner)->get_configuration().lane_closures();
 
       bool any_changes = false;
       for (const auto& lane : lane_indices)
@@ -1109,8 +1112,8 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
       for (const auto& lane : lane_indices)
         new_lane_closures.close(lane);
 
-      *self->_pimpl->planner
-        = std::make_shared<const rmf_traffic::agv::Planner>(
+      *self->_pimpl->planner =
+      std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
     });
 }
@@ -1125,8 +1128,8 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
       if (!self)
         return;
 
-      const auto& current_lane_closures
-        = (*self->_pimpl->planner)->get_configuration().lane_closures();
+      const auto& current_lane_closures =
+      (*self->_pimpl->planner)->get_configuration().lane_closures();
 
       bool any_changes = false;
       for (const auto& lane : lane_indices)
@@ -1149,8 +1152,8 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
       for (const auto& lane : lane_indices)
         new_lane_closures.open(lane);
 
-      *self->_pimpl->planner
-        = std::make_shared<const rmf_traffic::agv::Planner>(
+      *self->_pimpl->planner =
+      std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
     });
 }
@@ -1194,50 +1197,51 @@ FleetUpdateHandle& FleetUpdateHandle::fleet_state_publish_period(
   return *this;
 }
 
+//==============================================================================
 bool FleetUpdateHandle::set_task_planner_params(
   std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
   std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
   std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
-  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink)
+  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+  double recharge_threshold,
+  double recharge_soc,
+  bool account_for_battery_drain)
 {
-  if (battery_system && motion_sink && ambient_sink && tool_sink)
+  if (battery_system &&
+    motion_sink &&
+    ambient_sink &&
+    tool_sink &&
+    (recharge_threshold >= 0.0 && recharge_threshold <= 1.0) &&
+    (recharge_soc >= 0.0 && recharge_threshold <= 1.0))
   {
-
-    _pimpl->battery_system = battery_system;
-    _pimpl->motion_sink = motion_sink;
-    _pimpl->ambient_sink = ambient_sink;
-    _pimpl->tool_sink = tool_sink;
-
-    auto task_config =
-      rmf_task::agv::TaskPlanner::Configuration(
+    const rmf_task::agv::Parameters parameters{
+      *_pimpl->planner,
       *battery_system,
       motion_sink,
       ambient_sink,
-      *_pimpl->planner,
-      _pimpl->cost_calculator);
-
+      tool_sink};
+    const rmf_task::agv::Constraints constraints{
+      recharge_threshold,
+      recharge_soc,
+      account_for_battery_drain};
+    const rmf_task::agv::TaskPlanner::Configuration task_config{
+      parameters,
+      constraints,
+      _pimpl->cost_calculator};
     _pimpl->task_planner = std::make_shared<rmf_task::agv::TaskPlanner>(
       std::move(task_config));
 
-    _pimpl->initialized_task_planner = true;
+    // Here we update the task planner in all the RobotContexts.
+    // The TaskManagers rely on the parameters in the task planner for
+    // automatic retreat. Hence, we also update them whenever the
+    // task planner here is updated.
+    for (const auto& t : _pimpl->task_managers)
+      t.first->task_planner(_pimpl->task_planner);
 
-    return _pimpl->initialized_task_planner;
+    return true;
   }
 
   return false;
-}
-
-bool FleetUpdateHandle::account_for_battery_drain(bool value)
-{
-  _pimpl->drain_battery = value;
-  return _pimpl->drain_battery;
-}
-//==============================================================================
-FleetUpdateHandle& FleetUpdateHandle::set_recharge_threshold(
-  const double threshold)
-{
-  _pimpl->recharge_threshold = threshold;
-  return *this;
 }
 
 //==============================================================================

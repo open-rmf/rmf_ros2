@@ -157,24 +157,27 @@ PYBIND11_MODULE(rmf_adapter, m) {
     battery::BatterySystem& b_sys,
     battery::SimpleMotionPowerSink& m_sink,
     battery::SimpleDevicePowerSink& a_sink,
-    battery::SimpleDevicePowerSink& t_sink)
+    battery::SimpleDevicePowerSink& t_sink,
+    double recharge_threshold,
+    double recharge_soc,
+    bool account_for_battery_drain)
     {
       return self.set_task_planner_params(
         std::make_shared<battery::BatterySystem>(b_sys),
         std::make_shared<battery::SimpleMotionPowerSink>(m_sink),
         std::make_shared<battery::SimpleDevicePowerSink>(a_sink),
-        std::make_shared<battery::SimpleDevicePowerSink>(t_sink));
+        std::make_shared<battery::SimpleDevicePowerSink>(t_sink),
+        recharge_threshold,
+        recharge_soc,
+        account_for_battery_drain);
     },
     py::arg("battery_system"),
     py::arg("motion_sink"),
     py::arg("ambient_sink"),
-    py::arg("tool_sink"))
-  .def("account_for_battery_drain",
-    &agv::FleetUpdateHandle::account_for_battery_drain,
-    py::arg("value") = true)
-  .def("set_recharge_threshold",
-    &agv::FleetUpdateHandle::set_recharge_threshold,
-    py::arg("threshold"))
+    py::arg("tool_sink"),
+    py::arg("recharge_threshold"),
+    py::arg("recharge_soc"),
+    py::arg("account_for_battery_drain"))
   .def("accept_delivery_requests",
     &agv::FleetUpdateHandle::accept_delivery_requests,
     "NOTE: deprecated, use accept_task_reqeusts() instead")

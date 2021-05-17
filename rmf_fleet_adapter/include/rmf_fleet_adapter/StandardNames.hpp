@@ -22,7 +22,7 @@
 
 namespace rmf_fleet_adapter {
 
-const std::string FleetStateTopicName = "fleet_states";
+const std::string FleetStateTopicName = "/fleet_states";
 const std::string DestinationRequestTopicName = "destination_requests";
 const std::string ModeRequestTopicName = "robot_mode_requests";
 const std::string PathRequestTopicName = "robot_path_requests";
