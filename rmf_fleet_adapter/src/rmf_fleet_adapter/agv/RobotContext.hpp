@@ -28,7 +28,7 @@ namespace agv {
 //==============================================================================
 class RobotContext
   : public std::enable_shared_from_this<RobotContext>,
-    public rmf_traffic::schedule::Negotiator
+  public rmf_traffic::schedule::Negotiator
 {
 public:
 

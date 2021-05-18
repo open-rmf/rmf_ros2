@@ -224,7 +224,8 @@ void TaskManager::set_queue(
         _queue.push_back(task);
       }
 
-      else if (std::dynamic_pointer_cast<const Loop::Description>(request->description()) != nullptr)
+      else if (std::dynamic_pointer_cast<const Loop::Description>(request->
+        description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_LOOP;
         const auto task = tasks::make_loop(
@@ -492,7 +493,7 @@ void TaskManager::retreat_to_charger()
 
   double retreat_battery_drain = 0.0;
   const auto endpoints = std::make_pair(current_state.waypoint(),
-    current_state.charging_waypoint());
+      current_state.charging_waypoint());
   const auto& cache_result = estimate_cache.get(endpoints);
 
   if (cache_result)
@@ -520,13 +521,12 @@ void TaskManager::retreat_to_charger()
         finish_time - itinerary_start_time;
 
       dSOC_motion =
-        parameters.motion_sink()->compute_change_in_charge(
-          trajectory);
+        parameters.motion_sink()->compute_change_in_charge(trajectory);
       dSOC_device =
         parameters.ambient_sink()->compute_change_in_charge(
-          rmf_traffic::time::to_seconds(itinerary_duration));
+        rmf_traffic::time::to_seconds(itinerary_duration));
       retreat_battery_drain += dSOC_motion + dSOC_device;
-      retreat_duration +=itinerary_duration;
+      retreat_duration += itinerary_duration;
       itinerary_start_time = finish_time;
     }
     estimate_cache.set(endpoints, retreat_duration,

@@ -800,8 +800,8 @@ std::shared_ptr<Connections> make_fleet(
 
       for (const auto& state : msg->robots)
       {
-        const auto insertion =
-          connections->robots.insert({state.name, nullptr});
+        const auto insertion = connections->robots.insert(
+          {state.name, nullptr});
 
         const bool new_robot = insertion.second;
         if (new_robot)

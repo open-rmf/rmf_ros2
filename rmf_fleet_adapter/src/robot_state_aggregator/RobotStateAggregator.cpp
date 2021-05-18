@@ -59,7 +59,7 @@ public:
 
     _fleet_state_pub = create_publisher<FleetState>(
       rmf_fleet_adapter::FleetStateTopicName, default_qos);
-
+// *INDENT-OFF*
 #ifdef FAILOVER_MODE
     if (_active_node)
     {
@@ -98,7 +98,7 @@ public:
         });
     }
 #endif
-
+// *INDENT-ON*
     const auto prefix = this->declare_parameter("robot_prefix", "");
     const auto fleet_name = this->declare_parameter("fleet_name", "");
 

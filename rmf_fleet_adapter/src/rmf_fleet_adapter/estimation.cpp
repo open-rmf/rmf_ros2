@@ -179,8 +179,8 @@ void estimate_midlane_state(
       // waypoint.
       info.updater->update_position(target_gi, l.yaw);
     }
-    else if (const auto* forward_lane
-      = info.graph->lane_from(last_gi, target_gi))
+    else if (const auto* forward_lane =
+      info.graph->lane_from(last_gi, target_gi))
     {
       // This implies that the robot is moving down a lane.
       std::vector<std::size_t> lanes;
