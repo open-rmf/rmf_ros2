@@ -73,9 +73,9 @@ const std::string& DispenseItem::ActivePhase::description() const
 }
 
 //==============================================================================
-u_int32_t DispenseItem::ActivePhase::type() const
+const std::string& DispenseItem::ActivePhase::title() const
 {
-  return Task::PhaseMsg::PHASE_DISPENSEITEM;
+  return _title;
 }
 
 //==============================================================================
@@ -271,9 +271,9 @@ const std::string& DispenseItem::PendingPhase::description() const
 }
 
 //==============================================================================
-u_int32_t DispenseItem::PendingPhase::type() const
+const std::string& DispenseItem::PendingPhase::title() const
 {
-  return Task::PhaseMsg::PHASE_DISPENSEITEM;
+  return _title;
 }
 
 } // namespace phases

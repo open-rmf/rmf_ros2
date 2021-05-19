@@ -57,9 +57,9 @@ const std::string& WaitForCharge::Active::description() const
 
 
 //==============================================================================
-u_int32_t WaitForCharge::Active::type() const
+const std::string& WaitForCharge::Active::title() const
 {
-  return Task::PhaseMsg::PHASE_WAITFORCHARGE;
+  return "WaitForCharge";
 }
 
 //==============================================================================
@@ -169,9 +169,9 @@ const std::string& WaitForCharge::Pending::description() const
 }
 
 //==============================================================================
-u_int32_t WaitForCharge::Pending::type() const
+const std::string& WaitForCharge::Pending::title() const
 {
-  return Task::PhaseMsg::PHASE_WAITFORCHARGE;
+  return "WaitForCharge";
 }
 
 //==============================================================================

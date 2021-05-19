@@ -19,6 +19,7 @@
 #include "RxOperators.hpp"
 #include "SupervisorHasSession.hpp"
 #include "rmf_fleet_adapter/StandardNames.hpp"
+#include <rmf_traffic/Time.hpp>
 
 #include <utility>
 
@@ -89,9 +90,9 @@ const std::string& DoorOpen::ActivePhase::description() const
 }
 
 //==============================================================================
-u_int32_t DoorOpen::ActivePhase::type() const
+const std::string& DoorOpen::ActivePhase::title() const
 {
-  return Task::PhaseMsg::PHASE_OPENDOOR;
+  return _title;
 }
 
 //==============================================================================
@@ -247,9 +248,9 @@ const std::string& DoorOpen::PendingPhase::description() const
 }
 
 //==============================================================================
-u_int32_t DoorOpen::PendingPhase::type() const
+const std::string& DoorOpen::PendingPhase::title() const
 {
-  return Task::PhaseMsg::PHASE_OPENDOOR;
+  return _title;
 }
 
 } // namespace phases

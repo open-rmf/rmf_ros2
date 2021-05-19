@@ -54,7 +54,7 @@ struct DispenseItem
 
     const std::string& description() const override;
 
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
 
@@ -64,6 +64,7 @@ struct DispenseItem
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     std::string _description;
+    std::string _title = "Dispense";
     rxcpp::observable<Task::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
     bool _request_acknowledged = false;
@@ -102,7 +103,7 @@ struct DispenseItem
 
     const std::string& description() const override;
 
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
 
@@ -112,6 +113,7 @@ struct DispenseItem
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     std::string _description;
+    std::string _title = "Dispense";
   };
 };
 

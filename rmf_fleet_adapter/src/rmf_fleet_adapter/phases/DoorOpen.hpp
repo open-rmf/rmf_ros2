@@ -59,7 +59,7 @@ struct DoorOpen
 
     const std::string& description() const override;
 
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
 
@@ -70,6 +70,7 @@ struct DoorOpen
     rxcpp::subjects::behavior<bool> _cancelled = rxcpp::subjects::behavior<bool>(false);
     rxcpp::observable<Task::StatusMsg> _obs;
     std::string _description;
+    std::string _title = "OpenDoor";
     rclcpp::TimerBase::SharedPtr _timer;
     Task::StatusMsg _status;
     std::shared_ptr<DoorClose::ActivePhase> _door_close_phase;
@@ -105,7 +106,7 @@ struct DoorOpen
 
     const std::string& description() const override;
 
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
 
@@ -114,6 +115,7 @@ struct DoorOpen
     std::string _request_id;
     rmf_traffic::Time _expected_finish;
     std::string _description;
+    std::string _title = "OpenDoor";
   };
 };
 

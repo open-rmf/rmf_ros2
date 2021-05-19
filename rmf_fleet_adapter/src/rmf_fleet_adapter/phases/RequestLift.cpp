@@ -74,9 +74,9 @@ const std::string& RequestLift::ActivePhase::description() const
 }
 
 //==============================================================================
-u_int32_t RequestLift::ActivePhase::type() const
+const std::string& RequestLift::ActivePhase::title() const
 {
-  return Task::PhaseMsg::PHASE_REQUESTLIFT;
+  return _title;
 }
 
 //==============================================================================
@@ -359,9 +359,9 @@ const std::string& RequestLift::PendingPhase::description() const
 }
 
 //==============================================================================
-u_int32_t RequestLift::PendingPhase::type() const
+const std::string& RequestLift::PendingPhase::title() const
 {
-  return Task::PhaseMsg::PHASE_REQUESTLIFT;
+  return _title;
 }
 
 } // namespace phases

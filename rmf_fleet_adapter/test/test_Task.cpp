@@ -116,9 +116,9 @@ public:
       return _desc;
     }
 
-    u_int32_t type() const final
+    const std::string& title() const final
     {
-      return 0;
+      return std::string();
     }
 
   private:
@@ -161,9 +161,9 @@ public:
       return _desc;
     }
 
-    u_int32_t type() const final
+    const std::string& title() const final
     {
-      return 0;
+      return std::string();
     }
 
   private:
@@ -245,9 +245,9 @@ public:
       return _desc;
     }
 
-    u_int32_t type() const final
+    const std::string& title() const final
     {
-      return 0;
+      return std::string();
     }
 
   private:
@@ -289,9 +289,9 @@ public:
       return _desc;
     }
 
-    u_int32_t type() const final
+    const std::string& title() const final
     {
-      return 0;
+      return std::string();
     }
 
   private:

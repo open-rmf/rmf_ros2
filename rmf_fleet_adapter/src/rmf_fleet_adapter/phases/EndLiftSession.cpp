@@ -81,9 +81,9 @@ const std::string& EndLiftSession::Active::description() const
 }
 
 //==============================================================================
-u_int32_t EndLiftSession::Active::type() const
+const std::string& EndLiftSession::Active::title() const
 {
-  return Task::PhaseMsg::PHASE_ENDLIFTSESSION;
+  return _title;
 }
 
 //==============================================================================
@@ -187,9 +187,9 @@ const std::string& EndLiftSession::Pending::description() const
 }
 
 //==============================================================================
-u_int32_t EndLiftSession::Pending::type() const
+const std::string& EndLiftSession::Pending::title() const
 {
-  return Task::PhaseMsg::PHASE_ENDLIFTSESSION;
+  return _title;
 }
 
 } // namespace phases

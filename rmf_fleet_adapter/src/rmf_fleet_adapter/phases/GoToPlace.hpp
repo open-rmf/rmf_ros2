@@ -59,7 +59,7 @@ public:
     const std::string& description() const final;
 
     // Documentation inherited from ActivePhase
-    u_int32_t type() const final;
+    const std::string& title() const final;
 
     // Documentation inherited from Negotiator
     void respond(
@@ -84,6 +84,7 @@ public:
     rmf_traffic::agv::Plan::Goal _goal;
     double _latest_time_estimate;
     std::string _description;
+    std::string _title = "GoToPlace";
     rmf_utils::optional<rmf_traffic::agv::Plan> _plan;
     std::shared_ptr<Task> _subtasks;
     bool _emergency_active = false;
@@ -127,7 +128,7 @@ public:
     const std::string& description() const final;
 
     // Documentation inherited from ActivePhase
-    u_int32_t type() const final;
+    const std::string& title() const final;
 
   private:
     friend class GoToPlace;
@@ -141,6 +142,7 @@ public:
     double _time_estimate;
     std::optional<rmf_traffic::Duration> _tail_period;
     std::string _description;
+    std::string _title = "GoToPlace";
   };
 
   /// Make a Task Phase for going to a place

@@ -150,6 +150,7 @@ void Task::_start_next_phase()
   }
 
   _active_phase = _pending_phases.back()->begin();
+  _current_phase_start_time = std::chrono::steady_clock::now();
   _pending_phases.pop_back();
   _active_phase_subscription =
       _active_phase->observe()
@@ -174,19 +175,27 @@ void Task::_start_next_phase()
           summary.status += " | Remaining phases: "
               + std::to_string(task->_pending_phases.size() + 1);
 
-          PhaseMsg phase;
-          phase.current_phase = task->_active_phase->type();
+          PhaseTierMsg phase_tier;
+          phase_tier.current.title = task->_active_phase->title();
+          phase_tier.current.description = task->_active_phase->description();
+          const auto duration = task->_active_phase->estimate_remaining_time();
+          phase_tier.current.duration = rclcpp::Duration(duration);
 
           // reverse pending phase according to impl sequence
+          PhaseMsg phase;
           for(int i = task->_pending_phases.size()-1; i >= 0; i--)
-            phase.pending_phases.push_back(task->_pending_phases[i]->type());
+          {
+            phase.title = task->_pending_phases[i]->title();
+            phase.description = task->_pending_phases[i]->description();
+            const auto duration = 
+              task->_pending_phases[i]->estimate_phase_duration();
+            phase.duration = rclcpp::Duration(duration);
+            phase_tier.pending.push_back(phase);
+          }
 
-          phase.completed_phases = task->_completed_phases_type;
-          summary.phases.push_back(phase);
-
-          // add all phases by one level
-          for (auto& ph : summary.phases)
-            ph.tree_level += 1;
+          phase_tier.completed = task->_completed_phases;
+          summary.tiers.push_back(phase_tier);
+          std::reverse(summary.tiers.begin(),summary.tiers.end()); // reverse
 
           task->_status_publisher.get_subscriber().on_next(summary);
         },
@@ -222,8 +231,15 @@ void Task::_start_next_phase()
           if (!task)
             return;
 
-          // cache the type of the completd phase
-          task->_completed_phases_type.push_back(task->_active_phase->type());
+          // cache the title of the completd phase
+          PhaseMsg phase;
+          phase.title = task->_active_phase->title();
+          phase.description = task->_active_phase->description();
+
+          const auto duration = 
+            std::chrono::steady_clock::now() - task->_current_phase_start_time;
+          phase.duration = rclcpp::Duration(duration);
+          task->_completed_phases.push_back(phase);
 
           // We have received a completion notice from the phase
           task->_start_next_phase();

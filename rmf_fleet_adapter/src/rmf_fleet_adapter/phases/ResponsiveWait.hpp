@@ -34,6 +34,7 @@ private:
     std::optional<rmf_traffic::Time> finish_time;
     std::optional<rmf_traffic::Duration> period;
     std::string description;
+    std::string title = "Wait";
   };
 
 public:
@@ -63,7 +64,7 @@ public:
     const std::string& description() const final;
 
     // Documentation inherited
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
     friend class Pending;
@@ -92,7 +93,7 @@ public:
     const std::string& description() const final;
 
     // Documentation inherited
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
     friend class ResponsiveWait;

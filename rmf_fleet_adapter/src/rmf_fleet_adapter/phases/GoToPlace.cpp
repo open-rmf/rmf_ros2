@@ -87,9 +87,9 @@ const std::string& GoToPlace::Active::description() const
 }
 
 //==============================================================================
-u_int32_t GoToPlace::Active::type() const
+const std::string& GoToPlace::Active::title() const
 {
-  return Task::PhaseMsg::PHASE_GOTOPLACE;
+  return _title;
 }
 
 //==============================================================================
@@ -641,9 +641,9 @@ const std::string& GoToPlace::Pending::description() const
 }
 
 //==============================================================================
-u_int32_t GoToPlace::Pending::type() const
+const std::string& GoToPlace::Pending::title() const
 {
-  return Task::PhaseMsg::PHASE_GOTOPLACE;
+  return _title;
 }
 
 //==============================================================================

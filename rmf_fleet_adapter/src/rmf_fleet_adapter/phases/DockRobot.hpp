@@ -47,7 +47,7 @@ struct DockRobot
 
     const std::string& description() const override;
 
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
     friend class Action;
@@ -55,6 +55,7 @@ struct DockRobot
     agv::RobotContextPtr _context;
     std::string _dock_name;
     std::string _description;
+    std::string _title = "Dock";
     std::shared_ptr<Action> _action;
     rxcpp::observable<Task::StatusMsg> _obs;
   };
@@ -73,13 +74,14 @@ struct DockRobot
 
     const std::string& description() const override;
 
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
 
     agv::RobotContextPtr _context;
     std::string _dock_name;
     std::string _description;
+    std::string _title = "Dock";
   };
 
   class Action

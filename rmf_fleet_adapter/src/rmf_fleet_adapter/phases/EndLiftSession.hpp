@@ -51,7 +51,7 @@ struct EndLiftSession
 
     const std::string& description() const override;
 
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
 
@@ -59,6 +59,7 @@ struct EndLiftSession
     std::string _lift_name;
     std::string _destination;
     std::string _description;
+    std::string _title = "ExitLift";
     rxcpp::observable<Task::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
 
@@ -81,13 +82,14 @@ struct EndLiftSession
 
     const std::string& description() const override;
 
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
     agv::RobotContextPtr _context;
     std::string _lift_name;
     std::string _destination;
     std::string _description;
+    std::string _title = "ExitLift";
   };
 };
 

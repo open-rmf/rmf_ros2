@@ -71,9 +71,9 @@ const std::string& DoorClose::ActivePhase::description() const
 }
 
 //==============================================================================
-u_int32_t DoorClose::ActivePhase::type() const
+const std::string& DoorClose::ActivePhase::title() const
 {
-  return Task::PhaseMsg::PHASE_CLOSEDOOR;
+  return _title;
 }
 
 //==============================================================================
@@ -195,9 +195,9 @@ const std::string& DoorClose::PendingPhase::description() const
 }
 
 //==============================================================================
-u_int32_t DoorClose::PendingPhase::type() const
+const std::string& DoorClose::PendingPhase::title() const
 {
-  return Task::PhaseMsg::PHASE_CLOSEDOOR;
+  return _title;
 }
 
 } // namespace phases

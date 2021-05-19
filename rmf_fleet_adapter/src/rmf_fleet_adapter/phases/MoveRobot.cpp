@@ -78,9 +78,9 @@ const std::string& MoveRobot::ActivePhase::description() const
 
 
 //==============================================================================
-u_int32_t MoveRobot::ActivePhase::type() const
+const std::string& MoveRobot::ActivePhase::title() const
 {
-  return Task::PhaseMsg::PHASE_MOVEROBOT;
+  return _title;
 }
 
 //==============================================================================
@@ -119,9 +119,9 @@ const std::string& MoveRobot::PendingPhase::description() const
 }
 
 //==============================================================================
-u_int32_t MoveRobot::PendingPhase::type() const
+const std::string& MoveRobot::PendingPhase::title() const
 {
-  return Task::PhaseMsg::PHASE_MOVEROBOT;
+  return _title;
 }
 
 //==============================================================================

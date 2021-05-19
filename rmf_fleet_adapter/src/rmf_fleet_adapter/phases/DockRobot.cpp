@@ -67,9 +67,9 @@ const std::string& DockRobot::ActivePhase::description() const
 }
 
 //==============================================================================
-u_int32_t DockRobot::ActivePhase::type() const
+const std::string& DockRobot::ActivePhase::title() const
 {
-  return Task::PhaseMsg::PHASE_DOCKROBOT;
+  return _title;
 }
 
 //==============================================================================
@@ -104,9 +104,9 @@ const std::string& DockRobot::PendingPhase::description() const
 }
 
 //==============================================================================
-u_int32_t DockRobot::PendingPhase::type() const
+const std::string& DockRobot::PendingPhase::title() const
 {
-  return Task::PhaseMsg::PHASE_DOCKROBOT;
+  return _title;
 }
 
 //==============================================================================

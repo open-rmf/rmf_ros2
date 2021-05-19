@@ -40,6 +40,7 @@ class Task : public std::enable_shared_from_this<Task>
 public:
 
   using StatusMsg = rmf_task_msgs::msg::TaskSummary;
+  using PhaseTierMsg = rmf_task_msgs::msg::PhaseTier;  
   using PhaseMsg = rmf_task_msgs::msg::Phase;
 
   /// This class represents the active phase of a Task. It provides an
@@ -72,7 +73,7 @@ public:
     virtual const std::string& description() const = 0;
 
     // int type to represent phase type
-    virtual u_int32_t type() const = 0;
+    virtual const std::string& title() const = 0;
 
     // Virtual destructor
     virtual ~ActivePhase() = default;
@@ -92,7 +93,7 @@ public:
     virtual const std::string& description() const = 0;
 
     // int type to represent phase type
-    virtual u_int32_t type() const = 0;
+    virtual const std::string& title() const = 0;
 
     // Virtual destructor
     virtual ~PendingPhase() = default;
@@ -158,7 +159,7 @@ private:
   std::shared_ptr<ActivePhase> _active_phase;
 
   // TODO: not sure whether should we keep a cache of completed phases
-  std::vector<u_int32_t> _completed_phases_type;
+  std::vector<PhaseMsg> _completed_phases;
 
   rxcpp::schedulers::worker _worker;
 
@@ -170,6 +171,7 @@ private:
   rmf_utils::optional<builtin_interfaces::msg::Time> _initial_time;
 
   rmf_traffic::Time _deployment_time;
+  rmf_traffic::Time _current_phase_start_time;
   rmf_task::agv::State _finish_state;
   rmf_task::ConstRequestPtr _request;
 

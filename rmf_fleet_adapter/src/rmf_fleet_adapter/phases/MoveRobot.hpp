@@ -49,12 +49,13 @@ struct MoveRobot
 
     const std::string& description() const override;
 
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
 
     agv::RobotContextPtr _context;
     std::string _description;
+    std::string _title = "Move";
     std::shared_ptr<Action> _action;
     rxcpp::observable<Task::StatusMsg> _obs;
     rxcpp::subjects::subject<bool> _cancel_subject;
@@ -76,7 +77,7 @@ struct MoveRobot
 
     const std::string& description() const override;
 
-    u_int32_t type() const override;
+    const std::string& title() const override;
 
   private:
 
@@ -84,6 +85,7 @@ struct MoveRobot
     std::vector<rmf_traffic::agv::Plan::Waypoint> _waypoints;
     std::optional<rmf_traffic::Duration> _tail_period;
     std::string _description;
+    std::string _title = "Move";
   };
 
   class Action : public std::enable_shared_from_this<Action>

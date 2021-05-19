@@ -73,9 +73,9 @@ const std::string& IngestItem::ActivePhase::description() const
 }
 
 //==============================================================================
-u_int32_t IngestItem::ActivePhase::type() const
+const std::string& IngestItem::ActivePhase::title() const
 {
-  return Task::PhaseMsg::PHASE_INGESTITEM;
+  return _title;
 }
 
 //==============================================================================
@@ -271,9 +271,9 @@ const std::string& IngestItem::PendingPhase::description() const
 }
 
 //==============================================================================
-u_int32_t IngestItem::PendingPhase::type() const
+const std::string& IngestItem::PendingPhase::title() const
 {
-  return Task::PhaseMsg::PHASE_INGESTITEM;
+  return _title;
 }
 
 } // namespace phases

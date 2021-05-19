@@ -76,9 +76,9 @@ const std::string& ResponsiveWait::Active::description() const
 }
 
 //==============================================================================
-u_int32_t ResponsiveWait::Active::type() const
+const std::string& ResponsiveWait::Active::title() const
 {
-  return Task::PhaseMsg::PHASE_RESPONSIVEWAIT;
+  return _info.title;
 }
 
 //==============================================================================
@@ -177,9 +177,9 @@ const std::string& ResponsiveWait::Pending::description() const
 }
 
 //==============================================================================
-u_int32_t ResponsiveWait::Pending::type() const
+const std::string& ResponsiveWait::Pending::title() const
 {
-  return Task::PhaseMsg::PHASE_RESPONSIVEWAIT;
+  return _info.title;
 }
 
 //==============================================================================
