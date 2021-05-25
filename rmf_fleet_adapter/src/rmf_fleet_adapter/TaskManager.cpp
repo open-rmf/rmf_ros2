@@ -259,7 +259,7 @@ void TaskManager::set_queue(
       msg.task_profile.description.task_type = task_type_msg;
       msg.start_time = rmf_traffic_ros2::convert(
         _queue.back()->deployment_time());
-      msg.start_time = rmf_traffic_ros2::convert(
+      msg.end_time = rmf_traffic_ros2::convert(
         _queue.back()->finish_state().finish_time());
       this->_context->node()->task_summary()->publish(msg);
     }
