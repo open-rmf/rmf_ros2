@@ -24,6 +24,7 @@
 #include <rmf_task_msgs/srv/submit_task.hpp>
 #include <rmf_task_msgs/srv/cancel_task.hpp>
 #include <rmf_task_msgs/srv/get_task_list.hpp>
+#include <rmf_task_msgs/msg/tasks.hpp>
 
 #include <rmf_traffic_ros2/Time.hpp>
 
@@ -40,10 +41,16 @@ public:
   using SubmitTaskSrv = rmf_task_msgs::srv::SubmitTask;
   using CancelTaskSrv = rmf_task_msgs::srv::CancelTask;
   using GetTaskListSrv = rmf_task_msgs::srv::GetTaskList;
+  using TasksMsg = rmf_task_msgs::msg::Tasks;
 
   rclcpp::Service<SubmitTaskSrv>::SharedPtr submit_task_srv;
   rclcpp::Service<CancelTaskSrv>::SharedPtr cancel_task_srv;
   rclcpp::Service<GetTaskListSrv>::SharedPtr get_task_list_srv;
+
+  using ActiveTasksPub = rclcpp::Publisher<TasksMsg>;
+  ActiveTasksPub::SharedPtr active_tasks_pub;
+
+  rclcpp::TimerBase::SharedPtr timer;
 
   StatusCallback on_change_fn;
 
@@ -53,6 +60,7 @@ public:
   std::size_t task_counter = 0; // index for generating task_id
   double bidding_time_window;
   int terminated_tasks_max_size;
+  int publish_active_tasks_period;
 
   std::unordered_map<std::size_t, std::string> task_type_name =
   {
@@ -77,6 +85,27 @@ public:
     RCLCPP_INFO(node->get_logger(),
       " Declared Terminated Tasks Max Size Param as: %d",
       terminated_tasks_max_size);
+    publish_active_tasks_period =
+      node->declare_parameter<int>("publish_active_tasks_period", 1);
+    RCLCPP_INFO(node->get_logger(),
+      " Declared PUblish_active_tasks_period as: %f secs", 
+      publish_active_tasks_period);
+
+    const auto qos = rclcpp::ServicesQoS().reliable();
+    active_tasks_pub = node->create_publisher<TasksMsg>(
+      rmf_task_ros2::ActiveTasksTopicName, qos);
+
+    timer = node->create_wall_timer(
+        std::chrono::seconds(publish_active_tasks_period), [&]()
+      {
+        TasksMsg task_msgs; 
+        for (auto task : (this->active_dispatch_tasks))
+        {
+          task_msgs.tasks.push_back(
+            rmf_task_ros2::convert_status(*(task.second)));
+        }
+        active_tasks_pub->publish(task_msgs);
+      });
 
     // Setup up stream srv interfaces
     submit_task_srv = node->create_service<SubmitTaskSrv>(
