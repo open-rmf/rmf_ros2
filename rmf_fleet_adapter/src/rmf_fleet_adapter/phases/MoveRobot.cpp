@@ -42,6 +42,8 @@ MoveRobot::ActivePhase::ActivePhase(
   _obs = make_cancellable(job, _cancel_subject.get_observable())
     .lift<Task::StatusMsg>(grab_while_active())
     .observe_on(rxcpp::identity_same_worker(_context->worker()));
+
+  _start_time = _context->now();
 }
 
 //==============================================================================
@@ -54,7 +56,14 @@ const rxcpp::observable<Task::StatusMsg>& MoveRobot::ActivePhase::observe() cons
 rmf_traffic::Duration MoveRobot::ActivePhase::estimate_remaining_time() const
 {
   // TODO: implement
-  return rmf_traffic::Duration{0};
+  return _action->remaining_duration();
+  // return rmf_traffic::Duration{0};
+}
+
+//==============================================================================
+rmf_traffic::Duration MoveRobot::ActivePhase::runtime_duration() const
+{
+  return _context->now() - _start_time;
 }
 
 //==============================================================================
@@ -96,6 +105,7 @@ MoveRobot::PendingPhase::PendingPhase(
   oss << "Move [" << _context->requester_id() << "] to ("
       << _waypoints.back().position().transpose() << ")";
   _description = oss.str();
+  _duration_estimate = _waypoints.back().time() - _waypoints.front().time();
 }
 
 //==============================================================================
@@ -108,8 +118,7 @@ std::shared_ptr<Task::ActivePhase> MoveRobot::PendingPhase::begin()
 //==============================================================================
 rmf_traffic::Duration MoveRobot::PendingPhase::estimate_phase_duration() const
 {
-  // TODO: implement
-  return rmf_traffic::Duration{0};
+  return _duration_estimate;
 }
 
 //==============================================================================
@@ -133,7 +142,7 @@ MoveRobot::Action::Action(
     _waypoints{waypoints},
     _tail_period{tail_period}
 {
-  // no op
+  _remaining_duration = _waypoints.back().time() - _waypoints.front().time();
 }
 
 } // namespace phases

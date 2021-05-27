@@ -64,7 +64,7 @@ struct DispenseItem
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     std::string _description;
-    std::string _title = "Dispense";
+    std::string _title = "ReceiveItem";  // Dispenser Dispenses, Robot receives
     rxcpp::observable<Task::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
     bool _request_acknowledged = false;
@@ -113,7 +113,7 @@ struct DispenseItem
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     std::string _description;
-    std::string _title = "Dispense";
+    std::string _title = "ReceiveItem";
   };
 };
 

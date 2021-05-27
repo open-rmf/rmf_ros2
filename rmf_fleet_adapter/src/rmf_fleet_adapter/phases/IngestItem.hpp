@@ -64,7 +64,7 @@ struct IngestItem
     std::string _transporter_type;
     std::vector<rmf_ingestor_msgs::msg::IngestorRequestItem> _items;
     std::string _description;
-    std::string _title = "Ingest";
+    std::string _title = "ReleaseItem";
     rxcpp::observable<Task::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
     bool _request_acknowledged = false;
@@ -113,7 +113,7 @@ struct IngestItem
     std::string _transporter_type;
     std::vector<rmf_ingestor_msgs::msg::IngestorRequestItem> _items;
     std::string _description;
-    std::string _title = "Ingest";
+    std::string _title = "ReleaseItem";
   };
 };
 

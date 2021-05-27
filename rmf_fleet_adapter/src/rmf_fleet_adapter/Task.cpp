@@ -33,7 +33,8 @@ std::shared_ptr<Task> Task::make(
     rxcpp::schedulers::worker worker,
     rmf_traffic::Time deployment_time,
     rmf_task::agv::State finish_state,
-    rmf_task::ConstRequestPtr request)
+    rmf_task::ConstRequestPtr request,
+    CompletedPhases completed_phases)
 {
   return std::make_shared<Task>(
         Task(std::move(id),
@@ -41,7 +42,8 @@ std::shared_ptr<Task> Task::make(
           std::move(worker),
           deployment_time,
           finish_state,
-          std::move(request)));
+          std::move(request),
+          std::move(completed_phases)));
 }
 
 //==============================================================================
@@ -108,19 +110,27 @@ const rmf_task::agv::State Task::finish_state() const
 }
 
 //==============================================================================
+auto Task::completed_phases() const -> const CompletedPhases
+{
+  return _completed_phases;
+}
+
+//==============================================================================
 Task::Task(
     std::string id,
     std::vector<std::unique_ptr<PendingPhase>> phases,
     rxcpp::schedulers::worker worker,
     rmf_traffic::Time deployment_time,
     rmf_task::agv::State finish_state,
-    rmf_task::ConstRequestPtr request)
+    rmf_task::ConstRequestPtr request,
+    std::vector<PhaseMsg> completed_phases)
   : _id(std::move(id)),
     _pending_phases(std::move(phases)),
     _worker(std::move(worker)),
     _deployment_time(deployment_time),
     _finish_state(finish_state),
-    _request(std::move(request))
+    _request(std::move(request)),
+    _completed_phases(std::move(completed_phases))
 {
   _status_obs = _status_publisher.get_observable();
   std::reverse(_pending_phases.begin(), _pending_phases.end());
@@ -133,6 +143,7 @@ void Task::_start_next_phase()
   {
     // All phases are now complete
     _active_phase = nullptr;
+    _active_pending_phase = nullptr;
     _active_phase_subscription.get().unsubscribe();
     _status_publisher.get_subscriber().on_completed();
 
@@ -151,6 +162,7 @@ void Task::_start_next_phase()
 
   _active_phase = _pending_phases.back()->begin();
   _current_phase_start_time = std::chrono::steady_clock::now();
+  _active_pending_phase = std::move(_pending_phases.back());
   _pending_phases.pop_back();
   _active_phase_subscription =
       _active_phase->observe()
@@ -167,34 +179,24 @@ void Task::_start_next_phase()
           // We have received a status update from the phase. We will forward
           // this to whoever is subscribing to the Task.
           summary.task_id = task->_id;
+          task->_debug++;
 
           // We don't want to say that the task is complete until the very end.
           if (summary.STATE_COMPLETED == summary.state)
-            summary.state = summary.STATE_ACTIVE;
-
-          summary.status += " | Remaining phases: "
-              + std::to_string(task->_pending_phases.size() + 1);
-
-          PhaseTierMsg phase_tier;
-          phase_tier.current.title = task->_active_phase->title();
-          phase_tier.current.description = task->_active_phase->description();
-          const auto duration = task->_active_phase->estimate_remaining_time();
-          phase_tier.current.duration = rclcpp::Duration(duration);
-
-          // reverse pending phase according to impl sequence
-          PhaseMsg phase;
-          for(int i = task->_pending_phases.size()-1; i >= 0; i--)
           {
-            phase.title = task->_pending_phases[i]->title();
-            phase.description = task->_pending_phases[i]->description();
-            const auto duration = 
-              task->_pending_phases[i]->estimate_phase_duration();
-            phase.duration = rclcpp::Duration(duration);
-            phase_tier.pending.push_back(phase);
+            summary.state = summary.STATE_ACTIVE;
           }
 
-          phase_tier.completed = task->_completed_phases;
-          summary.tiers.push_back(phase_tier);
+          std::string print_completed = "";
+          for (auto s : task->_debug_completed)
+            print_completed += " " + s;
+
+          summary.status += "\n | Remaining phases: "
+              + std::to_string(task->_pending_phases.size() + 1)
+              + ",  debug: " + std::to_string(task->_debug)
+              + ",  debug: " + print_completed;
+
+          summary.tiers.push_back(task->_generate_phase_tier());
           std::reverse(summary.tiers.begin(),summary.tiers.end()); // reverse
 
           task->_status_publisher.get_subscriber().on_next(summary);
@@ -231,19 +233,53 @@ void Task::_start_next_phase()
           if (!task)
             return;
 
-          // cache the title of the completd phase
+          // cache the the completd phase msg
           PhaseMsg phase;
           phase.title = task->_active_phase->title();
           phase.description = task->_active_phase->description();
 
-          const auto duration = 
-            std::chrono::steady_clock::now() - task->_current_phase_start_time;
-          phase.duration = rclcpp::Duration(duration);
+          const auto p_d = task->_active_pending_phase->estimate_phase_duration();
+          phase.predicted_duration = rclcpp::Duration(p_d);
+          const auto rt_d = task->_active_phase->runtime_duration();
+          phase.runtime_duration = rclcpp::Duration(rt_d);
+            
           task->_completed_phases.push_back(phase);
+          task->_debug += 10000;
+          task->_debug_completed.push_back(task->_active_phase->title());
 
           // We have received a completion notice from the phase
           task->_start_next_phase();
         });
+}
+
+//==============================================================================
+auto Task::_generate_phase_tier() -> PhaseTierMsg
+{
+  PhaseTierMsg phase_tier;
+  phase_tier.current.title = _active_phase->title();
+  phase_tier.current.description = _active_phase->description();
+  const auto re_d = _active_phase->estimate_remaining_time();
+  phase_tier.current.remaining_duration = rclcpp::Duration(re_d);
+  const auto rt_d = _active_phase->runtime_duration();
+  phase_tier.current.runtime_duration = rclcpp::Duration(rt_d);
+  const auto p_d = _active_pending_phase->estimate_phase_duration();
+  phase_tier.current.predicted_duration = rclcpp::Duration(p_d);
+
+  // reverse pending phase according to impl sequence
+  PhaseMsg phase;
+  for(int i = _pending_phases.size()-1; i >= 0; i--)
+  {
+    phase.title = _pending_phases[i]->title();
+    phase.description = _pending_phases[i]->description();
+    const auto duration = 
+      _pending_phases[i]->estimate_phase_duration();
+    phase.predicted_duration = rclcpp::Duration(duration);
+    phase.remaining_duration = phase.predicted_duration;
+    phase_tier.pending.push_back(phase);
+  }
+
+  phase_tier.completed = _completed_phases;
+  return phase_tier;
 }
 
 //==============================================================================

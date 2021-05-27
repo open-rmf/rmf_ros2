@@ -45,7 +45,7 @@ EndLiftSession::Active::Active(
   _lift_name(std::move(lift_name)),
   _destination(std::move(destination))
 {
-  _description = "Ending session with lift [" + lift_name + "]";
+  _description = "Ending session with lift [" + _lift_name + "]";
 }
 
 //==============================================================================
@@ -162,7 +162,7 @@ EndLiftSession::Pending::Pending(
   _lift_name(std::move(lift_name)),
   _destination(std::move(destination))
 {
-  _description = "End session with lift [" + lift_name + "]";
+  _description = "End session with lift [" + _lift_name + "]";
 }
 
 //==============================================================================

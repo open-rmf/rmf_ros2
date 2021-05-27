@@ -93,7 +93,7 @@ RequestLift::ActivePhase::ActivePhase(
     _located(located)
 {
   std::ostringstream oss;
-  oss << "Requesting lift [" << lift_name << "] to [" << destination << "]";
+  oss << "Requesting lift [" << _lift_name << "] to [" << _destination << "]";
 
   _description = oss.str();
 }
@@ -329,8 +329,7 @@ RequestLift::PendingPhase::PendingPhase(
     _located(located)
 {
   std::ostringstream oss;
-  oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
-
+  oss << "Requesting lift [" << _lift_name << "] to [" << _destination << "]";
   _description = oss.str();
 }
 

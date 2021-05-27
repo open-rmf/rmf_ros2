@@ -57,6 +57,12 @@ rmf_traffic::Duration GoToPlace::Active::estimate_remaining_time() const
 }
 
 //==============================================================================
+rmf_traffic::Duration GoToPlace::Active::runtime_duration() const
+{
+  return _context->now() - _start_time;
+}
+
+//==============================================================================
 void GoToPlace::Active::emergency_alarm(const bool value)
 {
   if (_emergency_active == value)
@@ -194,7 +200,7 @@ GoToPlace::Active::Active(
   _description = "Sending [" + _context->requester_id() + "] to ["
       + std::to_string(_goal.waypoint()) + "]";
   _negotiator_license = _context->set_negotiator(this);
-
+  _start_time = _context->now();
   StatusMsg initial_msg;
   initial_msg.status = "Finding a plan for [" + _context->requester_id()
       + "] to go to [" + std::to_string(_goal.waypoint()) + "]";
@@ -221,6 +227,7 @@ void GoToPlace::Active::find_plan()
       + "] to go to [" + std::to_string(_goal.waypoint()) + "]";
   msg.start_time = _context->node()->now();
   msg.end_time = msg.start_time;
+  msg.state = msg.STATE_ACTIVE;
   _status_publisher.get_subscriber().on_next(msg);
 
   _pullover_service = nullptr;
@@ -559,13 +566,33 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
   // dummy parameters for subtasks
   rmf_traffic::Time dummy_time;
   rmf_task::agv::State dummy_state{{dummy_time, 0, 0.0}, 0, 1.0};
-  _subtasks = Task::make(
+  
+  if (_context->name() == "deliveryRobot_1")
+    std::cout << "\n\033[1;31m INITIALIZE [TASK]\033[0m\n" << std::endl;
+  
+  // This will create a subtask phases. If this subtask is previously executed,
+  // it will get the previously completed task to prevent lost of information
+  if (_subtasks)
+  {
+    _subtasks = Task::make(
+          _description,
+          std::move(sub_phases),
+          _context->worker(),
+          dummy_time,
+          dummy_state,
+          nullptr,
+          _subtasks->completed_phases());
+  }
+  else
+  {
+    _subtasks = Task::make(
         _description,
         std::move(sub_phases),
         _context->worker(),
         dummy_time,
         dummy_state,
         nullptr);
+  }
 
   _status_subscription = _subtasks->observe()
       .observe_on(rxcpp::identity_same_worker(_context->worker()))

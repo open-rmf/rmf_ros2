@@ -50,6 +50,9 @@ public:
     rmf_traffic::Duration estimate_remaining_time() const final;
 
     // Documentation inherited from ActivePhase
+    rmf_traffic::Duration runtime_duration() const final;
+
+    // Documentation inherited from ActivePhase
     void emergency_alarm(bool on) final;
 
     // Documentation inherited from ActivePhase
@@ -81,6 +84,7 @@ public:
     void execute_plan(rmf_traffic::agv::Plan new_plan);
 
     agv::RobotContextPtr _context;
+    rmf_traffic::Time _start_time;
     rmf_traffic::agv::Plan::Goal _goal;
     double _latest_time_estimate;
     std::string _description;
