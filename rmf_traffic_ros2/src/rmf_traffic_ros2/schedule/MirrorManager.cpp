@@ -27,6 +27,8 @@
 #include <rmf_traffic_msgs/msg/participants.hpp>
 #include <rmf_traffic_msgs/msg/request_changes.hpp>
 
+#include <rmf_traffic_msgs/msg/fail_over_event.hpp>
+
 #include <rmf_traffic_msgs/srv/register_query.hpp>
 #include <rmf_traffic_msgs/srv/unregister_query.hpp>
 
@@ -48,6 +50,9 @@ using RequestChangesPub = rclcpp::Publisher<RequestChanges>::SharedPtr;
 using UnregisterQuery = rmf_traffic_msgs::srv::UnregisterQuery;
 using UnregisterQueryClient = rclcpp::Client<UnregisterQuery>::SharedPtr;
 
+using FailOverEvent = rmf_traffic_msgs::msg::FailOverEvent;
+using FailOverEventSub = rclcpp::Subscription<FailOverEvent>::SharedPtr;
+
 
 //==============================================================================
 class MirrorManager::Implementation
@@ -55,7 +60,9 @@ class MirrorManager::Implementation
 public:
 
   rclcpp::Node& node;
+  rmf_traffic::schedule::Query query;
   Options options;
+  FailOverEventSub fail_over_event_sub;
   UnregisterQueryClient unregister_query_client;
   MirrorUpdateSub mirror_update_sub;
   ParticipantsInfoSub participants_info_sub;
@@ -70,10 +77,12 @@ public:
 
   Implementation(
     rclcpp::Node& _node,
+    rmf_traffic::schedule::Query _query,
     Options _options,
     uint64_t _query_id,
     UnregisterQueryClient _unregister_query_client)
   : node(_node),
+    query(std::move(_query)),
     options(std::move(_options)),
     unregister_query_client(std::move(_unregister_query_client)),
     query_id(_query_id),
@@ -98,6 +107,14 @@ public:
     request_changes_pub = node.create_publisher<RequestChanges>(
       rmf_traffic_ros2::RequestChangesTopicName,
       rclcpp::SystemDefaultsQoS());
+
+    fail_over_event_sub = node.create_subscription<FailOverEvent>(
+      rmf_traffic_ros2::FailOverEventTopicName,
+      rclcpp::SystemDefaultsQoS(),
+      [&]([[maybe_unused]] const FailOverEvent::SharedPtr msg)
+      {
+        handle_fail_over_event();
+      });
   }
 
   void handle_participants_info(const ParticipantsInfo::SharedPtr msg)
@@ -183,12 +200,31 @@ public:
     request_changes_pub->publish(request);
   }
 
+  void handle_fail_over_event()
+  {
+    RCLCPP_INFO(node.get_logger(), "Handling fail over event for mirror");
+
+    // Deleting the old one will shut it down
+    unregister_query_client =
+      node.create_client<UnregisterQuery>(UnregisterQueryServiceName);
+    unregister_query_client->wait_for_service(std::chrono::milliseconds(100));
+    // TODO(Geoff): If the above does not return a valid service, the destructor
+    // will fail to send the unregister request. Do we care about that? Do we
+    // even need to bother waiting for the service here?
+  }
+
   ~Implementation()
   {
-    UnregisterQuery::Request msg;
-    msg.query_id = query_id;
-    unregister_query_client->async_send_request(
-      std::make_shared<UnregisterQuery::Request>(std::move(msg)));
+    // Only send the unregister request if the service is actually available.
+    // This avoids a race condition between a replacement schedule node
+    // starting up while this node shuts down.
+    if (unregister_query_client->service_is_ready())
+    {
+      UnregisterQuery::Request msg;
+      msg.query_id = query_id;
+      unregister_query_client->async_send_request(
+        std::make_shared<UnregisterQuery::Request>(std::move(msg)));
+    }
   }
 
   template<typename... Args>
@@ -285,6 +321,12 @@ MirrorManager& MirrorManager::set_options(Options options)
 }
 
 //==============================================================================
+rmf_traffic::schedule::Database MirrorManager::fork() const
+{
+  return _pimpl->mirror->fork();
+}
+
+//==============================================================================
 MirrorManager::MirrorManager()
 {
   // Do nothing
@@ -344,6 +386,7 @@ public:
       ready = ready && unregister_query_client->wait_for_service(timeout);
     }
 
+    // TODO(Geoff): What happens if the schedule node falls over right now?
     if (ready && !abandon_discovery)
     {
       RegisterQuery::Request register_query_request;
@@ -395,6 +438,7 @@ public:
 
     return MirrorManager::Implementation::make(
       node,
+      std::move(query),
       std::move(options),
       registration.query_id,
       std::move(unregister_query_client));

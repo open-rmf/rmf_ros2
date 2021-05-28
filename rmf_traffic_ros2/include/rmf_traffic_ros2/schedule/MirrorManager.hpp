@@ -18,6 +18,7 @@
 #ifndef RMF_TRAFFIC_ROS2__SCHEDULE__MIRROR_HPP
 #define RMF_TRAFFIC_ROS2__SCHEDULE__MIRROR_HPP
 
+#include <rmf_traffic/schedule/Database.hpp>
 #include <rmf_traffic/schedule/Mirror.hpp>
 
 #include <rclcpp/node.hpp>
@@ -58,7 +59,7 @@ public:
     /// True if the mirror should be updated each time a MirrorWakeup message
     /// is received. The MirrorWakeup messages are sent out each time a change
     /// is introduced to the schedule database.
-    bool update_on_wakeup() const;
+   bool update_on_wakeup() const;
 
     /// Toggle the choice to wakeup on an update.
     Options& update_on_wakeup(bool choice);
@@ -85,6 +86,11 @@ public:
 
   /// Set the options for this mirror manager
   MirrorManager& set_options(Options options);
+
+  /// Fork a new database off of the managed Mirror. The state of the new
+  /// database will match the last state of the upstream database that this
+  /// Mirror knows about.
+  rmf_traffic::schedule::Database fork() const;
 
   class Implementation;
 private:

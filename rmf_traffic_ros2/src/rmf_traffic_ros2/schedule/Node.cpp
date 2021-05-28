@@ -31,10 +31,12 @@
 #include <rmf_traffic_ros2/schedule/Inconsistencies.hpp>
 
 #include <rmf_traffic/DetectConflict.hpp>
+#include <rmf_traffic/schedule/DatabasePrinter.hpp>
 #include <rmf_traffic/schedule/Mirror.hpp>
 
 #include <rmf_utils/optional.hpp>
 
+#include <sstream>
 #include <unordered_map>
 
 namespace rmf_traffic_ros2 {
@@ -84,11 +86,25 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 }
 
 //==============================================================================
-ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
+ScheduleNode::ScheduleNode(
+    std::shared_ptr<rmf_traffic::schedule::Database> database_,
+    QueryMap registered_queries_,
+    QuerySubscriberCountMap registered_query_subscriber_counts,
+    const rclcpp::NodeOptions& options)
 : Node("rmf_traffic_schedule_node", options),
-  database(std::make_shared<rmf_traffic::schedule::Database>()),
+  heartbeat_qos_profile(1),
+  database(std::move(database_)),
+  registered_queries(std::move(registered_queries_)),
   active_conflicts(database)
 {
+  // Period, in milliseconds, for sending out a heartbeat signal to the monitor
+  // node in the redundant pair
+  declare_parameter<int>("heartbeat_period", 1000);
+  heartbeat_period = std::chrono::milliseconds(
+    get_parameter("heartbeat_period").as_int());
+
+  setup_redundancy();
+
   //Attempt to load/create participant registry.
   declare_parameter<std::string>("log_file_location", ".rmf_schedule_node.yaml");
   std::string log_file_name;
@@ -96,6 +112,9 @@ ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
     "log_file_location", 
     log_file_name, 
     ".rmf_schedule_node.yaml");
+
+  // Re-instantiate any query update topics based on received queries
+  remake_mirror_update_topics(registered_query_subscriber_counts);
 
   try
   {
@@ -151,11 +170,6 @@ ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
     const UnregisterParticipant::Request::SharedPtr request,
     const UnregisterParticipant::Response::SharedPtr response)
     { this->unregister_participant(request_header, request, response); });
-
-  participants_info_pub =
-    create_publisher<ParticipantsInfo>(
-    rmf_traffic_ros2::ParticipantsInfoTopicName,
-    rclcpp::SystemDefaultsQoS().reliable().keep_last(1).transient_local());
 
   request_changes_sub =
     create_subscription<RequestChanges>(
@@ -350,12 +364,195 @@ ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
 }
 
 //==============================================================================
+ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
+: ScheduleNode(
+    std::make_shared<rmf_traffic::schedule::Database>(),
+    QueryMap(),
+    QuerySubscriberCountMap(),
+    options)
+{
+}
+
+//==============================================================================
 ScheduleNode::~ScheduleNode()
 {
   conflict_check_quit = true;
   if (conflict_check_thread.joinable())
     conflict_check_thread.join();
 }
+
+//==============================================================================
+void ScheduleNode::setup_redundancy()
+{
+  start_heartbeat();
+
+  participants_info_pub =
+    create_publisher<ParticipantsInfo>(
+    rmf_traffic_ros2::ParticipantsInfoTopicName,
+    rclcpp::SystemDefaultsQoS().reliable().keep_last(1).transient_local());
+
+  queries_info_pub =
+    create_publisher<ScheduleQueries>(
+    rmf_traffic_ros2::QueriesInfoTopicName,
+    rclcpp::SystemDefaultsQoS().reliable().keep_last(1).transient_local());
+}
+
+//==============================================================================
+void ScheduleNode::start_heartbeat()
+{
+  // Set up liveliness announcements of this node, powered by DDS[tm][r][c][rgb]
+  heartbeat_qos_profile
+    .liveliness(RMW_QOS_POLICY_LIVELINESS_AUTOMATIC)
+    .liveliness_lease_duration(heartbeat_period)
+    .deadline(heartbeat_period);
+  heartbeat_pub = create_publisher<Heartbeat>(
+    rmf_traffic_ros2::HeartbeatTopicName,
+    heartbeat_qos_profile);
+  RCLCPP_INFO(
+    get_logger(),
+      "Set up heartbeat on %s with liveliness lease duration of %d ms "
+      "and deadline of %d ms",
+    heartbeat_pub->get_topic_name(),
+    heartbeat_period,
+    heartbeat_period);
+}
+
+//==============================================================================
+void ScheduleNode::add_query_topic(uint64_t query_id)
+{
+  RCLCPP_INFO(get_logger(), "Adding query topic for query %d", query_id);
+  MirrorUpdateTopicPublisher update_topic_publisher =
+    create_publisher<MirrorUpdate>(
+      rmf_traffic_ros2::QueryUpdateTopicNameBase + std::to_string(query_id),
+      rclcpp::SystemDefaultsQoS());
+  // Start the latest version sent for this query at the oldest version of the
+  // database. This will cause the new participant to be updated with all
+  // currently-relevant information from the database, not just the next
+  // change to come in.
+  MirrorUpdateTopicInfo update_topic {
+    update_topic_publisher,
+    std::nullopt,
+    1
+  };
+  mirror_update_topics.insert({query_id, update_topic});
+}
+
+//==============================================================================
+void ScheduleNode::remove_query_topic(uint64_t query_id)
+{
+  RCLCPP_INFO(get_logger(), "Removing query topic for query %d", query_id);
+  const auto& query_topic = mirror_update_topics.find(query_id);
+  if (query_topic == mirror_update_topics.end())
+  {
+    // Missing query update topic; something has gone very wrong but it doesn't
+    // matter much since we were going to remove the topic anyway
+    RCLCPP_ERROR(
+      get_logger(),
+      "Could not find expected mirror update topic to remove for query ID %d",
+      query_id);
+    return;
+  }
+  mirror_update_topics.erase(query_topic);
+}
+
+//==============================================================================
+void ScheduleNode::add_subscriber_to_query_topic(uint64_t query_id)
+{
+  RCLCPP_INFO(
+    get_logger(),
+    "Adding subscriber to query topic for query %d",
+    query_id);
+  const auto& query_topic = mirror_update_topics.find(query_id);
+  if (query_topic == mirror_update_topics.end())
+  {
+    // Missing query update topic; something has gone very wrong.
+    // TODO(Geoff): Make a new topic if an existing one can't be found? Or
+    // respond with failure to the request?
+    RCLCPP_ERROR(
+      get_logger(),
+      "Could not find expected mirror update topic for existing query ID %d "
+        "to add subscriber to",
+      query_id);
+    return;
+  }
+  auto mirror_update_topic_info = query_topic->second;
+  mirror_update_topic_info.subscriber_count += 1;
+  mirror_update_topics.insert_or_assign(query_id, mirror_update_topic_info);
+}
+
+//==============================================================================
+ScheduleNode::SubscriberRemovalResult
+ScheduleNode::remove_subscriber_from_query_topic(
+  uint64_t query_id)
+{
+  RCLCPP_INFO(
+    get_logger(),
+    "Removing subscriber from query topic for query %d",
+    query_id);
+  const auto& query_topic = mirror_update_topics.find(query_id);
+  if (query_topic == mirror_update_topics.end())
+  {
+    // Missing query update topic; something has gone very wrong.
+    // TODO(Geoff): Make a new topic if an existing one can't be found? Or
+    // respond with failure to the request?
+    RCLCPP_ERROR(
+      get_logger(),
+      "Could not find expected mirror update topic for existing query ID %d "
+        "to remove subscriber from",
+      query_id);
+    return SubscriberRemovalResult::query_missing;
+  }
+
+  auto mirror_update_topic_info = query_topic->second;
+  mirror_update_topic_info.subscriber_count -= 1;
+  if (mirror_update_topic_info.subscriber_count == 0)
+  {
+    remove_query_topic(query_id);
+    return SubscriberRemovalResult::query_removed;
+  }
+  else
+  {
+    mirror_update_topics.insert_or_assign(query_id, mirror_update_topic_info);
+    return SubscriberRemovalResult::query_in_use;
+  }
+}
+
+//==============================================================================
+void ScheduleNode::remake_mirror_update_topics(
+  const QuerySubscriberCountMap& subscriber_counts)
+{
+  // Delete any existing topics, just to be sure
+  mirror_update_topics.clear();
+
+  for (const auto& subscriber_count: subscriber_counts)
+  {
+    auto query_id = subscriber_count.first;
+    RCLCPP_INFO(
+      get_logger(),
+      "Remaking query topic for query ID %d",
+      query_id);
+    add_query_topic(query_id);
+    // Set the subscriber count manually
+    const auto& query_topic = mirror_update_topics.find(query_id);
+    if (query_topic == mirror_update_topics.end())
+    {
+      // Missing query update topic; something has gone _unbelievably_ wrong.
+      // Didn't we just add this topic?
+      RCLCPP_ERROR(
+        get_logger(),
+        "Could not find expected mirror update topic for existing query ID %d "
+          "to set subscriber count on",
+        query_id);
+      continue;
+    }
+    auto mirror_update_topic_info = query_topic->second;
+    mirror_update_topic_info.subscriber_count = subscriber_count.second;
+    mirror_update_topics.insert_or_assign(
+      query_id,
+      mirror_update_topic_info);
+  }
+}
+
 
 //==============================================================================
 void ScheduleNode::register_query(
@@ -387,28 +584,8 @@ void ScheduleNode::register_query(
     // currently-relevant information from the database, not just the next
     // change to come in.
 
-    // Find the update publisher for this query
-    const auto query_topic = mirror_update_topics.find(query_id);
-    if (query_topic == mirror_update_topics.end())
-    {
-      // Missing query update topic; something has gone very wrong.
-      // TODO(Geoff): Make a new topic if an existing one can't be found? Or
-      // respond with failure to the request?
-      RCLCPP_ERROR(
-        get_logger(),
-        "[ScheduleNode::register_query] Could not find mirror update topic for "
-        "existing query ID %ld",
-        query_id);
-    }
-    else
-    {
-      auto mirror_update_topic_info = query_topic->second;
-      mirror_update_topic_info.subscriber_count += 1;
-      mirror_update_topics.insert_or_assign(
-        query_id,
-        mirror_update_topic_info);
-    }
-
+    // Record an additional subscriber for this query
+    add_subscriber_to_query_topic(query_id);
     RCLCPP_INFO(get_logger(), "[%ld] Added mirror to query", query_id);
   }
   else
@@ -416,6 +593,14 @@ void ScheduleNode::register_query(
     // If the query does not exist, then query_id is still at last_query_id.
     // Find an unused query ID, store the query, and create a topic to publish
     // updates that match it.
+    // Note that this search may begin at query ID 0 if this is the first time
+    // it is performed on a replacement schedule node. This is because the set
+    // of queries will have been filled in from the original schedule node's
+    // synchronised data, but last_query_id will have been initialised to zero
+    // when the replacement was constructed. This is not a problem because a
+    // search for the next available query ID does not need to be performed
+    // until we actually need a new query ID, so performing it in the
+    // constructor in advance would be unnecessary early optimisation.
     uint64_t attempts = 0;
     do
     {
@@ -439,23 +624,12 @@ void ScheduleNode::register_query(
     registered_queries.insert(
       std::make_pair(query_id, rmf_traffic_ros2::convert(request->query)));
 
-    MirrorUpdateTopicPublisher update_topic_publisher =
-      create_publisher<MirrorUpdate>(
-      rmf_traffic_ros2::QueryUpdateTopicNameBase + std::to_string(query_id),
-      rclcpp::SystemDefaultsQoS());
-    // Start the latest version sent for this query at the oldest version of the
-    // database. This will cause the new participant to be updated with all
-    // currently-relevant information from the database, not just the next
-    // change to come in.
-    MirrorUpdateTopicInfo update_topic {
-      update_topic_publisher,
-      std::nullopt,
-      1
-    };
-    mirror_update_topics.insert(std::make_pair(query_id, update_topic));
-
+    // Create the topic for updating those interested in this query
+    add_query_topic(query_id);
     RCLCPP_INFO(get_logger(), "[%ld] Registered query", query_id);
   }
+
+  broadcast_queries();
 
   // If query does exist, query_id is already at the existing query ID and a
   // topic already exists. Return the query ID to the client without creating a
@@ -483,42 +657,35 @@ void ScheduleNode::unregister_query(
     return;
   }
 
-  // Find the update publisher for this query
-  const auto query_topic = mirror_update_topics.find(request->query_id);
-  if (query_topic != mirror_update_topics.end())
+  // Remove a subscriber for this query
+  auto removal_result = remove_subscriber_from_query_topic(request->query_id);
+  if (removal_result == SubscriberRemovalResult::query_removed)
   {
-    auto [ pub, update_version, mirror_count ] = query_topic->second;
-    // If the topic will have no mirrors registered after this one goes away
-    // then remove the publisher and the query.
-    if (mirror_count <= 1)
-    {
-      mirror_update_topics.erase(query_topic);
-      registered_queries.erase(it);
-      RCLCPP_INFO(get_logger(), "[%ld] Unregistered query", request->query_id);
-    }
-    // Otherwise reduce the mirror count by one
-    else
-    {
-      auto mirror_update_topic_info = query_topic->second;
-      mirror_update_topic_info.subscriber_count -= 1;
-      mirror_update_topics.insert_or_assign(
-        request->query_id,
-        mirror_update_topic_info);
-    }
+    registered_queries.erase(it);
+    RCLCPP_INFO(get_logger(), "[%ld] Unregistered query", request->query_id);
   }
-  else
-  {
-    // Missing query update topic; not a fatal error for removing the
-    // registration or continued operation, but still a sign that something has
-    // gone wrong.
-    RCLCPP_ERROR(
-      get_logger(),
-      "[ScheduleNode::unregister_query] Could not find mirror update topic "
-      "for query ID %ld",
-      request->query_id);
-  }
-
+  broadcast_queries();
   response->confirmation = true;
+}
+
+//==============================================================================
+void ScheduleNode::broadcast_queries()
+{
+  ScheduleQueries msg;
+
+  for (const auto& registered_query: registered_queries)
+  {
+    msg.ids.push_back(registered_query.first);
+
+    rmf_traffic::schedule::Query original =
+      registered_queries.at(registered_query.first);
+    ScheduleQuery query = rmf_traffic_ros2::convert(original);
+    msg.queries.push_back(query);
+
+    const auto& query_topic = mirror_update_topics.find(registered_query.first);
+    msg.subscriber_counts.push_back(query_topic->second.subscriber_count);
+  }
+  queries_info_pub->publish(msg);
 }
 
 //==============================================================================

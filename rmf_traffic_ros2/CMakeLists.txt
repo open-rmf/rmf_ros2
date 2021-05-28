@@ -93,6 +93,15 @@ target_link_libraries(rmf_traffic_schedule
 )
 
 #===============================================================================
+file(GLOB_RECURSE schedule_srcs "src/rmf_traffic_schedule_monitor/*.cpp")
+add_executable(rmf_traffic_schedule_monitor ${schedule_srcs})
+
+target_link_libraries(rmf_traffic_schedule_monitor
+  PRIVATE
+    rmf_traffic_ros2
+)
+
+#===============================================================================
 file(GLOB_RECURSE blockade_srcs "src/rmf_traffic_blockade/*.cpp")
 add_executable(rmf_traffic_blockade ${blockade_srcs})
 
@@ -121,6 +130,7 @@ install(
   TARGETS
     rmf_traffic_ros2
     rmf_traffic_schedule
+    rmf_traffic_schedule_monitor
     rmf_traffic_blockade
     update_participant
   EXPORT rmf_traffic_ros2

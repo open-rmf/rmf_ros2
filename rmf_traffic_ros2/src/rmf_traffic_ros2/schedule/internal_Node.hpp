@@ -29,6 +29,7 @@
 #include <rmf_traffic_msgs/msg/participant.hpp>
 #include <rmf_traffic_msgs/msg/participants.hpp>
 #include <rmf_traffic_msgs/msg/request_changes.hpp>
+#include <rmf_traffic_msgs/msg/schedule_queries.hpp>
 
 #include <rmf_traffic_msgs/msg/itinerary_clear.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_delay.hpp>
@@ -46,6 +47,8 @@
 #include <rmf_traffic_msgs/msg/negotiation_conclusion.hpp>
 
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
+
+#include <rmf_traffic_msgs/msg/heartbeat.hpp>
 
 #include <rmf_traffic_msgs/srv/register_query.hpp>
 #include <rmf_traffic_msgs/srv/unregister_query.hpp>
@@ -66,14 +69,35 @@
 namespace rmf_traffic_ros2 {
 namespace schedule {
 
+using namespace std::chrono_literals;
+
 //==============================================================================
 class ScheduleNode : public rclcpp::Node
 {
 public:
+  using QueryMap =
+    std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
+  using QuerySubscriberCountMap =
+    std::unordered_map<uint64_t, uint64_t>;
+
+  ScheduleNode(
+    std::shared_ptr<rmf_traffic::schedule::Database> database_,
+    QueryMap registered_queries_,
+    QuerySubscriberCountMap registered_query_subscriber_counts,
+    const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
   ScheduleNode(const rclcpp::NodeOptions& options);
 
   ~ScheduleNode();
+
+  std::chrono::milliseconds heartbeat_period = 1s;
+  rclcpp::QoS heartbeat_qos_profile;
+  using Heartbeat = rmf_traffic_msgs::msg::Heartbeat;
+  using HeartbeatPub = rclcpp::Publisher<Heartbeat>;
+  HeartbeatPub::SharedPtr heartbeat_pub;
+
+  void setup_redundancy();
+  void start_heartbeat();
 
   using request_id_ptr = std::shared_ptr<rmw_request_id_t>;
 
@@ -132,11 +156,24 @@ public:
   using MirrorUpdateTopicsMap =
     std::unordered_map<uint64_t, MirrorUpdateTopicInfo>;
   MirrorUpdateTopicsMap mirror_update_topics;
+  void add_query_topic(uint64_t query_id);
+  void remove_query_topic(uint64_t query_id);
+  void add_subscriber_to_query_topic(uint64_t query_id);
+  enum class SubscriberRemovalResult
+    { query_in_use, query_removed, query_missing };
+  SubscriberRemovalResult remove_subscriber_from_query_topic(uint64_t query_id);
+  void remake_mirror_update_topics(
+    const QuerySubscriberCountMap& subscriber_counts);
 
   using SingleParticipantInfo = rmf_traffic_msgs::msg::Participant;
   using ParticipantsInfo = rmf_traffic_msgs::msg::Participants;
-  void broadcast_participants();
   rclcpp::Publisher<ParticipantsInfo>::SharedPtr participants_info_pub;
+  void broadcast_participants();
+
+  using ScheduleQuery = rmf_traffic_msgs::msg::ScheduleQuery;
+  using ScheduleQueries = rmf_traffic_msgs::msg::ScheduleQueries;
+  rclcpp::Publisher<ScheduleQueries>::SharedPtr queries_info_pub;
+  void broadcast_queries();
 
   using RequestChanges = rmf_traffic_msgs::msg::RequestChanges;
   void request_changes(const RequestChanges& request);
@@ -172,8 +209,6 @@ public:
   std::mutex database_mutex;
   std::shared_ptr<rmf_traffic::schedule::Database> database;
 
-  using QueryMap =
-    std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
   // TODO(MXG): Have a way to make query registrations expire after they have
   // not been used for some set amount of time (e.g. 24 hours? 48 hours?).
   std::size_t last_query_id = 0;
@@ -422,7 +457,6 @@ public:
   // description versions separately from itinerary versions.
   std::size_t last_known_participants_version = 0;
   std::size_t current_participants_version = 1;
-
 };
 
 } // namespace schedule
