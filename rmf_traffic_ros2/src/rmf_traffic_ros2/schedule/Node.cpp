@@ -397,7 +397,8 @@ void ScheduleNode::register_query(
       RCLCPP_ERROR(
         get_logger(),
         "[ScheduleNode::register_query] Could not find mirror update topic for "
-        "existing query ID " + std::to_string(query_id));
+        "existing query ID %ld",
+        query_id);
     }
     else
     {
@@ -408,9 +409,7 @@ void ScheduleNode::register_query(
         mirror_update_topic_info);
     }
 
-    RCLCPP_INFO(
-      get_logger(),
-      "[" + std::to_string(query_id) + "] Added mirror to query");
+    RCLCPP_INFO(get_logger(), "[%ld] Added mirror to query", query_id);
   }
   else
   {
@@ -430,7 +429,8 @@ void ScheduleNode::register_query(
           "No more space for additional queries to be registered";
         RCLCPP_ERROR(
           get_logger(),
-          "[ScheduleNode::register_query] " + response->error);
+          "[ScheduleNode::register_query] %s",
+          response->error.c_str());
         return;
       }
     } while (registered_queries.find(query_id) != registered_queries.end());
@@ -454,9 +454,7 @@ void ScheduleNode::register_query(
     };
     mirror_update_topics.insert(std::make_pair(query_id, update_topic));
 
-    RCLCPP_INFO(
-      get_logger(),
-      "[" + std::to_string(query_id) + "] Registered query");
+    RCLCPP_INFO(get_logger(), "[%ld] Registered query", query_id);
   }
 
   // If query does exist, query_id is already at the existing query ID and a
@@ -480,7 +478,8 @@ void ScheduleNode::unregister_query(
 
     RCLCPP_INFO(
       get_logger(),
-      "[ScheduleNode::unregister_query] " + response->error);
+      "[ScheduleNode::unregister_query] %s",
+      response->error.c_str());
     return;
   }
 
@@ -495,9 +494,7 @@ void ScheduleNode::unregister_query(
     {
       mirror_update_topics.erase(query_topic);
       registered_queries.erase(it);
-      RCLCPP_INFO(
-        get_logger(),
-        "[" + std::to_string(request->query_id) + "] Unregistered query");
+      RCLCPP_INFO(get_logger(), "[%ld] Unregistered query", request->query_id);
     }
     // Otherwise reduce the mirror count by one
     else
@@ -517,7 +514,8 @@ void ScheduleNode::unregister_query(
     RCLCPP_ERROR(
       get_logger(),
       "[ScheduleNode::unregister_query] Could not find mirror update topic "
-      "for query ID " + std::to_string(request->query_id));
+      "for query ID %ld",
+      request->query_id);
   }
 
   response->confirmation = true;
@@ -549,9 +547,10 @@ void ScheduleNode::register_participant(
 
     RCLCPP_INFO(
       get_logger(),
-      "Registered participant [" + std::to_string(response->participant_id)
-      + "] named [" + request->description.name + "] owned by ["
-      + request->description.owner + "]");
+      "Registered participant [%ld] named [%s] owned by [%s]",
+      response->participant_id,
+      request->description.name.c_str(),
+      request->description.owner.c_str());
 
     broadcast_participants();
   }
@@ -559,8 +558,10 @@ void ScheduleNode::register_participant(
   {
     RCLCPP_ERROR(
       get_logger(),
-      "Failed to register participant [" + request->description.name
-      + "] owned by [" + request->description.owner + "]: " + e.what());
+      "Failed to register participant [%s] owned by [%s]: %s",
+      request->description.name.c_str(),
+      request->description.owner.c_str(),
+      e.what());
     response->error = e.what();
   }
 }
@@ -582,7 +583,7 @@ void ScheduleNode::unregister_participant(
       "participant has that ID";
     response->confirmation = false;
 
-    RCLCPP_ERROR(get_logger(), response->error);
+    RCLCPP_ERROR(get_logger(), response->error.c_str());
     return;
   }
 
@@ -599,8 +600,10 @@ void ScheduleNode::unregister_participant(
 
     RCLCPP_INFO(
       get_logger(),
-      "Unregistered participant [" + std::to_string(request->participant_id)
-      +"] named [" + name + "] owned by [" + owner + "]");
+      "Unregistered participant [%ld] named [%s] owned by [%s]",
+      request->participant_id,
+      name.c_str(),
+      owner.c_str());
 
     broadcast_participants();
   }
@@ -608,8 +611,9 @@ void ScheduleNode::unregister_participant(
   {
     RCLCPP_ERROR(
       get_logger(),
-      "Failed to unregister participant ["
-      + std::to_string(request->participant_id) + "]:" + e.what());
+      "Failed to unregister participant [%ld]: %s",
+      request->participant_id,
+      e.what());
     response->error = e.what();
     response->confirmation = false;
   }
@@ -642,7 +646,8 @@ void ScheduleNode::request_changes(const RequestChanges& request)
     RCLCPP_ERROR(
       get_logger(),
       "[ScheduleNode::request_changes] Could not find mirror update topic "
-      "for query ID " + std::to_string(request.query_id));
+      "for query ID %ld",
+      request.query_id);
   }
   else
   {
@@ -790,8 +795,8 @@ void ScheduleNode::update_mirrors()
 
       RCLCPP_DEBUG(
         get_logger(),
-        "[ScheduleNode::update_mirrors] Updated query " +
-        std::to_string(query_it.first));
+        "[ScheduleNode::update_mirrors] Updated query %ld",
+        query_it.first);
     }
     else
     {
@@ -800,7 +805,8 @@ void ScheduleNode::update_mirrors()
       RCLCPP_ERROR(
         get_logger(),
         "[ScheduleNode::update_mirrors] Could not find mirror update topic "
-        "to remove for query ID " + std::to_string(query_it.first));
+        "to remove for query ID %ld",
+        query_it.first);
     }
   }
 
@@ -881,7 +887,7 @@ void ScheduleNode::receive_refusal(const ConflictRefusal& msg)
 
   std::string output = "Refused negotiation ["
     + std::to_string(msg.conflict_version) + "]";
-  RCLCPP_INFO(get_logger(), output);
+  RCLCPP_INFO(get_logger(), output.c_str());
 
   active_conflicts.refuse(msg.conflict_version);
 
@@ -920,7 +926,7 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
         p.version) + " ";
     error += "]";
 
-    RCLCPP_WARN(get_logger(), error);
+    RCLCPP_WARN(get_logger(), error.c_str());
     negotiation_room->cached_proposals.push_back(msg);
     return;
   }
@@ -953,7 +959,7 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
     for (const auto p : conclusion.table)
       output += " " + std::to_string(p.participant) + ":" + std::to_string(
         p.version);
-    RCLCPP_INFO(get_logger(), output);
+    RCLCPP_INFO(get_logger(), output.c_str());
 
     conflict_conclusion_pub->publish(std::move(conclusion));
 //    print_conclusion(active_conflicts._waiting);
@@ -962,7 +968,7 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
   {
     std::string output = "Forfeited negotiation ["
       + std::to_string(msg.conflict_version) + "]";
-    RCLCPP_INFO(get_logger(), output);
+    RCLCPP_INFO(get_logger(), output.c_str());
 
     active_conflicts.conclude(msg.conflict_version);
 
@@ -1001,7 +1007,7 @@ void ScheduleNode::receive_rejection(const ConflictRejection& msg)
         p.version) + " ";
     error += "]";
 
-    RCLCPP_WARN(get_logger(), error);
+    RCLCPP_WARN(get_logger(), error.c_str());
     negotiation_room->cached_rejections.push_back(msg);
     return;
   }
@@ -1044,7 +1050,7 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
         p.version) + " ";
     error += "]";
 
-    RCLCPP_WARN(get_logger(), error);
+    RCLCPP_WARN(get_logger(), error.c_str());
     negotiation_room->cached_forfeits.push_back(msg);
     return;
   }
@@ -1060,7 +1066,7 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
   {
     std::string output = "Forfeited negotiation ["
       + std::to_string(msg.conflict_version) + "]";
-    RCLCPP_INFO(get_logger(), output);
+    RCLCPP_INFO(get_logger(), output.c_str());
 
     active_conflicts.conclude(msg.conflict_version);
 

@@ -136,9 +136,11 @@ bool Auctioneer::Implementation::determine_winner(
     else
     {
       winner = evaluate(bidding_task.submissions);
-      RCLCPP_INFO(node->get_logger(),
-        "Determined winning Fleet Adapter: [%s], from %d submissions",
-        winner->fleet_name.c_str(), bidding_task.submissions.size());
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Determined winning Fleet Adapter: [%s], from %ld submissions",
+        winner->fleet_name.c_str(),
+        bidding_task.submissions.size());
     }
 
     // Call the user defined callback function

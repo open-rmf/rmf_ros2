@@ -91,10 +91,11 @@ void TaskManager::queue_task(std::shared_ptr<Task> task, Start expected_finish)
   _expected_finish_location = std::move(expected_finish);
 
   RCLCPP_INFO(
-        _context->node()->get_logger(),
-        "Queuing new task [%s] for [%s]. New queue size: %d",
-         _queue.back()->id().c_str(), _context->requester_id().c_str(),
-        _queue.size());
+    _context->node()->get_logger(),
+    "Queuing new task [%s] for [%s]. New queue size: %ld",
+     _queue.back()->id().c_str(),
+     _context->requester_id().c_str(),
+    _queue.size());
 
   if (!_active_task)
   {
@@ -328,8 +329,9 @@ void TaskManager::_begin_next_task()
 
     RCLCPP_INFO(
           _context->node()->get_logger(),
-          "Beginning new task [%s] for [%s]. Remaining queue size: %d",
-          _active_task->id().c_str(), _context->requester_id().c_str(),
+          "Beginning new task [%s] for [%s]. Remaining queue size: %ld",
+          _active_task->id().c_str(),
+          _context->requester_id().c_str(),
           _queue.size());
 
     _task_sub = _active_task->observe()

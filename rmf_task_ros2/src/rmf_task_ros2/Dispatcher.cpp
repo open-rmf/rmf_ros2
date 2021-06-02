@@ -153,7 +153,7 @@ public:
 
     if (!task_type_name.count(task_type))
     {
-      RCLCPP_ERROR(node->get_logger(), "TaskType: %d is invalid", task_type);
+      RCLCPP_ERROR(node->get_logger(), "TaskType: %ld is invalid", task_type);
       return std::nullopt;
     }
 
