@@ -537,7 +537,8 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
       RCLCPP_WARN(
         node->get_logger(),
         "Received DispatchRequest for task_id:[%s] before receiving BidNotice. "
-        "This request will be ignored.");
+        "This request will be ignored.",
+        id.c_str());
       dispatch_ack_pub->publish(dispatch_ack);
       return;
     }
@@ -545,16 +546,18 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     RCLCPP_INFO(
       node->get_logger(),
       "Bid for task_id:[%s] awarded to fleet [%s]. Processing request...",
-      id.c_str(), name.c_str());
+      id.c_str(),
+      name.c_str());
 
     auto& assignments = task_it->second;
-    
+
     if (assignments.size() != task_managers.size())
     {
       RCLCPP_ERROR(
         node->get_logger(),
         "The number of available robots does not match that in the assignments "
-        "for task_id:[%s]. This request will be ignored.", id.c_str());
+        "for task_id:[%s]. This request will be ignored.",
+        id.c_str());
       dispatch_ack_pub->publish(dispatch_ack);
       return;
     }
@@ -906,9 +909,10 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   }
 
   RCLCPP_INFO(
-    node->get_logger(), 
-    "Planning for [%d] robot(s) and [%d] request(s)", 
-    states.size(), pending_requests.size());
+    node->get_logger(),
+    "Planning for [%ld] robot(s) and [%ld] request(s)", 
+    states.size(),
+    pending_requests.size());
 
   // Generate new task assignments
   const auto result = task_planner->optimal_plan(
@@ -1049,8 +1053,9 @@ void FleetUpdateHandle::add_robot(
 
       RCLCPP_INFO(
         node->get_logger(),
-        "Added a robot named [%s] with participant ID [%d]",
-        context->name().c_str(), context->itinerary().id());
+        "Added a robot named [%s] with participant ID [%ld]",
+        context->name().c_str(),
+        context->itinerary().id());
 
       fleet->_pimpl->task_managers.insert({context, TaskManager::make(context)});
       if (handle_cb)

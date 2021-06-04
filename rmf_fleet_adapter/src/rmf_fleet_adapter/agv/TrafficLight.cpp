@@ -296,10 +296,12 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_path(
       RCLCPP_ERROR(
         node->get_logger(),
         "Traffic light controlled robot [%s] owned by [%s] was given waypoints "
-        "[%d, %d] that are too close together [%fm]",
+        "[%ld, %ld] that are too close together [%fm]",
         itinerary.description().name().c_str(),
         itinerary.description().owner().c_str(),
-        i-1, i, dist);
+        i-1,
+        i,
+        dist);
       assert(false);
       return;
     }
@@ -397,7 +399,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::plan_timing(
     {
       RCLCPP_ERROR(
         data->node->get_logger(),
-        "Failed to find any itinerary for submitted path #%d of robot [%s] "
+        "Failed to find any itinerary for submitted path #%ld of robot [%s] "
         "owned by [%s]. This is a critical bug and should be reported to the "
         "rmf_core developers.",
         version,
@@ -1094,7 +1096,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_location(
     RCLCPP_WARN(
       data->node->get_logger(),
       "Failed to compute timing estimate for [%s] owned by [%s] "
-      "moving away from checkpoint index [%d].",
+      "moving away from checkpoint index [%ld].",
       data->itinerary.description().name().c_str(),
       data->itinerary.description().owner().c_str(),
       checkpoint_index);
@@ -1207,11 +1209,13 @@ void TrafficLight::UpdateHandle::Implementation::Data::new_range(
         "rejection was issued in a situation where a rejection should not be "
         "possible. This indicates an integration error with the traffic light "
         "fleet adapter. Fleet name: [%s], Robot name: [%s], last departed "
-        "checkpoint: %u, stopped location: <%.2f, %.2f, %.2f>",
+        "checkpoint: %lu, stopped location: <%.2f, %.2f, %.2f>",
         data->itinerary.description().owner().c_str(),
         data->itinerary.description().name().c_str(),
         last_departed,
-        stopped_location.x(), stopped_location.y(), stopped_location.z());
+        stopped_location.x(),
+        stopped_location.y(),
+        stopped_location.z());
 
       data->reject(path_version, plan_version, last_departed, stopped_location);
     }

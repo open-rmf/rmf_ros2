@@ -176,7 +176,7 @@ public:
     {
       RCLCPP_ERROR(
             _node->get_logger(),
-            "Uh oh!! An adapter error has occurred for [%s] owned by [%s]. "
+            "Uh oh!! An adapter error has occurred for [??] owned by [??]. "
             "This really shouldn't happen for the traffic light, but there is "
             "a TODO inside the source code for how to fix this if it ever does "
             "occur");
