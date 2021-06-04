@@ -175,7 +175,7 @@ public:
       RCLCPP_INFO(
         node.get_logger(),
         "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
-          "for query ID [%ld] since beginning of recorded history",
+        "for query ID [%ld] since beginning of recorded history",
         request.query_id);
       request.version = 0;
       request.full_update = true;
