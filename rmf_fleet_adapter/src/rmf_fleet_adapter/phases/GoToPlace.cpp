@@ -666,8 +666,10 @@ auto GoToPlace::make(
     RCLCPP_ERROR(
           context->node()->get_logger(),
           "[GoToPlace] Unable to find any path for robot [%s] to get from "
-          "waypoint [%d] to waypoint [%d]",
-          context->name().c_str(), start_estimate.waypoint(), goal.waypoint());
+          "waypoint [%ld] to waypoint [%ld]",
+          context->name().c_str(),
+          start_estimate.waypoint(),
+          goal.waypoint());
     return nullptr;
   }
 

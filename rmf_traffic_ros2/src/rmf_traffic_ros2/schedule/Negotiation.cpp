@@ -410,7 +410,7 @@ public:
         + std::to_string(msg.conflict_version) + "], table ["
         + table_to_string(msg.table) + " ]";
 
-      RCLCPP_WARN(node.get_logger(), error);
+      RCLCPP_WARN(node.get_logger(), error.c_str());
 
       return;
     }
@@ -565,7 +565,7 @@ public:
         error += " " + std::to_string(p.participant) + ":" + std::to_string(p.version);
       error += " " + std::to_string(msg.for_participant) + " ]";
 
-      RCLCPP_WARN(node.get_logger(), error);
+      RCLCPP_WARN(node.get_logger(), error.c_str());
       room.cached_proposals.push_back(msg);
       return;
     }
@@ -629,7 +629,7 @@ public:
         error += " " + std::to_string(p.participant) + ":" + std::to_string(p.version);
       error += " ]";
 
-      RCLCPP_WARN(node.get_logger(), error);
+      RCLCPP_WARN(node.get_logger(), error.c_str());
 
       room.cached_rejections.push_back(msg);
       return;
@@ -1010,11 +1010,14 @@ public:
       const auto history_it = history.find(conflict_version);
       if (history_it == history.end())
       {
-        RCLCPP_WARN(node.get_logger(), "Conflict version %llu does not exist."
-          "It may have been successful and wiped", conflict_version);
+        RCLCPP_WARN(
+          node.get_logger(),
+          "Conflict version %lu does not exist."
+          "It may have been successful and wiped",
+          conflict_version);
         return nullptr;
       }
-      
+
       table = history_it->second.table(sequence);
     }
     else
