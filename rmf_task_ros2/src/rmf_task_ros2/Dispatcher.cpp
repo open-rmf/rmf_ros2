@@ -48,13 +48,16 @@ public:
   rclcpp::Service<GetTaskListSrv>::SharedPtr get_task_list_srv;
 
   using ActiveTasksPub = rclcpp::Publisher<TasksMsg>;
-  ActiveTasksPub::SharedPtr active_tasks_pub;
+  ActiveTasksPub::SharedPtr ongoing_tasks_pub;
 
   rclcpp::TimerBase::SharedPtr timer;
 
   StatusCallback on_change_fn;
 
   std::queue<bidding::BidNotice> queue_bidding_tasks;
+  
+  /// TODO: should rename "active" to "ongoing" to prevent confusion
+  /// of with task STATE_ACTIVE
   DispatchTasks active_dispatch_tasks;
   DispatchTasks terminal_dispatch_tasks;
   std::size_t task_counter = 0; // index for generating task_id
@@ -86,26 +89,19 @@ public:
       " Declared Terminated Tasks Max Size Param as: %d",
       terminated_tasks_max_size);
     publish_active_tasks_period =
-      node->declare_parameter<int>("publish_active_tasks_period", 1);
+      node->declare_parameter<int>("publish_active_tasks_period", 2);
     RCLCPP_INFO(node->get_logger(),
-      " Declared PUblish_active_tasks_period as: %f secs", 
+      " Declared Publish_active_tasks_period as: %f secs", 
       publish_active_tasks_period);
 
     const auto qos = rclcpp::ServicesQoS().reliable();
-    active_tasks_pub = node->create_publisher<TasksMsg>(
+    ongoing_tasks_pub = node->create_publisher<TasksMsg>(
       rmf_task_ros2::ActiveTasksTopicName, qos);
 
     timer = node->create_wall_timer(
-        std::chrono::seconds(publish_active_tasks_period), [&]()
-      {
-        TasksMsg task_msgs; 
-        for (auto task : (this->active_dispatch_tasks))
-        {
-          task_msgs.tasks.push_back(
-            rmf_task_ros2::convert_status(*(task.second)));
-        }
-        active_tasks_pub->publish(task_msgs);
-      });
+        std::chrono::seconds(publish_active_tasks_period),
+        std::bind(
+          &Dispatcher::Implementation::publish_ongoing_tasks, this));
 
     // Setup up stream srv interfaces
     submit_task_srv = node->create_service<SubmitTaskSrv>(
@@ -271,7 +267,10 @@ public:
         (type == rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY);
 
       if (is_charging_task && is_fleet_name)
-        it = active_dispatch_tasks.erase(it);
+      {
+        it->second->state = TaskStatus::State::Canceled;
+        terminate_task((it++)->second);
+      }
       else
         ++it;
     }
@@ -343,7 +342,10 @@ public:
         (type == rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY);
 
       if (is_charging_task && is_fleet_name)
-        it = active_dispatch_tasks.erase(it);
+      {
+        it->second->state = TaskStatus::State::Canceled;
+        terminate_task((it++)->second);
+      }
       else
         ++it;
     }
@@ -358,6 +360,7 @@ public:
   void terminate_task(const TaskStatusPtr terminate_status)
   {
     assert(terminate_status->is_terminated());
+    publish_ongoing_tasks();
 
     // prevent terminal_dispatch_tasks from piling up meaning
     if (terminal_dispatch_tasks.size() >= terminated_tasks_max_size)
@@ -410,6 +413,17 @@ public:
 
     if (on_change_fn)
       on_change_fn(status);
+  }
+
+  void publish_ongoing_tasks()
+  {
+    TasksMsg task_msgs;
+    for (auto task : (this->active_dispatch_tasks))
+    {
+      task_msgs.tasks.push_back(
+        rmf_task_ros2::convert_status(*(task.second)));
+    }
+    ongoing_tasks_pub->publish(task_msgs);
   }
 };
 
