@@ -5,6 +5,7 @@
   <version>1.3.0</version>
   <description>Python bindings for the rmf_fleet_adapter</description>
   <maintainer email="methylDragon@gmail.com">methylDragon</maintainer>
+  <maintainer email="marco@openrobotics.org">Marco A. Gutiérrez</maintainer>
   <license>Apache License 2.0</license>
 
   <depend>pybind11_vendor</depend>
