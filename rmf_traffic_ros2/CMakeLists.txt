@@ -38,7 +38,7 @@ if(BUILD_TESTING)
     MAX_LINE_LENGTH 80
   )
 
-  file(GLOB_RECURSE unit_test_srcs "test/*.cpp")
+  file(GLOB_RECURSE unit_test_srcs "test/unit/*.cpp")
 
   ament_add_catch2(
     test_rmf_traffic_ros2 test/main.cpp ${unit_test_srcs}
@@ -48,6 +48,7 @@ if(BUILD_TESTING)
       rmf_traffic_ros2
       yaml-cpp
   )
+
 endif()
 
 file(GLOB_RECURSE core_lib_srcs "src/rmf_traffic_ros2/*.cpp")
@@ -138,5 +139,19 @@ install(
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
 )
+
+add_executable(
+  missing_query_schedule_node test/mock_schedule_node/main.cpp
+)
+target_include_directories(missing_query_schedule_node
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    ${rmf_traffic_msgs_INCLUDE_DIRS}
+    ${rclcpp_INCLUDE_DIRS}
+    "src"
+)
+target_link_libraries(missing_query_schedule_node rmf_traffic_ros2)
+install(TARGETS missing_query_schedule_node RUNTIME DESTINATION lib/rmf_traffic_ros2)
 
 ament_package()

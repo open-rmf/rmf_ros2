@@ -139,6 +139,35 @@ ScheduleNode::ScheduleNode(
 
   // TODO(MXG): As soon as possible, all of these services should be made
   // multi-threaded so they can be parallel processed.
+  setup_query_services();
+  setup_participant_services();
+  setup_changes_topics();
+  setup_itinerary_topics();
+  setup_incosistency_pub();
+  setup_conflict_topics_and_thread();
+}
+
+//==============================================================================
+ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
+: ScheduleNode(
+    std::make_shared<rmf_traffic::schedule::Database>(),
+    QueryMap(),
+    QuerySubscriberCountMap(),
+    options)
+{
+}
+
+//==============================================================================
+ScheduleNode::~ScheduleNode()
+{
+  conflict_check_quit = true;
+  if (conflict_check_thread.joinable())
+    conflict_check_thread.join();
+}
+
+//==============================================================================
+void ScheduleNode::setup_query_services()
+{
   register_query_service =
     create_service<RegisterQuery>(
     rmf_traffic_ros2::RegisterQueryServiceName,
@@ -154,7 +183,11 @@ ScheduleNode::ScheduleNode(
     const UnregisterQuery::Request::SharedPtr request,
     const UnregisterQuery::Response::SharedPtr response)
     { this->unregister_query(request_header, request, response); });
+}
 
+//==============================================================================
+void ScheduleNode::setup_participant_services()
+{
   register_participant_service =
     create_service<RegisterParticipant>(
     rmf_traffic_ros2::RegisterParticipantSrvName,
@@ -170,7 +203,11 @@ ScheduleNode::ScheduleNode(
     const UnregisterParticipant::Request::SharedPtr request,
     const UnregisterParticipant::Response::SharedPtr response)
     { this->unregister_participant(request_header, request, response); });
+}
 
+//==============================================================================
+void ScheduleNode::setup_changes_topics()
+{
   request_changes_sub =
     create_subscription<RequestChanges>(
     rmf_traffic_ros2::RequestChangesTopicName,
@@ -179,7 +216,11 @@ ScheduleNode::ScheduleNode(
     {
       this->request_changes(*msg);
     });
+}
 
+//==============================================================================
+void ScheduleNode::setup_itinerary_topics()
+{
   itinerary_set_sub =
     create_subscription<ItinerarySet>(
     rmf_traffic_ros2::ItinerarySetTopicName,
@@ -224,12 +265,20 @@ ScheduleNode::ScheduleNode(
     {
       this->itinerary_clear(*msg);
     });
+}
 
+//==============================================================================
+void ScheduleNode::setup_incosistency_pub()
+{
   inconsistency_pub =
     create_publisher<InconsistencyMsg>(
     rmf_traffic_ros2::ScheduleInconsistencyTopicName,
     rclcpp::SystemDefaultsQoS().reliable());
+}
 
+//==============================================================================
+void ScheduleNode::setup_conflict_topics_and_thread()
+{
   const auto negotiation_qos = rclcpp::ServicesQoS().reliable();
   conflict_ack_sub = create_subscription<ConflictAck>(
     rmf_traffic_ros2::NegotiationAckTopicName, negotiation_qos,
@@ -361,24 +410,6 @@ ScheduleNode::ScheduleNode(
         }
       }
     });
-}
-
-//==============================================================================
-ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
-: ScheduleNode(
-    std::make_shared<rmf_traffic::schedule::Database>(),
-    QueryMap(),
-    QuerySubscriberCountMap(),
-    options)
-{
-}
-
-//==============================================================================
-ScheduleNode::~ScheduleNode()
-{
-  conflict_check_quit = true;
-  if (conflict_check_thread.joinable())
-    conflict_check_thread.join();
 }
 
 //==============================================================================
@@ -671,6 +702,7 @@ void ScheduleNode::unregister_query(
 //==============================================================================
 void ScheduleNode::broadcast_queries()
 {
+  RCLCPP_WARN(get_logger(), "ScheduleNode broadcasting queries");
   ScheduleQueries msg;
 
   for (const auto& registered_query: registered_queries)

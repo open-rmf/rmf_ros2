@@ -122,6 +122,7 @@ public:
 
   UnregisterQueryService::SharedPtr unregister_query_service;
 
+  void setup_query_services();
 
   using RegisterParticipant = rmf_traffic_msgs::srv::RegisterParticipant;
   using RegisterParticipantSrv = rclcpp::Service<RegisterParticipant>;
@@ -144,6 +145,7 @@ public:
 
   UnregisterParticipantSrv::SharedPtr unregister_participant_service;
 
+  void setup_participant_services();
 
   using MirrorUpdate = rmf_traffic_msgs::msg::MirrorUpdate;
   using MirrorUpdateTopicPublisher = rclcpp::Publisher<MirrorUpdate>::SharedPtr;
@@ -179,6 +181,8 @@ public:
   void request_changes(const RequestChanges& request);
   rclcpp::Subscription<RequestChanges>::SharedPtr request_changes_sub;
 
+  void setup_changes_topics();
+
   using ItinerarySet = rmf_traffic_msgs::msg::ItinerarySet;
   void itinerary_set(const ItinerarySet& set);
   rclcpp::Subscription<ItinerarySet>::SharedPtr itinerary_set_sub;
@@ -199,9 +203,13 @@ public:
   void itinerary_clear(const ItineraryClear& clear);
   rclcpp::Subscription<ItineraryClear>::SharedPtr itinerary_clear_sub;
 
+  void setup_itinerary_topics();
+
   using InconsistencyMsg = rmf_traffic_msgs::msg::ScheduleInconsistency;
   rclcpp::Publisher<InconsistencyMsg>::SharedPtr inconsistency_pub;
   void publish_inconsistencies(rmf_traffic::schedule::ParticipantId id);
+
+  void setup_incosistency_pub();
 
   void update_mirrors();
 
@@ -452,6 +460,8 @@ public:
   ConflictRecord active_conflicts;
   std::mutex active_conflicts_mutex;
   std::shared_ptr<ParticipantRegistry> participant_registry;
+
+  void setup_conflict_topics_and_thread();
 
   // TODO(MXG): Build this into the Database/Mirror class, tracking participant
   // description versions separately from itinerary versions.
