@@ -5,6 +5,7 @@
   <version>1.3.0</version>
   <description>A package managing the dispatching of tasks in RMF system.</description>
   <maintainer email="youliang@openrobotics.org">youliang</maintainer>
+  <maintainer email="marco@openrobotics.org">Marco A. Gutiérrez</maintainer>
   <license>Apache License 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

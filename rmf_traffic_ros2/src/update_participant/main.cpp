@@ -21,7 +21,7 @@
 #include <rclcpp/node.hpp>
 #include <rclcpp/executors.hpp>
 
-#include "../../rmf_traffic_ros2/src/rmf_traffic_ros2/schedule/internal_YamlSerialization.hpp"
+#include "../rmf_traffic_ros2/schedule/internal_YamlSerialization.hpp"
 
 #include <iostream>
 
