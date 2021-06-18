@@ -160,10 +160,6 @@ Below are the required direct runtime ROS dependencies of `rmf_fleet_adapter` an
 
 `rmf_traffic_ros2` is [**Quality Level 4**](https://github.com/open-rmf/rmf_ros2/blob/main/rmf_traffic_ros2/QUALITY_DECLARATION.md).
 
-#### rmf_traffic_msgs
-
-`rmf_traffic_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_internal_msgs/blob/main/rmf_traffic_msgs/QUALITY_DECLARATION.md).
-
 
 ### Optional Direct Runtime ROS Dependencies [5.ii]
 

@@ -12,6 +12,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
   <depend>rmf_utils</depend>
   <depend>rmf_door_msgs</depend>
   <depend>rmf_ingestor_msgs</depend>
@@ -21,9 +22,9 @@
   <depend>rmf_task_msgs</depend>
   <depend>rmf_traffic</depend>
   <depend>rmf_traffic_ros2</depend>
-  <depend>rmf_traffic_msgs</depend>
   <depend>rmf_battery</depend>
   <depend>rmf_task</depend>
+  <depend>std_msgs</depend>
   <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies</depend>
   <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies_msgs</depend>
 
