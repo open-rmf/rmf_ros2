@@ -235,6 +235,8 @@ SCENARIO_METHOD(MockAdapterFixture, "go to place negotiation", "[phases]")
     *interrupt = true;
   }
 
+  active_0->cancel();
+  active_1->cancel();
   CHECK(negotiation->ready());
 }
 
