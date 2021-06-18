@@ -148,14 +148,27 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
 
   const auto task_canceled_flag = std::make_shared<bool>(false);
 
+  // We use the action_mutex to make sure that the main thread does not stop
+  // until the action response callback has had enough time to do its job.
+  const auto action_mutex = std::make_shared<std::mutex>();
+
   action_server->register_callbacks(
     // Add Task callback
-    [action_server, task_canceled_flag](const TaskProfile& task_profile)
+    [
+      a = std::weak_ptr<action::Server>(action_server),
+      action_mutex,
+      task_canceled_flag
+    ](const TaskProfile& task_profile)
     {
       // Start action task
       auto t = std::thread(
-        [action_server, task_canceled_flag](auto profile)
+        [a, action_mutex, task_canceled_flag](auto profile)
         {
+          std::lock_guard<std::mutex> lock(*action_mutex);
+          const auto action_server = a.lock();
+          if (!action_server)
+            return;
+
           TaskStatus status;
           status.task_profile = profile;
           status.robot_name = "dumbot";
@@ -181,7 +194,7 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
       return true; //successs (send State::Queued)
     },
     // Cancel Task callback
-    [action_server, task_canceled_flag](const TaskProfile&)
+    [task_canceled_flag](const TaskProfile&)
     {
       *task_canceled_flag = true;
       return true; //success ,send State::Canceled when dispatcher->cancel_task
@@ -238,6 +251,7 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
     CHECK(*change_times == 3); // Pending -> Queued -> Canceled
   }
 
+  std::lock_guard<std::mutex> lock(*action_mutex);
   rclcpp::shutdown(rcl_context);
   dispatcher_spin_thread.join();
 }
