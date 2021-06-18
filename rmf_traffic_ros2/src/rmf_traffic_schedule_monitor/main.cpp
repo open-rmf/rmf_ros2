@@ -41,6 +41,8 @@ int main(int argc, char* argv[])
   {
     auto active_schedule_node = active_node_future.get();
     // Delete the monitor to prevent it reacting to any future events
+    monitor_node.reset();
+
     RCLCPP_INFO(
       active_schedule_node->get_logger(),
       "Spinning up replacement schedule node");

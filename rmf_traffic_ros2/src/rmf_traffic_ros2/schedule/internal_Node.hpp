@@ -28,7 +28,6 @@
 #include <rmf_traffic_msgs/msg/mirror_update.hpp>
 #include <rmf_traffic_msgs/msg/participant.hpp>
 #include <rmf_traffic_msgs/msg/participants.hpp>
-#include <rmf_traffic_msgs/msg/request_changes.hpp>
 #include <rmf_traffic_msgs/msg/schedule_queries.hpp>
 
 #include <rmf_traffic_msgs/msg/itinerary_clear.hpp>
@@ -52,6 +51,7 @@
 
 #include <rmf_traffic_msgs/srv/register_query.hpp>
 #include <rmf_traffic_msgs/srv/unregister_query.hpp>
+#include <rmf_traffic_msgs/srv/request_changes.hpp>
 #include <rmf_traffic_msgs/srv/register_participant.hpp>
 #include <rmf_traffic_msgs/srv/unregister_participant.hpp>
 
@@ -83,12 +83,14 @@ public:
   ScheduleNode(
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
-    QuerySubscriberCountMap registered_query_subscriber_counts,
     const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
   ScheduleNode(const rclcpp::NodeOptions& options);
 
   ~ScheduleNode();
+
+  virtual void setup(
+    QuerySubscriberCountMap registered_query_subscriber_counts);
 
   std::chrono::milliseconds heartbeat_period = 1s;
   rclcpp::QoS heartbeat_qos_profile;
@@ -96,15 +98,15 @@ public:
   using HeartbeatPub = rclcpp::Publisher<Heartbeat>;
   HeartbeatPub::SharedPtr heartbeat_pub;
 
-  void setup_redundancy();
-  void start_heartbeat();
+  virtual void setup_redundancy();
+  virtual void start_heartbeat();
 
   using request_id_ptr = std::shared_ptr<rmw_request_id_t>;
 
   using RegisterQuery = rmf_traffic_msgs::srv::RegisterQuery;
   using RegisterQueryService = rclcpp::Service<RegisterQuery>;
 
-  void register_query(
+  virtual void register_query(
     const request_id_ptr& request_header,
     const RegisterQuery::Request::SharedPtr& request,
     const RegisterQuery::Response::SharedPtr& response);
@@ -115,19 +117,19 @@ public:
   using UnregisterQuery = rmf_traffic_msgs::srv::UnregisterQuery;
   using UnregisterQueryService = rclcpp::Service<UnregisterQuery>;
 
-  void unregister_query(
+  virtual void unregister_query(
     const request_id_ptr& request_header,
     const UnregisterQuery::Request::SharedPtr& request,
     const UnregisterQuery::Response::SharedPtr& response);
 
   UnregisterQueryService::SharedPtr unregister_query_service;
 
-  void setup_query_services();
+  virtual void setup_query_services();
 
   using RegisterParticipant = rmf_traffic_msgs::srv::RegisterParticipant;
   using RegisterParticipantSrv = rclcpp::Service<RegisterParticipant>;
 
-  void register_participant(
+  virtual void register_participant(
     const request_id_ptr& request_header,
     const RegisterParticipant::Request::SharedPtr& request,
     const RegisterParticipant::Response::SharedPtr& response);
@@ -138,14 +140,14 @@ public:
   using UnregisterParticipant = rmf_traffic_msgs::srv::UnregisterParticipant;
   using UnregisterParticipantSrv = rclcpp::Service<UnregisterParticipant>;
 
-  void unregister_participant(
+  virtual void unregister_participant(
     const request_id_ptr& request_header,
     const UnregisterParticipant::Request::SharedPtr& request,
     const UnregisterParticipant::Response::SharedPtr& response);
 
   UnregisterParticipantSrv::SharedPtr unregister_participant_service;
 
-  void setup_participant_services();
+  virtual void setup_participant_services();
 
   using MirrorUpdate = rmf_traffic_msgs::msg::MirrorUpdate;
   using MirrorUpdateTopicPublisher = rclcpp::Publisher<MirrorUpdate>::SharedPtr;
@@ -170,18 +172,22 @@ public:
   using SingleParticipantInfo = rmf_traffic_msgs::msg::Participant;
   using ParticipantsInfo = rmf_traffic_msgs::msg::Participants;
   rclcpp::Publisher<ParticipantsInfo>::SharedPtr participants_info_pub;
-  void broadcast_participants();
+  virtual void broadcast_participants();
 
   using ScheduleQuery = rmf_traffic_msgs::msg::ScheduleQuery;
   using ScheduleQueries = rmf_traffic_msgs::msg::ScheduleQueries;
   rclcpp::Publisher<ScheduleQueries>::SharedPtr queries_info_pub;
-  void broadcast_queries();
+  virtual void broadcast_queries();
 
-  using RequestChanges = rmf_traffic_msgs::msg::RequestChanges;
-  void request_changes(const RequestChanges& request);
-  rclcpp::Subscription<RequestChanges>::SharedPtr request_changes_sub;
+  using RequestChanges = rmf_traffic_msgs::srv::RequestChanges;
+  using RequestChangesSrv = rclcpp::Service<RequestChanges>;
+  void request_changes(
+      const request_id_ptr& request_header,
+      const RequestChanges::Request::SharedPtr& request,
+      const RequestChanges::Response::SharedPtr& response);
+  RequestChangesSrv::SharedPtr request_changes_service;
 
-  void setup_changes_topics();
+  virtual void setup_changes_services();
 
   using ItinerarySet = rmf_traffic_msgs::msg::ItinerarySet;
   void itinerary_set(const ItinerarySet& set);
@@ -203,13 +209,13 @@ public:
   void itinerary_clear(const ItineraryClear& clear);
   rclcpp::Subscription<ItineraryClear>::SharedPtr itinerary_clear_sub;
 
-  void setup_itinerary_topics();
+  virtual void setup_itinerary_topics();
 
   using InconsistencyMsg = rmf_traffic_msgs::msg::ScheduleInconsistency;
   rclcpp::Publisher<InconsistencyMsg>::SharedPtr inconsistency_pub;
   void publish_inconsistencies(rmf_traffic::schedule::ParticipantId id);
 
-  void setup_incosistency_pub();
+  virtual void setup_incosistency_pub();
 
   void update_mirrors();
 
@@ -461,7 +467,7 @@ public:
   std::mutex active_conflicts_mutex;
   std::shared_ptr<ParticipantRegistry> participant_registry;
 
-  void setup_conflict_topics_and_thread();
+  virtual void setup_conflict_topics_and_thread();
 
   // TODO(MXG): Build this into the Database/Mirror class, tracking participant
   // description versions separately from itinerary versions.

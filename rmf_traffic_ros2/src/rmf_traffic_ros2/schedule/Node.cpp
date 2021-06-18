@@ -89,7 +89,6 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 ScheduleNode::ScheduleNode(
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
-    QuerySubscriberCountMap registered_query_subscriber_counts,
     const rclcpp::NodeOptions& options)
 : Node("rmf_traffic_schedule_node", options),
   heartbeat_qos_profile(1),
@@ -103,10 +102,33 @@ ScheduleNode::ScheduleNode(
   heartbeat_period = std::chrono::milliseconds(
     get_parameter("heartbeat_period").as_int());
 
-  setup_redundancy();
-
-  //Attempt to load/create participant registry.
+  // Participant registry location
   declare_parameter<std::string>("log_file_location", ".rmf_schedule_node.yaml");
+
+}
+
+//==============================================================================
+ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
+: ScheduleNode(
+    std::make_shared<rmf_traffic::schedule::Database>(),
+    QueryMap(),
+    options)
+{
+}
+
+//==============================================================================
+ScheduleNode::~ScheduleNode()
+{
+  conflict_check_quit = true;
+  if (conflict_check_thread.joinable())
+    conflict_check_thread.join();
+}
+
+//==============================================================================
+void ScheduleNode::setup(
+  QuerySubscriberCountMap registered_query_subscriber_counts)
+{
+  //Attempt to load/create participant registry.
   std::string log_file_name;
   get_parameter_or<std::string>(
     "log_file_location", 
@@ -139,30 +161,13 @@ ScheduleNode::ScheduleNode(
 
   // TODO(MXG): As soon as possible, all of these services should be made
   // multi-threaded so they can be parallel processed.
+  setup_redundancy();
   setup_query_services();
   setup_participant_services();
-  setup_changes_topics();
+  setup_changes_services();
   setup_itinerary_topics();
   setup_incosistency_pub();
   setup_conflict_topics_and_thread();
-}
-
-//==============================================================================
-ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
-: ScheduleNode(
-    std::make_shared<rmf_traffic::schedule::Database>(),
-    QueryMap(),
-    QuerySubscriberCountMap(),
-    options)
-{
-}
-
-//==============================================================================
-ScheduleNode::~ScheduleNode()
-{
-  conflict_check_quit = true;
-  if (conflict_check_thread.joinable())
-    conflict_check_thread.join();
 }
 
 //==============================================================================
@@ -206,16 +211,15 @@ void ScheduleNode::setup_participant_services()
 }
 
 //==============================================================================
-void ScheduleNode::setup_changes_topics()
+void ScheduleNode::setup_changes_services()
 {
-  request_changes_sub =
-    create_subscription<RequestChanges>(
-    rmf_traffic_ros2::RequestChangesTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
-    [=](const RequestChanges::UniquePtr msg)
-    {
-      this->request_changes(*msg);
-    });
+  request_changes_service =
+    create_service<RequestChanges>(
+    rmf_traffic_ros2::RequestChangesServiceName,
+    [=](const request_id_ptr request_header,
+    const RequestChanges::Request::SharedPtr request,
+    const RequestChanges::Response::SharedPtr response)
+    { this->request_changes(request_header, request, response); });
 }
 
 //==============================================================================
@@ -702,7 +706,6 @@ void ScheduleNode::unregister_query(
 //==============================================================================
 void ScheduleNode::broadcast_queries()
 {
-  RCLCPP_WARN(get_logger(), "ScheduleNode broadcasting queries");
   ScheduleQueries msg;
 
   for (const auto& registered_query: registered_queries)
@@ -836,9 +839,12 @@ void ScheduleNode::broadcast_participants()
 }
 
 //==============================================================================
-void ScheduleNode::request_changes(const RequestChanges& request)
+void ScheduleNode::request_changes(
+  [[maybe_unused]] const request_id_ptr& request_header,
+  const RequestChanges::Request::SharedPtr& request,
+  const RequestChanges::Response::SharedPtr& response)
 {
-  const auto query_topic = mirror_update_topics.find(request.query_id);
+  const auto query_topic = mirror_update_topics.find(request->query_id);
   if (query_topic == mirror_update_topics.end())
   {
     // Missing query update topic; something has gone very wrong.
@@ -846,7 +852,8 @@ void ScheduleNode::request_changes(const RequestChanges& request)
       get_logger(),
       "[ScheduleNode::request_changes] Could not find mirror update topic "
       "for query ID %ld",
-      request.query_id);
+      request->query_id);
+    response->result = RequestChanges::Response::UNKNOWN_QUERY_ID;
   }
   else
   {
@@ -854,17 +861,19 @@ void ScheduleNode::request_changes(const RequestChanges& request)
     // Tell the next update to send the changes since the requested version by
     // resetting the last sent version number to the requested version,
     // which may be std::nullopt if a full update is requested
-    if (request.full_update)
+    if (request->full_update)
     {
       mirror_update_topic_info.last_sent_version = std::nullopt;
     }
     else
     {
-      mirror_update_topic_info.last_sent_version = request.version;
+      mirror_update_topic_info.last_sent_version = request->version;
     }
 
     // Force-send the next update
     update_mirrors();
+
+    response->result = RequestChanges::Response::REQUEST_ACCEPTED;
   }
 }
 
@@ -974,30 +983,8 @@ void ScheduleNode::update_mirrors()
 
   for (const auto& query_it : registered_queries)
   {
-    msg.query_id = query_it.first;
     const auto query_topic = mirror_update_topics.find(query_it.first);
-    if (query_topic != mirror_update_topics.end())
-    {
-      auto& mirror_update_topic_info = query_topic->second;
-      const auto patch = database->changes(
-        query_it.second,
-        mirror_update_topic_info.last_sent_version);
-
-      if (patch.size() == 0 && !patch.cull())
-        continue;
-
-      msg.patch = rmf_traffic_ros2::convert(patch);
-      mirror_update_topic_info.publisher->publish(msg);
-
-      // Update the latest version sent to this topic
-      mirror_update_topic_info.last_sent_version = msg.database_version;
-
-      RCLCPP_DEBUG(
-        get_logger(),
-        "[ScheduleNode::update_mirrors] Updated query %ld",
-        query_it.first);
-    }
-    else
+    if (query_topic == mirror_update_topics.end())
     {
       // Missing query update topic; not a fatal error, but still a sign that
       // something has gone wrong.
@@ -1006,7 +993,30 @@ void ScheduleNode::update_mirrors()
         "[ScheduleNode::update_mirrors] Could not find mirror update topic "
         "to remove for query ID %ld",
         query_it.first);
+      continue;
     }
+
+    msg.query_id = query_it.first;
+    msg.query = rmf_traffic_ros2::convert(query_it.second);
+
+    auto& mirror_update_topic_info = query_topic->second;
+    const auto patch = database->changes(
+      query_it.second,
+      mirror_update_topic_info.last_sent_version);
+
+    if (patch.size() == 0 && !patch.cull())
+      continue;
+
+    msg.patch = rmf_traffic_ros2::convert(patch);
+    mirror_update_topic_info.publisher->publish(msg);
+
+    // Update the latest version sent to this topic
+    mirror_update_topic_info.last_sent_version = msg.database_version;
+
+    RCLCPP_DEBUG(
+      get_logger(),
+      "[ScheduleNode::update_mirrors] Updated query " +
+      std::to_string(query_it.first));
   }
 
   conflict_check_cv.notify_all();
@@ -1280,7 +1290,9 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
 
 std::shared_ptr<rclcpp::Node> make_node(const rclcpp::NodeOptions& options)
 {
-  return std::make_shared<ScheduleNode>(options);
+  auto node = std::make_shared<ScheduleNode>(options);
+  node->setup(ScheduleNode::QuerySubscriberCountMap());
+  return node;
 }
 
 } // namespace schedule

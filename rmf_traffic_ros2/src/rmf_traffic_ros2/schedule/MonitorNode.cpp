@@ -164,10 +164,11 @@ void MonitorNode::start_data_synchronisers()
 std::shared_ptr<rclcpp::Node> MonitorNode::create_new_schedule_node()
 {
   auto database = std::make_shared<Database>(mirror.value().fork());
-  return std::make_shared<rmf_traffic_ros2::schedule::ScheduleNode>(
+  auto node = std::make_shared<rmf_traffic_ros2::schedule::ScheduleNode>(
     database,
-    registered_queries,
-    query_subscriber_counts);
+    registered_queries);
+  node->setup(query_subscriber_counts);
+  return node;
 }
 
 //==============================================================================

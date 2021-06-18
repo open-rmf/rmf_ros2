@@ -15,35 +15,27 @@
  *
 */
 
+#include <chrono>
+
+#include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic_ros2/schedule/internal_Node.hpp>
+#include <rmf_traffic_ros2/schedule/Query.hpp>
 #include <rmf_traffic_ros2/StandardNames.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 
-class MissingQueryScheduleNode : public rmf_traffic_ros2::schedule::ScheduleNode
+using namespace std::chrono_literals;
+
+class WrongQueryScheduleNode : public rmf_traffic_ros2::schedule::ScheduleNode
 {
 public:
-  MissingQueryScheduleNode(
-    std::shared_ptr<rmf_traffic::schedule::Database> database_,
-    QueryMap registered_queries_,
-    QuerySubscriberCountMap registered_query_subscriber_counts,
-    const rclcpp::NodeOptions& options = rclcpp::NodeOptions())
-    : ScheduleNode(database_, registered_queries_, registered_query_subscriber_counts, options)
-  {
-    RCLCPP_WARN(get_logger(), "MissingQuery starting 1");
-    setup_query_services();
-  }
-
-  MissingQueryScheduleNode(const rclcpp::NodeOptions& options)
+  WrongQueryScheduleNode(const rclcpp::NodeOptions& options)
     : ScheduleNode(options)
   {
-    RCLCPP_WARN(get_logger(), "MissingQuery starting 2");
-    setup_query_services();
   }
 
-  void setup_query_services()
+  void setup_query_services() override
   {
-    RCLCPP_WARN(get_logger(), "MissingQuery setup query services");
     register_query_service =
       create_service<RegisterQuery>(
       rmf_traffic_ros2::RegisterQueryServiceName,
@@ -64,18 +56,38 @@ public:
   void register_query(
     const request_id_ptr& request_header,
     const RegisterQuery::Request::SharedPtr& request,
-    const RegisterQuery::Response::SharedPtr& response)
+    const RegisterQuery::Response::SharedPtr& response) override
   {
-    RCLCPP_WARN(get_logger(), "MissingQuery register_query");
     ScheduleNode::register_query(request_header, request, response);
-    RCLCPP_WARN(get_logger(), "MissingQuery register_query done");
+    // Change the query that was just stored so it is different from what was
+    // registered
+    if (is_first_query)
+    {
+      rmf_traffic::schedule::Query query = rmf_traffic::schedule::make_query({});
+      auto region = rmf_traffic::Region{"L1", {}};
+      const auto circle = rmf_traffic::geometry::Circle(1000);
+      const auto final_circle =
+        rmf_traffic::geometry::make_final_convex(circle);
+      Eigen::Isometry2d tf = Eigen::Isometry2d::Identity();
+      region.push_back(rmf_traffic::geometry::Space{final_circle, tf});
+      query.spacetime().regions()->push_back(region);
+
+      // Replace the stored query
+      registered_queries.insert_or_assign(response->query_id, query);
+
+      is_first_query = false;
+    }
   }
+
+  bool is_first_query = true;
 };
 
 int main(int argc, char** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MissingQueryScheduleNode>(rclcpp::NodeOptions()));
+  auto node = std::make_shared<WrongQueryScheduleNode>(rclcpp::NodeOptions());
+  node->setup(rmf_traffic_ros2::schedule::ScheduleNode::QuerySubscriberCountMap());
+  rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
 }

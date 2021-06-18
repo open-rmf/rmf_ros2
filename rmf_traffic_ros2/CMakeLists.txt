@@ -49,6 +49,38 @@ if(BUILD_TESTING)
       yaml-cpp
   )
 
+  add_executable(
+    missing_query_schedule_node test/mock_schedule_nodes/missing_query.cpp
+  )
+  target_include_directories(missing_query_schedule_node
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+      ${rmf_traffic_msgs_INCLUDE_DIRS}
+      ${rclcpp_INCLUDE_DIRS}
+      "src"
+  )
+  target_link_libraries(missing_query_schedule_node rmf_traffic_ros2)
+
+  add_executable(
+    wrong_query_schedule_node test/mock_schedule_nodes/wrong_query.cpp
+  )
+  target_include_directories(wrong_query_schedule_node
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+      ${rmf_traffic_msgs_INCLUDE_DIRS}
+      ${rclcpp_INCLUDE_DIRS}
+      "src"
+  )
+  target_link_libraries(wrong_query_schedule_node rmf_traffic_ros2)
+
+  install(
+    TARGETS
+      missing_query_schedule_node
+      wrong_query_schedule_node
+    RUNTIME DESTINATION lib/rmf_traffic_ros2
+  )
 endif()
 
 file(GLOB_RECURSE core_lib_srcs "src/rmf_traffic_ros2/*.cpp")
@@ -139,19 +171,5 @@ install(
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
 )
-
-add_executable(
-  missing_query_schedule_node test/mock_schedule_node/main.cpp
-)
-target_include_directories(missing_query_schedule_node
-  PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    ${rmf_traffic_msgs_INCLUDE_DIRS}
-    ${rclcpp_INCLUDE_DIRS}
-    "src"
-)
-target_link_libraries(missing_query_schedule_node rmf_traffic_ros2)
-install(TARGETS missing_query_schedule_node RUNTIME DESTINATION lib/rmf_traffic_ros2)
 
 ament_package()
