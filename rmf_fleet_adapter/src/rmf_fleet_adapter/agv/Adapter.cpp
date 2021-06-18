@@ -47,6 +47,7 @@ public:
 
   void schedule(std::function<void()> job) final
   {
+    std::cout << "WorkerWrapper::schedule" << std::endl;
     _worker.schedule([job = std::move(job)](const auto&) { job(); });
   }
 
@@ -276,8 +277,9 @@ void Adapter::add_traffic_light(
 
       RCLCPP_INFO(
         node->get_logger(),
-        "Added a traffic light controller for [%s] with participant ID [%d]",
-        participant.description().name().c_str(), participant.id());
+        "Added a traffic light controller for [%s] with participant ID [%ld]",
+        participant.description().name().c_str(),
+        participant.id());
 
       auto update_handle = TrafficLight::UpdateHandle::Implementation::make(
         std::move(command),
@@ -379,6 +381,7 @@ void Adapter::add_easy_traffic_light(
 
       command_handle->pimpl = easy_handle;
 
+      std::cout << "add_easy_traffic_light::handle_cb" << std::endl;
       worker.schedule(
         [easy_handle = std::move(easy_handle),
         handle_callback = std::move(handle_callback)](const auto&)

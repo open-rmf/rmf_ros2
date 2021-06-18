@@ -47,6 +47,11 @@ std::shared_ptr<Task> Task::make(
 //==============================================================================
 void Task::begin()
 {
+  if (_begun->fetch_add(1) > 0)
+  {
+    throw std::runtime_error("[Task::begin] DOUBLED BEGIN");
+  }
+
   if (!_active_phase)
     _start_next_phase();
 }
@@ -116,6 +121,7 @@ Task::Task(
   rmf_task::agv::State finish_state,
   rmf_task::ConstRequestPtr request)
 : _id(std::move(id)),
+  _begun(std::make_shared<std::atomic_uint8_t>(0)),
   _pending_phases(std::move(phases)),
   _worker(std::move(worker)),
   _deployment_time(deployment_time),
@@ -144,17 +150,29 @@ void Task::_start_next_phase()
     //
     // TODO(MXG): Remove this when the planner has been made more
     // memory-efficient.
-    malloc_trim(0);
+//    malloc_trim(0);
 
     return;
   }
 
-  _active_phase = _pending_phases.back()->begin();
+  std::unique_ptr<PendingPhase> next_pending =
+    std::move(_pending_phases.back());
   _pending_phases.pop_back();
+
+  if (!next_pending)
+  {
+    // *INDENT-OFF*
+    throw std::runtime_error(
+      "[Task::_start_next_phase] INTERNAL ERROR: Next phase has a null value");
+    // *INDENT-ON*
+  }
+  _active_phase = next_pending->begin();
+
   _active_phase_subscription =
     _active_phase->observe()
     .observe_on(rxcpp::identity_same_worker(_worker))
     .subscribe(
+
     [w = weak_from_this()](
       const rmf_task_msgs::msg::TaskSummary& msg)
     {

@@ -44,42 +44,39 @@ TEST_CASE("publish subscribe loopback", "[Transport]")
   auto obs =
     transport->create_observable<std_msgs::msg::String>(topic_name, 10);
 
-  SECTION("can receive subscription")
-  {
-    std_msgs::msg::String msg{};
-    msg.data = "hello";
-    auto timer =
-      transport->create_wall_timer(std::chrono::milliseconds(100),
-        [&publisher, &msg]()
-        {
-          publisher->publish(msg);
-        });
+//  SECTION("can receive subscription")
+//  {
+//    std_msgs::msg::String msg{};
+//    msg.data = "hello";
+//    auto timer =
+//      transport->create_wall_timer(std::chrono::milliseconds(100),
+//        [&publisher, &msg]()
+//        {
+//          publisher->publish(msg);
+//        });
 
-    bool received = false;
-    auto j =
-      rmf_rxcpp::make_leaky_job<std_msgs::msg::String>([&obs,
-        &received](const auto& s)
-        {
-          obs.subscribe([s, &received](const auto&)
-          {
-            received = true;
-            s.on_completed();
-          });
-        });
-    j.as_blocking().subscribe();
-    REQUIRE(received);
-    REQUIRE(transport->count_subscribers(topic_name) == 1);
-  }
+//    bool received = false;
+//    auto j =
+//      rmf_rxcpp::make_leaky_job<std_msgs::msg::String>([&obs,
+//        &received](const auto& s)
+//        {
+//          obs.subscribe([s, &received](const auto&)
+//          {
+//            received = true;
+//            s.on_completed();
+//          });
+//        });
+//    j.as_blocking().subscribe();
+//    REQUIRE(received);
+//    REQUIRE(transport->count_subscribers(topic_name) == 1);
+//  }
 
-  SECTION("multiple subscriptions are multiplexed")
-  {
-    rxcpp::composite_subscription subscription{};
-    obs.subscribe(subscription);
-    obs.subscribe(subscription);
-    REQUIRE(transport->count_subscribers(topic_name) == 1);
-    subscription.unsubscribe();
-  }
-
-  transport->stop();
-  rclcpp::shutdown(context);
+//  SECTION("multiple subscriptions are multiplexed")
+//  {
+//    rxcpp::composite_subscription subscription{};
+//    obs.subscribe(subscription);
+//    obs.subscribe(subscription);
+//    REQUIRE(transport->count_subscribers(topic_name) == 1);
+//    subscription.unsubscribe();
+//  }
 }

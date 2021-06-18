@@ -539,7 +539,8 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
       RCLCPP_WARN(
         node->get_logger(),
         "Received DispatchRequest for task_id:[%s] before receiving BidNotice. "
-        "This request will be ignored.");
+        "This request will be ignored.",
+        id.c_str());
       dispatch_ack_pub->publish(dispatch_ack);
       return;
     }
@@ -547,7 +548,8 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     RCLCPP_INFO(
       node->get_logger(),
       "Bid for task_id:[%s] awarded to fleet [%s]. Processing request...",
-      id.c_str(), name.c_str());
+      id.c_str(),
+      name.c_str());
 
     auto& assignments = task_it->second;
 
@@ -556,7 +558,8 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
       RCLCPP_ERROR(
         node->get_logger(),
         "The number of available robots does not match that in the assignments "
-        "for task_id:[%s]. This request will be ignored.", id.c_str());
+        "for task_id:[%s]. This request will be ignored.",
+        id.c_str());
       dispatch_ack_pub->publish(dispatch_ack);
       return;
     }
@@ -766,21 +769,6 @@ get_nearest_charger(
   return nearest_charger;
 }
 
-//==============================================================================
-void FleetUpdateHandle::Implementation::fleet_state_publish_period(
-  std::optional<rmf_traffic::Duration> value)
-{
-  if (value.has_value())
-  {
-    fleet_state_timer = node->create_wall_timer(
-      std::chrono::seconds(1), [this]() { this->publish_fleet_state(); });
-  }
-  else
-  {
-    fleet_state_timer = nullptr;
-  }
-}
-
 namespace {
 //==============================================================================
 rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
@@ -910,8 +898,9 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
 
   RCLCPP_INFO(
     node->get_logger(),
-    "Planning for [%d] robot(s) and [%d] request(s)",
-    states.size(), pending_requests.size());
+    "Planning for [%ld] robot(s) and [%ld] request(s)",
+    states.size(),
+    pending_requests.size());
 
   // Generate new task assignments
   const auto result = task_planner->optimal_plan(
@@ -1056,11 +1045,10 @@ void FleetUpdateHandle::add_robot(
 
           RCLCPP_INFO(
             node->get_logger(),
-            "Added a robot named [%s] with participant ID [%d]",
-            context->name().c_str(), context->itinerary().id());
+            "Added a robot named [%s] with participant ID [%ld]",
+            context->name().c_str(),
+            context->itinerary().id());
 
-          fleet->_pimpl->task_managers.insert({context,
-            TaskManager::make(context)});
           if (handle_cb)
           {
             handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
@@ -1073,7 +1061,11 @@ void FleetUpdateHandle::add_robot(
               "receive the RobotUpdateHandle of the new robot. This means you will "
               "not be able to update the state of the new robot. This is likely to "
               "be a fleet adapter development error.");
+            return;
           }
+
+          fleet->_pimpl->task_managers.insert({context,
+            TaskManager::make(context)});
         });
     });
 }
@@ -1193,7 +1185,21 @@ FleetUpdateHandle::default_maximum_delay() const
 FleetUpdateHandle& FleetUpdateHandle::fleet_state_publish_period(
   std::optional<rmf_traffic::Duration> value)
 {
-  _pimpl->fleet_state_publish_period(value);
+  if (value.has_value())
+  {
+    _pimpl->fleet_state_timer = _pimpl->node->try_create_wall_timer(
+      value.value(),
+      [me = weak_from_this()]()
+      {
+        if (const auto self = me.lock())
+          self->_pimpl->publish_fleet_state();
+      });
+  }
+  else
+  {
+    _pimpl->fleet_state_timer = nullptr;
+  }
+
   return *this;
 }
 

@@ -48,20 +48,26 @@ public:
   {
   public:
 
-    rmf_traffic::blockade::Rectifier rectifier;
     std::shared_ptr<RectifierStub> stub;
 
-    Requester(rmf_traffic::blockade::Rectifier rectifier_)
-    : rectifier(std::move(rectifier_))
+    Requester(
+      rmf_traffic::blockade::Rectifier rectifier,
+      NewRangeCallback callback)
+    : stub(std::make_shared<RectifierStub>(
+          RectifierStub{
+            std::move(rectifier),
+            std::nullopt,
+            std::move(callback)
+          }))
     {
-      // The stub field gets initialized later by make(...)
+      // Do nothing
     }
 
   };
 
   struct RectifierStub
   {
-    Requester& requester;
+    rmf_traffic::blockade::Rectifier rectifier;
     std::optional<ReservationId> last_reservation_id;
     NewRangeCallback range_cb;
   };
@@ -112,12 +118,8 @@ public:
     pending_callbacks.erase(c_it);
     assert(pending_callbacks.empty());
 
-    auto requester = std::make_unique<Requester>(std::move(rectifier));
-    requester->stub = std::make_shared<RectifierStub>(
-      RectifierStub{
-        *requester,
-        std::nullopt,
-        std::move(callback)});
+    auto requester = std::make_unique<Requester>(
+      std::move(rectifier), std::move(callback));
 
     stub_map.insert({participant_id, requester->stub});
 
@@ -191,8 +193,16 @@ public:
       }
 
       const auto stub = it->second.lock();
-      assert(stub);
-      stub->requester.rectifier.check(convert(status));
+      if (!stub)
+      {
+        // We hit a race condition where this stub died just moments after we
+        // swept through looking for which stubs died. As an easy way to deal
+        // with this, we will simply skip this iteration and let any necessary
+        // corrections happen the next time we get a heartbeat.
+        continue;
+      }
+
+      stub->rectifier.check(convert(status));
 
       const auto range = get_range(status);
       stub->last_reservation_id = status.reservation;
@@ -206,8 +216,15 @@ public:
       // Check on the remaining stubs to make sure they shouldn't have any
       // active reservations.
       const auto stub = s.second.lock();
-      assert(stub);
-      stub->requester.rectifier.check();
+      if (!stub)
+      {
+        // We hit a race condition where this stub died just moments after we
+        // wiped away the dead stubs. Just skip this for now and deal with
+        // cleaning it up on the next round.
+        continue;
+      }
+
+      stub->rectifier.check();
     }
 
     dead_set = not_dead_yet;

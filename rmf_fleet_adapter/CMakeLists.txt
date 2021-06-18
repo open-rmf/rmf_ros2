@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.5.0)
 project(rmf_fleet_adapter)
 
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -48,7 +48,7 @@ if(BUILD_TESTING)
     PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
 
   rmf_uncrustify(
-    ARGN include src test
+    include src test rmf_rxcpp/include rmf_rxcpp/src rmf_rxcpp/test
     CONFIG_FILE ${uncrustify_config_file}
     MAX_LINE_LENGTH 80
   )
@@ -119,6 +119,7 @@ if (BUILD_TESTING)
       test/tasks/test_Delivery.cpp
       test/tasks/test_Loop.cpp
       test/test_Task.cpp
+    TIMEOUT 300
   )
   target_include_directories(rmf_fleet_adapter_test
     PRIVATE
@@ -229,12 +230,14 @@ target_link_libraries(experimental_lift_watchdog
   PRIVATE
     ${rclcpp_LIBRARIES}
     ${rmf_fleet_msgs_LIBRARIES}
+    ${std_msgs_LIBRARIES}
 )
 
 target_include_directories(experimental_lift_watchdog
   PRIVATE
     ${rclcpp_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
+    ${std_msgs_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------

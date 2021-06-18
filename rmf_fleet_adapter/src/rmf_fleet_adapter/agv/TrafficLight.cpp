@@ -33,6 +33,8 @@
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 #include <rmf_fleet_msgs/msg/location.hpp>
 
+#include <rclcpp/exceptions.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -46,7 +48,7 @@ public:
 
   rmf_traffic::schedule::Participant itinerary;
 
-  rmf_traffic::blockade::Participant blockade;
+  std::optional<rmf_traffic::blockade::Participant> blockade;
 
   rmf_traffic::agv::VehicleTraits traits;
 
@@ -206,7 +208,6 @@ public:
 
   Data(
     std::shared_ptr<CommandHandle> command_,
-    rmf_traffic::blockade::Participant blockade_,
     rmf_traffic::schedule::Participant itinerary_,
     rmf_traffic::agv::VehicleTraits traits_,
     std::shared_ptr<rmf_traffic::schedule::Snappable> schedule_,
@@ -214,7 +215,6 @@ public:
     std::shared_ptr<Node> node_)
   : command(std::move(command_)),
     itinerary(std::move(itinerary_)),
-    blockade(std::move(blockade_)),
     traits(std::move(traits_)),
     schedule(std::move(schedule_)),
     worker(std::move(worker_)),
@@ -222,13 +222,8 @@ public:
     profile(std::make_shared<rmf_traffic::Profile>(
         itinerary.description().profile()))
   {
-    fleet_state_pub = node->fleet_state();
-    fleet_state_timer = node->create_wall_timer(
-      std::chrono::seconds(1),
-      [this]()
-      {
-        this->publish_fleet_state();
-      });
+    // Initialized further in
+    // TrafficLight::UpdateHandle::Implementation::Implementation
   }
 };
 
@@ -265,7 +260,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_path(
     planner = nullptr;
     path.clear();
     departure_timing.clear();
-    blockade.cancel();
+    blockade->cancel();
     return;
   }
   else if (new_path.size() == 1)
@@ -351,7 +346,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_path(
       if (const auto data = w.lock())
       {
         data->current_range = rmf_traffic::blockade::ReservedRange{0, 0};
-        data->blockade.set(checkpoints);
+        data->blockade->set(checkpoints);
       }
     };
 
@@ -397,7 +392,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::plan_timing(
       {
         RCLCPP_ERROR(
           data->node->get_logger(),
-          "Failed to find any itinerary for submitted path #%d of robot [%s] "
+          "Failed to find any itinerary for submitted path #%ld of robot [%s] "
           "owned by [%s]. This is a critical bug and should be reported to the "
           "rmf_core developers.",
           version,
@@ -1053,7 +1048,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_location(
         location
       };
 
-      data->blockade.reached(checkpoint_index);
+      data->blockade->reached(checkpoint_index);
 
       if (data->awaiting_confirmation)
       {
@@ -1096,7 +1091,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_location(
       RCLCPP_WARN(
         data->node->get_logger(),
         "Failed to compute timing estimate for [%s] owned by [%s] "
-        "moving away from checkpoint index [%d].",
+        "moving away from checkpoint index [%ld].",
         data->itinerary.description().name().c_str(),
         data->itinerary.description().owner().c_str(),
         checkpoint_index);
@@ -1157,7 +1152,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::new_range(
 {
   // TODO(MXG): All this logic should be embedded in the Participant class which
   // should also accept a callback for receiving new ranges.
-  if (reservation_id != blockade.reservation_id())
+  if (reservation_id != blockade->reservation_id())
     return;
 
   if (new_range == current_range)
@@ -1165,7 +1160,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::new_range(
 
   // If we have already reached the last point, then we no longer need to do
   // anything with these ranges.
-  if (blockade.last_reached() == path.size()-1)
+  if (blockade->last_reached() == path.size()-1)
     return;
 
   // If we are awaiting confirmation, we will ignore any new ranges.
@@ -1176,7 +1171,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::new_range(
   if (awaiting_confirmation)
     return;
 
-  const auto last_ready = blockade.last_ready();
+  const auto last_ready = blockade->last_ready();
 
   // If we don't have any ready points yet, then a range that ends past 0 should
   // not be believed. We must have readied some points earlier but released them
@@ -1210,11 +1205,13 @@ void TrafficLight::UpdateHandle::Implementation::Data::new_range(
           "rejection was issued in a situation where a rejection should not be "
           "possible. This indicates an integration error with the traffic light "
           "fleet adapter. Fleet name: [%s], Robot name: [%s], last departed "
-          "checkpoint: %u, stopped location: <%.2f, %.2f, %.2f>",
+          "checkpoint: %lu, stopped location: <%.2f, %.2f, %.2f>",
           data->itinerary.description().owner().c_str(),
           data->itinerary.description().name().c_str(),
           last_departed,
-          stopped_location.x(), stopped_location.y(), stopped_location.z());
+          stopped_location.x(),
+          stopped_location.y(),
+          stopped_location.z());
 
         data->reject(path_version, plan_version, last_departed,
           stopped_location);
@@ -1436,13 +1433,13 @@ void TrafficLight::UpdateHandle::Implementation::Data::watch_for_ready(
 
   if (assume_reached_checkpoint)
   {
-    blockade.reached(checkpoint_id);
+    blockade->reached(checkpoint_id);
   }
 
   if (check_if_finished(checkpoint_id))
     return;
 
-  waiting_timer = node->create_wall_timer(
+  waiting_timer = node->try_create_wall_timer(
     std::chrono::seconds(1),
     [w = weak_from_this(), path_version, checkpoint_id]()
     {
@@ -1453,7 +1450,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::watch_for_ready(
   if (check_if_ready(path_version, checkpoint_id))
     return;
 
-  ready_check_timer = node->create_wall_timer(
+  ready_check_timer = node->try_create_wall_timer(
     std::chrono::milliseconds(100),
     [w = weak_from_this(), path_version, checkpoint_id]()
     {
@@ -1509,7 +1506,7 @@ bool TrafficLight::UpdateHandle::Implementation::Data::check_if_ready(
   {
     // TODO(MXG): It would probably be better to reverse iterate here
     if (it->second <= now + ready_timing_threshold)
-      blockade.ready(it->first);
+      blockade->ready(it->first);
   }
 
   return true;
@@ -1582,7 +1579,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::approve(
       data->approved = true;
       data->awaiting_confirmation = false;
 
-      data->blockade.release(data->current_range.end);
+      data->blockade->release(data->current_range.end);
     });
 }
 
@@ -1752,7 +1749,7 @@ void TrafficLight::UpdateHandle::Implementation::Negotiator::respond(
     return responder->forfeit({});
   }
 
-  const std::size_t last_reached = data->blockade.last_reached();
+  const std::size_t last_reached = data->blockade->last_reached();
   if (last_reached >= data->path.size())
   {
     // If we have reached the end of the path, we can just submit an empty
@@ -1821,7 +1818,8 @@ void TrafficLight::UpdateHandle::Implementation::Negotiator::respond(
 
   using namespace std::chrono_literals;
   const auto wait_duration = 2s + table_viewer->sequence().back().version * 10s;
-  auto negotiate_timer = data->node->create_wall_timer(
+
+  auto negotiate_timer = data-> node->try_create_wall_timer(
     wait_duration,
     [s = negotiate->weak_from_this()]()
     {
@@ -1846,24 +1844,16 @@ rmf_traffic::blockade::Participant make_blockade(
     .vicinity()->get_characteristic_length();
 
   auto new_range_cb =
-    [impl](
+    [me = impl->data->weak_from_this()](
     const rmf_traffic::blockade::ReservationId reservation,
     const rmf_traffic::blockade::ReservedRange& range)
     {
-      impl->new_range(reservation, range);
+      if (const auto self = me.lock())
+        self->new_range(reservation, range);
     };
 
   return writer.make_participant(
     itinerary.id(), radius, std::move(new_range_cb));
-}
-
-//==============================================================================
-void TrafficLight::UpdateHandle::Implementation::new_range(
-  const rmf_traffic::blockade::ReservationId reservation_id,
-  const rmf_traffic::blockade::ReservedRange& new_range)
-{
-  assert(data);
-  data->new_range(reservation_id, new_range);
 }
 
 //==============================================================================
@@ -1877,14 +1867,21 @@ TrafficLight::UpdateHandle::Implementation::Implementation(
   std::shared_ptr<Node> node_)
 : data(std::make_shared<Data>(
       std::move(command_),
-      make_blockade(*blockade_writer, itinerary_, this),
       std::move(itinerary_),
       std::move(traits_),
       std::move(schedule_),
       std::move(worker_),
       std::move(node_)))
 {
-  // Do nothing
+  data->blockade = make_blockade(*blockade_writer, data->itinerary, this);
+  data->fleet_state_pub = data->node->fleet_state();
+  data->fleet_state_timer = data-> node->try_create_wall_timer(
+    std::chrono::seconds(1),
+    [me = data->weak_from_this()]()
+    {
+      if (const auto self = me.lock())
+        self->publish_fleet_state();
+    });
 }
 
 //==============================================================================
@@ -1986,11 +1983,12 @@ auto TrafficLight::UpdateHandle::fleet_state_publish_period(
   if (value.has_value())
   {
     _pimpl->data->fleet_state_timer =
-      _pimpl->data->node->create_wall_timer(
+      _pimpl->data-> node->try_create_wall_timer(
       value.value(),
-      [self = _pimpl->data.get()]()
+      [me = _pimpl->data->weak_from_this()]()
       {
-        self->publish_fleet_state();
+        if (const auto self = me.lock())
+          self->publish_fleet_state();
       });
   }
   else

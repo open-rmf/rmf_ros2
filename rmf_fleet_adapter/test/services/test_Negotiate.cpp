@@ -842,13 +842,22 @@ public:
                   << std::endl;
       }
 
-      _solution.set_value(winner->proposal());
+      if (!_promise_fulfilled)
+      {
+        _promise_fulfilled = true;
+        _solution.set_value(winner->proposal());
+      }
     }
     else
     {
       std::cout << "Failed finish for negotiation (" << negotiation.get()
                 << ")" << std::endl;
-      _solution.set_value(rmf_utils::nullopt);
+
+      if (!_promise_fulfilled)
+      {
+        _promise_fulfilled = true;
+        _solution.set_value(rmf_utils::nullopt);
+      }
     }
 
     negotiation.reset();
@@ -860,6 +869,7 @@ public:
   rxcpp::schedulers::worker worker;
 
   std::promise<OptProposal> _solution;
+  bool _promise_fulfilled = false;
 
 
   NegotiationRoom& print()

@@ -130,6 +130,7 @@ public:
       rmf_traffic::agv::Plan::Goal goal,
       double time_estimate,
       std::optional<rmf_traffic::Duration> tail_period);
+
     agv::RobotContextPtr _context;
     rmf_traffic::agv::Plan::Goal _goal;
     double _time_estimate;

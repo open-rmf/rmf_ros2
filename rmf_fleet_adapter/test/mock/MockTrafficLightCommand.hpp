@@ -24,6 +24,8 @@
 
 #include <condition_variable>
 
+#include <iostream>
+
 namespace rmf_fleet_adapter_test {
 
 //==============================================================================

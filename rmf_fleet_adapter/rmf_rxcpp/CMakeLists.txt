@@ -33,12 +33,6 @@ if(BUILD_TESTING)
     NAMES "rmf_code_style.cfg"
     PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
 
-  rmf_uncrustify(
-    ARGN include src test
-    CONFIG_FILE ${uncrustify_config_file}
-    MAX_LINE_LENGTH 80
-  )
-
   ament_add_catch2(
     rmf_rxcpp_test
       test/main.cpp

@@ -93,7 +93,7 @@ void EndLiftSession::Active::_init_obs()
           return;
 
         me->_publish_session_end();
-        me->_timer = me->_context->node()->create_wall_timer(
+        me->_timer = me->_context->node()->try_create_wall_timer(
           std::chrono::milliseconds(1000),
           [weak]()
           {

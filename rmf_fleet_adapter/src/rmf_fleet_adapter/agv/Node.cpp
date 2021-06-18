@@ -24,46 +24,85 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
+struct NodeWithContext
+{
+  // TODO(MXG): This will not be needed if/when rclcpp starts binding together
+  // its NodeHandle lifecycle with its Context lifecycle.
+  std::shared_ptr<rclcpp::Context> context;
+  std::shared_ptr<Node> node;
+};
+
+//==============================================================================
 std::shared_ptr<Node> Node::make(
   rxcpp::schedulers::worker worker,
   const std::string& node_name,
   const rclcpp::NodeOptions& options)
 {
-  auto node = std::shared_ptr<Node>(
+  const auto result = std::make_shared<NodeWithContext>();
+  result->context = options.context();
+  result->node = std::shared_ptr<Node>(
     new Node(std::move(worker), node_name, options));
 
   auto default_qos = rclcpp::SystemDefaultsQoS();
   default_qos.keep_last(100);
-  node->_door_state_obs = node->create_observable<DoorState>(
+
+  result->node->_door_state_obs =
+    result->node->create_observable<DoorState>(
     DoorStateTopicName, default_qos);
-  node->_door_supervisor_obs = node->create_observable<DoorSupervisorState>(
+
+  result->node->_door_supervisor_obs =
+    result->node->create_observable<DoorSupervisorState>(
     DoorSupervisorHeartbeatTopicName, default_qos);
-  node->_door_request_pub = node->create_publisher<DoorRequest>(
+
+  result->node->_door_request_pub =
+    result->node->create_publisher<DoorRequest>(
     AdapterDoorRequestTopicName, default_qos);
-  node->_lift_state_obs = node->create_observable<LiftState>(
+
+  result->node->_lift_state_obs =
+    result->node->create_observable<LiftState>(
     LiftStateTopicName, default_qos);
-  node->_lift_request_pub = node->create_publisher<LiftRequest>(
+
+  result->node->_lift_request_pub =
+    result->node->create_publisher<LiftRequest>(
     AdapterLiftRequestTopicName, default_qos);
-  node->_task_summary_pub = node->create_publisher<TaskSummary>(
+
+  result->node->_task_summary_pub =
+    result->node->create_publisher<TaskSummary>(
     TaskSummaryTopicName, default_qos);
-  node->_dispenser_request_pub = node->create_publisher<DispenserRequest>(
+
+  result->node->_dispenser_request_pub =
+    result->node->create_publisher<DispenserRequest>(
     DispenserRequestTopicName, default_qos);
-  node->_dispenser_result_obs = node->create_observable<DispenserResult>(
+
+  result->node->_dispenser_result_obs =
+    result->node->create_observable<DispenserResult>(
     DispenserResultTopicName, default_qos);
-  node->_dispenser_state_obs = node->create_observable<DispenserState>(
+
+  result->node->_dispenser_state_obs =
+    result->node->create_observable<DispenserState>(
     DispenserStateTopicName, default_qos);
-  node->_emergency_notice_obs = node->create_observable<EmergencyNotice>(
+
+  result->node->_emergency_notice_obs =
+    result->node->create_observable<EmergencyNotice>(
     rmf_traffic_ros2::EmergencyTopicName, default_qos);
-  node->_ingestor_request_pub = node->create_publisher<IngestorRequest>(
+
+  result->node->_ingestor_request_pub =
+    result->node->create_publisher<IngestorRequest>(
     IngestorRequestTopicName, default_qos);
-  node->_ingestor_result_obs = node->create_observable<IngestorResult>(
+
+  result->node->_ingestor_result_obs =
+    result->node->create_observable<IngestorResult>(
     IngestorResultTopicName, default_qos);
-  node->_ingestor_state_obs = node->create_observable<IngestorState>(
+
+  result->node->_ingestor_state_obs =
+    result->node->create_observable<IngestorState>(
     IngestorStateTopicName, default_qos);
-  node->_fleet_state_pub = node->create_publisher<FleetState>(
+
+  result->node->_fleet_state_pub =
+    result->node->create_publisher<FleetState>(
     FleetStateTopicName, default_qos);
 
-  return node;
+  return std::shared_ptr<Node>(result, result->node.get());
 }
 
 //==============================================================================
@@ -79,13 +118,13 @@ Node::Node(
 //==============================================================================
 auto Node::door_state() const -> const DoorStateObs&
 {
-  return _door_state_obs;
+  return _door_state_obs->observe();
 }
 
 //==============================================================================
 auto Node::door_supervisor() const -> const DoorSupervisorObs&
 {
-  return _door_supervisor_obs;
+  return _door_supervisor_obs->observe();
 }
 
 //==============================================================================
@@ -97,7 +136,7 @@ auto Node::door_request() const -> const DoorRequestPub&
 //==============================================================================
 auto Node::lift_state() const -> const LiftStateObs&
 {
-  return _lift_state_obs;
+  return _lift_state_obs->observe();
 }
 
 //==============================================================================
@@ -121,19 +160,19 @@ auto Node::dispenser_request() const -> const DispenserRequestPub&
 //==============================================================================
 auto Node::dispenser_result() const -> const DispenserResultObs&
 {
-  return _dispenser_result_obs;
+  return _dispenser_result_obs->observe();
 }
 
 //==============================================================================
 auto Node::dispenser_state() const -> const DispenserStateObs&
 {
-  return _dispenser_state_obs;
+  return _dispenser_state_obs->observe();
 }
 
 //==============================================================================
 auto Node::emergency_notice() const -> const EmergencyNoticeObs&
 {
-  return _emergency_notice_obs;
+  return _emergency_notice_obs->observe();
 }
 
 auto Node::ingestor_request() const -> const IngestorRequestPub&
@@ -144,13 +183,13 @@ auto Node::ingestor_request() const -> const IngestorRequestPub&
 //==============================================================================
 auto Node::ingestor_result() const -> const IngestorResultObs&
 {
-  return _ingestor_result_obs;
+  return _ingestor_result_obs->observe();
 }
 
 //==============================================================================
 auto Node::ingestor_state() const -> const IngestorStateObs&
 {
-  return _ingestor_state_obs;
+  return _ingestor_state_obs->observe();
 }
 
 //==============================================================================

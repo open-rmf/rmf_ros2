@@ -48,10 +48,12 @@ void ResponsiveWait::Active::emergency_alarm(bool on)
 {
   if (!_movement)
   {
+    // *INDENT-OFF*
     throw std::runtime_error(
-            "[rmf_fleet_adapter::phases::ResponsiveWait::Active::emergency_alarm] "
-            "_movement field is null. This is a critical bug in rmf_fleet_adapter. "
-            "Please report this to the maintainers.");
+      "[rmf_fleet_adapter::phases::ResponsiveWait::Active::emergency_alarm] "
+      "_movement field is null. This is a critical bug in rmf_fleet_adapter. "
+      "Please report this to the maintainers.");
+    // *INDENT-ON*
   }
 
   _movement->emergency_alarm(on);
@@ -98,10 +100,12 @@ void ResponsiveWait::Active::_begin_movement()
   }
   else
   {
+    // *INDENT-OFF*
     throw std::runtime_error(
-            "[rmf_fleet_adapter::phases::ResponsiveWait::Active::constructor] "
-            "PhaseInfo is missing both finish_time and period. This is a critical "
-            "bug in rmf_fleet_adapter. Please report it to the maintainers.");
+      "[rmf_fleet_adapter::phases::ResponsiveWait::Active::constructor] "
+      "PhaseInfo is missing both finish_time and period. This is a critical "
+      "bug in rmf_fleet_adapter. Please report it to the maintainers.");
+    // *INDENT-ON*
   }
 
   std::optional<rmf_traffic::Duration> tail;

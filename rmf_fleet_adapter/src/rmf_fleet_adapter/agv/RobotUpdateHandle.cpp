@@ -177,8 +177,9 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
     context->current_task_end_state(end_state);
     RCLCPP_INFO(
       context->node()->get_logger(),
-      "Charger waypoint for robot [%s] set to index [%d]",
-      context->name().c_str(), charger_wp);
+      "Charger waypoint for robot [%s] set to index [%ld]",
+      context->name().c_str(),
+      charger_wp);
   }
 
   return *this;

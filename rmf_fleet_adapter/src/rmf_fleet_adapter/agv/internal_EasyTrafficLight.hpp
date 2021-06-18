@@ -23,9 +23,9 @@
 
 #include <rmf_traffic/schedule/Participant.hpp>
 
-#include <rclcpp/node.hpp>
-
 #include <rmf_rxcpp/RxJobs.hpp>
+
+#include "Node.hpp"
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -163,7 +163,7 @@ public:
   TrafficLight::UpdateHandlePtr update_handle;
 
   rxcpp::schedulers::worker worker;
-  std::shared_ptr<rclcpp::Node> node;
+  std::shared_ptr<Node> node;
 
   std::string name;
   std::string owner;
@@ -186,7 +186,7 @@ public:
     std::function<void()> resume_,
     std::function<void(std::vector<Blocker>)> blocker_,
     rxcpp::schedulers::worker worker_,
-    std::shared_ptr<rclcpp::Node> node_,
+    std::shared_ptr<Node> node_,
     std::string name_,
     std::string owner_);
 
@@ -196,7 +196,7 @@ public:
     std::function<void()> resume_,
     std::function<void(std::vector<Blocker>)> blocker,
     rxcpp::schedulers::worker worker_,
-    std::shared_ptr<rclcpp::Node> node_,
+    std::shared_ptr<Node> node_,
     std::string name_,
     std::string owner_);
 };

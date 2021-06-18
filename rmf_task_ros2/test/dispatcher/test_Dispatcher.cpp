@@ -41,15 +41,18 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
   task_desc2.task_type.type = rmf_task_msgs::msg::TaskType::TYPE_CLEAN;
 
   //============================================================================
-  auto dispatcher = Dispatcher::init_and_make_node("test_dispatcher_node");
+  const auto rcl_context = std::make_shared<rclcpp::Context>();
+  rcl_context->init(0, nullptr);
 
-  auto spin_thread = std::thread(
-    [&dispatcher]()
+  const auto node = std::make_shared<rclcpp::Node>(
+    "test_dispatcher_node", rclcpp::NodeOptions().context(rcl_context));
+
+  const auto dispatcher = Dispatcher::make(node);
+  auto dispatcher_spin_thread = std::thread(
+    [dispatcher]()
     {
       dispatcher->spin();
     });
-  spin_thread.detach();
-
 
   WHEN("Check service interfaces")
   {
@@ -91,13 +94,13 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
 
   //============================================================================
   // test on change fn callback
-  int change_times = 0;
-  TaskProfile test_taskprofile;
+  const auto change_times = std::make_shared<int>(0);
+  const auto test_taskprofile = std::make_shared<TaskProfile>();
   dispatcher->on_change(
-    [&change_times, &test_taskprofile](const TaskStatusPtr status)
+    [change_times, test_taskprofile](const TaskStatusPtr status)
     {
-      test_taskprofile = status->task_profile;
-      change_times++;
+      *test_taskprofile = status->task_profile;
+      (*change_times)++;
     }
   );
 
@@ -112,21 +115,20 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
     std::this_thread::sleep_for(std::chrono::milliseconds(3500));
     CHECK(dispatcher->get_task_state(*id) == TaskStatus::State::Failed);
     REQUIRE(dispatcher->terminated_tasks().size() == 1);
-    REQUIRE(test_taskprofile.task_id == id);
-    CHECK(change_times == 2); // add and failed
+    REQUIRE(test_taskprofile->task_id == id);
+    CHECK(*change_times == 2); // add and failed
 
     // Submit another task
     id = dispatcher->submit_task(task_desc2);
     std::this_thread::sleep_for(std::chrono::milliseconds(3000));
     REQUIRE(dispatcher->terminated_tasks().size() == 2);
-    REQUIRE(test_taskprofile.task_id == *id);
-    CHECK(change_times == 4); // add and failed x2
+    REQUIRE(test_taskprofile->task_id == *id);
+    CHECK(*change_times == 4); // add and failed x2
   }
 
   //============================================================================
   // Setup Mock Fleetadapter: mock bidder to test
   using TaskType = bidding::MinimalBidder::TaskType;
-  auto node = dispatcher->node();
   auto bidder = bidding::MinimalBidder::make(
     node,
     "dummy_fleet",
@@ -144,22 +146,22 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
   // Setup Mock Fleetadapter: action server to test
   auto action_server = action::Server::make(node, "dummy_fleet");
 
-  bool task_canceled_flag = false;
+  const auto task_canceled_flag = std::make_shared<bool>(false);
 
   action_server->register_callbacks(
     // Add Task callback
-    [&action_server, &task_canceled_flag](const TaskProfile& task_profile)
+    [action_server, task_canceled_flag](const TaskProfile& task_profile)
     {
       // Start action task
       auto t = std::thread(
-        [&action_server, &task_canceled_flag](auto profile)
+        [action_server, task_canceled_flag](auto profile)
         {
           TaskStatus status;
           status.task_profile = profile;
           status.robot_name = "dumbot";
           std::this_thread::sleep_for(std::chrono::seconds(2));
 
-          if (task_canceled_flag)
+          if (*task_canceled_flag)
           {
             // std::cout << "[task impl] Cancelled!" << std::endl;
             return;
@@ -179,9 +181,9 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
       return true; //successs (send State::Queued)
     },
     // Cancel Task callback
-    [&action_server, &task_canceled_flag](const TaskProfile&)
+    [action_server, task_canceled_flag](const TaskProfile&)
     {
-      task_canceled_flag = true;
+      *task_canceled_flag = true;
       return true; //success ,send State::Canceled when dispatcher->cancel_task
     }
   );
@@ -196,13 +198,13 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
     // now should queue the task
     CHECK(dispatcher->get_task_state(*id) == TaskStatus::State::Queued);
     REQUIRE(dispatcher->terminated_tasks().size() == 0);
-    CHECK(change_times == 2); // Pending and Queued
+    CHECK(*change_times == 2); // Pending and Queued
 
     std::this_thread::sleep_for(std::chrono::seconds(3));
     CHECK(dispatcher->get_task_state(*id) == TaskStatus::State::Completed);
     REQUIRE(dispatcher->active_tasks().size() == 0);
     REQUIRE(dispatcher->terminated_tasks().size() == 1);
-    CHECK(change_times == 4); // Pending > Queued > Executing > Completed
+    CHECK(*change_times == 4); // Pending > Queued > Executing > Completed
 
     // Add auto generated ChargeBattery Task from fleet adapter
     TaskStatus status;
@@ -213,7 +215,7 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
     action_server->update_status(status);
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    CHECK(change_times == 5); // new stray charge task
+    CHECK(*change_times == 5); // new stray charge task
     REQUIRE(dispatcher->active_tasks().size() == 1);
   }
 
@@ -233,10 +235,11 @@ SCENARIO("Dispatcehr API Test", "[Dispatcher]")
     REQUIRE(dispatcher->terminated_tasks().begin()->first == *id);
     auto status = dispatcher->terminated_tasks().begin()->second;
     CHECK(status->state == TaskStatus::State::Canceled);
-    CHECK(change_times == 3); // Pending -> Queued -> Canceled
+    CHECK(*change_times == 3); // Pending -> Queued -> Canceled
   }
 
-  rclcpp::shutdown();
+  rclcpp::shutdown(rcl_context);
+  dispatcher_spin_thread.join();
 }
 
 } // namespace rmf_task_ros2

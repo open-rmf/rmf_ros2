@@ -68,8 +68,8 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       if (!f)
         return;
 
-      auto* greedy = progress.greedy_job;
-      auto* compliant = progress.compliant_job;
+      const auto& greedy = progress.greedy_job;
+      const auto& compliant = progress.compliant_job;
 
       bool resume_compliant = static_cast<bool>(compliant);
       if (compliant && f->_greedy_evaluator.best_result.progress)

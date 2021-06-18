@@ -53,7 +53,8 @@ void check_path_finish(
     RCLCPP_WARN(
       node->get_logger(),
       "The robot is somewhat far [%fm] from where it is supposed to be, "
-      "but we will proceed anyway.");
+      "but we will proceed anyway.",
+      dist);
 
     const auto& last_wp = info.waypoints[info.waypoints.size()-2];
     estimate_midlane_state(

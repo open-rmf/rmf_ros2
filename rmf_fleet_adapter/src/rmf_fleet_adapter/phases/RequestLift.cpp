@@ -99,14 +99,16 @@ void RequestLift::ActivePhase::_init_obs()
   using rmf_lift_msgs::msg::LiftState;
 
   _obs = _context->node()->lift_state()
-    .lift<LiftState::SharedPtr>(on_subscribe([weak = weak_from_this()]()
+    .lift<LiftState::SharedPtr>(
+    on_subscribe(
+      [weak = weak_from_this()]()
       {
         auto me = weak.lock();
         if (!me)
           return;
 
         me->_do_publish();
-        me->_timer = me->_context->node()->create_wall_timer(
+        me->_timer = me->_context->node()->try_create_wall_timer(
           std::chrono::milliseconds(1000),
           [weak]()
           {
@@ -233,7 +235,7 @@ Task::StatusMsg RequestLift::ActivePhase::_get_status(
                   // Do nothing
                 });
 
-            _rewait_timer = _context->node()->create_wall_timer(
+            _rewait_timer = _context->node()->try_create_wall_timer(
               _context->get_lift_rewait_duration(),
               [w = weak_from_this()]()
               {
@@ -308,6 +310,7 @@ void RequestLift::ActivePhase::_do_publish()
   msg.request_time = _context->node()->now();
   msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_AGV_MODE;
   msg.door_state = rmf_lift_msgs::msg::LiftRequest::DOOR_OPEN;
+
   _context->node()->lift_request()->publish(msg);
 }
 

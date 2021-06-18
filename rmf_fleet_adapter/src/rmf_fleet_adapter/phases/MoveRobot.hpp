@@ -108,6 +108,10 @@ struct MoveRobot
 template<typename Subscriber>
 void MoveRobot::Action::operator()(const Subscriber& s)
 {
+  const auto command = _context->command();
+  if (!command)
+    return;
+
   _context->command()->follow_new_path(
     _waypoints,
     [s, w_action = weak_from_this(), r = _context->requester_id()](

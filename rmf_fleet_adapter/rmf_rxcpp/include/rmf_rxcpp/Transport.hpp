@@ -123,6 +123,44 @@ private:
   std::condition_variable _cv;
 };
 
+template<typename Message>
+class SubscriptionBridge
+{
+public:
+
+  SubscriptionBridge(
+    rclcpp::Node::SharedPtr node,
+    const std::string& topic_name,
+    const rclcpp::QoS& qos)
+  {
+    _subscription = node->create_subscription<Message>(
+      topic_name, qos,
+      [publisher = _publisher](
+        typename Message::SharedPtr msg)
+      {
+        publisher.get_subscriber().on_next(msg);
+      });
+
+    _observable = _publisher.get_observable();
+  }
+
+  const rxcpp::observable<typename Message::SharedPtr>& observe() const
+  {
+    return _observable;
+  }
+
+  ~SubscriptionBridge()
+  {
+    _publisher.get_subscriber().on_completed();
+  }
+
+private:
+  rxcpp::subjects::subject<typename Message::SharedPtr> _publisher;
+  rxcpp::observable<typename Message::SharedPtr> _observable;
+  typename rclcpp::Subscription<Message>::SharedPtr _subscription;
+
+};
+
 // TODO(MXG): We define all the member functions of this class inline so that we
 // don't need to export/install rmf_rxcpp as its own shared library (linking to
 // it as a static library results in linking errors related to symbols not being
@@ -131,6 +169,9 @@ private:
 class Transport : public rclcpp::Node
 {
 public:
+
+  template<typename Message>
+  using Bridge = std::shared_ptr<SubscriptionBridge<Message>>;
 
   explicit Transport(
     rxcpp::schedulers::worker worker,
@@ -215,15 +256,19 @@ public:
    * @return
    */
   template<typename Message>
-  auto create_observable(const std::string& topic_name, const rclcpp::QoS& qos)
+  Bridge<Message> create_observable(
+    const std::string& topic_name, const rclcpp::QoS& qos)
   {
-    auto wrapper = std::make_shared<detail::SubscriptionWrapper<Message>>(
-      shared_from_this(), topic_name, qos);
-    return rxcpp::observable<>::create<typename Message::SharedPtr>([wrapper](
-          const auto& s)
-        {
-          (*wrapper)(s);
-        }).publish().ref_count().observe_on(rxcpp::observe_on_event_loop());
+    return std::make_shared<
+      SubscriptionBridge<Message>>(shared_from_this(), topic_name, qos);
+
+//    auto wrapper = std::make_shared<detail::SubscriptionWrapper<Message>>(
+//      shared_from_this(), topic_name, qos);
+//    return rxcpp::observable<>::create<typename Message::SharedPtr>([wrapper](
+//          const auto& s)
+//        {
+//          (*wrapper)(s);
+//        }).publish().ref_count().observe_on(HERE, rxcpp::observe_on_event_loop());
   }
 
   ~Transport()

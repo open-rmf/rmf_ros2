@@ -49,10 +49,6 @@ public:
 
   std::shared_ptr<void> negotiation_license;
 
-  void new_range(
-    rmf_traffic::blockade::ReservationId reservation_id,
-    const rmf_traffic::blockade::ReservedRange& new_range);
-
   Implementation(
     std::shared_ptr<CommandHandle> command_,
     rmf_traffic::schedule::Participant itinerary_,

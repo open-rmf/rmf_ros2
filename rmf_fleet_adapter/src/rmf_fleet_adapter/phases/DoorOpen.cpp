@@ -110,7 +110,7 @@ void DoorOpen::ActivePhase::_init_obs()
         me->_status.state = Task::StatusMsg::STATE_ACTIVE;
         me->_publish_open_door();
         me->_timer =
-        transport->create_wall_timer(std::chrono::milliseconds(1000),
+        transport->try_create_wall_timer(std::chrono::milliseconds(1000),
         [weak, transport]()
         {
           auto me = weak.lock();
