@@ -261,14 +261,6 @@ public:
   {
     return std::make_shared<
       SubscriptionBridge<Message>>(shared_from_this(), topic_name, qos);
-
-//    auto wrapper = std::make_shared<detail::SubscriptionWrapper<Message>>(
-//      shared_from_this(), topic_name, qos);
-//    return rxcpp::observable<>::create<typename Message::SharedPtr>([wrapper](
-//          const auto& s)
-//        {
-//          (*wrapper)(s);
-//        }).publish().ref_count().observe_on(HERE, rxcpp::observe_on_event_loop());
   }
 
   ~Transport()

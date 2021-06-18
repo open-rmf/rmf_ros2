@@ -108,7 +108,6 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
 
     THEN("it should continuously send dispense item request")
     {
-      // CRASH COUNT: ......
       std::unique_lock<std::mutex> lk(test->m);
       test->received_requests_cv.wait(lk, [test]()
         {
@@ -161,7 +160,6 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
 
       THEN("it is completed")
       {
-        // Crash count: ..
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
               1000), [test]()
