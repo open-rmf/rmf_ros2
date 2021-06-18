@@ -592,7 +592,6 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
     }
     );
 
-//  std::cout << ""
   _subtasks->begin();
   _context->itinerary().set(_plan->get_itinerary());
 }

@@ -24,85 +24,74 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
-struct NodeWithContext
-{
-  // TODO(MXG): This will not be needed if/when rclcpp starts binding together
-  // its NodeHandle lifecycle with its Context lifecycle.
-  std::shared_ptr<rclcpp::Context> context;
-  std::shared_ptr<Node> node;
-};
-
-//==============================================================================
 std::shared_ptr<Node> Node::make(
   rxcpp::schedulers::worker worker,
   const std::string& node_name,
   const rclcpp::NodeOptions& options)
 {
-  const auto result = std::make_shared<NodeWithContext>();
-  result->context = options.context();
-  result->node = std::shared_ptr<Node>(
+  auto node = std::shared_ptr<Node>(
     new Node(std::move(worker), node_name, options));
 
   auto default_qos = rclcpp::SystemDefaultsQoS();
   default_qos.keep_last(100);
 
-  result->node->_door_state_obs =
-    result->node->create_observable<DoorState>(
+  node->_door_state_obs =
+    node->create_observable<DoorState>(
     DoorStateTopicName, default_qos);
 
-  result->node->_door_supervisor_obs =
-    result->node->create_observable<DoorSupervisorState>(
+  node->_door_supervisor_obs =
+    node->create_observable<DoorSupervisorState>(
     DoorSupervisorHeartbeatTopicName, default_qos);
 
-  result->node->_door_request_pub =
-    result->node->create_publisher<DoorRequest>(
+  node->_door_request_pub =
+    node->create_publisher<DoorRequest>(
     AdapterDoorRequestTopicName, default_qos);
 
-  result->node->_lift_state_obs =
-    result->node->create_observable<LiftState>(
+  node->_lift_state_obs =
+    node->create_observable<LiftState>(
     LiftStateTopicName, default_qos);
 
-  result->node->_lift_request_pub =
-    result->node->create_publisher<LiftRequest>(
+  node->_lift_request_pub =
+    node->create_publisher<LiftRequest>(
     AdapterLiftRequestTopicName, default_qos);
 
-  result->node->_task_summary_pub =
-    result->node->create_publisher<TaskSummary>(
+  node->_task_summary_pub =
+    node->create_publisher<TaskSummary>(
     TaskSummaryTopicName, default_qos);
 
-  result->node->_dispenser_request_pub =
-    result->node->create_publisher<DispenserRequest>(
+  node->_dispenser_request_pub =
+    node->create_publisher<DispenserRequest>(
     DispenserRequestTopicName, default_qos);
 
-  result->node->_dispenser_result_obs =
-    result->node->create_observable<DispenserResult>(
+  node->_dispenser_result_obs =
+    node->create_observable<DispenserResult>(
     DispenserResultTopicName, default_qos);
 
-  result->node->_dispenser_state_obs =
-    result->node->create_observable<DispenserState>(
+  node->_dispenser_state_obs =
+    node->create_observable<DispenserState>(
     DispenserStateTopicName, default_qos);
 
-  result->node->_emergency_notice_obs =
-    result->node->create_observable<EmergencyNotice>(
+  node->_emergency_notice_obs =
+    node->create_observable<EmergencyNotice>(
     rmf_traffic_ros2::EmergencyTopicName, default_qos);
 
-  result->node->_ingestor_request_pub =
-    result->node->create_publisher<IngestorRequest>(
+  node->_ingestor_request_pub =
+    node->create_publisher<IngestorRequest>(
     IngestorRequestTopicName, default_qos);
 
-  result->node->_ingestor_result_obs =
-    result->node->create_observable<IngestorResult>(
+  node->_ingestor_result_obs =
+    node->create_observable<IngestorResult>(
     IngestorResultTopicName, default_qos);
 
-  result->node->_ingestor_state_obs =
-    result->node->create_observable<IngestorState>(
+  node->_ingestor_state_obs =
+    node->create_observable<IngestorState>(
     IngestorStateTopicName, default_qos);
 
-  result->node->_fleet_state_pub =
-    result->node->create_publisher<FleetState>(
+  node->_fleet_state_pub =
+    node->create_publisher<FleetState>(
     FleetStateTopicName, default_qos);
 
-  return std::shared_ptr<Node>(result, result->node.get());
+  return node;
 }
 
 //==============================================================================

@@ -380,7 +380,6 @@ void Adapter::add_easy_traffic_light(
 
       command_handle->pimpl = easy_handle;
 
-      std::cout << "add_easy_traffic_light::handle_cb" << std::endl;
       worker.schedule(
         [easy_handle = std::move(easy_handle),
         handle_callback = std::move(handle_callback)](const auto&)
