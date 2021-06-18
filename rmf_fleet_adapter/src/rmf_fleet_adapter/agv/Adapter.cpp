@@ -47,7 +47,6 @@ public:
 
   void schedule(std::function<void()> job) final
   {
-    std::cout << "WorkerWrapper::schedule" << std::endl;
     _worker.schedule([job = std::move(job)](const auto&) { job(); });
   }
 
