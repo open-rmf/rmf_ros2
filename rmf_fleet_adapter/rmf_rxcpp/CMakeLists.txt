@@ -36,8 +36,8 @@ if(BUILD_TESTING)
   ament_add_catch2(
     rmf_rxcpp_test
       test/main.cpp
-      test/RxJobsTest.cpp
-      test/TransportTest.cpp
+      test/test_RxJobs.cpp
+      test/test_Transport.cpp
   )
   target_include_directories(rmf_rxcpp_test
     PRIVATE

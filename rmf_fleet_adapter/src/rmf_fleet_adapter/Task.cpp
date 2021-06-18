@@ -150,7 +150,7 @@ void Task::_start_next_phase()
     //
     // TODO(MXG): Remove this when the planner has been made more
     // memory-efficient.
-//    malloc_trim(0);
+    malloc_trim(0);
 
     return;
   }
