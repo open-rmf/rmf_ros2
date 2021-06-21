@@ -33,7 +33,7 @@ jobs:
         if: failure()
         with:
           name: test-results
-          path: ${{ steps.build.outputs.ros-workspace-directory-name }}/build/*/test_results/*/*.catch2.xml
+          path: ros_ws/build/*/test_results/*/*.catch2.xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1
         with:
