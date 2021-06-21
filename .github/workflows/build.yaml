@@ -25,6 +25,9 @@ jobs:
             {
               "build": {
                 "mixin": ["coverage-gcc"]
+              },
+              "test": {
+                "ctest-args": ["output-on-failure"]
               }
             }
           colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
