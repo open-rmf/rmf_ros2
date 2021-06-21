@@ -33,7 +33,7 @@
 namespace rmf_task_ros2 {
 
 //==============================================================================
-SCENARIO("Dispatcehr API Test", "[Dispatcher]")
+SCENARIO("Dispatcher API Test", "[Dispatcher]")
 {
   Dispatcher::TaskDescription task_desc1;
   Dispatcher::TaskDescription task_desc2;
