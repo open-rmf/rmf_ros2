@@ -25,12 +25,15 @@ jobs:
             {
               "build": {
                 "mixin": ["coverage-gcc"]
-              },
-              "test": {
-                "ctest-args": ["output-on-failure"]
               }
             }
           colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
+      - name: Upload failed test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: test-results
+          path: ${{ steps.build.outputs.ros-workspace-directory-name }}/build/*/test_results/*/*.catch2.xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1
         with:
