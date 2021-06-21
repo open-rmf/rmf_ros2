@@ -181,7 +181,7 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
       rmf_traffic::time::from_seconds(1.5));
 
     CHECK((*test_task_onchange)->state == TaskStatus::State::Executing);
-    CHECK(!test_task_onterminate->has_value()); // havnt terminated yet
+    CHECK(test_task_onterminate->has_value()); // havnt terminated yet
 
     // completion
     server_task.state = TaskStatus::State::Completed;
