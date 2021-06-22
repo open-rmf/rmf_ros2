@@ -88,6 +88,9 @@ SCENARIO("Dispatcher API Test", "[Dispatcher]")
     // check nonsense id
     REQUIRE(!(dispatcher->get_task_state("non_existent_id")));
 
+    // Try sleeping for a moment here to mitigate race conditions
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
     // add an invalid task
     task_desc2.task_type.type = 10; // this is invalid
     REQUIRE(dispatcher->submit_task(task_desc2) == std::nullopt);
