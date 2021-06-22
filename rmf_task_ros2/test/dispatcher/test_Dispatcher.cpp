@@ -88,7 +88,10 @@ SCENARIO("Dispatcher API Test", "[Dispatcher]")
     // check nonsense id
     REQUIRE(!(dispatcher->get_task_state("non_existent_id")));
 
-    // Try sleeping for a moment here to mitigate race conditions
+    // Try sleeping for a moment here to mitigate race conditions.
+    // TODO(MXG): We should rework these tests so that we don't need to put in
+    // arbitrary waits, and so that we can ensure that the correct behavior is
+    // happening, exactly as intended.
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // add an invalid task
