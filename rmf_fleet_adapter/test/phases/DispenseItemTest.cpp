@@ -39,6 +39,14 @@ struct TestData
 
   std::condition_variable status_updates_cv;
   std::list<Task::StatusMsg> status_updates;
+
+  std::optional<uint32_t> last_state_value() const
+  {
+    if (status_updates.empty())
+      return std::nullopt;
+
+    return status_updates.back().state;
+  }
 };
 } // anonymous namespace
 
@@ -121,7 +129,8 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       std::unique_lock<std::mutex> lk(test->m);
 
       bool completed =
-        test->status_updates_cv.wait_for(lk, std::chrono::seconds(3), [test]()
+        test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(30), [test]()
           {
             for (const auto& status : test->status_updates)
             {
@@ -141,7 +150,7 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       auto state_pub = data->ros_node->create_publisher<DispenserState>(
         DispenserStateTopicName, 10);
       auto timer = data->node->try_create_wall_timer(
-        std::chrono::milliseconds(100),
+        std::chrono::milliseconds(1),
         [test, node = data->ros_node, request_guid, result_pub, state_pub]()
         {
           std::unique_lock<std::mutex> lk(test->m);
@@ -161,10 +170,10 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       THEN("it is completed")
       {
         std::unique_lock<std::mutex> lk(test->m);
-        bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [test]()
+        bool completed = test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(10), [test]()
             {
-              return !test->status_updates.empty() && test->status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
             });
         CHECK(completed);
       }
@@ -179,7 +188,7 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       auto state_pub = data->ros_node->create_publisher<DispenserState>(
         DispenserStateTopicName, 10);
       auto timer = data->node->try_create_wall_timer(
-        std::chrono::milliseconds(100),
+        std::chrono::milliseconds(1),
         [test, node = data->ros_node, request_guid, result_pub, state_pub]()
         {
           std::unique_lock<std::mutex> lk(test->m);
@@ -201,9 +210,9 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
         std::unique_lock<std::mutex> lk(test->m);
         bool failed =
           test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [test]()
+              10), [test]()
             {
-              return !test->status_updates.empty() && test->status_updates.back().state == Task::StatusMsg::STATE_FAILED;
+              return test->last_state_value() == Task::StatusMsg::STATE_FAILED;
             });
         CHECK(failed);
       }
@@ -218,7 +227,7 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       auto state_pub = data->ros_node->create_publisher<DispenserState>(
         DispenserStateTopicName, 10);
       auto interval =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(100))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
         [
@@ -247,9 +256,9 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [test]()
+              10), [test]()
             {
-              return test->status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
             });
         CHECK(completed);
       }
@@ -264,7 +273,7 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       auto state_pub = data->ros_node->create_publisher<DispenserState>(
         DispenserStateTopicName, 10);
       auto interval =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(100))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
         [
@@ -295,9 +304,9 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [test]()
+              10), [test]()
             {
-              return test->status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
             });
         CHECK(!completed);
       }

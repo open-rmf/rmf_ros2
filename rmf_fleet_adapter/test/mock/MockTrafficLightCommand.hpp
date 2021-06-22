@@ -39,11 +39,13 @@ public:
     std::function<void()> on_standby,
     Reject)
   {
-    std::lock_guard<std::mutex> lock(mutex);
-    current_version = version;
-    current_checkpoints = std::move(checkpoints);
-    standby_cb = std::move(on_standby);
-    ++command_counter;
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      current_version = version;
+      current_checkpoints = std::move(checkpoints);
+      standby_cb = std::move(on_standby);
+      ++command_counter;
+    }
     cv.notify_all();
   }
 

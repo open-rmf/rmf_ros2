@@ -115,7 +115,7 @@ private:
     {
       using namespace std::chrono_literals;
       _timer = _node->create_wall_timer(
-        10ms, [me = weak_from_this(), msg]()
+        1ms, [me = weak_from_this(), msg]()
         {
           const auto self = me.lock();
           if (!self)
@@ -183,7 +183,7 @@ public:
 
     using namespace std::chrono_literals;
     ingestor->_timer = ingestor->_node->create_wall_timer(
-      100ms, [me = ingestor->weak_from_this()]()
+      1ms, [me = ingestor->weak_from_this()]()
       {
         const auto self = me.lock();
         if (!self)

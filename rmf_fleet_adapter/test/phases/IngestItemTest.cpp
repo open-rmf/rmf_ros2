@@ -39,6 +39,14 @@ struct TestData
 
   std::condition_variable status_updates_cv;
   std::list<Task::StatusMsg> status_updates;
+
+  std::optional<uint32_t> last_state_value() const
+  {
+    if (status_updates.empty())
+      return std::nullopt;
+
+    return status_updates.back().state;
+  }
 };
 } // anonymous namespace
 
@@ -118,7 +126,8 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
       std::unique_lock<std::mutex> lk(test->m);
 
       bool completed =
-        test->status_updates_cv.wait_for(lk, std::chrono::seconds(3), [test]()
+        test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(30), [test]()
           {
             for (const auto& status : test->status_updates)
             {
@@ -158,10 +167,10 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
       THEN("it is completed")
       {
         std::unique_lock<std::mutex> lk(test->m);
-        bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [test]()
+        bool completed = test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(1000), [test]()
             {
-              return test->status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
             });
         CHECK(completed);
       }
@@ -200,7 +209,7 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
           test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
               1000), [test]()
             {
-              return test->status_updates.back().state == Task::StatusMsg::STATE_FAILED;
+              return test->last_state_value() == Task::StatusMsg::STATE_FAILED;
             });
         CHECK(failed);
       }
@@ -246,7 +255,7 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
         bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
               1000), [test]()
             {
-              return test->status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
             });
         CHECK(completed);
       }
@@ -289,10 +298,10 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
       THEN("it is not completed")
       {
         std::unique_lock<std::mutex> lk(test->m);
-        bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [test]()
+        bool completed = test->status_updates_cv.wait_for(
+            lk, std::chrono::milliseconds(30), [test]()
             {
-              return test->status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
             });
         CHECK(!completed);
       }

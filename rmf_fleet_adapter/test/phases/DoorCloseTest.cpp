@@ -41,6 +41,14 @@ struct TestData
 
   std::condition_variable status_updates_cv;
   std::list<Task::StatusMsg> status_updates;
+
+  std::optional<uint32_t> last_state_value() const
+  {
+    if (status_updates.empty())
+      return std::nullopt;
+
+    return status_updates.back().state;
+  }
 };
 } // anonymous namespace
 
@@ -143,7 +151,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
     AND_WHEN("door state is closed and supervisor do not have session")
     {
       rmf_rxcpp::subscription_guard sub2 =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(100))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
         [test, publish_door_state, publish_empty_heartbeat](const auto&)
@@ -155,11 +163,12 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       THEN("it is completed")
       {
         std::unique_lock<std::mutex> lk(test->m);
-        bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [test]()
-            {
-              return test->status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
-            });
+        bool completed = test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(10),
+          [test]()
+          {
+            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+          });
         CHECK(completed);
       }
     }
@@ -167,7 +176,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
     AND_WHEN("door state is open and supervisor do not have session")
     {
       rmf_rxcpp::subscription_guard sub2 =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(100))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe([publish_door_state, publish_empty_heartbeat](const auto&)
           {
@@ -178,11 +187,11 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       THEN("it is completed")
       {
         std::unique_lock<std::mutex> lk(test->m);
-        bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [test]()
-            {
-              return test->status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
-            });
+        bool completed = test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(10), [test]()
+          {
+            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+          });
         CHECK(completed);
       }
     }
@@ -190,7 +199,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
     AND_WHEN("door state is closed and supervisor has session")
     {
       rmf_rxcpp::subscription_guard sub2 =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(100))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
         [publish_door_state, publish_heartbeat_with_session](const auto&)
@@ -202,10 +211,10 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       THEN("it is not completed")
       {
         std::unique_lock<std::mutex> lk(test->m);
-        bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [test]()
+        bool completed = test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(10), [test]()
             {
-              return test->status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
             });
         CHECK(!completed);
       }
@@ -217,7 +226,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       std::unique_lock<std::mutex> lk(test->m);
 
       bool completed =
-        test->status_updates_cv.wait_for(lk, std::chrono::seconds(1), [test]()
+        test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(10), [test]()
           {
             for (const auto& status : test->status_updates)
             {

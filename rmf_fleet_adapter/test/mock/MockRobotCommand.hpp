@@ -90,7 +90,7 @@ public:
     _current_waypoint_target = 0;
     _active = true;
     _timer = _node->try_create_wall_timer(
-      std::chrono::milliseconds(10),
+      std::chrono::milliseconds(1),
       [
         me = weak_from_this(),
         waypoints,
