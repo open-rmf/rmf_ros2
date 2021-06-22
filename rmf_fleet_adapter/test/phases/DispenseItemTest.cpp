@@ -130,16 +130,16 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
 
       bool completed =
         test->status_updates_cv.wait_for(
-          lk, std::chrono::milliseconds(30), [test]()
+        lk, std::chrono::milliseconds(30), [test]()
+        {
+          for (const auto& status : test->status_updates)
           {
-            for (const auto& status : test->status_updates)
-            {
-              if (status.state == Task::StatusMsg::STATE_COMPLETED)
-                return true;
-            }
-            test->status_updates.clear();
-            return false;
-          });
+            if (status.state == Task::StatusMsg::STATE_COMPLETED)
+              return true;
+          }
+          test->status_updates.clear();
+          return false;
+        });
       CHECK(!completed);
     }
 
@@ -172,9 +172,9 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(
           lk, std::chrono::milliseconds(10), [test]()
-            {
-              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
-            });
+          {
+            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+          });
         CHECK(completed);
       }
 

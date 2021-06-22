@@ -75,6 +75,7 @@ SCENARIO("Dispatcher API Test", "[Dispatcher]")
   {
     // add task
     const auto id = dispatcher->submit_task(task_desc1);
+    REQUIRE(id.has_value());
     REQUIRE(dispatcher->active_tasks().size() == 1);
     REQUIRE(dispatcher->terminated_tasks().size() == 0);
     REQUIRE(dispatcher->get_task_state(*id) == TaskStatus::State::Pending);
@@ -84,8 +85,8 @@ SCENARIO("Dispatcher API Test", "[Dispatcher]")
     REQUIRE(dispatcher->active_tasks().size() == 0);
     REQUIRE(dispatcher->terminated_tasks().size() == 1);
 
-    // check random id
-    REQUIRE(!(dispatcher->get_task_state("non_existence_id")));
+    // check nonsense id
+    REQUIRE(!(dispatcher->get_task_state("non_existent_id")));
 
     // add an invalid task
     task_desc2.task_type.type = 10; // this is invalid
