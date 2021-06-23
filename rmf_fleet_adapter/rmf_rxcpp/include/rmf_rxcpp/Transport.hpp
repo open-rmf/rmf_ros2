@@ -113,7 +113,7 @@ public:
     while (!_started)
     {
       std::unique_lock<std::mutex> lock(_starting_mutex);
-      _started_cv.wait(lock, [&](){ return !_started; });
+      _started_cv.wait(lock, [&](){ return _started; });
     }
   }
 
