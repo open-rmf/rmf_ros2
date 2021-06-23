@@ -33,7 +33,7 @@
 namespace rmf_task_ros2 {
 
 //==============================================================================
-SCENARIO("Dispatcher API Test", "[Dispatcher]")
+SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
 {
   Dispatcher::TaskDescription task_desc1;
   Dispatcher::TaskDescription task_desc2;
@@ -122,6 +122,7 @@ SCENARIO("Dispatcher API Test", "[Dispatcher]")
     std::this_thread::sleep_for(std::chrono::milliseconds(3500));
     CHECK(dispatcher->get_task_state(*id) == TaskStatus::State::Failed);
     REQUIRE(dispatcher->terminated_tasks().size() == 1);
+    // TODO(MXG): Flake out after previous line: SIGABRT
     REQUIRE(test_taskprofile->task_id == id);
     CHECK(*change_times == 2); // add and failed
 
