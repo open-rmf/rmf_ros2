@@ -36,6 +36,7 @@ public:
     const rclcpp::ExecutorOptions& options = rclcpp::ExecutorOptions())
   : rclcpp::Executor{options},
     _worker{std::move(worker)},
+    _started{false},
     _stopping{false},
     _work_scheduled{false}
   {
@@ -44,7 +45,14 @@ public:
 
   void spin() override
   {
-    _stopping = false;
+    {
+      std::unique_lock<std::mutex> lock(_starting_mutex);
+      _stopping = false;
+      _started = true;
+    }
+
+    _started_cv.notify_all();
+
     const auto keep_spinning = [&]()
       {
         return !_stopping && rclcpp::ok(context_);
@@ -89,6 +97,9 @@ public:
       if (keep_spinning())
         wait_for_work(std::chrono::milliseconds(50));
     }
+
+    _started = false;
+    _stopping = false;
   }
 
   void stop()
@@ -97,10 +108,24 @@ public:
     _cv.notify_all();
   }
 
+  void wait_until_started()
+  {
+    while (!_started)
+    {
+      std::unique_lock<std::mutex> lock(_starting_mutex);
+      _started_cv.wait(lock, [&](){ return !_started; });
+    }
+  }
+
 private:
   rxcpp::schedulers::worker _worker;
+
+
+  bool _started;
+  std::mutex _starting_mutex;
+  std::condition_variable _started_cv;
+
   bool _stopping;
-  std::condition_variable _stopped_cv;
 
   bool _work_scheduled;
   std::mutex _mutex;
@@ -170,12 +195,9 @@ public:
 
   void start()
   {
-    if (!_stopped && !_stopping)
+    std::unique_lock<std::mutex> lock(_stopping_mutex);
+    if (!_stopped)
       return;
-
-    // If the spinning is being stopped, wait for the stopping to finish before
-    // we start back up.
-    stop();
 
     if (!_node_added)
     {
@@ -183,47 +205,31 @@ public:
       _node_added = true;
     }
 
-    std::unique_lock<std::mutex> lock(_stopping_mutex);
-    _stopping = false;
     _stopped = false;
 
     _spin_thread = std::thread([&]()
         {
           _executor->spin();
         });
+
+    _executor->wait_until_started();
   }
 
   void stop()
   {
-    std::unique_lock<std::mutex> lock(_stopping_mutex);
-    if (_stopped)
-      return;
-
-    if (!_stopping.exchange(true))
-    {
-      _executor->stop();
-
-      if (_spin_thread.joinable())
-      {
-        _stopping_mutex.unlock();
-        _spin_thread.join();
-        _stopping_mutex.lock();
-      }
-
-      // We only consider ourselves "stopped" once the _spin_thread is
-      // finished joining. Otherwise
-      _stopped = true;
-      _stopping = false;
-
-      _stopping_mutex.unlock();
-      _stopped_cv.notify_all();
-      return;
-    }
-    else
     {
       std::unique_lock<std::mutex> lock(_stopping_mutex);
-      _stopped_cv.wait(lock, [&]() { return _stopped; });
+      if (_stopped)
+        return;
+
+      _executor->stop();
+      if (_spin_thread.joinable())
+        _spin_thread.join();
+
+      _stopped = true;
     }
+
+    _stopped_cv.notify_all();
   }
 
   std::condition_variable& spin_cv()
@@ -233,7 +239,7 @@ public:
 
   bool still_spinning() const
   {
-    return !_stopping && rclcpp::ok(get_node_options().context());
+    return !_stopped && rclcpp::ok(get_node_options().context());
   }
 
   /**
@@ -259,8 +265,6 @@ public:
   }
 
 private:
-  std::atomic_bool _stopping = false;
-
   std::mutex _stopping_mutex;
   bool _stopped = true;
   std::condition_variable _stopped_cv;
