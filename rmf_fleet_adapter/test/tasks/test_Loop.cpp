@@ -46,9 +46,9 @@
 // in general should be robust to dropped messages, it's concerning that they
 // would get dropped within this test.
 //
-// For the sake of CI, we're hiding this test for now, but we should investigate
-// it further as soon as time permits.
-SCENARIO("Test loop requests", "[hide]")
+// For the sake of CI, we're hiding this test for now using the [.] label, but
+// we should investigate it further as soon as time permits.
+SCENARIO("Test loop requests", "[.]")
 {
   rmf_fleet_adapter_test::thread_cooldown = true;
   using namespace std::chrono_literals;
