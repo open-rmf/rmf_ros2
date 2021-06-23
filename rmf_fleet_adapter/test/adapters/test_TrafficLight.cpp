@@ -168,7 +168,9 @@ SCENARIO("Test new path timing")
   rcl_blockade_context->init(0, nullptr);
 
   const auto blockade_node = rmf_traffic_ros2::blockade::make_node(
+    "test_blockade_" + std::to_string(++node_count),
     rclcpp::NodeOptions().context(rcl_blockade_context));
+
   ManagedThread blockade_thread(
     [blockade_node]()
     {

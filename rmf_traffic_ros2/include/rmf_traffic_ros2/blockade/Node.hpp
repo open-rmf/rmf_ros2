@@ -27,6 +27,11 @@ namespace blockade {
 std::shared_ptr<rclcpp::Node> make_node(
   const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
+/// Make a blockade node instance, specifying a node name
+std::shared_ptr<rclcpp::Node> make_node(
+  const std::string& node_name,
+  const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
+
 } // namespace blockade
 } // namespace rmf_traffic_ros2
 
