@@ -70,7 +70,15 @@ target_include_directories(rmf_traffic_ros2
 )
 
 ament_export_targets(rmf_traffic_ros2 HAS_LIBRARY_TARGET)
-ament_export_dependencies(rmf_traffic rmf_traffic_msgs rclcpp)
+ament_export_dependencies(
+  rclcpp
+  rmf_traffic
+  rmf_traffic_msgs
+  rmf_fleet_msgs
+  Eigen3
+  rclcpp
+  yaml-cpp
+)
 
 # TODO(MXG): Change these executables into shared libraries that can act as
 # ROS2 node components
