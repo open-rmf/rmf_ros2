@@ -70,6 +70,26 @@ const std::string BlockadeSetTopicName = Prefix +
 
 const std::string EmergencyTopicName = "fire_alarm_trigger";
 
+const std::string ReservationRequestTopicName = Prefix + "reservation_request";
+
+const std::string ReservationProposalTopicName = Prefix +
+  "reservation_proposal";
+
+const std::string ReservationProposalAckTopicName = Prefix +
+  "reservation_proposal";
+
+const std::string ReservationProposalRejTopicName = Prefix +
+  "reservation_proposal";
+
+const std::string ReservationRolloutTopicName = Prefix +
+  "reservation_rollout";
+
+const std::string ReservationRegistrationTopicName = Prefix +
+  "reservation_registration";
+
+const std::string ReservationUpdateHeartbeatTopicName = Prefix +
+  "reservation_heartbeat";
+
 } // namespace rmf_traffic_ros2
 
 #endif // RMF_TRAFFIC_ROS2__STANDARDNAMES_HPP
