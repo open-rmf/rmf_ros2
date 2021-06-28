@@ -471,7 +471,8 @@ public:
       ready = ready && unregister_query_client->wait_for_service(timeout);
     }
 
-    // TODO(Geoff): What happens if the schedule node falls over right now?
+    // If the schedule node falls over right now, the promise will never be
+    // fulfilled. The user must handle this possibility.
     if (ready && !abandon_discovery)
     {
       RegisterQuery::Request register_query_request;
