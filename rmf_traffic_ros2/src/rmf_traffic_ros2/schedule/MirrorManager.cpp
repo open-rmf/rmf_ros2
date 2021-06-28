@@ -247,6 +247,9 @@ public:
       std::make_shared<RequestChanges::Request>(request),
       [&](const RequestChangesFuture response)
       {
+        // Check how the schedule node handled the request. The actual queries
+        // update will come separately over the query update topic; this is
+        // just whether the request was handled successfully or not.
         auto value = *response.get();
         if (value.result == RequestChanges::Response::UNKNOWN_QUERY_ID)
         {
