@@ -122,7 +122,6 @@ void MonitorNode::announce_fail_over()
   {
     // Skip announcing the fail over because other nodes shouldn't bother doing
     // anything to handle it when the system is shutting down.
-    // TODO(Geoff): Is the above correct in a distributed deployment?
     RCLCPP_INFO(
       get_logger(),
       "Not announcing fail over because ROS is shutting down");
