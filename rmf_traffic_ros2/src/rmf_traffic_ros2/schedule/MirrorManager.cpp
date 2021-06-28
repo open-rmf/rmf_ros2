@@ -107,7 +107,7 @@ public:
     fail_over_event_sub = node.create_subscription<FailOverEvent>(
       rmf_traffic_ros2::FailOverEventTopicName,
       rclcpp::SystemDefaultsQoS(),
-      [&]([[maybe_unused]] const FailOverEvent::SharedPtr msg)
+      [&](const FailOverEvent::SharedPtr)
       {
         handle_fail_over_event();
       });
