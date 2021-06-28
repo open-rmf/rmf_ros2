@@ -24,9 +24,9 @@ namespace rmf_traffic_ros2 {
 
 const std::string Prefix = "rmf_traffic/";
 
-const std::string HeartbeatTopicName = Prefix + "_internal/heartbeat";
-const std::string FailOverEventTopicName = Prefix + "_internal/fail_over_event";
-const std::string QueriesInfoTopicName = Prefix + "_internal/registered_queries";
+const std::string HeartbeatTopicName = Prefix + "heartbeat";
+const std::string FailOverEventTopicName = Prefix + "fail_over_event";
+const std::string QueriesInfoTopicName = Prefix + "registered_queries";
 
 const std::string ItinerarySetTopicName = Prefix + "itinerary_set";
 const std::string ItineraryExtendTopicName = Prefix + "itinerary_extend";
