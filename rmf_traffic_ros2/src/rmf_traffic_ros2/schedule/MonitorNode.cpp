@@ -47,11 +47,6 @@ MonitorNode::MonitorNode(
 }
 
 //==============================================================================
-MonitorNode::~MonitorNode()
-{
-}
-
-//==============================================================================
 void MonitorNode::start_heartbeat_listener()
 {
   heartbeat_qos_profile
