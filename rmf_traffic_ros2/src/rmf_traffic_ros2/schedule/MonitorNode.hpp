@@ -47,8 +47,6 @@ public:
     std::function<void(std::shared_ptr<rclcpp::Node>)> callback,
     const rclcpp::NodeOptions& options);
 
-  ~MonitorNode();
-
   std::chrono::milliseconds heartbeat_period = 1s;
   rclcpp::QoS heartbeat_qos_profile;
   rclcpp::SubscriptionOptions heartbeat_sub_options;
