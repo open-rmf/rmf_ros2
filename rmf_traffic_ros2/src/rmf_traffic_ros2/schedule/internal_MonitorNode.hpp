@@ -15,8 +15,8 @@
  *
 */
 
-#ifndef SRC__RMF_TRAFFIC_SCHEDULE__MONITORNODE_HPP
-#define SRC__RMF_TRAFFIC_SCHEDULE__MONITORNODE_HPP
+#ifndef SRC__RMF_TRAFFIC_SCHEDULE__INTERNAL_MONITORNODE_HPP
+#define SRC__RMF_TRAFFIC_SCHEDULE__INTERNAL_MONITORNODE_HPP
 
 #include "internal_Node.hpp"  // For QueryMap and QuerySubscriberCountMap
 
@@ -81,4 +81,4 @@ public:
 } // namespace schedule
 } // namespace rmf_traffic_ros2
 
-#endif // SRC__RMF_TRAFFIC_SCHEDULE__MONITORNODE_HPP
+#endif // SRC__RMF_TRAFFIC_SCHEDULE__INTERNAL_MONITORNODE_HPP
