@@ -863,7 +863,12 @@ void ScheduleNode::request_changes(
     }
     else
     {
-      mirror_update_topic_info.last_sent_version = request->version;
+      if (mirror_update_topic_info.last_sent_version.has_value() &&
+        rmf_utils::modular(request->version).less_than(
+          *mirror_update_topic_info.last_sent_version))
+      {
+        mirror_update_topic_info.last_sent_version = request->version;
+      }
     }
 
     // Force-send the next update
