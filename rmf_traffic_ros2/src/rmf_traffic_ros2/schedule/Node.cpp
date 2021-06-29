@@ -35,7 +35,6 @@
 
 #include <rmf_utils/optional.hpp>
 
-#include <sstream>
 #include <unordered_map>
 
 namespace rmf_traffic_ros2 {
