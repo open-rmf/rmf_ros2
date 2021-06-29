@@ -15,7 +15,7 @@
  *
 */
 
-#include "MonitorNode.hpp"
+#include "internal_MonitorNode.hpp"
 
 #include "internal_Node.hpp"
 
