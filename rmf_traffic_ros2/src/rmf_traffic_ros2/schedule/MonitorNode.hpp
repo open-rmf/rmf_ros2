@@ -31,6 +31,7 @@
 
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 
+#include <optional>
 #include <unordered_map>
 
 namespace rmf_traffic_ros2 {
@@ -71,7 +72,7 @@ public:
 
   std::shared_ptr<rclcpp::Node> create_new_schedule_node();
 
-  rmf_utils::optional<rmf_traffic_ros2::schedule::MirrorManager> mirror;
+  std::optional<rmf_traffic_ros2::schedule::MirrorManager> mirror;
   std::function<void(std::shared_ptr<rclcpp::Node>)> on_fail_over_callback;
   ScheduleNode::QueryMap registered_queries;
   ScheduleNode::QuerySubscriberCountMap query_subscriber_counts;
