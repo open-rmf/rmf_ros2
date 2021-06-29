@@ -284,11 +284,11 @@ public:
       register_query_request.query = convert(query);
       register_query_client->async_send_request(
         std::make_shared<RegisterQuery::Request>(register_query_request),
-        [&](const RegisterQueryFuture response)
+        [this](const RegisterQueryFuture response)
         {
-          query_id = response.get()->query_id;
+          this->query_id = response.get()->query_id;
           setup_update_topics();
-          register_query_client.reset();
+          this->register_query_client.reset();
         });
       redo_query_registration_timer.reset();
     }
