@@ -168,7 +168,8 @@ std::shared_ptr<rclcpp::Node> MonitorNode::create_new_schedule_node()
 //==============================================================================
 std::shared_ptr<rclcpp::Node> make_monitor_node(
   std::function<void(std::shared_ptr<rclcpp::Node>)> callback,
-  const rclcpp::NodeOptions& options)
+  const rclcpp::NodeOptions& options,
+  std::chrono::seconds startup_timeout)
 {
   auto node = std::make_shared<MonitorNode>(callback, options);
 
@@ -177,8 +178,7 @@ std::shared_ptr<rclcpp::Node> make_monitor_node(
 
   using namespace std::chrono_literals;
 
-  // TODO(Geoff): Make this wait time configurable
-  const auto stop_time = std::chrono::steady_clock::now() + 10s;
+  const auto stop_time = std::chrono::steady_clock::now() + startup_timeout;
   while (rclcpp::ok() && std::chrono::steady_clock::now() < stop_time)
   {
     rclcpp::spin_some(node);

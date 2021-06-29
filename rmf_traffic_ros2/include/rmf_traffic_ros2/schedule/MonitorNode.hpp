@@ -20,7 +20,10 @@
 
 #include <rclcpp/node.hpp>
 
+#include <chrono>
 #include <functional>
+
+using namespace std::chrono_literals;
 
 namespace rmf_traffic_ros2 {
 namespace schedule {
@@ -29,7 +32,8 @@ namespace schedule {
 /// the heartbeat is lost
 std::shared_ptr<rclcpp::Node> make_monitor_node(
   std::function<void(std::shared_ptr<rclcpp::Node>)> callback,
-  const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
+  const rclcpp::NodeOptions& options = rclcpp::NodeOptions(),
+  std::chrono::seconds startup_timeout = 10s);
 
 } // namespace schedule
 } // namespace rmf_traffic_ros2
