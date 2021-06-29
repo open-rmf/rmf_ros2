@@ -509,6 +509,8 @@ void ScheduleNode::add_subscriber_to_query_topic(uint64_t query_id)
   auto mirror_update_topic_info = query_topic->second;
   mirror_update_topic_info.subscriber_count += 1;
   mirror_update_topics.insert_or_assign(query_id, mirror_update_topic_info);
+  RCLCPP_DEBUG(get_logger(), "Query topic has %d subscribers",
+    mirror_update_topic_info.subscriber_count);
 }
 
 //==============================================================================
@@ -536,6 +538,8 @@ ScheduleNode::remove_subscriber_from_query_topic(
 
   auto mirror_update_topic_info = query_topic->second;
   mirror_update_topic_info.subscriber_count -= 1;
+  RCLCPP_DEBUG(get_logger(), "Query topic has %d subscribers",
+    mirror_update_topic_info.subscriber_count);
   if (mirror_update_topic_info.subscriber_count == 0)
   {
     remove_query_topic(query_id);
@@ -560,8 +564,9 @@ void ScheduleNode::remake_mirror_update_topics(
     auto query_id = subscriber_count.first;
     RCLCPP_INFO(
       get_logger(),
-      "Remaking query topic for query ID %d",
-      query_id);
+      "Remaking query topic for query ID %d (%d subscribers)",
+      query_id,
+      subscriber_count.second);
     add_query_topic(query_id);
     // Set the subscriber count manually
     const auto& query_topic = mirror_update_topics.find(query_id);

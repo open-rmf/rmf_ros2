@@ -78,6 +78,7 @@ public:
   RequestChangesClient request_changes_client;
   uint64_t query_id = 0;
   rclcpp::TimerBase::SharedPtr update_timer;
+  rclcpp::TimerBase::SharedPtr redo_query_registration_timer;
   RegisterQueryClient register_query_client;
 
   std::shared_ptr<rmf_traffic::schedule::Mirror> mirror;
@@ -267,25 +268,36 @@ public:
 
     register_query_client =
       node.create_client<RegisterQuery>(RegisterQueryServiceName);
-    auto result = register_query_client->wait_for_service(
-      std::chrono::milliseconds(100));
-    if (!result)
+    redo_query_registration_timer = node.create_wall_timer(
+      100ms,
+      std::bind(
+        &MirrorManager::Implementation::redo_query_registration_callback,
+        this));
+  }
+
+  void redo_query_registration_callback()
+  {
+    if (register_query_client->wait_for_service(
+          std::chrono::milliseconds(100)))
+    {
+      RegisterQuery::Request register_query_request;
+      register_query_request.query = convert(query);
+      register_query_client->async_send_request(
+        std::make_shared<RegisterQuery::Request>(register_query_request),
+        [&](const RegisterQueryFuture response)
+        {
+          query_id = response.get()->query_id;
+          setup_update_topics();
+          register_query_client.reset();
+        });
+      redo_query_registration_timer.reset();
+    }
+    else
     {
       RCLCPP_ERROR(
         node.get_logger(),
         "Failed to get query registry service");
-      return;
     }
-    RegisterQuery::Request register_query_request;
-    register_query_request.query = convert(query);
-    register_query_client->async_send_request(
-      std::make_shared<RegisterQuery::Request>(register_query_request),
-      [&](const RegisterQueryFuture response)
-      {
-        query_id = response.get()->query_id;
-        setup_update_topics();
-        register_query_client.reset();
-      });
   }
 
   void handle_fail_over_event()
@@ -308,6 +320,7 @@ public:
     // starting up while this node shuts down.
     if (unregister_query_client->service_is_ready())
     {
+      RCLCPP_WARN(node.get_logger(), "Unregistering query");
       UnregisterQuery::Request msg;
       msg.query_id = query_id;
       unregister_query_client->async_send_request(

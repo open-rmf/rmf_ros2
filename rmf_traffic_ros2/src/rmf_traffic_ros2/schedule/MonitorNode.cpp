@@ -143,9 +143,15 @@ void MonitorNode::start_data_synchronisers()
         msg->queries.size());
       // Delete past sync'd data
       registered_queries.clear();
+      query_subscriber_counts.clear();
       // Fill up with the new sync'd data
       for (uint64_t ii = 0; ii < msg->ids.size(); ++ii)
       {
+        RCLCPP_DEBUG(
+          get_logger(),
+          "Query %d has %d subscribers",
+          msg->ids[ii],
+          msg->subscriber_counts[ii]);
         registered_queries.insert(
           {msg->ids[ii], rmf_traffic_ros2::convert(msg->queries[ii])});
         query_subscriber_counts.insert(
