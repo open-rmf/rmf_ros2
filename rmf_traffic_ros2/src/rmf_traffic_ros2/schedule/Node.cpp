@@ -31,7 +31,6 @@
 #include <rmf_traffic_ros2/schedule/Inconsistencies.hpp>
 
 #include <rmf_traffic/DetectConflict.hpp>
-#include <rmf_traffic/schedule/DatabasePrinter.hpp>
 #include <rmf_traffic/schedule/Mirror.hpp>
 
 #include <rmf_utils/optional.hpp>
