@@ -157,8 +157,6 @@ void ScheduleNode::setup(
     throw e;
   }
 
-  // TODO(MXG): As soon as possible, all of these services should be made
-  // multi-threaded so they can be parallel processed.
   setup_redundancy();
   setup_query_services();
   setup_participant_services();
