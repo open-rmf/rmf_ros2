@@ -80,6 +80,8 @@ public:
   using QuerySubscriberCountMap =
     std::unordered_map<uint64_t, uint64_t>;
 
+  static struct NoAutomaticSetup{} no_automatic_setup;
+
   ScheduleNode(
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
@@ -92,6 +94,8 @@ public:
     const rclcpp::NodeOptions& options);
 
   ScheduleNode(const rclcpp::NodeOptions& options);
+
+  ScheduleNode(const rclcpp::NodeOptions& options, NoAutomaticSetup);
 
   ~ScheduleNode();
 

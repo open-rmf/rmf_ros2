@@ -30,7 +30,7 @@ class WrongQueryScheduleNode : public rmf_traffic_ros2::schedule::ScheduleNode
 {
 public:
   WrongQueryScheduleNode(const rclcpp::NodeOptions& options)
-    : ScheduleNode(options)
+    : ScheduleNode(options, ScheduleNode::no_automatic_setup)
   {
   }
 
@@ -86,6 +86,7 @@ int main(int argc, char** argv)
 {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<WrongQueryScheduleNode>(rclcpp::NodeOptions());
+  node->setup(rmf_traffic_ros2::schedule::ScheduleNode::QuerySubscriberCountMap());
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;

@@ -84,6 +84,8 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 }
 
 //==============================================================================
+// This constructor will _not_ automatically call the setup() method to finalise
+// construction of the ScheduleNode object. setup() must be called manually.
 ScheduleNode::ScheduleNode(
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
@@ -106,6 +108,8 @@ ScheduleNode::ScheduleNode(
 }
 
 //==============================================================================
+// This constructor will automatically call the setup() method to finalise
+// construction of the ScheduleNode object.
 ScheduleNode::ScheduleNode(
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
@@ -120,13 +124,29 @@ ScheduleNode::ScheduleNode(
 }
 
 //==============================================================================
+// This constructor will automatically call the setup() method to finalise
+// construction of the ScheduleNode object.
 ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
-: ScheduleNode(
+: ScheduleNode(  // Call the version that will automatically call setup(...)
     std::make_shared<rmf_traffic::schedule::Database>(),
     QueryMap(),
     QuerySubscriberCountMap(),
     options)
 {
+}
+
+//==============================================================================
+// This constructor will _not_ automatically call the setup() method to finalise
+// construction of the ScheduleNode object. setup() must be called manually.
+ScheduleNode::ScheduleNode(
+  const rclcpp::NodeOptions& options,
+  NoAutomaticSetup)
+: ScheduleNode(  // Call the version that does not call setup(...)
+    std::make_shared<rmf_traffic::schedule::Database>(),
+    QueryMap(),
+    options)
+{
+  // No setup(...) call here; it must be called manually
 }
 
 //==============================================================================
