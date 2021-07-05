@@ -106,10 +106,25 @@ ScheduleNode::ScheduleNode(
 }
 
 //==============================================================================
+ScheduleNode::ScheduleNode(
+    std::shared_ptr<rmf_traffic::schedule::Database> database_,
+    QueryMap registered_queries_,
+    QuerySubscriberCountMap registered_query_subscriber_counts,
+    const rclcpp::NodeOptions& options)
+: ScheduleNode(
+    database_,
+    registered_queries_,
+    options)
+{
+  setup(registered_query_subscriber_counts);
+}
+
+//==============================================================================
 ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
 : ScheduleNode(
     std::make_shared<rmf_traffic::schedule::Database>(),
     QueryMap(),
+    QuerySubscriberCountMap(),
     options)
 {
 }
@@ -1297,7 +1312,6 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
 std::shared_ptr<rclcpp::Node> make_node(const rclcpp::NodeOptions& options)
 {
   auto node = std::make_shared<ScheduleNode>(options);
-  node->setup(ScheduleNode::QuerySubscriberCountMap());
   return node;
 }
 

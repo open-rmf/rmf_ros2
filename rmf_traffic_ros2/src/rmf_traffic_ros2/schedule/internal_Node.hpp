@@ -85,6 +85,12 @@ public:
     QueryMap registered_queries_,
     const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
+  ScheduleNode(
+    std::shared_ptr<rmf_traffic::schedule::Database> database_,
+    QueryMap registered_queries_,
+    QuerySubscriberCountMap registered_query_subscriber_counts,
+    const rclcpp::NodeOptions& options);
+
   ScheduleNode(const rclcpp::NodeOptions& options);
 
   ~ScheduleNode();
