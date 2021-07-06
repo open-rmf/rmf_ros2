@@ -16,6 +16,7 @@
 */
 
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/callback_group.hpp>
 
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
@@ -51,7 +52,7 @@ public:
 
     // Create subscription to receive TaskSummary msgs from fleet adapters
     _cb_group_task_summary = this->create_callback_group(
-      rclcpp::callback_group::CallbackGroupType::MutuallyExclusive);
+      rclcpp::CallbackGroupType::MutuallyExclusive);
     auto sub_map_opt = rclcpp::SubscriptionOptions();
     sub_map_opt.callback_group = _cb_group_task_summary;
     auto qos_profile = rclcpp::QoS(10);
@@ -64,8 +65,10 @@ public:
         std::placeholders::_1),
       sub_map_opt);
 
-    RCLCPP_INFO(get_logger(),
-      "Listening for Task Summaries on topic /" + input_topic);
+    RCLCPP_INFO(
+      get_logger(),
+      "Listening for Task Summaries on topic /%s",
+      input_topic.c_str());
   }
 
 private:
@@ -99,7 +102,7 @@ private:
   rclcpp::TimerBase::SharedPtr _timer;
   rclcpp::Publisher<Tasks>::SharedPtr _tasks_pub;
   rclcpp::Subscription<TaskSummary>::SharedPtr _task_summary_sub;
-  rclcpp::callback_group::CallbackGroup::SharedPtr _cb_group_task_summary;
+  rclcpp::CallbackGroup::SharedPtr _cb_group_task_summary;
 };
 
 bool get_arg(

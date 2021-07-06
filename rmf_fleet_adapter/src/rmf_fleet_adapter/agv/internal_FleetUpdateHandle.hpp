@@ -201,15 +201,17 @@ public:
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&& ... args)
   {
-    FleetUpdateHandle handle;
-    handle._pimpl = rmf_utils::make_unique_impl<Implementation>(
+    auto handle = std::shared_ptr<FleetUpdateHandle>(new FleetUpdateHandle);
+    handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
       Implementation{std::forward<Args>(args)...});
 
-    handle._pimpl->fleet_state_pub = handle._pimpl->node->fleet_state();
-    handle._pimpl->fleet_state_timer = handle._pimpl->node->create_wall_timer(
-      std::chrono::seconds(1), [self = handle._pimpl.get()]()
+    handle->_pimpl->fleet_state_pub = handle->_pimpl->node->fleet_state();
+    handle->_pimpl->fleet_state_timer =
+      handle->_pimpl->node->try_create_wall_timer(
+      std::chrono::seconds(1), [me = handle->weak_from_this()]()
       {
-        self->publish_fleet_state();
+        if (const auto self = me.lock())
+          self->_pimpl->publish_fleet_state();
       });
 
     // Create subs and pubs for bidding
@@ -217,54 +219,57 @@ public:
     auto transient_qos = rclcpp::QoS(10);  transient_qos.transient_local();
 
     // Publish BidProposal
-    handle._pimpl->bid_proposal_pub =
-      handle._pimpl->node->create_publisher<BidProposal>(
+    handle->_pimpl->bid_proposal_pub =
+      handle->_pimpl->node->create_publisher<BidProposal>(
       BidProposalTopicName, default_qos);
 
     // Publish DispatchAck
-    handle._pimpl->dispatch_ack_pub =
-      handle._pimpl->node->create_publisher<DispatchAck>(
+    handle->_pimpl->dispatch_ack_pub =
+      handle->_pimpl->node->create_publisher<DispatchAck>(
       DispatchAckTopicName, default_qos);
 
     // Subscribe BidNotice
-    handle._pimpl->bid_notice_sub =
-      handle._pimpl->node->create_subscription<BidNotice>(
+    handle->_pimpl->bid_notice_sub =
+      handle->_pimpl->node->create_subscription<BidNotice>(
       BidNoticeTopicName,
       default_qos,
-      [p = handle._pimpl.get()](const BidNotice::SharedPtr msg)
+      [w = handle->weak_from_this()](const BidNotice::SharedPtr msg)
       {
-        p->bid_notice_cb(msg);
+        if (const auto self = w.lock())
+          self->_pimpl->bid_notice_cb(msg);
       });
 
     // Subscribe DispatchRequest
-    handle._pimpl->dispatch_request_sub =
-      handle._pimpl->node->create_subscription<DispatchRequest>(
+    handle->_pimpl->dispatch_request_sub =
+      handle->_pimpl->node->create_subscription<DispatchRequest>(
       DispatchRequestTopicName,
       default_qos,
-      [p = handle._pimpl.get()](const DispatchRequest::SharedPtr msg)
+      [w = handle->weak_from_this()](const DispatchRequest::SharedPtr msg)
       {
-        p->dispatch_request_cb(msg);
+        if (const auto self = w.lock())
+          self->_pimpl->dispatch_request_cb(msg);
       });
 
     // Subscribe DockSummary
-    handle._pimpl->dock_summary_sub =
-      handle._pimpl->node->create_subscription<DockSummary>(
+    handle->_pimpl->dock_summary_sub =
+      handle->_pimpl->node->create_subscription<DockSummary>(
       DockSummaryTopicName,
       transient_qos,
-      [p = handle._pimpl.get()](const DockSummary::SharedPtr msg)
+      [w = handle->weak_from_this()](const DockSummary::SharedPtr msg)
       {
-        p->dock_summary_cb(msg);
+        if (const auto self = w.lock())
+          self->_pimpl->dock_summary_cb(msg);
       });
 
     // Populate charging waypoints
-    const auto& graph = (*handle._pimpl->planner)->get_configuration().graph();
+    const auto& graph = (*handle->_pimpl->planner)->get_configuration().graph();
     for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
     {
       if (graph.get_waypoint(i).is_charger())
-        handle._pimpl->charging_waypoints.insert(i);
+        handle->_pimpl->charging_waypoints.insert(i);
     }
 
-    return std::make_shared<FleetUpdateHandle>(std::move(handle));
+    return handle;
   }
 
   void dock_summary_cb(const DockSummary::SharedPtr& msg);
@@ -296,9 +301,6 @@ public:
   {
     return *fleet._pimpl;
   }
-
-  void fleet_state_publish_period(
-    std::optional<rmf_traffic::Duration> value);
 
   void publish_fleet_state() const;
 };

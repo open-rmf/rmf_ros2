@@ -158,7 +158,7 @@ void EasyTrafficLight::Implementation::immediately_stop_until(
     // then so does the wait_timer, in which case this callback will not be
     // triggered.
     *wait_timer =
-      node->create_wall_timer(
+      node->try_create_wall_timer(
       std::chrono::milliseconds(100),
       [w_timer = std::weak_ptr<rclcpp::TimerBase::SharedPtr>(wait_timer),
       w_node = std::weak_ptr<rclcpp::Node>(node),
@@ -345,8 +345,10 @@ auto EasyTrafficLight::Implementation::moving_from(
       RCLCPP_WARN(
         node->get_logger(),
         "[EasyTrafficLight::moving_from] [%s] owned by [%s] is moving away "
-        "from checkpoint [%u] when the robot is supposed to be stopped.",
-        name.c_str(), owner.c_str(), checkpoint);
+        "from checkpoint [%lu] when the robot is supposed to be stopped.",
+        name.c_str(),
+        owner.c_str(),
+        checkpoint);
       return MovingInstruction::MovingError;
     }
 
@@ -365,9 +367,11 @@ auto EasyTrafficLight::Implementation::moving_from(
       RCLCPP_WARN(
         node->get_logger(),
         "[EasyTrafficLight::moving_from] [%s] owned by [%s] is moving away "
-        "from checkpoint [%u] when the robot was supposed to standby at "
-        "[%u].",
-        name.c_str(), owner.c_str(), checkpoint, standby_at);
+        "from checkpoint [%lu] when the robot was supposed to standby at "
+        "[%lu].",
+        name.c_str(),
+        owner.c_str(),
+        checkpoint, standby_at);
       return MovingInstruction::MovingError;
     }
 
@@ -650,7 +654,7 @@ EasyTrafficLightPtr EasyTrafficLight::Implementation::make(
   std::function<void()> resume_,
   std::function<void(std::vector<Blocker>)> blocker_,
   rxcpp::schedulers::worker worker_,
-  std::shared_ptr<rclcpp::Node> node_,
+  std::shared_ptr<Node> node_,
   std::string name_,
   std::string owner_)
 {
@@ -675,7 +679,7 @@ EasyTrafficLight::Implementation::Implementation(
   std::function<void()> resume_,
   std::function<void(std::vector<Blocker>)> blocker_,
   rxcpp::schedulers::worker worker_,
-  std::shared_ptr<rclcpp::Node> node_,
+  std::shared_ptr<Node> node_,
   std::string name_,
   std::string owner_)
 : wait_until(std::make_shared<std::optional<rclcpp::Time>>()),

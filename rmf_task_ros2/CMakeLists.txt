@@ -68,6 +68,7 @@ if(BUILD_TESTING)
       rmf_task_ros2
       rmf_traffic::rmf_traffic
       rmf_traffic_ros2::rmf_traffic_ros2
+      -pthread
   )
 
   target_include_directories(test_rmf_task_ros2
@@ -78,14 +79,14 @@ endif()
 
 #===============================================================================
 
-add_executable(rmf_bidder_node 
+add_executable(rmf_bidder_node
   src/mock_bidder/main.cpp
 )
-target_link_libraries(rmf_bidder_node PUBLIC rmf_task_ros2)
+target_link_libraries(rmf_bidder_node PUBLIC rmf_task_ros2 -pthread)
 
 #===============================================================================
 
-add_executable(rmf_task_dispatcher 
+add_executable(rmf_task_dispatcher
   src/dispatcher_node/main.cpp
 )
 target_link_libraries(rmf_task_dispatcher PUBLIC rmf_task_ros2)

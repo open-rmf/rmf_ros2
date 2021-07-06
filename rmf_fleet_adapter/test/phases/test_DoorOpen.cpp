@@ -32,19 +32,38 @@ using rmf_door_msgs::msg::SupervisorHeartbeat;
 using rmf_door_msgs::msg::DoorSessions;
 using rmf_door_msgs::msg::Session;
 
-SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
+namespace {
+struct TestData
 {
   std::mutex m;
   std::condition_variable received_requests_cv;
   std::list<DoorRequest::UniquePtr> received_requests;
-  auto rcl_subscription = adapter->node()->create_subscription<DoorRequest>(
+
+  std::condition_variable status_updates_cv;
+  std::list<Task::StatusMsg> status_updates;
+
+  std::optional<uint32_t> last_state_value() const
+  {
+    if (status_updates.empty())
+      return std::nullopt;
+
+    return status_updates.back().state;
+  }
+};
+} // anonymous namespace
+
+SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
+{
+  const auto test = std::make_shared<TestData>();
+  auto rcl_subscription =
+    data->adapter->node()->create_subscription<DoorRequest>(
     AdapterDoorRequestTopicName,
     10,
-    [&](DoorRequest::UniquePtr door_request)
+    [test](DoorRequest::UniquePtr door_request)
     {
-      std::unique_lock<std::mutex> lk(m);
-      received_requests.emplace_back(std::move(door_request));
-      received_requests_cv.notify_all();
+      std::unique_lock<std::mutex> lk(test->m);
+      test->received_requests.emplace_back(std::move(door_request));
+      test->received_requests_cv.notify_all();
     });
 
   const auto info = add_robot();
@@ -56,7 +75,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
     context,
     door_name,
     request_id,
-    rmf_traffic::Time()
+    context->now()
   );
   auto active_phase = pending_phase->begin();
 
@@ -68,7 +87,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
     {
       bool received_open = false;
       rxcpp::composite_subscription rx_sub;
-      auto subscription = adapter->node()->create_subscription<DoorRequest>(
+      auto subscription =
+        data->adapter->node()->create_subscription<DoorRequest>(
         AdapterDoorRequestTopicName,
         10,
         [&](DoorRequest::UniquePtr door_request)
@@ -86,58 +106,60 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
 
   WHEN("it is started")
   {
-    std::condition_variable status_updates_cv;
-    std::list<Task::StatusMsg> status_updates;
-    auto sub = active_phase->observe().subscribe(
-      [&](const auto& status)
+    rmf_rxcpp::subscription_guard sub = active_phase->observe().subscribe(
+      [test](const auto& status)
       {
-        std::unique_lock<std::mutex> lk(m);
-        status_updates.emplace_back(status);
-        status_updates_cv.notify_all();
+        std::unique_lock<std::mutex> lk(test->m);
+        test->status_updates.emplace_back(status);
+        test->status_updates_cv.notify_all();
       });
 
     THEN("it should send door open request")
     {
-      std::unique_lock<std::mutex> lk(m);
-      if (received_requests.empty())
-        received_requests_cv.wait(lk, [&]()
+      std::unique_lock<std::mutex> lk(test->m);
+      if (test->received_requests.empty())
+        test->received_requests_cv.wait(lk, [test]()
           {
-            return !received_requests.empty();
+            return !test->received_requests.empty();
           });
-      CHECK(received_requests.size() == 1);
+      CHECK(test->received_requests.size() == 1);
       CHECK(
-        received_requests.front()->requested_mode.value ==
+        test->received_requests.front()->requested_mode.value ==
         DoorMode::MODE_OPEN);
     }
 
     THEN("it should continuously send door open requests")
     {
-      std::unique_lock<std::mutex> lk(m);
-      received_requests_cv.wait(lk, [&]()
+      std::unique_lock<std::mutex> lk(test->m);
+      test->received_requests_cv.wait(lk, [test]()
         {
-          return received_requests.size() >= 3;
+          return test->received_requests.size() >= 3;
         });
-      for (const auto& door_request : received_requests)
+      for (const auto& door_request : test->received_requests)
       {
         CHECK(door_request->requested_mode.value == DoorMode::MODE_OPEN);
       }
     }
 
-    auto door_state_pub = adapter->node()->create_publisher<DoorState>(
+    auto door_state_pub =
+      data->adapter->node()->create_publisher<DoorState>(
       DoorStateTopicName, 10);
-    auto heartbeat_pub = adapter->node()->create_publisher<SupervisorHeartbeat>(
+    auto heartbeat_pub =
+      data->adapter->node()->create_publisher<SupervisorHeartbeat>(
       DoorSupervisorHeartbeatTopicName, 10);
 
-    auto publish_door_state = [&](uint32_t mode)
+    auto publish_door_state =
+      [node = data->adapter->node(), door_state_pub, door_name](uint32_t mode)
       {
         DoorState door_state;
         door_state.door_name = door_name;
-        door_state.door_time = adapter->node()->now();
+        door_state.door_time = node->now();
         door_state.current_mode.value = mode;
         door_state_pub->publish(door_state);
       };
 
-    auto publish_heartbeat_with_session = [&]()
+    auto publish_heartbeat_with_session =
+      [request_id, door_name, heartbeat_pub]()
       {
         Session session;
         session.requester_id = request_id;
@@ -149,40 +171,42 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
         heartbeat_pub->publish(heartbeat);
       };
 
-    auto publish_empty_heartbeat = [&]()
+    auto publish_empty_heartbeat = [heartbeat_pub]()
       {
         heartbeat_pub->publish(SupervisorHeartbeat());
       };
 
     AND_WHEN("door state is open and supervisor has session")
     {
-      auto sub2 = rxcpp::observable<>::interval(std::chrono::milliseconds(100))
+      rmf_rxcpp::subscription_guard sub2 =
+        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
         .subscribe_on(rxcpp::observe_on_new_thread())
-        .subscribe([&](const auto&)
-          {
-            publish_door_state(DoorMode::MODE_OPEN);
-            publish_heartbeat_with_session();
-          });
+        .subscribe(
+        [publish_door_state, publish_heartbeat_with_session](const auto&)
+        {
+          publish_door_state(DoorMode::MODE_OPEN);
+          publish_heartbeat_with_session();
+        });
 
       THEN("it is completed")
       {
-        std::unique_lock<std::mutex> lk(m);
-        bool completed = status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [&]()
-            {
-              return status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
-            });
+        std::unique_lock<std::mutex> lk(test->m);
+        bool completed = test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(10),
+          [test]()
+          {
+            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+          });
         CHECK(completed);
       }
-
-      sub2.unsubscribe();
     }
 
     AND_WHEN("door state is open and supervisor do not have session")
     {
-      auto sub2 = rxcpp::observable<>::interval(std::chrono::milliseconds(100))
+      rmf_rxcpp::subscription_guard sub2 =
+        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
         .subscribe_on(rxcpp::observe_on_new_thread())
-        .subscribe([&](const auto&)
+        .subscribe([publish_door_state, publish_empty_heartbeat](const auto&)
           {
             publish_door_state(DoorMode::MODE_OPEN);
             publish_empty_heartbeat();
@@ -190,23 +214,23 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
 
       THEN("it is not completed")
       {
-        std::unique_lock<std::mutex> lk(m);
-        bool completed = status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [&]()
-            {
-              return status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
-            });
+        std::unique_lock<std::mutex> lk(test->m);
+        bool completed = test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(10),
+          [test]()
+          {
+            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+          });
         CHECK(!completed);
       }
-
-      sub2.unsubscribe();
     }
 
     AND_WHEN("door state is closed and supervisor has session")
     {
-      auto sub2 = rxcpp::observable<>::interval(std::chrono::milliseconds(100))
+      rmf_rxcpp::subscription_guard sub2 =
+        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
         .subscribe_on(rxcpp::observe_on_new_thread())
-        .subscribe([&](const auto&)
+        .subscribe([publish_door_state, publish_empty_heartbeat](const auto&)
           {
             publish_door_state(DoorMode::MODE_CLOSED);
             publish_empty_heartbeat();
@@ -214,40 +238,37 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
 
       THEN("it is not completed")
       {
-        std::unique_lock<std::mutex> lk(m);
-        bool completed = status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              1000), [&]()
-            {
-              return status_updates.back().state == Task::StatusMsg::STATE_COMPLETED;
-            });
+        std::unique_lock<std::mutex> lk(test->m);
+        bool completed = test->status_updates_cv.wait_for(
+          lk, std::chrono::milliseconds(10),
+          [test]()
+          {
+            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+          });
         CHECK(!completed);
       }
-
-      sub2.unsubscribe();
     }
 
     AND_WHEN("it is cancelled")
     {
       {
-        std::unique_lock<std::mutex> lk(m);
-        received_requests_cv.wait(lk, [&]()
+        std::unique_lock<std::mutex> lk(test->m);
+        test->received_requests_cv.wait(lk, [test]()
           {
-            return !received_requests.empty();
+            return !test->received_requests.empty();
           });
         active_phase->cancel();
       }
 
       THEN("it should send door close request")
       {
-        std::unique_lock<std::mutex> lk(m);
-        received_requests_cv.wait(lk, [&]()
+        std::unique_lock<std::mutex> lk(test->m);
+        test->received_requests_cv.wait(lk, [test]()
           {
-            return received_requests.back()->requested_mode.value == DoorMode::MODE_CLOSED;
+            return test->received_requests.back()->requested_mode.value == DoorMode::MODE_CLOSED;
           });
       }
     }
-
-    sub.unsubscribe();
   }
 }
 

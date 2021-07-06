@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: deps
-        uses: ros-tooling/setup-ros@v0.1
+        uses: ros-tooling/setup-ros@v0.2
         with:
           required-ros-distributions: foxy
       - name: build
@@ -28,6 +28,12 @@ jobs:
               }
             }
           colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
+      - name: Upload failed test results
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: test-results
+          path: ros_ws/build/*/test_results/*/*.catch2.xml
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1
         with:

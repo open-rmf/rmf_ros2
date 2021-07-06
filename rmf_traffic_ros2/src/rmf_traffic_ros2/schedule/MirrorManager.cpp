@@ -119,8 +119,8 @@ public:
     {
       RCLCPP_ERROR(
         node.get_logger(),
-        "[rmf_traffic_ros2::MirrorManager] Failed to update participant info: "
-        + std::string(e.what()));
+        "[rmf_traffic_ros2::MirrorManager] Failed to update participant info: %s",
+        e.what());
     }
   }
 
@@ -148,7 +148,8 @@ public:
       RCLCPP_ERROR(
         node.get_logger(),
         "[rmf_traffic_ros2::MirrorManager] Failed to deserialize Patch "
-        "message: " + std::string(e.what()));
+        "message: %s",
+        e.what());
       // Get a full update in case we're just missing some information
       request_update();
     }
@@ -165,16 +166,17 @@ public:
       RCLCPP_INFO(
         node.get_logger(),
         "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
-        "for query ID [" + std::to_string(request.query_id) +
-        "] since version [" + std::to_string(request.version) + "]");
+        "for query ID [%ld] since version [%ld]",
+        request.query_id,
+        request.version);
     }
     else
     {
       RCLCPP_INFO(
         node.get_logger(),
         "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
-        "for query ID [" + std::to_string(request.query_id) +
-        "] since beginning of recorded history");
+        "for query ID [%ld] since beginning of recorded history",
+        request.query_id);
       request.version = 0;
       request.full_update = true;
     }
@@ -359,7 +361,8 @@ public:
             RCLCPP_ERROR(
               node.get_logger(),
               "[rmf_traffic_ros2::MirrorManagerFuture] Exception while "
-              "registering a query: " + std::string(e.what()));
+              "registering a query: %s",
+              e.what());
           }
         });
       registration_sent = true;
@@ -419,8 +422,8 @@ public:
           RCLCPP_WARN(
             node.get_logger(),
             "[rmf_traffic_ros2::~MirrorManagerFuture] Error received "
-            "while trying to register the query a MirrorManager: "
-            + registration_response.error);
+            "while trying to register the query a MirrorManager: %s",
+            registration_response.error.c_str());
         }
         else
         {
@@ -437,7 +440,8 @@ public:
                   node.get_logger(),
                   "[rmf_traffic_ros2::~MirrorManagerFuture] Error received "
                   "while trying to unregister the query of an uninstantiated "
-                  "MirrorManager: " + response->error);
+                  "MirrorManager: %s",
+                  response->error.c_str());
               }
             });
         }

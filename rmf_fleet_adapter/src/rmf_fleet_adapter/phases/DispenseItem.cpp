@@ -112,7 +112,8 @@ void DispenseItem::ActivePhase::_init_obs()
     .start_with(std::shared_ptr<DispenserResult>(nullptr))
     .combine_latest(
     rxcpp::observe_on_event_loop(),
-    node->dispenser_state().start_with(std::shared_ptr<DispenserState>(nullptr)))
+    node->dispenser_state().start_with(
+      std::shared_ptr<DispenserState>(nullptr)))
     .lift<CombinedType>(on_subscribe([weak = weak_from_this(), &node]()
       {
         auto me = weak.lock();
@@ -121,7 +122,7 @@ void DispenseItem::ActivePhase::_init_obs()
 
         me->_do_publish();
         me->_timer =
-        node->create_wall_timer(std::chrono::milliseconds(1000), [weak]()
+        node->try_create_wall_timer(std::chrono::milliseconds(1000), [weak]()
         {
           auto me = weak.lock();
           if (!me)

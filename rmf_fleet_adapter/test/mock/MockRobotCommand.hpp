@@ -21,12 +21,14 @@
 #include <rmf_fleet_adapter/agv/RobotCommandHandle.hpp>
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
 
-#include <rclcpp/node.hpp>
+#include "../../src/rmf_fleet_adapter/agv/Node.hpp"
 
 namespace rmf_fleet_adapter_test {
 
 //==============================================================================
-class MockRobotCommand : public rmf_fleet_adapter::agv::RobotCommandHandle
+class MockRobotCommand :
+  public rmf_fleet_adapter::agv::RobotCommandHandle,
+  public std::enable_shared_from_this<MockRobotCommand>
 {
 public:
 
@@ -64,7 +66,7 @@ public:
   MockRobotCommand(
     std::shared_ptr<rclcpp::Node> node,
     const rmf_traffic::agv::Graph& graph)
-  : _node(std::move(node))
+  : _node(std::dynamic_pointer_cast<rmf_fleet_adapter::agv::Node>(node))
   {
     for (std::size_t i = 0; i < graph.num_lanes(); ++i)
     {
@@ -87,56 +89,64 @@ public:
   {
     _current_waypoint_target = 0;
     _active = true;
-    _timer = _node->create_wall_timer(
-      std::chrono::milliseconds(10),
-      [this,
-      waypoints,
-      next_arrival_estimator = std::move(next_arrival_estimator),
-      path_finished_callback = std::move(path_finished_callback)]
+    _timer = _node->try_create_wall_timer(
+      std::chrono::milliseconds(1),
+      [
+        me = weak_from_this(),
+        waypoints,
+        next_arrival_estimator = std::move(next_arrival_estimator),
+        path_finished_callback = std::move(path_finished_callback)
+      ]
       {
-        if (_pause)
+        const auto self = me.lock();
+        if (!self)
           return;
 
-        if (!_active)
+        if (self->_pause)
           return;
 
-        if (_current_waypoint_target < waypoints.size())
-          ++_current_waypoint_target;
+        if (!self->_active)
+          return;
 
-        if (updater)
+        if (self->_current_waypoint_target < waypoints.size())
+          ++self->_current_waypoint_target;
+
+        if (self->updater)
         {
-          const auto& previous_wp = waypoints[_current_waypoint_target-1];
+          const auto& previous_wp = waypoints[self->_current_waypoint_target-1];
           if (previous_wp.graph_index())
           {
-            updater->update_position(
+            self->updater->update_position(
               *previous_wp.graph_index(), previous_wp.position()[2]);
-            ++_visited_wps.insert(
+            ++self->_visited_wps.insert(
               {*previous_wp.graph_index(), 0}).first->second;
           }
           else
           {
-            updater->update_position("test_map", previous_wp.position());
+            self->updater->update_position("test_map", previous_wp.position());
           }
         }
 
-        if (_current_waypoint_target < waypoints.size())
+        if (self->_current_waypoint_target < waypoints.size())
         {
-          const auto& wp = waypoints[_current_waypoint_target];
+          const auto& wp = waypoints[self->_current_waypoint_target];
           const auto test_delay =
-          std::chrono::milliseconds(750) * _current_waypoint_target;
+          std::chrono::milliseconds(750) * self->_current_waypoint_target;
 
           const auto delayed_arrival_time = wp.time() + test_delay;
           const auto remaining_time =
           std::chrono::steady_clock::time_point(
-            std::chrono::steady_clock::duration(_node->now().nanoseconds()))
-          - delayed_arrival_time;
+            std::chrono::steady_clock::duration(
+              self->_node->now().nanoseconds())) - delayed_arrival_time;
 
-          next_arrival_estimator(_current_waypoint_target, remaining_time);
+          next_arrival_estimator(
+            self->_current_waypoint_target, remaining_time);
+
           return;
         }
 
-        _active = false;
-        _timer.reset();
+        self->_active = false;
+        self->_timer.reset();
         path_finished_callback();
       });
   }
@@ -176,7 +186,7 @@ public:
 private:
   bool _active = false;
   bool _pause = false;
-  std::shared_ptr<rclcpp::Node> _node;
+  std::shared_ptr<rmf_fleet_adapter::agv::Node> _node;
   rclcpp::TimerBase::SharedPtr _timer;
   std::size_t _current_waypoint_target = 0;
   std::unordered_map<std::string, std::size_t> _dockings;

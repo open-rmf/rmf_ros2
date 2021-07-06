@@ -153,13 +153,15 @@ void GoToPlace::Active::respond(
         // We need to make sure we respond in some way so that we don't risk
         // making a negotiation hang forever. If this task is dead, then we should
         // at least respond by forfeiting.
-        result.service->responder()->forfeit({});
+        const auto service = result.service;
+        const auto responder = service->responder();
+        responder->forfeit({});
       }
     });
 
   using namespace std::chrono_literals;
   const auto wait_duration = 2s + table_viewer->sequence().back().version * 10s;
-  auto negotiate_timer = _context->node()->create_wall_timer(
+  auto negotiate_timer = _context->node()->try_create_wall_timer(
     wait_duration,
     [s = negotiate->weak_from_this()]
     {
@@ -250,7 +252,7 @@ void GoToPlace::Active::find_plan()
     });
 
   // TODO(MXG): Make the timeout configurable
-  _find_path_timer = _context->node()->create_wall_timer(
+  _find_path_timer = _context->node()->try_create_wall_timer(
     std::chrono::seconds(10),
     [s = std::weak_ptr<services::FindPath>(_find_path_service),
     p = weak_from_this(),
@@ -309,7 +311,7 @@ void GoToPlace::Active::find_emergency_plan()
       phase->_pullover_service = nullptr;
     });
 
-  _find_pullover_timer = _context->node()->create_wall_timer(
+  _find_pullover_timer = _context->node()->try_create_wall_timer(
     std::chrono::seconds(10),
     [s = _pullover_service->weak_from_this(),
     p = weak_from_this(),
@@ -666,8 +668,10 @@ auto GoToPlace::make(
     RCLCPP_ERROR(
       context->node()->get_logger(),
       "[GoToPlace] Unable to find any path for robot [%s] to get from "
-      "waypoint [%d] to waypoint [%d]",
-      context->name().c_str(), start_estimate.waypoint(), goal.waypoint());
+      "waypoint [%ld] to waypoint [%ld]",
+      context->name().c_str(),
+      start_estimate.waypoint(),
+      goal.waypoint());
     return nullptr;
   }
 

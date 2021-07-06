@@ -121,7 +121,7 @@ void IngestItem::ActivePhase::_init_obs()
 
         me->_do_publish();
         me->_timer =
-        node->create_wall_timer(std::chrono::milliseconds(1000), [weak]()
+        node->try_create_wall_timer(std::chrono::milliseconds(1000), [weak]()
         {
           auto me = weak.lock();
           if (!me)

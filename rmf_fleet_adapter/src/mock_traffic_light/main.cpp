@@ -176,10 +176,10 @@ public:
     {
       RCLCPP_ERROR(
         _node->get_logger(),
-        "Uh oh!! An adapter error has occurred for [%s] owned by [%s]. "
-        "This really shouldn't happen for the traffic light, but there is "
-        "a TODO inside the source code for how to fix this if it ever does "
-        "occur");
+        "Uh oh!! An adapter error has occurred for [%s]. This really shouldn't "
+        "happen for the traffic light, but there is a TODO inside the source "
+        "code for how to fix this if it ever does occur.",
+        state.name.c_str());
       // TODO(MXG): If this error ever gets printed, we can fix this issue by
       // changing this code block to resend the path request, but with the
       // first waypoint of the path request replaced by whatever the robot's

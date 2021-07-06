@@ -53,6 +53,7 @@ public:
       s.on_completed();
     }
   }
+
 private:
 
   rclcpp::Node::WeakPtr _node;

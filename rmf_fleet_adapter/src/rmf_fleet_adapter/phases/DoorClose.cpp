@@ -86,7 +86,7 @@ void DoorClose::ActivePhase::_init_obs()
 
         me->_status.state = Task::StatusMsg::STATE_ACTIVE;
         me->_publish_close_door();
-        me->_timer = me->_context->node()->create_wall_timer(
+        me->_timer = me->_context->node()->try_create_wall_timer(
           std::chrono::milliseconds(1000),
           [weak]()
           {

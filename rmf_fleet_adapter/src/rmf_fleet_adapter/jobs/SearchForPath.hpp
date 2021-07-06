@@ -50,8 +50,8 @@ public:
 
   struct Result
   {
-    Planning* greedy_job;
-    Planning* compliant_job;
+    std::shared_ptr<Planning> greedy_job;
+    std::shared_ptr<Planning> compliant_job;
     Type type;
   };
 

@@ -39,8 +39,10 @@ public:
   using Checkpoint = rmf_traffic::blockade::Writer::Checkpoint;
   using Reservation = rmf_traffic::blockade::Writer::Reservation;
 
-  BlockadeNode(const rclcpp::NodeOptions& options)
-  : rclcpp::Node("rmf_traffic_blockade_node", options),
+  BlockadeNode(
+    const std::string& node_name,
+    const rclcpp::NodeOptions& options)
+  : rclcpp::Node(node_name, options),
     moderator(std::make_shared<rmf_traffic::blockade::Moderator>())
   {
     blockade_set_sub =
@@ -253,7 +255,16 @@ public:
 //==============================================================================
 std::shared_ptr<rclcpp::Node> make_node(const rclcpp::NodeOptions& options)
 {
-  auto node = std::make_shared<BlockadeNode>(options);
+  return make_node("rmf_traffic_blockade_node", options);
+}
+
+//==============================================================================
+std::shared_ptr<rclcpp::Node> make_node(
+  const std::string& node_name,
+  const rclcpp::NodeOptions& options)
+{
+  auto node = std::make_shared<BlockadeNode>(node_name, options);
+
   node->moderator->info_logger(
     [w = node->weak_from_this()](std::string msg)
     {

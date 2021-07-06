@@ -103,11 +103,13 @@ void DockRobot::Action::operator()(const Subscriber& s)
     + _phase->_dock_name + "]";
 
   s.on_next(status);
-  _phase->_context->command()->dock(_phase->_dock_name, [s, this]()
+  _phase->_context->command()->dock(
+    _phase->_dock_name,
+    [s, dock_name = _phase->_dock_name, context = _phase->_context]()
     {
       Task::StatusMsg status;
-      status.status = "Finished docking [" + _phase->_context->requester_id()
-      + "] into dock [" + _phase->_dock_name + "]";
+      status.status = "Finished docking [" + context->requester_id()
+      + "] into dock [" + dock_name + "]";
       status.state = Task::StatusMsg::STATE_COMPLETED;
       s.on_next(status);
       s.on_completed();

@@ -21,6 +21,7 @@
 #include "../internal_TrafficLight.hpp"
 
 #include <rmf_traffic/schedule/Database.hpp>
+#include <rmf_traffic/schedule/Mirror.hpp>
 
 #include <rmf_traffic_ros2/blockade/Writer.hpp>
 
@@ -29,13 +30,170 @@ namespace agv {
 namespace test {
 
 //==============================================================================
+/// This class ensures that race conditions don't happen when writing to the
+/// schedule. This is important for the tests because the Participant objects
+/// will automatically unregister themselves during destruction, and that
+/// destruction may occur on any thread.
+///
+/// The most important behavior of this class is to redirect calls on
+/// unregister_participant() into the primary worker queue.
+///
+/// We also redirect all the other function calls into the worker queue, except
+/// for register_participant() because it expects a return value which makes
+/// it tricky to schedule. None of these other redirects should matter since the
+/// tests should already be scheduling all these calls on the primary worker,
+/// but the redirects shouldn't hurt either, so we'll go ahead and do it to
+/// minimize the risk of race conditions. If we ever see another race condition
+/// on the schedule database, then we should look into queuing the
+/// register_participant() function since it should be the last remaining
+/// vulnerability.
+class MockScheduleNode : public rmf_traffic::schedule::Writer
+{
+public:
+
+  MockScheduleNode(rxcpp::schedulers::worker worker)
+  : _worker(worker),
+    _database(std::make_shared<rmf_traffic::schedule::Database>())
+  {
+    // Do nothing
+  }
+
+  std::shared_ptr<rmf_traffic::schedule::Snappable> snappable() const
+  {
+    return _database;
+  }
+
+  void set(
+    ParticipantId participant,
+    const Input& itinerary,
+    ItineraryVersion version) final
+  {
+    _worker.schedule(
+      [
+        database = _database,
+        participant,
+        itinerary,
+        version
+      ](const auto&)
+      {
+        database->set(participant, itinerary, version);
+      });
+  }
+
+  void extend(
+    ParticipantId participant,
+    const Input& routes, ItineraryVersion version) final
+  {
+    _worker.schedule(
+      [
+        database = _database,
+        participant,
+        routes,
+        version
+      ](const auto&)
+      {
+        database->extend(participant, routes, version);
+      });
+  }
+
+  void delay(
+    ParticipantId participant,
+    Duration delay,
+    ItineraryVersion version) final
+  {
+    _worker.schedule(
+      [
+        database = _database,
+        participant,
+        delay,
+        version
+      ](const auto&)
+      {
+        database->delay(participant, delay, version);
+      });
+  }
+
+  void erase(
+    ParticipantId participant,
+    ItineraryVersion version) final
+  {
+    _worker.schedule(
+      [
+        database = _database,
+        participant, version
+      ](const auto&)
+      {
+        database->erase(participant, version);
+      });
+  }
+
+  void erase(
+    ParticipantId participant,
+    const std::vector<RouteId>& routes,
+    ItineraryVersion version) final
+  {
+    _worker.schedule(
+      [
+        database = _database,
+        participant,
+        routes,
+        version
+      ](const auto&)
+      {
+        database->erase(participant, routes, version);
+      });
+  }
+
+  Registration register_participant(
+    ParticipantDescription participant_info) final
+  {
+    // To simplify the async return value, we'll assume that this function only
+    // gets called from the primary worker thread.
+    //
+    // This should be a fair assumption since the main concern about race
+    // conditions is for the unregister_participant() function that gets called
+    // by the destructor of the Participant class. We probably don't really need
+    // to explicitly use the worker for any of the functions besides
+    // unregister_participant() but it isn't difficult when they have void
+    // return types (unlike this function).
+    return _database->register_participant(participant_info);
+  }
+
+  void unregister_participant(ParticipantId participant) final
+  {
+    _worker.schedule(
+      [database = _database, participant](const auto&)
+      {
+        database->unregister_participant(participant);
+      });
+  }
+
+  void update_description(
+    ParticipantId participant,
+    ParticipantDescription desc) final
+  {
+    _worker.schedule(
+      [database = _database, participant, desc](const auto&)
+      {
+        database->update_description(participant, desc);
+      });
+  }
+
+private:
+
+  rxcpp::schedulers::worker _worker;
+  std::shared_ptr<rmf_traffic::schedule::Database> _database;
+
+};
+
+//==============================================================================
 class MockAdapter::Implementation
 {
 public:
 
   rxcpp::schedulers::worker worker;
   std::shared_ptr<Node> node;
-  std::shared_ptr<rmf_traffic::schedule::Database> database;
+  std::shared_ptr<MockScheduleNode> schedule;
 
   // TODO(MXG): We should swap this out for a blockade Moderator that doesn't
   // rely on ROS2
@@ -46,7 +204,7 @@ public:
     const rclcpp::NodeOptions& node_options)
   : worker{rxcpp::schedulers::make_event_loop().create_worker()},
     node{Node::make(worker, node_name, node_options)},
-    database{std::make_shared<rmf_traffic::schedule::Database>()},
+    schedule{std::make_shared<MockScheduleNode>(worker)},
     blockade_writer{rmf_traffic_ros2::blockade::Writer::make(*node)}
   {
     // Do nothing
@@ -81,8 +239,8 @@ std::shared_ptr<FleetUpdateHandle> MockAdapter::add_fleet(
 
   auto fleet = FleetUpdateHandle::Implementation::make(
     fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
-    std::make_shared<SimpleParticipantFactory>(_pimpl->database),
-    _pimpl->database, nullptr);
+    std::make_shared<SimpleParticipantFactory>(_pimpl->schedule),
+    _pimpl->schedule->snappable(), nullptr);
 
   _pimpl->fleets.push_back(fleet);
   return fleet;
@@ -103,14 +261,14 @@ TrafficLight::UpdateHandlePtr MockAdapter::add_traffic_light(
     profile);
 
   auto participant = rmf_traffic::schedule::make_participant(
-    std::move(description), _pimpl->database, nullptr);
+    std::move(description), _pimpl->schedule, nullptr);
 
   return TrafficLight::UpdateHandle::Implementation::make(
     std::move(command),
     std::move(participant),
     _pimpl->blockade_writer,
     std::move(traits),
-    _pimpl->database,
+    _pimpl->schedule->snappable(),
     _pimpl->worker,
     _pimpl->node,
     nullptr);
@@ -163,6 +321,12 @@ void MockAdapter::dispatch_task(const rmf_task_msgs::msg::TaskProfile& profile)
     fimpl.dispatch_request_cb(
       std::make_shared<rmf_task_msgs::msg::DispatchRequest>(req));
   }
+}
+
+//==============================================================================
+MockAdapter::~MockAdapter()
+{
+  stop();
 }
 
 } // namespace test

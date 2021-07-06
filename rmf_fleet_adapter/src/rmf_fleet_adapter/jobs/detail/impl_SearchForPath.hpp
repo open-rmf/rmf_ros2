@@ -64,9 +64,10 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       if (!search)
         return;
 
-      auto show_complaint = search->_compliant_finished ?
-      search->_compliant_job.get() : nullptr;
-      Result next{search->_greedy_job.get(), show_complaint, Type::greedy};
+      auto show_compliant = search->_compliant_finished ?
+      search->_compliant_job : std::shared_ptr<Planning>(nullptr);
+
+      Result next{search->_greedy_job, show_compliant, Type::greedy};
 
       const auto& r = result.job.progress();
       if (r.success())
@@ -161,8 +162,10 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
     .subscribe(
     [this, s](const Planning::Result& result)
     {
-      auto show_greedy = _greedy_finished ? _greedy_job.get() : nullptr;
-      Result next{show_greedy, _compliant_job.get(), Type::compliant};
+      auto show_greedy = _greedy_finished ?
+      _greedy_job : std::shared_ptr<Planning>(nullptr);
+
+      Result next{show_greedy, _compliant_job, Type::compliant};
 
       auto& r = result.job.progress();
       if (r.success())
