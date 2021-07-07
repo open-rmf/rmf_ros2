@@ -335,11 +335,11 @@ void TaskManager::_begin_next_task()
     _queue.erase(_queue.begin());
 
     RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "Beginning new task [%s] for [%s]. Remaining queue size: %ld",
-      _active_task->id().c_str(),
-      _context->requester_id().c_str(),
-      _queue.size());
+          _context->node()->get_logger(),
+          "Beginning new task [%s] for [%s]. Remaining queue size: %ld",
+          _active_task->id().c_str(),
+          _context->requester_id().c_str(),
+          _queue.size());
 
     _task_sub = _active_task->observe()
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
@@ -522,7 +522,7 @@ void TaskManager::retreat_to_charger()
 
   double retreat_battery_drain = 0.0;
   const auto endpoints = std::make_pair(current_state.waypoint(),
-      current_state.charging_waypoint());
+    current_state.charging_waypoint());
   const auto& cache_result = estimate_cache.get(endpoints);
 
   if (cache_result)
@@ -550,12 +550,13 @@ void TaskManager::retreat_to_charger()
         finish_time - itinerary_start_time;
 
       dSOC_motion =
-        parameters.motion_sink()->compute_change_in_charge(trajectory);
+        parameters.motion_sink()->compute_change_in_charge(
+          trajectory);
       dSOC_device =
         parameters.ambient_sink()->compute_change_in_charge(
-        rmf_traffic::time::to_seconds(itinerary_duration));
+          rmf_traffic::time::to_seconds(itinerary_duration));
       retreat_battery_drain += dSOC_motion + dSOC_device;
-      retreat_duration += itinerary_duration;
+      retreat_duration +=itinerary_duration;
       itinerary_start_time = finish_time;
     }
     estimate_cache.set(endpoints, retreat_duration,
@@ -579,7 +580,7 @@ void TaskManager::retreat_to_charger()
       current_state,
       constraints,
       estimate_cache);
-
+    
     if (!finish)
       return;
 
@@ -621,7 +622,7 @@ void TaskManager::_register_executed_task(const std::string& id)
   // a certain time window instead.
   if (_executed_task_registry.size() >= 100)
     _executed_task_registry.erase(_executed_task_registry.begin());
-
+  
   _executed_task_registry.push_back(id);
 }
 

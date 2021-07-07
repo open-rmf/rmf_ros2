@@ -769,6 +769,21 @@ get_nearest_charger(
   return nearest_charger;
 }
 
+//==============================================================================
+void FleetUpdateHandle::Implementation::fleet_state_publish_period(
+    std::optional<rmf_traffic::Duration> value)
+{
+  if (value.has_value())
+  {
+    fleet_state_timer = node->create_wall_timer(
+          std::chrono::seconds(1), [this]() { this->publish_fleet_state(); });
+  }
+  else
+  {
+    fleet_state_timer = nullptr;
+  }
+}
+
 namespace {
 //==============================================================================
 rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)

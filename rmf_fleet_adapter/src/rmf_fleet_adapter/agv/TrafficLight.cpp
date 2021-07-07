@@ -291,10 +291,12 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_path(
       RCLCPP_ERROR(
         node->get_logger(),
         "Traffic light controlled robot [%s] owned by [%s] was given waypoints "
-        "[%d, %d] that are too close together [%fm]",
+        "[%ld, %ld] that are too close together [%fm]",
         itinerary.description().name().c_str(),
         itinerary.description().owner().c_str(),
-        i-1, i, dist);
+        i-1,
+        i,
+        dist);
       assert(false);
       return;
     }
