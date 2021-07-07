@@ -343,12 +343,12 @@ auto EasyTrafficLight::Implementation::moving_from(
     if (last_received_stop_info.value().time < now)
     {
       RCLCPP_WARN(
-            node->get_logger(),
-            "[EasyTrafficLight::moving_from] [%s] owned by [%s] is moving away "
-            "from checkpoint [%lu] when the robot is supposed to be stopped.",
-            name.c_str(),
-            owner.c_str(),
-            checkpoint);
+        node->get_logger(),
+        "[EasyTrafficLight::moving_from] [%s] owned by [%s] is moving away "
+        "from checkpoint [%lu] when the robot is supposed to be stopped.",
+        name.c_str(),
+        owner.c_str(),
+        checkpoint);
       return MovingInstruction::MovingError;
     }
 
@@ -365,13 +365,13 @@ auto EasyTrafficLight::Implementation::moving_from(
     {
       assert(standby_at <= checkpoint);
       RCLCPP_WARN(
-            node->get_logger(),
-            "[EasyTrafficLight::moving_from] [%s] owned by [%s] is moving away "
-            "from checkpoint [%lu] when the robot was supposed to standby at "
-            "[%lu].",
-            name.c_str(),
-            owner.c_str(),
-            checkpoint, standby_at);
+        node->get_logger(),
+        "[EasyTrafficLight::moving_from] [%s] owned by [%s] is moving away "
+        "from checkpoint [%lu] when the robot was supposed to standby at "
+        "[%lu].",
+        name.c_str(),
+        owner.c_str(),
+        checkpoint, standby_at);
       return MovingInstruction::MovingError;
     }
 

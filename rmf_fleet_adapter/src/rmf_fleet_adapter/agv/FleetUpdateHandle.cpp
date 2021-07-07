@@ -771,12 +771,12 @@ get_nearest_charger(
 
 //==============================================================================
 void FleetUpdateHandle::Implementation::fleet_state_publish_period(
-    std::optional<rmf_traffic::Duration> value)
+  std::optional<rmf_traffic::Duration> value)
 {
   if (value.has_value())
   {
     fleet_state_timer = node->create_wall_timer(
-          std::chrono::seconds(1), [this]() { this->publish_fleet_state(); });
+      std::chrono::seconds(1), [this]() { this->publish_fleet_state(); });
   }
   else
   {

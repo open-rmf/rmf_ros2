@@ -274,11 +274,11 @@ void Adapter::add_traffic_light(
         // Intententionally busy wait
       }
 
-    RCLCPP_INFO(
-      node->get_logger(),
-      "Added a traffic light controller for [%s] with participant ID [%ld]",
-      participant.description().name().c_str(),
-      participant.id());
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Added a traffic light controller for [%s] with participant ID [%ld]",
+        participant.description().name().c_str(),
+        participant.id());
 
       auto update_handle = TrafficLight::UpdateHandle::Implementation::make(
         std::move(command),
@@ -297,7 +297,6 @@ void Adapter::add_traffic_light(
           handle_cb(std::move(update_handle));
         });
     });
-  });
 }
 
 //==============================================================================
