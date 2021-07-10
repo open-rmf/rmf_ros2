@@ -298,16 +298,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       return;
     }
 
-    if (delivery.dropoff_place_name.empty())
-    {
-      RCLCPP_ERROR(
-        node->get_logger(),
-        "Required param [delivery.dropoff_place_name] missing in TaskProfile."
-        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
-
-      return;
-    }
-
     if (delivery.dropoff_ingestor.empty())
     {
       RCLCPP_ERROR(
