@@ -37,9 +37,9 @@ public:
   class Pending;
 
   class Active
-      : public Task::ActivePhase,
-        public rmf_traffic::schedule::Negotiator,
-        public std::enable_shared_from_this<Active>
+    : public Task::ActivePhase,
+    public rmf_traffic::schedule::Negotiator,
+    public std::enable_shared_from_this<Active>
   {
   public:
 
@@ -60,16 +60,16 @@ public:
 
     // Documentation inherited from Negotiator
     void respond(
-        const TableViewerPtr& table_viewer,
-        const ResponderPtr& responder) final;
+      const TableViewerPtr& table_viewer,
+      const ResponderPtr& responder) final;
 
   private:
     friend class Pending;
     Active(
-        agv::RobotContextPtr context,
-        rmf_traffic::agv::Plan::Goal goal,
-        double original_time_estimate,
-        std::optional<rmf_traffic::Duration> tail_period);
+      agv::RobotContextPtr context,
+      rmf_traffic::agv::Plan::Goal goal,
+      double original_time_estimate,
+      std::optional<rmf_traffic::Duration> tail_period);
 
     void find_plan();
 
@@ -104,7 +104,7 @@ public:
     };
     using NegotiatePtr = std::shared_ptr<services::Negotiate>;
     using NegotiateServiceMap =
-        std::unordered_map<NegotiatePtr, NegotiateManagers>;
+      std::unordered_map<NegotiatePtr, NegotiateManagers>;
     NegotiateServiceMap _negotiate_services;
 
     std::shared_ptr<void> _negotiator_license;
@@ -126,10 +126,11 @@ public:
   private:
     friend class GoToPlace;
     Pending(
-        agv::RobotContextPtr context,
-        rmf_traffic::agv::Plan::Goal goal,
-        double time_estimate,
-        std::optional<rmf_traffic::Duration> tail_period);
+      agv::RobotContextPtr context,
+      rmf_traffic::agv::Plan::Goal goal,
+      double time_estimate,
+      std::optional<rmf_traffic::Duration> tail_period);
+
     agv::RobotContextPtr _context;
     rmf_traffic::agv::Plan::Goal _goal;
     double _time_estimate;

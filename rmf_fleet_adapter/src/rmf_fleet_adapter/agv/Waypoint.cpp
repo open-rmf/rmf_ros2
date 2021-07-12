@@ -34,17 +34,17 @@ public:
 
 //==============================================================================
 Waypoint::Waypoint(
-    std::string map_name,
-    Eigen::Vector3d position,
-    rmf_traffic::Duration mandatory_delay,
-    bool yield)
-  : _pimpl(rmf_utils::make_impl<Implementation>(
-             Implementation{
-               std::move(map_name),
-               std::move(position),
-               mandatory_delay,
-               yield
-             }))
+  std::string map_name,
+  Eigen::Vector3d position,
+  rmf_traffic::Duration mandatory_delay,
+  bool yield)
+: _pimpl(rmf_utils::make_impl<Implementation>(
+      Implementation{
+        std::move(map_name),
+        std::move(position),
+        mandatory_delay,
+        yield
+      }))
 {
   // Do nothing
 }

@@ -49,28 +49,24 @@ public:
 
   std::shared_ptr<void> negotiation_license;
 
-  void new_range(
-      rmf_traffic::blockade::ReservationId reservation_id,
-      const rmf_traffic::blockade::ReservedRange& new_range);
-
   Implementation(
-      std::shared_ptr<CommandHandle> command_,
-      rmf_traffic::schedule::Participant itinerary_,
-      std::shared_ptr<rmf_traffic_ros2::blockade::Writer> blockade_writer,
-      rmf_traffic::agv::VehicleTraits traits_,
-      std::shared_ptr<rmf_traffic::schedule::Snappable> schedule_,
-      rxcpp::schedulers::worker worker_,
-      std::shared_ptr<Node> node_);
+    std::shared_ptr<CommandHandle> command_,
+    rmf_traffic::schedule::Participant itinerary_,
+    std::shared_ptr<rmf_traffic_ros2::blockade::Writer> blockade_writer,
+    rmf_traffic::agv::VehicleTraits traits_,
+    std::shared_ptr<rmf_traffic::schedule::Snappable> schedule_,
+    rxcpp::schedulers::worker worker_,
+    std::shared_ptr<Node> node_);
 
   static std::shared_ptr<UpdateHandle> make(
-      std::shared_ptr<CommandHandle> command,
-      rmf_traffic::schedule::Participant itinerary,
-      std::shared_ptr<rmf_traffic_ros2::blockade::Writer> blockade_writer,
-      rmf_traffic::agv::VehicleTraits traits,
-      std::shared_ptr<rmf_traffic::schedule::Snappable> schedule,
-      rxcpp::schedulers::worker worker,
-      std::shared_ptr<Node> node,
-      rmf_traffic_ros2::schedule::Negotiation* negotiation);
+    std::shared_ptr<CommandHandle> command,
+    rmf_traffic::schedule::Participant itinerary,
+    std::shared_ptr<rmf_traffic_ros2::blockade::Writer> blockade_writer,
+    rmf_traffic::agv::VehicleTraits traits,
+    std::shared_ptr<rmf_traffic::schedule::Snappable> schedule,
+    rxcpp::schedulers::worker worker,
+    std::shared_ptr<Node> node,
+    rmf_traffic_ros2::schedule::Negotiation* negotiation);
 
 };
 

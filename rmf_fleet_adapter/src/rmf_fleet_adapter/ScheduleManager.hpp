@@ -49,10 +49,10 @@ public:
   void push_delay(const rmf_traffic::Duration duration);
 
   void set_negotiator(
-      std::function<void(
-        const rmf_traffic::schedule::Negotiation::Table::ViewerPtr&,
-        const rmf_traffic::schedule::Negotiator::ResponderPtr&)>
-      negotiation_callback);
+    std::function<void(
+      const rmf_traffic::schedule::Negotiation::Table::ViewerPtr&,
+      const rmf_traffic::schedule::Negotiator::ResponderPtr&)>
+    negotiation_callback);
 
   rmf_traffic::schedule::Participant& participant();
 

@@ -22,18 +22,18 @@ namespace jobs {
 
 //==============================================================================
 SearchForPath::SearchForPath(
-    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-    rmf_traffic::agv::Plan::StartSet starts,
-    rmf_traffic::agv::Plan::Goal goal,
-    std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
-    rmf_traffic::schedule::ParticipantId participant_id,
-    const std::shared_ptr<const rmf_traffic::Profile>& profile)
-  : _planner(std::move(planner)),
-    _starts(std::move(starts)),
-    _goal(std::move(goal)),
-    _schedule(std::move(schedule)),
-    _participant_id(participant_id),
-    _worker(rxcpp::schedulers::make_event_loop().create_worker())
+  std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+  rmf_traffic::agv::Plan::StartSet starts,
+  rmf_traffic::agv::Plan::Goal goal,
+  std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
+  rmf_traffic::schedule::ParticipantId participant_id,
+  const std::shared_ptr<const rmf_traffic::Profile>& profile)
+: _planner(std::move(planner)),
+  _starts(std::move(starts)),
+  _goal(std::move(goal)),
+  _schedule(std::move(schedule)),
+  _participant_id(participant_id),
+  _worker(rxcpp::schedulers::make_event_loop().create_worker())
 {
   auto greedy_options = _planner->get_default_options();
   greedy_options.validator(nullptr);
@@ -50,9 +50,9 @@ SearchForPath::SearchForPath(
   {
     // If this ever happens, then there is a serious bug.
     const auto& desc = _schedule->get_participant(_participant_id);
-    std::string name = desc?
-          desc->name() + "] owned by [" + desc->owner()
-        : std::to_string(_participant_id);
+    std::string name = desc ?
+      desc->name() + "] owned by [" + desc->owner() :
+      std::to_string(_participant_id);
 
     std::cerr << "[SearchForPath] CRITICAL ERROR: Impossible plan requested! "
               << "Participant [" << name << "] Requested path";
@@ -70,8 +70,8 @@ SearchForPath::SearchForPath(
 
   auto compliant_options = _planner->get_default_options();
   compliant_options.validator(
-        rmf_traffic::agv::ScheduleRouteValidator::make(
-          _schedule, _participant_id, *profile));
+    rmf_traffic::agv::ScheduleRouteValidator::make(
+      _schedule, _participant_id, *profile));
   compliant_options.maximum_cost_estimate(_compliant_leeway*base_cost);
   compliant_options.interrupt_flag(_interrupt_flag);
   auto compliant_setup = _planner->setup(_starts, _goal, compliant_options);

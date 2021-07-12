@@ -39,65 +39,67 @@ public:
   using Checkpoint = rmf_traffic::blockade::Writer::Checkpoint;
   using Reservation = rmf_traffic::blockade::Writer::Reservation;
 
-  BlockadeNode(const rclcpp::NodeOptions& options)
-    : rclcpp::Node("rmf_traffic_blockade_node", options),
-      moderator(std::make_shared<rmf_traffic::blockade::Moderator>())
+  BlockadeNode(
+    const std::string& node_name,
+    const rclcpp::NodeOptions& options)
+  : rclcpp::Node(node_name, options),
+    moderator(std::make_shared<rmf_traffic::blockade::Moderator>())
   {
     blockade_set_sub =
-        create_subscription<SetMsg>(
-          BlockadeSetTopicName,
-          rclcpp::SystemDefaultsQoS().best_effort(),
-          [=](const SetMsg::UniquePtr msg)
-    {
-      this->blockade_set(*msg);
-    });
+      create_subscription<SetMsg>(
+      BlockadeSetTopicName,
+      rclcpp::SystemDefaultsQoS().best_effort(),
+      [=](const SetMsg::UniquePtr msg)
+      {
+        this->blockade_set(*msg);
+      });
 
     blockade_ready_sub =
-        create_subscription<ReadyMsg>(
-          BlockadeReadyTopicName,
-          rclcpp::SystemDefaultsQoS().best_effort(),
-          [=](const ReadyMsg::UniquePtr msg)
-    {
-      this->blockade_ready(*msg);
-    });
+      create_subscription<ReadyMsg>(
+      BlockadeReadyTopicName,
+      rclcpp::SystemDefaultsQoS().best_effort(),
+      [=](const ReadyMsg::UniquePtr msg)
+      {
+        this->blockade_ready(*msg);
+      });
 
     blockade_reached_sub =
-        create_subscription<ReachedMsg>(
-          BlockadeReachedTopicName,
-          rclcpp::SystemDefaultsQoS().best_effort(),
-          [=](const ReachedMsg::UniquePtr msg)
-    {
-      this->blockade_reached(*msg);
-    });
+      create_subscription<ReachedMsg>(
+      BlockadeReachedTopicName,
+      rclcpp::SystemDefaultsQoS().best_effort(),
+      [=](const ReachedMsg::UniquePtr msg)
+      {
+        this->blockade_reached(*msg);
+      });
 
     blockade_release_sub =
-        create_subscription<ReleaseMsg>(
-          BlockadeReleaseTopicName,
-          rclcpp::SystemDefaultsQoS().best_effort(),
-          [=](const ReleaseMsg::UniquePtr msg)
-    {
-      this->blockade_release(*msg);
-    });
+      create_subscription<ReleaseMsg>(
+      BlockadeReleaseTopicName,
+      rclcpp::SystemDefaultsQoS().best_effort(),
+      [=](const ReleaseMsg::UniquePtr msg)
+      {
+        this->blockade_release(*msg);
+      });
 
     blockade_cancel_sub =
-        create_subscription<CancelMsg>(
-          BlockadeCancelTopicName,
-          rclcpp::SystemDefaultsQoS().best_effort(),
-          [=](const CancelMsg::UniquePtr msg)
-    {
-      this->blockade_cancel(*msg);
-    });
+      create_subscription<CancelMsg>(
+      BlockadeCancelTopicName,
+      rclcpp::SystemDefaultsQoS().best_effort(),
+      [=](const CancelMsg::UniquePtr msg)
+      {
+        this->blockade_cancel(*msg);
+      });
 
     heartbeat_pub = create_publisher<HeartbeatMsg>(
-          BlockadeHeartbeatTopicName,
-          rclcpp::SystemDefaultsQoS().reliable());
+      BlockadeHeartbeatTopicName,
+      rclcpp::SystemDefaultsQoS().reliable());
 
     heartbeat_timer = create_wall_timer(
-          std::chrono::seconds(1),
-          [this]()
-    {
-      this->publish_status();
-    });
+      std::chrono::seconds(1),
+      [this]()
+      {
+        this->publish_status();
+      });
   }
 
   using SetMsg = rmf_traffic_msgs::msg::BlockadeSet;
@@ -108,23 +110,23 @@ public:
     for (const auto& c : set.path)
     {
       path.push_back(
-            Checkpoint{
-              Eigen::Vector2d{c.position[0], c.position[1]},
-              c.map_name,
-              c.can_hold
-            });
+        Checkpoint{
+          Eigen::Vector2d{c.position[0], c.position[1]},
+          c.map_name,
+          c.can_hold
+        });
     }
 
     try
     {
       moderator->set(
-            set.participant, set.reservation,
-            Reservation{std::move(path), set.radius});
+        set.participant, set.reservation,
+        Reservation{std::move(path), set.radius});
     }
-    catch(const std::exception& e)
+    catch (const std::exception& e)
     {
       RCLCPP_ERROR(
-            get_logger(), "Exception due to [set] update: %s", e.what());
+        get_logger(), "Exception due to [set] update: %s", e.what());
     }
 
     check_for_updates();
@@ -141,7 +143,7 @@ public:
     catch (const std::exception& e)
     {
       RCLCPP_ERROR(
-            get_logger(), "Exception due to [ready] update: %s", e.what());
+        get_logger(), "Exception due to [ready] update: %s", e.what());
     }
 
     check_for_updates();
@@ -154,12 +156,12 @@ public:
     try
     {
       moderator->release(
-            release.participant, release.reservation, release.checkpoint);
+        release.participant, release.reservation, release.checkpoint);
     }
     catch (const std::exception& e)
     {
       RCLCPP_ERROR(
-            get_logger(), "Exception due to [release] update: %s", e.what());
+        get_logger(), "Exception due to [release] update: %s", e.what());
     }
 
     check_for_updates();
@@ -172,12 +174,12 @@ public:
     try
     {
       moderator->reached(
-            reached.participant, reached.reservation, reached.checkpoint);
+        reached.participant, reached.reservation, reached.checkpoint);
     }
     catch (const std::exception& e)
     {
       RCLCPP_ERROR(
-            get_logger(), "Exception due to [reached] update: %s", e.what());
+        get_logger(), "Exception due to [reached] update: %s", e.what());
     }
 
     check_for_updates();
@@ -197,7 +199,7 @@ public:
     catch (const std::exception& e)
     {
       RCLCPP_ERROR(
-            get_logger(), "Exception due to [cancel] update: %s", e.what());
+        get_logger(), "Exception due to [cancel] update: %s", e.what());
     }
 
     check_for_updates();
@@ -228,19 +230,19 @@ public:
       const auto& status = s.second;
 
       statuses.emplace_back(
-            rmf_traffic_msgs::build<StatusMsg>()
-            .participant(participant)
-            .reservation(status.reservation)
-            .any_ready(status.last_ready.has_value())
-            .last_ready(status.last_ready.value_or(0))
-            .last_reached(status.last_reached)
-            .assignment_begin(range.begin)
-            .assignment_end(range.end));
+        rmf_traffic_msgs::build<StatusMsg>()
+        .participant(participant)
+        .reservation(status.reservation)
+        .any_ready(status.last_ready.has_value())
+        .last_ready(status.last_ready.value_or(0))
+        .last_reached(status.last_reached)
+        .assignment_begin(range.begin)
+        .assignment_end(range.end));
     }
 
     auto msg = rmf_traffic_msgs::build<HeartbeatMsg>()
-        .statuses(std::move(statuses))
-        .has_gridlock(moderator->has_gridlock());
+      .statuses(std::move(statuses))
+      .has_gridlock(moderator->has_gridlock());
 
     heartbeat_pub->publish(msg);
   }
@@ -253,24 +255,33 @@ public:
 //==============================================================================
 std::shared_ptr<rclcpp::Node> make_node(const rclcpp::NodeOptions& options)
 {
-  auto node = std::make_shared<BlockadeNode>(options);
+  return make_node("rmf_traffic_blockade_node", options);
+}
+
+//==============================================================================
+std::shared_ptr<rclcpp::Node> make_node(
+  const std::string& node_name,
+  const rclcpp::NodeOptions& options)
+{
+  auto node = std::make_shared<BlockadeNode>(node_name, options);
+
   node->moderator->info_logger(
-        [w = node->weak_from_this()](std::string msg)
-  {
-    if (const auto n = w.lock())
+    [w = node->weak_from_this()](std::string msg)
     {
-      RCLCPP_INFO(n->get_logger(), msg.c_str());
-    }
-  });
+      if (const auto n = w.lock())
+      {
+        RCLCPP_INFO(n->get_logger(), msg.c_str());
+      }
+    });
 
   node->moderator->debug_logger(
-        [w = node->weak_from_this()](std::string msg)
-  {
-    if (const auto n = w.lock())
+    [w = node->weak_from_this()](std::string msg)
     {
-      RCLCPP_DEBUG(n->get_logger(), msg.c_str());
-    }
-  });
+      if (const auto n = w.lock())
+      {
+        RCLCPP_DEBUG(n->get_logger(), msg.c_str());
+      }
+    });
 
   node->moderator->minimum_conflict_angle(15.0*M_PI/180.0);
 

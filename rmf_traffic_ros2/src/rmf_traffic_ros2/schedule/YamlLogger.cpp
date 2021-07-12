@@ -24,30 +24,30 @@
 namespace rmf_traffic_ros2 {
 namespace schedule {
 
-class YamlLogger::Implementation 
+class YamlLogger::Implementation
 {
 public:
   //===========================================================================
-  Implementation(std::string file_path):
-  _file_path(file_path)
+  Implementation(std::string file_path)
+  : _file_path(file_path)
   {
     _counter = 0;
     if (!std::filesystem::exists(file_path))
     {
       std::filesystem::create_directories(
-            std::filesystem::absolute(file_path).parent_path());
+        std::filesystem::absolute(file_path).parent_path());
       _initial_buffer_size = 0;
       return;
     }
 
     std::lock_guard<std::mutex> file_lock(_mutex);
     _buffer = YAML::LoadFile(file_path);
-    if(!_buffer.IsSequence())
+    if (!_buffer.IsSequence())
     {
       //Malformatted YAML. Failing so that we don't corrupt data
       throw YAML::ParserException(_buffer.Mark(),
-        "Malformatted file - Expected the root format of the"\
-        " document to be a yaml sequence");
+              "Malformatted file - Expected the root format of the"\
+              " document to be a yaml sequence");
     }
     _initial_buffer_size = _buffer.size();
   }
@@ -55,11 +55,11 @@ public:
   //=========================================================================
   void write_operation(AtomicOperation operation)
   {
-    std::string uuid = operation.description.name() 
-        + operation.description.owner();
+    std::string uuid = operation.description.name()
+      + operation.description.owner();
     std::lock_guard<std::mutex> file_lock(_mutex);
 
-    if(operation.operation == AtomicOperation::OpType::Update)
+    if (operation.operation == AtomicOperation::OpType::Update)
     {
       auto index = _name_to_index[uuid];
       AtomicOperation op {
@@ -68,7 +68,7 @@ public:
       };
       _buffer[index] = serialize(op);
     }
-    else if(operation.operation == AtomicOperation::OpType::Add)
+    else if (operation.operation == AtomicOperation::OpType::Add)
     {
       auto index = _buffer.size();
       _name_to_index[uuid] = index;
@@ -82,15 +82,15 @@ public:
   //===========================================================================
   std::optional<AtomicOperation> read_next_record()
   {
-    if(_counter >= _initial_buffer_size)
+    if (_counter >= _initial_buffer_size)
     {
-      //We have reached the end of the file, restoration is complete.   
+      //We have reached the end of the file, restoration is complete.
       return std::nullopt;
     }
 
     auto operation = atomic_operation(_buffer[_counter]);
 
-    std::string uuid = operation.description.name() + 
+    std::string uuid = operation.description.name() +
       operation.description.owner();
 
     _name_to_index[uuid] = _counter;
@@ -109,8 +109,8 @@ private:
 };
 
 //=============================================================================
-YamlLogger::YamlLogger(std::string file_path): 
-  _pimpl(rmf_utils::make_unique_impl<Implementation>(file_path))
+YamlLogger::YamlLogger(std::string file_path)
+: _pimpl(rmf_utils::make_unique_impl<Implementation>(file_path))
 {
   // Do nothing
 }

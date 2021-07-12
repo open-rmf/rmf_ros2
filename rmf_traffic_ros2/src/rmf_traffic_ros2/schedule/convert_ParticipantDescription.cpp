@@ -56,8 +56,8 @@ rmf_traffic::schedule::ParticipantDescriptionsMap convert(
     std::pair<
       rmf_traffic::schedule::ParticipantId,
       rmf_traffic::schedule::ParticipantDescription> to_insert{
-        participant.id,
-        convert(participant.description)};
+      participant.id,
+      convert(participant.description)};
     output.insert(to_insert);
   }
   return output;

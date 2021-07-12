@@ -40,12 +40,12 @@ class WorkerWrapper : public rmf_traffic_ros2::schedule::Negotiation::Worker
 public:
 
   WorkerWrapper(rxcpp::schedulers::worker worker)
-    : _worker(std::move(worker))
+  : _worker(std::move(worker))
   {
     // Do nothing
   }
 
-  void schedule(std::function<void ()> job) final
+  void schedule(std::function<void()> job) final
   {
     _worker.schedule([job = std::move(job)](const auto&) { job(); });
   }
@@ -89,33 +89,35 @@ public:
   std::mutex _traffic_light_init_mutex;
 
   Implementation(
-      rxcpp::schedulers::worker worker_,
-      std::shared_ptr<Node> node_,
-      std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation_,
-      std::shared_ptr<ParticipantFactory> writer_,
-      rmf_traffic_ros2::schedule::MirrorManager mirror_manager_)
-    : worker{std::move(worker_)},
-      node{std::move(node_)},
-      negotiation{std::move(negotiation_)},
-      schedule_writer{std::move(writer_)},
-      blockade_writer{rmf_traffic_ros2::blockade::Writer::make(*node)},
-      mirror_manager{std::move(mirror_manager_)}
+    rxcpp::schedulers::worker worker_,
+    std::shared_ptr<Node> node_,
+    std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation_,
+    std::shared_ptr<ParticipantFactory> writer_,
+    rmf_traffic_ros2::schedule::MirrorManager mirror_manager_)
+  : worker{std::move(worker_)},
+    node{std::move(node_)},
+    negotiation{std::move(negotiation_)},
+    schedule_writer{std::move(writer_)},
+    blockade_writer{rmf_traffic_ros2::blockade::Writer::make(*node)},
+    mirror_manager{std::move(mirror_manager_)}
   {
     // Do nothing
   }
 
   static rmf_utils::unique_impl_ptr<Implementation> make(
-      const std::string& node_name,
-      const rclcpp::NodeOptions& node_options,
-      rmf_utils::optional<rmf_traffic::Duration> discovery_timeout)
+    const std::string& node_name,
+    const rclcpp::NodeOptions& node_options,
+    rmf_utils::optional<rmf_traffic::Duration> discovery_timeout)
   {
     if (!rclcpp::ok(node_options.context()))
     {
+      // *INDENT-OFF*
       throw std::runtime_error(
-            "rclcpp must be initialized before creating an Adapter! "
-            "Use rclcpp::init(int argc, char* argv[]) or "
-            "rclcpp::Context::init(int argc, char* argv[]) before calling "
-            "rmf_fleet_adapter::agv::Adapter::make(~)");
+        "rclcpp must be initialized before creating an Adapter! Use "
+        "rclcpp::init(int argc, char* argv[]) or "
+        "rclcpp::Context::init(int argc, char* argv[]) before calling "
+        "rmf_fleet_adapter::agv::Adapter::make(~)");
+      // *INDENT-ON*
     }
 
     const auto worker = rxcpp::schedulers::make_event_loop().create_worker();
@@ -124,18 +126,18 @@ public:
     if (!discovery_timeout)
     {
       discovery_timeout =
-          get_parameter_or_default_time(*node, "discovery_timeout", 60.0);
+        get_parameter_or_default_time(*node, "discovery_timeout", 60.0);
     }
 
     auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
-          *node, rmf_traffic::schedule::query_all());
+      *node, rmf_traffic::schedule::query_all());
 
     auto writer = rmf_traffic_ros2::schedule::Writer::make(*node);
 
     using namespace std::chrono_literals;
 
     const auto stop_time =
-        std::chrono::steady_clock::now() + *discovery_timeout;
+      std::chrono::steady_clock::now() + *discovery_timeout;
 
     rclcpp::ExecutorOptions options;
     options.context = node_options.context();
@@ -143,7 +145,7 @@ public:
     executor.add_node(node);
 
     while (rclcpp::ok(node_options.context())
-           && std::chrono::steady_clock::now() < stop_time)
+      && std::chrono::steady_clock::now() < stop_time)
     {
       executor.spin_some();
 
@@ -156,16 +158,16 @@ public:
         auto mirror_manager = mirror_future.get();
 
         auto negotiation =
-            std::make_shared<rmf_traffic_ros2::schedule::Negotiation>(
-              *node, mirror_manager.snapshot_handle(),
-              std::make_shared<WorkerWrapper>(worker));
+          std::make_shared<rmf_traffic_ros2::schedule::Negotiation>(
+          *node, mirror_manager.snapshot_handle(),
+          std::make_shared<WorkerWrapper>(worker));
 
         return rmf_utils::make_unique_impl<Implementation>(
-                worker,
-                std::move(node),
-                std::move(negotiation),
-                std::make_shared<ParticipantFactoryRos2>(std::move(writer)),
-                std::move(mirror_manager));
+          worker,
+          std::move(node),
+          std::move(negotiation),
+          std::make_shared<ParticipantFactoryRos2>(std::move(writer)),
+          std::move(mirror_manager));
       }
     }
 
@@ -175,8 +177,8 @@ public:
 
 //==============================================================================
 std::shared_ptr<Adapter> Adapter::init_and_make(
-    const std::string& node_name,
-    rmf_utils::optional<rmf_traffic::Duration> discovery_timeout)
+  const std::string& node_name,
+  rmf_utils::optional<rmf_traffic::Duration> discovery_timeout)
 {
   rclcpp::NodeOptions options;
   options.context(std::make_shared<rclcpp::Context>());
@@ -186,12 +188,11 @@ std::shared_ptr<Adapter> Adapter::init_and_make(
 
 //==============================================================================
 std::shared_ptr<Adapter> Adapter::make(
-    const std::string& node_name,
-    const rclcpp::NodeOptions& node_options,
-    const rmf_utils::optional<rmf_traffic::Duration> discovery_timeout)
+  const std::string& node_name,
+  const rclcpp::NodeOptions& node_options,
+  const std::optional<rmf_traffic::Duration> discovery_timeout)
 {
-  auto pimpl = Implementation::make(
-        node_name, node_options, discovery_timeout);
+  auto pimpl = Implementation::make(node_name, node_options, discovery_timeout);
 
   if (pimpl)
   {
@@ -205,22 +206,22 @@ std::shared_ptr<Adapter> Adapter::make(
 
 //==============================================================================
 std::shared_ptr<FleetUpdateHandle> Adapter::add_fleet(
-    const std::string& fleet_name,
-    rmf_traffic::agv::VehicleTraits traits,
-    rmf_traffic::agv::Graph navigation_graph)
+  const std::string& fleet_name,
+  rmf_traffic::agv::VehicleTraits traits,
+  rmf_traffic::agv::Graph navigation_graph)
 {
   auto planner =
     std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(
-      std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Planner::Configuration(
-          std::move(navigation_graph),
-          std::move(traits)),
-        rmf_traffic::agv::Planner::Options(nullptr)));
+    std::make_shared<rmf_traffic::agv::Planner>(
+      rmf_traffic::agv::Planner::Configuration(
+        std::move(navigation_graph),
+        std::move(traits)),
+      rmf_traffic::agv::Planner::Options(nullptr)));
 
   auto fleet = FleetUpdateHandle::Implementation::make(
-        fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
-        _pimpl->schedule_writer, _pimpl->mirror_manager.snapshot_handle(),
-        _pimpl->negotiation);
+    fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
+    _pimpl->schedule_writer, _pimpl->mirror_manager.snapshot_handle(),
+    _pimpl->negotiation);
 
   _pimpl->fleets.push_back(fleet);
   return fleet;
@@ -249,64 +250,64 @@ void Adapter::add_traffic_light(
   }
 
   rmf_traffic::schedule::ParticipantDescription description(
-      robot_name,
-      fleet_name,
-      rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
-      traits.profile());
+    robot_name,
+    fleet_name,
+    rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
+    traits.profile());
 
   _pimpl->schedule_writer->async_make_participant(
-      std::move(description),
-      [mutex = &_pimpl->_traffic_light_init_mutex,
-       command = std::move(command),
-       traits = std::move(traits),
-       blockade_writer = _pimpl->blockade_writer,
-       schedule = _pimpl->mirror_manager.snapshot_handle(),
-       worker = _pimpl->worker,
-       handle_cb = std::move(handle_cb),
-       negotiation = _pimpl->negotiation,
-       node = _pimpl->node](
-        rmf_traffic::schedule::Participant participant)
-  {
-    std::unique_lock<std::mutex> lock(*mutex, std::defer_lock);
-    while (!lock.try_lock())
+    std::move(description),
+    [mutex = &_pimpl->_traffic_light_init_mutex,
+    command = std::move(command),
+    traits = std::move(traits),
+    blockade_writer = _pimpl->blockade_writer,
+    schedule = _pimpl->mirror_manager.snapshot_handle(),
+    worker = _pimpl->worker,
+    handle_cb = std::move(handle_cb),
+    negotiation = _pimpl->negotiation,
+    node = _pimpl->node](
+      rmf_traffic::schedule::Participant participant)
     {
-      // Intententionally busy wait
-    }
+      std::unique_lock<std::mutex> lock(*mutex, std::defer_lock);
+      while (!lock.try_lock())
+      {
+        // Intententionally busy wait
+      }
 
-    RCLCPP_INFO(
-      node->get_logger(),
-      "Added a traffic light controller for [%s] with participant ID [%ld]",
-      participant.description().name().c_str(),
-      participant.id());
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Added a traffic light controller for [%s] with participant ID [%ld]",
+        participant.description().name().c_str(),
+        participant.id());
 
-    auto update_handle = TrafficLight::UpdateHandle::Implementation::make(
-          std::move(command),
-          std::move(participant),
-          blockade_writer,
-          std::move(traits),
-          std::move(schedule),
-          worker,
-          node,
-          negotiation.get());
+      auto update_handle = TrafficLight::UpdateHandle::Implementation::make(
+        std::move(command),
+        std::move(participant),
+        blockade_writer,
+        std::move(traits),
+        std::move(schedule),
+        worker,
+        node,
+        negotiation.get());
 
-    worker.schedule(
-          [handle_cb = std::move(handle_cb),
-           update_handle = std::move(update_handle)](const auto&)
-    {
-      handle_cb(std::move(update_handle));
+      worker.schedule(
+        [handle_cb = std::move(handle_cb),
+        update_handle = std::move(update_handle)](const auto&)
+        {
+          handle_cb(std::move(update_handle));
+        });
     });
-  });
 }
 
 //==============================================================================
 void Adapter::add_easy_traffic_light(
-    std::function<void(EasyTrafficLightPtr)> handle_callback,
-    const std::string& fleet_name,
-    const std::string& robot_name,
-    rmf_traffic::agv::VehicleTraits traits,
-    std::function<void()> pause_callback,
-    std::function<void()> resume_callback,
-    std::function<void(Blockers)> blocker_callback)
+  std::function<void(EasyTrafficLightPtr)> handle_callback,
+  const std::string& fleet_name,
+  const std::string& robot_name,
+  rmf_traffic::agv::VehicleTraits traits,
+  std::function<void()> pause_callback,
+  std::function<void()> resume_callback,
+  std::function<void(Blockers)> blocker_callback)
 {
   if (!handle_callback)
   {
@@ -349,44 +350,43 @@ void Adapter::add_easy_traffic_light(
   }
 
   const auto command_handle =
-      std::make_shared<EasyTrafficLight::Implementation::CommandHandle>();
+    std::make_shared<EasyTrafficLight::Implementation::CommandHandle>();
 
   add_traffic_light(
-        command_handle,
-        fleet_name,
-        robot_name,
-        std::move(traits),
-        [command_handle,
-         pause_callback = std::move(pause_callback),
-         resume_callback = std::move(resume_callback),
-         handle_callback = std::move(handle_callback),
-         blocker_callback = std::move(blocker_callback),
-         worker = _pimpl->worker,
-         node = _pimpl->node,
-         fleet_name,
-         robot_name](
-        TrafficLight::UpdateHandlePtr update_handle)
-  {
-    EasyTrafficLightPtr easy_handle =
-        EasyTrafficLight::Implementation::make(
-          std::move(update_handle),
-          std::move(pause_callback),
-          std::move(resume_callback),
-          std::move(blocker_callback),
-          worker,
-          node,
-          robot_name,
-          fleet_name);
-
-    command_handle->pimpl = easy_handle;
-
-    worker.schedule(
-          [easy_handle = std::move(easy_handle),
-           handle_callback = std::move(handle_callback)](const auto&)
+    command_handle,
+    fleet_name,
+    robot_name,
+    std::move(traits),
+    [command_handle,
+    pause_callback = std::move(pause_callback),
+    resume_callback = std::move(resume_callback),
+    handle_callback = std::move(handle_callback),
+    blocker_callback = std::move(blocker_callback),
+    worker = _pimpl->worker,
+    node = _pimpl->node,
+    fleet_name,
+    robot_name](
+      TrafficLight::UpdateHandlePtr update_handle)
     {
-      handle_callback(easy_handle);
+      EasyTrafficLightPtr easy_handle = EasyTrafficLight::Implementation::make(
+        std::move(update_handle),
+        std::move(pause_callback),
+        std::move(resume_callback),
+        std::move(blocker_callback),
+        worker,
+        node,
+        robot_name,
+        fleet_name);
+
+      command_handle->pimpl = easy_handle;
+
+      worker.schedule(
+        [easy_handle = std::move(easy_handle),
+        handle_callback = std::move(handle_callback)](const auto&)
+        {
+          handle_callback(easy_handle);
+        });
     });
-  });
 }
 
 //==============================================================================
@@ -421,7 +421,7 @@ Adapter& Adapter::wait()
   std::mutex temp;
   std::unique_lock<std::mutex> lock(temp);
   _pimpl->node->spin_cv().wait(
-        lock, [&](){ return !_pimpl->node->still_spinning(); });
+    lock, [&]() { return !_pimpl->node->still_spinning(); });
 
   return *this;
 }
@@ -433,11 +433,11 @@ Adapter& Adapter::wait_for(std::chrono::nanoseconds max_wait)
   std::mutex temp;
   std::unique_lock<std::mutex> lock(temp);
   _pimpl->node->spin_cv().wait_until(
-        lock, wait_until_time, [&]()
-  {
-    return !_pimpl->node->still_spinning()
-        && std::chrono::steady_clock::now() < wait_until_time;
-  });
+    lock, wait_until_time, [&]()
+    {
+      return !_pimpl->node->still_spinning()
+      && std::chrono::steady_clock::now() < wait_until_time;
+    });
 
   return *this;
 }

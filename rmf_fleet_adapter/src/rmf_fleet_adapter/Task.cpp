@@ -28,20 +28,20 @@ namespace rmf_fleet_adapter {
 
 //==============================================================================
 std::shared_ptr<Task> Task::make(
-    std::string id,
-    PendingPhases phases,
-    rxcpp::schedulers::worker worker,
-    rmf_traffic::Time deployment_time,
-    rmf_task::agv::State finish_state,
-    rmf_task::ConstRequestPtr request)
+  std::string id,
+  PendingPhases phases,
+  rxcpp::schedulers::worker worker,
+  rmf_traffic::Time deployment_time,
+  rmf_task::agv::State finish_state,
+  rmf_task::ConstRequestPtr request)
 {
   return std::make_shared<Task>(
-        Task(std::move(id),
-          std::move(phases),
-          std::move(worker),
-          deployment_time,
-          finish_state,
-          std::move(request)));
+    Task(std::move(id),
+    std::move(phases),
+    std::move(worker),
+    deployment_time,
+    finish_state,
+    std::move(request)));
 }
 
 //==============================================================================
@@ -109,18 +109,18 @@ const rmf_task::agv::State Task::finish_state() const
 
 //==============================================================================
 Task::Task(
-    std::string id,
-    std::vector<std::unique_ptr<PendingPhase>> phases,
-    rxcpp::schedulers::worker worker,
-    rmf_traffic::Time deployment_time,
-    rmf_task::agv::State finish_state,
-    rmf_task::ConstRequestPtr request)
-  : _id(std::move(id)),
-    _pending_phases(std::move(phases)),
-    _worker(std::move(worker)),
-    _deployment_time(deployment_time),
-    _finish_state(finish_state),
-    _request(std::move(request))
+  std::string id,
+  std::vector<std::unique_ptr<PendingPhase>> phases,
+  rxcpp::schedulers::worker worker,
+  rmf_traffic::Time deployment_time,
+  rmf_task::agv::State finish_state,
+  rmf_task::ConstRequestPtr request)
+: _id(std::move(id)),
+  _pending_phases(std::move(phases)),
+  _worker(std::move(worker)),
+  _deployment_time(deployment_time),
+  _finish_state(finish_state),
+  _request(std::move(request))
 {
   _status_obs = _status_publisher.get_observable();
   std::reverse(_pending_phases.begin(), _pending_phases.end());
@@ -149,68 +149,80 @@ void Task::_start_next_phase()
     return;
   }
 
-  _active_phase = _pending_phases.back()->begin();
+  std::unique_ptr<PendingPhase> next_pending =
+    std::move(_pending_phases.back());
   _pending_phases.pop_back();
+
+  if (!next_pending)
+  {
+    // *INDENT-OFF*
+    throw std::runtime_error(
+      "[Task::_start_next_phase] INTERNAL ERROR: Next phase has a null value");
+    // *INDENT-ON*
+  }
+  _active_phase = next_pending->begin();
+
   _active_phase_subscription =
-      _active_phase->observe()
-      .observe_on(rxcpp::identity_same_worker(_worker))
-      .subscribe(
-        [w = weak_from_this()](
-        const rmf_task_msgs::msg::TaskSummary& msg)
-        {
-          const auto task = w.lock();
-          if (!task)
-            return;
+    _active_phase->observe()
+    .observe_on(rxcpp::identity_same_worker(_worker))
+    .subscribe(
 
-          auto summary = msg;
-          // We have received a status update from the phase. We will forward
-          // this to whoever is subscribing to the Task.
-          summary.task_id = task->_id;
+    [w = weak_from_this()](
+      const rmf_task_msgs::msg::TaskSummary& msg)
+    {
+      const auto task = w.lock();
+      if (!task)
+        return;
 
-          // We don't want to say that the task is complete until the very end.
-          if (summary.STATE_COMPLETED == summary.state)
-            summary.state = summary.STATE_ACTIVE;
+      auto summary = msg;
+      // We have received a status update from the phase. We will forward
+      // this to whoever is subscribing to the Task.
+      summary.task_id = task->_id;
 
-          summary.status += " | Remaining phases: "
-              + std::to_string(task->_pending_phases.size() + 1);
+      // We don't want to say that the task is complete until the very end.
+      if (summary.STATE_COMPLETED == summary.state)
+        summary.state = summary.STATE_ACTIVE;
 
-          task->_status_publisher.get_subscriber().on_next(summary);
-        },
-        [w = weak_from_this()](std::exception_ptr e)
-        {
-          const auto task = w.lock();
-          if (!task)
-            return;
+      summary.status += " | Remaining phases: "
+      + std::to_string(task->_pending_phases.size() + 1);
 
-          task->_pending_phases.clear();
-          std::string exception_msg;
-          try
-          {
-            if (e)
-              std::rethrow_exception(e);
-          }
-          catch(const std::exception& e)
-          {
-            exception_msg = e.what();
-          }
+      task->_status_publisher.get_subscriber().on_next(summary);
+    },
+    [w = weak_from_this()](std::exception_ptr e)
+    {
+      const auto task = w.lock();
+      if (!task)
+        return;
 
-          StatusMsg msg;
-          msg.state = msg.STATE_FAILED;
-          msg.status = "Failure at phase ["
-            + task->_active_phase->description() + "]: "
-            + exception_msg;
+      task->_pending_phases.clear();
+      std::string exception_msg;
+      try
+      {
+        if (e)
+          std::rethrow_exception(e);
+      }
+      catch (const std::exception& e)
+      {
+        exception_msg = e.what();
+      }
 
-          task->_status_publisher.get_subscriber().on_next(msg);
-        },
-        [w = weak_from_this()]()
-        {
-          const auto task = w.lock();
-          if (!task)
-            return;
+      StatusMsg msg;
+      msg.state = msg.STATE_FAILED;
+      msg.status = "Failure at phase ["
+      + task->_active_phase->description() + "]: "
+      + exception_msg;
 
-          // We have received a completion notice from the phase
-          task->_start_next_phase();
-        });
+      task->_status_publisher.get_subscriber().on_next(msg);
+    },
+    [w = weak_from_this()]()
+    {
+      const auto task = w.lock();
+      if (!task)
+        return;
+
+      // We have received a completion notice from the phase
+      task->_start_next_phase();
+    });
 }
 
 //==============================================================================

@@ -39,7 +39,8 @@ struct DoorOpen
    * 2. It is completed when the supervisor state contains the requester_id and the door has an OPEN mode
    * 4. If cancelled, should start a door close phase
    */
-  class ActivePhase : public Task::ActivePhase, public std::enable_shared_from_this<ActivePhase>
+  class ActivePhase : public Task::ActivePhase,
+    public std::enable_shared_from_this<ActivePhase>
   {
   public:
 
@@ -65,7 +66,8 @@ struct DoorOpen
     std::string _door_name;
     std::string _request_id;
     rmf_traffic::Time _expected_finish;
-    rxcpp::subjects::behavior<bool> _cancelled = rxcpp::subjects::behavior<bool>(false);
+    rxcpp::subjects::behavior<bool> _cancelled =
+      rxcpp::subjects::behavior<bool>(false);
     rxcpp::observable<Task::StatusMsg> _obs;
     std::string _description;
     rclcpp::TimerBase::SharedPtr _timer;

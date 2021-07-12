@@ -128,21 +128,21 @@ SCENARIO("Find a path")
     const auto goal_1 = rmf_traffic::agv::Plan::Goal(7);
 
     auto path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
-          planner, rmf_traffic::agv::Plan::StartSet({start_0}),
-          goal_0, database->snapshot(), p0.id(),
-          std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
+      planner, rmf_traffic::agv::Plan::StartSet({start_0}),
+      goal_0, database->snapshot(), p0.id(),
+      std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_0_promise;
     auto result_0_future = result_0_promise.get_future();
     auto path_sub =
-        rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
-          path_service)
-        .observe_on(rxcpp::observe_on_event_loop())
-        .subscribe(
-          [&result_0_promise](const auto& result)
-    {
-      result_0_promise.set_value(result);
-    });
+      rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
+      path_service)
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+      [&result_0_promise](const auto& result)
+      {
+        result_0_promise.set_value(result);
+      });
 
     const auto status_0 = result_0_future.wait_for(1s);
     REQUIRE(std::future_status::ready == status_0);
@@ -153,21 +153,21 @@ SCENARIO("Find a path")
     // First we will test that a conflict happens when p0 does not put its
     // itinerary in the database.
     path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
-          planner, rmf_traffic::agv::Plan::StartSet({start_1}),
-          goal_1, database->snapshot(), p1.id(),
-          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
+      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      goal_1, database->snapshot(), p1.id(),
+      std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> pre_result_1_promise;
     auto pre_result_1_future = pre_result_1_promise.get_future();
     path_sub =
-        rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
-          path_service)
-        .observe_on(rxcpp::observe_on_event_loop())
-        .subscribe(
-          [&pre_result_1_promise](const auto& result)
-    {
-      pre_result_1_promise.set_value(result);
-    });
+      rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
+      path_service)
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+      [&pre_result_1_promise](const auto& result)
+      {
+        pre_result_1_promise.set_value(result);
+      });
 
     const auto pre_status_1 = pre_result_1_future.wait_for(1s);
     REQUIRE(std::future_status::ready == pre_status_1);
@@ -180,8 +180,8 @@ SCENARIO("Find a path")
       for (const auto& t1 : pre_result_1->get_itinerary())
       {
         at_least_one_conflict |= rmf_traffic::DetectConflict::between(
-              p0.description().profile(), t0.trajectory(),
-              p1.description().profile(), t1.trajectory()).has_value();
+          p0.description().profile(), t0.trajectory(),
+          p1.description().profile(), t1.trajectory()).has_value();
       }
     }
 
@@ -192,21 +192,21 @@ SCENARIO("Find a path")
     p0.set(result_0->get_itinerary());
 
     path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
-          planner, rmf_traffic::agv::Plan::StartSet({start_1}),
-          goal_1, database->snapshot(), p1.id(),
-          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
+      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      goal_1, database->snapshot(), p1.id(),
+      std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_1_promise;
     auto result_1_future = result_1_promise.get_future();
     path_sub =
-        rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
-          path_service)
-        .observe_on(rxcpp::observe_on_event_loop())
-        .subscribe(
-          [&result_1_promise](const auto& result)
-    {
-      result_1_promise.set_value(result);
-    });
+      rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
+      path_service)
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+      [&result_1_promise](const auto& result)
+      {
+        result_1_promise.set_value(result);
+      });
 
     const auto status_1 = result_1_future.wait_for(1s);
     REQUIRE(std::future_status::ready == status_1);
@@ -218,8 +218,8 @@ SCENARIO("Find a path")
       for (const auto& t1 : result_1->get_itinerary())
       {
         CHECK_FALSE(rmf_traffic::DetectConflict::between(
-                      p0.description().profile(), t0.trajectory(),
-                      p1.description().profile(), t1.trajectory()));
+            p0.description().profile(), t0.trajectory(),
+            p1.description().profile(), t1.trajectory()));
       }
     }
   }
@@ -234,35 +234,35 @@ SCENARIO("Find a path")
 
     rmf_traffic::Trajectory blocking_traj;
     blocking_traj.insert(
-          now,
-          {l0[0], l0[1], 0.0},
-          Eigen::Vector3d::Zero());
+      now,
+      {l0[0], l0[1], 0.0},
+      Eigen::Vector3d::Zero());
     blocking_traj.insert(
-          now + 1h,
-          {l0[0], l0[1], 0.0},
-          Eigen::Vector3d::Zero());
+      now + 1h,
+      {l0[0], l0[1], 0.0},
+      Eigen::Vector3d::Zero());
 
     rmf_traffic::Route blocking_route(
-          graph.get_waypoint(5).get_map_name(), blocking_traj);
+      graph.get_waypoint(5).get_map_name(), blocking_traj);
 
     p0.set({blocking_route});
 
     auto path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
-          planner, rmf_traffic::agv::Plan::StartSet({start_1}), goal_1,
-          database->snapshot(), p1.id(),
-          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
+      planner, rmf_traffic::agv::Plan::StartSet({start_1}), goal_1,
+      database->snapshot(), p1.id(),
+      std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_1_promise;
     auto result_1_future = result_1_promise.get_future();
     auto path_sub =
-        rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
-          path_service)
-        .observe_on(rxcpp::observe_on_event_loop())
-        .subscribe(
-          [&result_1_promise](const auto& result)
-    {
-      result_1_promise.set_value(result);
-    });
+      rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
+      path_service)
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+      [&result_1_promise](const auto& result)
+      {
+        result_1_promise.set_value(result);
+      });
 
     auto status_1 = result_1_future.wait_for(60s);
     REQUIRE(std::future_status::ready == status_1);
@@ -277,9 +277,9 @@ SCENARIO("Find a path")
     for (const auto& t1 : result_1->get_itinerary())
     {
       at_least_one_conflict = at_least_one_conflict
-          || rmf_traffic::DetectConflict::between(
-            p0.description().profile(), blocking_traj,
-            p1.description().profile(), t1.trajectory());
+        || rmf_traffic::DetectConflict::between(
+        p0.description().profile(), blocking_traj,
+        p1.description().profile(), t1.trajectory());
     }
 
     CHECK(at_least_one_conflict);
@@ -303,7 +303,7 @@ SCENARIO("Office map")
   };
 
   const auto graph = rmf_fleet_adapter::agv::parse_graph(
-        TEST_RESOURCES_DIR"/office_nav.yaml", traits);
+    TEST_RESOURCES_DIR "/office_nav.yaml", traits);
 
   auto database = std::make_shared<rmf_traffic::schedule::Database>();
   auto p0 = rmf_traffic::schedule::make_participant(
@@ -323,28 +323,28 @@ SCENARIO("Office map")
 
   const auto now = std::chrono::steady_clock::now();
   const auto starts =
-      rmf_traffic::agv::Plan::StartSet(
-  {
-    {now, 17, 2.7496, Eigen::Vector2d(7.75515, -5.7033)}
-  });
+    rmf_traffic::agv::Plan::StartSet(
+    {
+      {now, 17, 2.7496, Eigen::Vector2d(7.75515, -5.7033)}
+    });
 
   const auto goal = rmf_traffic::agv::Plan::Goal(10);
 
   auto path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
-        planner, starts, goal, database->snapshot(), 0,
-        std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
+    planner, starts, goal, database->snapshot(), 0,
+    std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
 
   std::promise<rmf_traffic::agv::Plan::Result> result_0_promise;
   auto result_0_future = result_0_promise.get_future();
   auto path_sub =
-      rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
-        path_service)
-      .observe_on(rxcpp::observe_on_event_loop())
-      .subscribe(
-        [&result_0_promise](const auto& result)
-  {
-    result_0_promise.set_value(result);
-  });
+    rmf_rxcpp::make_job<rmf_fleet_adapter::services::FindPath::Result>(
+    path_service)
+    .observe_on(rxcpp::observe_on_event_loop())
+    .subscribe(
+    [&result_0_promise](const auto& result)
+    {
+      result_0_promise.set_value(result);
+    });
 
   using namespace std::chrono_literals;
   const auto status_0 = result_0_future.wait_for(2min);

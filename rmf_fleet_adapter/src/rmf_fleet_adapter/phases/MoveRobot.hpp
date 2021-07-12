@@ -108,74 +108,78 @@ struct MoveRobot
 template<typename Subscriber>
 void MoveRobot::Action::operator()(const Subscriber& s)
 {
+  const auto command = _context->command();
+  if (!command)
+    return;
+
   _context->command()->follow_new_path(
-        _waypoints,
-        [s, w_action = weak_from_this(), r = _context->requester_id()](
-        std::size_t path_index, rmf_traffic::Duration estimate)
-  {
-    const auto action = w_action.lock();
-    if (!action)
-      return;
-
-    if (path_index == action->_waypoints.size()-1
-        && estimate < std::chrono::seconds(1)
-        && action->_tail_period.has_value())
+    _waypoints,
+    [s, w_action = weak_from_this(), r = _context->requester_id()](
+      std::size_t path_index, rmf_traffic::Duration estimate)
     {
-      const auto now = action->_context->now();
-      if (!action->_last_tail_bump.has_value()
-          || *action->_last_tail_bump + *action->_tail_period < now)
+      const auto action = w_action.lock();
+      if (!action)
+        return;
+
+      if (path_index == action->_waypoints.size()-1
+      && estimate < std::chrono::seconds(1)
+      && action->_tail_period.has_value())
       {
-        action->_last_tail_bump = now;
-        action->_context->worker().schedule(
-          [context = action->_context, bump = *action->_tail_period](
-            const auto&)
+        const auto now = action->_context->now();
+        if (!action->_last_tail_bump.has_value()
+        || *action->_last_tail_bump + *action->_tail_period < now)
         {
-          context->itinerary().delay(bump);
-        });
+          action->_last_tail_bump = now;
+          action->_context->worker().schedule(
+            [context = action->_context, bump = *action->_tail_period](
+              const auto&)
+            {
+              context->itinerary().delay(bump);
+            });
+        }
       }
-    }
 
-    if (path_index != action->_next_path_index)
-    {
-      action->_next_path_index = path_index;
-      Task::StatusMsg msg;
-      msg.state = Task::StatusMsg::STATE_ACTIVE;
-
-      if (path_index < action->_waypoints.size())
+      if (path_index != action->_next_path_index)
       {
-        std::ostringstream oss;
-        oss << "Moving [" << r << "]: ("
-            << action->_waypoints[path_index].position().transpose() << ") -> ("
-            << action->_waypoints.back().position().transpose() << ")";
-        msg.status = oss.str();
+        action->_next_path_index = path_index;
+        Task::StatusMsg msg;
+        msg.state = Task::StatusMsg::STATE_ACTIVE;
+
+        if (path_index < action->_waypoints.size())
+        {
+          std::ostringstream oss;
+          oss << "Moving [" << r << "]: ("
+              << action->_waypoints[path_index].position().transpose() << ") -> ("
+              << action->_waypoints.back().position().transpose() << ")";
+          msg.status = oss.str();
+        }
+        else
+        {
+          std::ostringstream oss;
+          oss << "Moving [" << r << "] | ERROR: Bad state. Arrived at path index ["
+              << path_index << "] but path only has ["
+              << action->_waypoints.size() << "] elements.";
+          msg.status = oss.str();
+        }
+
+        s.on_next(msg);
       }
-      else
+
+      if (action->_next_path_index >= action->_waypoints.size())
       {
-        std::ostringstream oss;
-        oss << "Moving [" << r << "] | ERROR: Bad state. Arrived at path index ["
-            << path_index << "] but path only has ["
-            << action->_waypoints.size() << "] elements.";
-        msg.status = oss.str();
+        // TODO(MXG): Consider a warning here. We'll ignore it for now, because
+        // maybe it was called when the robot arrived at the final waypoint.
+        return;
       }
 
-      s.on_next(msg);
-    }
+      const auto current_delay = action->_context->itinerary().delay();
 
-    if (action->_next_path_index >= action->_waypoints.size())
-    {
-      // TODO(MXG): Consider a warning here. We'll ignore it for now, because
-      // maybe it was called when the robot arrived at the final waypoint.
-      return;
-    }
+      const rmf_traffic::Time now = action->_context->now();
+      const auto planned_time = action->_waypoints[path_index].time();
+      const auto previously_expected_arrival = planned_time + current_delay;
+      const auto newly_expected_arrival = now + estimate;
 
-    const auto current_delay = action->_context->itinerary().delay();
-
-    const rmf_traffic::Time now = action->_context->now();
-    const auto planned_time = action->_waypoints[path_index].time();
-    const auto previously_expected_arrival = planned_time + current_delay;
-    const auto newly_expected_arrival = now + estimate;
-
-    const auto new_delay = [&]() -> rmf_traffic::Duration
+      const auto new_delay = [&]() -> rmf_traffic::Duration
       {
         if (newly_expected_arrival < planned_time)
         {
@@ -188,39 +192,39 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         // Otherwise we will adjust the time to match up with the latest
         // expectations
         return newly_expected_arrival - previously_expected_arrival;
-      }();
+      } ();
 
-    if (!action->_interrupted)
-    {
-      if (const auto max_delay = action->_context->maximum_delay())
+      if (!action->_interrupted)
       {
-        if (*max_delay < current_delay + new_delay)
+        if (const auto max_delay = action->_context->maximum_delay())
         {
-          action->_interrupted = true;
-          action->_context->trigger_interrupt();
+          if (*max_delay < current_delay + new_delay)
+          {
+            action->_interrupted = true;
+            action->_context->trigger_interrupt();
+          }
         }
       }
-    }
 
-    if (std::chrono::milliseconds(500).count() < std::abs(new_delay.count()))
-    {
-      action->_context->worker().schedule(
-            [context = action->_context, new_delay](const auto&)
+      if (std::chrono::milliseconds(500).count() < std::abs(new_delay.count()))
       {
-        context->itinerary().delay(new_delay);
-      });
-    }
-  },
-        [s]()
-  {
-    Task::StatusMsg msg;
-    msg.state = Task::StatusMsg::STATE_COMPLETED;
-    msg.status = "move robot success";
-    s.on_next(msg);
+        action->_context->worker().schedule(
+          [context = action->_context, new_delay](const auto&)
+          {
+            context->itinerary().delay(new_delay);
+          });
+      }
+    },
+    [s]()
+    {
+      Task::StatusMsg msg;
+      msg.state = Task::StatusMsg::STATE_COMPLETED;
+      msg.status = "move robot success";
+      s.on_next(msg);
 
-    s.on_completed();
+      s.on_completed();
 
-  });
+    });
 }
 
 } // namespace phases

@@ -71,6 +71,8 @@ public:
   /// Submit a task request
   void dispatch_task(const rmf_task_msgs::msg::TaskProfile& profile);
 
+  ~MockAdapter();
+
   class Implementation;
 private:
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;

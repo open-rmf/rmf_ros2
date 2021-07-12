@@ -18,6 +18,7 @@
 #include <rmf_task_ros2/Dispatcher.hpp>
 
 #include <rclcpp/node.hpp>
+#include <rclcpp/executors/single_threaded_executor.hpp>
 
 #include "action/Client.hpp"
 
@@ -55,7 +56,7 @@ public:
   StatusCallback on_change_fn;
 
   std::queue<bidding::BidNotice> queue_bidding_tasks;
-  
+
   /// TODO: should rename "active" to "ongoing" to prevent confusion
   /// of with task STATE_ACTIVE
   DispatchTasks active_dispatch_tasks;
@@ -91,7 +92,7 @@ public:
     publish_active_tasks_period =
       node->declare_parameter<int>("publish_active_tasks_period", 2);
     RCLCPP_INFO(node->get_logger(),
-      " Declared Publish_active_tasks_period as: %f secs", 
+      " Declared publish_active_tasks_period as: %f secs",
       publish_active_tasks_period);
 
     const auto qos = rclcpp::ServicesQoS().reliable();
@@ -99,9 +100,9 @@ public:
       rmf_task_ros2::ActiveTasksTopicName, qos);
 
     timer = node->create_wall_timer(
-        std::chrono::seconds(publish_active_tasks_period),
-        std::bind(
-          &Dispatcher::Implementation::publish_ongoing_tasks, this));
+      std::chrono::seconds(publish_active_tasks_period),
+      std::bind(
+        &Dispatcher::Implementation::publish_ongoing_tasks, this));
 
     // Setup up stream srv interfaces
     submit_task_srv = node->create_service<SubmitTaskSrv>(
@@ -509,7 +510,11 @@ std::shared_ptr<rclcpp::Node> Dispatcher::node()
 //==============================================================================
 void Dispatcher::spin()
 {
-  rclcpp::spin(_pimpl->node);
+  rclcpp::ExecutorOptions options;
+  options.context = _pimpl->node->get_node_options().context();
+  rclcpp::executors::SingleThreadedExecutor executor(options);
+  executor.add_node(_pimpl->node);
+  executor.spin();
 }
 
 //==============================================================================
