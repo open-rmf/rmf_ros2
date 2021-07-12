@@ -22,16 +22,16 @@ namespace services {
 
 //==============================================================================
 FindEmergencyPullover::FindEmergencyPullover(
-    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-    rmf_traffic::agv::Plan::StartSet starts,
-    std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
-    rmf_traffic::schedule::ParticipantId participant_id,
-    std::shared_ptr<const rmf_traffic::Profile> profile)
-  : _planner(std::move(planner)),
-    _starts(std::move(starts)),
-    _schedule(std::move(schedule)),
-    _participant_id(participant_id),
-    _profile(std::move(profile))
+  std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+  rmf_traffic::agv::Plan::StartSet starts,
+  std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
+  rmf_traffic::schedule::ParticipantId participant_id,
+  std::shared_ptr<const rmf_traffic::Profile> profile)
+: _planner(std::move(planner)),
+  _starts(std::move(starts)),
+  _schedule(std::move(schedule)),
+  _participant_id(participant_id),
+  _profile(std::move(profile))
 {
   // Do nothing
 }

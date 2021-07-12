@@ -24,15 +24,15 @@ namespace tasks {
 
 //==============================================================================
 std::shared_ptr<Task> make_clean(
-    const rmf_task::ConstRequestPtr request,
-    const agv::RobotContextPtr& context,
-    const rmf_traffic::agv::Plan::Start clean_start,
-    const rmf_traffic::Time deployment_time,
-    const rmf_task::agv::State finish_state)
+  const rmf_task::ConstRequestPtr request,
+  const agv::RobotContextPtr& context,
+  const rmf_traffic::agv::Plan::Start clean_start,
+  const rmf_traffic::Time deployment_time,
+  const rmf_task::agv::State finish_state)
 {
-  std::shared_ptr<const rmf_task::requests::Clean::Description> description = 
+  std::shared_ptr<const rmf_task::requests::Clean::Description> description =
     std::dynamic_pointer_cast<
-      const rmf_task::requests::Clean::Description>(request->description());
+    const rmf_task::requests::Clean::Description>(request->description());
 
   if (description == nullptr)
     return nullptr;
@@ -61,7 +61,7 @@ std::shared_ptr<Task> make_clean(
           result->get_itinerary().back().trajectory();
         initial_time = *trajectory.finish_time();
         orientation = trajectory.back().position()[2];
-      }      
+      }
 
       // Get the duration of the cleaning process
       const auto request_model = description->make_model(
@@ -70,16 +70,16 @@ std::shared_ptr<Task> make_clean(
       const auto invariant_duration = request_model->invariant_duration();
 
       return rmf_traffic::agv::Planner::Start{
-        initial_time + invariant_duration,
-        start_waypoint,
-        orientation};
-    }();
+      initial_time + invariant_duration,
+      start_waypoint,
+      orientation};
+    } ();
 
   Task::PendingPhases phases;
   phases.push_back(
-        phases::GoToPlace::make(context, std::move(clean_start), clean_goal));
+    phases::GoToPlace::make(context, std::move(clean_start), clean_goal));
   phases.push_back(
-        phases::GoToPlace::make(context, std::move(end_start), end_goal));
+    phases::GoToPlace::make(context, std::move(end_start), end_goal));
 
   return Task::make(
     request->id(),

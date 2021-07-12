@@ -21,7 +21,6 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <chrono>
-#include <thread>
 #include <rmf_utils/catch.hpp>
 
 namespace rmf_task_ros2 {
@@ -30,6 +29,9 @@ namespace action {
 //==============================================================================
 SCENARIO("Action communication with client and server", "[ActionInterface]")
 {
+  const auto rcl_context = std::make_shared<rclcpp::Context>();
+  rcl_context->init(0, nullptr);
+
   TaskProfile task_profile1;
   task_profile1.task_id = "task1";
   task_profile1.description.task_type.type =
@@ -43,30 +45,37 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
   //============================================================================
 
   // received task to test
-  std::optional<TaskProfile> test_add_task;
-  std::optional<TaskProfile> test_cancel_task;
+  // NOTE(MXG): We do not appear to be placing any test expectations on
+  // the value of test_add_task. That might mean we're not testing as thoroughly
+  // as we could.
+  const auto test_add_task = std::make_shared<std::optional<TaskProfile>>();
+  const auto test_cancel_task = std::make_shared<std::optional<TaskProfile>>();
 
   // Creating 1 auctioneer and 1 bidder
-  rclcpp::init(0, nullptr);
-  auto node = rclcpp::Node::make_shared("test_ActionInferface");
+  auto node = rclcpp::Node::make_shared(
+    "test_ActionInferface",
+    rclcpp::NodeOptions().context(rcl_context));
+
   auto action_server = Server::make(node, "test_server");
   auto action_client = Client::make(node);
 
-  rclcpp::executors::SingleThreadedExecutor executor;
+  rclcpp::ExecutorOptions exec_options;
+  exec_options.context = rcl_context;
+  rclcpp::executors::SingleThreadedExecutor executor(exec_options);
   executor.add_node(node);
 
   // received test request msg from client
   action_server->register_callbacks(
     // add task
-    [&test_add_task](const TaskProfile& task_profile)
+    [test_add_task](const TaskProfile& task_profile)
     {
-      test_add_task = task_profile;
+      *test_add_task = task_profile;
       return true;
     },
     // cancel task
-    [&test_cancel_task](const TaskProfile& task_profile)
+    [test_cancel_task](const TaskProfile& task_profile)
     {
-      test_cancel_task = task_profile;
+      *test_cancel_task = task_profile;
       return true;
     }
   );
@@ -109,11 +118,13 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(0.5));
 
+    REQUIRE(test_cancel_task.get());
+
     // Invalid Cancel Task!
     bool cancel_success = action_client->cancel_task(task_profile1);
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(0.5));
-    REQUIRE(!test_cancel_task);
+    REQUIRE(!test_cancel_task->has_value());
     REQUIRE(cancel_success == false); // cancel failed
     REQUIRE(action_client->size() == 1);
 
@@ -122,7 +133,7 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(0.5));
 
-    REQUIRE(test_cancel_task);
+    REQUIRE(test_cancel_task->has_value());
     REQUIRE(*test_cancel_task == task_profile2);
     REQUIRE(status_ptr->is_terminated());
     REQUIRE(action_client->size() == 0);
@@ -130,20 +141,21 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
 
   //============================================================================
 
-  std::optional<TaskStatus> test_task_onchange;
-  std::optional<TaskStatus> test_task_onterminate;
+  const auto test_task_onchange = std::make_shared<std::optional<TaskStatus>>();
+  const auto test_task_onterminate =
+    std::make_shared<std::optional<TaskStatus>>();
 
   // received status update from server
   action_client->on_change(
-    [&test_task_onchange](const TaskStatusPtr status)
+    [test_task_onchange](const TaskStatusPtr status)
     {
-      test_task_onchange = *status;
+      *test_task_onchange = *status;
     }
   );
   action_client->on_terminate(
-    [&test_task_onterminate](const TaskStatusPtr status)
+    [test_task_onterminate](const TaskStatusPtr status)
     {
-      test_task_onterminate = *status;
+      *test_task_onterminate = *status;
     }
   );
 
@@ -155,8 +167,9 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(0.5));
 
-    REQUIRE(test_task_onchange);
-    REQUIRE(test_task_onchange->state == TaskStatus::State::Queued);
+    REQUIRE(test_task_onchange.get());
+    REQUIRE(test_task_onchange->has_value());
+    CHECK((*test_task_onchange)->state == TaskStatus::State::Queued);
 
     TaskStatus server_task;
     server_task.task_profile = task_profile1;
@@ -167,8 +180,8 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(1.5));
 
-    REQUIRE(test_task_onchange->state == TaskStatus::State::Executing);
-    REQUIRE(!test_task_onterminate); // havnt terminated yet
+    CHECK((*test_task_onchange)->state == TaskStatus::State::Executing);
+    CHECK(!test_task_onterminate->has_value());
 
     // completion
     server_task.state = TaskStatus::State::Completed;
@@ -177,10 +190,12 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(0.5));
 
-    REQUIRE(test_task_onterminate);
-    REQUIRE(test_task_onterminate->state == TaskStatus::State::Completed);
+    REQUIRE(test_task_onterminate.get());
+    REQUIRE(test_task_onterminate->has_value());
+    CHECK((*test_task_onterminate)->state == TaskStatus::State::Completed);
   }
-  rclcpp::shutdown();
+
+  rclcpp::shutdown(rcl_context);
 }
 
 } // namespace action

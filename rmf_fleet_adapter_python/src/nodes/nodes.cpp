@@ -38,16 +38,18 @@ namespace py = pybind11;
 /// TODO (YL): Might move these nodes static functions to a different repo as
 /// these are not a part of adapter
 //==============================================================================
-void bind_nodes(py::module &m)
+void bind_nodes(py::module& m)
 {
   auto m_nodes = m.def_submodule("nodes");
 
   // Make blockade_Node
-  m_nodes.def("make_blockade", &rmf_traffic_ros2::blockade::make_node,
-              py::arg("options"),
-              "make rmf ros2 blockade node");
+  m_nodes.def("make_blockade",
+    py::overload_cast<const rclcpp::NodeOptions&>(
+      &rmf_traffic_ros2::blockade::make_node),
+    py::arg("options"),
+    "make rmf ros2 blockade node");
 
   // Make Schedule Node
   m_nodes.def("make_schedule", &rmf_traffic_ros2::schedule::make_node,
-              py::arg("options"));
+    py::arg("options"));
 }

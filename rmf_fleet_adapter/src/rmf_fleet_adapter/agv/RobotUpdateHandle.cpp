@@ -51,41 +51,45 @@ RobotUpdateHandle::Implementation::get_context() const
 void RobotUpdateHandle::interrupted()
 {
   if (const auto context = _pimpl->get_context())
-    context->_interrupt_publisher.get_subscriber().on_next(
-          RobotContext::Empty());
-}
-
-//==============================================================================
-void RobotUpdateHandle::update_position(
-    std::size_t waypoint,
-    double orientation)
-{
-  if (const auto context = _pimpl->get_context())
   {
-    context->worker().schedule(
-          [context, waypoint, orientation](const auto&)
-    {
-      context->_location = {
-        rmf_traffic::agv::Plan::Start(
-          rmf_traffic_ros2::convert(context->node()->now()),
-          waypoint, orientation)
-      };
-    });
+    context->_interrupt_publisher.get_subscriber().on_next(
+      RobotContext::Empty());
   }
 }
 
 //==============================================================================
 void RobotUpdateHandle::update_position(
-    const Eigen::Vector3d& position,
-    const std::vector<std::size_t>& lanes)
+  std::size_t waypoint,
+  double orientation)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [context, waypoint, orientation](const auto&)
+      {
+        context->_location = {
+          rmf_traffic::agv::Plan::Start(
+            rmf_traffic_ros2::convert(context->node()->now()),
+            waypoint, orientation)
+        };
+      });
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::update_position(
+  const Eigen::Vector3d& position,
+  const std::vector<std::size_t>& lanes)
 {
   if (const auto context = _pimpl->get_context())
   {
     if (lanes.empty())
     {
+      // *INDENT-OFF*
       throw std::runtime_error(
-            "[RobotUpdateHandle::update_position] No lanes specified for "
-            "function signature that requires at least one lane.");
+        "[RobotUpdateHandle::update_position] No lanes specified for "
+        "function signature that requires at least one lane.");
+      // *INDENT-ON*
     }
 
     const auto now = rmf_traffic_ros2::convert(context->node()->now());
@@ -96,69 +100,69 @@ void RobotUpdateHandle::update_position(
       const auto wp = graph.get_lane(l).exit().waypoint_index();
       starts.push_back(
         {
-          now, wp, position[2], Eigen::Vector2d(position.block<2,1>(0,0)), l
+          now, wp, position[2], Eigen::Vector2d(position.block<2, 1>(0, 0)), l
         });
     }
 
     context->worker().schedule(
-          [context, starts = std::move(starts)](const auto&)
-    {
-      context->_location = std::move(starts);
-    });
+      [context, starts = std::move(starts)](const auto&)
+      {
+        context->_location = std::move(starts);
+      });
   }
 }
 
 //==============================================================================
 void RobotUpdateHandle::update_position(
-    const Eigen::Vector3d& position,
-    const std::size_t waypoint)
+  const Eigen::Vector3d& position,
+  const std::size_t waypoint)
 {
   if (const auto& context = _pimpl->get_context())
   {
     context->worker().schedule(
-          [context, position, waypoint](const auto&)
-    {
-      context->_location = {
-        rmf_traffic::agv::Plan::Start(
-          rmf_traffic_ros2::convert(context->node()->now()),
-          waypoint, position[2], Eigen::Vector2d(position.block<2,1>(0,0)))
-      };
-    });
+      [context, position, waypoint](const auto&)
+      {
+        context->_location = {
+          rmf_traffic::agv::Plan::Start(
+            rmf_traffic_ros2::convert(context->node()->now()),
+            waypoint, position[2], Eigen::Vector2d(position.block<2, 1>(0, 0)))
+        };
+      });
   }
 }
 
 //==============================================================================
 void RobotUpdateHandle::update_position(
-    const std::string& map_name,
-    const Eigen::Vector3d& position,
-    const double max_merge_waypoint_distance,
-    const double max_merge_lane_distance,
-    const double min_lane_length)
+  const std::string& map_name,
+  const Eigen::Vector3d& position,
+  const double max_merge_waypoint_distance,
+  const double max_merge_lane_distance,
+  const double min_lane_length)
 {
   if (const auto context = _pimpl->get_context())
   {
     const auto now = rmf_traffic_ros2::convert(context->node()->now());
     auto starts = rmf_traffic::agv::compute_plan_starts(
-          context->navigation_graph(), map_name, position, now,
-          max_merge_waypoint_distance, max_merge_lane_distance,
-          min_lane_length);
+      context->navigation_graph(), map_name, position, now,
+      max_merge_waypoint_distance, max_merge_lane_distance,
+      min_lane_length);
 
     if (starts.empty())
     {
       RCLCPP_ERROR(
-            context->node()->get_logger(),
-            "[RobotUpdateHandle::update_position] The robot [%s] has diverged "
-            "from its navigation graph, currently located at <%f, %f, %f> on "
-            "map [%s]", context->requester_id().c_str(),
-            position[0], position[1], position[2], map_name.c_str());
+        context->node()->get_logger(),
+        "[RobotUpdateHandle::update_position] The robot [%s] has diverged "
+        "from its navigation graph, currently located at <%f, %f, %f> on "
+        "map [%s]", context->requester_id().c_str(),
+        position[0], position[1], position[2], map_name.c_str());
       return;
     }
 
     context->worker().schedule(
-          [context, starts = std::move(starts)](const auto&)
-    {
-      context->_location = std::move(starts);
-    });
+      [context, starts = std::move(starts)](const auto&)
+      {
+        context->_location = std::move(starts);
+      });
   }
 }
 
@@ -190,24 +194,24 @@ void RobotUpdateHandle::update_battery_soc(const double battery_soc)
   if (const auto context = _pimpl->get_context())
   {
     context->worker().schedule(
-          [context, battery_soc](const auto&)
-    {
-      context->current_battery_soc(battery_soc);
-    });
+      [context, battery_soc](const auto&)
+      {
+        context->current_battery_soc(battery_soc);
+      });
   }
 }
 
 //==============================================================================
 RobotUpdateHandle& RobotUpdateHandle::maximum_delay(
-    rmf_utils::optional<rmf_traffic::Duration> value)
+  rmf_utils::optional<rmf_traffic::Duration> value)
 {
   if (const auto context = _pimpl->get_context())
   {
     context->worker().schedule(
-          [context, value](const auto&)
-    {
-      context->maximum_delay(value);
-    });
+      [context, value](const auto&)
+      {
+        context->maximum_delay(value);
+      });
   }
 
   return *this;
@@ -262,9 +266,9 @@ void RobotUpdateHandle::Unstable::set_lift_entry_watchdog(
   {
     context->worker().schedule(
       [context, watchdog = std::move(watchdog), wait_duration](const auto&)
-    {
-      context->set_lift_entry_watchdog(watchdog, wait_duration);
-    });
+      {
+        context->set_lift_entry_watchdog(watchdog, wait_duration);
+      });
   }
 }
 

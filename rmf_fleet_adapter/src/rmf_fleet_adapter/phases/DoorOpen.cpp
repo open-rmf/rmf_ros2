@@ -49,10 +49,10 @@ DoorOpen::ActivePhase::ActivePhase(
   std::string door_name,
   std::string request_id,
   rmf_traffic::Time expected_finish)
-  :  _context(std::move(context)),
-    _door_name(std::move(door_name)),
-    _request_id(std::move(request_id)),
-    _expected_finish(std::move(expected_finish))
+:  _context(std::move(context)),
+  _door_name(std::move(door_name)),
+  _request_id(std::move(request_id)),
+  _expected_finish(std::move(expected_finish))
 {
   _description = "Opening door \"" + _door_name + "\"";
 }
@@ -96,84 +96,87 @@ void DoorOpen::ActivePhase::_init_obs()
   using rmf_door_msgs::msg::DoorRequest;
   using rmf_door_msgs::msg::DoorState;
   using rmf_door_msgs::msg::SupervisorHeartbeat;
-  using CombinedType = std::tuple<DoorState::SharedPtr, SupervisorHeartbeat::SharedPtr>;
+  using CombinedType = std::tuple<DoorState::SharedPtr,
+      SupervisorHeartbeat::SharedPtr>;
   _obs = transport->door_state().combine_latest(
-        rxcpp::observe_on_event_loop(),
-        transport->door_supervisor())
+    rxcpp::observe_on_event_loop(),
+    transport->door_supervisor())
     .lift<CombinedType>(on_subscribe([weak = weak_from_this(), transport]()
-    {
-      auto me = weak.lock();
-      if (!me)
-        return;
-
-      me->_status.state = Task::StatusMsg::STATE_ACTIVE;
-      me->_publish_open_door();
-      me->_timer = transport->create_wall_timer(std::chrono::milliseconds(1000), [weak, transport]()
       {
         auto me = weak.lock();
         if (!me)
           return;
 
-        // TODO(MXG): We can stop publishing the door request once the
-        // supervisor sees our request.
+        me->_status.state = Task::StatusMsg::STATE_ACTIVE;
         me->_publish_open_door();
-
-        const auto current_expected_finish =
-            me->_expected_finish + me->_context->itinerary().delay();
-
-        const auto delay = me->_context->now() - current_expected_finish;
-        if (delay > std::chrono::seconds(0))
+        me->_timer =
+        transport->try_create_wall_timer(std::chrono::milliseconds(1000),
+        [weak, transport]()
         {
-          me->_context->worker().schedule(
-                [context = me->_context, delay](const auto&)
-          {
-            context->itinerary().delay(delay);
-          });
-        }
-      });
-    }))
-    .map([weak = weak_from_this()](const auto& v)
-    {
-      auto me = weak.lock();
-      if (!me)
-        return Task::StatusMsg();
+          auto me = weak.lock();
+          if (!me)
+            return;
 
-      me->_update_status(std::get<0>(v), std::get<1>(v));
-      return me->_status;
-    })
+          // TODO(MXG): We can stop publishing the door request once the
+          // supervisor sees our request.
+          me->_publish_open_door();
+
+          const auto current_expected_finish =
+          me->_expected_finish + me->_context->itinerary().delay();
+
+          const auto delay = me->_context->now() - current_expected_finish;
+          if (delay > std::chrono::seconds(0))
+          {
+            me->_context->worker().schedule(
+              [context = me->_context, delay](const auto&)
+              {
+                context->itinerary().delay(delay);
+              });
+          }
+        });
+      }))
+    .map([weak = weak_from_this()](const auto& v)
+      {
+        auto me = weak.lock();
+        if (!me)
+          return Task::StatusMsg();
+
+        me->_update_status(std::get<0>(v), std::get<1>(v));
+        return me->_status;
+      })
     .lift<Task::StatusMsg>(grab_while_active())
     .finally([weak = weak_from_this()]()
-    {
-      auto me = weak.lock();
-      if (!me)
-        return;
+      {
+        auto me = weak.lock();
+        if (!me)
+          return;
 
-      me->_timer.reset();
-    })
+        me->_timer.reset();
+      })
     // When the phase is cancelled, queue a door close phase to make sure that there is no hanging
     // open doors
     .take_until(_cancelled.get_observable().filter([](auto b) { return b; }))
     .concat(rxcpp::observable<>::create<Task::StatusMsg>(
-      [weak = weak_from_this()](const auto& s)
-      {
-        auto me = weak.lock();
-        if (!me)
-          return;
-
-        // FIXME: is this thread-safe?
-        if (!me->_cancelled.get_value())
-          s.on_completed();
-        else
+        [weak = weak_from_this()](const auto& s)
         {
-          auto transport = me->_context->node();
-          me->_door_close_phase = DoorClose::ActivePhase::make(
-            me->_context,
-            me->_door_name,
-            me->_request_id
-          );
-          me->_door_close_phase->observe().subscribe(s);
-        }
-      }));
+          auto me = weak.lock();
+          if (!me)
+            return;
+
+          // FIXME: is this thread-safe?
+          if (!me->_cancelled.get_value())
+            s.on_completed();
+          else
+          {
+            auto transport = me->_context->node();
+            me->_door_close_phase = DoorClose::ActivePhase::make(
+              me->_context,
+              me->_door_name,
+              me->_request_id
+            );
+            me->_door_close_phase->observe().subscribe(s);
+          }
+        }));
 }
 
 //==============================================================================
@@ -203,7 +206,7 @@ void DoorOpen::ActivePhase::_update_status(
   else
   {
     _status.status = "[" + _context->name() + "] waiting for door ["
-        + _door_name + "] to open";
+      + _door_name + "] to open";
   }
 }
 
@@ -213,10 +216,10 @@ DoorOpen::PendingPhase::PendingPhase(
   std::string  door_name,
   std::string request_id,
   rmf_traffic::Time expected_finish)
-  :  _context(std::move(context)),
-    _door_name(std::move(door_name)),
-    _request_id(std::move(request_id)),
-    _expected_finish(std::move(expected_finish))
+:  _context(std::move(context)),
+  _door_name(std::move(door_name)),
+  _request_id(std::move(request_id)),
+  _expected_finish(std::move(expected_finish))
 {
   _description = "Open door \"" + _door_name + "\"";
 }
