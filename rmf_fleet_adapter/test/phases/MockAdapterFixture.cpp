@@ -170,7 +170,10 @@ MockAdapterFixture::~MockAdapterFixture()
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     if (wait_count > 200)
-      throw std::runtime_error("Node is not dying during test teardown");
+    {
+      std::cerr << "Node is not dying during test teardown" << std::endl;
+      std::terminate();
+    }
   }
 
   using namespace std::chrono_literals;
