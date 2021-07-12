@@ -25,6 +25,41 @@
 std::size_t node_counter = 0;
 std::size_t topic_counter = 0;
 
+//==============================================================================
+class TestAction : public std::enable_shared_from_this<TestAction>
+{
+public:
+
+  TestAction(
+    rmf_rxcpp::Transport::Bridge<std_msgs::msg::String> bridge,
+    std::shared_ptr<bool> received)
+  : _bridge(std::move(bridge)),
+    _received(std::move(received))
+  {
+    // Do nothing
+  }
+
+  template<typename Subscriber, typename Worker>
+  void operator()(const Subscriber& s, const Worker&)
+  {
+    _bridge->observe().subscribe(
+      [s, received = _received](const auto& msg)
+      {
+        REQUIRE(msg);
+        CHECK(msg->data == "hello");
+        *received = true;
+        s.on_completed();
+      });
+  }
+
+  rmf_rxcpp::Transport::Bridge<std_msgs::msg::String> _bridge;
+  std::shared_ptr<bool> _received;
+};
+
+//==============================================================================
+class Empty { };
+
+//==============================================================================
 TEST_CASE("publish subscribe loopback", "[Transport]")
 {
   auto context = std::make_shared<rclcpp::Context>();
@@ -41,42 +76,43 @@ TEST_CASE("publish subscribe loopback", "[Transport]")
     std::to_string(topic_counter++);
   auto publisher = transport->create_publisher<std_msgs::msg::String>(
     topic_name, 10);
+
   auto obs =
     transport->create_observable<std_msgs::msg::String>(topic_name, 10);
 
-//  SECTION("can receive subscription")
-//  {
-//    std_msgs::msg::String msg{};
-//    msg.data = "hello";
-//    auto timer =
-//      transport->create_wall_timer(std::chrono::milliseconds(100),
-//        [&publisher, &msg]()
-//        {
-//          publisher->publish(msg);
-//        });
+  SECTION("can receive subscription")
+  {
+    std_msgs::msg::String msg;
+    msg.data = "hello";
+    auto timer = transport->create_wall_timer(
+      std::chrono::milliseconds(100),
+      [publisher, msg]()
+      {
+        publisher->publish(msg);
+      });
 
-//    bool received = false;
-//    auto j =
-//      rmf_rxcpp::make_leaky_job<std_msgs::msg::String>([&obs,
-//        &received](const auto& s)
-//        {
-//          obs.subscribe([s, &received](const auto&)
-//          {
-//            received = true;
-//            s.on_completed();
-//          });
-//        });
-//    j.as_blocking().subscribe();
-//    REQUIRE(received);
-//    REQUIRE(transport->count_subscribers(topic_name) == 1);
-//  }
+    auto received = std::make_shared<bool>(false);
+    auto action = std::make_shared<TestAction>(obs, received);
+    auto job = rmf_rxcpp::make_job<Empty>(action);
+    job.as_blocking().subscribe();
 
-//  SECTION("multiple subscriptions are multiplexed")
-//  {
-//    rxcpp::composite_subscription subscription{};
-//    obs.subscribe(subscription);
-//    obs.subscribe(subscription);
-//    REQUIRE(transport->count_subscribers(topic_name) == 1);
-//    subscription.unsubscribe();
-//  }
+    REQUIRE(received);
+    CHECK(*received);
+    CHECK(transport->count_subscribers(topic_name) == 1);
+  }
+
+  SECTION("multiple subscriptions are multiplexed")
+  {
+    std_msgs::msg::String msg;
+    msg.data = "hello";
+  }
+
+  SECTION("multiple subscriptions are multiplexed")
+  {
+    rxcpp::composite_subscription subscription{};
+    obs->observe().subscribe(subscription);
+    obs->observe().subscribe(subscription);
+    REQUIRE(transport->count_subscribers(topic_name) == 1);
+    subscription.unsubscribe();
+  }
 }
