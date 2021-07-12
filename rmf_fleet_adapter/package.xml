@@ -14,6 +14,7 @@
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>rmf_utils</depend>
+  <depend>rmf_charger_msgs</depend>
   <depend>rmf_door_msgs</depend>
   <depend>rmf_ingestor_msgs</depend>
   <depend>rmf_dispenser_msgs</depend>

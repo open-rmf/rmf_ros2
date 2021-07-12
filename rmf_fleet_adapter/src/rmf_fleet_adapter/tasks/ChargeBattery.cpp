@@ -16,7 +16,7 @@
 */
 
 #include "../phases/GoToPlace.hpp"
-
+#include "../phases/ReadyToCharge.hpp"
 #include "../phases/WaitForCharge.hpp"
 
 #include "ChargeBattery.hpp"
@@ -40,10 +40,15 @@ std::shared_ptr<Task> make_charge_battery(
     return nullptr;
 
   rmf_traffic::agv::Planner::Goal goal{finish_state.charging_waypoint()};
+  const auto location_waypoint = 
+    context->navigation_graph().get_waypoint(finish_state.charging_waypoint());
+  auto location = location_waypoint.name();
 
   Task::PendingPhases phases;
   phases.push_back(
     phases::GoToPlace::make(context, std::move(start), goal));
+  phases.push_back(
+    phases::ReadyToCharge::make(context, request->id(), *location));
   phases.push_back(
     phases::WaitForCharge::make(
     context,

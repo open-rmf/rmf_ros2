@@ -41,7 +41,7 @@ MockAdapterFixture::MockAdapterFixture()
   ros_node = adapter->node();
 
   const std::string test_map_name = "test_map";
-  graph.add_waypoint(test_map_name, {0.0, -10.0}); // 0
+  graph.add_waypoint(test_map_name, {0.0, -10.0}).set_charger(true); // 0
   graph.add_waypoint(test_map_name, {0.0, -5.0});  // 1
   graph.add_waypoint(test_map_name, {5.0, -5.0}).set_holding_point(true);  // 2
   graph.add_waypoint(test_map_name, {-10.0, 0.0}); // 3
@@ -67,7 +67,7 @@ MockAdapterFixture::MockAdapterFixture()
    *                   1------2
    *                   |
    *                   |
-   *                   0
+   *                   0 (charger)
    **/
 
   auto add_bidir_lane = [&](const std::size_t w0, const std::size_t w1)
