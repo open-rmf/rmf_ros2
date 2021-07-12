@@ -175,9 +175,6 @@ MockAdapterFixture::~MockAdapterFixture()
       std::terminate();
     }
   }
-
-  using namespace std::chrono_literals;
-//  std::this_thread::sleep_for(5000ms);
 }
 
 } // namespace test
