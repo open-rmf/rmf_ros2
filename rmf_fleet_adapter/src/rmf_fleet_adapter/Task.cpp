@@ -47,11 +47,6 @@ std::shared_ptr<Task> Task::make(
 //==============================================================================
 void Task::begin()
 {
-  if (_begun->fetch_add(1) > 0)
-  {
-    throw std::runtime_error("[Task::begin] DOUBLED BEGIN");
-  }
-
   if (!_active_phase)
     _start_next_phase();
 }
@@ -121,7 +116,6 @@ Task::Task(
   rmf_task::agv::State finish_state,
   rmf_task::ConstRequestPtr request)
 : _id(std::move(id)),
-  _begun(std::make_shared<std::atomic_uint8_t>(0)),
   _pending_phases(std::move(phases)),
   _worker(std::move(worker)),
   _deployment_time(deployment_time),

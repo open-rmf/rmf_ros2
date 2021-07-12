@@ -145,8 +145,6 @@ private:
 
   std::string _id;
 
-  std::shared_ptr<std::atomic_uint8_t> _begun;
-
   // NOTE(MXG): Pending phases are stored in reverse order so we can simply
   // pop_back() to snatch the next phase.
   std::vector<std::unique_ptr<PendingPhase>> _pending_phases;
