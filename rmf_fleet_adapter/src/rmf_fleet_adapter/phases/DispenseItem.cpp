@@ -42,7 +42,8 @@ std::shared_ptr<DispenseItem::ActivePhase> DispenseItem::ActivePhase::make(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& DispenseItem::ActivePhase::observe() const
+const rxcpp::observable<Task::StatusMsg>&
+DispenseItem::ActivePhase::observe() const
 {
   return _obs;
 }
@@ -79,11 +80,11 @@ DispenseItem::ActivePhase::ActivePhase(
   std::string target,
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items)
-  : _context(std::move(context)),
-    _request_guid(std::move(request_guid)),
-    _target(std::move(target)),
-    _transporter_type(std::move(transporter_type)),
-    _items(std::move(items))
+: _context(std::move(context)),
+  _request_guid(std::move(request_guid)),
+  _target(std::move(target)),
+  _transporter_type(std::move(transporter_type)),
+  _items(std::move(items))
 {
   std::ostringstream oss;
   oss << "Dispense items (";
@@ -103,48 +104,51 @@ void DispenseItem::ActivePhase::_init_obs()
 {
   using rmf_dispenser_msgs::msg::DispenserResult;
   using rmf_dispenser_msgs::msg::DispenserState;
-  using CombinedType = std::tuple<DispenserResult::SharedPtr, DispenserState::SharedPtr>;
+  using CombinedType = std::tuple<DispenserResult::SharedPtr,
+      DispenserState::SharedPtr>;
 
   const auto& node = _context->node();
   _obs = node->dispenser_result()
     .start_with(std::shared_ptr<DispenserResult>(nullptr))
     .combine_latest(
-      rxcpp::observe_on_event_loop(),
-      node->dispenser_state().start_with(std::shared_ptr<DispenserState>(nullptr)))
+    rxcpp::observe_on_event_loop(),
+    node->dispenser_state().start_with(
+      std::shared_ptr<DispenserState>(nullptr)))
     .lift<CombinedType>(on_subscribe([weak = weak_from_this(), &node]()
-    {
-      auto me = weak.lock();
-      if (!me)
-        return;
-
-      me->_do_publish();
-      me->_timer = node->create_wall_timer(std::chrono::milliseconds(1000), [weak]()
       {
         auto me = weak.lock();
         if (!me)
           return;
 
         me->_do_publish();
-      });
-    }))
-    .map([weak = weak_from_this()](const auto& v)
-    {
-      auto me = weak.lock();
-      if (!me)
-        return Task::StatusMsg();
+        me->_timer =
+        node->try_create_wall_timer(std::chrono::milliseconds(1000), [weak]()
+        {
+          auto me = weak.lock();
+          if (!me)
+            return;
 
-      return me->_get_status(std::get<0>(v), std::get<1>(v));
-    })
+          me->_do_publish();
+        });
+      }))
+    .map([weak = weak_from_this()](const auto& v)
+      {
+        auto me = weak.lock();
+        if (!me)
+          return Task::StatusMsg();
+
+        return me->_get_status(std::get<0>(v), std::get<1>(v));
+      })
     .lift<Task::StatusMsg>(grab_while_active())
     .finally([weak = weak_from_this()]()
-    {
-      auto me = weak.lock();
-      if (!me)
-        return;
+      {
+        auto me = weak.lock();
+        if (!me)
+          return;
 
-      if (me->_timer)
-        me->_timer.reset();
-    });
+        if (me->_timer)
+          me->_timer.reset();
+      });
 }
 
 //==============================================================================
@@ -183,9 +187,9 @@ Task::StatusMsg DispenseItem::ActivePhase::_get_status(
     if (!_request_acknowledged)
     {
       _request_acknowledged = std::find(
-            dispenser_state->request_guid_queue.begin(),
-            dispenser_state->request_guid_queue.end(),
-            _request_guid) != dispenser_state->request_guid_queue.end();
+        dispenser_state->request_guid_queue.begin(),
+        dispenser_state->request_guid_queue.end(),
+        _request_guid) != dispenser_state->request_guid_queue.end();
     }
     else if (
       std::find(
@@ -221,11 +225,11 @@ DispenseItem::PendingPhase::PendingPhase(
   std::string target,
   std::string transporter_type,
   std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items)
-  : _context(std::move(context)),
-    _request_guid(std::move(request_guid)),
-    _target(std::move(target)),
-    _transporter_type(std::move(transporter_type)),
-    _items(std::move(items))
+: _context(std::move(context)),
+  _request_guid(std::move(request_guid)),
+  _target(std::move(target)),
+  _transporter_type(std::move(transporter_type)),
+  _items(std::move(items))
 {
   std::ostringstream oss;
   oss << "Dispense items (";
@@ -252,7 +256,8 @@ std::shared_ptr<Task::ActivePhase> DispenseItem::PendingPhase::begin()
 }
 
 //==============================================================================
-rmf_traffic::Duration DispenseItem::PendingPhase::estimate_phase_duration() const
+rmf_traffic::Duration
+DispenseItem::PendingPhase::estimate_phase_duration() const
 {
   // TODO: implement
   return rmf_traffic::Duration{0};

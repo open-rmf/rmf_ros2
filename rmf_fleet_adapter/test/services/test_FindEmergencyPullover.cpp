@@ -126,23 +126,23 @@ SCENARIO("Emergency Pullover")
     const auto start_1 = rmf_traffic::agv::Plan::Start(now, 3, 0.0);
 
     auto pullover_service = std::make_shared<
-        rmf_fleet_adapter::services::FindEmergencyPullover>(
-          planner, rmf_traffic::agv::Plan::StartSet({start_0}),
-          database->snapshot(), p0.id(),
-          std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
+      rmf_fleet_adapter::services::FindEmergencyPullover>(
+      planner, rmf_traffic::agv::Plan::StartSet({start_0}),
+      database->snapshot(), p0.id(),
+      std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_0_promise;
     auto result_0_future = result_0_promise.get_future();
     auto pullover_sub =
-        rmf_rxcpp::make_job<
-        rmf_fleet_adapter::services::FindEmergencyPullover::Result>(
-          pullover_service)
-        .observe_on(rxcpp::observe_on_event_loop())
-        .subscribe(
-          [&result_0_promise](const auto& result)
-    {
-      result_0_promise.set_value(result);
-    });
+      rmf_rxcpp::make_job<
+      rmf_fleet_adapter::services::FindEmergencyPullover::Result>(
+      pullover_service)
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+      [&result_0_promise](const auto& result)
+      {
+        result_0_promise.set_value(result);
+      });
 
     const auto status_0 = result_0_future.wait_for(10s);
     REQUIRE(std::future_status::ready == status_0);
@@ -153,9 +153,9 @@ SCENARIO("Emergency Pullover")
     rmf_traffic::Trajectory end_0;
     end_0.insert(itinerary_0.back().trajectory().back());
     end_0.insert(
-          end_0.back().time() + 1h,
-          end_0.back().position(),
-          Eigen::Vector3d::Zero());
+      end_0.back().time() + 1h,
+      end_0.back().position(),
+      Eigen::Vector3d::Zero());
     itinerary_0.push_back({itinerary_0.back().map(), end_0});
 
 
@@ -163,23 +163,23 @@ SCENARIO("Emergency Pullover")
     // itinerary in the database. The conflict happens because both vehicles
     // want to park at waypoint 7 in the absence of any other conflicts.
     pullover_service = std::make_shared<
-        rmf_fleet_adapter::services::FindEmergencyPullover>(
-          planner, rmf_traffic::agv::Plan::StartSet({start_1}),
-          database->snapshot(), p1.id(),
-          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
+      rmf_fleet_adapter::services::FindEmergencyPullover>(
+      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      database->snapshot(), p1.id(),
+      std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> pre_result_1_promise;
     auto pre_result_1_future = pre_result_1_promise.get_future();
     pullover_sub =
-        rmf_rxcpp::make_job<
-        rmf_fleet_adapter::services::FindEmergencyPullover::Result>(
-          pullover_service)
-        .observe_on(rxcpp::observe_on_event_loop())
-        .subscribe(
-          [&pre_result_1_promise](const auto& result)
-    {
-      pre_result_1_promise.set_value(result);
-    });
+      rmf_rxcpp::make_job<
+      rmf_fleet_adapter::services::FindEmergencyPullover::Result>(
+      pullover_service)
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+      [&pre_result_1_promise](const auto& result)
+      {
+        pre_result_1_promise.set_value(result);
+      });
 
     const auto pre_status_1 = pre_result_1_future.wait_for(1s);
     REQUIRE(std::future_status::ready == pre_status_1);
@@ -192,8 +192,8 @@ SCENARIO("Emergency Pullover")
       for (const auto& t1 : pre_result_1->get_itinerary())
       {
         at_least_one_conflict |= rmf_traffic::DetectConflict::between(
-              p0.description().profile(), t0.trajectory(),
-              p1.description().profile(), t1.trajectory()).has_value();
+          p0.description().profile(), t0.trajectory(),
+          p1.description().profile(), t1.trajectory()).has_value();
       }
     }
 
@@ -204,23 +204,23 @@ SCENARIO("Emergency Pullover")
     p0.set(itinerary_0);
 
     pullover_service = std::make_shared<
-        rmf_fleet_adapter::services::FindEmergencyPullover>(
-          planner, rmf_traffic::agv::Plan::StartSet({start_1}),
-          database->snapshot(), p1.id(),
-          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
+      rmf_fleet_adapter::services::FindEmergencyPullover>(
+      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      database->snapshot(), p1.id(),
+      std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_1_promise;
     auto result_1_future = result_1_promise.get_future();
     pullover_sub =
-        rmf_rxcpp::make_job<
-        rmf_fleet_adapter::services::FindEmergencyPullover::Result>(
-          pullover_service)
-        .observe_on(rxcpp::observe_on_event_loop())
-        .subscribe(
-          [&result_1_promise](const auto& result)
-    {
-      result_1_promise.set_value(result);
-    });
+      rmf_rxcpp::make_job<
+      rmf_fleet_adapter::services::FindEmergencyPullover::Result>(
+      pullover_service)
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+      [&result_1_promise](const auto& result)
+      {
+        result_1_promise.set_value(result);
+      });
 
     const auto status_1 = result_1_future.wait_for(1s);
     REQUIRE(std::future_status::ready == status_1);
@@ -232,8 +232,8 @@ SCENARIO("Emergency Pullover")
       for (const auto& t1 : result_1->get_itinerary())
       {
         CHECK_FALSE(rmf_traffic::DetectConflict::between(
-                      p0.description().profile(), t0.trajectory(),
-                      p1.description().profile(), t1.trajectory()));
+            p0.description().profile(), t0.trajectory(),
+            p1.description().profile(), t1.trajectory()));
       }
     }
   }
@@ -246,37 +246,37 @@ SCENARIO("Emergency Pullover")
 
     rmf_traffic::Trajectory blocking_traj;
     blocking_traj.insert(
-          now,
-          {l0[0], l0[1], 0.0},
-          Eigen::Vector3d::Zero());
+      now,
+      {l0[0], l0[1], 0.0},
+      Eigen::Vector3d::Zero());
     blocking_traj.insert(
-          now + 1h,
-          {l0[0], l0[1], 0.0},
-          Eigen::Vector3d::Zero());
+      now + 1h,
+      {l0[0], l0[1], 0.0},
+      Eigen::Vector3d::Zero());
 
     rmf_traffic::Route blocking_route(
-          graph.get_waypoint(5).get_map_name(), blocking_traj);
+      graph.get_waypoint(5).get_map_name(), blocking_traj);
 
     p0.set({blocking_route});
 
     auto pullover_service = std::make_shared<
-        rmf_fleet_adapter::services::FindEmergencyPullover>(
-          planner, rmf_traffic::agv::Plan::StartSet({start_1}),
-          database->snapshot(), p1.id(),
-          std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
+      rmf_fleet_adapter::services::FindEmergencyPullover>(
+      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      database->snapshot(), p1.id(),
+      std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
     std::promise<rmf_traffic::agv::Plan::Result> result_1_promise;
     auto result_1_future = result_1_promise.get_future();
     auto pullover_sub =
-        rmf_rxcpp::make_job<
-        rmf_fleet_adapter::services::FindEmergencyPullover::Result>(
-          pullover_service)
-        .observe_on(rxcpp::observe_on_event_loop())
-        .subscribe(
-          [&result_1_promise](const auto& result)
-    {
-      result_1_promise.set_value(result);
-    });
+      rmf_rxcpp::make_job<
+      rmf_fleet_adapter::services::FindEmergencyPullover::Result>(
+      pullover_service)
+      .observe_on(rxcpp::observe_on_event_loop())
+      .subscribe(
+      [&result_1_promise](const auto& result)
+      {
+        result_1_promise.set_value(result);
+      });
 
     const auto status_1 = result_1_future.wait_for(10s);
     REQUIRE(std::future_status::ready == status_1);
@@ -289,8 +289,8 @@ SCENARIO("Emergency Pullover")
       for (const auto& t1 : result_1->get_itinerary())
       {
         at_least_one_conflict |= rmf_traffic::DetectConflict::between(
-              p0.description().profile(), t0.route->trajectory(),
-              p1.description().profile(), t1.trajectory()).has_value();
+          p0.description().profile(), t0.route->trajectory(),
+          p1.description().profile(), t1.trajectory()).has_value();
       }
     }
 

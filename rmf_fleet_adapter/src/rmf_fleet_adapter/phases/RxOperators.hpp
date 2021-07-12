@@ -36,28 +36,28 @@ template<typename Predicate>
 auto grab_while(Predicate pred)
 {
   return [pred = std::move(pred)](const auto& s)
-  {
-    using SourceType = typename std::decay_t<decltype(s)>::value_type;
-    return rxcpp::make_subscriber<SourceType>(
-      s,
-      [=, pred = std::move(pred)](const SourceType& v)
-      {
-        s.on_next(v);
-        if (!pred(v))
+    {
+      using SourceType = typename std::decay_t<decltype(s)>::value_type;
+      return rxcpp::make_subscriber<SourceType>(
+        s,
+        [=, pred = std::move(pred)](const SourceType& v)
         {
-          s.on_completed();
-        }
-      });
-  };
+          s.on_next(v);
+          if (!pred(v))
+          {
+            s.on_completed();
+          }
+        });
+    };
 }
 
 inline auto grab_while_active()
 {
   return grab_while([](const Task::StatusMsg& status)
-  {
-    return !(status.state == Task::StatusMsg::STATE_COMPLETED ||
-             status.state == Task::StatusMsg::STATE_FAILED);
-  });
+      {
+        return !(status.state == Task::StatusMsg::STATE_COMPLETED ||
+        status.state == Task::StatusMsg::STATE_FAILED);
+      });
 }
 
 /**
@@ -71,10 +71,10 @@ template<typename F>
 auto on_subscribe(F f)
 {
   return [f = std::move(f)](const auto& s)
-  {
-    f();
-    return s;
-  };
+    {
+      f();
+      return s;
+    };
 }
 
 const std::string status_msg_cancelled = "cancelled";
@@ -95,15 +95,15 @@ auto make_cancellable(const Observable& obs, const CancelObservable& cancel_obs)
   auto cancelled_obs = cancel_obs
     .filter([](const auto& b) { return b; })
     .map([](const auto&)
-    {
-      Task::StatusMsg status;
-      status.state = Task::StatusMsg::STATE_COMPLETED;
-      status.status = status_msg_cancelled;
-      return status;
-    });
+      {
+        Task::StatusMsg status;
+        status.state = Task::StatusMsg::STATE_COMPLETED;
+        status.status = status_msg_cancelled;
+        return status;
+      });
   return obs
-      .merge(rxcpp::observe_on_event_loop(), cancelled_obs)
-      .template lift<Task::StatusMsg>(grab_while_active());
+    .merge(rxcpp::observe_on_event_loop(), cancelled_obs)
+    .template lift<Task::StatusMsg>(grab_while_active());
 }
 
 } // namespace phases

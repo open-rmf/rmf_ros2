@@ -51,56 +51,56 @@
 namespace {
 //==============================================================================
 rmf_fleet_msgs::msg::Location make_location(
-    rclcpp::Time t,
-    const Eigen::Vector3d& p,
-    const std::string& map_name,
-    const std::size_t index)
+  rclcpp::Time t,
+  const Eigen::Vector3d& p,
+  const std::string& map_name,
+  const std::size_t index)
 {
   return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
-      .t(t)
-      .x(p[0]).y(p[1]).yaw(p[2])
-      .level_name(map_name)
-      .index(index);
+    .t(t)
+    .x(p[0]).y(p[1]).yaw(p[2])
+    .level_name(map_name)
+    .index(index);
 }
 
 } // anonymous namespace
 
 //==============================================================================
 class MockTrafficLightCommandHandle
-    : public std::enable_shared_from_this<MockTrafficLightCommandHandle>
+  : public std::enable_shared_from_this<MockTrafficLightCommandHandle>
 {
 public:
 
   using PathRequestPub =
-      rclcpp::Publisher<rmf_fleet_msgs::msg::PathRequest>::SharedPtr;
+    rclcpp::Publisher<rmf_fleet_msgs::msg::PathRequest>::SharedPtr;
 
   using PauseRequestPub =
-      rclcpp::Publisher<rmf_fleet_msgs::msg::PauseRequest>::SharedPtr;
+    rclcpp::Publisher<rmf_fleet_msgs::msg::PauseRequest>::SharedPtr;
 
   using EasyTrafficLight = rmf_fleet_adapter::agv::EasyTrafficLight;
 
   MockTrafficLightCommandHandle(
-      rclcpp::Node& node,
-      std::string fleet_name,
-      std::string robot_name,
-      std::shared_ptr<const rmf_traffic::agv::Graph> graph,
-      std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
-      std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-      PathRequestPub path_request_pub,
-      PauseRequestPub pause_request_pub)
-    : _node(&node),
-      _path_request_pub(std::move(path_request_pub)),
-      _pause_request_pub(std::move(pause_request_pub))
+    rclcpp::Node& node,
+    std::string fleet_name,
+    std::string robot_name,
+    std::shared_ptr<const rmf_traffic::agv::Graph> graph,
+    std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
+    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+    PathRequestPub path_request_pub,
+    PauseRequestPub pause_request_pub)
+  : _node(&node),
+    _path_request_pub(std::move(path_request_pub)),
+    _pause_request_pub(std::move(pause_request_pub))
   {
     _current_path_request.fleet_name = fleet_name;
     _current_path_request.robot_name = robot_name;
 
     _pause_request = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::PauseRequest>()
-        .fleet_name(fleet_name)
-        .robot_name(robot_name)
-        .mode_request_id(0)
-        .type(_pause_request.TYPE_RESUME)
-        .at_checkpoint(0);
+      .fleet_name(fleet_name)
+      .robot_name(robot_name)
+      .mode_request_id(0)
+      .type(_pause_request.TYPE_RESUME)
+      .at_checkpoint(0);
 
     _travel_info.graph = std::move(graph);
     _travel_info.traits = std::move(traits);
@@ -111,8 +111,8 @@ public:
   }
 
   void set_update_handle(
-      rmf_fleet_adapter::agv::EasyTrafficLightPtr update_handle,
-      rmf_fleet_msgs::msg::RobotState state)
+    rmf_fleet_adapter::agv::EasyTrafficLightPtr update_handle,
+    rmf_fleet_msgs::msg::RobotState state)
   {
     _update = std::move(update_handle);
     _last_state = state;
@@ -139,8 +139,8 @@ public:
     if (!_update)
     {
       throw std::runtime_error(
-            "Update handle has not been received by [" + _travel_info.robot_name
-            + "] owned by [" + _travel_info.fleet_name + "]!");
+              "Update handle has not been received by [" + _travel_info.robot_name
+              + "] owned by [" + _travel_info.fleet_name + "]!");
     }
 
     if (!_moving)
@@ -175,11 +175,11 @@ public:
     if (state.mode.mode == rmf_fleet_msgs::msg::RobotMode::MODE_ADAPTER_ERROR)
     {
       RCLCPP_ERROR(
-            _node->get_logger(),
-            "Uh oh!! An adapter error has occurred for [??] owned by [??]. "
-            "This really shouldn't happen for the traffic light, but there is "
-            "a TODO inside the source code for how to fix this if it ever does "
-            "occur");
+        _node->get_logger(),
+        "Uh oh!! An adapter error has occurred for [%s]. This really shouldn't "
+        "happen for the traffic light, but there is a TODO inside the source "
+        "code for how to fix this if it ever does occur.",
+        state.name.c_str());
       // TODO(MXG): If this error ever gets printed, we can fix this issue by
       // changing this code block to resend the path request, but with the
       // first waypoint of the path request replaced by whatever the robot's
@@ -298,16 +298,16 @@ public:
 
     const auto& l = _last_state->location;
     const auto starts = rmf_traffic::agv::compute_plan_starts(
-          _planner->get_configuration().graph(),
-          l.level_name,
-          {l.x, l.y, l.yaw},
-          rmf_traffic_ros2::convert(_node->now()));
+      _planner->get_configuration().graph(),
+      l.level_name,
+      {l.x, l.y, l.yaw},
+      rmf_traffic_ros2::convert(_node->now()));
 
     if (starts.empty())
       return rmf_utils::nullopt;
 
     const auto* name = _planner->get_configuration().graph().get_waypoint(
-          starts.front().waypoint()).name();
+      starts.front().waypoint()).name();
 
     if (name)
       return *name;
@@ -325,27 +325,28 @@ private:
 
       const auto& l = _last_state.value().location;
       const auto starts = rmf_traffic::agv::compute_plan_starts(
-            _planner->get_configuration().graph(),
-            l.level_name,
-            {l.x, l.y, l.yaw},
-            rmf_traffic_ros2::convert(_node->now()));
+        _planner->get_configuration().graph(),
+        l.level_name,
+        {l.x, l.y, l.yaw},
+        rmf_traffic_ros2::convert(_node->now()));
 
       if (starts.empty())
       {
         RCLCPP_ERROR(
-              _node->get_logger(),
-              "Robot [%s] is lost!",
-              _travel_info.robot_name.c_str());
+          _node->get_logger(),
+          "Robot [%s] is lost!",
+          _travel_info.robot_name.c_str());
         return;
       }
 
-      const auto goal = _planner->get_configuration().graph().find_waypoint(next);
+      const auto goal =
+        _planner->get_configuration().graph().find_waypoint(next);
       if (!goal)
       {
         RCLCPP_ERROR(
-              _node->get_logger(),
-              "Could not find a goal named [%s] for robot [%s]",
-              next.c_str(), _travel_info.robot_name.c_str());
+          _node->get_logger(),
+          "Could not find a goal named [%s] for robot [%s]",
+          next.c_str(), _travel_info.robot_name.c_str());
 
         _queue.pop_front();
         continue;
@@ -355,9 +356,9 @@ private:
       if (!result)
       {
         RCLCPP_ERROR(
-              _node->get_logger(),
-              "Could not find a plan to get robot [%s] to waypoint [%s]",
-              _travel_info.robot_name.c_str(), next.c_str());
+          _node->get_logger(),
+          "Could not find a plan to get robot [%s] to waypoint [%s]",
+          _travel_info.robot_name.c_str(), next.c_str());
 
         _queue.pop_front();
         continue;
@@ -366,12 +367,12 @@ private:
       if (result->get_waypoints().size() < 2)
       {
         RCLCPP_INFO(
-              _node->get_logger(),
-              "[%s] owned by [%s] skipping queued waypoint goal of [%s] "
-              "because it is already there.",
-              _travel_info.robot_name.c_str(),
-              _travel_info.fleet_name.c_str(),
-              _queue.front().c_str());
+          _node->get_logger(),
+          "[%s] owned by [%s] skipping queued waypoint goal of [%s] "
+          "because it is already there.",
+          _travel_info.robot_name.c_str(),
+          _travel_info.fleet_name.c_str(),
+          _queue.front().c_str());
 
         _queue.pop_front();
         continue;
@@ -383,16 +384,18 @@ private:
   }
 
   void _handle_moving_instruction(
-      const EasyTrafficLight::MovingInstruction instruction,
-      const std::size_t target)
+    const EasyTrafficLight::MovingInstruction instruction,
+    const std::size_t target)
   {
-    if (instruction == EasyTrafficLight::MovingInstruction::WaitAtNextCheckpoint)
+    if (instruction ==
+      EasyTrafficLight::MovingInstruction::WaitAtNextCheckpoint)
     {
       _internal_pause_at_checkpoint(target);
       return;
     }
 
-    if (instruction == EasyTrafficLight::MovingInstruction::ContinueAtNextCheckpoint)
+    if (instruction ==
+      EasyTrafficLight::MovingInstruction::ContinueAtNextCheckpoint)
     {
       _internal_resume();
       return;
@@ -414,8 +417,8 @@ private:
   }
 
   void _handle_waiting_instruction(
-      const EasyTrafficLight::WaitingInstruction instruction,
-      bool ready_for_next_target)
+    const EasyTrafficLight::WaitingInstruction instruction,
+    bool ready_for_next_target)
   {
     if (instruction == EasyTrafficLight::WaitingInstruction::Resume)
     {
@@ -433,19 +436,19 @@ private:
   }
 
   void _handle_waiting_at_instruction(
-      const EasyTrafficLight::WaitingInstruction instruction)
+    const EasyTrafficLight::WaitingInstruction instruction)
   {
     _handle_waiting_instruction(instruction, true);
   }
 
   void _handle_waiting_after_instruction(
-      const EasyTrafficLight::WaitingInstruction instruction)
+    const EasyTrafficLight::WaitingInstruction instruction)
   {
     _handle_waiting_instruction(instruction, false);
   }
 
   void _follow_new_path(
-      const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints)
+    const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints)
   {
     _moving = true;
     _last_target = 0;
@@ -458,24 +461,24 @@ private:
       if (wp.graph_index())
       {
         first_level = graph->get_waypoint(wp.graph_index().value())
-            .get_map_name();
+          .get_map_name();
         break;
       }
     }
 
     const auto get_map_name = [&](rmf_utils::optional<std::size_t> index)
-    {
-      if (index.has_value())
-        return graph->get_waypoint(index.value()).get_map_name();
+      {
+        if (index.has_value())
+          return graph->get_waypoint(index.value()).get_map_name();
 
-      return first_level;
-    };
+        return first_level;
+      };
 
     std::vector<rmf_fleet_adapter::agv::Waypoint> new_path;
     new_path.reserve(waypoints.size());
 
 
-    for (std::size_t i=0; i < waypoints.size(); ++i)
+    for (std::size_t i = 0; i < waypoints.size(); ++i)
     {
       const auto& wp = waypoints[i];
       if (i > 0)
@@ -483,8 +486,8 @@ private:
         const auto last_x = new_path.back().position().x();
         const auto last_y = new_path.back().position().y();
         const auto delta =
-            (wp.position().block<2,1>(0,0)
-             - Eigen::Vector2d(last_x, last_y)).norm();
+          (wp.position().block<2, 1>(0, 0)
+          - Eigen::Vector2d(last_x, last_y)).norm();
 
         if (delta < 0.01)
           continue;
@@ -498,19 +501,19 @@ private:
     const auto now = _node->now();
     _current_path_request.path.push_back(_last_state.value().location);
     _current_path_request.path.front().index = 0;
-    for (std::size_t i=0; i < new_path.size(); ++i)
+    for (std::size_t i = 0; i < new_path.size(); ++i)
     {
       const auto& wp = new_path[i];
       _current_path_request.path.push_back(
-            make_location(now, wp.position(), wp.map_name(), i));
+        make_location(now, wp.position(), wp.map_name(), i));
     }
 
     RCLCPP_INFO(
-          _node->get_logger(),
-          "Moving [%s] owned by [%s] towards waypoint [%s]",
-          _travel_info.robot_name.c_str(),
-          _travel_info.fleet_name.c_str(),
-          _queue.front().c_str());
+      _node->get_logger(),
+      "Moving [%s] owned by [%s] towards waypoint [%s]",
+      _travel_info.robot_name.c_str(),
+      _travel_info.fleet_name.c_str(),
+      _queue.front().c_str());
 
     _end_waypoint_index = new_path.size() - 1;
     _pending_path_publish = true;
@@ -567,7 +570,7 @@ private:
     if (_pause_request.type == _pause_request.TYPE_RESUME)
       return;
 
-    std::size_t target = to_next_target?
+    std::size_t target = to_next_target ?
       _last_target.value()+1 : _last_target.value();
 
     _internal_pause_at_checkpoint(target);
@@ -617,7 +620,7 @@ private:
 };
 
 using MockTrafficLightCommandHandlePtr =
-std::shared_ptr<MockTrafficLightCommandHandle>;
+  std::shared_ptr<MockTrafficLightCommandHandle>;
 
 //==============================================================================
 /// This is an RAII class that keeps the connections to the fleet driver alive.
@@ -636,62 +639,62 @@ struct Connections : public std::enable_shared_from_this<Connections>
 
   /// The topic subscription for responding to new fleet states
   rclcpp::Subscription<rmf_fleet_msgs::msg::FleetState>::SharedPtr
-  fleet_state_sub;
+    fleet_state_sub;
 
   /// The topic subscription for receiving loop requests
   rclcpp::Subscription<rmf_task_msgs::msg::Loop>::SharedPtr
-  loop_sub;
+    loop_sub;
 
   /// The publisher for sending out path requests
   rclcpp::Publisher<rmf_fleet_msgs::msg::PathRequest>::SharedPtr
-  path_request_pub;
+    path_request_pub;
 
   rclcpp::Publisher<rmf_fleet_msgs::msg::PauseRequest>::SharedPtr
-  pause_request_pub;
+    pause_request_pub;
 
   /// The publisher for sending out mode requests
   rclcpp::Publisher<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr
-  mode_request_pub;
+    mode_request_pub;
 
   std::unordered_map<std::string, MockTrafficLightCommandHandlePtr> robots;
 
   std::unordered_set<std::string> received_task_ids;
 
   void add_traffic_light(
-      const std::string& fleet_name,
-      const rmf_fleet_msgs::msg::RobotState& state)
+    const std::string& fleet_name,
+    const rmf_fleet_msgs::msg::RobotState& state)
   {
     const std::string robot_name = state.name;
     const auto command = std::make_shared<MockTrafficLightCommandHandle>(
-          *adapter->node(), fleet_name, robot_name, graph, traits, planner,
-          path_request_pub, pause_request_pub);
+      *adapter->node(), fleet_name, robot_name, graph, traits, planner,
+      path_request_pub, pause_request_pub);
 
     auto pause = [w = command->weak_from_this()]()
-    {
-      if (const auto command = w.lock())
-        command->pause_immediately();
-    };
+      {
+        if (const auto command = w.lock())
+          command->pause_immediately();
+      };
 
     auto resume = [w = command->weak_from_this()]()
-    {
-      if (const auto command = w.lock())
-        command->resume();
-    };
+      {
+        if (const auto command = w.lock())
+          command->resume();
+      };
 
     adapter->add_easy_traffic_light(
-          [c = weak_from_this(), command, robot_name = robot_name, state](
-          rmf_fleet_adapter::agv::EasyTrafficLightPtr updater)
-    {
-      const auto connections = c.lock();
-      if (!connections)
-        return;
+      [c = weak_from_this(), command, robot_name = robot_name, state](
+        rmf_fleet_adapter::agv::EasyTrafficLightPtr updater)
+      {
+        const auto connections = c.lock();
+        if (!connections)
+          return;
 
-      auto  lock = connections->lock();
-      command->set_update_handle(std::move(updater), state);
-      connections->robots[robot_name] = command;
-    },
-    fleet_name, robot_name, *traits,
-    std::move(pause), std::move(resume));
+        auto  lock = connections->lock();
+        command->set_update_handle(std::move(updater), state);
+        connections->robots[robot_name] = command;
+      },
+      fleet_name, robot_name, *traits,
+      std::move(pause), std::move(resume));
   }
 
   std::mutex _mutex;
@@ -709,7 +712,7 @@ struct Connections : public std::enable_shared_from_this<Connections>
 
 //==============================================================================
 std::shared_ptr<Connections> make_fleet(
-    const rmf_fleet_adapter::agv::AdapterPtr& adapter)
+  const rmf_fleet_adapter::agv::AdapterPtr& adapter)
 {
   const auto& node = adapter->node();
   std::shared_ptr<Connections> connections = std::make_shared<Connections>();
@@ -717,43 +720,43 @@ std::shared_ptr<Connections> make_fleet(
 
   const std::string fleet_name_param_name = "fleet_name";
   const std::string fleet_name = node->declare_parameter(
-        "fleet_name", std::string());
+    "fleet_name", std::string());
   if (fleet_name.empty())
   {
     RCLCPP_ERROR(
-          node->get_logger(),
-          "Missing [%s] parameter", fleet_name_param_name.c_str());
+      node->get_logger(),
+      "Missing [%s] parameter", fleet_name_param_name.c_str());
 
     return nullptr;
   }
 
   connections->traits = std::make_shared<rmf_traffic::agv::VehicleTraits>(
-        rmf_fleet_adapter::get_traits_or_default(
-        *node, 0.7, 0.3, 0.5, 1.5, 0.5, 1.5));
+    rmf_fleet_adapter::get_traits_or_default(
+      *node, 0.7, 0.3, 0.5, 1.5, 0.5, 1.5));
 
   const std::string nav_graph_param_name = "nav_graph_file";
   const std::string graph_file =
-      node->declare_parameter(nav_graph_param_name, std::string());
+    node->declare_parameter(nav_graph_param_name, std::string());
   if (graph_file.empty())
   {
     RCLCPP_ERROR(
-          node->get_logger(),
-          "Missing [%s] parameter", nav_graph_param_name.c_str());
+      node->get_logger(),
+      "Missing [%s] parameter", nav_graph_param_name.c_str());
 
     return nullptr;
   }
 
   auto graph =
-      std::make_shared<rmf_traffic::agv::Graph>(
-        rmf_fleet_adapter::agv::parse_graph(graph_file, *connections->traits));
+    std::make_shared<rmf_traffic::agv::Graph>(
+    rmf_fleet_adapter::agv::parse_graph(graph_file, *connections->traits));
 
   // We add pseudo-events on every lane to force the planner to include every
   // intermediate waypoint in its plan.
-  for (std::size_t i=0; i < graph->num_lanes(); ++i)
+  for (std::size_t i = 0; i < graph->num_lanes(); ++i)
   {
     graph->get_lane(i).exit().event(
-          rmf_traffic::agv::Graph::Lane::Event::make(
-            rmf_traffic::agv::Graph::Lane::Wait(std::chrono::seconds(0))));
+      rmf_traffic::agv::Graph::Lane::Event::make(
+        rmf_traffic::agv::Graph::Lane::Wait(std::chrono::seconds(0))));
   }
 
   connections->graph = std::move(graph);
@@ -763,130 +766,132 @@ std::shared_ptr<Connections> make_fleet(
     std::cout << " -- " << key.first << std::endl;
 
   connections->planner =
-      std::make_shared<rmf_traffic::agv::Planner>(
-        rmf_traffic::agv::Planner::Configuration(
-          *connections->graph,
-          *connections->traits),
-        rmf_traffic::agv::Planner::Options(nullptr));
+    std::make_shared<rmf_traffic::agv::Planner>(
+    rmf_traffic::agv::Planner::Configuration(
+      *connections->graph,
+      *connections->traits),
+    rmf_traffic::agv::Planner::Options(nullptr));
 
   connections->path_request_pub = node->create_publisher<
-      rmf_fleet_msgs::msg::PathRequest>(
-        rmf_fleet_adapter::PathRequestTopicName, rclcpp::SystemDefaultsQoS());
+    rmf_fleet_msgs::msg::PathRequest>(
+    rmf_fleet_adapter::PathRequestTopicName, rclcpp::SystemDefaultsQoS());
 
   connections->pause_request_pub = node->create_publisher<
-      rmf_fleet_msgs::msg::PauseRequest>(
-        rmf_fleet_adapter::PauseRequestTopicName, rclcpp::SystemDefaultsQoS());
+    rmf_fleet_msgs::msg::PauseRequest>(
+    rmf_fleet_adapter::PauseRequestTopicName, rclcpp::SystemDefaultsQoS());
 
   connections->mode_request_pub = node->create_publisher<
-      rmf_fleet_msgs::msg::ModeRequest>(
-        rmf_fleet_adapter::ModeRequestTopicName, rclcpp::SystemDefaultsQoS());
+    rmf_fleet_msgs::msg::ModeRequest>(
+    rmf_fleet_adapter::ModeRequestTopicName, rclcpp::SystemDefaultsQoS());
 
   connections->fleet_state_sub = node->create_subscription<
-      rmf_fleet_msgs::msg::FleetState>(
-        rmf_fleet_adapter::FleetStateTopicName,
-        rclcpp::SystemDefaultsQoS(),
-        [c = std::weak_ptr<Connections>(connections), fleet_name](
-        const rmf_fleet_msgs::msg::FleetState::SharedPtr msg)
-  {
-    if (msg->name != fleet_name)
-      return;
-
-    const auto connections = c.lock();
-    if (!connections)
-      return;
-
-    for (const auto& state : msg->robots)
+    rmf_fleet_msgs::msg::FleetState>(
+    rmf_fleet_adapter::FleetStateTopicName,
+    rclcpp::SystemDefaultsQoS(),
+    [c = std::weak_ptr<Connections>(connections), fleet_name](
+      const rmf_fleet_msgs::msg::FleetState::SharedPtr msg)
     {
-      const auto insertion = connections->robots.insert({state.name, nullptr});
-      const bool new_robot = insertion.second;
-      if (new_robot)
-      {
-        RCLCPP_INFO(
-          connections->adapter->node()->get_logger(),
-          "Adding robot [%s] to the fleet",
-          state.name.c_str());
+      if (msg->name != fleet_name)
+        return;
 
-        // We have not seen this robot before, so let's add it to the fleet.
-        connections->add_traffic_light(fleet_name, state);
-      }
+      const auto connections = c.lock();
+      if (!connections)
+        return;
 
-      const auto& command = insertion.first->second;
-      if (command)
+      for (const auto& state : msg->robots)
       {
-        // We are commanding this robot, so let's update its state
-        command->update_state(state);
+        const auto insertion = connections->robots.insert(
+          {state.name, nullptr});
+
+        const bool new_robot = insertion.second;
+        if (new_robot)
+        {
+          RCLCPP_INFO(
+            connections->adapter->node()->get_logger(),
+            "Adding robot [%s] to the fleet",
+            state.name.c_str());
+
+          // We have not seen this robot before, so let's add it to the fleet.
+          connections->add_traffic_light(fleet_name, state);
+        }
+
+        const auto& command = insertion.first->second;
+        if (command)
+        {
+          // We are commanding this robot, so let's update its state
+          command->update_state(state);
+        }
       }
-    }
-  });
+    });
 
   connections->loop_sub = node->create_subscription<
-      rmf_task_msgs::msg::Loop>(
-        rmf_fleet_adapter::LoopRequestTopicName,
-        rclcpp::SystemDefaultsQoS(),
-        [c = std::weak_ptr<Connections>(connections), fleet_name](
-        const rmf_task_msgs::msg::Loop::SharedPtr msg)
-  {
-    if (msg->robot_type != fleet_name)
-      return;
-
-    const auto connections = c.lock();
-    if (!connections)
-      return;
-
-    if (!connections->received_task_ids.insert(msg->task_id).second)
-      return;
-
-    MockTrafficLightCommandHandlePtr best = nullptr;
-    for (const auto& r : connections->robots)
+    rmf_task_msgs::msg::Loop>(
+    rmf_fleet_adapter::LoopRequestTopicName,
+    rclcpp::SystemDefaultsQoS(),
+    [c = std::weak_ptr<Connections>(connections), fleet_name](
+      const rmf_task_msgs::msg::Loop::SharedPtr msg)
     {
-      const auto start = r.second->start_waypoint();
-      if (!start)
-        continue;
+      if (msg->robot_type != fleet_name)
+        return;
 
-      if (*start == msg->start_name)
-      {
-        best = r.second;
-        break;
-      }
-    }
+      const auto connections = c.lock();
+      if (!connections)
+        return;
 
-    if (!best)
-    {
-      // This is a very dumb approach to assigning the tasks, but this adapter is
-      // only meant for testing purposes anyway.
+      if (!connections->received_task_ids.insert(msg->task_id).second)
+        return;
+
+      MockTrafficLightCommandHandlePtr best = nullptr;
       for (const auto& r : connections->robots)
       {
-        const auto& candidate = r.second;
-        if (!best || candidate->queue_size() < best->queue_size())
-          best = candidate;
+        const auto start = r.second->start_waypoint();
+        if (!start)
+          continue;
+
+        if (*start == msg->start_name)
+        {
+          best = r.second;
+          break;
+        }
       }
 
       if (!best)
       {
-        RCLCPP_ERROR(
-          connections->adapter->node()->get_logger(),
-          "No robot is available to fulfill the loop task request [%s]",
-          msg->task_id.c_str());
-        return;
+        // This is a very dumb approach to assigning the tasks, but this adapter is
+        // only meant for testing purposes anyway.
+        for (const auto& r : connections->robots)
+        {
+          const auto& candidate = r.second;
+          if (!best || candidate->queue_size() < best->queue_size())
+            best = candidate;
+        }
+
+        if (!best)
+        {
+          RCLCPP_ERROR(
+            connections->adapter->node()->get_logger(),
+            "No robot is available to fulfill the loop task request [%s]",
+            msg->task_id.c_str());
+          return;
+        }
       }
-    }
 
-    std::vector<std::string> new_waypoints;
-    new_waypoints.reserve(2*msg->num_loops);
-    for (std::size_t i=0; i < msg->num_loops; ++i)
-    {
-      new_waypoints.push_back(msg->start_name);
-      new_waypoints.push_back(msg->finish_name);
-    }
+      std::vector<std::string> new_waypoints;
+      new_waypoints.reserve(2*msg->num_loops);
+      for (std::size_t i = 0; i < msg->num_loops; ++i)
+      {
+        new_waypoints.push_back(msg->start_name);
+        new_waypoints.push_back(msg->finish_name);
+      }
 
-    RCLCPP_INFO(
-      connections->adapter->node()->get_logger(),
-      "Assigning task [%s] to robot [%s]",
-      msg->task_id.c_str(),
-      best->name().c_str());
+      RCLCPP_INFO(
+        connections->adapter->node()->get_logger(),
+        "Assigning task [%s] to robot [%s]",
+        msg->task_id.c_str(),
+        best->name().c_str());
 
-    best->add_to_queue(new_waypoints);
-  });
+      best->add_to_queue(new_waypoints);
+    });
 
   return connections;
 }

@@ -61,12 +61,12 @@ rmf_traffic_msgs::msg::ScheduleParticipantPatch convert(
 {
   return
     rmf_traffic_msgs::build<rmf_traffic_msgs::msg::ScheduleParticipantPatch>()
-      .participant_id(from.participant_id())
-      .itinerary_version(from.itinerary_version())
-      .erasures(from.erasures().ids())
-      .delays(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeDelay>(
+    .participant_id(from.participant_id())
+    .itinerary_version(from.itinerary_version())
+    .erasures(from.erasures().ids())
+    .delays(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeDelay>(
         from.delays()))
-      .additions(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeAdd>(
+    .additions(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeAdd>(
         from.additions().items()));
 }
 

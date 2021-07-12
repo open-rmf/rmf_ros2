@@ -28,10 +28,10 @@ std::shared_ptr<EndLiftSession::Active> EndLiftSession::Active::make(
   std::string destination)
 {
   auto inst = std::shared_ptr<Active>(
-        new Active(
-          std::move(context),
-          std::move(lift_name),
-          std::move(destination)));
+    new Active(
+      std::move(context),
+      std::move(lift_name),
+      std::move(destination)));
   inst->_init_obs();
   return inst;
 }
@@ -87,52 +87,52 @@ void EndLiftSession::Active::_init_obs()
   using rmf_lift_msgs::msg::LiftState;
   _obs = _context->node()->lift_state()
     .lift<LiftState::SharedPtr>(on_subscribe([weak = weak_from_this()]()
-    {
-      const auto me = weak.lock();
-      if (!me)
-        return;
-
-      me->_publish_session_end();
-      me->_timer = me->_context->node()->create_wall_timer(
-        std::chrono::milliseconds(1000),
-        [weak]()
-        {
-          const auto me = weak.lock();
-          if (!me)
-            return;
-
-          me->_publish_session_end();
-        });
-    }))
-    .map([weak = weak_from_this()](const LiftState::SharedPtr& state)
-    {
-      const auto me = weak.lock();
-      if (!me)
-        return Task::StatusMsg();
-
-      Task::StatusMsg msg;
-      msg.state = Task::StatusMsg::STATE_ACTIVE;
-
-      if (state->lift_name != me->_lift_name)
-        return msg;
-
-      if (state->session_id != me->_context->requester_id())
       {
-        msg.status = "success";
-        msg.state = Task::StatusMsg::STATE_COMPLETED;
-      }
+        const auto me = weak.lock();
+        if (!me)
+          return;
 
-      return msg;
-    })
+        me->_publish_session_end();
+        me->_timer = me->_context->node()->try_create_wall_timer(
+          std::chrono::milliseconds(1000),
+          [weak]()
+          {
+            const auto me = weak.lock();
+            if (!me)
+              return;
+
+            me->_publish_session_end();
+          });
+      }))
+    .map([weak = weak_from_this()](const LiftState::SharedPtr& state)
+      {
+        const auto me = weak.lock();
+        if (!me)
+          return Task::StatusMsg();
+
+        Task::StatusMsg msg;
+        msg.state = Task::StatusMsg::STATE_ACTIVE;
+
+        if (state->lift_name != me->_lift_name)
+          return msg;
+
+        if (state->session_id != me->_context->requester_id())
+        {
+          msg.status = "success";
+          msg.state = Task::StatusMsg::STATE_COMPLETED;
+        }
+
+        return msg;
+      })
     .lift<Task::StatusMsg>(grab_while_active())
     .finally([weak = weak_from_this()]()
-    {
-      const auto me = weak.lock();
-      if (!me)
-        return;
+      {
+        const auto me = weak.lock();
+        if (!me)
+          return;
 
-      me->_timer.reset();
-    });
+        me->_timer.reset();
+      });
 }
 
 //==============================================================================

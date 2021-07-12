@@ -30,16 +30,17 @@ std::shared_ptr<DoorClose::ActivePhase> DoorClose::ActivePhase::make(
   std::string request_id)
 {
   auto inst = std::shared_ptr<ActivePhase>(new ActivePhase(
-    std::move(context),
-    std::move(door_name),
-    std::move(request_id)
+        std::move(context),
+        std::move(door_name),
+        std::move(request_id)
   ));
   inst->_init_obs();
   return inst;
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& DoorClose::ActivePhase::observe() const
+const rxcpp::observable<Task::StatusMsg>&
+DoorClose::ActivePhase::observe() const
 {
   return _obs;
 }
@@ -76,43 +77,44 @@ void DoorClose::ActivePhase::_init_obs()
   using rmf_door_msgs::msg::DoorRequest;
   using rmf_door_msgs::msg::SupervisorHeartbeat;
   _obs = _context->node()->door_supervisor()
-    .lift<SupervisorHeartbeat::SharedPtr>(on_subscribe([weak = weak_from_this()]()
-    {
-      auto me = weak.lock();
-      if (!me)
-        return;
+    .lift<SupervisorHeartbeat::SharedPtr>(on_subscribe([weak =
+      weak_from_this()]()
+      {
+        auto me = weak.lock();
+        if (!me)
+          return;
 
-      me->_status.state = Task::StatusMsg::STATE_ACTIVE;
-      me->_publish_close_door();
-      me->_timer = me->_context->node()->create_wall_timer(
-        std::chrono::milliseconds(1000),
-        [weak]()
-        {
-          auto me = weak.lock();
-          if (!me)
-            return;
+        me->_status.state = Task::StatusMsg::STATE_ACTIVE;
+        me->_publish_close_door();
+        me->_timer = me->_context->node()->try_create_wall_timer(
+          std::chrono::milliseconds(1000),
+          [weak]()
+          {
+            auto me = weak.lock();
+            if (!me)
+              return;
 
-          me->_publish_close_door();
-        });
-    }))
+            me->_publish_close_door();
+          });
+      }))
     .map([weak = weak_from_this()](const auto& heartbeat)
-    {
-      auto me = weak.lock();
-      if (!me)
-        return Task::StatusMsg();
+      {
+        auto me = weak.lock();
+        if (!me)
+          return Task::StatusMsg();
 
-      me->_update_status(heartbeat);
-      return me->_status;
-    })
+        me->_update_status(heartbeat);
+        return me->_status;
+      })
     .lift<Task::StatusMsg>(grab_while_active())
     .finally([weak = weak_from_this()]()
-    {
-      auto me = weak.lock();
-      if (!me)
-        return;
+      {
+        auto me = weak.lock();
+        if (!me)
+          return;
 
-      me->_timer.reset();
-    });
+        me->_timer.reset();
+      });
 }
 
 //==============================================================================
@@ -138,7 +140,7 @@ void DoorClose::ActivePhase::_update_status(
   else
   {
     _status.status = "[" + _context->name() + "] waiting for door ["
-        + _door_name + "] to close";
+      + _door_name + "] to close";
   }
 }
 
@@ -147,9 +149,9 @@ DoorClose::ActivePhase::ActivePhase(
   agv::RobotContextPtr context,
   std::string door_name,
   std::string request_id)
-  : _context(std::move(context)),
-    _door_name(std::move(door_name)),
-    _request_id(std::move(request_id))
+: _context(std::move(context)),
+  _door_name(std::move(door_name)),
+  _request_id(std::move(request_id))
 {
   _description = "Closing door \"" + _door_name + "\"";
 }
@@ -159,9 +161,9 @@ DoorClose::PendingPhase::PendingPhase(
   agv::RobotContextPtr context,
   std::string door_name,
   std::string request_id)
-  : _context(std::move(context)),
-    _door_name(std::move(door_name)),
-    _request_id(std::move(request_id))
+: _context(std::move(context)),
+  _door_name(std::move(door_name)),
+  _request_id(std::move(request_id))
 {
   _description = "Close door \"" + _door_name + "\"";
 }

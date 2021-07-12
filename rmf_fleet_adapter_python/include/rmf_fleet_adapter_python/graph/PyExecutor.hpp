@@ -82,7 +82,7 @@ public:
       Lane::Executor,
       "lift_session_end_execute",
       execute,
-      end 
+      end
     );
   }
 
@@ -115,7 +115,7 @@ public:
       Lane::Executor,
       "wait_execute",
       execute,
-      wait 
+      wait
     );
   }
 };

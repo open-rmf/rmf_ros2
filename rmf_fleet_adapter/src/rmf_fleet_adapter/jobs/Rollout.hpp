@@ -34,10 +34,10 @@ public:
   };
 
   Rollout(
-      rmf_traffic::agv::Planner::Result result,
-      rmf_traffic::schedule::ParticipantId blocker,
-      rmf_traffic::Duration span,
-      rmf_utils::optional<std::size_t> max_rollouts = rmf_utils::nullopt);
+    rmf_traffic::agv::Planner::Result result,
+    rmf_traffic::schedule::ParticipantId blocker,
+    rmf_traffic::Duration span,
+    rmf_utils::optional<std::size_t> max_rollouts = rmf_utils::nullopt);
 
   template<typename Subscriber, typename Worker>
   void operator()(const Subscriber& s, const Worker& w);

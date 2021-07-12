@@ -49,33 +49,33 @@ struct TravelInfo
 
 //==============================================================================
 void check_path_finish(
-    rclcpp::Node* node,
-    const rmf_fleet_msgs::msg::RobotState& state,
-    TravelInfo& info);
+  rclcpp::Node* node,
+  const rmf_fleet_msgs::msg::RobotState& state,
+  TravelInfo& info);
 
 //==============================================================================
 void estimate_path_traveling(
-    rclcpp::Node* node,
-    const rmf_fleet_msgs::msg::RobotState& state,
-    TravelInfo& info);
+  rclcpp::Node* node,
+  const rmf_fleet_msgs::msg::RobotState& state,
+  TravelInfo& info);
 
 //==============================================================================
 void estimate_midlane_state(
-    const rmf_fleet_msgs::msg::Location& l,
-    rmf_utils::optional<std::size_t> lane_start,
-    std::size_t next_index,
-    TravelInfo& info);
+  const rmf_fleet_msgs::msg::Location& l,
+  rmf_utils::optional<std::size_t> lane_start,
+  std::size_t next_index,
+  TravelInfo& info);
 
 //==============================================================================
 void estimate_state(
-    rclcpp::Node* node,
-    const rmf_fleet_msgs::msg::Location& state,
-    TravelInfo& info);
+  rclcpp::Node* node,
+  const rmf_fleet_msgs::msg::Location& state,
+  TravelInfo& info);
 
 //==============================================================================
 void estimate_waypoint(
-    rclcpp::Node* node,
-    const rmf_fleet_msgs::msg::Location& state,
-    TravelInfo& info);
+  rclcpp::Node* node,
+  const rmf_fleet_msgs::msg::Location& state,
+  TravelInfo& info);
 
 #endif // SRC__FULL_CONTROL__ESTIMATION_HPP

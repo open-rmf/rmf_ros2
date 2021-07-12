@@ -22,14 +22,14 @@ namespace services {
 
 //==============================================================================
 ProgressEvaluator::ProgressEvaluator(
-    const double compliant_leeway_base_,
-    const double compliant_leeway_multiplier_,
-    const double estimate_leeway_,
-    const double max_cost_threshold_)
-  : compliant_leeway_base(compliant_leeway_base_),
-    compliant_leeway_multiplier(compliant_leeway_multiplier_),
-    estimate_leeway(estimate_leeway_),
-    max_cost_threshold(max_cost_threshold_)
+  const double compliant_leeway_base_,
+  const double compliant_leeway_multiplier_,
+  const double estimate_leeway_,
+  const double max_cost_threshold_)
+: compliant_leeway_base(compliant_leeway_base_),
+  compliant_leeway_multiplier(compliant_leeway_multiplier_),
+  estimate_leeway(estimate_leeway_),
+  max_cost_threshold(max_cost_threshold_)
 {
   // Do nothing
 }
@@ -56,8 +56,8 @@ bool ProgressEvaluator::evaluate(Result& progress)
     return false;
   }
 
-  const double cost = progress.success()?
-        progress->get_cost() : *progress.cost_estimate();
+  const double cost = progress.success() ?
+    progress->get_cost() : *progress.cost_estimate();
 
   if (progress.success())
   {
@@ -88,9 +88,9 @@ bool ProgressEvaluator::evaluate(Result& progress)
 
   const double dropdead_cost =
     std::min(
-      progress.ideal_cost().value() + max_cost_threshold,
-      compliant_leeway_multiplier*progress.ideal_cost().value()
-      + compliant_leeway_base);
+    progress.ideal_cost().value() + max_cost_threshold,
+    compliant_leeway_multiplier*progress.ideal_cost().value()
+    + compliant_leeway_base);
 
   const bool giveup = dropdead_cost <= cost;
   if (!progress.success() && !giveup)
@@ -98,14 +98,14 @@ bool ProgressEvaluator::evaluate(Result& progress)
     if (!best_result.progress)
     {
       progress.options().maximum_cost_estimate(
-            std::min(estimate_leeway * cost, dropdead_cost));
+        std::min(estimate_leeway * cost, dropdead_cost));
 
       return true;
     }
     else if (cost < best_result.cost)
     {
       progress.options().maximum_cost_estimate(
-            std::min(best_result.cost, dropdead_cost));
+        std::min(best_result.cost, dropdead_cost));
       return true;
     }
   }
@@ -123,8 +123,8 @@ void ProgressEvaluator::discard(Result& progress)
     second_best_estimate = Info();
   }
 
-  const double cost = progress.cost_estimate()?
-        *progress.cost_estimate() : std::numeric_limits<double>::infinity();
+  const double cost = progress.cost_estimate() ?
+    *progress.cost_estimate() : std::numeric_limits<double>::infinity();
   if (best_discarded.progress || cost < best_discarded.cost)
     best_discarded = Info{cost, &progress};
 

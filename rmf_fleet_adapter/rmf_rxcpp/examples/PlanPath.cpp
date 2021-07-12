@@ -42,10 +42,11 @@ inline rmf_traffic::Time print_start(const rmf_traffic::Route& route)
 
 //==============================================================================
 inline void print_route(
-    const rmf_traffic::Route& route,
-    const rmf_traffic::Time start_time)
+  const rmf_traffic::Route& route,
+  const rmf_traffic::Time start_time)
 {
-  for (auto it = ++route.trajectory().begin(); it != route.trajectory().end(); ++it)
+  for (auto it = ++route.trajectory().begin(); it != route.trajectory().end();
+    ++it)
   {
     const auto& wp = *it;
     if (wp.velocity().norm() > 1e-3)
@@ -59,7 +60,7 @@ inline void print_route(
 
 //==============================================================================
 inline void print_itinerary(
-    const rmf_traffic::schedule::Itinerary& itinerary)
+  const rmf_traffic::schedule::Itinerary& itinerary)
 {
   auto start_time = print_start(*itinerary.front());
   for (const auto& r : itinerary)
@@ -90,19 +91,19 @@ struct PlannerAction
   using Result = Progress;
 
   PlannerAction(
-      rmf_traffic::schedule::Database schedule,
-      rmf_traffic::agv::Planner::Configuration config,
-      rmf_traffic::agv::Planner::Start start,
-      rmf_traffic::agv::Planner::Goal goal,
-      std::atomic_int& sync_failure)
-    : _database(std::move(schedule)),
-      _current_result(
-        initiate(
-          _database,
-          std::move(config),
-          std::move(start),
-          std::move(goal))),
-      _sync_failure(sync_failure)
+    rmf_traffic::schedule::Database schedule,
+    rmf_traffic::agv::Planner::Configuration config,
+    rmf_traffic::agv::Planner::Start start,
+    rmf_traffic::agv::Planner::Goal goal,
+    std::atomic_int& sync_failure)
+  : _database(std::move(schedule)),
+    _current_result(
+      initiate(
+        _database,
+        std::move(config),
+        std::move(start),
+        std::move(goal))),
+    _sync_failure(sync_failure)
   {
     // Do nothing
   }
@@ -118,7 +119,7 @@ struct PlannerAction
     }
 
     auto r = process();
-      s.on_next(Progress{*this, r});
+    s.on_next(Progress{*this, r});
     if (r || _discarded)
     {
       s.on_completed();
@@ -128,9 +129,9 @@ struct PlannerAction
     if (!_discarded)
     {
       w.schedule([this, s, w](const auto&)
-      {
-        (*this)(s, w);
-      });
+        {
+          (*this)(s, w);
+        });
     }
   }
 
@@ -159,8 +160,8 @@ struct PlannerAction
   struct Compare
   {
     bool operator()(
-        const std::shared_ptr<PlannerAction>& a,
-        const std::shared_ptr<PlannerAction>& b)
+      const std::shared_ptr<PlannerAction>& a,
+      const std::shared_ptr<PlannerAction>& b)
     {
       return b->cost_estimate() < a->cost_estimate();
     }
@@ -173,10 +174,10 @@ private:
   std::atomic_int& _sync_failure;
 
   static rmf_traffic::agv::Planner::Result initiate(
-      const rmf_traffic::schedule::Viewer& viewer,
-      rmf_traffic::agv::Planner::Configuration config,
-      rmf_traffic::agv::Planner::Start start,
-      rmf_traffic::agv::Planner::Goal goal)
+    const rmf_traffic::schedule::Viewer& viewer,
+    rmf_traffic::agv::Planner::Configuration config,
+    rmf_traffic::agv::Planner::Start start,
+    rmf_traffic::agv::Planner::Goal goal)
   {
     // Using this do_not_start flag with a value of true will make sure that the
     // planning problem gets started up but is immediately interrupted so that
@@ -185,13 +186,13 @@ private:
     // TODO(MXG): Should we create a Planner::setup() function that does this as
     // an alternative to Planner::plan()?
     rmf_traffic::agv::Planner::Options options(
-          rmf_utils::make_clone<rmf_traffic::agv::ScheduleRouteValidator>(
-            viewer, 10000, config.vehicle_traits().profile()),
-          std::chrono::seconds(5));
+      rmf_utils::make_clone<rmf_traffic::agv::ScheduleRouteValidator>(
+        viewer, 10000, config.vehicle_traits().profile()),
+      std::chrono::seconds(5));
 
     return rmf_traffic::agv::Planner(
-          std::move(config), std::move(options))
-        .setup(std::move(start), std::move(goal));
+      std::move(config), std::move(options))
+      .setup(std::move(start), std::move(goal));
   }
 };
 
@@ -219,7 +220,8 @@ struct MetaPlannerAction
   std::size_t finished_count = 0;
   EstimateInfo best_estimate;
   EstimateInfo second_best_estimate;
-  std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point start_time =
+    std::chrono::steady_clock::now();
 
   template<typename Subscriber>
   void operator()(const Subscriber& s)
@@ -231,8 +233,8 @@ struct MetaPlannerAction
     const auto graph = make_graph();
 
     const rmf_traffic::Profile profile(
-          rmf_traffic::geometry::make_final_convex<
-            rmf_traffic::geometry::Circle>(1.0));
+      rmf_traffic::geometry::make_final_convex<
+        rmf_traffic::geometry::Circle>(1.0));
 
     const rmf_traffic::schedule::ParticipantDescription description{
       "participant_0",
@@ -242,27 +244,27 @@ struct MetaPlannerAction
     };
 
     const rmf_traffic::agv::VehicleTraits traits(
-        {0.7, 0.3}, {1.0, 0.45}, profile);
+      {0.7, 0.3}, {1.0, 0.45}, profile);
 
     const auto master_schedule =
-        std::make_shared<rmf_traffic::schedule::Database>();
+      std::make_shared<rmf_traffic::schedule::Database>();
 
     auto p_A = rmf_traffic::schedule::make_participant(
-          description, master_schedule);
+      description, master_schedule);
 
     auto p_B = rmf_traffic::schedule::make_participant(
-          description, master_schedule);
+      description, master_schedule);
 
     rmf_traffic::agv::Planner::Configuration config(graph, traits);
 
     const auto start_B = rmf_traffic::agv::Plan::Start(start_time, 5, 0.0);
     const auto goal_B = rmf_traffic::agv::Plan::Goal(3);
     rmf_traffic::agv::Planner planner_B(
-          config,
-          {
-            rmf_utils::make_clone<rmf_traffic::agv::ScheduleRouteValidator>(
-              master_schedule, p_B.id(), profile)
-          });
+      config,
+      {
+        rmf_utils::make_clone<rmf_traffic::agv::ScheduleRouteValidator>(
+          master_schedule, p_B.id(), profile)
+      });
 
     const auto initial_plan = planner_B.plan(start_B, goal_B);
     assert(initial_plan);
@@ -270,11 +272,11 @@ struct MetaPlannerAction
     p_B.set(initial_plan->get_itinerary());
 
     rmf_traffic::agv::Planner planner_A(
-          config,
-          {
-            rmf_utils::make_clone<rmf_traffic::agv::ScheduleRouteValidator>(
-              master_schedule, p_A.id(), profile)
-          });
+      config,
+      {
+        rmf_utils::make_clone<rmf_traffic::agv::ScheduleRouteValidator>(
+          master_schedule, p_A.id(), profile)
+      });
 
     // This will fail because the other participant is blocking it.
     const auto start_A = rmf_traffic::agv::Plan::Start(start_time, 3, 0.0);
@@ -284,7 +286,7 @@ struct MetaPlannerAction
 
     rmf_traffic::agv::Rollout rollout_A(result_A);
     auto alternatives = rollout_A.expand(
-          p_B.id(), std::chrono::seconds(30), {nullptr});
+      p_B.id(), std::chrono::seconds(30), {nullptr});
 
     std::cout << "Alternatives:" << std::endl;
     for (const auto& alternative : alternatives)
@@ -298,7 +300,7 @@ struct MetaPlannerAction
         database.extend(p.id(), {{r, route}}, v++);
 
       planner_actions.emplace_back(std::make_shared<PlannerAction>(
-              std::move(database), config, start_B, goal_B, sync_failure));
+          std::move(database), config, start_B, goal_B, sync_failure));
 
       const double estimate = planner_actions.back()->cost_estimate();
       if (estimate < best_estimate.cost)
@@ -309,13 +311,13 @@ struct MetaPlannerAction
     }
     second_best_estimate = best_estimate;
 
-  //  const double estimate_leeway = 1.0; // 3.94903s | 3.51954s | 3.79843s
+    //  const double estimate_leeway = 1.0; // 3.94903s | 3.51954s | 3.79843s
     const double estimate_leeway = 1.01; // 3.51758s | 3.49792s | 3.23114s
-  //  const double estimate_leeway = 1.05; // 3.91029s | 3.53983s | 3.93007s
-  //  const double estimate_leeway = 1.1; // 3.77644s | 3.4398s | 3.90458s
-  //  const double estimate_leeway = 1.25; // 6.87893s | 4.04424s | 4.04946s
-  //  const double estimate_leeway = 1.5; // 9.25227s | 6.06916s | 5.59134s
-  //  const double estimate_leeway = 1.75; // 7.22795s | 10.3928s | 8.25479s
+    //  const double estimate_leeway = 1.05; // 3.91029s | 3.53983s | 3.93007s
+    //  const double estimate_leeway = 1.1; // 3.77644s | 3.4398s | 3.90458s
+    //  const double estimate_leeway = 1.25; // 6.87893s | 4.04424s | 4.04946s
+    //  const double estimate_leeway = 1.5; // 9.25227s | 6.06916s | 5.59134s
+    //  const double estimate_leeway = 1.75; // 7.22795s | 10.3928s | 8.25479s
 
     for (auto& job : planner_actions)
       job->set_maximum_cost_estimate(estimate_leeway*best_estimate.cost);
@@ -330,104 +332,104 @@ struct MetaPlannerAction
 
     auto meta_job = rmf_rxcpp::make_job_from_action_list(planner_actions);
     meta_job.subscribe(
-          [this, s, estimate_leeway](
-            const PlannerAction::Progress& progress)
-    {
-      auto& result = progress.result;
-
-      if (!result.cost_estimate())
+      [this, s, estimate_leeway](
+        const PlannerAction::Progress& progress)
       {
-        // The plan is impossible, so we should just move on
-        finished_count++;
-        std::cout << "(Fail) Finished: " << finished_count << std::endl;
-        if (finished_count >= planner_actions.size())
+        auto& result = progress.result;
+
+        if (!result.cost_estimate())
         {
-          s.on_next(best_result->plan.get_itinerary());
-          s.on_completed();
-          return;
-        }
-        progress.action.discard();
-        return;
-      }
-
-      if (result) // This evaluates to true if a plan is ready
-      {
-        finished_count++;
-        std::cout << "(Success) Finished: " << finished_count << std::endl;
-        const auto finish_time =
-            *result->get_itinerary().back().trajectory().finish_time();
-
-        const double cost =
-            rmf_traffic::time::to_seconds(finish_time - start_time);
-
-        if (!best_result || cost < best_result->cost)
-        {
-          std::cout << "New best: " << cost << std::endl;
-          // If no result exists yet, use this as the best result.
-          best_result = JobResult{cost, *result};
-          best_estimate.cost = cost;
-        }
-
-        if (finished_count >= planner_actions.size())
-        {
-          s.on_next(best_result->plan.get_itinerary());
-          s.on_completed();
-          return;
-        }
-      }
-      else if (!best_result || *result.cost_estimate() < best_result->cost)
-      {
-        // This job could still produce a better plan than the current best, so
-        // put it back in the job queue.
-
-        // Update our best estimates based on the result of this job.
-        const double cost_estimate = *result.cost_estimate();
-        if (!best_result)
-        {
-          if (&progress.action == best_estimate.estimator)
+          // The plan is impossible, so we should just move on
+          finished_count++;
+          std::cout << "(Fail) Finished: " << finished_count << std::endl;
+          if (finished_count >= planner_actions.size())
           {
-            best_estimate.cost = cost_estimate;
-            if (second_best_estimate.cost < best_estimate.cost)
+            s.on_next(best_result->plan.get_itinerary());
+            s.on_completed();
+            return;
+          }
+          progress.action.discard();
+          return;
+        }
+
+        if (result) // This evaluates to true if a plan is ready
+        {
+          finished_count++;
+          std::cout << "(Success) Finished: " << finished_count << std::endl;
+          const auto finish_time =
+          *result->get_itinerary().back().trajectory().finish_time();
+
+          const double cost =
+          rmf_traffic::time::to_seconds(finish_time - start_time);
+
+          if (!best_result || cost < best_result->cost)
+          {
+            std::cout << "New best: " << cost << std::endl;
+            // If no result exists yet, use this as the best result.
+            best_result = JobResult{cost, *result};
+            best_estimate.cost = cost;
+          }
+
+          if (finished_count >= planner_actions.size())
+          {
+            s.on_next(best_result->plan.get_itinerary());
+            s.on_completed();
+            return;
+          }
+        }
+        else if (!best_result || *result.cost_estimate() < best_result->cost)
+        {
+          // This job could still produce a better plan than the current best, so
+          // put it back in the job queue.
+
+          // Update our best estimates based on the result of this job.
+          const double cost_estimate = *result.cost_estimate();
+          if (!best_result)
+          {
+            if (&progress.action == best_estimate.estimator)
             {
-              best_estimate = second_best_estimate;
-              second_best_estimate = EstimateInfo();
+              best_estimate.cost = cost_estimate;
+              if (second_best_estimate.cost < best_estimate.cost)
+              {
+                best_estimate = second_best_estimate;
+                second_best_estimate = EstimateInfo();
+              }
+            }
+            else
+            {
+              if (cost_estimate < second_best_estimate.cost)
+              {
+                second_best_estimate.cost = cost_estimate;
+                second_best_estimate.estimator = &progress.action;
+              }
             }
           }
+
+          std::cout << "(Resume) " << "current cost: " << cost_estimate
+                    << " best estimate: " << best_estimate.cost << " best result: ";
+          if (best_result)
+            std::cout << best_result->cost;
           else
+            std::cout << "N/A";
+          std::cout << std::endl;
+
+          progress.action.set_maximum_cost_estimate(
+            estimate_leeway*best_estimate.cost);
+        }
+        else
+        {
+          finished_count++;
+          std::cout << "(Discarded) Finished: " << finished_count << std::endl;
+          progress.action.discard();
+          if (finished_count >= planner_actions.size())
           {
-            if (cost_estimate < second_best_estimate.cost)
-            {
-              second_best_estimate.cost = cost_estimate;
-              second_best_estimate.estimator = &progress.action;
-            }
+            s.on_next(best_result->plan.get_itinerary());
+            s.on_completed();
+            return;
           }
         }
-
-        std::cout << "(Resume) " << "current cost: " << cost_estimate
-                  << " best estimate: " << best_estimate.cost << " best result: ";
-        if (best_result)
-          std::cout << best_result->cost;
-        else
-          std::cout << "N/A";
-        std::cout << std::endl;
-
-        progress.action.set_maximum_cost_estimate(
-              estimate_leeway*best_estimate.cost);
-      }
-      else
-      {
-        finished_count++;
-        std::cout << "(Discarded) Finished: " << finished_count << std::endl;
-        progress.action.discard();
-        if (finished_count >= planner_actions.size())
-        {
-          s.on_next(best_result->plan.get_itinerary());
-          s.on_completed();
-          return;
-        }
-      }
-      std::cout << "//////////" << std::endl;
-    });
+        std::cout << "//////////" << std::endl;
+      });
   }
 };
 
@@ -438,23 +440,23 @@ int main()
 
   const auto meta_planner_obj = std::make_shared<MetaPlannerAction>();
   auto meta_planner_job = rmf_rxcpp::make_job<MetaPlannerAction::Result>(
-        meta_planner_obj);
+    meta_planner_obj);
 
   std::promise<std::vector<rmf_traffic::Route>> itinerary_promise;
   auto itinerary_future = itinerary_promise.get_future();
   meta_planner_job
-      .subscribe([&itinerary_promise](const auto& itinerary)
-  {
-    std::cout <<"\nBest plan for B:" << std::endl;
-    itinerary_promise.set_value(itinerary);
-  });
+  .subscribe([&itinerary_promise](const auto& itinerary)
+    {
+      std::cout <<"\nBest plan for B:" << std::endl;
+      itinerary_promise.set_value(itinerary);
+    });
 
   itinerary_future.wait_for(std::chrono::seconds(5));
   print_itinerary(itinerary_future.get());
 
   const auto benchmark_finish = std::chrono::steady_clock::now();
   std::cout << "Benchmark: " << rmf_traffic::time::to_seconds(
-                 benchmark_finish - benchmark_start) << std::endl;
+      benchmark_finish - benchmark_start) << std::endl;
 
   std::cout << "Sync failures: " << meta_planner_obj->sync_failure << std::endl;
 }
