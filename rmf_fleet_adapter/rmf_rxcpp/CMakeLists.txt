@@ -34,16 +34,16 @@ if(BUILD_TESTING)
     PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
 
   ament_add_catch2(
-    rmf_rxcpp_test
+    test_rmf_rxcpp
       test/main.cpp
       test/test_RxJobs.cpp
       test/test_Transport.cpp
   )
-  target_include_directories(rmf_rxcpp_test
+  target_include_directories(test_rmf_rxcpp
     PRIVATE
       ${std_msgs_INCLUDE_DIRS}
   )
-  target_link_libraries(rmf_rxcpp_test
+  target_link_libraries(test_rmf_rxcpp
     PRIVATE
       rmf_rxcpp
       rmf_utils::rmf_utils
