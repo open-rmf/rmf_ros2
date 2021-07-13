@@ -135,9 +135,9 @@ public:
       });
 
     update_timer = node.create_wall_timer(5s, [&]() -> void
-      {
-        handle_update_timeout();
-      });
+        {
+          handle_update_timeout();
+        });
   }
 
   void handle_participants_info(const ParticipantsInfo::SharedPtr msg)
@@ -277,8 +277,7 @@ public:
 
   void redo_query_registration_callback()
   {
-    if (register_query_client->wait_for_service(
-          std::chrono::milliseconds(100)))
+    if (register_query_client->service_is_ready())
     {
       RegisterQuery::Request register_query_request;
       register_query_request.query = convert(query);

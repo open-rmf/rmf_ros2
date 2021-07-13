@@ -173,8 +173,14 @@ public:
   void add_query_topic(uint64_t query_id);
   void remove_query_topic(uint64_t query_id);
   void add_subscriber_to_query_topic(uint64_t query_id);
+
   enum class SubscriberRemovalResult
-    { query_in_use, query_removed, query_missing };
+  {
+    query_in_use,
+    query_removed,
+    query_missing
+  };
+
   SubscriberRemovalResult remove_subscriber_from_query_topic(uint64_t query_id);
   void remake_mirror_update_topics(
     const QuerySubscriberCountMap& subscriber_counts);
@@ -192,9 +198,9 @@ public:
   using RequestChanges = rmf_traffic_msgs::srv::RequestChanges;
   using RequestChangesSrv = rclcpp::Service<RequestChanges>;
   void request_changes(
-      const request_id_ptr& request_header,
-      const RequestChanges::Request::SharedPtr& request,
-      const RequestChanges::Response::SharedPtr& response);
+    const request_id_ptr& request_header,
+    const RequestChanges::Request::SharedPtr& request,
+    const RequestChanges::Response::SharedPtr& response);
   RequestChangesSrv::SharedPtr request_changes_service;
 
   virtual void setup_changes_services();

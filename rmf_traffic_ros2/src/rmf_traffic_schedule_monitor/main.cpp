@@ -27,17 +27,17 @@ int main(int argc, char* argv[])
   std::promise<std::shared_ptr<rclcpp::Node>> active_node_promise;
   auto active_node_future = active_node_promise.get_future().share();
   auto monitor_node = rmf_traffic_ros2::schedule::make_monitor_node(
-    [&active_node_promise](std::shared_ptr<rclcpp::Node> new_active_schedule_node)
+    [&active_node_promise](
+      std::shared_ptr<rclcpp::Node> new_active_schedule_node)
     {
       active_node_promise.set_value(new_active_schedule_node);
     });
 
   rclcpp::spin_until_future_complete(monitor_node, active_node_future);
 
-  if (
-    active_node_future.wait_for(std::chrono::seconds(0)) ==
-      std::future_status::ready &&
-    rclcpp::ok())
+  using namespace std::chrono_literals;
+  if (active_node_future.wait_for(0s) == std::future_status::ready
+    && rclcpp::ok())
   {
     auto active_schedule_node = active_node_future.get();
     // Delete the monitor to prevent it reacting to any future events

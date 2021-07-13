@@ -50,10 +50,12 @@ MonitorNode::MonitorNode(
 void MonitorNode::start_heartbeat_listener()
 {
   heartbeat_qos_profile
-    .liveliness(RMW_QOS_POLICY_LIVELINESS_AUTOMATIC)
-    .liveliness_lease_duration(heartbeat_period);
+  .liveliness(RMW_QOS_POLICY_LIVELINESS_AUTOMATIC)
+  .liveliness_lease_duration(heartbeat_period);
+
   heartbeat_sub_options.event_callbacks.liveliness_callback =
-    [this](rclcpp::QOSLivelinessChangedInfo &event) -> void {
+    [this](rclcpp::QOSLivelinessChangedInfo& event) -> void
+    {
       RCLCPP_INFO(
         get_logger(),
         "Liveliness changed event:");
@@ -73,7 +75,7 @@ void MonitorNode::start_heartbeat_listener()
         get_logger(),
         "  not_alive_count_change: %d",
         event.not_alive_count_change);
-      if( // The ideal pattern is 0, -1, 1, 1
+      if ( // The ideal pattern is 0, -1, 1, 1
         event.alive_count == 0 && event.alive_count_change < 0 &&
         event.not_alive_count > 0 && event.not_alive_count_change > 0)
       {
@@ -87,7 +89,8 @@ void MonitorNode::start_heartbeat_listener()
   heartbeat_sub = create_subscription<Heartbeat>(
     rmf_traffic_ros2::HeartbeatTopicName,
     heartbeat_qos_profile,
-    [this](const typename Heartbeat::SharedPtr msg) -> void {
+    [this](const typename Heartbeat::SharedPtr msg) -> void
+    {
       (void) msg;
       RCLCPP_INFO(
         get_logger(),

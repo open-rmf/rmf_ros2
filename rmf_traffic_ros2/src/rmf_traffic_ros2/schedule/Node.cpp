@@ -87,9 +87,9 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 // This constructor will _not_ automatically call the setup() method to finalise
 // construction of the ScheduleNode object. setup() must be called manually.
 ScheduleNode::ScheduleNode(
-    std::shared_ptr<rmf_traffic::schedule::Database> database_,
-    QueryMap registered_queries_,
-    const rclcpp::NodeOptions& options)
+  std::shared_ptr<rmf_traffic::schedule::Database> database_,
+  QueryMap registered_queries_,
+  const rclcpp::NodeOptions& options)
 : Node("rmf_traffic_schedule_node", options),
   heartbeat_qos_profile(1),
   database(std::move(database_)),
@@ -103,17 +103,18 @@ ScheduleNode::ScheduleNode(
     get_parameter("heartbeat_period").as_int());
 
   // Participant registry location
-  declare_parameter<std::string>("log_file_location", ".rmf_schedule_node.yaml");
+  declare_parameter<std::string>(
+    "log_file_location", ".rmf_schedule_node.yaml");
 }
 
 //==============================================================================
 // This constructor will automatically call the setup() method to finalise
 // construction of the ScheduleNode object.
 ScheduleNode::ScheduleNode(
-    std::shared_ptr<rmf_traffic::schedule::Database> database_,
-    QueryMap registered_queries_,
-    QuerySubscriberCountMap registered_query_subscriber_counts,
-    const rclcpp::NodeOptions& options)
+  std::shared_ptr<rmf_traffic::schedule::Database> database_,
+  QueryMap registered_queries_,
+  QuerySubscriberCountMap registered_query_subscriber_counts,
+  const rclcpp::NodeOptions& options)
 : ScheduleNode(
     database_,
     registered_queries_,
@@ -163,8 +164,8 @@ void ScheduleNode::setup(
   //Attempt to load/create participant registry.
   std::string log_file_name;
   get_parameter_or<std::string>(
-    "log_file_location", 
-    log_file_name, 
+    "log_file_location",
+    log_file_name,
     ".rmf_schedule_node.yaml");
 
   // Re-instantiate any query update topics based on received queries
@@ -467,16 +468,17 @@ void ScheduleNode::start_heartbeat()
 {
   // Set up liveliness announcements of this node, powered by DDS[tm][r][c][rgb]
   heartbeat_qos_profile
-    .liveliness(RMW_QOS_POLICY_LIVELINESS_AUTOMATIC)
-    .liveliness_lease_duration(heartbeat_period)
-    .deadline(heartbeat_period);
+  .liveliness(RMW_QOS_POLICY_LIVELINESS_AUTOMATIC)
+  .liveliness_lease_duration(heartbeat_period)
+  .deadline(heartbeat_period);
+
   heartbeat_pub = create_publisher<Heartbeat>(
     rmf_traffic_ros2::HeartbeatTopicName,
     heartbeat_qos_profile);
   RCLCPP_INFO(
     get_logger(),
-      "Set up heartbeat on %s with liveliness lease duration of %d ms "
-      "and deadline of %d ms",
+    "Set up heartbeat on %s with liveliness lease duration of %d ms "
+    "and deadline of %d ms",
     heartbeat_pub->get_topic_name(),
     heartbeat_period,
     heartbeat_period);
@@ -488,8 +490,8 @@ void ScheduleNode::add_query_topic(uint64_t query_id)
   RCLCPP_INFO(get_logger(), "Adding query topic for query %d", query_id);
   MirrorUpdateTopicPublisher update_topic_publisher =
     create_publisher<MirrorUpdate>(
-      rmf_traffic_ros2::QueryUpdateTopicNameBase + std::to_string(query_id),
-      rclcpp::SystemDefaultsQoS());
+    rmf_traffic_ros2::QueryUpdateTopicNameBase + std::to_string(query_id),
+    rclcpp::SystemDefaultsQoS());
   // Start the latest version sent for this query at the oldest version of the
   // database. This will cause the new participant to be updated with all
   // currently-relevant information from the database, not just the next
@@ -536,7 +538,7 @@ void ScheduleNode::add_subscriber_to_query_topic(uint64_t query_id)
     RCLCPP_ERROR(
       get_logger(),
       "Could not find expected mirror update topic for existing query ID %d "
-        "to add subscriber to",
+      "to add subscriber to",
       query_id);
     return;
   }
@@ -565,7 +567,7 @@ ScheduleNode::remove_subscriber_from_query_topic(
     RCLCPP_ERROR(
       get_logger(),
       "Could not find expected mirror update topic for existing query ID %d "
-        "to remove subscriber from",
+      "to remove subscriber from",
       query_id);
     return SubscriberRemovalResult::query_missing;
   }
@@ -611,7 +613,7 @@ void ScheduleNode::remake_mirror_update_topics(
       RCLCPP_ERROR(
         get_logger(),
         "Could not find expected mirror update topic for existing query ID %d "
-          "to set subscriber count on",
+        "to set subscriber count on",
         query_id);
       continue;
     }

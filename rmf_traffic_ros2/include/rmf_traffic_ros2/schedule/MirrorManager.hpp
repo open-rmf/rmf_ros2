@@ -59,7 +59,7 @@ public:
     /// True if the mirror should be updated each time a MirrorWakeup message
     /// is received. The MirrorWakeup messages are sent out each time a change
     /// is introduced to the schedule database.
-   bool update_on_wakeup() const;
+    bool update_on_wakeup() const;
 
     /// Toggle the choice to wakeup on an update.
     Options& update_on_wakeup(bool choice);
