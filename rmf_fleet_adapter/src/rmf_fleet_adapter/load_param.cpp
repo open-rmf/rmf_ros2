@@ -102,11 +102,11 @@ std::optional<rmf_battery::agv::BatterySystem> get_battery_system(
     get_parameter_or_default(node, "battery_capacity", default_capacity);
   const double charging_current =
     get_parameter_or_default(
-      node, "battery_charging_current", default_charging_current);
+    node, "battery_charging_current", default_charging_current);
 
   auto battery_system = rmf_battery::agv::BatterySystem::make(
     voltage, capacity, charging_current);
-  
+
   return battery_system;
 }
 
@@ -117,7 +117,7 @@ std::optional<rmf_battery::agv::MechanicalSystem> get_mechanical_system(
   const double default_moment,
   const double default_friction)
 {
-    const double mass =
+  const double mass =
     get_parameter_or_default(node, "mass", default_mass);
   const double moment_of_inertia =
     get_parameter_or_default(node, "inertia", default_moment);
@@ -126,7 +126,7 @@ std::optional<rmf_battery::agv::MechanicalSystem> get_mechanical_system(
 
   auto mechanical_system = rmf_battery::agv::MechanicalSystem::make(
     mass, moment_of_inertia, friction);
-  
+
   return mechanical_system;
 }
 

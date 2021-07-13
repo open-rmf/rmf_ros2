@@ -32,11 +32,11 @@ public:
   public:
 
     Job(std::shared_ptr<std::size_t> count,
-        std::size_t count_length,
-        std::chrono::nanoseconds period)
-      : count(count),
-        count_length(count_length),
-        period(period)
+      std::size_t count_length,
+      std::chrono::nanoseconds period)
+    : count(count),
+      count_length(count_length),
+      period(period)
     {
       // Do nothing
     }
@@ -56,9 +56,9 @@ public:
       }
 
       w.schedule([this, s, w](const auto&)
-      {
-        (*this)(s, w);
-      });
+        {
+          (*this)(s, w);
+        });
     }
 
     std::shared_ptr<std::size_t> count;
@@ -72,23 +72,23 @@ public:
   public:
 
     Active(
-        std::string name,
-        std::shared_ptr<std::size_t> count,
-        std::size_t count_length,
-        std::chrono::nanoseconds period)
+      std::string name,
+      std::shared_ptr<std::size_t> count,
+      std::size_t count_length,
+      std::chrono::nanoseconds period)
     {
       _desc = "counting for " + name;
 
       _job = std::make_shared<Job>(count, count_length, period);
 
       _obs = rmf_rxcpp::make_job<std::size_t>(_job)
-          .map([name = std::move(name)](const std::size_t v)
-      {
-        StatusMsg msg;
-        msg.state = v;
-        msg.status = name;
-        return msg;
-      });
+        .map([name = std::move(name)](const std::size_t v)
+          {
+            StatusMsg msg;
+            msg.state = v;
+            msg.status = name;
+            return msg;
+          });
     }
 
     const rxcpp::observable<StatusMsg>& observe() const final
@@ -129,14 +129,14 @@ public:
   public:
 
     Pending(
-        std::string name,
-        std::shared_ptr<std::size_t> count,
-        std::size_t count_length,
-        std::chrono::nanoseconds period)
-      : _count(count),
-        _count_length(count_length),
-        _period(period),
-        _desc(name)
+      std::string name,
+      std::shared_ptr<std::size_t> count,
+      std::size_t count_length,
+      std::chrono::nanoseconds period)
+    : _count(count),
+      _count_length(count_length),
+      _period(period),
+      _desc(name)
     {
       // Do nothing
     }
@@ -151,7 +151,7 @@ public:
       return (_count_length - *_count) * _period;
     }
 
-    const std::string & description() const final
+    const std::string& description() const final
     {
       return _desc;
     }
@@ -171,19 +171,19 @@ public:
   using PendingPhases = rmf_fleet_adapter::Task::PendingPhases;
 
   class Active
-      : public rmf_fleet_adapter::Task::ActivePhase,
-        public std::enable_shared_from_this<Active>
+    : public rmf_fleet_adapter::Task::ActivePhase,
+    public std::enable_shared_from_this<Active>
   {
   public:
 
     Active(PendingPhases phases)
-      : _subtasks(
-          rmf_fleet_adapter::Task::make(
-            "subtasks", std::move(phases),
-            rxcpp::schedulers::make_event_loop().create_worker(),
-            std::chrono::steady_clock::now(),
-            {{std::chrono::steady_clock::now(), 0, 0.0}, 0, 1.0},
-            nullptr))
+    : _subtasks(
+        rmf_fleet_adapter::Task::make(
+          "subtasks", std::move(phases),
+          rxcpp::schedulers::make_event_loop().create_worker(),
+          std::chrono::steady_clock::now(),
+          {{std::chrono::steady_clock::now(), 0, 0.0}, 0, 1.0},
+          nullptr))
     {
       _desc = "subtasks";
       _status_obs = _status_publisher.get_observable();
@@ -192,24 +192,24 @@ public:
     void begin()
     {
       _subscription = _subtasks->observe()
-          .observe_on(rxcpp::observe_on_event_loop())
-          .subscribe(
-            [weak = weak_from_this()](
-            const StatusMsg& msg)
-            {
-              if (const auto phase = weak.lock())
-                phase->_status_publisher.get_subscriber().on_next(msg);
-            },
-            [weak = weak_from_this()]()
-            {
-              if (const auto phase = weak.lock())
-                phase->_status_publisher.get_subscriber().on_completed();
-            });
+        .observe_on(rxcpp::observe_on_event_loop())
+        .subscribe(
+        [weak = weak_from_this()](
+          const StatusMsg& msg)
+        {
+          if (const auto phase = weak.lock())
+            phase->_status_publisher.get_subscriber().on_next(msg);
+        },
+        [weak = weak_from_this()]()
+        {
+          if (const auto phase = weak.lock())
+            phase->_status_publisher.get_subscriber().on_completed();
+        });
 
       _subtasks->begin();
     }
 
-    const rxcpp::observable<StatusMsg> & observe() const final
+    const rxcpp::observable<StatusMsg>& observe() const final
     {
       return _status_obs;
     }
@@ -251,7 +251,7 @@ public:
   public:
 
     Pending(PendingPhases phases)
-      : _phases(std::move(phases))
+    : _phases(std::move(phases))
     {
       _desc = "subtasks";
     }
@@ -269,7 +269,7 @@ public:
       return rmf_traffic::Duration(0);
     }
 
-    const std::string & description() const final
+    const std::string& description() const final
     {
       return _desc;
     }
@@ -298,36 +298,36 @@ SCENARIO("Test simple task")
   rmf_task::agv::State finish_state{{deployment_time, 0, 0.0}, 0, 1.0};
 
   std::shared_ptr<rmf_fleet_adapter::Task> task =
-      rmf_fleet_adapter::Task::make(
-        "test_Task", std::move(phases),
-        rxcpp::schedulers::make_event_loop().create_worker(), deployment_time,
-        finish_state, nullptr);
+    rmf_fleet_adapter::Task::make(
+    "test_Task", std::move(phases),
+    rxcpp::schedulers::make_event_loop().create_worker(), deployment_time,
+    finish_state, nullptr);
 
   std::promise<bool> completed_promise;
   auto completed_future = completed_promise.get_future();
   auto status_sub = task->observe()
-      .subscribe(
-        [](const rmf_fleet_adapter::Task::StatusMsg& msg)
-  {
-    if (msg.status.find("A") != std::string::npos)
+    .subscribe(
+    [](const rmf_fleet_adapter::Task::StatusMsg& msg)
     {
-      CHECK(msg.state <= 5);
-    }
-    else if (msg.status.find("B") != std::string::npos)
+      if (msg.status.find("A") != std::string::npos)
+      {
+        CHECK(msg.state <= 5);
+      }
+      else if (msg.status.find("B") != std::string::npos)
+      {
+        CHECK(5 < msg.state);
+        CHECK(msg.state <= 15);
+      }
+      else if (msg.status.find("C") != std::string::npos)
+      {
+        CHECK(15 < msg.state);
+        CHECK(msg.state <= 18);
+      }
+    },
+    [&completed_promise]()
     {
-      CHECK(5 < msg.state);
-      CHECK(msg.state <= 15);
-    }
-    else if (msg.status.find("C") != std::string::npos)
-    {
-      CHECK(15 < msg.state);
-      CHECK(msg.state <= 18);
-    }
-  },
-      [&completed_promise]()
-  {
-    completed_promise.set_value(true);
-  });
+      completed_promise.set_value(true);
+    });
 
   task->begin();
 
@@ -350,7 +350,7 @@ SCENARIO("Test nested task")
   const auto dt = 10ms;
 
   std::unordered_map<std::string, std::pair<std::size_t, std::size_t>>
-      count_limits;
+  count_limits;
 
   count_limits["A"] = {0, 5};
   count_limits["B1"] = {5, 10};
@@ -364,25 +364,32 @@ SCENARIO("Test nested task")
   PendingPhases phases;
 
   phases.push_back(
-    std::make_unique<MockPhase::Pending>("A", count, count_limits["A"].second, dt));
+    std::make_unique<MockPhase::Pending>("A", count, count_limits["A"].second,
+    dt));
 
   PendingPhases b_phases;
   b_phases.push_back(
-    std::make_unique<MockPhase::Pending>("B1", count, count_limits["B1"].second, dt));
+    std::make_unique<MockPhase::Pending>("B1", count, count_limits["B1"].second,
+    dt));
   b_phases.push_back(
-    std::make_unique<MockPhase::Pending>("B2", count, count_limits["B2"].second, dt));
+    std::make_unique<MockPhase::Pending>("B2", count, count_limits["B2"].second,
+    dt));
   b_phases.push_back(
-    std::make_unique<MockPhase::Pending>("B3", count, count_limits["B3"].second, dt));
+    std::make_unique<MockPhase::Pending>("B3", count, count_limits["B3"].second,
+    dt));
   phases.push_back(
     std::make_unique<MockSubtaskPhase::Pending>(std::move(b_phases)));
 
   PendingPhases c_phases;
   c_phases.push_back(
-    std::make_unique<MockPhase::Pending>("C1", count, count_limits["C1"].second, dt));
+    std::make_unique<MockPhase::Pending>("C1", count, count_limits["C1"].second,
+    dt));
   c_phases.push_back(
-    std::make_unique<MockPhase::Pending>("C2", count, count_limits["C2"].second, dt));
+    std::make_unique<MockPhase::Pending>("C2", count, count_limits["C2"].second,
+    dt));
   c_phases.push_back(
-    std::make_unique<MockPhase::Pending>("C3", count, count_limits["C3"].second, dt));
+    std::make_unique<MockPhase::Pending>("C3", count, count_limits["C3"].second,
+    dt));
   phases.push_back(
     std::make_unique<MockSubtaskPhase::Pending>(std::move(c_phases)));
 
@@ -391,33 +398,33 @@ SCENARIO("Test nested task")
   rmf_task::agv::State finish_state{{deployment_time, 0, 0.0}, 0, 1.0};
 
   const auto task = rmf_fleet_adapter::Task::make(
-        "test_NestedTask", std::move(phases),
-        rxcpp::schedulers::make_event_loop().create_worker(), deployment_time,
-        finish_state, nullptr);
+    "test_NestedTask", std::move(phases),
+    rxcpp::schedulers::make_event_loop().create_worker(), deployment_time,
+    finish_state, nullptr);
 
   std::promise<bool> completed_promise;
   auto completed_future = completed_promise.get_future();
   auto status_sub = task->observe()
-      .subscribe(
-        [&count_limits](const rmf_fleet_adapter::Task::StatusMsg& msg)
-  {
-    std::pair<std::size_t, std::size_t> limits = {0, 0};
-    for (const auto& element : count_limits)
+    .subscribe(
+    [&count_limits](const rmf_fleet_adapter::Task::StatusMsg& msg)
     {
-      if (msg.status.find(element.first) != std::string::npos)
+      std::pair<std::size_t, std::size_t> limits = {0, 0};
+      for (const auto& element : count_limits)
       {
-        limits = element.second;
-        break;
+        if (msg.status.find(element.first) != std::string::npos)
+        {
+          limits = element.second;
+          break;
+        }
       }
-    }
 
-    CHECK(limits.first < msg.state);
-    CHECK(msg.state <= limits.second);
-  },
-        [&completed_promise]()
-  {
-    completed_promise.set_value(true);
-  });
+      CHECK(limits.first < msg.state);
+      CHECK(msg.state <= limits.second);
+    },
+    [&completed_promise]()
+    {
+      completed_promise.set_value(true);
+    });
 
   task->begin();
 

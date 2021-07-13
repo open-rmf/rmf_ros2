@@ -45,16 +45,16 @@ class Node : public rmf_rxcpp::Transport
 public:
 
   static std::shared_ptr<Node> make(
-      rxcpp::schedulers::worker worker,
-      const std::string& node_name,
-      const rclcpp::NodeOptions& options);
+    rxcpp::schedulers::worker worker,
+    const std::string& node_name,
+    const rclcpp::NodeOptions& options);
 
   using DoorState = rmf_door_msgs::msg::DoorState;
   using DoorStateObs = rxcpp::observable<DoorState::SharedPtr>;
   const DoorStateObs& door_state() const;
 
   using DoorSupervisorState = rmf_door_msgs::msg::SupervisorHeartbeat;
-  using DoorSupervisorObs =   rxcpp::observable<DoorSupervisorState::SharedPtr>;
+  using DoorSupervisorObs = rxcpp::observable<DoorSupervisorState::SharedPtr>;
   const DoorSupervisorObs& door_supervisor() const;
 
   using DoorRequest = rmf_door_msgs::msg::DoorRequest;
@@ -105,28 +105,61 @@ public:
   using FleetStatePub = rclcpp::Publisher<FleetState>::SharedPtr;
   const FleetStatePub& fleet_state() const;
 
+  template<typename DurationRepT, typename DurationT, typename CallbackT>
+  rclcpp::TimerBase::SharedPtr try_create_wall_timer(
+    std::chrono::duration<DurationRepT, DurationT> period,
+    CallbackT callback)
+  {
+    // Race conditions with shutting down the ROS2 node may cause
+    // create_wall_timer to throw an exception. We'll catch that exception here
+    // so that the thread and process can wind down gracefully.
+    try
+    {
+      return create_wall_timer(period, std::move(callback));
+    }
+    catch (const rclcpp::exceptions::RCLError& e)
+    {
+      // RCL_RET_NOT_INIT will be given by rcl when trying to create a timer if
+      // either:
+      // 1. The node has not been initialized yet, or
+      // 2. The node's context has already been shutdown.
+      // Scenario (1) should not be possible because the rmf_fleet_adapter API
+      // does not allow a TrafficLight instance to be created before the node is
+      // initialized. Therefore we will assume scenario (2) here, in which case we
+      // will simply allow this exception to pass by us since the TrafficLight
+      // instance should be getting torn down soon.
+      //
+      // If the exception is being caused by anything else, then we should
+      // continue to throw it because we don't have a valid reason to expect any
+      // other
+      if (e.ret == RCL_RET_NOT_INIT)
+        return nullptr;
+
+      throw e;
+    }
+  }
+
 private:
 
   Node(
-      rxcpp::schedulers::worker worker,
-      const std::string& node_name,
-      const rclcpp::NodeOptions& options);
+    rxcpp::schedulers::worker worker,
+    const std::string& node_name,
+    const rclcpp::NodeOptions& options);
 
-  DoorStateObs _door_state_obs;
-  DoorSupervisorObs _door_supervisor_obs;
+  Bridge<DoorState> _door_state_obs;
+  Bridge<DoorSupervisorState> _door_supervisor_obs;
   DoorRequestPub _door_request_pub;
-  LiftStateObs _lift_state_obs;
+  Bridge<LiftState> _lift_state_obs;
   LiftRequestPub _lift_request_pub;
   TaskSummaryPub _task_summary_pub;
   DispenserRequestPub _dispenser_request_pub;
-  DispenserResultObs _dispenser_result_obs;
-  DispenserStateObs _dispenser_state_obs;
-  EmergencyNoticeObs _emergency_notice_obs;
+  Bridge<DispenserResult> _dispenser_result_obs;
+  Bridge<DispenserState> _dispenser_state_obs;
+  Bridge<EmergencyNotice> _emergency_notice_obs;
   IngestorRequestPub _ingestor_request_pub;
-  IngestorResultObs _ingestor_result_obs;
-  IngestorStateObs _ingestor_state_obs;
+  Bridge<IngestorResult> _ingestor_result_obs;
+  Bridge<IngestorState> _ingestor_state_obs;
   FleetStatePub _fleet_state_pub;
-
 };
 
 } // namespace agv

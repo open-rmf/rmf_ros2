@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
   std::vector<class_loader::ClassLoader*> loaders;
   std::vector<rclcpp_components::NodeInstanceWrapper> node_wrappers;
 
-  std::vector<std::string> libraries = 
+  std::vector<std::string> libraries =
   {
     // all classes from libraries linked by the linker (rather then dlopen)
     // are registered under the library_path ""
@@ -51,9 +51,9 @@ int main(int argc, char* argv[])
   if (failover_mode)
   {
     RCLCPP_ERROR(logger, "robot_state_aggregator was compiled without failover"
-                 " support. Make sure you have the required libraries and the"
-                 " environment variable $RMF_ENABLE_FAILOVER is set during"
-                 " compilation.");
+      " support. Make sure you have the required libraries and the"
+      " environment variable $RMF_ENABLE_FAILOVER is set during"
+      " compilation.");
     return 1;
   }
 #endif
@@ -66,11 +66,11 @@ int main(int argc, char* argv[])
 
     for (auto clazz : classes)
     {
-      if (failover_mode || 
-         ((clazz.compare("rclcpp_components::NodeFactoryTemplate"
-         "<lifecycle_heartbeat::LifecycleHeartbeat>") != 0) &&
-         ((clazz.compare("rclcpp_components::NodeFactoryTemplate"
-         "<lifecycle_watchdog::LifecycleWatchdog>") != 0))))
+      if (failover_mode ||
+        ((clazz.compare("rclcpp_components::NodeFactoryTemplate"
+        "<lifecycle_heartbeat::LifecycleHeartbeat>") != 0) &&
+        ((clazz.compare("rclcpp_components::NodeFactoryTemplate"
+        "<lifecycle_watchdog::LifecycleWatchdog>") != 0))))
       {
         auto node_factory =
           loader->createInstance<rclcpp_components::NodeFactory>(clazz);

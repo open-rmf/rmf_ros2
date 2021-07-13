@@ -27,14 +27,15 @@ namespace phases {
 
 struct EndLiftSession
 {
-  class Active : public Task::ActivePhase, public std::enable_shared_from_this<Active>
+  class Active : public Task::ActivePhase,
+    public std::enable_shared_from_this<Active>
   {
   public:
 
     static std::shared_ptr<Active> make(
-        agv::RobotContextPtr context,
-        std::string lift_name,
-        std::string destination);
+      agv::RobotContextPtr context,
+      std::string lift_name,
+      std::string destination);
 
     Active(
       agv::RobotContextPtr context,

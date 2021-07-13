@@ -104,7 +104,6 @@ ScheduleNode::ScheduleNode(
 
   // Participant registry location
   declare_parameter<std::string>("log_file_location", ".rmf_schedule_node.yaml");
-
 }
 
 //==============================================================================
@@ -175,18 +174,18 @@ void ScheduleNode::setup(
   {
     auto participant_logger = std::make_unique<YamlLogger>(log_file_name);
 
-    participant_registry = 
+    participant_registry =
       std::make_shared<ParticipantRegistry>(
-        std::move(participant_logger),
-        database);
+      std::move(participant_logger),
+      database);
 
-    RCLCPP_INFO(get_logger(), 
+    RCLCPP_INFO(get_logger(),
       "Successfully loaded logfile %s ",
       log_file_name.c_str());
   }
-  catch(std::runtime_error& e)
+  catch (std::runtime_error& e)
   {
-    RCLCPP_FATAL(get_logger(), 
+    RCLCPP_FATAL(get_logger(),
       "Failed to correctly load participant registry: %s\n",
       e.what());
     throw e;
@@ -379,8 +378,8 @@ void ScheduleNode::setup_conflict_topics_and_thread()
           });
 
           if ( (database->latest_version() == last_checked_version
-            && last_known_participants_version == current_participants_version)
-            || conflict_check_quit)
+          && last_known_participants_version == current_participants_version)
+          || conflict_check_quit)
           {
             // This is a casual wakeup to check if we're supposed to quit yet
             continue;
@@ -771,17 +770,17 @@ void ScheduleNode::register_participant(
   try
   {
     const auto registration = participant_registry
-        ->add_or_retrieve_participant(
-          rmf_traffic_ros2::convert(request->description));
+      ->add_or_retrieve_participant(
+      rmf_traffic_ros2::convert(request->description));
 
     using Response = rmf_traffic_msgs::srv::RegisterParticipant::Response;
 
     *response =
       rmf_traffic_msgs::build<Response>()
-        .participant_id(registration.id())
-        .last_itinerary_version(registration.last_itinerary_version())
-        .last_route_id(registration.last_route_id())
-        .error("");
+      .participant_id(registration.id())
+      .last_itinerary_version(registration.last_itinerary_version())
+      .last_route_id(registration.last_route_id())
+      .error("");
 
     RCLCPP_INFO(
       get_logger(),
@@ -1331,8 +1330,7 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
 
 std::shared_ptr<rclcpp::Node> make_node(const rclcpp::NodeOptions& options)
 {
-  auto node = std::make_shared<ScheduleNode>(options);
-  return node;
+  return std::make_shared<ScheduleNode>(options);
 }
 
 } // namespace schedule

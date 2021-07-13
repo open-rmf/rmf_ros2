@@ -21,15 +21,15 @@
 
 //==============================================================================
 void check_path_finish(
-    rclcpp::Node* node,
-    const rmf_fleet_msgs::msg::RobotState& state,
-    TravelInfo& info)
+  rclcpp::Node* node,
+  const rmf_fleet_msgs::msg::RobotState& state,
+  TravelInfo& info)
 {
   // The robot believes it has reached the end of its path.
   const auto& wp = info.waypoints.back();
   const auto& l = state.location;
   const Eigen::Vector2d p{l.x, l.y};
-  const double dist = (p - wp.position().block<2,1>(0, 0)).norm();
+  const double dist = (p - wp.position().block<2, 1>(0, 0)).norm();
 
   assert(wp.graph_index());
   info.last_known_wp = *wp.graph_index();
@@ -58,7 +58,7 @@ void check_path_finish(
 
     const auto& last_wp = info.waypoints[info.waypoints.size()-2];
     estimate_midlane_state(
-          state.location, last_wp.graph_index(), info.waypoints.size()-1, info);
+      state.location, last_wp.graph_index(), info.waypoints.size()-1, info);
   }
   else
   {
@@ -75,9 +75,9 @@ void check_path_finish(
 
 //==============================================================================
 void estimate_path_traveling(
-    rclcpp::Node* node,
-    const rmf_fleet_msgs::msg::RobotState& state,
-    TravelInfo& info)
+  rclcpp::Node* node,
+  const rmf_fleet_msgs::msg::RobotState& state,
+  TravelInfo& info)
 {
   assert(!state.path.empty());
 
@@ -89,7 +89,7 @@ void estimate_path_traveling(
   const auto& l = state.location;
   const auto& p = target_wp.position();
   const auto interp = rmf_traffic::agv::Interpolate::positions(
-        *info.traits, std::chrono::steady_clock::now(), {{l.x, l.y, l.yaw}, p});
+    *info.traits, std::chrono::steady_clock::now(), {{l.x, l.y, l.yaw}, p});
   const auto next_arrival = interp.back().time() - interp.front().time();
   const auto now = rmf_traffic_ros2::convert(node->now());
   if (target_wp.time() < now + next_arrival)
@@ -121,10 +121,10 @@ void estimate_path_traveling(
 
 //==============================================================================
 void estimate_midlane_state(
-    const rmf_fleet_msgs::msg::Location& l,
-    rmf_utils::optional<std::size_t> lane_start,
-    const std::size_t next_index,
-    TravelInfo& info)
+  const rmf_fleet_msgs::msg::Location& l,
+  rmf_utils::optional<std::size_t> lane_start,
+  const std::size_t next_index,
+  TravelInfo& info)
 {
   assert(0 < next_index && next_index < info.waypoints.size());
   const auto& target_wp = info.waypoints.at(next_index);
@@ -134,7 +134,7 @@ void estimate_midlane_state(
     // waypoint and the target waypoint.
     const auto& base_wp = info.graph->get_waypoint(*info.last_known_wp);
     const Eigen::Vector2d p0 = base_wp.get_location();
-    const Eigen::Vector2d p1 = target_wp.position().block<2,1>(0,0);
+    const Eigen::Vector2d p1 = target_wp.position().block<2, 1>(0, 0);
     const Eigen::Vector2d p_location{l.x, l.y};
 
     const double lane_length = (p1 - p0).norm();
@@ -147,7 +147,7 @@ void estimate_midlane_state(
       const double lane_dist = (p_l - p_l_projection*pn).norm();
 
       if (0.0 <= p_l_projection && p_l_projection <= lane_length
-          && lane_dist < 2.0)
+        && lane_dist < 2.0)
       {
         lane_start = *info.last_known_wp;
       }
@@ -155,21 +155,21 @@ void estimate_midlane_state(
   }
 
   const std::size_t target_gi = [&]() -> std::size_t
-  {
-    // At least one future waypoint must have a graph index
-    if (target_wp.graph_index())
-      return *target_wp.graph_index();
-
-    for (std::size_t i=next_index+1; i < info.waypoints.size(); ++i)
     {
-      const auto gi = info.waypoints[i].graph_index();
-      if (gi)
-        return *gi;
-    }
+      // At least one future waypoint must have a graph index
+      if (target_wp.graph_index())
+        return *target_wp.graph_index();
 
-    throw std::runtime_error(
-        "CRITICAL ERROR: Remaining waypoint sequence has no graph indices");
-  }();
+      for (std::size_t i = next_index+1; i < info.waypoints.size(); ++i)
+      {
+        const auto gi = info.waypoints[i].graph_index();
+        if (gi)
+          return *gi;
+      }
+
+      throw std::runtime_error(
+              "CRITICAL ERROR: Remaining waypoint sequence has no graph indices");
+    } ();
 
   if (lane_start)
   {
@@ -180,7 +180,8 @@ void estimate_midlane_state(
       // waypoint.
       info.updater->update_position(target_gi, l.yaw);
     }
-    else if (const auto* forward_lane=info.graph->lane_from(last_gi, target_gi))
+    else if (const auto* forward_lane =
+      info.graph->lane_from(last_gi, target_gi))
     {
       // This implies that the robot is moving down a lane.
       std::vector<std::size_t> lanes;
@@ -212,9 +213,9 @@ void estimate_midlane_state(
 
 //==============================================================================
 void estimate_state(
-    rclcpp::Node* node,
-    const rmf_fleet_msgs::msg::Location& l,
-    TravelInfo& info)
+  rclcpp::Node* node,
+  const rmf_fleet_msgs::msg::Location& l,
+  TravelInfo& info)
 {
   std::string last_known_map = l.level_name;
   if (info.last_known_wp)
@@ -245,11 +246,11 @@ void estimate_state(
   if (last_known_map.empty() && l.level_name.empty())
   {
     RCLCPP_ERROR(
-          node->get_logger(),
-          "Robot named [%s] belonging to fleet [%s] is lost because we cannot "
-          "figure out what floor it is on. Please publish the robot's current "
-          "floor name in the level_name field of its RobotState.",
-          info.robot_name.c_str(), info.fleet_name.c_str());
+      node->get_logger(),
+      "Robot named [%s] belonging to fleet [%s] is lost because we cannot "
+      "figure out what floor it is on. Please publish the robot's current "
+      "floor name in the level_name field of its RobotState.",
+      info.robot_name.c_str(), info.fleet_name.c_str());
     return;
   }
 
@@ -258,21 +259,21 @@ void estimate_state(
 
 //==============================================================================
 void estimate_waypoint(
-    rclcpp::Node* node,
-    const rmf_fleet_msgs::msg::Location& l,
-    TravelInfo& info)
+  rclcpp::Node* node,
+  const rmf_fleet_msgs::msg::Location& l,
+  TravelInfo& info)
 {
   std::string last_known_map = l.level_name;
   if (last_known_map.empty() && info.last_known_wp)
   {
     last_known_map = info.graph->get_waypoint(*info.last_known_wp)
-        .get_map_name();
+      .get_map_name();
   }
 
   const Eigen::Vector2d p(l.x, l.y);
   const rmf_traffic::agv::Graph::Waypoint* closest_wp = nullptr;
   double nearest_dist = std::numeric_limits<double>::infinity();
-  for (std::size_t i=0; i < info.graph->num_waypoints(); ++i)
+  for (std::size_t i = 0; i < info.graph->num_waypoints(); ++i)
   {
     const auto& wp = info.graph->get_waypoint(i);
     const Eigen::Vector2d p_wp = wp.get_location();

@@ -1,0 +1,18 @@
+coverage:
+  precision: 2
+  round: down
+  range: "35...100"
+  status:
+    project:
+      default:
+        informational: true
+    patch: off
+fixes:
+  - "ros_ws/src/*/rmf_traffic_ros2/::"
+  - "ros_ws/src/*/rmf_task_ros2/::"
+  - "ros_ws/src/*/rmf_fleet_adapter/::"
+  - "ros_ws/src/*/rmf_fleet_adapter_python/::"
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+

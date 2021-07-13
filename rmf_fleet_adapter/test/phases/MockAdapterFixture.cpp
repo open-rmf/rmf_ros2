@@ -26,32 +26,33 @@ namespace rmf_fleet_adapter {
 namespace phases {
 namespace test {
 
-std::size_t MockAdapterFixture::_node_counter = 0;
+std::size_t MockAdapterFixture::Data::_node_counter = 0;
 
 //==============================================================================
 MockAdapterFixture::MockAdapterFixture()
+: data(std::make_shared<Data>())
 {
-  _context = std::make_shared<rclcpp::Context>();
-  _context->init(0, nullptr);
+  data->_context = std::make_shared<rclcpp::Context>();
+  data->_context->init(0, nullptr);
 
-  adapter = std::make_shared<agv::test::MockAdapter>(
-    "test_node_" + std::to_string(_node_counter++),
-    rclcpp::NodeOptions().context(_context));
+  data->adapter = std::make_shared<agv::test::MockAdapter>(
+    "test_node_" + std::to_string(data->_node_counter++),
+    rclcpp::NodeOptions().context(data->_context));
 
-  ros_node = adapter->node();
+  data->ros_node = data->adapter->node();
 
   const std::string test_map_name = "test_map";
-  graph.add_waypoint(test_map_name, {0.0, -10.0}); // 0
-  graph.add_waypoint(test_map_name, {0.0, -5.0});  // 1
-  graph.add_waypoint(test_map_name, {5.0, -5.0}).set_holding_point(true);  // 2
-  graph.add_waypoint(test_map_name, {-10.0, 0.0}); // 3
-  graph.add_waypoint(test_map_name, {-5.0, 0.0}); // 4
-  graph.add_waypoint(test_map_name, {0.0, 0.0}); // 5
-  graph.add_waypoint(test_map_name, {5.0, 0.0}); // 6
-  graph.add_waypoint(test_map_name, {10.0, 0.0}); // 7
-  graph.add_waypoint(test_map_name, {0.0, 5.0}); // 8
-  graph.add_waypoint(test_map_name, {5.0, 5.0}).set_holding_point(true); // 9
-  graph.add_waypoint(test_map_name, {0.0, 10.0}); // 10
+  data->graph.add_waypoint(test_map_name, {0.0, -10.0}).set_charger(true); // 0
+  data->graph.add_waypoint(test_map_name, {0.0, -5.0});  // 1
+  data->graph.add_waypoint(test_map_name, {5.0, -5.0}).set_holding_point(true);  // 2
+  data->graph.add_waypoint(test_map_name, {-10.0, 0.0}); // 3
+  data->graph.add_waypoint(test_map_name, {-5.0, 0.0}); // 4
+  data->graph.add_waypoint(test_map_name, {0.0, 0.0}); // 5
+  data->graph.add_waypoint(test_map_name, {5.0, 0.0}); // 6
+  data->graph.add_waypoint(test_map_name, {10.0, 0.0}); // 7
+  data->graph.add_waypoint(test_map_name, {0.0, 5.0}); // 8
+  data->graph.add_waypoint(test_map_name, {5.0, 5.0}).set_holding_point(true); // 9
+  data->graph.add_waypoint(test_map_name, {0.0, 10.0}); // 10
 
   /*
    *                   10
@@ -71,20 +72,22 @@ MockAdapterFixture::MockAdapterFixture()
    **/
 
   auto add_bidir_lane = [&](const std::size_t w0, const std::size_t w1)
-  {
-    graph.add_lane(w0, w1);
-    graph.add_lane(w1, w0);
-  };
+    {
+      data->graph.add_lane(w0, w1);
+      data->graph.add_lane(w1, w0);
+    };
 
   auto add_dock_lane = [&](
     const std::size_t w0,
     const std::size_t w1,
     std::string dock_name)
-  {
-    using Lane = rmf_traffic::agv::Graph::Lane;
-    graph.add_lane({w0, Lane::Event::make(Lane::Dock(dock_name, std::chrono::seconds(10)))}, w1);
-    graph.add_lane(w1, w0);
-  };
+    {
+      using Lane = rmf_traffic::agv::Graph::Lane;
+      data->graph.add_lane({w0,
+          Lane::Event::make(Lane::Dock(dock_name, std::chrono::seconds(
+            10)))}, w1);
+      data->graph.add_lane(w1, w0);
+    };
 
   add_bidir_lane(0, 1);  // 0   1
   add_bidir_lane(1, 2);  // 2   3
@@ -110,42 +113,37 @@ MockAdapterFixture::MockAdapterFixture()
     profile
   };
 
-  fleet = adapter->add_fleet("test_fleet", traits, graph);
-
-  {
-    const auto& pimpl = agv::FleetUpdateHandle::Implementation::get(*fleet);
-    node = pimpl.node;
-  }
-
-  adapter->start();
+  data->fleet = data->adapter->add_fleet("test_fleet", traits, data->graph);
+  data->node = agv::FleetUpdateHandle::Implementation::get(*data->fleet).node;
+  data->adapter->start();
 }
 
 //==============================================================================
 auto MockAdapterFixture::add_robot(
-    const std::string& name,
-    rmf_utils::optional<rmf_traffic::Profile> input_profile) -> RobotInfo
+  const std::string& name,
+  rmf_utils::optional<rmf_traffic::Profile> input_profile) -> RobotInfo
 {
   rmf_traffic::Profile profile =
-      [&]() -> rmf_traffic::Profile
-  {
-    if (input_profile)
-      return *input_profile;
+    [&]() -> rmf_traffic::Profile
+    {
+      if (input_profile)
+        return *input_profile;
 
-    return rmf_traffic::Profile{
+      return rmf_traffic::Profile{
       rmf_traffic::geometry::make_final_convex<
         rmf_traffic::geometry::Circle>(1.0)
-    };
-  }();
+      };
+    } ();
 
-  const auto now = rmf_traffic_ros2::convert(adapter->node()->now());
+  const auto now = rmf_traffic_ros2::convert(data->adapter->node()->now());
   const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};
 
   RobotInfo info;
   info.command = std::make_shared<rmf_fleet_adapter_test::MockRobotCommand>(
-    adapter->node(), graph);
+    data->node, data->graph);
 
   std::promise<bool> robot_added;
-  fleet->add_robot(info.command, name, profile, starts,
+  data->fleet->add_robot(info.command, name, profile, starts,
     [&info, &robot_added](rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
     {
       const auto& pimpl = agv::RobotUpdateHandle::Implementation::get(*updater);
@@ -153,15 +151,30 @@ auto MockAdapterFixture::add_robot(
       info.command->updater = updater;
       robot_added.set_value(true);
     });
+
   robot_added.get_future().wait();
 
   return info;
 }
 
+//==============================================================================
 MockAdapterFixture::~MockAdapterFixture()
 {
-  adapter->stop();
-  rclcpp::shutdown(_context);
+  std::weak_ptr<rclcpp::Node> weak_node = data->node;
+  data.reset();
+
+  std::size_t wait_count = 0;
+  while (const auto node = weak_node.lock())
+  {
+    ++wait_count;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    if (wait_count > 200)
+    {
+      std::cerr << "Node is not dying during test teardown" << std::endl;
+      std::terminate();
+    }
+  }
 }
 
 } // namespace test

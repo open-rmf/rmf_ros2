@@ -50,8 +50,8 @@ public:
   /// Update the current position of the robot by specifying the waypoint that
   /// the robot is on and its orientation.
   void update_position(
-      std::size_t waypoint,
-      double orientation);
+    std::size_t waypoint,
+    double orientation);
 
   /// Update the current position of the robot by specifying the x, y, yaw
   /// position of the robot and one or more lanes that the robot is occupying.
@@ -60,8 +60,8 @@ public:
   /// available, then use the update_position(std::string, Eigen::Vector3d)
   /// signature of this function.
   void update_position(
-      const Eigen::Vector3d& position,
-      const std::vector<std::size_t>& lanes);
+    const Eigen::Vector3d& position,
+    const std::vector<std::size_t>& lanes);
 
   /// Update the current position of the robot by specifying the x, y, yaw
   /// position of the robot and the waypoint that it is moving towards.
@@ -69,8 +69,8 @@ public:
   /// This should be used if the robot has diverged significantly from its
   /// course but it is merging back onto a waypoint.
   void update_position(
-      const Eigen::Vector3d& position,
-      std::size_t target_waypoint);
+    const Eigen::Vector3d& position,
+    std::size_t target_waypoint);
 
   /// Update the current position of the robot by specifying the x, y, yaw
   /// position of the robot and what map the robot is on.
@@ -82,11 +82,11 @@ public:
   /// parameters for this function are passed along to
   /// rmf_traffic::agv::compute_plan_starts().
   void update_position(
-      const std::string& map_name,
-      const Eigen::Vector3d& position,
-      const double max_merge_waypoint_distance = 0.1,
-      const double max_merge_lane_distance = 1.0,
-      const double min_lane_length = 1e-8);
+    const std::string& map_name,
+    const Eigen::Vector3d& position,
+    const double max_merge_waypoint_distance = 0.1,
+    const double max_merge_lane_distance = 1.0,
+    const double min_lane_length = 1e-8);
 
   /// Set the waypoint where the charger for this robot is located.
   /// If not specified, the nearest waypoint in the graph with the is_charger()
@@ -101,7 +101,7 @@ public:
   /// gets interrupted and replanned. A nullopt value will allow for an
   /// arbitrarily long delay to build up without being interrupted.
   RobotUpdateHandle& maximum_delay(
-      rmf_utils::optional<rmf_traffic::Duration> value);
+    rmf_utils::optional<rmf_traffic::Duration> value);
 
   /// Get the value for the maximum delay.
   ///

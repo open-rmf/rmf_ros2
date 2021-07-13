@@ -24,15 +24,15 @@ namespace tasks {
 
 //==============================================================================
 std::shared_ptr<Task> make_loop(
-    const rmf_task::ConstRequestPtr request,
-    const agv::RobotContextPtr& context,
-    const rmf_traffic::agv::Plan::Start start,
-    const rmf_traffic::Time deployment_time,
-    const rmf_task::agv::State finish_state)
+  const rmf_task::ConstRequestPtr request,
+  const agv::RobotContextPtr& context,
+  const rmf_traffic::agv::Plan::Start start,
+  const rmf_traffic::Time deployment_time,
+  const rmf_task::agv::State finish_state)
 {
   std::shared_ptr<const rmf_task::requests::Loop::Description> description =
     std::dynamic_pointer_cast<
-      const rmf_task::requests::Loop::Description>(request->description());
+    const rmf_task::requests::Loop::Description>(request->description());
 
   if (description == nullptr)
     return nullptr;
@@ -55,10 +55,10 @@ std::shared_ptr<Task> make_loop(
       const double orientation = trajectory.back().position()[2];
 
       return rmf_traffic::agv::Planner::Start{
-        finish_time,
-        start_waypoint,
-        orientation};
-    }(); 
+      finish_time,
+      start_waypoint,
+      orientation};
+    } ();
 
   const auto loop_end = [&]() -> rmf_traffic::agv::Planner::Start
     {
@@ -75,10 +75,10 @@ std::shared_ptr<Task> make_loop(
       const double orientation = trajectory.back().position()[2];
 
       return rmf_traffic::agv::Planner::Start{
-        finish_time,
-        finish_waypoint,
-        orientation};
-    }();
+      finish_time,
+      finish_waypoint,
+      orientation};
+    } ();
 
   Task::PendingPhases phases;
   phases.push_back(

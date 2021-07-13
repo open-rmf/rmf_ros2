@@ -42,7 +42,7 @@ TaskManagerPtr TaskManager::make(agv::RobotContextPtr context)
   mgr->_emergency_sub = mgr->_context->node()->emergency_notice()
     .observe_on(rxcpp::identity_same_worker(mgr->_context->worker()))
     .subscribe(
-      [w = mgr->weak_from_this()](const auto& msg)
+    [w = mgr->weak_from_this()](const auto& msg)
     {
       if (auto mgr = w.lock())
       {
@@ -54,7 +54,7 @@ TaskManagerPtr TaskManager::make(agv::RobotContextPtr context)
       }
     });
 
-  mgr->_task_timer = mgr->context()->node()->create_wall_timer(
+  mgr->_task_timer = mgr->context()->node()->try_create_wall_timer(
     std::chrono::seconds(1),
     [w = mgr->weak_from_this()]()
     {
@@ -64,7 +64,7 @@ TaskManagerPtr TaskManager::make(agv::RobotContextPtr context)
       }
     });
 
-  mgr->_retreat_timer = mgr->context()->node()->create_wall_timer(
+  mgr->_retreat_timer = mgr->context()->node()->try_create_wall_timer(
     std::chrono::seconds(10),
     [w = mgr->weak_from_this()]()
     {
@@ -73,6 +73,9 @@ TaskManagerPtr TaskManager::make(agv::RobotContextPtr context)
         mgr->retreat_to_charger();
       }
     });
+
+  mgr->_begin_waiting();
+
   return mgr;
 }
 
@@ -80,7 +83,7 @@ TaskManagerPtr TaskManager::make(agv::RobotContextPtr context)
 TaskManager::TaskManager(agv::RobotContextPtr context)
 : _context(std::move(context))
 {
-  _begin_waiting();
+  // Do nothing. The make() function does all further initialization.
 }
 
 //==============================================================================
@@ -93,8 +96,8 @@ void TaskManager::queue_task(std::shared_ptr<Task> task, Start expected_finish)
   RCLCPP_INFO(
     _context->node()->get_logger(),
     "Queuing new task [%s] for [%s]. New queue size: %ld",
-     _queue.back()->id().c_str(),
-     _context->requester_id().c_str(),
+    _queue.back()->id().c_str(),
+    _context->requester_id().c_str(),
     _queue.size());
 
   if (!_active_task)
@@ -108,7 +111,7 @@ void TaskManager::queue_task(std::shared_ptr<Task> task, Start expected_finish)
     msg.task_profile.task_id = _queue.back()->id();
     msg.state = msg.STATE_QUEUED;
     msg.robot_name = _context->name();
-    this->_context->node()->task_summary()->publish(msg);
+    _context->node()->task_summary()->publish(msg);
   }
 }
 
@@ -180,8 +183,11 @@ void TaskManager::set_queue(
       start.time(a.deployment_time());
       rmf_task_msgs::msg::TaskType task_type_msg;
       const auto request = a.request();
-      if (std::dynamic_pointer_cast<
-        const rmf_task::requests::Clean::Description>(request->description()) != nullptr)
+
+      using namespace rmf_task::requests;
+
+      if (std::dynamic_pointer_cast<const Clean::Description>(
+          request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_CLEAN;
         auto task = rmf_fleet_adapter::tasks::make_clean(
@@ -194,8 +200,7 @@ void TaskManager::set_queue(
         _queue.push_back(task);
       }
 
-      else if (std::dynamic_pointer_cast<
-        const rmf_task::requests::ChargeBattery::Description>(
+      else if (std::dynamic_pointer_cast<const ChargeBattery::Description>(
           request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_CHARGE_BATTERY;
@@ -209,8 +214,7 @@ void TaskManager::set_queue(
         _queue.push_back(task);
       }
 
-      else if (std::dynamic_pointer_cast<
-        const rmf_task::requests::Delivery::Description>(
+      else if (std::dynamic_pointer_cast<const Delivery::Description>(
           request->description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_DELIVERY;
@@ -224,8 +228,8 @@ void TaskManager::set_queue(
         _queue.push_back(task);
       }
 
-      else if (std::dynamic_pointer_cast<
-        const rmf_task::requests::Loop::Description>(request->description()) != nullptr)
+      else if (std::dynamic_pointer_cast<const Loop::Description>(request->
+        description()) != nullptr)
       {
         task_type_msg.type = task_type_msg.TYPE_LOOP;
         const auto task = tasks::make_loop(
@@ -262,7 +266,7 @@ void TaskManager::set_queue(
         _queue.back()->deployment_time());
       msg.end_time = rmf_traffic_ros2::convert(
         _queue.back()->finish_state().finish_time());
-      this->_context->node()->task_summary()->publish(msg);
+      _context->node()->task_summary()->publish(msg);
     }
   }
 
@@ -272,14 +276,17 @@ void TaskManager::set_queue(
 //==============================================================================
 const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
 {
+  using namespace rmf_task::requests;
   std::vector<rmf_task::ConstRequestPtr> requests;
   requests.reserve(_queue.size());
   for (const auto& task : _queue)
   {
-    if (std::dynamic_pointer_cast<
-      const rmf_task::requests::ChargeBattery::Description>(
+    if (std::dynamic_pointer_cast<const ChargeBattery::Description>(
         task->request()->description()))
+    {
       continue;
+    }
+
     requests.push_back(task->request());
   }
   return requests;
@@ -328,65 +335,79 @@ void TaskManager::_begin_next_task()
     _queue.erase(_queue.begin());
 
     RCLCPP_INFO(
-          _context->node()->get_logger(),
-          "Beginning new task [%s] for [%s]. Remaining queue size: %ld",
-          _active_task->id().c_str(),
-          _context->requester_id().c_str(),
-          _queue.size());
+      _context->node()->get_logger(),
+      "Beginning new task [%s] for [%s]. Remaining queue size: %ld",
+      _active_task->id().c_str(),
+      _context->requester_id().c_str(),
+      _queue.size());
 
     _task_sub = _active_task->observe()
-        .observe_on(rxcpp::identity_same_worker(_context->worker()))
-        .subscribe(
-          [this, id = _active_task->id()](Task::StatusMsg msg)
-    {
-      msg.task_id = id;
-      msg.task_profile.task_id = id;
-      msg.robot_name = _context->name();
-      msg.fleet_name = _context->description().owner();
-      msg.start_time = rmf_traffic_ros2::convert(
-        _active_task->deployment_time());
-      msg.end_time = rmf_traffic_ros2::convert(
-        _active_task->finish_state().finish_time());
-      _context->node()->task_summary()->publish(msg);
-    },
-          [this, id = _active_task->id()](std::exception_ptr e)
-    {
-      rmf_task_msgs::msg::TaskSummary msg;
-      msg.state = msg.STATE_FAILED;
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
+      .subscribe(
+      [me = weak_from_this(), id = _active_task->id()](Task::StatusMsg msg)
+      {
+        const auto self = me.lock();
+        if (!self)
+          return;
 
-      try {
-        std::rethrow_exception(e);
-      }
-      catch(const std::exception& e) {
-        msg.status = e.what();
-      }
+        msg.task_id = id;
+        msg.task_profile.task_id = id;
+        msg.robot_name = self->_context->name();
+        msg.fleet_name = self->_context->description().owner();
+        msg.start_time = rmf_traffic_ros2::convert(
+          self->_active_task->deployment_time());
+        msg.end_time = rmf_traffic_ros2::convert(
+          self->_active_task->finish_state().finish_time());
+        self->_context->node()->task_summary()->publish(msg);
+      },
+      [me = weak_from_this(), id = _active_task->id()](std::exception_ptr e)
+      {
+        const auto self = me.lock();
+        if (!self)
+          return;
 
-      msg.task_id = id;
-      msg.task_profile.task_id = id;
-      msg.robot_name = _context->name();
-      msg.fleet_name = _context->description().owner();
-      msg.start_time = rmf_traffic_ros2::convert(
-        _active_task->deployment_time());
-      msg.end_time = rmf_traffic_ros2::convert(
-        _active_task->finish_state().finish_time());
-      _context->node()->task_summary()->publish(msg);
-    },
-          [this, id = _active_task->id()]()
-    {
-      rmf_task_msgs::msg::TaskSummary msg;
-      msg.task_id = id;
-      msg.task_profile.task_id = id;
-      msg.state = msg.STATE_COMPLETED;
-      msg.robot_name = _context->name();
-      msg.fleet_name = _context->description().owner();
-      msg.start_time = rmf_traffic_ros2::convert(
-        _active_task->deployment_time());
-      msg.end_time = rmf_traffic_ros2::convert(
-        _active_task->finish_state().finish_time());
-      this->_context->node()->task_summary()->publish(msg);
+        rmf_task_msgs::msg::TaskSummary msg;
+        msg.state = msg.STATE_FAILED;
 
-      _active_task = nullptr;
-    });
+        try
+        {
+          std::rethrow_exception(e);
+        }
+        catch (const std::exception& e)
+        {
+          msg.status = e.what();
+        }
+
+        msg.task_id = id;
+        msg.task_profile.task_id = id;
+        msg.robot_name = self->_context->name();
+        msg.fleet_name = self->_context->description().owner();
+        msg.start_time = rmf_traffic_ros2::convert(
+          self->_active_task->deployment_time());
+        msg.end_time = rmf_traffic_ros2::convert(
+          self->_active_task->finish_state().finish_time());
+        self->_context->node()->task_summary()->publish(msg);
+      },
+      [me = weak_from_this(), id = _active_task->id()]()
+      {
+        const auto self = me.lock();
+        if (!self)
+          return;
+
+        rmf_task_msgs::msg::TaskSummary msg;
+        msg.task_id = id;
+        msg.task_profile.task_id = id;
+        msg.state = msg.STATE_COMPLETED;
+        msg.robot_name = self->_context->name();
+        msg.fleet_name = self->_context->description().owner();
+        msg.start_time = rmf_traffic_ros2::convert(
+          self->_active_task->deployment_time());
+        msg.end_time = rmf_traffic_ros2::convert(
+          self->_active_task->finish_state().finish_time());
+        self->_context->node()->task_summary()->publish(msg);
+
+        self->_active_task = nullptr;
+      });
 
     _active_task->begin();
     _register_executed_task(_active_task->id());
@@ -404,57 +425,71 @@ void TaskManager::_begin_waiting()
   const std::size_t waiting_point = _context->location().front().waypoint();
 
   _waiting = phases::ResponsiveWait::make_indefinite(
-        _context, waiting_point)->begin();
+    _context, waiting_point)->begin();
 
   _task_sub = _waiting->observe()
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
     .subscribe(
-      [this](Task::StatusMsg msg)
+    [me = weak_from_this()](Task::StatusMsg msg)
+    {
+      const auto self = me.lock();
+      if (!self)
+        return;
+
+      msg.task_id = self->_context->requester_id() + ":waiting";
+      msg.robot_name = self->_context->name();
+      msg.fleet_name = self->_context->description().owner();
+      // TODO: Fill in end_time with the beginning time of the next task if
+      // the next task is known.
+      msg.start_time = self->_context->node()->now();
+      msg.end_time = msg.start_time;
+
+      self->_context->node()->task_summary()->publish(msg);
+    },
+    [me = weak_from_this()](std::exception_ptr e)
+    {
+      const auto self = me.lock();
+      if (!self)
+        return;
+
+      rmf_task_msgs::msg::TaskSummary msg;
+      msg.state = msg.STATE_FAILED;
+
+      try
       {
-        msg.task_id = _context->requester_id() + ":waiting";
-        msg.robot_name = _context->name();
-        msg.fleet_name = _context->description().owner();
-        // TODO: Fill in end_time with the beginning time of the next task if
-        // the next task is known.
-        msg.start_time = _context->node()->now();
-        msg.end_time = msg.start_time;
-
-        _context->node()->task_summary()->publish(msg);
-      },
-      [this](std::exception_ptr e)
+        std::rethrow_exception(e);
+      }
+      catch (const std::exception& e)
       {
-        rmf_task_msgs::msg::TaskSummary msg;
-        msg.state = msg.STATE_FAILED;
+        msg.status = e.what();
+      }
 
-        try {
-          std::rethrow_exception(e);
-        }
-        catch (const std::exception& e) {
-          msg.status = e.what();
-        }
+      msg.task_id = self->_context->requester_id() + ":waiting";
+      msg.robot_name = self->_context->name();
+      msg.fleet_name = self->_context->description().owner();
+      msg.start_time = rmf_traffic_ros2::convert(
+        self->_active_task->deployment_time());
+      msg.end_time = rmf_traffic_ros2::convert(
+        self->_active_task->finish_state().finish_time());
+      self->_context->node()->task_summary()->publish(msg);
 
-        msg.task_id = _context->requester_id() + ":waiting";
-        msg.robot_name = _context->name();
-        msg.fleet_name = _context->description().owner();
-        msg.start_time = rmf_traffic_ros2::convert(
-          _active_task->deployment_time());
-        msg.end_time = rmf_traffic_ros2::convert(
-          _active_task->finish_state().finish_time());
-        _context->node()->task_summary()->publish(msg);
+      RCLCPP_WARN(
+        self->_context->node()->get_logger(),
+        "Robot [%s] encountered an error while doing a ResponsiveWait: %s",
+        self->_context->requester_id().c_str(), msg.status.c_str());
 
-        RCLCPP_WARN(
-          _context->node()->get_logger(),
-          "Robot [%s] encountered an error while doing a ResponsiveWait: %s",
-          _context->requester_id().c_str(), msg.status.c_str());
+      // Go back to waiting if an error has occurred
+      self->_begin_waiting();
+    },
+    [me = weak_from_this()]()
+    {
+      const auto self = me.lock();
+      if (!self)
+        return;
 
-        // Go back to waiting if an error has occurred
-        _begin_waiting();
-      },
-      [this]()
-      {
-        _waiting = nullptr;
-        _begin_next_task();
-      });
+      self->_waiting = nullptr;
+      self->_begin_next_task();
+    });
 }
 
 //==============================================================================
@@ -487,7 +522,7 @@ void TaskManager::retreat_to_charger()
 
   double retreat_battery_drain = 0.0;
   const auto endpoints = std::make_pair(current_state.waypoint(),
-    current_state.charging_waypoint());
+      current_state.charging_waypoint());
   const auto& cache_result = estimate_cache.get(endpoints);
 
   if (cache_result)
@@ -516,12 +551,12 @@ void TaskManager::retreat_to_charger()
 
       dSOC_motion =
         parameters.motion_sink()->compute_change_in_charge(
-          trajectory);
+        trajectory);
       dSOC_device =
         parameters.ambient_sink()->compute_change_in_charge(
-          rmf_traffic::time::to_seconds(itinerary_duration));
+        rmf_traffic::time::to_seconds(itinerary_duration));
       retreat_battery_drain += dSOC_motion + dSOC_device;
-      retreat_duration +=itinerary_duration;
+      retreat_duration += itinerary_duration;
       itinerary_start_time = finish_time;
     }
     estimate_cache.set(endpoints, retreat_duration,
@@ -545,7 +580,7 @@ void TaskManager::retreat_to_charger()
       current_state,
       constraints,
       estimate_cache);
-    
+
     if (!finish)
       return;
 
@@ -587,7 +622,7 @@ void TaskManager::_register_executed_task(const std::string& id)
   // a certain time window instead.
   if (_executed_task_registry.size() >= 100)
     _executed_task_registry.erase(_executed_task_registry.begin());
-  
+
   _executed_task_registry.push_back(id);
 }
 

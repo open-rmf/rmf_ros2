@@ -44,8 +44,11 @@ Submission submission5{
 //==============================================================================
 SCENARIO("Auctioneer Winner Evaluator", "[Evaluator]")
 {
-  rclcpp::init(0, nullptr);
-  auto node = rclcpp::Node::make_shared("test_selfbidding");
+  const auto rcl_context = std::make_shared<rclcpp::Context>();
+  rcl_context->init(0, nullptr);
+  auto node = rclcpp::Node::make_shared(
+    "test_selfbidding", rclcpp::NodeOptions().context(rcl_context));
+
   auto auctioneer = Auctioneer::make(node,
       [](const std::string&, const std::optional<Submission>) {});
 
@@ -109,7 +112,7 @@ SCENARIO("Auctioneer Winner Evaluator", "[Evaluator]")
     }
   }
 
-  rclcpp::shutdown();
+  rclcpp::shutdown(rcl_context);
 }
 
 } // namespace bidding

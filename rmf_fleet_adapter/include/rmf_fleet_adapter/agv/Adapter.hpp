@@ -50,9 +50,8 @@ public:
   ///
   /// \sa make()
   static std::shared_ptr<Adapter> init_and_make(
-      const std::string& node_name,
-      rmf_utils::optional<rmf_traffic::Duration> discovery_timeout =
-          rmf_utils::nullopt);
+    const std::string& node_name,
+    std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt);
 
   /// Make an adapter instance. This will instantiate an rclcpp::Node and allow
   /// you to add fleets to be adapted.
@@ -75,10 +74,9 @@ public:
   ///
   /// \sa init_and_make()
   static std::shared_ptr<Adapter> make(
-      const std::string& node_name,
-      const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions(),
-      rmf_utils::optional<rmf_traffic::Duration> discovery_timeout =
-          rmf_utils::nullopt);
+    const std::string& node_name,
+    const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions(),
+    std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt);
 
   /// Add a fleet to be adapted.
   ///
@@ -96,9 +94,9 @@ public:
   /// \param[in] navigation_graph
   ///   Specify the navigation graph used by the vehicles in this fleet.
   std::shared_ptr<FleetUpdateHandle> add_fleet(
-      const std::string& fleet_name,
-      rmf_traffic::agv::VehicleTraits traits,
-      rmf_traffic::agv::Graph navigation_graph);
+    const std::string& fleet_name,
+    rmf_traffic::agv::VehicleTraits traits,
+    rmf_traffic::agv::Graph navigation_graph);
 
   /// Create a traffic light to help manage robots that can only support pause
   /// and resume commands.
@@ -121,11 +119,11 @@ public:
   ///   The callback that will be triggered when the traffic light handle is
   ///   ready to be used. This callback will only be triggered once.
   void add_traffic_light(
-      std::shared_ptr<TrafficLight::CommandHandle> command,
-      const std::string& fleet_name,
-      const std::string& robot_name,
-      rmf_traffic::agv::VehicleTraits traits,
-      std::function<void(TrafficLight::UpdateHandlePtr handle)> handle_cb);
+    std::shared_ptr<TrafficLight::CommandHandle> command,
+    const std::string& fleet_name,
+    const std::string& robot_name,
+    rmf_traffic::agv::VehicleTraits traits,
+    std::function<void(TrafficLight::UpdateHandlePtr handle)> handle_cb);
 
   using Blockers = std::vector<TrafficLight::CommandHandle::Blocker>;
 
@@ -168,13 +166,13 @@ public:
   ///   does not need to be provided for this. Either way, an error message will
   ///   be printed to the log.
   void add_easy_traffic_light(
-      std::function<void(EasyTrafficLightPtr handle)> handle_callback,
-      const std::string& fleet_name,
-      const std::string& robot_name,
-      rmf_traffic::agv::VehicleTraits traits,
-      std::function<void()> pause_callback,
-      std::function<void()> resume_callback,
-      std::function<void(Blockers)> blocker_callback = nullptr);
+    std::function<void(EasyTrafficLightPtr handle)> handle_callback,
+    const std::string& fleet_name,
+    const std::string& robot_name,
+    rmf_traffic::agv::VehicleTraits traits,
+    std::function<void()> pause_callback,
+    std::function<void()> resume_callback,
+    std::function<void(Blockers)> blocker_callback = nullptr);
 
 
   /// Get the rclcpp::Node that this adapter will be using for communication.

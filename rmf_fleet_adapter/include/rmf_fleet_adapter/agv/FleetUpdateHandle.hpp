@@ -62,11 +62,11 @@ public:
   ///
   /// \return a handle to give the adapter updates about the robot.
   void add_robot(
-      std::shared_ptr<RobotCommandHandle> command,
-      const std::string& name,
-      const rmf_traffic::Profile& profile,
-      rmf_traffic::agv::Plan::StartSet start,
-      std::function<void(std::shared_ptr<RobotUpdateHandle> handle)> handle_cb);
+    std::shared_ptr<RobotCommandHandle> command,
+    const std::string& name,
+    const rmf_traffic::Profile& profile,
+    rmf_traffic::agv::Plan::StartSet start,
+    std::function<void(std::shared_ptr<RobotUpdateHandle> handle)> handle_cb);
 
   /// Specify a set of lanes that should be closed.
   void close_lanes(std::vector<std::size_t> lane_indices);
@@ -125,7 +125,7 @@ public:
   /// \return true to indicate that this fleet should accept the request, false
   /// to reject the request.
   using AcceptTaskRequest =
-      std::function<bool(const rmf_task_msgs::msg::TaskProfile& profile)>;
+    std::function<bool(const rmf_task_msgs::msg::TaskProfile& profile)>;
 
   /// Provide a callback that indicates whether this fleet will accept a
   /// BidNotice request. By default all requests will be rejected.
@@ -147,7 +147,7 @@ public:
   /// to reject the request.
   ///
   using AcceptDeliveryRequest =
-      std::function<bool(const rmf_task_msgs::msg::Delivery& request)>;
+    std::function<bool(const rmf_task_msgs::msg::Delivery& request)>;
 
   /// Provide a callback that indicates whether this fleet will accept a
   /// delivery request. By default all delivery requests will be rejected.
@@ -164,16 +164,16 @@ public:
   /// can become before it gets interrupted and replanned. A nullopt value will
   /// allow for an arbitrarily long delay to build up without being interrupted.
   FleetUpdateHandle& default_maximum_delay(
-      std::optional<rmf_traffic::Duration> value);
+    std::optional<rmf_traffic::Duration> value);
 
   /// Get the default value for the maximum acceptable delay.
-  rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay() const;
+  std::optional<rmf_traffic::Duration> default_maximum_delay() const;
 
   /// Specify a period for how often the fleet state message is published for
   /// this fleet. Passing in std::nullopt will disable the fleet state message
   /// publishing. The default value is 1s.
   FleetUpdateHandle& fleet_state_publish_period(
-      std::optional<rmf_traffic::Duration> value);
+    std::optional<rmf_traffic::Duration> value);
 
   class Implementation;
 private:

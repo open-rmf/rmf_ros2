@@ -30,7 +30,7 @@ public:
   using Response = Service::Response;
 
   ExperimentalLiftWatchdogNode()
-    : rclcpp::Node("experimental_lift_watchdog")
+  : rclcpp::Node("experimental_lift_watchdog")
   {
     service = create_service<rmf_fleet_msgs::srv::LiftClearance>(
       "experimental_lift_watchdog",
@@ -38,16 +38,16 @@ public:
         const std::shared_ptr<rmw_request_id_t> header,
         const std::shared_ptr<Request> request,
         const std::shared_ptr<Response> response)
-    {
-      service_callback(header, request, response);
-    });
+      {
+        service_callback(header, request, response);
+      });
 
     permission_subscription = create_subscription<std_msgs::msg::Bool>(
       "experimental_lift_permission", rclcpp::SystemDefaultsQoS(),
       [=](std::shared_ptr<std_msgs::msg::Bool> msg)
-    {
-      permission_callback(msg);
-    });
+      {
+        permission_callback(msg);
+      });
   }
 
   void service_callback(
@@ -58,7 +58,7 @@ public:
     if (permission)
     {
       response->decision =
-          rmf_fleet_msgs::srv::LiftClearance::Response::DECISION_CLEAR;
+        rmf_fleet_msgs::srv::LiftClearance::Response::DECISION_CLEAR;
 
       RCLCPP_INFO(
         get_logger(),
@@ -68,7 +68,7 @@ public:
     else
     {
       response->decision =
-          rmf_fleet_msgs::srv::LiftClearance::Response::DECISION_CROWDED;
+        rmf_fleet_msgs::srv::LiftClearance::Response::DECISION_CROWDED;
 
       RCLCPP_INFO(
         get_logger(),

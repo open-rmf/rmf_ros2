@@ -38,7 +38,8 @@ struct DoorClose
    * 3. It is completed when the supervisor state does NOT contains the requester_id, regardless of the door state
    * 4. Cancellation requests are ignored
    */
-  class ActivePhase : public Task::ActivePhase, public std::enable_shared_from_this<ActivePhase>
+  class ActivePhase : public Task::ActivePhase,
+    public std::enable_shared_from_this<ActivePhase>
   {
   public:
 
@@ -76,7 +77,8 @@ struct DoorClose
 
     void _publish_close_door();
 
-    void _update_status(const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat);
+    void _update_status(
+      const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat);
   };
 
   class PendingPhase : public Task::PendingPhase

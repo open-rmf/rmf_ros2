@@ -21,17 +21,6 @@ if(DEFINED ENV{RMF_ENABLE_FAILOVER})
 endif()
 include(GNUInstallDirs)
 
-if(BUILD_TESTING)
-  find_package(rmf_cmake_uncrustify REQUIRED)
-  find_file(uncrustify_config_file NAMES "share/format/rmf_code_style.cfg")
-
-  rmf_uncrustify(
-    ARGN include src test
-    CONFIG_FILE ${uncrustify_config_file}
-    MAX_LINE_LENGTH 80
-  )
-endif()
-
 set(dep_pkgs
   rclcpp
   rclcpp_components
@@ -52,6 +41,18 @@ foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
 endforeach()
 
+if(BUILD_TESTING)
+  find_package(rmf_cmake_uncrustify REQUIRED)
+  find_file(uncrustify_config_file
+    NAMES "rmf_code_style.cfg"
+    PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
+
+  rmf_uncrustify(
+    include src test rmf_rxcpp/include rmf_rxcpp/src rmf_rxcpp/test
+    CONFIG_FILE ${uncrustify_config_file}
+    MAX_LINE_LENGTH 80
+  )
+endif()
 # -----------------------------------------------------------------------------
 
 add_subdirectory(rmf_rxcpp)
@@ -102,15 +103,15 @@ if (BUILD_TESTING)
   find_package(std_msgs REQUIRED)
 
   ament_add_catch2(
-    rmf_fleet_adapter_test
+    test_rmf_fleet_adapter
       test/main.cpp
       test/adapters/test_TrafficLight.cpp
       test/phases/MockAdapterFixture.cpp
-      test/phases/DoorOpenTest.cpp
-      test/phases/DoorCloseTest.cpp
-      test/phases/RequestLiftTest.cpp
-      test/phases/DispenseItemTest.cpp
-      test/phases/IngestItemTest.cpp
+      test/phases/test_DoorOpen.cpp
+      test/phases/test_DoorClose.cpp
+      test/phases/test_RequestLift.cpp
+      test/phases/test_DispenseItem.cpp
+      test/phases/test_IngestItem.cpp
       test/phases/test_GoToPlace.cpp
       test/services/test_FindEmergencyPullover.cpp
       test/services/test_FindPath.cpp
@@ -118,8 +119,9 @@ if (BUILD_TESTING)
       test/tasks/test_Delivery.cpp
       test/tasks/test_Loop.cpp
       test/test_Task.cpp
+    TIMEOUT 300
   )
-  target_include_directories(rmf_fleet_adapter_test
+  target_include_directories(test_rmf_fleet_adapter
     PRIVATE
       # private includes of rmf_fleet_adapter
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/rmf_fleet_adapter>
@@ -130,7 +132,7 @@ if (BUILD_TESTING)
       ${rmf_ingestor_msgs_INCLUDE_DIRS}
       ${std_msgs_INCLUDE_DIRS}
   )
-  target_link_libraries(rmf_fleet_adapter_test
+  target_link_libraries(test_rmf_fleet_adapter
     PRIVATE
       # private libraries of rmf_fleet_adapter
       rmf_rxcpp
@@ -144,7 +146,7 @@ if (BUILD_TESTING)
       ${std_msgs_LIBRARIES}
   )
 
-  target_compile_definitions(rmf_fleet_adapter_test
+  target_compile_definitions(test_rmf_fleet_adapter
     PRIVATE
       "-DTEST_RESOURCES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test/resources/\"")
 
@@ -228,12 +230,14 @@ target_link_libraries(experimental_lift_watchdog
   PRIVATE
     ${rclcpp_LIBRARIES}
     ${rmf_fleet_msgs_LIBRARIES}
+    ${std_msgs_LIBRARIES}
 )
 
 target_include_directories(experimental_lift_watchdog
   PRIVATE
     ${rclcpp_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
+    ${std_msgs_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------

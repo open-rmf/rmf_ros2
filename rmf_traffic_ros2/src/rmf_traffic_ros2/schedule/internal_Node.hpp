@@ -400,7 +400,7 @@ public:
         return;
 
       const auto& participants =
-          negotiation_it->second->negotiation.participants();
+        negotiation_it->second->negotiation.participants();
 
       for (const auto p : participants)
         _version.erase(p);

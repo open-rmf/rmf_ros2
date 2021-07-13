@@ -153,7 +153,7 @@ public:
 
   class Transport
     : public rmf_traffic::schedule::Writer,
-      public std::enable_shared_from_this<Transport>
+    public std::enable_shared_from_this<Transport>
   {
   public:
     std::shared_ptr<RectifierFactory> rectifier_factory;
@@ -365,7 +365,7 @@ public:
   };
 
   Implementation(rclcpp::Node& node)
-    : transport(std::make_shared<Transport>(node))
+  : transport(std::make_shared<Transport>(node))
   {
     // Do nothing
   }
