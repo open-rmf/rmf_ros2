@@ -32,10 +32,10 @@ struct ProgressEvaluator
   static constexpr double DefaultMaxCostThreshold = 120.0;
 
   ProgressEvaluator(
-      double compliant_leeway_base_ = DefaultCompliantLeewayBase,
-      double compliant_leeway_multiplier_ = DefaultCompliantLeewayMultiplier,
-      double estimate_leeway_ = DefaultEstimateLeeway,
-      double max_cost_threshold_ = DefaultMaxCostThreshold);
+    double compliant_leeway_base_ = DefaultCompliantLeewayBase,
+    double compliant_leeway_multiplier_ = DefaultCompliantLeewayMultiplier,
+    double estimate_leeway_ = DefaultEstimateLeeway,
+    double max_cost_threshold_ = DefaultMaxCostThreshold);
 
   using Result = rmf_traffic::agv::Plan::Result;
 

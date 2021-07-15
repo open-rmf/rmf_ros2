@@ -24,17 +24,17 @@ namespace rmf_fleet_adapter {
 namespace jobs {
 
 //==============================================================================
-template <typename Subscriber, typename Worker>
+template<typename Subscriber, typename Worker>
 void Planning::operator()(const Subscriber& s, const Worker& w)
 {
   _resume = [a = weak_from_this(), s, w]()
-  {
-    w.schedule([a, s, w](const auto&)
     {
-      if (const auto action = a.lock())
-        (*action)(s, w);
-    });
-  };
+      w.schedule([a, s, w](const auto&)
+        {
+          if (const auto action = a.lock())
+            (*action)(s, w);
+        });
+    };
 
   if (!_current_result)
     return;
@@ -42,7 +42,7 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
   _current_result->resume();
 
   const bool completed =
-      _current_result->success() || !_current_result->cost_estimate();
+    _current_result->success() || !_current_result->cost_estimate();
 
   s.on_next(Result{*this});
   if (completed)

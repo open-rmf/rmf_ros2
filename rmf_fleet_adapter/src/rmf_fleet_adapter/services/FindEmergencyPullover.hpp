@@ -26,16 +26,16 @@ namespace services {
 
 //==============================================================================
 class FindEmergencyPullover
-    : public std::enable_shared_from_this<FindEmergencyPullover>
+  : public std::enable_shared_from_this<FindEmergencyPullover>
 {
 public:
 
   FindEmergencyPullover(
-      std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-      rmf_traffic::agv::Plan::StartSet starts,
-      std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
-      rmf_traffic::schedule::ParticipantId participant_id,
-      std::shared_ptr<const rmf_traffic::Profile> profile);
+    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+    rmf_traffic::agv::Plan::StartSet starts,
+    std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
+    rmf_traffic::schedule::ParticipantId participant_id,
+    std::shared_ptr<const rmf_traffic::Profile> profile);
 
   using Result = rmf_traffic::agv::Plan::Result;
 

@@ -36,7 +36,7 @@ public:
   using Graph::OrientationConstraint::OrientationConstraint;
 
   bool apply(Eigen::Vector3d& position,
-             const Eigen::Vector2d& course_vector) const override
+    const Eigen::Vector2d& course_vector) const override
   {
     PYBIND11_OVERLOAD_PURE(
       bool,

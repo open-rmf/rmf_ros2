@@ -48,10 +48,12 @@ void ResponsiveWait::Active::emergency_alarm(bool on)
 {
   if (!_movement)
   {
+    // *INDENT-OFF*
     throw std::runtime_error(
       "[rmf_fleet_adapter::phases::ResponsiveWait::Active::emergency_alarm] "
       "_movement field is null. This is a critical bug in rmf_fleet_adapter. "
       "Please report this to the maintainers.");
+    // *INDENT-ON*
   }
 
   _movement->emergency_alarm(on);
@@ -98,10 +100,12 @@ void ResponsiveWait::Active::_begin_movement()
   }
   else
   {
+    // *INDENT-OFF*
     throw std::runtime_error(
       "[rmf_fleet_adapter::phases::ResponsiveWait::Active::constructor] "
       "PhaseInfo is missing both finish_time and period. This is a critical "
       "bug in rmf_fleet_adapter. Please report it to the maintainers.");
+    // *INDENT-ON*
   }
 
   std::optional<rmf_traffic::Duration> tail;
@@ -115,38 +119,38 @@ void ResponsiveWait::Active::_begin_movement()
     _movement->observe()
     .observe_on(rxcpp::identity_same_worker(_info.context->worker()))
     .subscribe(
-      [w = weak_from_this()](const StatusMsg& msg)
+    [w = weak_from_this()](const StatusMsg& msg)
+    {
+      const auto me = w.lock();
+      if (!me)
+        return;
+
+      me->_status_publisher.get_subscriber().on_next(msg);
+    },
+    [w = weak_from_this()](std::exception_ptr e)
+    {
+      const auto me = w.lock();
+      if (!me)
+        return;
+
+      me->_status_publisher.get_subscriber().on_error(std::move(e));
+    },
+    [w = weak_from_this()]()
+    {
+      const auto me = w.lock();
+      if (!me)
+        return;
+
+      if (me->_info.period.has_value())
       {
-        const auto me = w.lock();
-        if (!me)
-          return;
+        // If this is an uncanceled indefinite wait, then we will begin the
+        // movement again.
+        me->_begin_movement();
+        return;
+      }
 
-        me->_status_publisher.get_subscriber().on_next(msg);
-      },
-      [w = weak_from_this()](std::exception_ptr e)
-      {
-        const auto me = w.lock();
-        if (!me)
-          return;
-
-        me->_status_publisher.get_subscriber().on_error(std::move(e));
-      },
-      [w = weak_from_this()]()
-      {
-        const auto me = w.lock();
-        if (!me)
-          return;
-
-        if (me->_info.period.has_value())
-        {
-          // If this is an uncanceled indefinite wait, then we will begin the
-          // movement again.
-          me->_begin_movement();
-          return;
-        }
-
-        me->_status_publisher.get_subscriber().on_completed();
-      });
+      me->_status_publisher.get_subscriber().on_completed();
+    });
 }
 
 //==============================================================================
@@ -192,7 +196,7 @@ auto ResponsiveWait::make_until(
   };
 
   info.description = "[" + info.context->requester_id() + "] waiting at ["
-      + std::to_string(info.waiting_point) + "]";
+    + std::to_string(info.waiting_point) + "]";
 
   return std::unique_ptr<Pending>(new Pending(std::move(info)));
 }
@@ -212,7 +216,7 @@ auto ResponsiveWait::make_indefinite(
   };
 
   info.description = "[" + info.context->requester_id() + "] waiting at ["
-      + std::to_string(info.waiting_point) + "]";
+    + std::to_string(info.waiting_point) + "]";
 
   return std::unique_ptr<Pending>(new Pending(std::move(info)));
 }

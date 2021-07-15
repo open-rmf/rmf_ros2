@@ -33,7 +33,8 @@ int help(const std::string& extra_message)
   if (!extra_message.empty())
     std::cout << extra_message << "\n";
 
-  std::cout << R"raw(
+  std::cout <<
+    R"raw(
   Usage:
     open_lanes <fleet_name> <lane0 [lane1 [lane2 ...]]>
 )raw";
@@ -94,37 +95,37 @@ int main(int argc, char* argv[])
 
   const auto publisher =
     node->create_publisher<rmf_fleet_msgs::msg::LaneRequest>(
-      rmf_fleet_adapter::LaneClosureRequestTopicName,
-      rclcpp::SystemDefaultsQoS().transient_local());
+    rmf_fleet_adapter::LaneClosureRequestTopicName,
+    rclcpp::SystemDefaultsQoS().transient_local());
 
   publisher->publish(request);
 
   const auto timer = node->create_wall_timer(
     std::chrono::milliseconds(100),
     [request, publisher]()
-  {
-    publisher->publish(request);
-  });
+    {
+      publisher->publish(request);
+    });
 
   std::unordered_set<uint64_t> open_lanes(lanes.begin(), lanes.end());
   const auto listener =
     node->create_subscription<rmf_fleet_msgs::msg::ClosedLanes>(
-      rmf_fleet_adapter::ClosedLaneTopicName,
-      rclcpp::SystemDefaultsQoS().transient_local(),
-      [&request_complete, fleet_name, open_lanes = std::move(open_lanes)](
-        std::unique_ptr<rmf_fleet_msgs::msg::ClosedLanes> msg)
-  {
-    if (msg->fleet_name != fleet_name)
-      return;
-
-    for (const auto& l : msg->closed_lanes)
+    rmf_fleet_adapter::ClosedLaneTopicName,
+    rclcpp::SystemDefaultsQoS().transient_local(),
+    [&request_complete, fleet_name, open_lanes = std::move(open_lanes)](
+      std::unique_ptr<rmf_fleet_msgs::msg::ClosedLanes> msg)
     {
-      if (open_lanes.count(l))
+      if (msg->fleet_name != fleet_name)
         return;
-    }
 
-    request_complete.set_value();
-  });
+      for (const auto& l : msg->closed_lanes)
+      {
+        if (open_lanes.count(l))
+          return;
+      }
+
+      request_complete.set_value();
+    });
 
   rclcpp::spin_until_future_complete(node, future);
 

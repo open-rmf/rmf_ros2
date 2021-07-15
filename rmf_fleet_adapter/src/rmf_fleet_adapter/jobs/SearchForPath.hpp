@@ -35,12 +35,12 @@ class SearchForPath : public std::enable_shared_from_this<SearchForPath>
 public:
 
   SearchForPath(
-      std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-      rmf_traffic::agv::Plan::StartSet starts,
-      rmf_traffic::agv::Plan::Goal goal,
-      std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
-      rmf_traffic::schedule::ParticipantId participant_id,
-      const std::shared_ptr<const rmf_traffic::Profile>& profile);
+    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+    rmf_traffic::agv::Plan::StartSet starts,
+    rmf_traffic::agv::Plan::Goal goal,
+    std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
+    rmf_traffic::schedule::ParticipantId participant_id,
+    const std::shared_ptr<const rmf_traffic::Profile>& profile);
 
   enum class Type
   {
@@ -50,8 +50,8 @@ public:
 
   struct Result
   {
-    Planning* greedy_job;
-    Planning* compliant_job;
+    std::shared_ptr<Planning> greedy_job;
+    std::shared_ptr<Planning> compliant_job;
     Type type;
   };
 

@@ -56,10 +56,10 @@ public:
   ///   yield is true, then the planner may request that the robot wait here to
   ///   avoid conflicts with other traffic participants.
   Waypoint(
-      std::string map_name,
-      Eigen::Vector3d position,
-      rmf_traffic::Duration mandatory_delay = std::chrono::nanoseconds(0),
-      bool yield = true);
+    std::string map_name,
+    Eigen::Vector3d position,
+    rmf_traffic::Duration mandatory_delay = std::chrono::nanoseconds(0),
+    bool yield = true);
 
   /// Get the map of this Waypoint.
   const std::string& map_name() const;

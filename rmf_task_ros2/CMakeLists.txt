@@ -45,13 +45,25 @@ ament_export_dependencies(rmf_traffic rmf_task_msgs rclcpp)
 
 #===============================================================================
 
-find_package(ament_cmake_catch2 QUIET)
-if(BUILD_TESTING AND ament_cmake_catch2_FOUND)
+if(BUILD_TESTING)
+  find_package(ament_cmake_catch2 QUIET)
+  find_package(rmf_cmake_uncrustify REQUIRED)
+  find_file(uncrustify_config_file
+    NAMES "rmf_code_style.cfg"
+    PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
+
+  rmf_uncrustify(
+    ARGN include src test
+    CONFIG_FILE ${uncrustify_config_file}
+    MAX_LINE_LENGTH 80
+  )
+
   file(GLOB_RECURSE unit_test_srcs "test/*.cpp")
 
   ament_add_catch2(
     test_rmf_task_ros2 test/main.cpp ${unit_test_srcs}
     TIMEOUT 300)
+
   target_link_libraries(test_rmf_task_ros2
       rmf_task_ros2
       rmf_traffic::rmf_traffic

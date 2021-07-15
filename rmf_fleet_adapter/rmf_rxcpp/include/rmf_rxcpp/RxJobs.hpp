@@ -31,14 +31,8 @@ inline auto make_job(const std::shared_ptr<Action>& action)
   return detail::make_observable<T>(action);
 }
 
-template<typename T, typename F>
-inline auto make_leaky_job(const F& f)
-{
-  return detail::make_observable<T>(std::make_shared<F>(f));
-}
-
 template<typename Job0, typename... Jobs>
-inline auto merge_jobs(const Job0& o0, Jobs&&... os)
+inline auto merge_jobs(const Job0& o0, Jobs&& ... os)
 {
   return o0.merge(rxcpp::serialize_event_loop(), os...);
 }
@@ -46,14 +40,16 @@ inline auto merge_jobs(const Job0& o0, Jobs&&... os)
 template<typename ActionsIterable>
 inline auto make_job_from_action_list(const ActionsIterable& actions)
 {
-  using Action = typename std::iterator_traits<decltype(actions.begin())>::value_type::element_type;
+  using Action =
+    typename std::iterator_traits<decltype(actions.begin())>::value_type::
+    element_type;
   return detail::make_merged_observable<typename Action::Result>(actions);
 }
 
 struct subscription_guard
 {
   subscription_guard(rxcpp::subscription s = rxcpp::subscription())
-    : _subscription(std::move(s))
+  : _subscription(std::move(s))
   {
     // Do nothing
   }

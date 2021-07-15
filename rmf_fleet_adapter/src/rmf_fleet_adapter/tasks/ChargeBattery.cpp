@@ -26,11 +26,11 @@ namespace tasks {
 
 //==============================================================================
 std::shared_ptr<Task> make_charge_battery(
-    const rmf_task::ConstRequestPtr request,
-    const agv::RobotContextPtr& context,
-    const rmf_traffic::agv::Plan::Start start,
-    const rmf_traffic::Time deployment_time,
-    const rmf_task::agv::State finish_state)
+  const rmf_task::ConstRequestPtr request,
+  const agv::RobotContextPtr& context,
+  const rmf_traffic::agv::Plan::Start start,
+  const rmf_traffic::Time deployment_time,
+  const rmf_task::agv::State finish_state)
 {
   std::shared_ptr<const rmf_task::requests::ChargeBattery::Description>
   description = std::dynamic_pointer_cast<
@@ -51,9 +51,9 @@ std::shared_ptr<Task> make_charge_battery(
     phases::ReadyToCharge::make(context, request->id(), *location));
   phases.push_back(
     phases::WaitForCharge::make(
-    context,
-    context->task_planner()->configuration().parameters().battery_system(),
-    context->task_planner()->configuration().constraints().recharge_soc()));
+      context,
+      context->task_planner()->configuration().parameters().battery_system(),
+      context->task_planner()->configuration().constraints().recharge_soc()));
 
   return Task::make(
     request->id(),

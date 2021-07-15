@@ -35,8 +35,8 @@ public:
   using rmf_fleet_adapter::agv::RobotCommandHandle::RobotCommandHandle;
 
   using ArrivalEstimator =
-      std::function<void(std::size_t path_index,
-                         rmf_traffic::Duration remaining_time)>;
+    std::function<void(std::size_t path_index,
+      rmf_traffic::Duration remaining_time)>;
 
   void follow_new_path(
     const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,

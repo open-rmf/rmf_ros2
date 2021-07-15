@@ -22,20 +22,20 @@ namespace services {
 
 //==============================================================================
 FindPath::FindPath(
-    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-    rmf_traffic::agv::Plan::StartSet starts,
-    rmf_traffic::agv::Plan::Goal goal,
-    std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
-    rmf_traffic::schedule::ParticipantId participant_id,
-    const std::shared_ptr<const rmf_traffic::Profile>& profile)
+  std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+  rmf_traffic::agv::Plan::StartSet starts,
+  rmf_traffic::agv::Plan::Goal goal,
+  std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
+  rmf_traffic::schedule::ParticipantId participant_id,
+  const std::shared_ptr<const rmf_traffic::Profile>& profile)
 {
   _search_job = std::make_shared<jobs::SearchForPath>(
-        std::move(planner),
-        std::move(starts),
-        std::move(goal),
-        std::move(schedule),
-        participant_id,
-        profile);
+    std::move(planner),
+    std::move(starts),
+    std::move(goal),
+    std::move(schedule),
+    participant_id,
+    profile);
 }
 
 //==============================================================================
