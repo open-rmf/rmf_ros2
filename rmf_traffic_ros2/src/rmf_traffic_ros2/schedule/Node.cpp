@@ -461,6 +461,8 @@ void ScheduleNode::setup_redundancy()
     create_publisher<ScheduleQueries>(
     rmf_traffic_ros2::QueriesInfoTopicName,
     rclcpp::SystemDefaultsQoS().reliable().keep_last(1).transient_local());
+
+  broadcast_queries();
 }
 
 //==============================================================================
