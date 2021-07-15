@@ -440,6 +440,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   if (!new_request)
     return;
   generated_requests.insert({id, new_request});
+  task_profile_map.insert({id, task_profile});
 
   const auto allocation_result = allocate_tasks(new_request);
 
@@ -605,7 +606,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     std::size_t index = 0;
     for (auto& t : task_managers)
     {
-      t.second->set_queue(assignments[index]);
+      t.second->set_queue(assignments[index], task_profile_map);
       ++index;
     }
 
@@ -692,7 +693,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     std::size_t index = 0;
     for (auto& t : task_managers)
     {
-      t.second->set_queue(assignments[index]);
+      t.second->set_queue(assignments[index], task_profile_map);
       ++index;
     }
 

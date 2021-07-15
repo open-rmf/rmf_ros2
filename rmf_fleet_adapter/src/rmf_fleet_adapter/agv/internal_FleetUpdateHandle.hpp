@@ -173,6 +173,8 @@ public:
   std::unordered_map<
     std::string, rmf_task::ConstRequestPtr> assigned_requests = {};
   std::unordered_set<std::string> cancelled_task_ids = {};
+  using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
+  std::unordered_map<std::string, TaskProfileMsg> task_profile_map = {};
 
   AcceptTaskRequest accept_task = nullptr;
 
