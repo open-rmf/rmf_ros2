@@ -38,7 +38,7 @@ SCENARIO_METHOD(MockAdapterFixture, "Charger Request Phase", "[phases]")
   const auto info = add_robot();
   const auto& context = info.context;
 
-  auto charger_state_pub = adapter->node()->create_publisher<ChargerState>(
+  auto charger_state_pub = data->adapter->node()->create_publisher<ChargerState>(
     ChargerStateTopicName, 10);
 
   auto request_guid = "test/charger";
@@ -47,15 +47,17 @@ SCENARIO_METHOD(MockAdapterFixture, "Charger Request Phase", "[phases]")
     request_guid,
     "charger1"
   );
+  auto active_phase = pending_phase->begin();
 
 
-  WHEN("it is started")
+  /*WHEN("it is started")
   {
-    auto rcl_subscription = adapter->node()->create_subscription<ChargerRequest>(
+    auto rcl_subscription = data->adapter->node()->create_subscription<ChargerRequest>(
     ChargerRequestTopicName,
     10,
     [&](ChargerRequest::UniquePtr ingestor_request)
     {
+      std::cout << "received requests" << std::endl;
       std::unique_lock<std::mutex> lk(m);
       received_requests.emplace_back(*ingestor_request);
       received_requests_cv.notify_all();
@@ -68,16 +70,15 @@ SCENARIO_METHOD(MockAdapterFixture, "Charger Request Phase", "[phases]")
         return received_requests.size() >= 3;
      });
     }
-  }
+  }*/
 
   WHEN("a response is sent")
   {
-    auto rcl_subscription = adapter->node()->create_subscription<ChargerRequest>(
+    auto rcl_subscription = data->adapter->node()->create_subscription<ChargerRequest>(
     ChargerRequestTopicName,
     10,
     [&](ChargerRequest::UniquePtr request)
     {
-      std::cout << "received request" <<std::endl;
       ChargerState state;
       state.state = ChargerState::CHARGER_ASSIGNED;
       state.robot_name = request->robot_name;
@@ -93,9 +94,9 @@ SCENARIO_METHOD(MockAdapterFixture, "Charger Request Phase", "[phases]")
     auto sub = active_phase->observe().subscribe(
       [&](const auto& status)
       {
-        std::cout << "status update" <<std::endl;
         std::unique_lock<std::mutex> lk(m);
         status_updates.emplace_back(status);
+        if(status_updates.begin()->state == Task::StatusMsg::STATE_COMPLETED)
         status_updates_cv.notify_all();
       });
 

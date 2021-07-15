@@ -38,6 +38,7 @@ std::shared_ptr<Node> Node::make(
   node->_charger_state_obs =
     node->create_observable<ChargerState>(
     ChargerStateTopicName, default_qos);
+
   node->_charger_request_pub =
     node->create_publisher<ChargerRequest>(
     ChargerRequestTopicName, default_qos);
@@ -197,7 +198,7 @@ auto Node::fleet_state() const -> const FleetStatePub&
 //==============================================================================
 auto Node::charger_state() const -> const ChargerStateObs&
 {
-  return _charger_state_obs;
+  return _charger_state_obs->observe();
 }
 
 //==============================================================================

@@ -68,36 +68,36 @@ ReadyToCharge::Active::Active(
   //INIT
   _current_state = State::AWAITING_RESPONSE;
 
-  _timer = _context->node()->create_wall_timer(
-    std::chrono::milliseconds(1000),
-    [me = this, desired_charger_name]()
+  _timer = _context->node()->try_create_wall_timer(
+    std::chrono::milliseconds(100),
+    [this, desired_charger_name]()
     {
-      /*auto me = weak.lock();
-      if (!me)
-      {
-        std::cout << "no lock" <<std::endl;
-        return;
-      }*/
+      std::cout << "TXing" <<std::endl;
       ChargerRequest request;
       request.charger_name = desired_charger_name;
-      request.fleet_name = me->_context->description().owner();
-      request.robot_name = me->_context->description().name();
+      request.fleet_name = this->_context->description().owner();
+      request.robot_name = this->_context->description().name();
       request.start_timeout = rclcpp::Duration {10,0};
-      request.request_id = me->_id; 
-      me->_context->node()->charger_request()->publish(request);
+      request.request_id = this->_id;
+      this->_context->node()->charger_request()->publish(request);
     }
   );
 
   _status_obs = _context->node()->charger_state()
     .filter([desired_charger_name](const auto& status_msg)
     {
+      std::cout << "filtering " <<std::endl;
       return status_msg->charger_name == desired_charger_name;
     })
-    .map([me =this](const auto& status_msg)
+    .map([weak = weak_from_this()](const auto& status_msg)
     {
-      /*auto me = weak.lock();
+      std::cout << "Attempting acknowledgement " <<std::endl;
+      auto me = weak.lock();
       if (!me)
-        return Task::StatusMsg();*/
+      {
+        std::cout << "Failed to get lock" <<std::endl;
+        return Task::StatusMsg();
+      }
       std::cout << "status received" <<std::endl;
       if (me->_current_state == State::AWAITING_RESPONSE)
       {

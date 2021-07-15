@@ -170,7 +170,7 @@ private:
   Bridge<IngestorResult> _ingestor_result_obs;
   Bridge<IngestorState> _ingestor_state_obs;
   FleetStatePub _fleet_state_pub;
-  ChargerStateObs _charger_state_obs;
+  Bridge<ChargerState> _charger_state_obs;
   ChargerRequestPub _charger_request_pub;
 };
 

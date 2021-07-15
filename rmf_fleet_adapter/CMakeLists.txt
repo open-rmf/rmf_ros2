@@ -113,6 +113,7 @@ if (BUILD_TESTING)
       test/phases/test_DoorOpen.cpp
       test/phases/test_DoorClose.cpp
       test/phases/test_RequestLift.cpp
+      test/phases/test_ReadyToCharge.cpp
       test/phases/test_DispenseItem.cpp
       test/phases/test_IngestItem.cpp
       test/phases/test_GoToPlace.cpp
