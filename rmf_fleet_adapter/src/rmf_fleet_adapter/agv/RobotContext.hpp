@@ -148,6 +148,13 @@ public:
 
   rmf_traffic::Duration get_lift_rewait_duration() const;
 
+  /// Set the current mode of the robot. This mode should correspond to a
+  /// constant in the RobotMode message
+  void current_mode(uint32_t mode);
+
+  /// Return the current mode of the robot
+  uint32_t current_mode() const;
+
 private:
   friend class FleetUpdateHandle;
   friend class RobotUpdateHandle;
@@ -192,6 +199,9 @@ private:
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);
+
+  // Mode value for RobotMode message
+  uint32_t _current_mode;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;
