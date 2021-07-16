@@ -21,6 +21,8 @@
 
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 
+#include <rmf_fleet_msgs/msg/robot_mode.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -348,7 +350,7 @@ RobotContext::RobotContext(
 
   _battery_soc_obs = _battery_soc_publisher.get_observable();
 
-  _current_mode = 0; // MODE_IDLE
+  _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
 }
 
 } // namespace agv
