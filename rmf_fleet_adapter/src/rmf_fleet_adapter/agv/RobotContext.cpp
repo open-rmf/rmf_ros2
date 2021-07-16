@@ -21,6 +21,8 @@
 
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 
+#include <rmf_fleet_msgs/msg/robot_mode.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -305,6 +307,18 @@ void RobotContext::respond(
 }
 
 //==============================================================================
+void RobotContext::current_mode(uint32_t mode)
+{
+  _current_mode = mode;
+}
+
+//==============================================================================
+uint32_t RobotContext::current_mode() const
+{
+  return _current_mode;
+}
+
+//==============================================================================
 RobotContext::RobotContext(
   std::shared_ptr<RobotCommandHandle> command_handle,
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
@@ -335,6 +349,8 @@ RobotContext::RobotContext(
   _interrupt_obs = _interrupt_publisher.get_observable();
 
   _battery_soc_obs = _battery_soc_publisher.get_observable();
+
+  _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
 }
 
 } // namespace agv
