@@ -159,6 +159,7 @@ public:
               node.get_logger(),
               "Mismatched query ID detected from schedule node; "
               "re-registering query");
+            dump_stashed_queries();
             // Re-register our query to get a (possibly new) correct query ID
             redo_query_registration();
           }
@@ -174,6 +175,7 @@ public:
           RCLCPP_ERROR(
             node.get_logger(),
             "Missing query ID; re-registering query");
+          dump_stashed_queries();
           redo_query_registration();
         }
       });
@@ -249,6 +251,12 @@ public:
       // impossible for require_query_validation to go true while in here?
       handle_update(msg);
     }
+    stashed_query_updates.clear();
+  }
+
+  // Call this if the stashed queries are found to be for an incorrect query
+  void dump_stashed_queries()
+  {
     stashed_query_updates.clear();
   }
 
@@ -409,6 +417,7 @@ public:
           this->register_query_client.reset();
         });
       redo_query_registration_timer.reset();
+      request_update();
     }
     else
     {
