@@ -29,7 +29,7 @@ class MissingQueryScheduleNode : public rmf_traffic_ros2::schedule::ScheduleNode
 {
 public:
   MissingQueryScheduleNode(const rclcpp::NodeOptions& options)
-    : ScheduleNode(options)
+    : ScheduleNode(0, options)
   {
     timer = create_wall_timer(35s, [this]() -> void
       {

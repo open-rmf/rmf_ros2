@@ -30,7 +30,7 @@ class WrongQueryScheduleNode : public rmf_traffic_ros2::schedule::ScheduleNode
 {
 public:
   WrongQueryScheduleNode(const rclcpp::NodeOptions& options)
-    : ScheduleNode(options, ScheduleNode::no_automatic_setup)
+    : ScheduleNode(0, options, ScheduleNode::no_automatic_setup)
   {
   }
 
@@ -63,6 +63,9 @@ public:
     // registered
     if (is_first_query)
     {
+      RCLCPP_WARN(
+        get_logger(),
+        "Fiddling with first query to cause a registered query mismatch");
       rmf_traffic::schedule::Query query = rmf_traffic::schedule::make_query({});
       auto region = rmf_traffic::Region{"L1", {}};
       const auto circle = rmf_traffic::geometry::Circle(1000);
