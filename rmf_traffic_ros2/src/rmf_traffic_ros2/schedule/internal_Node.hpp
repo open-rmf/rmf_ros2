@@ -80,22 +80,30 @@ public:
   using QuerySubscriberCountMap =
     std::unordered_map<uint64_t, uint64_t>;
 
+  using NodeEdition = unsigned int;
+  NodeEdition node_edition = 0;
+
   static struct NoAutomaticSetup{} no_automatic_setup;
 
   ScheduleNode(
+    NodeEdition edition,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
     const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
   ScheduleNode(
+    NodeEdition edition,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
     QuerySubscriberCountMap registered_query_subscriber_counts,
     const rclcpp::NodeOptions& options);
 
-  ScheduleNode(const rclcpp::NodeOptions& options);
+  ScheduleNode(NodeEdition edition, const rclcpp::NodeOptions& options);
 
-  ScheduleNode(const rclcpp::NodeOptions& options, NoAutomaticSetup);
+  ScheduleNode(
+    NodeEdition edition,
+    const rclcpp::NodeOptions& options,
+    NoAutomaticSetup);
 
   ~ScheduleNode();
 

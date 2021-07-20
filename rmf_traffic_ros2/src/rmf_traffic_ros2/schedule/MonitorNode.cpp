@@ -30,10 +30,25 @@ namespace schedule {
 //==============================================================================
 MonitorNode::MonitorNode(
   std::function<void(std::shared_ptr<rclcpp::Node>)> callback,
-  const rclcpp::NodeOptions& options)
+  const rclcpp::NodeOptions& options,
+  NoAutomaticSetup)
 : Node("rmf_traffic_schedule_monitor", options),
   heartbeat_qos_profile(1),
   on_fail_over_callback(callback)
+{
+}
+
+//==============================================================================
+MonitorNode::MonitorNode(
+  std::function<void(std::shared_ptr<rclcpp::Node>)> callback,
+  const rclcpp::NodeOptions& options)
+: MonitorNode(callback, options, no_automatic_setup)
+{
+  setup();
+}
+
+//==============================================================================
+void MonitorNode::setup()
 {
   // Period, in milliseconds, for listening for a heartbeat signal from the
   // primary node in the redundant pair
@@ -79,7 +94,7 @@ void MonitorNode::start_heartbeat_listener()
         event.alive_count == 0 && event.alive_count_change < 0 &&
         event.not_alive_count > 0 && event.not_alive_count_change > 0)
       {
-        RCLCPP_WARN(
+        RCLCPP_ERROR(
           get_logger(),
           "Detected death of primary schedule node");
         on_fail_over_callback(create_new_schedule_node());
@@ -168,6 +183,7 @@ std::shared_ptr<rclcpp::Node> MonitorNode::create_new_schedule_node()
 {
   auto database = std::make_shared<Database>(mirror.value().fork());
   auto node = std::make_shared<rmf_traffic_ros2::schedule::ScheduleNode>(
+    1, // Bump the node edition by one
     database,
     registered_queries,
     query_subscriber_counts,

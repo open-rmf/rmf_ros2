@@ -43,10 +43,18 @@ using namespace std::chrono_literals;
 class MonitorNode : public rclcpp::Node
 {
 public:
+  static struct NoAutomaticSetup{} no_automatic_setup;
+
+  MonitorNode(
+    std::function<void(std::shared_ptr<rclcpp::Node>)> callback,
+    const rclcpp::NodeOptions& options,
+    NoAutomaticSetup);
 
   MonitorNode(
     std::function<void(std::shared_ptr<rclcpp::Node>)> callback,
     const rclcpp::NodeOptions& options);
+
+  void setup();
 
   std::chrono::milliseconds heartbeat_period = 1s;
   rclcpp::QoS heartbeat_qos_profile;
@@ -62,7 +70,7 @@ public:
   FailOverEventPub::SharedPtr fail_over_event_pub;
 
   void start_fail_over_event_broadcaster();
-  void announce_fail_over();
+  virtual void announce_fail_over();
 
   using ScheduleQuery = rmf_traffic_msgs::msg::ScheduleQuery;
   using ScheduleQueries = rmf_traffic_msgs::msg::ScheduleQueries;
@@ -70,7 +78,7 @@ public:
 
   void start_data_synchronisers();
 
-  std::shared_ptr<rclcpp::Node> create_new_schedule_node();
+  virtual std::shared_ptr<rclcpp::Node> create_new_schedule_node();
 
   std::optional<rmf_traffic_ros2::schedule::MirrorManager> mirror;
   std::function<void(std::shared_ptr<rclcpp::Node>)> on_fail_over_callback;

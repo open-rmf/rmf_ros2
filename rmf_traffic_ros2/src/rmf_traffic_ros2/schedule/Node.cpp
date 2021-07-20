@@ -87,10 +87,12 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 // This constructor will _not_ automatically call the setup() method to finalise
 // construction of the ScheduleNode object. setup() must be called manually.
 ScheduleNode::ScheduleNode(
+  NodeEdition edition,
   std::shared_ptr<rmf_traffic::schedule::Database> database_,
   QueryMap registered_queries_,
   const rclcpp::NodeOptions& options)
 : Node("rmf_traffic_schedule_node", options),
+  node_edition(edition),
   heartbeat_qos_profile(1),
   database(std::move(database_)),
   registered_queries(std::move(registered_queries_)),
@@ -111,11 +113,13 @@ ScheduleNode::ScheduleNode(
 // This constructor will automatically call the setup() method to finalise
 // construction of the ScheduleNode object.
 ScheduleNode::ScheduleNode(
+  NodeEdition edition,
   std::shared_ptr<rmf_traffic::schedule::Database> database_,
   QueryMap registered_queries_,
   QuerySubscriberCountMap registered_query_subscriber_counts,
   const rclcpp::NodeOptions& options)
 : ScheduleNode(
+    edition,
     database_,
     registered_queries_,
     options)
@@ -126,8 +130,11 @@ ScheduleNode::ScheduleNode(
 //==============================================================================
 // This constructor will automatically call the setup() method to finalise
 // construction of the ScheduleNode object.
-ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
+ScheduleNode::ScheduleNode(
+  NodeEdition edition,
+  const rclcpp::NodeOptions& options)
 : ScheduleNode(  // Call the version that will automatically call setup(...)
+    edition,
     std::make_shared<rmf_traffic::schedule::Database>(),
     QueryMap(),
     QuerySubscriberCountMap(),
@@ -139,9 +146,11 @@ ScheduleNode::ScheduleNode(const rclcpp::NodeOptions& options)
 // This constructor will _not_ automatically call the setup() method to finalise
 // construction of the ScheduleNode object. setup() must be called manually.
 ScheduleNode::ScheduleNode(
+  NodeEdition edition,
   const rclcpp::NodeOptions& options,
   NoAutomaticSetup)
 : ScheduleNode(  // Call the version that does not call setup(...)
+    edition,
     std::make_shared<rmf_traffic::schedule::Database>(),
     QueryMap(),
     options)
@@ -547,7 +556,7 @@ void ScheduleNode::add_subscriber_to_query_topic(uint64_t query_id)
   auto mirror_update_topic_info = query_topic->second;
   mirror_update_topic_info.subscriber_count += 1;
   mirror_update_topics.insert_or_assign(query_id, mirror_update_topic_info);
-  RCLCPP_DEBUG(get_logger(), "Query topic has %d subscribers",
+  RCLCPP_INFO(get_logger(), "Query topic has %d subscribers",
     mirror_update_topic_info.subscriber_count);
 }
 
@@ -1023,6 +1032,7 @@ void ScheduleNode::publish_inconsistencies(
 void ScheduleNode::update_mirrors()
 {
   rmf_traffic_msgs::msg::MirrorUpdate msg;
+  msg.node_edition = node_edition;
   msg.database_version = database->latest_version();
 
   for (const auto& query_it : registered_queries)
@@ -1039,9 +1049,6 @@ void ScheduleNode::update_mirrors()
         query_it.first);
       continue;
     }
-
-    msg.query_id = query_it.first;
-    msg.query = rmf_traffic_ros2::convert(query_it.second);
 
     auto& mirror_update_topic_info = query_topic->second;
     const auto patch = database->changes(
@@ -1334,7 +1341,7 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
 
 std::shared_ptr<rclcpp::Node> make_node(const rclcpp::NodeOptions& options)
 {
-  return std::make_shared<ScheduleNode>(options);
+  return std::make_shared<ScheduleNode>(0, options);
 }
 
 } // namespace schedule
