@@ -205,9 +205,9 @@ public:
     update_timer = node.create_wall_timer(
       5s,
       [&]() -> void
-        {
-          handle_update_timeout();
-        });
+      {
+        handle_update_timeout();
+      });
   }
 
   void handle_participants_info(const ParticipantsInfo::SharedPtr msg)
@@ -291,7 +291,7 @@ public:
           RCLCPP_WARN(
             node.get_logger(),
             "Failed to update using patch for DB version %d; "
-              "requesting new update",
+            "requesting new update",
             patch.latest_version());
           request_update(mirror->latest_version());
         }
@@ -303,7 +303,7 @@ public:
           RCLCPP_WARN(
             node.get_logger(),
             "Failed to update using patch for DB version %d; "
-              "requesting new update",
+            "requesting new update",
             patch.latest_version());
           request_update(mirror->latest_version());
         }
@@ -390,7 +390,9 @@ public:
   {
     if (register_query_client->service_is_ready())
     {
-      RCLCPP_DEBUG(node.get_logger(), "Redoing query registration: Calling service");
+      RCLCPP_DEBUG(
+        node.get_logger(),
+        "Redoing query registration: Calling service");
       RegisterQuery::Request register_query_request;
       register_query_request.query = convert(query);
       register_query_client->async_send_request(
