@@ -25,6 +25,7 @@
 
 #include <rmf_task/agv/TaskPlanner.hpp>
 
+#include <rmf_fleet_msgs/msg/robot_mode.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
 
 #include <mutex>
@@ -47,6 +48,7 @@ public:
   using StartSet = rmf_traffic::agv::Plan::StartSet;
   using Assignment = rmf_task::agv::TaskPlanner::Assignment;
   using State = rmf_task::agv::State;
+  using RobotModeMsg = rmf_fleet_msgs::msg::RobotMode;
   using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
   using TaskProfiles = std::unordered_map<std::string, TaskProfileMsg>;
   using TaskSummaryMsg = rmf_task_msgs::msg::TaskSummary;
@@ -80,6 +82,8 @@ public:
   /// Get the list of task ids for tasks that have started execution.
   /// The list will contain upto 100 latest task ids only.
   const std::vector<std::string>& get_executed_tasks() const;
+
+  RobotModeMsg robot_mode() const;
 
 private:
 

@@ -271,6 +271,18 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
 }
 
 //==============================================================================
+TaskManager::RobotModeMsg TaskManager::robot_mode() const
+{
+  const auto mode = rmf_fleet_msgs::build<RobotModeMsg>()
+    .mode(_active_task == nullptr ?
+      RobotModeMsg::MODE_IDLE :
+      _context->current_mode())
+    .mode_request_id(0);
+
+  return mode;
+}
+
+//==============================================================================
 void TaskManager::_begin_next_task()
 {
   if (_active_task)
