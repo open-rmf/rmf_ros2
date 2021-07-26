@@ -218,7 +218,8 @@ void ScheduleNode::setup_query_services()
     const RegisterQuery::Response::SharedPtr response)
     { this->register_query(request_header, request, response); });
 
-  // TODO(MXG): We could make the timing parameterized
+  // TODO(MXG): We could expose the timing parameters to the user so the
+  // frequency of cleanups can be customized.
   query_cleanup_timer =
     create_wall_timer(
       query_cleanup_period,
@@ -593,6 +594,7 @@ void ScheduleNode::register_query(
 //==============================================================================
 void ScheduleNode::cleanup_queries()
 {
+  bool any_erased = false;
   const auto now = std::chrono::steady_clock::now();
   auto it = registered_queries.begin();
   while (it != registered_queries.end())
@@ -606,12 +608,16 @@ void ScheduleNode::cleanup_queries()
         // we increment the iterator to its next value while erasing the element
         // that it used to point at.
         registered_queries.erase(it++);
+        any_erased = true;
         continue;
       }
     }
 
     ++it;
   }
+
+  if (any_erased)
+    broadcast_queries();
 }
 
 //==============================================================================
@@ -904,13 +910,7 @@ void ScheduleNode::update_mirrors()
       query_info.last_sent_version);
 
     if (patch.size() == 0 && !patch.cull())
-    {
-      RCLCPP_DEBUG(
-        get_logger(),
-        "[ScheduleNode::update_mirrors] Skipping query [%ld]",
-        query_id);
       continue;
-    }
 
     msg.patch = rmf_traffic_ros2::convert(patch);
     query_info.publisher->publish(msg);

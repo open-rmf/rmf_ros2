@@ -126,10 +126,23 @@ public:
       rclcpp::SystemDefaultsQoS().reliable().keep_last(100).transient_local(),
       [=](const ScheduleQueries::SharedPtr msg)
       {
+        if (rmf_utils::modular(msg->node_edition)
+            .less_than(expected_node_edition))
+        {
+          // This is an outdated node edition, so we will ignore it
+          return;
+        }
+
+        // In case the new node edition is higher, make sure we update the
+        // node edition that we're expecting.
+        expected_node_edition = msg->node_edition;
+
         RCLCPP_INFO(
           node.get_logger(),
-          "Mirror handling new sync of %d queries from schedule node",
-          msg->queries.size());
+          "Mirror handling new sync of %d queries "
+          "from schedule node edition [%ld]",
+          msg->queries.size(),
+          msg->node_edition);
 
         // Find what should be our query based on our query ID
         std::optional<uint64_t> our_query = std::nullopt;
@@ -156,7 +169,6 @@ public:
               "re-registering query");
             dump_stashed_queries();
             // Re-register our query to get a (possibly new) correct query ID
-            std::cout << "redo_query_registration: " << __LINE__ << std::endl;
             redo_query_registration();
           }
           else
@@ -172,7 +184,6 @@ public:
             node.get_logger(),
             "Missing query ID; re-registering query");
           dump_stashed_queries();
-          std::cout << "redo_query_registration: " << __LINE__ << std::endl;
           redo_query_registration();
         }
       });
@@ -385,7 +396,7 @@ public:
 
   void redo_query_registration()
   {
-    RCLCPP_INFO(node.get_logger(), "Redoing query registration");
+    RCLCPP_DEBUG(node.get_logger(), "Redoing query registration");
     // Make sure nothing is truly coming in on this topic and triggering a
     // callback while we are remaking it
     mirror_update_sub.reset();
@@ -406,7 +417,7 @@ public:
   {
     if (register_query_client->service_is_ready())
     {
-      RCLCPP_INFO(
+      RCLCPP_DEBUG(
         node.get_logger(),
         "Redoing query registration: Calling service");
       RegisterQuery::Request register_query_request;
@@ -424,7 +435,7 @@ public:
           }
 
           this->query_id = msg->query_id;
-          RCLCPP_INFO(
+          RCLCPP_DEBUG(
             node.get_logger(),
             "Redoing query registration: Got new ID %d",
             query_id);
@@ -448,7 +459,10 @@ public:
 
   void handle_fail_over_event(uint64_t new_node_edition)
   {
-    RCLCPP_INFO(node.get_logger(), "Handling fail over event for mirror");
+    RCLCPP_INFO(
+      node.get_logger(),
+      "Handling fail over event. New expected node edition [%ld].",
+      new_node_edition);
 
     // We need to validate that the replacement schedule node has our query
     // correctly. This will be reset to false once we have received the query
@@ -462,10 +476,6 @@ public:
       require_query_validation = true;
       // The new schedule node will be one edition higher
       expected_node_edition = new_node_edition;
-      RCLCPP_INFO(
-        node.get_logger(),
-        "New expected node edition: %ld",
-        expected_node_edition);
     }
   }
 

@@ -76,7 +76,7 @@ class ScheduleNode : public rclcpp::Node
 public:
   using QueryMap = std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
 
-  using NodeEdition = uint32_t;
+  using NodeEdition = uint64_t;
   NodeEdition node_edition = 0;
 
   static struct NoAutomaticSetup{} no_automatic_setup;
