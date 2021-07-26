@@ -46,7 +46,7 @@ public:
     ScheduleQueries msg;
 
     bool is_first = true;
-    for (const auto& registered_query: registered_queries)
+    for (const auto& [query_id, info] : registered_queries)
     {
       if (is_first)
       {
@@ -55,15 +55,11 @@ public:
         is_first = false;
         continue;
       }
-      msg.ids.push_back(registered_query.first);
+      msg.ids.push_back(query_id);
 
-      rmf_traffic::schedule::Query original =
-        registered_queries.at(registered_query.first);
+      const rmf_traffic::schedule::Query& original = info.query;
       ScheduleQuery query = rmf_traffic_ros2::convert(original);
       msg.queries.push_back(query);
-
-      const auto& query_topic = mirror_update_topics.find(registered_query.first);
-      msg.subscriber_counts.push_back(query_topic->second.subscriber_count);
     }
     queries_info_pub->publish(msg);
 

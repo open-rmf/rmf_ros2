@@ -161,19 +161,12 @@ void MonitorNode::start_data_synchronisers()
         msg->queries.size());
       // Delete past sync'd data
       registered_queries.clear();
-      query_subscriber_counts.clear();
+
       // Fill up with the new sync'd data
       for (uint64_t ii = 0; ii < msg->ids.size(); ++ii)
       {
-        RCLCPP_DEBUG(
-          get_logger(),
-          "Query %d has %d subscribers",
-          msg->ids[ii],
-          msg->subscriber_counts[ii]);
         registered_queries.insert(
           {msg->ids[ii], rmf_traffic_ros2::convert(msg->queries[ii])});
-        query_subscriber_counts.insert(
-          {msg->ids[ii], msg->subscriber_counts[ii]});
       }
     });
 }
@@ -186,7 +179,6 @@ std::shared_ptr<rclcpp::Node> MonitorNode::create_new_schedule_node()
     1, // Bump the node edition by one
     database,
     registered_queries,
-    query_subscriber_counts,
     rclcpp::NodeOptions());
   return node;
 }

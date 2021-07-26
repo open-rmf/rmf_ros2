@@ -32,13 +32,11 @@ public:
     NodeEdition edition,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
-    QuerySubscriberCountMap registered_query_subscriber_counts,
     const rclcpp::NodeOptions& options)
     : ScheduleNode(
         edition,
         database_,
         registered_queries_,
-        registered_query_subscriber_counts,
         options)
   {
     timer = create_wall_timer(5s, [this]() -> void
@@ -85,7 +83,6 @@ public:
         1, // Bump the node edition by one
         database,
         registered_queries,
-        query_subscriber_counts,
         rclcpp::NodeOptions());
     return node;
   }
