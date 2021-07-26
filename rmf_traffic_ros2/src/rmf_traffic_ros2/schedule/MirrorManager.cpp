@@ -206,10 +206,6 @@ public:
       rclcpp::SystemDefaultsQoS(),
       [&, qid = query_id](const MirrorUpdate::SharedPtr msg)
       {
-        RCLCPP_INFO(
-          node.get_logger(),
-          "Query update: topic %d, node edition %d",
-          qid, msg->node_edition);
         handle_update(msg);
       });
     // At this point we know we have the correct ID for our query
