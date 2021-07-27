@@ -61,7 +61,7 @@ public:
   /// of with task STATE_ACTIVE
   DispatchTasks active_dispatch_tasks;
   DispatchTasks terminal_dispatch_tasks;
-  DispatchTasks user_submitted_tasks;  // store ongoing user submitted tasks
+  std::set<std::string> user_submitted_tasks;  // ongoing submitted task_ids
   std::size_t task_counter = 0; // index for generating task_id
   double bidding_time_window;
   int terminated_tasks_max_size;
@@ -196,7 +196,7 @@ public:
     status.task_profile = submitted_task;
     auto new_task_status = std::make_shared<TaskStatus>(status);
     active_dispatch_tasks[submitted_task.task_id] = new_task_status;
-    user_submitted_tasks[submitted_task.task_id] = new_task_status;
+    user_submitted_tasks.insert(submitted_task.task_id);
 
     if (on_change_fn)
       on_change_fn(new_task_status);
