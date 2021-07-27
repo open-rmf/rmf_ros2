@@ -242,7 +242,8 @@ public:
     // only user submitted task is cancelable
     if (user_submitted_tasks.find(task_id) == user_submitted_tasks.end())
     {
-      RCLCPP_ERROR(node->get_logger(), "only user submitted task is cancelable");
+      RCLCPP_ERROR(node->get_logger(),
+        "only user submitted task is cancelable");
       return false;
     }
 
