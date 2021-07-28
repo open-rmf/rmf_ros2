@@ -265,12 +265,24 @@ public:
     update_timer->reset();
 
     // Verify that the expected node edition sent the update
-    if (msg->node_edition > expected_node_edition)
+    if (msg->node_edition < expected_node_edition)
     {
       RCLCPP_WARN(
         node.get_logger(),
-        "Received query update from unexpected schedule node edition %d",
-        msg->node_edition);
+        "Received query update from unexpected schedule node edition %d (<%d);"
+        " ignoring update",
+        msg->node_edition,
+        expected_node_edition);
+      return;
+    }
+    else if (msg->node_edition > expected_node_edition)
+    {
+      RCLCPP_WARN(
+        node.get_logger(),
+        "Received query update from unexpected schedule node edition %d (>%d);"
+        " validating query registration",
+        msg->node_edition,
+        expected_node_edition);
       require_query_validation = true;
       expected_node_edition = msg->node_edition;
     }
