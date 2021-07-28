@@ -188,7 +188,7 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
         std::unique_lock<std::mutex> lk(test->m);
         test->received_requests_cv.wait(lk, [&]()
           {
-            if (!test->received_requests.empty())
+            if (test->received_requests.empty())
               return false;
             return test->received_requests.back().request_type == LiftRequest::REQUEST_END_SESSION;
           });
