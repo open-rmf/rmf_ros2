@@ -61,6 +61,7 @@ public:
   /// of with task STATE_ACTIVE
   DispatchTasks active_dispatch_tasks;
   DispatchTasks terminal_dispatch_tasks;
+  std::set<std::string> user_submitted_tasks;  // ongoing submitted task_ids
   std::size_t task_counter = 0; // index for generating task_id
   double bidding_time_window;
   int terminated_tasks_max_size;
@@ -195,6 +196,7 @@ public:
     status.task_profile = submitted_task;
     auto new_task_status = std::make_shared<TaskStatus>(status);
     active_dispatch_tasks[submitted_task.task_id] = new_task_status;
+    user_submitted_tasks.insert(submitted_task.task_id);
 
     if (on_change_fn)
       on_change_fn(new_task_status);
@@ -237,11 +239,11 @@ public:
       return true;
     }
 
-    // Charging task doesnt support cancel task
-    if (cancel_task_status->task_profile.description.task_type.type ==
-      rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY)
+    // only user submitted task is cancelable
+    if (user_submitted_tasks.find(task_id) == user_submitted_tasks.end())
     {
-      RCLCPP_ERROR(node->get_logger(), "Charging task is not cancelled-able");
+      RCLCPP_ERROR(node->get_logger(),
+        "only user submitted task is cancelable");
       return false;
     }
 
@@ -254,20 +256,18 @@ public:
       return false;
     }
 
-    // Remove previous self-generated charging task from "active_dispatch_tasks"
-    // this is to prevent duplicated charging task (as certain queued charging
-    // tasks are not terminated when task is reassigned).
+    // Remove non-user submitted task from "active_dispatch_tasks"
+    // this is to prevent duplicated task during reassignation
     // TODO: a better way to impl this
     for (auto it = active_dispatch_tasks.begin();
       it != active_dispatch_tasks.end(); )
     {
-      const auto type = it->second->task_profile.description.task_type.type;
       const bool is_fleet_name =
         (cancel_task_status->fleet_name == it->second->fleet_name);
-      const bool is_charging_task =
-        (type == rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY);
+      const bool is_self_gererated =
+        (user_submitted_tasks.find(it->first) == user_submitted_tasks.end());
 
-      if (is_charging_task && is_fleet_name)
+      if (is_self_gererated && is_fleet_name)
       {
         it->second->state = TaskStatus::State::Canceled;
         terminate_task((it++)->second);
@@ -330,19 +330,17 @@ public:
       " is accepted by fleet adapter [%s]",
       task_id.c_str(), winner->fleet_name.c_str());
 
-    // Remove previous self-generated charging task from "active_dispatch_tasks"
-    // this is to prevent duplicated charging task (as certain queued charging
-    // tasks are not terminated when task is reassigned).
+    // Remove non-user submitted charging task from "active_dispatch_tasks"
+    // this is to prevent duplicated task during reassignation.
     // TODO: a better way to impl this
     for (auto it = active_dispatch_tasks.begin();
       it != active_dispatch_tasks.end(); )
     {
-      const auto type = it->second->task_profile.description.task_type.type;
       const bool is_fleet_name = (winner->fleet_name == it->second->fleet_name);
-      const bool is_charging_task =
-        (type == rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY);
+      const bool is_self_gererated =
+        (user_submitted_tasks.find(it->first) == user_submitted_tasks.end());
 
-      if (is_charging_task && is_fleet_name)
+      if (is_self_gererated && is_fleet_name)
       {
         it->second->state = TaskStatus::State::Canceled;
         terminate_task((it++)->second);
@@ -377,7 +375,7 @@ public:
         if (rmf_traffic_ros2::convert(t1) < rmf_traffic_ros2::convert(t2))
           rm_task = it;
       }
-      terminal_dispatch_tasks.erase(terminal_dispatch_tasks.begin() );
+      terminal_dispatch_tasks.erase(rm_task);
     }
 
     const auto id = terminate_status->task_profile.task_id;
@@ -385,6 +383,7 @@ public:
     // destroy prev status ptr and recreate one
     auto status = std::make_shared<TaskStatus>(*terminate_status);
     (terminal_dispatch_tasks)[id] = status;
+    user_submitted_tasks.erase(id);
     active_dispatch_tasks.erase(id);
   }
 
