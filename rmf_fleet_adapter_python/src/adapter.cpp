@@ -155,6 +155,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("close_lanes",
     &agv::FleetUpdateHandle::close_lanes,
     py::arg("lane_indices"))
+  .def("open_lanes",
+    &agv::FleetUpdateHandle::open_lanes,
+    py::arg("lane_indices"))
   .def("set_task_planner_params",
     [&](agv::FleetUpdateHandle& self,
     battery::BatterySystem& b_sys,
