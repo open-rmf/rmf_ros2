@@ -239,7 +239,7 @@ public:
   void process_stashed_queries()
   {
     RCLCPP_DEBUG(node.get_logger(), "Processing stashed queries");
-    for (auto msg: stashed_query_updates)
+    for (auto&& msg: stashed_query_updates)
     {
       RCLCPP_DEBUG(
         node.get_logger(),
@@ -249,7 +249,7 @@ public:
       // while processing this loop, it will enter an infinite loop. Add a
       // counter or use a counter-based loop to prevent that? Or is it
       // impossible for require_query_validation to go true while in here?
-      handle_update(msg);
+      handle_update(std::move(msg));
     }
     stashed_query_updates.clear();
   }
