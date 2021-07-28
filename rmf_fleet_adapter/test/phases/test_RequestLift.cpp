@@ -161,7 +161,7 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
           lk, std::chrono::milliseconds(1000),
           [&]()
           {
-            if(test->status_updates.empty())
+            if (test->status_updates.empty())
               return false;
             const auto& state = test->status_updates.back().state;
             return state == Task::StatusMsg::STATE_COMPLETED;
