@@ -285,6 +285,7 @@ public:
         expected_node_edition);
       require_query_validation = true;
       expected_node_edition = msg->node_edition;
+      stashed_query_updates.clear();
     }
 
     if (require_query_validation)
