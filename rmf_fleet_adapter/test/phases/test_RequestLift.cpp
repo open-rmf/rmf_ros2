@@ -161,6 +161,8 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
           lk, std::chrono::milliseconds(1000),
           [&]()
           {
+            if (test->status_updates.empty())
+              return false;
             const auto& state = test->status_updates.back().state;
             return state == Task::StatusMsg::STATE_COMPLETED;
           });
@@ -186,6 +188,8 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
         std::unique_lock<std::mutex> lk(test->m);
         test->received_requests_cv.wait(lk, [&]()
           {
+            if (test->received_requests.empty())
+              return false;
             return test->received_requests.back().request_type == LiftRequest::REQUEST_END_SESSION;
           });
       }
