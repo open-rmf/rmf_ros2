@@ -50,11 +50,14 @@ SCENARIO("Test idempotency of shape type")
 }
 
 namespace rmf_traffic {
+
 bool operator==(const Profile p1, const Profile p2)
 {
   return rmf_traffic_ros2::convert(p1) == rmf_traffic_ros2::convert(p2);
 }
+
 namespace schedule {
+
 bool operator==(
   const ParticipantDescription desc1,
   const ParticipantDescription desc2)
@@ -64,11 +67,13 @@ bool operator==(
     && desc1.responsiveness() ==  desc2.responsiveness()
     && desc1.profile() == desc2.profile();
 }
+
 }
 }
 
 namespace rmf_traffic_ros2 {
 namespace schedule {
+
 bool operator==(
   const AtomicOperation op1,
   const AtomicOperation op2)
@@ -76,6 +81,7 @@ bool operator==(
   return op1.operation == op2.operation
     && op1.description == op2.description;
 }
+
 }
 }
 
