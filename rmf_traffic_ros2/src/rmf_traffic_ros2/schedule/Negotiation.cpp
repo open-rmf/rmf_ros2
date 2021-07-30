@@ -1110,5 +1110,39 @@ std::shared_ptr<void> Negotiation::register_negotiator(
   return _pimpl->register_negotiator(for_participant, std::move(negotiator));
 }
 
+//==============================================================================
+class LambdaNegotiator : public rmf_traffic::schedule::Negotiator
+{
+public:
+
+  using RespondFn = std::function<void(TableViewerPtr, ResponderPtr)>;
+
+  LambdaNegotiator(RespondFn respond)
+  : _respond(std::move(respond))
+  {
+    // Do nothing
+  }
+
+  void respond(
+    const TableViewerPtr& table_viewer,
+    const ResponderPtr& responder) final
+  {
+    _respond(std::move(table_viewer), std::move(responder));
+  }
+
+private:
+  RespondFn _respond;
+};
+
+//==============================================================================
+std::shared_ptr<void> Negotiation::register_negotiator(
+  rmf_traffic::schedule::ParticipantId for_participant,
+  std::function<void(TableViewPtr, ResponderPtr)> respond)
+{
+  return register_negotiator(
+    for_participant,
+    std::make_unique<LambdaNegotiator>(std::move(respond)));
+}
+
 } // namespace schedule
 } // namespace rmf_traffic_ros2

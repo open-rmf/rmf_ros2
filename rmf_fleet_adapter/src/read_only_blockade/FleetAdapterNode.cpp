@@ -18,8 +18,8 @@
 #include "FleetAdapterNode.hpp"
 
 #include <rmf_traffic/DetectConflict.hpp>
-
 #include <rmf_traffic/agv/Interpolate.hpp>
+#include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 
 #include <rmf_traffic_ros2/StandardNames.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
@@ -136,6 +136,15 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr new_state)
   std::lock_guard<std::mutex> lock(_async_mutex);
   for (const auto& robot : new_state->robots)
   {
+    if (robot.name.empty())
+    {
+      RCLCPP_ERROR(
+        get_logger(),
+        "Empty name field for RobotState is not supported!");
+
+      return;
+    }
+
     const auto insertion = _robots.insert(
       std::make_pair(robot.name, nullptr));
 
@@ -158,30 +167,282 @@ void FleetAdapterNode::register_robot(const RobotState& state)
 
   _connect->schedule_writer->async_make_participant(
     std::move(description),
-    [this](rmf_traffic::schedule::Participant participant)
+    [this](rmf_traffic::schedule::Participant received_participant)
     {
       std::lock_guard<std::mutex> lock(this->_async_mutex);
+      auto participant =
+        std::make_shared<rmf_traffic::schedule::Participant>(
+          std::move(received_participant));
+
       const auto radius =
-        participant.description().profile()
+        participant->description().profile()
         .vicinity()->get_characteristic_length();
 
       auto blockade = this->_connect->blockade_writer->make_participant(
-        participant.id(), radius,
+        participant->id(), radius,
         [](const auto, const auto&)
         {
           // We ignore new ranges because we don't really care about getting
           // permission from the blockade moderator.
         });
 
-      this->_robots.at(participant.description().name()) =
+      using TableViewerPtr = rmf_traffic::schedule::Negotiator::TableViewerPtr;
+      using ResponderPtr = rmf_traffic::schedule::Negotiator::ResponderPtr;
+
+      auto license = this->_connect->negotiation.register_negotiator(
+        participant->id(),
+        [participant](TableViewerPtr viewer, ResponderPtr responder)
+      {
+        rmf_traffic::schedule::StubbornNegotiator(*participant)
+          .respond(viewer, responder);
+      });
+
+      this->_robots.at(participant->description().name()) =
         std::make_unique<Robot>(
           Robot{
-            std::move(participant),
+            participant,
             std::move(blockade),
+            std::move(license),
             std::nullopt,
             std::nullopt
           });
     });
+}
+
+//==============================================================================
+namespace {
+bool different_location(
+  const rmf_traffic::schedule::Participant& participant,
+  const rmf_fleet_msgs::msg::RobotState& state)
+{
+  if (participant.itinerary().size() != 1)
+    return true;
+
+  const auto& route = participant.itinerary().front().route;
+
+  const auto& location = state.location;
+  if (route->map() != location.level_name)
+    return true;
+
+  const auto& trajectory = route->trajectory();
+  if (trajectory.size() != 2)
+    return true;
+
+  const double threshold = 1e-2;
+  const double trajectory_diff =
+    (trajectory.front().position().head<2>()
+     - trajectory.back().position().head<2>()).norm();
+
+  if (trajectory_diff > threshold)
+    return true;
+
+  const Eigen::Vector2d p = {location.x, location.y};
+  const double location_diff =
+    (trajectory.back().position().head<2>() - p).norm();
+
+  if (location_diff > threshold)
+    return true;
+
+  return false;
+}
+} // anonymous namespace
+
+//==============================================================================
+void FleetAdapterNode::update_robot(
+  const RobotState& state,
+  const Robots::iterator& it)
+{
+  auto& robot = it->second;
+  const auto now = rmf_traffic_ros2::convert(this->now());
+
+  if (robot->current_goal.has_value())
+  {
+    if (state.task_id.empty())
+    {
+      // Switch to not having a task
+      robot->current_goal = std::nullopt;
+      robot->schedule->set(make_hold(state, now));
+      robot->blockade.cancel();
+      return;
+    }
+    else if (robot->current_goal.value() == state.task_id)
+    {
+      update_progress(state, *robot, now);
+      return;
+    }
+    else
+    {
+      make_plan(state, *robot, now);
+      return;
+    }
+  }
+  else
+  {
+    // It doesn't hurt to make sure we're not blockading anything
+    robot->blockade.cancel();
+
+    if (state.task_id.empty())
+    {
+      // Just report our current location to the schedule
+      if (robot->schedule->itinerary().empty())
+      {
+        robot->schedule->set(make_hold(state, now));
+        return;
+      }
+      else if (different_location(*robot->schedule, state))
+      {
+        robot->schedule->set(make_hold(state, now));
+        return;
+      }
+      else
+      {
+        // The robot is still at the same location that it was in last time, so
+        // we can just add a delay to the schedule
+        robot->schedule->delay(make_delay(*robot->schedule, now));
+        return;
+      }
+    }
+    else
+    {
+      make_plan(state, *robot, now);
+      return;
+    }
+  }
+}
+
+//==============================================================================
+rmf_traffic::Duration FleetAdapterNode::make_delay(
+  const rmf_traffic::schedule::Participant& schedule,
+  rmf_traffic::Time now)
+{
+  const auto original_t =
+    schedule.itinerary().front().route->trajectory().front().time();
+
+  return now - original_t;
+}
+
+//==============================================================================
+std::vector<rmf_traffic::Route> FleetAdapterNode::make_hold(
+  const RobotState& state,
+  rmf_traffic::Time start) const
+{
+  return
+  {
+    {
+      state.location.level_name,
+      ::make_hold(state.location, start, _hold_duration)
+    }
+  };
+}
+
+//==============================================================================
+namespace {
+std::vector<rmf_traffic::blockade::Writer::Checkpoint> convert_to_path(
+  const rmf_traffic::agv::Plan& plan,
+  const rmf_fleet_msgs::msg::RobotState& state,
+  const rmf_traffic::agv::Graph& graph)
+{
+  const auto& plan_waypoints = plan.get_waypoints();
+
+  std::vector<rmf_traffic::blockade::Writer::Checkpoint> path;
+  path.reserve(plan_waypoints.size());
+
+  std::string last_level_name = state.location.level_name;
+  for (std::size_t i=0; i < plan_waypoints.size(); ++i)
+  {
+    const auto& wp = plan_waypoints[i];
+    const Eigen::Vector2d p = wp.position().head<2>();
+
+    if (i > 0)
+    {
+      const Eigen::Vector2d last_p = plan_waypoints[i-1].position().head<2>();
+      const auto delta = (p - last_p).norm();
+
+      if (delta < 0.01)
+        continue;
+    }
+
+    const auto map_name = [&]() -> std::string
+    {
+      if (wp.graph_index().has_value())
+        return graph.get_waypoint(wp.graph_index().value()).get_map_name();
+
+      return last_level_name;
+    }();
+
+    last_level_name = map_name;
+
+    path.push_back({p, map_name, true});
+  }
+
+  return path;
+}
+} // anonymous namespace
+
+//==============================================================================
+void FleetAdapterNode::make_plan(
+  const RobotState& state,
+  Robot& robot,
+  const rmf_traffic::Time now)
+{
+  const auto& graph = _connect->planner.get_configuration().graph();
+  const auto* goal_wp = graph.find_waypoint(state.task_id);
+  if (!goal_wp)
+  {
+    RCLCPP_ERROR(
+      get_logger(),
+      "Unable to find a waypoint named [%s] for fleet [%s]",
+      state.task_id.c_str(),
+      _fleet_name.c_str());
+    return;
+  }
+
+  const auto& location = state.location;
+  const Eigen::Vector3d p = {location.x, location.y, location.yaw};
+  const auto starts = rmf_traffic::agv::compute_plan_starts(
+    _connect->planner.get_configuration().graph(),
+    location.level_name,
+    p, now,
+    _waypoint_snap_distance,
+    _lane_snap_distance);
+
+  if (starts.empty())
+  {
+    std::stringstream ss;
+    ss << "Unable to snap [" << state.name << "] onto the nav graph for fleet ["
+       << _fleet_name << "]. Map: [" << location.level_name << "], position: ("
+       << location.x << ", " << location.y << "), yaw: " << location.yaw;
+
+    RCLCPP_ERROR(get_logger(), ss.str());
+    return;
+  }
+
+  const auto result = _connect->planner.plan(starts, goal_wp->index());
+  if (!result.success())
+  {
+    std::stringstream ss;
+    ss << "Unable to find a plan for [" << state.name << "] for fleet ["
+       << _fleet_name << "] to navigate from map [" << location.level_name
+       << "], position (" << location.x << ", " << location.y << ") to the "
+       << "waypoint named [" << state.task_id << "], graph index ["
+       << goal_wp->index() << "]";
+
+    RCLCPP_ERROR(get_logger(), ss.str());
+    return;
+  }
+
+  robot.current_path = convert_to_path(*result, state, graph);
+
+  if (robot.current_path->size() == 1)
+  {
+    // We don't actually need to go anywhere
+    robot.schedule->set(make_hold(state, now));
+    robot.blockade.cancel();
+    return;
+  }
+
+  robot.schedule->set(result->get_itinerary());
+  robot.blockade.set(*robot.current_path);
 }
 
 } // namespace read_only_blockade
