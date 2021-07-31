@@ -87,12 +87,12 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 // This constructor will _not_ automatically call the setup() method to finalise
 // construction of the ScheduleNode object. setup() must be called manually.
 ScheduleNode::ScheduleNode(
-  NodeEdition edition,
+  NodeVersion node_version_,
   std::shared_ptr<rmf_traffic::schedule::Database> database_,
   const rclcpp::NodeOptions& options,
   NoAutomaticSetup)
 : Node("rmf_traffic_schedule_node", options),
-  node_edition(edition),
+  node_version(node_version_),
   heartbeat_qos_profile(1),
   database(std::move(database_)),
   active_conflicts(database)
@@ -112,12 +112,12 @@ ScheduleNode::ScheduleNode(
 // This constructor will automatically call the setup() method to finalise
 // construction of the ScheduleNode object.
 ScheduleNode::ScheduleNode(
-  NodeEdition edition,
+  NodeVersion node_version_,
   std::shared_ptr<rmf_traffic::schedule::Database> database_,
   QueryMap registered_queries_,
   const rclcpp::NodeOptions& options)
 : ScheduleNode(
-    edition,
+    node_version_,
     database_,
     options,
     no_automatic_setup)
@@ -129,10 +129,10 @@ ScheduleNode::ScheduleNode(
 // This constructor will automatically call the setup() method to finalise
 // construction of the ScheduleNode object.
 ScheduleNode::ScheduleNode(
-  NodeEdition edition,
+  NodeVersion node_version_,
   const rclcpp::NodeOptions& options)
 : ScheduleNode(  // Call the version that will automatically call setup(...)
-    edition,
+    node_version_,
     std::make_shared<rmf_traffic::schedule::Database>(),
     QueryMap(),
     options)
@@ -144,11 +144,11 @@ ScheduleNode::ScheduleNode(
 // This constructor will _not_ automatically call the setup() method to finalise
 // construction of the ScheduleNode object. setup() must be called manually.
 ScheduleNode::ScheduleNode(
-  NodeEdition edition,
+  NodeVersion node_version_,
   const rclcpp::NodeOptions& options,
   NoAutomaticSetup)
 : ScheduleNode(  // Call the version that does not call setup(...)
-    edition,
+    node_version_,
     std::make_shared<rmf_traffic::schedule::Database>(),
     options,
     no_automatic_setup)
@@ -513,7 +513,7 @@ void ScheduleNode::register_query(
   rmf_traffic::schedule::Query new_query =
     rmf_traffic_ros2::convert(request->query);
 
-  response->node_edition = node_edition;
+  response->node_version = node_version;
 
   // Search for an existing query with the same search parameters
   for (auto& [existing_query_id, existing_query] : registered_queries)
@@ -624,7 +624,7 @@ void ScheduleNode::cleanup_queries()
 void ScheduleNode::broadcast_queries()
 {
   ScheduleQueries msg;
-  msg.node_edition = node_edition;
+  msg.node_version = node_version;
 
   for (const auto& registered_query: registered_queries)
   {
@@ -900,7 +900,7 @@ void ScheduleNode::publish_inconsistencies(
 void ScheduleNode::update_mirrors()
 {
   rmf_traffic_msgs::msg::MirrorUpdate msg;
-  msg.node_edition = node_edition;
+  msg.node_version = node_version;
   msg.database_version = database->latest_version();
 
   for (auto& [query_id, query_info] : registered_queries)

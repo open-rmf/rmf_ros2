@@ -56,10 +56,10 @@ void MonitorNode::setup()
   heartbeat_period = std::chrono::milliseconds(
     get_parameter("heartbeat_period").as_int());
 
-  // Edition number to use for the replacement schedule node.
+  // Version number to use for the replacement schedule node.
   // The default is 1, given the original schedule node starts with 0
-  declare_parameter<int>("next_edition", 1);
-  next_edition = get_parameter("next_edition").as_int();
+  declare_parameter<int>("next_version", 1);
+  next_schedule_node_version = get_parameter("next_version").as_int();
 
   start_heartbeat_listener();
   start_fail_over_event_broadcaster();
@@ -181,7 +181,7 @@ std::shared_ptr<rclcpp::Node> MonitorNode::create_new_schedule_node()
 {
   auto database = std::make_shared<Database>(mirror.value().fork());
   auto node = std::make_shared<rmf_traffic_ros2::schedule::ScheduleNode>(
-    next_edition,
+    next_schedule_node_version,
     database,
     registered_queries,
     rclcpp::NodeOptions());

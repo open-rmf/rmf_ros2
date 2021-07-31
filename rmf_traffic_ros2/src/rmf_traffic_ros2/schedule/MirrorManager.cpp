@@ -75,7 +75,7 @@ public:
   rmf_traffic::schedule::Query query;
   uint64_t query_id = 0;
   bool require_query_validation = false;
-  uint64_t expected_node_edition = 0;
+  uint64_t expected_node_version = 0;
   std::list<MirrorUpdate::SharedPtr> stashed_query_updates;
   Options options;
   FailOverEventSub fail_over_event_sub;
@@ -115,7 +115,7 @@ public:
       rclcpp::SystemDefaultsQoS(),
       [&](const FailOverEvent::SharedPtr msg)
       {
-        handle_fail_over_event(msg->new_node_edition);
+        handle_fail_over_event(msg->new_schedule_node_version);
       });
   }
 
@@ -126,23 +126,23 @@ public:
       rclcpp::SystemDefaultsQoS().reliable().keep_last(100).transient_local(),
       [=](const ScheduleQueries::SharedPtr msg)
       {
-        if (rmf_utils::modular(msg->node_edition)
-            .less_than(expected_node_edition))
+        if (rmf_utils::modular(msg->node_version)
+            .less_than(expected_node_version))
         {
-          // This is an outdated node edition, so we will ignore it
+          // This is an outdated schedule node version, so we will ignore it
           return;
         }
 
-        // In case the new node edition is higher, make sure we update the
-        // node edition that we're expecting.
-        expected_node_edition = msg->node_edition;
+        // In case the new schedule node version is higher, make sure we update
+        // the node version that we're expecting.
+        expected_node_version = msg->node_version;
 
         RCLCPP_INFO(
           node.get_logger(),
           "Mirror handling new sync of %d queries "
-          "from schedule node edition [%ld]",
+          "from schedule node version [%ld]",
           msg->queries.size(),
-          msg->node_edition);
+          msg->node_version);
 
         // Find what should be our query based on our query ID
         std::optional<uint64_t> our_query = std::nullopt;
@@ -272,33 +272,33 @@ public:
   {
     update_timer->reset();
 
-    // Verify that the expected node edition sent the update
+    // Verify that the expected schedule node version sent the update
 
-    if (rmf_utils::modular(expected_node_edition).less_than(msg->node_edition))
+    if (rmf_utils::modular(expected_node_version).less_than(msg->node_version))
     {
       RCLCPP_WARN(
         node.get_logger(),
-        "Received query update from unexpected schedule node edition %d (<%d);"
+        "Received query update from unexpected schedule node version %d (<%d);"
         " ignoring update",
-        msg->node_edition,
-        expected_node_edition);
+        msg->node_version,
+        expected_node_version);
       return;
     }
-    else if (msg->node_edition > expected_node_edition)
+    else if (msg->node_version > expected_node_version)
     {
       RCLCPP_WARN(
         node.get_logger(),
-        "Received query update from unexpected schedule node edition %d (>%d);"
+        "Received query update from unexpected schedule node version %d (>%d);"
         " validating query registration",
-        msg->node_edition,
-        expected_node_edition);
+        msg->node_version,
+        expected_node_version);
       require_query_validation = true;
-      expected_node_edition = msg->node_edition;
+      expected_node_version = msg->node_version;
       stashed_query_updates.clear();
     }
-    else if (msg->node_edition != expected_node_edition)
+    else if (msg->node_version != expected_node_version)
     {
-      // Ignore this message because it's coming from an out-of-date edition
+      // Ignore this message because it's coming from an out-of-date version
       return;
     }
 
@@ -437,10 +437,10 @@ public:
         {
           const auto msg = response.get();
           if (rmf_utils::modular(
-                this->expected_node_edition)
-              .less_than(msg->node_edition))
+                this->expected_node_version)
+              .less_than(msg->node_version))
           {
-            this->expected_node_edition = msg->node_edition;
+            this->expected_node_version = msg->node_version;
           }
 
           this->query_id = msg->query_id;
@@ -466,25 +466,26 @@ public:
     }
   }
 
-  void handle_fail_over_event(uint64_t new_node_edition)
+  void handle_fail_over_event(uint64_t new_schedule_node_version)
   {
     RCLCPP_INFO(
       node.get_logger(),
-      "Handling fail over event. New expected node edition [%ld].",
-      new_node_edition);
+      "Handling fail over event. New expected schedule node version [%ld].",
+      new_schedule_node_version);
 
     // We need to validate that the replacement schedule node has our query
     // correctly. This will be reset to false once we have received the query
-    // info for the new edition and confirmed that it has our query stored in it
+    // info for the new version and confirmed that it has our query stored in it
     // correctly.
     //
     // While true, all query updates received will be stashed in a list, and
     // will be popped in FIFO order and processed when this is reset to false.
-    if (rmf_utils::modular(expected_node_edition).less_than(new_node_edition))
+    if (rmf_utils::modular(expected_node_version)
+        .less_than(new_schedule_node_version))
     {
       require_query_validation = true;
-      // The new schedule node will be one edition higher
-      expected_node_edition = new_node_edition;
+      // The new schedule node will be one version higher
+      expected_node_version = new_schedule_node_version;
     }
   }
 

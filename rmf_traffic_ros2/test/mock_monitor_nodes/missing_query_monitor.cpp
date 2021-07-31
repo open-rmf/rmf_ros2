@@ -54,7 +54,7 @@ public:
     modified_registered_queries.erase(modified_registered_queries.begin());
 
     auto node = std::make_shared<rmf_traffic_ros2::schedule::ScheduleNode>(
-      1, // Bump the node edition by one
+      1, // Bump the node version by one
       database,
       modified_registered_queries,
       rclcpp::NodeOptions());
@@ -119,7 +119,7 @@ int main(int argc, char** argv)
       {
         fail_over_event_pub->publish(
           rmf_traffic_msgs::build<rmf_traffic_msgs::msg::FailOverEvent>()
-          .new_node_edition(1));
+          .new_schedule_node_version(1));
         fail_over_timer.reset();
       });
 

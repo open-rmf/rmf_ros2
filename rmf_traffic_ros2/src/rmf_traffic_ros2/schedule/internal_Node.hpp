@@ -76,27 +76,27 @@ class ScheduleNode : public rclcpp::Node
 public:
   using QueryMap = std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
 
-  using NodeEdition = uint64_t;
-  NodeEdition node_edition = 0;
+  using NodeVersion = uint64_t;
+  NodeVersion node_version = 0;
 
   static struct NoAutomaticSetup{} no_automatic_setup;
 
   ScheduleNode(
-    NodeEdition edition,
+    NodeVersion node_version_,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     const rclcpp::NodeOptions& options,
     NoAutomaticSetup);
 
   ScheduleNode(
-    NodeEdition edition,
+    NodeVersion node_version_,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
     const rclcpp::NodeOptions& options);
 
-  ScheduleNode(NodeEdition edition, const rclcpp::NodeOptions& options);
+  ScheduleNode(NodeVersion node_version_, const rclcpp::NodeOptions& options);
 
   ScheduleNode(
-    NodeEdition edition,
+    NodeVersion node_version_,
     const rclcpp::NodeOptions& options,
     NoAutomaticSetup);
 

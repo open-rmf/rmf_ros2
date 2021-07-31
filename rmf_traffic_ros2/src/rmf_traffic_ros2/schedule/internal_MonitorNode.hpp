@@ -78,7 +78,7 @@ public:
 
   void start_data_synchronisers();
 
-  int next_edition = 1;
+  int next_schedule_node_version = 1;
   virtual std::shared_ptr<rclcpp::Node> create_new_schedule_node();
 
   std::optional<rmf_traffic_ros2::schedule::MirrorManager> mirror;
