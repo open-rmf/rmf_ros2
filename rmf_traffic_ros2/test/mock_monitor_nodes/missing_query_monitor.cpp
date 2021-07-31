@@ -34,27 +34,14 @@ public:
     : MonitorNode(callback, options, MonitorNode::no_automatic_setup)
   {}
 
-  void announce_fail_over()
+  void announce_fail_over() override
   {
-    if (rclcpp::ok())
-    {
-      // Wait a while before announcing. This will ensure that mirrors pick up
-      // on the missing query via the query check logic, not the failover
-      // handling logic. (But the announcement still has to be made to ensure
-      // mirrors reconnect services.)
-      std::this_thread::sleep_for(5s);
-      RCLCPP_INFO(get_logger(), "Announcing fail over");
-      auto message = FailOverEvent();
-      fail_over_event_pub->publish(message);
-    }
-    else
-    {
-      // Skip announcing the fail over because other nodes shouldn't bother doing
-      // anything to handle it when the system is shutting down.
-      RCLCPP_INFO(
-        get_logger(),
-        "Not announcing fail over because ROS is shutting down");
-    }
+    // We want to wait a while before announcing the fail over because we want
+    // the change in query information to be the trigger for mirrors to
+    // recognize the fail over. But if we sleep here before issuing the fail
+    // over notice, then the new schedule node won't be able to start until
+    // after the fail over notice is sent. Instead we will do nothing at all
+    // here and create a wall timer in main() that will issue the message.
   }
 
   std::shared_ptr<rclcpp::Node> create_new_schedule_node() override
@@ -65,14 +52,11 @@ public:
     // Drop the first registered query to trigger a missing query situation
     auto modified_registered_queries = registered_queries;
     modified_registered_queries.erase(modified_registered_queries.begin());
-    auto modified_query_subscriber_counts = query_subscriber_counts;
-    modified_query_subscriber_counts.erase(modified_query_subscriber_counts.begin());
 
     auto node = std::make_shared<rmf_traffic_ros2::schedule::ScheduleNode>(
       1, // Bump the node edition by one
       database,
       modified_registered_queries,
-      modified_query_subscriber_counts,
       rclcpp::NodeOptions());
     return node;
   }
@@ -125,7 +109,19 @@ int main(int argc, char** argv)
   {
     auto active_schedule_node = active_node_future.get();
     // Delete the monitor to prevent it reacting to any future events
+    auto fail_over_event_pub = node->fail_over_event_pub;
     node.reset();
+
+    rclcpp::TimerBase::SharedPtr fail_over_timer;
+    fail_over_timer = active_schedule_node->create_wall_timer(
+      std::chrono::seconds(5),
+      [&fail_over_timer, fail_over_event_pub]()
+      {
+        fail_over_event_pub->publish(
+          rmf_traffic_msgs::build<rmf_traffic_msgs::msg::FailOverEvent>()
+          .new_node_edition(1));
+        fail_over_timer.reset();
+      });
 
     RCLCPP_INFO(
       active_schedule_node->get_logger(),

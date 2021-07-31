@@ -50,7 +50,6 @@
 #include <rmf_traffic_msgs/msg/heartbeat.hpp>
 
 #include <rmf_traffic_msgs/srv/register_query.hpp>
-#include <rmf_traffic_msgs/srv/unregister_query.hpp>
 #include <rmf_traffic_msgs/srv/request_changes.hpp>
 #include <rmf_traffic_msgs/srv/register_participant.hpp>
 #include <rmf_traffic_msgs/srv/unregister_participant.hpp>
@@ -75,12 +74,9 @@ using namespace std::chrono_literals;
 class ScheduleNode : public rclcpp::Node
 {
 public:
-  using QueryMap =
-    std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
-  using QuerySubscriberCountMap =
-    std::unordered_map<uint64_t, uint64_t>;
+  using QueryMap = std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
 
-  using NodeEdition = unsigned int;
+  using NodeEdition = uint64_t;
   NodeEdition node_edition = 0;
 
   static struct NoAutomaticSetup{} no_automatic_setup;
@@ -88,14 +84,13 @@ public:
   ScheduleNode(
     NodeEdition edition,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
-    QueryMap registered_queries_,
-    const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
+    const rclcpp::NodeOptions& options,
+    NoAutomaticSetup);
 
   ScheduleNode(
     NodeEdition edition,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
-    QuerySubscriberCountMap registered_query_subscriber_counts,
     const rclcpp::NodeOptions& options);
 
   ScheduleNode(NodeEdition edition, const rclcpp::NodeOptions& options);
@@ -107,8 +102,7 @@ public:
 
   ~ScheduleNode();
 
-  virtual void setup(
-    QuerySubscriberCountMap registered_query_subscriber_counts);
+  virtual void setup(const QueryMap& queries);
 
   std::chrono::milliseconds heartbeat_period = 1s;
   rclcpp::QoS heartbeat_qos_profile;
@@ -129,18 +123,22 @@ public:
     const RegisterQuery::Request::SharedPtr& request,
     const RegisterQuery::Response::SharedPtr& response);
 
+  void register_query(
+    uint64_t query_id,
+    const rmf_traffic::schedule::Query& query);
+
   RegisterQueryService::SharedPtr register_query_service;
 
+  // How often we should check the query topics to see if they have lost all
+  // their subscribers.
+  std::chrono::nanoseconds query_cleanup_period = std::chrono::minutes(5);
 
-  using UnregisterQuery = rmf_traffic_msgs::srv::UnregisterQuery;
-  using UnregisterQueryService = rclcpp::Service<UnregisterQuery>;
+  // If a query has no subscribers, we will unregister it, unless it has
+  // received a new registration request within this time period.
+  std::chrono::nanoseconds query_grace_period = std::chrono::minutes(5);
 
-  virtual void unregister_query(
-    const request_id_ptr& request_header,
-    const UnregisterQuery::Request::SharedPtr& request,
-    const UnregisterQuery::Response::SharedPtr& response);
-
-  UnregisterQueryService::SharedPtr unregister_query_service;
+  rclcpp::TimerBase::SharedPtr query_cleanup_timer;
+  void cleanup_queries();
 
   virtual void setup_query_services();
 
@@ -153,7 +151,6 @@ public:
     const RegisterParticipant::Response::SharedPtr& response);
 
   RegisterParticipantSrv::SharedPtr register_participant_service;
-
 
   using UnregisterParticipant = rmf_traffic_msgs::srv::UnregisterParticipant;
   using UnregisterParticipantSrv = rclcpp::Service<UnregisterParticipant>;
@@ -169,29 +166,11 @@ public:
 
   using MirrorUpdate = rmf_traffic_msgs::msg::MirrorUpdate;
   using MirrorUpdateTopicPublisher = rclcpp::Publisher<MirrorUpdate>::SharedPtr;
-  struct MirrorUpdateTopicInfo
-  {
-    MirrorUpdateTopicPublisher publisher;
-    std::optional<rmf_traffic::schedule::Version> last_sent_version;
-    std::size_t subscriber_count;
-  };
-  using MirrorUpdateTopicsMap =
-    std::unordered_map<uint64_t, MirrorUpdateTopicInfo>;
-  MirrorUpdateTopicsMap mirror_update_topics;
+
   void add_query_topic(uint64_t query_id);
   void remove_query_topic(uint64_t query_id);
-  void add_subscriber_to_query_topic(uint64_t query_id);
 
-  enum class SubscriberRemovalResult
-  {
-    query_in_use,
-    query_removed,
-    query_missing
-  };
-
-  SubscriberRemovalResult remove_subscriber_from_query_topic(uint64_t query_id);
-  void remake_mirror_update_topics(
-    const QuerySubscriberCountMap& subscriber_counts);
+  void make_mirror_update_topics(const QueryMap& queries);
 
   using SingleParticipantInfo = rmf_traffic_msgs::msg::Participant;
   using ParticipantsInfo = rmf_traffic_msgs::msg::Participants;
@@ -247,10 +226,17 @@ public:
   std::mutex database_mutex;
   std::shared_ptr<rmf_traffic::schedule::Database> database;
 
-  // TODO(MXG): Have a way to make query registrations expire after they have
-  // not been used for some set amount of time (e.g. 24 hours? 48 hours?).
+  struct QueryInfo
+  {
+    rmf_traffic::schedule::Query query;
+    MirrorUpdateTopicPublisher publisher;
+    std::optional<rmf_traffic::schedule::Version> last_sent_version;
+    std::chrono::steady_clock::time_point last_registration_time;
+  };
+  using QueryInfoMap = std::unordered_map<uint64_t, QueryInfo>;
+
   std::size_t last_query_id = 0;
-  QueryMap registered_queries;
+  QueryInfoMap registered_queries;
 
   // TODO(MXG): Make this a separate node
   std::thread conflict_check_thread;
