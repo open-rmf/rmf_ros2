@@ -440,6 +440,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   if (!new_request)
     return;
   generated_requests.insert({id, new_request});
+  task_profile_map.insert({id, task_profile});
 
   const auto allocation_result = allocate_tasks(new_request);
 
@@ -605,7 +606,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     std::size_t index = 0;
     for (auto& t : task_managers)
     {
-      t.second->set_queue(assignments[index]);
+      t.second->set_queue(assignments[index], task_profile_map);
       ++index;
     }
 
@@ -692,7 +693,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     std::size_t index = 0;
     for (auto& t : task_managers)
     {
-      t.second->set_queue(assignments[index]);
+      t.second->set_queue(assignments[index], task_profile_map);
       ++index;
     }
 
@@ -790,14 +791,7 @@ rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
 {
   const RobotContext& context = *mgr.context();
 
-  // TODO(MXG): We could be smarter about what mode we report
-  auto mode = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotMode>()
-    .mode(mgr.current_task() ?
-      rmf_fleet_msgs::msg::RobotMode::MODE_MOVING :
-      rmf_fleet_msgs::msg::RobotMode::MODE_IDLE)
-    // NOTE(MXG): This field is currently only used by the fleet drivers.
-    // For now, we will just fill it with a zero.
-    .mode_request_id(0);
+  const auto mode = mgr.robot_mode();
 
   auto location = [&]() -> rmf_fleet_msgs::msg::Location
     {
