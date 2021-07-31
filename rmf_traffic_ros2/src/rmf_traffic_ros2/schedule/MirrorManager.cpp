@@ -247,7 +247,7 @@ public:
   void process_stashed_queries()
   {
     RCLCPP_DEBUG(node.get_logger(), "Processing stashed queries");
-    for (auto msg: stashed_query_updates)
+    for (auto&& msg: stashed_query_updates)
     {
       RCLCPP_DEBUG(
         node.get_logger(),
@@ -257,7 +257,7 @@ public:
       // while processing this loop, it will enter an infinite loop. Add a
       // counter or use a counter-based loop to prevent that? Or is it
       // impossible for require_query_validation to go true while in here?
-      handle_update(msg);
+      handle_update(std::move(msg));
     }
     stashed_query_updates.clear();
   }
@@ -278,10 +278,23 @@ public:
     {
       RCLCPP_WARN(
         node.get_logger(),
-        "Received query update from unexpected schedule node edition %d",
-        msg->node_edition);
+        "Received query update from unexpected schedule node edition %d (<%d);"
+        " ignoring update",
+        msg->node_edition,
+        expected_node_edition);
+      return;
+    }
+    else if (msg->node_edition > expected_node_edition)
+    {
+      RCLCPP_WARN(
+        node.get_logger(),
+        "Received query update from unexpected schedule node edition %d (>%d);"
+        " validating query registration",
+        msg->node_edition,
+        expected_node_edition);
       require_query_validation = true;
       expected_node_edition = msg->node_edition;
+      stashed_query_updates.clear();
     }
     else if (msg->node_edition != expected_node_edition)
     {

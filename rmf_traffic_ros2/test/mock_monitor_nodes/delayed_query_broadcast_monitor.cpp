@@ -24,6 +24,12 @@
 
 using namespace std::chrono_literals;
 
+// This specialised schedule node delays broadcasting of its registered queries
+// for five seconds from startup. It is used to test that MirrorManagers will
+// correctly handle the case of a fail-over event occuring and the
+// MirrorManager not receiving a registered queries broadcast (to validate the
+// new schedule node has its query registered correctly), and so making a
+// manual query itself.
 class DelayedQueryBroadcastScheduleNode
   : public rmf_traffic_ros2::schedule::ScheduleNode
 {
@@ -63,6 +69,9 @@ public:
 };
 
 
+// This specialised version of the monitor node will launch the above
+// DelayedQueryBroadcastScheduleNode instead of a regular schedule node
+// when a fail-over event occurs.
 class DelayedQueryBroadcastMonitorNode
   : public rmf_traffic_ros2::schedule::MonitorNode
 {
