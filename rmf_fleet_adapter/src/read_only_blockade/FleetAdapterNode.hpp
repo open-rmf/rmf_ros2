@@ -35,6 +35,23 @@ public:
 
   bool ignore_fleet(const std::string& fleet_name) const;
 
+  using RobotState = rmf_fleet_msgs::msg::RobotState;
+  struct Robot
+  {
+    std::shared_ptr<rmf_traffic::schedule::Participant> schedule;
+    rmf_traffic::blockade::Participant blockade;
+    std::shared_ptr<void> negotiation_license;
+
+    struct Expectation
+    {
+      std::vector<rmf_traffic::blockade::Writer::Checkpoint> path;
+      std::vector<rmf_traffic::Time> timing;
+    };
+    std::optional<Expectation> expectation;
+
+    std::optional<std::string> current_goal;
+  };
+
 private:
 
   FleetAdapterNode();
@@ -67,24 +84,11 @@ private:
 
   std::optional<Connections> _connect;
 
-  struct Robot
-  {
-    std::shared_ptr<rmf_traffic::schedule::Participant> schedule;
-    rmf_traffic::blockade::Participant blockade;
-    std::shared_ptr<void> negotiation_license;
-
-    std::optional<std::vector<rmf_traffic::blockade::Writer::Checkpoint>>
-    current_path;
-
-    std::optional<std::string> current_goal;
-  };
-
   using Robots = std::unordered_map<std::string, std::unique_ptr<Robot>>;
   Robots _robots;
 
   void fleet_state_update(FleetState::UniquePtr new_state);
 
-  using RobotState = rmf_fleet_msgs::msg::RobotState;
   void register_robot(const RobotState& state);
   void update_robot(const RobotState& state, const Robots::iterator& it);
 
@@ -92,6 +96,16 @@ private:
     const RobotState& state,
     Robot& robot,
     rmf_traffic::Time now);
+
+  std::optional<std::size_t> get_last_reached(
+    const FleetAdapterNode::RobotState& state,
+    const FleetAdapterNode::Robot& robot) const;
+
+  void update_arrival(
+    const RobotState& state,
+    Robot& robot,
+    rmf_traffic::Time now,
+    std::size_t last_reached_checkpoint);
 
   void make_plan(
     const RobotState& state,

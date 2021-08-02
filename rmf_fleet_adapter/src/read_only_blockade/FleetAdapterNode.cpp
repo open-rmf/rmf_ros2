@@ -265,7 +265,8 @@ void FleetAdapterNode::update_robot(
       robot->blockade.cancel();
       return;
     }
-    else if (robot->current_goal.value() == state.task_id)
+    else if (robot->current_goal.value() == state.task_id
+             && robot->expectation.has_value())
     {
       update_progress(state, *robot, now);
       return;
@@ -280,6 +281,7 @@ void FleetAdapterNode::update_robot(
   {
     // It doesn't hurt to make sure we're not blockading anything
     robot->blockade.cancel();
+    robot->expectation = std::nullopt;
 
     if (state.task_id.empty())
     {
@@ -337,7 +339,7 @@ std::vector<rmf_traffic::Route> FleetAdapterNode::make_hold(
 
 //==============================================================================
 namespace {
-std::vector<rmf_traffic::blockade::Writer::Checkpoint> convert_to_path(
+FleetAdapterNode::Robot::Expectation convert_to_expectation(
   const rmf_traffic::agv::Plan& plan,
   const rmf_fleet_msgs::msg::RobotState& state,
   const rmf_traffic::agv::Graph& graph)
@@ -346,12 +348,15 @@ std::vector<rmf_traffic::blockade::Writer::Checkpoint> convert_to_path(
 
   std::vector<rmf_traffic::blockade::Writer::Checkpoint> path;
   path.reserve(plan_waypoints.size());
+  std::vector<rmf_traffic::Time> timing;
+  timing.reserve(plan_waypoints.size());
 
   std::string last_level_name = state.location.level_name;
   for (std::size_t i=0; i < plan_waypoints.size(); ++i)
   {
     const auto& wp = plan_waypoints[i];
     const Eigen::Vector2d p = wp.position().head<2>();
+    const rmf_traffic::Time t = wp.time();
 
     if (i > 0)
     {
@@ -373,9 +378,12 @@ std::vector<rmf_traffic::blockade::Writer::Checkpoint> convert_to_path(
     last_level_name = map_name;
 
     path.push_back({p, map_name, true});
+    timing.push_back(t);
   }
 
-  return path;
+  return FleetAdapterNode::Robot::Expectation{
+    std::move(path), std::move(timing)
+  };
 }
 } // anonymous namespace
 
@@ -431,18 +439,135 @@ void FleetAdapterNode::make_plan(
     return;
   }
 
-  robot.current_path = convert_to_path(*result, state, graph);
+  robot.expectation = convert_to_expectation(*result, state, graph);
 
-  if (robot.current_path->size() == 1)
+  if (robot.expectation->path.size() == 1)
   {
     // We don't actually need to go anywhere
     robot.schedule->set(make_hold(state, now));
     robot.blockade.cancel();
+    robot.expectation = std::nullopt;
+    robot.current_goal = std::nullopt;
     return;
   }
 
   robot.schedule->set(result->get_itinerary());
-  robot.blockade.set(*robot.current_path);
+  robot.blockade.set(robot.expectation->path);
+
+  // Immediately report that all checkpoints are ready. This will (hopefully)
+  // block all traffic light robots from trying to enter our space.
+  for (std::size_t i=0; i < robot.blockade.path().size(); ++i)
+    robot.blockade.ready(i);
+}
+
+//==============================================================================
+std::optional<std::size_t> FleetAdapterNode::get_last_reached(
+  const FleetAdapterNode::RobotState& state,
+  const FleetAdapterNode::Robot& robot) const
+{
+  const auto& path = robot.expectation->path;
+
+  const auto& location = state.location;
+  const Eigen::Vector2d p = {location.x, location.y};
+
+  for (std::size_t i=robot.blockade.last_reached(); i < path.size()-1; ++i)
+  {
+    const Eigen::Vector2d p0 = path[i].position;
+    if ((p - p0).norm() < _waypoint_snap_distance)
+    {
+      // If we are still close to the start of the lane the robot is outside of
+      // any earlier lanes, then we will say the robot's last reached point is
+      // the start of this lane.
+      return i;
+    }
+
+    const Eigen::Vector2d p1 = path[i+1].position;
+    if ((p-p1).norm() <= _waypoint_snap_distance)
+    {
+      // If we are still close to the end of the lane, then we will say that the
+      // robot's last reached the start checkpoint of this lane. That will help
+      // other robots to keep their distance.
+      return i;
+    }
+
+    const double lane_length = (p1 - p0).norm();
+    const Eigen::Vector2d pn = (p1 - p0) / lane_length;
+    const Eigen::Vector2d p_l = p - p0;
+    const double p_l_projection = p_l.dot(pn);
+
+    if (0.0 <= p_l_projection && p_l_projection <= lane_length)
+    {
+      // The robot is between the endpoints of the lane; now let's see if it
+      // is near enough to the lane.
+      const double lane_dist = (p_l - p_l_projection*pn).norm();
+      if (lane_dist <= _lane_snap_distance)
+      {
+        // If the robot is close enough to this lane, we'll say that the last
+        // checkpoint it reached was the lane's start point.
+        return i;
+      }
+    }
+  }
+
+  return std::nullopt;
+}
+
+//==============================================================================
+void FleetAdapterNode::update_arrival(
+  const FleetAdapterNode::RobotState& state,
+  FleetAdapterNode::Robot& robot,
+  const rmf_traffic::Time now,
+  const std::size_t last_reached_checkpoint)
+{
+  robot.blockade.reached(last_reached_checkpoint);
+
+  const auto next_waypoint = last_reached_checkpoint + 1;
+  if (next_waypoint >= robot.expectation->timing.size()
+      || next_waypoint >= robot.expectation->path.size())
+  {
+    RCLCPP_ERROR(
+      get_logger(),
+      "[FleetAdapterNode::update_arrival] Index mismatch: Target index [%d], "
+      "timing vector size: [%d], path vector size: [%d]",
+      next_waypoint,
+      robot.expectation->timing.size(),
+      robot.expectation->path.size());
+    return;
+  }
+
+  const Eigen::Vector2d p0 = {state.location.x, state.location.y};
+  const Eigen::Vector2d p1 = robot.expectation->path.at(next_waypoint).position;
+  std::vector<Eigen::Vector3d> input_positions;
+  input_positions.push_back({p0.x(), p0.y(), 0.0});
+  input_positions.push_back({p1.x(), p1.y(), 0.0});
+  const auto newly_expected_arrival =
+    rmf_traffic::agv::Interpolate::positions(_traits, now, input_positions)
+    .back().time();
+
+  const auto current_delay = robot.schedule->delay();
+  const auto planned_time = robot.expectation->timing.at(next_waypoint);
+  const auto previously_expected_arrival = planned_time + current_delay;
+  const auto new_delay = newly_expected_arrival - previously_expected_arrival;
+  robot.schedule->delay(new_delay);
+}
+
+//==============================================================================
+void FleetAdapterNode::update_progress(
+  const RobotState& state,
+  Robot& robot,
+  rmf_traffic::Time now)
+{
+  const auto last_reached_checkpoint = get_last_reached(state, robot);
+  if (last_reached_checkpoint.has_value())
+  {
+    // We need to update the last reached checkpoint and the schedule timing
+    update_arrival(state, robot, now, *last_reached_checkpoint);
+  }
+  else
+  {
+    // We need to replan because the robot is too far from our expected plan.
+    make_plan(state, robot, now);
+  }
 }
 
 } // namespace read_only_blockade
