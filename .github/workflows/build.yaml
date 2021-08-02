@@ -4,15 +4,20 @@ jobs:
   build_and_test:
     name: Build and test
     runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        ros_distribution:
+          - foxy
+          - galactic
     steps:
       - name: deps
         uses: ros-tooling/setup-ros@v0.2
         with:
-          required-ros-distributions: foxy
+          required-ros-distributions: ${{ matrix.ros_distribution }}
       - name: build
         uses: ros-tooling/action-ros-ci@v0.2
         with:
-          target-ros2-distro: foxy
+          target-ros2-distro: ${{ matrix.ros_distribution }}
           # build all packages listed in the meta package
           package-name: |
             rmf_traffic_ros2
