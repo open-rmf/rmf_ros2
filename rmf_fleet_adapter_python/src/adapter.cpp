@@ -127,7 +127,17 @@ PYBIND11_MODULE(rmf_adapter, m) {
       return self.unstable().get_participant();
     },
     py::return_value_policy::reference_internal,
-    "Experimental API to access the schedule participant");
+    "Experimental API to access the schedule participant")
+  .def("set_unstable_lift_entry_watchdog",
+    [&](agv::RobotUpdateHandle& self,
+        agv::RobotUpdateHandle::Unstable::Watchdog watchdog,
+        rmf_traffic::Duration wait_duration)
+    {
+      self.unstable().set_lift_entry_watchdog(watchdog, wait_duration);
+    },
+    py::arg("watchdog"),
+    py::arg("wait_duration") = std::chrono::seconds(10),
+    "Experimental API to set the lift entry watchdog");
 
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
