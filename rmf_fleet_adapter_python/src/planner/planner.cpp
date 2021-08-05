@@ -146,6 +146,8 @@ void bind_plan(py::module& m)
     &Plan::Waypoint::approach_lanes)
   .def_property_readonly("itinerary_index",
     &Plan::Waypoint::itinerary_index)
+  .def_property_readonly("trajectory_index",
+    &Plan::Waypoint::trajectory_index)
   .def_property_readonly("event",
     &Plan::Waypoint::event);
 
