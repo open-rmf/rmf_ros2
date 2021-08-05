@@ -216,7 +216,7 @@ public:
   void handle_update_timeout()
   {
     RCLCPP_DEBUG(node.get_logger(), "Update timed out");
-    request_update();
+    request_update(mirror->latest_version());
   }
 
   void request_update(std::optional<uint64_t> minimum_version = std::nullopt)
