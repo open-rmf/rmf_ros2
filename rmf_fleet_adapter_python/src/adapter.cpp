@@ -139,6 +139,17 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("wait_duration") = std::chrono::seconds(10),
     "Experimental API to set the lift entry watchdog");
 
+  auto m_robot_update_handle = m.def_submodule("robot_update_handle");
+
+  py::enum_<agv::RobotUpdateHandle::Unstable::Decision>(
+    m_robot_update_handle, "Decision")
+  .value("Undefined",
+    agv::RobotUpdateHandle::Unstable::Decision::Undefined)
+  .value("Clear",
+    agv::RobotUpdateHandle::Unstable::Decision::Clear)
+  .value("Crowded",
+    agv::RobotUpdateHandle::Unstable::Decision::Crowded);
+
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
     std::shared_ptr<agv::FleetUpdateHandle>>(
