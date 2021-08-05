@@ -142,6 +142,8 @@ void bind_plan(py::module& m)
     })
   .def_property_readonly("graph_index",
     &Plan::Waypoint::graph_index)
+  .def_property_readonly("approach_lanes",
+    &Plan::Waypoint::approach_lanes)
   .def_property_readonly("event",
     &Plan::Waypoint::event);
 
