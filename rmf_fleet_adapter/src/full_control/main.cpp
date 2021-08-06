@@ -823,6 +823,9 @@ std::shared_ptr<Connections> make_fleet(
       const auto connections = w.lock();
       if (!connections)
         return;
+        
+      if (request_msg->fleet_name != fleet_name)
+        return;       
 
       connections->fleet->open_lanes(request_msg->open_lanes);
       connections->fleet->close_lanes(request_msg->close_lanes);
