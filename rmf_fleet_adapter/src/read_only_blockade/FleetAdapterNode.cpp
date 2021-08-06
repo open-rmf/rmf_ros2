@@ -458,6 +458,8 @@ void FleetAdapterNode::make_plan(
   // block all traffic light robots from trying to enter our space.
   for (std::size_t i=0; i < robot.blockade.path().size(); ++i)
     robot.blockade.ready(i);
+
+  robot.current_goal = state.task_id;
 }
 
 //==============================================================================
