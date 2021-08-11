@@ -44,7 +44,7 @@ public:
   {
     RCLCPP_DEBUG(get_logger(), "RobotStateAggregator called");
     const auto default_qos = rclcpp::SystemDefaultsQoS();
-    const auto sensor_qos = rclcpp::SensorDataQoS();
+    const auto state_qos = rclcpp::SystemDefaultsQoS().keep_last(100);
 
 #ifdef FAILOVER_MODE
     _active_node = this->declare_parameter("active_node", true);
@@ -65,7 +65,7 @@ public:
     {
 #endif
       _robot_state_sub = create_subscription<RobotState>(
-        "/robot_state", sensor_qos,
+        "/robot_state", state_qos,
         [&](RobotState::UniquePtr msg)
         {
           _robot_state_update(std::move(msg));
@@ -81,7 +81,7 @@ public:
         [this](const typename stubborn_buddies_msgs::msg::
         Status::SharedPtr msg) -> void
         {
-          const auto sensor_qos = rclcpp::SensorDataQoS();
+          const auto state_qos = rclcpp::SensorDataQoS();
           RCLCPP_DEBUG(get_logger(), "Watchdog rised at %s, "
           "self activation triggered",
           _active_status_topic.c_str(),
@@ -90,7 +90,7 @@ public:
           _active_node = true;
 
           _robot_state_sub = create_subscription<RobotState>(
-            "/robot_state", sensor_qos,
+            "/robot_state", state_qos,
             [&](RobotState::UniquePtr msg)
             {
               _robot_state_update(std::move(msg));
