@@ -125,6 +125,11 @@ public:
     rmf_traffic::schedule::ParticipantId for_participant,
     std::unique_ptr<rmf_traffic::schedule::Negotiator> negotiator);
 
+  std::shared_ptr<void> register_negotiator(
+    rmf_traffic::schedule::ParticipantId for_participant,
+    std::unique_ptr<rmf_traffic::schedule::Negotiator> negotiator,
+    std::function<void()> on_negotiation_failure);
+
   /// Register a negotiator with this Negotiation manager using a lambda.
   ///
   /// \param[in] for_participant
@@ -137,7 +142,8 @@ public:
   /// expires, this negotiator will be automatically unregistered.
   std::shared_ptr<void> register_negotiator(
     rmf_traffic::schedule::ParticipantId for_participant,
-    std::function<void(TableViewPtr view, ResponderPtr responder)> respond);
+    std::function<void(TableViewPtr view, ResponderPtr responder)> respond,
+    std::function<void()> on_negotiation_failure = nullptr);
 
   class Implementation;
 private:

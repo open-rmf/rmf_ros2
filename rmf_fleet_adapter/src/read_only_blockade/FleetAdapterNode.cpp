@@ -193,7 +193,9 @@ void FleetAdapterNode::register_robot(const RobotState& state)
         participant->id(),
         [participant](TableViewerPtr viewer, ResponderPtr responder)
       {
+        using namespace std::chrono_literals;
         rmf_traffic::schedule::StubbornNegotiator(*participant)
+          .acceptable_waits({5s, 10s, 20s, 30s})
           .respond(viewer, responder);
       });
 
@@ -388,6 +390,19 @@ FleetAdapterNode::Robot::Expectation convert_to_expectation(
 } // anonymous namespace
 
 //==============================================================================
+void add_offset_itinerary(
+  rmf_traffic::Duration offset,
+  const std::vector<rmf_traffic::Route>& original,
+  std::vector<rmf_traffic::Route>& output)
+{
+  auto shadow = original;
+  for (auto& item : shadow)
+    item.trajectory().front().adjust_times(offset);
+
+  output.insert(output.end(), shadow.begin(), shadow.end());
+}
+
+//==============================================================================
 void FleetAdapterNode::make_plan(
   const RobotState& state,
   Robot& robot,
@@ -421,7 +436,7 @@ void FleetAdapterNode::make_plan(
        << _fleet_name << "]. Map: [" << location.level_name << "], position: ("
        << location.x << ", " << location.y << "), yaw: " << location.yaw;
 
-    RCLCPP_ERROR(get_logger(), ss.str());
+    RCLCPP_ERROR(get_logger(), "%s", ss.str().c_str());
     return;
   }
 
@@ -435,7 +450,18 @@ void FleetAdapterNode::make_plan(
        << "waypoint named [" << state.task_id << "], graph index ["
        << goal_wp->index() << "]";
 
-    RCLCPP_ERROR(get_logger(), ss.str());
+    RCLCPP_ERROR(get_logger(), "%s", ss.str().c_str());
+    return;
+  }
+
+  if (result->get_waypoints().size() < 2)
+  {
+    // TODO(MXG): Refactor this condition with the one down below
+    // We don't actually need to go anywhere
+    robot.schedule->set(make_hold(state, now));
+    robot.blockade.cancel();
+    robot.expectation = std::nullopt;
+    robot.current_goal = std::nullopt;
     return;
   }
 
@@ -451,7 +477,20 @@ void FleetAdapterNode::make_plan(
     return;
   }
 
-  robot.schedule->set(result->get_itinerary());
+  auto original = result->get_itinerary();
+  const auto& last_wp = original.back().trajectory().back();
+  original.back().trajectory().insert(
+    last_wp.time() + std::chrono::seconds(60),
+    last_wp.position(),
+    Eigen::Vector3d::Zero());
+
+  auto itinerary = original;
+  add_offset_itinerary(std::chrono::seconds(5), original, itinerary);
+  add_offset_itinerary(std::chrono::seconds(10), original, itinerary);
+  add_offset_itinerary(std::chrono::seconds(15), original, itinerary);
+  add_offset_itinerary(std::chrono::seconds(20), original, itinerary);
+
+  robot.schedule->set(std::move(itinerary));
   robot.blockade.set(robot.expectation->path);
 
   // Immediately report that all checkpoints are ready. This will (hopefully)

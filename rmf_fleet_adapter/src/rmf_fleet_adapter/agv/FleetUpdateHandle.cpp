@@ -1049,7 +1049,14 @@ void FleetUpdateHandle::add_robot(
             fleet->_pimpl->negotiation
             ->register_negotiator(
               context->itinerary().id(),
-              std::make_unique<LiaisonNegotiator>(context));
+              std::make_unique<LiaisonNegotiator>(context),
+              [w = std::weak_ptr<RobotContext>(context)]()
+              {
+                if (const auto c = w.lock())
+                {
+                  c->trigger_interrupt();
+                }
+              });
           }
 
           RCLCPP_INFO(
