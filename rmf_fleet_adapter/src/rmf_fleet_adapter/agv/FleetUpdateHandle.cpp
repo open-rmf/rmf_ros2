@@ -1045,15 +1045,28 @@ void FleetUpdateHandle::add_robot(
           // use that instead.
           if (fleet->_pimpl->negotiation)
           {
+            using namespace std::chrono_literals;
+            auto last_interrupt_time =
+              std::make_shared<std::optional<rmf_traffic::Time>>(std::nullopt);
+
             context->_negotiation_license =
             fleet->_pimpl->negotiation
             ->register_negotiator(
               context->itinerary().id(),
               std::make_unique<LiaisonNegotiator>(context),
-              [w = std::weak_ptr<RobotContext>(context)]()
+              [w = std::weak_ptr<RobotContext>(context), last_interrupt_time]()
               {
                 if (const auto c = w.lock())
                 {
+                  auto& last_time = *last_interrupt_time;
+                  const auto now = std::chrono::steady_clock::now();
+                  if (last_time.has_value())
+                  {
+                    if (now < *last_time + 10s)
+                      return;
+                  }
+
+                  last_time = now;
                   c->trigger_interrupt();
                 }
               });
