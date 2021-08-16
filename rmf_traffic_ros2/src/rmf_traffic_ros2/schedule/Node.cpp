@@ -45,6 +45,13 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
   const rmf_traffic::schedule::Viewer::View& view_changes,
   const rmf_traffic::schedule::ItineraryViewer& viewer)
 {
+  const auto is_unresponsive = [](
+    const rmf_traffic::schedule::ParticipantDescription& desc) -> bool
+  {
+    return desc.responsiveness()
+        == rmf_traffic::schedule::ParticipantDescription::Rx::Unresponsive;
+  };
+
   std::vector<ScheduleNode::ConflictSet> conflicts;
   const auto& participants = viewer.participant_ids();
   for (const auto participant : participants)
@@ -59,6 +66,13 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
       if (vc->participant == participant)
       {
         // There's no need to check a participant against itself
+        continue;
+      }
+
+      if (is_unresponsive(*description) && is_unresponsive(vc->description))
+      {
+        // If both participants self-identify as unresponsive, then there's no
+        // point raising a conflict between them.
         continue;
       }
 
