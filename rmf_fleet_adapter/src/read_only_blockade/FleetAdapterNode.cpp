@@ -633,6 +633,8 @@ void FleetAdapterNode::update_delay(
     negotiated_delay -= new_delay;
     new_delay = 0s;
   }
+
+  robot.schedule->delay(new_delay);
 }
 
 //==============================================================================
