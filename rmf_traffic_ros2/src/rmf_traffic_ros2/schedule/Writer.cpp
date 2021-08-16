@@ -185,25 +185,30 @@ public:
     Transport(rclcpp::Node& node)
     : rectifier_factory(std::make_shared<RectifierFactory>(node))
     {
+      const auto itinerary_qos =
+        rclcpp::SystemDefaultsQoS()
+          .reliable()
+          .keep_last(100);
+
       set_pub = node.create_publisher<Set>(
         ItinerarySetTopicName,
-        rclcpp::SystemDefaultsQoS().best_effort());
+        itinerary_qos);
 
       extend_pub = node.create_publisher<Extend>(
         ItineraryExtendTopicName,
-        rclcpp::SystemDefaultsQoS().best_effort());
+        itinerary_qos);
 
       delay_pub = node.create_publisher<Delay>(
         ItineraryDelayTopicName,
-        rclcpp::SystemDefaultsQoS().best_effort());
+        itinerary_qos);
 
       erase_pub = node.create_publisher<Erase>(
         ItineraryEraseTopicName,
-        rclcpp::SystemDefaultsQoS().best_effort());
+        itinerary_qos);
 
       clear_pub = node.create_publisher<Clear>(
         ItineraryClearTopicName,
-        rclcpp::SystemDefaultsQoS().best_effort());
+        itinerary_qos);
 
       context = node.get_node_options().context();
 

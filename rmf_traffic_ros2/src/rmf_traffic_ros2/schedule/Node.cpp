@@ -270,10 +270,15 @@ void ScheduleNode::setup_changes_services()
 //==============================================================================
 void ScheduleNode::setup_itinerary_topics()
 {
+  const auto itinerary_qos =
+    rclcpp::SystemDefaultsQoS()
+      .reliable()
+      .keep_last(100);
+
   itinerary_set_sub =
     create_subscription<ItinerarySet>(
     rmf_traffic_ros2::ItinerarySetTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
+    itinerary_qos,
     [=](const ItinerarySet::UniquePtr msg)
     {
       this->itinerary_set(*msg);
@@ -282,7 +287,7 @@ void ScheduleNode::setup_itinerary_topics()
   itinerary_extend_sub =
     create_subscription<ItineraryExtend>(
     rmf_traffic_ros2::ItineraryExtendTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
+    itinerary_qos,
     [=](const ItineraryExtend::UniquePtr msg)
     {
       this->itinerary_extend(*msg);
@@ -291,7 +296,7 @@ void ScheduleNode::setup_itinerary_topics()
   itinerary_delay_sub =
     create_subscription<ItineraryDelay>(
     rmf_traffic_ros2::ItineraryDelayTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
+    itinerary_qos,
     [=](const ItineraryDelay::UniquePtr msg)
     {
       this->itinerary_delay(*msg);
@@ -300,7 +305,7 @@ void ScheduleNode::setup_itinerary_topics()
   itinerary_erase_sub =
     create_subscription<ItineraryErase>(
     rmf_traffic_ros2::ItineraryEraseTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
+    itinerary_qos,
     [=](const ItineraryErase::UniquePtr msg)
     {
       this->itinerary_erase(*msg);
@@ -309,7 +314,7 @@ void ScheduleNode::setup_itinerary_topics()
   itinerary_clear_sub =
     create_subscription<ItineraryClear>(
     rmf_traffic_ros2::ItineraryClearTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
+    itinerary_qos,
     [=](const ItineraryClear::UniquePtr msg)
     {
       this->itinerary_clear(*msg);
@@ -1203,7 +1208,7 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
   rmf_traffic_ros2::schedule::print_negotiation_status(msg.conflict_version,
     negotiation);
 
-  if (negotiation.ready() && negotiation.complete())
+  if (negotiation.ready())
   {
     // TODO(MXG): If the negotiation is not complete yet, give some time for
     // more proposals to arrive before choosing one.
