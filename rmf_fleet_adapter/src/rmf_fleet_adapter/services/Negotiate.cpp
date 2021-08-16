@@ -150,7 +150,17 @@ void add_offset_itinerary(
 {
   auto shadow = original;
   for (auto& item : shadow)
+  {
+    if (item.trajectory().empty())
+      continue;
+
+    const auto initial_time = *item.trajectory().start_time();
     item.trajectory().front().adjust_times(offset);
+    item.trajectory().insert(
+      initial_time,
+      item.trajectory().front().position(),
+      Eigen::Vector3d::Zero());
+  }
 
   output.insert(output.end(), shadow.begin(), shadow.end());
 }
