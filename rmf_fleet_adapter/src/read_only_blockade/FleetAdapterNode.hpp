@@ -41,6 +41,7 @@ public:
     std::shared_ptr<rmf_traffic::schedule::Participant> schedule;
     rmf_traffic::blockade::Participant blockade;
     std::shared_ptr<void> negotiation_license;
+    std::shared_ptr<rmf_traffic::Duration> negotiated_delay;
 
     struct Expectation
     {
@@ -106,6 +107,10 @@ private:
     Robot& robot,
     rmf_traffic::Time now,
     std::size_t last_reached_checkpoint);
+
+  void update_delay(
+    rmf_traffic::Duration new_delay,
+    Robot& robot);
 
   void make_plan(
     const RobotState& state,

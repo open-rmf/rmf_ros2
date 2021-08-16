@@ -158,6 +158,7 @@ void FleetAdapterNode::fleet_state_update(FleetState::UniquePtr new_state)
 //==============================================================================
 void FleetAdapterNode::register_robot(const RobotState& state)
 {
+  using namespace std::chrono_literals;
   rmf_traffic::schedule::ParticipantDescription description{
     state.name,
     _fleet_name,
@@ -189,15 +190,26 @@ void FleetAdapterNode::register_robot(const RobotState& state)
       using TableViewerPtr = rmf_traffic::schedule::Negotiator::TableViewerPtr;
       using ResponderPtr = rmf_traffic::schedule::Negotiator::ResponderPtr;
 
+      auto negotiated_delay = std::make_shared<rmf_traffic::Duration>(0s);
+
       auto license = this->_connect->negotiation.register_negotiator(
         participant->id(),
-        [participant](TableViewerPtr viewer, ResponderPtr responder)
-      {
-        using namespace std::chrono_literals;
-        rmf_traffic::schedule::StubbornNegotiator(*participant)
-          .acceptable_waits({5s, 10s, 20s, 30s})
-          .respond(viewer, responder);
-      });
+        [participant, negotiated_delay](
+        TableViewerPtr viewer,
+        ResponderPtr responder)
+        {
+          auto approval_cb = [participant, negotiated_delay](
+            const rmf_traffic::Duration t)
+            {
+              *negotiated_delay += t;
+              participant->delay(t);
+              return participant->version();
+            };
+
+          rmf_traffic::schedule::StubbornNegotiator(*participant)
+            .acceptable_waits({5s, 10s, 20s, 30s}, std::move(approval_cb))
+            .respond(viewer, responder);
+        });
 
       this->_robots.at(participant->description().name()) =
         std::make_unique<Robot>(
@@ -205,6 +217,7 @@ void FleetAdapterNode::register_robot(const RobotState& state)
             participant,
             std::move(blockade),
             std::move(license),
+            std::move(negotiated_delay),
             std::nullopt,
             std::nullopt
           });
@@ -396,7 +409,17 @@ void add_offset_itinerary(
 {
   auto shadow = original;
   for (auto& item : shadow)
+  {
+    if (item.trajectory().empty())
+      continue;
+
+    const auto initial_time = *item.trajectory().start_time();
     item.trajectory().front().adjust_times(offset);
+    item.trajectory().insert(
+      initial_time,
+      item.trajectory().front().position(),
+      Eigen::Vector3d::Zero());
+  }
 
   output.insert(output.end(), shadow.begin(), shadow.end());
 }
@@ -589,7 +612,27 @@ void FleetAdapterNode::update_arrival(
   const auto planned_time = robot.expectation->timing.at(next_waypoint);
   const auto previously_expected_arrival = planned_time + current_delay;
   const auto new_delay = newly_expected_arrival - previously_expected_arrival;
-  robot.schedule->delay(new_delay);
+
+  update_delay(new_delay, robot);
+}
+
+//==============================================================================
+void FleetAdapterNode::update_delay(
+  rmf_traffic::Duration new_delay,
+  Robot& robot)
+{
+  using namespace std::chrono_literals;
+  auto& negotiated_delay = *robot.negotiated_delay;
+  if (negotiated_delay <= new_delay)
+  {
+    new_delay -= negotiated_delay;
+    negotiated_delay = 0s;
+  }
+  else
+  {
+    negotiated_delay -= new_delay;
+    new_delay = 0s;
+  }
 }
 
 //==============================================================================
