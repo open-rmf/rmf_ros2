@@ -171,7 +171,7 @@ std::vector<rmf_traffic::Route> add_margins(
 {
   auto itinerary = original;
   using namespace std::chrono_literals;
-  for (const auto t : {2s, 4s, 6s, 8s, 10s})
+  for (const auto t : {2s, 4s, 6s, 8s, 10s, 12s, 14s, 16s, 18s, 20s})
     add_offset_itinerary(t, original, itinerary);
 
   return itinerary;
