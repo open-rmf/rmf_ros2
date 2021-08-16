@@ -142,5 +142,30 @@ void Negotiate::_resume_next()
   top->resume();
 }
 
+//==============================================================================
+void add_offset_itinerary(
+  rmf_traffic::Duration offset,
+  const std::vector<rmf_traffic::Route>& original,
+  std::vector<rmf_traffic::Route>& output)
+{
+  auto shadow = original;
+  for (auto& item : shadow)
+    item.trajectory().front().adjust_times(offset);
+
+  output.insert(output.end(), shadow.begin(), shadow.end());
+}
+
+//==============================================================================
+std::vector<rmf_traffic::Route> add_margins(
+  const std::vector<rmf_traffic::Route>& original)
+{
+  auto itinerary = original;
+  using namespace std::chrono_literals;
+  for (const auto t : {2s, 4s, 6s, 8s, 10s})
+    add_offset_itinerary(t, original, itinerary);
+
+  return itinerary;
+}
+
 } // namespace services
 } // namespace rmf_fleet_adapter

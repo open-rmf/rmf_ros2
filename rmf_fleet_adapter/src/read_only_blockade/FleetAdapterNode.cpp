@@ -387,7 +387,6 @@ FleetAdapterNode::Robot::Expectation convert_to_expectation(
     std::move(path), std::move(timing)
   };
 }
-} // anonymous namespace
 
 //==============================================================================
 void add_offset_itinerary(
@@ -401,6 +400,7 @@ void add_offset_itinerary(
 
   output.insert(output.end(), shadow.begin(), shadow.end());
 }
+} // anonymous namespace
 
 //==============================================================================
 void FleetAdapterNode::make_plan(

@@ -24,6 +24,16 @@ namespace rmf_fleet_adapter {
 namespace services {
 
 //==============================================================================
+void add_offset_itinerary(
+  rmf_traffic::Duration offset,
+  const std::vector<rmf_traffic::Route>& original,
+  std::vector<rmf_traffic::Route>& output);
+
+//==============================================================================
+std::vector<rmf_traffic::Route> add_margins(
+  const std::vector<rmf_traffic::Route>& original);
+
+//==============================================================================
 template<typename Subscriber>
 void Negotiate::operator()(const Subscriber& s)
 {
@@ -106,7 +116,7 @@ void Negotiate::operator()(const Subscriber& s)
                 }
 
                 responder->submit(
-                  std::move(final_itinerary),
+                  add_margins(final_itinerary),
                   [plan = *r, approval = std::move(approval)]()
                   -> UpdateVersion
                   {
