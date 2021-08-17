@@ -208,6 +208,7 @@ void FleetAdapterNode::register_robot(const RobotState& state)
 
           rmf_traffic::schedule::StubbornNegotiator(*participant)
             .acceptable_waits({5s, 10s, 20s, 30s}, std::move(approval_cb))
+            .additional_margins({10s})
             .respond(viewer, responder);
         });
 
