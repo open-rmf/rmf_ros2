@@ -201,8 +201,6 @@ void FleetAdapterNode::register_robot(const RobotState& state)
           auto approval_cb = [participant, negotiated_delay](
             const rmf_traffic::Duration t)
             {
-              std::cout << " === DELAYING [" << participant->description().name() << "] BY ["
-                        << rmf_traffic::time::to_seconds(t) << "s]" << std::endl;
               *negotiated_delay += t;
               participant->delay(t);
               return participant->version();
