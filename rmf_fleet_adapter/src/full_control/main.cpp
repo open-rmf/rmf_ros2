@@ -45,6 +45,10 @@
 // the information provided by fleet drivers.
 #include "../rmf_fleet_adapter/estimation.hpp"
 
+// Public rmf_task API headers
+#include <rmf_task/requests/factory/ChargeBatteryFactory.hpp>
+#include <rmf_task/requests/factory/ReturnToChargerFactory.hpp>
+
 // Public rmf_traffic API headers
 #include <rmf_traffic/agv/Interpolate.hpp>
 #include <rmf_traffic/Route.hpp>
@@ -929,6 +933,34 @@ std::shared_ptr<Connections> make_fleet(
   // Recharge state of charge
   const double recharge_soc = rmf_fleet_adapter::get_parameter_or_default(
     *node, "recharge_soc", 1.0);
+    const bool finishing_request_charge_battery =
+    rmf_fleet_adapter::get_parameter_or_default(
+    *node,
+    "finishing_request_charge_battery",
+    false);
+  const bool finishing_request_return_charger =
+    rmf_fleet_adapter::get_parameter_or_default(
+    *node,
+    "finishing_request_return_charger",
+    false);
+  rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
+  if (finishing_request_charge_battery)
+  {
+    finishing_request =
+      std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Fleet is configured to perform ChargeBattery as finishing request");
+  }
+  if (finishing_request_return_charger)
+  {
+    finishing_request =
+      std::make_shared<rmf_task::requests::ReturnToChargerFactory>();
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Fleet is configured to perform ReturnToCharger as finishing request");
+  }
+
   if (!connections->fleet->set_task_planner_params(
       battery_system,
       motion_sink,
@@ -936,7 +968,8 @@ std::shared_ptr<Connections> make_fleet(
       tool_sink,
       recharge_threshold,
       recharge_soc,
-      drain_battery))
+      drain_battery,
+      finishing_request))
   {
     RCLCPP_ERROR(
       node->get_logger(),

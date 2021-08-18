@@ -918,7 +918,8 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
     rmf_traffic_ros2::convert(node->now()),
     states,
     pending_requests,
-    nullptr);
+    nullptr,
+    finishing_request);
 
   auto assignments_ptr = std::get_if<
     rmf_task::agv::TaskPlanner::Assignments>(&result);
@@ -1222,7 +1223,8 @@ bool FleetUpdateHandle::set_task_planner_params(
   std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
   double recharge_threshold,
   double recharge_soc,
-  bool account_for_battery_drain)
+  bool account_for_battery_drain,
+  rmf_task::ConstRequestFactoryPtr finishing_request)
 {
   if (battery_system &&
     motion_sink &&
@@ -1254,6 +1256,8 @@ bool FleetUpdateHandle::set_task_planner_params(
     // task planner here is updated.
     for (const auto& t : _pimpl->task_managers)
       t.first->task_planner(_pimpl->task_planner);
+
+    _pimpl->finishing_request = std::move(finishing_request);
 
     return true;
   }

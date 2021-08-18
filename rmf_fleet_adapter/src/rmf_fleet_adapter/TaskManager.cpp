@@ -260,8 +260,7 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
   requests.reserve(_queue.size());
   for (const auto& task : _queue)
   {
-    if (std::dynamic_pointer_cast<const ChargeBattery::Description>(
-        task->request()->description()))
+    if (task->request()->automatic())
     {
       continue;
     }

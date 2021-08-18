@@ -16,7 +16,6 @@
   <arg name="angular_acceleration" description="The nominal angular acceleration of the vehicles in this fleet"/>
   <arg name="footprint_radius" description="The radius of the footprint of the vehicles in this fleet"/>
   <arg name="vicinity_radius" description="The radius of the personal vicinity of the vehicles in this fleet"/>
-  <arg name="perform_deliveries" default="false" description="Whether this fleet adapter can perform deliveries"/>
   <arg name="delay_threshold" default="10.0" description="How long to wait before replanning" />
   <arg name="disable_delay_threshold" default="false" description="Disable the delay_threshold behavior" />
   <arg name="retry_wait" default="10.0" description="How long a retry should wait before starting"/>
@@ -25,7 +24,10 @@
   <arg name="output" default="screen"/>
 
   <arg name="perform_loop" default="false" description="Whether this fleet adapter can perform loops"/>
+  <arg name="perform_deliveries" default="false" description="Whether this fleet adapter can perform deliveries"/>
   <arg name="perform_cleaning" default="false" description="Whether this fleet adapter can perform cleaning"/>
+  <arg name="finishing_request_charge_battery" default="false" description="Whether robots in this fleet should perform a ChargeBattery task once all queued tasks are completed"/>
+  <arg name="finishing_request_return_charger" default="false" description="Whether robots in this fleet should return to their chargers once all queued tasks are completed"/>
   <arg name="battery_voltage" description="The nominal voltage(V) of the battery in the vehicles in this fleet"/>
   <arg name="battery_capacity" description="The nominal capacity(Ah) of the battery in the vehicles in this fleet"/>
   <arg name="battery_charging_current" description="The nominal charging current(A) of the battery in the vehicles in this fleet"/>
@@ -61,6 +63,8 @@
     <param name="perform_deliveries" value="$(var perform_deliveries)"/>
     <param name="perform_loop" value="$(var perform_loop)"/>
     <param name="perform_cleaning" value="$(var perform_cleaning)"/>
+    <param name="finishing_request_charge_battery" value="$(var finishing_request_charge_battery)"/>
+    <param name="finishing_request_return_charger" value="$(var finishing_request_return_charger)"/>
 
     <param name="delay_threshold" value="$(var delay_threshold)"/>
     <param name="disable_delay_threshold" value="$(var disable_delay_threshold)"/>
@@ -77,8 +81,8 @@
     <param name="ambient_power_drain" value="$(var ambient_power_drain)"/>
     <param name="tool_power_drain" value="$(var tool_power_drain)"/>
     <param name="drain_battery" value="$(var drain_battery)"/>
-    <param name="recharge_threshold" value="$(var recharge_threshold)"/> 
-    <param name="recharge_soc" value="$(var recharge_soc)"/> 
+    <param name="recharge_threshold" value="$(var recharge_threshold)"/>
+    <param name="recharge_soc" value="$(var recharge_soc)"/>
 
     <param name="experimental_lift_watchdog_service" value="$(var experimental_lift_watchdog_service)"/>
 
