@@ -342,12 +342,12 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       return;
     }
 
+    // TODO: Pipe in estimations of waiting time at pickup and ropoff
     new_request = rmf_task::requests::Delivery::make(
       pickup_wp->index(),
-      delivery.pickup_dispenser,
+      rmf_traffic::time::from_seconds(0),
       dropoff_wp->index(),
-      delivery.dropoff_ingestor,
-      delivery.items,
+      rmf_traffic::time::from_seconds(0),
       id,
       start_time,
       priority);

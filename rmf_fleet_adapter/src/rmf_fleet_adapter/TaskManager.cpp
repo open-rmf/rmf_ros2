@@ -209,7 +209,8 @@ void TaskManager::set_queue(
           _context,
           start,
           a.deployment_time(),
-          a.state());
+          a.state(),
+          task_profile.description.delivery);
         task->task_profile(task_profile);
 
         _queue.push_back(task);
