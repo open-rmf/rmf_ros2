@@ -171,7 +171,6 @@ void TaskManager::set_queue(
         task_profile.description.start_time = rmf_traffic_ros2::convert(
           request->earliest_start_time());
       }
-      
 
       using namespace rmf_task::requests;
 
@@ -185,11 +184,11 @@ void TaskManager::set_queue(
           a.deployment_time(),
           a.state());
 
-         // Populate task_profile for auto-generated Clean request
+        // Populate task_profile for auto-generated Clean request
         if (auto_request)
         {
           std::shared_ptr<const rmf_task::requests::Clean::Description>
-          description =  std::dynamic_pointer_cast<
+          description = std::dynamic_pointer_cast<
             const Clean::Description>(request->description());
           const auto start_waypoint = description->start_waypoint();
           const auto waypoint_name =
@@ -240,7 +239,7 @@ void TaskManager::set_queue(
         if (auto_request)
         {
           std::shared_ptr<const rmf_task::requests::Delivery::Description>
-          description =  std::dynamic_pointer_cast<
+          description = std::dynamic_pointer_cast<
             const Delivery::Description>(request->description());
           const auto& graph = _context->navigation_graph();
           const auto pickup_waypoint = description->pickup_waypoint();
