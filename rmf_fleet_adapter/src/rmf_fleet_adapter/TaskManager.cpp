@@ -209,7 +209,8 @@ void TaskManager::set_queue(
           _context,
           start,
           a.deployment_time(),
-          a.state());
+          a.state(),
+          task_profile.description.delivery);
         task->task_profile(task_profile);
 
         _queue.push_back(task);
@@ -390,7 +391,23 @@ void TaskManager::_begin_next_task()
 //==============================================================================
 void TaskManager::_begin_waiting()
 {
-  const std::size_t waiting_point = _context->location().front().waypoint();
+  // Determine the waypoint closest to the robot
+  std::size_t waiting_point = _context->location().front().waypoint();
+  double min_dist = std::numeric_limits<double>::max();
+  const auto& robot_position = _context->position();
+  for (const auto& start : _context->location())
+  {
+    const auto waypoint = start.waypoint();
+    const auto& waypoint_location =
+      _context->navigation_graph().get_waypoint(waypoint).get_location();
+    const auto dist = (robot_position.block<2, 1>(0, 0) -
+      waypoint_location).norm();
+    if (dist < min_dist)
+    {
+      min_dist = dist;
+      waiting_point = waypoint;
+    }
+  }
 
   _waiting = phases::ResponsiveWait::make_indefinite(
     _context, waiting_point)->begin();
