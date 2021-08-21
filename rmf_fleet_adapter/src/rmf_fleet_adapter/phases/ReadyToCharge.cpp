@@ -16,6 +16,7 @@
 */
 
 #include "ReadyToCharge.hpp"
+#include "RxOperators.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -58,36 +59,53 @@ ReadyToCharge::Active::Active(
   const std::string location)
 : _context(std::move(context)), _id(request_id)
 {
-  using rmf_charger_msgs::msg::ChargerState;
-  using rmf_charger_msgs::msg::ChargerRequest;
   _description = "Charger Negotiation";
 
   //Place holder value for testing
-  std::string desired_charger_name = location;
+  _location = location;
 
   //INIT
   _current_state = State::AWAITING_RESPONSE;
+}
 
-  _timer = _context->node()->try_create_wall_timer(
-    std::chrono::milliseconds(100),
-    [this, desired_charger_name]()
-    {
-      std::cout << "TXing" <<std::endl;
-      ChargerRequest request;
-      request.charger_name = desired_charger_name;
-      request.fleet_name = this->_context->description().owner();
-      request.robot_name = this->_context->description().name();
-      request.start_timeout = rclcpp::Duration {10,0};
-      request.request_id = this->_id;
-      this->_context->node()->charger_request()->publish(request);
-    }
-  );
-
+//==============================================================================
+void ReadyToCharge::Active::_init_obs()
+{
+  using rmf_charger_msgs::msg::ChargerState;
+  using rmf_charger_msgs::msg::ChargerRequest;
   _status_obs = _context->node()->charger_state()
-    .filter([desired_charger_name](const auto& status_msg)
+    .lift<ChargerState::SharedPtr>(
+    on_subscribe(
+      [weak = weak_from_this()]()
+      {
+        auto me = weak.lock();
+        if (!me)
+        {
+          return;
+        }
+        me->_timer = me->_context->node()->try_create_wall_timer(
+          std::chrono::milliseconds(100),
+          [me]()
+          {
+            std::cout << "TXing" <<std::endl;
+            ChargerRequest request;
+            request.charger_name = me->_location;
+            request.fleet_name = me->_context->description().owner();
+            request.robot_name = me->_context->description().name();
+            request.start_timeout = rclcpp::Duration {10,0};
+            request.request_id = me->_id;
+            me->_context->node()->charger_request()->publish(request);
+          }
+        );
+      }
+    )
+    )
+    .filter([weak = weak_from_this()](const auto& status_msg)
     {
-      std::cout << "filtering " <<std::endl;
-      return status_msg->charger_name == desired_charger_name;
+      auto me = weak.lock();
+      if(!me)
+        return false;
+      return status_msg->charger_name == me->_location;
     })
     .map([weak = weak_from_this()](const auto& status_msg)
     {
@@ -135,6 +153,7 @@ std::shared_ptr<Task::ActivePhase> ReadyToCharge::Pending::begin()
 {
   auto active =
       std::shared_ptr<Active>(new Active(_context, _id, _location));
+  active->_init_obs();
   return active;
 }
 

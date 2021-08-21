@@ -57,6 +57,8 @@ public:
     const std::string & description() const final;
 
   private:
+    void _init_obs();
+
     enum State
     {
       AWAITING_RESPONSE = 0,
@@ -71,6 +73,7 @@ public:
     rclcpp::TimerBase::SharedPtr _timer;
     std::string _id;
     std::string _description;
+    std::string _location;
   };
 
   class Pending : public Task::PendingPhase

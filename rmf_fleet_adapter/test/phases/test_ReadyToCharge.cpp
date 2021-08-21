@@ -74,19 +74,20 @@ SCENARIO_METHOD(MockAdapterFixture, "Charger Request Phase", "[phases]")
 
   WHEN("a response is sent")
   {
-    auto rcl_subscription = data->adapter->node()->create_subscription<ChargerRequest>(
-    ChargerRequestTopicName,
-    10,
-    [&](ChargerRequest::UniquePtr request)
-    {
-      ChargerState state;
-      state.state = ChargerState::CHARGER_ASSIGNED;
-      state.robot_name = request->robot_name;
-      state.robot_fleet = request->fleet_name; 
-      state.request_id = request->request_id;
-      state.charger_name = request->charger_name;
-      charger_state_pub->publish(state);
-    });
+    auto rcl_subscription =
+      data->adapter->node()->create_subscription<ChargerRequest>(
+        ChargerRequestTopicName,
+        10,
+        [&](ChargerRequest::UniquePtr request)
+        {
+          ChargerState state;
+          state.state = ChargerState::CHARGER_ASSIGNED;
+          state.robot_name = request->robot_name;
+          state.robot_fleet = request->fleet_name; 
+          state.request_id = request->request_id;
+          state.charger_name = request->charger_name;
+          charger_state_pub->publish(state);
+        });
 
     auto active_phase = pending_phase->begin();
     std::condition_variable status_updates_cv;
@@ -106,7 +107,7 @@ SCENARIO_METHOD(MockAdapterFixture, "Charger Request Phase", "[phases]")
       status_updates_cv.wait(lk, [&]() { return !status_updates.empty(); });
       REQUIRE(status_updates.begin()->state == Task::StatusMsg::STATE_COMPLETED);
     }
-    //sub.unsubscribe();
+    sub.unsubscribe();
   }
 }
 
