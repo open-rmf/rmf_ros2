@@ -15,9 +15,9 @@
   <depend>rmf_traffic_msgs</depend>
   <depend>rmf_fleet_msgs</depend>
   <depend>rclcpp</depend>
+  <depend>yaml-cpp</depend>
 
   <build_depend>eigen</build_depend>
-  <build_depend>yaml-cpp</build_depend>
 
   <test_depend>ament_cmake_catch2</test_depend>
   <test_depend>rmf_cmake_uncrustify</test_depend>

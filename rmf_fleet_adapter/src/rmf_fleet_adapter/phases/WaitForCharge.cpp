@@ -88,6 +88,7 @@ WaitForCharge::Active::Active(
     .get_observable()
     .start_with(initial_msg);
 
+  _context->current_mode(rmf_fleet_msgs::msg::RobotMode::MODE_CHARGING);
 }
 
 //==============================================================================

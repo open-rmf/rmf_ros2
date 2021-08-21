@@ -477,17 +477,17 @@ void ScheduleNode::start_heartbeat()
     heartbeat_qos_profile);
   RCLCPP_INFO(
     get_logger(),
-    "Set up heartbeat on %s with liveliness lease duration of %d ms "
-    "and deadline of %d ms",
+    "Set up heartbeat on %s with liveliness lease duration of %ld ms "
+    "and deadline of %ld ms",
     heartbeat_pub->get_topic_name(),
-    heartbeat_period,
-    heartbeat_period);
+    heartbeat_period.count(),
+    heartbeat_period.count());
 }
 
 //==============================================================================
 void ScheduleNode::add_query_topic(uint64_t query_id)
 {
-  RCLCPP_INFO(get_logger(), "Adding query topic for query %d", query_id);
+  RCLCPP_INFO(get_logger(), "Adding query topic for query %ld", query_id);
   MirrorUpdateTopicPublisher update_topic_publisher =
     create_publisher<MirrorUpdate>(
     rmf_traffic_ros2::QueryUpdateTopicNameBase + std::to_string(query_id),
@@ -507,7 +507,7 @@ void ScheduleNode::add_query_topic(uint64_t query_id)
 //==============================================================================
 void ScheduleNode::remove_query_topic(uint64_t query_id)
 {
-  RCLCPP_INFO(get_logger(), "Removing query topic for query %d", query_id);
+  RCLCPP_INFO(get_logger(), "Removing query topic for query %ld", query_id);
   const auto& query_topic = mirror_update_topics.find(query_id);
   if (query_topic == mirror_update_topics.end())
   {
@@ -515,7 +515,7 @@ void ScheduleNode::remove_query_topic(uint64_t query_id)
     // matter much since we were going to remove the topic anyway
     RCLCPP_ERROR(
       get_logger(),
-      "Could not find expected mirror update topic to remove for query ID %d",
+      "Could not find expected mirror update topic to remove for query ID %ld",
       query_id);
     return;
   }
@@ -527,7 +527,7 @@ void ScheduleNode::add_subscriber_to_query_topic(uint64_t query_id)
 {
   RCLCPP_INFO(
     get_logger(),
-    "Adding subscriber to query topic for query %d",
+    "Adding subscriber to query topic for query %ld",
     query_id);
   const auto& query_topic = mirror_update_topics.find(query_id);
   if (query_topic == mirror_update_topics.end())
@@ -537,7 +537,7 @@ void ScheduleNode::add_subscriber_to_query_topic(uint64_t query_id)
     // respond with failure to the request?
     RCLCPP_ERROR(
       get_logger(),
-      "Could not find expected mirror update topic for existing query ID %d "
+      "Could not find expected mirror update topic for existing query ID %ld "
       "to add subscriber to",
       query_id);
     return;
@@ -545,7 +545,7 @@ void ScheduleNode::add_subscriber_to_query_topic(uint64_t query_id)
   auto mirror_update_topic_info = query_topic->second;
   mirror_update_topic_info.subscriber_count += 1;
   mirror_update_topics.insert_or_assign(query_id, mirror_update_topic_info);
-  RCLCPP_DEBUG(get_logger(), "Query topic has %d subscribers",
+  RCLCPP_DEBUG(get_logger(), "Query topic has %ld subscribers",
     mirror_update_topic_info.subscriber_count);
 }
 
@@ -556,7 +556,7 @@ ScheduleNode::remove_subscriber_from_query_topic(
 {
   RCLCPP_INFO(
     get_logger(),
-    "Removing subscriber from query topic for query %d",
+    "Removing subscriber from query topic for query %ld",
     query_id);
   const auto& query_topic = mirror_update_topics.find(query_id);
   if (query_topic == mirror_update_topics.end())
@@ -566,7 +566,7 @@ ScheduleNode::remove_subscriber_from_query_topic(
     // respond with failure to the request?
     RCLCPP_ERROR(
       get_logger(),
-      "Could not find expected mirror update topic for existing query ID %d "
+      "Could not find expected mirror update topic for existing query ID %ld "
       "to remove subscriber from",
       query_id);
     return SubscriberRemovalResult::query_missing;
@@ -574,7 +574,7 @@ ScheduleNode::remove_subscriber_from_query_topic(
 
   auto mirror_update_topic_info = query_topic->second;
   mirror_update_topic_info.subscriber_count -= 1;
-  RCLCPP_DEBUG(get_logger(), "Query topic has %d subscribers",
+  RCLCPP_DEBUG(get_logger(), "Query topic has %ld subscribers",
     mirror_update_topic_info.subscriber_count);
   if (mirror_update_topic_info.subscriber_count == 0)
   {
@@ -600,7 +600,7 @@ void ScheduleNode::remake_mirror_update_topics(
     auto query_id = subscriber_count.first;
     RCLCPP_INFO(
       get_logger(),
-      "Remaking query topic for query ID %d (%d subscribers)",
+      "Remaking query topic for query ID %ld (%ld subscribers)",
       query_id,
       subscriber_count.second);
     add_query_topic(query_id);
@@ -612,7 +612,7 @@ void ScheduleNode::remake_mirror_update_topics(
       // Didn't we just add this topic?
       RCLCPP_ERROR(
         get_logger(),
-        "Could not find expected mirror update topic for existing query ID %d "
+        "Could not find expected mirror update topic for existing query ID %ld "
         "to set subscriber count on",
         query_id);
       continue;
@@ -1057,8 +1057,7 @@ void ScheduleNode::update_mirrors()
 
     RCLCPP_DEBUG(
       get_logger(),
-      "[ScheduleNode::update_mirrors] Updated query " +
-      std::to_string(query_it.first));
+      "[ScheduleNode::update_mirrors] Updated query %ld", query_it.first);
   }
 
   conflict_check_cv.notify_all();
