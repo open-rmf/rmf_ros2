@@ -109,14 +109,11 @@ void ReadyToCharge::Active::_init_obs()
     })
     .map([weak = weak_from_this()](const auto& status_msg)
     {
-      std::cout << "Attempting acknowledgement " <<std::endl;
       auto me = weak.lock();
       if (!me)
       {
-        std::cout << "Failed to get lock" <<std::endl;
         return Task::StatusMsg();
       }
-      std::cout << "status received" <<std::endl;
       if (me->_current_state == State::AWAITING_RESPONSE)
       {
         if((status_msg->state == ChargerState::CHARGER_ASSIGNED
