@@ -32,7 +32,8 @@ std::shared_ptr<Task> make_delivery(
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start pickup_start,
   const rmf_traffic::Time deployment_time,
-  const rmf_task::agv::State finish_state)
+  const rmf_task::agv::State finish_state,
+  const rmf_task_msgs::msg::Delivery delivery_profile)
 {
 
   std::shared_ptr<const rmf_task::requests::Delivery::Description> description =
@@ -56,9 +57,9 @@ std::shared_ptr<Task> make_delivery(
     std::make_unique<phases::DispenseItem::PendingPhase>(
       context,
       request->id(),
-      description->pickup_dispenser(),
+      delivery_profile.pickup_dispenser,
       context->itinerary().description().owner(),
-      description->items()));
+      delivery_profile.items));
 
   const auto dropoff_start = [&]() -> rmf_traffic::agv::Planner::Start
     {
@@ -88,8 +89,8 @@ std::shared_ptr<Task> make_delivery(
       dropoff_waypoint));
 
   std::vector<rmf_ingestor_msgs::msg::IngestorRequestItem> ingestor_items;
-  ingestor_items.reserve(description->items().size());
-  for (const auto& dispenser_item : description->items())
+  ingestor_items.reserve(delivery_profile.items.size());
+  for (const auto& dispenser_item : delivery_profile.items)
   {
     rmf_ingestor_msgs::msg::IngestorRequestItem item{};
     item.type_guid = dispenser_item.type_guid;
@@ -102,7 +103,7 @@ std::shared_ptr<Task> make_delivery(
     std::make_unique<phases::IngestItem::PendingPhase>(
       context,
       request->id(),
-      description->dropoff_ingestor(),
+      delivery_profile.dropoff_ingestor,
       context->itinerary().description().owner(),
       ingestor_items));
 
