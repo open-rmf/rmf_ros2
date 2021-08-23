@@ -28,13 +28,21 @@ namespace test {
 using rmf_charger_msgs::msg::ChargerState;
 using rmf_charger_msgs::msg::ChargerRequest;
 
-SCENARIO_METHOD(MockAdapterFixture, "Charger Request Phase", "[phases]")
+namespace {
+
+struct TestData
 {
   std::mutex m;
   std::condition_variable received_requests_cv;
   std::list<ChargerRequest> received_requests;
 
+  std::condition_variable status_updates_cv;
+  std::list<Task::StatusMsg> status_updates;
+};
 
+SCENARIO_METHOD(MockAdapterFixture, "Charger Request Phase", "[phases]")
+{
+  const auto test = std::make_shared<TestData>();
   const auto info = add_robot();
   const auto& context = info.context;
 
@@ -49,67 +57,50 @@ SCENARIO_METHOD(MockAdapterFixture, "Charger Request Phase", "[phases]")
   );
   auto active_phase = pending_phase->begin();
 
-
-  /*WHEN("it is started")
-  {
-    auto rcl_subscription = data->adapter->node()->create_subscription<ChargerRequest>(
-    ChargerRequestTopicName,
-    10,
-    [&](ChargerRequest::UniquePtr ingestor_request)
-    {
-      std::cout << "received requests" << std::endl;
-      std::unique_lock<std::mutex> lk(m);
-      received_requests.emplace_back(*ingestor_request);
-      received_requests_cv.notify_all();
-    });
-
-    THEN("it should continuously request a response")
-    {
-      std::unique_lock<std::mutex> lk(m);
-      received_requests_cv.wait(lk, [&]() {
-        return received_requests.size() >= 3;
-     });
-    }
-  }*/
-
   WHEN("a response is sent")
   {
     auto rcl_subscription =
       data->adapter->node()->create_subscription<ChargerRequest>(
         ChargerRequestTopicName,
         10,
-        [&](ChargerRequest::UniquePtr request)
+        [charger_state_pub](ChargerRequest::UniquePtr request)
         {
           ChargerState state;
           state.state = ChargerState::CHARGER_ASSIGNED;
           state.robot_name = request->robot_name;
-          state.robot_fleet = request->fleet_name; 
+          state.robot_fleet = request->fleet_name;
           state.request_id = request->request_id;
           state.charger_name = request->charger_name;
           charger_state_pub->publish(state);
         });
 
     auto active_phase = pending_phase->begin();
-    std::condition_variable status_updates_cv;
     std::list<Task::StatusMsg> status_updates;
-    auto sub = active_phase->observe().subscribe(
-      [&](const auto& status)
+    rmf_rxcpp::subscription_guard sub = active_phase->observe().subscribe(
+      [test](const auto& status)
       {
-        std::unique_lock<std::mutex> lk(m);
-        status_updates.emplace_back(status);
-        if(status_updates.begin()->state == Task::StatusMsg::STATE_COMPLETED)
-        status_updates_cv.notify_all();
+        {
+          std::unique_lock<std::mutex> lk(test->m);
+          test->status_updates.emplace_back(status);
+          std::cout << "Notifying recipient" << std::endl;
+        }
+        test->status_updates_cv.notify_all();
       });
 
     THEN("it should send a OK ")
     {
-      std::unique_lock<std::mutex> lk(m);
-      status_updates_cv.wait(lk, [&]() { return !status_updates.empty(); });
-      REQUIRE(status_updates.begin()->state == Task::StatusMsg::STATE_COMPLETED);
+      std::cout << "Wait for the lock to be freed" << std::endl;
+      std::unique_lock<std::mutex> lk(test->m);
+      std::cout << "Acquired lock" << std::endl;
+      test->status_updates_cv.wait(lk, [test]()
+        { return test->status_updates.size() != 0; });
+      REQUIRE(
+        test->status_updates.begin()->state == Task::StatusMsg::STATE_COMPLETED);
     }
-    sub.unsubscribe();
   }
 }
+
+} // anonymous namespace
 
 } // namespace test
 } // namespace phases
