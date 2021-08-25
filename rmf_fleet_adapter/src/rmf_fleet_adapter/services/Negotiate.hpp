@@ -37,32 +37,32 @@ public:
     std::function<UpdateVersion(const rmf_traffic::agv::Plan&)>;
 
   Negotiate(
-      std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-      rmf_traffic::agv::Plan::StartSet starts,
-      std::vector<rmf_traffic::agv::Plan::Goal> goals,
-      rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
-      rmf_traffic::schedule::Negotiator::ResponderPtr responder,
-      ApprovalCallback approval,
-      ProgressEvaluator evaluator,
-      std::vector<rmf_traffic::Route> initial_itinerary = {});
+    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+    rmf_traffic::agv::Plan::StartSet starts,
+    std::vector<rmf_traffic::agv::Plan::Goal> goals,
+    rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
+    rmf_traffic::schedule::Negotiator::ResponderPtr responder,
+    ApprovalCallback approval,
+    ProgressEvaluator evaluator,
+    std::vector<rmf_traffic::Route> initial_itinerary = {});
 
   static std::shared_ptr<Negotiate> path(
-      std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-      rmf_traffic::agv::Plan::StartSet starts,
-      rmf_traffic::agv::Plan::Goal goal,
-      rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
-      rmf_traffic::schedule::Negotiator::ResponderPtr responder,
-      ApprovalCallback approval,
-      ProgressEvaluator evaluator,
-      std::vector<rmf_traffic::Route> initial_itinerary = {});
+    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+    rmf_traffic::agv::Plan::StartSet starts,
+    rmf_traffic::agv::Plan::Goal goal,
+    rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
+    rmf_traffic::schedule::Negotiator::ResponderPtr responder,
+    ApprovalCallback approval,
+    ProgressEvaluator evaluator,
+    std::vector<rmf_traffic::Route> initial_itinerary = {});
 
   static std::shared_ptr<Negotiate> emergency_pullover(
-      std::shared_ptr<const rmf_traffic::agv::Planner> planner,
-      rmf_traffic::agv::Plan::StartSet starts,
-      rmf_traffic::schedule::Negotiation::Table::ViewerPtr viewer,
-      rmf_traffic::schedule::Negotiator::ResponderPtr responder,
-      ApprovalCallback approval,
-      ProgressEvaluator evaluator);
+    std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+    rmf_traffic::agv::Plan::StartSet starts,
+    rmf_traffic::schedule::Negotiation::Table::ViewerPtr viewer,
+    rmf_traffic::schedule::Negotiator::ResponderPtr responder,
+    ApprovalCallback approval,
+    ProgressEvaluator evaluator);
 
   struct Result
   {

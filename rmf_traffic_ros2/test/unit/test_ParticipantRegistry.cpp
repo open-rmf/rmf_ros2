@@ -31,10 +31,11 @@ SCENARIO("Test idempotency of shape type")
 
   // Check "None"
   REQUIRE_THROWS(serialize_shape_type(
-    rmf_traffic_msgs::msg::ConvexShape::NONE));
+      rmf_traffic_msgs::msg::ConvexShape::NONE));
 
   // Check "Box"
-  auto serialized = serialize_shape_type(rmf_traffic_msgs::msg::ConvexShape::BOX);
+  auto serialized =
+    serialize_shape_type(rmf_traffic_msgs::msg::ConvexShape::BOX);
   node["type"] = serialized;
   CHECK(shape_type(node["type"]) == rmf_traffic_msgs::msg::ConvexShape::BOX);
 
@@ -48,15 +49,18 @@ SCENARIO("Test idempotency of shape type")
   REQUIRE_THROWS(shape_type(node["type"]));
 }
 
+namespace rmf_traffic {
 
-bool operator==(const rmf_traffic::Profile p1, const rmf_traffic::Profile p2) 
+bool operator==(const Profile p1, const Profile p2)
 {
   return rmf_traffic_ros2::convert(p1) == rmf_traffic_ros2::convert(p2);
 }
 
+namespace schedule {
+
 bool operator==(
-  const rmf_traffic::schedule::ParticipantDescription desc1, 
-  const rmf_traffic::schedule::ParticipantDescription desc2)  
+  const ParticipantDescription desc1,
+  const ParticipantDescription desc2)
 {
   return desc1.name() == desc2.name()
     && desc1.owner() == desc2.owner()
@@ -64,12 +68,21 @@ bool operator==(
     && desc1.profile() == desc2.profile();
 }
 
+}
+}
+
+namespace rmf_traffic_ros2 {
+namespace schedule {
+
 bool operator==(
-  const AtomicOperation op1, 
-  const AtomicOperation op2)  
+  const AtomicOperation op1,
+  const AtomicOperation op2)
 {
   return op1.operation == op2.operation
     && op1.description == op2.description;
+}
+
+}
 }
 
 SCENARIO("Test idempotency of ParticipantDescription.")
@@ -89,10 +102,10 @@ SCENARIO("Test idempotency of ParticipantDescription.")
   REQUIRE(p1 == result);
 }
 
-class TestOperationLogger: public AbstractParticipantLogger
+class TestOperationLogger : public AbstractParticipantLogger
 {
 public:
-  
+
   TestOperationLogger(std::vector<AtomicOperation>* journal)
   {
     _counter = 0;
@@ -106,11 +119,11 @@ public:
 
   std::optional<AtomicOperation> read_next_record() override
   {
-    if(_counter >= _journal->size())
+    if (_counter >= _journal->size())
     {
       return std::nullopt;
     }
-    return {(*_journal)[_counter++]};    
+    return {(*_journal)[_counter++]};
   }
 
 private:
@@ -121,7 +134,7 @@ private:
 SCENARIO("Participant registry restores participants from logger")
 {
   using Database = rmf_traffic::schedule::Database;
- 
+
   //Lets create a bunch of participants
   const auto shape = rmf_traffic::geometry::make_final_convex<
     rmf_traffic::geometry::Circle>(1.0);
@@ -137,13 +150,13 @@ SCENARIO("Participant registry restores participants from logger")
     "test_Participant",
     rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
     rmf_traffic::Profile{shape});
-  
+
   rmf_traffic::schedule::ParticipantDescription p3(
     "participant 3",
     "test_Participant",
     rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
     rmf_traffic::Profile{shape});
-  
+
   GIVEN("A stubbed out logger")
   {
     std::vector<AtomicOperation> journal;
@@ -157,11 +170,11 @@ SCENARIO("Participant registry restores participants from logger")
       const auto participant_id3 = registry1.add_or_retrieve_participant(p3);
 
       std::vector<AtomicOperation> journal_old = journal;
-  
+
       THEN("Restoring DB")
       {
         auto db2 = std::make_shared<Database>();
-         auto logger2 = std::make_unique<TestOperationLogger>(&journal);
+        auto logger2 = std::make_unique<TestOperationLogger>(&journal);
         ParticipantRegistry registry2(std::move(logger2), db2);
         auto restored_participants = db2->participant_ids();
         REQUIRE(restored_participants.count(participant_id1.id()) > 0);
@@ -172,13 +185,13 @@ SCENARIO("Participant registry restores participants from logger")
         // Checks that the logs have not accidentally grown or shrunk or been
         // mutated.
         REQUIRE(journal.size() == 3);
-        for(std::size_t i = 0; i < journal.size(); i++)
+        for (std::size_t i = 0; i < journal.size(); i++)
           REQUIRE(journal[i] == journal_old[i]);
-  
+
         auto _p1 = db2->get_participant(participant_id1.id());
         auto _p2 = db2->get_participant(participant_id2.id());
         auto _p3 = db2->get_participant(participant_id3.id());
-  
+
         REQUIRE(*_p1 == p1);
         REQUIRE(*_p2 == p2);
         REQUIRE(*_p3 == p3);
@@ -189,11 +202,11 @@ SCENARIO("Participant registry restores participants from logger")
 
 SCENARIO("Test file logger")
 {
-  if(std::filesystem::exists("test_yamllogger.yaml"))
+  if (std::filesystem::exists("test_yamllogger.yaml"))
   {
     std::remove("test_yamllogger.yaml");
   }
-  
+
   const auto shape = rmf_traffic::geometry::make_final_convex<
     rmf_traffic::geometry::Circle>(1.0);
 
@@ -208,13 +221,13 @@ SCENARIO("Test file logger")
     "test_Participant",
     rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
     rmf_traffic::Profile{shape});
-  
+
   rmf_traffic::schedule::ParticipantDescription p3(
     "participant 3",
     "test_Participant",
     rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
     rmf_traffic::Profile{shape});
-  
+
   GIVEN("non-existant file")
   {
     WHEN("Storing three records")
@@ -231,7 +244,7 @@ SCENARIO("Test file logger")
         };
 
         std::size_t i = 0;
-        while(auto record = logger2.read_next_record())
+        while (auto record = logger2.read_next_record())
         {
           REQUIRE(i < expected.size());
           REQUIRE(expected[i] == *record);
@@ -259,7 +272,7 @@ SCENARIO("Test file logger")
 
   GIVEN("a yaml file that does not fit ")
   {
-    
+
     WHEN("the file is not a sequence")
     {
       YAML::Node node;

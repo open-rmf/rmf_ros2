@@ -30,7 +30,9 @@ endif()
 if(BUILD_TESTING)
   find_package(ament_cmake_catch2 QUIET)
   find_package(rmf_cmake_uncrustify REQUIRED)
-  find_file(uncrustify_config_file NAMES "share/format/rmf_code_style.cfg")
+  find_file(uncrustify_config_file
+    NAMES "rmf_code_style.cfg"
+    PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
 
   rmf_uncrustify(
     ARGN include src examples
@@ -38,7 +40,7 @@ if(BUILD_TESTING)
     MAX_LINE_LENGTH 80
   )
 
-  file(GLOB_RECURSE unit_test_srcs "test/*.cpp")
+  file(GLOB_RECURSE unit_test_srcs "test/unit/*.cpp")
 
   ament_add_catch2(
     test_rmf_traffic_ros2 test/main.cpp ${unit_test_srcs}
@@ -47,6 +49,39 @@ if(BUILD_TESTING)
   target_link_libraries(test_rmf_traffic_ros2
       rmf_traffic_ros2
       yaml-cpp
+  )
+
+  add_executable(
+    missing_query_schedule_node test/mock_schedule_nodes/missing_query.cpp
+  )
+  target_include_directories(missing_query_schedule_node
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+      ${rmf_traffic_msgs_INCLUDE_DIRS}
+      ${rclcpp_INCLUDE_DIRS}
+      "src"
+  )
+  target_link_libraries(missing_query_schedule_node rmf_traffic_ros2)
+
+  add_executable(
+    wrong_query_schedule_node test/mock_schedule_nodes/wrong_query.cpp
+  )
+  target_include_directories(wrong_query_schedule_node
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+      ${rmf_traffic_msgs_INCLUDE_DIRS}
+      ${rclcpp_INCLUDE_DIRS}
+      "src"
+  )
+  target_link_libraries(wrong_query_schedule_node rmf_traffic_ros2)
+
+  install(
+    TARGETS
+      missing_query_schedule_node
+      wrong_query_schedule_node
+    RUNTIME DESTINATION lib/rmf_traffic_ros2
   )
 endif()
 
@@ -70,7 +105,15 @@ target_include_directories(rmf_traffic_ros2
 )
 
 ament_export_targets(rmf_traffic_ros2 HAS_LIBRARY_TARGET)
-ament_export_dependencies(rmf_traffic rmf_traffic_msgs rclcpp)
+ament_export_dependencies(
+  rclcpp
+  rmf_traffic
+  rmf_traffic_msgs
+  rmf_fleet_msgs
+  Eigen3
+  rclcpp
+  yaml-cpp
+)
 
 # TODO(MXG): Change these executables into shared libraries that can act as
 # ROS2 node components
@@ -80,6 +123,15 @@ file(GLOB_RECURSE schedule_srcs "src/rmf_traffic_schedule/*.cpp")
 add_executable(rmf_traffic_schedule ${schedule_srcs})
 
 target_link_libraries(rmf_traffic_schedule
+  PRIVATE
+    rmf_traffic_ros2
+)
+
+#===============================================================================
+file(GLOB_RECURSE schedule_srcs "src/rmf_traffic_schedule_monitor/*.cpp")
+add_executable(rmf_traffic_schedule_monitor ${schedule_srcs})
+
+target_link_libraries(rmf_traffic_schedule_monitor
   PRIVATE
     rmf_traffic_ros2
 )
@@ -113,6 +165,7 @@ install(
   TARGETS
     rmf_traffic_ros2
     rmf_traffic_schedule
+    rmf_traffic_schedule_monitor
     rmf_traffic_blockade
     update_participant
   EXPORT rmf_traffic_ros2

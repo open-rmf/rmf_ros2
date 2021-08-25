@@ -2,9 +2,10 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>rmf_traffic_ros2</name>
-  <version>1.2.0</version>
+  <version>1.3.0</version>
   <description>A package containing messages used by the RMF traffic management system.</description>
   <maintainer email="grey@openrobotics.org">Grey</maintainer>
+  <maintainer email="marco@openrobotics.org">Marco A. Gutiérrez</maintainer>
   <license>Apache License 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
@@ -14,9 +15,9 @@
   <depend>rmf_traffic_msgs</depend>
   <depend>rmf_fleet_msgs</depend>
   <depend>rclcpp</depend>
+  <depend>yaml-cpp</depend>
 
   <build_depend>eigen</build_depend>
-  <build_depend>yaml-cpp</build_depend>
 
   <test_depend>ament_cmake_catch2</test_depend>
   <test_depend>rmf_cmake_uncrustify</test_depend>

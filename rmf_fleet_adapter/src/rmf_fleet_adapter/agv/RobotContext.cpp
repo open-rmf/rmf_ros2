@@ -21,6 +21,8 @@
 
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 
+#include <rmf_fleet_msgs/msg/robot_mode.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -48,7 +50,7 @@ Eigen::Vector3d RobotContext::position() const
   }
 
   const Eigen::Vector2d& p =
-      navigation_graph().get_waypoint(l.waypoint()).get_location();
+    navigation_graph().get_waypoint(l.waypoint()).get_location();
   return {p[0], p[1], l.orientation()};
 }
 
@@ -57,7 +59,7 @@ const std::string& RobotContext::map() const
 {
   assert(!_location.empty());
   return navigation_graph()
-      .get_waypoint(_location.front().waypoint()).get_map_name();
+    .get_waypoint(_location.front().waypoint()).get_map_name();
 }
 
 //==============================================================================
@@ -134,10 +136,10 @@ class RobotContext::NegotiatorLicense
 public:
 
   NegotiatorLicense(
-      std::shared_ptr<RobotContext> context,
-      rmf_traffic::schedule::Negotiator* negotiator)
-    : _context(context),
-      _negotiator(negotiator)
+    std::shared_ptr<RobotContext> context,
+    rmf_traffic::schedule::Negotiator* negotiator)
+  : _context(context),
+    _negotiator(negotiator)
   {
     // Do nothing
   }
@@ -159,13 +161,13 @@ private:
 
 //==============================================================================
 auto RobotContext::set_negotiator(
-    rmf_traffic::schedule::Negotiator* negotiator)
+  rmf_traffic::schedule::Negotiator* negotiator)
 -> std::shared_ptr<NegotiatorLicense>
 {
   _negotiator = negotiator;
 
   return std::make_shared<NegotiatorLicense>(
-        shared_from_this(), negotiator);
+    shared_from_this(), negotiator);
 }
 
 //==============================================================================
@@ -207,7 +209,7 @@ rmf_utils::optional<rmf_traffic::Duration> RobotContext::maximum_delay() const
 
 //==============================================================================
 RobotContext& RobotContext::maximum_delay(
-    rmf_utils::optional<rmf_traffic::Duration> value)
+  rmf_utils::optional<rmf_traffic::Duration> value)
 {
   _maximum_delay = value;
   return *this;
@@ -221,7 +223,7 @@ const rmf_task::agv::State& RobotContext::current_task_end_state() const
 
 //==============================================================================
 RobotContext& RobotContext::current_task_end_state(
-    const rmf_task::agv::State& state)
+  const rmf_task::agv::State& state)
 {
   _current_task_end_state = state;
   return *this;
@@ -237,7 +239,7 @@ RobotContext& RobotContext::current_battery_soc(const double battery_soc)
 {
   _current_battery_soc = battery_soc;
   _battery_soc_publisher.get_subscriber().on_next(battery_soc);
-  
+
   return *this;
 }
 
@@ -248,7 +250,7 @@ const rxcpp::observable<double>& RobotContext::observe_battery_soc() const
 }
 
 //==============================================================================
-const std::shared_ptr<const rmf_task::agv::TaskPlanner>& 
+const std::shared_ptr<const rmf_task::agv::TaskPlanner>&
 RobotContext::task_planner() const
 {
   return _task_planner;
@@ -257,7 +259,7 @@ RobotContext::task_planner() const
 //==============================================================================
 auto RobotContext::task_planner(
   const std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner)
-  -> RobotContext&
+-> RobotContext&
 {
   _task_planner = task_planner;
   return *this;
@@ -265,8 +267,8 @@ auto RobotContext::task_planner(
 
 //==============================================================================
 void RobotContext::set_lift_entry_watchdog(
-    RobotUpdateHandle::Unstable::Watchdog watchdog,
-    rmf_traffic::Duration wait_duration)
+  RobotUpdateHandle::Unstable::Watchdog watchdog,
+  rmf_traffic::Duration wait_duration)
 {
   _lift_watchdog = std::move(watchdog);
   _lift_rewait_duration = wait_duration;
@@ -287,8 +289,8 @@ rmf_traffic::Duration RobotContext::get_lift_rewait_duration() const
 
 //==============================================================================
 void RobotContext::respond(
-    const TableViewerPtr& table_viewer,
-    const ResponderPtr& responder)
+  const TableViewerPtr& table_viewer,
+  const ResponderPtr& responder)
 {
   if (_negotiator)
     return _negotiator->respond(table_viewer, responder);
@@ -301,7 +303,19 @@ void RobotContext::respond(
   // planning, so it should be able to finish quickly, but that should be
   // verified with benchmarks.
   rmf_traffic::schedule::StubbornNegotiator(_itinerary).respond(
-        table_viewer, responder);
+    table_viewer, responder);
+}
+
+//==============================================================================
+void RobotContext::current_mode(uint32_t mode)
+{
+  _current_mode = mode;
+}
+
+//==============================================================================
+uint32_t RobotContext::current_mode() const
+{
+  return _current_mode;
 }
 
 //==============================================================================
@@ -316,25 +330,27 @@ RobotContext::RobotContext(
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
   rmf_task::agv::State state,
   std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner)
-  : _command_handle(std::move(command_handle)),
-    _location(std::move(_initial_location)),
-    _itinerary(std::move(itinerary)),
-    _schedule(std::move(schedule)),
-    _planner(std::move(planner)),
-    _node(std::move(node)),
-    _worker(worker),
-    _maximum_delay(maximum_delay),
-    _requester_id(
-      _itinerary.description().owner() + "/" + _itinerary.description().name()),
-    _current_task_end_state(state),
-    _task_planner(std::move(task_planner))
+: _command_handle(std::move(command_handle)),
+  _location(std::move(_initial_location)),
+  _itinerary(std::move(itinerary)),
+  _schedule(std::move(schedule)),
+  _planner(std::move(planner)),
+  _node(std::move(node)),
+  _worker(worker),
+  _maximum_delay(maximum_delay),
+  _requester_id(
+    _itinerary.description().owner() + "/" + _itinerary.description().name()),
+  _current_task_end_state(state),
+  _task_planner(std::move(task_planner))
 {
   _profile = std::make_shared<rmf_traffic::Profile>(
-        _itinerary.description().profile());
+    _itinerary.description().profile());
 
   _interrupt_obs = _interrupt_publisher.get_observable();
 
   _battery_soc_obs = _battery_soc_publisher.get_observable();
+
+  _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
 }
 
 } // namespace agv

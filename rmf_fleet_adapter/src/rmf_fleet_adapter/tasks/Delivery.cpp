@@ -28,23 +28,24 @@ namespace tasks {
 
 //==============================================================================
 std::shared_ptr<Task> make_delivery(
-    const rmf_task::ConstRequestPtr request,
-    const agv::RobotContextPtr& context,
-    const rmf_traffic::agv::Plan::Start pickup_start,
-    const rmf_traffic::Time deployment_time,
-    const rmf_task::agv::State finish_state)
+  const rmf_task::ConstRequestPtr request,
+  const agv::RobotContextPtr& context,
+  const rmf_traffic::agv::Plan::Start pickup_start,
+  const rmf_traffic::Time deployment_time,
+  const rmf_task::agv::State finish_state,
+  const rmf_task_msgs::msg::Delivery delivery_profile)
 {
 
   std::shared_ptr<const rmf_task::requests::Delivery::Description> description =
     std::dynamic_pointer_cast<
-      const rmf_task::requests::Delivery::Description>(request->description());
-  
+    const rmf_task::requests::Delivery::Description>(request->description());
+
   if (description == nullptr)
     return nullptr;
-  
+
   const auto pickup_waypoint = description->pickup_waypoint();
   const auto dropoff_waypoint = description->dropoff_waypoint();
-  
+
   Task::PendingPhases phases;
   phases.push_back(
     phases::GoToPlace::make(
@@ -53,12 +54,12 @@ std::shared_ptr<Task> make_delivery(
       pickup_waypoint));
 
   phases.push_back(
-        std::make_unique<phases::DispenseItem::PendingPhase>(
-          context,
-          request->id(),
-          description->pickup_dispenser(),
-          context->itinerary().description().owner(),
-          description->items()));
+    std::make_unique<phases::DispenseItem::PendingPhase>(
+      context,
+      request->id(),
+      delivery_profile.pickup_dispenser,
+      context->itinerary().description().owner(),
+      delivery_profile.items));
 
   const auto dropoff_start = [&]() -> rmf_traffic::agv::Planner::Start
     {
@@ -76,10 +77,10 @@ std::shared_ptr<Task> make_delivery(
       const double orientation = trajectory.back().position()[2];
 
       return rmf_traffic::agv::Planner::Start{
-        finish_time,
-        pickup_waypoint,
-        orientation};
-    }();
+      finish_time,
+      pickup_waypoint,
+      orientation};
+    } ();
 
   phases.push_back(
     phases::GoToPlace::make(
@@ -88,8 +89,9 @@ std::shared_ptr<Task> make_delivery(
       dropoff_waypoint));
 
   std::vector<rmf_ingestor_msgs::msg::IngestorRequestItem> ingestor_items;
-  ingestor_items.reserve(description->items().size());
-  for(const auto& dispenser_item : description->items()){
+  ingestor_items.reserve(delivery_profile.items.size());
+  for (const auto& dispenser_item : delivery_profile.items)
+  {
     rmf_ingestor_msgs::msg::IngestorRequestItem item{};
     item.type_guid = dispenser_item.type_guid;
     item.quantity = dispenser_item.quantity;
@@ -98,12 +100,12 @@ std::shared_ptr<Task> make_delivery(
   }
 
   phases.push_back(
-        std::make_unique<phases::IngestItem::PendingPhase>(
-          context,
-          request->id(),
-          description->dropoff_ingestor(),
-          context->itinerary().description().owner(),
-          ingestor_items));
+    std::make_unique<phases::IngestItem::PendingPhase>(
+      context,
+      request->id(),
+      delivery_profile.dropoff_ingestor,
+      context->itinerary().description().owner(),
+      ingestor_items));
 
   return Task::make(
     request->id(),

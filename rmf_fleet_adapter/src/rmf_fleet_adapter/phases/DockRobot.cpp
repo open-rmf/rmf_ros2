@@ -24,8 +24,8 @@ namespace phases {
 DockRobot::ActivePhase::ActivePhase(
   agv::RobotContextPtr context,
   std::string dock_name)
-  : _context{std::move(context)},
-    _dock_name{std::move(dock_name)}
+: _context{std::move(context)},
+  _dock_name{std::move(dock_name)}
 {
   std::ostringstream oss;
   oss << "Docking robot to " << _dock_name;
@@ -33,10 +33,13 @@ DockRobot::ActivePhase::ActivePhase(
 
   _action = std::make_shared<Action>(this);
   _obs = rmf_rxcpp::make_job<Task::StatusMsg>(_action);
+
+  _context->current_mode(rmf_fleet_msgs::msg::RobotMode::MODE_DOCKING);
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& DockRobot::ActivePhase::observe() const
+const rxcpp::observable<Task::StatusMsg>&
+DockRobot::ActivePhase::observe() const
 {
   return _obs;
 }
@@ -76,8 +79,8 @@ const std::string& DockRobot::ActivePhase::title() const
 DockRobot::PendingPhase::PendingPhase(
   agv::RobotContextPtr context,
   std::string dock_name)
-  : _context{std::move(context)},
-    _dock_name{std::move(dock_name)}
+: _context{std::move(context)},
+  _dock_name{std::move(dock_name)}
 {
   std::ostringstream oss;
   oss << "Dock robot to " << _dock_name;
@@ -111,7 +114,7 @@ const std::string& DockRobot::PendingPhase::title() const
 
 //==============================================================================
 DockRobot::Action::Action(ActivePhase* phase)
-  : _phase(phase)
+: _phase(phase)
 {
   // Do nothing
 }

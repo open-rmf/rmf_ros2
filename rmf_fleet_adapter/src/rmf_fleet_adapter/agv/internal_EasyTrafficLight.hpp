@@ -23,9 +23,9 @@
 
 #include <rmf_traffic/schedule/Participant.hpp>
 
-#include <rclcpp/node.hpp>
-
 #include <rmf_rxcpp/RxJobs.hpp>
+
+#include "Node.hpp"
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -51,17 +51,17 @@ public:
     CommandHandle() = default;
 
     void receive_checkpoints(
-        std::size_t version,
-        std::vector<Checkpoint> checkpoints,
-        std::size_t standby_at,
-        OnStandby on_standby,
-        Reject reject) final;
+      std::size_t version,
+      std::vector<Checkpoint> checkpoints,
+      std::size_t standby_at,
+      OnStandby on_standby,
+      Reject reject) final;
 
     void immediately_stop_until(
-        std::size_t version,
-        rclcpp::Time time,
-        StoppedAt stopped_at,
-        Departed departed) final;
+      std::size_t version,
+      rclcpp::Time time,
+      StoppedAt stopped_at,
+      Departed departed) final;
 
     void resume(std::size_t version) final;
 
@@ -92,17 +92,17 @@ public:
   };
 
   void receive_checkpoints(
-      std::size_t version,
-      std::vector<Checkpoint> checkpoints,
-      std::size_t standby_at,
-      OnStandby on_standby,
-      Reject reject);
+    std::size_t version,
+    std::vector<Checkpoint> checkpoints,
+    std::size_t standby_at,
+    OnStandby on_standby,
+    Reject reject);
 
   void immediately_stop_until(
-      std::size_t version,
-      rclcpp::Time time,
-      StoppedAt stopped_at,
-      Departed departed);
+    std::size_t version,
+    rclcpp::Time time,
+    StoppedAt stopped_at,
+    Departed departed);
 
   void resume(std::size_t version);
 
@@ -115,26 +115,26 @@ public:
   void accept_new_checkpoints();
 
   std::optional<MovingInstruction> handle_new_checkpoints_moving(
-      const std::size_t last_departed_checkpoint);
+    const std::size_t last_departed_checkpoint);
 
   MovingInstruction moving_from(
-      std::size_t checkpoint,
-      Eigen::Vector3d location);
+    std::size_t checkpoint,
+    Eigen::Vector3d location);
 
   std::optional<WaitingInstruction> handle_new_checkpoints_waiting(
-      const std::optional<std::size_t> last_departed_checkpoint,
-      const Eigen::Vector3d location);
+    const std::optional<std::size_t> last_departed_checkpoint,
+    const Eigen::Vector3d location);
 
   std::optional<WaitingInstruction> handle_immediate_stop(
-      const std::size_t last_departed_checkpoint,
-      const Eigen::Vector3d location,
-      const rclcpp::Time now);
+    const std::size_t last_departed_checkpoint,
+    const Eigen::Vector3d location,
+    const rclcpp::Time now);
 
   WaitingInstruction waiting_at(std::size_t checkpoint);
 
   WaitingInstruction waiting_after(
-      std::size_t checkpoint,
-      Eigen::Vector3d location);
+    std::size_t checkpoint,
+    Eigen::Vector3d location);
 
   std::size_t get_last_reached() const;
 
@@ -163,7 +163,7 @@ public:
   TrafficLight::UpdateHandlePtr update_handle;
 
   rxcpp::schedulers::worker worker;
-  std::shared_ptr<rclcpp::Node> node;
+  std::shared_ptr<Node> node;
 
   std::string name;
   std::string owner;
@@ -181,24 +181,24 @@ public:
   }
 
   static EasyTrafficLightPtr make(
-      TrafficLight::UpdateHandlePtr update_handle_,
-      std::function<void()> pause_,
-      std::function<void()> resume_,
-      std::function<void(std::vector<Blocker>)> blocker_,
-      rxcpp::schedulers::worker worker_,
-      std::shared_ptr<rclcpp::Node> node_,
-      std::string name_,
-      std::string owner_);
+    TrafficLight::UpdateHandlePtr update_handle_,
+    std::function<void()> pause_,
+    std::function<void()> resume_,
+    std::function<void(std::vector<Blocker>)> blocker_,
+    rxcpp::schedulers::worker worker_,
+    std::shared_ptr<Node> node_,
+    std::string name_,
+    std::string owner_);
 
   Implementation(
-      TrafficLight::UpdateHandlePtr update_handle_,
-      std::function<void()> pause_,
-      std::function<void()> resume_,
-      std::function<void(std::vector<Blocker>)> blocker,
-      rxcpp::schedulers::worker worker_,
-      std::shared_ptr<rclcpp::Node> node_,
-      std::string name_,
-      std::string owner_);
+    TrafficLight::UpdateHandlePtr update_handle_,
+    std::function<void()> pause_,
+    std::function<void()> resume_,
+    std::function<void(std::vector<Blocker>)> blocker,
+    rxcpp::schedulers::worker worker_,
+    std::shared_ptr<Node> node_,
+    std::string name_,
+    std::string owner_);
 };
 
 } // namespace agv

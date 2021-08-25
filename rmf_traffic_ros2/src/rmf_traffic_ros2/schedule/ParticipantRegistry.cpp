@@ -37,7 +37,7 @@ struct UniqueId
   std::string name;
   std::string owner;
 
-  bool operator==(const UniqueId &other) const
+  bool operator==(const UniqueId& other) const
   {
     return name == other.name && owner == other.owner;
   }
@@ -48,7 +48,7 @@ struct UniqueIdHasher
 {
   std::size_t operator()(UniqueId id) const
   {
-    return std::hash<std::string>{}(id.name + id.owner);
+    return std::hash<std::string>{} (id.name + id.owner);
   }
 };
 
@@ -64,7 +64,7 @@ public:
     _logger(std::move(logger))
   {
     _reading_from_log = true;
-    while(auto record = _logger->read_next_record())
+    while (auto record = _logger->read_next_record())
     {
       execute(*record);
     }
@@ -111,7 +111,7 @@ public:
   {
     UniqueId key = {name, owner};
     auto id = _id_from_name.find(key);
-    if(id == _id_from_name.end())
+    if (id == _id_from_name.end())
     {
       return std::nullopt;
     }
@@ -138,7 +138,7 @@ private:
   //==========================================================================
   void execute(AtomicOperation operation)
   {
-    if(operation.operation == AtomicOperation::OpType::Add
+    if (operation.operation == AtomicOperation::OpType::Add
       || operation.operation == AtomicOperation::OpType::Update)
     {
       add_or_retrieve_participant(operation.description);
@@ -148,7 +148,7 @@ private:
   //==========================================================================
   std::unordered_map<UniqueId, ParticipantId, UniqueIdHasher> _id_from_name;
   std::unordered_map<ParticipantId, ParticipantDescription> _description;
-  std::shared_ptr<Database> _database; 
+  std::shared_ptr<Database> _database;
   std::unique_ptr<AbstractParticipantLogger> _logger;
   std::mutex _mutex;
   bool _reading_from_log = false;
@@ -159,7 +159,7 @@ ParticipantRegistry::ParticipantRegistry(
   std::unique_ptr<AbstractParticipantLogger> logger,
   std::shared_ptr<Database> database)
 : _pimpl(rmf_utils::make_unique_impl<Implementation>(
-  std::move(logger), database))
+      std::move(logger), database))
 {
   // Do nothing
 }

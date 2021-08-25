@@ -31,8 +31,8 @@ namespace agv {
 /// \warning This will throw a std::runtime_error if the file has a syntax
 /// error.
 rmf_traffic::agv::Graph parse_graph(
-    const std::string& filename,
-    const rmf_traffic::agv::VehicleTraits& vehicle_traits);
+  const std::string& filename,
+  const rmf_traffic::agv::VehicleTraits& vehicle_traits);
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

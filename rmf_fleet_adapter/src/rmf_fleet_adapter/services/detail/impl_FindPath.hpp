@@ -28,8 +28,8 @@ template<typename Subscriber>
 void FindPath::operator()(const Subscriber& s)
 {
   _search_sub = rmf_rxcpp::make_job<jobs::SearchForPath::Result>(_search_job)
-      .observe_on(rxcpp::observe_on_event_loop())
-      .subscribe(
+    .observe_on(rxcpp::observe_on_event_loop())
+    .subscribe(
     [s](const jobs::SearchForPath::Result& result)
     {
       // The first time we get a result back, it will be when the jobs is
@@ -47,7 +47,7 @@ void FindPath::operator()(const Subscriber& s)
       else
       {
         s.on_error(std::make_exception_ptr(
-                std::runtime_error("[FindPath] Unable to find path")));
+          std::runtime_error("[FindPath] Unable to find path")));
       }
     },
     [s](std::exception_ptr e)

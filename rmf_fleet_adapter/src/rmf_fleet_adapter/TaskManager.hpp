@@ -25,6 +25,9 @@
 
 #include <rmf_task/agv/TaskPlanner.hpp>
 
+#include <rmf_fleet_msgs/msg/robot_mode.hpp>
+#include <rmf_task_msgs/msg/task_summary.hpp>
+
 #include <mutex>
 
 namespace rmf_fleet_adapter {
@@ -45,9 +48,10 @@ public:
   using StartSet = rmf_traffic::agv::Plan::StartSet;
   using Assignment = rmf_task::agv::TaskPlanner::Assignment;
   using State = rmf_task::agv::State;
-
-  /// Add a task to the queue of this manager.
-  void queue_task(std::shared_ptr<Task> task, Start expected_finish);
+  using RobotModeMsg = rmf_fleet_msgs::msg::RobotMode;
+  using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
+  using TaskProfiles = std::unordered_map<std::string, TaskProfileMsg>;
+  using TaskSummaryMsg = rmf_task_msgs::msg::TaskSummary;
 
   /// The location where we expect this robot to be at the end of its current
   /// task queue.
@@ -61,7 +65,9 @@ public:
 
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
-  void set_queue(const std::vector<Assignment>& assignments);
+  void set_queue(
+    const std::vector<Assignment>& assignments,
+    const TaskProfiles& task_profiles = {});
 
   /// Get the non-charging requests among pending tasks
   const std::vector<rmf_task::ConstRequestPtr> requests() const;
@@ -73,9 +79,11 @@ public:
   /// when robot is idle and battery level drops below a retreat threshold.
   void retreat_to_charger();
 
-  /// Get the list of task ids for tasks that have started execution. 
+  /// Get the list of task ids for tasks that have started execution.
   /// The list will contain upto 100 latest task ids only.
-  const std::vector<std::string>& get_executed_tasks() const;  
+  const std::vector<std::string>& get_executed_tasks() const;
+
+  RobotModeMsg robot_mode() const;
 
 private:
 
@@ -114,6 +122,11 @@ private:
   /// The input task id will be inserted into the registry such that the max
   /// size of the registry is 100.
   void _register_executed_task(const std::string& id);
+
+  void _populate_task_summary(
+    std::shared_ptr<Task> task,
+    uint32_t task_summary_state,
+    TaskSummaryMsg& msg);
 };
 
 using TaskManagerPtr = std::shared_ptr<TaskManager>;

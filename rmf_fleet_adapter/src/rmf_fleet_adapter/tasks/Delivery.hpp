@@ -23,16 +23,19 @@
 
 #include <rmf_task/requests/Delivery.hpp>
 
+#include <rmf_task_msgs/msg/delivery.hpp>
+
 namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
 std::shared_ptr<Task> make_delivery(
-    const rmf_task::ConstRequestPtr request,
-    const agv::RobotContextPtr& context,
-    const rmf_traffic::agv::Plan::Start pickup_start,
-    const rmf_traffic::Time deployment_time,
-    const rmf_task::agv::State finish_state);
+  const rmf_task::ConstRequestPtr request,
+  const agv::RobotContextPtr& context,
+  const rmf_traffic::agv::Plan::Start pickup_start,
+  const rmf_traffic::Time deployment_time,
+  const rmf_task::agv::State finish_state,
+  const rmf_task_msgs::msg::Delivery delivery_profile);
 
 } // namespace tasks
 } // namespace rmf_fleet_adapter

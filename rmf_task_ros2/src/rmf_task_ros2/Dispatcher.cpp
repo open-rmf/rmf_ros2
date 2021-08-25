@@ -18,12 +18,14 @@
 #include <rmf_task_ros2/Dispatcher.hpp>
 
 #include <rclcpp/node.hpp>
+#include <rclcpp/executors/single_threaded_executor.hpp>
 
 #include "action/Client.hpp"
 
 #include <rmf_task_msgs/srv/submit_task.hpp>
 #include <rmf_task_msgs/srv/cancel_task.hpp>
 #include <rmf_task_msgs/srv/get_task_list.hpp>
+#include <rmf_task_msgs/msg/tasks.hpp>
 
 #include <rmf_traffic_ros2/Time.hpp>
 
@@ -40,19 +42,30 @@ public:
   using SubmitTaskSrv = rmf_task_msgs::srv::SubmitTask;
   using CancelTaskSrv = rmf_task_msgs::srv::CancelTask;
   using GetTaskListSrv = rmf_task_msgs::srv::GetTaskList;
+  using TasksMsg = rmf_task_msgs::msg::Tasks;
 
   rclcpp::Service<SubmitTaskSrv>::SharedPtr submit_task_srv;
   rclcpp::Service<CancelTaskSrv>::SharedPtr cancel_task_srv;
   rclcpp::Service<GetTaskListSrv>::SharedPtr get_task_list_srv;
 
+  using ActiveTasksPub = rclcpp::Publisher<TasksMsg>;
+  ActiveTasksPub::SharedPtr ongoing_tasks_pub;
+
+  rclcpp::TimerBase::SharedPtr timer;
+
   StatusCallback on_change_fn;
 
   std::queue<bidding::BidNotice> queue_bidding_tasks;
+
+  /// TODO: should rename "active" to "ongoing" to prevent confusion
+  /// of with task STATE_ACTIVE
   DispatchTasks active_dispatch_tasks;
   DispatchTasks terminal_dispatch_tasks;
+  std::set<std::string> user_submitted_tasks;  // ongoing submitted task_ids
   std::size_t task_counter = 0; // index for generating task_id
   double bidding_time_window;
   int terminated_tasks_max_size;
+  int publish_active_tasks_period;
 
   std::unordered_map<std::size_t, std::string> task_type_name =
   {
@@ -77,6 +90,20 @@ public:
     RCLCPP_INFO(node->get_logger(),
       " Declared Terminated Tasks Max Size Param as: %d",
       terminated_tasks_max_size);
+    publish_active_tasks_period =
+      node->declare_parameter<int>("publish_active_tasks_period", 2);
+    RCLCPP_INFO(node->get_logger(),
+      " Declared publish_active_tasks_period as: %f secs",
+      publish_active_tasks_period);
+
+    const auto qos = rclcpp::ServicesQoS().reliable();
+    ongoing_tasks_pub = node->create_publisher<TasksMsg>(
+      rmf_task_ros2::ActiveTasksTopicName, qos);
+
+    timer = node->create_wall_timer(
+      std::chrono::seconds(publish_active_tasks_period),
+      std::bind(
+        &Dispatcher::Implementation::publish_ongoing_tasks, this));
 
     // Setup up stream srv interfaces
     submit_task_srv = node->create_service<SubmitTaskSrv>(
@@ -153,7 +180,7 @@ public:
 
     if (!task_type_name.count(task_type))
     {
-      RCLCPP_ERROR(node->get_logger(), "TaskType: %d is invalid", task_type);
+      RCLCPP_ERROR(node->get_logger(), "TaskType: %ld is invalid", task_type);
       return std::nullopt;
     }
 
@@ -169,6 +196,7 @@ public:
     status.task_profile = submitted_task;
     auto new_task_status = std::make_shared<TaskStatus>(status);
     active_dispatch_tasks[submitted_task.task_id] = new_task_status;
+    user_submitted_tasks.insert(submitted_task.task_id);
 
     if (on_change_fn)
       on_change_fn(new_task_status);
@@ -211,11 +239,11 @@ public:
       return true;
     }
 
-    // Charging task doesnt support cancel task
-    if (cancel_task_status->task_profile.description.task_type.type ==
-      rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY)
+    // only user submitted task is cancelable
+    if (user_submitted_tasks.find(task_id) == user_submitted_tasks.end())
     {
-      RCLCPP_ERROR(node->get_logger(), "Charging task is not cancelled-able");
+      RCLCPP_ERROR(node->get_logger(),
+        "only user submitted task is cancelable");
       return false;
     }
 
@@ -228,21 +256,22 @@ public:
       return false;
     }
 
-    // Remove previous self-generated charging task from "active_dispatch_tasks"
-    // this is to prevent duplicated charging task (as certain queued charging
-    // tasks are not terminated when task is reassigned).
+    // Remove non-user submitted task from "active_dispatch_tasks"
+    // this is to prevent duplicated task during reassignation
     // TODO: a better way to impl this
     for (auto it = active_dispatch_tasks.begin();
       it != active_dispatch_tasks.end(); )
     {
-      const auto type = it->second->task_profile.description.task_type.type;
       const bool is_fleet_name =
         (cancel_task_status->fleet_name == it->second->fleet_name);
-      const bool is_charging_task =
-        (type == rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY);
+      const bool is_self_gererated =
+        (user_submitted_tasks.find(it->first) == user_submitted_tasks.end());
 
-      if (is_charging_task && is_fleet_name)
-        it = active_dispatch_tasks.erase(it);
+      if (is_self_gererated && is_fleet_name)
+      {
+        it->second->state = TaskStatus::State::Canceled;
+        terminate_task((it++)->second);
+      }
       else
         ++it;
     }
@@ -301,20 +330,21 @@ public:
       " is accepted by fleet adapter [%s]",
       task_id.c_str(), winner->fleet_name.c_str());
 
-    // Remove previous self-generated charging task from "active_dispatch_tasks"
-    // this is to prevent duplicated charging task (as certain queued charging
-    // tasks are not terminated when task is reassigned).
+    // Remove non-user submitted charging task from "active_dispatch_tasks"
+    // this is to prevent duplicated task during reassignation.
     // TODO: a better way to impl this
     for (auto it = active_dispatch_tasks.begin();
       it != active_dispatch_tasks.end(); )
     {
-      const auto type = it->second->task_profile.description.task_type.type;
       const bool is_fleet_name = (winner->fleet_name == it->second->fleet_name);
-      const bool is_charging_task =
-        (type == rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY);
+      const bool is_self_gererated =
+        (user_submitted_tasks.find(it->first) == user_submitted_tasks.end());
 
-      if (is_charging_task && is_fleet_name)
-        it = active_dispatch_tasks.erase(it);
+      if (is_self_gererated && is_fleet_name)
+      {
+        it->second->state = TaskStatus::State::Canceled;
+        terminate_task((it++)->second);
+      }
       else
         ++it;
     }
@@ -329,6 +359,7 @@ public:
   void terminate_task(const TaskStatusPtr terminate_status)
   {
     assert(terminate_status->is_terminated());
+    publish_ongoing_tasks();
 
     // prevent terminal_dispatch_tasks from piling up meaning
     if (terminal_dispatch_tasks.size() >= terminated_tasks_max_size)
@@ -344,7 +375,7 @@ public:
         if (rmf_traffic_ros2::convert(t1) < rmf_traffic_ros2::convert(t2))
           rm_task = it;
       }
-      terminal_dispatch_tasks.erase(terminal_dispatch_tasks.begin() );
+      terminal_dispatch_tasks.erase(rm_task);
     }
 
     const auto id = terminate_status->task_profile.task_id;
@@ -352,6 +383,7 @@ public:
     // destroy prev status ptr and recreate one
     auto status = std::make_shared<TaskStatus>(*terminate_status);
     (terminal_dispatch_tasks)[id] = status;
+    user_submitted_tasks.erase(id);
     active_dispatch_tasks.erase(id);
   }
 
@@ -381,6 +413,17 @@ public:
 
     if (on_change_fn)
       on_change_fn(status);
+  }
+
+  void publish_ongoing_tasks()
+  {
+    TasksMsg task_msgs;
+    for (auto task : (this->active_dispatch_tasks))
+    {
+      task_msgs.tasks.push_back(
+        rmf_task_ros2::convert_status(*(task.second)));
+    }
+    ongoing_tasks_pub->publish(task_msgs);
   }
 };
 
@@ -466,7 +509,11 @@ std::shared_ptr<rclcpp::Node> Dispatcher::node()
 //==============================================================================
 void Dispatcher::spin()
 {
-  rclcpp::spin(_pimpl->node);
+  rclcpp::ExecutorOptions options;
+  options.context = _pimpl->node->get_node_options().context();
+  rclcpp::executors::SingleThreadedExecutor executor(options);
+  executor.add_node(_pimpl->node);
+  executor.spin();
 }
 
 //==============================================================================

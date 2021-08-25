@@ -1,6 +1,6 @@
 ## Changelog for package rmf_fleet_adapter
 
-1.3.0 (2021-XX-XX)
+1.3.0 (2021-06-07)
 ------------------
 * Add API for opening and closing lanes: [#15](https://github.com/open-rmf/rmf_ros2/pull/15)
     * Added `open_lanes` and `close_lanes` CLI tools for issuing requests

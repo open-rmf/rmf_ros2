@@ -35,7 +35,7 @@
 #include <rmf_task/requests/Loop.hpp>
 
 #include <rmf_task_msgs/msg/clean.hpp>
-#include <rmf_task_msgs/msg/delivery.hpp> 
+#include <rmf_task_msgs/msg/delivery.hpp>
 #include <rmf_task_msgs/msg/loop.hpp>
 
 #include <sstream>
@@ -53,8 +53,8 @@ class LiaisonNegotiator : public rmf_traffic::schedule::Negotiator
 public:
 
   LiaisonNegotiator(
-      std::shared_ptr<rmf_traffic::schedule::Negotiator> negotiator)
-    : w_negotiator(negotiator)
+    std::shared_ptr<rmf_traffic::schedule::Negotiator> negotiator)
+  : w_negotiator(negotiator)
   {
     // Do nothing
   }
@@ -62,8 +62,8 @@ public:
   std::weak_ptr<rmf_traffic::schedule::Negotiator> w_negotiator;
 
   void respond(
-      const TableViewerPtr& table_viewer,
-      const ResponderPtr& responder) final
+    const TableViewerPtr& table_viewer,
+    const ResponderPtr& responder) final
   {
     const auto negotiator = w_negotiator.lock();
     if (!negotiator)
@@ -124,7 +124,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
   // TODO remove this block when we support task revival
   if (bid_notice_assignments.find(msg->task_profile.task_id)
-      != bid_notice_assignments.end())
+    != bid_notice_assignments.end())
     return;
 
   if (!accept_task)
@@ -146,7 +146,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       name.c_str(),
       msg->task_profile.task_id.c_str());
 
-      return;
+    return;
   }
 
   if (!task_planner)
@@ -164,7 +164,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   rmf_task::ConstRequestPtr new_request = nullptr;
   const auto& task_profile = msg->task_profile;
   const auto& task_type = task_profile.description.task_type;
-  const rmf_traffic::Time start_time = 
+  const rmf_traffic::Time start_time =
     rmf_traffic_ros2::convert(task_profile.description.start_time);
   // TODO (YV) get rid of ID field in RequestPtr
   std::string id = msg->task_profile.task_id;
@@ -185,13 +185,13 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       RCLCPP_ERROR(
         node->get_logger(),
         "Required param [clean.start_waypoint] missing in TaskProfile."
-        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+        "Rejecting BidNotice with task_id:[%s]", id.c_str());
 
       return;
     }
 
     // Check for valid start waypoint
-    const std::string start_wp_name = 
+    const std::string start_wp_name =
       task_profile.description.clean.start_waypoint;
     const auto start_wp = graph.find_waypoint(start_wp_name);
     if (!start_wp)
@@ -202,7 +202,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         "nav graph. Rejecting BidNotice with task_id:[%s]",
         name.c_str(), start_wp_name.c_str(), id.c_str());
 
-        return;
+      return;
     }
 
     // Get dock parameters
@@ -229,26 +229,26 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         "nav graph. Rejecting BidNotice with task_id:[%s]",
         name.c_str(), finish_wp_name.c_str(), id.c_str());
 
-        return;
+      return;
     }
 
     // Interpolate docking waypoint into trajectory
-    std::vector<Eigen::Vector3d>  positions;
+    std::vector<Eigen::Vector3d> positions;
     for (const auto& location: clean_param.path)
       positions.push_back({location.x, location.y, location.yaw});
     rmf_traffic::Trajectory cleaning_trajectory =
       rmf_traffic::agv::Interpolate::positions(
-        (*planner)->get_configuration().vehicle_traits(),
-        start_time,
-        positions);
-    
+      (*planner)->get_configuration().vehicle_traits(),
+      start_time,
+      positions);
+
     if (cleaning_trajectory.size() == 0)
     {
       RCLCPP_INFO(
         node->get_logger(),
         "Unable to generate cleaning trajectory from positions specified "
         " in DockSummary msg for [%s]", start_wp_name.c_str());
-      
+
       return;
     }
 
@@ -273,7 +273,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       RCLCPP_ERROR(
         node->get_logger(),
         "Required param [delivery.pickup_place_name] missing in TaskProfile."
-        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+        "Rejecting BidNotice with task_id:[%s]", id.c_str());
 
       return;
     }
@@ -283,7 +283,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       RCLCPP_ERROR(
         node->get_logger(),
         "Required param [delivery.pickup_dispenser] missing in TaskProfile."
-        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+        "Rejecting BidNotice with task_id:[%s]", id.c_str());
 
       return;
     }
@@ -293,7 +293,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       RCLCPP_ERROR(
         node->get_logger(),
         "Required param [delivery.dropoff_place_name] missing in TaskProfile."
-        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+        "Rejecting BidNotice with task_id:[%s]", id.c_str());
 
       return;
     }
@@ -303,7 +303,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       RCLCPP_ERROR(
         node->get_logger(),
         "Required param [delivery.dropoff_place_name] missing in TaskProfile."
-        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+        "Rejecting BidNotice with task_id:[%s]", id.c_str());
 
       return;
     }
@@ -313,7 +313,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       RCLCPP_ERROR(
         node->get_logger(),
         "Required param [delivery.dropoff_ingestor] missing in TaskProfile."
-        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+        "Rejecting BidNotice with task_id:[%s]", id.c_str());
 
       return;
     }
@@ -327,7 +327,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         "nav graph. Rejecting BidNotice with task_id:[%s]",
         name.c_str(), delivery.pickup_place_name.c_str(), id.c_str());
 
-        return;
+      return;
     }
 
     const auto dropoff_wp = graph.find_waypoint(delivery.dropoff_place_name);
@@ -339,15 +339,17 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         "nav graph. Rejecting BidNotice with task_id:[%s]",
         name.c_str(), delivery.dropoff_place_name.c_str(), id.c_str());
 
-        return;
+      return;
     }
 
+    // TODO: We set the waiting duration at the pickup and dropoff locations to
+    // 0s as the cycle time of the dispensers and ingestors are not available.
+    // We should implement a means to lookup these values for each system.
     new_request = rmf_task::requests::Delivery::make(
       pickup_wp->index(),
-      delivery.pickup_dispenser,
+      rmf_traffic::time::from_seconds(0),
       dropoff_wp->index(),
-      delivery.dropoff_ingestor,
-      delivery.items,
+      rmf_traffic::time::from_seconds(0),
       id,
       start_time,
       priority);
@@ -365,7 +367,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       RCLCPP_ERROR(
         node->get_logger(),
         "Required param [loop.start_name] missing in TaskProfile."
-        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+        "Rejecting BidNotice with task_id:[%s]", id.c_str());
 
       return;
     }
@@ -375,7 +377,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       RCLCPP_ERROR(
         node->get_logger(),
         "Required param [loop.finish_name] missing in TaskProfile."
-        "Rejecting BidNotice with task_id:[%s]" , id.c_str());
+        "Rejecting BidNotice with task_id:[%s]", id.c_str());
 
       return;
     }
@@ -385,7 +387,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       RCLCPP_ERROR(
         node->get_logger(),
         "Required param [loop.num_loops: %d] in TaskProfile is invalid."
-        "Rejecting BidNotice with task_id:[%s]" , loop.num_loops, id.c_str());
+        "Rejecting BidNotice with task_id:[%s]", loop.num_loops, id.c_str());
 
       return;
     }
@@ -399,7 +401,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         "nav graph. Rejecting BidNotice with task_id:[%s]",
         name.c_str(), loop.start_name.c_str(), id.c_str());
 
-        return;
+      return;
     }
 
     const auto finish_wp = graph.find_waypoint(loop.finish_name);
@@ -411,7 +413,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         "nav graph. Rejecting BidNotice with task_id:[%s]",
         name.c_str(), loop.finish_name.c_str(), id.c_str());
 
-        return;
+      return;
     }
 
     new_request = rmf_task::requests::Loop::make(
@@ -436,16 +438,17 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
     return;
   }
-  
+
   if (!new_request)
     return;
   generated_requests.insert({id, new_request});
+  task_profile_map.insert({id, task_profile});
 
   const auto allocation_result = allocate_tasks(new_request);
 
   if (!allocation_result.has_value())
     return;
-  
+
   const auto& assignments = allocation_result.value();
 
   const double cost = task_planner->compute_cost(assignments);
@@ -459,14 +462,16 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     for (const auto& a : assignments[i])
     {
       const auto& s = a.state();
-      const double request_seconds = a.request()->earliest_start_time().time_since_epoch().count()/1e9;
-      const double start_seconds = a.deployment_time().time_since_epoch().count()/1e9;
+      const double request_seconds =
+        a.request()->earliest_start_time().time_since_epoch().count()/1e9;
+      const double start_seconds =
+        a.deployment_time().time_since_epoch().count()/1e9;
       const rmf_traffic::Time finish_time = s.finish_time();
       const double finish_seconds = finish_time.time_since_epoch().count()/1e9;
       debug_stream << "    <" << a.request()->id() << ": " << request_seconds
-                << ", " << start_seconds 
-                << ", "<< finish_seconds << ", " << 100* s.battery_soc() 
-                << "%>" << std::endl;
+                   << ", " << start_seconds
+                   << ", "<< finish_seconds << ", " << 100* s.battery_soc()
+                   << "%>" << std::endl;
     }
   }
   debug_stream << " ----------------------" << std::endl;
@@ -479,7 +484,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   bid_proposal.task_profile = task_profile;
   bid_proposal.prev_cost = current_assignment_cost;
   bid_proposal.new_cost = cost;
-  
+
   // Map robot index to name to populate robot_name in BidProposal
   std::unordered_map<std::size_t, std::string> robot_name_map;
   std::size_t index = 0;
@@ -497,7 +502,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       if (assignment.request()->id() == id)
       {
         bid_proposal.finish_time = rmf_traffic_ros2::convert(
-            assignment.state().finish_time());
+          assignment.state().finish_time());
         if (robot_name_map.find(index) != robot_name_map.end())
           bid_proposal.robot_name = robot_name_map[index];
         break;
@@ -537,7 +542,8 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
       RCLCPP_WARN(
         node->get_logger(),
         "Received DispatchRequest for task_id:[%s] before receiving BidNotice. "
-        "This request will be ignored.");
+        "This request will be ignored.",
+        id.c_str());
       dispatch_ack_pub->publish(dispatch_ack);
       return;
     }
@@ -545,22 +551,24 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     RCLCPP_INFO(
       node->get_logger(),
       "Bid for task_id:[%s] awarded to fleet [%s]. Processing request...",
-      id.c_str(), name.c_str());
+      id.c_str(),
+      name.c_str());
 
     auto& assignments = task_it->second;
-    
+
     if (assignments.size() != task_managers.size())
     {
       RCLCPP_ERROR(
         node->get_logger(),
         "The number of available robots does not match that in the assignments "
-        "for task_id:[%s]. This request will be ignored.", id.c_str());
+        "for task_id:[%s]. This request will be ignored.",
+        id.c_str());
       dispatch_ack_pub->publish(dispatch_ack);
       return;
     }
 
     // Here we make sure none of the tasks in the assignments has already begun
-    // execution. If so, we replan assignments until a valid set is obtained 
+    // execution. If so, we replan assignments until a valid set is obtained
     // and only then update the task manager queues
     const auto request_it = generated_requests.find(id);
     if (request_it == generated_requests.end())
@@ -570,7 +578,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
         "Unable to find generated request for task_id:[%s]. This request will "
         "be ignored.",
         id.c_str());
-      dispatch_ack_pub->publish(dispatch_ack); 
+      dispatch_ack_pub->publish(dispatch_ack);
       return;
     }
 
@@ -600,7 +608,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     std::size_t index = 0;
     for (auto& t : task_managers)
     {
-      t.second->set_queue(assignments[index]);
+      t.second->set_queue(assignments[index], task_profile_map);
       ++index;
     }
 
@@ -608,7 +616,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     assigned_requests.insert({id, request_it->second});
     dispatch_ack.success = true;
     dispatch_ack_pub->publish(dispatch_ack);
-  
+
     RCLCPP_INFO(
       node->get_logger(),
       "Assignments updated for robots in fleet [%s] to accommodate task_id:[%s]",
@@ -666,12 +674,12 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
 
       dispatch_ack_pub->publish(dispatch_ack);
       return;
-    }  
+    }
 
     // Re-plan assignments while ignoring request for task to be cancelled
     const auto replan_results = allocate_tasks(
       nullptr, request_to_cancel_it->second);
-    
+
     if (!replan_results.has_value())
     {
       RCLCPP_WARN(
@@ -679,7 +687,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
         "Unable to re-plan assignments when cancelling task with task_id:[%s]",
         id.c_str());
 
-      dispatch_ack_pub->publish(dispatch_ack);  
+      dispatch_ack_pub->publish(dispatch_ack);
       return;
     }
 
@@ -687,7 +695,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     std::size_t index = 0;
     for (auto& t : task_managers)
     {
-      t.second->set_queue(assignments[index]);
+      t.second->set_queue(assignments[index], task_profile_map);
       ++index;
     }
 
@@ -696,7 +704,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     dispatch_ack.success = true;
     dispatch_ack_pub->publish(dispatch_ack);
     cancelled_task_ids.insert(id);
-  
+
     RCLCPP_INFO(
       node->get_logger(),
       "Task with task_id:[%s] has successfully been cancelled. Assignments "
@@ -740,7 +748,8 @@ auto FleetUpdateHandle::Implementation::is_valid_assignments(
 }
 
 //==============================================================================
-std::optional<std::size_t> FleetUpdateHandle::Implementation::get_nearest_charger(
+std::optional<std::size_t> FleetUpdateHandle::Implementation::
+get_nearest_charger(
   const rmf_traffic::agv::Planner::Start& start)
 {
   if (charging_waypoints.empty())
@@ -765,12 +774,12 @@ std::optional<std::size_t> FleetUpdateHandle::Implementation::get_nearest_charge
 
 //==============================================================================
 void FleetUpdateHandle::Implementation::fleet_state_publish_period(
-    std::optional<rmf_traffic::Duration> value)
+  std::optional<rmf_traffic::Duration> value)
 {
   if (value.has_value())
   {
     fleet_state_timer = node->create_wall_timer(
-          std::chrono::seconds(1), [this]() { this->publish_fleet_state(); });
+      std::chrono::seconds(1), [this]() { this->publish_fleet_state(); });
   }
   else
   {
@@ -784,58 +793,51 @@ rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
 {
   const RobotContext& context = *mgr.context();
 
-  // TODO(MXG): We could be smarter about what mode we report
-  auto mode = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotMode>()
-      .mode(mgr.current_task()?
-              rmf_fleet_msgs::msg::RobotMode::MODE_MOVING
-            : rmf_fleet_msgs::msg::RobotMode::MODE_IDLE)
-      // NOTE(MXG): This field is currently only used by the fleet drivers.
-      // For now, we will just fill it with a zero.
-      .mode_request_id(0);
+  const auto mode = mgr.robot_mode();
 
   auto location = [&]() -> rmf_fleet_msgs::msg::Location
-  {
-    if (context.location().empty())
     {
-      // TODO(MXG): We should emit some kind of critical error if this ever
-      // happens
-      return rmf_fleet_msgs::msg::Location();
-    }
+      if (context.location().empty())
+      {
+        // TODO(MXG): We should emit some kind of critical error if this ever
+        // happens
+        return rmf_fleet_msgs::msg::Location();
+      }
 
-    const auto& graph = context.planner()->get_configuration().graph();
-    const auto& l = context.location().front();
-    const auto& wp = graph.get_waypoint(l.waypoint());
-    const Eigen::Vector2d p = l.location().value_or(wp.get_location());
+      const auto& graph = context.planner()->get_configuration().graph();
+      const auto& l = context.location().front();
+      const auto& wp = graph.get_waypoint(l.waypoint());
+      const Eigen::Vector2d p = l.location().value_or(wp.get_location());
 
-    return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
-      .t(rmf_traffic_ros2::convert(l.time()))
-      .x(p.x())
-      .y(p.y())
-      .yaw(l.orientation())
-      .level_name(wp.get_map_name())
-      // NOTE(MXG): This field is only used by the fleet drivers. For now, we
-      // will just fill it with a zero.
-      .index(0);
-  }();
+      return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
+        .t(rmf_traffic_ros2::convert(l.time()))
+        .x(p.x())
+        .y(p.y())
+        .yaw(l.orientation())
+        .level_name(wp.get_map_name())
+        // NOTE(MXG): This field is only used by the fleet drivers. For now, we
+        // will just fill it with a zero.
+        .index(0);
+    } ();
 
 
   return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotState>()
-      .name(context.name())
-      .model(context.description().owner())
-      .task_id(mgr.current_task()? mgr.current_task()->id() : "")
-      // TODO(MXG): We could keep track of the seq value and increment it once
-      // with each publication. This is not currently an important feature
-      // outside of the fleet driver, so for now we just set it to zero.
-      .seq(0)
-      .mode(std::move(mode))
-      // We multiply by 100 to convert from the [0.0, 1.0] range to percentage
-      .battery_percent(context.current_battery_soc()*100.0)
-      .location(std::move(location))
-      // NOTE(MXG): The path field is only used by the fleet drivers. For now,
-      // we will just fill it with a zero. We could consider filling it in based
-      // on the robot's plan, but that seems redundant with the traffic schedule
-      // information.
-      .path({});
+    .name(context.name())
+    .model(context.description().owner())
+    .task_id(mgr.current_task() ? mgr.current_task()->id() : "")
+    // TODO(MXG): We could keep track of the seq value and increment it once
+    // with each publication. This is not currently an important feature
+    // outside of the fleet driver, so for now we just set it to zero.
+    .seq(0)
+    .mode(std::move(mode))
+    // We multiply by 100 to convert from the [0.0, 1.0] range to percentage
+    .battery_percent(context.current_battery_soc()*100.0)
+    .location(std::move(location))
+    // NOTE(MXG): The path field is only used by the fleet drivers. For now,
+    // we will just fill it with a zero. We could consider filling it in based
+    // on the robot's plan, but that seems redundant with the traffic schedule
+    // information.
+    .path({});
 }
 } // anonymous namespace
 
@@ -847,8 +849,8 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
     robot_states.emplace_back(convert_state(*mgr));
 
   auto fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
-      .name(name)
-      .robots(std::move(robot_states));
+    .name(name)
+    .robots(std::move(robot_states));
 
   fleet_state_pub->publish(std::move(fleet_state));
 }
@@ -858,7 +860,7 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   rmf_task::ConstRequestPtr new_request,
   rmf_task::ConstRequestPtr ignore_request) const -> std::optional<Assignments>
 {
-  // Collate robot states, constraints and combine new requestptr with 
+  // Collate robot states, constraints and combine new requestptr with
   // requestptr of non-charging tasks in task manager queues
   std::vector<rmf_task::agv::State> states;
   std::vector<rmf_task::ConstRequestPtr> pending_requests;
@@ -906,9 +908,10 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   }
 
   RCLCPP_INFO(
-    node->get_logger(), 
-    "Planning for [%d] robot(s) and [%d] request(s)", 
-    states.size(), pending_requests.size());
+    node->get_logger(),
+    "Planning for [%ld] robot(s) and [%ld] request(s)",
+    states.size(),
+    pending_requests.size());
 
   // Generate new task assignments
   const auto result = task_planner->optimal_plan(
@@ -972,102 +975,110 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
 
 //==============================================================================
 void FleetUpdateHandle::add_robot(
-    std::shared_ptr<RobotCommandHandle> command,
-    const std::string& name,
-    const rmf_traffic::Profile& profile,
-    rmf_traffic::agv::Plan::StartSet start,
-    std::function<void(std::shared_ptr<RobotUpdateHandle>)> handle_cb)
+  std::shared_ptr<RobotCommandHandle> command,
+  const std::string& name,
+  const rmf_traffic::Profile& profile,
+  rmf_traffic::agv::Plan::StartSet start,
+  std::function<void(std::shared_ptr<RobotUpdateHandle>)> handle_cb)
 {
-  
+
   if (start.empty())
   {
+    // *INDENT-OFF*
     throw std::runtime_error(
       "[FleetUpdateHandle::add_robot] StartSet is empty. Adding a robot to a "
       "fleet requires at least one rmf_traffic::agv::Plan::Start to be "
       "specified.");
+    // *INDENT-ON*
   }
 
   rmf_traffic::schedule::ParticipantDescription description(
-        name,
-        _pimpl->name,
-        rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
-        profile);
+    name,
+    _pimpl->name,
+    rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
+    profile);
 
   _pimpl->writer->async_make_participant(
-        std::move(description),
-        [worker = _pimpl->worker,
-         command = std::move(command),
-         start = std::move(start),
-         handle_cb = std::move(handle_cb),
-         fleet = shared_from_this()](
-        rmf_traffic::schedule::Participant participant)
-  {
-    const auto charger_wp = fleet->_pimpl->get_nearest_charger(start[0]);
-    
-    if (!charger_wp.has_value())
+    std::move(description),
+    [worker = _pimpl->worker,
+    command = std::move(command),
+    start = std::move(start),
+    handle_cb = std::move(handle_cb),
+    fleet = shared_from_this()](
+      rmf_traffic::schedule::Participant participant)
     {
-      throw std::runtime_error(
-        "[FleetUpdateHandle::add_robot] Unable to find nearest charging "
-        "waypoint. Adding a robot to a fleet requires at least one charging"
-        "waypoint to be present in its navigation graph.");
-    }
+      const auto charger_wp = fleet->_pimpl->get_nearest_charger(start[0]);
 
-    rmf_task::agv::State state = rmf_task::agv::State{
-      start[0], charger_wp.value(), 1.0};
-    auto context = std::make_shared<RobotContext>(
-          RobotContext{
-            std::move(command),
-            std::move(start),
-            std::move(participant),
-            fleet->_pimpl->snappable,
-            fleet->_pimpl->planner,
-            fleet->_pimpl->node,
-            fleet->_pimpl->worker,
-            fleet->_pimpl->default_maximum_delay,
-            state,
-            fleet->_pimpl->task_planner
-          });
-
-    // We schedule the following operations on the worker to make sure we do not
-    // have a multiple read/write race condition on the FleetUpdateHandle.
-    worker.schedule(
-          [context, fleet, node = fleet->_pimpl->node,
-           handle_cb = std::move(handle_cb)](const auto&)
-    {
-      // TODO(MXG): We need to perform this test because we do not currently
-      // support the distributed negotiation in unit test environments. We
-      // should create an abstract NegotiationRoom interface in rmf_traffic and
-      // use that instead.
-      if (fleet->_pimpl->negotiation)
+      if (!charger_wp.has_value())
       {
-        context->_negotiation_license =
+        // *INDENT-OFF*
+        throw std::runtime_error(
+          "[FleetUpdateHandle::add_robot] Unable to find nearest charging "
+          "waypoint. Adding a robot to a fleet requires at least one charging"
+          "waypoint to be present in its navigation graph.");
+        // *INDENT-ON*
+      }
+
+      rmf_task::agv::State state = rmf_task::agv::State{
+        start[0], charger_wp.value(), 1.0};
+      auto context = std::make_shared<RobotContext>(
+        RobotContext{
+          std::move(command),
+          std::move(start),
+          std::move(participant),
+          fleet->_pimpl->snappable,
+          fleet->_pimpl->planner,
+          fleet->_pimpl->node,
+          fleet->_pimpl->worker,
+          fleet->_pimpl->default_maximum_delay,
+          state,
+          fleet->_pimpl->task_planner
+        });
+
+      // We schedule the following operations on the worker to make sure we do not
+      // have a multiple read/write race condition on the FleetUpdateHandle.
+      worker.schedule(
+        [context, fleet, node = fleet->_pimpl->node,
+        handle_cb = std::move(handle_cb)](const auto&)
+        {
+          // TODO(MXG): We need to perform this test because we do not currently
+          // support the distributed negotiation in unit test environments. We
+          // should create an abstract NegotiationRoom interface in rmf_traffic and
+          // use that instead.
+          if (fleet->_pimpl->negotiation)
+          {
+            context->_negotiation_license =
             fleet->_pimpl->negotiation
             ->register_negotiator(
               context->itinerary().id(),
               std::make_unique<LiaisonNegotiator>(context));
-      }
+          }
 
-      RCLCPP_INFO(
-        node->get_logger(),
-        "Added a robot named [%s] with participant ID [%d]",
-        context->name().c_str(), context->itinerary().id());
+          RCLCPP_INFO(
+            node->get_logger(),
+            "Added a robot named [%s] with participant ID [%ld]",
+            context->name().c_str(),
+            context->itinerary().id());
 
-      fleet->_pimpl->task_managers.insert({context, TaskManager::make(context)});
-      if (handle_cb)
-      {
-        handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
-      }
-      else
-      {
-        RCLCPP_WARN(
-          node->get_logger(),
-          "FleetUpdateHandle::add_robot(~) was not provided a callback to "
-          "receive the RobotUpdateHandle of the new robot. This means you will "
-          "not be able to update the state of the new robot. This is likely to "
-          "be a fleet adapter development error.");
-      }
+          if (handle_cb)
+          {
+            handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
+          }
+          else
+          {
+            RCLCPP_WARN(
+              node->get_logger(),
+              "FleetUpdateHandle::add_robot(~) was not provided a callback to "
+              "receive the RobotUpdateHandle of the new robot. This means you will "
+              "not be able to update the state of the new robot. This is likely to "
+              "be a fleet adapter development error.");
+            return;
+          }
+
+          fleet->_pimpl->task_managers.insert({context,
+            TaskManager::make(context)});
+        });
     });
-  });
 }
 
 //==============================================================================
@@ -1081,7 +1092,7 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
         return;
 
       const auto& current_lane_closures =
-        (*self->_pimpl->planner)->get_configuration().lane_closures();
+      (*self->_pimpl->planner)->get_configuration().lane_closures();
 
       bool any_changes = false;
       for (const auto& lane : lane_indices)
@@ -1105,8 +1116,8 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
         new_lane_closures.close(lane);
 
       *self->_pimpl->planner =
-        std::make_shared<const rmf_traffic::agv::Planner>(
-          new_config, rmf_traffic::agv::Planner::Options(nullptr));
+      std::make_shared<const rmf_traffic::agv::Planner>(
+        new_config, rmf_traffic::agv::Planner::Options(nullptr));
     });
 }
 
@@ -1121,7 +1132,7 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
         return;
 
       const auto& current_lane_closures =
-        (*self->_pimpl->planner)->get_configuration().lane_closures();
+      (*self->_pimpl->planner)->get_configuration().lane_closures();
 
       bool any_changes = false;
       for (const auto& lane : lane_indices)
@@ -1145,14 +1156,14 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
         new_lane_closures.open(lane);
 
       *self->_pimpl->planner =
-        std::make_shared<const rmf_traffic::agv::Planner>(
-            new_config, rmf_traffic::agv::Planner::Options(nullptr));
+      std::make_shared<const rmf_traffic::agv::Planner>(
+        new_config, rmf_traffic::agv::Planner::Options(nullptr));
     });
 }
 
 //==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
-    AcceptTaskRequest check)
+  AcceptTaskRequest check)
 {
   _pimpl->accept_task = std::move(check);
   return *this;
@@ -1160,7 +1171,7 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
 
 //==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::accept_delivery_requests(
-    AcceptDeliveryRequest check)
+  AcceptDeliveryRequest check)
 {
   _pimpl->accept_delivery = std::move(check);
   return *this;
@@ -1168,14 +1179,14 @@ FleetUpdateHandle& FleetUpdateHandle::accept_delivery_requests(
 
 //==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::default_maximum_delay(
-    rmf_utils::optional<rmf_traffic::Duration> value)
+  std::optional<rmf_traffic::Duration> value)
 {
   _pimpl->default_maximum_delay = value;
   return *this;
 }
 
 //==============================================================================
-rmf_utils::optional<rmf_traffic::Duration>
+std::optional<rmf_traffic::Duration>
 FleetUpdateHandle::default_maximum_delay() const
 {
   return _pimpl->default_maximum_delay;
@@ -1183,21 +1194,35 @@ FleetUpdateHandle::default_maximum_delay() const
 
 //==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::fleet_state_publish_period(
-    std::optional<rmf_traffic::Duration> value)
+  std::optional<rmf_traffic::Duration> value)
 {
-  _pimpl->fleet_state_publish_period(value);
+  if (value.has_value())
+  {
+    _pimpl->fleet_state_timer = _pimpl->node->try_create_wall_timer(
+      value.value(),
+      [me = weak_from_this()]()
+      {
+        if (const auto self = me.lock())
+          self->_pimpl->publish_fleet_state();
+      });
+  }
+  else
+  {
+    _pimpl->fleet_state_timer = nullptr;
+  }
+
   return *this;
 }
 
 //==============================================================================
 bool FleetUpdateHandle::set_task_planner_params(
-    std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
-    std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
-    std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
-    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
-    double recharge_threshold,
-    double recharge_soc,
-    bool account_for_battery_drain)
+  std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
+  std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
+  std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
+  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+  double recharge_threshold,
+  double recharge_soc,
+  bool account_for_battery_drain)
 {
   if (battery_system &&
     motion_sink &&
@@ -1226,14 +1251,14 @@ bool FleetUpdateHandle::set_task_planner_params(
     // Here we update the task planner in all the RobotContexts.
     // The TaskManagers rely on the parameters in the task planner for
     // automatic retreat. Hence, we also update them whenever the
-    // task planner here is updated. 
+    // task planner here is updated.
     for (const auto& t : _pimpl->task_managers)
       t.first->task_planner(_pimpl->task_planner);
 
     return true;
   }
 
-    return false;
+  return false;
 }
 
 //==============================================================================

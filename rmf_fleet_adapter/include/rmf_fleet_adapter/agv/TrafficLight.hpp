@@ -85,7 +85,7 @@ public:
     /// this fleet. Passing in std::nullopt will disable the fleet state message
     /// publishing. The default value is 1s.
     UpdateHandle& fleet_state_publish_period(
-        std::optional<rmf_traffic::Duration> value);
+      std::optional<rmf_traffic::Duration> value);
 
     class Implementation;
   private:
@@ -121,8 +121,8 @@ public:
     /// Provide the last waypoint that was departed from, and the current
     /// location of the robot once
     using Reject = std::function<void(
-        std::size_t last_departed,
-        Eigen::Vector3d stopped_location)>;
+          std::size_t last_departed,
+          Eigen::Vector3d stopped_location)>;
 
     /// The Checkpoint struct contains information about when the robot may
     /// depart from a Waypoint that was passed into
@@ -188,11 +188,11 @@ public:
     ///   Before triggering any of these newly received callbacks, first
     ///   determine whether this new plan can be obeyed.
     virtual void receive_checkpoints(
-        std::size_t version,
-        std::vector<Checkpoint> checkpoints,
-        std::size_t standby_at,
-        OnStandby on_standby,
-        Reject reject) = 0;
+      std::size_t version,
+      std::vector<Checkpoint> checkpoints,
+      std::size_t standby_at,
+      OnStandby on_standby,
+      Reject reject) = 0;
 
     /// Immediately stop until the specified time.
     ///
@@ -220,10 +220,10 @@ public:
     /// \param[in] departed
     ///   Trigger this callback when the robot departs from this stop.
     virtual void immediately_stop_until(
-        std::size_t version,
-        rclcpp::Time time,
-        StoppedAt stopped_at,
-        Departed departed) = 0;
+      std::size_t version,
+      rclcpp::Time time,
+      StoppedAt stopped_at,
+      Departed departed) = 0;
 
     /// Resume travel, even if immediately_stop_until(~) was activated and the
     /// given time has not been reached yet.

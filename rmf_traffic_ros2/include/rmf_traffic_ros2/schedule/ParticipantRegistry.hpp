@@ -26,12 +26,12 @@
 #include <yaml-cpp/yaml.h>
 #include <unordered_map>
 
-namespace rmf_traffic_ros2 { 
+namespace rmf_traffic_ros2 {
 namespace schedule {
 
-using Database = rmf_traffic::schedule::Database; 
+using Database = rmf_traffic::schedule::Database;
 using ParticipantId = rmf_traffic::schedule::ParticipantId;
-using ParticipantDescription = rmf_traffic::schedule::ParticipantDescription;  
+using ParticipantDescription = rmf_traffic::schedule::ParticipantDescription;
 
 //=============================================================================
 /// This records a single operation on the database class
@@ -76,12 +76,12 @@ public:
   /// \throws YAML::BadFile if there are problems with reading the file.
   ///
   /// \throws std::filesystem_error if there is no permission to create the
-  /// directory. 
+  /// directory.
   YamlLogger(std::string filename);
 
-  /// See AbstractParticipantLogger 
+  /// See AbstractParticipantLogger
   void write_operation(AtomicOperation operation) override;
-  
+
   /// See AbstractParticipantLogger
   /// \throws std::runtime_error if there was an error in the logfile.
   std::optional<AtomicOperation> read_next_record() override;
@@ -92,10 +92,10 @@ private:
 };
 
 //=============================================================================
-/// Adds a persistance layer to the participant ids. This allows the scheduler 
-/// to restart without the need to restart fleet adapters. 
-/// Internally, this class implements a an append only journal. This makes it 
-/// independent of any id generation inside the database, as long as the said 
+/// Adds a persistance layer to the participant ids. This allows the scheduler
+/// to restart without the need to restart fleet adapters.
+/// Internally, this class implements a an append only journal. This makes it
+/// independent of any id generation inside the database, as long as the said
 /// database id generation algorithm is deterministic.
 class ParticipantRegistry
 {
@@ -115,12 +115,12 @@ public:
 
   /// Adds a participant or retrieves its ID if it was already added in the past
   ///
-  /// \param[in] description 
+  /// \param[in] description
   ///   The description of the participant that one wishes to register.
   ///
   /// \returns ParticipantId of the participant
   Registration add_or_retrieve_participant(ParticipantDescription description);
-  
+
   class Implementation;
 private:
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;

@@ -112,16 +112,18 @@ public:
 
   using PendingPhases = std::vector<std::unique_ptr<PendingPhase>>;
   using CompletedPhases = std::vector<PhaseMsg>;
+  using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
+
 
   // Make a new task
   static std::shared_ptr<Task> make(
-      std::string id,
-      PendingPhases phases,
-      rxcpp::schedulers::worker worker,
-      rmf_traffic::Time deployment_time,
-      rmf_task::agv::State finish_state,
-      rmf_task::ConstRequestPtr request,
-      CompletedPhases completed_phases = {});
+    std::string id,
+    PendingPhases phases,
+    rxcpp::schedulers::worker worker,
+    rmf_traffic::Time deployment_time,
+    rmf_task::agv::State finish_state,
+    rmf_task::ConstRequestPtr request,
+    CompletedPhases completed_phases = {});
 
   void begin();
 
@@ -155,16 +157,22 @@ public:
   /// TODO: better design on this?
   const CompletedPhases completed_phases() const;
 
+  /// Set the TaskProfile of this task
+  void task_profile(TaskProfileMsg profile);
+
+  /// Get the TaskProfile of this task
+  const TaskProfileMsg& task_profile() const;
+
 private:
 
   Task(
-      std::string id,
-      PendingPhases phases,
-      rxcpp::schedulers::worker worker,
-      rmf_traffic::Time deployment_time,
-      rmf_task::agv::State finish_state,
-      rmf_task::ConstRequestPtr request,
-      CompletedPhases completed_phases);
+    std::string id,
+    PendingPhases phases,
+    rxcpp::schedulers::worker worker,
+    rmf_traffic::Time deployment_time,
+    rmf_task::agv::State finish_state,
+    rmf_task::ConstRequestPtr request,
+    CompletedPhases completed_phases);
 
   std::string _id;
 
@@ -172,13 +180,13 @@ private:
   // pop_back() to snatch the next phase.
   std::vector<std::unique_ptr<PendingPhase>> _pending_phases;
 
-  // TODO Hackjob: this is the pending phase of the active phase
-  std::unique_ptr<PendingPhase> _active_pending_phase;
   std::shared_ptr<ActivePhase> _active_phase;
+  // TODO: this is a const duration, should make this as a member function of ActivePhase
+  rmf_traffic::Duration _active_phase_estimate_duration;
 
   // TODO: not sure whether should we keep a cache of completed phases
   CompletedPhases _completed_phases;
-  std::vector<std::string> _debug_completed;
+  std::vector<std::string> _debug_completed;  // TODO remove this
 
   rxcpp::schedulers::worker _worker;
 
@@ -191,9 +199,11 @@ private:
 
   rmf_traffic::Time _deployment_time;
   rmf_traffic::Time _current_phase_start_time;
-  int _debug = 0;
+  int _debug = 0; // TODO remove this
   rmf_task::agv::State _finish_state;
   rmf_task::ConstRequestPtr _request;
+
+  TaskProfileMsg _profile;
 
   void _start_next_phase();
   
