@@ -109,7 +109,8 @@ private:
                         continue;
                     }
                     if (clock_type::now() < peek.when) {
-                        keepAlive->wake.wait_until(guard, peek.when);
+                        auto when = peek.when;
+                        keepAlive->wake.wait_until(guard, when);
                         continue;
                     }
                     auto what = peek.what;

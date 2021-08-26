@@ -342,12 +342,14 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       return;
     }
 
+    // TODO: We set the waiting duration at the pickup and dropoff locations to
+    // 0s as the cycle time of the dispensers and ingestors are not available.
+    // We should implement a means to lookup these values for each system.
     new_request = rmf_task::requests::Delivery::make(
       pickup_wp->index(),
-      delivery.pickup_dispenser,
+      rmf_traffic::time::from_seconds(0),
       dropoff_wp->index(),
-      delivery.dropoff_ingestor,
-      delivery.items,
+      rmf_traffic::time::from_seconds(0),
       id,
       start_time,
       priority);

@@ -484,11 +484,11 @@ void ScheduleNode::start_heartbeat()
     heartbeat_qos_profile);
   RCLCPP_INFO(
     get_logger(),
-    "Set up heartbeat on %s with liveliness lease duration of %d ms "
-    "and deadline of %d ms",
+    "Set up heartbeat on %s with liveliness lease duration of %ld ms "
+    "and deadline of %ld ms",
     heartbeat_pub->get_topic_name(),
-    heartbeat_period,
-    heartbeat_period);
+    heartbeat_period.count(),
+    heartbeat_period.count());
 }
 
 //==============================================================================
@@ -500,7 +500,7 @@ void ScheduleNode::make_mirror_update_topics(const QueryMap& queries)
   for (const auto& [query_id, query] : queries)
   {
     register_query(query_id, query);
-    RCLCPP_INFO(get_logger(), "Registering query ID %d", query_id);
+    RCLCPP_INFO(get_logger(), "Registering query ID %ld", query_id);
   }
 }
 

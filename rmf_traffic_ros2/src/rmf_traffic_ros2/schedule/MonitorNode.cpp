@@ -162,7 +162,7 @@ void MonitorNode::start_data_synchronisers()
     {
       RCLCPP_INFO(
         get_logger(),
-        "Handling new sync of %d queries from primary node",
+        "Handling new sync of %ld queries from primary node",
         msg->queries.size());
       // Delete past sync'd data
       registered_queries.clear();
