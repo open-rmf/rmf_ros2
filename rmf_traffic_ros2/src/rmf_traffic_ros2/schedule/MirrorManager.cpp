@@ -65,6 +65,12 @@ using ScheduleQueries = rmf_traffic_msgs::msg::ScheduleQueries;
 using FailOverEvent = rmf_traffic_msgs::msg::FailOverEvent;
 using FailOverEventSub = rclcpp::Subscription<FailOverEvent>::SharedPtr;
 
+namespace {
+bool is_new_version(const uint64_t expected_version, const uint64_t msg_version)
+{
+  return rmf_utils::modular(expected_version).less_than(msg_version);
+}
+}
 
 //==============================================================================
 class MirrorManager::Implementation
@@ -126,8 +132,10 @@ public:
       rclcpp::SystemDefaultsQoS().reliable().keep_last(100).transient_local(),
       [=](const ScheduleQueries::SharedPtr msg)
       {
-        if (rmf_utils::modular(msg->node_version)
-            .less_than(expected_node_version))
+        const bool is_old_version = rmf_utils::modular(
+          msg->node_version).less_than(expected_node_version);
+
+        if (is_old_version)
         {
           // This is an outdated schedule node version, so we will ignore it
           return;
@@ -436,9 +444,7 @@ public:
         [this](const RegisterQueryFuture response)
         {
           const auto msg = response.get();
-          if (rmf_utils::modular(
-                this->expected_node_version)
-              .less_than(msg->node_version))
+          if (is_new_version(this->expected_node_version, msg->node_version))
           {
             this->expected_node_version = msg->node_version;
           }
@@ -480,8 +486,7 @@ public:
     //
     // While true, all query updates received will be stashed in a list, and
     // will be popped in FIFO order and processed when this is reset to false.
-    if (rmf_utils::modular(expected_node_version)
-        .less_than(new_schedule_node_version))
+    if (is_new_version(expected_node_version, new_schedule_node_version))
     {
       require_query_validation = true;
       // The new schedule node will be one version higher

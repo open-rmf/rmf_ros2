@@ -222,8 +222,8 @@ void ScheduleNode::setup_query_services()
   // frequency of cleanups can be customized.
   query_cleanup_timer =
     create_wall_timer(
-      query_cleanup_period,
-      [this]() { this->cleanup_queries(); });
+    query_cleanup_period,
+    [this]() { this->cleanup_queries(); });
 }
 
 //==============================================================================
@@ -578,8 +578,8 @@ void ScheduleNode::register_query(
 {
   MirrorUpdateTopicPublisher update_publisher =
     create_publisher<MirrorUpdate>(
-      rmf_traffic_ros2::QueryUpdateTopicNameBase + std::to_string(query_id),
-      rclcpp::SystemDefaultsQoS());
+    rmf_traffic_ros2::QueryUpdateTopicNameBase + std::to_string(query_id),
+    rclcpp::SystemDefaultsQoS());
 
   registered_queries.emplace(
     query_id,
