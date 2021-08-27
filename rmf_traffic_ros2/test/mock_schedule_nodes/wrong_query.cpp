@@ -30,7 +30,7 @@ class WrongQueryScheduleNode : public rmf_traffic_ros2::schedule::ScheduleNode
 {
 public:
   WrongQueryScheduleNode(const rclcpp::NodeOptions& options)
-    : ScheduleNode(options, ScheduleNode::no_automatic_setup)
+    : ScheduleNode(0, options, ScheduleNode::no_automatic_setup)
   {
   }
 
@@ -43,14 +43,6 @@ public:
       const RegisterQuery::Request::SharedPtr request,
       const RegisterQuery::Response::SharedPtr response)
       { this->register_query(request_header, request, response); });
-
-    unregister_query_service =
-      create_service<UnregisterQuery>(
-      rmf_traffic_ros2::UnregisterQueryServiceName,
-      [=](const std::shared_ptr<rmw_request_id_t> request_header,
-      const UnregisterQuery::Request::SharedPtr request,
-      const UnregisterQuery::Response::SharedPtr response)
-      { this->unregister_query(request_header, request, response); });
   }
 
   void register_query(
@@ -63,7 +55,12 @@ public:
     // registered
     if (is_first_query)
     {
-      rmf_traffic::schedule::Query query = rmf_traffic::schedule::make_query({});
+      RCLCPP_WARN(
+        get_logger(),
+        "Fiddling with first query to cause a registered query mismatch");
+      rmf_traffic::schedule::Query query =
+        rmf_traffic::schedule::make_query({});
+
       auto region = rmf_traffic::Region{"L1", {}};
       const auto circle = rmf_traffic::geometry::Circle(1000);
       const auto final_circle =
@@ -73,7 +70,7 @@ public:
       query.spacetime().regions()->push_back(region);
 
       // Replace the stored query
-      registered_queries.insert_or_assign(response->query_id, query);
+      ScheduleNode::register_query(response->query_id, query);
 
       is_first_query = false;
     }
@@ -86,7 +83,7 @@ int main(int argc, char** argv)
 {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<WrongQueryScheduleNode>(rclcpp::NodeOptions());
-  node->setup(rmf_traffic_ros2::schedule::ScheduleNode::QuerySubscriberCountMap());
+  node->setup(rmf_traffic_ros2::schedule::ScheduleNode::QueryMap());
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;
