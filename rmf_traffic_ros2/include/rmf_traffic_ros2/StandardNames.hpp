@@ -37,7 +37,6 @@ const std::string RegisterParticipantSrvName = Prefix + "register_participant";
 const std::string UnregisterParticipantSrvName = Prefix +
   "unregister_participant";
 const std::string RegisterQueryServiceName = Prefix + "register_query";
-const std::string UnregisterQueryServiceName = Prefix + "unregister_query";
 const std::string ParticipantsInfoTopicName = Prefix + "participants";
 const std::string QueryUpdateTopicNameBase = Prefix + "query_update_";
 const std::string RequestChangesServiceName = Prefix + "request_changes";
