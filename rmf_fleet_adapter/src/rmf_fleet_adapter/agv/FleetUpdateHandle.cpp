@@ -342,12 +342,14 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       return;
     }
 
+    // TODO: We set the waiting duration at the pickup and dropoff locations to
+    // 0s as the cycle time of the dispensers and ingestors are not available.
+    // We should implement a means to lookup these values for each system.
     new_request = rmf_task::requests::Delivery::make(
       pickup_wp->index(),
-      delivery.pickup_dispenser,
+      rmf_traffic::time::from_seconds(0),
       dropoff_wp->index(),
-      delivery.dropoff_ingestor,
-      delivery.items,
+      rmf_traffic::time::from_seconds(0),
       id,
       start_time,
       priority);
@@ -912,11 +914,10 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
     pending_requests.size());
 
   // Generate new task assignments
-  const auto result = task_planner->optimal_plan(
+  const auto result = task_planner->plan(
     rmf_traffic_ros2::convert(node->now()),
     states,
-    pending_requests,
-    nullptr);
+    pending_requests);
 
   auto assignments_ptr = std::get_if<
     rmf_task::agv::TaskPlanner::Assignments>(&result);
@@ -1240,7 +1241,8 @@ bool FleetUpdateHandle::set_task_planner_params(
   std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
   double recharge_threshold,
   double recharge_soc,
-  bool account_for_battery_drain)
+  bool account_for_battery_drain,
+  rmf_task::ConstRequestFactoryPtr finishing_request)
 {
   if (battery_system &&
     motion_sink &&
@@ -1263,8 +1265,12 @@ bool FleetUpdateHandle::set_task_planner_params(
       parameters,
       constraints,
       _pimpl->cost_calculator};
+    const rmf_task::agv::TaskPlanner::Options options{
+      false,
+      nullptr,
+      finishing_request};
     _pimpl->task_planner = std::make_shared<rmf_task::agv::TaskPlanner>(
-      std::move(task_config));
+      std::move(task_config), std::move(options));
 
     // Here we update the task planner in all the RobotContexts.
     // The TaskManagers rely on the parameters in the task planner for
