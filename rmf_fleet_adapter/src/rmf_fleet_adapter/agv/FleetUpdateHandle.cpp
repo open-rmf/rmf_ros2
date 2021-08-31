@@ -1048,7 +1048,7 @@ void FleetUpdateHandle::add_robot(
           {
             using namespace std::chrono_literals;
             auto last_interrupt_time =
-              std::make_shared<std::optional<rmf_traffic::Time>>(std::nullopt);
+            std::make_shared<std::optional<rmf_traffic::Time>>(std::nullopt);
 
             context->_negotiation_license =
             fleet->_pimpl->negotiation

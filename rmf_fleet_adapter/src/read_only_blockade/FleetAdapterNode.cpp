@@ -172,12 +172,12 @@ void FleetAdapterNode::register_robot(const RobotState& state)
     {
       std::lock_guard<std::mutex> lock(this->_async_mutex);
       auto participant =
-        std::make_shared<rmf_traffic::schedule::Participant>(
-          std::move(received_participant));
+      std::make_shared<rmf_traffic::schedule::Participant>(
+        std::move(received_participant));
 
       const auto radius =
-        participant->description().profile()
-        .vicinity()->get_characteristic_length();
+      participant->description().profile()
+      .vicinity()->get_characteristic_length();
 
       auto blockade = this->_connect->blockade_writer->make_participant(
         participant->id(), radius,
@@ -195,33 +195,33 @@ void FleetAdapterNode::register_robot(const RobotState& state)
       auto license = this->_connect->negotiation.register_negotiator(
         participant->id(),
         [participant, negotiated_delay](
-        TableViewerPtr viewer,
-        ResponderPtr responder)
+          TableViewerPtr viewer,
+          ResponderPtr responder)
         {
           auto approval_cb = [participant, negotiated_delay](
             const rmf_traffic::Duration t)
-            {
-              *negotiated_delay += t;
-              participant->delay(t);
-              return participant->version();
-            };
+          {
+            *negotiated_delay += t;
+            participant->delay(t);
+            return participant->version();
+          };
 
           rmf_traffic::schedule::StubbornNegotiator(*participant)
-            .acceptable_waits({5s, 10s, 20s, 30s}, std::move(approval_cb))
-            .additional_margins({20s})
-            .respond(viewer, responder);
+          .acceptable_waits({5s, 10s, 20s, 30s}, std::move(approval_cb))
+          .additional_margins({20s})
+          .respond(viewer, responder);
         });
 
       this->_robots.at(participant->description().name()) =
-        std::make_unique<Robot>(
-          Robot{
-            participant,
-            std::move(blockade),
-            std::move(license),
-            std::move(negotiated_delay),
-            std::nullopt,
-            std::nullopt
-          });
+      std::make_unique<Robot>(
+        Robot{
+          participant,
+          std::move(blockade),
+          std::move(license),
+          std::move(negotiated_delay),
+          std::nullopt,
+          std::nullopt
+        });
     });
 }
 
@@ -247,7 +247,7 @@ bool different_location(
   const double threshold = 1e-2;
   const double trajectory_diff =
     (trajectory.front().position().head<2>()
-     - trajectory.back().position().head<2>()).norm();
+    - trajectory.back().position().head<2>()).norm();
 
   if (trajectory_diff > threshold)
     return true;
@@ -282,7 +282,7 @@ void FleetAdapterNode::update_robot(
       return;
     }
     else if (robot->current_goal.value() == state.task_id
-             && robot->expectation.has_value())
+      && robot->expectation.has_value())
     {
       update_progress(state, *robot, now);
       return;
@@ -345,12 +345,12 @@ std::vector<rmf_traffic::Route> FleetAdapterNode::make_hold(
   rmf_traffic::Time start) const
 {
   return
-  {
     {
-      state.location.level_name,
-      ::make_hold(state.location, start, _hold_duration)
-    }
-  };
+      {
+        state.location.level_name,
+        ::make_hold(state.location, start, _hold_duration)
+      }
+    };
 }
 
 //==============================================================================
@@ -368,7 +368,7 @@ FleetAdapterNode::Robot::Expectation convert_to_expectation(
   timing.reserve(plan_waypoints.size());
 
   std::string last_level_name = state.location.level_name;
-  for (std::size_t i=0; i < plan_waypoints.size(); ++i)
+  for (std::size_t i = 0; i < plan_waypoints.size(); ++i)
   {
     const auto& wp = plan_waypoints[i];
     const Eigen::Vector2d p = wp.position().head<2>();
@@ -384,12 +384,12 @@ FleetAdapterNode::Robot::Expectation convert_to_expectation(
     }
 
     const auto map_name = [&]() -> std::string
-    {
-      if (wp.graph_index().has_value())
-        return graph.get_waypoint(wp.graph_index().value()).get_map_name();
+      {
+        if (wp.graph_index().has_value())
+          return graph.get_waypoint(wp.graph_index().value()).get_map_name();
 
-      return last_level_name;
-    }();
+        return last_level_name;
+      } ();
 
     last_level_name = map_name;
 
@@ -519,7 +519,7 @@ void FleetAdapterNode::make_plan(
 
   // Immediately report that all checkpoints are ready. This will (hopefully)
   // block all traffic light robots from trying to enter our space.
-  for (std::size_t i=0; i < robot.blockade.path().size(); ++i)
+  for (std::size_t i = 0; i < robot.blockade.path().size(); ++i)
     robot.blockade.ready(i);
 
   robot.current_goal = state.task_id;
@@ -535,7 +535,7 @@ std::optional<std::size_t> FleetAdapterNode::get_last_reached(
   const auto& location = state.location;
   const Eigen::Vector2d p = {location.x, location.y};
 
-  for (std::size_t i=robot.blockade.last_reached(); i < path.size()-1; ++i)
+  for (std::size_t i = robot.blockade.last_reached(); i < path.size()-1; ++i)
   {
     const Eigen::Vector2d p0 = path[i].position;
     if ((p - p0).norm() < _waypoint_snap_distance)
@@ -588,7 +588,7 @@ void FleetAdapterNode::update_arrival(
 
   const auto next_waypoint = last_reached_checkpoint + 1;
   if (next_waypoint >= robot.expectation->timing.size()
-      || next_waypoint >= robot.expectation->path.size())
+    || next_waypoint >= robot.expectation->path.size())
   {
     RCLCPP_ERROR(
       get_logger(),
