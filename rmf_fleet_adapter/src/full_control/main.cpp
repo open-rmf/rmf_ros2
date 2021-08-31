@@ -937,18 +937,10 @@ std::shared_ptr<Connections> make_fleet(
   // Recharge state of charge
   const double recharge_soc = rmf_fleet_adapter::get_parameter_or_default(
     *node, "recharge_soc", 1.0);
-    const bool finishing_request_charge_battery =
-    rmf_fleet_adapter::get_parameter_or_default(
-    *node,
-    "finishing_request_charge_battery",
-    false);
-  const bool finishing_request_park_robot =
-    rmf_fleet_adapter::get_parameter_or_default(
-    *node,
-    "finishing_request_park_robot",
-    false);
+  const std::string finishing_request_string =
+    node->declare_parameter("finishing_request", "nothing");
   rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
-  if (finishing_request_charge_battery)
+  if (finishing_request_string == "charge")
   {
     finishing_request =
       std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
@@ -956,13 +948,28 @@ std::shared_ptr<Connections> make_fleet(
       node->get_logger(),
       "Fleet is configured to perform ChargeBattery as finishing request");
   }
-  if (finishing_request_park_robot)
+  else if (finishing_request_string == "park")
   {
     finishing_request =
       std::make_shared<rmf_task::requests::ParkRobotFactory>();
     RCLCPP_INFO(
       node->get_logger(),
       "Fleet is configured to perform ParkRobot as finishing request");
+  }
+  else if (finishing_request_string == "nothing")
+  {
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Fleet is not configured to perform any finishing request");
+  }
+  else
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Provided finishing request [%s] is unsupported. The valid "
+      "finishing requests are [charge, park, nothing]. The task planner will "
+      " default to [nothing].",
+      finishing_request_string);
   }
 
   if (!connections->fleet->set_task_planner_params(
