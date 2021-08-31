@@ -156,10 +156,20 @@ void TaskManager::set_queue(
       const auto request = a.request();
 
       TaskProfileMsg task_profile;
+      bool auto_request = request->automatic();
       const auto it = task_profiles.find(request->id());
       if (it != task_profiles.end())
       {
         task_profile = it->second;
+      }
+      else
+      {
+        assert(auto_request);
+        // We may have an auto-generated request
+        task_profile.task_id = request->id();
+        task_profile.submission_time = _context->node()->now();
+        task_profile.description.start_time = rmf_traffic_ros2::convert(
+          request->earliest_start_time());
       }
 
       using namespace rmf_task::requests;
@@ -173,6 +183,21 @@ void TaskManager::set_queue(
           start,
           a.deployment_time(),
           a.state());
+
+        // Populate task_profile for auto-generated Clean request
+        if (auto_request)
+        {
+          std::shared_ptr<const rmf_task::requests::Clean::Description>
+          description = std::dynamic_pointer_cast<
+            const Clean::Description>(request->description());
+          const auto start_waypoint = description->start_waypoint();
+          const auto waypoint_name =
+            _context->navigation_graph().get_waypoint(start_waypoint).name();
+          task_profile.description.task_type.type =
+            rmf_task_msgs::msg::TaskType::TYPE_CLEAN;
+          task_profile.description.clean.start_waypoint =
+            waypoint_name != nullptr ? *waypoint_name : "";
+        }
         task->task_profile(task_profile);
 
         _queue.push_back(task);
@@ -188,14 +213,12 @@ void TaskManager::set_queue(
           a.deployment_time(),
           a.state());
 
-        // The TaskProfile for auto-generated tasks such as ChargeBattery will
-        // need to be manually constructed
-        task_profile.task_id = request->id();
-        task_profile.submission_time = _context->node()->now();
-        task_profile.description.start_time = rmf_traffic_ros2::convert(
-          request->earliest_start_time());
-        task_profile.description.task_type.type =
-          rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY;
+        // Populate task_profile for auto-generated ChargeBattery request
+        if (auto_request)
+        {
+          task_profile.description.task_type.type =
+            rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY;
+        }
         task->task_profile(task_profile);
 
         _queue.push_back(task);
@@ -211,6 +234,27 @@ void TaskManager::set_queue(
           a.deployment_time(),
           a.state(),
           task_profile.description.delivery);
+
+        // Populate task_profile for auto-generated Delivery request
+        if (auto_request)
+        {
+          std::shared_ptr<const rmf_task::requests::Delivery::Description>
+          description = std::dynamic_pointer_cast<
+            const Delivery::Description>(request->description());
+          const auto& graph = _context->navigation_graph();
+          const auto pickup_waypoint = description->pickup_waypoint();
+          const auto pickup_name =
+            graph.get_waypoint(pickup_waypoint).name();
+          const auto dropoff_waypoint = description->dropoff_waypoint();
+          const auto dropoff_name =
+            graph.get_waypoint(dropoff_waypoint).name();
+          task_profile.description.task_type.type =
+            rmf_task_msgs::msg::TaskType::TYPE_DELIVERY;
+          task_profile.description.delivery.pickup_place_name =
+            pickup_name != nullptr ? *pickup_name : "";
+          task_profile.description.delivery.dropoff_place_name =
+            dropoff_name != nullptr ? *dropoff_name : "";
+        }
         task->task_profile(task_profile);
 
         _queue.push_back(task);
@@ -225,6 +269,28 @@ void TaskManager::set_queue(
           start,
           a.deployment_time(),
           a.state());
+
+        // Populate task_profile for auto-generated Loop request
+        if (auto_request)
+        {
+          std::shared_ptr<const rmf_task::requests::Loop::Description>
+          description = std::dynamic_pointer_cast<
+            const Loop::Description>(request->description());
+          const auto& graph = _context->navigation_graph();
+          const auto start_waypoint = description->start_waypoint();
+          const auto start_name =
+            graph.get_waypoint(start_waypoint).name();
+          const auto finish_waypoint = description->finish_waypoint();
+          const auto finish_name =
+            graph.get_waypoint(finish_waypoint).name();
+          task_profile.description.loop.num_loops = description->num_loops();
+          task_profile.description.task_type.type =
+            rmf_task_msgs::msg::TaskType::TYPE_LOOP;
+          task_profile.description.loop.start_name =
+            start_name != nullptr ? *start_name : "";
+          task_profile.description.loop.finish_name =
+            finish_name != nullptr ? *finish_name : "";
+        }
         task->task_profile(task_profile);
 
         _queue.push_back(task);
@@ -260,8 +326,7 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
   requests.reserve(_queue.size());
   for (const auto& task : _queue)
   {
-    if (std::dynamic_pointer_cast<const ChargeBattery::Description>(
-        task->request()->description()))
+    if (task->request()->automatic())
     {
       continue;
     }
