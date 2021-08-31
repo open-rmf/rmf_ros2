@@ -27,7 +27,7 @@
   <arg name="perform_deliveries" default="false" description="Whether this fleet adapter can perform deliveries"/>
   <arg name="perform_cleaning" default="false" description="Whether this fleet adapter can perform cleaning"/>
   <arg name="finishing_request_charge_battery" default="false" description="Whether robots in this fleet should perform a ChargeBattery task once all queued tasks are completed"/>
-  <arg name="finishing_request_return_charger" default="false" description="Whether robots in this fleet should return to their chargers once all queued tasks are completed"/>
+  <arg name="finishing_request_park_robot" default="false" description="Whether robots in this fleet should return to their parking spots once all queued tasks are completed"/>
   <arg name="battery_voltage" description="The nominal voltage(V) of the battery in the vehicles in this fleet"/>
   <arg name="battery_capacity" description="The nominal capacity(Ah) of the battery in the vehicles in this fleet"/>
   <arg name="battery_charging_current" description="The nominal charging current(A) of the battery in the vehicles in this fleet"/>
@@ -64,7 +64,7 @@
     <param name="perform_loop" value="$(var perform_loop)"/>
     <param name="perform_cleaning" value="$(var perform_cleaning)"/>
     <param name="finishing_request_charge_battery" value="$(var finishing_request_charge_battery)"/>
-    <param name="finishing_request_return_charger" value="$(var finishing_request_return_charger)"/>
+    <param name="finishing_request_park_robot" value="$(var finishing_request_park_robot)"/>
 
     <param name="delay_threshold" value="$(var delay_threshold)"/>
     <param name="disable_delay_threshold" value="$(var disable_delay_threshold)"/>

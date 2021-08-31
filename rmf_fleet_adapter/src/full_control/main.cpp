@@ -46,8 +46,8 @@
 #include "../rmf_fleet_adapter/estimation.hpp"
 
 // Public rmf_task API headers
-#include <rmf_task/requests/factory/ChargeBatteryFactory.hpp>
-#include <rmf_task/requests/factory/ReturnToChargerFactory.hpp>
+#include <rmf_task/requests/ChargeBatteryFactory.hpp>
+#include <rmf_task/requests/ParkRobotFactory.hpp>
 
 // Public rmf_traffic API headers
 #include <rmf_traffic/agv/Interpolate.hpp>
@@ -942,10 +942,10 @@ std::shared_ptr<Connections> make_fleet(
     *node,
     "finishing_request_charge_battery",
     false);
-  const bool finishing_request_return_charger =
+  const bool finishing_request_park_robot =
     rmf_fleet_adapter::get_parameter_or_default(
     *node,
-    "finishing_request_return_charger",
+    "finishing_request_park_robot",
     false);
   rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
   if (finishing_request_charge_battery)
@@ -956,13 +956,13 @@ std::shared_ptr<Connections> make_fleet(
       node->get_logger(),
       "Fleet is configured to perform ChargeBattery as finishing request");
   }
-  if (finishing_request_return_charger)
+  if (finishing_request_park_robot)
   {
     finishing_request =
-      std::make_shared<rmf_task::requests::ReturnToChargerFactory>();
+      std::make_shared<rmf_task::requests::ParkRobotFactory>();
     RCLCPP_INFO(
       node->get_logger(),
-      "Fleet is configured to perform ReturnToCharger as finishing request");
+      "Fleet is configured to perform ParkRobot as finishing request");
   }
 
   if (!connections->fleet->set_task_planner_params(

@@ -142,7 +142,6 @@ public:
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
     rmf_task::BinaryPriorityScheme::make_cost_calculator();
   std::shared_ptr<rmf_task::agv::TaskPlanner> task_planner = nullptr;
-  rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
 
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay =
     std::chrono::nanoseconds(std::chrono::seconds(10));
