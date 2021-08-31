@@ -142,40 +142,5 @@ void Negotiate::_resume_next()
   top->resume();
 }
 
-//==============================================================================
-void add_offset_itinerary(
-  rmf_traffic::Duration offset,
-  const std::vector<rmf_traffic::Route>& original,
-  std::vector<rmf_traffic::Route>& output)
-{
-  auto shadow = original;
-  for (auto& item : shadow)
-  {
-    if (item.trajectory().empty())
-      continue;
-
-    const auto initial_time = *item.trajectory().start_time();
-    item.trajectory().front().adjust_times(offset);
-    item.trajectory().insert(
-      initial_time,
-      item.trajectory().front().position(),
-      Eigen::Vector3d::Zero());
-  }
-
-  output.insert(output.end(), shadow.begin(), shadow.end());
-}
-
-//==============================================================================
-std::vector<rmf_traffic::Route> add_margins(
-  const std::vector<rmf_traffic::Route>& original)
-{
-  auto itinerary = original;
-  using namespace std::chrono_literals;
-  for (const auto t : {2s, 4s, 6s, 8s, 10s, 12s, 14s, 16s, 18s, 20s})
-    add_offset_itinerary(t, original, itinerary);
-
-  return itinerary;
-}
-
 } // namespace services
 } // namespace rmf_fleet_adapter
