@@ -969,7 +969,7 @@ std::shared_ptr<Connections> make_fleet(
       "Provided finishing request [%s] is unsupported. The valid "
       "finishing requests are [charge, park, nothing]. The task planner will "
       " default to [nothing].",
-      finishing_request_string);
+      finishing_request_string.c_str());
   }
 
   if (!connections->fleet->set_task_planner_params(
