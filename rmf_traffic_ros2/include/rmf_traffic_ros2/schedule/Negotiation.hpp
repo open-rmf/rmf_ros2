@@ -125,6 +125,20 @@ public:
     rmf_traffic::schedule::ParticipantId for_participant,
     std::unique_ptr<rmf_traffic::schedule::Negotiator> negotiator);
 
+  /// Register a negotiator with this Negotiation manager.
+  ///
+  /// \param[in] for_participant
+  ///   The ID of the participant that this negotiator will work for
+  ///
+  /// \param[in] negotiator
+  ///   The negotiator interface to use for this participant
+  ///
+  /// \param[in] on_negotiation_failure
+  ///   A callback that will be triggered if a negotiation for this participant
+  ///   fails
+  ///
+  /// \return a handle that should be kept by the caller. When this handle
+  /// expires, this negotiator will be automatically unregistered.
   std::shared_ptr<void> register_negotiator(
     rmf_traffic::schedule::ParticipantId for_participant,
     std::unique_ptr<rmf_traffic::schedule::Negotiator> negotiator,
@@ -137,6 +151,10 @@ public:
   ///
   /// \param[in] negotiator
   ///   The callback that will be used as the negotiator's response
+  ///
+  /// \param[in] on_negotiation_failure
+  ///   A callback that will be triggered if a negotiation for this participant
+  ///   fails
   ///
   /// \return a handle that should be kept by the caller. When this handle
   /// expires, this negotiator will be automatically unregistered.
