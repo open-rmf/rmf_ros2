@@ -457,7 +457,6 @@ private:
   bool _moving_lift = false;
   rmf_traffic::Duration _lifting_duration = rmf_traffic::Duration(0);
 };
-
 } // anonymous namespace
 
 //==============================================================================
@@ -593,6 +592,7 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
     );
 
   _subtasks->begin();
+
   _context->itinerary().set(_plan->get_itinerary());
 }
 
