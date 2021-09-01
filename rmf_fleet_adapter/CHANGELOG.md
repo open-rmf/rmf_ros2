@@ -5,7 +5,7 @@
 * Add read_only_blockade adapter: [#110](https://github.com/open-rmf/rmf_ros2/pull/110)
 * Accommodate finishing tasks: [#108](https://github.com/open-rmf/rmf_ros2/pull/108)
 * Check if lane request's fleet_name is equal to the fleet's fleet_name: [#95](https://github.com/open-rmf/rmf_ros2/pull/95)
-* Make traffic schedule updates more efficient: [#86](https://github.com/open-rmf/rmf_ros2/pull/86)
+* Find nearest waypoint among starts: [#98](https://github.com/open-rmf/rmf_ros2/pull/98)
 
 1.3.0 (2021-06-07)
 ------------------
