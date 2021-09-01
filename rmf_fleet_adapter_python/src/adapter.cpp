@@ -21,6 +21,8 @@
 #include <rmf_task/requests/ChargeBatteryFactory.hpp>
 #include <rmf_task/requests/ParkRobotFactory.hpp>
 
+#include <rmf_traffic/Time.hpp>
+
 namespace py = pybind11;
 namespace agv = rmf_fleet_adapter::agv;
 namespace battery = rmf_battery::agv;
@@ -124,6 +126,14 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       self.maximum_delay(rmf_utils::nullopt);
     })
+  .def("set_maximum_delay",
+    [&](agv::RobotUpdateHandle& self,
+    double seconds)
+    {
+      const auto duration = rmf_traffic::time::from_seconds(seconds);
+      self.maximum_delay(duration);
+    },
+    py::arg("seconds"))
   .def("get_unstable_participant",
     [&](agv::RobotUpdateHandle& self)
     {
