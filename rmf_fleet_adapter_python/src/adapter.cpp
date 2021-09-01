@@ -187,12 +187,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
       if (finishing_request_string == "charge")
       {
         finishing_request =
-          std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+        std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
       }
       else if (finishing_request_string == "park")
       {
         finishing_request =
-          std::make_shared<rmf_task::requests::ParkRobotFactory>();
+        std::make_shared<rmf_task::requests::ParkRobotFactory>();
       }
       else
       {
