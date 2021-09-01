@@ -47,10 +47,10 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 {
   const auto is_unresponsive = [](
     const rmf_traffic::schedule::ParticipantDescription& desc) -> bool
-  {
-    return desc.responsiveness()
+    {
+      return desc.responsiveness()
         == rmf_traffic::schedule::ParticipantDescription::Rx::Unresponsive;
-  };
+    };
 
   std::vector<ScheduleNode::ConflictSet> conflicts;
   const auto& participants = viewer.participant_ids();
@@ -277,8 +277,8 @@ void ScheduleNode::setup_itinerary_topics()
 {
   const auto itinerary_qos =
     rclcpp::SystemDefaultsQoS()
-      .reliable()
-      .keep_last(100);
+    .reliable()
+    .keep_last(100);
 
   itinerary_set_sub =
     create_subscription<ItinerarySet>(

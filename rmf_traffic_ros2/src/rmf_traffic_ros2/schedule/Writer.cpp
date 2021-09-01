@@ -187,8 +187,8 @@ public:
     {
       const auto itinerary_qos =
         rclcpp::SystemDefaultsQoS()
-          .reliable()
-          .keep_last(100);
+        .reliable()
+        .keep_last(100);
 
       set_pub = node.create_publisher<Set>(
         ItinerarySetTopicName,
