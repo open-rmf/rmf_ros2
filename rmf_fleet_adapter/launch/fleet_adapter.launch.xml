@@ -4,7 +4,7 @@
 
   <arg name="use_sim_time" default="false" description="Use the /clock topic for time to sync with simulation"/>
 
-  <arg name="control_type" description="Fleet adapter type: full_control or read_only"/>
+  <arg name="control_type" description="Fleet adapter type: full_control, read_only, or read_only_blockade"/>
   <arg name="fleet_name" description="Name of the fleet that this adapter will interface with"/>
   <!-- Note: We give a blank default to nav_graph_file because it is not required for read_only
              mode. However it is still required for full_control mode.
