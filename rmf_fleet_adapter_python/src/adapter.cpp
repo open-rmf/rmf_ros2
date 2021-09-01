@@ -172,6 +172,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     bool account_for_battery_drain,
     const std::string& finishing_request_string = "nothing")
     {
+      // Supported finishing_request_string: [charge, park, nothing]
       rmf_task::ConstRequestFactoryPtr finishing_request;
       if (finishing_request_string == "charge")
       {
