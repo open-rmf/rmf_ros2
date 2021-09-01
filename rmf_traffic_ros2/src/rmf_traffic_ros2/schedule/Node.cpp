@@ -111,7 +111,7 @@ ScheduleNode::ScheduleNode(
   // TODO(MXG): We can probably do something smarter to decide when to update
   // than a simple wall timer
   mirror_update_timer = create_wall_timer(
-    std::chrono::milliseconds(10), [this](){ this->update_mirrors(); });
+    std::chrono::milliseconds(10), [this]() { this->update_mirrors(); });
 }
 
 //==============================================================================
