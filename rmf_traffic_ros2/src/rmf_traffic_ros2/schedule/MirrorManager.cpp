@@ -329,7 +329,7 @@ public:
       if (update_mutex)
       {
         std::lock_guard<std::mutex> lock(*update_mutex);
-        if (!mirror->update(patch))
+        if (!mirror->update(patch) && !msg->is_remedial_update)
         {
           RCLCPP_WARN(
             node.get_logger(),
@@ -341,7 +341,7 @@ public:
       }
       else
       {
-        if (!mirror->update(patch))
+        if (!mirror->update(patch) && !msg->is_remedial_update)
         {
           RCLCPP_WARN(
             node.get_logger(),
