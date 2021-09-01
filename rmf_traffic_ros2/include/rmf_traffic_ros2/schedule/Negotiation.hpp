@@ -149,7 +149,7 @@ public:
   /// \param[in] for_participant
   ///   The ID of the participant that this negotiator will work for
   ///
-  /// \param[in] negotiator
+  /// \param[in] respond
   ///   The callback that will be used as the negotiator's response
   ///
   /// \param[in] on_negotiation_failure
