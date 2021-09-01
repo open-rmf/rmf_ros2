@@ -17,11 +17,7 @@
 
 #include "FleetAdapterNode.hpp"
 
-#include <rmf_traffic/geometry/Circle.hpp>
-
 #include <rclcpp/executors.hpp>
-
-#include "../rmf_fleet_adapter/ParseArgs.hpp"
 
 using namespace rmf_fleet_adapter;
 
