@@ -1,5 +1,10 @@
 ## Changelog for package rmf_traffic_ros2
 
+1.4.0 (2021-09-01)
+------------------
+* Make traffic schedule updates more efficient: [#86](https://github.com/open-rmf/rmf_ros2/pull/86)
+* Add redundancy to the traffic schedule node: [#61](https://github.com/open-rmf/rmf_ros2/pull/61)
+
 1.3.0 (2021-06-07)
 ------------------
 * Use topics to update schedule mirrors: [#17](https://github.com/open-rmf/rmf_ros2/pull/17)
