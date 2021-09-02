@@ -257,9 +257,14 @@ public:
   using AckPub = rclcpp::Publisher<Ack>;
   AckPub::SharedPtr ack_pub;
 
-  using NegotiationMapPtr = std::shared_ptr<NegotiatorMap>;
-  using WeakNegotiationMapPtr = std::weak_ptr<NegotiatorMap>;
-  NegotiationMapPtr negotiators;
+  using NegotiatorMapPtr = std::shared_ptr<NegotiatorMap>;
+  using WeakNegotiatorMapPtr = std::weak_ptr<NegotiatorMap>;
+  NegotiatorMapPtr negotiators;
+
+  using FailureMap = std::unordered_map<ParticipantId, std::function<void()>>;
+  using FailureMapPtr = std::shared_ptr<FailureMap>;
+  using WeakFailureMapPtr = std::weak_ptr<FailureMap>;
+  FailureMapPtr failure_callbacks;
 
   using Version = rmf_traffic::schedule::Version;
   using Negotiation = rmf_traffic::schedule::Negotiation;
@@ -307,7 +312,8 @@ public:
   : node(node_),
     viewer(std::move(viewer_)),
     worker(std::move(worker_)),
-    negotiators(std::make_shared<NegotiatorMap>())
+    negotiators(std::make_shared<NegotiatorMap>()),
+    failure_callbacks(std::make_shared<FailureMap>())
   {
     // TODO(MXG): Make the QoS configurable
     const auto qos = rclcpp::ServicesQoS().reliable().keep_last(1000);
@@ -861,6 +867,19 @@ public:
       }
       else
       {
+        for (const auto p : room.negotiation.participants())
+        {
+          // If we have a failure callback for one of the participants in this
+          // failed negotiation, then trigger its failure callback.
+          const auto f_it = failure_callbacks->find(p);
+          if (f_it != failure_callbacks->end())
+          {
+            const auto& callback = f_it->second;
+            if (callback)
+              callback();
+          }
+        }
+
         ParticipantAck p_ack;
         p_ack.updating = false;
         for (const auto p : negotiation.participants())
@@ -961,26 +980,33 @@ public:
   {
     Handle(
       const ParticipantId for_participant_,
-      NegotiationMapPtr map)
+      NegotiatorMapPtr negotiators,
+      FailureMapPtr failure)
     : for_participant(for_participant_),
-      weak_map(map)
+      weak_negotiator_map(negotiators),
+      weak_failure_map(failure)
     {
       // Do nothing
     }
 
     ParticipantId for_participant;
-    WeakNegotiationMapPtr weak_map;
+    WeakNegotiatorMapPtr weak_negotiator_map;
+    WeakFailureMapPtr weak_failure_map;
 
     ~Handle()
     {
-      if (const auto map = weak_map.lock())
+      if (const auto map = weak_negotiator_map.lock())
+        map->erase(for_participant);
+
+      if (const auto map = weak_failure_map.lock())
         map->erase(for_participant);
     }
   };
 
   std::shared_ptr<void> register_negotiator(
     const ParticipantId for_participant,
-    NegotiatorPtr negotiator)
+    NegotiatorPtr negotiator,
+    std::function<void()> failure_cb)
   {
     const auto insertion = negotiators->insert(
       std::make_pair(for_participant, std::move(negotiator)));
@@ -995,7 +1021,14 @@ public:
       // *INDENT-ON*
     }
 
-    return std::make_shared<Handle>(for_participant, negotiators);
+    if (failure_cb)
+    {
+      failure_callbacks->insert(
+        std::make_pair(for_participant, std::move(failure_cb)));
+    }
+
+    return std::make_shared<Handle>(
+      for_participant, negotiators, failure_callbacks);
   }
 
   void set_retained_history_count(uint count)
@@ -1107,7 +1140,54 @@ std::shared_ptr<void> Negotiation::register_negotiator(
   rmf_traffic::schedule::ParticipantId for_participant,
   std::unique_ptr<rmf_traffic::schedule::Negotiator> negotiator)
 {
-  return _pimpl->register_negotiator(for_participant, std::move(negotiator));
+  return _pimpl->register_negotiator(
+    for_participant, std::move(negotiator), nullptr);
+}
+
+//==============================================================================
+std::shared_ptr<void> Negotiation::register_negotiator(
+  rmf_traffic::schedule::ParticipantId for_participant,
+  std::unique_ptr<rmf_traffic::schedule::Negotiator> negotiator,
+  std::function<void()> on_negotiation_failure)
+{
+  return _pimpl->register_negotiator(
+    for_participant, std::move(negotiator), std::move(on_negotiation_failure));
+}
+
+//==============================================================================
+class LambdaNegotiator : public rmf_traffic::schedule::Negotiator
+{
+public:
+
+  using RespondFn = std::function<void(TableViewerPtr, ResponderPtr)>;
+
+  LambdaNegotiator(RespondFn respond)
+  : _respond(std::move(respond))
+  {
+    // Do nothing
+  }
+
+  void respond(
+    const TableViewerPtr& table_viewer,
+    const ResponderPtr& responder) final
+  {
+    _respond(std::move(table_viewer), std::move(responder));
+  }
+
+private:
+  RespondFn _respond;
+};
+
+//==============================================================================
+std::shared_ptr<void> Negotiation::register_negotiator(
+  rmf_traffic::schedule::ParticipantId for_participant,
+  std::function<void(TableViewPtr, ResponderPtr)> respond,
+  std::function<void()> on_negotiation_failure)
+{
+  return register_negotiator(
+    for_participant,
+    std::make_unique<LambdaNegotiator>(std::move(respond)),
+    std::move(on_negotiation_failure));
 }
 
 } // namespace schedule

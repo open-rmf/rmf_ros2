@@ -72,6 +72,8 @@ private:
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
 
+using WriterPtr = std::shared_ptr<Writer>;
+
 } // namespace blockade
 } // namespace rmf_traffic_ros2
 

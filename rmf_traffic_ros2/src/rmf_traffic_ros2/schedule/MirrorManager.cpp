@@ -329,7 +329,7 @@ public:
       if (update_mutex)
       {
         std::lock_guard<std::mutex> lock(*update_mutex);
-        if (!mirror->update(patch))
+        if (!mirror->update(patch) && !msg->is_remedial_update)
         {
           RCLCPP_WARN(
             node.get_logger(),
@@ -341,7 +341,7 @@ public:
       }
       else
       {
-        if (!mirror->update(patch))
+        if (!mirror->update(patch) && !msg->is_remedial_update)
         {
           RCLCPP_WARN(
             node.get_logger(),
@@ -367,7 +367,7 @@ public:
   void handle_update_timeout()
   {
     RCLCPP_DEBUG(node.get_logger(), "Update timed out");
-    request_update();
+    request_update(mirror->latest_version());
   }
 
   void request_update(std::optional<uint64_t> minimum_version = std::nullopt)

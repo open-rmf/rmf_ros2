@@ -914,11 +914,10 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
     pending_requests.size());
 
   // Generate new task assignments
-  const auto result = task_planner->optimal_plan(
+  const auto result = task_planner->plan(
     rmf_traffic_ros2::convert(node->now()),
     states,
-    pending_requests,
-    nullptr);
+    pending_requests);
 
   auto assignments_ptr = std::get_if<
     rmf_task::agv::TaskPlanner::Assignments>(&result);
@@ -1047,11 +1046,31 @@ void FleetUpdateHandle::add_robot(
           // use that instead.
           if (fleet->_pimpl->negotiation)
           {
+            using namespace std::chrono_literals;
+            auto last_interrupt_time =
+            std::make_shared<std::optional<rmf_traffic::Time>>(std::nullopt);
+
             context->_negotiation_license =
             fleet->_pimpl->negotiation
             ->register_negotiator(
               context->itinerary().id(),
-              std::make_unique<LiaisonNegotiator>(context));
+              std::make_unique<LiaisonNegotiator>(context),
+              [w = std::weak_ptr<RobotContext>(context), last_interrupt_time]()
+              {
+                if (const auto c = w.lock())
+                {
+                  auto& last_time = *last_interrupt_time;
+                  const auto now = std::chrono::steady_clock::now();
+                  if (last_time.has_value())
+                  {
+                    if (now < *last_time + 10s)
+                      return;
+                  }
+
+                  last_time = now;
+                  c->trigger_interrupt();
+                }
+              });
           }
 
           RCLCPP_INFO(
@@ -1222,7 +1241,8 @@ bool FleetUpdateHandle::set_task_planner_params(
   std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
   double recharge_threshold,
   double recharge_soc,
-  bool account_for_battery_drain)
+  bool account_for_battery_drain,
+  rmf_task::ConstRequestFactoryPtr finishing_request)
 {
   if (battery_system &&
     motion_sink &&
@@ -1245,8 +1265,12 @@ bool FleetUpdateHandle::set_task_planner_params(
       parameters,
       constraints,
       _pimpl->cost_calculator};
+    const rmf_task::agv::TaskPlanner::Options options{
+      false,
+      nullptr,
+      finishing_request};
     _pimpl->task_planner = std::make_shared<rmf_task::agv::TaskPlanner>(
-      std::move(task_config));
+      std::move(task_config), std::move(options));
 
     // Here we update the task planner in all the RobotContexts.
     // The TaskManagers rely on the parameters in the task planner for

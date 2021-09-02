@@ -45,6 +45,13 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
   const rmf_traffic::schedule::Viewer::View& view_changes,
   const rmf_traffic::schedule::ItineraryViewer& viewer)
 {
+  const auto is_unresponsive = [](
+    const rmf_traffic::schedule::ParticipantDescription& desc) -> bool
+    {
+      return desc.responsiveness()
+        == rmf_traffic::schedule::ParticipantDescription::Rx::Unresponsive;
+    };
+
   std::vector<ScheduleNode::ConflictSet> conflicts;
   const auto& participants = viewer.participant_ids();
   for (const auto participant : participants)
@@ -59,6 +66,13 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
       if (vc->participant == participant)
       {
         // There's no need to check a participant against itself
+        continue;
+      }
+
+      if (is_unresponsive(*description) && is_unresponsive(vc->description))
+      {
+        // If both participants self-identify as unresponsive, then there's no
+        // point raising a conflict between them.
         continue;
       }
 
@@ -106,6 +120,12 @@ ScheduleNode::ScheduleNode(
   // Participant registry location
   declare_parameter<std::string>(
     "log_file_location", ".rmf_schedule_node.yaml");
+
+  // TODO(MXG): Expose a parameter for the update period
+  // TODO(MXG): We can probably do something smarter to decide when to update
+  // than a simple wall timer
+  mirror_update_timer = create_wall_timer(
+    std::chrono::milliseconds(10), [this]() { this->update_mirrors(); });
 }
 
 //==============================================================================
@@ -261,10 +281,15 @@ void ScheduleNode::setup_changes_services()
 //==============================================================================
 void ScheduleNode::setup_itinerary_topics()
 {
+  const auto itinerary_qos =
+    rclcpp::SystemDefaultsQoS()
+    .reliable()
+    .keep_last(100);
+
   itinerary_set_sub =
     create_subscription<ItinerarySet>(
     rmf_traffic_ros2::ItinerarySetTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
+    itinerary_qos,
     [=](const ItinerarySet::UniquePtr msg)
     {
       this->itinerary_set(*msg);
@@ -273,7 +298,7 @@ void ScheduleNode::setup_itinerary_topics()
   itinerary_extend_sub =
     create_subscription<ItineraryExtend>(
     rmf_traffic_ros2::ItineraryExtendTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
+    itinerary_qos,
     [=](const ItineraryExtend::UniquePtr msg)
     {
       this->itinerary_extend(*msg);
@@ -282,7 +307,7 @@ void ScheduleNode::setup_itinerary_topics()
   itinerary_delay_sub =
     create_subscription<ItineraryDelay>(
     rmf_traffic_ros2::ItineraryDelayTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
+    itinerary_qos,
     [=](const ItineraryDelay::UniquePtr msg)
     {
       this->itinerary_delay(*msg);
@@ -291,7 +316,7 @@ void ScheduleNode::setup_itinerary_topics()
   itinerary_erase_sub =
     create_subscription<ItineraryErase>(
     rmf_traffic_ros2::ItineraryEraseTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
+    itinerary_qos,
     [=](const ItineraryErase::UniquePtr msg)
     {
       this->itinerary_erase(*msg);
@@ -300,7 +325,7 @@ void ScheduleNode::setup_itinerary_topics()
   itinerary_clear_sub =
     create_subscription<ItineraryClear>(
     rmf_traffic_ros2::ItineraryClearTopicName,
-    rclcpp::SystemDefaultsQoS().best_effort(),
+    itinerary_qos,
     [=](const ItineraryClear::UniquePtr msg)
     {
       this->itinerary_clear(*msg);
@@ -587,7 +612,8 @@ void ScheduleNode::register_query(
       query,
       std::move(update_publisher),
       std::nullopt,
-      std::chrono::steady_clock::now()
+      std::chrono::steady_clock::now(),
+      {}
     });
 }
 
@@ -779,7 +805,7 @@ void ScheduleNode::request_changes(
     // which may be std::nullopt if a full update is requested
     if (request->full_update)
     {
-      mirror_update_topic_info.last_sent_version = std::nullopt;
+      mirror_update_topic_info.remediation_requests.insert(std::nullopt);
     }
     else
     {
@@ -787,12 +813,9 @@ void ScheduleNode::request_changes(
         rmf_utils::modular(request->version).less_than(
           *mirror_update_topic_info.last_sent_version))
       {
-        mirror_update_topic_info.last_sent_version = request->version;
+        mirror_update_topic_info.remediation_requests.insert(request->version);
       }
     }
-
-    // Force-send the next update
-    update_mirrors();
 
     response->result = RequestChanges::Response::REQUEST_ACCEPTED;
   }
@@ -812,7 +835,6 @@ void ScheduleNode::itinerary_set(const ItinerarySet& set)
 
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(set.participant, set.itinerary_version);
-  update_mirrors();
 }
 
 //==============================================================================
@@ -829,7 +851,6 @@ void ScheduleNode::itinerary_extend(const ItineraryExtend& extend)
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
     extend.participant, database->itinerary_version(extend.participant));
-  update_mirrors();
 }
 
 //==============================================================================
@@ -846,7 +867,6 @@ void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
     delay.participant, database->itinerary_version(delay.participant));
-  update_mirrors();
 }
 
 //==============================================================================
@@ -864,7 +884,6 @@ void ScheduleNode::itinerary_erase(const ItineraryErase& erase)
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
     erase.participant, database->itinerary_version(erase.participant));
-  update_mirrors();
 }
 
 //==============================================================================
@@ -878,7 +897,6 @@ void ScheduleNode::itinerary_clear(const ItineraryClear& clear)
   std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
   active_conflicts.check(
     clear.participant, database->itinerary_version(clear.participant));
-  update_mirrors();
 }
 
 //==============================================================================
@@ -899,24 +917,30 @@ void ScheduleNode::publish_inconsistencies(
 //==============================================================================
 void ScheduleNode::update_mirrors()
 {
-  rmf_traffic_msgs::msg::MirrorUpdate msg;
-  msg.node_version = node_version;
-  msg.database_version = database->latest_version();
 
   for (auto& [query_id, query_info] : registered_queries)
   {
-    const auto patch = database->changes(
-      query_info.query,
-      query_info.last_sent_version);
+    for (const auto request : query_info.remediation_requests)
+    {
+      update_query(
+        query_info.publisher,
+        query_info.query,
+        request,
+        true);
+    }
+    query_info.remediation_requests.clear();
 
-    if (patch.size() == 0 && !patch.cull())
+    if (query_info.last_sent_version == database->latest_version())
       continue;
 
-    msg.patch = rmf_traffic_ros2::convert(patch);
-    query_info.publisher->publish(msg);
+    update_query(
+      query_info.publisher,
+      query_info.query,
+      query_info.last_sent_version,
+      false);
 
     // Update the latest version sent to this topic
-    query_info.last_sent_version = msg.database_version;
+    query_info.last_sent_version = database->latest_version();
 
     RCLCPP_DEBUG(
       get_logger(),
@@ -925,6 +949,27 @@ void ScheduleNode::update_mirrors()
   }
 
   conflict_check_cv.notify_all();
+}
+
+//==============================================================================
+void ScheduleNode::update_query(
+  const MirrorUpdateTopicPublisher& publisher,
+  const rmf_traffic::schedule::Query& query,
+  VersionOpt last_sent_version,
+  bool is_remedial)
+{
+
+  const auto patch = database->changes(query, last_sent_version);
+
+  if (!is_remedial && patch.size() == 0 && !patch.cull())
+    return;
+
+  rmf_traffic_msgs::msg::MirrorUpdate msg;
+  msg.node_version = node_version;
+  msg.database_version = database->latest_version();
+  msg.patch = rmf_traffic_ros2::convert(patch);
+  msg.is_remedial_update = is_remedial;
+  publisher->publish(msg);
 }
 
 //==============================================================================

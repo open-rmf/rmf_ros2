@@ -1,5 +1,12 @@
 ## Changelog for package rmf_fleet_adapter
 
+1.4.0 (2021-09-01)
+------------------
+* Add read_only_blockade adapter: [#110](https://github.com/open-rmf/rmf_ros2/pull/110)
+* Accommodate finishing tasks: [#108](https://github.com/open-rmf/rmf_ros2/pull/108)
+* Check if lane request's fleet_name is equal to the fleet's fleet_name: [#95](https://github.com/open-rmf/rmf_ros2/pull/95)
+* Find nearest waypoint among starts: [#98](https://github.com/open-rmf/rmf_ros2/pull/98)
+
 1.3.0 (2021-06-07)
 ------------------
 * Add API for opening and closing lanes: [#15](https://github.com/open-rmf/rmf_ros2/pull/15)

@@ -18,6 +18,11 @@
 #include <rmf_battery/agv/SimpleMotionPowerSink.hpp>
 #include <rmf_battery/agv/SimpleDevicePowerSink.hpp>
 
+#include <rmf_task/requests/ChargeBatteryFactory.hpp>
+#include <rmf_task/requests/ParkRobotFactory.hpp>
+
+#include <rmf_traffic/Time.hpp>
+
 namespace py = pybind11;
 namespace agv = rmf_fleet_adapter::agv;
 namespace battery = rmf_battery::agv;
@@ -121,6 +126,14 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       self.maximum_delay(rmf_utils::nullopt);
     })
+  .def("set_maximum_delay",
+    [&](agv::RobotUpdateHandle& self,
+    double seconds)
+    {
+      const auto duration = rmf_traffic::time::from_seconds(seconds);
+      self.maximum_delay(duration);
+    },
+    py::arg("seconds"))
   .def("get_unstable_participant",
     [&](agv::RobotUpdateHandle& self)
     {
@@ -187,8 +200,26 @@ PYBIND11_MODULE(rmf_adapter, m) {
     battery::SimpleDevicePowerSink& t_sink,
     double recharge_threshold,
     double recharge_soc,
-    bool account_for_battery_drain)
+    bool account_for_battery_drain,
+    const std::string& finishing_request_string = "nothing")
     {
+      // Supported finishing_request_string: [charge, park, nothing]
+      rmf_task::ConstRequestFactoryPtr finishing_request;
+      if (finishing_request_string == "charge")
+      {
+        finishing_request =
+        std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+      }
+      else if (finishing_request_string == "park")
+      {
+        finishing_request =
+        std::make_shared<rmf_task::requests::ParkRobotFactory>();
+      }
+      else
+      {
+        finishing_request = nullptr;
+      }
+
       return self.set_task_planner_params(
         std::make_shared<battery::BatterySystem>(b_sys),
         std::make_shared<battery::SimpleMotionPowerSink>(m_sink),
@@ -196,7 +227,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
         std::make_shared<battery::SimpleDevicePowerSink>(t_sink),
         recharge_threshold,
         recharge_soc,
-        account_for_battery_drain);
+        account_for_battery_drain,
+        finishing_request);
     },
     py::arg("battery_system"),
     py::arg("motion_sink"),
@@ -204,10 +236,11 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("tool_sink"),
     py::arg("recharge_threshold"),
     py::arg("recharge_soc"),
-    py::arg("account_for_battery_drain"))
+    py::arg("account_for_battery_drain"),
+    py::arg("finishing_request_string") = "nothing")
   .def("accept_delivery_requests",
     &agv::FleetUpdateHandle::accept_delivery_requests,
-    "NOTE: deprecated, use accept_task_reqeusts() instead")
+    "NOTE: deprecated, use accept_task_requests() instead")
   .def("accept_task_requests",
     &agv::FleetUpdateHandle::accept_task_requests,
     py::arg("check"),

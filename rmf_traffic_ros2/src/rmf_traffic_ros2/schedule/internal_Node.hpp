@@ -75,6 +75,7 @@ class ScheduleNode : public rclcpp::Node
 {
 public:
   using QueryMap = std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
+  using VersionOpt = std::optional<rmf_traffic::schedule::Version>;
 
   using NodeVersion = uint64_t;
   NodeVersion node_version = 0;
@@ -220,7 +221,13 @@ public:
 
   virtual void setup_incosistency_pub();
 
+  rclcpp::TimerBase::SharedPtr mirror_update_timer;
   void update_mirrors();
+  void update_query(
+    const MirrorUpdateTopicPublisher& publisher,
+    const rmf_traffic::schedule::Query& query,
+    VersionOpt last_sent_version,
+    bool is_remedial);
 
   // TODO(MXG): Consider using libguarded instead of a database_mutex
   std::mutex database_mutex;
@@ -230,8 +237,9 @@ public:
   {
     rmf_traffic::schedule::Query query;
     MirrorUpdateTopicPublisher publisher;
-    std::optional<rmf_traffic::schedule::Version> last_sent_version;
+    VersionOpt last_sent_version;
     std::chrono::steady_clock::time_point last_registration_time;
+    std::unordered_set<VersionOpt> remediation_requests;
   };
   using QueryInfoMap = std::unordered_map<uint64_t, QueryInfo>;
 
