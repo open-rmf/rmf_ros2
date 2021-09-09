@@ -57,6 +57,12 @@ rmf_traffic::Duration RequestLift::ActivePhase::estimate_remaining_time() const
 }
 
 //==============================================================================
+rmf_traffic::Duration RequestLift::ActivePhase::runtime_duration() const
+{
+  return _context->now() - _start_time;
+}
+
+//==============================================================================
 void RequestLift::ActivePhase::emergency_alarm(bool /*on*/)
 {
   // TODO: implement

@@ -61,7 +61,7 @@ struct MoveRobot
     std::shared_ptr<Action> _action;
     rxcpp::observable<Task::StatusMsg> _obs;
     rxcpp::subjects::subject<bool> _cancel_subject;
-    rmf_traffic::Time _start_time;
+    rmf_traffic::Time _start_time = _context->now();
     std::optional<rmf_traffic::Duration> _tail_period;
   };
 

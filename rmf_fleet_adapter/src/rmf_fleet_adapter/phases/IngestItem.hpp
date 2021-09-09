@@ -49,6 +49,8 @@ struct IngestItem
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 
+    rmf_traffic::Duration runtime_duration() const override;
+
     void emergency_alarm(bool on) override;
 
     void cancel() override;
@@ -60,6 +62,7 @@ struct IngestItem
   private:
 
     agv::RobotContextPtr _context;
+    rmf_traffic::Time _start_time = _context->now();
     std::string _request_guid;
     std::string _target;
     std::string _transporter_type;

@@ -52,6 +52,9 @@ struct DoorClose
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 
+    // Documentation inherited from ActivePhase
+    rmf_traffic::Duration runtime_duration() const override;
+
     void emergency_alarm(bool on) override;
 
     void cancel() override;
@@ -63,6 +66,7 @@ struct DoorClose
   private:
 
     agv::RobotContextPtr _context;
+    rmf_traffic::Time _start_time = _context->now();
     std::string _door_name;
     std::string _request_id;
     rxcpp::observable<Task::StatusMsg> _obs;

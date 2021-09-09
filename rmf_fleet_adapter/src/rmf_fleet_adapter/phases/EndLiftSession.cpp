@@ -63,6 +63,12 @@ rmf_traffic::Duration EndLiftSession::Active::estimate_remaining_time() const
 }
 
 //==============================================================================
+rmf_traffic::Duration EndLiftSession::Active::runtime_duration() const
+{
+  return _context->now() - _start_time;
+}
+
+//==============================================================================
 void EndLiftSession::Active::emergency_alarm(bool)
 {
   // Do nothing.

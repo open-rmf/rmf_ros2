@@ -44,6 +44,12 @@ rmf_traffic::Duration ResponsiveWait::Active::estimate_remaining_time() const
 }
 
 //==============================================================================
+rmf_traffic::Duration ResponsiveWait::Active::runtime_duration() const
+{
+  return _info.context->now() - _start_time;
+}
+
+//==============================================================================
 void ResponsiveWait::Active::emergency_alarm(bool on)
 {
   if (!_movement)

@@ -101,6 +101,11 @@ public:
       return (_job->count_length - *_job->count) * _job->period;
     }
 
+    rmf_traffic::Duration runtime_duration() const final
+    {
+      return rmf_traffic::Duration(0);
+    }
+
     void emergency_alarm(bool) final
     {
       // do nothing
@@ -227,6 +232,11 @@ public:
     rmf_traffic::Duration estimate_remaining_time() const final
     {
       // TODO(MXG): We're not really testing this right now
+      return rmf_traffic::Duration(0);
+    }
+
+    rmf_traffic::Duration runtime_duration() const final
+    {
       return rmf_traffic::Duration(0);
     }
 

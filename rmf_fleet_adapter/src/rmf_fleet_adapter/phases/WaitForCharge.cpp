@@ -40,6 +40,12 @@ rmf_traffic::Duration WaitForCharge::Active::estimate_remaining_time() const
 }
 
 //==============================================================================
+rmf_traffic::Duration WaitForCharge::Active::runtime_duration() const
+{
+  return _context->now() - _start_time;
+}
+
+//==============================================================================
 void WaitForCharge::Active::emergency_alarm(const bool)
 {
   // Assume charging station is a holding point
@@ -211,3 +217,114 @@ auto WaitForCharge::make(
 
 } // namespace phases
 } // namespace rmf_fleet_adapter
+
+//==============================================================================
+//==============================================================================
+// High level problem statement
+/*
+ From user perspective
+ - hard to use
+ - task is just overly convoluted
+ - lots of hidden implmentation
+
+
+*/
+
+//==============================================================================
+// rmf_task
+
+namespace rmf_task
+{
+  class PhaseDescription
+  {
+
+    PhaseDescription make(
+      start_wp start,
+      end_wp end,
+      Duration estimated_duration
+      Selections );
+
+    PhaseDescription make_with_parser(Json json);
+  }
+
+  class Mission
+  {
+    struct Profile
+    {
+      std::optional<std::string> fleet_name;
+      std::optional<std::string> robot_name;
+    }
+
+    Mission(std::string mission_id, Profile profile);
+
+    bool add_phases(Json);
+
+    bool add_phases(std::vector<PhaseDescription>);
+
+    const Json get_phases();
+  }
+}
+
+//==============================================================================
+// rmf_task_ros2
+
+namespacee rmf_task_ros2
+{
+
+Mission convert_from_msg(TaskMsg);
+
+TaskMsg convert_to_msg(Mission);
+
+class PhaseExecution
+{
+  PhaseExecution make_phase_execution(_context, PhaseDescription)
+}
+
+class Dispatcher:
+{
+  struct Criteria
+  {
+    std::optional<std::string> fleet_name;
+    std::optional<std::string> robot_name;
+    ConditionDescriptor condition_descriptor;
+  }
+
+  using RequestMission = std::vector<PhaseDescription>;
+
+  Dispatcher(Method);
+
+  void dispatch_task(Task, AckCallback);
+
+  std::vector<Task> dispatch_queue();
+}
+
+class Monitor
+{
+  Monitor()
+
+  std::list<> get_latest();
+
+  void alert_callback(fn);
+
+  void error_callback(fn);
+
+  void finish_callback(fn);
+}
+
+} // end rmf_task_ros2
+
+//==============================================================================
+// rmf_fleet_adapter
+
+namespace rmf_fleet_adapter
+{
+class RobotCommandHandle
+{
+  ...
+
+  using TaskRequestCallback = function<bool>(Mission mission);
+
+  accept_task(TaskRequestCallback fn);
+}
+
+}

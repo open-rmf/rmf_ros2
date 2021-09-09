@@ -202,7 +202,6 @@ GoToPlace::Active::Active(
   _description = "Sending [" + _context->requester_id() + "] to ["
     + std::to_string(_goal.waypoint()) + "]";
   _negotiator_license = _context->set_negotiator(this);
-  _start_time = _context->now();
   StatusMsg initial_msg;
   initial_msg.status = "Finding a plan for [" + _context->requester_id()
     + "] to go to [" + std::to_string(_goal.waypoint()) + "]";
@@ -569,7 +568,7 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
   rmf_traffic::Time dummy_time;
   rmf_task::agv::State dummy_state{{dummy_time, 0, 0.0}, 0, 1.0};
   
-  if (_context->name() == "deliveryRobot_1")
+  if (_context->name() == "deliveryRobot_1") // TODO remove this
     std::cout << "\n\033[1;31m INITIALIZE [TASK]\033[0m\n" << std::endl;
   
   // This will create a subtask phases. If this subtask is previously executed,

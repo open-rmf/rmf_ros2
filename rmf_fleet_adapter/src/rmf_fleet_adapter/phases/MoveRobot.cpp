@@ -44,7 +44,6 @@ MoveRobot::ActivePhase::ActivePhase(
     .lift<Task::StatusMsg>(grab_while_active())
     .observe_on(rxcpp::identity_same_worker(_context->worker()));
 
-  _start_time = _context->now();
   _context->current_mode(rmf_fleet_msgs::msg::RobotMode::MODE_MOVING);
 }
 

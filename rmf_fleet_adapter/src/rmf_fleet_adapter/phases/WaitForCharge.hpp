@@ -48,6 +48,9 @@ public:
     // Documentation inherited from ActivePhase
     rmf_traffic::Duration estimate_remaining_time() const final;
 
+    // Documentation inherited
+    rmf_traffic::Duration runtime_duration() const override;
+
     // Documentation inherited from ActivePhase
     void emergency_alarm(bool on) final;
 
@@ -68,6 +71,7 @@ public:
       rmf_traffic::Time start_time);
 
     agv::RobotContextPtr _context;
+    // rmf_traffic::Time _start_time = _context->now();
     rmf_battery::agv::BatterySystem _battery_system;
     double _charge_to_soc;
     std::string _description;

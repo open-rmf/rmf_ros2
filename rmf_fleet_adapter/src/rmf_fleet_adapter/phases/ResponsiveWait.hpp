@@ -55,6 +55,9 @@ public:
     rmf_traffic::Duration estimate_remaining_time() const final;
 
     // Documentation inherited
+    rmf_traffic::Duration runtime_duration() const override;
+
+    // Documentation inherited
     void emergency_alarm(bool on) final;
 
     // Documentation inherited
@@ -73,6 +76,7 @@ public:
     void _begin_movement();
 
     PhaseInfo _info;
+    rmf_traffic::Time _start_time = _info.context->now();
     rxcpp::observable<StatusMsg> _status_obs;
     rxcpp::subjects::subject<StatusMsg> _status_publisher;
     rmf_rxcpp::subscription_guard _movement_subscription;

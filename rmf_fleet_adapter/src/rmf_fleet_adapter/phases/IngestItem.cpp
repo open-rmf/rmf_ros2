@@ -56,6 +56,12 @@ rmf_traffic::Duration IngestItem::ActivePhase::estimate_remaining_time() const
 }
 
 //==============================================================================
+rmf_traffic::Duration IngestItem::ActivePhase::runtime_duration() const
+{
+  return _context->now() - _start_time;
+}
+
+//==============================================================================
 void IngestItem::ActivePhase::emergency_alarm(bool)
 {
   // TODO: implement

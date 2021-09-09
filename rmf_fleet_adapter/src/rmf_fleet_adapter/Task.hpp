@@ -66,10 +66,10 @@ public:
     virtual rmf_traffic::Duration estimate_remaining_time() const = 0;
 
     /// How long the phase has been active.
-    virtual rmf_traffic::Duration runtime_duration() const
-    {
-      return rmf_traffic::Duration{0};
-    };
+    virtual rmf_traffic::Duration runtime_duration() const = 0;
+    // {
+    //   return rmf_traffic::Duration{0};
+    // };
 
     /// Activate or deactivate the emergency alarm behavior.
     virtual void emergency_alarm(bool on) = 0;

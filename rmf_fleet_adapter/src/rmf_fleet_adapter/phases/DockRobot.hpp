@@ -41,6 +41,8 @@ struct DockRobot
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 
+    rmf_traffic::Duration runtime_duration() const override;
+
     void emergency_alarm(bool on) override;
 
     void cancel() override;
@@ -53,6 +55,7 @@ struct DockRobot
     friend class Action;
 
     agv::RobotContextPtr _context;
+    rmf_traffic::Time _start_time = _context->now();
     std::string _dock_name;
     std::string _description;
     std::string _title = "Dock";

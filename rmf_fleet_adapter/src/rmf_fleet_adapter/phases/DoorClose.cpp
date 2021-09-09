@@ -53,6 +53,12 @@ rmf_traffic::Duration DoorClose::ActivePhase::estimate_remaining_time() const
 }
 
 //==============================================================================
+rmf_traffic::Duration DoorClose::ActivePhase::runtime_duration() const
+{
+  return _context->now() - _start_time;
+}
+
+//==============================================================================
 void DoorClose::ActivePhase::emergency_alarm(bool /*on*/)
 {
   // TODO: implement
