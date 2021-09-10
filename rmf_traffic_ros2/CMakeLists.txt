@@ -16,6 +16,7 @@ include(GNUInstallDirs)
 find_package(ament_cmake REQUIRED)
 find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
+find_package(rmf_building_map_msgs REQUIRED)
 find_package(rmf_fleet_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -120,6 +121,7 @@ target_link_libraries(rmf_traffic_ros2
   PUBLIC
     rmf_traffic::rmf_traffic
     ${rmf_traffic_msgs_LIBRARIES}
+    ${rmf_building_map_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     yaml-cpp
 )
@@ -129,6 +131,7 @@ target_include_directories(rmf_traffic_ros2
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_msgs_INCLUDE_DIRS}
+    ${rmf_building_map_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
 )
 
@@ -138,6 +141,7 @@ ament_export_dependencies(
   rmf_traffic
   rmf_traffic_msgs
   rmf_fleet_msgs
+  rmf_building_map_msgs
   Eigen3
   rclcpp
   yaml-cpp
