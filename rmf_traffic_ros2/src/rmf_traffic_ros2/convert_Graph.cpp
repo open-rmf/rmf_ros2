@@ -21,7 +21,7 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::agv::Graph convert(const rmf_building_map_msgs::msg::Graph& from,
-    int waypoint_offset)
+  int waypoint_offset)
 {
   rmf_traffic::agv::Graph graph;
   // Iterate over vertices / waypoints
@@ -30,12 +30,12 @@ rmf_traffic::agv::Graph convert(const rmf_building_map_msgs::msg::Graph& from,
   {
     const Eigen::Vector2d location{
       vertex.x, vertex.y};
-    auto wp = graph.add_waypoint(from.name, location);
+    auto& wp = graph.add_waypoint(from.name, location);
     // Add waypoint name if in the message
     if (vertex.name.size() > 0 && !graph.add_key(vertex.name, wp.index()))
     {
       throw std::runtime_error(
-        "Duplicated waypoint name [" + vertex.name + "]");
+              "Duplicated waypoint name [" + vertex.name + "]");
     }
     for (const auto& param : vertex.params)
     {
@@ -54,14 +54,14 @@ rmf_traffic::agv::Graph convert(const rmf_building_map_msgs::msg::Graph& from,
   {
     using Lane = rmf_traffic::agv::Graph::Lane;
     using Event = Lane::Event;
-    // TODO(LDV) Add remaining functionality, lifts, doors, docking points
+    // TODO(luca) Add remaining functionality, lifts, doors, docking points
     // events, orientation constraints
     rmf_utils::clone_ptr<Event> entry_event;
     rmf_utils::clone_ptr<Event> exit_event;
     // Waypoint offset is applied to ensure unique IDs when multiple levels
     // are present
-    const int start_wp = edge.v1_idx + waypoint_offset;
-    const int end_wp = edge.v2_idx + waypoint_offset;
+    const std::size_t start_wp = edge.v1_idx + waypoint_offset;
+    const std::size_t end_wp = edge.v2_idx + waypoint_offset;
     graph.add_lane({start_wp, entry_event}, {end_wp, exit_event});
     if (edge.edge_type == edge.EDGE_TYPE_BIDIRECTIONAL)
       graph.add_lane({end_wp, entry_event}, {start_wp, exit_event});

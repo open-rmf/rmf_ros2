@@ -23,6 +23,6 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::agv::Graph convert(const rmf_building_map_msgs::msg::Graph& from,
-    int waypoint_offset = 0);
+  int waypoint_offset = 0);
 
 } // namespace rmf_traffic_ros2
