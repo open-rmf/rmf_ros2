@@ -42,6 +42,15 @@ static auto make_bool_param(const std::string& name, const bool val)
   return param;
 } 
 
+static auto make_string_param(const std::string& name, const std::string& val)
+{
+  rmf_building_map_msgs::msg::Param param;
+  param.name = name;
+  param.type = param.TYPE_STRING;
+  param.value_string = val;
+  return param;
+}
+
 SCENARIO("Test conversion from rmf_building_map_msgs to rmf_traffic")
 {
   GIVEN("a graph with two nodes")
@@ -53,7 +62,8 @@ SCENARIO("Test conversion from rmf_building_map_msgs to rmf_traffic")
     input_msg.vertices.push_back(
       make_graph_node(10, 20, "wp_0", {
         make_bool_param("is_parking_spot", true),
-        make_bool_param("is_holding_point", true)
+        make_bool_param("is_holding_point", true),
+        make_string_param("dock_name", "dock_1")
       }));
     input_msg.vertices.push_back(
       make_graph_node(30, 40, "wp_1", {
@@ -66,36 +76,42 @@ SCENARIO("Test conversion from rmf_building_map_msgs to rmf_traffic")
     rmf_building_map_msgs::msg::GraphEdge edge;
     edge.v1_idx = 0;
     edge.v2_idx = 1;
-      WHEN("the lane is not bidirectional")
+    WHEN("the lane is not bidirectional")
+    {
+      THEN("graph has only one lane")
       {
-        THEN("graph has only one lane")
-        {
-          edge.edge_type = edge.EDGE_TYPE_UNIDIRECTIONAL;
-          input_msg.edges = {edge};
-          auto res = rmf_traffic_ros2::convert(input_msg);
-          REQUIRE(res.num_lanes() == 1);
-          auto lane = res.get_lane(0);
-          CHECK(lane.entry().waypoint_index() == 0);
-          CHECK(lane.exit().waypoint_index() == 1);
-        }
+        edge.edge_type = edge.EDGE_TYPE_UNIDIRECTIONAL;
+        input_msg.edges = {edge};
+        auto res = rmf_traffic_ros2::convert(input_msg);
+        REQUIRE(res.num_lanes() == 1);
+        auto lane = res.get_lane(0);
+        CHECK(lane.entry().waypoint_index() == 0);
+        CHECK(lane.exit().waypoint_index() == 1);
       }
-      WHEN("the lane is bidirectional")
+    }
+    WHEN("the lane is bidirectional")
+    {
+      THEN("graph has two lanes")
       {
+        edge.edge_type = edge.EDGE_TYPE_BIDIRECTIONAL;
+        input_msg.edges = {edge};
+        auto res = rmf_traffic_ros2::convert(input_msg);
+        REQUIRE(res.num_lanes() == 2);
+        auto lane = res.get_lane(0);
+        // Expect one to be 1 and one to be 0, hence the XOR
+        CHECK(
+          (lane.entry().waypoint_index() ^ lane.exit().waypoint_index()) == 1);
+        lane = res.get_lane(1);
+        CHECK(
+          (lane.entry().waypoint_index() ^ lane.exit().waypoint_index()) == 1);
+        CHECK(lane.entry().waypoint_index() !=
+          res.get_lane(0).entry().waypoint_index());
 
-        THEN("graph has two lanes")
-        {
-          edge.edge_type = edge.EDGE_TYPE_BIDIRECTIONAL;
-          input_msg.edges = {edge};
-          auto res = rmf_traffic_ros2::convert(input_msg);
-          REQUIRE(res.num_lanes() == 2);
-          auto lane = res.get_lane(0);
-          CHECK(lane.entry().waypoint_index() == 0);
-          CHECK(lane.exit().waypoint_index() == 1);
-          lane = res.get_lane(1);
-          CHECK(lane.entry().waypoint_index() == 1);
-          CHECK(lane.exit().waypoint_index() == 0);
-        }
+        // Check for the dock event in the first lane
+        auto entry_event = lane.entry().event();
+        CHECK(entry_event != nullptr);
       }
+    }
     THEN("output graph has two nodes with right properties")
     {
       auto res = rmf_traffic_ros2::convert(input_msg);

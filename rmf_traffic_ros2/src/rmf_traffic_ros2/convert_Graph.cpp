@@ -54,17 +54,27 @@ rmf_traffic::agv::Graph convert(const rmf_building_map_msgs::msg::Graph& from,
   {
     using Lane = rmf_traffic::agv::Graph::Lane;
     using Event = Lane::Event;
-    // TODO(luca) Add remaining functionality, lifts, doors, docking points
-    // events, orientation constraints
+    // TODO(luca) Add lifts, doors, orientation constraints
     rmf_utils::clone_ptr<Event> entry_event;
     rmf_utils::clone_ptr<Event> exit_event;
     // Waypoint offset is applied to ensure unique IDs when multiple levels
     // are present
     const std::size_t start_wp = edge.v1_idx + waypoint_offset;
     const std::size_t end_wp = edge.v2_idx + waypoint_offset;
-    graph.add_lane({start_wp, entry_event}, {end_wp, exit_event});
+    std::string dock_name;
+    for (const auto& param : edge.params)
+    {
+      if (param.name == "dock_name")
+        dock_name = param.value_string;
+    }
+    // dock_name is only applied to the lane going to the waypoint, not exiting
     if (edge.edge_type == edge.EDGE_TYPE_BIDIRECTIONAL)
       graph.add_lane({end_wp, entry_event}, {start_wp, exit_event});
+
+    const rmf_traffic::Duration duration = std::chrono::seconds(5);
+    entry_event = Event::make(Lane::Dock(dock_name, duration));
+    graph.add_lane({start_wp, entry_event},
+      {end_wp, exit_event});
   }
   return graph;
 }
