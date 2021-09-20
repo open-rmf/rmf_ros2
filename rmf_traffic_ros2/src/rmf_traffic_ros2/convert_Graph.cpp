@@ -72,7 +72,8 @@ rmf_traffic::agv::Graph convert(const rmf_building_map_msgs::msg::Graph& from,
       graph.add_lane({end_wp, entry_event}, {start_wp, exit_event});
 
     const rmf_traffic::Duration duration = std::chrono::seconds(5);
-    entry_event = Event::make(Lane::Dock(dock_name, duration));
+    if (dock_name.size() > 0)
+      entry_event = Event::make(Lane::Dock(dock_name, duration));
     graph.add_lane({start_wp, entry_event},
       {end_wp, exit_event});
   }

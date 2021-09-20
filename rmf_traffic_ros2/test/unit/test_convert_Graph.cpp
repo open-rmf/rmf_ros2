@@ -62,8 +62,7 @@ SCENARIO("Test conversion from rmf_building_map_msgs to rmf_traffic")
     input_msg.vertices.push_back(
       make_graph_node(10, 20, "wp_0", {
         make_bool_param("is_parking_spot", true),
-        make_bool_param("is_holding_point", true),
-        make_string_param("dock_name", "dock_1")
+        make_bool_param("is_holding_point", true)
       }));
     input_msg.vertices.push_back(
       make_graph_node(30, 40, "wp_1", {
@@ -76,6 +75,7 @@ SCENARIO("Test conversion from rmf_building_map_msgs to rmf_traffic")
     rmf_building_map_msgs::msg::GraphEdge edge;
     edge.v1_idx = 0;
     edge.v2_idx = 1;
+    edge.params.push_back(make_string_param("dock_name", "dock_1"));
     WHEN("the lane is not bidirectional")
     {
       THEN("graph has only one lane")
@@ -98,18 +98,22 @@ SCENARIO("Test conversion from rmf_building_map_msgs to rmf_traffic")
         auto res = rmf_traffic_ros2::convert(input_msg);
         REQUIRE(res.num_lanes() == 2);
         auto lane = res.get_lane(0);
+        int num_events = 0;
+        if (lane.entry().event() != nullptr)
+          ++num_events;
         // Expect one to be 1 and one to be 0, hence the XOR
         CHECK(
           (lane.entry().waypoint_index() ^ lane.exit().waypoint_index()) == 1);
         lane = res.get_lane(1);
+        if (lane.entry().event() != nullptr)
+          ++num_events;
         CHECK(
           (lane.entry().waypoint_index() ^ lane.exit().waypoint_index()) == 1);
         CHECK(lane.entry().waypoint_index() !=
           res.get_lane(0).entry().waypoint_index());
 
         // Check for the dock event in the first lane
-        auto entry_event = lane.entry().event();
-        CHECK(entry_event != nullptr);
+        CHECK(num_events == 1);
       }
     }
     THEN("output graph has two nodes with right properties")
