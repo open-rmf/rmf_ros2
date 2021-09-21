@@ -1,4 +1,5 @@
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <pybind11/chrono.h>
 
 #include <memory>
@@ -36,7 +37,17 @@ void bind_lane(py::module& m)
   .def_property_readonly("exit",
     py::overload_cast<>(&Lane::exit),
     py::return_value_policy::reference_internal)
-  .def_property_readonly("index", &Lane::index);
+  .def_property_readonly("index", &Lane::index)
+  .def_property_readonly("properties",
+    py::overload_cast<>(&Lane::properties),
+    py::return_value_policy::reference_internal);
+
+  // LANE PROPERTIES ===========================================================
+  py::class_<Lane::Properties>(m_lane, "Properties")
+  .def(py::init<>())
+  .def_property("speed_limit",
+    py::overload_cast<>(&Lane::Properties::speed_limit, py::const_),
+    py::overload_cast<std::optional<double>>(&Lane::Properties::speed_limit));
 
   // DOORS =====================================================================
   py::class_<Lane::Door>(m_lane, "Door")

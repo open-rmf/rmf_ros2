@@ -332,9 +332,13 @@ def test_graph():
              [8, 9],
              [8, 10]]
 
+    # test speed limit std::optional lane property
+    properties = lane.Properties()
+    properties.speed_limit = 10.0
     # Test add_lane
-    rawr_graph.add_lane(lane.Node(0),
-                        lane.Node(1))
+    added_lane = rawr_graph.add_lane(lane.Node(0),
+                        lane.Node(1), properties)
+    assert added_lane.properties.speed_limit == 10.0
     assert rawr_graph.num_lanes == 1
 
     # Test add_bidir_lane
