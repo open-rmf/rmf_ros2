@@ -166,6 +166,18 @@ target_link_libraries(read_only
 
 # -----------------------------------------------------------------------------
 
+add_executable(read_only_blockade
+  src/read_only_blockade/main.cpp
+  src/read_only_blockade/FleetAdapterNode.cpp
+)
+
+target_link_libraries(read_only_blockade
+  PRIVATE
+    rmf_fleet_adapter
+)
+
+# -----------------------------------------------------------------------------
+
 add_executable(full_control src/full_control/main.cpp)
 
 target_link_libraries(full_control
@@ -456,6 +468,7 @@ install(
   TARGETS
     rmf_fleet_adapter
     read_only
+    read_only_blockade
     mock_traffic_light
     full_control
     lift_supervisor

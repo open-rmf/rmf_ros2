@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Open Source Robotics Foundation
+ * Copyright (C) 2021 Open Source Robotics Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ using namespace rmf_fleet_adapter;
 int main(int argc, char* argv[])
 {
   rclcpp::init(argc, argv);
-  const auto fleet_adapter_node = read_only::FleetAdapterNode::make();
+  const auto fleet_adapter_node = read_only_blockade::FleetAdapterNode::make();
   if (!fleet_adapter_node)
     return 1;
 

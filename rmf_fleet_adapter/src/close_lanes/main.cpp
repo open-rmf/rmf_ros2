@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
     [&request_complete, fleet_name, close_lanes = std::move(close_lanes)](
       std::unique_ptr<rmf_fleet_msgs::msg::ClosedLanes> msg)
     {
-      if (msg->fleet_name != fleet_name)
+      if (msg->fleet_name != fleet_name && !fleet_name.empty())
         return;
 
       auto still_open = close_lanes;
