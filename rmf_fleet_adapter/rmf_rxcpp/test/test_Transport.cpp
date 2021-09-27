@@ -125,7 +125,7 @@ TEST_CASE("publish subscribe loopback", "[Transport]")
     // solution will find out why subscriptions take time to go through and find or add a condition
     // we can wait on.
     int loop_count = 10;
-    while(transport->count_subscribers(topic_name) == 0 && loop_count > 0)
+    while (transport->count_subscribers(topic_name) == 0 && loop_count > 0)
     {
       std::this_thread::sleep_for(100ms);
       --loop_count;
