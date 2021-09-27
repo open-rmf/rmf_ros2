@@ -3,11 +3,9 @@
 #include <rxcpp/operators/rx-merge_delay_error.hpp>
 #include <rxcpp/operators/rx-observe_on.hpp>
 
-const int static_onnextcalls = 1000000;
-
 //merge_delay_error must work the very same way as `merge()` except the error handling
 
-SCENARIO("merge completes", "[merge][join][operators]"){
+SCENARIO("merge_delay_error completes", "[merge][join][operators]"){
     GIVEN("1 hot observable with 3 cold observables of ints."){
         auto sc = rxsc::make_test();
         auto w = sc.create_worker();
@@ -117,7 +115,7 @@ SCENARIO("merge completes", "[merge][join][operators]"){
     }
 }
 
-SCENARIO("variadic merge completes with error", "[merge][join][operators]"){
+SCENARIO("variadic merge_delay_error completes with error", "[merge][join][operators]"){
     GIVEN("1 hot observable with 3 cold observables of ints."){
         auto sc = rxsc::make_test();
         auto w = sc.create_worker();
@@ -211,7 +209,7 @@ SCENARIO("variadic merge completes with error", "[merge][join][operators]"){
     }
 }
 
-SCENARIO("variadic merge completes with 2 errors", "[merge][join][operators]"){
+SCENARIO("variadic merge_delay_error completes with 2 errors", "[merge][join][operators]"){
     GIVEN("1 hot observable with 3 cold observables of ints."){
         auto sc = rxsc::make_test();
         auto w = sc.create_worker();
