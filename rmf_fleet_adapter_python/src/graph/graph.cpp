@@ -135,6 +135,9 @@ void bind_graph(py::module& m)
   // Lanes
   .def("add_lane",
     &Graph::add_lane,
+    py::arg("entry"),
+    py::arg("exit"),
+    py::arg("properties") = Lane::Properties(),
     py::call_guard<py::scoped_ostream_redirect,
     py::scoped_estream_redirect>())
   .def("add_dock_lane",
@@ -142,7 +145,8 @@ void bind_graph(py::module& m)
     const std::size_t w0,
     const std::size_t w1,
     std::string dock_name,
-    int seconds)
+    int seconds,
+    Lane::Properties properties)
     {
       self.add_lane(
         {
@@ -151,13 +155,14 @@ void bind_graph(py::module& m)
             Lane::Dock(dock_name,
             std::chrono::seconds(seconds)))
         },
-        w1);
-      self.add_lane(w1, w0);
+        w1, properties);
+      self.add_lane(w1, w0, properties);
     },
     py::arg("w0"),
     py::arg("w1"),
     py::arg("dock_name"),
     py::arg("dock_seconds") = 10,
+    py::arg("properties") = Lane::Properties(),
     py::call_guard<py::scoped_ostream_redirect,
     py::scoped_estream_redirect>())
   .def("add_bidir_lane",
