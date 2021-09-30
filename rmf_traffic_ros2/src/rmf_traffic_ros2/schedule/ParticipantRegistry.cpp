@@ -24,14 +24,6 @@ namespace rmf_traffic_ros2 {
 namespace schedule {
 
 //==============================================================================
-bool operator!=(
-  const rmf_traffic::schedule::ParticipantDescription& p1,
-  const rmf_traffic::schedule::ParticipantDescription& p2)
-{
-  return rmf_traffic_ros2::convert(p1) != rmf_traffic_ros2::convert(p2);
-}
-
-//==============================================================================
 struct UniqueId
 {
   std::string name;

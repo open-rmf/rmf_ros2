@@ -28,6 +28,7 @@
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
 
 #include <rmf_traffic_msgs/msg/fail_over_event.hpp>
+#include <rmf_traffic_msgs/msg/participants.hpp>
 
 #include <rmf_traffic_msgs/srv/register_participant.hpp>
 #include <rmf_traffic_msgs/srv/unregister_participant.hpp>
@@ -80,6 +81,9 @@ public:
   using InconsistencyMsg = rmf_traffic_msgs::msg::ScheduleInconsistency;
   rclcpp::Subscription<InconsistencyMsg>::SharedPtr inconsistency_sub;
 
+  using ParticipantsInfoMsg = rmf_traffic_msgs::msg::Participants;
+  rclcpp::Subscription<ParticipantsInfoMsg>::SharedPtr participants_sub;
+
   RectifierFactory(rclcpp::Node& node)
   {
     inconsistency_sub = node.create_subscription<InconsistencyMsg>(
@@ -88,6 +92,14 @@ public:
       [&](const InconsistencyMsg::UniquePtr msg)
       {
         check_inconsistencies(*msg);
+      });
+
+    participants_sub = node.create_subscription<ParticipantsInfoMsg>(
+      ParticipantsInfoTopicName,
+      rclcpp::SystemDefaultsQoS().reliable().transient_local(),
+      [&](const ParticipantsInfoMsg::UniquePtr msg)
+      {
+        validate_participants(node, *msg);
       });
   }
 
@@ -132,6 +144,75 @@ public:
       ranges.emplace_back(Range{r.lower, r.upper});
 
     stub->requester.rectifier.retransmit(ranges, msg.last_known_version);
+  }
+
+  void validate_participants(
+    const rclcpp::Node & node,
+    const ParticipantsInfoMsg& msg)
+  {
+    for (const auto& s: stub_map)
+    {
+      auto p = std::find_if(
+        msg.participants.begin(),
+        msg.participants.end(),
+        [stub = s.second.lock()](const auto& participant) {
+          if (!stub)
+          {
+            // This participant has expired so ignore it
+            return false;
+          }
+          return stub->requester.rectifier.get_description() ==
+            convert(participant.description);
+        });
+      if (p == msg.participants.end())
+      {
+        // This participant is unregistered, even though we expected it to be
+        RCLCPP_WARN(
+          node.get_logger(),
+          "Participant %ld is not registered properly",
+          s.first);
+        // Re-register the participant
+        // TODO(geoff): This needs to be done by the Writer (probably?), so
+        // perhaps this whole function should be in the Writer and have the ID
+        // update bit call into the rectifier?
+      }
+      else
+      {
+        const auto& stub = s.second.lock();
+        if (!stub)
+        {
+          continue;
+        }
+        // This participant is registered, but we need to check that the ID is
+        // correct
+        if (s.first != p->id)
+        {
+          RCLCPP_WARN(
+            node.get_logger(),
+            "IDs do not match; stub = %ld, p = %ld",
+            s.first,
+            p->id);
+          // Tell the participant to update its ID
+          RCLCPP_WARN(node.get_logger(), "Correcting ID");
+          stub->requester.rectifier.correct_id(p->id);
+          // Correct the stub_map's key for this participant
+          // TODO(geoff): What if there's already a participant with this ID in
+          // the stubmap? Is that a possible occurence?
+          RCLCPP_WARN(node.get_logger(), "Adding new id to stub_map");
+          stub_map.insert({p->id, s.second});
+          //RCLCPP_WARN(node.get_logger(), "Erasing old id from stub_map");
+          //stub_map.erase(s.first);
+          RCLCPP_WARN(node.get_logger(), "Done");
+        }
+        //else
+        //{
+          //RCLCPP_WARN(
+            //node.get_logger(),
+            //"Participant %ld is registered correctly",
+            //p->id);
+        //}
+      }
+    }
   }
 };
 

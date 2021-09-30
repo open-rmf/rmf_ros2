@@ -103,12 +103,40 @@ if(BUILD_TESTING)
   )
   target_link_libraries(delayed_query_broadcast_monitor_node rmf_traffic_ros2)
 
+  add_executable(missing_participant_schedule_node
+    test/mock_schedule_nodes/missing_participant.cpp
+  )
+  target_include_directories(missing_participant_schedule_node
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+      ${rmf_traffic_msgs_INCLUDE_DIRS}
+      ${rclcpp_INCLUDE_DIRS}
+      "src"
+  )
+  target_link_libraries(missing_participant_schedule_node rmf_traffic_ros2)
+
+  add_executable(changed_participant_schedule_node
+    test/mock_schedule_nodes/changed_participant_id.cpp
+  )
+  target_include_directories(changed_participant_schedule_node
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+      ${rmf_traffic_msgs_INCLUDE_DIRS}
+      ${rclcpp_INCLUDE_DIRS}
+      "src"
+  )
+  target_link_libraries(changed_participant_schedule_node rmf_traffic_ros2)
+
   install(
     TARGETS
       missing_query_schedule_node
       missing_query_monitor_node
       wrong_query_schedule_node
       delayed_query_broadcast_monitor_node
+      missing_participant_schedule_node
+      changed_participant_schedule_node
     RUNTIME DESTINATION lib/rmf_traffic_ros2
   )
 endif()
