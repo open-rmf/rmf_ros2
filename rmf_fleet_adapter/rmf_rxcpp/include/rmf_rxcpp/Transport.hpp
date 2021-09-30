@@ -193,6 +193,11 @@ public:
     // Do nothing
   }
 
+  void add_node(rclcpp::Node::SharedPtr node)
+  {
+    _executor->add_node(node);
+  }
+
   void start()
   {
     std::unique_lock<std::mutex> lock(_stopping_mutex);

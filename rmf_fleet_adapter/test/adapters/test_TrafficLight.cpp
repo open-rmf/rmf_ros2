@@ -164,25 +164,26 @@ SCENARIO("Test new path timing")
   auto rcl_context = std::make_shared<rclcpp::Context>();
   rcl_context->init(0, nullptr);
 
-  auto rcl_blockade_context = std::make_shared<rclcpp::Context>();
-  rcl_blockade_context->init(0, nullptr);
+//  auto rcl_blockade_context = std::make_shared<rclcpp::Context>();
+//  rcl_blockade_context->init(0, nullptr);
 
   const auto blockade_node = rmf_traffic_ros2::blockade::make_node(
     "test_blockade_" + std::to_string(++node_count),
-    rclcpp::NodeOptions().context(rcl_blockade_context));
+//    rclcpp::NodeOptions().context(rcl_blockade_context));
+    rclcpp::NodeOptions().context(rcl_context));
 
-  ManagedThread blockade_thread(
-    [blockade_node]()
-    {
-      // TODO(MXG): Investigate segfault from
-      // spdlog::logger::should_log(spdlog::level::level_enum) const ()
-      // triggered when a BlockadeCancel message was received by this thread
-      rclcpp::ExecutorOptions options;
-      options.context = blockade_node->get_node_base_interface()->get_context();
-      rclcpp::executors::SingleThreadedExecutor executor(options);
-      executor.add_node(blockade_node);
-      executor.spin();
-    }, rcl_blockade_context);
+//  ManagedThread blockade_thread(
+//    [blockade_node]()
+//    {
+//      // TODO(MXG): Investigate segfault from
+//      // spdlog::logger::should_log(spdlog::level::level_enum) const ()
+//      // triggered when a BlockadeCancel message was received by this thread
+//      rclcpp::ExecutorOptions options;
+//      options.context = blockade_node->get_node_base_interface()->get_context();
+//      rclcpp::executors::SingleThreadedExecutor executor(options);
+//      executor.add_node(blockade_node);
+//      executor.spin();
+//    }, rcl_blockade_context);
 
   const auto graph = make_test_graph();
 
@@ -211,6 +212,7 @@ SCENARIO("Test new path timing")
   auto update_1 = adapter.add_traffic_light(
     command_1, "fleet_1", "robot_1", traits, profile);
 
+  adapter.add_secondary_node(blockade_node);
   adapter.start();
 
   WHEN("Crossing paths")

@@ -287,6 +287,13 @@ std::shared_ptr<const rclcpp::Node> MockAdapter::node() const
 }
 
 //==============================================================================
+void MockAdapter::add_secondary_node(
+  std::shared_ptr<rclcpp::Node> secondary_node)
+{
+  _pimpl->node->add_node(std::move(secondary_node));
+}
+
+//==============================================================================
 void MockAdapter::start()
 {
   _pimpl->node->start();
