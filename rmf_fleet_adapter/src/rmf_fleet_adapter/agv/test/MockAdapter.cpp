@@ -70,15 +70,13 @@ public:
   {
     _worker.schedule(
       [
-        database = std::weak_ptr<rmf_traffic::schedule::Database>(_database),
+        database = _database,
         participant,
         itinerary,
         version
       ](const auto&)
       {
-        auto db = database.lock();
-        if(!db) return;
-        db->set(participant, itinerary, version);
+        database->set(participant, itinerary, version);
       });
   }
 
@@ -88,15 +86,13 @@ public:
   {
     _worker.schedule(
       [
-        database = std::weak_ptr<rmf_traffic::schedule::Database>(_database),
+        database = _database,
         participant,
         routes,
         version
       ](const auto&)
       {
-        auto db = database.lock();
-        if(!db) return;
-        db->extend(participant, routes, version);
+        database->extend(participant, routes, version);
       });
   }
 
@@ -107,15 +103,13 @@ public:
   {
     _worker.schedule(
       [
-        database = std::weak_ptr<rmf_traffic::schedule::Database>(_database),
+        database = _database,
         participant,
         delay,
         version
       ](const auto&)
       {
-        auto db = database.lock();
-        if(!db) return;
-        db->delay(participant, delay, version);
+        database->delay(participant, delay, version);
       });
   }
 
@@ -125,13 +119,11 @@ public:
   {
     _worker.schedule(
       [
-        database = std::weak_ptr<rmf_traffic::schedule::Database>(_database),
+        database = _database,
         participant, version
       ](const auto&)
       {
-        auto db = database.lock();
-        if(!db) return;
-        db->erase(participant, version);
+        database->erase(participant, version);
       });
   }
 
@@ -142,15 +134,13 @@ public:
   {
     _worker.schedule(
       [
-        database = std::weak_ptr<rmf_traffic::schedule::Database>(_database),
+        database = _database,
         participant,
         routes,
         version
       ](const auto&)
       {
-        auto db = database.lock();
-        if(!db) return;
-        db->erase(participant, routes, version);
+        database->erase(participant, routes, version);
       });
   }
 
@@ -172,12 +162,9 @@ public:
   void unregister_participant(ParticipantId participant) final
   {
     _worker.schedule(
-      [database = std::weak_ptr<rmf_traffic::schedule::Database>(_database),
-       participant](const auto&)
+      [database = _database, participant](const auto&)
       {
-        auto db = database.lock();
-        if(!db) return;
-        db->unregister_participant(participant);
+        database->unregister_participant(participant);
       });
   }
 
@@ -186,13 +173,9 @@ public:
     ParticipantDescription desc) final
   {
     _worker.schedule(
-      [database = std::weak_ptr<rmf_traffic::schedule::Database>(_database),
-      participant,
-      desc](const auto&)
+      [database = _database, participant, desc](const auto&)
       {
-        auto db = database.lock();
-        if(!db) return;
-        db->update_description(participant, desc);
+        database->update_description(participant, desc);
       });
   }
 
