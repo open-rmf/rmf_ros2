@@ -93,6 +93,9 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       // forever in the event of a failure.
       obs.as_blocking().subscribe(rx_sub);
       CHECK(!received_open);
+
+      // Stop before destructing subscription to avoid a race condition
+      data->node->stop();
     }
   }
 
@@ -195,6 +198,8 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       }
     }
   }
+
+  data->node->stop();
 }
 
 } // namespace test
