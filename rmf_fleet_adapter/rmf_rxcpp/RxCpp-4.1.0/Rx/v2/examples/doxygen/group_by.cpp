@@ -3,6 +3,8 @@
 #include "rxcpp/rx-test.hpp"
 #include "catch.hpp"
 
+#include <sstream>
+
 SCENARIO("group_by sample"){
     printf("//! [group_by sample]\n");
     auto values = rxcpp::observable<>::range(0, 8).
@@ -23,7 +25,7 @@ SCENARIO("group_by sample"){
 }
 
 //! [group_by full intro]
-bool less(int v1, int v2){
+static bool less(int v1, int v2){
     return v1 < v2;
 }
 //! [group_by full intro]
