@@ -53,12 +53,17 @@ struct TestData
 SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
 {
   const auto test = std::make_shared<TestData>();
+  auto w_test = std::weak_ptr<TestData>(test);
   auto rcl_subscription =
     data->adapter->node()->create_subscription<IngestorRequest>(
     IngestorRequestTopicName,
     10,
-    [test](IngestorRequest::UniquePtr ingestor_request)
+    [w_test](IngestorRequest::UniquePtr ingestor_request)
     {
+      auto test = w_test.lock();
+      if (!test)
+        return;
+
       std::unique_lock<std::mutex> lk(test->m);
       test->received_requests.emplace_back(*ingestor_request);
       test->received_requests_cv.notify_all();
@@ -73,7 +78,6 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
   item.compartment_name = "test_compartment";
   item.quantity = 1;
   items.emplace_back(std::move(item));
-
 
   const auto info = add_robot();
   const auto& context = info.context;
@@ -93,12 +97,24 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
   WHEN("it is started")
   {
     rmf_rxcpp::subscription_guard sub = active_phase->observe().subscribe(
-      [test](const auto& status)
+      [w_test](const auto& status)
       {
+        auto test = w_test.lock();
+        if(!test)
+          return;
+
         std::unique_lock<std::mutex> lk(test->m);
         test->status_updates.emplace_back(status);
         test->status_updates_cv.notify_all();
       });
+    auto result_pub = data->ros_node->create_publisher<IngestorResult>(
+        IngestorResultTopicName, 10);
+    auto w_result_pub =
+      std::weak_ptr<rclcpp::Publisher<IngestorResult>>(result_pub);
+    auto state_pub = data->ros_node->create_publisher<IngestorState>(
+      IngestorStateTopicName, 10);
+    auto w_state_pub =
+      std::weak_ptr<rclcpp::Publisher<IngestorState>>(state_pub);
 
     THEN("it should send ingest item request")
     {
@@ -142,14 +158,30 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
 
     AND_WHEN("ingestor result is success")
     {
-      auto result_pub = data->ros_node->create_publisher<IngestorResult>(
-        IngestorResultTopicName, 10);
-      auto state_pub = data->ros_node->create_publisher<IngestorState>(
-        IngestorStateTopicName, 10);
       auto timer = data->node->try_create_wall_timer(
         std::chrono::milliseconds(100),
-        [test, node = data->ros_node, request_guid, result_pub, state_pub]()
+        [ w_test, 
+          w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
+          request_guid, 
+          w_result_pub,
+          w_state_pub]()
         {
+          auto test = w_test.lock();
+          if(!test)
+            return;
+
+          auto node = w_node.lock();
+          if(!node)
+            return;
+
+          auto result_pub = w_result_pub.lock();
+          if(!result_pub)
+            return;
+
+          auto state_pub = w_state_pub.lock();
+          if(!state_pub)
+            return;
+
           std::unique_lock<std::mutex> lk(test->m);
           IngestorResult result;
           result.request_guid = request_guid;
@@ -180,14 +212,31 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
 
     AND_WHEN("ingestor result is failed")
     {
-      auto result_pub = data->ros_node->create_publisher<IngestorResult>(
-        IngestorResultTopicName, 10);
-      auto state_pub = data->ros_node->create_publisher<IngestorState>(
-        IngestorStateTopicName, 10);
+      
       auto timer = data->node->try_create_wall_timer(
         std::chrono::milliseconds(100),
-        [test, node = data->ros_node, request_guid, result_pub, state_pub]()
+        [ w_test, 
+          w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
+          request_guid, 
+          w_result_pub,
+          w_state_pub]()
         {
+          auto test = w_test.lock();
+          if(!test)
+            return;
+
+          auto node = w_node.lock();
+          if(!node)
+            return;
+
+          auto result_pub = w_result_pub.lock();
+          if(!result_pub)
+            return;
+
+          auto state_pub = w_state_pub.lock();
+          if(!state_pub)
+            return;
+
           std::unique_lock<std::mutex> lk(test->m);
           IngestorResult result;
           result.request_guid = request_guid;
@@ -219,23 +268,33 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
 
     AND_WHEN("request is acknowledged and request is no longer in queue")
     {
-      auto result_pub = data->ros_node->create_publisher<IngestorResult>(
-        IngestorResultTopicName, 10);
-      auto state_pub = data->ros_node->create_publisher<IngestorState>(
-        IngestorStateTopicName, 10);
       rmf_rxcpp::subscription_guard interval =
         rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
-        [
-          test,
+        [ w_test, 
+          w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
           request_guid,
-          node = data->ros_node,
-          result_pub,
-          state_pub,
-          target
-        ](const auto&)
+          target,
+          w_result_pub,
+          w_state_pub](const auto&)
         {
+          auto test = w_test.lock();
+          if(!test)
+            return;
+
+          auto node = w_node.lock();
+          if(!node)
+            return;
+
+          auto result_pub = w_result_pub.lock();
+          if(!result_pub)
+            return;
+
+          auto state_pub = w_state_pub.lock();
+          if(!state_pub)
+            return;
+
           IngestorResult result;
           result.request_guid = request_guid;
           result.status = IngestorResult::ACKNOWLEDGED;
@@ -263,23 +322,33 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
 
     AND_WHEN("request acknowledged result arrives before request state in queue")
     {
-      auto result_pub = data->ros_node->create_publisher<IngestorResult>(
-        IngestorResultTopicName, 10);
-      auto state_pub = data->ros_node->create_publisher<IngestorState>(
-        IngestorStateTopicName, 10);
       rmf_rxcpp::subscription_guard interval =
         rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
-        [
-          test,
-          node = data->ros_node,
+        [ w_test, 
+          w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
           request_guid,
-          result_pub,
-          state_pub,
-          target
-        ](const auto&)
+          target,
+          w_result_pub,
+          w_state_pub](const auto&)
         {
+          auto test = w_test.lock();
+          if(!test)
+            return;
+
+          auto node = w_node.lock();
+          if(!node)
+            return;
+
+          auto result_pub = w_result_pub.lock();
+          if(!result_pub)
+            return;
+
+          auto state_pub = w_state_pub.lock();
+          if(!state_pub)
+            return;
+
           IngestorResult result;
           result.request_guid = request_guid;
           result.status = IngestorResult::ACKNOWLEDGED;

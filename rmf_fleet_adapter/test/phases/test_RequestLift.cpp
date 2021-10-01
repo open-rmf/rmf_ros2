@@ -29,6 +29,7 @@ using rmf_lift_msgs::msg::LiftState;
 using rmf_lift_msgs::msg::LiftRequest;
 
 namespace {
+
 struct TestData
 {
   std::mutex m;
@@ -44,11 +45,16 @@ struct TestData
 SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
 {
   const auto test = std::make_shared<TestData>();
+  auto w_test = std::weak_ptr<TestData>(test);
   auto rcl_subscription = data->ros_node->create_subscription<LiftRequest>(
     AdapterLiftRequestTopicName,
     10,
-    [test](LiftRequest::UniquePtr lift_request)
+    [w_test](LiftRequest::UniquePtr lift_request)
     {
+      auto test = w_test.lock();
+      if (!test)
+        return;
+  
       std::unique_lock<std::mutex> lk(test->m);
       test->session_id = lift_request->session_id;
       test->received_requests.emplace_back(*lift_request);
@@ -78,7 +84,7 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       auto subscription =
         data->adapter->node()->create_subscription<LiftRequest>(
         AdapterLiftRequestTopicName, 10,
-        [&](LiftRequest::UniquePtr lift_request)
+        [&rx_sub, &received_open](LiftRequest::UniquePtr lift_request)
         {
           if (lift_request->request_type != LiftRequest::REQUEST_END_SESSION)
             received_open = true;
@@ -137,10 +143,28 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
     {
       auto lift_state_pub = data->ros_node->create_publisher<LiftState>(
         LiftStateTopicName, 10);
+      auto w_lift_state_pub =
+        std::weak_ptr<rclcpp::Publisher<LiftState>>(lift_state_pub);
       rclcpp::TimerBase::SharedPtr timer = data->node->try_create_wall_timer(
         std::chrono::milliseconds(100),
-        [test, node = data->ros_node, lift_name, destination, lift_state_pub]()
+        [ w_test,
+          w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
+          lift_name,
+          destination, 
+          w_lift_state_pub]()
         {
+          auto test = w_test.lock();
+          if (!test)
+            return;
+
+          auto node = w_node.lock();
+          if (!node)
+            return;
+           
+          auto lift_state_pub = w_lift_state_pub.lock();
+          if (!lift_state_pub)
+            return;
+
           std::unique_lock<std::mutex> lk(test->m);
           LiftState lift_state;
           lift_state.lift_name = lift_name;
