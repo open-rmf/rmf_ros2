@@ -62,8 +62,9 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
     [w_test](DoorRequest::UniquePtr door_request)
     {
       auto test = w_test.lock();
-      if (!test) return;
-      
+      if (!test)
+        return;
+
       std::unique_lock<std::mutex> lk(test->m);
       test->received_requests.emplace_back(std::move(door_request));
       test->received_requests_cv.notify_all();
@@ -87,7 +88,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       [w_test](const auto& status)
       {
         auto test = w_test.lock();
-        if (!test) return;
+        if (!test)
+          return;
 
         std::unique_lock<std::mutex> lk(test->m);
         test->status_updates.emplace_back(status);
@@ -132,19 +134,22 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       std::weak_ptr<rclcpp::Publisher<SupervisorHeartbeat>>(heartbeat_pub);
 
     auto publish_door_state =
-      [w_test, w_node = 
+      [w_test, w_node =
         std::weak_ptr<rclcpp::Node>(data->ros_node),
-        door_name, 
+        door_name,
         w_door_state_pub](uint32_t mode)
       {
         auto test = w_test.lock();
-        if (!test) return;
-        
+        if (!test)
+          return;
+
         auto node = w_node.lock();
-        if (!node) return;
+        if (!node)
+          return;
 
         auto door_state_pub = w_door_state_pub.lock();
-        if (!door_state_pub) return;
+        if (!door_state_pub)
+          return;
 
         DoorState door_state;
         door_state.door_name = door_name;
@@ -157,10 +162,12 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       [w_test, request_id, door_name, w_heartbeat_pub]()
       {
         auto test = w_test.lock();
-        if (!test) return;
+        if (!test)
+          return;
 
         auto heartbeat_pub = w_heartbeat_pub.lock();
-        if (!heartbeat_pub) return;
+        if (!heartbeat_pub)
+          return;
 
         Session session;
         session.requester_id = request_id;
@@ -175,7 +182,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
     auto publish_empty_heartbeat = [w_heartbeat_pub]()
       {
         auto heartbeat_pub = w_heartbeat_pub.lock();
-        if (!heartbeat_pub) return;
+        if (!heartbeat_pub)
+          return;
 
         heartbeat_pub->publish(SupervisorHeartbeat());
       };

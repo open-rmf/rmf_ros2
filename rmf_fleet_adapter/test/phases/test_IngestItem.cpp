@@ -100,7 +100,7 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
       [w_test](const auto& status)
       {
         auto test = w_test.lock();
-        if(!test)
+        if (!test)
           return;
 
         std::unique_lock<std::mutex> lk(test->m);
@@ -108,7 +108,7 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
         test->status_updates_cv.notify_all();
       });
     auto result_pub = data->ros_node->create_publisher<IngestorResult>(
-        IngestorResultTopicName, 10);
+      IngestorResultTopicName, 10);
     auto w_result_pub =
       std::weak_ptr<rclcpp::Publisher<IngestorResult>>(result_pub);
     auto state_pub = data->ros_node->create_publisher<IngestorState>(
@@ -160,26 +160,26 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
     {
       auto timer = data->node->try_create_wall_timer(
         std::chrono::milliseconds(100),
-        [ w_test, 
-          w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
-          request_guid, 
-          w_result_pub,
-          w_state_pub]()
+        [w_test,
+        w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
+        request_guid,
+        w_result_pub,
+        w_state_pub]()
         {
           auto test = w_test.lock();
-          if(!test)
+          if (!test)
             return;
 
           auto node = w_node.lock();
-          if(!node)
+          if (!node)
             return;
 
           auto result_pub = w_result_pub.lock();
-          if(!result_pub)
+          if (!result_pub)
             return;
 
           auto state_pub = w_state_pub.lock();
-          if(!state_pub)
+          if (!state_pub)
             return;
 
           std::unique_lock<std::mutex> lk(test->m);
@@ -212,29 +212,29 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
 
     AND_WHEN("ingestor result is failed")
     {
-      
+
       auto timer = data->node->try_create_wall_timer(
         std::chrono::milliseconds(100),
-        [ w_test, 
-          w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
-          request_guid, 
-          w_result_pub,
-          w_state_pub]()
+        [w_test,
+        w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
+        request_guid,
+        w_result_pub,
+        w_state_pub]()
         {
           auto test = w_test.lock();
-          if(!test)
+          if (!test)
             return;
 
           auto node = w_node.lock();
-          if(!node)
+          if (!node)
             return;
 
           auto result_pub = w_result_pub.lock();
-          if(!result_pub)
+          if (!result_pub)
             return;
 
           auto state_pub = w_state_pub.lock();
-          if(!state_pub)
+          if (!state_pub)
             return;
 
           std::unique_lock<std::mutex> lk(test->m);
@@ -272,27 +272,27 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
         rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
-        [ w_test, 
-          w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
-          request_guid,
-          target,
-          w_result_pub,
-          w_state_pub](const auto&)
+        [w_test,
+        w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
+        request_guid,
+        target,
+        w_result_pub,
+        w_state_pub](const auto&)
         {
           auto test = w_test.lock();
-          if(!test)
+          if (!test)
             return;
 
           auto node = w_node.lock();
-          if(!node)
+          if (!node)
             return;
 
           auto result_pub = w_result_pub.lock();
-          if(!result_pub)
+          if (!result_pub)
             return;
 
           auto state_pub = w_state_pub.lock();
-          if(!state_pub)
+          if (!state_pub)
             return;
 
           IngestorResult result;
@@ -326,27 +326,27 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
         rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
-        [ w_test, 
-          w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
-          request_guid,
-          target,
-          w_result_pub,
-          w_state_pub](const auto&)
+        [w_test,
+        w_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
+        request_guid,
+        target,
+        w_result_pub,
+        w_state_pub](const auto&)
         {
           auto test = w_test.lock();
-          if(!test)
+          if (!test)
             return;
 
           auto node = w_node.lock();
-          if(!node)
+          if (!node)
             return;
 
           auto result_pub = w_result_pub.lock();
-          if(!result_pub)
+          if (!result_pub)
             return;
 
           auto state_pub = w_state_pub.lock();
-          if(!state_pub)
+          if (!state_pub)
             return;
 
           IngestorResult result;

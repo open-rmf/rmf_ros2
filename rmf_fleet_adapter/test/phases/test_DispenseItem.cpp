@@ -60,11 +60,11 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
     10,
     [weak_test_ptr](DispenserRequest::UniquePtr dispenser_request)
     {
-      if(auto test = weak_test_ptr.lock())
+      if (auto test = weak_test_ptr.lock())
       {
         {
-        std::unique_lock<std::mutex> lk(test->m);
-        test->received_requests.emplace_back(*dispenser_request);
+          std::unique_lock<std::mutex> lk(test->m);
+          test->received_requests.emplace_back(*dispenser_request);
         }
         test->received_requests_cv.notify_all();
       }
@@ -154,7 +154,7 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
     {
       auto result_pub = data->ros_node->create_publisher<DispenserResult>(
         DispenserResultTopicName, 10);
-      auto result_pub_weakptr = 
+      auto result_pub_weakptr =
         std::weak_ptr<rclcpp::Publisher<DispenserResult>>(result_pub);
       auto state_pub = data->ros_node->create_publisher<DispenserState>(
         DispenserStateTopicName, 10);
@@ -166,19 +166,22 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
         [weak_test_ptr,
         weak_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
         request_guid,
-        result_pub_weakptr, 
+        result_pub_weakptr,
         state_pub_weakptr]()
         {
-          if(auto test = weak_test_ptr.lock())
+          if (auto test = weak_test_ptr.lock())
           {
             auto node = weak_node.lock();
-            if(!node) return;
+            if (!node)
+              return;
 
             auto result_pub = result_pub_weakptr.lock();
-            if(!result_pub) return;
+            if (!result_pub)
+              return;
 
             auto state_pub = state_pub_weakptr.lock();
-            if(!state_pub) return;
+            if (!state_pub)
+              return;
 
             std::unique_lock<std::mutex> lk(test->m);
             DispenserResult result;
@@ -208,36 +211,39 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
 
       timer.reset();
     }
-    
+
     AND_WHEN("dispenser result is failed")
     {
       auto result_pub = data->ros_node->create_publisher<DispenserResult>(
         DispenserResultTopicName, 10);
-      auto result_pub_weakptr = 
+      auto result_pub_weakptr =
         std::weak_ptr<rclcpp::Publisher<DispenserResult>>(result_pub);
       auto state_pub = data->ros_node->create_publisher<DispenserState>(
         DispenserStateTopicName, 10);
       auto state_pub_weakptr =
         std::weak_ptr<rclcpp::Publisher<DispenserState>>(state_pub);
-      
+
       auto timer = data->node->try_create_wall_timer(
         std::chrono::milliseconds(1),
         [weak_test_ptr,
         weak_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
         request_guid,
-        result_pub_weakptr, 
+        result_pub_weakptr,
         state_pub_weakptr]()
         {
-          if(auto test = weak_test_ptr.lock())
+          if (auto test = weak_test_ptr.lock())
           {
             auto node = weak_node.lock();
-            if(!node) return;
+            if (!node)
+              return;
 
             auto result_pub = result_pub_weakptr.lock();
-            if(!result_pub) return;
+            if (!result_pub)
+              return;
 
             auto state_pub = state_pub_weakptr.lock();
-            if(!state_pub) return;
+            if (!state_pub)
+              return;
 
             std::unique_lock<std::mutex> lk(test->m);
             DispenserResult result;
@@ -268,37 +274,40 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
 
       timer.reset();
     }
-    
+
     AND_WHEN("request is acknowledged and request is no longer in queue")
     {
       auto result_pub = data->ros_node->create_publisher<DispenserResult>(
         DispenserResultTopicName, 10);
-      auto result_pub_weakptr = 
+      auto result_pub_weakptr =
         std::weak_ptr<rclcpp::Publisher<DispenserResult>>(result_pub);
       auto state_pub = data->ros_node->create_publisher<DispenserState>(
         DispenserStateTopicName, 10);
       auto state_pub_weakptr =
         std::weak_ptr<rclcpp::Publisher<DispenserState>>(state_pub);
-      
+
       auto interval =
         rxcpp::observable<>::interval(std::chrono::milliseconds(1))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
-        [ weak_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
-          request_guid,
-          result_pub_weakptr,
-          state_pub_weakptr,
-          target
+        [weak_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
+        request_guid,
+        result_pub_weakptr,
+        state_pub_weakptr,
+        target
         ](const auto&)
         {
           auto node = weak_node.lock();
-          if(!node) return;
+          if (!node)
+            return;
 
           auto result_pub = result_pub_weakptr.lock();
-          if(!result_pub) return;
+          if (!result_pub)
+            return;
 
           auto state_pub = state_pub_weakptr.lock();
-          if(!state_pub) return;
+          if (!state_pub)
+            return;
 
           DispenserResult result;
           result.request_guid = request_guid;
@@ -326,12 +335,12 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
 
       interval.unsubscribe();
     }
-  
+
     AND_WHEN("request acknowledged result arrives before request state in queue")
     {
       auto result_pub = data->ros_node->create_publisher<DispenserResult>(
         DispenserResultTopicName, 10);
-      auto result_pub_weakptr = 
+      auto result_pub_weakptr =
         std::weak_ptr<rclcpp::Publisher<DispenserResult>>(result_pub);
       auto state_pub = data->ros_node->create_publisher<DispenserState>(
         DispenserStateTopicName, 10);
@@ -351,13 +360,16 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
         ](const auto&)
         {
           auto node = weak_node.lock();
-          if(!node) return;
+          if (!node)
+            return;
 
           auto result_pub = result_pub_weakptr.lock();
-          if(!result_pub) return;
+          if (!result_pub)
+            return;
 
           auto state_pub = state_pub_weakptr.lock();
-          if(!state_pub) return;
+          if (!state_pub)
+            return;
 
           DispenserResult result;
           result.request_guid = request_guid;

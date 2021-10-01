@@ -167,10 +167,12 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
         w_door_state_pub, door_name](uint32_t mode)
       {
         auto door_state_pub = w_door_state_pub.lock();
-        if(!door_state_pub) return;
+        if (!door_state_pub)
+          return;
 
         auto node = w_node.lock();
-        if(!node) return;
+        if (!node)
+          return;
 
         DoorState door_state;
         door_state.door_name = door_name;
@@ -183,7 +185,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
       [request_id, door_name, w_heartbeat_pub]()
       {
         auto heartbeat_pub = w_heartbeat_pub.lock();
-        if(!heartbeat_pub) return;
+        if (!heartbeat_pub)
+          return;
 
         Session session;
         session.requester_id = request_id;
@@ -198,7 +201,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
     auto publish_empty_heartbeat = [w_heartbeat_pub]()
       {
         auto heartbeat_pub = w_heartbeat_pub.lock();
-        if(!heartbeat_pub) return;
+        if (!heartbeat_pub)
+          return;
 
         heartbeat_pub->publish(SupervisorHeartbeat());
       };

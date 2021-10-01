@@ -1044,7 +1044,7 @@ void FleetUpdateHandle::add_robot(
       // We schedule the following operations on the worker to make sure we do not
       // have a multiple read/write race condition on the FleetUpdateHandle.
       worker.schedule(
-        [fleet_wptr = std::weak_ptr<FleetUpdateHandle>(fleet), 
+        [fleet_wptr = std::weak_ptr<FleetUpdateHandle>(fleet),
         node_wptr = std::weak_ptr<Node>(fleet->_pimpl->node),
         context = std::move(context),
         handle_cb = std::move(handle_cb)](const auto&)
@@ -1057,7 +1057,7 @@ void FleetUpdateHandle::add_robot(
           if (!node)
             return;
 
-          
+
           // TODO(MXG): We need to perform this test because we do not currently
           // support the distributed negotiation in unit test environments. We
           // should create an abstract NegotiationRoom interface in rmf_traffic and
