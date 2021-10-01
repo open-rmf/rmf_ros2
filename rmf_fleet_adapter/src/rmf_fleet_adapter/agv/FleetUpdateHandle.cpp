@@ -1007,6 +1007,9 @@ void FleetUpdateHandle::add_robot(
       rmf_traffic::schedule::Participant participant)
     {
       auto fleet = fleet_wptr.lock();
+      if (!fleet)
+        return;
+
       const auto charger_wp = fleet->_pimpl->get_nearest_charger(start[0]);
 
       if (!charger_wp.has_value())
@@ -1047,10 +1050,12 @@ void FleetUpdateHandle::add_robot(
         handle_cb = std::move(handle_cb)](const auto&)
         {
           auto fleet = fleet_wptr.lock();
-          if(!fleet) return;
+          if (!fleet)
+            return;
 
           auto node = node_wptr.lock();
-          if(!node) return;
+          if (!node)
+            return;
 
           
           // TODO(MXG): We need to perform this test because we do not currently
