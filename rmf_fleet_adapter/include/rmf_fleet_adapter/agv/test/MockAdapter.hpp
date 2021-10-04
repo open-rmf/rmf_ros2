@@ -62,6 +62,8 @@ public:
   /// const-qualified node()
   std::shared_ptr<const rclcpp::Node> node() const;
 
+  void add_secondary_node(std::shared_ptr<rclcpp::Node> secondary_node);
+
   /// Start spinning this adapter
   void start();
 

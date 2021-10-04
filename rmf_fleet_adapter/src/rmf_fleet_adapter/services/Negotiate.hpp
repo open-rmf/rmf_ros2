@@ -124,7 +124,8 @@ private:
   rmf_utils::optional<Alternatives> _alternatives;
   std::unordered_set<rmf_traffic::schedule::ParticipantId> _blockers;
 
-  std::shared_ptr<bool> _interrupted = std::make_shared<bool>(false);
+  std::shared_ptr<std::atomic_bool> _interrupted =
+    std::make_shared<std::atomic_bool>(false);
   bool _discarded = false;
 
   static constexpr std::size_t max_concurrent_jobs = 5;
