@@ -94,7 +94,7 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       obs.as_blocking().subscribe(rx_sub);
       CHECK(!received_open);
 
-      // Stop before destructing subscription to avoid a race condition
+      // Stop before destructing subscription to avoid a data race in rclcpp
       data->node->stop();
     }
   }
