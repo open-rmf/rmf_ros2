@@ -34,9 +34,8 @@ public:
   class Implementation;
 
 private:
-  Scheduler();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
-}
+};
 }
 
 #endif

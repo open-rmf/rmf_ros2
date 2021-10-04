@@ -17,6 +17,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_ros2 REQUIRED)
 find_package(rmf_task_msgs REQUIRED)
+find_package(rmf_task_scheduler_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 
@@ -28,6 +29,7 @@ target_link_libraries(rmf_task_ros2
     rmf_traffic::rmf_traffic
     rmf_traffic_ros2::rmf_traffic_ros2
     ${rmf_task_msgs_LIBRARIES}
+    ${rmf_task_scheduler_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
 )
 
@@ -37,6 +39,7 @@ target_include_directories(rmf_task_ros2
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_ros2_INCLUDE_DIRS}
     ${rmf_task_msgs_INCLUDE_DIRS}
+    ${rmf_task_scheduler_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
 )
 
