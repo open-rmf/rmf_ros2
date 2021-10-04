@@ -54,7 +54,17 @@ void on_receive_request(const TaskRequestMsg::SharedPtr msg)
 
 Implementation(const std::share_ptr<rclcpp::Node>& node)
 {
-  _cancel_sub = /*node->create_subscription()*/;
+  _cancel_sub =
+    node->create_subscription<TaskCancelMsgs>(TaskScheduleCancel, 10,
+      std::bind(&Scheduler::Implementation::on_cancel_request, this, _1));
+  _request_sub =
+    node->create_subscription<TaskRequestMsgs>(TaskScheduleRequests, 10,
+      std::bind(&Scheduler::Implementation::on_receive_request, this, _1));
+
+  _status_pub =
+    node->create_publisher<TaskRulesMsg>(TaskScheduleState, 10);
+  _response_pub =
+    node->create_publisher<TaskResponseMsg>(TaskScheduleResponses, 10);
 }
 };
 
@@ -62,7 +72,10 @@ static std::unique_ptr<Scheduler> Scheduler::make(
   const std::share_ptr<rclcpp::Node>& node)
 {
   auto pimpl = rmf_utils::make_impl<Implementation>(node);
+  std::unique_ptr<Scheduler> sched;
+  sched->_pimpl = std::move(pimpl);
 
+  return sched;
 }
 
 Scheduler::Scheduler()

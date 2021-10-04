@@ -36,9 +36,9 @@ const std::string TaskStatusTopicName = "task_summaries";
 const std::string ActiveTasksTopicName = "dispatcher_ongoing_tasks";
 
 const std::string TaskScheduleRequests = Prefix + "schedule_request";
-const std::string TaskScheduleRequests = Prefix + "schedule_responses";
-const std::string TaskScheduleRequests = Prefix + "schedule_cancel";
-const std::string TaskScheduleRequests = Prefix + "schedule_state";
+const std::string TaskScheduleResponses = Prefix + "schedule_responses";
+const std::string TaskScheduleCancel = Prefix + "schedule_cancel";
+const std::string TaskScheduleState = Prefix + "schedule_state";
 } // namespace rmf_task_ros2
 
 #endif // RMF_TASK_ROS2__STANDARDNAMES_HPP
