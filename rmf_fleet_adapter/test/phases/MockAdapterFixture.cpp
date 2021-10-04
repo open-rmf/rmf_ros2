@@ -161,6 +161,7 @@ auto MockAdapterFixture::add_robot(
 MockAdapterFixture::~MockAdapterFixture()
 {
   std::weak_ptr<rclcpp::Node> weak_node = data->node;
+  data->node->stop();
   data.reset();
 
   std::size_t wait_count = 0;

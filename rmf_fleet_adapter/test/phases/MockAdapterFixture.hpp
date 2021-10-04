@@ -50,6 +50,24 @@ struct MockAdapterFixture
   {
     std::shared_ptr<agv::RobotContext> context;
     std::shared_ptr<rmf_fleet_adapter_test::MockRobotCommand> command;
+
+    // Sometimes a test needs some operation to happen on the worker so it syncs
+    // correctly with other spinning operations, but also the test can't proceed
+    // until that operation is finished. This function conveniently wraps up
+    // that use case.
+    template<typename T>
+    T schedule_and_wait(std::function<T()> job) const
+    {
+      std::promise<T> promise;
+      auto future = promise.get_future();
+      context->worker().schedule(
+        [&promise, job = std::move(job)](const auto&)
+        {
+          promise.set_value(job());
+        });
+
+      return future.get();
+    }
   };
 
   /// Add a robot for testing purposes and get its context

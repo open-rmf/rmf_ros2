@@ -210,6 +210,8 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       }
 
       timer.reset();
+      // Stop before destructing subscription to avoid a data race in rclcpp
+      data->node->stop();
     }
 
     AND_WHEN("dispenser result is failed")
@@ -273,6 +275,8 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       }
 
       timer.reset();
+      // Stop before destructing subscription to avoid a data race in rclcpp
+      data->node->stop();
     }
 
     AND_WHEN("request is acknowledged and request is no longer in queue")
@@ -334,6 +338,8 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       }
 
       interval.unsubscribe();
+      // Stop before destructing subscription to avoid a data race in rclcpp
+      data->node->stop();
     }
 
     AND_WHEN("request acknowledged result arrives before request state in queue")
@@ -398,9 +404,14 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       }
 
       interval.unsubscribe();
+      // Stop before destructing subscription to avoid a data race in rclcpp
+      data->node->stop();
     }
     sub.unsubscribe();
   }
+
+  // Stop before destructing subscription to avoid a data race in rclcpp
+  data->node->stop();
 }
 
 } // namespace test
