@@ -24,7 +24,7 @@ uint32_t SimpleSchedulerQueue::enqueue_request(const TaskRequest& request)
   uint32_t request_id = _increment_id;
   _increment_id++;
   _request_table[request_id] = request;
-  _priority_queue.insert({request._start_time, request_id})
+  _priority_queue.push({request._start_time, request_id});
 
   return request_id;
 }
@@ -33,6 +33,24 @@ uint32_t SimpleSchedulerQueue::enqueue_request(const TaskRequest& request)
 void SimpleSchedulerQueue::cancel_request(const uint32_t request)
 {
   _to_be_deleted.insert(request);
+}
+
+
+std::unordered_map<uint32_t, TaskRequest>
+  SimpleSchedulerQueue::get_queued() const
+{
+  // TODO(arjo): This is terribly inefficient. We should return some type
+  // of custom view instead.
+  std::unordered_map<uint32_t, TaskRequest> tasks;
+  for (auto& [req_id, task_req] : _request_table)
+  {
+    if (_to_be_deleted.count(req_id) > 0)
+    {
+      continue;
+    }
+    tasks[req_id] = task_req;
+  }
+  return tasks;
 }
 
 std::vector<TaskRequest> 
@@ -45,28 +63,33 @@ std::vector<TaskRequest>
   {
     if (_to_be_deleted.count(_priority_queue.top()._request_index) != 0)
     {
+      auto idx = _priority_queue.top()._request_index;
       _priority_queue.pop();
-      _request_table.erase(request);
-      _to_be_deleted.erase(request);
+      _request_table.erase(idx);
+      _to_be_deleted.erase(idx);
       continue;
     }
 
     auto req_idx = _priority_queue.top()._request_index;
     auto req = _request_table[req_idx];
     auto time_of_execution = _priority_queue.top()._time;
+    req._start_time = time_of_execution;
     to_be_submitted.push_back(req);
     _priority_queue.pop();
 
     if (req._repeat_interval.has_value())
     {
       auto next_time_of_exec =
-          req._repeat_interval.value() + time_of_execution;
+        req._repeat_interval.value() + time_of_execution;
+
       if (req._end_time.has_value()
-      && next_time_of_exec > req._end_time.value())
+      && next_time_of_exec >= req._end_time.value())
       {
         _request_table.erase(req_idx);
         continue;
       }
+
+      _priority_queue.push({next_time_of_exec, req_idx});
     }
   }
 

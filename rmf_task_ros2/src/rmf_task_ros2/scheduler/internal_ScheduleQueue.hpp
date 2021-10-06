@@ -34,7 +34,8 @@ public:
 
   virtual void cancel_request(const uint32_t request) = 0;
 
-  virtual std::unordered_map<uint32_t, TaskRequest> get_queued() = 0 const;
+  // TODO: Change to some type of Custom View to make it more efficient
+  virtual std::unordered_map<uint32_t, TaskRequest> get_queued() const = 0;
 
   virtual ~AbstractSchedulerQueue() { };
 };

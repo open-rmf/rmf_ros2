@@ -23,6 +23,8 @@
 #include <rmf_task_ros2/Scheduler.hpp>
 #include <rmf_task_ros2/StandardNames.hpp>
 
+#include "scheduler/internal_ScheduleQueue.hpp"
+
 using namespace rmf_task_ros2;
 
 class Scheduler::Implementation
@@ -42,9 +44,11 @@ std::shared_ptr<rclcpp::Subscription<TaskRequestMsg>> _request_sub;
 
 std::shared_ptr<rclcpp::Subscription<TaskCancelMsg>> _cancel_sub;
 
+SimpleSchedulerQueue _queue;
+
 void on_cancel_request(const TaskCancelMsg::SharedPtr msg)
 {
-
+  
 }
 
 void on_receive_request(const TaskRequestMsg::SharedPtr msg)

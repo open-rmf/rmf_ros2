@@ -45,7 +45,7 @@ public:
     request._name = req.name;
     request._start_time = req.start_time;
 
-    if (req.has_end_time)request.
+    if (req.has_end_time)
     {
       request._end_time = {req.end_time};
     }
