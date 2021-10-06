@@ -15,77 +15,198 @@
  *
 */
 
+#include <iostream>
+#include <cstdio>
+#include <filesystem>
+
+#include <gdal/gdal.h>
+#include <gdal/ogrsf_frmts.h>
+
 #include <rmf_traffic_ros2/agv/Graph.hpp>
 
 namespace rmf_traffic_ros2 {
 
+// Usage map[level_idx][truncated_x][truncated_y] = id;
+// Truncation is to 1e-3 meters
+using CoordsIdxHashMap = std::unordered_map<std::size_t, std::unordered_map<
+  double, std::unordered_map<double, std::size_t>>>;
+
 //==============================================================================
-rmf_traffic::agv::Graph convert(const rmf_building_map_msgs::msg::Graph& from,
-  int waypoint_offset)
+rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
+  int graph_idx)
 {
+  CoordsIdxHashMap idx_map;
   rmf_traffic::agv::Graph graph;
-  // Iterate over vertices / waypoints
-  // Graph params are not used for now
-  for (const auto& vertex : from.vertices)
+  // Sqlite3 needs to work on a physical file, write the package to a tmp file
+  auto filename = std::tmpnam(nullptr);
+  FILE* fd = fopen(filename, "wb");
+  GDALAllRegister();
+  // Not supported
+  if (from.encoding != from.MAP_DATA_GPKG)
+    return graph;
+  fwrite(&from.data[0], sizeof(char), from.data.size(), fd);
+  // Get the filename
+  printf("Filename is %s\n", filename);
+  GDALDatasetUniquePtr poDS(GDALDataset::Open(filename, GDAL_OF_VECTOR));
+  if( poDS == nullptr )
   {
+    printf( "Open failed.\n" );
+    exit( 1 );
+  }
+  // Iterate over vertices
+  auto vertices_layer = poDS->GetLayerByName("vertices");
+  while (const auto& feature = vertices_layer->GetNextFeature())
+  {
+    int level_idx = 0;
+    for (const auto& field : feature)
+    {
+      std::cout << "Field name is " << field.GetName() << std::endl;
+      if (strcmp(field.GetName(), "level_idx") == 0)
+        level_idx = field.GetAsInteger();
+      else if (strcmp(field.GetName(), "parameters") == 0)
+      {
+        // TODO parse parameters here
+        std::cout << field.GetIndex() << "," << field.GetName()<< ": " << field.GetAsString() << std::endl;
+      }
+    }
+    const auto& name_feat = (*feature)["name"];
+    const std::string name(name_feat.GetAsString());
+    const auto& point = feature->GetGeometryRef()->toPoint();
+    // Flatten geometry to extract 
+    printf("Got feature with name %s\n", name.c_str());
+    printf("Coordinates are %.2f %.2f\n", point->getX(), point->getY());
     const Eigen::Vector2d location{
-      vertex.x, vertex.y};
-    auto& wp = graph.add_waypoint(from.name, location);
-    // Add waypoint name if in the message
-    if (vertex.name.size() > 0 && !graph.add_key(vertex.name, wp.index()))
+      point->getX(), point->getY()};
+    // TODO map name
+    std::string map_name("test");
+    auto& wp = graph.add_waypoint(map_name, location);
+    if (name.size() > 0 && !graph.add_key(name, wp.index()))
     {
       throw std::runtime_error(
-              "Duplicated waypoint name [" + vertex.name + "]");
+              "Duplicated waypoint name [" + name + "]");
     }
-    for (const auto& param : vertex.params)
-    {
-      if (param.name == "is_parking_spot")
-        wp.set_parking_spot(param.value_bool);
-      else if (param.name == "is_holding_point")
-        wp.set_holding_point(param.value_bool);
-      else if (param.name == "is_passthrough_point")
-        wp.set_passthrough_point(param.value_bool);
-      else if (param.name == "is_charger")
-        wp.set_charger(param.value_bool);
-    }
+    // Round x and y to 1e-3 meters
+    double rounded_x = std::round(point->getX() * 1000.0) / 1000.0;
+    double rounded_y = std::round(point->getY() * 1000.0) / 1000.0;
+    idx_map[level_idx][rounded_x][rounded_y] = wp.index();
   }
-  // Iterate over edges / lanes
-  for (const auto& edge : from.edges)
+  // Iterate over edges
+  auto edges_layer = poDS->GetLayerByName("edges");
+  while (const auto& feature = edges_layer->GetNextFeature())
   {
+    int level_idx = 0;
+    std::optional<double> speed_limit;
+    std::optional<std::string> dock_name;
+    for (const auto& field : feature)
+    {
+      std::cout << "Field name is " << field.GetName() << std::endl;
+      if (strcmp(field.GetName(), "level_idx") == 0)
+        level_idx = field.GetAsInteger();
+      else if (strcmp(field.GetName(), "parameters") == 0)
+      {
+        // TODO parse parameters here, graph_idx and speed_limit
+        std::cout << field.GetIndex() << "," << field.GetName()<< ": " << field.GetAsString() << std::endl;
+        // Skip if graph_idx is not the equal to the argument
+      }
+    }
+    const auto& lane_feat = feature->GetGeometryRef()->toLineString();
+    // Get the points
+    double x0 = lane_feat->getX(0);
+    double x1 = lane_feat->getX(1);
+    double y0 = lane_feat->getY(0);
+    double y1 = lane_feat->getY(1);
+    double rounded_x0 = std::round(x0 * 1000.0) / 1000.0;
+    double rounded_y0 = std::round(y0 * 1000.0) / 1000.0;
+    double rounded_x1 = std::round(x1 * 1000.0) / 1000.0;
+    double rounded_y1 = std::round(y1 * 1000.0) / 1000.0;
+    auto m0_iter = idx_map[level_idx][rounded_x0].find(rounded_y0);
+    if (m0_iter == idx_map[level_idx][rounded_x0].end())
+      continue;
+    auto m1_iter = idx_map[level_idx][rounded_x1].find(rounded_y1);
+    if (m1_iter == idx_map[level_idx][rounded_x1].end())
+      continue;
+    // TODO waypoint offset
+    // Waypoint offset is applied to ensure unique IDs when multiple levels
+    // are present
+    const std::size_t start_wp = m0_iter->second;
+    const std::size_t end_wp = m1_iter->second;
+
     using Lane = rmf_traffic::agv::Graph::Lane;
     using Event = Lane::Event;
     // TODO(luca) Add lifts, doors, orientation constraints
     rmf_utils::clone_ptr<Event> entry_event;
     rmf_utils::clone_ptr<Event> exit_event;
-    // Waypoint offset is applied to ensure unique IDs when multiple levels
-    // are present
-    const std::size_t start_wp = edge.v1_idx + waypoint_offset;
-    const std::size_t end_wp = edge.v2_idx + waypoint_offset;
-    std::string dock_name;
-    std::optional<double> speed_limit;
-    for (const auto& param : edge.params)
-    {
-      if (param.name == "dock_name")
-        dock_name = param.value_string;
-      if (param.name == "speed_limit")
-        speed_limit = param.value_float;
-    }
     // dock_name is only applied to the lane going to the waypoint, not exiting
-    if (edge.edge_type == edge.EDGE_TYPE_BIDIRECTIONAL)
-    {
-      auto& lane = graph.add_lane({end_wp, entry_event},
-          {start_wp, exit_event});
-      lane.properties().speed_limit(speed_limit);
-    }
-
-    const rmf_traffic::Duration duration = std::chrono::seconds(5);
-    if (dock_name.size() > 0)
-      entry_event = Event::make(Lane::Dock(dock_name, duration));
+    // TODO bidirectional edges
+    // TODO docking
     auto& lane = graph.add_lane({start_wp, entry_event},
       {end_wp, exit_event});
     lane.properties().speed_limit(speed_limit);
   }
-  return graph;
+/*
+// Iterate over vertices / waypoints
+// Graph params are not used for now
+for (const auto& vertex : from.vertices)
+{
+  const Eigen::Vector2d location{
+    vertex.x, vertex.y};
+  auto& wp = graph.add_waypoint(from.name, location);
+  // Add waypoint name if in the message
+  if (vertex.name.size() > 0 && !graph.add_key(vertex.name, wp.index()))
+  {
+    throw std::runtime_error(
+            "Duplicated waypoint name [" + vertex.name + "]");
+  }
+  for (const auto& param : vertex.params)
+  {
+    if (param.name == "is_parking_spot")
+      wp.set_parking_spot(param.value_bool);
+    else if (param.name == "is_holding_point")
+      wp.set_holding_point(param.value_bool);
+    else if (param.name == "is_passthrough_point")
+      wp.set_passthrough_point(param.value_bool);
+    else if (param.name == "is_charger")
+      wp.set_charger(param.value_bool);
+  }
+}
+// Iterate over edges / lanes
+for (const auto& edge : from.edges)
+{
+  using Lane = rmf_traffic::agv::Graph::Lane;
+  using Event = Lane::Event;
+  // TODO(luca) Add lifts, doors, orientation constraints
+  rmf_utils::clone_ptr<Event> entry_event;
+  rmf_utils::clone_ptr<Event> exit_event;
+  // Waypoint offset is applied to ensure unique IDs when multiple levels
+  // are present
+  const std::size_t start_wp = edge.v1_idx + waypoint_offset;
+  const std::size_t end_wp = edge.v2_idx + waypoint_offset;
+  std::string dock_name;
+  std::optional<double> speed_limit;
+  for (const auto& param : edge.params)
+  {
+    if (param.name == "dock_name")
+      dock_name = param.value_string;
+    if (param.name == "speed_limit")
+      speed_limit = param.value_float;
+  }
+  // dock_name is only applied to the lane going to the waypoint, not exiting
+  if (edge.edge_type == edge.EDGE_TYPE_BIDIRECTIONAL)
+  {
+    auto& lane = graph.add_lane({end_wp, entry_event},
+        {start_wp, exit_event});
+    lane.properties().speed_limit(speed_limit);
+  }
+
+  const rmf_traffic::Duration duration = std::chrono::seconds(5);
+  if (dock_name.size() > 0)
+    entry_event = Event::make(Lane::Dock(dock_name, duration));
+  auto& lane = graph.add_lane({start_wp, entry_event},
+    {end_wp, exit_event});
+  lane.properties().speed_limit(speed_limit);
+}
+*/
+return graph;
 }
 
 } // namespace rmf_traffic_ros2
