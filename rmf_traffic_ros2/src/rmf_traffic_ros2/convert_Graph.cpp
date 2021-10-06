@@ -60,21 +60,17 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
     int level_idx = 0;
     for (const auto& field : feature)
     {
-      std::cout << "Field name is " << field.GetName() << std::endl;
       if (strcmp(field.GetName(), "level_idx") == 0)
         level_idx = field.GetAsInteger();
       else if (strcmp(field.GetName(), "parameters") == 0)
       {
         // TODO parse parameters here
-        std::cout << field.GetIndex() << "," << field.GetName()<< ": " << field.GetAsString() << std::endl;
       }
     }
     const auto& name_feat = (*feature)["name"];
     const std::string name(name_feat.GetAsString());
     const auto& point = feature->GetGeometryRef()->toPoint();
     // Flatten geometry to extract 
-    printf("Got feature with name %s\n", name.c_str());
-    printf("Coordinates are %.2f %.2f\n", point->getX(), point->getY());
     const Eigen::Vector2d location{
       point->getX(), point->getY()};
     // TODO map name
@@ -99,13 +95,11 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
     std::optional<std::string> dock_name;
     for (const auto& field : feature)
     {
-      std::cout << "Field name is " << field.GetName() << std::endl;
       if (strcmp(field.GetName(), "level_idx") == 0)
         level_idx = field.GetAsInteger();
       else if (strcmp(field.GetName(), "parameters") == 0)
       {
         // TODO parse parameters here, graph_idx and speed_limit
-        std::cout << field.GetIndex() << "," << field.GetName()<< ": " << field.GetAsString() << std::endl;
         // Skip if graph_idx is not the equal to the argument
       }
     }
