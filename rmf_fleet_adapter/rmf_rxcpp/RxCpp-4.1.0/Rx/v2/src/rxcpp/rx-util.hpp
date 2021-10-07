@@ -28,13 +28,36 @@
 
 #define RXCPP_MAKE_IDENTIFIER(Prefix) RXCPP_CONCAT_EVALUATE(Prefix, __LINE__)
 
+// Provide replacements for try/catch keywords, using which is a compilation error
+// when exceptions are disabled with -fno-exceptions.
+#if RXCPP_USE_EXCEPTIONS
+#define RXCPP_TRY try
+#define RXCPP_CATCH(...) catch(__VA_ARGS__)
+// See also rxu::throw_exception for 'throw' keyword replacement.
+#else
+#define RXCPP_TRY if ((true))
+#define RXCPP_CATCH(...) if ((false))
+// See also rxu::throw_exception, which will std::terminate without exceptions.
+#endif
+
 namespace rxcpp {
 
 namespace util {
 
 template<class T> using value_type_t = typename std::decay<T>::type::value_type;
 template<class T> using decay_t = typename std::decay<T>::type;
-template<class... TN> using result_of_t = typename std::result_of<TN...>::type;
+#ifdef __cpp_lib_is_invocable
+template <class> struct result_of;
+
+template <class F, class... TN>
+struct result_of<F(TN...)>
+{
+    using type = std::invoke_result_t<F, TN...>;
+};
+#else
+template<class... TN> using result_of = std::result_of<TN...>;
+#endif
+template<class... TN> using result_of_t = typename result_of<TN...>::type;
 
 template<class T, std::size_t size>
 std::vector<T> to_vector(const T (&arr) [size]) {
@@ -64,7 +87,7 @@ void as_const(T const &&) = delete;
 template<class T, T... ValueN>
 struct values {};
 
-template<class T, int Remaining, T Step = 1, T Cursor = 0, T... ValueN>
+template<class T, std::size_t Remaining, T Step = 1, T Cursor = 0, T... ValueN>
 struct values_from;
 
 template<class T, T Step, T Cursor, T... ValueN>
@@ -73,7 +96,7 @@ struct values_from<T, 0, Step, Cursor, ValueN...>
     typedef values<T, ValueN...> type;
 };
 
-template<class T, int Remaining, T Step, T Cursor, T... ValueN>
+template<class T, std::size_t Remaining, T Step, T Cursor, T... ValueN>
 struct values_from
 {
     typedef typename values_from<T, Remaining - 1, Step, Cursor + Step, ValueN..., Cursor>::type type;
@@ -416,6 +439,15 @@ struct less
         { return std::forward<LHS>(lhs) < std::forward<RHS>(rhs); }
 };
 
+template <class T>
+struct ret
+{
+    template <class LHS>
+    auto operator()(LHS&& ) const
+        -> decltype(T())
+        { return T(); }
+};
+
 template<class T = void>
 struct equal_to
 {
@@ -521,11 +553,16 @@ auto print_followed_by(OStream& os, DelimitValue dv)
 }
 
 inline std::string what(std::exception_ptr ep) {
+#if RXCPP_USE_EXCEPTIONS
     try {std::rethrow_exception(ep);}
     catch (const std::exception& ex) {
         return ex.what();
+    } catch (...) {
+        return std::string("<not derived from std::exception>");
     }
-    return std::string();
+#endif
+    (void)ep;
+    return std::string("<exceptions are disabled>");
 }
 
 namespace detail {
@@ -690,9 +727,9 @@ public:
     {
         if (!!function)
         {
-            try {
+            RXCPP_TRY {
                 (*function)();
-            } catch (...) {
+            } RXCPP_CATCH(...) {
                 std::terminate();
             }
         }
@@ -802,6 +839,129 @@ template <class T>
 struct negation : detail::not_value<T> {};
 
 }
+
+#if !RXCPP_USE_EXCEPTIONS
+namespace util {
+
+namespace detail {
+
+struct error_base {
+  virtual const char* what() = 0;
+  virtual ~error_base() {}
+};
+
+// Use the "Type Erasure" idiom to wrap an std::exception-like
+// value into an error pointer.
+//
+// Supported types:
+//   exception, bad_exception, bad_alloc.
+template <class E>
+struct error_specific : public error_base {
+  error_specific(const E& e) : data(e) {}
+  error_specific(E&& e) : data(std::move(e)) {}
+
+  virtual ~error_specific() {}
+
+  virtual const char* what() {
+    return data.what();
+  }
+
+  E data;
+};
+
+}
+
+}
+#endif
+
+namespace util {
+
+#if RXCPP_USE_EXCEPTIONS
+using error_ptr = std::exception_ptr;
+#else
+// Note: std::exception_ptr cannot be used directly when exceptions are disabled.
+// Any attempt to 'throw' or to call into any of the std functions accepting
+// an std::exception_ptr will either fail to compile or result in an abort at runtime.
+using error_ptr = std::shared_ptr<util::detail::error_base>;
+
+inline std::string what(error_ptr ep) {
+    return std::string(ep->what());
+}
+#endif
+
+// TODO: Do we really need an identity make?
+// (It was causing some compilation errors deep inside templates).
+inline error_ptr make_error_ptr(error_ptr e) {
+  return e;
+}
+
+// Replace std::make_exception_ptr (which would immediately terminate
+// when exceptions are disabled).
+template <class E>
+error_ptr make_error_ptr(E&& e) {
+#if RXCPP_USE_EXCEPTIONS
+    return std::make_exception_ptr(std::forward<E>(e));
+#else
+    using e_type = rxcpp::util::decay_t<E>;
+    using pointed_to_type = rxcpp::util::detail::error_specific<e_type>;
+    auto sp = std::make_shared<pointed_to_type>(std::forward<E>(e));
+    return std::static_pointer_cast<rxcpp::util::detail::error_base>(sp);
+#endif
+}
+
+// Replace std::rethrow_exception to be compatible with our error_ptr typedef.
+RXCPP_NORETURN inline void rethrow_exception(error_ptr e) {
+#if RXCPP_USE_EXCEPTIONS
+  std::rethrow_exception(e);
+#else
+  // error_ptr != std::exception_ptr so we can't use std::rethrow_exception
+  //
+  // However even if we could, calling std::rethrow_exception just terminates if exceptions are disabled.
+  //
+  // Therefore this function should only be called when we are completely giving up and have no idea
+  // how to handle the error.
+  (void)e;
+  std::terminate();
+#endif
+}
+
+// A replacement for the "throw" keyword which is illegal when
+// exceptions are disabled with -fno-exceptions.
+template <typename E>
+RXCPP_NORETURN inline void throw_exception(E&& e) {
+#if RXCPP_USE_EXCEPTIONS
+  throw std::forward<E>(e);
+#else
+  // "throw" keyword is unsupported when exceptions are disabled.
+  // Immediately terminate instead.
+  (void)e;
+  std::terminate();
+#endif
+}
+
+// TODO: Do we really need this? rxu::rethrow_exception(rxu::current_exception())
+// would have the same semantics in either case.
+RXCPP_NORETURN inline void rethrow_current_exception() {
+#if RXCPP_USE_EXCEPTIONS
+  std::rethrow_exception(std::current_exception());
+#else
+  std::terminate();
+#endif
+}
+
+// If called during exception handling, return the currently caught exception.
+// Otherwise return null.
+inline error_ptr current_exception() {
+#if RXCPP_USE_EXCEPTIONS
+  return std::current_exception();
+#else
+  // When exceptions are disabled, we can never be inside of a catch block.
+  // Return null similar to std::current_exception returning null outside of catch.
+  return nullptr;
+#endif
+}
+
+}
 namespace rxu=util;
 
 
@@ -864,7 +1024,7 @@ struct is_hashable<T,
     typename rxu::types_checked_from<
         typename filtered_hash<T>::result_type,
         typename filtered_hash<T>::argument_type,
-        typename std::result_of<filtered_hash<T>(T)>::type>::type>
+        typename rxu::result_of<filtered_hash<T>(T)>::type>::type>
     : std::true_type {};
 
 }

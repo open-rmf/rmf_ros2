@@ -4,6 +4,7 @@ namespace rxu=rxcpp::util;
 #include "rxcpp/rx-test.hpp"
 #include "catch.hpp"
 
+#if RXCPP_USE_EXCEPTIONS
 SCENARIO("composite_exception sample"){
     printf("//! [composite_exception sample]\n");
     auto o1 = rxcpp::observable<>::error<int>(std::runtime_error("Error from source o1\n"));
@@ -16,11 +17,11 @@ SCENARIO("composite_exception sample"){
             [](std::exception_ptr composite_e) {
                 printf("OnError %s\n", rxu::what(composite_e).c_str());
                 try { std::rethrow_exception(composite_e); }
-                catch(rxcpp::composite_exception ce) {
+                catch(rxcpp::composite_exception const &ce) {
                     for(std::exception_ptr particular_e : ce.exceptions) {
 
                         try{ std::rethrow_exception(particular_e); }
-                        catch(std::runtime_error error) { printf(" *** %s\n", error.what()); }
+                        catch(std::runtime_error const &error) { printf(" *** %s\n", error.what()); }
 
                     }
                 }
@@ -29,3 +30,4 @@ SCENARIO("composite_exception sample"){
         );
     printf("//! [composite_exception sample]\n");
 }
+#endif

@@ -125,7 +125,7 @@ private:
   std::mutex _starting_mutex;
   std::condition_variable _started_cv;
 
-  bool _stopping;
+  std::atomic_bool _stopping;
 
   bool _work_scheduled;
   std::mutex _mutex;
@@ -191,6 +191,11 @@ public:
         worker, _make_exec_args(options))}
   {
     // Do nothing
+  }
+
+  void add_node(rclcpp::Node::SharedPtr node)
+  {
+    _executor->add_node(node);
   }
 
   void start()
