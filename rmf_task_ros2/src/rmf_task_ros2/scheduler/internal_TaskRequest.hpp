@@ -64,9 +64,15 @@ public:
     }
 
     request._task_type = req.task_type;
-    request._args = req.args; 
+    request._args = req.task_description; 
 
     return request;
+  }
+
+  rmf_task_msgs::msg::TaskDescription to_description()
+  {
+    rmf_task_msgs::msg::TaskDescription description;
+    
   }
 };
 }
