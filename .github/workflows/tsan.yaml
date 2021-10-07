@@ -22,7 +22,7 @@ jobs:
         env:
           CC: clang
           CXX: clang++
-          TSAN_OPTIONS: suppressions=/tmp/suppressions.txt
+          TSAN_OPTIONS: 'suppressions=/tmp/suppressions.txt'
         with:
           target-ros2-distro: galactic
           # build all packages listed in the meta package
