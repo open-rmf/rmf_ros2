@@ -103,6 +103,12 @@ TEST_CASE("publish subscribe loopback", "[Transport]")
 
   SECTION("multiple subscriptions are multiplexed")
   {
+    std_msgs::msg::String msg;
+    msg.data = "hello";
+  }
+
+  SECTION("multiple subscriptions are multiplexed")
+  {
     rxcpp::composite_subscription subscription{};
     obs->observe().subscribe(subscription);
     obs->observe().subscribe(subscription);

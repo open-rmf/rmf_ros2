@@ -13,12 +13,16 @@ jobs:
         uses: ros-tooling/setup-ros@v0.2
         with:
           required-ros-distributions: galactic
+      - name: tsan_suppressions
+        run: |
+          echo "race:rmf_fleet_adapter" > '/tmp/suppressions.txt'
       - name: tsan_build_test
         uses: ros-tooling/action-ros-ci@v0.2
         id: tsan_build_test
         env:
           CC: clang
           CXX: clang++
+          TSAN_OPTIONS: suppressions=/tmp/suppressions.txt
         with:
           target-ros2-distro: galactic
           # build all packages listed in the meta package
