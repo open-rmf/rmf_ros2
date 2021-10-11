@@ -22,6 +22,8 @@
 #include <gdal/gdal.h>
 #include <gdal/ogrsf_frmts.h>
 
+#include <nlohmann/json.hpp>
+
 #include <rmf_traffic_ros2/agv/Graph.hpp>
 
 namespace rmf_traffic_ros2 {
@@ -38,6 +40,7 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
   CoordsIdxHashMap idx_map;
   rmf_traffic::agv::Graph graph;
   // Sqlite3 needs to work on a physical file, write the package to a tmp file
+  // TODO delete file once done
   auto filename = std::tmpnam(nullptr);
   FILE* fd = fopen(filename, "wb");
   GDALAllRegister();
@@ -99,8 +102,17 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
         level_idx = field.GetAsInteger();
       else if (strcmp(field.GetName(), "parameters") == 0)
       {
-        // TODO parse parameters here, graph_idx and speed_limit
+        const auto& params_str = field.GetAsString();
+        nlohmann::json j = nlohmann::json::parse(params_str);
+        auto graph_idx_it = j.find("graph_idx");
         // Skip if graph_idx is not the equal to the argument
+        if (graph_idx_it != j.end() &&
+            graph_idx_it->get<int>() != graph_idx)
+          continue;
+        // Parse speed limit
+        auto speed_limit_it = j.find("speed_limit");
+        if (speed_limit_it != j.end())
+          speed_limit = speed_limit_it->get<double>();
       }
     }
     const auto& lane_feat = feature->GetGeometryRef()->toLineString();
