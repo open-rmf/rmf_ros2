@@ -22,6 +22,7 @@ find_package(Eigen3 REQUIRED)
 find_package(GDAL)
 find_package(rclcpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 if (rmf_traffic_FOUND)
   message(STATUS "found rmf_traffic")
@@ -121,6 +122,7 @@ add_library(rmf_traffic_ros2 SHARED ${core_lib_srcs})
 target_link_libraries(rmf_traffic_ros2
   PUBLIC
     rmf_traffic::rmf_traffic
+    nlohmann_json::nlohmann_json
     ${rmf_traffic_msgs_LIBRARIES}
     ${rmf_site_map_msgs_LIBRARIES}
     ${GDAL_LIBRARIES}
@@ -148,6 +150,7 @@ ament_export_dependencies(
   Eigen3
   rclcpp
   yaml-cpp
+  nlohmann_json
 )
 
 # TODO(MXG): Change these executables into shared libraries that can act as

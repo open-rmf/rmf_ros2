@@ -17,6 +17,7 @@
   <depend>rmf_site_map_msgs</depend>
   <depend>rclcpp</depend>
   <depend>yaml-cpp</depend>
+  <depend>nlohmann-json-dev</depend>
 
   <depend>libgdal-dev</depend>
 

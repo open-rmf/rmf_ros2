@@ -33,7 +33,7 @@ using CoordsIdxHashMap = std::unordered_map<std::size_t, std::unordered_map<
 
 //==============================================================================
 rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
-  int graph_idx)
+  int graph_idx, double wp_tolerance)
 {
   CoordsIdxHashMap idx_map;
   rmf_traffic::agv::Graph graph;
@@ -81,9 +81,9 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
       throw std::runtime_error(
               "Duplicated waypoint name [" + name + "]");
     }
-    // Round x and y to 1e-3 meters
-    double rounded_x = std::round(point->getX() * 1000.0) / 1000.0;
-    double rounded_y = std::round(point->getY() * 1000.0) / 1000.0;
+    // Round x and y to wp_tolerance
+    double rounded_x = std::round(point->getX() / wp_tolerance) * wp_tolerance;
+    double rounded_y = std::round(point->getY() / wp_tolerance) * wp_tolerance;
     idx_map[level_idx][rounded_x][rounded_y] = wp.index();
   }
   // Iterate over edges
@@ -109,10 +109,10 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
     double x1 = lane_feat->getX(1);
     double y0 = lane_feat->getY(0);
     double y1 = lane_feat->getY(1);
-    double rounded_x0 = std::round(x0 * 1000.0) / 1000.0;
-    double rounded_y0 = std::round(y0 * 1000.0) / 1000.0;
-    double rounded_x1 = std::round(x1 * 1000.0) / 1000.0;
-    double rounded_y1 = std::round(y1 * 1000.0) / 1000.0;
+    double rounded_x0 = std::round(x0 / wp_tolerance) * wp_tolerance;
+    double rounded_y0 = std::round(y0 / wp_tolerance) * wp_tolerance;
+    double rounded_x1 = std::round(x1 / wp_tolerance) * wp_tolerance;
+    double rounded_y1 = std::round(y1 / wp_tolerance) * wp_tolerance;
     auto m0_iter = idx_map[level_idx][rounded_x0].find(rounded_y0);
     if (m0_iter == idx_map[level_idx][rounded_x0].end())
       continue;
