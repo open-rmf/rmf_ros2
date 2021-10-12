@@ -51,11 +51,6 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
   // Get the filename
   printf("Filename is %s\n", filename);
   GDALDatasetUniquePtr poDS(GDALDataset::Open(filename, GDAL_OF_VECTOR));
-  if( poDS == nullptr )
-  {
-    printf( "Open failed.\n" );
-    exit( 1 );
-  }
   // Iterate over vertices
   auto vertices_layer = poDS->GetLayerByName("vertices");
   while (const auto& feature = vertices_layer->GetNextFeature())
