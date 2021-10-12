@@ -17,6 +17,7 @@ jobs:
         run: |
           echo 'called_from_lib:libddsc.so' > '/tmp/suppressions.txt'
           echo 'called_from_lib:librmw_cyclonedds_cpp.so' >> '/tmp/suppressions.txt'
+          echo 'called_from_lib:librmw_dds_common.so' >> '/tmp/suppressions.txt'
       - name: tsan_build_test
         uses: ros-tooling/action-ros-ci@v0.2
         id: tsan_build_test
