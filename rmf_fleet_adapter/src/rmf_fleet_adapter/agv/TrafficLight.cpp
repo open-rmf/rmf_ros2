@@ -1693,6 +1693,7 @@ TrafficLight::UpdateHandle::Implementation::Data::publish_fleet_state() const
     .x(p.x())
     .y(p.y())
     .yaw(p[2])
+    .approach_speed(0.0)
     .level_name(map)
     .index(0);
 

@@ -59,6 +59,8 @@ rmf_fleet_msgs::msg::Location make_location(
   return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
     .t(t)
     .x(p[0]).y(p[1]).yaw(p[2])
+    // TODO(anyone) add speed limit support
+    .approach_speed(0.0)
     .level_name(map_name)
     .index(index);
 }

@@ -818,6 +818,7 @@ rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
         .x(p.x())
         .y(p.y())
         .yaw(l.orientation())
+        .approach_speed(0.0)
         .level_name(wp.get_map_name())
         // NOTE(MXG): This field is only used by the fleet drivers. For now, we
         // will just fill it with a zero.
