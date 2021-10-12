@@ -22,7 +22,7 @@ jobs:
             rmf_traffic_ros2
             rmf_task_ros2
             rmf_fleet_adapter
-            rmf_fleet_adapter_python
+            # rmf_fleet_adapter_python seems to have issues.
           vcs-repo-file-url: |
             https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
           colcon-defaults: |
