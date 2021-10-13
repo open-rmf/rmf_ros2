@@ -227,6 +227,7 @@ public:
             speed_limit = lane_limit.value();
         }
       }
+      location.approach_speed = speed_limit.has_value() ? speed_limit.value() : 0.0;
 
       // Note: if the waypoint is not on a graph index, then we'll just leave
       // the level_name blank. That information isn't likely to get used by the
