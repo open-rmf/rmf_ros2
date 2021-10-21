@@ -37,49 +37,17 @@ std::shared_ptr<Task> make_clean(
   if (description == nullptr)
     return nullptr;
 
+  // Presently the cleaning process is triggered through a Dock entry event for
+  // the lane that leads to start_waypoint. We assume start_waypoint is
+  // configured as a docking waypoint.
+  // It is the responsibility of the implemented fleet adapter to correctly
+  // update the position of the robot at the end of its cleaning process.
   const auto start_waypoint = description->start_waypoint();
-  const auto end_waypoint = description->end_waypoint();
-
   rmf_traffic::agv::Planner::Goal clean_goal{start_waypoint};
-  rmf_traffic::agv::Planner::Goal end_goal{end_waypoint};
-
-  // Determine the Start of the robot once it completes its cleaning job.
-  // We assume that the robot will be back at start_waypoint once it finishes
-  // cleaning.
-  const auto end_start = [&]() -> rmf_traffic::agv::Planner::Start
-    {
-      auto initial_time = clean_start.time();
-      double orientation = clean_start.orientation();
-      // If the robot is not at its cleaning start_waypoint, we calculate the
-      // time it takes to travel from clean_start to start_waypoint
-      if (clean_start.waypoint() != start_waypoint)
-      {
-        rmf_traffic::agv::Planner::Goal goal{start_waypoint};
-        const auto result = context->planner()->plan(clean_start, goal);
-        // We assume we can always compute a plan
-        const auto& trajectory =
-          result->get_itinerary().back().trajectory();
-        initial_time = *trajectory.finish_time();
-        orientation = trajectory.back().position()[2];
-      }
-
-      // Get the duration of the cleaning process
-      const auto request_model = description->make_model(
-        clean_start.time(),
-        context->task_planner()->configuration().parameters());
-      const auto invariant_duration = request_model->invariant_duration();
-
-      return rmf_traffic::agv::Planner::Start{
-      initial_time + invariant_duration,
-      start_waypoint,
-      orientation};
-    } ();
 
   Task::PendingPhases phases;
   phases.push_back(
     phases::GoToPlace::make(context, std::move(clean_start), clean_goal));
-  phases.push_back(
-    phases::GoToPlace::make(context, std::move(end_start), end_goal));
 
   return Task::make(
     request->id(),
