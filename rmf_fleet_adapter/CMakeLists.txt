@@ -35,6 +35,7 @@ set(dep_pkgs
   rmf_traffic_ros2
   rmf_battery
   rmf_task
+  rmf_proj
   std_msgs
 )
 foreach(pkg ${dep_pkgs})
@@ -185,12 +186,14 @@ target_link_libraries(full_control
     rmf_fleet_adapter
     ${rmf_fleet_msgs_LIBRARIES}
     ${rmf_task_msgs_LIBRARIES}
+    rmf_proj::rmf_proj
 )
 
 target_include_directories(full_control
   PRIVATE
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rmf_task_msgs_INCLUDE_DIRS}
+    rmf_proj::rmf_proj
 )
 
 # -----------------------------------------------------------------------------

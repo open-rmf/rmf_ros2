@@ -57,6 +57,8 @@
 #include <rmf_battery/agv/SimpleMotionPowerSink.hpp>
 #include <rmf_battery/agv/SimpleDevicePowerSink.hpp>
 
+#include <rmf_proj/Transform.hpp>
+
 #include <Eigen/Geometry>
 #include <unordered_set>
 
@@ -159,6 +161,8 @@ public:
   using ModeRequestPub =
     rclcpp::Publisher<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr;
 
+  rmf_proj::WGS84GPS_SVY21_Transform _transform;
+
   FleetDriverRobotCommandHandle(
     rclcpp::Node& node,
     std::string fleet_name,
@@ -166,10 +170,12 @@ public:
     std::shared_ptr<const rmf_traffic::agv::Graph> graph,
     std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
     PathRequestPub path_request_pub,
-    ModeRequestPub mode_request_pub)
+    ModeRequestPub mode_request_pub,
+    PathRequestPub gps_path_request_pub)
   : _node(&node),
     _path_request_pub(std::move(path_request_pub)),
-    _mode_request_pub(std::move(mode_request_pub))
+    _mode_request_pub(std::move(mode_request_pub)),
+    _gps_path_request_pub(std::move(gps_path_request_pub))
   {
     _current_path_request.fleet_name = fleet_name;
     _current_path_request.robot_name = robot_name;
@@ -227,6 +233,18 @@ public:
 
     _path_requested_time = std::chrono::steady_clock::now();
     _path_request_pub->publish(_current_path_request);
+
+    auto path_request_gps = _current_path_request;
+    for (auto& waypoint : path_request_gps.path)
+    {
+      double gps_lat = 0.0;
+      double gps_long = 0.0;
+      _transform.transform_2_to_1(waypoint.x, waypoint.y, gps_lat, gps_long);
+
+      waypoint.x = gps_lat;
+      waypoint.y = gps_long;
+    }
+    _gps_path_request_pub->publish(path_request_gps);
   }
 
   void stop() final
@@ -547,6 +565,7 @@ private:
   rclcpp::Node* _node;
 
   PathRequestPub _path_request_pub;
+  PathRequestPub _gps_path_request_pub;
   rmf_fleet_msgs::msg::PathRequest _current_path_request;
   std::chrono::steady_clock::time_point _path_requested_time;
   TravelInfo _travel_info;
@@ -611,6 +630,10 @@ struct Connections : public std::enable_shared_from_this<Connections>
   rclcpp::Publisher<rmf_fleet_msgs::msg::PathRequest>::SharedPtr
     path_request_pub;
 
+  /// The publisher for sending out path requests with gps coordinates
+  rclcpp::Publisher<rmf_fleet_msgs::msg::PathRequest>::SharedPtr
+    gps_path_request_pub;
+
   /// The publisher for sending out mode requests
   rclcpp::Publisher<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr
     mode_request_pub;
@@ -641,7 +664,7 @@ struct Connections : public std::enable_shared_from_this<Connections>
     const auto& robot_name = state.name;
     const auto command = std::make_shared<FleetDriverRobotCommandHandle>(
       *adapter->node(), fleet_name, robot_name, graph, traits,
-      path_request_pub, mode_request_pub);
+      path_request_pub, mode_request_pub, gps_path_request_pub);
 
     const auto& l = state.location;
     const auto& starts = rmf_traffic::agv::compute_plan_starts(
@@ -1032,6 +1055,10 @@ std::shared_ptr<Connections> make_fleet(
   connections->path_request_pub = node->create_publisher<
     rmf_fleet_msgs::msg::PathRequest>(
     rmf_fleet_adapter::PathRequestTopicName, rclcpp::SystemDefaultsQoS());
+
+  connections->gps_path_request_pub = node->create_publisher<
+    rmf_fleet_msgs::msg::PathRequest>(
+    "robot_gps_path_requests", rclcpp::SystemDefaultsQoS());
 
   connections->mode_request_pub = node->create_publisher<
     rmf_fleet_msgs::msg::ModeRequest>(
