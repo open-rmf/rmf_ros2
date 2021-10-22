@@ -43,9 +43,26 @@ std::shared_ptr<Task> make_clean(
   // It is the responsibility of the implemented fleet adapter to correctly
   // update the position of the robot at the end of its cleaning process.
   const auto start_waypoint = description->start_waypoint();
-  rmf_traffic::agv::Planner::Goal clean_goal{start_waypoint};
+  const rmf_traffic::agv::Planner::Goal clean_goal{start_waypoint};
 
   Task::PendingPhases phases;
+  // TODO(YV): If the robot is already at the start_waypoint, the Dock entry event will
+  // not be triggered and the task will be competed without any cleaning
+  // performed. To avoid this, we request the robot to re-enter the lane.
+  // This should be fixed when we define a new phase cleaning and not rely on
+  // docking
+  if (context->current_task_end_state().location().waypoint() == start_waypoint)
+  {
+    const auto& graph = context->navigation_graph();
+    const auto& lane_from_index = graph.lanes_from(start_waypoint)[0];
+    const auto& lane_from = graph.get_lane(lane_from_index);
+    // Get the waypoint on the other side of this lane
+    const auto& exit_waypoint = lane_from.exit().waypoint_index();
+    const rmf_traffic::agv::Planner::Goal pull_out_goal{exit_waypoint};
+    phases.push_back(
+      phases::GoToPlace::make(context, std::move(clean_start), pull_out_goal));
+  }
+
   phases.push_back(
     phases::GoToPlace::make(context, std::move(clean_start), clean_goal));
 
