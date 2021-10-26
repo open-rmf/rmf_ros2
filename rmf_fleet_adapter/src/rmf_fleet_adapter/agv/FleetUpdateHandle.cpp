@@ -219,6 +219,10 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     const auto& clean_param = clean_param_it->second;
 
     // Check for valid finish waypoint
+    // This is the waypoint on the map where the robot will end up at the end
+    // of its cleaning process. RMF will not move the robot to this waypoint.
+    // This information is used to estimate the state of the robot at the end
+    // of its cleaning process which is relevant for task allocation planning.
     const std::string& finish_wp_name = clean_param.finish;
     const auto finish_wp = graph.find_waypoint(finish_wp_name);
     if (!finish_wp)
