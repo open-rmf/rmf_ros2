@@ -39,7 +39,8 @@ jobs:
             {
               "build": {
                 "mixin": ["tsan"],
-                "cmake-args": ["-DCMAKE_BUILD_TYPE=Debug"]
+                "cmake-args": ["-DCMAKE_BUILD_TYPE=Debug"],
+                "parallel-workers": ["1"]
               }
             }
           colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
@@ -51,5 +52,4 @@ jobs:
             ${{ steps.tsan_build_test.outputs.ros-workspace-directory-name }}/log/latest_test/rmf_traffic_ros2/streams.log
             ${{ steps.tsan_build_test.outputs.ros-workspace-directory-name }}/log/latest_test/rmf_task_ros2/streams.log
             ${{ steps.tsan_build_test.outputs.ros-workspace-directory-name }}/log/latest_test/rmf_fleet_adapter/streams.log
-            ${{ steps.tsan_build_test.outputs.ros-workspace-directory-name }}/log/latest_test/rmf_fleet_adapter_python/streams.log
         if: always()
