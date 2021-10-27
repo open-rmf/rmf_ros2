@@ -110,18 +110,17 @@ public:
 
   void wait_until_started()
   {
-    while (!_started)
+    while (!_started.load())
     {
       std::unique_lock<std::mutex> lock(_starting_mutex);
-      _started_cv.wait(lock, [&]() { return _started; });
+      _started_cv.wait(lock, [&]() { return _started.load(); });
     }
   }
 
 private:
   rxcpp::schedulers::worker _worker;
 
-
-  bool _started;
+  std::atomic_bool _started;
   std::mutex _starting_mutex;
   std::condition_variable _started_cv;
 
