@@ -120,6 +120,7 @@ public:
 private:
   rxcpp::schedulers::worker _worker;
 
+
   bool _started;
   std::mutex _starting_mutex;
   std::condition_variable _started_cv;
