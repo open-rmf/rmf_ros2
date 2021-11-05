@@ -720,7 +720,7 @@ struct Connections : public std::enable_shared_from_this<Connections>
         if (connections->lift_watchdog_client)
         {
           updater->unstable().set_lift_entry_watchdog(
-            [robot_name, client = connections->lift_watchdog_client](
+            [robot_name, connections](
               const std::string& lift_name,
               auto decide)
             {
@@ -729,6 +729,16 @@ struct Connections : public std::enable_shared_from_this<Connections>
                 rmf_fleet_msgs::build<rmf_fleet_msgs::srv::LiftClearance::Request>()
                 .robot_name(robot_name)
                 .lift_name(lift_name));
+
+              const auto client = connections->lift_watchdog_client;
+              if (!client->service_is_ready())
+              {
+                RCLCPP_ERROR(
+                  connections->adapter->node()->get_logger(),
+                  "Failed to get lift clearance service");
+                decide(convert_decision(0));
+                return;
+              }
 
               client->async_send_request(
                 request,

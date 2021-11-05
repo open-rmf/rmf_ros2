@@ -80,6 +80,9 @@ public:
   void permission_callback(
     const std::shared_ptr<std_msgs::msg::Bool>& msg)
   {
+    RCLCPP_INFO(
+      get_logger(),
+      "Set Lift watchdog permission to [%s]", msg->data ? "true" : "false");
     permission = msg->data;
   }
 
