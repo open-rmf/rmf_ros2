@@ -91,6 +91,7 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
     int level_idx = 0;
     std::optional<double> speed_limit;
     std::optional<std::string> dock_name;
+    bool is_correct_graph = false;
     for (const auto& field : feature)
     {
       if (strcmp(field.GetName(), "level_idx") == 0)
@@ -100,16 +101,17 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
         const auto& params_str = field.GetAsString();
         nlohmann::json j = nlohmann::json::parse(params_str);
         auto graph_idx_it = j.find("graph_idx");
-        // Skip if graph_idx is not the equal to the argument
-        if (graph_idx_it != j.end() &&
-            graph_idx_it->get<int>() != graph_idx)
-          continue;
+        if (graph_idx_it != j.end())
+          is_correct_graph = (graph_idx_it->get<int>() == graph_idx);
         // Parse speed limit
         auto speed_limit_it = j.find("speed_limit");
         if (speed_limit_it != j.end())
           speed_limit = speed_limit_it->get<double>();
       }
     }
+        // Skip if graph_idx is not the equal to the argument
+    if (!is_correct_graph)
+      continue;
     const auto& lane_feat = feature->GetGeometryRef()->toLineString();
     // Get the points
     double x0 = lane_feat->getX(0);
