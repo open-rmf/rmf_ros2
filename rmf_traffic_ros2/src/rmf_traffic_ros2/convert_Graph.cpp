@@ -33,6 +33,33 @@ namespace rmf_traffic_ros2 {
 using CoordsIdxHashMap = std::unordered_map<std::size_t, std::unordered_map<
   double, std::unordered_map<double, std::size_t>>>;
 
+// Class to wrap temporary files so they are deleted on destruction
+class GeopackageTmpFile
+{
+private:
+  FILE *fd;
+
+public:
+  std::string filename;
+
+  GeopackageTmpFile(const std::vector<unsigned char>& data)
+  {
+    // TODO use return value for errors
+    char tmpnam[] = "/tmp/geopkgXXXXXX";
+    int res = mkstemp(tmpnam);
+    filename = tmpnam;
+    fd = fopen(filename.c_str(), "wb");
+    fwrite(&data[0], sizeof(char), data.size(), fd);
+  }
+
+  ~GeopackageTmpFile()
+  {
+    // Delete the tmp file
+    fclose(fd);
+    remove(filename.c_str());
+  }
+};
+
 //==============================================================================
 rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
   int graph_idx, double wp_tolerance)
@@ -41,16 +68,12 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
   rmf_traffic::agv::Graph graph;
   // Sqlite3 needs to work on a physical file, write the package to a tmp file
   // TODO delete file once done
-  auto filename = std::tmpnam(nullptr);
-  FILE* fd = fopen(filename, "wb");
   GDALAllRegister();
   // Not supported
   if (from.encoding != from.MAP_DATA_GPKG)
     return graph;
-  fwrite(&from.data[0], sizeof(char), from.data.size(), fd);
-  // Get the filename
-  printf("Filename is %s\n", filename);
-  GDALDatasetUniquePtr poDS(GDALDataset::Open(filename, GDAL_OF_VECTOR));
+  GeopackageTmpFile gpkg_file(from.data);
+  GDALDatasetUniquePtr poDS(GDALDataset::Open(gpkg_file.filename.c_str(), GDAL_OF_VECTOR));
   // Iterate over vertices
   auto vertices_layer = poDS->GetLayerByName("vertices");
   while (const auto& feature = vertices_layer->GetNextFeature())
