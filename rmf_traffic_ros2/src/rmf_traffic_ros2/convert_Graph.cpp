@@ -114,6 +114,7 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
     int level_idx = 0;
     std::optional<double> speed_limit;
     std::optional<std::string> dock_name;
+    bool is_bidirectional = false;
     bool is_correct_graph = false;
     for (const auto& field : feature)
     {
@@ -130,6 +131,13 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
         auto speed_limit_it = j.find("speed_limit");
         if (speed_limit_it != j.end())
           speed_limit = speed_limit_it->get<double>();
+        auto dock_name_it = j.find("dock_name");
+        if (dock_name_it != j.end())
+          dock_name = dock_name_it->get<std::string>();
+        auto bidirectional_it = j.find("bidirectional");
+        if (bidirectional_it != j.end())
+          is_bidirectional = bidirectional_it->get<bool>();
+
       }
     }
         // Skip if graph_idx is not the equal to the argument
@@ -162,9 +170,18 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
     // TODO(luca) Add lifts, doors, orientation constraints
     rmf_utils::clone_ptr<Event> entry_event;
     rmf_utils::clone_ptr<Event> exit_event;
+    if (is_bidirectional)
+    {
+      // Lane in the opposite direction
+      auto& lane = graph.add_lane({end_wp, entry_event},
+          {start_wp, exit_event});
+      lane.properties().speed_limit(speed_limit);
+    }
+
     // dock_name is only applied to the lane going to the waypoint, not exiting
-    // TODO bidirectional edges
-    // TODO docking
+    const rmf_traffic::Duration duration = std::chrono::seconds(5);
+    if (dock_name.has_value())
+      entry_event = Event::make(Lane::Dock(dock_name.value(), duration));
     auto& lane = graph.add_lane({start_wp, entry_event},
       {end_wp, exit_event});
     lane.properties().speed_limit(speed_limit);
