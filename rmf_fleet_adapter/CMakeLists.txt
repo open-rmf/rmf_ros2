@@ -42,12 +42,12 @@ foreach(pkg ${dep_pkgs})
 endforeach()
 
 if(BUILD_TESTING)
-  find_package(rmf_cmake_uncrustify REQUIRED)
+  find_package(ament_cmake_uncrustify REQUIRED)
   find_file(uncrustify_config_file
     NAMES "rmf_code_style.cfg"
     PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
 
-  rmf_uncrustify(
+  ament_uncrustify(
     include src test rmf_rxcpp/include rmf_rxcpp/src rmf_rxcpp/test
     CONFIG_FILE ${uncrustify_config_file}
     MAX_LINE_LENGTH 80
