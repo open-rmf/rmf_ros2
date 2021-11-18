@@ -18,6 +18,8 @@
 #include <iostream>
 #include <cstdio>
 #include <filesystem>
+#include <zlib.h>
+
 
 #include <gdal/gdal.h>
 #include <gdal/ogrsf_frmts.h>
@@ -70,8 +72,19 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
   // TODO delete file once done
   GDALAllRegister();
   // Not supported
-  if (from.encoding != from.MAP_DATA_GPKG)
-    return graph;
+  if (from.encoding == from.MAP_DATA_GEOJSON)
+  {
+    printf("converting GeoJSON map\n");
+  }
+  else if (from.encoding == from.MAP_DATA_GEOJSON_GZ)
+  {
+    printf("converting compressed GeoJSON map\n");
+  }
+  else
+    return graph;  // unexpected encoding
+
+  return graph;
+
   GeopackageTmpFile gpkg_file(from.data);
   GDALDatasetUniquePtr poDS(GDALDataset::Open(gpkg_file.filename.c_str(), GDAL_OF_VECTOR));
   // Iterate over vertices
