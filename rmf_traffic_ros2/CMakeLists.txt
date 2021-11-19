@@ -19,10 +19,10 @@ find_package(rmf_traffic_msgs REQUIRED)
 find_package(rmf_site_map_msgs REQUIRED)
 find_package(rmf_fleet_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(GDAL)
 find_package(rclcpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(ZLIB REQUIRED)
 
 if (rmf_traffic_FOUND)
   message(STATUS "found rmf_traffic")
@@ -125,9 +125,10 @@ target_link_libraries(rmf_traffic_ros2
     nlohmann_json::nlohmann_json
     ${rmf_traffic_msgs_LIBRARIES}
     ${rmf_site_map_msgs_LIBRARIES}
-    ${GDAL_LIBRARIES}
     ${rclcpp_LIBRARIES}
+    proj
     yaml-cpp
+    z
 )
 
 target_include_directories(rmf_traffic_ros2
@@ -136,7 +137,6 @@ target_include_directories(rmf_traffic_ros2
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_msgs_INCLUDE_DIRS}
     ${rmf_site_map_msgs_INCLUDE_DIRS}
-    ${GDAL_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
 )
 

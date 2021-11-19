@@ -18,8 +18,8 @@
   <depend>rclcpp</depend>
   <depend>yaml-cpp</depend>
   <depend>nlohmann-json-dev</depend>
-
-  <depend>libgdal-dev</depend>
+  <depend>proj</depend>
+  <depend>zlib</depend>
 
   <build_depend>eigen</build_depend>
 

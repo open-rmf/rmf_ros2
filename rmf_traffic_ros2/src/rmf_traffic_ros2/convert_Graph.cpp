@@ -20,10 +20,7 @@
 #include <filesystem>
 #include <zlib.h>
 
-
-#include <gdal/gdal.h>
-#include <gdal/ogrsf_frmts.h>
-
+#include <proj.h>
 #include <nlohmann/json.hpp>
 
 #include <rmf_traffic_ros2/agv/Graph.hpp>
@@ -35,91 +32,206 @@ namespace rmf_traffic_ros2 {
 using CoordsIdxHashMap = std::unordered_map<std::size_t, std::unordered_map<
   double, std::unordered_map<double, std::size_t>>>;
 
-// Class to wrap temporary files so they are deleted on destruction
-class GeopackageTmpFile
+// local helper function to factor json parsing code for both
+// the compressed and uncompressed case
+static rmf_traffic::agv::Graph json_to_graph(
+  const std::vector<uint8_t>& json_doc,
+  const int graph_idx,
+  const double wp_tolerance);
+
+bool decompress_gzip(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
 {
-private:
-  FILE *fd;
-
-public:
-  std::string filename;
-
-  GeopackageTmpFile(const std::vector<unsigned char>& data)
+  z_stream strm;
+  memset(&strm, 0, sizeof(strm));
+  strm.zalloc = Z_NULL;
+  strm.zfree = Z_NULL;
+  strm.opaque = Z_NULL;
+  strm.avail_in = 0;
+  strm.next_in = Z_NULL;
+  const int inflate_init_ret = inflateInit2(&strm, 15 + 32);
+  if (inflate_init_ret != Z_OK)
   {
-    // TODO use return value for errors
-    char tmpnam[] = "/tmp/geopkgXXXXXX";
-    int res = mkstemp(tmpnam);
-    filename = tmpnam;
-    fd = fopen(filename.c_str(), "wb");
-    fwrite(&data[0], sizeof(char), data.size(), fd);
+    printf("error in inflateInit2()\n");
+    return false;
   }
 
-  ~GeopackageTmpFile()
+  const size_t READ_CHUNK_SIZE = 128 * 1024;
+  size_t read_pos = 0;
+
+  const size_t OUT_CHUNK_SIZE = 128 * 1024;
+  std::vector<uint8_t> inflate_buf(OUT_CHUNK_SIZE);
+
+  do
   {
-    // Delete the tmp file
-    fclose(fd);
-    remove(filename.c_str());
-  }
-};
+    if (read_pos + READ_CHUNK_SIZE < in.size())
+      strm.avail_in = READ_CHUNK_SIZE;
+    else
+      strm.avail_in = in.size() - read_pos;
+    // printf("read %d\n", (int)strm.avail_in);
+    strm.next_in = (unsigned char *)&in[read_pos];
+    read_pos += strm.avail_in;
+
+    int inflate_ret = 0;
+    do
+    {
+      strm.avail_out = inflate_buf.size();
+      strm.next_out = &inflate_buf[0];
+      inflate_ret = inflate(&strm, Z_NO_FLUSH);
+      if (inflate_ret == Z_NEED_DICT ||
+          inflate_ret == Z_DATA_ERROR ||
+          inflate_ret == Z_MEM_ERROR)
+      {
+        printf("unrecoverable zlib inflate error\n");
+        inflateEnd(&strm);
+        return false;
+      }
+      const int n_have = inflate_buf.size() - strm.avail_out;
+      out.insert(
+        out.end(),
+        inflate_buf.begin(),
+        inflate_buf.begin() + n_have);
+      /*
+      printf("write %d, output size: %d\n",
+        (int)n_have,
+        (int)out.size());
+      */
+    } while (strm.avail_out == 0);
+    
+    if (inflate_ret == Z_STREAM_END)
+      break;
+  } while (read_pos < in.size());
+
+  printf("inflated: %d -> %d\n", (int)in.size(), (int)out.size());
+
+  return true;
+}
 
 //==============================================================================
 rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
   int graph_idx, double wp_tolerance)
 {
-  CoordsIdxHashMap idx_map;
   rmf_traffic::agv::Graph graph;
-  // Sqlite3 needs to work on a physical file, write the package to a tmp file
-  // TODO delete file once done
-  GDALAllRegister();
-  // Not supported
   if (from.encoding == from.MAP_DATA_GEOJSON)
   {
     printf("converting GeoJSON map\n");
+    return json_to_graph(from.data, graph_idx, wp_tolerance);
   }
   else if (from.encoding == from.MAP_DATA_GEOJSON_GZ)
   {
     printf("converting compressed GeoJSON map\n");
+    std::vector<uint8_t> uncompressed;
+    if (!decompress_gzip(from.data, uncompressed))
+      return graph;  // failed to decompress gzip, cannot proceed
+    return json_to_graph(uncompressed, graph_idx, wp_tolerance);
   }
   else
     return graph;  // unexpected encoding
+}
 
-  return graph;
+rmf_traffic::agv::Graph json_to_graph(
+  const std::vector<uint8_t>& json_doc,
+  const int graph_idx,
+  const double wp_tolerance)
+{
+  rmf_traffic::agv::Graph graph;
+  printf("json_to_graph with doc length %d\n", (int)json_doc.size());
+  nlohmann::json j = nlohmann::json::parse(json_doc);
+  printf("parsed %d entries in json\n", (int)j.size());
+  //auto graph_idx_it = j.find("graph_idx");
 
-  GeopackageTmpFile gpkg_file(from.data);
-  GDALDatasetUniquePtr poDS(GDALDataset::Open(gpkg_file.filename.c_str(), GDAL_OF_VECTOR));
-  // Iterate over vertices
-  auto vertices_layer = poDS->GetLayerByName("vertices");
-  while (const auto& feature = vertices_layer->GetNextFeature())
+  if (!j.contains("preferred_crs") || !j["preferred_crs"].is_string()) {
+    printf("GeoJSON does not contain top-level preferred_crs key!\n");
+    return graph;
+  }
+  const std::string preferred_crs = j["preferred_crs"];
+  printf("preferred_crs: [%s]\n", preferred_crs.c_str());
+
+  if (!j.contains("features") || !j["features"].is_array()) {
+    printf("GeoJSON does not contain top-level features array!\n");
+    return graph;
+  }
+
+  CoordsIdxHashMap idx_map;
+
+  // spin through features and find all vertices
+  PJ_CONTEXT *proj_context = proj_context_create();
+  PJ *projector = proj_create_crs_to_crs(
+    proj_context,
+    "EPSG:4326",  // aka WGS84, always used in GeoJSON
+    preferred_crs.c_str(),
+    NULL);
+  if (!projector)
   {
+    printf("unable to create coordinate projector!\n");
+    return graph;
+  }
+
+  for (const auto& feature : j["features"])
+  {
+    const std::string feature_type = feature["feature_type"];
+    if (feature_type != "nav_vertex")
+      continue;
+
+    // sanity check the object structure
+    if (!feature.contains("properties") || !feature["properties"].is_object())
+      continue;
+    if (!feature.contains("geometry") || !feature["geometry"].is_object())
+      continue;
+    const auto& geom = feature["geometry"];
+    if (!geom.contains("type") || !geom["type"].is_string())
+      continue;
+    if (geom["type"] != "Point")
+      continue;
+    if (!geom.contains("coordinates") || !geom["coordinates"].is_array())
+      continue;
+    if (geom["coordinates"].size() < 2)
+      continue;
+
+    // GeoJSON always encodes coordinates as (lon, lat)
+    const double lon = geom["coordinates"][0];
+    const double lat = geom["coordinates"][1];
+    
+    std::string name;
+    if (feature["properties"].contains("name"))
+      name = feature["properties"]["name"];
+
     int level_idx = 0;
-    for (const auto& field : feature)
-    {
-      if (strcmp(field.GetName(), "level_idx") == 0)
-        level_idx = field.GetAsInteger();
-      else if (strcmp(field.GetName(), "parameters") == 0)
-      {
-        // TODO parse parameters here
-      }
-    }
-    const auto& name_feat = (*feature)["name"];
-    const std::string name(name_feat.GetAsString());
-    const auto& point = feature->GetGeometryRef()->toPoint();
-    // Flatten geometry to extract 
-    const Eigen::Vector2d location{
-      point->getX(), point->getY()};
+    if (feature["properties"].contains("level_idx"))
+      level_idx = feature["properties"]["level_idx"];
+
+    // todo: parse other parameters here
+
+    const PJ_COORD wgs84_coord = proj_coord(lat, lon, 0, 0);
+    const PJ_COORD p = proj_trans(projector, PJ_FWD, wgs84_coord);
+
+    // not sure why the coordinate-flip is required, but... it is.
+    const double easting = p.enu.n;
+    const double northing = p.enu.e;
+
+    const Eigen::Vector2d location{easting, northing};
+
     // TODO map name
     std::string map_name("test");
     auto& wp = graph.add_waypoint(map_name, location);
+
     if (name.size() > 0 && !graph.add_key(name, wp.index()))
     {
       throw std::runtime_error(
               "Duplicated waypoint name [" + name + "]");
     }
-    // Round x and y to wp_tolerance
-    double rounded_x = std::round(point->getX() / wp_tolerance) * wp_tolerance;
-    double rounded_y = std::round(point->getY() / wp_tolerance) * wp_tolerance;
+
+    double rounded_x = std::round(easting / wp_tolerance) * wp_tolerance;
+    double rounded_y = std::round(northing / wp_tolerance) * wp_tolerance;
     idx_map[level_idx][rounded_x][rounded_y] = wp.index();
+
+    //printf("vertex name: [%s] coords: (%.6f, %.6f) -> (%.2f, %.2f)\n",
+    //  name.c_str(), lon, lat, easting, northing);
   }
+  proj_context_destroy(proj_context);
+  return graph;
+}
+
+#if 0
   // Iterate over edges
   auto edges_layer = poDS->GetLayerByName("edges");
   while (const auto& feature = edges_layer->GetNextFeature())
@@ -264,5 +376,6 @@ for (const auto& edge : from.edges)
 */
 return graph;
 }
+#endif
 
 } // namespace rmf_traffic_ros2
