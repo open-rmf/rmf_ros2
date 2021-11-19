@@ -67,7 +67,7 @@ bool decompress_gzip(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
       strm.avail_in = READ_CHUNK_SIZE;
     else
       strm.avail_in = in.size() - read_pos;
-    // printf("read %d\n", (int)strm.avail_in);
+
     strm.next_in = (unsigned char *)&in[read_pos];
     read_pos += strm.avail_in;
 
@@ -90,11 +90,6 @@ bool decompress_gzip(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
         out.end(),
         inflate_buf.begin(),
         inflate_buf.begin() + n_have);
-      /*
-      printf("write %d, output size: %d\n",
-        (int)n_have,
-        (int)out.size());
-      */
     } while (strm.avail_out == 0);
     
     if (inflate_ret == Z_STREAM_END)
@@ -125,7 +120,10 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
     return json_to_graph(uncompressed, graph_idx, wp_tolerance);
   }
   else
+  {
+    printf("unexpected encoding value: %d\n", from.encoding);
     return graph;  // unexpected encoding
+  }
 }
 
 rmf_traffic::agv::Graph json_to_graph(
@@ -227,57 +225,71 @@ rmf_traffic::agv::Graph json_to_graph(
     //printf("vertex name: [%s] coords: (%.6f, %.6f) -> (%.2f, %.2f)\n",
     //  name.c_str(), lon, lat, easting, northing);
   }
-  proj_context_destroy(proj_context);
-  return graph;
-}
 
-#if 0
-  // Iterate over edges
-  auto edges_layer = poDS->GetLayerByName("edges");
-  while (const auto& feature = edges_layer->GetNextFeature())
+  // now spin through the features again, looking for lanes
+  for (const auto& feature : j["features"])
   {
-    int level_idx = 0;
-    std::optional<double> speed_limit;
-    std::optional<std::string> dock_name;
-    bool is_bidirectional = false;
-    bool is_correct_graph = false;
-    for (const auto& field : feature)
-    {
-      if (strcmp(field.GetName(), "level_idx") == 0)
-        level_idx = field.GetAsInteger();
-      else if (strcmp(field.GetName(), "parameters") == 0)
-      {
-        const auto& params_str = field.GetAsString();
-        nlohmann::json j = nlohmann::json::parse(params_str);
-        auto graph_idx_it = j.find("graph_idx");
-        if (graph_idx_it != j.end())
-          is_correct_graph = (graph_idx_it->get<int>() == graph_idx);
-        // Parse speed limit
-        auto speed_limit_it = j.find("speed_limit");
-        if (speed_limit_it != j.end())
-          speed_limit = speed_limit_it->get<double>();
-        auto dock_name_it = j.find("dock_name");
-        if (dock_name_it != j.end())
-          dock_name = dock_name_it->get<std::string>();
-        auto bidirectional_it = j.find("bidirectional");
-        if (bidirectional_it != j.end())
-          is_bidirectional = bidirectional_it->get<bool>();
-
-      }
-    }
-        // Skip if graph_idx is not the equal to the argument
-    if (!is_correct_graph)
+    const std::string feature_type = feature["feature_type"];
+    if (feature_type != "nav_lane")
       continue;
-    const auto& lane_feat = feature->GetGeometryRef()->toLineString();
-    // Get the points
-    double x0 = lane_feat->getX(0);
-    double x1 = lane_feat->getX(1);
-    double y0 = lane_feat->getY(0);
-    double y1 = lane_feat->getY(1);
-    double rounded_x0 = std::round(x0 / wp_tolerance) * wp_tolerance;
-    double rounded_y0 = std::round(y0 / wp_tolerance) * wp_tolerance;
-    double rounded_x1 = std::round(x1 / wp_tolerance) * wp_tolerance;
-    double rounded_y1 = std::round(y1 / wp_tolerance) * wp_tolerance;
+
+    if (!feature.contains("geometry") || !feature["geometry"].is_object())
+      continue;
+    const auto& geom = feature["geometry"];
+    if (!geom.contains("type") || !geom["type"].is_string())
+      continue;
+    if (geom["type"] != "LineString")
+      continue;
+    if (!geom.contains("coordinates") || !geom["coordinates"].is_array())
+      continue;
+    if (geom["coordinates"].size() < 2)
+      continue;
+
+    if (feature["properties"].contains("graph_idx"))
+    {
+      const int lane_graph_idx = feature["properties"]["graph_idx"];
+      if (lane_graph_idx != graph_idx)
+        continue;  // wrong lane. forget it.
+    }
+
+    int level_idx = 0;
+    if (feature["properties"].contains("level_idx"))
+      level_idx = feature["properties"]["level_idx"];
+
+    std::optional<double> speed_limit;
+    if (feature["properties"].contains("speed_limit"))
+      speed_limit = feature["properties"]["speed_limit"];
+
+    std::optional<std::string> dock_name;
+    if (feature["properties"].contains("dock_name"))
+      dock_name = feature["properties"]["dock_name"];
+
+    bool is_bidirectional = false;
+    if (feature["properties"].contains("bidirectional"))
+      is_bidirectional = feature["properties"]["bidirectional"];
+
+    const double lon_0 = geom["coordinates"][0][0];
+    const double lat_0 = geom["coordinates"][0][1];
+    const double lon_1 = geom["coordinates"][1][0];
+    const double lat_1 = geom["coordinates"][1][1];
+
+    const PJ_COORD wgs84_coord_0 = proj_coord(lat_0, lon_0, 0, 0);
+    const PJ_COORD wgs84_coord_1 = proj_coord(lat_1, lon_1, 0, 0);
+    const PJ_COORD p0 = proj_trans(projector, PJ_FWD, wgs84_coord_0);
+    const PJ_COORD p1 = proj_trans(projector, PJ_FWD, wgs84_coord_1);
+
+    // not sure why the coordinate-flip is required, but... it is.
+    // maybe can use proj_normalize_for_visualization someday?
+    const double x0 = p0.enu.n;
+    const double y0 = p0.enu.e;
+    const double x1 = p1.enu.n;
+    const double y1 = p1.enu.e;
+
+    const double rounded_x0 = std::round(x0 / wp_tolerance) * wp_tolerance;
+    const double rounded_y0 = std::round(y0 / wp_tolerance) * wp_tolerance;
+    const double rounded_x1 = std::round(x1 / wp_tolerance) * wp_tolerance;
+    const double rounded_y1 = std::round(y1 / wp_tolerance) * wp_tolerance;
+
     auto m0_iter = idx_map[level_idx][rounded_x0].find(rounded_y0);
     if (m0_iter == idx_map[level_idx][rounded_x0].end())
       continue;
@@ -310,6 +322,14 @@ rmf_traffic::agv::Graph json_to_graph(
     auto& lane = graph.add_lane({start_wp, entry_event},
       {end_wp, exit_event});
     lane.properties().speed_limit(speed_limit);
+  }
+
+  proj_destroy(projector);
+  proj_context_destroy(proj_context);
+  return graph;
+}
+
+#if 0
   }
 /*
 // Iterate over vertices / waypoints
