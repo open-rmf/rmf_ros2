@@ -30,7 +30,7 @@ namespace rmf_traffic_ros2 {
 // Usage map[level_idx][truncated_x][truncated_y] = id;
 // Truncation is to 1e-3 meters
 using CoordsIdxHashMap = std::unordered_map<std::size_t, std::unordered_map<
-  double, std::unordered_map<double, std::size_t>>>;
+      double, std::unordered_map<double, std::size_t>>>;
 
 // local helper function to factor json parsing code for both
 // the compressed and uncompressed case
@@ -68,7 +68,7 @@ bool decompress_gzip(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
     else
       strm.avail_in = in.size() - read_pos;
 
-    strm.next_in = (unsigned char *)&in[read_pos];
+    strm.next_in = (unsigned char*)&in[read_pos];
     read_pos += strm.avail_in;
 
     int inflate_ret = 0;
@@ -78,8 +78,8 @@ bool decompress_gzip(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
       strm.next_out = &inflate_buf[0];
       inflate_ret = inflate(&strm, Z_NO_FLUSH);
       if (inflate_ret == Z_NEED_DICT ||
-          inflate_ret == Z_DATA_ERROR ||
-          inflate_ret == Z_MEM_ERROR)
+        inflate_ret == Z_DATA_ERROR ||
+        inflate_ret == Z_MEM_ERROR)
       {
         printf("unrecoverable zlib inflate error\n");
         inflateEnd(&strm);
@@ -91,7 +91,7 @@ bool decompress_gzip(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
         inflate_buf.begin(),
         inflate_buf.begin() + n_have);
     } while (strm.avail_out == 0);
-    
+
     if (inflate_ret == Z_STREAM_END)
       break;
   } while (read_pos < in.size());
@@ -116,7 +116,7 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
     printf("converting compressed GeoJSON map\n");
     std::vector<uint8_t> uncompressed;
     if (!decompress_gzip(from.data, uncompressed))
-      return graph;  // failed to decompress gzip, cannot proceed
+      return graph;
     return json_to_graph(uncompressed, graph_idx, wp_tolerance);
   }
   else
@@ -137,14 +137,16 @@ rmf_traffic::agv::Graph json_to_graph(
   printf("parsed %d entries in json\n", (int)j.size());
   //auto graph_idx_it = j.find("graph_idx");
 
-  if (!j.contains("preferred_crs") || !j["preferred_crs"].is_string()) {
+  if (!j.contains("preferred_crs") || !j["preferred_crs"].is_string())
+  {
     printf("GeoJSON does not contain top-level preferred_crs key!\n");
     return graph;
   }
   const std::string preferred_crs = j["preferred_crs"];
   printf("preferred_crs: [%s]\n", preferred_crs.c_str());
 
-  if (!j.contains("features") || !j["features"].is_array()) {
+  if (!j.contains("features") || !j["features"].is_array())
+  {
     printf("GeoJSON does not contain top-level features array!\n");
     return graph;
   }
@@ -152,8 +154,8 @@ rmf_traffic::agv::Graph json_to_graph(
   CoordsIdxHashMap idx_map;
 
   // spin through features and find all vertices
-  PJ_CONTEXT *proj_context = proj_context_create();
-  PJ *projector = proj_create_crs_to_crs(
+  PJ_CONTEXT* proj_context = proj_context_create();
+  PJ* projector = proj_create_crs_to_crs(
     proj_context,
     "EPSG:4326",  // aka WGS84, always used in GeoJSON
     preferred_crs.c_str(),
@@ -188,7 +190,7 @@ rmf_traffic::agv::Graph json_to_graph(
     // GeoJSON always encodes coordinates as (lon, lat)
     const double lon = geom["coordinates"][0];
     const double lat = geom["coordinates"][1];
-    
+
     std::string name;
     if (feature["properties"].contains("name"))
       name = feature["properties"]["name"];
@@ -221,9 +223,6 @@ rmf_traffic::agv::Graph json_to_graph(
     double rounded_x = std::round(easting / wp_tolerance) * wp_tolerance;
     double rounded_y = std::round(northing / wp_tolerance) * wp_tolerance;
     idx_map[level_idx][rounded_x][rounded_y] = wp.index();
-
-    //printf("vertex name: [%s] coords: (%.6f, %.6f) -> (%.2f, %.2f)\n",
-    //  name.c_str(), lon, lat, easting, northing);
   }
 
   // now spin through the features again, looking for lanes
@@ -249,7 +248,7 @@ rmf_traffic::agv::Graph json_to_graph(
     {
       const int lane_graph_idx = feature["properties"]["graph_idx"];
       if (lane_graph_idx != graph_idx)
-        continue;  // wrong lane. forget it.
+        continue;
     }
 
     int level_idx = 0;
@@ -330,7 +329,6 @@ rmf_traffic::agv::Graph json_to_graph(
 }
 
 #if 0
-  }
 /*
 // Iterate over vertices / waypoints
 // Graph params are not used for now
