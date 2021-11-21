@@ -1,0 +1,54 @@
+name: tsan
+on: 
+  pull_request:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  tsan:
+    name: tsan
+    runs-on: ubuntu-20.04
+    steps:
+      - name: deps
+        uses: ros-tooling/setup-ros@v0.2
+        with:
+          required-ros-distributions: galactic
+      - name: clang-12
+        run: |
+          sudo apt install clang-12 -y
+      - name: tsan_suppressions
+        run: |
+          echo 'called_from_lib:libddsc.so' > '/tmp/suppressions.txt'
+          echo 'called_from_lib:librmw_cyclonedds_cpp.so' >> '/tmp/suppressions.txt'
+          echo 'called_from_lib:librmw_dds_common.so' >> '/tmp/suppressions.txt'
+          echo 'race:rmf_rxcpp' >> '/tmp/suppressions.txt'
+      - name: tsan_build_test
+        uses: ros-tooling/action-ros-ci@v0.2
+        id: tsan_build_test
+        env:
+          CC: clang-12
+          CXX: clang++-12
+          TSAN_OPTIONS: 'suppressions=/tmp/suppressions.txt'
+        with:
+          target-ros2-distro: galactic
+          # build all packages listed in the meta package
+          package-name: |
+            rmf_traffic_ros2
+            rmf_task_ros2
+            rmf_fleet_adapter
+          vcs-repo-file-url: |
+            https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
+          colcon-defaults: |
+            {
+              "build": {
+                "mixin": ["tsan"],
+                "cmake-args": ["-DCMAKE_BUILD_TYPE=Debug"]
+              }
+            }
+          colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
+      - name: upload_test_stream
+        uses: actions/upload-artifact@v2
+        with:
+          name: colcon-test-logs
+          path: ${{ steps.tsan_build_test.outputs.ros-workspace-directory-name }}/log
+        if: always()

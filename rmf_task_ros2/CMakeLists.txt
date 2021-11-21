@@ -47,12 +47,12 @@ ament_export_dependencies(rmf_traffic rmf_task_msgs rclcpp)
 
 if(BUILD_TESTING)
   find_package(ament_cmake_catch2 QUIET)
-  find_package(rmf_cmake_uncrustify REQUIRED)
+  find_package(ament_cmake_uncrustify REQUIRED)
   find_file(uncrustify_config_file
     NAMES "rmf_code_style.cfg"
     PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
 
-  rmf_uncrustify(
+  ament_uncrustify(
     ARGN include src test
     CONFIG_FILE ${uncrustify_config_file}
     MAX_LINE_LENGTH 80
