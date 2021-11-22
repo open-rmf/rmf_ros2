@@ -319,7 +319,7 @@ rmf_traffic::agv::Graph json_to_graph(
     if (dock_name.has_value())
       entry_event = Event::make(Lane::Dock(dock_name.value(), duration));
     auto& lane = graph.add_lane({start_wp, entry_event},
-      {end_wp, exit_event});
+        {end_wp, exit_event});
     lane.properties().speed_limit(speed_limit);
   }
 
