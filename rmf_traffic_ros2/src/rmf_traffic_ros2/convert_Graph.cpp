@@ -40,7 +40,7 @@ static rmf_traffic::agv::Graph json_to_graph(
   const double wp_tolerance);
 
 std::optional<std::vector<uint8_t>> decompress_gzip(
-    const std::vector<uint8_t>& in)
+  const std::vector<uint8_t>& in)
 {
   std::vector<uint8_t> out;
   z_stream strm;
@@ -135,12 +135,13 @@ rmf_traffic::agv::Graph json_to_graph(
   rmf_traffic::agv::Graph graph;
   std::cout << "json_to_graph with doc length " << json_doc.size() << std::endl;
   nlohmann::json j = nlohmann::json::parse(json_doc);
-  std::cout << "parsed " << j.size() << "entries in json" << std::endl;;
+  std::cout << "parsed " << j.size() << "entries in json" << std::endl;
 
   const auto preferred_crs_it = j.find("preferred_crs");
   if (preferred_crs_it == j.end() || !preferred_crs_it->is_string())
   {
-    std::cout << "GeoJSON does not contain top-level preferred_crs key!" << std::endl;
+    std::cout << "GeoJSON does not contain top-level preferred_crs key!" <<
+      std::endl;
     return graph;
   }
   const std::string preferred_crs = *preferred_crs_it;
@@ -148,7 +149,8 @@ rmf_traffic::agv::Graph json_to_graph(
 
   if (!j.contains("features") || !j["features"].is_array())
   {
-    std::cout << "GeoJSON does not contain top-level features array!" << std::endl;
+    std::cout << "GeoJSON does not contain top-level features array!" <<
+      std::endl;
     return graph;
   }
 
