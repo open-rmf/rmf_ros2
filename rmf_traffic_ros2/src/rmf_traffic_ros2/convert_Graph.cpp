@@ -28,7 +28,7 @@
 namespace rmf_traffic_ros2 {
 
 // Usage map[level_idx][truncated_x][truncated_y] = id;
-// Truncation is to 1e-3 meters
+// Truncation is to 1e-3 meters by default
 using CoordsIdxHashMap = std::unordered_map<std::size_t, std::unordered_map<
       double, std::unordered_map<double, std::size_t>>>;
 
@@ -39,8 +39,10 @@ static rmf_traffic::agv::Graph json_to_graph(
   const int graph_idx,
   const double wp_tolerance);
 
-bool decompress_gzip(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
+std::optional<std::vector<uint8_t>> decompress_gzip(
+    const std::vector<uint8_t>& in)
 {
+  std::vector<uint8_t> out;
   z_stream strm;
   memset(&strm, 0, sizeof(strm));
   strm.zalloc = Z_NULL;
@@ -51,15 +53,14 @@ bool decompress_gzip(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
   const int inflate_init_ret = inflateInit2(&strm, 15 + 32);
   if (inflate_init_ret != Z_OK)
   {
-    printf("error in inflateInit2()\n");
-    return false;
+    std::cout << "error in inflateInit2()" << std::endl;
+    return std::nullopt;
   }
 
-  const size_t READ_CHUNK_SIZE = 128 * 1024;
-  size_t read_pos = 0;
+  const std::size_t READ_CHUNK_SIZE = 128 * 1024;
+  std::size_t read_pos = 0;
 
-  const size_t OUT_CHUNK_SIZE = 128 * 1024;
-  std::vector<uint8_t> inflate_buf(OUT_CHUNK_SIZE);
+  std::vector<uint8_t> inflate_buf(READ_CHUNK_SIZE);
 
   do
   {
@@ -81,9 +82,9 @@ bool decompress_gzip(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
         inflate_ret == Z_DATA_ERROR ||
         inflate_ret == Z_MEM_ERROR)
       {
-        printf("unrecoverable zlib inflate error\n");
+        std::cout << "unrecoverable zlib inflate error" << std::endl;
         inflateEnd(&strm);
-        return false;
+        return std::nullopt;
       }
       const int n_have = inflate_buf.size() - strm.avail_out;
       out.insert(
@@ -96,9 +97,9 @@ bool decompress_gzip(const std::vector<uint8_t>& in, std::vector<uint8_t>& out)
       break;
   } while (read_pos < in.size());
 
-  printf("inflated: %d -> %d\n", (int)in.size(), (int)out.size());
+  std::cout << "inflated: " << in.size() << " -> " << out.size() << std::endl;
 
-  return true;
+  return {out};
 }
 
 //==============================================================================
@@ -108,20 +109,20 @@ rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
   rmf_traffic::agv::Graph graph;
   if (from.encoding == from.MAP_DATA_GEOJSON)
   {
-    printf("converting GeoJSON map\n");
+    std::cout << "converting GeoJSON map" << std::endl;
     return json_to_graph(from.data, graph_idx, wp_tolerance);
   }
   else if (from.encoding == from.MAP_DATA_GEOJSON_GZ)
   {
-    printf("converting compressed GeoJSON map\n");
-    std::vector<uint8_t> uncompressed;
-    if (!decompress_gzip(from.data, uncompressed))
+    std::cout << "converting compressed GeoJSON map" << std::endl;
+    const auto uncompressed = decompress_gzip(from.data);
+    if (!uncompressed.has_value())
       return graph;
-    return json_to_graph(uncompressed, graph_idx, wp_tolerance);
+    return json_to_graph(uncompressed.value(), graph_idx, wp_tolerance);
   }
   else
   {
-    printf("unexpected encoding value: %d\n", from.encoding);
+    std::cout << "unexpected encoding value: " << from.encoding << std::endl;
     return graph;  // unexpected encoding
   }
 }
@@ -132,24 +133,32 @@ rmf_traffic::agv::Graph json_to_graph(
   const double wp_tolerance)
 {
   rmf_traffic::agv::Graph graph;
-  printf("json_to_graph with doc length %d\n", (int)json_doc.size());
+  std::cout << "json_to_graph with doc length " << json_doc.size() << std::endl;
   nlohmann::json j = nlohmann::json::parse(json_doc);
-  printf("parsed %d entries in json\n", (int)j.size());
-  //auto graph_idx_it = j.find("graph_idx");
+  std::cout << "parsed " << j.size() << "entries in json" << std::endl;;
 
-  if (!j.contains("preferred_crs") || !j["preferred_crs"].is_string())
+  const auto preferred_crs_it = j.find("preferred_crs");
+  if (preferred_crs_it == j.end() || !preferred_crs_it->is_string())
   {
-    printf("GeoJSON does not contain top-level preferred_crs key!\n");
+    std::cout << "GeoJSON does not contain top-level preferred_crs key!" << std::endl;
     return graph;
   }
-  const std::string preferred_crs = j["preferred_crs"];
-  printf("preferred_crs: [%s]\n", preferred_crs.c_str());
+  const std::string preferred_crs = *preferred_crs_it;
+  std::cout << "preferred_crs: " << preferred_crs << std::endl;
 
   if (!j.contains("features") || !j["features"].is_array())
   {
-    printf("GeoJSON does not contain top-level features array!\n");
+    std::cout << "GeoJSON does not contain top-level features array!" << std::endl;
     return graph;
   }
+
+  const auto site_name_it = j.find("site_name");
+  if (site_name_it == j.end() || !site_name_it->is_string())
+  {
+    std::cout << "Site name not found in map" << std::endl;
+    return graph;
+  }
+  const std::string site_name = *site_name_it;
 
   CoordsIdxHashMap idx_map;
 
@@ -162,7 +171,7 @@ rmf_traffic::agv::Graph json_to_graph(
     NULL);
   if (!projector)
   {
-    printf("unable to create coordinate projector!\n");
+    std::cout << "unable to create coordinate projector!" << std::endl;
     return graph;
   }
 
@@ -191,13 +200,9 @@ rmf_traffic::agv::Graph json_to_graph(
     const double lon = geom["coordinates"][0];
     const double lat = geom["coordinates"][1];
 
-    std::string name;
-    if (feature["properties"].contains("name"))
-      name = feature["properties"]["name"];
+    std::string name = feature["properties"].value("name", "");
 
-    int level_idx = 0;
-    if (feature["properties"].contains("level_idx"))
-      level_idx = feature["properties"]["level_idx"];
+    int level_idx = feature["properties"].value("level_idx", 0);
 
     // todo: parse other parameters here
 
@@ -210,9 +215,7 @@ rmf_traffic::agv::Graph json_to_graph(
 
     const Eigen::Vector2d location{easting, northing};
 
-    // TODO map name
-    std::string map_name("test");
-    auto& wp = graph.add_waypoint(map_name, location);
+    auto& wp = graph.add_waypoint(site_name, location);
 
     if (name.size() > 0 && !graph.add_key(name, wp.index()))
     {
@@ -251,9 +254,8 @@ rmf_traffic::agv::Graph json_to_graph(
         continue;
     }
 
-    int level_idx = 0;
-    if (feature["properties"].contains("level_idx"))
-      level_idx = feature["properties"]["level_idx"];
+    int level_idx = feature["properties"].value("level_idx", 0);
+    bool is_bidirectional = feature["properties"].value("bidirectional", false);
 
     std::optional<double> speed_limit;
     if (feature["properties"].contains("speed_limit"))
@@ -262,10 +264,6 @@ rmf_traffic::agv::Graph json_to_graph(
     std::optional<std::string> dock_name;
     if (feature["properties"].contains("dock_name"))
       dock_name = feature["properties"]["dock_name"];
-
-    bool is_bidirectional = false;
-    if (feature["properties"].contains("bidirectional"))
-      is_bidirectional = feature["properties"]["bidirectional"];
 
     const double lon_0 = geom["coordinates"][0][0];
     const double lat_0 = geom["coordinates"][0][1];
@@ -327,73 +325,5 @@ rmf_traffic::agv::Graph json_to_graph(
   proj_context_destroy(proj_context);
   return graph;
 }
-
-#if 0
-/*
-// Iterate over vertices / waypoints
-// Graph params are not used for now
-for (const auto& vertex : from.vertices)
-{
-  const Eigen::Vector2d location{
-    vertex.x, vertex.y};
-  auto& wp = graph.add_waypoint(from.name, location);
-  // Add waypoint name if in the message
-  if (vertex.name.size() > 0 && !graph.add_key(vertex.name, wp.index()))
-  {
-    throw std::runtime_error(
-            "Duplicated waypoint name [" + vertex.name + "]");
-  }
-  for (const auto& param : vertex.params)
-  {
-    if (param.name == "is_parking_spot")
-      wp.set_parking_spot(param.value_bool);
-    else if (param.name == "is_holding_point")
-      wp.set_holding_point(param.value_bool);
-    else if (param.name == "is_passthrough_point")
-      wp.set_passthrough_point(param.value_bool);
-    else if (param.name == "is_charger")
-      wp.set_charger(param.value_bool);
-  }
-}
-// Iterate over edges / lanes
-for (const auto& edge : from.edges)
-{
-  using Lane = rmf_traffic::agv::Graph::Lane;
-  using Event = Lane::Event;
-  // TODO(luca) Add lifts, doors, orientation constraints
-  rmf_utils::clone_ptr<Event> entry_event;
-  rmf_utils::clone_ptr<Event> exit_event;
-  // Waypoint offset is applied to ensure unique IDs when multiple levels
-  // are present
-  const std::size_t start_wp = edge.v1_idx + waypoint_offset;
-  const std::size_t end_wp = edge.v2_idx + waypoint_offset;
-  std::string dock_name;
-  std::optional<double> speed_limit;
-  for (const auto& param : edge.params)
-  {
-    if (param.name == "dock_name")
-      dock_name = param.value_string;
-    if (param.name == "speed_limit")
-      speed_limit = param.value_float;
-  }
-  // dock_name is only applied to the lane going to the waypoint, not exiting
-  if (edge.edge_type == edge.EDGE_TYPE_BIDIRECTIONAL)
-  {
-    auto& lane = graph.add_lane({end_wp, entry_event},
-        {start_wp, exit_event});
-    lane.properties().speed_limit(speed_limit);
-  }
-
-  const rmf_traffic::Duration duration = std::chrono::seconds(5);
-  if (dock_name.size() > 0)
-    entry_event = Event::make(Lane::Dock(dock_name, duration));
-  auto& lane = graph.add_lane({start_wp, entry_event},
-    {end_wp, exit_event});
-  lane.properties().speed_limit(speed_limit);
-}
-*/
-return graph;
-}
-#endif
 
 } // namespace rmf_traffic_ros2

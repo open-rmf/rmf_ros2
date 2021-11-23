@@ -22,12 +22,6 @@
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
-/*
-rmf_traffic::agv::Graph convert(const rmf_building_map_msgs::msg::Graph& from,
-  int waypoint_offset = 0);
-*/
-
-//==============================================================================
 rmf_traffic::agv::Graph convert(const rmf_site_map_msgs::msg::SiteMap& from,
   int graph_idx = 0, double wp_tolerance = 1e-3);
 
