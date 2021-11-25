@@ -214,7 +214,7 @@ public:
       location.yaw = p.z();
 
       // The speed limit is set as the minimum of all the approach lanes' limits
-      std::optional<double> speed_limit;
+      std::optional<double> speed_limit = std::nullopt;
       for (const auto& lane_idx : wp.approach_lanes())
       {
         const auto& lane = _travel_info.graph->get_lane(lane_idx);
@@ -227,7 +227,15 @@ public:
             speed_limit = lane_limit.value();
         }
       }
-      location.approach_speed = speed_limit.has_value() ? speed_limit.value() : 0.0;
+      if (speed_limit.has_value())
+      {
+        location.obey_approach_speed_limit = true;
+        location.approach_speed_limit = speed_limit.value();
+      }
+      else
+      {
+        location.obey_approach_speed_limit = false;
+      }
 
       // Note: if the waypoint is not on a graph index, then we'll just leave
       // the level_name blank. That information isn't likely to get used by the
