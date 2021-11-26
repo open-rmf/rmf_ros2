@@ -57,11 +57,13 @@ rmf_fleet_msgs::msg::Location make_location(
   const std::size_t index,
   const std::optional<double>& speed_limit)
 {
+  const double approach_speed_limit = speed_limit.has_value() ?
+    speed_limit.value() : 0.0;
   return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
     .t(t)
     .x(p[0]).y(p[1]).yaw(p[2])
     .obey_approach_speed_limit(speed_limit.has_value())
-    .approach_speed_limit(*speed_limit)
+    .approach_speed_limit(approach_speed_limit)
     .level_name(map_name)
     .index(index);
 }
