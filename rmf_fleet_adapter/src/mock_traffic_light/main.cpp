@@ -54,11 +54,16 @@ rmf_fleet_msgs::msg::Location make_location(
   rclcpp::Time t,
   const Eigen::Vector3d& p,
   const std::string& map_name,
-  const std::size_t index)
+  const std::size_t index,
+  const std::optional<double>& speed_limit)
 {
+  const double approach_speed_limit = speed_limit.has_value() ?
+    speed_limit.value() : 0.0;
   return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
     .t(t)
     .x(p[0]).y(p[1]).yaw(p[2])
+    .obey_approach_speed_limit(speed_limit.has_value())
+    .approach_speed_limit(approach_speed_limit)
     .level_name(map_name)
     .index(index);
 }
@@ -475,12 +480,14 @@ private:
       };
 
     std::vector<rmf_fleet_adapter::agv::Waypoint> new_path;
+    std::vector<std::optional<double>> speed_limits;
     new_path.reserve(waypoints.size());
 
 
     for (std::size_t i = 0; i < waypoints.size(); ++i)
     {
       const auto& wp = waypoints[i];
+      std::optional<double> speed_limit = std::nullopt;
       if (i > 0)
       {
         const auto last_x = new_path.back().position().x();
@@ -491,10 +498,26 @@ private:
 
         if (delta < 0.01)
           continue;
+
+        // Populate speed limits vector based on the minimum speed limit of
+        // the lanes approaching this waypoint
+        for (const auto& lane_idx : wp.approach_lanes())
+        {
+          const auto& lane = _travel_info.graph->get_lane(lane_idx);
+          const auto& lane_limit = lane.properties().speed_limit();
+          if (lane_limit.has_value())
+          {
+            if (speed_limit.has_value())
+              speed_limit = std::min(speed_limit.value(), lane_limit.value());
+            else
+              speed_limit = lane_limit.value();
+          }
+        }
       }
 
       const auto p = wp.position();
       const auto map_name = get_map_name(wp.graph_index());
+      speed_limits.push_back(speed_limit);
       new_path.emplace_back(map_name, p);
     }
 
@@ -505,7 +528,7 @@ private:
     {
       const auto& wp = new_path[i];
       _current_path_request.path.push_back(
-        make_location(now, wp.position(), wp.map_name(), i));
+        make_location(now, wp.position(), wp.map_name(), i, speed_limits[i]));
     }
 
     RCLCPP_INFO(
