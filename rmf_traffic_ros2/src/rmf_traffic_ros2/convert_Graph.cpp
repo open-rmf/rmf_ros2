@@ -228,6 +228,16 @@ rmf_traffic::agv::Graph json_to_graph(
     double rounded_x = std::round(easting / wp_tolerance) * wp_tolerance;
     double rounded_y = std::round(northing / wp_tolerance) * wp_tolerance;
     idx_map[level_idx][rounded_x][rounded_y] = wp.index();
+
+    // Set waypoint properties
+    if (feature["properties"].contains("is_holding_point"))
+      wp.set_holding_point(feature["properties"]["is_holding_point"]);
+    if (feature["properties"].contains("is_passthrough_point"))
+      wp.set_passthrough_point(feature["properties"]["is_passthrough_point"]);
+    if (feature["properties"].contains("is_parking_spot"))
+      wp.set_parking_spot(feature["properties"]["is_parking_spot"]);
+    if (feature["properties"].contains("is_charger"))
+      wp.set_charger(feature["properties"]["is_charger"]);
   }
 
   // now spin through the features again, looking for lanes
