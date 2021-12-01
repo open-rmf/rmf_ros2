@@ -180,7 +180,7 @@ rmf_traffic::agv::Graph json_to_graph(
   for (const auto& feature : j["features"])
   {
     const std::string feature_type = feature["feature_type"];
-    if (feature_type != "nav_vertex")
+    if (feature_type != "rmf_vertex")
       continue;
 
     // sanity check the object structure
@@ -244,7 +244,7 @@ rmf_traffic::agv::Graph json_to_graph(
   for (const auto& feature : j["features"])
   {
     const std::string feature_type = feature["feature_type"];
-    if (feature_type != "nav_lane")
+    if (feature_type != "rmf_lane")
       continue;
 
     if (!feature.contains("geometry") || !feature["geometry"].is_object())
