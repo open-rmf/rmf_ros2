@@ -77,7 +77,11 @@ class MirrorManager::Implementation
 {
 public:
 
-  rclcpp::Node& node;
+  // TODO(MXG): Remove all use of [&] and [this] from this implementation by
+  // migrating the fields into a Shared structure and capturing that in the
+  // lambdas.
+
+  std::weak_ptr<rclcpp::Node> weak_node;
   rmf_traffic::schedule::Query query;
   uint64_t query_id = 0;
   bool require_query_validation = false;
@@ -100,11 +104,11 @@ public:
   rmf_traffic::schedule::Version next_minimum_version = 0;
 
   Implementation(
-    rclcpp::Node& _node,
+    const std::shared_ptr<rclcpp::Node>& node,
     rmf_traffic::schedule::Query _query,
     Options _options,
     uint64_t _query_id)
-  : node(_node),
+  : weak_node(node),
     query(std::move(_query)),
     query_id(_query_id),
     options(std::move(_options)),
@@ -113,10 +117,10 @@ public:
     setup_update_topics();
     setup_queries_sub();
 
-    request_changes_client = node.create_client<RequestChanges>(
+    request_changes_client = node->create_client<RequestChanges>(
       rmf_traffic_ros2::RequestChangesServiceName);
 
-    fail_over_event_sub = node.create_subscription<FailOverEvent>(
+    fail_over_event_sub = node->create_subscription<FailOverEvent>(
       rmf_traffic_ros2::FailOverEventTopicName,
       rclcpp::SystemDefaultsQoS(),
       [&](const FailOverEvent::SharedPtr msg)
@@ -127,7 +131,11 @@ public:
 
   void setup_queries_sub()
   {
-    queries_info_sub = node.create_subscription<ScheduleQueries>(
+    const auto node = weak_node.lock();
+    if (!node)
+      return;
+
+    queries_info_sub = node->create_subscription<ScheduleQueries>(
       rmf_traffic_ros2::QueriesInfoTopicName,
       rclcpp::SystemDefaultsQoS().reliable().keep_last(100).transient_local(),
       [=](const ScheduleQueries::SharedPtr msg)
@@ -146,7 +154,7 @@ public:
         expected_node_version = msg->node_version;
 
         RCLCPP_INFO(
-          node.get_logger(),
+          node->get_logger(),
           "Mirror handling new sync of %d queries "
           "from schedule node version [%ld]",
           msg->queries.size(),
@@ -172,7 +180,7 @@ public:
             // The schedule node has someone else's query registered for our
             // query ID
             RCLCPP_ERROR(
-              node.get_logger(),
+              node->get_logger(),
               "Mismatched query ID detected from schedule node; "
               "re-registering query");
             dump_stashed_queries();
@@ -189,7 +197,7 @@ public:
         else
         {
           RCLCPP_ERROR(
-            node.get_logger(),
+            node->get_logger(),
             "Missing query ID; re-registering query");
           dump_stashed_queries();
           redo_query_registration();
@@ -199,7 +207,11 @@ public:
 
   void setup_update_topics()
   {
-    participants_info_sub = node.create_subscription<ParticipantsInfo>(
+    const auto node = weak_node.lock();
+    if (!node)
+      return;
+
+    participants_info_sub = node->create_subscription<ParticipantsInfo>(
       ParticipantsInfoTopicName,
       rclcpp::SystemDefaultsQoS().reliable().keep_last(100).transient_local(),
       [&](const ParticipantsInfo::SharedPtr msg)
@@ -207,12 +219,12 @@ public:
         handle_participants_info(msg);
       });
 
-    RCLCPP_DEBUG(node.get_logger(), "Registering to query topic %s",
+    RCLCPP_DEBUG(node->get_logger(), "Registering to query topic %s",
       (QueryUpdateTopicNameBase + std::to_string(query_id)).c_str());
-    mirror_update_sub = node.create_subscription<MirrorUpdate>(
+    mirror_update_sub = node->create_subscription<MirrorUpdate>(
       QueryUpdateTopicNameBase + std::to_string(query_id),
       rclcpp::SystemDefaultsQoS(),
-      [&, qid = query_id](const MirrorUpdate::SharedPtr msg)
+      [this](const MirrorUpdate::SharedPtr msg)
       {
         handle_update(msg);
       });
@@ -220,9 +232,9 @@ public:
     require_query_validation = false;
     process_stashed_queries();
 
-    update_timer = node.create_wall_timer(
+    update_timer = node->create_wall_timer(
       5s,
-      [&]() -> void
+      [this]() -> void
       {
         handle_update_timeout();
       });
@@ -245,20 +257,27 @@ public:
     }
     catch (const std::exception& e)
     {
-      RCLCPP_ERROR(
-        node.get_logger(),
-        "[rmf_traffic_ros2::MirrorManager] Failed to update participant info: %s",
-        e.what());
+      if (const auto node = weak_node.lock())
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "[rmf_traffic_ros2::MirrorManager] Failed to update participant info: %s",
+          e.what());
+      }
     }
   }
 
   void process_stashed_queries()
   {
-    RCLCPP_DEBUG(node.get_logger(), "Processing stashed queries");
+    const auto node = weak_node.lock();
+    if (!node)
+      return;
+
+    RCLCPP_DEBUG(node->get_logger(), "Processing stashed queries");
     for (auto&& msg: stashed_query_updates)
     {
       RCLCPP_DEBUG(
-        node.get_logger(),
+        node->get_logger(),
         "  Processing stashed query for DB update %d",
         msg->patch.latest_version);
       // TODO(Geoff): If somehow require_query_validation gets set back to true
@@ -279,13 +298,16 @@ public:
   void handle_update(const MirrorUpdate::SharedPtr msg)
   {
     update_timer->reset();
+    const auto node = weak_node.lock();
+    if (!node)
+      return;
 
     // Verify that the expected schedule node version sent the update
 
     if (rmf_utils::modular(expected_node_version).less_than(msg->node_version))
     {
       RCLCPP_WARN(
-        node.get_logger(),
+        node->get_logger(),
         "Received query update from unexpected schedule node version %d (<%d);"
         " ignoring update",
         msg->node_version,
@@ -295,7 +317,7 @@ public:
     else if (msg->node_version > expected_node_version)
     {
       RCLCPP_WARN(
-        node.get_logger(),
+        node->get_logger(),
         "Received query update from unexpected schedule node version %d (>%d);"
         " validating query registration",
         msg->node_version,
@@ -314,7 +336,7 @@ public:
     {
       // Stash this query update until the query has been verified as correct
       RCLCPP_DEBUG(
-        node.get_logger(),
+        node->get_logger(),
         "Stashing suspect query for DB version %d",
         msg->patch.latest_version);
       stashed_query_updates.push_back(msg);
@@ -332,7 +354,7 @@ public:
         if (!mirror->update(patch) && !msg->is_remedial_update)
         {
           RCLCPP_WARN(
-            node.get_logger(),
+            node->get_logger(),
             "Failed to update using patch for DB version %d; "
             "requesting new update",
             patch.latest_version());
@@ -344,7 +366,7 @@ public:
         if (!mirror->update(patch) && !msg->is_remedial_update)
         {
           RCLCPP_WARN(
-            node.get_logger(),
+            node->get_logger(),
             "Failed to update using patch for DB version %d; "
             "requesting new update",
             patch.latest_version());
@@ -355,7 +377,7 @@ public:
     catch (const std::exception& e)
     {
       RCLCPP_ERROR(
-        node.get_logger(),
+        node->get_logger(),
         "[rmf_traffic_ros2::MirrorManager] Failed to deserialize Patch "
         "message: %s",
         e.what());
@@ -366,12 +388,20 @@ public:
 
   void handle_update_timeout()
   {
-    RCLCPP_DEBUG(node.get_logger(), "Update timed out");
+    const auto node = weak_node.lock();
+    if (!node)
+      return;
+
+    RCLCPP_DEBUG(node->get_logger(), "Update timed out");
     request_update(mirror->latest_version());
   }
 
   void request_update(std::optional<uint64_t> minimum_version = std::nullopt)
   {
+    const auto node = weak_node.lock();
+    if (!node)
+      return;
+
     RequestChanges::Request request;
     request.query_id = query_id;
     if (minimum_version.has_value())
@@ -379,7 +409,7 @@ public:
       request.version = minimum_version.value();
       request.full_update = false;
       RCLCPP_INFO(
-        node.get_logger(),
+        node->get_logger(),
         "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
         "for query ID [%ld] since version [%ld]",
         request.query_id,
@@ -388,7 +418,7 @@ public:
     else
     {
       RCLCPP_INFO(
-        node.get_logger(),
+        node->get_logger(),
         "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
         "for query ID [%ld] since beginning of recorded history",
         request.query_id);
@@ -413,7 +443,11 @@ public:
 
   void redo_query_registration()
   {
-    RCLCPP_DEBUG(node.get_logger(), "Redoing query registration");
+    const auto node = weak_node.lock();
+    if (!node)
+      return;
+
+    RCLCPP_DEBUG(node->get_logger(), "Redoing query registration");
     // Make sure nothing is truly coming in on this topic and triggering a
     // callback while we are remaking it
     mirror_update_sub.reset();
@@ -422,8 +456,8 @@ public:
     queries_info_sub.reset();
 
     register_query_client =
-      node.create_client<RegisterQuery>(RegisterQueryServiceName);
-    redo_query_registration_timer = node.create_wall_timer(
+      node->create_client<RegisterQuery>(RegisterQueryServiceName);
+    redo_query_registration_timer = node->create_wall_timer(
       100ms,
       std::bind(
         &MirrorManager::Implementation::redo_query_registration_callback,
@@ -432,10 +466,14 @@ public:
 
   void redo_query_registration_callback()
   {
+    const auto node = weak_node.lock();
+    if (!node)
+      return;
+
     if (register_query_client->service_is_ready())
     {
       RCLCPP_DEBUG(
-        node.get_logger(),
+        node->get_logger(),
         "Redoing query registration: Calling service");
       RegisterQuery::Request register_query_request;
       register_query_request.query = convert(query);
@@ -443,6 +481,10 @@ public:
         std::make_shared<RegisterQuery::Request>(register_query_request),
         [this](const RegisterQueryFuture response)
         {
+          const auto node = weak_node.lock();
+          if (!node)
+            return;
+
           const auto msg = response.get();
           if (is_new_version(this->expected_node_version, msg->node_version))
           {
@@ -451,7 +493,7 @@ public:
 
           this->query_id = msg->query_id;
           RCLCPP_DEBUG(
-            node.get_logger(),
+            node->get_logger(),
             "Redoing query registration: Got new ID %d",
             query_id);
           setup_update_topics();
@@ -467,15 +509,19 @@ public:
     else
     {
       RCLCPP_ERROR(
-        node.get_logger(),
+        node->get_logger(),
         "Failed to get query registry service");
     }
   }
 
   void handle_fail_over_event(uint64_t new_schedule_node_version)
   {
+    const auto node = weak_node.lock();
+    if (!node)
+      return;
+
     RCLCPP_INFO(
-      node.get_logger(),
+      node->get_logger(),
       "Handling fail over event. New expected schedule node version [%ld].",
       new_schedule_node_version);
 
@@ -604,7 +650,7 @@ class MirrorManagerFuture::Implementation
 {
 public:
 
-  rclcpp::Node& node;
+  std::weak_ptr<rclcpp::Node> weak_node;
   rmf_traffic::schedule::Query query;
   MirrorManager::Options options;
 
@@ -618,17 +664,17 @@ public:
   std::promise<RegisterQuery::Response> registration_promise;
 
   Implementation(
-    rclcpp::Node& _node,
+    const std::shared_ptr<rclcpp::Node>& node,
     rmf_traffic::schedule::Query _query,
     MirrorManager::Options _options)
-  : node(_node),
+  : weak_node(node),
     query(std::move(_query)),
     options(std::move(_options)),
     abandon_discovery(false),
     registration_sent(false)
   {
     register_query_client =
-      node.create_client<RegisterQuery>(RegisterQueryServiceName);
+      node->create_client<RegisterQuery>(RegisterQueryServiceName);
 
     registration_future = registration_promise.get_future();
 
@@ -654,6 +700,10 @@ public:
         std::make_shared<RegisterQuery::Request>(register_query_request),
         [&](const RegisterQueryFuture response)
         {
+          const auto node = weak_node.lock();
+          if (!node)
+            return;
+
           try
           {
             registration_promise.set_value(*response.get());
@@ -661,7 +711,7 @@ public:
           catch (const std::exception& e)
           {
             RCLCPP_ERROR(
-              node.get_logger(),
+              node->get_logger(),
               "[rmf_traffic_ros2::MirrorManagerFuture] Exception while "
               "registering a query: %s",
               e.what());
@@ -693,6 +743,14 @@ public:
 
   MirrorManager get()
   {
+    const auto node = weak_node.lock();
+    if (!node)
+    {
+      throw std::runtime_error(
+        "[MirrorManagerFuture::get] "
+        "Node expired before the future could be retrieved");
+    }
+
     const auto registration = registration_future.get();
 
     return MirrorManager::Implementation::make(
@@ -761,7 +819,7 @@ MirrorManagerFuture::MirrorManagerFuture()
 
 //==============================================================================
 MirrorManagerFuture make_mirror(
-  rclcpp::Node& node,
+  const std::shared_ptr<rclcpp::Node>& node,
   rmf_traffic::schedule::Query query,
   MirrorManager::Options options)
 {

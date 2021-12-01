@@ -49,9 +49,9 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     get_parameter_or_default_time(*node, "delay_threshold", 5.0);
 
   auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
-    *node, rmf_traffic::schedule::query_all());
+    node, rmf_traffic::schedule::query_all());
 
-  node->_writer = rmf_traffic_ros2::schedule::Writer::make(*node);
+  node->_writer = rmf_traffic_ros2::schedule::Writer::make(node);
 
   using namespace std::chrono_literals;
 

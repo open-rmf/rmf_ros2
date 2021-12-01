@@ -129,6 +129,12 @@ if(BUILD_TESTING)
   )
   target_link_libraries(changed_participant_schedule_node rmf_traffic_ros2)
 
+  add_executable(mock_repetitive_delay_participant
+    test/mock_participants/repetitive_delay_participant.cpp)
+  target_link_libraries(mock_repetitive_delay_participant
+    PUBLIC
+      rmf_traffic_ros2)
+
   install(
     TARGETS
       missing_query_schedule_node
@@ -137,6 +143,7 @@ if(BUILD_TESTING)
       delayed_query_broadcast_monitor_node
       missing_participant_schedule_node
       changed_participant_schedule_node
+      mock_repetitive_delay_participant
     RUNTIME DESTINATION lib/rmf_traffic_ros2
   )
 endif()

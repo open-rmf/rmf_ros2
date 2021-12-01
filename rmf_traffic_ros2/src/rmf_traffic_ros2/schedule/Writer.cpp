@@ -33,6 +33,10 @@
 #include <rmf_traffic_msgs/srv/register_participant.hpp>
 #include <rmf_traffic_msgs/srv/unregister_participant.hpp>
 
+#include <rmf_utils/RateLimiter.hpp>
+
+using namespace std::chrono_literals;
+
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
@@ -53,55 +57,36 @@ class RectifierFactory
 public:
 
 
-  struct RectifierStub;
+  struct RectifierData;
 
   class Requester : public rmf_traffic::schedule::RectificationRequester
   {
   public:
-
-    rmf_traffic::schedule::Rectifier rectifier;
-    std::shared_ptr<RectifierStub> stub;
+    std::shared_ptr<RectifierData> data;
 
     Requester(rmf_traffic::schedule::Rectifier rectifier_);
 
   };
 
-  struct RectifierStub
+  struct RectifierData
   {
-    Requester& requester;
+    rmf_traffic::schedule::Rectifier rectifier;
+
+    // This is used to detect if corrections are needed too frequently, since
+    // that might indicate that there are conflicting upstream participant
+    // sources.
+    rmf_utils::RateLimiter correction_limiter;
   };
 
-  using StubMap = std::unordered_map<
+  using RectifierMap = std::unordered_map<
     rmf_traffic::schedule::ParticipantId,
-    std::weak_ptr<RectifierStub>
+    std::weak_ptr<RectifierData>
   >;
 
-  StubMap stub_map;
+  RectifierMap rectifier_map;
 
   using InconsistencyMsg = rmf_traffic_msgs::msg::ScheduleInconsistency;
-  rclcpp::Subscription<InconsistencyMsg>::SharedPtr inconsistency_sub;
-
   using ParticipantsInfoMsg = rmf_traffic_msgs::msg::Participants;
-  rclcpp::Subscription<ParticipantsInfoMsg>::SharedPtr participants_sub;
-
-  RectifierFactory(rclcpp::Node& node)
-  {
-    inconsistency_sub = node.create_subscription<InconsistencyMsg>(
-      ScheduleInconsistencyTopicName,
-      rclcpp::SystemDefaultsQoS().reliable(),
-      [&](const InconsistencyMsg::UniquePtr msg)
-      {
-        check_inconsistencies(*msg);
-      });
-
-    participants_sub = node.create_subscription<ParticipantsInfoMsg>(
-      ParticipantsInfoTopicName,
-      rclcpp::SystemDefaultsQoS().reliable().transient_local(),
-      [&](const ParticipantsInfoMsg::UniquePtr msg)
-      {
-        validate_participants(node, *msg);
-      });
-  }
 
   std::unique_ptr<rmf_traffic::schedule::RectificationRequester> make(
     rmf_traffic::schedule::Rectifier rectifier,
@@ -111,7 +96,7 @@ public:
 
     // It's okay to just override any entry that might have been in here before,
     // because the Database should never double-assign a ParticipantId
-    stub_map[participant_id] = requester->stub;
+    rectifier_map[participant_id] = requester->data;
 
     return requester;
   }
@@ -125,15 +110,15 @@ public:
       return;
     }
 
-    const auto it = stub_map.find(msg.participant);
-    if (it == stub_map.end())
+    const auto it = rectifier_map.find(msg.participant);
+    if (it == rectifier_map.end())
       return;
 
     const auto& stub = it->second.lock();
     if (!stub)
     {
       // This participant has expired, so we should remove it from the map
-      stub_map.erase(it);
+      rectifier_map.erase(it);
       return;
     }
 
@@ -143,84 +128,124 @@ public:
     for (const auto& r : msg.ranges)
       ranges.emplace_back(Range{r.lower, r.upper});
 
-    stub->requester.rectifier.retransmit(ranges, msg.last_known_version);
+    stub->rectifier.retransmit(ranges, msg.last_known_version);
   }
 
-  void validate_participants(
-    const rclcpp::Node & node,
+  struct ChangeID
+  {
+    std::size_t new_id;
+    std::size_t old_id;
+    std::shared_ptr<RectifierData> stub;
+  };
+
+  std::vector<std::weak_ptr<RectifierData>> validate_participant_information(
+    const rclcpp::Node& node,
     const ParticipantsInfoMsg& msg)
   {
-    for (const auto& s: stub_map)
+    std::vector<std::weak_ptr<RectifierData>> incorrect_descriptions;
+    std::vector<ChangeID> incorrect_ids;
+    for (const auto& s : rectifier_map)
     {
+      const auto stub = s.second.lock();
+      if (!stub)
+      {
+        // This participant has expired so ignore it
+        continue;
+      }
+
+      const auto& local_desc = stub->rectifier.get_description();
+      if (!local_desc.has_value())
+        continue;
+
       auto p = std::find_if(
         msg.participants.begin(),
         msg.participants.end(),
-        [stub = s.second.lock()](const auto& participant) {
-          if (!stub)
-          {
-            // This participant has expired so ignore it
-            return false;
-          }
-          return stub->requester.rectifier.get_description() ==
-            convert(participant.description);
+        [&local_desc](const auto& participant)
+        {
+          const auto& remote_desc = participant.description;
+          return local_desc->owner() == remote_desc.owner
+            && local_desc->name() == remote_desc.name;
         });
+
       if (p == msg.participants.end())
       {
-        // This participant is unregistered, even though we expected it to be
-        RCLCPP_WARN(
-          node.get_logger(),
-          "Participant %ld is not registered properly",
-          s.first);
-        // Re-register the participant
-        // TODO(geoff): This needs to be done by the Writer (probably?), so
-        // perhaps this whole function should be in the Writer and have the ID
-        // update bit call into the rectifier?
+        if (!stub->correction_limiter.reached_limit())
+        {
+          // This participant is unregistered, even though we expected it to be
+          RCLCPP_WARN(
+            node.get_logger(),
+            "Participant [%s] of [%s] is not registered properly",
+            local_desc->name().c_str(),
+            local_desc->owner().c_str());
+
+          // Re-register the participant
+          incorrect_descriptions.push_back(stub);
+        }
       }
       else
       {
-        const auto& stub = s.second.lock();
-        if (!stub)
-        {
-          continue;
-        }
         // This participant is registered, but we need to check that the ID is
         // correct
-        if (s.first != p->id)
+        const bool ids_match = s.first == p->id;
+        const bool descriptions_match = local_desc == convert(p->description);
+        if (!ids_match || !descriptions_match)
+        {
+          if (stub->correction_limiter.reached_limit())
+          {
+            RCLCPP_ERROR(
+              node.get_logger(),
+              "Participant [%s] of [%s] has had repeated correctness issues. "
+              "This likely indicates conflicting duplicate participants in the "
+              "schedule system.",
+              local_desc->name().c_str(),
+              local_desc->owner().c_str());
+
+            continue;
+          }
+        }
+
+        if (!ids_match)
         {
           RCLCPP_WARN(
             node.get_logger(),
-            "IDs do not match; stub = %ld, p = %ld",
+            "[rmf_traffic_ros2::schedule::Writer] "
+            "Participant IDs do not match: stub = %ld, p = %ld",
             s.first,
             p->id);
-          // Tell the participant to update its ID
-          RCLCPP_WARN(node.get_logger(), "Correcting ID");
-          stub->requester.rectifier.correct_id(p->id);
-          // Correct the stub_map's key for this participant
-          // TODO(geoff): What if there's already a participant with this ID in
-          // the stubmap? Is that a possible occurence?
-          RCLCPP_WARN(node.get_logger(), "Adding new id to stub_map");
-          stub_map.insert({p->id, s.second});
-          //RCLCPP_WARN(node.get_logger(), "Erasing old id from stub_map");
-          //stub_map.erase(s.first);
-          RCLCPP_WARN(node.get_logger(), "Done");
+
+          if (const auto old_id = stub->rectifier.get_id())
+            incorrect_ids.push_back(ChangeID{p->id, *old_id, stub });
         }
-        //else
-        //{
-          //RCLCPP_WARN(
-            //node.get_logger(),
-            //"Participant %ld is registered correctly",
-            //p->id);
-        //}
+
+        if (!descriptions_match)
+          incorrect_descriptions.push_back(stub);
       }
     }
+
+    for (const auto& change : incorrect_ids)
+    {
+      // We need to modify the rectifier_map in a separate loop, because the
+      // loop above is doing a range-for iteration through the map, which
+      // assumes the map will not be losing or gaining entries while it loops.
+      // If we modify the map while looping through it, we will have undefined
+      // behavior.
+      rectifier_map.erase(change.old_id);
+      rectifier_map.insert({change.new_id, change.stub});
+      change.stub->rectifier.correct_id(change.new_id);
+    }
+
+    return incorrect_descriptions;
   }
 };
 
 //==============================================================================
 RectifierFactory::Requester::Requester(
   rmf_traffic::schedule::Rectifier rectifier_)
-: rectifier(std::move(rectifier_)),
-  stub(std::make_shared<RectifierStub>(RectifierStub{*this}))
+  : data(std::make_shared<RectifierData>(
+     RectifierData{
+       std::move(rectifier_),
+       rmf_utils::RateLimiter(1min, 3)
+     }))
 {
   // Do nothing
 }
@@ -263,49 +288,83 @@ public:
     using FailOverEventSub = rclcpp::Subscription<FailOverEvent>::SharedPtr;
     FailOverEventSub fail_over_event_sub;
 
-    Transport(rclcpp::Node& node)
-    : rectifier_factory(std::make_shared<RectifierFactory>(node))
+    using ParticipantsInfoMsg = rmf_traffic_msgs::msg::Participants;
+    rclcpp::Subscription<ParticipantsInfoMsg>::SharedPtr participants_info_sub;
+
+    using InconsistencyMsg = rmf_traffic_msgs::msg::ScheduleInconsistency;
+    rclcpp::Subscription<InconsistencyMsg>::SharedPtr inconsistency_sub;
+
+    std::weak_ptr<rclcpp::Node> weak_node;
+
+    static std::shared_ptr<Transport> make(
+      const std::shared_ptr<rclcpp::Node>& node)
     {
+      auto transport = std::shared_ptr<Transport>(new Transport(node));
+
       const auto itinerary_qos =
         rclcpp::SystemDefaultsQoS()
         .reliable()
         .keep_last(100);
 
-      set_pub = node.create_publisher<Set>(
+      transport->set_pub = node->create_publisher<Set>(
         ItinerarySetTopicName,
         itinerary_qos);
 
-      extend_pub = node.create_publisher<Extend>(
+      transport->extend_pub = node->create_publisher<Extend>(
         ItineraryExtendTopicName,
         itinerary_qos);
 
-      delay_pub = node.create_publisher<Delay>(
+      transport->delay_pub = node->create_publisher<Delay>(
         ItineraryDelayTopicName,
         itinerary_qos);
 
-      erase_pub = node.create_publisher<Erase>(
+      transport->erase_pub = node->create_publisher<Erase>(
         ItineraryEraseTopicName,
         itinerary_qos);
 
-      clear_pub = node.create_publisher<Clear>(
+      transport->clear_pub = node->create_publisher<Clear>(
         ItineraryClearTopicName,
         itinerary_qos);
 
-      context = node.get_node_options().context();
+      transport->context = node->get_node_options().context();
 
-      register_client =
-        node.create_client<Register>(RegisterParticipantSrvName);
+      transport->register_client =
+        node->create_client<Register>(RegisterParticipantSrvName);
 
-      unregister_client =
-        node.create_client<Unregister>(UnregisterParticipantSrvName);
+      transport->unregister_client =
+        node->create_client<Unregister>(UnregisterParticipantSrvName);
 
-      fail_over_event_sub = node.create_subscription<FailOverEvent>(
+      transport->fail_over_event_sub = node->create_subscription<FailOverEvent>(
         rmf_traffic_ros2::FailOverEventTopicName,
         rclcpp::SystemDefaultsQoS(),
-        [&]([[maybe_unused]] const FailOverEvent::SharedPtr msg)
+        [w = transport->weak_from_this()](const FailOverEvent::SharedPtr)
         {
-          reconnect_services(node);
+          if (const auto self = w.lock())
+            self->reconnect_services();
         });
+
+      transport->participants_info_sub =
+        node->create_subscription<ParticipantsInfoMsg>(
+        ParticipantsInfoTopicName,
+        rclcpp::SystemDefaultsQoS().reliable().transient_local().keep_last(100),
+        [w = transport->weak_from_this()](
+          const ParticipantsInfoMsg::UniquePtr msg)
+        {
+          if (const auto self = w.lock())
+            self->validate_participant_information(*msg);
+        });
+
+      transport->inconsistency_sub =
+        node->create_subscription<InconsistencyMsg>(
+        ScheduleInconsistencyTopicName,
+        rclcpp::SystemDefaultsQoS().reliable(),
+        [w = transport->weak_from_this()](const InconsistencyMsg::UniquePtr msg)
+        {
+          if (const auto self = w.lock())
+            self->rectifier_factory->check_inconsistencies(*msg);
+        });
+
+      return transport;
     }
 
     void set(
@@ -379,7 +438,7 @@ public:
       auto request = std::make_shared<Register::Request>();
       request->description = convert(participant_info);
 
-      auto future = register_client->async_send_request(request);
+      auto future = register_client->async_send_request(std::move(request));
       while (future.wait_for(100ms) != std::future_status::ready)
       {
         if (!rclcpp::ok(context))
@@ -403,6 +462,26 @@ public:
       }
 
       return convert(*response);
+    }
+
+    void async_register_participant(
+      rmf_traffic::schedule::ParticipantDescription participant_info,
+      std::function<void(Registration)> callback)
+    {
+      auto request = std::make_shared<Register::Request>();
+      request->description = convert(participant_info);
+
+      using Response = std::shared_future<std::shared_ptr<Register::Response>>;
+      std::function<void(Response)> cb =
+        [callback = std::move(callback)](const Response& future_response)
+        {
+          if (future_response.wait_for(0s) == std::future_status::timeout)
+            return;
+
+          callback(convert(*future_response.get()));
+        };
+
+      register_client->async_send_request(std::move(request), std::move(cb));
     }
 
     void update_description(
@@ -437,21 +516,67 @@ public:
         });
     }
 
-    void reconnect_services(rclcpp::Node& node)
+    void reconnect_services()
     {
+      const auto node = weak_node.lock();
+      if (!node)
+        return;
+
       RCLCPP_INFO(
-        node.get_logger(),
+        node->get_logger(),
         "Reconnecting services for Writer::Transport");
       // Deleting the old services will shut them down
       register_client =
-        node.create_client<Register>(RegisterParticipantSrvName);
+        node->create_client<Register>(RegisterParticipantSrvName);
       unregister_client =
-        node.create_client<Unregister>(UnregisterParticipantSrvName);
+        node->create_client<Unregister>(UnregisterParticipantSrvName);
+    }
+
+    void validate_participant_information(
+      const ParticipantsInfoMsg& msg)
+    {
+      const auto node = weak_node.lock();
+
+      const auto incorrect_descriptions =
+        rectifier_factory->validate_participant_information(*node, msg);
+
+      for (const auto& d : incorrect_descriptions)
+      {
+        const auto stub = d.lock();
+        if (!stub)
+          continue;
+
+        auto description = stub->rectifier.get_description();
+        auto old_id = stub->rectifier.get_id();
+        if (!description.has_value() || ! old_id.has_value())
+          continue;
+
+        auto callback = [rectifiers = rectifier_factory, d, old_id](
+          Registration registration)
+        {
+          if (const auto stub = d.lock())
+          {
+            stub->rectifier.correct_id(registration.id());
+            rectifiers->rectifier_map.erase(*old_id);
+            rectifiers->rectifier_map.insert({registration.id(), stub});
+          }
+        };
+
+        async_register_participant(*description, std::move(callback));
+      }
+    }
+
+  private:
+    Transport(const std::shared_ptr<rclcpp::Node>& node)
+    : rectifier_factory(std::make_shared<RectifierFactory>()),
+      weak_node(node)
+    {
+      // Use make to initialize
     }
   };
 
-  Implementation(rclcpp::Node& node)
-  : transport(std::make_shared<Transport>(node))
+  Implementation(const std::shared_ptr<rclcpp::Node>& node)
+  : transport(Transport::make(node))
   {
     // Do nothing
   }
@@ -512,9 +637,12 @@ public:
 };
 
 //==============================================================================
-std::shared_ptr<Writer> Writer::make(rclcpp::Node& node)
+std::shared_ptr<Writer> Writer::make(
+  const std::shared_ptr<rclcpp::Node>& node)
 {
-  return std::shared_ptr<Writer>(new Writer(node));
+  auto writer = std::shared_ptr<Writer>(new Writer);
+  writer->_pimpl = rmf_utils::make_unique_impl<Implementation>(std::move(node));
+  return writer;
 }
 
 //==============================================================================
@@ -562,8 +690,7 @@ void Writer::async_make_participant(
 }
 
 //==============================================================================
-Writer::Writer(rclcpp::Node& node)
-: _pimpl(rmf_utils::make_unique_impl<Implementation>(node))
+Writer::Writer()
 {
   // Do nothing
 }
