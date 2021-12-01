@@ -1,7 +1,7 @@
 {
   "features": [
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.5824722729539,
@@ -16,7 +16,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58696991419195,
@@ -31,7 +31,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58407531956907,
@@ -46,7 +46,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60533020732623,
@@ -61,7 +61,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60699115466403,
@@ -76,7 +76,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60826764742619,
@@ -91,7 +91,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59298010391055,
@@ -106,7 +106,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59819121447609,
@@ -121,7 +121,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60090671761854,
@@ -136,7 +136,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60091113172784,
@@ -151,7 +151,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60023122722856,
@@ -166,7 +166,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59895044047363,
@@ -181,7 +181,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59821391749033,
@@ -196,7 +196,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59669421839008,
@@ -211,7 +211,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60688688296449,
@@ -226,7 +226,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60632039020354,
@@ -241,7 +241,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60237145243975,
@@ -256,7 +256,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60239599806127,
@@ -271,7 +271,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.602390961424,
@@ -286,7 +286,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60240580710011,
@@ -301,7 +301,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60562458494793,
@@ -316,7 +316,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60592777460676,
@@ -331,7 +331,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59630106182654,
@@ -346,7 +346,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59320153443178,
@@ -361,7 +361,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59012189541858,
@@ -376,7 +376,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.5870610928512,
@@ -391,7 +391,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58416829601893,
@@ -406,7 +406,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58868488016145,
@@ -421,7 +421,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59075940431067,
@@ -436,7 +436,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59249533400411,
@@ -451,7 +451,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59428804329656,
@@ -466,7 +466,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59468301097623,
@@ -481,7 +481,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59076433105538,
@@ -496,7 +496,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58972858069353,
@@ -511,7 +511,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59060016873777,
@@ -526,7 +526,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59051386160844,
@@ -541,7 +541,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58725870481062,
@@ -556,7 +556,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59013458793966,
@@ -571,7 +571,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58764401359441,
@@ -586,7 +586,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58907244457035,
@@ -602,7 +602,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59262766312183,
@@ -617,7 +617,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59245573220846,
@@ -632,7 +632,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.5928240196296,
@@ -652,7 +652,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59964045557126,
@@ -667,7 +667,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59963049810369,
@@ -685,7 +685,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60163964269795,
@@ -701,7 +701,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60169763855464,
@@ -716,7 +716,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60286696517166,
@@ -733,7 +733,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.5956870371583,
@@ -748,7 +748,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59120951163405,
@@ -763,7 +763,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.6039837332762,
@@ -781,7 +781,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59015102536746,
@@ -797,7 +797,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58742565555747,
@@ -814,7 +814,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59783734003983,
@@ -829,7 +829,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.5940125631763,
@@ -844,7 +844,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60171819465656,
@@ -859,7 +859,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59022896870967,
@@ -874,7 +874,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59170224612089,
@@ -889,7 +889,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58839957540249,
@@ -905,7 +905,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60162872090821,
@@ -920,7 +920,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59402619411426,
@@ -935,7 +935,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59798776185056,
@@ -950,7 +950,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.5940343710202,
@@ -965,7 +965,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59784759378708,
@@ -980,7 +980,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.58866823454075,
@@ -995,7 +995,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.59986477758096,
@@ -1010,7 +1010,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60392557834824,
@@ -1025,7 +1025,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_vertex",
+      "feature_type": "rmf_vertex",
       "geometry": {
         "coordinates": [
           103.60342718350094,
@@ -1045,7 +1045,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1071,7 +1071,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1097,7 +1097,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1123,7 +1123,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1149,7 +1149,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1175,7 +1175,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1201,7 +1201,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1227,7 +1227,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1253,7 +1253,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1279,7 +1279,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1305,7 +1305,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1331,7 +1331,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1357,7 +1357,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1383,7 +1383,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1409,7 +1409,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1435,7 +1435,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1461,7 +1461,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1487,7 +1487,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1513,7 +1513,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1539,7 +1539,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1565,7 +1565,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1591,7 +1591,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1617,7 +1617,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1643,7 +1643,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1669,7 +1669,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1695,7 +1695,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1721,7 +1721,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1747,7 +1747,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1773,7 +1773,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1799,7 +1799,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1825,7 +1825,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
@@ -1851,7 +1851,7 @@
       "type": "Feature"
     },
     {
-      "feature_type": "nav_lane",
+      "feature_type": "rmf_lane",
       "geometry": {
         "coordinates": [
           [
