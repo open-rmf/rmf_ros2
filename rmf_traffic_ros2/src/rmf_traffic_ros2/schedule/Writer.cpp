@@ -166,7 +166,7 @@ public:
         {
           const auto& remote_desc = participant.description;
           return local_desc.owner == remote_desc.owner
-            && local_desc.name == remote_desc.name;
+          && local_desc.name == remote_desc.name;
         });
 
       if (p == msg.participants.end())
@@ -243,11 +243,11 @@ public:
 //==============================================================================
 RectifierFactory::Requester::Requester(
   rmf_traffic::schedule::Rectifier rectifier_)
-  : data(std::make_shared<RectifierData>(
-     RectifierData{
-       std::move(rectifier_),
-       rmf_utils::RateLimiter(1min, 3)
-     }))
+: data(std::make_shared<RectifierData>(
+      RectifierData{
+        std::move(rectifier_),
+        rmf_utils::RateLimiter(1min, 3)
+      }))
 {
   // Do nothing
 }
@@ -550,19 +550,19 @@ public:
 
         auto description = stub->rectifier.get_description();
         auto old_id = stub->rectifier.get_id();
-        if (!description.has_value() || ! old_id.has_value())
+        if (!description.has_value() || !old_id.has_value())
           continue;
 
         auto callback = [rectifiers = rectifier_factory, d, old_id](
           Registration registration)
-        {
-          if (const auto stub = d.lock())
           {
-            stub->rectifier.correct_id(registration.id());
-            rectifiers->rectifier_map.erase(*old_id);
-            rectifiers->rectifier_map.insert({registration.id(), stub});
-          }
-        };
+            if (const auto stub = d.lock())
+            {
+              stub->rectifier.correct_id(registration.id());
+              rectifiers->rectifier_map.erase(*old_id);
+              rectifiers->rectifier_map.insert({registration.id(), stub});
+            }
+          };
 
         async_register_participant(*description, std::move(callback));
       }

@@ -746,9 +746,11 @@ public:
     const auto node = weak_node.lock();
     if (!node)
     {
+      // *INDENT-OFF*
       throw std::runtime_error(
         "[MirrorManagerFuture::get] "
         "Node expired before the future could be retrieved");
+      // *INDENT-ON*
     }
 
     const auto registration = registration_future.get();
