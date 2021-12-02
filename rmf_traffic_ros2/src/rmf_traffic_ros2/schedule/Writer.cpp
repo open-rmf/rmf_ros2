@@ -157,7 +157,7 @@ public:
       if (!local_desc_opt.has_value())
         continue;
 
-      const auto local_desc = convert(*local_desc_opt);
+      const auto& local_desc = *local_desc_opt;
 
       auto p = std::find_if(
         msg.participants.begin(),
@@ -165,8 +165,8 @@ public:
         [&local_desc](const auto& participant)
         {
           const auto& remote_desc = participant.description;
-          return local_desc.owner == remote_desc.owner
-          && local_desc.name == remote_desc.name;
+          return local_desc.owner() == remote_desc.owner
+          && local_desc.name() == remote_desc.name;
         });
 
       if (p == msg.participants.end())
@@ -177,8 +177,8 @@ public:
           RCLCPP_WARN(
             node.get_logger(),
             "Participant [%s] of [%s] is not registered properly",
-            local_desc.name.c_str(),
-            local_desc.owner.c_str());
+            local_desc.name().c_str(),
+            local_desc.owner().c_str());
 
           // Re-register the participant
           incorrect_descriptions.push_back(stub);
@@ -189,7 +189,7 @@ public:
         // This participant is registered, but we need to check that the ID is
         // correct
         const bool ids_match = s.first == p->id;
-        const bool descriptions_match = local_desc == p->description;
+        const bool descriptions_match = local_desc == convert(p->description);
         if (!ids_match || !descriptions_match)
         {
           if (stub->correction_limiter.reached_limit())
@@ -199,8 +199,8 @@ public:
               "Participant [%s] of [%s] has had repeated correctness issues. "
               "This likely indicates conflicting duplicate participants in the "
               "schedule system.",
-              local_desc.name.c_str(),
-              local_desc.owner.c_str());
+              local_desc.name().c_str(),
+              local_desc.owner().c_str());
 
             continue;
           }
