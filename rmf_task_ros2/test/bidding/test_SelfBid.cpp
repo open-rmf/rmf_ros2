@@ -89,6 +89,8 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
     {
       Submission best_robot_estimate;
       test_notice_bidder1 = notice.task_profile;
+      best_robot_estimate.finish_time =
+      std::chrono::steady_clock::time_point::max();
       return best_robot_estimate;
     }
   );
@@ -100,6 +102,8 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
       // TaskType should not be supported
       Submission best_robot_estimate;
       best_robot_estimate.new_cost = 2.3; // lower cost than bidder1
+      best_robot_estimate.finish_time =
+      std::chrono::steady_clock::time_point::min();
       test_notice_bidder2 = notice.task_profile;
       return best_robot_estimate;
     }

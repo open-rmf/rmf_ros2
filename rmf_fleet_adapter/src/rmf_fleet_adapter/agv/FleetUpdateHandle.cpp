@@ -219,6 +219,10 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     const auto& clean_param = clean_param_it->second;
 
     // Check for valid finish waypoint
+    // This is the waypoint on the map where the robot will end up at the end
+    // of its cleaning process. RMF will not move the robot to this waypoint.
+    // This information is used to estimate the state of the robot at the end
+    // of its cleaning process which is relevant for task allocation planning.
     const std::string& finish_wp_name = clean_param.finish;
     const auto finish_wp = graph.find_waypoint(finish_wp_name);
     if (!finish_wp)
@@ -814,6 +818,8 @@ rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
         .x(p.x())
         .y(p.y())
         .yaw(l.orientation())
+        .obey_approach_speed_limit(false)
+        .approach_speed_limit(0.0)
         .level_name(wp.get_map_name())
         // NOTE(MXG): This field is only used by the fleet drivers. For now, we
         // will just fill it with a zero.
@@ -1003,9 +1009,13 @@ void FleetUpdateHandle::add_robot(
     command = std::move(command),
     start = std::move(start),
     handle_cb = std::move(handle_cb),
-    fleet = shared_from_this()](
+    fleet_wptr = weak_from_this()](
       rmf_traffic::schedule::Participant participant)
     {
+      auto fleet = fleet_wptr.lock();
+      if (!fleet)
+        return;
+
       const auto charger_wp = fleet->_pimpl->get_nearest_charger(start[0]);
 
       if (!charger_wp.has_value())
@@ -1020,8 +1030,10 @@ void FleetUpdateHandle::add_robot(
 
       rmf_task::agv::State state = rmf_task::agv::State{
         start[0], charger_wp.value(), 1.0};
+
       auto context = std::make_shared<RobotContext>(
-        RobotContext{
+        RobotContext
+        {
           std::move(command),
           std::move(start),
           std::move(participant),
@@ -1032,14 +1044,26 @@ void FleetUpdateHandle::add_robot(
           fleet->_pimpl->default_maximum_delay,
           state,
           fleet->_pimpl->task_planner
-        });
+        }
+      );
 
       // We schedule the following operations on the worker to make sure we do not
       // have a multiple read/write race condition on the FleetUpdateHandle.
       worker.schedule(
-        [context, fleet, node = fleet->_pimpl->node,
+        [fleet_wptr = std::weak_ptr<FleetUpdateHandle>(fleet),
+        node_wptr = std::weak_ptr<Node>(fleet->_pimpl->node),
+        context = std::move(context),
         handle_cb = std::move(handle_cb)](const auto&)
         {
+          auto fleet = fleet_wptr.lock();
+          if (!fleet)
+            return;
+
+          auto node = node_wptr.lock();
+          if (!node)
+            return;
+
+
           // TODO(MXG): We need to perform this test because we do not currently
           // support the distributed negotiation in unit test environments. We
           // should create an abstract NegotiationRoom interface in rmf_traffic and
@@ -1049,7 +1073,6 @@ void FleetUpdateHandle::add_robot(
             using namespace std::chrono_literals;
             auto last_interrupt_time =
             std::make_shared<std::optional<rmf_traffic::Time>>(std::nullopt);
-
             context->_negotiation_license =
             fleet->_pimpl->negotiation
             ->register_negotiator(

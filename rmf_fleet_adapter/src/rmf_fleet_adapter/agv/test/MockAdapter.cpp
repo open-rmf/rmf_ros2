@@ -287,6 +287,13 @@ std::shared_ptr<const rclcpp::Node> MockAdapter::node() const
 }
 
 //==============================================================================
+void MockAdapter::add_secondary_node(
+  std::shared_ptr<rclcpp::Node> secondary_node)
+{
+  _pimpl->node->add_node(std::move(secondary_node));
+}
+
+//==============================================================================
 void MockAdapter::start()
 {
   _pimpl->node->start();
@@ -301,26 +308,29 @@ void MockAdapter::stop()
 //==============================================================================
 void MockAdapter::dispatch_task(const rmf_task_msgs::msg::TaskProfile& profile)
 {
-  for (auto& fleet : _pimpl->fleets)
-  {
-    auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
-    if (!fimpl.accept_task)
-      continue;
+  _pimpl->worker.schedule([profile, fleets = _pimpl->fleets](const auto&)
+    {
+      for (auto& fleet : fleets)
+      {
+        auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
+        if (!fimpl.accept_task)
+          continue;
 
-    // NOTE: althought the current adapter supports multiple fleets. The test
-    // here assumses using a single fleet for each adapter
-    rmf_task_msgs::msg::BidNotice bid;
-    bid.task_profile = profile;
-    fimpl.bid_notice_cb(
-      std::make_shared<rmf_task_msgs::msg::BidNotice>(bid));
+        // NOTE: althought the current adapter supports multiple fleets. The test
+        // here assumses using a single fleet for each adapter
+        rmf_task_msgs::msg::BidNotice bid;
+        bid.task_profile = profile;
+        fimpl.bid_notice_cb(
+          std::make_shared<rmf_task_msgs::msg::BidNotice>(bid));
 
-    rmf_task_msgs::msg::DispatchRequest req;
-    req.task_profile = profile;
-    req.fleet_name = fimpl.name;
-    req.method = req.ADD;
-    fimpl.dispatch_request_cb(
-      std::make_shared<rmf_task_msgs::msg::DispatchRequest>(req));
-  }
+        rmf_task_msgs::msg::DispatchRequest req;
+        req.task_profile = profile;
+        req.fleet_name = fimpl.name;
+        req.method = req.ADD;
+        fimpl.dispatch_request_cb(
+          std::make_shared<rmf_task_msgs::msg::DispatchRequest>(req));
+      }
+    });
 }
 
 //==============================================================================

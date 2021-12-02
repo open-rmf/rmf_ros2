@@ -287,9 +287,16 @@ rmf_traffic::agv::Graph parse_graph(
         entry_event = Event::make(Lane::Dock(dock_name, duration));
       }
 
-      graph.add_lane(
+      auto& graph_lane = graph.add_lane(
         {begin, entry_event},
         {end, exit_event, std::move(constraint)});
+
+      if (const YAML::Node speed_limit_option = options["speed_limit"])
+      {
+        const double speed_limit = speed_limit_option.as<double>();
+        if (speed_limit > 0.0)
+          graph_lane.properties().speed_limit(speed_limit);
+      }
     }
     vnum += vnum_temp;
   }

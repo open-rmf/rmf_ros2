@@ -22,6 +22,11 @@
 
 #include <rclcpp/contexts/default_context.hpp>
 
+#include <chrono>
+#include <thread>
+
+using namespace std::chrono_literals;
+
 std::size_t node_counter = 0;
 std::size_t topic_counter = 0;
 
@@ -112,6 +117,19 @@ TEST_CASE("publish subscribe loopback", "[Transport]")
     rxcpp::composite_subscription subscription{};
     obs->observe().subscribe(subscription);
     obs->observe().subscribe(subscription);
+    // TODO(geoff): This test is flaky due to a race condition between the subscription creation
+    // above and the test condition check for the subscriber count below (it will randomly fail
+    // with a subscriber count of 0). Running it in a resource-constrained environment, where it
+    // only has access to a single CPU core, makes the test fail stably. The loop is used to give
+    // the subscription a chance to go through prior to the test condition check. A more proper
+    // solution will find out why subscriptions take time to go through and find or add a condition
+    // we can wait on.
+    int loop_count = 10;
+    while (transport->count_subscribers(topic_name) == 0 && loop_count > 0)
+    {
+      std::this_thread::sleep_for(100ms);
+      --loop_count;
+    }
     REQUIRE(transport->count_subscribers(topic_name) == 1);
     subscription.unsubscribe();
   }

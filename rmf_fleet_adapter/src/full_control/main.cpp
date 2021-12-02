@@ -213,6 +213,30 @@ public:
       location.y = p.y();
       location.yaw = p.z();
 
+      // The speed limit is set as the minimum of all the approach lanes' limits
+      std::optional<double> speed_limit = std::nullopt;
+      for (const auto& lane_idx : wp.approach_lanes())
+      {
+        const auto& lane = _travel_info.graph->get_lane(lane_idx);
+        const auto& lane_limit = lane.properties().speed_limit();
+        if (lane_limit.has_value())
+        {
+          if (speed_limit.has_value())
+            speed_limit = std::min(speed_limit.value(), lane_limit.value());
+          else
+            speed_limit = lane_limit.value();
+        }
+      }
+      if (speed_limit.has_value())
+      {
+        location.obey_approach_speed_limit = true;
+        location.approach_speed_limit = speed_limit.value();
+      }
+      else
+      {
+        location.obey_approach_speed_limit = false;
+      }
+
       // Note: if the waypoint is not on a graph index, then we'll just leave
       // the level_name blank. That information isn't likely to get used by the
       // fleet driver anyway.
@@ -720,7 +744,7 @@ struct Connections : public std::enable_shared_from_this<Connections>
         if (connections->lift_watchdog_client)
         {
           updater->unstable().set_lift_entry_watchdog(
-            [robot_name, client = connections->lift_watchdog_client](
+            [robot_name, connections](
               const std::string& lift_name,
               auto decide)
             {
@@ -729,6 +753,16 @@ struct Connections : public std::enable_shared_from_this<Connections>
                 rmf_fleet_msgs::build<rmf_fleet_msgs::srv::LiftClearance::Request>()
                 .robot_name(robot_name)
                 .lift_name(lift_name));
+
+              const auto client = connections->lift_watchdog_client;
+              if (!client->service_is_ready())
+              {
+                RCLCPP_ERROR(
+                  connections->adapter->node()->get_logger(),
+                  "Failed to get lift clearance service");
+                decide(convert_decision(0));
+                return;
+              }
 
               client->async_send_request(
                 request,
