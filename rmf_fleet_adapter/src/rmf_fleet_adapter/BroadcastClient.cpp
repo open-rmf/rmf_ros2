@@ -15,12 +15,34 @@
  *
 */
 
-#include "TaskStateServer.hpp"
+#include "BroadcastClient.hpp"
 
 
 namespace rmf_fleet_adapter {
+//==============================================================================
+std::shared_ptr<BroadcastClient> BroadcastClient::make(
+  const std::string& uri,
+  std::shared_ptr<agv::FleetUpdateHandle> fleet_handle)
+{
+  std::shared_ptr<BroadcastClient> client(new BroadcastClient());
+  client->_fleet_handle = std::move(fleet_handle);
+  client->_shutdown = false;
 
+}
 
+//==============================================================================
+BroadcastClient::BroadcastClient()
+{
+  // Do nothing
+}
 
+//==============================================================================
+BroadcastClient::~BroadcastClient()
+{
+  if (_thread.joinable)
+  {
+    _thread.join();
+  }
+}
 
 } // namespace rmf_fleet_adapter

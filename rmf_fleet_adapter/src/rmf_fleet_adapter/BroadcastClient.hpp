@@ -29,6 +29,8 @@
 #include <set>
 #include <queue>
 #include <mutex>
+#include <thread>
+#include <atomic>
 
 namespace rmf_fleet_adapter {
 //==============================================================================
@@ -44,21 +46,25 @@ public:
   using ConnectionHDL = websocketpp::connection_hdl;
   using Connections = std::set<ConnectionHDL, std::owner_less<ConnectionHDL>>;
 
+  /// \param[in] uri
+  ///   "ws://localhost:9000"
   static std::shared_ptr<BroadcastClient> make(
-    std::size_t port,
-    std::weak_ptr<TaskManager> task_managers);
+    const std::string& uri,
+    std::shared_ptr<agv::FleetUpdateHandle> fleet_handle);
 
-  // This will add the json message to the internal _queue
+  // Publish message
   void publish(const nlohmann::json& msg);
 
   ~BroadcastClient();
 
 private:
   BroadcastClient();
-  std::weak_ptr<FleetUpdateHandle> _fleet_handle;
-  std::shared_ptr<WebsocketClient> _server;
-  Connections _connections;
+  std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
+  std::shared_ptr<WebsocketClient> _client;
   std::mutex _mutex;
+  std::queue<nlohmann::json> _queue;
+  std::thread _thread;
+  std::atomic_bool _shutdown;
 };
 
 } // namespace rmf_fleet_adapter
