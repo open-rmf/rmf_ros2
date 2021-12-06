@@ -28,6 +28,10 @@
   <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies</depend>
   <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies_msgs</depend>
 
+  <depend>libwebsocketpp-dev</depend>
+  <depend>nlohmann-json3-dev</depend>
+  <!-- <depend>nlohmann_json_schema_validator_vendor</depend> -->
+
   <build_depend>eigen</build_depend>
   <build_depend>yaml-cpp</build_depend>
 

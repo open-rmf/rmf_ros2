@@ -36,6 +36,8 @@ set(dep_pkgs
   rmf_battery
   rmf_task
   std_msgs
+  websocketpp
+  nlohmann_json
 )
 foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
@@ -76,10 +78,12 @@ target_link_libraries(rmf_fleet_adapter
     ${rmf_task_msgs_LIBRARIES}
   PRIVATE
     rmf_rxcpp
+    nlohmann_json::nlohmann_json
     ${rmf_door_msgs_LIBRARIES}
     ${rmf_lift_msgs_LIBRARIES}
     ${rmf_dispenser_msgs_LIBRARIES}
     ${rmf_ingestor_msgs_LIBRARIES}
+    ${websocketpp_LIBRARIES}
 )
 
 target_include_directories(rmf_fleet_adapter
@@ -96,6 +100,7 @@ target_include_directories(rmf_fleet_adapter
     ${rmf_lift_msgs_INCLUDE_DIRS}
     ${rmf_dispenser_msgs_INCLUDE_DIRS}
     ${rmf_ingestor_msgs_INCLUDE_DIRS}
+    ${WEBSOCKETPP_INCLUDE_DIR}
 )
 
 if (BUILD_TESTING)
@@ -131,6 +136,7 @@ if (BUILD_TESTING)
       ${rmf_dispenser_msgs_INCLUDE_DIRS}
       ${rmf_ingestor_msgs_INCLUDE_DIRS}
       ${std_msgs_INCLUDE_DIRS}
+      ${WEBSOCKETPP_INCLUDE_DIR}
   )
   target_link_libraries(test_rmf_fleet_adapter
     PRIVATE
@@ -144,6 +150,7 @@ if (BUILD_TESTING)
       rmf_fleet_adapter
       rmf_utils::rmf_utils
       ${std_msgs_LIBRARIES}
+      ${websocketpp_LIBRARIES}
   )
 
   target_compile_definitions(test_rmf_fleet_adapter
@@ -462,6 +469,7 @@ ament_export_dependencies(
   rmf_lift_msgs
   rmf_ingestor_msgs
   rmf_dispenser_msgs
+  websocketpp
 )
 
 install(
@@ -499,4 +507,3 @@ install(
 )
 
 ament_package()
-
