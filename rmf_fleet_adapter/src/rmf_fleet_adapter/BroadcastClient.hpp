@@ -59,11 +59,15 @@ public:
 
 private:
   BroadcastClient();
+  std::string _uri;
   std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
   std::shared_ptr<WebsocketClient> _client;
+  websocketpp::connection_hdl _hdl;
   std::mutex _mutex;
+  std::condition_variable _cv;
   std::queue<nlohmann::json> _queue;
   std::thread _thread;
+  std::atomic_bool _connected;
   std::atomic_bool _shutdown;
 };
 
