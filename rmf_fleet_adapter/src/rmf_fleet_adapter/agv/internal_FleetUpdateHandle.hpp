@@ -140,7 +140,7 @@ public:
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
 
   // TODO(YV): Remove from default args
-  std::string broadcast_client_uri = "ws://localhost:9007";
+  std::string broadcast_client_uri = "ws://127.0.0.1:9007";
 
   // Task planner params
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
@@ -275,12 +275,12 @@ public:
         handle->_pimpl->charging_waypoints.insert(i);
     }
 
-    return handle;
-
     // Start the BroadcastClient
     handle->_pimpl->broadcast_client = BroadcastClient::make(
       handle->_pimpl->broadcast_client_uri,
-      handle);
+      handle->weak_from_this());
+
+    return handle;
   }
 
   void dock_summary_cb(const DockSummary::SharedPtr& msg);

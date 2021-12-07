@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Open Source Robotics Foundation
+ * Copyright (C) 2021 Open Source Robotics Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ public:
   ///   "ws://localhost:9000"
   static std::shared_ptr<BroadcastClient> make(
     const std::string& uri,
-    std::shared_ptr<agv::FleetUpdateHandle> fleet_handle);
+    std::weak_ptr<agv::FleetUpdateHandle> fleet_handle);
 
   // Publish message
   void publish(const nlohmann::json& msg);
@@ -61,12 +61,13 @@ private:
   BroadcastClient();
   std::string _uri;
   std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
-  std::shared_ptr<WebsocketClient> _client;
+  WebsocketClient _client;
   websocketpp::connection_hdl _hdl;
   std::mutex _mutex;
   std::condition_variable _cv;
   std::queue<nlohmann::json> _queue;
-  std::thread _thread;
+  std::thread _processing_thread;
+  std::thread _client_thread;
   std::atomic_bool _connected;
   std::atomic_bool _shutdown;
 };

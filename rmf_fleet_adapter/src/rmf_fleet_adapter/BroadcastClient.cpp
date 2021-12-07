@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Open Source Robotics Foundation
+ * Copyright (C) 2021 Open Source Robotics Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,30 +19,35 @@
 
 #include "agv/internal_FleetUpdateHandle.hpp"
 
+#include <iostream>
+
 namespace rmf_fleet_adapter {
 //==============================================================================
 std::shared_ptr<BroadcastClient> BroadcastClient::make(
   const std::string& uri,
-  std::shared_ptr<agv::FleetUpdateHandle> fleet_handle)
+  std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 {
   std::shared_ptr<BroadcastClient> client(new BroadcastClient());
   client->_uri = std::move(uri);
-  client->_fleet_handle = std::move(fleet_handle);
+  client->_fleet_handle = fleet_handle;
   client->_shutdown = false;
   client->_connected = false;
 
-  client->_client = std::make_shared<WebsocketClient>();
   // Initialize the Asio transport policy
-  client->_client->init_asio();
+  client->_client.init_asio();
+  client->_client.start_perpetual();
 
-  client->_client->set_open_handler(
-    [c = client](websocketpp::connection_hdl)
+  client->_client.set_open_handler(
+    [w = client->weak_from_this()](websocketpp::connection_hdl)
     {
+      const auto c = w.lock();
+      if (!c)
+        return;
       c->_connected = true;
       const auto fleet = c->_fleet_handle.lock();
       if (!fleet)
         return;
-      const auto impl = agv::FleetUpdateHandle::get(*fleet);
+      const auto impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
       for (const auto& [conext, mgr] : impl.task_managers)
       {
         // TODO(YV): Publish latest state and log
@@ -53,64 +58,95 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
         c->_uri.c_str());
     });
 
-  client->_client->set_close_handler(
-    [c = client](websocketpp::connection_hdl)
+  client->_client.set_close_handler(
+    [w = client->weak_from_this()](websocketpp::connection_hdl)
     {
+      const auto c = w.lock();
+      if (!c)
+        return;
       c->_connected = false;
     });
 
-  client->_client->set_fail_handler()
-  [c = client](websocketpp::connection_hdl)
+  client->_client.set_fail_handler(
+  [w = client->weak_from_this()](websocketpp::connection_hdl)
   {
+    const auto c = w.lock();
+    if (!c)
+      return;
     c->_connected = false;
-  };
+  });
 
-  client->_thread = std::thread(
-    [c = client]()
+  client->_processing_thread = std::thread(
+    [w = client->weak_from_this()]()
     {
-      while (!shutdown)
+      const auto c = w.lock();
+      if (!c)
       {
+        std::cout << "Unable to lock weak_from_this()" << std::endl;
+        return;
+      }
+      std::cout << "Able to lock weak_from_this()" << std::endl;
+      while (!c->_shutdown)
+      {
+        std::cout << "Inside while" << std::endl;
         const auto fleet = c->_fleet_handle.lock();
         if (!fleet)
+        {
+          std::cout << "Unable to lock fleet handle" << std::endl;
           continue;
-        const auto impl = agv::FleetUpdateHandle::get(*fleet);
+        }
+        std::cout << "Able to lock fleet handle" << std::endl;
+        const auto impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
 
         // Try to connect to the server if we are not connected yet
         if (!c->_connected)
         {
+          std::cout << "Trying to connect to server " << c->_uri << std::endl;
           websocketpp::lib::error_code ec;
-          WebsocketClient::connection_ptr con = c->_client->get_connection(
+          WebsocketClient::connection_ptr con = c->_client.get_connection(
             c->_uri, ec);
+          std::cout << "ec: " << ec << std::endl;
           if (ec)
           {
-            RCLCPP_WARN(
+            std::cout << "Inside ec connection" << std::endl;
+            RCLCPP_ERROR(
               impl.node->get_logger(),
               "BroadcastClient unable to connect to [%s]. Please make sure "
               "server is running.",
               c->_uri.c_str());
             c->_connected = false;
+            std::cout << "Sleeping thread" << std::endl;
             std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+            std::cout << "Done sleeping thread" << std::endl;
             continue;
           }
 
-          c->_handle = con->get_handle();
-          c->_client->connect(con);
+          std::cout << "Connection successful" << std::endl;
+          c->_client.send(c->_hdl, "Hello", websocketpp::frame::opcode::text, ec);
+          std::cout << "ec: " << ec << std::endl;
+
+          c->_hdl = con->get_handle();
+          c->_client.connect(con);
           // TODO(YV): Start asio io_service event loop
           c->_connected = true;
         }
 
+        std::cout << "Attending to items in queue" << std::endl;
         std::unique_lock<std::mutex> lock(c->_mutex);
+        std::cout << "Locked mutex" << std::endl;
         c->_cv.wait(lock,
           [c]()
           {
             return !c->_queue.empty();
           });
 
+        std::cout << "_queue not empty" << std::endl;
+
         while (!c->_queue.empty())
         {
           websocketpp::lib::error_code ec;
           const std::string& msg = c->_queue.front().dump();
-          c->_client->send(c->_hdl, msg, websocketpp::frame::opcode::text, ec);
+          c->_client.send(c->_hdl, msg, websocketpp::frame::opcode::text, ec);
           if (ec)
           {
             RCLCPP_ERROR(
@@ -124,6 +160,8 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
       }
     });
 
+  std::cout << "Returning client" << std::endl;
+
   return client;
 
 }
@@ -133,6 +171,7 @@ void BroadcastClient::publish(const nlohmann::json& msg)
 {
   // TODO(YV): lock a mutex
   _queue.push(msg);
+  _cv.notify_all();
 }
 
 //==============================================================================
@@ -145,10 +184,11 @@ BroadcastClient::BroadcastClient()
 BroadcastClient::~BroadcastClient()
 {
   _shutdown = true;
-  if (_thread.joinable)
+  if (_processing_thread.joinable())
   {
-    _thread.join();
+    _processing_thread.join();
   }
+  _client.stop_perpetual();
 }
 
 } // namespace rmf_fleet_adapter
