@@ -38,6 +38,7 @@
 #include "Node.hpp"
 #include "RobotContext.hpp"
 #include "../TaskManager.hpp"
+#include "../BroadcastClient.hpp"
 
 #include <rmf_traffic/schedule/Snapshot.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>
@@ -138,6 +139,9 @@ public:
   std::shared_ptr<rmf_traffic::schedule::Snappable> snappable;
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
 
+  // TODO(YV): Remove from default args
+  std::string broadcast_client_uri = "ws://localhost:9007";
+
   // Task planner params
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
     rmf_task::BinaryPriorityScheme::make_cost_calculator();
@@ -149,6 +153,8 @@ public:
   AcceptDeliveryRequest accept_delivery = nullptr;
   std::unordered_map<RobotContextPtr,
     std::shared_ptr<TaskManager>> task_managers = {};
+
+  std::shared_ptr<BroadcastClient> broadcast_client = nullptr;
 
   rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr
     fleet_state_pub = nullptr;
@@ -270,6 +276,11 @@ public:
     }
 
     return handle;
+
+    // Start the BroadcastClient
+    handle->_pimpl->broadcast_client = BroadcastClient::make(
+      handle->_pimpl->broadcast_client_uri,
+      handle);
   }
 
   void dock_summary_cb(const DockSummary::SharedPtr& msg);
