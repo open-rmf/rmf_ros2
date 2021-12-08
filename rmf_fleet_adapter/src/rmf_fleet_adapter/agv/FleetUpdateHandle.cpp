@@ -1188,7 +1188,7 @@ void FleetUpdateHandle::add_robot(
           }
 
           fleet->_pimpl->task_managers.insert({context,
-            TaskManager::make(context)});
+            TaskManager::make(context, fleet->_pimpl->broadcast_client)});
         });
     });
 }

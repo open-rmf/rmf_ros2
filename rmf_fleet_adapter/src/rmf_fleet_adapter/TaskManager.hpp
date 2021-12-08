@@ -20,6 +20,7 @@
 
 #include "Task.hpp"
 #include "agv/RobotContext.hpp"
+#include "BroadcastClient.hpp"
 
 #include <rmf_traffic/agv/Planner.hpp>
 
@@ -42,7 +43,9 @@ class TaskManager : public std::enable_shared_from_this<TaskManager>
 {
 public:
 
-  static std::shared_ptr<TaskManager> make(agv::RobotContextPtr context);
+  static std::shared_ptr<TaskManager> make(
+    agv::RobotContextPtr context,
+    std::weak_ptr<BroadcastClient> broadcast_client);
 
   using Start = rmf_traffic::agv::Plan::Start;
   using StartSet = rmf_traffic::agv::Plan::StartSet;
@@ -60,6 +63,8 @@ public:
   const agv::RobotContextPtr& context();
 
   agv::ConstRobotContextPtr context() const;
+
+  std::weak_ptr<BroadcastClient> broadcast_client() const;
 
   const Task* current_task() const;
 
@@ -87,9 +92,12 @@ public:
 
 private:
 
-  TaskManager(agv::RobotContextPtr context);
+  TaskManager(
+    agv::RobotContextPtr context,
+    std::weak_ptr<BroadcastClient> broadcast_client);
 
   agv::RobotContextPtr _context;
+  std::weak_ptr<BroadcastClient> _broadcast_client;
   std::shared_ptr<Task> _active_task;
   std::vector<std::shared_ptr<Task>> _queue;
   rmf_utils::optional<Start> _expected_finish_location;

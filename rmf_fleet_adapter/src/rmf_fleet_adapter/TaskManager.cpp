@@ -36,9 +36,12 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-TaskManagerPtr TaskManager::make(agv::RobotContextPtr context)
+TaskManagerPtr TaskManager::make(
+  agv::RobotContextPtr context,
+  std::weak_ptr<BroadcastClient> broadcast_client)
 {
-  auto mgr = TaskManagerPtr(new TaskManager(std::move(context)));
+  auto mgr = TaskManagerPtr(new TaskManager(
+    std::move(context), std::move(broadcast_client)));
   mgr->_emergency_sub = mgr->_context->node()->emergency_notice()
     .observe_on(rxcpp::identity_same_worker(mgr->_context->worker()))
     .subscribe(
@@ -80,8 +83,11 @@ TaskManagerPtr TaskManager::make(agv::RobotContextPtr context)
 }
 
 //==============================================================================
-TaskManager::TaskManager(agv::RobotContextPtr context)
-: _context(std::move(context))
+TaskManager::TaskManager(
+  agv::RobotContextPtr context,
+  std::weak_ptr<BroadcastClient> broadcast_client)
+: _context(std::move(context)),
+  _broadcast_client(std::move(broadcast_client))
 {
   // Do nothing. The make() function does all further initialization.
 }
@@ -131,6 +137,12 @@ const Task* TaskManager::current_task() const
 agv::ConstRobotContextPtr TaskManager::context() const
 {
   return _context;
+}
+
+//==============================================================================
+std::weak_ptr<BroadcastClient> TaskManager::broadcast_client() const
+{
+  return _broadcast_client;
 }
 
 //==============================================================================
