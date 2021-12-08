@@ -59,6 +59,7 @@
 
 #include <Eigen/Geometry>
 #include <unordered_set>
+#include <optional>
 
 //==============================================================================
 rmf_fleet_adapter::agv::RobotUpdateHandle::Unstable::Decision
@@ -839,8 +840,20 @@ std::shared_ptr<Connections> make_fleet(
   for (const auto& key : connections->graph->keys())
     std::cout << " -- " << key.first << std::endl;
 
+  std::optional<std::string> server_uri = std::nullopt;
+  const std::string uri =
+    node->declare_parameter("server_uri", std::string());
+  if (!uri.empty())
+  {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "API server URI: [%s]", uri.c_str());
+
+    server_uri = uri;
+  }
+
   connections->fleet = adapter->add_fleet(
-    fleet_name, *connections->traits, *connections->graph);
+    fleet_name, *connections->traits, *connections->graph, server_uri);
 
   // We disable fleet state publishing for this fleet adapter because we expect
   // the fleet drivers to publish these messages.

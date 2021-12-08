@@ -93,10 +93,15 @@ public:
   ///
   /// \param[in] navigation_graph
   ///   Specify the navigation graph used by the vehicles in this fleet.
+  ///
+  /// \param[in] server_uri
+  ///   Specify the URI for the websocket server that receives updates on tasks
+  ///   and states. If nullopt, data will not be published.
   std::shared_ptr<FleetUpdateHandle> add_fleet(
     const std::string& fleet_name,
     rmf_traffic::agv::VehicleTraits traits,
-    rmf_traffic::agv::Graph navigation_graph);
+    rmf_traffic::agv::Graph navigation_graph,
+    std::optional<std::string> server_uri = std::nullopt);
 
   /// Create a traffic light to help manage robots that can only support pause
   /// and resume commands.

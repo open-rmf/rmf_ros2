@@ -208,7 +208,8 @@ std::shared_ptr<Adapter> Adapter::make(
 std::shared_ptr<FleetUpdateHandle> Adapter::add_fleet(
   const std::string& fleet_name,
   rmf_traffic::agv::VehicleTraits traits,
-  rmf_traffic::agv::Graph navigation_graph)
+  rmf_traffic::agv::Graph navigation_graph,
+  std::optional<std::string> server_uri)
 {
   auto planner =
     std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(
@@ -221,7 +222,7 @@ std::shared_ptr<FleetUpdateHandle> Adapter::add_fleet(
   auto fleet = FleetUpdateHandle::Implementation::make(
     fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
     _pimpl->schedule_writer, _pimpl->mirror_manager.snapshot_handle(),
-    _pimpl->negotiation);
+    _pimpl->negotiation, server_uri);
 
   _pimpl->fleets.push_back(fleet);
   return fleet;

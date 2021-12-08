@@ -63,7 +63,8 @@ private:
   std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
   WebsocketClient _client;
   websocketpp::connection_hdl _hdl;
-  std::mutex _mutex;
+  std::mutex _wait_mutex;
+  std::mutex _queue_mutex;
   std::condition_variable _cv;
   std::queue<nlohmann::json> _queue;
   std::thread _processing_thread;

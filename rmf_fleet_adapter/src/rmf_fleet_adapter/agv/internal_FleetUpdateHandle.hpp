@@ -138,9 +138,7 @@ public:
   std::shared_ptr<ParticipantFactory> writer;
   std::shared_ptr<rmf_traffic::schedule::Snappable> snappable;
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
-
-  // TODO(YV): Remove from default args
-  std::string broadcast_client_uri = "ws://127.0.0.1:9007";
+  std::optional<std::string> server_uri;
 
   // Task planner params
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
@@ -276,9 +274,12 @@ public:
     }
 
     // Start the BroadcastClient
-    handle->_pimpl->broadcast_client = BroadcastClient::make(
-      handle->_pimpl->broadcast_client_uri,
-      handle->weak_from_this());
+    if (handle->_pimpl->server_uri.has_value())
+    {
+      handle->_pimpl->broadcast_client = BroadcastClient::make(
+        handle->_pimpl->server_uri.value(),
+        handle->weak_from_this());
+    }
 
     return handle;
   }
