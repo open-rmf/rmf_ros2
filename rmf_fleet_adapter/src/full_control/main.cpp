@@ -857,7 +857,7 @@ std::shared_ptr<Connections> make_fleet(
 
   // We disable fleet state publishing for this fleet adapter because we expect
   // the fleet drivers to publish these messages.
-  connections->fleet->fleet_state_publish_period(std::nullopt);
+  // connections->fleet->fleet_state_publish_period(std::nullopt);
 
   connections->closed_lanes_pub =
     adapter->node()->create_publisher<rmf_fleet_msgs::msg::ClosedLanes>(

@@ -227,7 +227,8 @@ MockAdapter::MockAdapter(
 std::shared_ptr<FleetUpdateHandle> MockAdapter::add_fleet(
   const std::string& fleet_name,
   rmf_traffic::agv::VehicleTraits traits,
-  rmf_traffic::agv::Graph navigation_graph)
+  rmf_traffic::agv::Graph navigation_graph,
+  std::optional<std::string> server_uri)
 {
   auto planner =
     std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(
@@ -240,7 +241,7 @@ std::shared_ptr<FleetUpdateHandle> MockAdapter::add_fleet(
   auto fleet = FleetUpdateHandle::Implementation::make(
     fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
     std::make_shared<SimpleParticipantFactory>(_pimpl->schedule),
-    _pimpl->schedule->snappable(), nullptr);
+    _pimpl->schedule->snappable(), nullptr, server_uri);
 
   _pimpl->fleets.push_back(fleet);
   return fleet;

@@ -19,8 +19,6 @@
 
 #include "agv/internal_FleetUpdateHandle.hpp"
 
-#include <iostream>
-
 namespace rmf_fleet_adapter {
 //==============================================================================
 std::shared_ptr<BroadcastClient> BroadcastClient::make(
@@ -47,7 +45,6 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
   client->_client.set_open_handler(
     [c = client](websocketpp::connection_hdl)
     {
-      std::cout << "Open handler called" << std::endl;
       c->_connected = true;
       const auto fleet = c->_fleet_handle.lock();
       if (!fleet)
@@ -66,14 +63,12 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
   client->_client.set_close_handler(
     [c = client](websocketpp::connection_hdl)
     {
-      std::cout << " Close handler called" << std::endl;
       c->_connected = false;
     });
 
   client->_client.set_fail_handler(
   [c = client](websocketpp::connection_hdl)
   {
-    std::cout << "Fail handler called" << std::endl;
     c->_connected = false;
   });
 
@@ -92,7 +87,6 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
         // Try to connect to the server if we are not connected yet
         if (!c->_connected)
         {
-          std::cout << "Trying to connect to server " << c->_uri << std::endl;
           websocketpp::lib::error_code ec;
           WebsocketClient::connection_ptr con = c->_client.get_connection(
             c->_uri, ec);
@@ -119,15 +113,12 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
           c->_connected = true;
         }
 
-        std::cout << "Attending to items in queue" << std::endl;
         std::unique_lock<std::mutex> lock(c->_wait_mutex);
         c->_cv.wait(lock,
           [c]()
           {
             return !c->_queue.empty();
           });
-
-        std::cout << "_queue not empty" << std::endl;
 
         while (!c->_queue.empty())
         {

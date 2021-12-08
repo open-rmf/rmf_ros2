@@ -47,7 +47,8 @@ public:
   std::shared_ptr<FleetUpdateHandle> add_fleet(
     const std::string& fleet_name,
     rmf_traffic::agv::VehicleTraits traits,
-    rmf_traffic::agv::Graph navigation_graph);
+    rmf_traffic::agv::Graph navigation_graph,
+    std::optional<std::string> server_uri = std::nullopt);
 
   TrafficLight::UpdateHandlePtr add_traffic_light(
     std::shared_ptr<TrafficLight::CommandHandle> command,

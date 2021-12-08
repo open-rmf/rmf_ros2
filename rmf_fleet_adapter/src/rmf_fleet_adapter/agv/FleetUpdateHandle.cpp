@@ -38,6 +38,11 @@
 #include <rmf_task_msgs/msg/delivery.hpp>
 #include <rmf_task_msgs/msg/loop.hpp>
 
+#include <nlohmann/json.hpp>
+#include <nlohmann/json-schema.hpp>
+
+#include <rmf_api_msgs/schemas/fleet_state.hpp>
+
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -854,11 +859,76 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
   for (const auto& [context, mgr] : task_managers)
     robot_states.emplace_back(convert_state(*mgr));
 
+  const auto mode_to_status = [](const uint32_t mode) -> std::string
+    {
+      // uninitialized, offline, shutdown ,idle, charging, working, error
+      if (mode == 0)
+        return "idle";
+      else if (mode == 1)
+        return "charging";
+      else if (mode == 2)
+        return "working";
+      else
+        return "error";
+    };
+
+  // Publish to API server
+  if (broadcast_client)
+  {
+    nlohmann::json fleet_state_msg = { {"name", {}}, {"robots", {}}};
+    fleet_state_msg["name"] = name;
+    for (const auto& state : robot_states)
+    {
+      nlohmann::json json;
+      json["name"] = state.name;
+      json["status"] = mode_to_status(state.mode.mode);
+      json["task_id"] = state.task_id;
+      json["unix_millis_time"] =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::seconds(state.location.t.sec) +
+        std::chrono::nanoseconds(state.location.t.nanosec)).count();
+      nlohmann::json location;
+      location["map"] = state.location.level_name;
+      location["x"] = state.location.x;
+      location["y"] = state.location.y;
+      location["yaw"] = state.location.yaw;
+      json["location"] = location;
+      json["battery"] = state.battery_percent / 100.0;
+      // TODO(YV): json["issues"]
+      fleet_state_msg["robots"].push_back(json);
+    }
+    // TODO(YV): Validating the schema requires a loader to be defined. This is
+    // commented out temporarily until the proper loader can be defined.
+    // const auto schema = rmf_api_msgs::schemas::fleet_state;
+    // nlohmann::json_uri json_uri = nlohmann::json_uri{schema["$id"]};
+    // const auto loader =
+    //   [](const nlohmann::json_uri& id, nlohmann::json& value)
+    //   {
+
+    //   };
+    // try
+    // {
+    //   nlohmann::json_schema::json_validator validator(schema, loader);
+    //   validator.validate(fleet_state_msg);
+    // }
+    // catch (const std::exception& e)
+    // {
+    //   RCLCPP_ERROR(
+    //     node->get_logger(),
+    //     "Unable to publish fleet state json message: %s",
+    //     e.what());
+    //   return;
+    // }
+
+    broadcast_client->publish(fleet_state_msg);
+  }
+
   auto fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
     .name(name)
     .robots(std::move(robot_states));
 
   fleet_state_pub->publish(std::move(fleet_state));
+
 }
 
 //==============================================================================
