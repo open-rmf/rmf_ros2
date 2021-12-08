@@ -79,6 +79,9 @@ TaskManagerPtr TaskManager::make(
 
   mgr->_begin_waiting();
 
+  mgr->_travel_estimator = std::make_shared<rmf_task::TravelEstimator>(
+    mgr->_context->task_planner()->configuration().parameters());
+
   return mgr;
 }
 
@@ -111,9 +114,8 @@ auto TaskManager::expected_finish_state() const -> State
 
   // Update battery soc and finish time in the current state
   auto finish_state = _context->current_task_end_state();
-  auto location = finish_state.location();
-  location.time(rmf_traffic_ros2::convert(_context->node()->now()));
-  finish_state.location(location);
+  auto location = finish_state.extract_plan_start().value();
+  finish_state.time(rmf_traffic_ros2::convert(_context->node()->now()));
 
   const double current_battery_soc = _context->current_battery_soc();
   finish_state.battery_soc(current_battery_soc);
@@ -161,15 +163,16 @@ void TaskManager::set_queue(
     for (std::size_t i = 0; i < assignments.size(); ++i)
     {
       const auto& a = assignments[i];
-      auto start = _context->current_task_end_state().location();
+      auto start =
+        _context->current_task_end_state().extract_plan_start().value();
       if (i != 0)
-        start = assignments[i-1].state().location();
+        start = assignments[i-1].finish_state().extract_plan_start().value();
       start.time(a.deployment_time());
       const auto request = a.request();
 
       TaskProfileMsg task_profile;
-      bool auto_request = request->automatic();
-      const auto it = task_profiles.find(request->id());
+      bool auto_request = request->booking()->automatic();
+      const auto it = task_profiles.find(request->booking()->id());
       if (it != task_profiles.end())
       {
         task_profile = it->second;
@@ -178,10 +181,10 @@ void TaskManager::set_queue(
       {
         assert(auto_request);
         // We may have an auto-generated request
-        task_profile.task_id = request->id();
+        task_profile.task_id = request->booking()->id();
         task_profile.submission_time = _context->node()->now();
         task_profile.description.start_time = rmf_traffic_ros2::convert(
-          request->earliest_start_time());
+          request->booking()->earliest_start_time());
       }
 
       using namespace rmf_task::requests;
@@ -194,7 +197,7 @@ void TaskManager::set_queue(
           _context,
           start,
           a.deployment_time(),
-          a.state());
+          a.finish_state());
 
         // Populate task_profile for auto-generated Clean request
         if (auto_request)
@@ -223,7 +226,7 @@ void TaskManager::set_queue(
           _context,
           start,
           a.deployment_time(),
-          a.state());
+          a.finish_state());
 
         // Populate task_profile for auto-generated ChargeBattery request
         if (auto_request)
@@ -244,7 +247,7 @@ void TaskManager::set_queue(
           _context,
           start,
           a.deployment_time(),
-          a.state(),
+          a.finish_state(),
           task_profile.description.delivery);
 
         // Populate task_profile for auto-generated Delivery request
@@ -280,7 +283,7 @@ void TaskManager::set_queue(
           _context,
           start,
           a.deployment_time(),
-          a.state());
+          a.finish_state());
 
         // Populate task_profile for auto-generated Loop request
         if (auto_request)
@@ -315,7 +318,7 @@ void TaskManager::set_queue(
           "[TaskManager] Un-supported request type in assignment list. "
           "Please update the implementation of TaskManager::set_queue() to "
           "support request with task_id:[%s]",
-          a.request()->id().c_str());
+          a.request()->booking()->id().c_str());
 
         continue;
       }
@@ -338,7 +341,7 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
   requests.reserve(_queue.size());
   for (const auto& task : _queue)
   {
-    if (task->request()->automatic())
+    if (task->request()->booking()->automatic())
     {
       continue;
     }
@@ -393,7 +396,7 @@ void TaskManager::_begin_next_task()
   // time as task is completed.
   const auto deployment_time = std::min(
     next_task->deployment_time(),
-    next_task->request()->earliest_start_time());
+    next_task->request()->booking()->earliest_start_time());
 
   if (now >= deployment_time)
   {
@@ -557,7 +560,9 @@ void TaskManager::retreat_to_charger()
     return;
 
   const auto current_state = expected_finish_state();
-  if (current_state.waypoint() == current_state.charging_waypoint())
+  const auto charging_waypoint =
+    current_state.dedicated_charging_waypoint().value();
+  if (current_state.waypoint() == charging_waypoint)
     return;
 
   const auto& constraints = task_planner->configuration().constraints();
@@ -566,76 +571,45 @@ void TaskManager::retreat_to_charger()
   const double current_battery_soc = _context->current_battery_soc();
 
   const auto& parameters = task_planner->configuration().parameters();
-  auto& estimate_cache = *(task_planner->estimate_cache());
-
-  double retreat_battery_drain = 0.0;
-  const auto endpoints = std::make_pair(current_state.waypoint(),
-      current_state.charging_waypoint());
-  const auto& cache_result = estimate_cache.get(endpoints);
-
-  if (cache_result)
+  // TODO(YV): Expose the TravelEstimator in the TaskPlanner to benefit from
+  // caching
+  const rmf_traffic::agv::Planner::Goal retreat_goal{charging_waypoint};
+  const auto result = _travel_estimator->estimate(
+    current_state.extract_plan_start().value(), retreat_goal);
+  if (!result.has_value())
   {
-    retreat_battery_drain = cache_result->dsoc;
-  }
-  else
-  {
-    const rmf_traffic::agv::Planner::Goal retreat_goal{
-      current_state.charging_waypoint()};
-    const auto result_to_charger = parameters.planner()->plan(
-      current_state.location(), retreat_goal);
-
-    // We assume we can always compute a plan
-    double dSOC_motion = 0.0;
-    double dSOC_device = 0.0;
-    rmf_traffic::Duration retreat_duration = rmf_traffic::Duration{0};
-    rmf_traffic::Time itinerary_start_time = current_state.finish_time();
-
-    for (const auto& itinerary : result_to_charger->get_itinerary())
-    {
-      const auto& trajectory = itinerary.trajectory();
-      const auto& finish_time = *trajectory.finish_time();
-      const rmf_traffic::Duration itinerary_duration =
-        finish_time - itinerary_start_time;
-
-      dSOC_motion =
-        parameters.motion_sink()->compute_change_in_charge(
-        trajectory);
-      dSOC_device =
-        parameters.ambient_sink()->compute_change_in_charge(
-        rmf_traffic::time::to_seconds(itinerary_duration));
-      retreat_battery_drain += dSOC_motion + dSOC_device;
-      retreat_duration += itinerary_duration;
-      itinerary_start_time = finish_time;
-    }
-    estimate_cache.set(endpoints, retreat_duration,
-      retreat_battery_drain);
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      "Unable to compute estimate of journey back to charger for robot [%s]",
+      _context->name().c_str());
+    return;
   }
 
   const double battery_soc_after_retreat =
-    current_battery_soc - retreat_battery_drain;
+    current_battery_soc - result->change_in_charge();
 
   if ((battery_soc_after_retreat < retreat_threshold) &&
     (battery_soc_after_retreat > threshold_soc))
   {
     // Add a new charging task to the task queue
     const auto charging_request = rmf_task::requests::ChargeBattery::make(
-      current_state.finish_time());
+      current_state.time().value());
     const auto model = charging_request->description()->make_model(
-      current_state.finish_time(),
+      current_state.time().value(),
       parameters);
 
     const auto finish = model->estimate_finish(
       current_state,
       constraints,
-      estimate_cache);
+      *_travel_estimator);
 
     if (!finish)
       return;
 
-    rmf_task::agv::TaskPlanner::Assignment charging_assignment(
+    rmf_task::TaskPlanner::Assignment charging_assignment(
       charging_request,
       finish.value().finish_state(),
-      current_state.finish_time());
+      current_state.time().value());
 
     set_queue({charging_assignment});
 
@@ -698,7 +672,7 @@ void TaskManager::_populate_task_summary(
     msg.start_time = rmf_traffic_ros2::convert(
       task->deployment_time());
     msg.end_time = rmf_traffic_ros2::convert(
-      task->finish_state().finish_time());
+      task->finish_state().time().value());
     msg.task_profile = task->task_profile();
   }
 

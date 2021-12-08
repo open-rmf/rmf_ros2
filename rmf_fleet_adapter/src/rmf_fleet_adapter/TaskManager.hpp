@@ -24,7 +24,7 @@
 
 #include <rmf_traffic/agv/Planner.hpp>
 
-#include <rmf_task/agv/TaskPlanner.hpp>
+#include <rmf_task/TaskPlanner.hpp>
 
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
@@ -49,8 +49,8 @@ public:
 
   using Start = rmf_traffic::agv::Plan::Start;
   using StartSet = rmf_traffic::agv::Plan::StartSet;
-  using Assignment = rmf_task::agv::TaskPlanner::Assignment;
-  using State = rmf_task::agv::State;
+  using Assignment = rmf_task::TaskPlanner::Assignment;
+  using State = rmf_task::State;
   using RobotModeMsg = rmf_fleet_msgs::msg::RobotMode;
   using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
   using TaskProfiles = std::unordered_map<std::string, TaskProfileMsg>;
@@ -119,6 +119,10 @@ private:
   // Container to keep track of tasks that have been started by this TaskManager
   // Use the _register_executed_task() to populate this container.
   std::vector<std::string> _executed_task_registry;
+
+  // TravelEstimator for caching travel estimates for automatic charging
+  // retreat. TODO(YV): Expose the TaskPlanner's TravelEstimator.
+  std::shared_ptr<rmf_task::TravelEstimator> _travel_estimator;
 
   /// Callback for task timer which begins next task if its deployment time has passed
   void _begin_next_task();

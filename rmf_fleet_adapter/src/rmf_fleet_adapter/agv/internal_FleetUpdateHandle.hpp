@@ -25,7 +25,7 @@
 #include <rmf_task_msgs/msg/dispatch_request.hpp>
 #include <rmf_task_msgs/msg/dispatch_ack.hpp>
 
-#include <rmf_task/agv/TaskPlanner.hpp>
+#include <rmf_task/TaskPlanner.hpp>
 #include <rmf_task/Request.hpp>
 #include <rmf_task/requests/Clean.hpp>
 #include <rmf_task/BinaryPriorityScheme.hpp>
@@ -143,7 +143,7 @@ public:
   // Task planner params
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
     rmf_task::BinaryPriorityScheme::make_cost_calculator();
-  std::shared_ptr<rmf_task::agv::TaskPlanner> task_planner = nullptr;
+  std::shared_ptr<rmf_task::TaskPlanner> task_planner = nullptr;
 
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay =
     std::chrono::nanoseconds(std::chrono::seconds(10));
@@ -159,7 +159,7 @@ public:
   rclcpp::TimerBase::SharedPtr fleet_state_timer = nullptr;
 
   // Map task id to pair of <RequestPtr, Assignments>
-  using Assignments = rmf_task::agv::TaskPlanner::Assignments;
+  using Assignments = rmf_task::TaskPlanner::Assignments;
 
   // Map of dock name to dock parameters
   std::unordered_map<std::string,

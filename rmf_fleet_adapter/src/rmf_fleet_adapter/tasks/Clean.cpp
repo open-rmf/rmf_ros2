@@ -28,7 +28,7 @@ std::shared_ptr<Task> make_clean(
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start clean_start,
   const rmf_traffic::Time deployment_time,
-  const rmf_task::agv::State finish_state)
+  const rmf_task::State finish_state)
 {
   std::shared_ptr<const rmf_task::requests::Clean::Description> description =
     std::dynamic_pointer_cast<
@@ -51,7 +51,7 @@ std::shared_ptr<Task> make_clean(
   // performed. To avoid this, we request the robot to re-enter the lane.
   // This should be fixed when we define a new phase cleaning and not rely on
   // docking
-  if (context->current_task_end_state().location().waypoint() == start_waypoint)
+  if (context->current_task_end_state().waypoint().value() == start_waypoint)
   {
     const auto& graph = context->navigation_graph();
     const auto& lane_from_index = graph.lanes_from(start_waypoint)[0];
@@ -67,7 +67,7 @@ std::shared_ptr<Task> make_clean(
     phases::GoToPlace::make(context, std::move(clean_start), clean_goal));
 
   return Task::make(
-    request->id(),
+    request->booking()->id(),
     std::move(phases),
     context->worker(),
     deployment_time,

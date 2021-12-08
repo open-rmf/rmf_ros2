@@ -553,7 +553,12 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
   // TODO: Make distinctions between task and subtasks to avoid passing
   // dummy parameters for subtasks
   rmf_traffic::Time dummy_time;
-  rmf_task::agv::State dummy_state{{dummy_time, 0, 0.0}, 0, 1.0};
+  rmf_task::State dummy_state;
+  dummy_state.waypoint(0)
+  .orientation(0.0)
+  .time(dummy_time)
+  .dedicated_charging_waypoint(0)
+  .battery_soc(1.0);
   _subtasks = Task::make(
     _description,
     std::move(sub_phases),

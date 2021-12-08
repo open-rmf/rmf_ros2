@@ -9,9 +9,9 @@
 #include <rmf_traffic/schedule/Participant.hpp>
 #include <rmf_traffic/schedule/Snapshot.hpp>
 
-#include <rmf_task/agv/State.hpp>
-#include <rmf_task/agv/Constraints.hpp>
-#include <rmf_task/agv/TaskPlanner.hpp>
+#include <rmf_task/State.hpp>
+#include <rmf_task/Constraints.hpp>
+#include <rmf_task/TaskPlanner.hpp>
 
 #include <rclcpp/node.hpp>
 
@@ -117,11 +117,11 @@ public:
     const ResponderPtr& responder) final;
 
   /// Set the state of this robot at the end of its current task
-  RobotContext& current_task_end_state(const rmf_task::agv::State& state);
+  RobotContext& current_task_end_state(const rmf_task::State& state);
 
   /// Get a mutable reference to the state of this robot at the end of its
   // current task
-  const rmf_task::agv::State& current_task_end_state() const;
+  const rmf_task::State& current_task_end_state() const;
 
   /// Get the current battery state of charge
   double current_battery_soc() const;
@@ -134,11 +134,11 @@ public:
   const rxcpp::observable<double>& observe_battery_soc() const;
 
   /// Get a mutable reference to the task planner for this robot
-  const std::shared_ptr<const rmf_task::agv::TaskPlanner>& task_planner() const;
+  const std::shared_ptr<const rmf_task::TaskPlanner>& task_planner() const;
 
   /// Set the task planner for this robot
   RobotContext& task_planner(
-    const std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner);
+    const std::shared_ptr<const rmf_task::TaskPlanner> task_planner);
 
   void set_lift_entry_watchdog(
     RobotUpdateHandle::Unstable::Watchdog watchdog,
@@ -168,8 +168,8 @@ private:
     std::shared_ptr<Node> node,
     const rxcpp::schedulers::worker& worker,
     rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
-    rmf_task::agv::State state,
-    std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner);
+    rmf_task::State state,
+    std::shared_ptr<const rmf_task::TaskPlanner> task_planner);
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
@@ -194,8 +194,8 @@ private:
   double _current_battery_soc = 1.0;
   rxcpp::subjects::subject<double> _battery_soc_publisher;
   rxcpp::observable<double> _battery_soc_obs;
-  rmf_task::agv::State _current_task_end_state;
-  std::shared_ptr<const rmf_task::agv::TaskPlanner> _task_planner;
+  rmf_task::State _current_task_end_state;
+  std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);

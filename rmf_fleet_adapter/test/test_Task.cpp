@@ -177,14 +177,17 @@ public:
   public:
 
     Active(PendingPhases phases)
-    : _subtasks(
+    {
+      rmf_task::State state;
+      state.load_basic(
+        {std::chrono::steady_clock::now(), 0, 0.0}, 0, 1.0);
+      _subtasks =
         rmf_fleet_adapter::Task::make(
           "subtasks", std::move(phases),
           rxcpp::schedulers::make_event_loop().create_worker(),
           std::chrono::steady_clock::now(),
-          {{std::chrono::steady_clock::now(), 0, 0.0}, 0, 1.0},
-          nullptr))
-    {
+          state,
+          nullptr);
       _desc = "subtasks";
       _status_obs = _status_publisher.get_observable();
     }
@@ -295,7 +298,8 @@ SCENARIO("Test simple task")
 
   // Dummy parameters
   rmf_traffic::Time deployment_time;
-  rmf_task::agv::State finish_state{{deployment_time, 0, 0.0}, 0, 1.0};
+  rmf_task::State finish_state;
+  finish_state.load_basic({deployment_time, 0, 0.0}, 0, 1.0);
 
   std::shared_ptr<rmf_fleet_adapter::Task> task =
     rmf_fleet_adapter::Task::make(
@@ -395,7 +399,8 @@ SCENARIO("Test nested task")
 
   // Dummy parameters
   rmf_traffic::Time deployment_time;
-  rmf_task::agv::State finish_state{{deployment_time, 0, 0.0}, 0, 1.0};
+  rmf_task::State finish_state;
+  finish_state.load_basic({deployment_time, 0, 0.0}, 0, 1.0);
 
   const auto task = rmf_fleet_adapter::Task::make(
     "test_NestedTask", std::move(phases),

@@ -28,8 +28,8 @@
 #include "../tasks/Delivery.hpp"
 #include "../tasks/Loop.hpp"
 
-#include <rmf_task/agv/Constraints.hpp>
-#include <rmf_task/agv/Parameters.hpp>
+#include <rmf_task/Constraints.hpp>
+#include <rmf_task/Parameters.hpp>
 #include <rmf_task/requests/Clean.hpp>
 #include <rmf_task/requests/Delivery.hpp>
 #include <rmf_task/requests/Loop.hpp>
@@ -470,16 +470,16 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     debug_stream << "--Agent: " << i << std::endl;
     for (const auto& a : assignments[i])
     {
-      const auto& s = a.state();
+      const auto& s = a.finish_state();
       const double request_seconds =
-        a.request()->earliest_start_time().time_since_epoch().count()/1e9;
+        a.request()->booking()->earliest_start_time().time_since_epoch().count()/1e9;
       const double start_seconds =
         a.deployment_time().time_since_epoch().count()/1e9;
-      const rmf_traffic::Time finish_time = s.finish_time();
+      const rmf_traffic::Time finish_time = s.time().value();
       const double finish_seconds = finish_time.time_since_epoch().count()/1e9;
-      debug_stream << "    <" << a.request()->id() << ": " << request_seconds
+      debug_stream << "    <" << a.request()->booking()->id() << ": " << request_seconds
                    << ", " << start_seconds
-                   << ", "<< finish_seconds << ", " << 100* s.battery_soc()
+                   << ", "<< finish_seconds << ", " << s.battery_soc().value()
                    << "%>" << std::endl;
     }
   }
@@ -508,10 +508,10 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   {
     for (const auto& assignment : agent)
     {
-      if (assignment.request()->id() == id)
+      if (assignment.request()->booking()->id() == id)
       {
         bid_proposal.finish_time = rmf_traffic_ros2::convert(
-          assignment.state().finish_time());
+          assignment.finish_state().time().value());
         if (robot_name_map.find(index) != robot_name_map.end())
           bid_proposal.robot_name = robot_name_map[index];
         break;
@@ -748,7 +748,7 @@ auto FleetUpdateHandle::Implementation::is_valid_assignments(
   {
     for (const auto& a : agent)
     {
-      if (executed_tasks.find(a.request()->id()) != executed_tasks.end())
+      if (executed_tasks.find(a.request()->booking()->id()) != executed_tasks.end())
         return false;
     }
   }
@@ -938,14 +938,14 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
 {
   // Collate robot states, constraints and combine new requestptr with
   // requestptr of non-charging tasks in task manager queues
-  std::vector<rmf_task::agv::State> states;
+  std::vector<rmf_task::State> states;
   std::vector<rmf_task::ConstRequestPtr> pending_requests;
   std::string id = "";
 
   if (new_request)
   {
     pending_requests.push_back(new_request);
-    id = new_request->id();
+    id = new_request->booking()->id();
   }
 
   for (const auto& t : task_managers)
@@ -963,7 +963,7 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
     for (auto it = pending_requests.begin(); it != pending_requests.end(); ++it)
     {
       auto pending_request = *it;
-      if (pending_request->id() == ignore_request->id())
+      if (pending_request->booking()->id() == ignore_request->booking()->id())
         ignore_request_it = it;
     }
     if (ignore_request_it != pending_requests.end())
@@ -972,14 +972,14 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
       RCLCPP_INFO(
         node->get_logger(),
         "Request with task_id:[%s] will be ignored during task allocation.",
-        ignore_request->id().c_str());
+        ignore_request->booking()->id().c_str());
     }
     else
     {
       RCLCPP_WARN(
         node->get_logger(),
         "Request with task_id:[%s] is not present in any of the task queues.",
-        ignore_request->id().c_str());
+        ignore_request->booking()->id().c_str());
     }
   }
 
@@ -996,14 +996,14 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
     pending_requests);
 
   auto assignments_ptr = std::get_if<
-    rmf_task::agv::TaskPlanner::Assignments>(&result);
+    rmf_task::TaskPlanner::Assignments>(&result);
 
   if (!assignments_ptr)
   {
     auto error = std::get_if<
-      rmf_task::agv::TaskPlanner::TaskPlannerError>(&result);
+      rmf_task::TaskPlanner::TaskPlannerError>(&result);
 
-    if (*error == rmf_task::agv::TaskPlanner::TaskPlannerError::low_battery)
+    if (*error == rmf_task::TaskPlanner::TaskPlannerError::low_battery)
     {
       RCLCPP_ERROR(
         node->get_logger(),
@@ -1013,7 +1013,7 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
     }
 
     else if (*error ==
-      rmf_task::agv::TaskPlanner::TaskPlannerError::limited_capacity)
+      rmf_task::TaskPlanner::TaskPlannerError::limited_capacity)
     {
       RCLCPP_ERROR(
         node->get_logger(),
@@ -1098,8 +1098,8 @@ void FleetUpdateHandle::add_robot(
         // *INDENT-ON*
       }
 
-      rmf_task::agv::State state = rmf_task::agv::State{
-        start[0], charger_wp.value(), 1.0};
+      rmf_task::State state;
+      state.load_basic(start[0], charger_wp.value(), 1.0);
 
       auto context = std::make_shared<RobotContext>(
         RobotContext
@@ -1344,25 +1344,25 @@ bool FleetUpdateHandle::set_task_planner_params(
     (recharge_threshold >= 0.0 && recharge_threshold <= 1.0) &&
     (recharge_soc >= 0.0 && recharge_threshold <= 1.0))
   {
-    const rmf_task::agv::Parameters parameters{
+    const rmf_task::Parameters parameters{
       *_pimpl->planner,
       *battery_system,
       motion_sink,
       ambient_sink,
       tool_sink};
-    const rmf_task::agv::Constraints constraints{
+    const rmf_task::Constraints constraints{
       recharge_threshold,
       recharge_soc,
       account_for_battery_drain};
-    const rmf_task::agv::TaskPlanner::Configuration task_config{
+    const rmf_task::TaskPlanner::Configuration task_config{
       parameters,
       constraints,
       _pimpl->cost_calculator};
-    const rmf_task::agv::TaskPlanner::Options options{
+    const rmf_task::TaskPlanner::Options options{
       false,
       nullptr,
       finishing_request};
-    _pimpl->task_planner = std::make_shared<rmf_task::agv::TaskPlanner>(
+    _pimpl->task_planner = std::make_shared<rmf_task::TaskPlanner>(
       std::move(task_config), std::move(options));
 
     // Here we update the task planner in all the RobotContexts.

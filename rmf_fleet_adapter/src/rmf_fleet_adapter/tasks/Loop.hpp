@@ -32,7 +32,7 @@ std::shared_ptr<Task> make_loop(
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start start,
   const rmf_traffic::Time deployment_time,
-  const rmf_task::agv::State finish_state);
+  const rmf_task::State finish_state);
 
 } // namespace tasks
 } // namespace rmf_fleet_adapter

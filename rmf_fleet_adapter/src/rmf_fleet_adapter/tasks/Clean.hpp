@@ -24,7 +24,7 @@
 #include <rmf_traffic/agv/Planner.hpp>
 #include <rmf_traffic/Time.hpp>
 
-#include <rmf_task/agv/State.hpp>
+#include <rmf_task/State.hpp>
 #include <rmf_task/requests/Clean.hpp>
 
 namespace rmf_fleet_adapter {
@@ -36,7 +36,7 @@ std::shared_ptr<Task> make_clean(
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start clean_start,
   const rmf_traffic::Time deployment_time,
-  const rmf_task::agv::State finish_state);
+  const rmf_task::State finish_state);
 
 } // namespace tasks
 } // namespace rmf_fleet_adapter

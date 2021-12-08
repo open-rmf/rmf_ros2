@@ -32,7 +32,7 @@ std::shared_ptr<Task> Task::make(
   PendingPhases phases,
   rxcpp::schedulers::worker worker,
   rmf_traffic::Time deployment_time,
-  rmf_task::agv::State finish_state,
+  rmf_task::State finish_state,
   rmf_task::ConstRequestPtr request)
 {
   return std::make_shared<Task>(
@@ -102,7 +102,7 @@ const rmf_traffic::Time Task::deployment_time() const
 }
 
 //==============================================================================
-const rmf_task::agv::State Task::finish_state() const
+const rmf_task::State Task::finish_state() const
 {
   return _finish_state;
 }
@@ -126,7 +126,7 @@ Task::Task(
   std::vector<std::unique_ptr<PendingPhase>> phases,
   rxcpp::schedulers::worker worker,
   rmf_traffic::Time deployment_time,
-  rmf_task::agv::State finish_state,
+  rmf_task::State finish_state,
   rmf_task::ConstRequestPtr request)
 : _id(std::move(id)),
   _pending_phases(std::move(phases)),

@@ -30,7 +30,7 @@ std::shared_ptr<Task> make_charge_battery(
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start start,
   const rmf_traffic::Time deployment_time,
-  const rmf_task::agv::State finish_state)
+  const rmf_task::State finish_state)
 {
   std::shared_ptr<const rmf_task::requests::ChargeBattery::Description>
   description = std::dynamic_pointer_cast<
@@ -39,7 +39,8 @@ std::shared_ptr<Task> make_charge_battery(
   if (description == nullptr)
     return nullptr;
 
-  rmf_traffic::agv::Planner::Goal goal{finish_state.charging_waypoint()};
+  rmf_traffic::agv::Planner::Goal goal{
+    finish_state.dedicated_charging_waypoint().value()};
 
   Task::PendingPhases phases;
   phases.push_back(
@@ -51,7 +52,7 @@ std::shared_ptr<Task> make_charge_battery(
       context->task_planner()->configuration().constraints().recharge_soc()));
 
   return Task::make(
-    request->id(),
+    request->booking()->id(),
     std::move(phases),
     context->worker(),
     deployment_time,

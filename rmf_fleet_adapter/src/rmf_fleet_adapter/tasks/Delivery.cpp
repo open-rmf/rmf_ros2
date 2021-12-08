@@ -32,7 +32,7 @@ std::shared_ptr<Task> make_delivery(
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start pickup_start,
   const rmf_traffic::Time deployment_time,
-  const rmf_task::agv::State finish_state,
+  const rmf_task::State finish_state,
   const rmf_task_msgs::msg::Delivery delivery_profile)
 {
 
@@ -56,7 +56,7 @@ std::shared_ptr<Task> make_delivery(
   phases.push_back(
     std::make_unique<phases::DispenseItem::PendingPhase>(
       context,
-      request->id(),
+      request->booking()->id(),
       delivery_profile.pickup_dispenser,
       context->itinerary().description().owner(),
       delivery_profile.items));
@@ -102,13 +102,13 @@ std::shared_ptr<Task> make_delivery(
   phases.push_back(
     std::make_unique<phases::IngestItem::PendingPhase>(
       context,
-      request->id(),
+      request->booking()->id(),
       delivery_profile.dropoff_ingestor,
       context->itinerary().description().owner(),
       ingestor_items));
 
   return Task::make(
-    request->id(),
+    request->booking()->id(),
     std::move(phases),
     context->worker(),
     deployment_time,

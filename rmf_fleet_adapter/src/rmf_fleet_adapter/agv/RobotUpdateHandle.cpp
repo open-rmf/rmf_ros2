@@ -173,7 +173,7 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
   if (const auto context = _pimpl->get_context())
   {
     auto end_state = context->current_task_end_state();
-    end_state.charging_waypoint(charger_wp);
+    end_state.dedicated_charging_waypoint(charger_wp);
     context->current_task_end_state(end_state);
     RCLCPP_INFO(
       context->node()->get_logger(),

@@ -216,14 +216,14 @@ RobotContext& RobotContext::maximum_delay(
 }
 
 //==============================================================================
-const rmf_task::agv::State& RobotContext::current_task_end_state() const
+const rmf_task::State& RobotContext::current_task_end_state() const
 {
   return _current_task_end_state;
 }
 
 //==============================================================================
 RobotContext& RobotContext::current_task_end_state(
-  const rmf_task::agv::State& state)
+  const rmf_task::State& state)
 {
   _current_task_end_state = state;
   return *this;
@@ -250,7 +250,7 @@ const rxcpp::observable<double>& RobotContext::observe_battery_soc() const
 }
 
 //==============================================================================
-const std::shared_ptr<const rmf_task::agv::TaskPlanner>&
+const std::shared_ptr<const rmf_task::TaskPlanner>&
 RobotContext::task_planner() const
 {
   return _task_planner;
@@ -258,7 +258,7 @@ RobotContext::task_planner() const
 
 //==============================================================================
 auto RobotContext::task_planner(
-  const std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner)
+  const std::shared_ptr<const rmf_task::TaskPlanner> task_planner)
 -> RobotContext&
 {
   _task_planner = task_planner;
@@ -328,8 +328,8 @@ RobotContext::RobotContext(
   std::shared_ptr<rmf_fleet_adapter::agv::Node> node,
   const rxcpp::schedulers::worker& worker,
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
-  rmf_task::agv::State state,
-  std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner)
+  rmf_task::State state,
+  std::shared_ptr<const rmf_task::TaskPlanner> task_planner)
 : _command_handle(std::move(command_handle)),
   _location(std::move(_initial_location)),
   _itinerary(std::move(itinerary)),
