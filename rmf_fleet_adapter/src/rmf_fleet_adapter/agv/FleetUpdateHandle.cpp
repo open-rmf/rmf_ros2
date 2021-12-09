@@ -890,7 +890,7 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
       json["location"] = location;
       json["battery"] = state.battery_percent / 100.0;
       // TODO(YV): json["issues"]
-      fleet_state_msg["robots"].push_back(json);
+      fleet_state_msg["robots"][state.name] = json;
     }
     const auto fleet_schema = rmf_api_msgs::schemas::fleet_state;
     const auto loader =
