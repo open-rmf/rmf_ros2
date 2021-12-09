@@ -47,7 +47,7 @@ TaskManagerPtr TaskManager::make(
   std::weak_ptr<BroadcastClient> broadcast_client)
 {
   auto mgr = TaskManagerPtr(new TaskManager(
-    std::move(context), std::move(broadcast_client)));
+        std::move(context), std::move(broadcast_client)));
   mgr->_emergency_sub = mgr->_context->node()->emergency_notice()
     .observe_on(rxcpp::identity_same_worker(mgr->_context->worker()))
     .subscribe(
@@ -397,7 +397,7 @@ std::vector<nlohmann::json> TaskManager::task_log_updates() const
     update_msg["data"] = it.second;
     std::string error = "";
     if (_validate_json(
-      update_msg, rmf_api_msgs::schemas::task_log_update, error))
+        update_msg, rmf_api_msgs::schemas::task_log_update, error))
     {
       logs.push_back(update_msg);
     }
@@ -738,8 +738,8 @@ void TaskManager::_schema_loader(
   if (it == _schema_dictionary.end())
   {
     RCLCPP_ERROR(
-    _context->node()->get_logger(),
-    "[TaskManager] url: %s not found in schema dictionary", id.url().c_str());
+      _context->node()->get_logger(),
+      "[TaskManager] url: %s not found in schema dictionary", id.url().c_str());
     return;
   }
 
@@ -790,7 +790,8 @@ bool TaskManager::_validate_json(
   {
     nlohmann::json_schema::json_validator validator(
       schema,
-      [w = weak_from_this()](const nlohmann::json_uri& id, nlohmann::json& value)
+      [w = weak_from_this()](const nlohmann::json_uri& id,
+      nlohmann::json& value)
       {
         const auto self = w.lock();
         if (!self)
@@ -799,7 +800,7 @@ bool TaskManager::_validate_json(
       });
     validator.validate(json);
   }
-  catch(const std::exception& e)
+  catch (const std::exception& e)
   {
     error = e.what();
     return false;

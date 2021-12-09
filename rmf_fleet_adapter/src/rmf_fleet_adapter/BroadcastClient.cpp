@@ -68,10 +68,10 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
     });
 
   client->_client.set_fail_handler(
-  [c = client](websocketpp::connection_hdl)
-  {
-    c->_connected = false;
-  });
+    [c = client](websocketpp::connection_hdl)
+    {
+      c->_connected = false;
+    });
 
   client->_processing_thread = std::thread(
     [c = client]()
@@ -95,7 +95,8 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
           c->_client.connect(con);
           // TOD(YV): Without sending a test payload, ec seems to be 0 even
           // when the client has not connected. Avoid sending this message.
-          c->_client.send(c->_hdl, "Hello", websocketpp::frame::opcode::text, ec);
+          c->_client.send(c->_hdl, "Hello", websocketpp::frame::opcode::text,
+          ec);
           if (ec)
           {
             RCLCPP_WARN(
@@ -116,10 +117,10 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
 
         std::unique_lock<std::mutex> lock(c->_wait_mutex);
         c->_cv.wait(lock,
-          [c]()
-          {
-            return !c->_queue.empty();
-          });
+        [c]()
+        {
+          return !c->_queue.empty();
+        });
 
         while (!c->_queue.empty())
         {

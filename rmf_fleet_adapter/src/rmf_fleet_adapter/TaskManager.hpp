@@ -141,13 +141,13 @@ private:
   // Constant jsons with validated schemas for internal use
   // TODO(YV): Replace these with codegen tools
   const nlohmann::json _task_log_update_msg =
-    {{"type", "task_log_update"}, {"data", {}}};
+  {{"type", "task_log_update"}, {"data", {}}};
   const nlohmann::json _task_log_json =
-    {{"task_id", {}}, {"log", {}}, {"phases", {{"log", {}}, {"events, {}"}}}};
+  {{"task_id", {}}, {"log", {}}, {"phases", {{"log", {}}, {"events, {}"}}}};
   const nlohmann::json _task_state_update_json =
-    {{"type", "task_state_update"}, {"data", {}}};
+  {{"type", "task_state_update"}, {"data", {}}};
   const nlohmann::json _task_state_json =
-    {{"booking", {}}, {"category", {}}, {"detail", {}},
+  {{"booking", {}}, {"category", {}}, {"detail", {}},
     {"unix_millis_start_time", {}}, {"unix_millis_finish_time", {}},
     {"estimate_millis", {}}, {"phases", {}}, {"completed", {}}, {"active", {}},
     {"pending", {}}, {"interruptions", {}}, {"cancellation", {}},

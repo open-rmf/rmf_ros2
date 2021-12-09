@@ -467,12 +467,14 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     {
       const auto& s = a.finish_state();
       const double request_seconds =
-        a.request()->booking()->earliest_start_time().time_since_epoch().count()/1e9;
+        a.request()->booking()->earliest_start_time().time_since_epoch().count()
+        /1e9;
       const double start_seconds =
         a.deployment_time().time_since_epoch().count()/1e9;
       const rmf_traffic::Time finish_time = s.time().value();
       const double finish_seconds = finish_time.time_since_epoch().count()/1e9;
-      debug_stream << "    <" << a.request()->booking()->id() << ": " << request_seconds
+      debug_stream << "    <" << a.request()->booking()->id() << ": " <<
+        request_seconds
                    << ", " << start_seconds
                    << ", "<< finish_seconds << ", " << s.battery_soc().value()
                    << "%>" << std::endl;
@@ -743,7 +745,8 @@ auto FleetUpdateHandle::Implementation::is_valid_assignments(
   {
     for (const auto& a : agent)
     {
-      if (executed_tasks.find(a.request()->booking()->id()) != executed_tasks.end())
+      if (executed_tasks.find(a.request()->booking()->id()) !=
+        executed_tasks.end())
         return false;
     }
   }
@@ -894,14 +897,15 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
     }
     const auto fleet_schema = rmf_api_msgs::schemas::fleet_state_update;
     const auto loader =
-      [n = node, s = schema_dictionary](const nlohmann::json_uri& id, nlohmann::json& value)
+      [n = node, s = schema_dictionary](const nlohmann::json_uri& id,
+        nlohmann::json& value)
       {
         const auto it = s.find(id.url());
         if (it == s.end())
         {
           RCLCPP_ERROR(
-          n->get_logger(),
-          "url: %s not found in schema dictionary", id.url().c_str());
+            n->get_logger(),
+            "url: %s not found in schema dictionary", id.url().c_str());
           return;
         }
 
@@ -909,7 +913,7 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
       };
 
     nlohmann::json fleet_state_update_msg =
-      {{"type", "fleet_state_update"}, {"data", fleet_state_msg}};
+    {{"type", "fleet_state_update"}, {"data", fleet_state_msg}};
     try
     {
 
