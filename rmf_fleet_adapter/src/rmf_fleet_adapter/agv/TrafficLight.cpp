@@ -1012,7 +1012,7 @@ bool TrafficLight::UpdateHandle::Implementation::Data::valid_plan(
 //==============================================================================
 void TrafficLight::UpdateHandle::Implementation::Data::update_location(
   const std::size_t path_version,
-  const std::size_t plan_version,
+  const std::size_t,
   const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
   const Eigen::Vector3d location,
   const std::size_t checkpoint_index)
