@@ -870,7 +870,7 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
   // Publish to API server
   if (broadcast_client)
   {
-    nlohmann::json fleet_state_msg = { {"name", {}}, {"robots", {}}};
+    nlohmann::json fleet_state_msg = {{"name", {}}, {"robots", {}}};
     fleet_state_msg["name"] = name;
     for (const auto& state : robot_states)
     {
@@ -892,7 +892,7 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
       // TODO(YV): json["issues"]
       fleet_state_msg["robots"][state.name] = json;
     }
-    const auto fleet_schema = rmf_api_msgs::schemas::fleet_state;
+    const auto fleet_schema = rmf_api_msgs::schemas::fleet_state_update;
     const auto loader =
       [n = node, s = schema_dictionary](const nlohmann::json_uri& id, nlohmann::json& value)
       {
@@ -908,10 +908,13 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
         value = it->second;
       };
 
+    nlohmann::json fleet_state_update_msg =
+      {{"type", "fleet_state_update"}, {"data", fleet_state_msg}};
     try
     {
+
       nlohmann::json_schema::json_validator validator(fleet_schema, loader);
-      validator.validate(fleet_state_msg);
+      validator.validate(fleet_state_update_msg);
     }
     catch (const std::exception& e)
     {
@@ -922,7 +925,7 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
       return;
     }
 
-    broadcast_client->publish(fleet_state_msg);
+    broadcast_client->publish(fleet_state_update_msg);
   }
 
   auto fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()

@@ -33,6 +33,12 @@
 
 #include "phases/ResponsiveWait.hpp"
 
+#include <rmf_api_msgs/schemas/task_state_update.hpp>
+#include <rmf_api_msgs/schemas/task_state.hpp>
+#include <rmf_api_msgs/schemas/task_log_update.hpp>
+#include <rmf_api_msgs/schemas/task_log.hpp>
+#include <rmf_api_msgs/schemas/log_entry.hpp>
+
 namespace rmf_fleet_adapter {
 
 //==============================================================================
@@ -81,6 +87,24 @@ TaskManagerPtr TaskManager::make(
 
   mgr->_travel_estimator = std::make_shared<rmf_task::TravelEstimator>(
     mgr->_context->task_planner()->configuration().parameters());
+
+  mgr->_activator = std::make_shared<rmf_task::Activator>();
+
+  auto schema = rmf_api_msgs::schemas::task_state;
+  nlohmann::json_uri json_uri = nlohmann::json_uri{schema["$id"]};
+  mgr->_schema_dictionary.insert({json_uri.url(), schema});
+  schema = rmf_api_msgs::schemas::task_log;
+  json_uri = nlohmann::json_uri{schema["$id"]};
+  mgr->_schema_dictionary.insert({json_uri.url(), schema});
+  schema = rmf_api_msgs::schemas::log_entry;
+  json_uri = nlohmann::json_uri{schema["$id"]};
+  mgr->_schema_dictionary.insert({json_uri.url(), schema});
+  schema = rmf_api_msgs::schemas::task_state_update;
+  json_uri = nlohmann::json_uri{schema["$id"]};
+  mgr->_schema_dictionary.insert({json_uri.url(), schema});
+  schema = rmf_api_msgs::schemas::task_log_update;
+  json_uri = nlohmann::json_uri{schema["$id"]};
+  mgr->_schema_dictionary.insert({json_uri.url(), schema});
 
   return mgr;
 }
@@ -682,5 +706,68 @@ void TaskManager::_populate_task_summary(
   msg.state = task_summary_state;
 }
 
+//==============================================================================
+void TaskManager::_schema_loader(
+  const nlohmann::json_uri& id, nlohmann::json& value)
+{
+  const auto it = _schema_dictionary.find(id.url());
+  if (it == _schema_dictionary.end())
+  {
+    RCLCPP_ERROR(
+    _context->node()->get_logger(),
+    "[TaskManager] url: %s not found in schema dictionary", id.url().c_str());
+    return;
+  }
+
+  value = it->second;
+}
+
+//==============================================================================
+void TaskManager::_publish_validated_message(const nlohmann::json& msg) const
+{
+  const auto client = _broadcast_client.lock();
+  if (!client)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Unable to lock BroadcastClient within TaskManager of robot [%s]",
+      _context->name().c_str());
+    return;
+  }
+  client->publish(msg);
+}
+
+
+//==============================================================================
+rmf_task::State TaskManager::_get_state() const
+{
+  return _context->current_task_end_state();
+}
+
+//==============================================================================
+void TaskManager::_update(rmf_task::Phase::ConstSnapshotPtr snapshot)
+{
+
+  // Update task state and log
+}
+
+//==============================================================================
+void TaskManager::_checkpoint(rmf_task::Task::Active::Backup backup)
+{
+
+}
+
+//==============================================================================
+void TaskManager::_phase_finished(
+  rmf_task::Phase::ConstCompletedPtr completed_phase)
+{
+
+}
+
+//==============================================================================
+void TaskManager::_task_finished()
+{
+
+}
 
 } // namespace rmf_fleet_adapter

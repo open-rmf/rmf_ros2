@@ -51,6 +51,7 @@
 
 #include <nlohmann/json.hpp>
 #include <nlohmann/json-schema.hpp>
+#include <rmf_api_msgs/schemas/fleet_state_update.hpp>
 #include <rmf_api_msgs/schemas/fleet_state.hpp>
 #include <rmf_api_msgs/schemas/robot_state.hpp>
 #include <rmf_api_msgs/schemas/location_2D.hpp>
@@ -283,8 +284,11 @@ public:
     }
 
     // Initialize schema dictionary
-    auto schema = rmf_api_msgs::schemas::fleet_state;
+    auto schema = rmf_api_msgs::schemas::fleet_state_update;
     nlohmann::json_uri json_uri = nlohmann::json_uri{schema["$id"]};
+    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
+    schema = rmf_api_msgs::schemas::fleet_state;
+    json_uri = nlohmann::json_uri{schema["$id"]};
     handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
     schema = rmf_api_msgs::schemas::robot_state;
     json_uri = nlohmann::json_uri{schema["$id"]};

@@ -25,9 +25,13 @@
 #include <rmf_traffic/agv/Planner.hpp>
 
 #include <rmf_task/TaskPlanner.hpp>
+#include <rmf_task/Activator.hpp>
 
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
+
+#include <nlohmann/json.hpp>
+#include <nlohmann/json-schema.hpp>
 
 #include <mutex>
 
@@ -124,11 +128,70 @@ private:
   // retreat. TODO(YV): Expose the TaskPlanner's TravelEstimator.
   std::shared_ptr<rmf_task::TravelEstimator> _travel_estimator;
 
+  // The activator to generate rmf_task::Task::Active instances from requests
+  std::shared_ptr<rmf_task::Activator> _activator;
+
+  // Map schema url to schema for validator.
+  // TODO: Get this and loader from FleetUpdateHandle
+  std::unordered_map<std::string, nlohmann::json> _schema_dictionary = {};
+
+  // Constant jsons with validated schemas for internal use
+  // TODO(YV): Replace these with codegen tools
+  const nlohmann::json _task_log_update_msg =
+    {{"type", "task_log_update"}, {"data", {}}};
+  const nlohmann::json _task_log_json =
+    {{"task_id", {}}, {"log", {}}, {"phases", {{"log", {}}, {"events, {}"}}}};
+  const nlohmann::json _task_state_update_json =
+    {{"type", "task_state_update"}, {"data", {}}};
+  const nlohmann::json _task_state_json =
+    {{"booking", {}}, {"category", {}}, {"detail", {}},
+    {"unix_millis_start_time", {}}, {"unix_millis_finish_time", {}},
+    {"estimate_millis", {}}, {"phases", {}}, {"completed", {}}, {"active", {}},
+    {"pending", {}}, {"interruptions", {}}, {"cancellation", {}},
+    {"killed", {}}};
+
+  // The task_state.json for the active task. This should be initialized when
+  // a request is activated
+  nlohmann::json _active_task_state;
+
+  // Map task_id to task_log.json for all tasks managed by this TaskManager
+  std::unordered_map<std::string, nlohmann::json> _task_log = {};
+
   /// Callback for task timer which begins next task if its deployment time has passed
   void _begin_next_task();
 
   /// Begin responsively waiting for the next task
   void _begin_waiting();
+
+  /// Get the current state of the robot
+  rmf_task::State _get_state() const;
+
+  /// Schema loader for validating jsons
+  void _schema_loader(const nlohmann::json_uri& id, nlohmann::json& value);
+
+  /// Publish a json after it has been validated
+  void _publish_validated_message(const nlohmann::json& msg) const;
+
+  /// Callback for when the task has a significat update
+  void _update(rmf_task::Phase::ConstSnapshotPtr snapshot);
+
+  /// Callback for when the task reaches a checkpoint
+  void _checkpoint(rmf_task::Task::Active::Backup backup);
+
+  /// Callback for when a phase within a task has finished
+  void _phase_finished(rmf_task::Phase::ConstCompletedPtr completed_phase);
+
+  /// Callback for when the task has finished
+  void _task_finished();
+
+  // TODO: Assuming each Task::Active instance stores a weak_ptr to this
+  // TaskManager, the implementations of the corresponding functions in
+  // Task::Active can call these methods to publish state/log updates
+  // void _interrupt_active_task();
+  // void _cancel_active_task();
+  // void _kill_active_task();
+  // void _skip_phase_in_active_task(uint64_t phase_id, bool value = true);
+  // void _rewind_active_task(uint64_t phase_id);
 
   /// Function to register the task id of a task that has begun execution
   /// The input task id will be inserted into the registry such that the max
