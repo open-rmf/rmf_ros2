@@ -353,7 +353,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("add_fleet", &agv::Adapter::add_fleet,
     py::arg("fleet_name"),
     py::arg("traits"),
-    py::arg("navigation_graph"))
+    py::arg("navigation_graph"),
+    py::arg("server_uri"))
   .def("add_easy_traffic_light", &agv::Adapter::add_easy_traffic_light,
     py::arg("handle_callback"),
     py::arg("fleet_name"),
@@ -383,7 +384,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("add_fleet", &agv::test::MockAdapter::add_fleet,
     py::arg("fleet_name"),
     py::arg("traits"),
-    py::arg("navigation_graph"))
+    py::arg("navigation_graph"),
+    py::arg("server_uri"))
   .def_property_readonly("node",
     py::overload_cast<>(
       &agv::test::MockAdapter::node))
