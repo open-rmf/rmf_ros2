@@ -94,6 +94,9 @@ public:
 
   RobotModeMsg robot_mode() const;
 
+  /// Get a vector of task logs that are validaed against the schema
+  std::vector<nlohmann::json> task_log_updates() const;
+
 private:
 
   TaskManager(
@@ -151,11 +154,12 @@ private:
     {"killed", {}}};
 
   // The task_state.json for the active task. This should be initialized when
-  // a request is activated
+  // a request is activated.
+  // TODO: Should this be a shared_ptr to pass down to Task::Active?
   nlohmann::json _active_task_state;
 
   // Map task_id to task_log.json for all tasks managed by this TaskManager
-  std::unordered_map<std::string, nlohmann::json> _task_log = {};
+  std::unordered_map<std::string, nlohmann::json> _task_logs = {};
 
   /// Callback for task timer which begins next task if its deployment time has passed
   void _begin_next_task();
@@ -167,10 +171,21 @@ private:
   rmf_task::State _get_state() const;
 
   /// Schema loader for validating jsons
-  void _schema_loader(const nlohmann::json_uri& id, nlohmann::json& value);
+  void _schema_loader(
+    const nlohmann::json_uri& id, nlohmann::json& value) const;
 
-  /// Publish a json after it has been validated
-  void _publish_validated_message(const nlohmann::json& msg) const;
+  /// Returns true if json is valid.
+  // TODO: Move this into a utils?
+  bool _validate_json(
+    const nlohmann::json& json,
+    const nlohmann::json& schema,
+    std::string& error) const;
+
+  /// Validate and publish a json. This can be used for task
+  /// state and log updates
+  void _validate_and_publish_json(
+    const nlohmann::json& msg,
+    const nlohmann::json& schema) const;
 
   /// Callback for when the task has a significat update
   void _update(rmf_task::Phase::ConstSnapshotPtr snapshot);

@@ -52,8 +52,11 @@ public:
     const std::string& uri,
     std::weak_ptr<agv::FleetUpdateHandle> fleet_handle);
 
-  // Publish message
+  // Publish a single message
   void publish(const nlohmann::json& msg);
+
+  // Publish a vector of messages
+  void publish(const std::vector<nlohmann::json>& msgs);
 
   ~BroadcastClient();
 

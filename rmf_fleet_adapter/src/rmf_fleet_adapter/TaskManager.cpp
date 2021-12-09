@@ -388,6 +388,30 @@ TaskManager::RobotModeMsg TaskManager::robot_mode() const
 }
 
 //==============================================================================
+std::vector<nlohmann::json> TaskManager::task_log_updates() const
+{
+  std::vector<nlohmann::json> logs;
+  for (const auto& it : _task_logs)
+  {
+    nlohmann::json update_msg = _task_log_update_msg;
+    update_msg["data"] = it.second;
+    std::string error = "";
+    if (_validate_json(
+      update_msg, rmf_api_msgs::schemas::task_log_update, error))
+    {
+      logs.push_back(update_msg);
+    }
+    else
+    {
+      RCLCPP_ERROR(
+        _context->node()->get_logger(),
+        "%s", error.c_str());
+    }
+  }
+  return logs;
+}
+
+//==============================================================================
 void TaskManager::_begin_next_task()
 {
   if (_active_task)
@@ -708,7 +732,7 @@ void TaskManager::_populate_task_summary(
 
 //==============================================================================
 void TaskManager::_schema_loader(
-  const nlohmann::json_uri& id, nlohmann::json& value)
+  const nlohmann::json_uri& id, nlohmann::json& value) const
 {
   const auto it = _schema_dictionary.find(id.url());
   if (it == _schema_dictionary.end())
@@ -723,8 +747,20 @@ void TaskManager::_schema_loader(
 }
 
 //==============================================================================
-void TaskManager::_publish_validated_message(const nlohmann::json& msg) const
+void TaskManager::_validate_and_publish_json(
+  const nlohmann::json& msg,
+  const nlohmann::json& schema) const
 {
+  std::string error = "";
+  if (!_validate_json(msg, schema, error))
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "[%s]",
+      error.c_str());
+    return;
+  }
+
   const auto client = _broadcast_client.lock();
   if (!client)
   {
@@ -745,29 +781,83 @@ rmf_task::State TaskManager::_get_state() const
 }
 
 //==============================================================================
+bool TaskManager::_validate_json(
+  const nlohmann::json& json,
+  const nlohmann::json& schema,
+  std::string& error) const
+{
+  try
+  {
+    nlohmann::json_schema::json_validator validator(
+      schema,
+      [w = weak_from_this()](const nlohmann::json_uri& id, nlohmann::json& value)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+        self->_schema_loader(id, value);
+      });
+    validator.validate(json);
+  }
+  catch(const std::exception& e)
+  {
+    error = e.what();
+    return false;
+  }
+
+  return true;
+}
+
+//==============================================================================
 void TaskManager::_update(rmf_task::Phase::ConstSnapshotPtr snapshot)
 {
+  // TODO
 
-  // Update task state and log
+  auto task_state_update = _task_state_update_json;
+  task_state_update["data"] = _active_task_state;
+  _validate_and_publish_json(
+    task_state_update, rmf_api_msgs::schemas::task_state_update);
 }
 
 //==============================================================================
 void TaskManager::_checkpoint(rmf_task::Task::Active::Backup backup)
 {
+  // TODO
 
+  auto task_state_update = _task_state_update_json;
+  task_state_update["data"] = _active_task_state;
+  _validate_and_publish_json(
+    task_state_update, rmf_api_msgs::schemas::task_state_update);
 }
 
 //==============================================================================
 void TaskManager::_phase_finished(
   rmf_task::Phase::ConstCompletedPtr completed_phase)
 {
+  // TODO
 
+  auto task_state_update = _task_state_update_json;
+  task_state_update["data"] = _active_task_state;
+  _validate_and_publish_json(
+    task_state_update, rmf_api_msgs::schemas::task_state_update);
 }
 
 //==============================================================================
 void TaskManager::_task_finished()
 {
+  // TODO
 
+  auto task_state_update = _task_state_update_json;
+  task_state_update["data"] = _active_task_state;
+  _validate_and_publish_json(
+    task_state_update, rmf_api_msgs::schemas::task_state_update);
+
+  auto task_log_update = _task_log_update_msg;
+  task_log_update["data"] = _task_logs[_active_task_state["booking"]["id"]];
+  _validate_and_publish_json(
+    task_log_update, rmf_api_msgs::schemas::task_log_update);
+
+  _active_task_state = {};
 }
 
 } // namespace rmf_fleet_adapter

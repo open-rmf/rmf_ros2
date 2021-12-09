@@ -52,7 +52,8 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
       const auto impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
       for (const auto& [conext, mgr] : impl.task_managers)
       {
-        // TODO(YV): Publish latest state and log
+        // Publish all task logs to the server
+        c->publish(mgr->task_log_updates());
       }
       RCLCPP_INFO(
         impl.node->get_logger(),
@@ -148,6 +149,15 @@ void BroadcastClient::publish(const nlohmann::json& msg)
 {
   std::lock_guard<std::mutex> lock(_queue_mutex);
   _queue.push(msg);
+  _cv.notify_all();
+}
+
+//==============================================================================
+void BroadcastClient::publish(const std::vector<nlohmann::json>& msgs)
+{
+  std::lock_guard<std::mutex> lock(_queue_mutex);
+  for (const auto& msg : msgs)
+    _queue.push(msg);
   _cv.notify_all();
 }
 
