@@ -49,6 +49,13 @@
 #include <rmf_traffic_ros2/schedule/Negotiation.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
 
+#include <nlohmann/json.hpp>
+#include <nlohmann/json-schema.hpp>
+#include <rmf_api_msgs/schemas/fleet_state.hpp>
+#include <rmf_api_msgs/schemas/robot_state.hpp>
+#include <rmf_api_msgs/schemas/location_2D.hpp>
+
+
 #include <iostream>
 #include <unordered_set>
 #include <optional>
@@ -153,6 +160,8 @@ public:
     std::shared_ptr<TaskManager>> task_managers = {};
 
   std::shared_ptr<BroadcastClient> broadcast_client = nullptr;
+  // Map uri to schema for validator loader function
+  std::unordered_map<std::string, nlohmann::json> schema_dictionary = {};
 
   rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr
     fleet_state_pub = nullptr;
@@ -272,6 +281,17 @@ public:
       if (graph.get_waypoint(i).is_charger())
         handle->_pimpl->charging_waypoints.insert(i);
     }
+
+    // Initialize schema dictionary
+    auto schema = rmf_api_msgs::schemas::fleet_state;
+    nlohmann::json_uri json_uri = nlohmann::json_uri{schema["$id"]};
+    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
+    schema = rmf_api_msgs::schemas::robot_state;
+    json_uri = nlohmann::json_uri{schema["$id"]};
+    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
+    schema = rmf_api_msgs::schemas::location_2D;
+    json_uri = nlohmann::json_uri{schema["$id"]};
+    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
 
     // Start the BroadcastClient
     if (handle->_pimpl->server_uri.has_value())

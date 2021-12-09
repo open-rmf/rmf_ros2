@@ -144,6 +144,7 @@ if (BUILD_TESTING)
       ${rmf_api_msgs_INCLUDE_DIRS}
       ${std_msgs_INCLUDE_DIRS}
       ${WEBSOCKETPP_INCLUDE_DIR}
+      ${nlohmann_json_schema_validator_INCLUDE_DIRS}
   )
   target_link_libraries(test_rmf_fleet_adapter
     PRIVATE
@@ -159,6 +160,7 @@ if (BUILD_TESTING)
       rmf_api_msgs::rmf_api_msgs
       ${std_msgs_LIBRARIES}
       ${websocketpp_LIBRARIES}
+      nlohmann_json_schema_validator
   )
 
   target_compile_definitions(test_rmf_fleet_adapter

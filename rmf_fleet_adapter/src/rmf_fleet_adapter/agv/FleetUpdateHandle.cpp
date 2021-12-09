@@ -38,11 +38,6 @@
 #include <rmf_task_msgs/msg/delivery.hpp>
 #include <rmf_task_msgs/msg/loop.hpp>
 
-#include <nlohmann/json.hpp>
-#include <nlohmann/json-schema.hpp>
-
-#include <rmf_api_msgs/schemas/fleet_state.hpp>
-
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -897,28 +892,35 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
       // TODO(YV): json["issues"]
       fleet_state_msg["robots"].push_back(json);
     }
-    // TODO(YV): Validating the schema requires a loader to be defined. This is
-    // commented out temporarily until the proper loader can be defined.
-    // const auto schema = rmf_api_msgs::schemas::fleet_state;
-    // nlohmann::json_uri json_uri = nlohmann::json_uri{schema["$id"]};
-    // const auto loader =
-    //   [](const nlohmann::json_uri& id, nlohmann::json& value)
-    //   {
+    const auto fleet_schema = rmf_api_msgs::schemas::fleet_state;
+    const auto loader =
+      [n = node, s = schema_dictionary](const nlohmann::json_uri& id, nlohmann::json& value)
+      {
+        const auto it = s.find(id.url());
+        if (it == s.end())
+        {
+          RCLCPP_ERROR(
+          n->get_logger(),
+          "url: %s not found in schema dictionary", id.url().c_str());
+          return;
+        }
 
-    //   };
-    // try
-    // {
-    //   nlohmann::json_schema::json_validator validator(schema, loader);
-    //   validator.validate(fleet_state_msg);
-    // }
-    // catch (const std::exception& e)
-    // {
-    //   RCLCPP_ERROR(
-    //     node->get_logger(),
-    //     "Unable to publish fleet state json message: %s",
-    //     e.what());
-    //   return;
-    // }
+        value = it->second;
+      };
+
+    try
+    {
+      nlohmann::json_schema::json_validator validator(fleet_schema, loader);
+      validator.validate(fleet_state_msg);
+    }
+    catch (const std::exception& e)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Unable to publish fleet state json message: %s",
+        e.what());
+      return;
+    }
 
     broadcast_client->publish(fleet_state_msg);
   }
