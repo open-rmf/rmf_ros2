@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__TASKS__DELIVERY_HPP
 #define SRC__RMF_FLEET_ADAPTER__TASKS__DELIVERY_HPP
 
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 
 #include <rmf_task/requests/Delivery.hpp>
@@ -29,7 +29,7 @@ namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-std::shared_ptr<Task> make_delivery(
+std::shared_ptr<LegacyTask> make_delivery(
   const rmf_task::ConstRequestPtr request,
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start pickup_start,

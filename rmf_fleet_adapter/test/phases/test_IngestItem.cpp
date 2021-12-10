@@ -38,7 +38,7 @@ struct TestData
   std::list<IngestorRequest> received_requests;
 
   std::condition_variable status_updates_cv;
-  std::list<Task::StatusMsg> status_updates;
+  std::list<LegacyTask::StatusMsg> status_updates;
 
   std::optional<uint32_t> last_state_value() const
   {
@@ -147,7 +147,7 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
         {
           for (const auto& status : test->status_updates)
           {
-            if (status.state == Task::StatusMsg::STATE_COMPLETED)
+            if (status.state == LegacyTask::StatusMsg::STATE_COMPLETED)
               return true;
           }
           test->status_updates.clear();
@@ -202,7 +202,7 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
         bool completed = test->status_updates_cv.wait_for(
           lk, std::chrono::milliseconds(1000), [test]()
           {
-            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(completed);
       }
@@ -258,7 +258,7 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
           test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
               1000), [test]()
             {
-              return test->last_state_value() == Task::StatusMsg::STATE_FAILED;
+              return test->last_state_value() == LegacyTask::StatusMsg::STATE_FAILED;
             });
         CHECK(failed);
       }
@@ -314,7 +314,7 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
         bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
               1000), [test]()
             {
-              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
             });
         CHECK(completed);
       }
@@ -370,7 +370,7 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
         bool completed = test->status_updates_cv.wait_for(
           lk, std::chrono::milliseconds(30), [test]()
           {
-            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(!completed);
       }

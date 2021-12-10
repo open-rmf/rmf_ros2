@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__GOTOPLACE_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__GOTOPLACE_HPP
 
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 
 #include "../services/FindPath.hpp"
@@ -33,11 +33,11 @@ class GoToPlace
 {
 public:
 
-  using StatusMsg = Task::StatusMsg;
+  using StatusMsg = LegacyTask::StatusMsg;
   class Pending;
 
   class Active
-    : public Task::ActivePhase,
+    : public LegacyTask::ActivePhase,
     public rmf_traffic::schedule::Negotiator,
     public std::enable_shared_from_this<Active>
   {
@@ -82,7 +82,7 @@ public:
     double _latest_time_estimate;
     std::string _description;
     rmf_utils::optional<rmf_traffic::agv::Plan> _plan;
-    std::shared_ptr<Task> _subtasks;
+    std::shared_ptr<LegacyTask> _subtasks;
     bool _emergency_active = false;
     bool _performing_emergency_task = false;
     rxcpp::subjects::subject<StatusMsg> _status_publisher;
@@ -110,12 +110,12 @@ public:
     std::shared_ptr<void> _negotiator_license;
   };
 
-  class Pending : public Task::PendingPhase
+  class Pending : public LegacyTask::PendingPhase
   {
   public:
 
     // Documentation inherited
-    std::shared_ptr<Task::ActivePhase> begin() final;
+    std::shared_ptr<LegacyTask::ActivePhase> begin() final;
 
     // Documentation inherited
     rmf_traffic::Duration estimate_phase_duration() const final;
@@ -138,7 +138,7 @@ public:
     std::string _description;
   };
 
-  /// Make a Task Phase for going to a place
+  /// Make a LegacyTask Phase for going to a place
   static std::unique_ptr<Pending> make(
     agv::RobotContextPtr context,
     rmf_traffic::agv::Plan::Start start_estimate,

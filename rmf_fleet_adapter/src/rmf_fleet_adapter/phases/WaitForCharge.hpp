@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__WAITFORCHARGE_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__WAITFORCHARGE_HPP
 
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 
 #include <rmf_battery/agv/BatterySystem.hpp>
@@ -33,11 +33,11 @@ class WaitForCharge
 {
 public:
 
-  using StatusMsg = Task::StatusMsg;
+  using StatusMsg = LegacyTask::StatusMsg;
   class Pending;
 
   class Active
-    : public Task::ActivePhase,
+    : public LegacyTask::ActivePhase,
     public std::enable_shared_from_this<Active>
   {
   public:
@@ -79,11 +79,11 @@ public:
 
   };
 
-  class Pending : public Task::PendingPhase
+  class Pending : public LegacyTask::PendingPhase
   {
   public:
     // Documentation inherited
-    std::shared_ptr<Task::ActivePhase> begin() final;
+    std::shared_ptr<LegacyTask::ActivePhase> begin() final;
 
     // Documentation inherited
     rmf_traffic::Duration estimate_phase_duration() const final;

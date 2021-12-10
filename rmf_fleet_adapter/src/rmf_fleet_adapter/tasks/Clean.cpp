@@ -23,7 +23,7 @@ namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-std::shared_ptr<Task> make_clean(
+std::shared_ptr<LegacyTask> make_clean(
   const rmf_task::ConstRequestPtr request,
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start clean_start,
@@ -45,7 +45,7 @@ std::shared_ptr<Task> make_clean(
   const auto start_waypoint = description->start_waypoint();
   const rmf_traffic::agv::Planner::Goal clean_goal{start_waypoint};
 
-  Task::PendingPhases phases;
+  LegacyTask::PendingPhases phases;
   // TODO(YV): If the robot is already at the start_waypoint, the Dock entry event will
   // not be triggered and the task will be competed without any cleaning
   // performed. To avoid this, we request the robot to re-enter the lane.
@@ -66,7 +66,7 @@ std::shared_ptr<Task> make_clean(
   phases.push_back(
     phases::GoToPlace::make(context, std::move(clean_start), clean_goal));
 
-  return Task::make(
+  return LegacyTask::make(
     request->booking()->id(),
     std::move(phases),
     context->worker(),

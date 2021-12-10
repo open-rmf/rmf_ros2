@@ -713,7 +713,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
 
     RCLCPP_INFO(
       node->get_logger(),
-      "Task with task_id:[%s] has successfully been cancelled. Assignments "
+      "LegacyTask with task_id:[%s] has successfully been cancelled. Assignments "
       "updated for robots in fleet [%s].",
       id.c_str(), name.c_str());
   }

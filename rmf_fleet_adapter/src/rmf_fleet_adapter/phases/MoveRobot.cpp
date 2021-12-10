@@ -38,17 +38,17 @@ MoveRobot::ActivePhase::ActivePhase(
   _action = std::make_shared<MoveRobot::Action>(
     _context, waypoints, _tail_period);
 
-  auto job = rmf_rxcpp::make_job<Task::StatusMsg>(_action);
+  auto job = rmf_rxcpp::make_job<LegacyTask::StatusMsg>(_action);
 
   _obs = make_cancellable(job, _cancel_subject.get_observable())
-    .lift<Task::StatusMsg>(grab_while_active())
+    .lift<LegacyTask::StatusMsg>(grab_while_active())
     .observe_on(rxcpp::identity_same_worker(_context->worker()));
 
   _context->current_mode(rmf_fleet_msgs::msg::RobotMode::MODE_MOVING);
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& MoveRobot::ActivePhase::observe()
+const rxcpp::observable<LegacyTask::StatusMsg>& MoveRobot::ActivePhase::observe()
 const
 {
   return _obs;
@@ -96,7 +96,7 @@ MoveRobot::PendingPhase::PendingPhase(
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> MoveRobot::PendingPhase::begin()
+std::shared_ptr<LegacyTask::ActivePhase> MoveRobot::PendingPhase::begin()
 {
   return std::make_shared<MoveRobot::ActivePhase>(
     _context, _waypoints, _tail_period);

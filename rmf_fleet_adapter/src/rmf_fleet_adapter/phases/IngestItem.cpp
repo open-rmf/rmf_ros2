@@ -42,7 +42,7 @@ std::shared_ptr<IngestItem::ActivePhase> IngestItem::ActivePhase::make(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>&
+const rxcpp::observable<LegacyTask::StatusMsg>&
 IngestItem::ActivePhase::observe() const
 {
   return _obs;
@@ -134,11 +134,11 @@ void IngestItem::ActivePhase::_init_obs()
       {
         auto me = weak.lock();
         if (!me)
-          return Task::StatusMsg();
+          return LegacyTask::StatusMsg();
 
         return me->_get_status(std::get<0>(v), std::get<1>(v));
       })
-    .lift<Task::StatusMsg>(grab_while_active())
+    .lift<LegacyTask::StatusMsg>(grab_while_active())
     .finally([weak = weak_from_this()]()
       {
         auto me = weak.lock();
@@ -151,12 +151,12 @@ void IngestItem::ActivePhase::_init_obs()
 }
 
 //==============================================================================
-Task::StatusMsg IngestItem::ActivePhase::_get_status(
+LegacyTask::StatusMsg IngestItem::ActivePhase::_get_status(
   const rmf_ingestor_msgs::msg::IngestorResult::SharedPtr& ingestor_result,
   const rmf_ingestor_msgs::msg::IngestorState::SharedPtr& ingestor_state)
 {
-  Task::StatusMsg status{};
-  status.state = Task::StatusMsg::STATE_ACTIVE;
+  LegacyTask::StatusMsg status{};
+  status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
 
   using rmf_ingestor_msgs::msg::IngestorResult;
   if (ingestor_result
@@ -170,10 +170,10 @@ Task::StatusMsg IngestItem::ActivePhase::_get_status(
         _request_acknowledged = true;
         break;
       case IngestorResult::SUCCESS:
-        status.state = Task::StatusMsg::STATE_COMPLETED;
+        status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
         break;
       case IngestorResult::FAILED:
-        status.state = Task::StatusMsg::STATE_FAILED;
+        status.state = LegacyTask::StatusMsg::STATE_FAILED;
         break;
     }
   }
@@ -199,7 +199,7 @@ Task::StatusMsg IngestItem::ActivePhase::_get_status(
     {
       // The request has been received, so if it's no longer in the queue,
       // then we'll assume it's finished.
-      status.state = Task::StatusMsg::STATE_COMPLETED;
+      status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
     }
   }
 
@@ -244,7 +244,7 @@ IngestItem::PendingPhase::PendingPhase(
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> IngestItem::PendingPhase::begin()
+std::shared_ptr<LegacyTask::ActivePhase> IngestItem::PendingPhase::begin()
 {
   return IngestItem::ActivePhase::make(
     _context,

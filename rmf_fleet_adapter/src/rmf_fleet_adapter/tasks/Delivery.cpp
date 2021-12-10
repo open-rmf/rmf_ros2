@@ -27,7 +27,7 @@ namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-std::shared_ptr<Task> make_delivery(
+std::shared_ptr<LegacyTask> make_delivery(
   const rmf_task::ConstRequestPtr request,
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start pickup_start,
@@ -46,7 +46,7 @@ std::shared_ptr<Task> make_delivery(
   const auto pickup_waypoint = description->pickup_waypoint();
   const auto dropoff_waypoint = description->dropoff_waypoint();
 
-  Task::PendingPhases phases;
+  LegacyTask::PendingPhases phases;
   phases.push_back(
     phases::GoToPlace::make(
       context,
@@ -107,7 +107,7 @@ std::shared_ptr<Task> make_delivery(
       context->itinerary().description().owner(),
       ingestor_items));
 
-  return Task::make(
+  return LegacyTask::make(
     request->booking()->id(),
     std::move(phases),
     context->worker(),

@@ -446,7 +446,7 @@ SCENARIO("Test Delivery")
   // Note: wait for task_manager to start, else TM will be suspicously "empty"
   std::this_thread::sleep_for(1s);
 
-  // Dispatch Delivery Task
+  // Dispatch Delivery LegacyTask
   rmf_task_msgs::msg::TaskProfile task_profile;
   task_profile.task_id = delivery_id;
   task_profile.description.start_time = adapter.node()->now();

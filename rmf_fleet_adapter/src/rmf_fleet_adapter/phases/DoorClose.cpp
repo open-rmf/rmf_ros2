@@ -39,7 +39,7 @@ std::shared_ptr<DoorClose::ActivePhase> DoorClose::ActivePhase::make(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>&
+const rxcpp::observable<LegacyTask::StatusMsg>&
 DoorClose::ActivePhase::observe() const
 {
   return _obs;
@@ -84,7 +84,7 @@ void DoorClose::ActivePhase::_init_obs()
         if (!me)
           return;
 
-        me->_status.state = Task::StatusMsg::STATE_ACTIVE;
+        me->_status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
         me->_publish_close_door();
         me->_timer = me->_context->node()->try_create_wall_timer(
           std::chrono::milliseconds(1000),
@@ -101,12 +101,12 @@ void DoorClose::ActivePhase::_init_obs()
       {
         auto me = weak.lock();
         if (!me)
-          return Task::StatusMsg();
+          return LegacyTask::StatusMsg();
 
         me->_update_status(heartbeat);
         return me->_status;
       })
-    .lift<Task::StatusMsg>(grab_while_active())
+    .lift<LegacyTask::StatusMsg>(grab_while_active())
     .finally([weak = weak_from_this()]()
       {
         auto me = weak.lock();
@@ -135,7 +135,7 @@ void DoorClose::ActivePhase::_update_status(
   if (!supervisor_has_session(*heartbeat, _request_id, _door_name))
   {
     _status.status = "success";
-    _status.state = Task::StatusMsg::STATE_COMPLETED;
+    _status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
   }
   else
   {
@@ -169,7 +169,7 @@ DoorClose::PendingPhase::PendingPhase(
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> DoorClose::PendingPhase::begin()
+std::shared_ptr<LegacyTask::ActivePhase> DoorClose::PendingPhase::begin()
 {
   return DoorClose::ActivePhase::make(
     _context,

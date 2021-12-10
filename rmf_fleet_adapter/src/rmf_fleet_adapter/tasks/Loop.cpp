@@ -23,7 +23,7 @@ namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-std::shared_ptr<Task> make_loop(
+std::shared_ptr<LegacyTask> make_loop(
   const rmf_task::ConstRequestPtr request,
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start start,
@@ -80,7 +80,7 @@ std::shared_ptr<Task> make_loop(
       orientation};
     } ();
 
-  Task::PendingPhases phases;
+  LegacyTask::PendingPhases phases;
   phases.push_back(
     phases::GoToPlace::make(
       context, std::move(start), start_waypoint));
@@ -100,7 +100,7 @@ std::shared_ptr<Task> make_loop(
         context, loop_start, finish_waypoint));
   }
 
-  return Task::make(
+  return LegacyTask::make(
     request->booking()->id(),
     std::move(phases),
     context->worker(),

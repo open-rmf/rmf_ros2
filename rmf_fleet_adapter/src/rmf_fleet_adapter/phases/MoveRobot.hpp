@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__MOVEROBOT_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__MOVEROBOT_HPP
 
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 
 #include <rmf_traffic_ros2/Time.hpp>
@@ -30,7 +30,7 @@ struct MoveRobot
 {
   class Action;
 
-  class ActivePhase : public Task::ActivePhase
+  class ActivePhase : public LegacyTask::ActivePhase
   {
   public:
 
@@ -39,7 +39,7 @@ struct MoveRobot
       std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints,
       std::optional<rmf_traffic::Duration> tail_period);
 
-    const rxcpp::observable<Task::StatusMsg>& observe() const override;
+    const rxcpp::observable<LegacyTask::StatusMsg>& observe() const override;
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 
@@ -54,12 +54,12 @@ struct MoveRobot
     agv::RobotContextPtr _context;
     std::string _description;
     std::shared_ptr<Action> _action;
-    rxcpp::observable<Task::StatusMsg> _obs;
+    rxcpp::observable<LegacyTask::StatusMsg> _obs;
     rxcpp::subjects::subject<bool> _cancel_subject;
     std::optional<rmf_traffic::Duration> _tail_period;
   };
 
-  class PendingPhase : public Task::PendingPhase
+  class PendingPhase : public LegacyTask::PendingPhase
   {
   public:
 
@@ -68,7 +68,7 @@ struct MoveRobot
       std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints,
       std::optional<rmf_traffic::Duration> tail_period);
 
-    std::shared_ptr<Task::ActivePhase> begin() override;
+    std::shared_ptr<LegacyTask::ActivePhase> begin() override;
 
     rmf_traffic::Duration estimate_phase_duration() const override;
 
@@ -142,8 +142,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       if (path_index != action->_next_path_index)
       {
         action->_next_path_index = path_index;
-        Task::StatusMsg msg;
-        msg.state = Task::StatusMsg::STATE_ACTIVE;
+        LegacyTask::StatusMsg msg;
+        msg.state = LegacyTask::StatusMsg::STATE_ACTIVE;
 
         if (path_index < action->_waypoints.size())
         {
@@ -217,8 +217,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
     },
     [s]()
     {
-      Task::StatusMsg msg;
-      msg.state = Task::StatusMsg::STATE_COMPLETED;
+      LegacyTask::StatusMsg msg;
+      msg.state = LegacyTask::StatusMsg::STATE_COMPLETED;
       msg.status = "move robot success";
       s.on_next(msg);
 

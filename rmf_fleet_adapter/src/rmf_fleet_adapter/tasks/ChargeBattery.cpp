@@ -25,7 +25,7 @@ namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-std::shared_ptr<Task> make_charge_battery(
+std::shared_ptr<LegacyTask> make_charge_battery(
   const rmf_task::ConstRequestPtr request,
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start start,
@@ -42,7 +42,7 @@ std::shared_ptr<Task> make_charge_battery(
   rmf_traffic::agv::Planner::Goal goal{
     finish_state.dedicated_charging_waypoint().value()};
 
-  Task::PendingPhases phases;
+  LegacyTask::PendingPhases phases;
   phases.push_back(
     phases::GoToPlace::make(context, std::move(start), goal));
   phases.push_back(
@@ -51,7 +51,7 @@ std::shared_ptr<Task> make_charge_battery(
       context->task_planner()->configuration().parameters().battery_system(),
       context->task_planner()->configuration().constraints().recharge_soc()));
 
-  return Task::make(
+  return LegacyTask::make(
     request->booking()->id(),
     std::move(phases),
     context->worker(),

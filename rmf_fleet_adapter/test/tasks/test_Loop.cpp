@@ -301,7 +301,7 @@ SCENARIO("Test loop requests", "[.flaky]")
   task_profile.description.task_type.type =
     rmf_task_msgs::msg::TaskType::TYPE_LOOP;
 
-  // Dsipatch Loop 0 Task
+  // Dsipatch Loop 0 LegacyTask
   task_profile.task_id = loop_0;
   task_profile.description.loop.num_loops = n_loops;
   task_profile.description.loop.robot_type = fleet_type;
@@ -309,7 +309,7 @@ SCENARIO("Test loop requests", "[.flaky]")
   task_profile.description.loop.finish_name = east;
   adapter.dispatch_task(task_profile);
 
-  // Dispatch Loop 1 Task
+  // Dispatch Loop 1 LegacyTask
   task_profile.task_id = loop_1;
   task_profile.description.loop.start_name = north;
   task_profile.description.loop.finish_name = east;

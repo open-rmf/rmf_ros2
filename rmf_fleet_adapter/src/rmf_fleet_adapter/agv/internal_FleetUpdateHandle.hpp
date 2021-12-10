@@ -148,7 +148,7 @@ public:
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
   std::optional<std::string> server_uri;
 
-  // Task planner params
+  // LegacyTask planner params
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
     rmf_task::BinaryPriorityScheme::make_cost_calculator();
   std::shared_ptr<rmf_task::TaskPlanner> task_planner = nullptr;

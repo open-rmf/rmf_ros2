@@ -188,12 +188,12 @@ SCENARIO_METHOD(MockAdapterFixture, "go to place negotiation", "[phases]")
 
   const auto pending_0 = phases::GoToPlace::make(context_0, {start_0}, goal_0);
   const auto active_0 = info_0.schedule_and_wait(
-    std::function<std::shared_ptr<Task::ActivePhase>()>(
+    std::function<std::shared_ptr<LegacyTask::ActivePhase>()>(
       [&]() { return pending_0->begin(); }));
 
   const auto pending_1 = phases::GoToPlace::make(context_1, {start_1}, goal_1);
   const auto active_1 = info_1.schedule_and_wait(
-    std::function<std::shared_ptr<Task::ActivePhase>()>(
+    std::function<std::shared_ptr<LegacyTask::ActivePhase>()>(
       [&]() { return pending_1->begin(); }));
 
   const auto negotiators = std::make_shared<NegotiatorMap>();

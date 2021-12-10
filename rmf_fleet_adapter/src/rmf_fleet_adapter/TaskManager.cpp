@@ -154,7 +154,7 @@ const agv::RobotContextPtr& TaskManager::context()
 }
 
 //==============================================================================
-const Task* TaskManager::current_task() const
+const LegacyTask* TaskManager::current_task() const
 {
   return _active_task.get();
 }
@@ -463,7 +463,7 @@ void TaskManager::_begin_next_task()
     _task_sub = _active_task->observe()
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-      [me = weak_from_this(), active_task = _active_task](Task::StatusMsg msg)
+      [me = weak_from_this(), active_task = _active_task](LegacyTask::StatusMsg msg)
       {
         const auto self = me.lock();
         if (!self)
@@ -543,7 +543,7 @@ void TaskManager::_begin_waiting()
   _task_sub = _waiting->observe()
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
     .subscribe(
-    [me = weak_from_this()](Task::StatusMsg msg)
+    [me = weak_from_this()](LegacyTask::StatusMsg msg)
     {
       const auto self = me.lock();
       if (!self)
@@ -698,7 +698,7 @@ void TaskManager::_register_executed_task(const std::string& id)
 
 //==============================================================================
 void TaskManager::_populate_task_summary(
-  std::shared_ptr<Task> task,
+  std::shared_ptr<LegacyTask> task,
   uint32_t task_summary_state,
   TaskManager::TaskSummaryMsg& msg)
 {

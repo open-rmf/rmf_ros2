@@ -35,6 +35,7 @@ set(dep_pkgs
   rmf_traffic_ros2
   rmf_battery
   rmf_task
+  rmf_task_sequence
   std_msgs
   rmf_api_msgs
   websocketpp
@@ -74,6 +75,7 @@ target_link_libraries(rmf_fleet_adapter
     rmf_traffic_ros2::rmf_traffic_ros2
     rmf_battery::rmf_battery
     rmf_task::rmf_task
+    rmf_task_sequence::rmf_task_sequence
     yaml-cpp
     ${rmf_fleet_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}

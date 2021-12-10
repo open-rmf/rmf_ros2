@@ -337,7 +337,7 @@ public:
 
   EventPhaseFactory(
     agv::RobotContextPtr context,
-    Task::PendingPhases& phases,
+    LegacyTask::PendingPhases& phases,
     rmf_traffic::Time event_start_time,
     bool& continuous)
   : _context(std::move(context)),
@@ -451,7 +451,7 @@ public:
 
 private:
   agv::RobotContextPtr _context;
-  Task::PendingPhases& _phases;
+  LegacyTask::PendingPhases& _phases;
   rmf_traffic::Time _event_start_time;
   bool& _continuous;
   bool _moving_lift = false;
@@ -468,7 +468,7 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
     _plan->get_waypoints();
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
 
-  Task::PendingPhases sub_phases;
+  LegacyTask::PendingPhases sub_phases;
   while (!waypoints.empty())
   {
     auto it = waypoints.begin();
@@ -559,7 +559,7 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
   .time(dummy_time)
   .dedicated_charging_waypoint(0)
   .battery_soc(1.0);
-  _subtasks = Task::make(
+  _subtasks = LegacyTask::make(
     _description,
     std::move(sub_phases),
     _context->worker(),
@@ -602,7 +602,7 @@ void GoToPlace::Active::execute_plan(rmf_traffic::agv::Plan new_plan)
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> GoToPlace::Pending::begin()
+std::shared_ptr<LegacyTask::ActivePhase> GoToPlace::Pending::begin()
 {
   auto active =
     std::shared_ptr<Active>(

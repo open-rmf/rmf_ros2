@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__TASKMANAGER_HPP
 #define SRC__RMF_FLEET_ADAPTER__TASKMANAGER_HPP
 
-#include "Task.hpp"
+#include "LegacyTask.hpp"
 #include "agv/RobotContext.hpp"
 #include "BroadcastClient.hpp"
 
@@ -70,7 +70,7 @@ public:
 
   std::weak_ptr<BroadcastClient> broadcast_client() const;
 
-  const Task* current_task() const;
+  const LegacyTask* current_task() const;
 
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
@@ -105,8 +105,8 @@ private:
 
   agv::RobotContextPtr _context;
   std::weak_ptr<BroadcastClient> _broadcast_client;
-  std::shared_ptr<Task> _active_task;
-  std::vector<std::shared_ptr<Task>> _queue;
+  std::shared_ptr<LegacyTask> _active_task;
+  std::vector<std::shared_ptr<LegacyTask>> _queue;
   rmf_utils::optional<Start> _expected_finish_location;
   rxcpp::subscription _task_sub;
   rxcpp::subscription _emergency_sub;
@@ -114,7 +114,7 @@ private:
   /// This phase will kick in automatically when no task is being executed. It
   /// will ensure that the agent continues to respond to traffic negotiations so
   /// it does not become a blocker for other traffic participants.
-  std::shared_ptr<Task::ActivePhase> _waiting;
+  std::shared_ptr<LegacyTask::ActivePhase> _waiting;
 
   // TODO: Eliminate the need for a mutex by redesigning the use of the task
   // manager so that modifications of shared data only happen on designated
@@ -155,7 +155,7 @@ private:
 
   // The task_state.json for the active task. This should be initialized when
   // a request is activated.
-  // TODO: Should this be a shared_ptr to pass down to Task::Active?
+  // TODO: Should this be a shared_ptr to pass down to LegacyTask::Active?
   nlohmann::json _active_task_state;
 
   // Map task_id to task_log.json for all tasks managed by this TaskManager
@@ -199,9 +199,9 @@ private:
   /// Callback for when the task has finished
   void _task_finished();
 
-  // TODO: Assuming each Task::Active instance stores a weak_ptr to this
+  // TODO: Assuming each LegacyTask::Active instance stores a weak_ptr to this
   // TaskManager, the implementations of the corresponding functions in
-  // Task::Active can call these methods to publish state/log updates
+  // LegacyTask::Active can call these methods to publish state/log updates
   // void _interrupt_active_task();
   // void _cancel_active_task();
   // void _kill_active_task();
@@ -214,7 +214,7 @@ private:
   void _register_executed_task(const std::string& id);
 
   void _populate_task_summary(
-    std::shared_ptr<Task> task,
+    std::shared_ptr<LegacyTask> task,
     uint32_t task_summary_state,
     TaskSummaryMsg& msg);
 };
