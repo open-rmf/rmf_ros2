@@ -55,6 +55,7 @@ struct DockRobot
     std::string _description;
     std::shared_ptr<Action> _action;
     rxcpp::observable<LegacyTask::StatusMsg> _obs;
+    std::shared_ptr<void> _be_stubborn;
   };
 
   class PendingPhase : public LegacyTask::PendingPhase

@@ -90,6 +90,13 @@ public:
   std::shared_ptr<NegotiatorLicense> set_negotiator(
     rmf_traffic::schedule::Negotiator* negotiator);
 
+  /// This function will indicate that GoToPlace should have a stubborn
+  /// negotiation behavior for as long as the returned handle is alive.
+  std::shared_ptr<void> be_stubborn();
+
+  /// If anything is holding onto a be_stubborn handle, this will return true.
+  bool is_stubborn() const;
+
   struct Empty {};
   const rxcpp::observable<Empty>& observe_interrupt() const;
 
@@ -179,6 +186,7 @@ private:
   std::shared_ptr<const rmf_traffic::Profile> _profile;
 
   std::shared_ptr<void> _negotiation_license;
+  std::shared_ptr<void> _stubbornness;
 
   rxcpp::subjects::subject<Empty> _interrupt_publisher;
   rxcpp::observable<Empty> _interrupt_obs;
@@ -206,6 +214,12 @@ private:
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;
 using ConstRobotContextPtr = std::shared_ptr<const RobotContext>;
+
+//==============================================================================
+struct GetContext
+{
+  RobotContextPtr value;
+};
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

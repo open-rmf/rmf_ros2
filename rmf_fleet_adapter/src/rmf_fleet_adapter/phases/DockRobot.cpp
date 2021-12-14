@@ -25,7 +25,8 @@ DockRobot::ActivePhase::ActivePhase(
   agv::RobotContextPtr context,
   std::string dock_name)
 : _context{std::move(context)},
-  _dock_name{std::move(dock_name)}
+  _dock_name{std::move(dock_name)},
+  _be_stubborn(_context->be_stubborn())
 {
   std::ostringstream oss;
   oss << "Docking robot to " << _dock_name;

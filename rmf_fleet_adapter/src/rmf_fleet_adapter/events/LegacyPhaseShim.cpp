@@ -37,6 +37,8 @@ auto LegacyPhaseShim::Standby::make(
     rmf_task::Event::Status::Standby);
 
   standby->_parent_update = std::move(parent_update);
+
+  return standby;
 }
 
 //==============================================================================
@@ -48,7 +50,7 @@ auto LegacyPhaseShim::Standby::state() const -> ConstStatePtr
 //==============================================================================
 rmf_traffic::Duration LegacyPhaseShim::Standby::duration_estimate() const
 {
-  _legacy->estimate_phase_duration();
+  return _legacy->estimate_phase_duration();
 }
 
 //==============================================================================
@@ -136,9 +138,15 @@ auto LegacyPhaseShim::Active::make(
       if (const auto self = w.lock())
       {
         if (self->_finished)
-          self->_finished();
-
-        self->_finished = nullptr;
+        {
+          // We don't change the event status here because that should have been
+          // done in the task summary update, and from here we don't know what
+          // kind of finish the legacy phase may have had (e.g. completed,
+          // failed, or canceled).
+          const auto finished = self->_finished;
+          self->_finished = nullptr;
+          finished();
+        }
       }
     });
 
@@ -165,10 +173,32 @@ auto LegacyPhaseShim::Active::backup() const -> Backup
 }
 
 //==============================================================================
-auto LegacyPhaseShim::Active::interrupt(
-  std::function<void()> task_is_interrupted) -> Resume
+auto LegacyPhaseShim::Active::interrupt(std::function<void()>) -> Resume
 {
+  // Legacy phases cannot be interrupted. We need to let the phase just run to
+  // completion. We will never be able to safely trigger the task_is_interrupted
+  // callback.
+  return Resume::make([](){ /* do nothing */});
+}
 
+//==============================================================================
+void LegacyPhaseShim::Active::cancel()
+{
+  _legacy->cancel();
+}
+
+//==============================================================================
+void LegacyPhaseShim::Active::kill()
+{
+  // If we get a kill command then we'll just give up on whatever we're supposed
+  // to do without concern for consequences. When an operator kills a task, it's
+  // up to the operator to sort out the consequences.
+  if (_finished)
+  {
+    const auto finished = _finished;
+    _finished = nullptr;
+    finished();
+  }
 }
 
 } // namespace events

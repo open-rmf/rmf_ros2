@@ -171,6 +171,18 @@ auto RobotContext::set_negotiator(
 }
 
 //==============================================================================
+std::shared_ptr<void> RobotContext::be_stubborn()
+{
+  return _stubbornness;
+}
+
+//==============================================================================
+bool RobotContext::is_stubborn() const
+{
+  return _stubbornness.use_count() > 1;
+}
+
+//==============================================================================
 const rxcpp::observable<RobotContext::Empty>&
 RobotContext::observe_interrupt() const
 {
@@ -335,6 +347,7 @@ RobotContext::RobotContext(
   _itinerary(std::move(itinerary)),
   _schedule(std::move(schedule)),
   _planner(std::move(planner)),
+  _stubbornness(std::make_shared<int>(0)),
   _node(std::move(node)),
   _worker(worker),
   _maximum_delay(maximum_delay),
