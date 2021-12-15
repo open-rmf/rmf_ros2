@@ -47,6 +47,10 @@ public:
   static services::ProgressEvaluator make_evaluator(
     const TableViewerPtr& table_viewer);
 
+  void clear_license();
+
+  void claim_license();
+
 private:
 
   struct NegotiationManagers

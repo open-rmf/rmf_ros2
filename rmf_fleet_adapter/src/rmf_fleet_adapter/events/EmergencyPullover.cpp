@@ -15,7 +15,7 @@
  *
 */
 
-#include "GoToPlace.hpp"
+#include "EmergencyPullover.hpp"
 
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 
@@ -23,29 +23,19 @@ namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
-auto GoToPlace::Standby::make(
+auto EmergencyPullover::Standby::make(
   const AssignIDPtr& id,
-  const std::function<rmf_task::State()>& get_state,
-  const rmf_task::ConstParametersPtr& parameters,
-  const rmf_task_sequence::events::GoToPlace::Description& description,
-  std::function<void()> update,
-  std::optional<rmf_traffic::Duration> tail_period)
--> std::shared_ptr<Standby>
+  const agv::RobotContextPtr& context,
+  std::function<void()> update) -> std::shared_ptr<Standby>
 {
-  const auto state = get_state();
-  const auto context = state.get<agv::GetContext>()->value;
-  const auto header = description.generate_header(state, *parameters);
-
-  auto standby = std::make_shared<Standby>(Standby{description.destination()});
+  auto standby = std::make_shared<Standby>();
   standby->_assign_id = id;
   standby->_context = context;
-  standby->_time_estimate = header.original_duration_estimate();
-  standby->_tail_period = tail_period;
   standby->_update = std::move(update);
   standby->_state = rmf_task::events::SimpleEventState::make(
     id->assign(),
-    header.category(),
-    header.detail(),
+    "Emergency pullover",
+    "",
     rmf_task::Event::Status::Standby,
     {},
     context->clock());
@@ -54,26 +44,21 @@ auto GoToPlace::Standby::make(
 }
 
 //==============================================================================
-GoToPlace::Standby::Standby(rmf_traffic::agv::Plan::Goal goal)
-: _goal(std::move(goal))
-{
-  // Do nothin
-}
-
-//==============================================================================
-auto GoToPlace::Standby::state() const -> ConstStatePtr
+auto EmergencyPullover::Standby::state() const -> ConstStatePtr
 {
   return _state;
 }
 
 //==============================================================================
-rmf_traffic::Duration GoToPlace::Standby::duration_estimate() const
+rmf_traffic::Duration EmergencyPullover::Standby::duration_estimate() const
 {
-  return _time_estimate;
+  // An emergency pullover will last indefinitely until it gets cancelled, which
+  // may happen at any time.
+  return rmf_traffic::Duration(0);
 }
 
 //==============================================================================
-auto GoToPlace::Standby::begin(
+auto EmergencyPullover::Standby::begin(
   std::function<void()>,
   std::function<void()> finished) -> ActivePtr
 {
@@ -82,8 +67,6 @@ auto GoToPlace::Standby::begin(
     _active = Active::make(
       _assign_id,
       _context,
-      _goal,
-      _tail_period,
       _state,
       _update,
       std::move(finished));
@@ -93,19 +76,16 @@ auto GoToPlace::Standby::begin(
 }
 
 //==============================================================================
-auto GoToPlace::Active::make(
+auto EmergencyPullover::Active::make(
   const AssignIDPtr& id,
   agv::RobotContextPtr context,
-  rmf_traffic::agv::Plan::Goal goal,
-  std::optional<rmf_traffic::Duration> tail_period,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> update,
   std::function<void()> finished) -> std::shared_ptr<Active>
 {
-  auto active = std::make_shared<Active>(Active(std::move(goal)));
+  auto active = std::make_shared<Active>();
   active->_assign_id = id;
   active->_context = std::move(context);
-  active->_tail_period = tail_period;
   active->_update = std::move(update);
   active->_finished = std::move(finished);
   active->_state = std::move(state);
@@ -127,42 +107,29 @@ auto GoToPlace::Active::make(
 }
 
 //==============================================================================
-auto GoToPlace::Active::state() const -> ConstStatePtr
+auto EmergencyPullover::Active::state() const -> ConstStatePtr
 {
   return _state;
 }
 
 //==============================================================================
-rmf_traffic::Duration GoToPlace::Active::remaining_time_estimate() const
+rmf_traffic::Duration EmergencyPullover::Active::remaining_time_estimate() const
 {
-  if (_execution.has_value())
-  {
-    const auto finish = _execution->finish_time_estimate;
-    const auto now = _context->now();
-    return finish - now + _context->itinerary().delay();
-  }
-
-  const auto& estimate =
-    _context->planner()->setup(_context->location(), _goal);
-
-  if (estimate.ideal_cost().has_value())
-    return rmf_traffic::time::from_seconds(*estimate.ideal_cost());
-
-  // It would be very suspicious if this happens... probably indicates that the
-  // task is impossible.
+  // An emergency pullover will last indefinitely until it gets cancelled, which
+  // may happen at any time.
   return rmf_traffic::Duration(0);
 }
 
 //==============================================================================
-auto GoToPlace::Active::backup() const -> Backup
+auto EmergencyPullover::Active::backup() const -> Backup
 {
-  // GoToPlace doesn't need to be backed up
+  // EmergencyPullover doesn't need to be backed up
   return Backup::make(0, nlohmann::json());
 }
 
 //==============================================================================
-auto GoToPlace::Active::interrupt(std::function<void()> task_is_interrupted)
--> Resume
+auto EmergencyPullover::Active::interrupt(
+  std::function<void()> task_is_interrupted) -> Resume
 {
   _negotiator->clear_license();
   _is_interrupted = true;
@@ -191,7 +158,7 @@ auto GoToPlace::Active::interrupt(std::function<void()> task_is_interrupted)
 }
 
 //==============================================================================
-void GoToPlace::Active::cancel()
+void EmergencyPullover::Active::cancel()
 {
   _execution = std::nullopt;
   _state->update_status(Status::Canceled);
@@ -200,7 +167,7 @@ void GoToPlace::Active::cancel()
 }
 
 //==============================================================================
-void GoToPlace::Active::kill()
+void EmergencyPullover::Active::kill()
 {
   _execution = std::nullopt;
   _state->update_status(Status::Killed);
@@ -209,59 +176,25 @@ void GoToPlace::Active::kill()
 }
 
 //==============================================================================
-std::string wp_name(
-  const agv::RobotContext& context,
-  const rmf_traffic::agv::Plan::Goal& goal)
-{
-  const auto& g = context.planner()->get_configuration().graph();
-  const auto& wp = g.get_waypoint(goal.waypoint());
-  if (wp.name())
-    return *wp.name();
-
-  return "#" + std::to_string(goal.waypoint());
-}
-
-//==============================================================================
-std::string wp_name(const agv::RobotContext& context)
-{
-  const auto& g = context.planner()->get_configuration().graph();
-  const auto& locations = context.location();
-  for (const auto& l : locations)
-  {
-    const auto& wp = g.get_waypoint(l.waypoint());
-    if (wp.name())
-      return *wp.name();
-  }
-
-  if (locations.empty())
-    return "<null>";
-
-  return "#" + std::to_string(locations.front().waypoint());
-}
-
-//==============================================================================
-void GoToPlace::Active::_find_plan()
+void EmergencyPullover::Active::_find_plan()
 {
   if (_is_interrupted)
     return;
 
   _state->update_status(Status::Underway);
-  const auto start_name = wp_name(*_context);
-  const auto goal_name = wp_name(*_context, _goal);
-  _state->update_log().info(
-    "Generating plan to move from [" + start_name + "] to [" + goal_name + "]");
+  _state->update_log().info("Searching for an emergency pullover");
 
-  _find_path_service = std::make_shared<services::FindPath>(
-    _context->planner(), _context->location(), _goal,
-    _context->schedule()->snapshot(), _context->itinerary().id(),
-    _context->profile());
+  _find_pullover_service = std::make_shared<services::FindEmergencyPullover>(
+    _context->planner(), _context->location(), _context->schedule()->snapshot(),
+    _context->itinerary().id(), _context->profile());
 
-  _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
-    _find_path_service)
+  _pullover_subscription =
+    rmf_rxcpp::make_job<services::FindEmergencyPullover::Result>(
+      _find_pullover_service)
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
     .subscribe(
-    [w = weak_from_this(), start_name, goal_name](
-      const services::FindPath::Result& result)
+    [w = weak_from_this()](
+      const services::FindEmergencyPullover::Result& result)
     {
       const auto self = w.lock();
       if (!self)
@@ -269,35 +202,31 @@ void GoToPlace::Active::_find_plan()
 
       if (!result)
       {
-        // The planner could not find a way to reach the goal
+        // The planner could not find any pullover
         self->_state->update_status(Status::Error);
-        self->_state->update_log().error(
-          "Failed to find a plan to move from ["
-          + start_name + "] to [" + goal_name + "]. Will retry soon.");
+        self->_state->update_log().error("Failed to find a pullover");
 
         self->_execution = std::nullopt;
         self->_schedule_retry();
 
-        self->_context->worker()
-          .schedule([update = self->_update](const auto&){ update(); });
+        self->_context->worker().schedule(
+          [update = self->_update](const auto&){ update(); });
 
         return;
       }
 
       self->_state->update_status(Status::Underway);
-      self->_state->update_log().info(
-        "Found a plan to move from ["
-        + start_name + "] to [" + goal_name + "]");
+      self->_state->update_log().info("Found an emergency pullover");
 
       self->_execute_plan(*std::move(result));
-      self->_find_path_service = nullptr;
+      self->_find_pullover_service = nullptr;
       self->_retry_timer = nullptr;
     });
 
-  _find_path_timeout = _context->node()->try_create_wall_timer(
+  _find_pullover_timeout = _context->node()->try_create_wall_timer(
     std::chrono::seconds(10),
     [
-      weak_service = _find_path_service->weak_from_this(),
+      weak_service = _find_pullover_service->weak_from_this(),
       weak_self = weak_from_this()
     ]()
     {
@@ -305,21 +234,14 @@ void GoToPlace::Active::_find_plan()
         service->interrupt();
 
       if (const auto self = weak_self.lock())
-        self->_find_path_timeout = nullptr;
+        self->_find_pullover_timeout = nullptr;
     });
 
   _update();
 }
 
 //==============================================================================
-GoToPlace::Active::Active(rmf_traffic::agv::Plan::Goal goal)
-: _goal(std::move(goal))
-{
-  // Do nothing
-}
-
-//==============================================================================
-void GoToPlace::Active::_schedule_retry()
+void EmergencyPullover::Active::_schedule_retry()
 {
   if (_retry_timer)
     return;
@@ -328,28 +250,28 @@ void GoToPlace::Active::_schedule_retry()
   _retry_timer = _context->node()->try_create_wall_timer(
     std::chrono::seconds(5),
     [w = weak_from_this()]()
-  {
-    const auto self = w.lock();
-    if (!self)
-      return;
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
 
-    self->_retry_timer = nullptr;
-    if (self->_execution.has_value())
-      return;
+      self->_retry_timer = nullptr;
+      if (self->_execution.has_value())
+        return;
 
-    self->_find_plan();
-  });
+      self->_find_plan();
+    });
 }
 
 //==============================================================================
-void GoToPlace::Active::_execute_plan(rmf_traffic::agv::Plan plan)
+void EmergencyPullover::Active::_execute_plan(rmf_traffic::agv::Plan plan)
 {
   if (_is_interrupted)
     return;
 
   _execution = ExecutePlan::make(
     _context, std::move(plan), _assign_id, _state,
-    _update, _finished, _tail_period);
+    _update, _finished, std::nullopt);
 
   if (!_execution.has_value())
   {
@@ -362,7 +284,7 @@ void GoToPlace::Active::_execute_plan(rmf_traffic::agv::Plan plan)
 }
 
 //==============================================================================
-Negotiator::NegotiatePtr GoToPlace::Active::_respond(
+Negotiator::NegotiatePtr EmergencyPullover::Active::_respond(
   const Negotiator::TableViewerPtr& table_view,
   const Negotiator::ResponderPtr& responder)
 {
@@ -387,10 +309,11 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
     };
 
   const auto evaluator = Negotiator::make_evaluator(table_view);
-  return services::Negotiate::path(
-    _context->planner(), _context->location(), _goal, table_view,
+  return services::Negotiate::emergency_pullover(
+    _context->planner(), _context->location(), table_view,
     responder, std::move(approval_cb), std::move(evaluator));
 }
+
 
 } // namespace events
 } // namespace rmf_fleet_adapter

@@ -80,6 +80,16 @@ struct EndLiftSession
 
     const std::string& description() const override;
 
+    const std::string& lift_name() const
+    {
+      return _lift_name;
+    }
+
+    const std::string& destination() const
+    {
+      return _destination;
+    }
+
   private:
     agv::RobotContextPtr _context;
     std::string _lift_name;

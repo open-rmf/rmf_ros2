@@ -22,8 +22,9 @@ namespace events {
 
 //==============================================================================
 auto LegacyPhaseShim::Standby::make(
-  std::unique_ptr<LegacyTask::PendingPhase> legacy,
+  std::shared_ptr<LegacyTask::PendingPhase> legacy,
   rxcpp::schedulers::worker worker,
+  std::function<std::chrono::system_clock::time_point()> clock,
   const AssignIDPtr& id,
   std::function<void()> parent_update) -> std::shared_ptr<Standby>
 {
@@ -34,7 +35,9 @@ auto LegacyPhaseShim::Standby::make(
     id->assign(),
     standby->_legacy->description(),
     "",
-    rmf_task::Event::Status::Standby);
+    rmf_task::Event::Status::Standby,
+    {},
+    std::move(clock));
 
   standby->_parent_update = std::move(parent_update);
 
@@ -75,7 +78,7 @@ auto LegacyPhaseShim::Standby::begin(
 
 //==============================================================================
 auto LegacyPhaseShim::Active::make(
-  std::unique_ptr<LegacyTask::PendingPhase> legacy,
+  std::shared_ptr<LegacyTask::PendingPhase> legacy,
   rxcpp::schedulers::worker worker,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> parent_update,

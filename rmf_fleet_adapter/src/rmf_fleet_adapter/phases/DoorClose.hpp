@@ -96,6 +96,11 @@ struct DoorClose
 
     const std::string& description() const override;
 
+    const std::string& door_name() const
+    {
+      return _door_name;
+    }
+
   private:
 
     agv::RobotContextPtr _context;

@@ -26,8 +26,8 @@ std::shared_ptr<Negotiator> Negotiator::make(
 {
   auto negotiator = std::make_shared<Negotiator>();
   negotiator->_context = std::move(context);
-  negotiator->_license = negotiator->_context->set_negotiator(negotiator.get());
   negotiator->_respond = std::move(respond);
+  negotiator->claim_license();
 
   return negotiator;
 }
@@ -98,6 +98,18 @@ services::ProgressEvaluator Negotiator::make_evaluator(
   }
 
   return evaluator;
+}
+
+//==============================================================================
+void Negotiator::clear_license()
+{
+  _license = nullptr;
+}
+
+//==============================================================================
+void Negotiator::claim_license()
+{
+  _license = _context->set_negotiator(this);
 }
 
 } // namespace rmf_fleet_adapter

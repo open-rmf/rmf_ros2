@@ -15,10 +15,15 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__LEGACYPHASESHIM_HPP
-#define SRC__RMF_FLEET_ADAPTER__EVENTS__LEGACYPHASESHIM_HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__EMERGENCYPULLOVER_HPP
+#define SRC__RMF_FLEET_ADAPTER__EVENTS__EMERGENCYPULLOVER_HPP
 
-#include "../LegacyTask.hpp"
+#include "../agv/RobotContext.hpp"
+#include "../Negotiator.hpp"
+
+#include "../services/FindEmergencyPullover.hpp"
+
+#include "ExecutePlan.hpp"
 
 #include <rmf_task_sequence/Event.hpp>
 #include <rmf_task/events/SimpleEventState.hpp>
@@ -27,13 +32,7 @@ namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
-/// This class is being used to gradually migrate the legacy task phase system
-/// into the new task event system. It provides a shim for legacy "Phase"
-/// implementations to be turned into Event objects.
-///
-/// We should endeavor to deprecate the use of this class over time as we work
-/// on improving the code quality of RMF.
-class LegacyPhaseShim : public rmf_task_sequence::Event
+class EmergencyPullover : public rmf_task_sequence::Event
 {
 public:
 
@@ -42,13 +41,11 @@ public:
   public:
 
     static std::shared_ptr<Standby> make(
-      std::shared_ptr<LegacyTask::PendingPhase> legacy,
-      rxcpp::schedulers::worker worker,
-      std::function<std::chrono::system_clock::time_point()> clock,
       const AssignIDPtr& id,
-      std::function<void()> parent_update);
+      const agv::RobotContextPtr& context,
+      std::function<void()> update);
 
-    ConstStatePtr state() const final;
+    ConstStatePtr state() const;
 
     rmf_traffic::Duration duration_estimate() const final;
 
@@ -57,10 +54,13 @@ public:
       std::function<void()> finished) final;
 
   private:
-    std::shared_ptr<LegacyTask::PendingPhase> _legacy;
-    rxcpp::schedulers::worker _worker;
+
+    AssignIDPtr _assign_id;
+    agv::RobotContextPtr _context;
+    std::function<void()> _update;
     rmf_task::events::SimpleEventStatePtr _state;
-    std::function<void()> _parent_update;
+    ActivePtr _active = nullptr;
+
   };
 
   class Active
@@ -70,10 +70,10 @@ public:
   public:
 
     static std::shared_ptr<Active> make(
-      std::shared_ptr<LegacyTask::PendingPhase> legacy,
-      rxcpp::schedulers::worker worker,
+      const AssignIDPtr& id,
+      agv::RobotContextPtr context,
       rmf_task::events::SimpleEventStatePtr state,
-      std::function<void()> parent_update,
+      std::function<void()> update,
       std::function<void()> finished);
 
     ConstStatePtr state() const final;
@@ -89,17 +89,34 @@ public:
     void kill() final;
 
   private:
-    std::shared_ptr<LegacyTask::ActivePhase> _legacy;
-    rmf_task::events::SimpleEventStatePtr _state;
-    std::string _last_status_message;
-    std::optional<uint32_t> _last_state_value;
-    std::function<void()> _parent_update;
+
+    void _schedule_retry();
+
+    void _find_plan();
+
+    void _execute_plan(rmf_traffic::agv::Plan plan);
+
+    Negotiator::NegotiatePtr _respond(
+      const Negotiator::TableViewerPtr& table_view,
+      const Negotiator::ResponderPtr& responder);
+
+    AssignIDPtr _assign_id;
+    agv::RobotContextPtr _context;
+    std::function<void()> _update;
     std::function<void()> _finished;
-    rmf_rxcpp::subscription_guard _subscription;
+    rmf_task::events::SimpleEventStatePtr _state;
+    std::shared_ptr<Negotiator> _negotiator;
+    std::optional<ExecutePlan> _execution;
+    std::shared_ptr<services::FindEmergencyPullover> _find_pullover_service;
+    rmf_rxcpp::subscription_guard _pullover_subscription;
+    rclcpp::TimerBase::SharedPtr _find_pullover_timeout;
+    rclcpp::TimerBase::SharedPtr _retry_timer;
+
+    bool _is_interrupted = false;
   };
 };
 
 } // namespace events
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__LEGACYPHASESHIM_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__EMERGENCYPULLOVER_HPP

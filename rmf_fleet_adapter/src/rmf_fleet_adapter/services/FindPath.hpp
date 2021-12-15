@@ -26,7 +26,7 @@ namespace services {
 //==============================================================================
 /// Find a path that gets from the start to the goal. It might or might not
 /// comply with the given schedule, depending on what is feasible.
-class FindPath
+class FindPath : public std::enable_shared_from_this<FindPath>
 {
 public:
 

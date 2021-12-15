@@ -69,6 +69,17 @@ rmf_traffic::Time RobotContext::now() const
 }
 
 //==============================================================================
+std::function<std::chrono::system_clock::time_point()>
+RobotContext::clock() const
+{
+  return [self = shared_from_this()]()
+    {
+      return std::chrono::system_clock::time_point(
+        std::chrono::system_clock::duration(self->node()->now().nanoseconds()));
+    };
+}
+
+//==============================================================================
 const std::vector<rmf_traffic::agv::Plan::Start>& RobotContext::location() const
 {
   return _location;

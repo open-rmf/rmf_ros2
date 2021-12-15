@@ -49,6 +49,9 @@ public:
   /// Get the current time
   rmf_traffic::Time now() const;
 
+  /// Get a clock that can be used by task loggers
+  std::function<std::chrono::system_clock::time_point()> clock() const;
+
   /// This is the current "location" of the robot, which can be used to initiate
   /// a planning job
   const std::vector<rmf_traffic::agv::Plan::Start>& location() const;

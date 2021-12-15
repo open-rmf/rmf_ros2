@@ -113,6 +113,11 @@ struct RequestLift
 
     const std::string& description() const override;
 
+    const std::string& lift_name() const
+    {
+      return _lift_name;
+    }
+
   private:
     agv::RobotContextPtr _context;
     std::string _lift_name;

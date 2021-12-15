@@ -23,11 +23,11 @@
 
 #include "../services/FindPath.hpp"
 
+#include "ExecutePlan.hpp"
+
 #include <rmf_task_sequence/Event.hpp>
 #include <rmf_task_sequence/events/GoToPlace.hpp>
 #include <rmf_task/events/SimpleEventState.hpp>
-
-#include <rmf_task_sequence/events/Bundle.hpp>
 
 namespace rmf_fleet_adapter {
 namespace events {
@@ -58,9 +58,12 @@ public:
       std::function<void()> finished) final;
 
   private:
+
+    Standby(rmf_traffic::agv::Plan::Goal goal);
+
+    rmf_traffic::agv::Plan::Goal _goal;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
-    rmf_traffic::agv::Plan::Goal _goal;
     rmf_traffic::Duration _time_estimate;
     std::optional<rmf_traffic::Duration> _tail_period;
     std::function<void()> _update;
@@ -97,26 +100,31 @@ public:
 
   private:
 
+    Active(rmf_traffic::agv::Plan::Goal goal);
+
+    void _schedule_retry();
+
     void _find_plan();
 
-    void _execute_plan(rmf_traffic::agv::Plan new_plan);
+    void _execute_plan(rmf_traffic::agv::Plan plan);
 
     Negotiator::NegotiatePtr _respond(
       const Negotiator::TableViewerPtr& table_view,
       const Negotiator::ResponderPtr& responder);
 
+    rmf_traffic::agv::Plan::Goal _goal;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
-    rmf_traffic::agv::Plan::Goal _goal;
     std::optional<rmf_traffic::Duration> _tail_period;
     std::function<void()> _update;
     std::function<void()> _finished;
     rmf_task::events::SimpleEventStatePtr _state;
     std::shared_ptr<Negotiator> _negotiator;
-    std::optional<rmf_traffic::agv::Plan> _plan;
-    rmf_task_sequence::Event::ActivePtr _sequence;
+    std::optional<ExecutePlan> _execution;
     std::shared_ptr<services::FindPath> _find_path_service;
-    rclcpp::TimerBase::SharedPtr _find_path_timer;
+    rmf_rxcpp::subscription_guard _plan_subscription;
+    rclcpp::TimerBase::SharedPtr _find_path_timeout;
+    rclcpp::TimerBase::SharedPtr _retry_timer;
 
     bool _is_interrupted = false;
   };
