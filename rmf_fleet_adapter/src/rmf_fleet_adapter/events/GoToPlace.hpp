@@ -37,6 +37,10 @@ class GoToPlace : public rmf_task_sequence::Event
 {
 public:
 
+  using Description = rmf_task_sequence::events::GoToPlace::Description;
+
+  static void add(rmf_task_sequence::Event::Initializer& initializer);
+
   class Standby : public rmf_task_sequence::Event::Standby
   {
   public:

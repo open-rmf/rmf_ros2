@@ -87,7 +87,7 @@ DispenseItem::ActivePhase::ActivePhase(
   _items(std::move(items))
 {
   std::ostringstream oss;
-  oss << "Dispense items (";
+  oss << "Receive items (";
   for (size_t i = 0; i < _items.size(); i++)
   {
     oss << _items[i].type_guid;

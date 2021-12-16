@@ -12,6 +12,7 @@
 #include <rmf_task/State.hpp>
 #include <rmf_task/Constraints.hpp>
 #include <rmf_task/TaskPlanner.hpp>
+#include <rmf_task/Activator.hpp>
 
 #include <rclcpp/node.hpp>
 
@@ -50,7 +51,7 @@ public:
   rmf_traffic::Time now() const;
 
   /// Get a clock that can be used by task loggers
-  std::function<std::chrono::system_clock::time_point()> clock() const;
+  std::function<rmf_traffic::Time()> clock() const;
 
   /// This is the current "location" of the robot, which can be used to initiate
   /// a planning job
@@ -126,12 +127,23 @@ public:
     const TableViewerPtr& table_viewer,
     const ResponderPtr& responder) final;
 
+  /// Get the task activator for this robot
+  const rmf_task::ConstActivatorPtr& task_activator() const;
+
   /// Set the state of this robot at the end of its current task
   RobotContext& current_task_end_state(const rmf_task::State& state);
 
   /// Get a mutable reference to the state of this robot at the end of its
   // current task
   const rmf_task::State& current_task_end_state() const;
+
+  /// Get the current task ID of the robot, or a nullptr if the robot is not
+  /// performing any task
+  const std::string* current_task_id() const;
+
+  /// Set the current task ID of the robot, or give a nullopt if a task is not
+  /// being performed.
+  RobotContext& current_task_id(std::optional<std::string> id);
 
   /// Get the current battery state of charge
   double current_battery_soc() const;
@@ -175,6 +187,7 @@ private:
     rmf_traffic::schedule::Participant itinerary,
     std::shared_ptr<const Snappable> schedule,
     std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
+    rmf_task::ConstActivatorPtr activator,
     std::shared_ptr<Node> node,
     const rxcpp::schedulers::worker& worker,
     rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
@@ -186,6 +199,7 @@ private:
   rmf_traffic::schedule::Participant _itinerary;
   std::shared_ptr<const Snappable> _schedule;
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> _planner;
+  rmf_task::ConstActivatorPtr _task_activator;
   std::shared_ptr<const rmf_traffic::Profile> _profile;
 
   std::shared_ptr<void> _negotiation_license;
@@ -206,6 +220,7 @@ private:
   rxcpp::subjects::subject<double> _battery_soc_publisher;
   rxcpp::observable<double> _battery_soc_obs;
   rmf_task::State _current_task_end_state;
+  std::optional<std::string> _current_task_id;
   std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;

@@ -30,6 +30,10 @@
 #include <rmf_task/requests/Clean.hpp>
 #include <rmf_task/BinaryPriorityScheme.hpp>
 
+#include <rmf_task_sequence/Task.hpp>
+#include <rmf_task_sequence/Phase.hpp>
+#include <rmf_task_sequence/Event.hpp>
+
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
@@ -63,6 +67,13 @@
 
 namespace rmf_fleet_adapter {
 namespace agv {
+
+struct TaskActivation
+{
+  rmf_task::ActivatorPtr task;
+  rmf_task_sequence::Phase::ActivatorPtr phase;
+  rmf_task_sequence::Event::InitializerPtr event;
+};
 
 //==============================================================================
 /// This abstract interface class allows us to use the same implementation of
@@ -148,6 +159,8 @@ public:
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
   std::optional<std::string> server_uri;
 
+  TaskActivation activation = TaskActivation();
+
   // LegacyTask planner params
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
     rmf_task::BinaryPriorityScheme::make_cost_calculator();
@@ -218,6 +231,8 @@ public:
     auto handle = std::shared_ptr<FleetUpdateHandle>(new FleetUpdateHandle);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
       Implementation{std::forward<Args>(args)...});
+
+    handle->_pimpl->add_standard_tasks();
 
     handle->_pimpl->fleet_state_pub = handle->_pimpl->node->fleet_state();
     handle->_pimpl->fleet_state_timer =
@@ -342,6 +357,8 @@ public:
     std::optional<rmf_traffic::Duration> value);
 
   void publish_fleet_state() const;
+
+  void add_standard_tasks();
 };
 
 } // namespace agv

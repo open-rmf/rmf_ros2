@@ -27,12 +27,15 @@
 
 #include "../tasks/Delivery.hpp"
 #include "../tasks/Loop.hpp"
+#include "../tasks/Clean.hpp"
 
 #include <rmf_task/Constraints.hpp>
 #include <rmf_task/Parameters.hpp>
 #include <rmf_task/requests/Clean.hpp>
 #include <rmf_task/requests/Delivery.hpp>
 #include <rmf_task/requests/Loop.hpp>
+
+#include <rmf_task_sequence/phases/SimplePhase.hpp>
 
 #include <rmf_task_msgs/msg/clean.hpp>
 #include <rmf_task_msgs/msg/delivery.hpp>
@@ -346,6 +349,14 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       return;
     }
 
+    std::vector<rmf_task::Payload::Component> components;
+    components.reserve(delivery.items.size());
+    for (const auto& item : delivery.items)
+    {
+      components.push_back(
+        {item.type_guid, (uint32_t)item.quantity, item.compartment_name});
+    }
+
     // TODO: We set the waiting duration at the pickup and dropoff locations to
     // 0s as the cycle time of the dispensers and ingestors are not available.
     // We should implement a means to lookup these values for each system.
@@ -354,9 +365,13 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       rmf_traffic::time::from_seconds(0),
       dropoff_wp->index(),
       rmf_traffic::time::from_seconds(0),
+      rmf_task::Payload(std::move(components)),
       id,
       start_time,
-      priority);
+      priority,
+      false,
+      delivery.pickup_dispenser,
+      delivery.dropoff_ingestor);
 
     RCLCPP_INFO(
       node->get_logger(),
@@ -937,7 +952,23 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
     .robots(std::move(robot_states));
 
   fleet_state_pub->publish(std::move(fleet_state));
+}
 
+//==============================================================================
+void FleetUpdateHandle::Implementation::add_standard_tasks()
+{
+  activation.task = std::make_shared<rmf_task::Activator>();
+  activation.phase = std::make_shared<rmf_task_sequence::Phase::Activator>();
+  activation.event = std::make_shared<rmf_task_sequence::Event::Initializer>();
+
+  rmf_task_sequence::phases::SimplePhase::add(
+    *activation.phase, activation.event);
+
+  tasks::add_delivery(
+    *activation.task,
+    activation.phase,
+    *activation.event,
+    node->clock());
 }
 
 //==============================================================================
@@ -1065,7 +1096,6 @@ void FleetUpdateHandle::add_robot(
   rmf_traffic::agv::Plan::StartSet start,
   std::function<void(std::shared_ptr<RobotUpdateHandle>)> handle_cb)
 {
-
   if (start.empty())
   {
     // *INDENT-OFF*
@@ -1118,6 +1148,7 @@ void FleetUpdateHandle::add_robot(
           std::move(participant),
           fleet->_pimpl->snappable,
           fleet->_pimpl->planner,
+          fleet->_pimpl->activation.task,
           fleet->_pimpl->node,
           fleet->_pimpl->worker,
           fleet->_pimpl->default_maximum_delay,

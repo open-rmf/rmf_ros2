@@ -19,9 +19,21 @@
 #include "../phases/IngestItem.hpp"
 #include "../phases/GoToPlace.hpp"
 
+#include "../events/LegacyPhaseShim.hpp"
+#include "../events/Error.hpp"
+#include "../events/GoToPlace.hpp"
+
 #include "Delivery.hpp"
 
 #include <rmf_ingestor_msgs/msg/ingestor_request_item.hpp>
+#include <rmf_dispenser_msgs/msg/dispenser_request_item.hpp>
+
+#include <rmf_task_sequence/events/PickUp.hpp>
+#include <rmf_task_sequence/events/DropOff.hpp>
+#include <rmf_task_sequence/events/WaitFor.hpp>
+#include <rmf_task_sequence/events/Bundle.hpp>
+#include <rmf_task_sequence/Task.hpp>
+#include <rmf_task_sequence/phases/SimplePhase.hpp>
 
 namespace rmf_fleet_adapter {
 namespace tasks {
@@ -114,6 +126,236 @@ std::shared_ptr<LegacyTask> make_delivery(
     deployment_time,
     finish_state,
     request);
+}
+
+//==============================================================================
+struct TransferItems : public rmf_task_sequence::events::WaitFor::Description
+{
+  enum class Dir
+  {
+    Load,
+    Unload
+  };
+
+  TransferItems(const rmf_task_sequence::events::PickUp::Description& pickup)
+  : rmf_task_sequence::events::WaitFor::Description(
+      pickup.loading_duration_estimate()),
+    direction(Dir::Load),
+    target(pickup.from_dispenser()),
+    payload(pickup.payload())
+  {
+    // Do nothing
+  }
+
+  TransferItems(const rmf_task_sequence::events::DropOff::Description& dropoff)
+  : rmf_task_sequence::events::WaitFor::Description(
+      dropoff.unloading_duration_estimate()),
+    direction(Dir::Unload),
+    target(dropoff.into_ingestor()),
+    payload(dropoff.payload())
+  {
+    // Do nothing
+  }
+
+  template<template<class> class Build, typename T>
+  std::vector<T> collect_items() const
+  {
+    std::vector<T> items;
+    for (const auto& c : payload.components())
+    {
+      items.push_back(
+        Build<T>()
+        .type_guid(c.sku())
+        .quantity(c.quantity())
+        .compartment_name(c.compartment()));
+    }
+  }
+
+  Dir direction;
+  std::string target;
+  rmf_task::Payload payload;
+
+  static rmf_task_sequence::Event::StandbyPtr standby(
+    const rmf_task_sequence::Event::AssignIDPtr& id,
+    const std::function<rmf_task::State()>& get_state,
+    const rmf_task::ConstParametersPtr&,
+    const TransferItems& description,
+    std::function<void()> update)
+  {
+    const auto state = get_state();
+    const auto context = state.get<agv::GetContext>()->value;
+    const auto* task_id = context->current_task_id();
+
+    std::string name;
+    if (description.direction == Dir::Unload)
+      name = "Unload";
+    else
+      name = "Load";
+
+    if (!task_id)
+    {
+      const auto error_state = rmf_task::events::SimpleEventState::make(
+        id->assign(), name, "", rmf_task::Event::Status::Error, {},
+        context->clock());
+
+      error_state->update_log().error(
+        "Task ID is null while trying to perform a delivery. This indicates a "
+        "serious software error. Please try to reset the task, and contact the "
+        "system integrator to inform them of this issue.");
+
+      return events::Error::Standby::make(std::move(error_state));
+    }
+
+    std::shared_ptr<LegacyTask::PendingPhase> legacy;
+    if (description.direction == Dir::Unload)
+    {
+      using IngestorItem = rmf_ingestor_msgs::msg::IngestorRequestItem;
+      std::vector<IngestorItem> items;
+      for (const auto& c : description.payload.components())
+      {
+        items.push_back(
+          rmf_ingestor_msgs::build<IngestorItem>()
+          .type_guid(c.sku())
+          .quantity(c.quantity())
+          .compartment_name(c.compartment()));
+      }
+
+      legacy = std::make_shared<phases::IngestItem::PendingPhase>(
+        context, *task_id, description.target,
+        context->itinerary().description().owner(),
+        std::move(items));
+
+      name = "Unload";
+    }
+    else
+    {
+      using DispenserItem = rmf_dispenser_msgs::msg::DispenserRequestItem;
+      std::vector<DispenserItem> items;
+      for (const auto& c : description.payload.components())
+      {
+        items.push_back(
+          rmf_dispenser_msgs::build<DispenserItem>()
+          .type_guid(c.sku())
+          .quantity(c.quantity())
+          .compartment_name(c.compartment()));
+      }
+
+      legacy = std::make_shared<phases::DispenseItem::PendingPhase>(
+        context, *task_id, description.target,
+        context->itinerary().description().owner(),
+        std::move(items));
+
+      name = "Load";
+    }
+
+    if (description.payload.components().size() == 1)
+      name += "item";
+    else
+      name += "items";
+
+    return events::LegacyPhaseShim::Standby::make(
+      legacy, context->worker(), context->clock(), id, std::move(update), name);
+  }
+
+  static void add(rmf_task_sequence::Event::Initializer& initializer)
+  {
+    initializer.add<TransferItems>(
+      [](
+        const rmf_task_sequence::Event::AssignIDPtr& id,
+        const std::function<rmf_task::State()>& get_state,
+        const rmf_task::ConstParametersPtr& parameters,
+        const TransferItems& description,
+        std::function<void()> update) -> rmf_task_sequence::Event::StandbyPtr
+      {
+        return standby(
+          id, get_state, parameters, description, std::move(update));
+      },
+      [](
+        const rmf_task_sequence::Event::AssignIDPtr& id,
+        const std::function<rmf_task::State()>& get_state,
+        const rmf_task::ConstParametersPtr& parameters,
+        const TransferItems& description,
+        const nlohmann::json&,
+        std::function<void()> update,
+        std::function<void()> checkpoint,
+        std::function<void()> finished) -> rmf_task_sequence::Event::ActivePtr
+      {
+        return standby(
+          id, get_state, parameters, description, std::move(update))
+          ->begin(std::move(checkpoint), std::move(finished));
+      });
+  }
+};
+
+//==============================================================================
+void add_delivery(
+  rmf_task::Activator& task_activator,
+  const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
+  rmf_task_sequence::Event::Initializer& event_initializer,
+  std::function<rmf_traffic::Time()> clock)
+{
+  using Bundle = rmf_task_sequence::events::Bundle;
+  using PickUp = rmf_task_sequence::events::PickUp;
+  using DropOff = rmf_task_sequence::events::DropOff;
+  using Phase = rmf_task_sequence::phases::SimplePhase;
+
+  auto private_initializer =
+    std::make_shared<rmf_task_sequence::Event::Initializer>();
+
+  TransferItems::add(*private_initializer);
+  events::GoToPlace::add(*private_initializer);
+
+  auto pickup_unfolder =
+    [](const PickUp::Description& pickup)
+    {
+      return Bundle::Description({
+        events::GoToPlace::Description::make(pickup.pickup_location()),
+        std::make_shared<TransferItems>(pickup)
+      }, Bundle::Type::Sequence, "Pick up");
+    };
+
+  Bundle::unfold<PickUp::Description>(
+    std::move(pickup_unfolder), event_initializer, private_initializer);
+
+  auto dropoff_unfolder =
+    [](const DropOff::Description& dropoff)
+    {
+      return Bundle::Description({
+        events::GoToPlace::Description::make(dropoff.drop_off_location()),
+        std::make_shared<TransferItems>(dropoff)
+      }, Bundle::Type::Sequence, "Drop Off");
+    };
+
+  Bundle::unfold<DropOff::Description>(
+    std::move(dropoff_unfolder), event_initializer, private_initializer);
+
+  auto delivery_unfolder =
+    [](const rmf_task::requests::Delivery::Description& delivery)
+    {
+      rmf_task_sequence::Task::Builder builder;
+      builder
+        .add_phase(
+          Phase::Description::make(
+            PickUp::Description::make(
+              delivery.pickup_waypoint(),
+              delivery.pickup_from_dispenser(),
+              delivery.payload(),
+              delivery.pickup_wait())), {})
+        .add_phase(
+          Phase::Description::make(
+            DropOff::Description::make(
+              delivery.dropoff_waypoint(),
+              delivery.dropoff_to_ingestor(),
+              delivery.payload(),
+              delivery.dropoff_wait())), {});
+
+      // TODO(MXG): Consider making the category and detail more detailed
+      return *builder.build("Delivery", "");
+    };
+
+  rmf_task_sequence::Task::unfold<rmf_task::requests::Delivery::Description>(
+    std::move(delivery_unfolder), task_activator,
+    phase_activator, std::move(clock));
 }
 
 } // namespace task

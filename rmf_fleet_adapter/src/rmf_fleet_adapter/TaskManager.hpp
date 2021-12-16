@@ -94,7 +94,7 @@ public:
 
   RobotModeMsg robot_mode() const;
 
-  /// Get a vector of task logs that are validaed against the schema
+  /// Get a vector of task logs that are validated against the schema
   std::vector<nlohmann::json> task_log_updates() const;
 
 private:

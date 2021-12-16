@@ -20,6 +20,8 @@
 #include <rmf_fleet_adapter/StandardNames.hpp>
 #include <rmf_traffic_ros2/StandardNames.hpp>
 
+#include <rmf_traffic_ros2/Time.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -102,6 +104,15 @@ Node::Node(
 : rmf_rxcpp::Transport(std::move(worker), node_name, options)
 {
   // Do nothing
+}
+
+//==============================================================================
+std::function<rmf_traffic::Time()> Node::clock() const
+{
+  return [self = shared_from_this()]()
+    {
+      return rmf_traffic_ros2::convert(self->now());
+    };
 }
 
 //==============================================================================

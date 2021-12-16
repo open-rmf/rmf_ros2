@@ -450,6 +450,7 @@ void TaskManager::_begin_next_task()
   {
     // Update state in RobotContext and Assign active task
     _context->current_task_end_state(_queue.front()->finish_state());
+    _context->current_task_id(_queue.front()->id());
     _active_task = std::move(_queue.front());
     _queue.erase(_queue.begin());
 
@@ -504,6 +505,7 @@ void TaskManager::_begin_next_task()
         self->_context->node()->task_summary()->publish(msg);
 
         self->_active_task = nullptr;
+        self->_context->current_task_id(std::nullopt);
       });
 
     _active_task->begin();

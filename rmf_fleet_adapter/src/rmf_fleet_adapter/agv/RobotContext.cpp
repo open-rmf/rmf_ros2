@@ -69,14 +69,9 @@ rmf_traffic::Time RobotContext::now() const
 }
 
 //==============================================================================
-std::function<std::chrono::system_clock::time_point()>
-RobotContext::clock() const
+std::function<rmf_traffic::Time()> RobotContext::clock() const
 {
-  return [self = shared_from_this()]()
-    {
-      return std::chrono::system_clock::time_point(
-        std::chrono::system_clock::duration(self->node()->now().nanoseconds()));
-    };
+  return [self = shared_from_this()](){ return self->now(); };
 }
 
 //==============================================================================
@@ -253,6 +248,22 @@ RobotContext& RobotContext::current_task_end_state(
 }
 
 //==============================================================================
+const std::string* RobotContext::current_task_id() const
+{
+  if (_current_task_id.has_value())
+    return &(*_current_task_id);
+
+  return nullptr;
+}
+
+//==============================================================================
+RobotContext& RobotContext::current_task_id(std::optional<std::string> id)
+{
+  _current_task_id = std::move(id);
+  return *this;
+}
+
+//==============================================================================
 double RobotContext::current_battery_soc() const
 {
   return _current_battery_soc;
@@ -348,6 +359,7 @@ RobotContext::RobotContext(
   rmf_traffic::schedule::Participant itinerary,
   std::shared_ptr<const Snappable> schedule,
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
+  rmf_task::ConstActivatorPtr activator,
   std::shared_ptr<rmf_fleet_adapter::agv::Node> node,
   const rxcpp::schedulers::worker& worker,
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
@@ -358,6 +370,7 @@ RobotContext::RobotContext(
   _itinerary(std::move(itinerary)),
   _schedule(std::move(schedule)),
   _planner(std::move(planner)),
+  _task_activator(std::move(activator)),
   _stubbornness(std::make_shared<int>(0)),
   _node(std::move(node)),
   _worker(worker),
@@ -365,6 +378,7 @@ RobotContext::RobotContext(
   _requester_id(
     _itinerary.description().owner() + "/" + _itinerary.description().name()),
   _current_task_end_state(state),
+  _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner))
 {
   _profile = std::make_shared<rmf_traffic::Profile>(

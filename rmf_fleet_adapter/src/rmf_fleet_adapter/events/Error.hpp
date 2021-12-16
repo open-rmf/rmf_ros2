@@ -15,10 +15,8 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__LEGACYPHASESHIM_HPP
-#define SRC__RMF_FLEET_ADAPTER__EVENTS__LEGACYPHASESHIM_HPP
-
-#include "../LegacyTask.hpp"
+#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__ERROR_HPP
+#define SRC__RMF_FLEET_ADAPTER__EVENTS__ERROR_HPP
 
 #include <rmf_task_sequence/Event.hpp>
 #include <rmf_task/events/SimpleEventState.hpp>
@@ -27,27 +25,30 @@ namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
-/// This class is being used to gradually migrate the legacy task phase system
-/// into the new task event system. It provides a shim for legacy "Phase"
-/// implementations to be turned into Event objects.
-///
-/// We should endeavor to deprecate the use of this class over time as we work
-/// on improving the code quality of RMF.
-class LegacyPhaseShim : public rmf_task_sequence::Event
+class Error : public rmf_task_sequence::Event
 {
 public:
+
+  enum class Behavior
+  {
+    /// This Error event will block until an operator explicitly cancels,
+    /// kills, skips, or rewinds the task. This is the recommended behavior
+    /// because an event error usually means something in the task process went
+    /// wrong and needs to be retried.
+    Block = 0,
+
+    /// This Error event will report that the error occurred but then finish as
+    /// soon as it is activated.
+    Continue
+  };
 
   class Standby : public rmf_task_sequence::Event::Standby
   {
   public:
 
     static std::shared_ptr<Standby> make(
-      std::shared_ptr<LegacyTask::PendingPhase> legacy,
-      rxcpp::schedulers::worker worker,
-      std::function<rmf_traffic::Time()> clock,
-      const AssignIDPtr& id,
-      std::function<void()> parent_update,
-      std::optional<std::string> name = std::nullopt);
+      rmf_task::events::SimpleEventStatePtr state,
+      Behavior behavior = Behavior::Block);
 
     ConstStatePtr state() const final;
 
@@ -58,24 +59,19 @@ public:
       std::function<void()> finished) final;
 
   private:
-    std::shared_ptr<LegacyTask::PendingPhase> _legacy;
-    rxcpp::schedulers::worker _worker;
     rmf_task::events::SimpleEventStatePtr _state;
-    std::function<void()> _parent_update;
+    Behavior _behavior;
+    ActivePtr _active;
   };
 
-  class Active
-    : public rmf_task_sequence::Event::Active,
-      public std::enable_shared_from_this<Active>
+  class Active : public rmf_task_sequence::Event::Active
   {
   public:
 
     static std::shared_ptr<Active> make(
-      std::shared_ptr<LegacyTask::PendingPhase> legacy,
-      rxcpp::schedulers::worker worker,
       rmf_task::events::SimpleEventStatePtr state,
-      std::function<void()> parent_update,
-      std::function<void()> finished);
+      std::function<void()> finished,
+      Behavior behavior = Behavior::Block);
 
     ConstStatePtr state() const final;
 
@@ -90,17 +86,13 @@ public:
     void kill() final;
 
   private:
-    std::shared_ptr<LegacyTask::ActivePhase> _legacy;
     rmf_task::events::SimpleEventStatePtr _state;
-    std::string _last_status_message;
-    std::optional<uint32_t> _last_state_value;
-    std::function<void()> _parent_update;
     std::function<void()> _finished;
-    rmf_rxcpp::subscription_guard _subscription;
   };
+
 };
 
-} // namespace events
+} // namespace task
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__LEGACYPHASESHIM_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__ERROR_HPP

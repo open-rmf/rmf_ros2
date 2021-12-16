@@ -24,20 +24,27 @@ namespace events {
 auto LegacyPhaseShim::Standby::make(
   std::shared_ptr<LegacyTask::PendingPhase> legacy,
   rxcpp::schedulers::worker worker,
-  std::function<std::chrono::system_clock::time_point()> clock,
+  std::function<rmf_traffic::Time()> clock,
   const AssignIDPtr& id,
-  std::function<void()> parent_update) -> std::shared_ptr<Standby>
+  std::function<void()> parent_update,
+  std::optional<std::string> name) -> std::shared_ptr<Standby>
 {
   auto standby = std::make_shared<Standby>();
   standby->_legacy = std::move(legacy);
   standby->_worker = std::move(worker);
   standby->_state = rmf_task::events::SimpleEventState::make(
-    id->assign(),
-    standby->_legacy->description(),
-    "",
-    rmf_task::Event::Status::Standby,
-    {},
-    std::move(clock));
+    id->assign(), "", "",
+    rmf_task::Event::Status::Standby, {}, std::move(clock));
+
+  if (name.has_value())
+  {
+    standby->_state->update_name(*name);
+    standby->_state->update_detail(standby->_legacy->description());
+  }
+  else
+  {
+    standby->_state->update_name(standby->_legacy->description());
+  }
 
   standby->_parent_update = std::move(parent_update);
 

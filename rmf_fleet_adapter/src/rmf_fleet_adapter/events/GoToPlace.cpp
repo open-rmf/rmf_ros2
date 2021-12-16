@@ -23,6 +23,36 @@ namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
+void GoToPlace::add(rmf_task_sequence::Event::Initializer &initializer)
+{
+  initializer.add<Description>(
+    [](
+      const AssignIDPtr& id,
+      const std::function<rmf_task::State()>& get_state,
+      const rmf_task::ConstParametersPtr& parameters,
+      const Description& description,
+      std::function<void()> update) -> StandbyPtr
+    {
+      return Standby::make(
+        id, get_state, parameters, description, std::move(update));
+    },
+    [](
+      const AssignIDPtr& id,
+      const std::function<rmf_task::State()>& get_state,
+      const rmf_task::ConstParametersPtr& parameters,
+      const Description& description,
+      const nlohmann::json&,
+      std::function<void()> update,
+      std::function<void()> checkpoint,
+      std::function<void()> finished) -> ActivePtr
+    {
+      return Standby::make(
+        id, get_state, parameters, description, std::move(update))
+        ->begin(std::move(checkpoint), std::move(finished));
+    });
+}
+
+//==============================================================================
 auto GoToPlace::Standby::make(
   const AssignIDPtr& id,
   const std::function<rmf_task::State()>& get_state,

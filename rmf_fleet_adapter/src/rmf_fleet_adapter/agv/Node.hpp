@@ -36,6 +36,8 @@
 
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
 
+#include <rmf_traffic/Time.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -48,6 +50,8 @@ public:
     rxcpp::schedulers::worker worker,
     const std::string& node_name,
     const rclcpp::NodeOptions& options);
+
+  std::function<rmf_traffic::Time()> clock() const;
 
   using DoorState = rmf_door_msgs::msg::DoorState;
   using DoorStateObs = rxcpp::observable<DoorState::SharedPtr>;
