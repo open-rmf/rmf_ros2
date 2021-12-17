@@ -164,6 +164,7 @@ public:
   // LegacyTask planner params
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =
     rmf_task::BinaryPriorityScheme::make_cost_calculator();
+  std::shared_ptr<rmf_task::Parameters> task_parameters = nullptr;
   std::shared_ptr<rmf_task::TaskPlanner> task_planner = nullptr;
 
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay =
@@ -233,6 +234,19 @@ public:
       Implementation{std::forward<Args>(args)...});
 
     handle->_pimpl->add_standard_tasks();
+
+    // TODO(MXG): This is a very crude implementation. We create a dummy set of
+    // task planner parameters to stand in until the user sets the task planner
+    // parameters. We'll distribute this shared_ptr to the robot contexts and
+    // update it with the proper values once they're available.
+    //
+    // Note that we also need to manually update the traffic planner when it
+    // changes.
+    handle->_pimpl->task_parameters =
+      std::make_shared<rmf_task::Parameters>(
+        *handle->_pimpl->planner,
+        *rmf_battery::agv::BatterySystem::make(1.0, 1.0, 1.0),
+        nullptr, nullptr, nullptr);
 
     handle->_pimpl->fleet_state_pub = handle->_pimpl->node->fleet_state();
     handle->_pimpl->fleet_state_timer =

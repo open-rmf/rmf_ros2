@@ -234,6 +234,18 @@ RobotContext& RobotContext::maximum_delay(
 }
 
 //==============================================================================
+const rmf_task::ConstActivatorPtr& RobotContext::task_activator() const
+{
+  return _task_activator;
+}
+
+//==============================================================================
+const rmf_task::ConstParametersPtr& RobotContext::task_parameters() const
+{
+  return _task_parameters;
+}
+
+//==============================================================================
 const rmf_task::State& RobotContext::current_task_end_state() const
 {
   return _current_task_end_state;
@@ -245,6 +257,18 @@ RobotContext& RobotContext::current_task_end_state(
 {
   _current_task_end_state = state;
   return *this;
+}
+
+//==============================================================================
+std::function<rmf_task::State()> RobotContext::make_get_state()
+{
+  return [self = shared_from_this()]()
+    {
+      rmf_task::State state;
+      state.load(self->_location.front());
+      state.insert<GetContext>(GetContext{self->shared_from_this()});
+      return state;
+    };
 }
 
 //==============================================================================
@@ -360,6 +384,7 @@ RobotContext::RobotContext(
   std::shared_ptr<const Snappable> schedule,
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
   rmf_task::ConstActivatorPtr activator,
+  rmf_task::ConstParametersPtr parameters,
   std::shared_ptr<rmf_fleet_adapter::agv::Node> node,
   const rxcpp::schedulers::worker& worker,
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
@@ -371,6 +396,7 @@ RobotContext::RobotContext(
   _schedule(std::move(schedule)),
   _planner(std::move(planner)),
   _task_activator(std::move(activator)),
+  _task_parameters(std::move(parameters)),
   _stubbornness(std::make_shared<int>(0)),
   _node(std::move(node)),
   _worker(worker),

@@ -28,6 +28,7 @@
 #include "../tasks/Delivery.hpp"
 #include "../tasks/Loop.hpp"
 #include "../tasks/Clean.hpp"
+#include "../events/GoToPlace.hpp"
 
 #include <rmf_task/Constraints.hpp>
 #include <rmf_task/Parameters.hpp>
@@ -629,7 +630,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     std::size_t index = 0;
     for (auto& t : task_managers)
     {
-      t.second->set_queue(assignments[index], task_profile_map);
+      t.second->set_queue(assignments[index]);
       ++index;
     }
 
@@ -716,7 +717,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     std::size_t index = 0;
     for (auto& t : task_managers)
     {
-      t.second->set_queue(assignments[index], task_profile_map);
+      t.second->set_queue(assignments[index]);
       ++index;
     }
 
@@ -848,7 +849,7 @@ rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
   return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotState>()
     .name(context.name())
     .model(context.description().owner())
-    .task_id(mgr.current_task() ? mgr.current_task()->id() : "")
+    .task_id(mgr.current_task_id().value_or(""))
     // TODO(MXG): We could keep track of the seq value and increment it once
     // with each publication. This is not currently an important feature
     // outside of the fleet driver, so for now we just set it to zero.
@@ -964,10 +965,23 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
   rmf_task_sequence::phases::SimplePhase::add(
     *activation.phase, activation.event);
 
+  events::GoToPlace::add(*activation.event);
+
   tasks::add_delivery(
     *activation.task,
     activation.phase,
     *activation.event,
+    node->clock());
+
+  tasks::add_loop(
+    *activation.task,
+    activation.phase,
+    node->clock());
+
+  tasks::add_clean(
+    *activation.task,
+    activation.phase,
+    activation.event,
     node->clock());
 }
 
@@ -1149,6 +1163,7 @@ void FleetUpdateHandle::add_robot(
           fleet->_pimpl->snappable,
           fleet->_pimpl->planner,
           fleet->_pimpl->activation.task,
+          fleet->_pimpl->task_parameters,
           fleet->_pimpl->node,
           fleet->_pimpl->worker,
           fleet->_pimpl->default_maximum_delay,
@@ -1270,6 +1285,8 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
       *self->_pimpl->planner =
       std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
+
+      self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
     });
 }
 
@@ -1310,6 +1327,8 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
       *self->_pimpl->planner =
       std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
+
+      self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
     });
 }
 

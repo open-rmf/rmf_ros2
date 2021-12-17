@@ -192,6 +192,11 @@ struct TransferItems : public rmf_task_sequence::events::WaitFor::Description
     else
       name = "Load";
 
+    if (description.payload.components().size() == 1)
+      name += "item";
+    else
+      name += "items";
+
     if (!task_id)
     {
       const auto error_state = rmf_task::events::SimpleEventState::make(
@@ -224,8 +229,6 @@ struct TransferItems : public rmf_task_sequence::events::WaitFor::Description
         context, *task_id, description.target,
         context->itinerary().description().owner(),
         std::move(items));
-
-      name = "Unload";
     }
     else
     {
@@ -244,14 +247,7 @@ struct TransferItems : public rmf_task_sequence::events::WaitFor::Description
         context, *task_id, description.target,
         context->itinerary().description().owner(),
         std::move(items));
-
-      name = "Load";
     }
-
-    if (description.payload.components().size() == 1)
-      name += "item";
-    else
-      name += "items";
 
     return events::LegacyPhaseShim::Standby::make(
       legacy, context->worker(), context->clock(), id, std::move(update), name);

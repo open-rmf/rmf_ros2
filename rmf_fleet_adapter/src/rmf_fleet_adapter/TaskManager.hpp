@@ -27,6 +27,8 @@
 #include <rmf_task/TaskPlanner.hpp>
 #include <rmf_task/Activator.hpp>
 
+#include <rmf_task_sequence/Event.hpp>
+
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
 
@@ -70,16 +72,14 @@ public:
 
   std::weak_ptr<BroadcastClient> broadcast_client() const;
 
-  const LegacyTask* current_task() const;
-
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
-  void set_queue(
-    const std::vector<Assignment>& assignments,
-    const TaskProfiles& task_profiles = {});
+  void set_queue(const std::vector<Assignment>& assignments);
 
   /// Get the non-charging requests among pending tasks
   const std::vector<rmf_task::ConstRequestPtr> requests() const;
+
+  std::optional<std::string> current_task_id() const;
 
   /// The state of the robot.
   State expected_finish_state() const;
@@ -105,8 +105,12 @@ private:
 
   agv::RobotContextPtr _context;
   std::weak_ptr<BroadcastClient> _broadcast_client;
-  std::shared_ptr<LegacyTask> _active_task;
-  std::vector<std::shared_ptr<LegacyTask>> _queue;
+  rmf_task::ConstActivatorPtr _task_activator;
+  rmf_task::Task::ActivePtr _active_task;
+  std::optional<rmf_task::Task::Active::Resume> _resume_task;
+  bool _emergency_active = false;
+  rmf_task_sequence::Event::ActivePtr _emergency_pullover;
+  std::vector<Assignment> _queue;
   rmf_utils::optional<Start> _expected_finish_location;
   rxcpp::subscription _task_sub;
   rxcpp::subscription _emergency_sub;
@@ -130,9 +134,6 @@ private:
   // TravelEstimator for caching travel estimates for automatic charging
   // retreat. TODO(YV): Expose the TaskPlanner's TravelEstimator.
   std::shared_ptr<rmf_task::TravelEstimator> _travel_estimator;
-
-  // The activator to generate rmf_task::Task::Active instances from requests
-  std::shared_ptr<rmf_task::Activator> _activator;
 
   // Map schema url to schema for validator.
   // TODO: Get this and loader from FleetUpdateHandle
@@ -167,8 +168,17 @@ private:
   /// Begin responsively waiting for the next task
   void _begin_waiting();
 
+  /// Make the callback for resuming
+  std::function<void()> _make_resume();
+
+  /// Resume whatever the task manager should be doing
+  void _resume();
+
   /// Get the current state of the robot
   rmf_task::State _get_state() const;
+
+  /// Publish the current pending task list
+  void _publish_task_queue();
 
   /// Schema loader for validating jsons
   void _schema_loader(
@@ -188,16 +198,16 @@ private:
     const nlohmann::json& schema) const;
 
   /// Callback for when the task has a significat update
-  void _update(rmf_task::Phase::ConstSnapshotPtr snapshot);
+  std::function<void(rmf_task::Phase::ConstSnapshotPtr)> _update_cb();
 
   /// Callback for when the task reaches a checkpoint
-  void _checkpoint(rmf_task::Task::Active::Backup backup);
+  std::function<void(rmf_task::Task::Active::Backup)> _checkpoint_cb();
 
   /// Callback for when a phase within a task has finished
-  void _phase_finished(rmf_task::Phase::ConstCompletedPtr completed_phase);
+  std::function<void(rmf_task::Phase::ConstCompletedPtr)> _phase_finished_cb();
 
   /// Callback for when the task has finished
-  void _task_finished();
+  std::function<void()> _task_finished(std::string id);
 
   // TODO: Assuming each LegacyTask::Active instance stores a weak_ptr to this
   // TaskManager, the implementations of the corresponding functions in

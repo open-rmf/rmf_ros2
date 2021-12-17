@@ -130,12 +130,17 @@ public:
   /// Get the task activator for this robot
   const rmf_task::ConstActivatorPtr& task_activator() const;
 
+  const rmf_task::ConstParametersPtr& task_parameters() const;
+
   /// Set the state of this robot at the end of its current task
   RobotContext& current_task_end_state(const rmf_task::State& state);
 
   /// Get a mutable reference to the state of this robot at the end of its
   // current task
   const rmf_task::State& current_task_end_state() const;
+
+  /// Make a way to get the state for this robot
+  std::function<rmf_task::State()> make_get_state();
 
   /// Get the current task ID of the robot, or a nullptr if the robot is not
   /// performing any task
@@ -188,6 +193,7 @@ private:
     std::shared_ptr<const Snappable> schedule,
     std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
     rmf_task::ConstActivatorPtr activator,
+    rmf_task::ConstParametersPtr parameters,
     std::shared_ptr<Node> node,
     const rxcpp::schedulers::worker& worker,
     rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
@@ -200,6 +206,7 @@ private:
   std::shared_ptr<const Snappable> _schedule;
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> _planner;
   rmf_task::ConstActivatorPtr _task_activator;
+  rmf_task::ConstParametersPtr _task_parameters;
   std::shared_ptr<const rmf_traffic::Profile> _profile;
 
   std::shared_ptr<void> _negotiation_license;

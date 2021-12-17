@@ -19,6 +19,10 @@
 
 #include "../phases/GoToPlace.hpp"
 
+#include <rmf_task_sequence/Task.hpp>
+#include <rmf_task_sequence/phases/SimplePhase.hpp>
+#include <rmf_task_sequence/events/GoToPlace.hpp>
+
 namespace rmf_fleet_adapter {
 namespace tasks {
 
@@ -107,6 +111,40 @@ std::shared_ptr<LegacyTask> make_loop(
     deployment_time,
     finish_state,
     request);
+}
+
+//==============================================================================
+void add_loop(
+  rmf_task::Activator& task_activator,
+  const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
+  std::function<rmf_traffic::Time()> clock)
+{
+  using Loop = rmf_task::requests::Loop;
+  using Phase = rmf_task_sequence::phases::SimplePhase;
+  using GoToPlace = rmf_task_sequence::events::GoToPlace;
+
+  auto loop_unfolder =
+    [](const Loop::Description& loop)
+    {
+      rmf_task_sequence::Task::Builder builder;
+      for (std::size_t i=0; i < loop.num_loops(); ++i)
+      {
+        builder
+          .add_phase(
+            Phase::Description::make(
+              GoToPlace::Description::make(loop.start_waypoint())), {})
+          .add_phase(
+            Phase::Description::make(
+              GoToPlace::Description::make(loop.finish_waypoint())), {});
+      }
+
+      // TODO(MXG): Consider making the category and detail more details
+      return *builder.build("Loop", "");
+    };
+
+  rmf_task_sequence::Task::unfold<rmf_task::requests::Loop::Description>(
+    std::move(loop_unfolder), task_activator,
+    phase_activator, std::move(clock));
 }
 
 } // namespace tasks

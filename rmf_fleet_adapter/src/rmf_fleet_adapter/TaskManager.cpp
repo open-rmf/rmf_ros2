@@ -32,6 +32,7 @@
 #include "tasks/Loop.hpp"
 
 #include "phases/ResponsiveWait.hpp"
+#include "events/EmergencyPullover.hpp"
 
 #include <rmf_api_msgs/schemas/task_state_update.hpp>
 #include <rmf_api_msgs/schemas/task_state.hpp>
@@ -46,19 +47,59 @@ TaskManagerPtr TaskManager::make(
   agv::RobotContextPtr context,
   std::weak_ptr<BroadcastClient> broadcast_client)
 {
-  auto mgr = TaskManagerPtr(new TaskManager(
-        std::move(context), std::move(broadcast_client)));
+  auto mgr = TaskManagerPtr(
+    new TaskManager(
+      std::move(context),
+      std::move(broadcast_client)));
+
+  auto begin_pullover = [w = mgr->weak_from_this()]()
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_context->worker().schedule(
+        [w = self->weak_from_this()](const auto&)
+      {
+        const auto self = w.lock();
+
+        if (!self->_emergency_active)
+          return;
+
+        // TODO(MXG): Consider subscribing to the emergency pullover update
+        self->_emergency_pullover = events::EmergencyPullover::Standby::make(
+          rmf_task_sequence::Event::AssignID::make(), self->_context, [](){})
+            ->begin([](){}, self->_make_resume());
+      });
+    };
+
   mgr->_emergency_sub = mgr->_context->node()->emergency_notice()
     .observe_on(rxcpp::identity_same_worker(mgr->_context->worker()))
     .subscribe(
-    [w = mgr->weak_from_this()](const auto& msg)
+    [w = mgr->weak_from_this(), begin_pullover](const auto& msg)
     {
       if (auto mgr = w.lock())
       {
-        if (auto task = mgr->_active_task)
+        if (mgr->_emergency_active == msg->data)
+          return;
+
+        mgr->_emergency_active = msg->data;
+        if (msg->data)
         {
-          if (auto phase = task->current_phase())
-            phase->emergency_alarm(msg->data);
+          if (auto task = mgr->_active_task)
+          {
+            mgr->_resume_task = task->interrupt(begin_pullover);
+          }
+          else
+          {
+            mgr->_resume_task = std::nullopt;
+            begin_pullover();
+          }
+        }
+        else
+        {
+          if (auto pullover = mgr->_emergency_pullover)
+            pullover->cancel();
         }
       }
     });
@@ -87,8 +128,6 @@ TaskManagerPtr TaskManager::make(
 
   mgr->_travel_estimator = std::make_shared<rmf_task::TravelEstimator>(
     mgr->_context->task_planner()->configuration().parameters());
-
-  mgr->_activator = std::make_shared<rmf_task::Activator>();
 
   auto schema = rmf_api_msgs::schemas::task_state;
   nlohmann::json_uri json_uri = nlohmann::json_uri{schema["$id"]};
@@ -129,6 +168,15 @@ auto TaskManager::expected_finish_location() const -> StartSet
 }
 
 //==============================================================================
+std::optional<std::string> TaskManager::current_task_id() const
+{
+  if (_active_task)
+    return _active_task->tag()->booking()->id();
+
+  return std::nullopt;
+}
+
+//==============================================================================
 auto TaskManager::expected_finish_state() const -> State
 {
   // If an active task exists, return the estimated finish state of that task
@@ -154,12 +202,6 @@ const agv::RobotContextPtr& TaskManager::context()
 }
 
 //==============================================================================
-const LegacyTask* TaskManager::current_task() const
-{
-  return _active_task.get();
-}
-
-//==============================================================================
 agv::ConstRobotContextPtr TaskManager::context() const
 {
   return _context;
@@ -173,185 +215,14 @@ std::weak_ptr<BroadcastClient> TaskManager::broadcast_client() const
 
 //==============================================================================
 void TaskManager::set_queue(
-  const std::vector<TaskManager::Assignment>& assignments,
-  const TaskManager::TaskProfiles& task_profiles)
+  const std::vector<TaskManager::Assignment>& assignments)
 {
   // We indent this block as _mutex is also locked in the _begin_next_task()
   // function that is called at the end of this function.
   {
     std::lock_guard<std::mutex> guard(_mutex);
-    _queue.clear();
-
-    // We use dynamic cast to determine the type of request and then call the
-    // appropriate make(~) function to convert the request into a task
-    for (std::size_t i = 0; i < assignments.size(); ++i)
-    {
-      const auto& a = assignments[i];
-      auto start =
-        _context->current_task_end_state().extract_plan_start().value();
-      if (i != 0)
-        start = assignments[i-1].finish_state().extract_plan_start().value();
-      start.time(a.deployment_time());
-      const auto request = a.request();
-
-      TaskProfileMsg task_profile;
-      bool auto_request = request->booking()->automatic();
-      const auto it = task_profiles.find(request->booking()->id());
-      if (it != task_profiles.end())
-      {
-        task_profile = it->second;
-      }
-      else
-      {
-        assert(auto_request);
-        // We may have an auto-generated request
-        task_profile.task_id = request->booking()->id();
-        task_profile.submission_time = _context->node()->now();
-        task_profile.description.start_time = rmf_traffic_ros2::convert(
-          request->booking()->earliest_start_time());
-      }
-
-      using namespace rmf_task::requests;
-
-      if (std::dynamic_pointer_cast<const Clean::Description>(
-          request->description()) != nullptr)
-      {
-        auto task = rmf_fleet_adapter::tasks::make_clean(
-          request,
-          _context,
-          start,
-          a.deployment_time(),
-          a.finish_state());
-
-        // Populate task_profile for auto-generated Clean request
-        if (auto_request)
-        {
-          std::shared_ptr<const rmf_task::requests::Clean::Description>
-          description = std::dynamic_pointer_cast<
-            const Clean::Description>(request->description());
-          const auto start_waypoint = description->start_waypoint();
-          const auto waypoint_name =
-            _context->navigation_graph().get_waypoint(start_waypoint).name();
-          task_profile.description.task_type.type =
-            rmf_task_msgs::msg::TaskType::TYPE_CLEAN;
-          task_profile.description.clean.start_waypoint =
-            waypoint_name != nullptr ? *waypoint_name : "";
-        }
-        task->task_profile(task_profile);
-
-        _queue.push_back(task);
-      }
-
-      else if (std::dynamic_pointer_cast<const ChargeBattery::Description>(
-          request->description()) != nullptr)
-      {
-        const auto task = tasks::make_charge_battery(
-          request,
-          _context,
-          start,
-          a.deployment_time(),
-          a.finish_state());
-
-        // Populate task_profile for auto-generated ChargeBattery request
-        if (auto_request)
-        {
-          task_profile.description.task_type.type =
-            rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY;
-        }
-        task->task_profile(task_profile);
-
-        _queue.push_back(task);
-      }
-
-      else if (std::dynamic_pointer_cast<const Delivery::Description>(
-          request->description()) != nullptr)
-      {
-        const auto task = tasks::make_delivery(
-          request,
-          _context,
-          start,
-          a.deployment_time(),
-          a.finish_state(),
-          task_profile.description.delivery);
-
-        // Populate task_profile for auto-generated Delivery request
-        if (auto_request)
-        {
-          std::shared_ptr<const rmf_task::requests::Delivery::Description>
-          description = std::dynamic_pointer_cast<
-            const Delivery::Description>(request->description());
-          const auto& graph = _context->navigation_graph();
-          const auto pickup_waypoint = description->pickup_waypoint();
-          const auto pickup_name =
-            graph.get_waypoint(pickup_waypoint).name();
-          const auto dropoff_waypoint = description->dropoff_waypoint();
-          const auto dropoff_name =
-            graph.get_waypoint(dropoff_waypoint).name();
-          task_profile.description.task_type.type =
-            rmf_task_msgs::msg::TaskType::TYPE_DELIVERY;
-          task_profile.description.delivery.pickup_place_name =
-            pickup_name != nullptr ? *pickup_name : "";
-          task_profile.description.delivery.dropoff_place_name =
-            dropoff_name != nullptr ? *dropoff_name : "";
-        }
-        task->task_profile(task_profile);
-
-        _queue.push_back(task);
-      }
-
-      else if (std::dynamic_pointer_cast<const Loop::Description>(request->
-        description()) != nullptr)
-      {
-        const auto task = tasks::make_loop(
-          request,
-          _context,
-          start,
-          a.deployment_time(),
-          a.finish_state());
-
-        // Populate task_profile for auto-generated Loop request
-        if (auto_request)
-        {
-          std::shared_ptr<const rmf_task::requests::Loop::Description>
-          description = std::dynamic_pointer_cast<
-            const Loop::Description>(request->description());
-          const auto& graph = _context->navigation_graph();
-          const auto start_waypoint = description->start_waypoint();
-          const auto start_name =
-            graph.get_waypoint(start_waypoint).name();
-          const auto finish_waypoint = description->finish_waypoint();
-          const auto finish_name =
-            graph.get_waypoint(finish_waypoint).name();
-          task_profile.description.loop.num_loops = description->num_loops();
-          task_profile.description.task_type.type =
-            rmf_task_msgs::msg::TaskType::TYPE_LOOP;
-          task_profile.description.loop.start_name =
-            start_name != nullptr ? *start_name : "";
-          task_profile.description.loop.finish_name =
-            finish_name != nullptr ? *finish_name : "";
-        }
-        task->task_profile(task_profile);
-
-        _queue.push_back(task);
-      }
-
-      else
-      {
-        RCLCPP_WARN(
-          _context->node()->get_logger(),
-          "[TaskManager] Un-supported request type in assignment list. "
-          "Please update the implementation of TaskManager::set_queue() to "
-          "support request with task_id:[%s]",
-          a.request()->booking()->id().c_str());
-
-        continue;
-      }
-
-      // publish queued task
-      TaskSummaryMsg msg;
-      _populate_task_summary(_queue.back(), msg.STATE_QUEUED, msg);
-      _context->node()->task_summary()->publish(msg);
-    }
+    _queue = assignments;
+    _publish_task_queue();
   }
 
   _begin_next_task();
@@ -365,12 +236,12 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
   requests.reserve(_queue.size());
   for (const auto& task : _queue)
   {
-    if (task->request()->booking()->automatic())
+    if (task.request()->booking()->automatic())
     {
       continue;
     }
 
-    requests.push_back(task->request());
+    requests.push_back(task.request());
   }
   return requests;
 }
@@ -443,73 +314,35 @@ void TaskManager::_begin_next_task()
   // TODO: Reactively replan task assignments across agents in a fleet every
   // time as task is completed.
   const auto deployment_time = std::min(
-    next_task->deployment_time(),
-    next_task->request()->booking()->earliest_start_time());
+    next_task.deployment_time(),
+    next_task.request()->booking()->earliest_start_time());
 
   if (now >= deployment_time)
   {
     // Update state in RobotContext and Assign active task
-    _context->current_task_end_state(_queue.front()->finish_state());
-    _context->current_task_id(_queue.front()->id());
-    _active_task = std::move(_queue.front());
+    const auto id = _queue.front().request()->booking()->id();
+    _context->current_task_end_state(_queue.front().finish_state());
+    _context->current_task_id(id);
+    const auto assignment = _queue.front();
+    _active_task = _context->task_activator()->activate(
+      _context->make_get_state(),
+      _context->task_parameters(),
+      *assignment.request(),
+      _update_cb(),
+      _checkpoint_cb(),
+      _phase_finished_cb(),
+      _task_finished(id));
+
     _queue.erase(_queue.begin());
 
     RCLCPP_INFO(
       _context->node()->get_logger(),
       "Beginning new task [%s] for [%s]. Remaining queue size: %ld",
-      _active_task->id().c_str(),
+      _active_task->tag()->booking()->id().c_str(),
       _context->requester_id().c_str(),
       _queue.size());
 
-    _task_sub = _active_task->observe()
-      .observe_on(rxcpp::identity_same_worker(_context->worker()))
-      .subscribe(
-      [me = weak_from_this(), active_task = _active_task](LegacyTask::StatusMsg msg)
-      {
-        const auto self = me.lock();
-        if (!self)
-          return;
-
-        self->_populate_task_summary(active_task, msg.state, msg);
-        self->_context->node()->task_summary()->publish(msg);
-      },
-      [me = weak_from_this(), active_task = _active_task](std::exception_ptr e)
-      {
-        const auto self = me.lock();
-        if (!self)
-          return;
-
-        TaskSummaryMsg msg;
-
-        try
-        {
-          std::rethrow_exception(e);
-        }
-        catch (const std::exception& e)
-        {
-          msg.status = e.what();
-        }
-
-        self->_populate_task_summary(active_task, msg.STATE_FAILED, msg);
-        self->_context->node()->task_summary()->publish(msg);
-      },
-      [me = weak_from_this(), active_task = _active_task]()
-      {
-        const auto self = me.lock();
-        if (!self)
-          return;
-
-        TaskSummaryMsg msg;
-        self->_populate_task_summary(
-          active_task, msg.STATE_COMPLETED, msg);
-        self->_context->node()->task_summary()->publish(msg);
-
-        self->_active_task = nullptr;
-        self->_context->current_task_id(std::nullopt);
-      });
-
-    _active_task->begin();
-    _register_executed_task(_active_task->id());
+    _register_executed_task(_active_task->tag()->booking()->id());
   }
   else
   {
@@ -590,6 +423,46 @@ void TaskManager::_begin_waiting()
 
       self->_waiting = nullptr;
       self->_begin_next_task();
+    });
+}
+
+//==============================================================================
+std::function<void()> TaskManager::_make_resume()
+{
+  return [w = weak_from_this()]()
+  {
+    const auto self = w.lock();
+    if (!self)
+      return;
+
+    self->_resume();
+  };
+}
+
+//==============================================================================
+void TaskManager::_resume()
+{
+  _context->worker().schedule(
+    [w = weak_from_this()](const auto&)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      if (self->_emergency_active)
+        return;
+
+      self->_emergency_pullover = nullptr;
+      if (self->_resume_task.has_value())
+      {
+        auto resume = *std::move(self->_resume_task);
+        self->_resume_task = std::nullopt;
+        resume();
+      }
+      else
+      {
+        self->_begin_next_task();
+      }
     });
 }
 
@@ -710,7 +583,7 @@ void TaskManager::_populate_task_summary(
 
     msg.start_time = _context->node()->now();
     msg.end_time = _queue.empty() ? msg.start_time : rmf_traffic_ros2::convert(
-      _queue.front()->deployment_time());
+      _queue.front().deployment_time());
     // Make the task type explicit
     msg.task_profile.description.task_type.type =
       rmf_task_msgs::msg::TaskType::TYPE_STATION;
@@ -812,55 +685,84 @@ bool TaskManager::_validate_json(
 }
 
 //==============================================================================
-void TaskManager::_update(rmf_task::Phase::ConstSnapshotPtr snapshot)
+std::function<void(rmf_task::Phase::ConstSnapshotPtr)>
+TaskManager::_update_cb()
 {
-  // TODO
+  return [w = weak_from_this()](rmf_task::Phase::ConstSnapshotPtr snapshot)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
 
-  auto task_state_update = _task_state_update_json;
-  task_state_update["data"] = _active_task_state;
-  _validate_and_publish_json(
-    task_state_update, rmf_api_msgs::schemas::task_state_update);
+      // TODO
+      auto task_state_update = self->_task_state_update_json;
+      task_state_update["data"] = self->_active_task_state;
+      self->_validate_and_publish_json(
+        task_state_update, rmf_api_msgs::schemas::task_state_update);
+    };
 }
 
 //==============================================================================
-void TaskManager::_checkpoint(rmf_task::Task::Active::Backup backup)
+std::function<void(rmf_task::Task::Active::Backup)>
+TaskManager::_checkpoint_cb()
 {
-  // TODO
+  return [w = weak_from_this()](rmf_task::Task::Active::Backup backup)
+  {
+    const auto self = w.lock();
+    if (!self)
+      return;
 
-  auto task_state_update = _task_state_update_json;
-  task_state_update["data"] = _active_task_state;
-  _validate_and_publish_json(
-    task_state_update, rmf_api_msgs::schemas::task_state_update);
+    // TODO
+
+    auto task_state_update = self->_task_state_update_json;
+    task_state_update["data"] = self->_active_task_state;
+    self->_validate_and_publish_json(
+      task_state_update, rmf_api_msgs::schemas::task_state_update);
+  };
 }
 
 //==============================================================================
-void TaskManager::_phase_finished(
-  rmf_task::Phase::ConstCompletedPtr completed_phase)
+std::function<void(rmf_task::Phase::ConstCompletedPtr)>
+TaskManager::_phase_finished_cb()
 {
-  // TODO
+  return [w = weak_from_this()](rmf_task::Phase::ConstCompletedPtr phase)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
 
-  auto task_state_update = _task_state_update_json;
-  task_state_update["data"] = _active_task_state;
-  _validate_and_publish_json(
-    task_state_update, rmf_api_msgs::schemas::task_state_update);
+      // TODO
+
+      auto task_state_update = self->_task_state_update_json;
+      task_state_update["data"] = self->_active_task_state;
+      self->_validate_and_publish_json(
+        task_state_update, rmf_api_msgs::schemas::task_state_update);
+    };
 }
 
 //==============================================================================
-void TaskManager::_task_finished()
+std::function<void()> TaskManager::_task_finished(std::string id)
 {
-  // TODO
+  return [w = weak_from_this(), id]()
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
 
-  auto task_state_update = _task_state_update_json;
-  task_state_update["data"] = _active_task_state;
-  _validate_and_publish_json(
-    task_state_update, rmf_api_msgs::schemas::task_state_update);
+      // TODO
 
-  auto task_log_update = _task_log_update_msg;
-  task_log_update["data"] = _task_logs[_active_task_state["booking"]["id"]];
-  _validate_and_publish_json(
-    task_log_update, rmf_api_msgs::schemas::task_log_update);
+      auto task_state_update = self->_task_state_update_json;
+      task_state_update["data"] = self->_active_task_state;
+      self->_validate_and_publish_json(
+        task_state_update, rmf_api_msgs::schemas::task_state_update);
 
-  _active_task_state = {};
+      auto task_log_update = self->_task_log_update_msg;
+      task_log_update["data"] = self->_task_logs[self->_active_task_state["booking"]["id"]];
+      self->_validate_and_publish_json(
+        task_log_update, rmf_api_msgs::schemas::task_log_update);
+
+      self->_active_task_state = {};
+    };
 }
 
 } // namespace rmf_fleet_adapter
