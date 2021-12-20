@@ -208,7 +208,7 @@ public:
     handle->_pimpl->fleet_state_pub = handle->_pimpl->node->fleet_state();
     handle->_pimpl->fleet_state_timer =
       handle->_pimpl->node->try_create_wall_timer(
-      std::chrono::seconds(1), [me = handle->weak_from_this()]()
+      std::chrono::milliseconds(100), [me = handle->weak_from_this()]()
       {
         if (const auto self = me.lock())
           self->_pimpl->publish_fleet_state();

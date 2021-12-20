@@ -783,7 +783,7 @@ void FleetUpdateHandle::Implementation::fleet_state_publish_period(
   if (value.has_value())
   {
     fleet_state_timer = node->create_wall_timer(
-      std::chrono::seconds(1), [this]() { this->publish_fleet_state(); });
+      std::chrono::milliseconds(100), [this]() { this->publish_fleet_state(); });
   }
   else
   {
