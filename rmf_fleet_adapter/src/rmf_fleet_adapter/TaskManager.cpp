@@ -129,6 +129,14 @@ TaskManagerPtr TaskManager::make(
   mgr->_travel_estimator = std::make_shared<rmf_task::TravelEstimator>(
     mgr->_context->task_planner()->configuration().parameters());
 
+  mgr->_update_timer = mgr->_context->node()->try_create_wall_timer(
+    std::chrono::milliseconds(100),
+    [w = mgr->weak_from_this()]()
+  {
+    if (const auto self = w.lock())
+      self->_consider_publishing_updates();
+  });
+
   auto schema = rmf_api_msgs::schemas::task_state;
   nlohmann::json_uri json_uri = nlohmann::json_uri{schema["$id"]};
   mgr->_schema_dictionary.insert({json_uri.url(), schema});
@@ -153,7 +161,8 @@ TaskManager::TaskManager(
   agv::RobotContextPtr context,
   std::weak_ptr<BroadcastClient> broadcast_client)
 : _context(std::move(context)),
-  _broadcast_client(std::move(broadcast_client))
+  _broadcast_client(std::move(broadcast_client)),
+  _last_update_time(std::chrono::steady_clock::now() - std::chrono::seconds(1))
 {
   // Do nothing. The make() function does all further initialization.
 }
@@ -656,6 +665,249 @@ rmf_task::State TaskManager::_get_state() const
 }
 
 //==============================================================================
+void TaskManager::_consider_publishing_updates()
+{
+  const auto now = std::chrono::steady_clock::now();
+  const auto time_elapsed = now - _last_update_time;
+  // TODO(MXG): Make max elapsed time configurable
+  const auto max_time_elapsed = std::chrono::seconds(1);
+  if (_task_state_update_available || time_elapsed > max_time_elapsed)
+  {
+    _task_state_update_available = false;
+    _last_update_time = now;
+    _publish_task_state();
+  }
+}
+
+namespace {
+//==============================================================================
+std::chrono::milliseconds to_millis(rmf_traffic::Duration duration)
+{
+  return std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+}
+
+//==============================================================================
+std::string status_to_string(rmf_task::Event::Status status)
+{
+  using Status = rmf_task::Event::Status;
+  switch (status)
+  {
+  case Status::Uninitialized:
+    return "uninitialized";
+  case Status::Blocked:
+    return "blocked";
+  case Status::Error:
+    return "error";
+  case Status::Failed:
+    return "failed";
+  case Status::Standby:
+    return "standby";
+  case Status::Underway:
+    return "underway";
+  case Status::Delayed:
+    return "delayed";
+  case Status::Skipped:
+    return "skipped";
+  case Status::Canceled:
+    return "canceled";
+  case Status::Killed:
+    return "killed";
+  case Status::Completed:
+    return "completed";
+  default:
+    return "uninitialized";
+  }
+}
+
+//==============================================================================
+std::string tier_to_string(rmf_task::Log::Entry::Tier tier)
+{
+  using Tier = rmf_task::Log::Entry::Tier;
+  switch (tier)
+  {
+  case Tier::Info:
+    return "info";
+  case Tier::Warning:
+    return "warning";
+  case Tier::Error:
+    return "error";
+  default:
+    return "uninitialized";
+  }
+}
+
+//==============================================================================
+nlohmann::json log_to_json(const rmf_task::Log::Entry& entry)
+{
+  nlohmann::json output;
+  output["seq"] = entry.seq();
+  output["tier"] = tier_to_string(entry.tier());
+  output["unix_millis_time"] =
+    to_millis(entry.time().time_since_epoch()).count();
+  output["text"] = entry.text();
+
+  return output;
+}
+
+//==============================================================================
+nlohmann::json& copy_phase_data(
+  nlohmann::json& phases,
+  const rmf_task::Phase::Active& snapshot,
+  rmf_task::Log::Reader& reader,
+  nlohmann::json& all_phase_logs)
+{
+  const auto& tag = *snapshot.tag();
+  const auto& header = tag.header();
+  const auto id = tag.id();
+  auto& phase = phases[std::to_string(id)];
+  phase["id"] = id;
+  phase["category"] = header.category();
+  phase["detail"] = header.detail();
+  phase["original_estimate_millis"] =
+    std::max(0l, to_millis(header.original_duration_estimate()).count());
+  phase["estimate_millis"] =
+    std::max(0l, to_millis(snapshot.estimate_remaining_time()).count());
+  phase["final_event_id"] = snapshot.final_event()->id();
+
+  // TODO(MXG): Add in skip request information
+
+  std::vector<rmf_task::Event::ConstStatePtr> event_queue;
+  event_queue.push_back(snapshot.final_event());
+
+  auto& phase_logs = all_phase_logs[std::to_string(id)];
+  auto& event_logs = phase_logs["events"];
+
+  while (!event_queue.empty())
+  {
+    const auto top = event_queue.back();
+    event_queue.pop_back();
+
+    nlohmann::json event_state;
+    event_state["id"] = top->id();
+    event_state["status"] = status_to_string(top->status());
+
+    // TODO(MXG): Keep a VersionedString Reader to know when to actually update
+    // this string
+    event_state["name"] =
+      *rmf_task::VersionedString::Reader().read(top->name());
+
+    event_state["detail"] =
+      *rmf_task::VersionedString::Reader().read(top->detail());
+
+    std::vector<nlohmann::json> logs;
+    std::size_t log_count = 0;
+    for (const auto& log : reader.read(top->log()))
+    {
+      std::cout << "LOG COUNT: " << log_count++ << std::endl;
+      logs.push_back(log_to_json(log));
+    }
+
+    if (!logs.empty())
+      event_logs[std::to_string(top->id())] = std::move(logs);
+
+    std::vector<uint32_t> deps;
+    deps.reserve(top->dependencies().size());
+    for (const auto& dep : top->dependencies())
+    {
+      event_queue.push_back(dep);
+      deps.push_back(dep->id());
+    }
+
+    event_state["deps"] = std::move(deps);
+  }
+
+  return phase;
+}
+
+//==============================================================================
+void copy_phase_data(
+  nlohmann::json& phases,
+  const rmf_task::Phase::Pending& pending)
+{
+  const auto id = pending.tag()->id();
+  auto& phase = phases[std::to_string(id)];
+  phase["id"] = id;
+
+  const auto& header = pending.tag()->header();
+  phase["category"] = header.category();
+  phase["detail"] = header.detail();
+  phase["estimate_millis"] =
+    std::max(0l, to_millis(header.original_duration_estimate()).count());
+}
+} // anonymous namespace
+
+//==============================================================================
+void TaskManager::_publish_task_state()
+{
+  if (!_active_task)
+    return;
+
+  auto task_state_update = _task_state_update_json;
+
+  const auto& booking = *_active_task->tag()->booking();
+  auto& booking_json = _active_task_state["booking"];
+  booking_json["id"] = booking.id();
+  booking_json["unix_millis_earliest_start_time"] =
+    to_millis(booking.earliest_start_time().time_since_epoch()).count();
+  // TODO(MXG): Add priority and labels
+
+  const auto& header = _active_task->tag()->header();
+  _active_task_state["category"] = header.category();
+  _active_task_state["detail"] = header.detail();
+  // TODO(MXG): Add unix_millis_start_time and unix_millis_finish_time
+  _active_task_state["original_estimate_millis"] =
+    std::max(0l, to_millis(header.original_duration_estimate()).count());
+  _active_task_state["estimate_millis"] =
+    std::max(0l, to_millis(_active_task->estimate_remaining_time()).count());
+
+  auto& phases = _active_task_state["phases"];
+
+  nlohmann::json task_logs;
+  auto& phase_logs = task_logs["phases"];
+
+  std::vector<uint64_t> completed_ids;
+  completed_ids.reserve(_active_task->completed_phases().size());
+  for (const auto& completed : _active_task->completed_phases())
+  {
+    const auto& snapshot = completed->snapshot();
+    auto& phase = copy_phase_data(phases, *snapshot, _log_reader, phase_logs);
+
+    phase["unix_millis_start_time"] =
+      completed->start_time().time_since_epoch().count();
+
+    phase["unix_millis_finish_time"] =
+      completed->finish_time().time_since_epoch().count();
+
+    completed_ids.push_back(snapshot->tag()->id());
+  }
+  _active_task_state["completed"] = std::move(completed_ids);
+
+  const auto active_phase = _active_task->active_phase();
+  copy_phase_data(phases, *active_phase, _log_reader, phase_logs);
+
+  _active_task_state["active"] = active_phase->tag()->id();
+
+  std::vector<uint64_t> pending_ids;
+  pending_ids.reserve(_active_task->pending_phases().size());
+  for (const auto& pending : _active_task->pending_phases())
+  {
+    copy_phase_data(phases, pending);
+    pending_ids.push_back(pending.tag()->id());
+  }
+  _active_task_state["pending"] = std::move(pending_ids);
+
+  task_state_update["data"] = _active_task_state;
+  _validate_and_publish_json(
+    task_state_update, rmf_api_msgs::schemas::task_state_update);
+}
+
+//==============================================================================
+void TaskManager::_publish_task_queue()
+{
+  // TODO(MXG): Come up with a schema for task queues
+}
+
+//==============================================================================
 bool TaskManager::_validate_json(
   const nlohmann::json& json,
   const nlohmann::json& schema,
@@ -688,17 +940,14 @@ bool TaskManager::_validate_json(
 std::function<void(rmf_task::Phase::ConstSnapshotPtr)>
 TaskManager::_update_cb()
 {
-  return [w = weak_from_this()](rmf_task::Phase::ConstSnapshotPtr snapshot)
+  return [w = weak_from_this()](rmf_task::Phase::ConstSnapshotPtr)
     {
       const auto self = w.lock();
       if (!self)
         return;
 
-      // TODO
-      auto task_state_update = self->_task_state_update_json;
-      task_state_update["data"] = self->_active_task_state;
-      self->_validate_and_publish_json(
-        task_state_update, rmf_api_msgs::schemas::task_state_update);
+      self->_task_state_update_available = true;
+      // TODO(MXG): Use this callback to make the state updates more efficient
     };
 }
 
@@ -712,12 +961,7 @@ TaskManager::_checkpoint_cb()
     if (!self)
       return;
 
-    // TODO
-
-    auto task_state_update = self->_task_state_update_json;
-    task_state_update["data"] = self->_active_task_state;
-    self->_validate_and_publish_json(
-      task_state_update, rmf_api_msgs::schemas::task_state_update);
+    // TODO(MXG): Save the backup
   };
 }
 
@@ -731,12 +975,8 @@ TaskManager::_phase_finished_cb()
       if (!self)
         return;
 
-      // TODO
-
-      auto task_state_update = self->_task_state_update_json;
-      task_state_update["data"] = self->_active_task_state;
-      self->_validate_and_publish_json(
-        task_state_update, rmf_api_msgs::schemas::task_state_update);
+      self->_task_state_update_available = true;
+      // TODO(MXG): Use this callback to make the state updates more efficient
     };
 }
 

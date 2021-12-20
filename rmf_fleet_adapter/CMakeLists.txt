@@ -475,6 +475,7 @@ target_include_directories(close_lanes
 ament_export_targets(rmf_fleet_adapter HAS_LIBRARY_TARGET)
 ament_export_dependencies(
   rmf_task
+  rmf_task_sequence
   rmf_traffic_ros2
   rmf_fleet_msgs
   rmf_door_msgs

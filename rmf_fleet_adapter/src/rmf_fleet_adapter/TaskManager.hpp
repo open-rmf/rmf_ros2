@@ -126,6 +126,9 @@ private:
   std::mutex _mutex;
   rclcpp::TimerBase::SharedPtr _task_timer;
   rclcpp::TimerBase::SharedPtr _retreat_timer;
+  rclcpp::TimerBase::SharedPtr _update_timer;
+  bool _task_state_update_available = true;
+  std::chrono::steady_clock::time_point _last_update_time;
 
   // Container to keep track of tasks that have been started by this TaskManager
   // Use the _register_executed_task() to populate this container.
@@ -156,8 +159,8 @@ private:
 
   // The task_state.json for the active task. This should be initialized when
   // a request is activated.
-  // TODO: Should this be a shared_ptr to pass down to LegacyTask::Active?
   nlohmann::json _active_task_state;
+  rmf_task::Log::Reader _log_reader;
 
   // Map task_id to task_log.json for all tasks managed by this TaskManager
   std::unordered_map<std::string, nlohmann::json> _task_logs = {};
@@ -176,6 +179,12 @@ private:
 
   /// Get the current state of the robot
   rmf_task::State _get_state() const;
+
+  /// Check whether publishing should happen
+  void _consider_publishing_updates();
+
+  /// Publish the current task state
+  void _publish_task_state();
 
   /// Publish the current pending task list
   void _publish_task_queue();
