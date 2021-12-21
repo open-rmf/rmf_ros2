@@ -81,6 +81,8 @@ public:
 
   std::optional<std::string> current_task_id() const;
 
+  std::string robot_status() const;
+
   /// The state of the robot.
   State expected_finish_state() const;
 

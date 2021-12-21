@@ -186,6 +186,16 @@ std::optional<std::string> TaskManager::current_task_id() const
 }
 
 //==============================================================================
+std::string TaskManager::robot_status() const
+{
+  if (!_active_task)
+    return "idle";
+
+  // TODO(MXG): Identify if the robot is charging and report that status here
+  return "working";
+}
+
+//==============================================================================
 auto TaskManager::expected_finish_state() const -> State
 {
   // If an active task exists, return the estimated finish state of that task
@@ -834,6 +844,27 @@ void copy_phase_data(
   phase["estimate_millis"] =
     std::max(0l, to_millis(header.original_duration_estimate()).count());
 }
+
+//==============================================================================
+void copy_booking_data(
+  nlohmann::json& booking_json,
+  const rmf_task::Task::Booking& booking)
+{
+  booking_json["id"] = booking.id();
+  booking_json["unix_millis_earliest_start_time"] =
+    to_millis(booking.earliest_start_time().time_since_epoch()).count();
+  // TODO(MXG): Add priority and labels
+}
+
+//==============================================================================
+void copy_assignment(
+  nlohmann::json& assigned_to_json,
+  const agv::RobotContext& context)
+{
+  assigned_to_json["group"] = context.group();
+  assigned_to_json["name"] = context.name();
+}
+
 } // anonymous namespace
 
 //==============================================================================
@@ -845,11 +876,7 @@ void TaskManager::_publish_task_state()
   auto task_state_update = _task_state_update_json;
 
   const auto& booking = *_active_task->tag()->booking();
-  auto& booking_json = _active_task_state["booking"];
-  booking_json["id"] = booking.id();
-  booking_json["unix_millis_earliest_start_time"] =
-    to_millis(booking.earliest_start_time().time_since_epoch()).count();
-  // TODO(MXG): Add priority and labels
+  copy_booking_data(_active_task_state["booking"], booking);
 
   const auto& header = _active_task->tag()->header();
   _active_task_state["category"] = header.category();
@@ -859,6 +886,9 @@ void TaskManager::_publish_task_state()
     std::max(0l, to_millis(header.original_duration_estimate()).count());
   _active_task_state["estimate_millis"] =
     std::max(0l, to_millis(_active_task->estimate_remaining_time()).count());
+  copy_assignment(_active_task_state["assigned_to"], *_context);
+  _active_task_state["status"] =
+    status_to_string(_active_task->status_overview());
 
   auto& phases = _active_task_state["phases"];
 
@@ -904,7 +934,35 @@ void TaskManager::_publish_task_state()
 //==============================================================================
 void TaskManager::_publish_task_queue()
 {
-  // TODO(MXG): Come up with a schema for task queues
+  rmf_task::State expected_state = _context->current_task_end_state();
+  const auto& parameters = *_context->task_parameters();
+  for (const auto& pending : _queue)
+  {
+    const auto info = pending.request()->description()->generate_info(
+      expected_state, parameters);
+
+    nlohmann::json pending_json;
+    const auto& booking = *pending.request()->booking();
+    copy_booking_data(pending_json["booking"], booking);
+
+    pending_json["category"] = info.category;
+    pending_json["detail"] = info.detail;
+
+    const auto estimate =
+      pending.finish_state().time().value() - pending.deployment_time();
+    pending_json["original_estimate_millis"] =
+      std::max(0l, to_millis(estimate).count());
+    copy_assignment(pending_json["assigned_to"], *_context);
+    pending_json["status"] = "standby";
+
+    auto task_state_update = _task_state_update_json;
+    task_state_update["data"] = pending_json;
+
+    _validate_and_publish_json(
+      task_state_update, rmf_api_msgs::schemas::task_state_update);
+
+    expected_state = pending.finish_state();
+  }
 }
 
 //==============================================================================

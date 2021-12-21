@@ -795,56 +795,41 @@ get_nearest_charger(
   return nearest_charger;
 }
 
+namespace {
 //==============================================================================
-void FleetUpdateHandle::Implementation::fleet_state_publish_period(
-  std::optional<rmf_traffic::Duration> value)
+rmf_fleet_msgs::msg::Location convert_location(const agv::RobotContext& context)
 {
-  if (value.has_value())
+  if (context.location().empty())
   {
-    fleet_state_timer = node->create_wall_timer(
-      std::chrono::seconds(1), [this]() { this->publish_fleet_state(); });
+    // TODO(MXG): We should emit some kind of critical error if this ever
+    // happens
+    return rmf_fleet_msgs::msg::Location();
   }
-  else
-  {
-    fleet_state_timer = nullptr;
-  }
+
+  const auto& graph = context.planner()->get_configuration().graph();
+  const auto& l = context.location().front();
+  const auto& wp = graph.get_waypoint(l.waypoint());
+  const Eigen::Vector2d p = l.location().value_or(wp.get_location());
+
+  return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
+    .t(rmf_traffic_ros2::convert(l.time()))
+    .x(p.x())
+    .y(p.y())
+    .yaw(l.orientation())
+    .obey_approach_speed_limit(false)
+    .approach_speed_limit(0.0)
+    .level_name(wp.get_map_name())
+    // NOTE(MXG): This field is only used by the fleet drivers. For now, we
+    // will just fill it with a zero.
+    .index(0);
 }
 
-namespace {
 //==============================================================================
 rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
 {
   const RobotContext& context = *mgr.context();
 
   const auto mode = mgr.robot_mode();
-
-  auto location = [&]() -> rmf_fleet_msgs::msg::Location
-    {
-      if (context.location().empty())
-      {
-        // TODO(MXG): We should emit some kind of critical error if this ever
-        // happens
-        return rmf_fleet_msgs::msg::Location();
-      }
-
-      const auto& graph = context.planner()->get_configuration().graph();
-      const auto& l = context.location().front();
-      const auto& wp = graph.get_waypoint(l.waypoint());
-      const Eigen::Vector2d p = l.location().value_or(wp.get_location());
-
-      return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
-        .t(rmf_traffic_ros2::convert(l.time()))
-        .x(p.x())
-        .y(p.y())
-        .yaw(l.orientation())
-        .obey_approach_speed_limit(false)
-        .approach_speed_limit(0.0)
-        .level_name(wp.get_map_name())
-        // NOTE(MXG): This field is only used by the fleet drivers. For now, we
-        // will just fill it with a zero.
-        .index(0);
-    } ();
-
 
   return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotState>()
     .name(context.name())
@@ -857,7 +842,7 @@ rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
     .mode(std::move(mode))
     // We multiply by 100 to convert from the [0.0, 1.0] range to percentage
     .battery_percent(context.current_battery_soc()*100.0)
-    .location(std::move(location))
+    .location(convert_location(context))
     // NOTE(MXG): The path field is only used by the fleet drivers. For now,
     // we will just fill it with a zero. We could consider filling it in based
     // on the robot's plan, but that seems redundant with the traffic schedule
@@ -867,50 +852,49 @@ rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
 } // anonymous namespace
 
 //==============================================================================
-void FleetUpdateHandle::Implementation::publish_fleet_state() const
+void FleetUpdateHandle::Implementation::publish_fleet_state_topic() const
 {
   std::vector<rmf_fleet_msgs::msg::RobotState> robot_states;
   for (const auto& [context, mgr] : task_managers)
     robot_states.emplace_back(convert_state(*mgr));
 
-  const auto mode_to_status = [](const uint32_t mode) -> std::string
-    {
-      // uninitialized, offline, shutdown ,idle, charging, working, error
-      if (mode == 0)
-        return "idle";
-      else if (mode == 1)
-        return "charging";
-      else if (mode == 2)
-        return "working";
-      else
-        return "error";
-    };
+  auto fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
+    .name(name)
+    .robots(std::move(robot_states));
 
+  fleet_state_pub->publish(std::move(fleet_state));
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::update_fleet_state() const
+{
   // Publish to API server
   if (broadcast_client)
   {
     nlohmann::json fleet_state_msg = {{"name", {}}, {"robots", {}}};
     fleet_state_msg["name"] = name;
-    for (const auto& state : robot_states)
+    for (const auto& [context, mgr] : task_managers)
     {
-      nlohmann::json json;
-      json["name"] = state.name;
-      json["status"] = mode_to_status(state.mode.mode);
-      json["task_id"] = state.task_id;
+      const auto& name = context->name();
+      nlohmann::json& json = fleet_state_msg["robots"][name];
+      json["name"] = name;
+      json["status"] = mgr->robot_status();
+      json["task_id"] = mgr->current_task_id().value_or("");
       json["unix_millis_time"] =
         std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::seconds(state.location.t.sec) +
-        std::chrono::nanoseconds(state.location.t.nanosec)).count();
-      nlohmann::json location;
-      location["map"] = state.location.level_name;
-      location["x"] = state.location.x;
-      location["y"] = state.location.y;
-      location["yaw"] = state.location.yaw;
-      json["location"] = location;
-      json["battery"] = state.battery_percent / 100.0;
+        context->now().time_since_epoch()).count();
+      json["battery"] = context->current_battery_soc();
+
+      nlohmann::json& location = json["location"];
+      const auto location_msg = convert_location(*context);
+      location["map"] = location_msg.level_name;
+      location["x"] = location_msg.x;
+      location["y"] = location_msg.y;
+      location["yaw"] = location_msg.yaw;
+
       // TODO(YV): json["issues"]
-      fleet_state_msg["robots"][state.name] = json;
     }
+
     const auto fleet_schema = rmf_api_msgs::schemas::fleet_state_update;
     const auto loader =
       [n = node, s = schema_dictionary](const nlohmann::json_uri& id,
@@ -932,7 +916,7 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
     {{"type", "fleet_state_update"}, {"data", fleet_state_msg}};
     try
     {
-
+      // TODO(MXG): We should make this validator static
       nlohmann::json_schema::json_validator validator(fleet_schema, loader);
       validator.validate(fleet_state_update_msg);
     }
@@ -947,12 +931,6 @@ void FleetUpdateHandle::Implementation::publish_fleet_state() const
 
     broadcast_client->publish(fleet_state_update_msg);
   }
-
-  auto fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
-    .name(name)
-    .robots(std::move(robot_states));
-
-  fleet_state_pub->publish(std::move(fleet_state));
 }
 
 //==============================================================================
@@ -1367,19 +1345,50 @@ FleetUpdateHandle::default_maximum_delay() const
 FleetUpdateHandle& FleetUpdateHandle::fleet_state_publish_period(
   std::optional<rmf_traffic::Duration> value)
 {
+  return fleet_state_topic_publish_period(value);
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::fleet_state_topic_publish_period(
+  std::optional<rmf_traffic::Duration> value)
+{
   if (value.has_value())
   {
-    _pimpl->fleet_state_timer = _pimpl->node->try_create_wall_timer(
+    _pimpl->fleet_state_topic_publish_timer =
+      _pimpl->node->try_create_wall_timer(
       value.value(),
       [me = weak_from_this()]()
       {
         if (const auto self = me.lock())
-          self->_pimpl->publish_fleet_state();
+          self->_pimpl->publish_fleet_state_topic();
       });
   }
   else
   {
-    _pimpl->fleet_state_timer = nullptr;
+    _pimpl->fleet_state_topic_publish_timer = nullptr;
+  }
+
+  return *this;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::fleet_state_update_period(
+  std::optional<rmf_traffic::Duration> value)
+{
+  if (value.has_value())
+  {
+    _pimpl->fleet_state_update_timer =
+      _pimpl->node->try_create_wall_timer(
+      value.value(),
+      [me = weak_from_this()]
+    {
+      if (const auto self = me.lock())
+        self->_pimpl->update_fleet_state();
+    });
+  }
+  else
+  {
+    _pimpl->fleet_state_update_timer = nullptr;
   }
 
   return *this;

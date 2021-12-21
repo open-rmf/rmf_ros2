@@ -176,10 +176,25 @@ public:
   /// Get the default value for the maximum acceptable delay.
   std::optional<rmf_traffic::Duration> default_maximum_delay() const;
 
+  /// The behavior is identical to fleet_state_topic_publish_period
+  [[deprecated("Use fleet_state_topic_publish_period instead")]]
+  FleetUpdateHandle& fleet_state_publish_period(
+    std::optional<rmf_traffic::Duration> value);
+
   /// Specify a period for how often the fleet state message is published for
   /// this fleet. Passing in std::nullopt will disable the fleet state message
   /// publishing. The default value is 1s.
-  FleetUpdateHandle& fleet_state_publish_period(
+  FleetUpdateHandle& fleet_state_topic_publish_period(
+    std::optional<rmf_traffic::Duration> value);
+
+  /// Specify a period for how often the fleet state is updated in the database
+  /// and to the API server. This is separate from publishing the fleet state
+  /// over the ROS2 fleet state topic. Passing in std::nullopt will disable
+  /// the updating, but this is not recommended unless you intend to provide the
+  /// API server with the fleet states through some other means.
+  ///
+  /// The default value is 1s.
+  FleetUpdateHandle& fleet_state_update_period(
     std::optional<rmf_traffic::Duration> value);
 
   class Implementation;

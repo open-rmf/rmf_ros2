@@ -180,7 +180,8 @@ public:
 
   rclcpp::Publisher<rmf_fleet_msgs::msg::FleetState>::SharedPtr
     fleet_state_pub = nullptr;
-  rclcpp::TimerBase::SharedPtr fleet_state_timer = nullptr;
+  rclcpp::TimerBase::SharedPtr fleet_state_topic_publish_timer = nullptr;
+  rclcpp::TimerBase::SharedPtr fleet_state_update_timer = nullptr;
 
   // Map task id to pair of <RequestPtr, Assignments>
   using Assignments = rmf_task::TaskPlanner::Assignments;
@@ -249,13 +250,7 @@ public:
         nullptr, nullptr, nullptr);
 
     handle->_pimpl->fleet_state_pub = handle->_pimpl->node->fleet_state();
-    handle->_pimpl->fleet_state_timer =
-      handle->_pimpl->node->try_create_wall_timer(
-      std::chrono::seconds(1), [me = handle->weak_from_this()]()
-      {
-        if (const auto self = me.lock())
-          self->_pimpl->publish_fleet_state();
-      });
+    handle->fleet_state_topic_publish_period(std::chrono::seconds(1));
 
     // Create subs and pubs for bidding
     auto default_qos = rclcpp::SystemDefaultsQoS();
@@ -367,10 +362,9 @@ public:
     return *fleet._pimpl;
   }
 
-  void fleet_state_publish_period(
-    std::optional<rmf_traffic::Duration> value);
+  void publish_fleet_state_topic() const;
 
-  void publish_fleet_state() const;
+  void update_fleet_state() const;
 
   void add_standard_tasks();
 };

@@ -118,6 +118,12 @@ const std::string& RobotContext::name() const
 }
 
 //==============================================================================
+const std::string& RobotContext::group() const
+{
+  return _itinerary.description().owner();
+}
+
+//==============================================================================
 const std::string& RobotContext::requester_id() const
 {
   return _requester_id;

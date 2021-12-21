@@ -77,6 +77,9 @@ public:
   /// Get the name of this robot
   const std::string& name() const;
 
+  /// Get the group (fleet) of this robot
+  const std::string& group() const;
+
   /// Get the requester ID to use for this robot when sending requests
   const std::string& requester_id() const;
 
