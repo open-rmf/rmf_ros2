@@ -28,6 +28,7 @@
 #include "../tasks/Delivery.hpp"
 #include "../tasks/Loop.hpp"
 #include "../tasks/Clean.hpp"
+#include "../tasks/ChargeBattery.hpp"
 #include "../events/GoToPlace.hpp"
 
 #include <rmf_task/Constraints.hpp>
@@ -960,6 +961,12 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     *activation.task,
     activation.phase,
     activation.event,
+    node->clock());
+
+  tasks::add_charge_battery(
+    *activation.task,
+    activation.phase,
+    *activation.event,
     node->clock());
 }
 

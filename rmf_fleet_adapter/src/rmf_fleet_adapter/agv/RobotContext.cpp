@@ -271,7 +271,11 @@ std::function<rmf_task::State()> RobotContext::make_get_state()
   return [self = shared_from_this()]()
     {
       rmf_task::State state;
-      state.load(self->_location.front());
+      state.load_basic(
+        self->_location.front(),
+        self->_charger_wp,
+        self->_current_battery_soc);
+
       state.insert<GetContext>(GetContext{self->shared_from_this()});
       return state;
     };

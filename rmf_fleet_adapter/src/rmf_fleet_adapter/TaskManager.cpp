@@ -354,6 +354,28 @@ void TaskManager::_begin_next_task()
 
     _queue.erase(_queue.begin());
 
+    if (!_active_task)
+    {
+      const auto info = assignment.request()->description()->generate_info(
+        _context->make_get_state()(), *_context->task_parameters());
+      RCLCPP_ERROR(
+        _context->node()->get_logger(),
+        "[rmf_fleet_adapter::TaskManager::_begin_next_task] Failed to "
+        "instantiate task type [%s] for ID [%s]. This indicates that the "
+        "fleet adapter is incorrectly configured.",
+        info.category.c_str(),
+        assignment.request()->booking()->id().c_str());
+
+      _context->worker().schedule(
+        [w = weak_from_this()](const auto&)
+        {
+          if (const auto self = w.lock())
+            self->_begin_next_task();
+        });
+
+      return;
+    }
+
     RCLCPP_INFO(
       _context->node()->get_logger(),
       "Beginning new task [%s] for [%s]. Remaining queue size: %ld",
@@ -805,12 +827,8 @@ nlohmann::json& copy_phase_data(
       *rmf_task::VersionedString::Reader().read(top->detail());
 
     std::vector<nlohmann::json> logs;
-    std::size_t log_count = 0;
     for (const auto& log : reader.read(top->log()))
-    {
-      std::cout << "LOG COUNT: " << log_count++ << std::endl;
       logs.push_back(log_to_json(log));
-    }
 
     if (!logs.empty())
       event_logs[std::to_string(top->id())] = std::move(logs);
@@ -1027,7 +1045,7 @@ TaskManager::_checkpoint_cb()
 std::function<void(rmf_task::Phase::ConstCompletedPtr)>
 TaskManager::_phase_finished_cb()
 {
-  return [w = weak_from_this()](rmf_task::Phase::ConstCompletedPtr phase)
+  return [w = weak_from_this()](rmf_task::Phase::ConstCompletedPtr)
     {
       const auto self = w.lock();
       if (!self)
@@ -1047,19 +1065,16 @@ std::function<void()> TaskManager::_task_finished(std::string id)
       if (!self)
         return;
 
-      // TODO
+      // Publish the final state of the task before destructing it
+      self->_publish_task_state();
+      self->_active_task = nullptr;
 
-      auto task_state_update = self->_task_state_update_json;
-      task_state_update["data"] = self->_active_task_state;
-      self->_validate_and_publish_json(
-        task_state_update, rmf_api_msgs::schemas::task_state_update);
-
-      auto task_log_update = self->_task_log_update_msg;
-      task_log_update["data"] = self->_task_logs[self->_active_task_state["booking"]["id"]];
-      self->_validate_and_publish_json(
-        task_log_update, rmf_api_msgs::schemas::task_log_update);
-
-      self->_active_task_state = {};
+      self->_context->worker().schedule(
+        [w = self->weak_from_this()](const auto&)
+        {
+          if (const auto self = w.lock())
+            self->_begin_next_task();
+        });
     };
 }
 
