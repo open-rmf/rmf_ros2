@@ -20,7 +20,7 @@
 #include "Clean.hpp"
 
 #include <rmf_task_sequence/Task.hpp>
-#include <rmf_task_sequence/events/WaitFor.hpp>
+#include <rmf_task_sequence/events/Placeholder.hpp>
 #include <rmf_task_sequence/events/Bundle.hpp>
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 
@@ -86,10 +86,10 @@ std::shared_ptr<LegacyTask> make_clean(
 //==============================================================================
 // TODO(MXG): This implementation that uses the Dock command is crude and
 // should be replaced with an explicit cleaning activation command.
-struct CleanEvent : public rmf_task_sequence::events::WaitFor::Description
+struct CleanEvent : public rmf_task_sequence::events::Placeholder::Description
 {
   CleanEvent(const rmf_task::requests::Clean::Description& clean)
-  : rmf_task_sequence::events::WaitFor::Description(rmf_traffic::Duration(0)),
+  : rmf_task_sequence::events::Placeholder::Description("Clean", ""),
     start_waypoint(clean.start_waypoint()),
     end_waypoint(clean.end_waypoint())
   {

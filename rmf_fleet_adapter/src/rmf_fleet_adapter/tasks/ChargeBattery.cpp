@@ -25,7 +25,7 @@
 
 #include <rmf_task_sequence/events/Bundle.hpp>
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
-#include <rmf_task_sequence/events/WaitFor.hpp>
+#include <rmf_task_sequence/events/Placeholder.hpp>
 
 #include <rmf_task_sequence/Task.hpp>
 
@@ -70,10 +70,11 @@ std::shared_ptr<LegacyTask> make_charge_battery(
 
 //==============================================================================
 struct GoToChargerDescription
-  : public rmf_task_sequence::events::WaitFor::Description
+  : public rmf_task_sequence::events::Placeholder::Description
 {
   GoToChargerDescription()
-    : rmf_task_sequence::events::WaitFor::Description(rmf_traffic::Duration(0))
+    : rmf_task_sequence::events::Placeholder::Description(
+        "Go to charger", "")
   {
     // Do nothing
   }
@@ -127,10 +128,11 @@ struct GoToChargerDescription
 
 //==============================================================================
 struct WaitForChargeDescription
-  : public rmf_task_sequence::events::WaitFor::Description
+  : public rmf_task_sequence::events::Placeholder::Description
 {
   WaitForChargeDescription()
-  : rmf_task_sequence::events::WaitFor::Description(rmf_traffic::Duration(0))
+  : rmf_task_sequence::events::Placeholder::Description(
+      "Wait for charging", "")
   {
     // Do nothing
   }
@@ -189,10 +191,11 @@ struct WaitForChargeDescription
 // TODO(MXG): Consider making the ChargeBatteryEvent description public so it
 // can be incorporated into other task types
 struct ChargeBatteryEventDescription
-  : public rmf_task_sequence::events::WaitFor::Description
+  : public rmf_task_sequence::events::Placeholder::Description
 {
   ChargeBatteryEventDescription()
-  : rmf_task_sequence::events::WaitFor::Description(rmf_traffic::Duration(0))
+  : rmf_task_sequence::events::Placeholder::Description(
+      "Charge Battery", "")
   {
     // Do nothing
   }

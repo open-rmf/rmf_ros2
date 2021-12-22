@@ -30,7 +30,7 @@
 
 #include <rmf_task_sequence/events/PickUp.hpp>
 #include <rmf_task_sequence/events/DropOff.hpp>
-#include <rmf_task_sequence/events/WaitFor.hpp>
+#include <rmf_task_sequence/events/Placeholder.hpp>
 #include <rmf_task_sequence/events/Bundle.hpp>
 #include <rmf_task_sequence/Task.hpp>
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
@@ -129,7 +129,7 @@ std::shared_ptr<LegacyTask> make_delivery(
 }
 
 //==============================================================================
-struct TransferItems : public rmf_task_sequence::events::WaitFor::Description
+struct TransferItems : public rmf_task_sequence::events::Placeholder::Description
 {
   enum class Dir
   {
@@ -138,8 +138,7 @@ struct TransferItems : public rmf_task_sequence::events::WaitFor::Description
   };
 
   TransferItems(const rmf_task_sequence::events::PickUp::Description& pickup)
-  : rmf_task_sequence::events::WaitFor::Description(
-      pickup.loading_duration_estimate()),
+  : rmf_task_sequence::events::Placeholder::Description("Load items", ""),
     direction(Dir::Load),
     target(pickup.from_dispenser()),
     payload(pickup.payload())
@@ -148,8 +147,7 @@ struct TransferItems : public rmf_task_sequence::events::WaitFor::Description
   }
 
   TransferItems(const rmf_task_sequence::events::DropOff::Description& dropoff)
-  : rmf_task_sequence::events::WaitFor::Description(
-      dropoff.unloading_duration_estimate()),
+  : rmf_task_sequence::events::Placeholder::Description("Unload items", ""),
     direction(Dir::Unload),
     target(dropoff.into_ingestor()),
     payload(dropoff.payload())
