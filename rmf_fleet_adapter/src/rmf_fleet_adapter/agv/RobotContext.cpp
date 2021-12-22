@@ -299,12 +299,19 @@ double RobotContext::current_battery_soc() const
   return _current_battery_soc;
 }
 
+//==============================================================================
 RobotContext& RobotContext::current_battery_soc(const double battery_soc)
 {
   _current_battery_soc = battery_soc;
   _battery_soc_publisher.get_subscriber().on_next(battery_soc);
 
   return *this;
+}
+
+//==============================================================================
+std::size_t RobotContext::dedicated_charger_wp() const
+{
+  return _charger_wp;
 }
 
 //==============================================================================
@@ -409,6 +416,7 @@ RobotContext::RobotContext(
   _maximum_delay(maximum_delay),
   _requester_id(
     _itinerary.description().owner() + "/" + _itinerary.description().name()),
+  _charger_wp(state.dedicated_charging_waypoint().value()),
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner))

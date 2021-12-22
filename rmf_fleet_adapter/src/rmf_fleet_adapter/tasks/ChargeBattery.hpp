@@ -27,6 +27,9 @@
 #include <rmf_task/State.hpp>
 #include <rmf_task/requests/ChargeBattery.hpp>
 
+#include <rmf_task_sequence/Phase.hpp>
+#include <rmf_task_sequence/Event.hpp>
+
 namespace rmf_fleet_adapter {
 namespace tasks {
 
@@ -37,6 +40,13 @@ std::shared_ptr<LegacyTask> make_charge_battery(
   const rmf_traffic::agv::Plan::Start start,
   const rmf_traffic::Time deployment_time,
   const rmf_task::State finish_state);
+
+//==============================================================================
+void add_charge_battery(
+  rmf_task::Activator& task_activator,
+  const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
+  rmf_task_sequence::Event::Initializer& event_initializer,
+  std::function<rmf_traffic::Time()> clock);
 
 } // namespace tasks
 } // namespace rmf_fleet_adapter

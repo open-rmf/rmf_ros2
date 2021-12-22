@@ -160,6 +160,8 @@ public:
   /// publishes the battery soc via _battery_soc_publisher.
   RobotContext& current_battery_soc(const double battery_soc);
 
+  std::size_t dedicated_charger_wp() const;
+
   // Get a reference to the battery soc observer of this robot.
   const rxcpp::observable<double>& observe_battery_soc() const;
 
@@ -227,6 +229,7 @@ private:
 
   /// Always call the current_battery_soc() setter to set a new value
   double _current_battery_soc = 1.0;
+  std::size_t _charger_wp;
   rxcpp::subjects::subject<double> _battery_soc_publisher;
   rxcpp::observable<double> _battery_soc_obs;
   rmf_task::State _current_task_end_state;

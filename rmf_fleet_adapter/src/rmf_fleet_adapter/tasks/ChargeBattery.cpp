@@ -16,10 +16,18 @@
 */
 
 #include "../phases/GoToPlace.hpp"
-
 #include "../phases/WaitForCharge.hpp"
 
+#include "../events/GoToPlace.hpp"
+#include "../events/LegacyPhaseShim.hpp"
+
 #include "ChargeBattery.hpp"
+
+#include <rmf_task_sequence/events/Bundle.hpp>
+#include <rmf_task_sequence/phases/SimplePhase.hpp>
+#include <rmf_task_sequence/events/WaitFor.hpp>
+
+#include <rmf_task_sequence/Task.hpp>
 
 namespace rmf_fleet_adapter {
 namespace tasks {
@@ -58,6 +66,186 @@ std::shared_ptr<LegacyTask> make_charge_battery(
     deployment_time,
     finish_state,
     request);
+}
+
+//==============================================================================
+struct GoToChargerDescription
+  : public rmf_task_sequence::events::WaitFor::Description
+{
+  GoToChargerDescription()
+    : rmf_task_sequence::events::WaitFor::Description(rmf_traffic::Duration(0))
+  {
+    // Do nothing
+  }
+
+  static rmf_task_sequence::Event::StandbyPtr standby(
+    const rmf_task_sequence::Event::AssignIDPtr& id,
+    const std::function<rmf_task::State()>& get_state,
+    const rmf_task::ConstParametersPtr& parameters,
+    const GoToChargerDescription&,
+    std::function<void()> update)
+  {
+    using GoToPlace = rmf_task_sequence::events::GoToPlace::Description;
+    const auto state = get_state();
+    const auto context = state.get<agv::GetContext>()->value;
+
+    return events::GoToPlace::Standby::make(
+      id, get_state, parameters,
+      *GoToPlace::make(context->dedicated_charger_wp()),
+      std::move(update));
+  }
+
+  static void add(rmf_task_sequence::Event::Initializer& initializer)
+  {
+    initializer.add<GoToChargerDescription>(
+      [](
+        const rmf_task_sequence::Event::AssignIDPtr& id,
+        const std::function<rmf_task::State()>& get_state,
+        const rmf_task::ConstParametersPtr& parameters,
+        const GoToChargerDescription& description,
+        std::function<void()> update) -> rmf_task_sequence::Event::StandbyPtr
+      {
+        return standby(
+          id, get_state, parameters, description, std::move(update));
+      },
+      [](
+        const rmf_task_sequence::Event::AssignIDPtr& id,
+        const std::function<rmf_task::State()>& get_state,
+        const rmf_task::ConstParametersPtr& parameters,
+        const GoToChargerDescription& description,
+        const nlohmann::json&,
+        std::function<void()> update,
+        std::function<void()> checkpoint,
+        std::function<void()> finished) -> rmf_task_sequence::Event::ActivePtr
+      {
+        return standby(
+          id, get_state, parameters, description, std::move(update))
+          ->begin(std::move(checkpoint), std::move(finished));
+      });
+  }
+};
+
+//==============================================================================
+struct WaitForChargeDescription
+  : public rmf_task_sequence::events::WaitFor::Description
+{
+  WaitForChargeDescription()
+  : rmf_task_sequence::events::WaitFor::Description(rmf_traffic::Duration(0))
+  {
+    // Do nothing
+  }
+
+  static rmf_task_sequence::Event::StandbyPtr standby(
+    const rmf_task_sequence::Event::AssignIDPtr& id,
+    const std::function<rmf_task::State()>& get_state,
+    const rmf_task::ConstParametersPtr& parameters,
+    const WaitForChargeDescription&,
+    std::function<void()> update)
+  {
+    const auto state = get_state();
+    const auto context = state.get<agv::GetContext>()->value;
+
+    auto legacy = phases::WaitForCharge::make(
+      context,
+      parameters->battery_system(),
+      context->task_planner()->configuration().constraints().recharge_soc());
+
+    return events::LegacyPhaseShim::Standby::make(
+      std::move(legacy), context->worker(), context->clock(), id,
+      std::move(update));
+  }
+
+  static void add(rmf_task_sequence::Event::Initializer& initializer)
+  {
+    initializer.add<WaitForChargeDescription>(
+      [](
+        const rmf_task_sequence::Event::AssignIDPtr& id,
+        const std::function<rmf_task::State()>& get_state,
+        const rmf_task::ConstParametersPtr& parameters,
+        const WaitForChargeDescription& description,
+        std::function<void()> update) -> rmf_task_sequence::Event::StandbyPtr
+      {
+        return standby(
+          id, get_state, parameters, description, std::move(update));
+      },
+      [](
+        const rmf_task_sequence::Event::AssignIDPtr& id,
+        const std::function<rmf_task::State()>& get_state,
+        const rmf_task::ConstParametersPtr& parameters,
+        const WaitForChargeDescription& description,
+        const nlohmann::json&,
+        std::function<void()> update,
+        std::function<void()> checkpoint,
+        std::function<void()> finished) -> rmf_task_sequence::Event::ActivePtr
+      {
+        return standby(
+          id, get_state, parameters, description, std::move(update))
+          ->begin(std::move(checkpoint), std::move(finished));
+      });
+  }
+};
+
+//==============================================================================
+// TODO(MXG): Consider making the ChargeBatteryEvent description public so it
+// can be incorporated into other task types
+struct ChargeBatteryEventDescription
+  : public rmf_task_sequence::events::WaitFor::Description
+{
+  ChargeBatteryEventDescription()
+  : rmf_task_sequence::events::WaitFor::Description(rmf_traffic::Duration(0))
+  {
+    // Do nothing
+  }
+};
+
+//==============================================================================
+void add_charge_battery(
+  rmf_task::Activator& task_activator,
+  const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
+  rmf_task_sequence::Event::Initializer& event_initializer,
+  std::function<rmf_traffic::Time()> clock)
+{
+  using Bundle = rmf_task_sequence::events::Bundle;
+  using Phase = rmf_task_sequence::phases::SimplePhase;
+  using ChargeBattery = rmf_task::requests::ChargeBattery;
+
+  auto private_initializer =
+    std::make_shared<rmf_task_sequence::Event::Initializer>();
+
+  WaitForChargeDescription::add(*private_initializer);
+  GoToChargerDescription::add(*private_initializer);
+
+  auto charge_battery_event_unfolder =
+    [](const ChargeBatteryEventDescription&)
+  {
+    return Bundle::Description({
+       std::make_shared<GoToChargerDescription>(),
+       std::make_shared<WaitForChargeDescription>()
+     }, Bundle::Sequence, "Charge Battery");
+  };
+
+  Bundle::unfold<ChargeBatteryEventDescription>(
+    std::move(charge_battery_event_unfolder),
+    event_initializer, private_initializer);
+
+  auto charge_battery_task_unfolder =
+    [](const rmf_task::requests::ChargeBattery::Description&)
+    {
+      rmf_task_sequence::Task::Builder builder;
+      builder
+        .add_phase(
+          Phase::Description::make(
+            std::make_shared<ChargeBatteryEventDescription>(),
+            "Charge Battery", ""), {});
+
+      return *builder.build("Charge Battery", "");
+    };
+
+  rmf_task_sequence::Task::unfold<ChargeBattery::Description>(
+    std::move(charge_battery_task_unfolder),
+    task_activator,
+    phase_activator,
+    std::move(clock));
 }
 
 } // namespace task

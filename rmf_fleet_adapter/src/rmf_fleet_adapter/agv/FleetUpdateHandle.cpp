@@ -1185,6 +1185,23 @@ void FleetUpdateHandle::add_robot(
               {
                 if (const auto c = w.lock())
                 {
+                  std::stringstream ss;
+                  ss << "Failed negotiation for [" << c->requester_id()
+                     << "] with these starts:";
+                  for (const auto& l : c->location())
+                  {
+                    ss << "\n -- t:" << l.time().time_since_epoch().count()
+                       << " | wp:" << l.waypoint() << " | ori:"
+                       << l.orientation();
+                    if (l.location().has_value())
+                    {
+                      const auto& p = *l.location();
+                      ss << " | pos:(" << p.x() << ", " << p.y() << ")";
+                    }
+                  }
+                  ss << "\n -- Fin --";
+                  std::cout << ss.str() << std::endl;
+
                   auto& last_time = *last_interrupt_time;
                   const auto now = std::chrono::steady_clock::now();
                   if (last_time.has_value())
