@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Open Source Robotics Foundation
+ * Copyright (C) 2021 Open Source Robotics Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@ public:
   {
     timer = create_wall_timer(30s, [this]() -> void
       {
-        //std::dynamic_pointer_cast<DangerousDatabase>(database)->delete_participant(*this);
         RCLCPP_WARN(get_logger(), "Deleting participant 0");
         std::unique_lock<std::mutex> lock(database_mutex);
         database->unregister_participant(0);
