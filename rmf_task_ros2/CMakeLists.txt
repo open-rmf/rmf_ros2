@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.5)
 project(rmf_task_ros2)
 
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   # we dont use add_compile_options with pedantic in message packages
@@ -19,6 +19,7 @@ find_package(rmf_traffic_ros2 REQUIRED)
 find_package(rmf_task_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 file(GLOB_RECURSE core_lib_srcs "src/rmf_task_ros2/*.cpp")
 add_library(rmf_task_ros2 SHARED ${core_lib_srcs})
@@ -90,6 +91,22 @@ add_executable(rmf_task_dispatcher
   src/dispatcher_node/main.cpp
 )
 target_link_libraries(rmf_task_dispatcher PUBLIC rmf_task_ros2)
+
+#===============================================================================
+
+add_executable(rmf_api_node
+  src/rmf_api_node/main.cpp
+)
+target_link_libraries(rmf_api_node
+  PUBLIC
+    ${rmf_task_msgs_LIBRARIES}
+    ${rclcpp_LIBRARIES}
+)
+target_include_directories(rmf_api_node
+  PUBLIC
+    ${rmf_task_msgs_INCLUDE_DIRS}
+    ${rclcpp_INCLUDE_DIRS}
+)
 
 #===============================================================================
 install(
