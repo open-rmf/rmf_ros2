@@ -21,6 +21,8 @@
 #include <rmf_task_msgs/msg/api_response.hpp>
 #include <rmf_task_msgs/srv/api_service.hpp>
 
+#include <nlohmann/json.hpp>
+
 #include <unordered_map>
 
 namespace rmf_task_ros2 {
@@ -81,10 +83,26 @@ public:
       "api_response", rclcpp::QoS(10).reliable().transient_local(),
       std::move(subscribe_cb));
 
+    node->_timeout = node->create_wall_timer(
+      std::chrono::milliseconds(200),
+      [w = std::weak_ptr<ApiNode>(node)]()
+      {
+        if (const auto self = w.lock())
+          self->_check_timeouts();
+      });
+
     return node;
   }
 
 private:
+
+  enum ErrorCode
+  {
+    Timeout = 1,
+    UninitializedResponse
+  };
+
+  static std::unordered_map<uint64_t, std::string> _error_categories;
 
   /// This keeps track of request headers and when the requests will timeout
   struct Inbox
@@ -95,11 +113,12 @@ private:
     std::chrono::steady_clock::time_point timeout;
     bool acknowledged = false;
   };
+  using InboxMap = std::unordered_map<std::string, Inbox>;
 
   std::chrono::nanoseconds _get_timeout() const
   {
     double timeout_sec = 2.0;
-//    get_parameter<double>("timeout_seconds", timeout_sec);
+    get_parameter<double>("timeout_seconds", timeout_sec);
     using Sec64 = std::chrono::duration<double>;
     using Dur = std::chrono::nanoseconds;
     return std::chrono::duration_cast<Dur>(Sec64(timeout_sec));
@@ -157,9 +176,93 @@ private:
 
     if (response->type == Response::TYPE_UNINITIALIZED)
     {
-
+      return _respond(it, _make_error_response(UninitializedResponse, ""));
     }
 
+    if (response->type == Response::TYPE_RESPONDING)
+    {
+      return _respond(it, response->json_msg);
+    }
+
+    if (response->type == Response::TYPE_ACKNOWLEDGE)
+    {
+      auto& inbox = it->second;
+      inbox.acknowledged = true;
+      inbox.timeout = std::chrono::steady_clock::now() + _get_timeout();
+      return;
+    }
+
+    return _respond(
+      it, _make_error_response(
+        UninitializedResponse,
+        "Unknown response type: " + std::to_string(response->type)));
+  }
+
+  static nlohmann::json _make_error_response(
+    ErrorCode code,
+    std::string detail)
+  {
+    nlohmann::json response_json;
+    std::vector<nlohmann::json> errors;
+    nlohmann::json error;
+    error["code"] = code;
+    error["category"] = _error_categories[code];
+    error["detail"] = std::move(detail);
+    errors.push_back(std::move(error));
+
+    response_json["success"] = false;
+    response_json["errors"] = std::move(errors);
+
+    return response_json;
+  }
+
+  void _respond(
+    InboxMap::iterator it,
+    std::string json_msg)
+  {
+    auto response = rmf_task_msgs::build<Service::Response>()
+      .json_msg(std::move(json_msg));
+
+    _service->send_response(*it->second.header, response);
+
+    _inbox.erase(it);
+  }
+
+  void _check_timeouts()
+  {
+    std::vector<std::string> timed_out;
+    for (const auto& [_, check] : _inbox)
+    {
+      if (check.timeout < std::chrono::steady_clock::now())
+      {
+        timed_out.push_back(check.request_id);
+        continue;
+      }
+
+      if (!check.acknowledged)
+      {
+        _publish_request(check);
+      }
+    }
+
+    for (const auto& id : timed_out)
+    {
+      const auto it = _inbox.find(id);
+      if (it == _inbox.end())
+      {
+        throw std::runtime_error(
+          "[ApiNode::_check_timeouts] Impossible situation: map entry is "
+          "missing for [" + id + "]");
+      }
+
+      std::string detail;
+      if (it->second.acknowledged)
+        detail = "Request was acknowledged but the response timed out";
+      else
+        detail = "Request was never acknowledged";
+
+      _respond(it, _make_error_response(Timeout, std::move(detail)));
+    }
   }
 
   ApiNode() : rclcpp::Node("rmf_api_node")
@@ -171,11 +274,16 @@ private:
   rclcpp::Subscription<Response>::SharedPtr _response_sub;
   rclcpp::Service<Service>::SharedPtr _service;
 
-  using InboxMap = std::unordered_map<std::string, Inbox>;
   InboxMap _inbox;
 
   rclcpp::TimerBase::SharedPtr _timeout;
   std::size_t _counter = 0;
+};
+
+std::unordered_map<uint64_t, std::string> ApiNode::_error_categories  =
+{
+  {Timeout, "Timeout"},
+  {UninitializedResponse, "Uninitialized Response"}
 };
 
 } // namespace rmf_task_ros2
