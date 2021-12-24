@@ -321,7 +321,7 @@ auto EasyTrafficLight::Implementation::moving_from(
       RCLCPP_WARN(
         node->get_logger(),
         "[EasyTrafficLight::moving_from] [%s] owned by [%s] is moving from an "
-        "invalid checkpoint [%u]. This robot currently does not have a path.",
+        "invalid checkpoint [%lu]. This robot currently does not have a path.",
         name.c_str(), owner.c_str(), checkpoint);
     }
     else
@@ -329,8 +329,8 @@ auto EasyTrafficLight::Implementation::moving_from(
       RCLCPP_WARN(
         node->get_logger(),
         "[EasyTrafficLight::moving_from] [%s] owned by [%s] is moving from "
-        "an invalid checkpoint [%u]. The highest checkpoint value that you "
-        "can move from is [%u].",
+        "an invalid checkpoint [%lu]. The highest checkpoint value that you "
+        "can move from is [%lu].",
         name.c_str(), owner.c_str(),
         checkpoint, current_checkpoints.size()-1);
     }

@@ -648,9 +648,6 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
 
   else if (msg->method == DispatchRequest::CANCEL)
   {
-    // We currently only support cancellation of a queued task.
-    // TODO: Support cancellation of an active task.
-
     // When a queued task is to be cancelled, we simply re-plan and re-allocate
     // task assignments for the request set containing all the queued tasks
     // excluding the task to be cancelled.

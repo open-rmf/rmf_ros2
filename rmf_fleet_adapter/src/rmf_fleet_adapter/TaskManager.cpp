@@ -39,6 +39,22 @@
 #include <rmf_api_msgs/schemas/task_log_update.hpp>
 #include <rmf_api_msgs/schemas/task_log.hpp>
 #include <rmf_api_msgs/schemas/log_entry.hpp>
+#include <rmf_api_msgs/schemas/simple_response.hpp>
+#include <rmf_api_msgs/schemas/token_response.hpp>
+#include <rmf_api_msgs/schemas/cancel_task_request.hpp>
+#include <rmf_api_msgs/schemas/cancel_task_response.hpp>
+#include <rmf_api_msgs/schemas/kill_task_request.hpp>
+#include <rmf_api_msgs/schemas/kill_task_response.hpp>
+#include <rmf_api_msgs/schemas/interrupt_task_request.hpp>
+#include <rmf_api_msgs/schemas/interrupt_task_response.hpp>
+#include <rmf_api_msgs/schemas/resume_task_request.hpp>
+#include <rmf_api_msgs/schemas/resume_task_response.hpp>
+#include <rmf_api_msgs/schemas/rewind_task_request.hpp>
+#include <rmf_api_msgs/schemas/rewind_task_response.hpp>
+#include <rmf_api_msgs/schemas/skip_phase_request.hpp>
+#include <rmf_api_msgs/schemas/skip_phase_response.hpp>
+#include <rmf_api_msgs/schemas/undo_skip_phase_request.hpp>
+#include <rmf_api_msgs/schemas/undo_skip_phase_response.hpp>
 
 namespace rmf_fleet_adapter {
 
@@ -69,7 +85,7 @@ TaskManagerPtr TaskManager::make(
         // TODO(MXG): Consider subscribing to the emergency pullover update
         self->_emergency_pullover = events::EmergencyPullover::Standby::make(
           rmf_task_sequence::Event::AssignID::make(), self->_context, [](){})
-            ->begin([](){}, self->_make_resume());
+            ->begin([](){}, self->_make_resume_from_emergency());
       });
     };
 
@@ -86,13 +102,13 @@ TaskManagerPtr TaskManager::make(
         mgr->_emergency_active = msg->data;
         if (msg->data)
         {
-          if (auto task = mgr->_active_task)
+          if (mgr->_active_task)
           {
-            mgr->_resume_task = task->interrupt(begin_pullover);
+            mgr->_emergency_pullover_interrupt_token =
+              mgr->_active_task.add_interruption({"emergency pullover"});
           }
           else
           {
-            mgr->_resume_task = std::nullopt;
             begin_pullover();
           }
         }
@@ -137,21 +153,45 @@ TaskManagerPtr TaskManager::make(
       self->_consider_publishing_updates();
   });
 
-  auto schema = rmf_api_msgs::schemas::task_state;
-  nlohmann::json_uri json_uri = nlohmann::json_uri{schema["$id"]};
-  mgr->_schema_dictionary.insert({json_uri.url(), schema});
-  schema = rmf_api_msgs::schemas::task_log;
-  json_uri = nlohmann::json_uri{schema["$id"]};
-  mgr->_schema_dictionary.insert({json_uri.url(), schema});
-  schema = rmf_api_msgs::schemas::log_entry;
-  json_uri = nlohmann::json_uri{schema["$id"]};
-  mgr->_schema_dictionary.insert({json_uri.url(), schema});
-  schema = rmf_api_msgs::schemas::task_state_update;
-  json_uri = nlohmann::json_uri{schema["$id"]};
-  mgr->_schema_dictionary.insert({json_uri.url(), schema});
-  schema = rmf_api_msgs::schemas::task_log_update;
-  json_uri = nlohmann::json_uri{schema["$id"]};
-  mgr->_schema_dictionary.insert({json_uri.url(), schema});
+  mgr->_task_request_api_sub = mgr->_context->node()->task_api_request()
+    .observe_on(rxcpp::identity_same_worker(mgr->_context->worker()))
+    .subscribe(
+      [w = mgr->weak_from_this()](
+        const rmf_task_msgs::msg::ApiRequest::SharedPtr& request)
+      {
+        if (const auto self = w.lock())
+          self->_handle_request(request->json_msg, request->request_id);
+      });
+
+  const std::vector<nlohmann::json> schemas = {
+    rmf_api_msgs::schemas::task_state,
+    rmf_api_msgs::schemas::task_log,
+    rmf_api_msgs::schemas::log_entry,
+    rmf_api_msgs::schemas::task_state_update,
+    rmf_api_msgs::schemas::task_log_update,
+    rmf_api_msgs::schemas::simple_response,
+    rmf_api_msgs::schemas::token_response,
+    rmf_api_msgs::schemas::cancel_task_request,
+    rmf_api_msgs::schemas::cancel_task_response,
+    rmf_api_msgs::schemas::kill_task_request,
+    rmf_api_msgs::schemas::kill_task_response,
+    rmf_api_msgs::schemas::interrupt_task_request,
+    rmf_api_msgs::schemas::interrupt_task_response,
+    rmf_api_msgs::schemas::resume_task_request,
+    rmf_api_msgs::schemas::resume_task_response,
+    rmf_api_msgs::schemas::rewind_task_request,
+    rmf_api_msgs::schemas::rewind_task_response,
+    rmf_api_msgs::schemas::skip_phase_request,
+    rmf_api_msgs::schemas::skip_phase_response,
+    rmf_api_msgs::schemas::undo_skip_phase_request,
+    rmf_api_msgs::schemas::undo_skip_phase_response
+  };
+
+  for (const auto& schema : schemas)
+  {
+    const auto json_uri = nlohmann::json_uri{schema["$id"]};
+    mgr->_schema_dictionary.insert({json_uri.url(), schema});
+  }
 
   return mgr;
 }
@@ -180,7 +220,7 @@ auto TaskManager::expected_finish_location() const -> StartSet
 std::optional<std::string> TaskManager::current_task_id() const
 {
   if (_active_task)
-    return _active_task->tag()->booking()->id();
+    return _active_task.id();
 
   return std::nullopt;
 }
@@ -269,7 +309,7 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
 TaskManager::RobotModeMsg TaskManager::robot_mode() const
 {
   const auto mode = rmf_fleet_msgs::build<RobotModeMsg>()
-    .mode(_active_task == nullptr ?
+    .mode(_active_task ?
       RobotModeMsg::MODE_IDLE :
       _context->current_mode())
     .mode_request_id(0);
@@ -379,11 +419,11 @@ void TaskManager::_begin_next_task()
     RCLCPP_INFO(
       _context->node()->get_logger(),
       "Beginning new task [%s] for [%s]. Remaining queue size: %ld",
-      _active_task->tag()->booking()->id().c_str(),
+      _active_task.id().c_str(),
       _context->requester_id().c_str(),
       _queue.size());
 
-    _register_executed_task(_active_task->tag()->booking()->id());
+    _register_executed_task(_active_task.id());
   }
   else
   {
@@ -468,7 +508,7 @@ void TaskManager::_begin_waiting()
 }
 
 //==============================================================================
-std::function<void()> TaskManager::_make_resume()
+std::function<void()> TaskManager::_make_resume_from_emergency()
 {
   return [w = weak_from_this()]()
   {
@@ -476,12 +516,12 @@ std::function<void()> TaskManager::_make_resume()
     if (!self)
       return;
 
-    self->_resume();
+    self->_resume_from_emergency();
   };
 }
 
 //==============================================================================
-void TaskManager::_resume()
+void TaskManager::_resume_from_emergency()
 {
   _context->worker().schedule(
     [w = weak_from_this()](const auto&)
@@ -493,12 +533,16 @@ void TaskManager::_resume()
       if (self->_emergency_active)
         return;
 
+      if (!self->_emergency_pullover_interrupt_token.has_value())
+        return;
+
       self->_emergency_pullover = nullptr;
-      if (self->_resume_task.has_value())
+      if (self->_active_task)
       {
-        auto resume = *std::move(self->_resume_task);
-        self->_resume_task = std::nullopt;
-        resume();
+        self->_active_task.remove_interruption(
+          {*self->_emergency_pullover_interrupt_token},
+          {"emergency finished"});
+        self->_emergency_pullover_interrupt_token = std::nullopt;
       }
       else
       {
@@ -663,12 +707,12 @@ void TaskManager::_schema_loader(
 }
 
 //==============================================================================
-void TaskManager::_validate_and_publish_json(
+void TaskManager::_validate_and_publish_websocket(
   const nlohmann::json& msg,
-  const nlohmann::json& schema) const
+  const nlohmann::json_schema::json_validator& validator) const
 {
   std::string error = "";
-  if (!_validate_json(msg, schema, error))
+  if (!_validate_json(msg, validator, error))
   {
     RCLCPP_ERROR(
       _context->node()->get_logger(),
@@ -689,6 +733,29 @@ void TaskManager::_validate_and_publish_json(
   client->publish(msg);
 }
 
+//==============================================================================
+void TaskManager::_validate_and_publish_api_response(
+  const nlohmann::json& response,
+  const nlohmann::json_schema::json_validator& validator,
+  const std::string& request_id)
+{
+  std::string error;
+  if (!_validate_json(response, validator, error))
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Error in response to [%s]: %s",
+      request_id.c_str(),
+      error.c_str());
+    return;
+  }
+
+  _context->node()->task_api_response()->publish(
+    rmf_task_msgs::build<rmf_task_msgs::msg::ApiResponse>()
+      .type(rmf_task_msgs::msg::ApiResponse::TYPE_RESPONDING)
+      .json_msg(response.dump())
+      .request_id(request_id));
+}
 
 //==============================================================================
 rmf_task::State TaskManager::_get_state() const
@@ -883,6 +950,14 @@ void copy_assignment(
   assigned_to_json["name"] = context.name();
 }
 
+//==============================================================================
+nlohmann::json make_simple_success_response()
+{
+  nlohmann::json response;
+  response["success"] = true;
+  return response;
+}
+
 } // anonymous namespace
 
 //==============================================================================
@@ -891,34 +966,41 @@ void TaskManager::_publish_task_state()
   if (!_active_task)
     return;
 
-  auto task_state_update = _task_state_update_json;
+  _active_task.publish_task_state(*this);
+}
 
-  const auto& booking = *_active_task->tag()->booking();
-  copy_booking_data(_active_task_state["booking"], booking);
+//==============================================================================
+void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
+{
+  auto task_state_update = mgr._task_state_update_json;
 
-  const auto& header = _active_task->tag()->header();
-  _active_task_state["category"] = header.category();
-  _active_task_state["detail"] = header.detail();
+  const auto& booking = *_task->tag()->booking();
+  copy_booking_data(_state_msg["booking"], booking);
+
+  const auto& header = _task->tag()->header();
+  _state_msg["category"] = header.category();
+  _state_msg["detail"] = header.detail();
   // TODO(MXG): Add unix_millis_start_time and unix_millis_finish_time
-  _active_task_state["original_estimate_millis"] =
+  _state_msg["original_estimate_millis"] =
     std::max(0l, to_millis(header.original_duration_estimate()).count());
-  _active_task_state["estimate_millis"] =
-    std::max(0l, to_millis(_active_task->estimate_remaining_time()).count());
-  copy_assignment(_active_task_state["assigned_to"], *_context);
-  _active_task_state["status"] =
-    status_to_string(_active_task->status_overview());
+  _state_msg["estimate_millis"] =
+    std::max(0l, to_millis(_task->estimate_remaining_time()).count());
+  copy_assignment(_state_msg["assigned_to"], *mgr._context);
+  _state_msg["status"] =
+    status_to_string(_task->status_overview());
 
-  auto& phases = _active_task_state["phases"];
+  auto& phases = _state_msg["phases"];
 
   nlohmann::json task_logs;
   auto& phase_logs = task_logs["phases"];
 
   std::vector<uint64_t> completed_ids;
-  completed_ids.reserve(_active_task->completed_phases().size());
-  for (const auto& completed : _active_task->completed_phases())
+  completed_ids.reserve(_task->completed_phases().size());
+  for (const auto& completed : _task->completed_phases())
   {
     const auto& snapshot = completed->snapshot();
-    auto& phase = copy_phase_data(phases, *snapshot, _log_reader, phase_logs);
+    auto& phase = copy_phase_data(
+      phases, *snapshot, mgr._log_reader, phase_logs);
 
     phase["unix_millis_start_time"] =
       completed->start_time().time_since_epoch().count();
@@ -928,25 +1010,27 @@ void TaskManager::_publish_task_state()
 
     completed_ids.push_back(snapshot->tag()->id());
   }
-  _active_task_state["completed"] = std::move(completed_ids);
+  _state_msg["completed"] = std::move(completed_ids);
 
-  const auto active_phase = _active_task->active_phase();
-  copy_phase_data(phases, *active_phase, _log_reader, phase_logs);
+  const auto active_phase = _task->active_phase();
+  copy_phase_data(phases, *active_phase, mgr._log_reader, phase_logs);
 
-  _active_task_state["active"] = active_phase->tag()->id();
+  _state_msg["active"] = active_phase->tag()->id();
 
   std::vector<uint64_t> pending_ids;
-  pending_ids.reserve(_active_task->pending_phases().size());
-  for (const auto& pending : _active_task->pending_phases())
+  pending_ids.reserve(_task->pending_phases().size());
+  for (const auto& pending : _task->pending_phases())
   {
     copy_phase_data(phases, pending);
     pending_ids.push_back(pending.tag()->id());
   }
-  _active_task_state["pending"] = std::move(pending_ids);
+  _state_msg["pending"] = std::move(pending_ids);
 
-  task_state_update["data"] = _active_task_state;
-  _validate_and_publish_json(
-    task_state_update, rmf_api_msgs::schemas::task_state_update);
+  task_state_update["data"] = _state_msg;
+
+  static const auto validator =
+    mgr._make_validator(rmf_api_msgs::schemas::task_state_update);
+  mgr._validate_and_publish_websocket(task_state_update, validator);
 }
 
 //==============================================================================
@@ -976,7 +1060,7 @@ void TaskManager::_publish_task_queue()
     auto task_state_update = _task_state_update_json;
     task_state_update["data"] = pending_json;
 
-    _validate_and_publish_json(
+    _validate_and_publish_websocket(
       task_state_update, rmf_api_msgs::schemas::task_state_update);
 
     expected_state = pending.finish_state();
@@ -986,21 +1070,11 @@ void TaskManager::_publish_task_queue()
 //==============================================================================
 bool TaskManager::_validate_json(
   const nlohmann::json& json,
-  const nlohmann::json& schema,
+  const nlohmann::json_schema::json_validator& validator,
   std::string& error) const
 {
   try
   {
-    nlohmann::json_schema::json_validator validator(
-      schema,
-      [w = weak_from_this()](const nlohmann::json_uri& id,
-      nlohmann::json& value)
-      {
-        const auto self = w.lock();
-        if (!self)
-          return;
-        self->_schema_loader(id, value);
-      });
     validator.validate(json);
   }
   catch (const std::exception& e)
@@ -1010,6 +1084,118 @@ bool TaskManager::_validate_json(
   }
 
   return true;
+}
+
+//==============================================================================
+bool TaskManager::_validate_request_message(
+  const nlohmann::json& request_json,
+  const nlohmann::json_schema::json_validator& request_validator,
+  const std::string& request_id)
+{
+  std::string error;
+  if (_validate_json(request_json, request_validator, error))
+    return true;
+
+  _send_simple_error_response(
+    request_id, 5, "Invalid request format", std::move(error));
+  return false;
+}
+
+//==============================================================================
+void TaskManager::_send_simple_success_response(const std::string& request_id)
+{
+  static const auto response = make_simple_success_response();
+
+  static const auto simple_response_validator =
+    _make_validator(rmf_api_msgs::schemas::simple_response);
+
+  _validate_and_publish_api_response(
+    response, simple_response_validator, request_id);
+}
+
+//==============================================================================
+void TaskManager::_send_token_success_response(
+  std::string token,
+  const std::string& request_id)
+{
+  nlohmann::json response;
+  response["success"] = true;
+  response["token"] = std::move(token);
+
+  static const auto token_response_validator =
+    _make_validator(rmf_api_msgs::schemas::token_response);
+
+  _validate_and_publish_api_response(
+    response, token_response_validator, request_id);
+}
+
+//==============================================================================
+nlohmann::json_schema::json_validator TaskManager::_make_validator(
+  const nlohmann::json& schema) const
+{
+  return nlohmann::json_schema::json_validator(
+    schema,
+    [w = weak_from_this()](const nlohmann::json_uri& id,
+    nlohmann::json& value)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+      self->_schema_loader(id, value);
+    });
+}
+
+//==============================================================================
+void TaskManager::_send_simple_error_response(
+  const std::string& request_id,
+  uint64_t code,
+  std::string category,
+  std::string detail)
+{
+  static const auto error_validator =
+    _make_validator(rmf_api_msgs::schemas::simple_response);
+
+  _validate_and_publish_api_response(
+    _make_error_response(code, std::move(category), std::move(detail)),
+    error_validator,
+    request_id);
+}
+
+//==============================================================================
+void TaskManager::_send_simple_error_if_queued(
+  const std::string& task_id,
+  const std::string& request_id,
+  const std::string& type)
+{
+  for (const auto& a : _queue)
+  {
+    if (a.request()->booking()->id() == task_id)
+    {
+      return _send_simple_error_response(
+        request_id, 6, "Invalid Circumstances",
+        type + " a task that is queued (not yet active) "
+        "is not currently supported");
+    }
+  }
+}
+
+//==============================================================================
+nlohmann::json TaskManager::_make_error_response(
+  uint64_t code,
+  std::string category,
+  std::string detail)
+{
+  nlohmann::json response;
+  response["success"] = false;
+
+  nlohmann::json error;
+  error["code"] = code;
+  error["category"] = std::move(category);
+  error["detail"] = std::move(detail);
+
+  response["errors"] = std::vector<nlohmann::json>({std::move(error)});
+
+  return response;
 }
 
 //==============================================================================
@@ -1067,7 +1253,7 @@ std::function<void()> TaskManager::_task_finished(std::string id)
 
       // Publish the final state of the task before destructing it
       self->_publish_task_state();
-      self->_active_task = nullptr;
+      self->_active_task = ActiveTask();
 
       self->_context->worker().schedule(
         [w = self->weak_from_this()](const auto&)
@@ -1076,6 +1262,272 @@ std::function<void()> TaskManager::_task_finished(std::string id)
             self->_begin_next_task();
         });
     };
+}
+
+//==============================================================================
+void TaskManager::_handle_request(
+  const std::string& request_msg,
+  const std::string& request_id)
+{
+  const auto request_json = nlohmann::json::parse(request_msg);
+  const auto& type = request_json["type"];
+  if (!type)
+    return;
+
+  try
+  {
+    const auto& type_str = type.get<std::string>();
+    if (type_str == "cancel_task_request")
+      _handle_cancel_request(request_json, request_id);
+    else if (type_str == "kill_task_request")
+      _handle_kill_request(request_json, request_id);
+    else if (type_str == "interrupt_task_request")
+      _handle_interrupt_request(request_json, request_id);
+    else if (type_str == "resume_task_request")
+      _handle_resume_request(request_json, request_id);
+    else if (type_str == "rewind_task_request")
+      _handle_rewind_request(request_json, request_id);
+    else if (type_str == "skip_phase_request")
+      _handle_skip_phase_request(request_json, request_id);
+    else if (type_str == "undo_phase_skip_request")
+      _handle_undo_skip_phase_request(request_json, request_id);
+  }
+  catch (const std::exception& e)
+  {
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      "Encountered exception while handling a request: %s", e.what());
+  }
+}
+
+namespace {
+//==============================================================================
+std::vector<std::string> get_labels(const nlohmann::json& request)
+{
+  if (const auto& labels = request["labels"])
+    return labels.get<std::vector<std::string>>();
+
+  return {};
+}
+
+//==============================================================================
+void remove_task_from_queue(
+  const std::string& task_id,
+  std::vector<TaskManager::Assignment>& queue)
+{
+  // If the task is queued, then we should make sure to remove it from the
+  // queue, just in case it reaches an active state before the dispatcher
+  // issues its cancellation request.
+  //
+  // TODO(MXG): We should do a much better of job of coordinating these
+  // different moving parts in the system. E.g. who is ultimately responsible
+  // for issuing the response to the request or updating the task state?
+  for (auto it = queue.begin(); it != queue.end(); ++it)
+  {
+    if (it->request()->booking()->id() == task_id)
+    {
+      queue.erase(it);
+      break;
+    }
+  }
+}
+}
+
+//==============================================================================
+void TaskManager::_handle_cancel_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::cancel_task_request);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& task_id = request_json["task_id"].get<std::string>();
+
+  if (_active_task && _active_task.id() == task_id)
+  {
+    _active_task.cancel(get_labels(request_json));
+    _task_state_update_available = true;
+    return _send_simple_success_response(request_id);
+  }
+
+  remove_task_from_queue(task_id, _queue);
+}
+
+//==============================================================================
+void TaskManager::_handle_kill_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::kill_task_request);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& task_id = request_json["task_id"].get<std::string>();
+
+  if (_active_task && _active_task.id() == task_id)
+  {
+    _task_state_update_available = true;
+    _active_task.kill(get_labels(request_json));
+    return _send_simple_success_response(request_id);
+  }
+
+  remove_task_from_queue(task_id, _queue);
+}
+
+//==============================================================================
+void TaskManager::_handle_interrupt_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::interrupt_task_request);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& task_id = request_json["task_id"].get<std::string>();
+
+  if (_active_task && _active_task.id() == task_id)
+  {
+    _task_state_update_available = true;
+    return _send_token_success_response(
+      _active_task.add_interruption(get_labels(request_json)),
+      request_id);
+  }
+
+  _send_simple_error_if_queued(task_id, request_id, "Interrupting");
+}
+
+//==============================================================================
+void TaskManager::_handle_resume_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::resume_task_request);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& task_id = request_json["for_tokens"].get<std::string>();
+
+  if (_active_task && _active_task.id() == task_id)
+  {
+    _task_state_update_available = true;
+    auto unknown_tokens = _active_task.remove_interruption(
+      request_json["for_tokens"].get<std::vector<std::string>>(),
+      get_labels(request_json));
+
+    if (unknown_tokens.empty())
+      return _send_simple_success_response(request_id);
+
+    std::string detail = "[";
+    for (std::size_t i=0; i < unknown_tokens.size(); ++i)
+    {
+      detail += unknown_tokens[i];
+      if (i < unknown_tokens.size()-1)
+        detail += ", ";
+    }
+    detail += "]";
+
+    return _send_simple_error_response(
+      request_id, 7, "Unknown Tokens", std::move(detail));
+  }
+
+  _send_simple_error_if_queued(task_id, request_id, "Resuming");
+}
+
+//==============================================================================
+void TaskManager::_handle_rewind_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::rewind_task_request);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& task_id = request_json["task_id"].get<std::string>();
+
+  if (_active_task && _active_task.id() == task_id)
+  {
+    _task_state_update_available = true;
+    _active_task.rewind(request_json["phase_id"].get<uint64_t>());
+    return _send_simple_success_response(request_id);
+  }
+
+  _send_simple_error_if_queued(task_id, request_id, "Rewinding");
+}
+
+//==============================================================================
+void TaskManager::_handle_skip_phase_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::skip_phase_request);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& task_id = request_json["task_id"].get<std::string>();
+
+  if (_active_task && _active_task.id() == task_id)
+  {
+    _task_state_update_available = true;
+    return _send_token_success_response(
+      _active_task.skip(
+        request_json["phase_id"].get<uint64_t>(),
+        get_labels(request_json)),
+      request_id);
+  }
+
+  _send_simple_error_if_queued(task_id, request_id, "Skipping a phase in ");
+}
+
+//==============================================================================
+void TaskManager::_handle_undo_skip_phase_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::undo_skip_phase_request);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& task_id = request_json["for_task"];
+
+  if (_active_task && _active_task.id() == task_id)
+  {
+    _task_state_update_available = true;
+    auto unknown_tokens = _active_task.remove_skips(
+      request_json["for_tokens"].get<std::vector<std::string>>(),
+      get_labels(request_json));
+
+    if (unknown_tokens.empty())
+      return _send_simple_success_response(request_id);
+
+    std::string detail = "[";
+    for (std::size_t i=0; i < unknown_tokens.size(); ++i)
+    {
+      detail += unknown_tokens[i];
+      if (i < unknown_tokens.size()-1)
+        detail += ", ";
+    }
+    detail += "]";
+
+    return _send_simple_error_response(
+      request_id, 7, "Unknown Tokens", std::move(detail));
+  }
+
+  _send_simple_error_if_queued(task_id, request_id, "Undoing a phase skip in ");
 }
 
 } // namespace rmf_fleet_adapter

@@ -105,12 +105,63 @@ private:
     agv::RobotContextPtr context,
     std::weak_ptr<BroadcastClient> broadcast_client);
 
+  class ActiveTask
+  {
+  public:
+    ActiveTask(rmf_task::Task::ActivePtr task = nullptr)
+    : _task(std::move(task))
+    {
+      // Do nothing
+    }
+
+    const std::string& id() const;
+
+    void publish_task_state(TaskManager& mgr);
+
+    operator bool() const
+    {
+      return static_cast<bool>(_task);
+    }
+
+    /// Adds an interruption
+    std::string add_interruption(std::vector<std::string> labels);
+
+    // Any unknown tokens that were included will be returned
+    std::vector<std::string> remove_interruption(
+      std::vector<std::string> for_tokens,
+      std::vector<std::string> labels);
+
+    void cancel(std::vector<std::string> labels);
+
+    void kill(std::vector<std::string> labels);
+
+    void rewind(uint64_t phase_id);
+
+    std::string skip(uint64_t phase_id, std::vector<std::string> labels);
+
+    std::vector<std::string> remove_skips(
+      std::vector<std::string> for_tokens,
+      std::vector<std::string> labels);
+
+  private:
+    std::unordered_map<std::string, nlohmann::json> active_interruptions;
+    std::unordered_map<std::string, nlohmann::json> resolved_interruptions;
+    std::optional<rmf_task::Task::Active::Resume> resume_task;
+    std::optional<nlohmann::json> cancellation;
+    std::optional<nlohmann::json> killed;
+
+    rmf_task::Task::ActivePtr _task;
+    nlohmann::json _state_msg;
+  };
+
+  friend class ActiveTask;
+
   agv::RobotContextPtr _context;
   std::weak_ptr<BroadcastClient> _broadcast_client;
   rmf_task::ConstActivatorPtr _task_activator;
-  rmf_task::Task::ActivePtr _active_task;
-  std::optional<rmf_task::Task::Active::Resume> _resume_task;
+  ActiveTask _active_task;
   bool _emergency_active = false;
+  std::optional<std::string> _emergency_pullover_interrupt_token;
   rmf_task_sequence::Event::ActivePtr _emergency_pullover;
   std::vector<Assignment> _queue;
   rmf_utils::optional<Start> _expected_finish_location;
@@ -144,6 +195,8 @@ private:
   // TODO: Get this and loader from FleetUpdateHandle
   std::unordered_map<std::string, nlohmann::json> _schema_dictionary = {};
 
+  rmf_rxcpp::subscription_guard _task_request_api_sub;
+
   // Constant jsons with validated schemas for internal use
   // TODO(YV): Replace these with codegen tools
   const nlohmann::json _task_log_update_msg =
@@ -159,10 +212,9 @@ private:
     {"pending", {}}, {"interruptions", {}}, {"cancellation", {}},
     {"killed", {}}};
 
-  // The task_state.json for the active task. This should be initialized when
-  // a request is activated.
-  nlohmann::json _active_task_state;
   rmf_task::Log::Reader _log_reader;
+
+  uint64_t _next_token = 0;
 
   // Map task_id to task_log.json for all tasks managed by this TaskManager
   std::unordered_map<std::string, nlohmann::json> _task_logs = {};
@@ -174,10 +226,10 @@ private:
   void _begin_waiting();
 
   /// Make the callback for resuming
-  std::function<void()> _make_resume();
+  std::function<void()> _make_resume_from_emergency();
 
   /// Resume whatever the task manager should be doing
-  void _resume();
+  void _resume_from_emergency();
 
   /// Get the current state of the robot
   rmf_task::State _get_state() const;
@@ -199,14 +251,57 @@ private:
   // TODO: Move this into a utils?
   bool _validate_json(
     const nlohmann::json& json,
-    const nlohmann::json& schema,
+    const nlohmann::json_schema::json_validator& validator,
     std::string& error) const;
+
+  /// If the request message is valid this will return true. If it is not valid,
+  /// this will publish an error message for this request and return false. The
+  /// caller should not attempt to process this request or respond to it any
+  /// further.
+  bool _validate_request_message(
+    const nlohmann::json& request,
+    const nlohmann::json_schema::json_validator& validator,
+    const std::string& request_id);
+
+  void _send_simple_success_response(
+    const std::string& request_id);
+
+  void _send_token_success_response(
+    std::string token,
+    const std::string& request_id);
+
+  /// Make a validator for the given schema
+  nlohmann::json_schema::json_validator _make_validator(
+    const nlohmann::json& schema) const;
+
+  void _send_simple_error_response(
+    const std::string& request_id,
+    uint64_t code,
+    std::string category,
+    std::string detail);
+
+  void _send_simple_error_if_queued(
+    const std::string& task_id,
+    const std::string& request_id,
+    const std::string& type);
+
+  /// Make an error message to return
+  static nlohmann::json _make_error_response(
+    uint64_t code,
+    std::string category,
+    std::string detail);
 
   /// Validate and publish a json. This can be used for task
   /// state and log updates
-  void _validate_and_publish_json(
+  void _validate_and_publish_websocket(
     const nlohmann::json& msg,
-    const nlohmann::json& schema) const;
+    const nlohmann::json_schema::json_validator& validator) const;
+
+  /// Validate and publish a response message over the ROS2 API response topic
+  void _validate_and_publish_api_response(
+    const nlohmann::json& msg,
+    const nlohmann::json_schema::json_validator& validator,
+    const std::string& request_id);
 
   /// Callback for when the task has a significat update
   std::function<void(rmf_task::Phase::ConstSnapshotPtr)> _update_cb();
@@ -220,15 +315,6 @@ private:
   /// Callback for when the task has finished
   std::function<void()> _task_finished(std::string id);
 
-  // TODO: Assuming each LegacyTask::Active instance stores a weak_ptr to this
-  // TaskManager, the implementations of the corresponding functions in
-  // LegacyTask::Active can call these methods to publish state/log updates
-  // void _interrupt_active_task();
-  // void _cancel_active_task();
-  // void _kill_active_task();
-  // void _skip_phase_in_active_task(uint64_t phase_id, bool value = true);
-  // void _rewind_active_task(uint64_t phase_id);
-
   /// Function to register the task id of a task that has begun execution
   /// The input task id will be inserted into the registry such that the max
   /// size of the registry is 100.
@@ -238,6 +324,38 @@ private:
     std::shared_ptr<LegacyTask> task,
     uint32_t task_summary_state,
     TaskSummaryMsg& msg);
+
+  void _handle_request(
+    const std::string& request_msg,
+    const std::string& request_id);
+
+  void _handle_cancel_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_kill_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_interrupt_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_resume_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_rewind_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_skip_phase_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_undo_skip_phase_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
 };
 
 using TaskManagerPtr = std::shared_ptr<TaskManager>;
