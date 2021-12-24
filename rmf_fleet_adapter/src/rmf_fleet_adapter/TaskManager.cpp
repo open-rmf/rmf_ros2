@@ -105,7 +105,10 @@ TaskManagerPtr TaskManager::make(
           if (mgr->_active_task)
           {
             mgr->_emergency_pullover_interrupt_token =
-              mgr->_active_task.add_interruption({"emergency pullover"});
+              mgr->_active_task.add_interruption(
+                {"emergency pullover"},
+                mgr->_context->now(),
+                [begin_pullover]() { begin_pullover(); });
           }
           else
           {
@@ -205,6 +208,378 @@ TaskManager::TaskManager(
   _last_update_time(std::chrono::steady_clock::now() - std::chrono::seconds(1))
 {
   // Do nothing. The make() function does all further initialization.
+}
+
+//==============================================================================
+TaskManager::ActiveTask::ActiveTask(rmf_task::Task::ActivePtr task)
+: _task(std::move(task)),
+  _interruption_handler(std::make_shared<InterruptionHandler>())
+{
+  // Do nothing
+}
+
+//==============================================================================
+const std::string& TaskManager::ActiveTask::id() const
+{
+  if (!_task)
+  {
+    throw std::runtime_error(
+      "[TaskManager::ActiveTask::id] Called when there is no active task. "
+      "This is a serious bug, please report this to the developers of RMF ");
+  }
+
+  return _task->tag()->booking()->id();
+}
+
+namespace {
+//==============================================================================
+std::chrono::milliseconds to_millis(rmf_traffic::Duration duration)
+{
+  return std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+}
+
+//==============================================================================
+std::string status_to_string(rmf_task::Event::Status status)
+{
+  using Status = rmf_task::Event::Status;
+  switch (status)
+  {
+  case Status::Uninitialized:
+    return "uninitialized";
+  case Status::Blocked:
+    return "blocked";
+  case Status::Error:
+    return "error";
+  case Status::Failed:
+    return "failed";
+  case Status::Standby:
+    return "standby";
+  case Status::Underway:
+    return "underway";
+  case Status::Delayed:
+    return "delayed";
+  case Status::Skipped:
+    return "skipped";
+  case Status::Canceled:
+    return "canceled";
+  case Status::Killed:
+    return "killed";
+  case Status::Completed:
+    return "completed";
+  default:
+    return "uninitialized";
+  }
+}
+
+//==============================================================================
+std::string tier_to_string(rmf_task::Log::Entry::Tier tier)
+{
+  using Tier = rmf_task::Log::Entry::Tier;
+  switch (tier)
+  {
+  case Tier::Info:
+    return "info";
+  case Tier::Warning:
+    return "warning";
+  case Tier::Error:
+    return "error";
+  default:
+    return "uninitialized";
+  }
+}
+
+//==============================================================================
+nlohmann::json log_to_json(const rmf_task::Log::Entry& entry)
+{
+  nlohmann::json output;
+  output["seq"] = entry.seq();
+  output["tier"] = tier_to_string(entry.tier());
+  output["unix_millis_time"] =
+    to_millis(entry.time().time_since_epoch()).count();
+  output["text"] = entry.text();
+
+  return output;
+}
+
+//==============================================================================
+nlohmann::json& copy_phase_data(
+  nlohmann::json& phases,
+  const rmf_task::Phase::Active& snapshot,
+  rmf_task::Log::Reader& reader,
+  nlohmann::json& all_phase_logs)
+{
+  const auto& tag = *snapshot.tag();
+  const auto& header = tag.header();
+  const auto id = tag.id();
+  auto& phase = phases[std::to_string(id)];
+  phase["id"] = id;
+  phase["category"] = header.category();
+  phase["detail"] = header.detail();
+  phase["original_estimate_millis"] =
+    std::max(0l, to_millis(header.original_duration_estimate()).count());
+  phase["estimate_millis"] =
+    std::max(0l, to_millis(snapshot.estimate_remaining_time()).count());
+  phase["final_event_id"] = snapshot.final_event()->id();
+
+  // TODO(MXG): Add in skip request information
+
+  std::vector<rmf_task::Event::ConstStatePtr> event_queue;
+  event_queue.push_back(snapshot.final_event());
+
+  auto& phase_logs = all_phase_logs[std::to_string(id)];
+  auto& event_logs = phase_logs["events"];
+
+  while (!event_queue.empty())
+  {
+    const auto top = event_queue.back();
+    event_queue.pop_back();
+
+    nlohmann::json event_state;
+    event_state["id"] = top->id();
+    event_state["status"] = status_to_string(top->status());
+
+    // TODO(MXG): Keep a VersionedString Reader to know when to actually update
+    // this string
+    event_state["name"] =
+      *rmf_task::VersionedString::Reader().read(top->name());
+
+    event_state["detail"] =
+      *rmf_task::VersionedString::Reader().read(top->detail());
+
+    std::vector<nlohmann::json> logs;
+    for (const auto& log : reader.read(top->log()))
+      logs.push_back(log_to_json(log));
+
+    if (!logs.empty())
+      event_logs[std::to_string(top->id())] = std::move(logs);
+
+    std::vector<uint32_t> deps;
+    deps.reserve(top->dependencies().size());
+    for (const auto& dep : top->dependencies())
+    {
+      event_queue.push_back(dep);
+      deps.push_back(dep->id());
+    }
+
+    event_state["deps"] = std::move(deps);
+  }
+
+  return phase;
+}
+
+//==============================================================================
+void copy_phase_data(
+  nlohmann::json& phases,
+  const rmf_task::Phase::Pending& pending)
+{
+  const auto id = pending.tag()->id();
+  auto& phase = phases[std::to_string(id)];
+  phase["id"] = id;
+
+  const auto& header = pending.tag()->header();
+  phase["category"] = header.category();
+  phase["detail"] = header.detail();
+  phase["estimate_millis"] =
+    std::max(0l, to_millis(header.original_duration_estimate()).count());
+}
+
+//==============================================================================
+void copy_booking_data(
+  nlohmann::json& booking_json,
+  const rmf_task::Task::Booking& booking)
+{
+  booking_json["id"] = booking.id();
+  booking_json["unix_millis_earliest_start_time"] =
+    to_millis(booking.earliest_start_time().time_since_epoch()).count();
+  // TODO(MXG): Add priority and labels
+}
+
+//==============================================================================
+void copy_assignment(
+  nlohmann::json& assigned_to_json,
+  const agv::RobotContext& context)
+{
+  assigned_to_json["group"] = context.group();
+  assigned_to_json["name"] = context.name();
+}
+
+//==============================================================================
+nlohmann::json make_simple_success_response()
+{
+  nlohmann::json response;
+  response["success"] = true;
+  return response;
+}
+
+} // anonymous namespace
+
+//==============================================================================
+void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
+{
+  auto task_state_update = mgr._task_state_update_json;
+
+  const auto& booking = *_task->tag()->booking();
+  copy_booking_data(_state_msg["booking"], booking);
+
+  const auto& header = _task->tag()->header();
+  _state_msg["category"] = header.category();
+  _state_msg["detail"] = header.detail();
+  // TODO(MXG): Add unix_millis_start_time and unix_millis_finish_time
+  _state_msg["original_estimate_millis"] =
+    std::max(0l, to_millis(header.original_duration_estimate()).count());
+  _state_msg["estimate_millis"] =
+    std::max(0l, to_millis(_task->estimate_remaining_time()).count());
+  copy_assignment(_state_msg["assigned_to"], *mgr._context);
+  _state_msg["status"] =
+    status_to_string(_task->status_overview());
+
+  auto& phases = _state_msg["phases"];
+
+  nlohmann::json task_logs;
+  auto& phase_logs = task_logs["phases"];
+
+  std::vector<uint64_t> completed_ids;
+  completed_ids.reserve(_task->completed_phases().size());
+  for (const auto& completed : _task->completed_phases())
+  {
+    const auto& snapshot = completed->snapshot();
+    auto& phase = copy_phase_data(
+      phases, *snapshot, mgr._log_reader, phase_logs);
+
+    phase["unix_millis_start_time"] =
+      completed->start_time().time_since_epoch().count();
+
+    phase["unix_millis_finish_time"] =
+      completed->finish_time().time_since_epoch().count();
+
+    completed_ids.push_back(snapshot->tag()->id());
+  }
+  _state_msg["completed"] = std::move(completed_ids);
+
+  const auto active_phase = _task->active_phase();
+  copy_phase_data(phases, *active_phase, mgr._log_reader, phase_logs);
+
+  _state_msg["active"] = active_phase->tag()->id();
+
+  std::vector<uint64_t> pending_ids;
+  pending_ids.reserve(_task->pending_phases().size());
+  for (const auto& pending : _task->pending_phases())
+  {
+    copy_phase_data(phases, pending);
+    pending_ids.push_back(pending.tag()->id());
+  }
+  _state_msg["pending"] = std::move(pending_ids);
+
+  task_state_update["data"] = _state_msg;
+
+  // TODO(MXG): Add interruption, skip, cancel, and kill information
+
+  static const auto validator =
+    mgr._make_validator(rmf_api_msgs::schemas::task_state_update);
+
+  mgr._validate_and_publish_websocket(task_state_update, validator);
+}
+
+//==============================================================================
+std::string TaskManager::ActiveTask::add_interruption(
+  std::vector<std::string> labels,
+  rmf_traffic::Time time,
+  std::function<void()> task_is_interrupted)
+{
+  std::string token = std::to_string(_next_token++);
+
+  nlohmann::json interruption_json;
+  interruption_json["unix_millis_request_time"] =
+    to_millis(time.time_since_epoch()).count();
+
+  interruption_json["labels"] = std::move(labels);
+
+  _active_interruptions[token] = std::move(interruption_json);
+
+  if (_resume_task.has_value())
+  {
+    std::lock_guard<std::mutex> lock(_interruption_handler->mutex);
+    if (_interruption_handler->is_interrupted)
+    {
+      task_is_interrupted();
+    }
+    else
+    {
+      _interruption_handler->interruption_listeners
+        .push_back(std::move(task_is_interrupted));
+    }
+
+    return token;
+  }
+
+  _resume_task = _task->interrupt(
+    [w = _interruption_handler->weak_from_this()]()
+    {
+      const auto handler = w.lock();
+      if (!handler)
+        return;
+
+      std::lock_guard<std::mutex> lock(handler->mutex);
+      handler->is_interrupted = true;
+      for (const auto& listener : handler->interruption_listeners)
+        listener();
+    });
+
+  return token;
+}
+
+//==============================================================================
+std::vector<std::string> TaskManager::ActiveTask::remove_interruption(
+  std::vector<std::string> for_tokens,
+  std::vector<std::string> labels,
+  rmf_traffic::Time time)
+{
+  nlohmann::json resume_json;
+  resume_json["unix_millis_request_time"] =
+    to_millis(time.time_since_epoch()).count();
+
+  resume_json["labels"] = std::move(labels);
+
+  std::vector<std::string> missing_tokens;
+  for (const auto& token : for_tokens)
+  {
+    const auto it = _active_interruptions.find(token);
+    if (it == _active_interruptions.end())
+    {
+      if (_removed_interruptions.count(token) == 0)
+      {
+        missing_tokens.push_back(token);
+        continue;
+      }
+    }
+
+    auto interruption_json = it->second;
+    interruption_json["resumed_by"] = resume_json;
+    _removed_interruptions[token] = interruption_json;
+    _active_interruptions.erase(it);
+  }
+
+  if (_active_interruptions.empty())
+  {
+    if (_resume_task.has_value())
+    {
+      std::lock_guard<std::mutex> lock(_interruption_handler->mutex);
+      _interruption_handler->is_interrupted = false;
+      _interruption_handler->interruption_listeners.clear();
+
+      (*_resume_task)();
+      _resume_task = std::nullopt;
+    }
+  }
+
+  return missing_tokens;
+}
+
+//==============================================================================
+void TaskManager::ActiveTask::cancel(std::vector<std::string> labels)
+{
+  nlohmann::json cancellation;
+
 }
 
 //==============================================================================
@@ -541,7 +916,8 @@ void TaskManager::_resume_from_emergency()
       {
         self->_active_task.remove_interruption(
           {*self->_emergency_pullover_interrupt_token},
-          {"emergency finished"});
+          {"emergency finished"},
+          self->_context->now());
         self->_emergency_pullover_interrupt_token = std::nullopt;
       }
       else
@@ -778,188 +1154,6 @@ void TaskManager::_consider_publishing_updates()
   }
 }
 
-namespace {
-//==============================================================================
-std::chrono::milliseconds to_millis(rmf_traffic::Duration duration)
-{
-  return std::chrono::duration_cast<std::chrono::milliseconds>(duration);
-}
-
-//==============================================================================
-std::string status_to_string(rmf_task::Event::Status status)
-{
-  using Status = rmf_task::Event::Status;
-  switch (status)
-  {
-  case Status::Uninitialized:
-    return "uninitialized";
-  case Status::Blocked:
-    return "blocked";
-  case Status::Error:
-    return "error";
-  case Status::Failed:
-    return "failed";
-  case Status::Standby:
-    return "standby";
-  case Status::Underway:
-    return "underway";
-  case Status::Delayed:
-    return "delayed";
-  case Status::Skipped:
-    return "skipped";
-  case Status::Canceled:
-    return "canceled";
-  case Status::Killed:
-    return "killed";
-  case Status::Completed:
-    return "completed";
-  default:
-    return "uninitialized";
-  }
-}
-
-//==============================================================================
-std::string tier_to_string(rmf_task::Log::Entry::Tier tier)
-{
-  using Tier = rmf_task::Log::Entry::Tier;
-  switch (tier)
-  {
-  case Tier::Info:
-    return "info";
-  case Tier::Warning:
-    return "warning";
-  case Tier::Error:
-    return "error";
-  default:
-    return "uninitialized";
-  }
-}
-
-//==============================================================================
-nlohmann::json log_to_json(const rmf_task::Log::Entry& entry)
-{
-  nlohmann::json output;
-  output["seq"] = entry.seq();
-  output["tier"] = tier_to_string(entry.tier());
-  output["unix_millis_time"] =
-    to_millis(entry.time().time_since_epoch()).count();
-  output["text"] = entry.text();
-
-  return output;
-}
-
-//==============================================================================
-nlohmann::json& copy_phase_data(
-  nlohmann::json& phases,
-  const rmf_task::Phase::Active& snapshot,
-  rmf_task::Log::Reader& reader,
-  nlohmann::json& all_phase_logs)
-{
-  const auto& tag = *snapshot.tag();
-  const auto& header = tag.header();
-  const auto id = tag.id();
-  auto& phase = phases[std::to_string(id)];
-  phase["id"] = id;
-  phase["category"] = header.category();
-  phase["detail"] = header.detail();
-  phase["original_estimate_millis"] =
-    std::max(0l, to_millis(header.original_duration_estimate()).count());
-  phase["estimate_millis"] =
-    std::max(0l, to_millis(snapshot.estimate_remaining_time()).count());
-  phase["final_event_id"] = snapshot.final_event()->id();
-
-  // TODO(MXG): Add in skip request information
-
-  std::vector<rmf_task::Event::ConstStatePtr> event_queue;
-  event_queue.push_back(snapshot.final_event());
-
-  auto& phase_logs = all_phase_logs[std::to_string(id)];
-  auto& event_logs = phase_logs["events"];
-
-  while (!event_queue.empty())
-  {
-    const auto top = event_queue.back();
-    event_queue.pop_back();
-
-    nlohmann::json event_state;
-    event_state["id"] = top->id();
-    event_state["status"] = status_to_string(top->status());
-
-    // TODO(MXG): Keep a VersionedString Reader to know when to actually update
-    // this string
-    event_state["name"] =
-      *rmf_task::VersionedString::Reader().read(top->name());
-
-    event_state["detail"] =
-      *rmf_task::VersionedString::Reader().read(top->detail());
-
-    std::vector<nlohmann::json> logs;
-    for (const auto& log : reader.read(top->log()))
-      logs.push_back(log_to_json(log));
-
-    if (!logs.empty())
-      event_logs[std::to_string(top->id())] = std::move(logs);
-
-    std::vector<uint32_t> deps;
-    deps.reserve(top->dependencies().size());
-    for (const auto& dep : top->dependencies())
-    {
-      event_queue.push_back(dep);
-      deps.push_back(dep->id());
-    }
-
-    event_state["deps"] = std::move(deps);
-  }
-
-  return phase;
-}
-
-//==============================================================================
-void copy_phase_data(
-  nlohmann::json& phases,
-  const rmf_task::Phase::Pending& pending)
-{
-  const auto id = pending.tag()->id();
-  auto& phase = phases[std::to_string(id)];
-  phase["id"] = id;
-
-  const auto& header = pending.tag()->header();
-  phase["category"] = header.category();
-  phase["detail"] = header.detail();
-  phase["estimate_millis"] =
-    std::max(0l, to_millis(header.original_duration_estimate()).count());
-}
-
-//==============================================================================
-void copy_booking_data(
-  nlohmann::json& booking_json,
-  const rmf_task::Task::Booking& booking)
-{
-  booking_json["id"] = booking.id();
-  booking_json["unix_millis_earliest_start_time"] =
-    to_millis(booking.earliest_start_time().time_since_epoch()).count();
-  // TODO(MXG): Add priority and labels
-}
-
-//==============================================================================
-void copy_assignment(
-  nlohmann::json& assigned_to_json,
-  const agv::RobotContext& context)
-{
-  assigned_to_json["group"] = context.group();
-  assigned_to_json["name"] = context.name();
-}
-
-//==============================================================================
-nlohmann::json make_simple_success_response()
-{
-  nlohmann::json response;
-  response["success"] = true;
-  return response;
-}
-
-} // anonymous namespace
-
 //==============================================================================
 void TaskManager::_publish_task_state()
 {
@@ -967,70 +1161,6 @@ void TaskManager::_publish_task_state()
     return;
 
   _active_task.publish_task_state(*this);
-}
-
-//==============================================================================
-void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
-{
-  auto task_state_update = mgr._task_state_update_json;
-
-  const auto& booking = *_task->tag()->booking();
-  copy_booking_data(_state_msg["booking"], booking);
-
-  const auto& header = _task->tag()->header();
-  _state_msg["category"] = header.category();
-  _state_msg["detail"] = header.detail();
-  // TODO(MXG): Add unix_millis_start_time and unix_millis_finish_time
-  _state_msg["original_estimate_millis"] =
-    std::max(0l, to_millis(header.original_duration_estimate()).count());
-  _state_msg["estimate_millis"] =
-    std::max(0l, to_millis(_task->estimate_remaining_time()).count());
-  copy_assignment(_state_msg["assigned_to"], *mgr._context);
-  _state_msg["status"] =
-    status_to_string(_task->status_overview());
-
-  auto& phases = _state_msg["phases"];
-
-  nlohmann::json task_logs;
-  auto& phase_logs = task_logs["phases"];
-
-  std::vector<uint64_t> completed_ids;
-  completed_ids.reserve(_task->completed_phases().size());
-  for (const auto& completed : _task->completed_phases())
-  {
-    const auto& snapshot = completed->snapshot();
-    auto& phase = copy_phase_data(
-      phases, *snapshot, mgr._log_reader, phase_logs);
-
-    phase["unix_millis_start_time"] =
-      completed->start_time().time_since_epoch().count();
-
-    phase["unix_millis_finish_time"] =
-      completed->finish_time().time_since_epoch().count();
-
-    completed_ids.push_back(snapshot->tag()->id());
-  }
-  _state_msg["completed"] = std::move(completed_ids);
-
-  const auto active_phase = _task->active_phase();
-  copy_phase_data(phases, *active_phase, mgr._log_reader, phase_logs);
-
-  _state_msg["active"] = active_phase->tag()->id();
-
-  std::vector<uint64_t> pending_ids;
-  pending_ids.reserve(_task->pending_phases().size());
-  for (const auto& pending : _task->pending_phases())
-  {
-    copy_phase_data(phases, pending);
-    pending_ids.push_back(pending.tag()->id());
-  }
-  _state_msg["pending"] = std::move(pending_ids);
-
-  task_state_update["data"] = _state_msg;
-
-  static const auto validator =
-    mgr._make_validator(rmf_api_msgs::schemas::task_state_update);
-  mgr._validate_and_publish_websocket(task_state_update, validator);
 }
 
 //==============================================================================
@@ -1396,7 +1526,8 @@ void TaskManager::_handle_interrupt_request(
   {
     _task_state_update_available = true;
     return _send_token_success_response(
-      _active_task.add_interruption(get_labels(request_json)),
+      _active_task.add_interruption(
+        get_labels(request_json), _context->now(), [](){}),
       request_id);
   }
 
@@ -1421,7 +1552,8 @@ void TaskManager::_handle_resume_request(
     _task_state_update_available = true;
     auto unknown_tokens = _active_task.remove_interruption(
       request_json["for_tokens"].get<std::vector<std::string>>(),
-      get_labels(request_json));
+      get_labels(request_json),
+      _context->now());
 
     if (unknown_tokens.empty())
       return _send_simple_success_response(request_id);

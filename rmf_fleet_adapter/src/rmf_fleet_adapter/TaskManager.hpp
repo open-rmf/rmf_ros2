@@ -108,11 +108,7 @@ private:
   class ActiveTask
   {
   public:
-    ActiveTask(rmf_task::Task::ActivePtr task = nullptr)
-    : _task(std::move(task))
-    {
-      // Do nothing
-    }
+    ActiveTask(rmf_task::Task::ActivePtr task = nullptr);
 
     const std::string& id() const;
 
@@ -124,12 +120,16 @@ private:
     }
 
     /// Adds an interruption
-    std::string add_interruption(std::vector<std::string> labels);
+    std::string add_interruption(
+      std::vector<std::string> labels,
+      rmf_traffic::Time time,
+      std::function<void()> task_is_interrupted);
 
     // Any unknown tokens that were included will be returned
     std::vector<std::string> remove_interruption(
       std::vector<std::string> for_tokens,
-      std::vector<std::string> labels);
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
 
     void cancel(std::vector<std::string> labels);
 
@@ -144,14 +144,27 @@ private:
       std::vector<std::string> labels);
 
   private:
-    std::unordered_map<std::string, nlohmann::json> active_interruptions;
-    std::unordered_map<std::string, nlohmann::json> resolved_interruptions;
-    std::optional<rmf_task::Task::Active::Resume> resume_task;
-    std::optional<nlohmann::json> cancellation;
-    std::optional<nlohmann::json> killed;
-
     rmf_task::Task::ActivePtr _task;
     nlohmann::json _state_msg;
+
+    std::unordered_map<std::string, nlohmann::json> _active_interruptions;
+    std::unordered_map<std::string, nlohmann::json> _removed_interruptions;
+    std::optional<rmf_task::Task::Active::Resume> _resume_task;
+
+    struct InterruptionHandler
+      : public std::enable_shared_from_this<InterruptionHandler>
+    {
+      std::mutex mutex;
+      std::vector<std::function<void()>> interruption_listeners;
+      bool is_interrupted = false;
+    };
+
+    std::shared_ptr<InterruptionHandler> _interruption_handler;
+
+    std::optional<nlohmann::json> _cancellation;
+    std::optional<nlohmann::json> _killed;
+
+    uint64_t _next_token = 0;
   };
 
   friend class ActiveTask;
@@ -213,8 +226,6 @@ private:
     {"killed", {}}};
 
   rmf_task::Log::Reader _log_reader;
-
-  uint64_t _next_token = 0;
 
   // Map task_id to task_log.json for all tasks managed by this TaskManager
   std::unordered_map<std::string, nlohmann::json> _task_logs = {};
