@@ -131,17 +131,25 @@ private:
       std::vector<std::string> labels,
       rmf_traffic::Time time);
 
-    void cancel(std::vector<std::string> labels);
+    void cancel(
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
 
-    void kill(std::vector<std::string> labels);
+    void kill(
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
 
     void rewind(uint64_t phase_id);
 
-    std::string skip(uint64_t phase_id, std::vector<std::string> labels);
+    std::string skip(
+      uint64_t phase_id,
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
 
     std::vector<std::string> remove_skips(
-      std::vector<std::string> for_tokens,
-      std::vector<std::string> labels);
+      const std::vector<std::string>& for_tokens,
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
 
   private:
     rmf_task::Task::ActivePtr _task;
@@ -163,6 +171,14 @@ private:
 
     std::optional<nlohmann::json> _cancellation;
     std::optional<nlohmann::json> _killed;
+
+    struct SkipInfo
+    {
+      std::unordered_map<std::string, nlohmann::json> active_skips;
+      std::unordered_map<std::string, nlohmann::json> removed_skips;
+    };
+
+    std::unordered_map<uint64_t, SkipInfo> _skip_info_map;
 
     uint64_t _next_token = 0;
   };

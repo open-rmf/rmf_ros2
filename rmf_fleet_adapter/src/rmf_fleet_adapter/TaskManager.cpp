@@ -470,9 +470,33 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   }
   _state_msg["pending"] = std::move(pending_ids);
 
-  task_state_update["data"] = _state_msg;
+  if (!_active_interruptions.empty() || !_removed_interruptions.empty())
+  {
+    auto& interruptions_json = _state_msg["interruptions"];
+    for (const auto& i : {&_active_interruptions, &_removed_interruptions})
+    {
+      for (const auto& [token, msg] : *i)
+        interruptions_json[token] = msg;
+    }
+  }
 
-  // TODO(MXG): Add interruption, skip, cancel, and kill information
+  if (_cancellation.has_value())
+    _state_msg["cancellation"] = *_cancellation;
+
+  if (_killed.has_value())
+    _state_msg["killed"] = *_killed;
+
+  for (const auto& [phase, skip_info] : _skip_info_map)
+  {
+    auto& skip_requests = phases[phase]["skip_requests"];
+    for (const auto& s : {&skip_info.active_skips, &skip_info.removed_skips})
+    {
+      for (const auto& [token, msg] : *s)
+        skip_requests[token] = msg;
+    }
+  }
+
+  task_state_update["data"] = _state_msg;
 
   static const auto validator =
     mgr._make_validator(rmf_api_msgs::schemas::task_state_update);
@@ -576,10 +600,109 @@ std::vector<std::string> TaskManager::ActiveTask::remove_interruption(
 }
 
 //==============================================================================
-void TaskManager::ActiveTask::cancel(std::vector<std::string> labels)
+void TaskManager::ActiveTask::cancel(
+  std::vector<std::string> labels,
+  rmf_traffic::Time time)
 {
-  nlohmann::json cancellation;
+  if (_cancellation.has_value())
+    return;
 
+  nlohmann::json cancellation;
+  cancellation["unix_millis_request_time"] =
+    to_millis(time.time_since_epoch()).count();
+
+  cancellation["labels"] = std::move(labels);
+
+  _cancellation = std::move(cancellation);
+  _task->cancel();
+}
+
+//==============================================================================
+void TaskManager::ActiveTask::kill(
+  std::vector<std::string> labels,
+  rmf_traffic::Time time)
+{
+  if (_killed.has_value())
+    return;
+
+  nlohmann::json killed;
+  killed["unix_millis_request_time"] =
+    to_millis(time.time_since_epoch()).count();
+
+  killed["labels"] = std::move(labels);
+
+  _killed = std::move(killed);
+  _task->kill();
+}
+
+//==============================================================================
+void TaskManager::ActiveTask::rewind(uint64_t phase_id)
+{
+  _task->rewind(phase_id);
+}
+
+//==============================================================================
+std::string TaskManager::ActiveTask::skip(
+  uint64_t phase_id,
+  std::vector<std::string> labels,
+  rmf_traffic::Time time)
+{
+  std::string token = std::to_string(_next_token++);
+
+  auto& skip_info = _skip_info_map[phase_id];
+
+  nlohmann::json skip_json;
+  skip_json["unix_millis_request_time"] =
+    to_millis(time.time_since_epoch()).count();
+
+  skip_json["labels"] = std::move(labels);
+
+  skip_info.active_skips[token] = std::move(skip_json);
+
+  _task->skip(phase_id, true);
+
+  return token;
+}
+
+//==============================================================================
+std::vector<std::string> TaskManager::ActiveTask::remove_skips(
+  const std::vector<std::string>& for_tokens,
+  std::vector<std::string> labels,
+  rmf_traffic::Time time)
+{
+  nlohmann::json undo_json;
+  undo_json["unix_millis_request_time"] =
+    to_millis(time.time_since_epoch()).count();
+
+  undo_json["labels"] = std::move(labels);
+
+  std::vector<std::string> missing_tokens;
+  for (const auto& token : for_tokens)
+  {
+    bool found_token = false;
+    for (auto& [phase, skip_info] : _skip_info_map)
+    {
+      const auto it = skip_info.active_skips.find(token);
+      if (it == skip_info.active_skips.end())
+        continue;
+
+      auto skip_json = it->second;
+      skip_json["undo"] = undo_json;
+      skip_info.removed_skips[token] = std::move(skip_json);
+      skip_info.active_skips.erase(it);
+
+      if (skip_info.active_skips.empty())
+        _task->skip(phase, false);
+
+      found_token = true;
+      break;
+    }
+
+    if (!found_token)
+      missing_tokens.push_back(token);
+  }
+
+  return missing_tokens;
 }
 
 //==============================================================================
@@ -1478,7 +1601,7 @@ void TaskManager::_handle_cancel_request(
 
   if (_active_task && _active_task.id() == task_id)
   {
-    _active_task.cancel(get_labels(request_json));
+    _active_task.cancel(get_labels(request_json), _context->now());
     _task_state_update_available = true;
     return _send_simple_success_response(request_id);
   }
@@ -1502,7 +1625,7 @@ void TaskManager::_handle_kill_request(
   if (_active_task && _active_task.id() == task_id)
   {
     _task_state_update_available = true;
-    _active_task.kill(get_labels(request_json));
+    _active_task.kill(get_labels(request_json), _context->now());
     return _send_simple_success_response(request_id);
   }
 
@@ -1616,7 +1739,8 @@ void TaskManager::_handle_skip_phase_request(
     return _send_token_success_response(
       _active_task.skip(
         request_json["phase_id"].get<uint64_t>(),
-        get_labels(request_json)),
+        get_labels(request_json),
+        _context->now()),
       request_id);
   }
 
@@ -1641,7 +1765,8 @@ void TaskManager::_handle_undo_skip_phase_request(
     _task_state_update_available = true;
     auto unknown_tokens = _active_task.remove_skips(
       request_json["for_tokens"].get<std::vector<std::string>>(),
-      get_labels(request_json));
+      get_labels(request_json),
+      _context->now());
 
     if (unknown_tokens.empty())
       return _send_simple_success_response(request_id);
