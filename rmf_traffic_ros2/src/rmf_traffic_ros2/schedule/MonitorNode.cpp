@@ -197,7 +197,7 @@ std::shared_ptr<rclcpp::Node> make_monitor_node(
   auto node = std::make_shared<MonitorNode>(callback, options);
 
   auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
-    *node, rmf_traffic::schedule::query_all());
+    node, rmf_traffic::schedule::query_all());
 
   using namespace std::chrono_literals;
 

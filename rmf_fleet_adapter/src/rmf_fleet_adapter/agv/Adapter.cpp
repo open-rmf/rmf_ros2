@@ -130,9 +130,9 @@ public:
     }
 
     auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
-      *node, rmf_traffic::schedule::query_all());
+      node, rmf_traffic::schedule::query_all());
 
-    auto writer = rmf_traffic_ros2::schedule::Writer::make(*node);
+    auto writer = rmf_traffic_ros2::schedule::Writer::make(node);
 
     using namespace std::chrono_literals;
 

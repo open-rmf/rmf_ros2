@@ -114,7 +114,7 @@ int main(int argc, char** argv)
   node->setup();
 
   auto mirror_future = rmf_traffic_ros2::schedule::make_mirror(
-    *node, rmf_traffic::schedule::query_all());
+    node, rmf_traffic::schedule::query_all());
   using namespace std::chrono_literals;
   bool success = false;
   const auto stop_time = std::chrono::steady_clock::now() + 10s;
