@@ -30,6 +30,11 @@
 
 #include <rmf_task/RequestFactory.hpp>
 
+#include <nlohmann/json.hpp>
+#include <rmf_task/Activator.hpp>
+#include <rmf_task_sequence/Phase.hpp>
+#include <rmf_task_sequence/Event.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -69,6 +74,38 @@ public:
     const rmf_traffic::Profile& profile,
     rmf_traffic::agv::Plan::StartSet start,
     std::function<void(std::shared_ptr<RobotUpdateHandle> handle)> handle_cb);
+
+  using EventDescriptionDeserializer =
+    std::function<
+      rmf_task_sequence::Event::ConstDescriptionPtr(const nlohmann::json&)
+    >;
+
+  /// Add a type of activity for this fleet to support. Once added this activity
+  /// can be incorporated into event bundles for composed tasks.
+  ///
+  /// \param[in] category
+  ///   The category of event that will make use of the resources provided to
+  ///   this function. If this function is called multiple times with the same
+  ///   category, later calls will overwrite earlier calls.
+  ///
+  /// \param[in] schema
+  ///   The schema that will be applied to validate incoming event JSON messages
+  ///   of this category.
+  ///
+  /// \param[in] description_deserializer
+  ///   A function which takes in a JSON message and gives back an event
+  ///   description instance.
+  ///
+  /// \param[in] event_initializer
+  ///   The event initializer that will be used for initializing the event
+  ///   description. You should add an initializer for your event to this. Your
+  ///   own event may also use this initializer to initialize its own event
+  ///   dependencies.
+  void add_activity_type(
+    std::string category,
+    nlohmann::json schema,
+    EventDescriptionDeserializer description_deserializer,
+    const rmf_task_sequence::Event::InitializerPtr& event_initializer);
 
   /// Specify a set of lanes that should be closed.
   void close_lanes(std::vector<std::size_t> lane_indices);
