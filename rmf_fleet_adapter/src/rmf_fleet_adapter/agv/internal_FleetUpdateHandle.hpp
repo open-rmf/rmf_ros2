@@ -302,9 +302,6 @@ public:
     return *fleet._pimpl;
   }
 
-  void fleet_state_publish_period(
-    std::optional<rmf_traffic::Duration> value);
-
   void publish_fleet_state() const;
 };
 
