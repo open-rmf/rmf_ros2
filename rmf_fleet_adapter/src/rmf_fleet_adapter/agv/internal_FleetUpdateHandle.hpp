@@ -43,6 +43,7 @@
 #include "RobotContext.hpp"
 #include "../TaskManager.hpp"
 #include "../BroadcastClient.hpp"
+#include "../DeserializeJSON.hpp"
 
 #include <rmf_traffic/schedule/Snapshot.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>
@@ -68,11 +69,20 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
+//==============================================================================
 struct TaskActivation
 {
   rmf_task::ActivatorPtr task;
   rmf_task_sequence::Phase::ActivatorPtr phase;
   rmf_task_sequence::Event::InitializerPtr event;
+};
+
+//==============================================================================
+struct TaskDeserialization
+{
+  DeserializeJSON<FleetUpdateHandle::DeserializedTask> task;
+  DeserializeJSON<FleetUpdateHandle::DeserializedPhase> phase;
+  DeserializeJSON<FleetUpdateHandle::DeserializedEvent> event;
 };
 
 //==============================================================================
@@ -160,6 +170,7 @@ public:
   std::optional<std::string> server_uri;
 
   TaskActivation activation = TaskActivation();
+  TaskDeserialization deserialization = TaskDeserialization();
 
   // LegacyTask planner params
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =

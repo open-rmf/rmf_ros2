@@ -75,13 +75,80 @@ public:
     rmf_traffic::agv::Plan::StartSet start,
     std::function<void(std::shared_ptr<RobotUpdateHandle> handle)> handle_cb);
 
-  using EventDescriptionDeserializer =
-    std::function<
-      rmf_task_sequence::Event::ConstDescriptionPtr(const nlohmann::json&)
-    >;
+  template<typename T>
+  struct DeserializedDescription
+  {
+    std::shared_ptr<const T> description;
+    std::vector<std::string> errors;
+  };
 
-  /// Add a type of activity for this fleet to support. Once added this activity
-  /// can be incorporated into event bundles for composed tasks.
+  using DeserializedTask = DeserializedDescription<rmf_task::Task::Description>;
+
+  using TaskDescriptionDeserializer =
+    std::function<DeserializedTask(const nlohmann::json&)>;
+
+  /// Add a type of task for this fleet to support.
+  ///
+  /// \param[in] category
+  ///   The category of the task that will make use of the resources provided to
+  ///   this function. If this function is called multiple times with the same
+  ///   category, later calls will overwrite earlier calls.
+  ///
+  /// \param[in] schema
+  ///   The schema that will be applied to validate incoming task request JSON
+  ///   messages of this category.
+  ///
+  /// \param[in] description_deserializer
+  ///   A function which takes in a JSON message and gives back a task
+  ///   description instance.
+  ///
+  /// \param[in] task_activator
+  ///   The task activator that will be used for activating the task
+  ///   description. You should add an activator for your task to this.
+  void add_task_type(
+    const std::string& category,
+    nlohmann::json schema,
+    TaskDescriptionDeserializer description_deserializer,
+    rmf_task::Activator& task_activator);
+
+  using DeserializedPhase =
+    DeserializedDescription<rmf_task_sequence::Phase::Description>;
+
+  using PhaseDescriptionDeserializer =
+    std::function<DeserializedPhase(const nlohmann::json&)>;
+
+  /// Add a type of phase for this fleet to support.
+  ///
+  /// \param[in] category
+  ///   The category of the phase that will make use of the resources provided
+  ///   to this function. If this function is called multiple times with the
+  ///   same category, later calls will overwrite earlier calls.
+  ///
+  /// \param[in] schema
+  ///   The schema that will be applied to validate incoming phase JSON
+  ///   messages of this category.
+  ///
+  /// \param[in] description_deserializer
+  ///   A function which takes in a JSON message and gives back a phase
+  ///   description instance.
+  ///
+  /// \param[in] phase_activator
+  ///   The phase activator that will be used for activating the phase
+  ///   description. You should add an activator for phase to this.
+  void add_phase_type(
+    const std::string& category,
+    nlohmann::json schema,
+    PhaseDescriptionDeserializer description_deserializer,
+    rmf_task_sequence::Phase::Activator& phase_activator);
+
+  using DeserializedEvent =
+    DeserializedDescription<rmf_task_sequence::Event::Description>;
+
+  using EventDescriptionDeserializer =
+    std::function<DeserializedEvent(const nlohmann::json&)>;
+
+  /// Add a type of activity for this fleet to support. This activity can be
+  /// incorporated into event bundles for composed tasks.
   ///
   /// \param[in] category
   ///   The category of event that will make use of the resources provided to
@@ -100,9 +167,10 @@ public:
   ///   The event initializer that will be used for initializing the event
   ///   description. You should add an initializer for your event to this. Your
   ///   own event may also use this initializer to initialize its own event
-  ///   dependencies.
+  ///   dependencies, but it must hold a std::weak_ptr to avoid a circular
+  ///   reference.
   void add_activity_type(
-    std::string category,
+    const std::string& category,
     nlohmann::json schema,
     EventDescriptionDeserializer description_deserializer,
     const rmf_task_sequence::Event::InitializerPtr& event_initializer);
