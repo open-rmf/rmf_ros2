@@ -23,6 +23,9 @@
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 #include <rmf_task_sequence/events/GoToPlace.hpp>
 
+#include <rmf_fleet_adapter/schemas/event_description_GoToPlace.hpp>
+#include <rmf_fleet_adapter/schemas/task_description_Patrol.hpp>
+
 namespace rmf_fleet_adapter {
 namespace tasks {
 
@@ -115,13 +118,79 @@ std::shared_ptr<LegacyTask> make_loop(
 
 //==============================================================================
 void add_loop(
-  rmf_task::Activator& task_activator,
-  const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
+  agv::TaskDeserialization& deserialization,
+  agv::TaskActivation& activation,
   std::function<rmf_traffic::Time()> clock)
 {
   using Loop = rmf_task::requests::Loop;
   using Phase = rmf_task_sequence::phases::SimplePhase;
   using GoToPlace = rmf_task_sequence::events::GoToPlace;
+
+  auto validate_go_to_place =
+    deserialization.make_validator_shared(schemas::event_description_GoToPlace);
+  deserialization.add_schema(schemas::event_description_GoToPlace);
+
+  auto deserialize_go_to_place =
+    [place_deser = deserialization.place](const nlohmann::json& msg)
+      -> agv::FleetUpdateHandle::DeserializedEvent
+    {
+      auto place = place_deser(msg);
+      if (!place.description.has_value())
+        return {nullptr, std::move(place.errors)};
+
+      return {
+        GoToPlace::Description::make(std::move(*place.description)),
+        std::move(place.errors)
+      };
+    };
+
+  deserialization.event.add(
+    "go_to_place", validate_go_to_place, deserialize_go_to_place);
+
+  auto validate_patrol =
+    deserialization.make_validator_shared(schemas::task_description_Patrol);
+  deserialization.add_schema(schemas::task_description_Patrol);
+
+  auto deserialize_patrol =
+    [place_deser = deserialization.place](const nlohmann::json& msg)
+      -> agv::FleetUpdateHandle::DeserializedTask
+    {
+      const auto& places_json = msg["places"];
+      std::vector<rmf_traffic::agv::Plan::Goal> places;
+      std::vector<std::string> errors;
+      bool any_failure = false;
+      for (const auto& place_json : places_json)
+      {
+        const auto place = place_deser(place_json);
+        if (!place.description.has_value())
+          any_failure = true;
+        else
+          places.push_back(*place.description);
+
+        errors.insert(errors.begin(), place.errors.begin(), place.errors.end());
+      }
+
+      if (any_failure)
+        return {nullptr, std::move(errors)};
+
+      std::size_t rounds = 1;
+      if (const auto& rounds_json = msg["rounds"])
+        rounds = rounds_json.get<std::size_t>();
+
+      rmf_task_sequence::Task::Builder builder;
+      for (std::size_t i=0; i < rounds; ++i)
+      {
+        for (const auto& place : places)
+        {
+          builder.add_phase(
+            Phase::Description::make(GoToPlace::Description::make(place)), {});
+        }
+      }
+
+      return {builder.build("Patrol", ""), std::move(errors)};
+    };
+
+  deserialization.task.add("patrol", validate_patrol, deserialize_patrol);
 
   auto loop_unfolder =
     [](const Loop::Description& loop)
@@ -143,8 +212,8 @@ void add_loop(
     };
 
   rmf_task_sequence::Task::unfold<rmf_task::requests::Loop::Description>(
-    std::move(loop_unfolder), task_activator,
-    phase_activator, std::move(clock));
+    std::move(loop_unfolder), *activation.task,
+    activation.phase, std::move(clock));
 }
 
 } // namespace tasks

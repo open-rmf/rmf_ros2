@@ -36,6 +36,8 @@
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 
 #include <rmf_fleet_adapter/schemas/event_description_PayloadTransfer.hpp>
+#include <rmf_fleet_adapter/schemas/event_description_PickUp.hpp>
+#include <rmf_fleet_adapter/schemas/event_description_DropOff.hpp>
 #include <rmf_fleet_adapter/schemas/task_description_Delivery.hpp>
 
 namespace rmf_fleet_adapter {
@@ -288,7 +290,7 @@ struct TransferItems : public rmf_task_sequence::events::Placeholder::Descriptio
 template<typename T>
 std::function<agv::FleetUpdateHandle::DeserializedEvent(const nlohmann::json& msg)>
 make_deserializer(
-  std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>> planner)
+  const agv::FleetUpdateHandle::PlaceDeserializer& place_deser)
 {
   auto parse_payload_component = [](const nlohmann::json& msg)
     -> rmf_task::Payload::Component
@@ -306,52 +308,15 @@ make_deserializer(
 
   return
     [
-      planner = std::move(planner),
+      place_deser,
       parse_payload_component = std::move(parse_payload_component)
     ](const nlohmann::json& msg)
-    -> agv::FleetUpdateHandle::DeserializedEvent
+      -> agv::FleetUpdateHandle::DeserializedEvent
     {
-      const auto& place_json = msg["place"];
-      std::optional<rmf_traffic::agv::Plan::Goal> place;
-      const auto& graph = (*planner)->get_configuration().graph();
-      if (place_json.is_number())
+      auto place = place_deser(msg["place"]);
+      if (!place.description.has_value())
       {
-        const auto wp_index = place_json.get<std::size_t>();
-        if (graph.num_waypoints() <= wp_index)
-        {
-          return {
-            nullptr,
-            {"waypoint index value for 'place' property ["
-              + std::to_string(wp_index) + "] exceeds the limits for the nav "
-              "graph size [" + std::to_string(graph.num_waypoints()) + "]"}
-          };
-        }
-
-        place = rmf_traffic::agv::Plan::Goal(wp_index);
-      }
-      else if (place_json.is_string())
-      {
-        const auto& wp_name = place_json.get<std::string>();
-        const auto* wp = graph.find_waypoint(wp_name);
-        if (!wp)
-        {
-          return {
-            nullptr,
-            {"waypoint name for 'place' property [" + wp_name + "] cannot be "
-             "found in the navigation graph"}
-          };
-        }
-
-        place = rmf_traffic::agv::Plan::Goal(wp->index());
-      }
-      else
-      {
-        return {
-          nullptr,
-          {"invalid data type provided for 'place' property: expected a number "
-           "or a string but got " + std::string(place_json.type_name())
-           + " type instead"}
-        };
+        return {nullptr, std::move(place.errors)};
       }
 
       std::vector<rmf_task::Payload::Component> payload_components;
@@ -387,7 +352,7 @@ make_deserializer(
       // estimate for the payload transfer
       return {
         T::make(
-          std::move(*place),
+          std::move(*place.description),
           std::move(handler),
           rmf_task::Payload(std::move(payload_components)),
           rmf_traffic::Duration(0)),
@@ -398,12 +363,8 @@ make_deserializer(
 
 //==============================================================================
 void add_delivery(
-  DeserializeJSON<agv::FleetUpdateHandle::DeserializedTask>& task_serde,
-  DeserializeJSON<agv::FleetUpdateHandle::DeserializedEvent>& event_serde,
-  std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
-  rmf_task::Activator& task_activator,
-  const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
-  rmf_task_sequence::Event::Initializer& event_initializer,
+  agv::TaskDeserialization& deserialization,
+  agv::TaskActivation& activation,
   std::function<rmf_traffic::Time()> clock)
 {
   using Bundle = rmf_task_sequence::events::Bundle;
@@ -413,15 +374,26 @@ void add_delivery(
   using DeliveryDescription = rmf_task::requests::Delivery::Description;
 
   auto validate_payload_transfer =
-    std::make_shared<nlohmann::json_schema::json_validator>(
+    deserialization.make_validator_shared(
       schemas::event_description_PayloadTransfer);
+  deserialization.add_schema(schemas::event_description_PayloadTransfer);
+
+  auto deserialize_pickup =
+    make_deserializer<PickUp::Description>(deserialization.place);
+  deserialization.event.add(
+    "pickup", validate_payload_transfer, deserialize_pickup);
+
+  auto deserialize_dropoff =
+    make_deserializer<DropOff::Description>(deserialization.place);
+  deserialization.event.add(
+    "dropoff", validate_payload_transfer, deserialize_dropoff);
 
   auto validate_delivery =
-    std::make_shared<nlohmann::json_schema::json_validator>(
-      schemas::task_description_Delivery);
+    deserialization.make_validator_shared(schemas::task_description_Delivery);
+  deserialization.add_schema(schemas::task_description_Delivery);
+  deserialization.add_schema(schemas::event_description_PickUp);
+  deserialization.add_schema(schemas::event_description_DropOff);
 
-  auto deserialize_pickup = make_deserializer<PickUp::Description>(planner);
-  auto deserialize_dropoff = make_deserializer<DropOff::Description>(planner);
   auto deserialize_delivery =
     [deserialize_pickup, deserialize_dropoff](
       const nlohmann::json& msg) -> agv::FleetUpdateHandle::DeserializedTask
@@ -447,9 +419,7 @@ void add_delivery(
       return {builder.build("Delivery", ""), std::move(errors)};
     };
 
-  task_serde.add("delivery", validate_delivery, deserialize_delivery);
-  event_serde.add("pickup", validate_payload_transfer, deserialize_pickup);
-  event_serde.add("dropoff", validate_payload_transfer, deserialize_dropoff);
+  deserialization.task.add("delivery", validate_delivery, deserialize_delivery);
 
   auto private_initializer =
     std::make_shared<rmf_task_sequence::Event::Initializer>();
@@ -467,7 +437,7 @@ void add_delivery(
     };
 
   Bundle::unfold<PickUp::Description>(
-    std::move(pickup_unfolder), event_initializer, private_initializer);
+    std::move(pickup_unfolder), *activation.event, private_initializer);
 
   auto dropoff_unfolder =
     [](const DropOff::Description& dropoff)
@@ -479,7 +449,7 @@ void add_delivery(
     };
 
   Bundle::unfold<DropOff::Description>(
-    std::move(dropoff_unfolder), event_initializer, private_initializer);
+    std::move(dropoff_unfolder), *activation.event, private_initializer);
 
   auto delivery_unfolder =
     [](const DeliveryDescription& delivery)
@@ -506,8 +476,8 @@ void add_delivery(
     };
 
   rmf_task_sequence::Task::unfold<rmf_task::requests::Delivery::Description>(
-    std::move(delivery_unfolder), task_activator,
-    phase_activator, std::move(clock));
+    std::move(delivery_unfolder), *activation.task,
+    activation.phase, std::move(clock));
 }
 
 } // namespace task

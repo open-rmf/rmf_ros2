@@ -48,6 +48,8 @@
 #include <unordered_set>
 #include <stdexcept>
 
+#include <rmf_fleet_adapter/schemas/Place.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -85,6 +87,45 @@ public:
 
 };
 } // anonymous namespace
+
+//==============================================================================
+void TaskDeserialization::add_schema(const nlohmann::json& schema)
+{
+  _schema_dictionary->insert_or_assign(
+    nlohmann::json_uri(schema["$id"]).url(), schema);
+}
+
+//==============================================================================
+nlohmann::json_schema::json_validator TaskDeserialization::make_validator(
+  nlohmann::json schema) const
+{
+  return nlohmann::json_schema::json_validator(std::move(schema), _loader);
+}
+
+//==============================================================================
+std::shared_ptr<nlohmann::json_schema::json_validator>
+TaskDeserialization::make_validator_shared(nlohmann::json schema) const
+{
+  return std::make_shared<nlohmann::json_schema::json_validator>(
+    make_validator(std::move(schema)));
+}
+
+//==============================================================================
+TaskDeserialization::TaskDeserialization()
+{
+  _schema_dictionary = std::make_shared<SchemaDictionary>();
+  _loader = [dict = _schema_dictionary](
+      const nlohmann::json_uri& id,
+      nlohmann::json& value)
+    {
+      const auto it = dict->find(id.url());
+      if (it == dict->end())
+        return;
+
+      value = it->second;
+    };
+}
+
 
 //==============================================================================
 void FleetUpdateHandle::Implementation::dock_summary_cb(
@@ -931,6 +972,72 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
   }
 }
 
+namespace {
+FleetUpdateHandle::PlaceDeserializer make_place_deserializer(
+  std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>>
+    planner)
+{
+  return [planner = std::move(planner)](const nlohmann::json& msg)
+      -> agv::FleetUpdateHandle::DeserializedPlace
+    {
+      std::optional<rmf_traffic::agv::Plan::Goal> place;
+      const auto& graph = (*planner)->get_configuration().graph();
+      if (msg.is_number() || (msg.is_object() && msg["waypoint"].is_number()))
+      {
+        const auto wp_index = msg.is_number()?
+          msg.get<std::size_t>() : msg["waypoint"].get<std::size_t>();
+
+        if (graph.num_waypoints() <= wp_index)
+        {
+          return {
+            std::nullopt,
+            {"waypoint index value for Place ["
+              + std::to_string(wp_index) + "] exceeds the limits for the nav "
+              "graph size [" + std::to_string(graph.num_waypoints()) + "]"}
+          };
+        }
+
+        place = rmf_traffic::agv::Plan::Goal(wp_index);
+      }
+      else if (msg.is_string() || (msg.is_object() && msg["waypoint"].is_string()))
+      {
+        const auto& wp_name = msg.is_string()?
+          msg.get<std::string>() : msg["waypoint"].get<std::string>();
+
+        const auto* wp = graph.find_waypoint(wp_name);
+        if (!wp)
+        {
+          return {
+            std::nullopt,
+            {"waypoint name for Place [" + wp_name + "] cannot be "
+             "found in the navigation graph"}
+          };
+        }
+
+        place = rmf_traffic::agv::Plan::Goal(wp->index());
+      }
+      else
+      {
+        return {
+          std::nullopt,
+          {"invalid data type provided for Place: expected a number "
+           "or a string or an object but got " + std::string(msg.type_name())
+           + " type instead"}
+        };
+      }
+
+      if (msg.is_object())
+      {
+        const auto& ori_json = msg["orientation"];
+        if (ori_json)
+          place->orientation(ori_json.get<double>());
+      }
+
+      return {place, {}};
+    };
+}
+} // anonymous namespace
+
 //==============================================================================
 void FleetUpdateHandle::Implementation::add_standard_tasks()
 {
@@ -942,19 +1049,17 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     *activation.phase, activation.event);
 
   events::GoToPlace::add(*activation.event);
+  deserialization.place = make_place_deserializer(planner);
+  deserialization.add_schema(schemas::Place);
 
   tasks::add_delivery(
-    deserialization.task,
-    deserialization.event,
-    planner,
-    *activation.task,
-    activation.phase,
-    *activation.event,
+    deserialization,
+    activation,
     node->clock());
 
   tasks::add_loop(
-    *activation.task,
-    activation.phase,
+    deserialization,
+    activation,
     node->clock());
 
   tasks::add_clean(

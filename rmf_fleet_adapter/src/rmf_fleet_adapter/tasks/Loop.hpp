@@ -25,6 +25,8 @@
 
 #include <rmf_task_sequence/Phase.hpp>
 
+#include "../agv/internal_FleetUpdateHandle.hpp"
+
 namespace rmf_fleet_adapter {
 namespace tasks {
 
@@ -38,8 +40,8 @@ std::shared_ptr<LegacyTask> make_loop(
 
 //==============================================================================
 void add_loop(
-  rmf_task::Activator& task_activator,
-  const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
+  agv::TaskDeserialization& deserialization,
+  agv::TaskActivation& activation,
   std::function<rmf_traffic::Time()> clock);
 
 } // namespace tasks

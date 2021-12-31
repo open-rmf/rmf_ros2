@@ -83,6 +83,21 @@ struct TaskDeserialization
   DeserializeJSON<FleetUpdateHandle::DeserializedTask> task;
   DeserializeJSON<FleetUpdateHandle::DeserializedPhase> phase;
   DeserializeJSON<FleetUpdateHandle::DeserializedEvent> event;
+  FleetUpdateHandle::PlaceDeserializer place;
+
+  void add_schema(const nlohmann::json& schema);
+
+  nlohmann::json_schema::json_validator make_validator(
+    nlohmann::json schema) const;
+
+  std::shared_ptr<nlohmann::json_schema::json_validator> make_validator_shared(
+    nlohmann::json schema) const;
+
+  TaskDeserialization();
+private:
+  using SchemaDictionary = std::unordered_map<std::string, nlohmann::json>;
+  std::shared_ptr<SchemaDictionary> _schema_dictionary;
+  std::function<void(const nlohmann::json_uri&, nlohmann::json&)> _loader;
 };
 
 //==============================================================================

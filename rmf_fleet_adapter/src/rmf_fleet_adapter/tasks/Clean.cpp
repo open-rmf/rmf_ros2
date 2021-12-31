@@ -252,15 +252,16 @@ struct CleanEvent : public rmf_task_sequence::events::Placeholder::Description
 
 //==============================================================================
 void add_clean(
-  rmf_task::Activator& task_activator,
-  const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
-  const rmf_task_sequence::Event::InitializerPtr& event_initializer,
+  agv::TaskDeserialization& deserialization,
+  agv::TaskActivation& activation,
   std::function<rmf_traffic::Time()> clock)
 {
   using Clean = rmf_task::requests::Clean;
   using Phase = rmf_task_sequence::phases::SimplePhase;
 
-  CleanEvent::add(*event_initializer);
+
+
+  CleanEvent::add(*activation.event);
 
   auto clean_unfolder =
     [](const Clean::Description& clean)
@@ -274,8 +275,8 @@ void add_clean(
   };
 
   rmf_task_sequence::Task::unfold<rmf_task::requests::Clean::Description>(
-    std::move(clean_unfolder), task_activator,
-    phase_activator, std::move(clock));
+    std::move(clean_unfolder), *activation.task,
+    activation.phase, std::move(clock));
 }
 
 } // namespace task

@@ -5,17 +5,7 @@
   "description": "Description for a drop off or a pick up event category",
   "type": "object",
   "properties": {
-    "place": {
-      "oneOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "integer",
-          "minimum": 0
-        }
-      ]
-    },
+    "place": { "$ref": "Place.json" },
     "handler": { "type": "string" },
     "payload" : {
       "oneOf": [

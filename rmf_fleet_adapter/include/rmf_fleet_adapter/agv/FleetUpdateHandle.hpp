@@ -78,11 +78,12 @@ public:
   template<typename T>
   struct DeserializedDescription
   {
-    std::shared_ptr<const T> description;
+    T description;
     std::vector<std::string> errors;
   };
 
-  using DeserializedTask = DeserializedDescription<rmf_task::Task::Description>;
+  using DeserializedTask =
+    DeserializedDescription<std::shared_ptr<const rmf_task::Task::Description>>;
 
   using TaskDescriptionDeserializer =
     std::function<DeserializedTask(const nlohmann::json&)>;
@@ -113,7 +114,9 @@ public:
     std::function<void(rmf_task::Activator&)> task_activator);
 
   using DeserializedPhase =
-    DeserializedDescription<rmf_task_sequence::Phase::Description>;
+    DeserializedDescription<
+      std::shared_ptr<const rmf_task_sequence::Phase::Description>
+    >;
 
   using PhaseDescriptionDeserializer =
     std::function<DeserializedPhase(const nlohmann::json&)>;
@@ -149,7 +152,9 @@ public:
   rmf_task_sequence::Phase::ActivatorPtr builtin_phase_activator();
 
   using DeserializedEvent =
-    DeserializedDescription<rmf_task_sequence::Event::Description>;
+    DeserializedDescription<
+      std::shared_ptr<const rmf_task_sequence::Event::Description>
+    >;
 
   using EventDescriptionDeserializer =
     std::function<DeserializedEvent(const nlohmann::json&)>;
@@ -183,6 +188,17 @@ public:
     std::function<void(const rmf_task_sequence::Event::InitializerPtr&)> event_initializer);
 
   rmf_task_sequence::Event::InitializerPtr builtin_event_initializer();
+
+  using DeserializedPlace =
+    agv::FleetUpdateHandle::DeserializedDescription<
+      std::optional<rmf_traffic::agv::Plan::Goal>
+    >;
+
+  using PlaceDeserializer =
+    std::function<DeserializedPlace(const nlohmann::json&)>;
+
+  /// Get the "place" deserializer for the nav graph of this fleet.
+  PlaceDeserializer builtin_place_deserializer() const;
 
   /// Specify a set of lanes that should be closed.
   void close_lanes(std::vector<std::size_t> lane_indices);
