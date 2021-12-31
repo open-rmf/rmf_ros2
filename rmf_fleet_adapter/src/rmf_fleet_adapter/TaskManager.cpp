@@ -1291,6 +1291,9 @@ void TaskManager::_publish_task_queue()
 {
   rmf_task::State expected_state = _context->current_task_end_state();
   const auto& parameters = *_context->task_parameters();
+  static const auto validator =
+    _make_validator(rmf_api_msgs::schemas::task_state_update);
+
   for (const auto& pending : _queue)
   {
     const auto info = pending.request()->description()->generate_info(
@@ -1313,8 +1316,7 @@ void TaskManager::_publish_task_queue()
     auto task_state_update = _task_state_update_json;
     task_state_update["data"] = pending_json;
 
-    _validate_and_publish_websocket(
-      task_state_update, rmf_api_msgs::schemas::task_state_update);
+    _validate_and_publish_websocket(task_state_update, validator);
 
     expected_state = pending.finish_state();
   }
