@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description_GoToPlace.json",
+  "title": "Go To Place Event",
+  "description": "Have a robot go to a place",
+  "type": "object",
+  "properties": {
+    "place": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer",
+          "minimum": 0
+        }
+      ]
+    }
+  },
+  "required": ["place"]
+}

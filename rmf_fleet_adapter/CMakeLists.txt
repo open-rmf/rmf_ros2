@@ -95,6 +95,7 @@ target_link_libraries(rmf_fleet_adapter
 target_include_directories(rmf_fleet_adapter
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/rmf_api_generate_schema_headers/include> # for auto-generated schema headers
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_ros2_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
@@ -468,6 +469,13 @@ target_link_libraries(close_lanes
 target_include_directories(close_lanes
   PRIVATE
     ${rmf_fleet_msgs_INCLUDE_DIRS}
+)
+
+# -----------------------------------------------------------------------------
+
+rmf_api_generate_schema_headers(
+  PACKAGE rmf_fleet_adapter
+  SCHEMAS_DIR ${CMAKE_CURRENT_LIST_DIR}/schemas
 )
 
 # -----------------------------------------------------------------------------

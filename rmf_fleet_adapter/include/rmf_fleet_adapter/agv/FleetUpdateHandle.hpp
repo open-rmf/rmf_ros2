@@ -103,13 +103,14 @@ public:
   ///   description instance.
   ///
   /// \param[in] task_activator
-  ///   The task activator that will be used for activating the task
-  ///   description. You should add an activator for your task to this.
+  ///   This lambda will receive the task activator that will be used for
+  ///   activating the task description. The lambda should add your task to this
+  ///   activator. The lambda will only be called one time.
   void add_task_type(
     const std::string& category,
     nlohmann::json schema,
     TaskDescriptionDeserializer description_deserializer,
-    rmf_task::Activator& task_activator);
+    std::function<void(rmf_task::Activator&)> task_activator);
 
   using DeserializedPhase =
     DeserializedDescription<rmf_task_sequence::Phase::Description>;
@@ -133,13 +134,19 @@ public:
   ///   description instance.
   ///
   /// \param[in] phase_activator
-  ///   The phase activator that will be used for activating the phase
-  ///   description. You should add an activator for phase to this.
+  ///   This lambda will receive the phase activator that will be used for
+  ///   activating the phase description. The lambda should add your phase to
+  ///   this activator. The lambda will only be called one time.
   void add_phase_type(
     const std::string& category,
     nlohmann::json schema,
     PhaseDescriptionDeserializer description_deserializer,
-    rmf_task_sequence::Phase::Activator& phase_activator);
+    std::function<void(rmf_task_sequence::Phase::Activator&)> phase_activator);
+
+  /// Get the builtin phase activator that will be used by composed tasks to
+  /// activate phases. A custom task type may make use of this to activate
+  /// standard and custom phases.
+  rmf_task_sequence::Phase::ActivatorPtr builtin_phase_activator();
 
   using DeserializedEvent =
     DeserializedDescription<rmf_task_sequence::Event::Description>;
@@ -164,16 +171,18 @@ public:
   ///   description instance.
   ///
   /// \param[in] event_initializer
-  ///   The event initializer that will be used for initializing the event
-  ///   description. You should add an initializer for your event to this. Your
-  ///   own event may also use this initializer to initialize its own event
-  ///   dependencies, but it must hold a std::weak_ptr to avoid a circular
-  ///   reference.
+  ///   This lambda will receive the event initializer that will be used for
+  ///   initializing the event description. The lambda should add your event to
+  ///   this initializer. Your own event may also use this initializer to
+  ///   initialize its own event dependencies, but it must hold a std::weak_ptr
+  ///   to avoid a circular reference.
   void add_activity_type(
     const std::string& category,
     nlohmann::json schema,
     EventDescriptionDeserializer description_deserializer,
-    const rmf_task_sequence::Event::InitializerPtr& event_initializer);
+    std::function<void(const rmf_task_sequence::Event::InitializerPtr&)> event_initializer);
+
+  rmf_task_sequence::Event::InitializerPtr builtin_event_initializer();
 
   /// Specify a set of lanes that should be closed.
   void close_lanes(std::vector<std::size_t> lane_indices);

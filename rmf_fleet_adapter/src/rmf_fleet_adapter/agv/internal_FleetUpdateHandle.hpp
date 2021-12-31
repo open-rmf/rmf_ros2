@@ -197,9 +197,15 @@ public:
   // Map task id to pair of <RequestPtr, Assignments>
   using Assignments = rmf_task::TaskPlanner::Assignments;
 
+  using DockParamMap =
+    std::unordered_map<
+      std::string,
+      rmf_fleet_msgs::msg::DockParameter
+    >;
+
   // Map of dock name to dock parameters
-  std::unordered_map<std::string,
-    rmf_fleet_msgs::msg::DockParameter> dock_param_map = {};
+  std::shared_ptr<DockParamMap> dock_param_map =
+    std::make_shared<DockParamMap>();
 
   // TODO Support for various charging configurations
   std::unordered_set<std::size_t> charging_waypoints = {};

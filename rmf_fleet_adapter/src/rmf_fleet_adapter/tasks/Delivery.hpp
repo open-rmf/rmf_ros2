@@ -28,6 +28,9 @@
 #include <rmf_task_sequence/Phase.hpp>
 #include <rmf_task_sequence/Event.hpp>
 
+#include "../DeserializeJSON.hpp"
+#include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
+
 namespace rmf_fleet_adapter {
 namespace tasks {
 
@@ -41,6 +44,9 @@ std::shared_ptr<LegacyTask> make_delivery(
   const rmf_task_msgs::msg::Delivery delivery_profile);
 
 void add_delivery(
+  DeserializeJSON<agv::FleetUpdateHandle::DeserializedTask>& task_serde,
+  DeserializeJSON<agv::FleetUpdateHandle::DeserializedEvent>& event_serde,
+  std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
   rmf_task::Activator& task_activator,
   const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
   rmf_task_sequence::Event::Initializer& event_initializer,

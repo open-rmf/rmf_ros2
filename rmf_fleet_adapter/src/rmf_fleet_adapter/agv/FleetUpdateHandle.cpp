@@ -94,9 +94,9 @@ void FleetUpdateHandle::Implementation::dock_summary_cb(
   {
     if (dock.fleet_name == name)
     {
-      dock_param_map.clear();
+      dock_param_map->clear();
       for (const auto& param : dock.params)
-        dock_param_map.insert({param.start, param});
+        dock_param_map->insert({param.start, param});
       break;
     }
   }
@@ -211,8 +211,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     }
 
     // Get dock parameters
-    const auto clean_param_it = dock_param_map.find(start_wp_name);
-    if (clean_param_it == dock_param_map.end())
+    const auto clean_param_it = dock_param_map->find(start_wp_name);
+    if (clean_param_it == dock_param_map->end())
     {
       RCLCPP_INFO(
         node->get_logger(),
@@ -944,6 +944,9 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
   events::GoToPlace::add(*activation.event);
 
   tasks::add_delivery(
+    deserialization.task,
+    deserialization.event,
+    planner,
     *activation.task,
     activation.phase,
     *activation.event,

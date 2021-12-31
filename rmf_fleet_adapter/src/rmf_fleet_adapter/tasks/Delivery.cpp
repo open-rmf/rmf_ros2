@@ -35,6 +35,9 @@
 #include <rmf_task_sequence/Task.hpp>
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 
+#include <rmf_fleet_adapter/schemas/event_description_PayloadTransfer.hpp>
+#include <rmf_fleet_adapter/schemas/task_description_Delivery.hpp>
+
 namespace rmf_fleet_adapter {
 namespace tasks {
 
@@ -282,7 +285,122 @@ struct TransferItems : public rmf_task_sequence::events::Placeholder::Descriptio
 };
 
 //==============================================================================
+template<typename T>
+std::function<agv::FleetUpdateHandle::DeserializedEvent(const nlohmann::json& msg)>
+make_deserializer(
+  std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>> planner)
+{
+  auto parse_payload_component = [](const nlohmann::json& msg)
+    -> rmf_task::Payload::Component
+    {
+      std::string compartment = "";
+
+      if (const auto& compartment_json = msg["compartment"])
+        compartment = compartment_json.get<std::string>();
+
+      return rmf_task::Payload::Component(
+        msg["sku"].get<std::string>(),
+        msg["quantity"].get<uint64_t>(),
+        std::move(compartment));
+    };
+
+  return
+    [
+      planner = std::move(planner),
+      parse_payload_component = std::move(parse_payload_component)
+    ](const nlohmann::json& msg)
+    -> agv::FleetUpdateHandle::DeserializedEvent
+    {
+      const auto& place_json = msg["place"];
+      std::optional<rmf_traffic::agv::Plan::Goal> place;
+      const auto& graph = (*planner)->get_configuration().graph();
+      if (place_json.is_number())
+      {
+        const auto wp_index = place_json.get<std::size_t>();
+        if (graph.num_waypoints() <= wp_index)
+        {
+          return {
+            nullptr,
+            {"waypoint index value for 'place' property ["
+              + std::to_string(wp_index) + "] exceeds the limits for the nav "
+              "graph size [" + std::to_string(graph.num_waypoints()) + "]"}
+          };
+        }
+
+        place = rmf_traffic::agv::Plan::Goal(wp_index);
+      }
+      else if (place_json.is_string())
+      {
+        const auto& wp_name = place_json.get<std::string>();
+        const auto* wp = graph.find_waypoint(wp_name);
+        if (!wp)
+        {
+          return {
+            nullptr,
+            {"waypoint name for 'place' property [" + wp_name + "] cannot be "
+             "found in the navigation graph"}
+          };
+        }
+
+        place = rmf_traffic::agv::Plan::Goal(wp->index());
+      }
+      else
+      {
+        return {
+          nullptr,
+          {"invalid data type provided for 'place' property: expected a number "
+           "or a string but got " + std::string(place_json.type_name())
+           + " type instead"}
+        };
+      }
+
+      std::vector<rmf_task::Payload::Component> payload_components;
+      const auto& payload_json = msg["payload"];
+      if (payload_json.is_object())
+      {
+        payload_components.push_back(parse_payload_component(payload_json));
+      }
+      else if (payload_json.is_array())
+      {
+        for (const auto& component_json : payload_json)
+        {
+          payload_components.push_back(parse_payload_component(component_json));
+        }
+      }
+      else
+      {
+        return {
+          nullptr,
+          {"invalid data type provided for 'payload' property: expected an "
+           "object or an array but got " + std::string(payload_json.type_name())
+           + " type instead"}
+        };
+      }
+
+      std::string handler;
+      if (const auto& handler_json = msg["handler"])
+      {
+        handler = handler_json.get<std::string>();
+      }
+
+      // TODO(MXG): Add a way for system integrators to specify a duration
+      // estimate for the payload transfer
+      return {
+        T::make(
+          std::move(*place),
+          std::move(handler),
+          rmf_task::Payload(std::move(payload_components)),
+          rmf_traffic::Duration(0)),
+        {}
+      };
+    };
+}
+
+//==============================================================================
 void add_delivery(
+  DeserializeJSON<agv::FleetUpdateHandle::DeserializedTask>& task_serde,
+  DeserializeJSON<agv::FleetUpdateHandle::DeserializedEvent>& event_serde,
+  std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
   rmf_task::Activator& task_activator,
   const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
   rmf_task_sequence::Event::Initializer& event_initializer,
@@ -292,6 +410,46 @@ void add_delivery(
   using PickUp = rmf_task_sequence::events::PickUp;
   using DropOff = rmf_task_sequence::events::DropOff;
   using Phase = rmf_task_sequence::phases::SimplePhase;
+  using DeliveryDescription = rmf_task::requests::Delivery::Description;
+
+  auto validate_payload_transfer =
+    std::make_shared<nlohmann::json_schema::json_validator>(
+      schemas::event_description_PayloadTransfer);
+
+  auto validate_delivery =
+    std::make_shared<nlohmann::json_schema::json_validator>(
+      schemas::task_description_Delivery);
+
+  auto deserialize_pickup = make_deserializer<PickUp::Description>(planner);
+  auto deserialize_dropoff = make_deserializer<DropOff::Description>(planner);
+  auto deserialize_delivery =
+    [deserialize_pickup, deserialize_dropoff](
+      const nlohmann::json& msg) -> agv::FleetUpdateHandle::DeserializedTask
+    {
+      const auto pickup = deserialize_pickup(msg["pickup"]);
+      const auto dropoff = deserialize_dropoff(msg["dropoff"]);
+      std::vector<std::string> errors;
+      errors.reserve(pickup.errors.size() + dropoff.errors.size());
+      errors.insert(
+        errors.end(), pickup.errors.begin(), pickup.errors.end());
+      errors.insert(
+        errors.end(), dropoff.errors.begin(), dropoff.errors.end());
+
+      if (!pickup.description || !dropoff.description)
+      {
+        return {nullptr, std::move(errors)};
+      }
+
+      rmf_task_sequence::Task::Builder builder;
+      builder.add_phase(Phase::Description::make(pickup.description), {});
+      builder.add_phase(Phase::Description::make(dropoff.description), {});
+      // TODO(MXG): Consider making the category and detail more detailed
+      return {builder.build("Delivery", ""), std::move(errors)};
+    };
+
+  task_serde.add("delivery", validate_delivery, deserialize_delivery);
+  event_serde.add("pickup", validate_payload_transfer, deserialize_pickup);
+  event_serde.add("dropoff", validate_payload_transfer, deserialize_dropoff);
 
   auto private_initializer =
     std::make_shared<rmf_task_sequence::Event::Initializer>();
@@ -324,7 +482,7 @@ void add_delivery(
     std::move(dropoff_unfolder), event_initializer, private_initializer);
 
   auto delivery_unfolder =
-    [](const rmf_task::requests::Delivery::Description& delivery)
+    [](const DeliveryDescription& delivery)
     {
       rmf_task_sequence::Task::Builder builder;
       builder

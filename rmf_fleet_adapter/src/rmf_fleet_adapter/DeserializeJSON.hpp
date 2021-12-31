@@ -25,20 +25,36 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-template<typename Deserializer>
+template<typename Deserialized>
 class DeserializeJSON
 {
 public:
 
+  using Deserializer = std::function<Deserialized(const nlohmann::json&)>;
+  using Validator = nlohmann::json_schema::json_validator;
+
   struct Handlers
   {
-    nlohmann::json_schema::json_validator validator;
+    std::shared_ptr<const Validator> validator;
     Deserializer deserializer;
   };
 
   void add(
     const std::string& category,
-    nlohmann::json_schema::json_validator validator,
+    Validator validator,
+    Deserializer deserializer)
+  {
+    handlers.insert_or_assign(
+      category,
+      Handlers{
+        std::make_shared<Validator>(std::move(validator)),
+        std::move(deserializer)
+      });
+  }
+
+  void add(
+    const std::string& category,
+    std::shared_ptr<const Validator> validator,
     Deserializer deserializer)
   {
     handlers.insert_or_assign(
