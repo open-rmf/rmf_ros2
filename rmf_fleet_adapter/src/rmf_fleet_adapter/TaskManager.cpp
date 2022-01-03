@@ -498,10 +498,17 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
 
   task_state_update["data"] = _state_msg;
 
-  static const auto validator =
+  static const auto task_update_validator =
     mgr._make_validator(rmf_api_msgs::schemas::task_state_update);
+  mgr._validate_and_publish_websocket(task_state_update, task_update_validator);
 
-  mgr._validate_and_publish_websocket(task_state_update, validator);
+  auto task_log_update = nlohmann::json();
+  task_log_update["type"] = "task_log_update";
+  task_log_update["data"] = task_logs;
+
+  static const auto log_update_validator =
+    mgr._make_validator(rmf_api_msgs::schemas::task_log_update);
+  mgr._validate_and_publish_websocket(task_log_update, log_update_validator);
 }
 
 //==============================================================================
