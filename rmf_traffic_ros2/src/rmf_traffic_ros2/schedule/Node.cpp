@@ -826,77 +826,112 @@ void ScheduleNode::itinerary_set(const ItinerarySet& set)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
   assert(!set.itinerary.empty());
-  database->set(
-    set.participant,
-    rmf_traffic_ros2::convert(set.itinerary),
-    set.itinerary_version);
+  try
+  {
+    database->set(
+      set.participant,
+      rmf_traffic_ros2::convert(set.itinerary),
+      set.itinerary_version);
 
-  publish_inconsistencies(set.participant);
+    publish_inconsistencies(set.participant);
 
-  std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
-  active_conflicts.check(set.participant, set.itinerary_version);
+    std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
+    active_conflicts.check(set.participant, set.itinerary_version);
+  }
+  catch (std::runtime_error& e)
+  {
+    RCLCPP_WARN(get_logger(), "Failed to set itinerary: %s", e.what());
+  }
 }
 
 //==============================================================================
 void ScheduleNode::itinerary_extend(const ItineraryExtend& extend)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
-  database->extend(
-    extend.participant,
-    rmf_traffic_ros2::convert(extend.routes),
-    extend.itinerary_version);
+  try
+  {
+    database->extend(
+      extend.participant,
+      rmf_traffic_ros2::convert(extend.routes),
+      extend.itinerary_version);
 
-  publish_inconsistencies(extend.participant);
+    publish_inconsistencies(extend.participant);
 
-  std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
-  active_conflicts.check(
-    extend.participant, database->itinerary_version(extend.participant));
+    std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
+    active_conflicts.check(
+      extend.participant, database->itinerary_version(extend.participant));
+  }
+  catch (std::runtime_error& e)
+  {
+    RCLCPP_WARN(get_logger(), "Failed to extend itinerary: %s", e.what());
+  }
 }
 
 //==============================================================================
 void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
-  database->delay(
-    delay.participant,
-    rmf_traffic::Duration(delay.delay),
-    delay.itinerary_version);
+  try
+  {
+    database->delay(
+      delay.participant,
+      rmf_traffic::Duration(delay.delay),
+      delay.itinerary_version);
 
-  publish_inconsistencies(delay.participant);
+    publish_inconsistencies(delay.participant);
 
-  std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
-  active_conflicts.check(
-    delay.participant, database->itinerary_version(delay.participant));
+    std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
+    active_conflicts.check(
+      delay.participant, database->itinerary_version(delay.participant));
+  }
+  catch (std::runtime_error& e)
+  {
+    RCLCPP_WARN(get_logger(), "Failed to delay itinerary: %s", e.what());
+  }
 }
 
 //==============================================================================
 void ScheduleNode::itinerary_erase(const ItineraryErase& erase)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
-  database->erase(
-    erase.participant,
-    std::vector<rmf_traffic::RouteId>(
-      erase.routes.begin(), erase.routes.end()),
-    erase.itinerary_version);
+  try
+  {
+    database->erase(
+      erase.participant,
+      std::vector<rmf_traffic::RouteId>(
+        erase.routes.begin(), erase.routes.end()),
+      erase.itinerary_version);
 
-  publish_inconsistencies(erase.participant);
+    publish_inconsistencies(erase.participant);
 
-  std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
-  active_conflicts.check(
-    erase.participant, database->itinerary_version(erase.participant));
+    std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
+    active_conflicts.check(
+      erase.participant, database->itinerary_version(erase.participant));
+  }
+  catch (std::runtime_error& e)
+  {
+    RCLCPP_WARN(get_logger(), "Failed to erase itinerary: %s", e.what());
+  }
 }
 
 //==============================================================================
 void ScheduleNode::itinerary_clear(const ItineraryClear& clear)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
-  database->erase(clear.participant, clear.itinerary_version);
+  try
+  {
+    database->erase(clear.participant, clear.itinerary_version);
 
-  publish_inconsistencies(clear.participant);
+    publish_inconsistencies(clear.participant);
 
-  std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
-  active_conflicts.check(
-    clear.participant, database->itinerary_version(clear.participant));
+    std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
+    active_conflicts.check(
+      clear.participant, database->itinerary_version(clear.participant));
+  }
+  catch (std::runtime_error& e)
+  {
+    RCLCPP_WARN(get_logger(), "Failed to clear itinerary: %s", e.what());
+  }
 }
 
 //==============================================================================

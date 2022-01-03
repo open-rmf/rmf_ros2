@@ -20,16 +20,10 @@
 #include <rmf_traffic_ros2/schedule/ParticipantDescription.hpp>
 #include "internal_YamlSerialization.hpp"
 
+#include "internal_ParticipantRegistry.hpp"
+
 namespace rmf_traffic_ros2 {
 namespace schedule {
-
-//==============================================================================
-bool operator!=(
-  const rmf_traffic::schedule::ParticipantDescription& p1,
-  const rmf_traffic::schedule::ParticipantDescription& p2)
-{
-  return rmf_traffic_ros2::convert(p1) != rmf_traffic_ros2::convert(p2);
-}
 
 //==============================================================================
 struct UniqueId
@@ -69,6 +63,11 @@ public:
       execute(*record);
     }
     _reading_from_log = false;
+  }
+
+  static Implementation& get(ParticipantRegistry& r)
+  {
+    return *r._pimpl;
   }
 
   //===========================================================================
@@ -117,6 +116,11 @@ public:
     }
     return {id->second};
   }
+
+  // Friendship for the sake of testing
+  friend bool mock::mockup_modify_last_participant_id(ParticipantRegistry&);
+  friend bool mock::mockup_modify_last_participant_description(
+    ParticipantRegistry&);
 
 private:
   //===========================================================================
@@ -171,6 +175,86 @@ ParticipantRegistry::add_or_retrieve_participant(
 {
   return _pimpl->add_or_retrieve_participant(std::move(description));
 }
+
+namespace mock {
+//=============================================================================
+bool mockup_modify_last_participant_id(ParticipantRegistry& registry)
+{
+  auto& impl = ParticipantRegistry::Implementation::get(registry);
+  std::lock_guard<std::mutex> lock(impl._mutex);
+
+  // We'll set this permanently to true from here on out because this function
+  // only gets called during testing, and we don't want to save a wonky test
+  // database to disk.
+  impl._reading_from_log = true;
+
+  std::optional<rmf_traffic::schedule::ParticipantId> highest_id;
+  for (const auto& id : impl._database->participant_ids())
+  {
+    if (!highest_id.has_value() || *highest_id < id)
+      highest_id = id;
+  }
+
+  if (!highest_id.has_value())
+    return false;
+
+  const auto& desc = impl._database->get_participant(*highest_id);
+  if (desc == nullptr)
+    return false;
+
+  const auto old_id = *highest_id;
+  auto unique_id = UniqueId{desc->name(), desc->owner()};
+  impl._id_from_name.erase(unique_id);
+  impl._description.erase(old_id);
+
+  impl._database->unregister_participant(old_id);
+  const auto registration = impl._database->register_participant(*desc);
+  const auto new_id = registration.id();
+
+  impl._id_from_name[unique_id] = new_id;
+  impl._description.insert({new_id, *desc});
+
+  return true;
+}
+
+//=============================================================================
+bool mockup_modify_last_participant_description(ParticipantRegistry& registry)
+{
+  auto& impl = ParticipantRegistry::Implementation::get(registry);
+
+  // We'll set this permanently to true from here on out because this function
+  // only gets called during testing, and we don't want to save a wonky test
+  // database to disk.
+  impl._reading_from_log = true;
+
+  std::optional<rmf_traffic::schedule::ParticipantId> highest_id;
+  for (const auto& id : impl._database->participant_ids())
+  {
+    if (!highest_id.has_value() || *highest_id < id)
+      highest_id = id;
+  }
+
+  if (!highest_id.has_value())
+    return false;
+
+  const auto& desc = impl._database->get_participant(*highest_id);
+  if (desc == nullptr)
+    return false;
+
+  using namespace rmf_traffic::schedule;
+  const auto id = *highest_id;
+  auto new_desc = *desc;
+  if (desc->responsiveness() == ParticipantDescription::Rx::Unresponsive)
+    new_desc.responsiveness(ParticipantDescription::Rx::Responsive);
+  else if (desc->responsiveness() == ParticipantDescription::Rx::Responsive)
+    new_desc.responsiveness(ParticipantDescription::Rx::Unresponsive);
+
+  impl._database->update_description(id, new_desc);
+  impl._description.insert_or_assign(id, new_desc);
+  return true;
+}
+
+} // namespace mock
 
 } // namespace schedule
 } // namespace rmf_traffic_ros2
