@@ -1063,9 +1063,10 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     node->clock());
 
   tasks::add_clean(
-    *activation.task,
-    activation.phase,
-    activation.event,
+    dock_param_map,
+    (*planner)->get_configuration().vehicle_traits(),
+    deserialization,
+    activation,
     node->clock());
 
   tasks::add_charge_battery(

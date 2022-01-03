@@ -93,7 +93,7 @@ public:
     publish_active_tasks_period =
       node->declare_parameter<int>("publish_active_tasks_period", 2);
     RCLCPP_INFO(node->get_logger(),
-      " Declared publish_active_tasks_period as: %f secs",
+      " Declared publish_active_tasks_period as: %d secs",
       publish_active_tasks_period);
 
     const auto qos = rclcpp::ServicesQoS().reliable();

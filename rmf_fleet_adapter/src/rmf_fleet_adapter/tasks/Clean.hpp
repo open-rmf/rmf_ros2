@@ -44,6 +44,8 @@ std::shared_ptr<LegacyTask> make_clean(
   const rmf_task::State finish_state);
 
 void add_clean(
+  const agv::FleetUpdateHandle::Implementation::ConstDockParamsPtr& dock_params,
+  const rmf_traffic::agv::VehicleTraits& traits,
   agv::TaskDeserialization& deserialization,
   agv::TaskActivation& activation,
   std::function<rmf_traffic::Time()> clock);

@@ -218,6 +218,8 @@ public:
       rmf_fleet_msgs::msg::DockParameter
     >;
 
+  using ConstDockParamsPtr = std::shared_ptr<const DockParamMap>;
+
   // Map of dock name to dock parameters
   std::shared_ptr<DockParamMap> dock_param_map =
     std::make_shared<DockParamMap>();

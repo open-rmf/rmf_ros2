@@ -27,6 +27,9 @@
 #include "../events/Error.hpp"
 #include "../events/GoToPlace.hpp"
 
+#include <rmf_fleet_adapter/schemas/event_description_Clean.hpp>
+#include <rmf_fleet_adapter/schemas/task_description_Clean.hpp>
+
 namespace rmf_fleet_adapter {
 namespace tasks {
 
@@ -252,6 +255,8 @@ struct CleanEvent : public rmf_task_sequence::events::Placeholder::Description
 
 //==============================================================================
 void add_clean(
+  const agv::FleetUpdateHandle::Implementation::ConstDockParamsPtr& dock_params,
+  const rmf_traffic::agv::VehicleTraits& traits,
   agv::TaskDeserialization& deserialization,
   agv::TaskActivation& activation,
   std::function<rmf_traffic::Time()> clock)
@@ -259,7 +264,90 @@ void add_clean(
   using Clean = rmf_task::requests::Clean;
   using Phase = rmf_task_sequence::phases::SimplePhase;
 
+  auto validate_clean_event =
+    deserialization.make_validator_shared(
+      schemas::event_description_Clean);
+  deserialization.add_schema(schemas::event_description_Clean);
 
+  auto validate_clean_task =
+    deserialization.make_validator_shared(
+      schemas::task_description_Clean);
+  deserialization.add_schema(schemas::task_description_Clean);
+
+  auto deserialize_clean =
+    [dock_params, traits, place_deser = deserialization.place](
+      const nlohmann::json& msg)
+      -> agv::FleetUpdateHandle::DeserializedTask
+    {
+      const auto zone = msg["zone"].get<std::string>();
+      const auto clean_it = dock_params->find(zone);
+      if (clean_it == dock_params->end())
+      {
+        return {
+          nullptr,
+          {"No cleaning zone named [" + zone + "] for this fleet adapter"}
+        };
+      }
+
+      const auto& clean_info = clean_it->second;
+      auto start_place = place_deser(clean_info.start);
+      auto exit_place = place_deser(clean_info.finish);
+      if (!start_place.description.has_value()
+          || !exit_place.description.has_value())
+      {
+        auto errors = std::move(start_place.errors);
+        errors.insert(
+          errors.end(), exit_place.errors.begin(), exit_place.errors.end());
+        return {nullptr, std::move(errors)};
+      }
+
+      std::vector<Eigen::Vector3d> positions;
+      for (const auto& p : clean_info.path)
+        positions.push_back({p.x, p.y, p.yaw});
+
+      rmf_traffic::Trajectory clean_path =
+        rmf_traffic::agv::Interpolate::positions(
+          traits,
+          rmf_traffic::Time(rmf_traffic::Duration(0)),
+          positions);
+
+      if (clean_path.size() < 2)
+      {
+        return {
+          nullptr,
+          {"Invalid cleaning path for zone named [" + zone
+            + "]: Too few waypoints [" + std::to_string(clean_path.size())
+            + "]"}
+        };
+      }
+
+      // TODO(MXG): Validate the type of cleaning (vacuum, mopping, etc)
+      return {
+        rmf_task::requests::Clean::Description::make(
+          start_place.description->waypoint(),
+          exit_place.description->waypoint(),
+          std::move(clean_path)),
+        {}
+      };
+    };
+  deserialization.task.add("clean", validate_clean_task, deserialize_clean);
+
+  auto deserialize_clean_event =
+    [deserialize_clean](const nlohmann::json& msg)
+      -> agv::FleetUpdateHandle::DeserializedEvent
+    {
+      auto clean_task = deserialize_clean(msg);
+      if (!clean_task.description)
+        return {nullptr, std::move(clean_task.errors)};
+
+      return {
+        std::make_shared<CleanEvent>(
+          static_cast<const Clean::Description&>(*clean_task.description)),
+          std::move(clean_task.errors)
+      };
+    };
+  deserialization.event.add(
+    "clean", validate_clean_event, deserialize_clean_event);
 
   CleanEvent::add(*activation.event);
 
