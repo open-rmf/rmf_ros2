@@ -869,12 +869,13 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
   // Publish to API server
   if (broadcast_client)
   {
-    nlohmann::json fleet_state_msg = {{"name", {}}, {"robots", {}}};
+    nlohmann::json fleet_state_msg;
     fleet_state_msg["name"] = name;
+    auto& robots = fleet_state_msg["robots"];
     for (const auto& [context, mgr] : task_managers)
     {
       const auto& name = context->name();
-      nlohmann::json& json = fleet_state_msg["robots"][name];
+      nlohmann::json& json = robots[name];
       json["name"] = name;
       json["status"] = mgr->robot_status();
       json["task_id"] = mgr->current_task_id().value_or("");
@@ -910,8 +911,9 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
         value = it->second;
       };
 
-    nlohmann::json fleet_state_update_msg =
-    {{"type", "fleet_state_update"}, {"data", fleet_state_msg}};
+    nlohmann::json fleet_state_update_msg;
+    fleet_state_update_msg["type"] = "fleet_state_update";
+    fleet_state_update_msg["data"] = fleet_state_msg;
     try
     {
       // TODO(MXG): We should make this validator static
