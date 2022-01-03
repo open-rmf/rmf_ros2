@@ -285,6 +285,7 @@ public:
 
     handle->_pimpl->fleet_state_pub = handle->_pimpl->node->fleet_state();
     handle->fleet_state_topic_publish_period(std::chrono::seconds(1));
+    handle->fleet_state_update_period(std::chrono::seconds(1));
 
     // Create subs and pubs for bidding
     auto default_qos = rclcpp::SystemDefaultsQoS();
