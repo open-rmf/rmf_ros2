@@ -95,14 +95,14 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
       rmf_traffic::time::from_seconds(0.5));
 
     // should not receive cuz incorrect serverid
-    REQUIRE(status_ptr->state == TaskStatus::State::Pending);
+    REQUIRE(status_ptr->state == DispatchState::State::Pending);
 
     action_client->add_task("test_server", task_profile1, status_ptr);
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(0.5));
 
     // check status
-    REQUIRE(status_ptr->state == TaskStatus::State::Queued);
+    REQUIRE(status_ptr->state == DispatchState::State::Queued);
 
     // status ptr is destroyed, should not have anymore tracking
     status_ptr.reset();
@@ -169,22 +169,22 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
 
     REQUIRE(test_task_onchange.get());
     REQUIRE(test_task_onchange->has_value());
-    CHECK((*test_task_onchange)->state == TaskStatus::State::Queued);
+    CHECK((*test_task_onchange)->state == DispatchState::State::Queued);
 
     TaskStatus server_task;
     server_task.task_profile = task_profile1;
-    server_task.state = TaskStatus::State::Executing;
+    server_task.state = DispatchState::State::Executing;
 
     // Update it as executing
     action_server->update_status(server_task);
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(1.5));
 
-    CHECK((*test_task_onchange)->state == TaskStatus::State::Executing);
+    CHECK((*test_task_onchange)->state == DispatchState::State::Executing);
     CHECK(!test_task_onterminate->has_value());
 
     // completion
-    server_task.state = TaskStatus::State::Completed;
+    server_task.state = DispatchState::State::Completed;
     // Update it as executing
     action_server->update_status(server_task);
     executor.spin_until_future_complete(ready_future,
@@ -192,7 +192,7 @@ SCENARIO("Action communication with client and server", "[ActionInterface]")
 
     REQUIRE(test_task_onterminate.get());
     REQUIRE(test_task_onterminate->has_value());
-    CHECK((*test_task_onterminate)->state == TaskStatus::State::Completed);
+    CHECK((*test_task_onterminate)->state == DispatchState::State::Completed);
   }
 
   rclcpp::shutdown(rcl_context);

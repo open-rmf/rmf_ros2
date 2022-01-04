@@ -19,6 +19,7 @@ find_package(rmf_traffic_ros2 REQUIRED)
 find_package(rmf_task_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 file(GLOB_RECURSE core_lib_srcs "src/rmf_task_ros2/*.cpp")
 add_library(rmf_task_ros2 SHARED ${core_lib_srcs})
@@ -41,7 +42,7 @@ target_include_directories(rmf_task_ros2
 )
 
 ament_export_targets(rmf_task_ros2 HAS_LIBRARY_TARGET)
-ament_export_dependencies(rmf_traffic rmf_task_msgs rclcpp)
+ament_export_dependencies(rmf_traffic rmf_task_msgs rclcpp nlohmann_json)
 
 #===============================================================================
 

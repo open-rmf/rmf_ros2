@@ -78,7 +78,7 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
     REQUIRE(id.has_value());
     REQUIRE(dispatcher->active_tasks().size() == 1);
     REQUIRE(dispatcher->terminated_tasks().size() == 0);
-    REQUIRE(dispatcher->get_task_state(*id) == TaskStatus::State::Pending);
+    REQUIRE(dispatcher->get_task_state(*id) == DispatchState::State::Pending);
 
     // cancel task
     REQUIRE(dispatcher->cancel_task(*id));
@@ -116,11 +116,11 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
     // Submit first task and wait for bidding
     auto id = dispatcher->submit_task(task_desc1);
     REQUIRE(dispatcher->active_tasks().size() == 1);
-    REQUIRE(dispatcher->get_task_state(*id) == TaskStatus::State::Pending);
+    REQUIRE(dispatcher->get_task_state(*id) == DispatchState::State::Pending);
 
     // Default 2s timeout, wait 3s for timetout, should fail here
     std::this_thread::sleep_for(std::chrono::milliseconds(3500));
-    CHECK(dispatcher->get_task_state(*id) == TaskStatus::State::Failed);
+    CHECK(dispatcher->get_task_state(*id) == DispatchState::State::Failed);
     REQUIRE(dispatcher->terminated_tasks().size() == 1);
     // TODO(MXG): Flake out after previous line: SIGABRT
     REQUIRE(test_taskprofile->task_id == id);
@@ -189,12 +189,12 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
           }
 
           // Executing
-          status.state = TaskStatus::State::Executing;
+          status.state = DispatchState::State::Executing;
           action_server->update_status(status);
           std::this_thread::sleep_for(std::chrono::seconds(1));
 
           // Completed
-          status.state = TaskStatus::State::Completed;
+          status.state = DispatchState::State::Completed;
           action_server->update_status(status);
         }, task_profile
       );
@@ -213,16 +213,16 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
   WHEN("Full Dispatch cycle")
   {
     const auto id = dispatcher->submit_task(task_desc1);
-    CHECK(dispatcher->get_task_state(*id) == TaskStatus::State::Pending);
+    CHECK(dispatcher->get_task_state(*id) == DispatchState::State::Pending);
     std::this_thread::sleep_for(std::chrono::milliseconds(3500));
 
     // now should queue the task
-    CHECK(dispatcher->get_task_state(*id) == TaskStatus::State::Queued);
+    CHECK(dispatcher->get_task_state(*id) == DispatchState::State::Queued);
     REQUIRE(dispatcher->terminated_tasks().size() == 0);
     CHECK(*change_times == 2); // Pending and Queued
 
     std::this_thread::sleep_for(std::chrono::seconds(3));
-    CHECK(dispatcher->get_task_state(*id) == TaskStatus::State::Completed);
+    CHECK(dispatcher->get_task_state(*id) == DispatchState::State::Completed);
     REQUIRE(dispatcher->active_tasks().size() == 0);
     REQUIRE(dispatcher->terminated_tasks().size() == 1);
     CHECK(*change_times == 4); // Pending > Queued > Executing > Completed
@@ -230,7 +230,7 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
     // Add auto generated ChargeBattery Task from fleet adapter
     TaskStatus status;
     status.task_profile.task_id = "ChargeBattery10";
-    status.state = TaskStatus::State::Queued;
+    status.state = DispatchState::State::Queued;
     status.task_profile.description.task_type.type =
       rmf_task_msgs::msg::TaskType::TYPE_CHARGE_BATTERY;
     action_server->update_status(status);
@@ -243,7 +243,7 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
   WHEN("Half way cancel Dispatch cycle")
   {
     const auto id = dispatcher->submit_task(task_desc2);
-    CHECK(dispatcher->get_task_state(*id) == TaskStatus::State::Pending);
+    CHECK(dispatcher->get_task_state(*id) == DispatchState::State::Pending);
     REQUIRE(dispatcher->active_tasks().size() == 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(3000));
 
@@ -255,7 +255,7 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
     REQUIRE(dispatcher->terminated_tasks().size() == 1);
     REQUIRE(dispatcher->terminated_tasks().begin()->first == *id);
     auto status = dispatcher->terminated_tasks().begin()->second;
-    CHECK(status->state == TaskStatus::State::Canceled);
+    CHECK(status->state == DispatchState::State::Canceled);
     CHECK(*change_times == 3); // Pending -> Queued -> Canceled
   }
 

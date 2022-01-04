@@ -24,8 +24,7 @@
 #include <rmf_utils/optional.hpp>
 
 #include <rmf_task_ros2/bidding/Auctioneer.hpp>
-#include <rmf_task_ros2/TaskStatus.hpp>
-
+#include <rmf_task_ros2/DispatchState.hpp>
 
 namespace rmf_task_ros2 {
 
@@ -35,8 +34,7 @@ namespace rmf_task_ros2 {
 class Dispatcher : public std::enable_shared_from_this<Dispatcher>
 {
 public:
-  using DispatchTasks = std::unordered_map<TaskID, TaskStatusPtr>;
-  using TaskDescription = rmf_task_msgs::msg::TaskDescription;
+  using DispatchTasks = std::unordered_map<TaskID, DispatchStatePtr>;
 
   /// Initialize an rclcpp context and make an dispatcher instance. This will
   /// instantiate an rclcpp::Node, a task dispatcher node. Dispatcher node will
@@ -99,7 +97,7 @@ public:
   ///   task_id obtained from `submit_task()`
   ///
   /// \return State of the task, nullopt if task is not available
-  const rmf_utils::optional<TaskStatus::State> get_task_state(
+  const rmf_utils::optional<std::string> get_task_state(
     const TaskID& task_id) const;
 
   /// Get a mutable ref of active tasks map list handled by dispatcher
@@ -108,13 +106,13 @@ public:
   /// Get a mutable ref of terminated tasks map list
   const DispatchTasks& terminated_tasks() const;
 
-  using StatusCallback = std::function<void(const TaskStatusPtr status)>;
+  using DispatchStateCallback = std::function<void(const DispatchState& status)>;
 
   /// Trigger this callback when a task status is changed. This will return the
   /// Changed task status.
   ///
   /// \param [in] callback function
-  void on_change(StatusCallback on_change_fn);
+  void on_change(DispatchStateCallback on_change_fn);
 
   /// Change the default evaluator to a custom evaluator, which is used by
   /// bidding auctioneer. Default evaluator is: `LeastFleetDiffCostEvaluator`

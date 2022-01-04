@@ -101,7 +101,7 @@ private:
   std::shared_ptr<rclcpp::Node> _node;
   StatusCallback _on_change_callback;
   StatusCallback _on_terminate_callback;
-  std::unordered_map<TaskID, std::weak_ptr<TaskStatus>> _active_task_status;
+  std::unordered_map<TaskID, std::weak_ptr<DispatchState>> _active_task_status;
   rclcpp::Publisher<RequestMsg>::SharedPtr _request_msg_pub;
   rclcpp::Subscription<StatusMsg>::SharedPtr _status_msg_sub;
   rclcpp::Subscription<AckMsg>::SharedPtr _ack_msg_sub;

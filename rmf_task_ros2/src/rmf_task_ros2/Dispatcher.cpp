@@ -22,12 +22,18 @@
 
 #include "action/Client.hpp"
 
+#include <rmf_task_msgs/msg/task_description.hpp>
+#include <rmf_task_msgs/msg/task_profile.hpp>
 #include <rmf_task_msgs/srv/submit_task.hpp>
 #include <rmf_task_msgs/srv/cancel_task.hpp>
 #include <rmf_task_msgs/srv/get_task_list.hpp>
 #include <rmf_task_msgs/msg/tasks.hpp>
+#include <rmf_task_msgs/msg/api_request.hpp>
+#include <rmf_task_msgs/msg/api_response.hpp>
 
 #include <rmf_traffic_ros2/Time.hpp>
+
+#include <nlohmann/json.hpp>
 
 namespace rmf_task_ros2 {
 
@@ -43,17 +49,23 @@ public:
   using CancelTaskSrv = rmf_task_msgs::srv::CancelTask;
   using GetTaskListSrv = rmf_task_msgs::srv::GetTaskList;
   using TasksMsg = rmf_task_msgs::msg::Tasks;
+  using TaskDescription = rmf_task_msgs::msg::TaskDescription;
 
   rclcpp::Service<SubmitTaskSrv>::SharedPtr submit_task_srv;
   rclcpp::Service<CancelTaskSrv>::SharedPtr cancel_task_srv;
   rclcpp::Service<GetTaskListSrv>::SharedPtr get_task_list_srv;
+
+  using ApiRequest = rmf_task_msgs::msg::ApiRequest;
+  using ApiResponse = rmf_task_msgs::msg::ApiResponse;
+  rclcpp::Subscription<ApiRequest>::SharedPtr api_request;
+  rclcpp::Publisher<ApiResponse>::SharedPtr api_response;
 
   using ActiveTasksPub = rclcpp::Publisher<TasksMsg>;
   ActiveTasksPub::SharedPtr ongoing_tasks_pub;
 
   rclcpp::TimerBase::SharedPtr timer;
 
-  StatusCallback on_change_fn;
+  DispatchStateCallback on_change_fn;
 
   std::queue<bidding::BidNotice> queue_bidding_tasks;
 
@@ -67,15 +79,16 @@ public:
   int terminated_tasks_max_size;
   int publish_active_tasks_period;
 
-  std::unordered_map<std::size_t, std::string> task_type_name =
+  std::unordered_map<std::size_t, std::string> legacy_task_type_names =
   {
-    {0, "Station"},
-    {1, "Loop"},
-    {2, "Delivery"},
-    {3, "ChargeBattery"},
-    {4, "Clean"},
-    {5, "Patrol"}
+    {1, "patrol"},
+    {2, "delivery"},
+    {4, "patrol"}
   };
+
+  using LegacyConversion = std::function<std::string(const TaskDescription&)>;
+  using LegacyConversionMap = std::unordered_map<std::string, LegacyConversion>;
+  LegacyConversionMap legacy_task_types;
 
   Implementation(std::shared_ptr<rclcpp::Node> node_)
   : node{std::move(node_)}
@@ -157,6 +170,65 @@ public:
         response->success = true;
       }
     );
+
+    // Loop
+    legacy_task_types["patrol"] =
+      [](const TaskDescription& task_description) -> std::string
+      {
+        const auto& loop = task_description.loop;
+        nlohmann::json description;
+        std::vector<std::string> places;
+        places.push_back(loop.start_name);
+        places.push_back(loop.finish_name);
+        description["places"] = std::move(places);
+        description["rounds"] = loop.num_loops;
+
+        return description.dump();
+      };
+
+    // Delivery
+    legacy_task_types["delivery"] =
+      [](const TaskDescription& task_description) -> std::string
+      {
+        const auto& delivery = task_description.delivery;
+        std::vector<nlohmann::json> payload;
+        payload.reserve(delivery.items.size());
+        for (const auto& item : delivery.items)
+        {
+          nlohmann::json item_json;
+          item_json["sku"] = item.type_guid;
+          item_json["quantity"] = item.quantity;
+          item_json["compartment"] = item.compartment_name;
+          payload.push_back(item_json);
+        }
+
+        nlohmann::json pickup;
+        pickup["place"] = delivery.pickup_place_name;
+        pickup["handler"] = delivery.pickup_dispenser;
+        pickup["payload"] = payload;
+
+        nlohmann::json dropoff;
+        dropoff["place"] = delivery.dropoff_place_name;
+        dropoff["handler"] = delivery.dropoff_ingestor;
+        dropoff["payload"] = payload;
+
+        nlohmann::json description;
+        description["pickup"] = pickup;
+        description["dropoff"] = dropoff;
+
+        return description.dump();
+      };
+
+    // Clean
+    legacy_task_types["clean"] =
+      [](const TaskDescription& task_description) -> std::string
+      {
+        const auto& clean = task_description.clean;
+        nlohmann::json description;
+        description["zone"] = clean.start_waypoint;
+
+        return description.dump();
+      };
   }
 
   void start()
@@ -170,47 +242,77 @@ public:
       std::bind(&Implementation::task_status_cb, this, _1));
   }
 
-  std::optional<TaskID> submit_task(const TaskDescription& description)
+  std::optional<TaskID> submit_task(const TaskDescription& submission)
   {
-    TaskProfile submitted_task;
-    submitted_task.submission_time = node->now();
-    submitted_task.description = description;
-
-    const auto task_type = static_cast<std::size_t>(description.task_type.type);
-
-    if (!task_type_name.count(task_type))
+    const auto task_type_index = submission.task_type.type;
+    const auto desc_it = legacy_task_type_names.find(task_type_index);
+    if (desc_it == legacy_task_type_names.end())
     {
-      RCLCPP_ERROR(node->get_logger(), "TaskType: %ld is invalid", task_type);
+      RCLCPP_ERROR(
+        node->get_logger(), "TaskType: %u is invalid", task_type_index);
       return std::nullopt;
     }
 
+    const std::string category = desc_it->second;
+
     // auto generate a task_id for a given submitted task
-    submitted_task.task_id =
-      task_type_name[task_type] + std::to_string(task_counter++);
+    const auto task_id = "dispatch#" + std::to_string(task_counter++);
 
     RCLCPP_INFO(node->get_logger(),
-      "Received Task Submission [%s]", submitted_task.task_id.c_str());
+      "Received Task Submission [%s]", task_id.c_str());
 
-    // add task to internal cache
-    TaskStatus status;
-    status.task_profile = submitted_task;
-    auto new_task_status = std::make_shared<TaskStatus>(status);
-    active_dispatch_tasks[submitted_task.task_id] = new_task_status;
-    user_submitted_tasks.insert(submitted_task.task_id);
+    nlohmann::json task_request;
+    task_request["unix_millis_earliest_start_time"] =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+        rmf_traffic_ros2::convert(submission.start_time).time_since_epoch())
+        .count();
 
-    if (on_change_fn)
-      on_change_fn(new_task_status);
+    auto& priority = task_request["priority"];
+    priority["type"] = "binary";
+    priority["value"] = submission.priority.value;
+    task_request["category"] = category;
+    task_request["description"] = legacy_task_types.at(category)(submission);
+    task_request["labels"] = std::vector<std::string>({"legacy_request"});
 
     bidding::BidNotice bid_notice;
-    bid_notice.task_profile = submitted_task;
+    bid_notice.request = task_request.dump();
     bid_notice.time_window = rmf_traffic_ros2::convert(
       rmf_traffic::time::from_seconds(bidding_time_window));
+    push_bid_notice(std::move(bid_notice));
+
+    return task_id;
+  }
+
+  void push_bid_notice(bidding::BidNotice bid_notice)
+  {
+    nlohmann::json state;
+    auto& booking = state["booking"];
+    booking["id"] = bid_notice.task_id;
+
+    const auto request = nlohmann::json::parse(bid_notice.request);
+    static const std::vector<std::string> copy_fields = {
+        "unix_millis_earliest_start_time",
+        "priority",
+        "labels"
+      };
+
+    for (const auto& field : copy_fields)
+      booking[field] = request.at(field);
+
+    state["category"] = request["category"];
+    state["detail"] = request["description"];
+
+    if (on_change_fn)
+      on_change_fn(state);
+
+    // add task to internal cache
+    active_dispatch_tasks[bid_notice.task_id] = new_task_status;
+    user_submitted_tasks.insert(submitted_task.task_id);
+
     queue_bidding_tasks.push(bid_notice);
 
     if (queue_bidding_tasks.size() == 1)
       auctioneer->start_bidding(queue_bidding_tasks.front());
-
-    return submitted_task.task_id;
   }
 
   bool cancel_task(const TaskID& task_id)
@@ -228,9 +330,9 @@ public:
 
     // Cancel bidding. This will remove the bidding process
     const auto& cancel_task_status = it->second;
-    if (cancel_task_status->state == TaskStatus::State::Pending)
+    if (cancel_task_status->state == DispatchState::State::Pending)
     {
-      cancel_task_status->state = TaskStatus::State::Canceled;
+      cancel_task_status->state = DispatchState::State::Canceled;
       terminate_task(cancel_task_status);
 
       if (on_change_fn)
@@ -248,7 +350,7 @@ public:
     }
 
     // Curently cancel can only work on Queued Task in Fleet Adapter
-    if (cancel_task_status->state != TaskStatus::State::Queued)
+    if (cancel_task_status->state != DispatchState::State::Queued)
     {
       RCLCPP_ERROR(node->get_logger(),
         "Unable to cancel task [%s] as it is not a Queued Task",
@@ -269,7 +371,7 @@ public:
 
       if (is_self_gererated && is_fleet_name)
       {
-        it->second->state = TaskStatus::State::Canceled;
+        it->second->state = DispatchState::State::Canceled;
         terminate_task((it++)->second);
       }
       else
@@ -282,7 +384,7 @@ public:
     return action_client->cancel_task(cancel_task_status->task_profile);
   }
 
-  const std::optional<TaskStatus::State> get_task_state(
+  const std::optional<DispatchState::State> get_task_state(
     const TaskID& task_id) const
   {
     // check if taskid exists in active tasks
@@ -311,7 +413,7 @@ public:
     {
       RCLCPP_WARN(node->get_logger(), "Dispatcher Bidding Result: task [%s]"
         " has no submissions during bidding, Task Failed", task_id.c_str());
-      pending_task_status->state = TaskStatus::State::Failed;
+      pending_task_status->state = DispatchState::State::Failed;
       terminate_task(pending_task_status);
 
       if (on_change_fn)
@@ -342,7 +444,7 @@ public:
 
       if (is_self_gererated && is_fleet_name)
       {
-        it->second->state = TaskStatus::State::Canceled;
+        it->second->state = DispatchState::State::Canceled;
         terminate_task((it++)->second);
       }
       else
@@ -381,7 +483,7 @@ public:
     const auto id = terminate_status->task_profile.task_id;
 
     // destroy prev status ptr and recreate one
-    auto status = std::make_shared<TaskStatus>(*terminate_status);
+    auto status = std::make_shared<DispatchState>(*terminate_status);
     (terminal_dispatch_tasks)[id] = status;
     user_submitted_tasks.erase(id);
     active_dispatch_tasks.erase(id);
@@ -469,7 +571,7 @@ bool Dispatcher::cancel_task(const TaskID& task_id)
 }
 
 //==============================================================================
-const std::optional<TaskStatus::State> Dispatcher::get_task_state(
+const rmf_utils::optional<std::string> Dispatcher::get_task_state(
   const TaskID& task_id) const
 {
   return _pimpl->get_task_state(task_id);
@@ -488,7 +590,7 @@ const Dispatcher::DispatchTasks& Dispatcher::terminated_tasks() const
 }
 
 //==============================================================================
-void Dispatcher::on_change(StatusCallback on_change_fn)
+void Dispatcher::on_change(TaskStateCallback on_change_fn)
 {
   _pimpl->on_change_fn = on_change_fn;
 }

@@ -38,7 +38,7 @@ void Server::register_callbacks(
 
 //==============================================================================
 void Server::update_status(
-  const TaskStatus& task_status)
+  const DispatchState& task_status)
 {
   auto msg = convert_status(task_status);
   msg.fleet_name = _fleet_name;

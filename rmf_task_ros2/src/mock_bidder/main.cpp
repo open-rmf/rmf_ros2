@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
       auto t = std::thread(
         [&action_server, &node](auto profile)
         {
-          TaskStatus status;
+          DispatchState status;
           status.task_profile = profile;
           status.robot_name = "dumbot";
           status.start_time = rmf_traffic_ros2::convert(node->now());
@@ -88,12 +88,12 @@ int main(int argc, char* argv[])
 
           std::this_thread::sleep_for(std::chrono::seconds(2));
           std::cout << " [MockBidder] Executing, TaskID: " << id << std::endl;
-          status.state = TaskStatus::State::Executing;
+          status.state = DispatchState::State::Executing;
           action_server->update_status(status);
 
           std::this_thread::sleep_for(std::chrono::seconds(5));
           std::cout << " [MockBidder] Completed, TaskID: " << id << std::endl;
-          status.state = TaskStatus::State::Completed;
+          status.state = DispatchState::State::Completed;
           action_server->update_status(status);
         }, task_profile
       );

@@ -69,7 +69,7 @@ public:
   ///
   /// \param[in] task_status
   ///   latest status of the task
-  void update_status(const TaskStatus& task_status);
+  void update_status(const DispatchState& task_status);
 
 private:
   Server(

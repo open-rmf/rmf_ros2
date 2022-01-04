@@ -73,7 +73,7 @@ Client::Client(std::shared_ptr<rclcpp::Node> node)
         // will still provide onchange even if the task_id is unknown.
         RCLCPP_DEBUG(_node->get_logger(),
         "[action] Unknown task: [%s]", task_id.c_str());
-        auto task_status = std::make_shared<TaskStatus>(convert_status(*msg));
+        auto task_status = std::make_shared<DispatchState>(convert_status(*msg));
         _active_task_status[task_id] = task_status;
         update_task_status(task_status);
       }
@@ -95,7 +95,7 @@ Client::Client(std::shared_ptr<rclcpp::Node> node)
             RCLCPP_INFO(_node->get_logger(),
             "Received dispatch ack from fleet [%s] that task [%s] is queued",
             msg->dispatch_request.fleet_name.c_str(), task_id.c_str());
-            weak_status->state = TaskStatus::State::Queued;
+            weak_status->state = DispatchState::State::Queued;
           }
           else
           {
@@ -103,7 +103,7 @@ Client::Client(std::shared_ptr<rclcpp::Node> node)
             RCLCPP_ERROR(_node->get_logger(),
             "Received dispatch ack from fleet [%s] that task [%s] Add Failed",
             msg->dispatch_request.fleet_name.c_str(), task_id.c_str());
-            weak_status->state = TaskStatus::State::Failed;
+            weak_status->state = DispatchState::State::Failed;
           }
           break;
         case RequestMsg::CANCEL:
@@ -113,7 +113,7 @@ Client::Client(std::shared_ptr<rclcpp::Node> node)
             RCLCPP_INFO(_node->get_logger(),
             "Received dispatch ack from fleet [%s] that task [%s] is canceled",
             msg->dispatch_request.fleet_name.c_str(), task_id.c_str());
-            weak_status->state = TaskStatus::State::Canceled;
+            weak_status->state = DispatchState::State::Canceled;
           }
           break;
         default:
