@@ -436,6 +436,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   auto& phases = _state_msg["phases"];
 
   nlohmann::json task_logs;
+  task_logs["task_id"] = booking.id();
   auto& phase_logs = task_logs["phases"];
 
   std::vector<uint64_t> completed_ids;
