@@ -54,7 +54,7 @@ Server::Server(
   const auto dispatch_qos = rclcpp::ServicesQoS().reliable();
 
   _request_msg_sub = _node->create_subscription<RequestMsg>(
-    TaskRequestTopicName, dispatch_qos,
+    DispatchCommandTopicName, dispatch_qos,
     [&](const std::unique_ptr<RequestMsg> msg)
     {
       if (msg->fleet_name != _fleet_name)
@@ -89,7 +89,7 @@ Server::Server(
     });
 
   _ack_msg_pub = _node->create_publisher<AckMsg>(
-    TaskAckTopicName, dispatch_qos);
+    DispatchAckTopicName, dispatch_qos);
 
   _status_msg_pub = _node->create_publisher<StatusMsg>(
     TaskStatusTopicName, dispatch_qos);

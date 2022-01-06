@@ -1319,7 +1319,7 @@ void TaskManager::_publish_task_queue()
     pending_json["original_estimate_millis"] =
       std::max(0l, to_millis(estimate).count());
     copy_assignment(pending_json["assigned_to"], *_context);
-    pending_json["status"] = "standby";
+    pending_json["status"] = "queued";
 
     auto task_state_update = _task_state_update_json;
     task_state_update["data"] = pending_json;

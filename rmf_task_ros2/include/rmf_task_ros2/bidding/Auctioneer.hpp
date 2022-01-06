@@ -42,8 +42,11 @@ public:
   /// \param[in] winner
   ///   single winner from all submissions. nullopt if non
   using BiddingResultCallback =
-    std::function<void( const std::string& task_id,
-      const std::optional<Submission> winner)>;
+    std::function<
+      void(
+        const std::string& task_id,
+        const std::optional<Submission> winner,
+        const std::vector<std::string>& errors)>;
 
   /// Create an instance of the Auctioneer. This instance will handle all
   /// the task dispatching bidding mechanism. A default evaluator is used.

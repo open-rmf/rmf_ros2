@@ -40,7 +40,7 @@ public:
   BiddingResultCallback bidding_result_callback;
   std::shared_ptr<Evaluator> evaluator;
 
-  struct BiddingTask
+  struct OpenBid
   {
     BidNotice bid_notice;
     builtin_interfaces::msg::Time start_time;
@@ -48,7 +48,7 @@ public:
   };
 
   bool bidding_in_proccess = false;
-  std::queue<BiddingTask> queue_bidding_tasks;
+  std::queue<OpenBid> open_bid_queue;
 
   using BidNoticePub = rclcpp::Publisher<BidNotice>;
   BidNoticePub::SharedPtr bid_notice_pub;
@@ -69,7 +69,7 @@ public:
   // determine the winner within a bidding task instance
   void check_bidding_process();
 
-  bool determine_winner(const BiddingTask& bidding_task);
+  bool determine_winner(const OpenBid& bidding_task);
 
   std::optional<Submission> evaluate(const Submissions& submissions);
 

@@ -18,21 +18,57 @@
 #include <rmf_task_ros2/DispatchState.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
 
+#include <rmf_task_msgs/msg/assignment.hpp>
+
 namespace rmf_task_ros2 {
 
-// ==============================================================================
-DispatchState::DispatchState(std::string task_id_)
-: task_id(std::move(task_id_))
+//==============================================================================
+DispatchState::DispatchState(
+  std::string task_id_,
+  rmf_traffic::Time submission_time_)
+: task_id(std::move(task_id_)),
+  submission_time(submission_time_)
 {
   // Do nothing
 }
 
-// ==============================================================================
-bool DispatchState::is_terminated() const
+//=============================================================================
+rmf_task_msgs::msg::Assignment convert(
+  const std::optional<DispatchState::Assignment>& assignment)
 {
-  return (status == Status::Failed) ||
-    (status == Status::Completed) ||
-    (status == Status::Canceled);
+  if (assignment.has_value())
+  {
+    return rmf_task_msgs::build<rmf_task_msgs::msg::Assignment>()
+        .is_assigned(true)
+        .fleet_name(assignment->fleet_name)
+        .expected_robot_name(assignment->expected_robot_name);
+  }
+
+  return rmf_task_msgs::build<rmf_task_msgs::msg::Assignment>()
+      .is_assigned(false)
+      .fleet_name("")
+      .expected_robot_name("");
+}
+
+//=============================================================================
+std::vector<std::string> convert(const std::vector<nlohmann::json>& values)
+{
+  std::vector<std::string> output;
+  output.reserve(values.size());
+  for (const auto& v : values)
+    output.push_back(v.dump());
+
+  return output;
+}
+
+//=============================================================================
+rmf_task_msgs::msg::DispatchState convert(const DispatchState& state)
+{
+  return rmf_task_msgs::build<rmf_task_msgs::msg::DispatchState>()
+      .task_id(state.task_id)
+      .status(static_cast<uint8_t>(state.status))
+      .assignment(convert(state.assignment))
+      .errors(convert(state.errors));
 }
 
 } // namespace rmf_task_ros2

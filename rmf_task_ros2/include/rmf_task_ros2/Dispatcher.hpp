@@ -26,6 +26,9 @@
 #include <rmf_task_ros2/bidding/Auctioneer.hpp>
 #include <rmf_task_ros2/DispatchState.hpp>
 
+// Deprecated message definition
+#include <rmf_task_msgs/msg/task_description.hpp>
+
 namespace rmf_task_ros2 {
 
 //==============================================================================
@@ -34,7 +37,7 @@ namespace rmf_task_ros2 {
 class Dispatcher : public std::enable_shared_from_this<Dispatcher>
 {
 public:
-  using DispatchTasks = std::unordered_map<TaskID, DispatchStatePtr>;
+  using DispatchStates = std::unordered_map<TaskID, DispatchStatePtr>;
 
   /// Initialize an rclcpp context and make an dispatcher instance. This will
   /// instantiate an rclcpp::Node, a task dispatcher node. Dispatcher node will
@@ -76,8 +79,9 @@ public:
   ///
   /// \return task_id
   ///   self-generated task_id, nullopt is submit task failed
+  [[deprecated]]
   std::optional<TaskID> submit_task(
-    const TaskDescription& task_description);
+    const rmf_task_msgs::msg::TaskDescription& task_description);
 
   /// Cancel an active task which was previously submitted to Dispatcher. This
   /// will terminate the task with a State of: `Canceled`. If a task is
@@ -97,16 +101,17 @@ public:
   ///   task_id obtained from `submit_task()`
   ///
   /// \return State of the task, nullopt if task is not available
-  const rmf_utils::optional<std::string> get_task_state(
+  std::optional<DispatchState> get_dispatch_state(
     const TaskID& task_id) const;
 
   /// Get a mutable ref of active tasks map list handled by dispatcher
-  const DispatchTasks& active_tasks() const;
+  const DispatchStates& active_dispatches() const;
 
   /// Get a mutable ref of terminated tasks map list
-  const DispatchTasks& terminated_tasks() const;
+  const DispatchStates& finished_dispatches() const;
 
-  using DispatchStateCallback = std::function<void(const DispatchState& status)>;
+  using DispatchStateCallback =
+    std::function<void(const DispatchState& status)>;
 
   /// Trigger this callback when a task status is changed. This will return the
   /// Changed task status.

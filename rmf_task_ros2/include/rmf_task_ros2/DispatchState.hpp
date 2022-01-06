@@ -21,6 +21,11 @@
 #include <unordered_map>
 #include <memory>
 
+#include <rmf_traffic_ros2/Time.hpp>
+#include <rmf_task_msgs/msg/dispatch_state.hpp>
+
+#include <nlohmann/json.hpp>
+
 namespace rmf_task_ros2 {
 
 //==============================================================================
@@ -30,30 +35,59 @@ using TaskID = std::string;
 /// \note TaskStatus struct is based on TaskSummary.msg
 struct DispatchState
 {
+  using Msg = rmf_task_msgs::msg::DispatchState;
+
   enum class Status : uint8_t
   {
-    Queued,
-    Dispatched,
-    FailedToAssign,
-    CanceledInFlight
+    /// This task has not been assigned yet
+    Queued = Msg::STATUS_QUEUED,
+
+    /// An assignment has been selected, but we have not received acknowledgment
+    /// from the assignee
+    Selected = Msg::STATUS_SELECTED,
+
+    /// The task is dispatched and no longer being managed by the dispatcher
+    Dispatched = Msg::STATUS_DISPATCHED,
+
+    /// There was a failure to assign the task to anyone
+    FailedToAssign = Msg::STATUS_FAILED_TO_ASSIGN,
+
+    /// The task was canceled before it managed to get dispatched
+    CanceledInFlight = Msg::STATUS_CANCELED_IN_FLIGHT
   };
 
   struct Assignment
   {
     std::string fleet_name;
-    std::string robot_name;
+    std::string expected_robot_name;
   };
 
+  /// The Task ID for that this dispatching refers to
   std::string task_id;
+
+  /// Submission arrival time
+  rmf_traffic::Time submission_time;
+
+  /// The status of this dispatching
   Status status = Status::Queued;
+
+  /// The assignment that was made for this dispatching
   std::optional<Assignment> assignment;
 
-  DispatchState(std::string task_id);
+  /// Any errors that have occurred for this dispatching
+  std::vector<nlohmann::json> errors;
 
-  bool is_terminated() const;
+  DispatchState(std::string task_id, rmf_traffic::Time submission_time);
 };
 
 using DispatchStatePtr = std::shared_ptr<DispatchState>;
+
+//==============================================================================
+rmf_task_msgs::msg::Assignment convert(
+  const std::optional<DispatchState::Assignment>& assignment);
+
+//==============================================================================
+rmf_task_msgs::msg::DispatchState convert(const DispatchState& state);
 
 } // namespace rmf_task_ros2
 

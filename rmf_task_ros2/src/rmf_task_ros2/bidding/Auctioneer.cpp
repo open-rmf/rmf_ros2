@@ -67,12 +67,12 @@ void Auctioneer::Implementation::start_bidding(
   const BidNotice& bid_notice)
 {
   RCLCPP_INFO(node->get_logger(), "Add Task [%s] to a bidding queue",
-    bid_notice.task_profile.task_id.c_str());
+    bid_notice.task_id.c_str());
 
-  BiddingTask bidding_task;
+  OpenBid bidding_task;
   bidding_task.bid_notice = bid_notice;
   bidding_task.start_time = node->now();
-  queue_bidding_tasks.push(bidding_task);
+  open_bid_queue.push(bidding_task);
 }
 
 //==============================================================================
@@ -86,25 +86,25 @@ void Auctioneer::Implementation::receive_proposal(
 
   // check if bidding task is initiated by the auctioneer previously
   // add submited proposal to the current bidding tasks list
-  if (queue_bidding_tasks.front().bid_notice.task_profile.task_id == id)
-    queue_bidding_tasks.front().submissions.push_back(convert(msg));
+  if (open_bid_queue.front().bid_notice.task_profile.task_id == id)
+    open_bid_queue.front().submissions.push_back(convert(msg));
 }
 
 //==============================================================================
 // determine the winner within a bidding task instance
 void Auctioneer::Implementation::check_bidding_process()
 {
-  if (queue_bidding_tasks.size() == 0)
+  if (open_bid_queue.size() == 0)
     return;
 
   // Executing the task at the front queue
-  auto front_task = queue_bidding_tasks.front();
+  auto front_task = open_bid_queue.front();
 
   if (bidding_in_proccess)
   {
     if (determine_winner(front_task))
     {
-      queue_bidding_tasks.pop();
+      open_bid_queue.pop();
       bidding_in_proccess = false;
     }
   }
@@ -112,7 +112,7 @@ void Auctioneer::Implementation::check_bidding_process()
   {
     RCLCPP_DEBUG(node->get_logger(), " - Start new bidding task: %s",
       front_task.bid_notice.task_profile.task_id.c_str());
-    queue_bidding_tasks.front().start_time = node->now();
+    open_bid_queue.front().start_time = node->now();
     bid_notice_pub->publish(front_task.bid_notice);
     bidding_in_proccess = true;
   }
@@ -120,7 +120,7 @@ void Auctioneer::Implementation::check_bidding_process()
 
 //==============================================================================
 bool Auctioneer::Implementation::determine_winner(
-  const BiddingTask& bidding_task)
+  const OpenBid& bidding_task)
 {
   const auto duration = node->now() - bidding_task.start_time;
 
@@ -181,10 +181,10 @@ std::shared_ptr<Auctioneer> Auctioneer::make(
   const std::shared_ptr<rclcpp::Node>& node,
   BiddingResultCallback result_callback)
 {
-  auto pimpl = rmf_utils::make_unique_impl<Implementation>(
-    node, result_callback);
   auto auctioneer = std::shared_ptr<Auctioneer>(new Auctioneer());
-  auctioneer->_pimpl = std::move(pimpl);
+  auctioneer->_pimpl = rmf_utils::make_unique_impl<Implementation>(
+    node, std::move(result_callback));
+
   return auctioneer;
 }
 

@@ -16,6 +16,7 @@
 */
 
 #include <rmf_task_ros2/Dispatcher.hpp>
+#include <rmf_task_ros2/StandardNames.hpp>
 
 #include <rclcpp/node.hpp>
 #include <rclcpp/executors/single_threaded_executor.hpp>
@@ -26,7 +27,10 @@
 #include <rmf_task_msgs/msg/task_profile.hpp>
 #include <rmf_task_msgs/srv/submit_task.hpp>
 #include <rmf_task_msgs/srv/cancel_task.hpp>
-#include <rmf_task_msgs/srv/get_task_list.hpp>
+#include <rmf_task_msgs/msg/dispatch_states.hpp>
+#include <rmf_task_msgs/msg/dispatch_command.hpp>
+#include <rmf_task_msgs/msg/dispatch_ack.hpp>
+#include <rmf_task_msgs/srv/get_dispatch_states.hpp>
 #include <rmf_task_msgs/msg/tasks.hpp>
 #include <rmf_task_msgs/msg/api_request.hpp>
 #include <rmf_task_msgs/msg/api_response.hpp>
@@ -43,48 +47,53 @@ class Dispatcher::Implementation
 public:
   std::shared_ptr<rclcpp::Node> node;
   std::shared_ptr<bidding::Auctioneer> auctioneer;
-  std::shared_ptr<action::Client> action_client;
 
   using SubmitTaskSrv = rmf_task_msgs::srv::SubmitTask;
   using CancelTaskSrv = rmf_task_msgs::srv::CancelTask;
-  using GetTaskListSrv = rmf_task_msgs::srv::GetTaskList;
-  using TasksMsg = rmf_task_msgs::msg::Tasks;
+  using GetDispatchStatesSrv = rmf_task_msgs::srv::GetDispatchStates;
+  using DispatchStateMsg = rmf_task_msgs::msg::DispatchState;
+  using DispatchStatesMsg = rmf_task_msgs::msg::DispatchStates;
   using TaskDescription = rmf_task_msgs::msg::TaskDescription;
+  using DispatchCommandMsg = rmf_task_msgs::msg::DispatchCommand;
+  using DispatchAckMsg = rmf_task_msgs::msg::DispatchAck;
 
   rclcpp::Service<SubmitTaskSrv>::SharedPtr submit_task_srv;
   rclcpp::Service<CancelTaskSrv>::SharedPtr cancel_task_srv;
-  rclcpp::Service<GetTaskListSrv>::SharedPtr get_task_list_srv;
+  rclcpp::Service<GetDispatchStatesSrv>::SharedPtr get_dispatch_states_srv;
 
   using ApiRequest = rmf_task_msgs::msg::ApiRequest;
   using ApiResponse = rmf_task_msgs::msg::ApiResponse;
   rclcpp::Subscription<ApiRequest>::SharedPtr api_request;
   rclcpp::Publisher<ApiResponse>::SharedPtr api_response;
 
-  using ActiveTasksPub = rclcpp::Publisher<TasksMsg>;
-  ActiveTasksPub::SharedPtr ongoing_tasks_pub;
+  using DispatchStatesPub =rclcpp::Publisher<DispatchStatesMsg>;
+  DispatchStatesPub::SharedPtr dispatch_states_pub;
+  rclcpp::TimerBase::SharedPtr dispatch_states_pub_timer;
 
-  rclcpp::TimerBase::SharedPtr timer;
+  uint64_t next_dispatch_command_id = 0;
+  std::unordered_map<uint64_t, DispatchCommandMsg> lingering_commands;
+  rclcpp::TimerBase::SharedPtr dispatch_command_timer;
+  rclcpp::Publisher<DispatchCommandMsg>::SharedPtr dispatch_command_pub;
+
+  rclcpp::Subscription<DispatchAckMsg>::SharedPtr dispatch_ack_sub;
 
   DispatchStateCallback on_change_fn;
 
-  std::queue<bidding::BidNotice> queue_bidding_tasks;
+  std::queue<bidding::BidNotice> task_bid_queue;
 
-  /// TODO: should rename "active" to "ongoing" to prevent confusion
-  /// of with task STATE_ACTIVE
-  DispatchTasks active_dispatch_tasks;
-  DispatchTasks terminal_dispatch_tasks;
-  std::set<std::string> user_submitted_tasks;  // ongoing submitted task_ids
+  DispatchStates active_dispatch_states;
+  DispatchStates finished_dispatch_states;
   std::size_t task_counter = 0; // index for generating task_id
   double bidding_time_window;
-  int terminated_tasks_max_size;
+  std::size_t terminated_tasks_max_size;
   int publish_active_tasks_period;
 
   std::unordered_map<std::size_t, std::string> legacy_task_type_names =
-  {
-    {1, "patrol"},
-    {2, "delivery"},
-    {4, "patrol"}
-  };
+    {
+      {1, "patrol"},
+      {2, "delivery"},
+      {4, "patrol"}
+    };
 
   using LegacyConversion = std::function<std::string(const TaskDescription&)>;
   using LegacyConversionMap = std::unordered_map<std::string, LegacyConversion>;
@@ -101,7 +110,7 @@ public:
     terminated_tasks_max_size =
       node->declare_parameter<int>("terminated_tasks_max_size", 100);
     RCLCPP_INFO(node->get_logger(),
-      " Declared Terminated Tasks Max Size Param as: %d",
+      " Declared Terminated Tasks Max Size Param as: %lu",
       terminated_tasks_max_size);
     publish_active_tasks_period =
       node->declare_parameter<int>("publish_active_tasks_period", 2);
@@ -110,13 +119,41 @@ public:
       publish_active_tasks_period);
 
     const auto qos = rclcpp::ServicesQoS().reliable();
-    ongoing_tasks_pub = node->create_publisher<TasksMsg>(
-      rmf_task_ros2::ActiveTasksTopicName, qos);
+    dispatch_states_pub = node->create_publisher<DispatchStatesMsg>(
+      rmf_task_ros2::DispatchStatesTopicName, qos);
 
-    timer = node->create_wall_timer(
+    // TODO(MXG): The smallest resolution this supports is 1 second. That
+    // doesn't seem great.
+    dispatch_states_pub_timer = node->create_wall_timer(
       std::chrono::seconds(publish_active_tasks_period),
-      std::bind(
-        &Dispatcher::Implementation::publish_ongoing_tasks, this));
+      [this]() { this->publish_dispatch_states(); });
+
+    dispatch_command_pub = node->create_publisher<DispatchCommandMsg>(
+      rmf_task_ros2::DispatchCommandTopicName,
+      rclcpp::ServicesQoS().keep_last(20).reliable().transient_local());
+
+    // TODO(MXG): Make this publishing period configurable
+    dispatch_command_timer = node->create_wall_timer(
+      std::chrono::seconds(1),
+      [this](){ this->publish_lingering_commands(); });
+
+    dispatch_ack_sub = node->create_subscription<DispatchAckMsg>(
+      rmf_task_ros2::DispatchAckTopicName,
+      rclcpp::ServicesQoS().keep_last(20).transient_local(),
+      [this](const DispatchAckMsg& msg)
+      {
+        this->handle_dispatch_ack(msg);
+      });
+
+    auctioneer = bidding::Auctioneer::make(
+        node,
+        [this](
+          const TaskID& task_id,
+          const std::optional<bidding::Submission> winner,
+          const std::vector<std::string>& errors)
+        {
+          this->conclude_bid(task_id, std::move(winner), errors);
+        });
 
     // Setup up stream srv interfaces
     submit_task_srv = node->create_service<SubmitTaskSrv>(
@@ -149,24 +186,30 @@ public:
       }
     );
 
-    get_task_list_srv = node->create_service<GetTaskListSrv>(
+    get_dispatch_states_srv = node->create_service<GetDispatchStatesSrv>(
       rmf_task_ros2::GetTaskListSrvName,
       [this](
-        const std::shared_ptr<GetTaskListSrv::Request> request,
-        std::shared_ptr<GetTaskListSrv::Response> response)
+        const std::shared_ptr<GetDispatchStatesSrv::Request> request,
+        std::shared_ptr<GetDispatchStatesSrv::Response> response)
       {
-        for (auto task : (this->active_dispatch_tasks))
-        {
-          response->active_tasks.push_back(
-            rmf_task_ros2::convert_status(*(task.second)));
-        }
+        std::unordered_set<std::string> relevant_tasks;
+        relevant_tasks.insert(
+          request->task_ids.begin(), request->task_ids.end());
 
-        // Terminated Tasks
-        for (auto task : (this->terminal_dispatch_tasks))
-        {
-          response->terminated_tasks.push_back(
-            rmf_task_ros2::convert_status(*(task.second)));
-        }
+        const auto fill_states = [&relevant_tasks](auto& into, const auto& from)
+          {
+            for (const auto& [id, state] : from)
+            {
+              if (relevant_tasks.empty())
+                into.push_back(convert(*state));
+              else if (relevant_tasks.count(id))
+                into.push_back(convert(*state));
+            }
+          };
+
+        fill_states(response->states.active, this->active_dispatch_states);
+        fill_states(response->states.finished, this->finished_dispatch_states);
+
         response->success = true;
       }
     );
@@ -231,17 +274,6 @@ public:
       };
   }
 
-  void start()
-  {
-    using namespace std::placeholders;
-    auctioneer = bidding::Auctioneer::make(node,
-        std::bind(&Implementation::receive_bidding_winner_cb, this, _1, _2));
-    action_client->on_terminate(
-      std::bind(&Implementation::terminate_task, this, _1));
-    action_client->on_change(
-      std::bind(&Implementation::task_status_cb, this, _1));
-  }
-
   std::optional<TaskID> submit_task(const TaskDescription& submission)
   {
     const auto task_type_index = submission.task_type.type;
@@ -302,230 +334,378 @@ public:
     state["category"] = request["category"];
     state["detail"] = request["description"];
 
+    // TODO(MXG): Publish this initial task state message to the websocket!
+
+    auto new_dispatch_state =
+      std::make_shared<DispatchState>(
+        bid_notice.task_id, std::chrono::steady_clock::now());
+
+    active_dispatch_states[bid_notice.task_id] = new_dispatch_state;
+
     if (on_change_fn)
-      on_change_fn(state);
+      on_change_fn(*new_dispatch_state);
 
-    // add task to internal cache
-    active_dispatch_tasks[bid_notice.task_id] = new_task_status;
-    user_submitted_tasks.insert(submitted_task.task_id);
+    task_bid_queue.push(bid_notice);
 
-    queue_bidding_tasks.push(bid_notice);
-
-    if (queue_bidding_tasks.size() == 1)
-      auctioneer->start_bidding(queue_bidding_tasks.front());
+    if (task_bid_queue.size() == 1)
+      auctioneer->start_bidding(task_bid_queue.front());
   }
 
   bool cancel_task(const TaskID& task_id)
   {
-    // check if key exists
-    const auto it = active_dispatch_tasks.find(task_id);
-    if (it == active_dispatch_tasks.end())
+    using Status = DispatchState::Status;
+
+    // Check if the task has already terminated for some reason
+    const auto finished_it = finished_dispatch_states.find(task_id);
+    if (finished_it != finished_dispatch_states.end())
     {
-      RCLCPP_ERROR(node->get_logger(),
-        "Task [%s] is not found in active_tasks", task_id.c_str());
+      if (finished_it->second->status == Status::FailedToAssign
+          || finished_it->second->status == Status::CanceledInFlight)
+      {
+        // This task was never assigned to a fleet adapter so we will respond
+        // positively that it is cancelled.
+        return true;
+      }
+
+      if (finished_it->second->status == Status::Dispatched)
+      {
+        // This task is now the responsibility of a fleet adapter
+        return false;
+      }
+
+      // If the dispatch status is Queued or Selected then this task is in the
+      // wrong dispatch state set.
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Canceled task [%s] is in the set of finished dispatches but has an "
+        "invalid status for that set: %d",
+        task_id.c_str(),
+        static_cast<uint8_t>(finished_it->second->status));
+
       return false;
     }
 
-    RCLCPP_WARN(node->get_logger(), "Cancel task: [%s]", task_id.c_str());
+    const auto it = active_dispatch_states.find(task_id);
+    if (it == active_dispatch_states.end())
+    {
+      // This must mean that some other system besides the dispatch system
+      // created the task ..?
+      RCLCPP_INFO(node->get_logger(),
+        "Canceled task [%s] was not dispatched", task_id.c_str());
+      return false;
+    }
 
     // Cancel bidding. This will remove the bidding process
-    const auto& cancel_task_status = it->second;
-    if (cancel_task_status->state == DispatchState::State::Pending)
+    const auto& canceled_dispatch = it->second;
+    if (canceled_dispatch->status == DispatchState::Status::Queued)
     {
-      cancel_task_status->state = DispatchState::State::Canceled;
-      terminate_task(cancel_task_status);
+      canceled_dispatch->status = DispatchState::Status::CanceledInFlight;
+      move_to_finished(task_id);
 
       if (on_change_fn)
-        on_change_fn(cancel_task_status);
+        on_change_fn(*canceled_dispatch);
 
       return true;
     }
 
-    // only user submitted task is cancelable
-    if (user_submitted_tasks.find(task_id) == user_submitted_tasks.end())
+    // Cancel the assignment. We will need to make sure the cancelation is seen
+    // by the fleet adapter that the task was assigned to.
+    if (canceled_dispatch->status == DispatchState::Status::Selected)
     {
-      RCLCPP_ERROR(node->get_logger(),
-        "only user submitted task is cancelable");
-      return false;
-    }
-
-    // Curently cancel can only work on Queued Task in Fleet Adapter
-    if (cancel_task_status->state != DispatchState::State::Queued)
-    {
-      RCLCPP_ERROR(node->get_logger(),
-        "Unable to cancel task [%s] as it is not a Queued Task",
-        task_id.c_str());
-      return false;
-    }
-
-    // Remove non-user submitted task from "active_dispatch_tasks"
-    // this is to prevent duplicated task during reassignation
-    // TODO: a better way to impl this
-    for (auto it = active_dispatch_tasks.begin();
-      it != active_dispatch_tasks.end(); )
-    {
-      const bool is_fleet_name =
-        (cancel_task_status->fleet_name == it->second->fleet_name);
-      const bool is_self_gererated =
-        (user_submitted_tasks.find(it->first) == user_submitted_tasks.end());
-
-      if (is_self_gererated && is_fleet_name)
+      canceled_dispatch->status = DispatchState::Status::CanceledInFlight;
+      if (!canceled_dispatch->assignment.has_value())
       {
-        it->second->state = DispatchState::State::Canceled;
-        terminate_task((it++)->second);
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "Canceled task [%s] has Selected status but its assignment is empty. "
+          "This indicates a serious bug. Please report this to the RMF "
+          "developers.",
+          task_id.c_str());
       }
       else
-        ++it;
+      {
+        auto cancel_command = rmf_task_msgs::build<DispatchCommandMsg>()
+            .fleet_name(canceled_dispatch->assignment->fleet_name)
+            .task_id(task_id)
+            .dispatch_id(next_dispatch_command_id++)
+            .timestamp(node->get_clock()->now())
+            .type(DispatchCommandMsg::TYPE_REMOVE);
+
+        lingering_commands[cancel_command.dispatch_id] = cancel_command;
+        dispatch_command_pub->publish(cancel_command);
+      }
+
+      move_to_finished(task_id);
+
+      if (on_change_fn)
+        on_change_fn(*canceled_dispatch);
+
+      return true;
     }
 
-    // Cancel action task, this will only send a cancel to FA. up to
-    // the FA whether to cancel the task. On change is implemented
-    // internally in action client
-    return action_client->cancel_task(cancel_task_status->task_profile);
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Canceled task [%s] is in the set of active dispatches but has an "
+      "invalid status for that set: %d",
+      task_id.c_str(),
+      static_cast<uint8_t>(canceled_dispatch->status));
+
+    return false;
   }
 
-  const std::optional<DispatchState::State> get_task_state(
-    const TaskID& task_id) const
-  {
-    // check if taskid exists in active tasks
-    auto it = active_dispatch_tasks.find(task_id);
-    if (it != active_dispatch_tasks.end())
-      return it->second->state;
-
-    // check if taskid exists in terminated tasks
-    it = terminal_dispatch_tasks.find(task_id);
-    if (it != terminal_dispatch_tasks.end())
-      return it->second->state;
-
-    return std::nullopt;
-  }
-
-  void receive_bidding_winner_cb(
+  void conclude_bid(
     const TaskID& task_id,
-    const rmf_utils::optional<bidding::Submission> winner)
+    const std::optional<bidding::Submission> winner,
+    const std::vector<std::string>& errors)
   {
-    const auto it = active_dispatch_tasks.find(task_id);
-    if (it == active_dispatch_tasks.end())
+    const auto it = active_dispatch_states.find(task_id);
+    if (it == active_dispatch_states.end())
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Received a winning bid for a task request [%s] which is no longer "
+        "being dispatched. This may indicate a bug and should be reported to "
+        "the developers of RMF.",
+        task_id.c_str());
       return;
-    const auto& pending_task_status = it->second;
+    }
+
+    auto& dispatch_state = it->second;
+    for (const auto& error : errors)
+    {
+      try
+      {
+        dispatch_state->errors.push_back(nlohmann::json::parse(error));
+      }
+      catch (const std::exception&)
+      {
+        // If the message cannot be converted directly into an error message,
+        // then we will create an error message for it
+        nlohmann::json error_msg;
+        error_msg["code"] = 255;
+        error_msg["category"] = "unknown";
+        error_msg["detail"] = error;
+
+        dispatch_state->errors.push_back(std::move(error_msg));
+      }
+    }
 
     if (!winner)
     {
-      RCLCPP_WARN(node->get_logger(), "Dispatcher Bidding Result: task [%s]"
-        " has no submissions during bidding, Task Failed", task_id.c_str());
-      pending_task_status->state = DispatchState::State::Failed;
-      terminate_task(pending_task_status);
+      RCLCPP_WARN(node->get_logger(),
+        "Dispatcher Bidding Result: task [%s] has no submissions during "
+        "bidding. Dispatching failed, and the task will not be performed.",
+        task_id.c_str());
+
+      dispatch_state->status = DispatchState::Status::FailedToAssign;
+      nlohmann::json error;
+      // TODO(MXG): Standardize the codes
+      error["code"] = 10;
+      error["category"] = "rejection";
+      error["detail"] =
+        "No fleet adapters offered a bid for task [" + task_id + "]";
+
+      dispatch_state->errors.push_back(std::move(error));
 
       if (on_change_fn)
-        on_change_fn(pending_task_status);
+        on_change_fn(*dispatch_state);
 
-      queue_bidding_tasks.pop();
-      if (!queue_bidding_tasks.empty())
-        auctioneer->start_bidding(queue_bidding_tasks.front());
+      if (task_bid_queue.empty())
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "task_bid_queue is empty while a bid is concluding. This indicates a "
+          "serious bug. Please report this to the RMF developers.");
+        return;
+      }
+
+      task_bid_queue.pop();
+      if (!task_bid_queue.empty())
+        auctioneer->start_bidding(task_bid_queue.front());
+
       return;
     }
 
     // now we know which fleet will execute the task
-    pending_task_status->fleet_name = winner->fleet_name;
+    dispatch_state->assignment =
+      DispatchState::Assignment{
+        winner->fleet_name,
+        winner->robot_name
+      };
 
-    RCLCPP_INFO(node->get_logger(), "Dispatcher Bidding Result: task [%s]"
-      " is accepted by fleet adapter [%s]",
-      task_id.c_str(), winner->fleet_name.c_str());
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Dispatcher Bidding Result: task [%s] is awarded to fleet adapter [%s], "
+      "with expected robot [%s].",
+      task_id.c_str(),
+      winner->fleet_name.c_str(),
+      winner->robot_name.c_str());
 
-    // Remove non-user submitted charging task from "active_dispatch_tasks"
-    // this is to prevent duplicated task during reassignation.
-    // TODO: a better way to impl this
-    for (auto it = active_dispatch_tasks.begin();
-      it != active_dispatch_tasks.end(); )
+    auto award_command = rmf_task_msgs::build<DispatchCommandMsg>()
+        .fleet_name(winner->fleet_name)
+        .task_id(task_id)
+        .dispatch_id(next_dispatch_command_id++)
+        .timestamp(node->get_clock()->now())
+        .type(DispatchCommandMsg::TYPE_AWARD);
+
+    lingering_commands[award_command.dispatch_id] = award_command;
+    dispatch_command_pub->publish(award_command);
+  }
+
+  void move_to_finished(const std::string& task_id)
+  {
+    const auto active_it = active_dispatch_states.find(task_id);
+
+    // TODO(MXG): We can make this more efficient by having a queue of
+    // finished dispatch state IDs in chronological order
+    if (finished_dispatch_states.size() >= terminated_tasks_max_size)
     {
-      const bool is_fleet_name = (winner->fleet_name == it->second->fleet_name);
-      const bool is_self_gererated =
-        (user_submitted_tasks.find(it->first) == user_submitted_tasks.end());
-
-      if (is_self_gererated && is_fleet_name)
+      auto check_it = finished_dispatch_states.begin();
+      auto oldest_it = check_it++;
+      for (; check_it != finished_dispatch_states.end(); ++check_it)
       {
-        it->second->state = DispatchState::State::Canceled;
-        terminate_task((it++)->second);
+        const auto& check = check_it->second->submission_time;
+        const auto& oldest = oldest_it->second->submission_time;
+        if (check < oldest)
+          oldest_it = check_it;
+      }
+
+      finished_dispatch_states.erase(oldest_it);
+    }
+
+    finished_dispatch_states[active_it->first] = active_it->second;
+  }
+
+  void publish_dispatch_states()
+  {
+    const auto fill_states = [](auto& into, const auto& from)
+      {
+        for (const auto& [id, state] : from)
+          into.push_back(convert(*state));
+      };
+
+    std::vector<DispatchStateMsg> active;
+    std::vector<DispatchStateMsg> finished;
+    fill_states(active, active_dispatch_states);
+    fill_states(finished, finished_dispatch_states);
+
+    dispatch_states_pub->publish(
+      rmf_task_msgs::build<DispatchStatesMsg>()
+          .active(std::move(active))
+          .finished(std::move(finished)));
+  }
+
+  void publish_lingering_commands()
+  {
+    std::vector<uint64_t> expired_commands;
+    const auto now = node->get_clock()->now();
+
+    // TODO(MXG): Make this timeout period configurable
+    const auto timeout = std::chrono::seconds(10);
+
+    for (const auto& [id, r] : lingering_commands)
+    {
+      const auto timestamp = rclcpp::Time(r.timestamp);
+      if (timestamp + timeout < now)
+      {
+        // This request has expired.
+        expired_commands.push_back(id);
+        continue;
+      }
+
+      dispatch_command_pub->publish(r);
+    }
+
+    for (const auto& id : expired_commands)
+    {
+      const auto it = lingering_commands.find(id);
+      if (it == lingering_commands.end())
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "Weird bug, [%lu] is no longer in the lingering requests even though "
+          "it was just detected as being expired. Please report this to the "
+          "RMF developers.", id);
+        continue;
+      }
+
+      const auto& request = it->second;
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Dispatch request [%lu] type [%u] for task [%s] directed at fleet [%s] "
+        "has expired. This likely means something is wrong with the fleet "
+        "adapter for [%s] preventing it from responding.",
+        id,
+        request.type,
+        request.task_id.c_str(),
+        request.fleet_name.c_str(),
+        request.fleet_name.c_str());
+
+      lingering_commands.erase(it);
+    }
+  }
+
+  void handle_dispatch_ack(const DispatchAckMsg& ack)
+  {
+    const auto command_it = lingering_commands.find(ack.request_id);
+    if (command_it == lingering_commands.end())
+    {
+      // Already processed this acknowledgment
+      return;
+    }
+
+    const auto command = std::move(command_it->second);
+    lingering_commands.erase(command_it);
+
+    if (command.type == DispatchCommandMsg::TYPE_AWARD)
+    {
+      const auto state_it = active_dispatch_states.find(command.task_id);
+      if (state_it == active_dispatch_states.end())
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "Could not find active dispatch state for [%s] despite receiving an "
+          "acknowledgment for its bid award. This indicates a bug. Please "
+          "report this to the RMF developers.",
+          command.task_id.c_str());
+        return;
+      }
+
+      const auto state = state_it->second;
+      if (state->status == DispatchState::Status::Selected)
+      {
+        state->status = DispatchState::Status::Dispatched;
+        move_to_finished(state->task_id);
+      }
+      else if (state->status == DispatchState::Status::CanceledInFlight)
+      {
+        // If the task was canceled in flight then we will simply ignore this
+        // acknowledgment. There should be another lingering command telling the
+        // fleet adapter to cancel the task.
       }
       else
-        ++it;
-    }
-
-    // add task to action server
-    action_client->add_task(
-      winner->fleet_name,
-      pending_task_status->task_profile,
-      pending_task_status);
-  }
-
-  void terminate_task(const TaskStatusPtr terminate_status)
-  {
-    assert(terminate_status->is_terminated());
-    publish_ongoing_tasks();
-
-    // prevent terminal_dispatch_tasks from piling up meaning
-    if (terminal_dispatch_tasks.size() >= terminated_tasks_max_size)
-    {
-      RCLCPP_WARN(node->get_logger(),
-        "Terminated tasks reached max size, remove earliest submited task");
-
-      auto rm_task = terminal_dispatch_tasks.begin();
-      for (auto it = rm_task++; it != terminal_dispatch_tasks.end(); it++)
       {
-        const auto t1 = it->second->task_profile.submission_time;
-        const auto t2 = rm_task->second->task_profile.submission_time;
-        if (rmf_traffic_ros2::convert(t1) < rmf_traffic_ros2::convert(t2))
-          rm_task = it;
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "Dispatch status for [%s] is [%u], but we have received an award "
+          "acknowledgment for it. This indicates a bug. Please report this to "
+          "the RMF developers.",
+          state->task_id.c_str(),
+          static_cast<uint8_t>(state->status));
       }
-      terminal_dispatch_tasks.erase(rm_task);
+
+      return;
     }
-
-    const auto id = terminate_status->task_profile.task_id;
-
-    // destroy prev status ptr and recreate one
-    auto status = std::make_shared<DispatchState>(*terminate_status);
-    (terminal_dispatch_tasks)[id] = status;
-    user_submitted_tasks.erase(id);
-    active_dispatch_tasks.erase(id);
-  }
-
-  void task_status_cb(const TaskStatusPtr status)
-  {
-    // This is to solve the issue that the dispatcher is not aware of those
-    // "stray" tasks that are not dispatched by the dispatcher. This will add
-    // the stray tasks when an unknown TaskSummary is heard.
-    const std::string id = status->task_profile.task_id;
-    const auto it = active_dispatch_tasks.find(id);
-    if (it == active_dispatch_tasks.end())
+    else if (command.type == DispatchCommandMsg::TYPE_REMOVE)
     {
-      active_dispatch_tasks[id] = status;
-      RCLCPP_WARN(node->get_logger(),
-        "Add previously unheard task: [%s]", id.c_str());
+      // No further action is needed. We simply remove the lingering command.
     }
 
-    // check if there's a change in state for the previous completed bidding task
-    // TODO, better way to impl this
-    if (!queue_bidding_tasks.empty()
-      && id == queue_bidding_tasks.front().task_profile.task_id)
-    {
-      queue_bidding_tasks.pop();
-      if (!queue_bidding_tasks.empty())
-        auctioneer->start_bidding(queue_bidding_tasks.front());
-    }
-
-    if (on_change_fn)
-      on_change_fn(status);
-  }
-
-  void publish_ongoing_tasks()
-  {
-    TasksMsg task_msgs;
-    for (auto task : (this->active_dispatch_tasks))
-    {
-      task_msgs.tasks.push_back(
-        rmf_task_ros2::convert_status(*(task.second)));
-    }
-    ongoing_tasks_pub->publish(task_msgs);
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Unrecognized command type [%u] in lingering dispatch command queue. "
+      "This indicates a bug. Please report this to the RMF developers.",
+      command.type);
   }
 };
 
@@ -548,18 +728,14 @@ std::shared_ptr<Dispatcher> Dispatcher::make_node(
 std::shared_ptr<Dispatcher> Dispatcher::make(
   const std::shared_ptr<rclcpp::Node>& node)
 {
-  auto pimpl = rmf_utils::make_impl<Implementation>(node);
-  pimpl->action_client = action::Client::make(node);
-
   auto dispatcher = std::shared_ptr<Dispatcher>(new Dispatcher());
-  dispatcher->_pimpl = std::move(pimpl);
-  dispatcher->_pimpl->start();
+  dispatcher->_pimpl = rmf_utils::make_impl<Implementation>(node);
   return dispatcher;
 }
 
 //==============================================================================
 std::optional<TaskID> Dispatcher::submit_task(
-  const TaskDescription& task_description)
+  const rmf_task_msgs::msg::TaskDescription& task_description)
 {
   return _pimpl->submit_task(task_description);
 }
@@ -571,26 +747,34 @@ bool Dispatcher::cancel_task(const TaskID& task_id)
 }
 
 //==============================================================================
-const rmf_utils::optional<std::string> Dispatcher::get_task_state(
+std::optional<DispatchState> Dispatcher::get_dispatch_state(
   const TaskID& task_id) const
 {
-  return _pimpl->get_task_state(task_id);
+  const auto active_it = _pimpl->active_dispatch_states.find(task_id);
+  if (active_it != _pimpl->active_dispatch_states.end())
+    return *active_it->second;
+
+  const auto finished_it = _pimpl->finished_dispatch_states.find(task_id);
+  if (finished_it != _pimpl->finished_dispatch_states.end())
+    return *finished_it->second;
+
+  return std::nullopt;
 }
 
 //==============================================================================
-const Dispatcher::DispatchTasks& Dispatcher::active_tasks() const
+const Dispatcher::DispatchStates& Dispatcher::active_dispatches() const
 {
-  return _pimpl->active_dispatch_tasks;
+  return _pimpl->active_dispatch_states;
 }
 
 //==============================================================================
-const Dispatcher::DispatchTasks& Dispatcher::terminated_tasks() const
+const Dispatcher::DispatchStates& Dispatcher::finished_dispatches() const
 {
-  return _pimpl->terminal_dispatch_tasks;
+  return _pimpl->finished_dispatch_states;
 }
 
 //==============================================================================
-void Dispatcher::on_change(TaskStateCallback on_change_fn)
+void Dispatcher::on_change(DispatchStateCallback on_change_fn)
 {
   _pimpl->on_change_fn = on_change_fn;
 }

@@ -76,7 +76,7 @@ private:
     std::shared_ptr<rclcpp::Node> node,
     const std::string& fleet_name);
 
-  using RequestMsg = rmf_task_msgs::msg::DispatchRequest;
+  using RequestMsg = rmf_task_msgs::msg::DispatchCommand;
   using AckMsg = rmf_task_msgs::msg::DispatchAck;
 
   std::shared_ptr<rclcpp::Node> _node;

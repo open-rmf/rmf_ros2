@@ -95,7 +95,7 @@ private:
 
   void update_task_status(const TaskStatusPtr status);
 
-  using RequestMsg = rmf_task_msgs::msg::DispatchRequest;
+  using RequestMsg = rmf_task_msgs::msg::DispatchCommand;
   using AckMsg = rmf_task_msgs::msg::DispatchAck;
 
   std::shared_ptr<rclcpp::Node> _node;
