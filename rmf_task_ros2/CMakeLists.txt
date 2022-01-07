@@ -14,22 +14,27 @@ endif()
 include(GNUInstallDirs)
 
 find_package(ament_cmake REQUIRED)
+find_package(rmf_api_msgs REQUIRED)
 find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_ros2 REQUIRED)
 find_package(rmf_task_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(nlohmann_json_schema_validator_vendor REQUIRED)
 
 file(GLOB_RECURSE core_lib_srcs "src/rmf_task_ros2/*.cpp")
 add_library(rmf_task_ros2 SHARED ${core_lib_srcs})
 
 target_link_libraries(rmf_task_ros2
   PUBLIC
+    rmf_api_msgs::rmf_api_msgs
     rmf_traffic::rmf_traffic
     rmf_traffic_ros2::rmf_traffic_ros2
     ${rmf_task_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
+    nlohmann_json::nlohmann_json
+    nlohmann_json_schema_validator
 )
 
 target_include_directories(rmf_task_ros2

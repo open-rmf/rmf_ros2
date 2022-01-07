@@ -21,8 +21,6 @@
 #include <rclcpp/node.hpp>
 #include <rclcpp/executors/single_threaded_executor.hpp>
 
-#include "action/Client.hpp"
-
 #include <rmf_task_msgs/msg/task_description.hpp>
 #include <rmf_task_msgs/msg/task_profile.hpp>
 #include <rmf_task_msgs/srv/submit_task.hpp>
@@ -38,13 +36,63 @@
 #include <rmf_traffic_ros2/Time.hpp>
 
 #include <nlohmann/json.hpp>
+#include <nlohmann/json-schema.hpp>
+
+#include <rmf_api_msgs/schemas/dispatch_task_request.hpp>
+#include <rmf_api_msgs/schemas/dispatch_task_response.hpp>
+#include <rmf_api_msgs/schemas/task_request.hpp>
+#include <rmf_api_msgs/schemas/task_state.hpp>
+#include <rmf_api_msgs/schemas/error.hpp>
 
 namespace rmf_task_ros2 {
+
+namespace {
+//==============================================================================
+std::function<void(const nlohmann::json_uri& id, nlohmann::json& value)>
+make_schema_loader()
+{
+  const std::vector<nlohmann::json> schemas = {
+    rmf_api_msgs::schemas::dispatch_task_request,
+    rmf_api_msgs::schemas::dispatch_task_response,
+    rmf_api_msgs::schemas::task_request,
+    rmf_api_msgs::schemas::task_state,
+    rmf_api_msgs::schemas::error
+  };
+
+  std::unordered_map<std::string, nlohmann::json> dictionary;
+  for (const auto& schema : schemas)
+  {
+    const auto json_uri = nlohmann::json_uri(schema["$id"]);
+    dictionary[json_uri.url()] = schema;
+  }
+
+  return [dictionary = std::move(dictionary)](
+    const nlohmann::json_uri& id, nlohmann::json& value)
+    {
+      const auto it = dictionary.find(id.url());
+      if (it != dictionary.end())
+        value = it->second;
+    };
+}
+
+//==============================================================================
+static const
+std::function<void(const nlohmann::json_uri& id, nlohmann::json& value)>
+schema_loader = make_schema_loader();
+
+//==============================================================================
+nlohmann::json_schema::json_validator make_validator(nlohmann::json schema)
+{
+  return nlohmann::json_schema::json_validator(
+    std::move(schema), schema_loader);
+}
+} // anonymous namespace
 
 //==============================================================================
 class Dispatcher::Implementation
 {
 public:
+
   std::shared_ptr<rclcpp::Node> node;
   std::shared_ptr<bidding::Auctioneer> auctioneer;
 
@@ -61,10 +109,44 @@ public:
   rclcpp::Service<CancelTaskSrv>::SharedPtr cancel_task_srv;
   rclcpp::Service<GetDispatchStatesSrv>::SharedPtr get_dispatch_states_srv;
 
-  using ApiRequest = rmf_task_msgs::msg::ApiRequest;
-  using ApiResponse = rmf_task_msgs::msg::ApiResponse;
-  rclcpp::Subscription<ApiRequest>::SharedPtr api_request;
-  rclcpp::Publisher<ApiResponse>::SharedPtr api_response;
+  using ApiRequestMsg = rmf_task_msgs::msg::ApiRequest;
+  using ApiResponseMsg = rmf_task_msgs::msg::ApiResponse;
+  rclcpp::Subscription<ApiRequestMsg>::SharedPtr api_request;
+  rclcpp::Publisher<ApiResponseMsg>::SharedPtr api_response;
+
+  class ApiMemory
+  {
+  public:
+
+    std::optional<ApiResponseMsg> lookup(const std::string& api_id) const
+    {
+      const auto it = _cached_responses.find(api_id);
+      if (it == _cached_responses.end())
+        return std::nullopt;
+
+      return it->second;
+    }
+
+    void add(ApiResponseMsg msg)
+    {
+      if (_tracker.size() > _max_size)
+      {
+        _cached_responses.erase(_tracker.front());
+        _tracker.pop_front();
+      }
+
+      _tracker.push_back(msg.request_id);
+      _cached_responses[msg.request_id] = std::move(msg);
+    }
+
+  private:
+
+    std::unordered_map<std::string, ApiResponseMsg> _cached_responses;
+    std::list<std::string> _tracker;
+    std::size_t _max_size = 50;
+  };
+
+  ApiMemory api_memory;
 
   using DispatchStatesPub =rclcpp::Publisher<DispatchStatesMsg>;
   DispatchStatesPub::SharedPtr dispatch_states_pub;
@@ -79,12 +161,12 @@ public:
 
   DispatchStateCallback on_change_fn;
 
-  std::queue<bidding::BidNotice> task_bid_queue;
+  std::queue<bidding::BidNoticeMsg> task_bid_queue;
 
   DispatchStates active_dispatch_states;
   DispatchStates finished_dispatch_states;
   std::size_t task_counter = 0; // index for generating task_id
-  double bidding_time_window;
+  builtin_interfaces::msg::Duration bidding_time_window;
   std::size_t terminated_tasks_max_size;
   int publish_active_tasks_period;
 
@@ -103,10 +185,13 @@ public:
   : node{std::move(node_)}
   {
     // ros2 param
-    bidding_time_window =
+    double bidding_time_window_param =
       node->declare_parameter<double>("bidding_time_window", 2.0);
     RCLCPP_INFO(node->get_logger(),
-      " Declared Time Window Param as: %f secs", bidding_time_window);
+      " Declared Time Window Param as: %f secs", bidding_time_window_param);
+    bidding_time_window = rmf_traffic_ros2::convert(
+          rmf_traffic::time::from_seconds(bidding_time_window_param));
+
     terminated_tasks_max_size =
       node->declare_parameter<int>("terminated_tasks_max_size", 100);
     RCLCPP_INFO(node->get_logger(),
@@ -121,6 +206,17 @@ public:
     const auto qos = rclcpp::ServicesQoS().reliable();
     dispatch_states_pub = node->create_publisher<DispatchStatesMsg>(
       rmf_task_ros2::DispatchStatesTopicName, qos);
+
+    // TODO(MXG): Sync up with rmf_fleet_adapter/StandardNames on these topic
+    // names
+    api_request = node->create_subscription<ApiRequestMsg>(
+      "task_api_requests",
+      rclcpp::SystemDefaultsQoS().reliable().transient_local(),
+      [this](const ApiRequestMsg& msg) { this->handle_api_request(msg); });
+
+    api_response = node->create_publisher<ApiResponseMsg>(
+      "task_api_responses",
+      rclcpp::SystemDefaultsQoS().reliable().transient_local());
 
     // TODO(MXG): The smallest resolution this supports is 1 second. That
     // doesn't seem great.
@@ -149,11 +245,12 @@ public:
         node,
         [this](
           const TaskID& task_id,
-          const std::optional<bidding::Submission> winner,
+          const std::optional<bidding::Response::Proposal> winner,
           const std::vector<std::string>& errors)
         {
           this->conclude_bid(task_id, std::move(winner), errors);
-        });
+        },
+        std::make_shared<bidding::LeastFleetDiffCostEvaluator>());
 
     // Setup up stream srv interfaces
     submit_task_srv = node->create_service<SubmitTaskSrv>(
@@ -187,7 +284,7 @@ public:
     );
 
     get_dispatch_states_srv = node->create_service<GetDispatchStatesSrv>(
-      rmf_task_ros2::GetTaskListSrvName,
+      rmf_task_ros2::GetDispatchStatesSrvName,
       [this](
         const std::shared_ptr<GetDispatchStatesSrv::Request> request,
         std::shared_ptr<GetDispatchStatesSrv::Response> response)
@@ -274,6 +371,94 @@ public:
       };
   }
 
+  void handle_api_request(const ApiRequestMsg& msg)
+  {
+    const auto check = api_memory.lookup(msg.request_id);
+    if (check.has_value())
+    {
+      api_response->publish(*check);
+      return;
+    }
+
+    const auto msg_json = nlohmann::json::parse(msg.json_msg);
+    const auto& type = msg_json["type"];
+    if (!type)
+      return;
+
+    try
+    {
+      const auto& type_str = type.get<std::string>();
+      if (type_str != "dispatch_task_request")
+        return;
+
+      static const auto request_validator =
+        make_validator(rmf_api_msgs::schemas::dispatch_task_request);
+
+      try
+      {
+        request_validator.validate(msg_json);
+      }
+      catch (const std::exception& e)
+      {
+        nlohmann::json error;
+        error["code"] = 5;
+        error["category"] = "Invalid request format";
+        error["detail"] = e.what();
+
+        nlohmann::json response_json;
+        response_json["success"] = false;
+        response_json["errors"] =
+          std::vector<nlohmann::json>({std::move(error)});
+
+        auto response = rmf_task_msgs::build<ApiResponseMsg>()
+            .type(ApiResponseMsg::TYPE_RESPONDING)
+            .json_msg(std::move(response_json))
+            .request_id(msg.request_id);
+
+        api_memory.add(response);
+        api_response->publish(response);
+      }
+
+      const std::string task_id = "dispatch#" + std::to_string(task_counter++);
+      const auto task_request_json = msg_json["request"];
+      push_bid_notice(
+        rmf_task_msgs::build<bidding::BidNoticeMsg>()
+          .request(task_request_json.dump())
+          .task_id(task_id)
+          .time_window(bidding_time_window));
+
+      nlohmann::json response_json;
+      response_json["success"] = true;
+
+      auto& task_state = response_json["state"];
+      auto& booking = task_state["booking"];
+      booking["id"] = task_id;
+      booking["unix_millis_earliest_start_time"] =
+          task_request_json["unix_millis_earliest_start_time"];
+      booking["priority"] = task_request_json["priority"];
+      booking["labels"] = task_request_json["labels"];
+
+      auto& dispatch = task_state["dispatch"];
+      dispatch["status"] = "queued";
+
+      auto response = rmf_task_msgs::build<ApiResponseMsg>()
+        .type(ApiResponseMsg::TYPE_RESPONDING)
+        .json_msg(task_state.dump())
+        .request_id(msg.request_id);
+
+      api_memory.add(response);
+      api_response->publish(response);
+
+      // TODO(MXG): Make some way to keep pushing task state updates to the
+      // api-server as the bidding process progresses. We could do a websocket
+      // connection or maybe just a simple ROS2 publisher.
+    }
+    catch (const std::exception&)
+    {
+      // Do nothing. The message is not meant for us.
+    }
+  }
+
   std::optional<TaskID> submit_task(const TaskDescription& submission)
   {
     const auto task_type_index = submission.task_type.type;
@@ -306,16 +491,16 @@ public:
     task_request["description"] = legacy_task_types.at(category)(submission);
     task_request["labels"] = std::vector<std::string>({"legacy_request"});
 
-    bidding::BidNotice bid_notice;
-    bid_notice.request = task_request.dump();
-    bid_notice.time_window = rmf_traffic_ros2::convert(
-      rmf_traffic::time::from_seconds(bidding_time_window));
-    push_bid_notice(std::move(bid_notice));
+    push_bid_notice(
+      rmf_task_msgs::build<bidding::BidNoticeMsg>()
+        .request(task_request.dump())
+        .task_id(task_id)
+        .time_window(bidding_time_window));
 
     return task_id;
   }
 
-  void push_bid_notice(bidding::BidNotice bid_notice)
+  void push_bid_notice(bidding::BidNoticeMsg bid_notice)
   {
     nlohmann::json state;
     auto& booking = state["booking"];
@@ -455,7 +640,7 @@ public:
 
   void conclude_bid(
     const TaskID& task_id,
-    const std::optional<bidding::Submission> winner,
+    const std::optional<bidding::Response::Proposal> winner,
     const std::vector<std::string>& errors)
   {
     const auto it = active_dispatch_states.find(task_id);
@@ -530,7 +715,7 @@ public:
     dispatch_state->assignment =
       DispatchState::Assignment{
         winner->fleet_name,
-        winner->robot_name
+        winner->expected_robot_name
       };
 
     RCLCPP_INFO(
@@ -539,7 +724,7 @@ public:
       "with expected robot [%s].",
       task_id.c_str(),
       winner->fleet_name.c_str(),
-      winner->robot_name.c_str());
+      winner->expected_robot_name.c_str());
 
     auto award_command = rmf_task_msgs::build<DispatchCommandMsg>()
         .fleet_name(winner->fleet_name)
@@ -780,10 +965,9 @@ void Dispatcher::on_change(DispatchStateCallback on_change_fn)
 }
 
 //==============================================================================
-void Dispatcher::evaluator(
-  std::shared_ptr<bidding::Auctioneer::Evaluator> evaluator)
+void Dispatcher::evaluator(bidding::Auctioneer::ConstEvaluatorPtr evaluator)
 {
-  _pimpl->auctioneer->select_evaluator(evaluator);
+  _pimpl->auctioneer->set_evaluator(std::move(evaluator));
 }
 
 //==============================================================================

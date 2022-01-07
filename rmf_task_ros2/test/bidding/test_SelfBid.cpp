@@ -15,10 +15,12 @@
  *
 */
 
-#include <rmf_task_ros2/bidding/MinimalBidder.hpp>
+#include <rmf_task_ros2/bidding/AsyncBidder.hpp>
 #include <rmf_task_ros2/bidding/Auctioneer.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
+
+#include <nlohmann/json.hpp>
 
 #include <chrono>
 #include <thread>
@@ -27,12 +29,9 @@
 namespace rmf_task_ros2 {
 namespace bidding {
 
-using TaskProfile = rmf_task_msgs::msg::TaskProfile;
-using TaskType = bidding::MinimalBidder::TaskType;
-
 //==============================================================================
-BidNotice bidding_task1;
-BidNotice bidding_task2;
+BidNoticeMsg bidding_task1;
+BidNoticeMsg bidding_task2;
 
 // set time window to 2s
 auto timeout = rmf_traffic_ros2::convert(rmf_traffic::time::from_seconds(2.0));
@@ -41,20 +40,26 @@ auto timeout = rmf_traffic_ros2::convert(rmf_traffic::time::from_seconds(2.0));
 SCENARIO("Auction with 2 Bids", "[TwoBids]")
 {
   // Initializing bidding task
-  bidding_task1.task_profile.task_id = "bid1";
-  bidding_task1.time_window = timeout;
-  bidding_task1.task_profile.description.task_type.type =
-    rmf_task_msgs::msg::TaskType::TYPE_STATION;
+  nlohmann::json req_1;
+  req_1["category"] = "patrol";
+  req_1["description"] = "mocking a patrol";
 
-  bidding_task2.task_profile.task_id = "bid2";
+  nlohmann::json req_2;
+  req_2["category"] = "delivery";
+  req_2["description"] = "mocking a delivery";
+
+  bidding_task1.task_id = "bid1";
+  bidding_task1.time_window = timeout;
+  bidding_task1.request = req_1.dump();
+
+  bidding_task2.task_id = "bid2";
   bidding_task2.time_window = timeout;
-  bidding_task2.task_profile.description.task_type.type =
-    rmf_task_msgs::msg::TaskType::TYPE_DELIVERY;
+  bidding_task2.request = req_2.dump();
 
   //============================================================================
   // test received msg
-  std::optional<TaskProfile> test_notice_bidder1;
-  std::optional<TaskProfile> test_notice_bidder2;
+  std::optional<std::string> test_notice_bidder1;
+  std::optional<std::string> test_notice_bidder2;
   std::string r_result_id = "";
   std::string r_result_winner = "";
 
@@ -68,14 +73,17 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
     node,
     /// Bidding Result Callback Function
     [&r_result_id, &r_result_winner](
-      const std::string& task_id, const std::optional<Submission> winner)
+      const auto& task_id,
+      const auto winner,
+      const auto&)
     {
       if (!winner)
         return;
       r_result_id = task_id;
       r_result_winner = winner->fleet_name;
       return;
-    }
+    },
+    nullptr
   );
 
   rclcpp::ExecutorOptions exec_options;
@@ -83,29 +91,37 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
   rclcpp::executors::SingleThreadedExecutor executor(exec_options);
   executor.add_node(node);
 
-  auto bidder1 = MinimalBidder::make(
-    node, "bidder1", { TaskType::Station, TaskType::Delivery },
-    [&test_notice_bidder1](const BidNotice& notice)
+  auto bidder1 = AsyncBidder::make(
+    node,
+    [&test_notice_bidder1](const auto& notice, auto respond)
     {
-      Submission best_robot_estimate;
-      test_notice_bidder1 = notice.task_profile;
+      Response::Proposal best_robot_estimate;
+      test_notice_bidder1 = notice.request;
+      best_robot_estimate.fleet_name = "bidder1";
       best_robot_estimate.finish_time =
-      std::chrono::steady_clock::time_point::max();
-      return best_robot_estimate;
+        std::chrono::steady_clock::time_point::max();
+
+      respond(Response{best_robot_estimate, {}});
     }
   );
 
-  auto bidder2 = MinimalBidder::make(
-    node, "bidder2", { TaskType::Delivery, TaskType::Clean },
-    [&test_notice_bidder2](const BidNotice& notice)
+  auto bidder2 = AsyncBidder::make(
+    node,
+    [&test_notice_bidder2](const auto& notice, auto respond)
     {
+      auto request = nlohmann::json::parse(notice.request);
+      if (request["category"] == "patrol")
+        return respond(Response{std::nullopt, {"Cannot patrol"}});
+
       // TaskType should not be supported
-      Submission best_robot_estimate;
+      Response::Proposal best_robot_estimate;
       best_robot_estimate.new_cost = 2.3; // lower cost than bidder1
+      best_robot_estimate.fleet_name = "bidder2";
       best_robot_estimate.finish_time =
       std::chrono::steady_clock::time_point::min();
-      test_notice_bidder2 = notice.task_profile;
-      return best_robot_estimate;
+      test_notice_bidder2 = notice.request;
+
+      respond(Response{best_robot_estimate, {}});
     }
   );
 
@@ -113,19 +129,17 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
   std::promise<void> ready_promise;
   std::shared_future<void> ready_future(ready_promise.get_future());
 
-  WHEN("First 'Station' Task Bid")
+  WHEN("First 'patrol' Task Bid")
   {
-    // start bidding
-    bidding_task1.task_profile.submission_time = node->now();
     auctioneer->start_bidding(bidding_task1);
 
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(1.0));
 
     // Check if bidder 1 & 2 receive BidNotice1
-    REQUIRE(test_notice_bidder1);
-    REQUIRE(test_notice_bidder1->task_id == bidding_task1.task_profile.task_id);
-    REQUIRE(!test_notice_bidder2); // bidder2 doesnt support tasktype
+    REQUIRE(test_notice_bidder1.has_value());
+    CHECK(*test_notice_bidder1 == bidding_task1.request);
+    REQUIRE(!test_notice_bidder2.has_value()); // bidder2 doesn't support patrol
 
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(2.5));
@@ -135,19 +149,19 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
     REQUIRE(r_result_id == "bid1");
   }
 
-  WHEN("Second 'Delivery' Task bid")
+  WHEN("Second 'delivery' Task bid")
   {
     // start bidding
-    bidding_task2.task_profile.submission_time = node->now();
     auctioneer->start_bidding(bidding_task2);
 
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(1.0));
 
     // Check if bidder 1 & 2 receive BidNotice2
-    auto task2_profile = bidding_task2.task_profile;
-    REQUIRE(test_notice_bidder1->task_id == task2_profile.task_id);
-    REQUIRE(test_notice_bidder2->task_id == task2_profile.task_id);
+    REQUIRE(test_notice_bidder1.has_value());
+    CHECK(*test_notice_bidder1 == bidding_task2.request);
+    REQUIRE(test_notice_bidder2.has_value());
+    REQUIRE(*test_notice_bidder2 == bidding_task2.request);
 
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(2.5));

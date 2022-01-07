@@ -124,7 +124,7 @@ public:
   ///
   /// \param [in] evaluator
   ///   evaluator used to select the best bid from fleets
-  void evaluator(std::shared_ptr<bidding::Auctioneer::Evaluator> evaluator);
+  void evaluator(bidding::Auctioneer::ConstEvaluatorPtr evaluator);
 
   /// Get the rclcpp::Node that this dispatcher will be using for communication.
   std::shared_ptr<rclcpp::Node> node();

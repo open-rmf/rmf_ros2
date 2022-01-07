@@ -15,34 +15,25 @@
  *
 */
 
-#ifndef RMF_TASK_ROS2__BIDDING__MINIMALBIDDER_HPP
-#define RMF_TASK_ROS2__BIDDING__MINIMALBIDDER_HPP
+#ifndef RMF_TASK_ROS2__BIDDING__ASYNCBIDDER_HPP
+#define RMF_TASK_ROS2__BIDDING__ASYNCBIDDER_HPP
 
 #include <unordered_set>
 
 #include <rclcpp/node.hpp>
 #include <rmf_utils/impl_ptr.hpp>
 
-#include <rmf_task_ros2/bidding/Submission.hpp>
+#include <rmf_task_ros2/bidding/Response.hpp>
 
 namespace rmf_task_ros2 {
 namespace bidding {
 
 //==============================================================================
-class MinimalBidder
+class AsyncBidder
 {
 public:
-  /// Type of Task in RMF
-  using TaskTypeMsg = rmf_task_msgs::msg::TaskType;
-  enum class TaskType
-  {
-    Station       = TaskTypeMsg::TYPE_STATION,
-    Loop          = TaskTypeMsg::TYPE_LOOP,
-    Delivery      = TaskTypeMsg::TYPE_DELIVERY,
-    ChargeBattery = TaskTypeMsg::TYPE_CHARGE_BATTERY,
-    Clean         = TaskTypeMsg::TYPE_CLEAN,
-    Patrol        = TaskTypeMsg::TYPE_PATROL
-  };
+
+  using Respond = std::function<void(const Response&)>;
 
   /// Callback function when a bid notice is received from the autioneer
   ///
@@ -51,9 +42,8 @@ public:
   ///
   /// \return submission
   ///   Estimates of a task. This submission is used by dispatcher for eval
-  using ParseSubmissionCallback =
-    std::function<Submission(const BidNotice& notice)>;
-
+  using ReceiveNotice =
+    std::function<void(const BidNoticeMsg& notice, Respond respond)>;
 
   /// Create a bidder to bid for incoming task requests from Task Dispatcher
   ///
@@ -68,20 +58,18 @@ public:
   ///
   /// \param[in] submission_cb
   ///   fn which is used to provide a bid submission during a call for bid
-  static std::shared_ptr<MinimalBidder> make(
+  static std::shared_ptr<AsyncBidder> make(
     const std::shared_ptr<rclcpp::Node>& node,
-    const std::string& fleet_name,
-    const std::unordered_set<TaskType>& valid_task_types,
-    ParseSubmissionCallback submission_cb);
+    ReceiveNotice notice_cb);
 
   class Implementation;
 
 private:
-  MinimalBidder();
+  AsyncBidder();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
 
 } // namespace bidding
 } // namespace rmf_task_ros2
 
-#endif // RMF_TASK_ROS2__BIDDING__MINIMALBIDDER_HPP
+#endif // RMF_TASK_ROS2__BIDDING__ASYNCBIDDER_HPP
