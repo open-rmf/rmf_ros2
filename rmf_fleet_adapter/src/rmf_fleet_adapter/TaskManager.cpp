@@ -142,7 +142,10 @@ void TaskManager::set_queue(
   // function that is called at the end of this function.
   {
     std::lock_guard<std::mutex> guard(_mutex);
-    _queue.clear();
+    // If the queue only has a single automatic task then we do not clear as
+    // this may be a finishing request
+    if (!(_queue.size() == 1 && _queue.back()->request()->automatic()))
+      _queue.clear();
 
     // We use dynamic cast to determine the type of request and then call the
     // appropriate make(~) function to convert the request into a task
