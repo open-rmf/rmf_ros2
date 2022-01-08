@@ -274,11 +274,27 @@ void add_clean(
       schemas::task_description_Clean);
   deserialization.add_schema(schemas::task_description_Clean);
 
+  deserialization.consider_clean =
+    std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
+
   auto deserialize_clean =
-    [dock_params, traits, place_deser = deserialization.place](
+    [
+      dock_params,
+      traits,
+      place_deser = deserialization.place,
+      consider = deserialization.consider_clean
+    ](
       const nlohmann::json& msg)
       -> agv::FleetUpdateHandle::DeserializedTask
     {
+      if (!consider || !(*consider))
+      {
+        return {
+          nullptr,
+          {"Not accepting cleaning tasks"}
+        };
+      }
+
       const auto zone = msg["zone"].get<std::string>();
       const auto clean_it = dock_params->find(zone);
       if (clean_it == dock_params->end())
@@ -321,13 +337,18 @@ void add_clean(
         };
       }
 
+      agv::FleetUpdateHandle::Confirmation confirm;
+      (*consider)(msg, confirm);
+      if (!confirm.is_accepted())
+        return {nullptr, confirm.errors()};
+
       // TODO(MXG): Validate the type of cleaning (vacuum, mopping, etc)
       return {
         rmf_task::requests::Clean::Description::make(
           start_place.description->waypoint(),
           exit_place.description->waypoint(),
           std::move(clean_path)),
-        {}
+        confirm.errors()
       };
     };
   deserialization.task.add("clean", validate_clean_task, deserialize_clean);

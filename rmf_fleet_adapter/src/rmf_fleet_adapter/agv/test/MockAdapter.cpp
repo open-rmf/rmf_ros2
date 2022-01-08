@@ -314,7 +314,7 @@ void MockAdapter::dispatch_task(const rmf_task_msgs::msg::TaskProfile& profile)
       for (auto& fleet : fleets)
       {
         auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
-        if (!fimpl.accept_task)
+        if (!fimpl.legacy_accept_task)
           continue;
 
         // NOTE: althought the current adapter supports multiple fleets. The test

@@ -39,10 +39,6 @@
 
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 
-#include <rmf_task_msgs/msg/clean.hpp>
-#include <rmf_task_msgs/msg/delivery.hpp>
-#include <rmf_task_msgs/msg/loop.hpp>
-
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -147,7 +143,8 @@ void FleetUpdateHandle::Implementation::dock_summary_cb(
 
 //==============================================================================
 void FleetUpdateHandle::Implementation::bid_notice_cb(
-  const BidNotice::SharedPtr msg)
+  const BidNoticeMsg& msg,
+  rmf_task_ros2::bidding::AsyncBidder::Respond respond)
 {
   if (task_managers.empty())
   {
@@ -155,45 +152,22 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       node->get_logger(),
       "Fleet [%s] does not have any robots to accept task [%s]. Use "
       "FleetUpdateHadndle::add_robot(~) to add robots to this fleet. ",
-      name.c_str(), msg->task_profile.task_id.c_str());
+      name.c_str(), msg.task_id.c_str());
     return;
   }
 
-  if (msg->task_profile.task_id.empty())
+  if (msg.task_id.empty())
   {
     RCLCPP_WARN(
       node->get_logger(),
-      "Received BidNotice for a task with invalid task_id. Request will be "
+      "Received BidNotice for a task with empty task_id. Request will be "
       "ignored.");
     return;
   }
 
   // TODO remove this block when we support task revival
-  if (bid_notice_assignments.find(msg->task_profile.task_id)
-    != bid_notice_assignments.end())
+  if (bid_notice_assignments.find(msg.task_id) != bid_notice_assignments.end())
     return;
-
-  if (!accept_task)
-  {
-    RCLCPP_WARN(
-      node->get_logger(),
-      "Fleet [%s] is not configured to accept any task requests. Use "
-      "FleetUpdateHadndle::accept_task_requests(~) to define a callback "
-      "for accepting requests", name.c_str());
-
-    return;
-  }
-
-  if (!accept_task(msg->task_profile))
-  {
-    RCLCPP_INFO(
-      node->get_logger(),
-      "Fleet [%s] is configured to not accept task [%s]",
-      name.c_str(),
-      msg->task_profile.task_id.c_str());
-
-    return;
-  }
 
   if (!task_planner)
   {
@@ -1359,6 +1333,86 @@ void FleetUpdateHandle::add_robot(
 }
 
 //==============================================================================
+class FleetUpdateHandle::Confirmation::Implementation
+{
+public:
+  bool is_accepted = false;
+  std::vector<std::string> errors;
+};
+
+//==============================================================================
+FleetUpdateHandle::Confirmation::Confirmation()
+: _pimpl(rmf_utils::make_impl<Implementation>())
+{
+  // Do nothing
+}
+
+//==============================================================================
+auto FleetUpdateHandle::Confirmation::accept() -> Confirmation&
+{
+  _pimpl->is_accepted = true;
+  return *this;
+}
+
+//==============================================================================
+bool FleetUpdateHandle::Confirmation::is_accepted() const
+{
+  return _pimpl->is_accepted;
+}
+
+//==============================================================================
+auto FleetUpdateHandle::Confirmation::errors(
+  std::vector<std::string> error_messages) -> Confirmation&
+{
+  _pimpl->errors = std::move(error_messages);
+  return *this;
+}
+
+//==============================================================================
+auto FleetUpdateHandle::Confirmation::add_errors(
+  std::vector<std::string> error_messages) -> Confirmation&
+{
+  _pimpl->errors.insert(
+    _pimpl->errors.end(),
+    std::make_move_iterator(error_messages.begin()),
+    std::make_move_iterator(error_messages.end()));
+
+  return *this;
+}
+
+//==============================================================================
+const std::vector<std::string>& FleetUpdateHandle::Confirmation::errors() const
+{
+  return _pimpl->errors;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::consider_delivery_requests(
+  ConsiderRequest consider_pickup,
+  ConsiderRequest consider_dropoff)
+{
+  *_pimpl->deserialization.consider_pickup = std::move(consider_pickup);
+  *_pimpl->deserialization.consider_dropoff = std::move(consider_dropoff);
+  return *this;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::consider_cleaning_requests(
+  ConsiderRequest consider)
+{
+  *_pimpl->deserialization.consider_clean = std::move(consider);
+  return *this;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::consider_patrol_requests(
+  ConsiderRequest consider)
+{
+  *_pimpl->deserialization.consider_patrol = std::move(consider);
+  return *this;
+}
+
+//==============================================================================
 void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
 {
   _pimpl->worker.schedule(
@@ -1446,7 +1500,161 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
 FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
   AcceptTaskRequest check)
 {
-  _pimpl->accept_task = std::move(check);
+  const auto legacy_adapter =
+    [check = std::move(check)](
+      const rmf_task_msgs::msg::TaskProfile& profile,
+      Confirmation& confirm)
+    {
+      if (check(profile))
+      {
+        confirm.accept();
+        return;
+      }
+
+      confirm.errors({"Task rejected by legacy AcceptTaskRequest callback"});
+    };
+
+  const auto convert_item = [](const nlohmann::json& item)
+    -> rmf_dispenser_msgs::msg::DispenserRequestItem
+    {
+      rmf_dispenser_msgs::msg::DispenserRequestItem output;
+      output.type_guid = item["sku"];
+      output.quantity = item["quantity"];
+      if (const auto& compartment = item["compartment"])
+        output.compartment_name = compartment.get<std::string>();
+
+      return output;
+    };
+
+  const auto convert_items = [convert_item](const nlohmann::json& payload)
+    -> std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem>
+    {
+      std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items;
+      if (payload.is_object())
+      {
+        items.push_back(convert_item(payload));
+      }
+      else if (payload.is_array())
+      {
+        for (const auto& p : payload)
+          items.push_back(convert_item(p));
+      }
+      else
+      {
+        throw std::runtime_error(
+          "Invalid payload schema for delivery request:" + payload.dump());
+      }
+
+      return items;
+    };
+
+  auto consider_pickup = [legacy_adapter, convert_items](
+    const nlohmann::json& msg, Confirmation& confirm)
+    {
+      rmf_task_msgs::msg::TaskProfile profile;
+      profile.description.task_type.type =
+        rmf_task_msgs::msg::TaskType::TYPE_DELIVERY;
+
+      profile.description.delivery =
+        rmf_task_msgs::build<rmf_task_msgs::msg::Delivery>()
+          .task_id("")
+          .items(convert_items(msg["payload"]))
+          .pickup_place_name(msg["place"].get<std::string>())
+          .pickup_dispenser(msg["hanlder"].get<std::string>())
+          .pickup_behavior(rmf_task_msgs::msg::Behavior{})
+          .dropoff_place_name("")
+          .dropoff_ingestor("")
+          .dropoff_behavior(rmf_task_msgs::msg::Behavior{});
+
+      legacy_adapter(profile, confirm);
+    };
+
+  auto consider_dropoff = [legacy_adapter, convert_items](
+    const nlohmann::json& msg, Confirmation& confirm)
+    {
+    rmf_task_msgs::msg::TaskProfile profile;
+    profile.description.task_type.type =
+      rmf_task_msgs::msg::TaskType::TYPE_DELIVERY;
+
+    profile.description.delivery =
+      rmf_task_msgs::build<rmf_task_msgs::msg::Delivery>()
+        .task_id("")
+        .items(convert_items(msg["payload"]))
+        .pickup_place_name("")
+        .pickup_dispenser("")
+        .pickup_behavior(rmf_task_msgs::msg::Behavior{})
+        .dropoff_place_name(msg["place"].get<std::string>())
+        .dropoff_ingestor(msg["hanlder"].get<std::string>())
+        .dropoff_behavior(rmf_task_msgs::msg::Behavior{});
+
+      legacy_adapter(profile, confirm);
+    };
+
+  consider_delivery_requests(
+    std::move(consider_pickup),
+    std::move(consider_dropoff));
+
+  consider_patrol_requests(
+    [legacy_adapter](const nlohmann::json& msg, Confirmation& confirm)
+    {
+      rmf_task_msgs::msg::TaskProfile profile;
+
+      // We use loop here because patrol wasn't supported during the legacy
+      // versions anyway.
+      profile.description.task_type.type =
+        rmf_task_msgs::msg::TaskType::TYPE_LOOP;
+
+      rmf_task_msgs::msg::Loop loop;
+      const auto& places = msg["places"];
+      if (places.size() == 1)
+      {
+        const auto& place = places[0];
+        if (!place.is_string())
+        {
+          confirm.errors(
+            {"Legacy AcceptTaskRequest only accepts destination names "
+             "for patrol requests"});
+          return;
+        }
+
+        loop.start_name = places[0].get<std::string>();
+        loop.finish_name = loop.start_name;
+      }
+      else
+      {
+        const auto& start_place = places[0];
+        const auto& finish_place = places[1];
+        if (!start_place.is_string() || !finish_place.is_string())
+        {
+          confirm.errors(
+            {"Legacy AcceptTaskRequest only accepts destination names "
+             "for patrol requests"});
+          return;
+        }
+
+        loop.start_name = start_place.get<std::string>();
+        loop.finish_name = finish_place.get<std::string>();
+      }
+
+      loop.num_loops = msg["rounds"].get<uint32_t>();
+      profile.description.loop = std::move(loop);
+
+      legacy_adapter(profile, confirm);
+    });
+
+  consider_cleaning_requests(
+    [legacy_adapter](const nlohmann::json& msg, Confirmation& confirm)
+    {
+      rmf_task_msgs::msg::TaskProfile profile;
+
+      profile.description.task_type.type =
+        rmf_task_msgs::msg::TaskType::TYPE_CLEAN;
+
+      profile.description.clean.start_waypoint = msg["zone"].get<std::string>();
+
+      legacy_adapter(profile, confirm);
+    });
+
   return *this;
 }
 

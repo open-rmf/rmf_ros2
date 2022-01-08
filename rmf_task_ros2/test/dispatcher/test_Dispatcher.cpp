@@ -68,8 +68,9 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
     auto cancel_client = dispatcher->node()->create_client<CancelTaskSrv>(
       rmf_task_ros2::CancelTaskSrvName);
     REQUIRE(cancel_client->wait_for_service(std::chrono::milliseconds(0)));
-    auto get_tasks_client = dispatcher->node()->create_client<GetDispatchStatesSrv>(
-      rmf_task_ros2::GetDispatchStatesSrvName);
+    auto get_tasks_client =
+      dispatcher->node()->create_client<GetDispatchStatesSrv>(
+        rmf_task_ros2::GetDispatchStatesSrvName);
     REQUIRE(get_tasks_client->wait_for_service(std::chrono::milliseconds(0)));
   }
 

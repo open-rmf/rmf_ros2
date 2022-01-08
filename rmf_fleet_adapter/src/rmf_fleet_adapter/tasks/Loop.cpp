@@ -151,10 +151,23 @@ void add_loop(
     deserialization.make_validator_shared(schemas::task_description_Patrol);
   deserialization.add_schema(schemas::task_description_Patrol);
 
+  deserialization.consider_patrol =
+    std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
+  *deserialization.consider_patrol = [](const auto&, auto confirm)
+    {
+      confirm.accept();
+    };
+
   auto deserialize_patrol =
-    [place_deser = deserialization.place](const nlohmann::json& msg)
+    [
+      place_deser = deserialization.place,
+      consider = deserialization.consider_patrol
+    ](const nlohmann::json& msg)
       -> agv::FleetUpdateHandle::DeserializedTask
     {
+      if (!(*consider))
+        return {nullptr, {"Not accepting patrol requests"}};
+
       const auto& places_json = msg["places"];
       std::vector<rmf_traffic::agv::Plan::Goal> places;
       std::vector<std::string> errors;
@@ -172,6 +185,14 @@ void add_loop(
 
       if (any_failure)
         return {nullptr, std::move(errors)};
+
+      agv::FleetUpdateHandle::Confirmation confirm;
+      (*consider)(msg, confirm);
+      errors.insert(
+        errors.end(), confirm.errors().begin(), confirm.errors().end());
+
+      if (!confirm.is_accepted())
+        return {nullptr, errors};
 
       std::size_t rounds = 1;
       if (const auto& rounds_json = msg["rounds"])

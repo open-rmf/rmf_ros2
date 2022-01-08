@@ -287,10 +287,12 @@ struct TransferItems : public rmf_task_sequence::events::Placeholder::Descriptio
 };
 
 //==============================================================================
+using DeserializedItemTransfer = agv::FleetUpdateHandle::DeserializedEvent;
 template<typename T>
-std::function<agv::FleetUpdateHandle::DeserializedEvent(const nlohmann::json& msg)>
+std::function<DeserializedItemTransfer(const nlohmann::json& msg)>
 make_deserializer(
-  const agv::FleetUpdateHandle::PlaceDeserializer& place_deser)
+  const agv::FleetUpdateHandle::PlaceDeserializer& place_deser,
+  const std::shared_ptr<agv::FleetUpdateHandle::ConsiderRequest>& consider)
 {
   auto parse_payload_component = [](const nlohmann::json& msg)
     -> rmf_task::Payload::Component
@@ -309,10 +311,14 @@ make_deserializer(
   return
     [
       place_deser,
+      consider,
       parse_payload_component = std::move(parse_payload_component)
     ](const nlohmann::json& msg)
       -> agv::FleetUpdateHandle::DeserializedEvent
     {
+      if (!consider || !(*consider))
+        return {nullptr, {"Not accepting delivery requests"}};
+
       auto place = place_deser(msg["place"]);
       if (!place.description.has_value())
       {
@@ -348,6 +354,11 @@ make_deserializer(
         handler = handler_json.get<std::string>();
       }
 
+      agv::FleetUpdateHandle::Confirmation confirm;
+      (*consider)(msg, confirm);
+      if (!confirm.is_accepted())
+        return {nullptr, confirm.errors()};
+
       // TODO(MXG): Add a way for system integrators to specify a duration
       // estimate for the payload transfer
       return {
@@ -356,7 +367,7 @@ make_deserializer(
           std::move(handler),
           rmf_task::Payload(std::move(payload_components)),
           rmf_traffic::Duration(0)),
-        {}
+        confirm.errors()
       };
     };
 }
@@ -378,13 +389,19 @@ void add_delivery(
       schemas::event_description_PayloadTransfer);
   deserialization.add_schema(schemas::event_description_PayloadTransfer);
 
+  deserialization.consider_pickup =
+    std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
   auto deserialize_pickup =
-    make_deserializer<PickUp::Description>(deserialization.place);
+    make_deserializer<PickUp::Description>(
+      deserialization.place, deserialization.consider_pickup);
   deserialization.event.add(
     "pickup", validate_payload_transfer, deserialize_pickup);
 
+  deserialization.consider_dropoff =
+    std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
   auto deserialize_dropoff =
-    make_deserializer<DropOff::Description>(deserialization.place);
+    make_deserializer<DropOff::Description>(
+      deserialization.place, deserialization.consider_dropoff);
   deserialization.event.add(
     "dropoff", validate_payload_transfer, deserialize_dropoff);
 

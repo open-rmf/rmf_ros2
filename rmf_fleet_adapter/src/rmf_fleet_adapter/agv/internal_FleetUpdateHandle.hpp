@@ -20,8 +20,8 @@
 
 #include <rmf_task_msgs/msg/loop.hpp>
 
-#include <rmf_task_msgs/msg/bid_proposal.hpp>
-#include <rmf_task_msgs/msg/bid_notice.hpp>
+#include <rmf_task_ros2/bidding/AsyncBidder.hpp>
+
 #include <rmf_task_msgs/msg/dispatch_request.hpp>
 #include <rmf_task_msgs/msg/dispatch_ack.hpp>
 
@@ -84,6 +84,11 @@ struct TaskDeserialization
   DeserializeJSON<FleetUpdateHandle::DeserializedPhase> phase;
   DeserializeJSON<FleetUpdateHandle::DeserializedEvent> event;
   FleetUpdateHandle::PlaceDeserializer place;
+
+  std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_pickup;
+  std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_dropoff;
+  std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_clean;
+  std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_patrol;
 
   void add_schema(const nlohmann::json& schema);
 
@@ -227,6 +232,8 @@ public:
   // TODO Support for various charging configurations
   std::unordered_set<std::size_t> charging_waypoints = {};
 
+  std::shared_ptr<rmf_task_ros2::bidding::AsyncBidder> bidder;
+
   double current_assignment_cost = 0.0;
   // Map to store task id with assignments for BidNotice
   std::unordered_map<std::string, Assignments> bid_notice_assignments = {};
@@ -239,15 +246,7 @@ public:
   using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
   std::unordered_map<std::string, TaskProfileMsg> task_profile_map = {};
 
-  AcceptTaskRequest accept_task = nullptr;
-
-  using BidNotice = rmf_task_msgs::msg::BidNotice;
-  using BidNoticeSub = rclcpp::Subscription<BidNotice>::SharedPtr;
-  BidNoticeSub bid_notice_sub = nullptr;
-
-  using BidProposal = rmf_task_msgs::msg::BidProposal;
-  using BidProposalPub = rclcpp::Publisher<BidProposal>::SharedPtr;
-  BidProposalPub bid_proposal_pub = nullptr;
+  using BidNoticeMsg = rmf_task_msgs::msg::BidNotice;
 
   using DispatchRequest = rmf_task_msgs::msg::DispatchRequest;
   using DispatchRequestSub = rclcpp::Subscription<DispatchRequest>::SharedPtr;
@@ -291,25 +290,19 @@ public:
     auto default_qos = rclcpp::SystemDefaultsQoS();
     auto transient_qos = rclcpp::QoS(10);  transient_qos.transient_local();
 
-    // Publish BidProposal
-    handle->_pimpl->bid_proposal_pub =
-      handle->_pimpl->node->create_publisher<BidProposal>(
-      BidProposalTopicName, default_qos);
-
     // Publish DispatchAck
     handle->_pimpl->dispatch_ack_pub =
       handle->_pimpl->node->create_publisher<DispatchAck>(
       DispatchAckTopicName, default_qos);
 
-    // Subscribe BidNotice
-    handle->_pimpl->bid_notice_sub =
-      handle->_pimpl->node->create_subscription<BidNotice>(
-      BidNoticeTopicName,
-      default_qos,
-      [w = handle->weak_from_this()](const BidNotice::SharedPtr msg)
+    //
+    handle->_pimpl->bidder = rmf_task_ros2::bidding::AsyncBidder::make(
+      handle->_pimpl->node,
+      [w = handle->weak_from_this()](
+        const auto& msg, auto respond)
       {
         if (const auto self = w.lock())
-          self->_pimpl->bid_notice_cb(msg);
+          self->_pimpl->bid_notice_cb(msg, std::move(respond));
       });
 
     // Subscribe DispatchRequest
@@ -369,7 +362,9 @@ public:
 
   void dock_summary_cb(const DockSummary::SharedPtr& msg);
 
-  void bid_notice_cb(const BidNotice::SharedPtr msg);
+  void bid_notice_cb(
+    const BidNoticeMsg& msg,
+    rmf_task_ros2::bidding::AsyncBidder::Respond respond);
 
   void dispatch_request_cb(const DispatchRequest::SharedPtr msg);
 

@@ -75,6 +75,102 @@ public:
     rmf_traffic::agv::Plan::StartSet start,
     std::function<void(std::shared_ptr<RobotUpdateHandle> handle)> handle_cb);
 
+  /// Confirmation is a class used by the task acceptance callbacks to decide if
+  /// a task description should be accepted.
+  class Confirmation
+  {
+  public:
+
+    /// Constructor
+    Confirmation();
+
+    /// Call this function to decide that you want to accept the task request.
+    /// If this function is never called, it will be assumed that the task is
+    /// rejected.
+    Confirmation& accept();
+
+    /// Check whether
+    bool is_accepted() const;
+
+    /// Call this function to bring attention to errors related to the task
+    /// request. Each call to this function will overwrite any past calls, so
+    /// it is recommended to only call it once.
+    Confirmation& errors(std::vector<std::string> error_messages);
+
+    /// Call this function to add errors instead of overwriting the ones that
+    /// were already there.
+    Confirmation& add_errors(std::vector<std::string> error_messages);
+
+    /// Check the errors that have been given to this confirmation.
+    const std::vector<std::string>& errors() const;
+
+    class Implementation;
+  private:
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
+  /// Signature for a callback that decides whether to accept a specific
+  /// category of task request.
+  ///
+  /// \param[in] description
+  ///   A description of the task that is being considered
+  ///
+  /// \param[in] confirm
+  ///   Use this object to decide if you want to accept the task
+  using ConsiderRequest =
+    std::function<void(
+      const nlohmann::json& description,
+      Confirmation& confirm)
+    >;
+
+  /// Allow this fleet adapter to consider delivery requests.
+  ///
+  /// Pass in nullptrs to disable delivery requests.
+  ///
+  /// By default, delivery requests are not accepted until you provide these
+  /// callbacks.
+  ///
+  /// The FleetUpdateHandle will ensure that the requests are feasible for the
+  /// robots before triggering these callbacks.
+  ///
+  /// \param[in] consider_pickup
+  ///   Decide whether to accept a pickup request. The description will satisfy
+  ///   the event_description_PickUp.json schema of rmf_fleet_adapter.
+  ///
+  /// \param[in] consider_dropoff
+  ///   Decide whether to accept a dropoff request. The description will satisfy
+  ///   the event_description_DropOff.json schema of rmf_fleet_adapter.
+  FleetUpdateHandle& consider_delivery_requests(
+    ConsiderRequest consider_pickup,
+    ConsiderRequest consider_dropoff);
+
+  /// Allow this fleet adapter to consider cleaning requests.
+  ///
+  /// Pass in a nullptr to disable cleaning requests.
+  ///
+  /// By default, cleaning requests are not accepted until you provide this
+  /// callback.
+  ///
+  /// \param[in] consider
+  ///   Decide whether to accept a cleaning request. The description will
+  ///   satisfy the event_description_Clean.json schema of rmf_fleet_adapter.
+  ///   The FleetUpdateHandle will ensure that the request is feasible for the
+  ///   robots before triggering this callback.
+  FleetUpdateHandle& consider_cleaning_requests(ConsiderRequest consider);
+
+  /// Allow this fleet adapter to consider patrol requests.
+  ///
+  /// Pass in a nullptr to disable patrol requests.
+  ///
+  /// By default, patrol requests are always accepted.
+  ///
+  /// \param[in] consider
+  ///   Decide whether to accept a patrol request. The description will satisfy
+  ///   the task_description_Patrol.json schema of rmf_fleet_adapter. The
+  ///   FleetUpdateHandle will ensure that the request is feasible for the
+  ///   robots before triggering this callback.
+  FleetUpdateHandle& consider_patrol_requests(ConsiderRequest consider);
+
   template<typename T>
   struct DeserializedDescription
   {
@@ -272,6 +368,7 @@ public:
   /// compatible with the requested payload, pickup, and dropoff behavior
   /// settings. The path planning feasibility will be taken care of by the
   /// adapter internally.
+  [[deprecated("Use the consider_..._requests functions instead")]]
   FleetUpdateHandle& accept_task_requests(AcceptTaskRequest check);
 
   /// A callback function that evaluates whether a fleet will accept a delivery
@@ -294,7 +391,7 @@ public:
   /// compatible with the requested payload, pickup, and dropoff behavior
   /// settings. The path planning feasibility will be taken care of by the
   /// adapter internally.
-  [[deprecated("Use accept_task_requests() instead")]]
+  [[deprecated("Use consider_delivery_requests() instead")]]
   FleetUpdateHandle& accept_delivery_requests(AcceptDeliveryRequest check);
 
   /// Specify the default value for how high the delay of the current itinerary
