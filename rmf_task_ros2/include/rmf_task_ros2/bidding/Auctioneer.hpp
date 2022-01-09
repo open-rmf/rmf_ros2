@@ -85,7 +85,10 @@ public:
   ///
   /// \param[in] bid_notice
   ///   bidding task, task which will call for bid
-  void start_bidding(const BidNoticeMsg& bid_notice);
+  void request_bid(const BidNoticeMsg& bid_notice);
+
+  /// Call this to tell the auctioneer that it may begin to perform the next bid
+  void ready_for_next_bid();
 
   /// Provide a custom evaluator which will be used to choose the best bid
   /// If no selection is given, Default is: LeastFleetDiffCostEvaluator

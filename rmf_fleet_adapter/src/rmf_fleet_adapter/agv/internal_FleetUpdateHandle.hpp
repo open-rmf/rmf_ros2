@@ -243,7 +243,7 @@ public:
 
   using DispatchCmdMsg = rmf_task_msgs::msg::DispatchCommand;
   using DispatchCommandSub = rclcpp::Subscription<DispatchCmdMsg>::SharedPtr;
-  DispatchCommandSub dispatch_request_sub = nullptr;
+  DispatchCommandSub dispatch_command_sub = nullptr;
 
   using DispatchAck = rmf_task_msgs::msg::DispatchAck;
   using DispatchAckPub = rclcpp::Publisher<DispatchAck>::SharedPtr;
@@ -280,15 +280,27 @@ public:
     handle->fleet_state_update_period(std::chrono::seconds(1));
 
     // Create subs and pubs for bidding
-    auto default_qos = rclcpp::SystemDefaultsQoS();
-    auto transient_qos = rclcpp::QoS(10);  transient_qos.transient_local();
+    auto transient_qos = rclcpp::QoS(10).transient_local();
+    auto reliable_transient_qos =
+      rclcpp::ServicesQoS().keep_last(20).transient_local();
+
+    // Subscribe DispatchCommand
+    handle->_pimpl->dispatch_command_sub =
+      handle->_pimpl->node->create_subscription<DispatchCmdMsg>(
+      DispatchRequestTopicName,
+      reliable_transient_qos,
+      [w = handle->weak_from_this()](const DispatchCmdMsg::SharedPtr msg)
+      {
+        if (const auto self = w.lock())
+          self->_pimpl->dispatch_command_cb(msg);
+      });
 
     // Publish DispatchAck
     handle->_pimpl->dispatch_ack_pub =
       handle->_pimpl->node->create_publisher<DispatchAck>(
-      DispatchAckTopicName, default_qos);
+      DispatchAckTopicName, reliable_transient_qos);
 
-    //
+    // Make a dispatch bidder
     handle->_pimpl->bidder = rmf_task_ros2::bidding::AsyncBidder::make(
       handle->_pimpl->node,
       [w = handle->weak_from_this()](
@@ -296,17 +308,6 @@ public:
       {
         if (const auto self = w.lock())
           self->_pimpl->bid_notice_cb(msg, std::move(respond));
-      });
-
-    // Subscribe DispatchRequest
-    handle->_pimpl->dispatch_request_sub =
-      handle->_pimpl->node->create_subscription<DispatchCmdMsg>(
-      DispatchRequestTopicName,
-      default_qos,
-      [w = handle->weak_from_this()](const DispatchCmdMsg::SharedPtr msg)
-      {
-        if (const auto self = w.lock())
-          self->_pimpl->dispatch_request_cb(msg);
       });
 
     // Subscribe DockSummary
@@ -359,7 +360,7 @@ public:
     const BidNoticeMsg& msg,
     rmf_task_ros2::bidding::AsyncBidder::Respond respond);
 
-  void dispatch_request_cb(const DispatchCmdMsg::SharedPtr msg);
+  void dispatch_command_cb(const DispatchCmdMsg::SharedPtr msg);
 
   std::optional<std::size_t> get_nearest_charger(
     const rmf_traffic::agv::Planner::Start& start);

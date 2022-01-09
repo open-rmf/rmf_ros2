@@ -46,7 +46,7 @@ public:
     std::vector<bidding::Response> responses;
   };
 
-  bool bidding_in_proccess = false;
+  bool bidding_in_process = false;
   std::queue<OpenBid> open_bid_queue;
 
   using BidNoticePub = rclcpp::Publisher<BidNoticeMsg>;
@@ -61,7 +61,7 @@ public:
     ConstEvaluatorPtr evaluator);
 
   /// Start a bidding process
-  void start_bidding(const BidNoticeMsg& bid_notice);
+  void request_bid(const BidNoticeMsg& bid_notice);
 
   // Receive proposal and evaluate
   void receive_response(const BidResponseMsg& msg);

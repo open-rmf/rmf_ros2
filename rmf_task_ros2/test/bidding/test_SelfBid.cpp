@@ -131,7 +131,7 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
 
   WHEN("First 'patrol' Task Bid")
   {
-    auctioneer->start_bidding(bidding_task1);
+    auctioneer->request_bid(bidding_task1);
 
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(1.0));
@@ -152,7 +152,7 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
   WHEN("Second 'delivery' Task bid")
   {
     // start bidding
-    auctioneer->start_bidding(bidding_task2);
+    auctioneer->request_bid(bidding_task2);
 
     executor.spin_until_future_complete(ready_future,
       rmf_traffic::time::from_seconds(1.0));

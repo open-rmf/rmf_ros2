@@ -126,9 +126,10 @@ void add_loop(
   using Phase = rmf_task_sequence::phases::SimplePhase;
   using GoToPlace = rmf_task_sequence::events::GoToPlace;
 
+  deserialization.add_schema(schemas::task_description_Patrol);
+  deserialization.add_schema(schemas::event_description_GoToPlace);
   auto validate_go_to_place =
     deserialization.make_validator_shared(schemas::event_description_GoToPlace);
-  deserialization.add_schema(schemas::event_description_GoToPlace);
 
   auto deserialize_go_to_place =
     [place_deser = deserialization.place](const nlohmann::json& msg)
@@ -149,7 +150,6 @@ void add_loop(
 
   auto validate_patrol =
     deserialization.make_validator_shared(schemas::task_description_Patrol);
-  deserialization.add_schema(schemas::task_description_Patrol);
 
   deserialization.consider_patrol =
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
@@ -195,7 +195,8 @@ void add_loop(
         return {nullptr, errors};
 
       std::size_t rounds = 1;
-      if (const auto& rounds_json = msg["rounds"])
+      const auto& rounds_json = msg["rounds"];
+      if (!rounds_json.is_null())
         rounds = rounds_json.get<std::size_t>();
 
       rmf_task_sequence::Task::Builder builder;

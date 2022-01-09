@@ -206,6 +206,12 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   }
   catch (const std::exception& e)
   {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Received a request with an invalid format. Error: %s\nRequest:\n%s",
+      e.what(),
+      request_msg.dump(2, ' ').c_str());
+
     return respond(
       {
         std::nullopt,
@@ -214,6 +220,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   }
 
   const auto& category = request_msg["category"].get<std::string>();
+
   const auto task_deser_it = deserialization.task.handlers.find(category);
   if (task_deser_it == deserialization.task.handlers.end())
   {
@@ -236,6 +243,14 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   }
   catch (const std::exception& e)
   {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Received a request description for [%s] with an invalid format. "
+      "Error: %s\nRequest:\n%s",
+      category.c_str(),
+      e.what(),
+      description_msg.dump(2, ' ').c_str());
+
     return respond(
       rmf_task_ros2::bidding::Response{
         std::nullopt,
@@ -259,27 +274,28 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
   rmf_traffic::Time earliest_start_time =
     rmf_traffic::Time(rmf_traffic::Duration::min());
-  if (const auto& t = request_msg["unix_millis_earliest_start_time"])
+  const auto& t = request_msg["unix_millis_earliest_start_time"];
+  if (!t.is_null())
   {
     earliest_start_time =
       rmf_traffic::Time(std::chrono::milliseconds(t.get<uint64_t>()));
   }
 
   rmf_task::ConstPriorityPtr priority;
-  if (const auto& p = request_msg["priority"])
+  const auto& p = request_msg["priority"];
+  if (!p.is_null())
   {
-    if (const auto& p_type = p["type"])
+    const auto& p_type = p["type"];
+    if (p_type.is_string() && p_type.get<std::string>() == "binary")
     {
-      if (p_type.is_string() && p_type.get<std::string>() == "binary")
+      const auto& p_value = p["value"];
+      if (p_value.is_number_integer())
       {
-        if (const auto& p_value = p["value"])
-        {
-          if (p_value.is_number_integer() && p_value.get<uint64_t>() > 0)
-            priority = rmf_task::BinaryPriorityScheme::make_high_priority();
-        }
-
-        priority = rmf_task::BinaryPriorityScheme::make_low_priority();
+        if (p_value.is_number_integer() && p_value.get<uint64_t>() > 0)
+          priority = rmf_task::BinaryPriorityScheme::make_high_priority();
       }
+
+      priority = rmf_task::BinaryPriorityScheme::make_low_priority();
     }
 
     if (!priority)
@@ -403,7 +419,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 }
 
 //==============================================================================
-void FleetUpdateHandle::Implementation::dispatch_request_cb(
+void FleetUpdateHandle::Implementation::dispatch_command_cb(
   const DispatchCmdMsg::SharedPtr msg)
 {
   const auto& task_id = msg->task_id;
@@ -468,7 +484,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
 
     RCLCPP_INFO(
       node->get_logger(),
-      "Bid for task_id:[%s] awarded to fleet [%s]. Processing request...",
+      "Bid for task_id [%s] awarded to fleet [%s]. Processing request...",
       task_id.c_str(),
       name.c_str());
 
@@ -565,7 +581,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
 
     RCLCPP_INFO(
       node->get_logger(),
-      "Assignments updated for robots in fleet [%s] to accommodate task_id:[%s]",
+      "Assignments updated for robots in fleet [%s] to accommodate task_id [%s]",
       name.c_str(), task_id.c_str());
   }
   else if (msg->type == DispatchCmdMsg::TYPE_REMOVE)
@@ -823,8 +839,9 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
     fleet_state_update_msg["data"] = fleet_state_msg;
     try
     {
-      // TODO(MXG): We should make this validator static
-      nlohmann::json_schema::json_validator validator(fleet_schema, loader);
+      static const nlohmann::json_schema::json_validator
+        validator(fleet_schema, loader);
+
       validator.validate(fleet_state_update_msg);
     }
     catch (const std::exception& e)
@@ -912,6 +929,9 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
   activation.task = std::make_shared<rmf_task::Activator>();
   activation.phase = std::make_shared<rmf_task_sequence::Phase::Activator>();
   activation.event = std::make_shared<rmf_task_sequence::Event::Initializer>();
+
+  rmf_task_sequence::Task::add(
+    *activation.task, activation.phase, node->clock());
 
   rmf_task_sequence::phases::SimplePhase::add(
     *activation.phase, activation.event);
@@ -1049,7 +1069,7 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   {
     RCLCPP_ERROR(
       node->get_logger(),
-      "[TaskPlanner] Failed to compute assignments for task_id:[%s]",
+      "[TaskPlanner] Failed to compute assignments for task_id [%s]",
       id.c_str());
 
     return std::nullopt;
@@ -1409,7 +1429,8 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       rmf_dispenser_msgs::msg::DispenserRequestItem output;
       output.type_guid = item["sku"];
       output.quantity = item["quantity"];
-      if (const auto& compartment = item["compartment"])
+      const auto& compartment = item["compartment"];
+      if (!compartment.is_null())
         output.compartment_name = compartment.get<std::string>();
 
       return output;

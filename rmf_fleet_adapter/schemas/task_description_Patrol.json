@@ -3,6 +3,7 @@
   "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/task_description_Patrol.json",
   "title": "Patrol Task Description",
   "description": "Description of a patrolling task",
+  "type": "object",
   "properties": {
     "places": {
       "description": "A list of which places to patrol between",

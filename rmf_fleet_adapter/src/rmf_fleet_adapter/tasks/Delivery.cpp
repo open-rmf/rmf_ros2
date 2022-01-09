@@ -299,7 +299,8 @@ make_deserializer(
     {
       std::string compartment = "";
 
-      if (const auto& compartment_json = msg["compartment"])
+      const auto& compartment_json = msg["compartment"];
+      if (!compartment_json.is_null())
         compartment = compartment_json.get<std::string>();
 
       return rmf_task::Payload::Component(
@@ -349,7 +350,8 @@ make_deserializer(
       }
 
       std::string handler;
-      if (const auto& handler_json = msg["handler"])
+      const auto& handler_json = msg["handler"];
+      if (!handler_json.is_null())
       {
         handler = handler_json.get<std::string>();
       }
@@ -384,10 +386,13 @@ void add_delivery(
   using Phase = rmf_task_sequence::phases::SimplePhase;
   using DeliveryDescription = rmf_task::requests::Delivery::Description;
 
+  deserialization.add_schema(schemas::event_description_PayloadTransfer);
+  deserialization.add_schema(schemas::task_description_Delivery);
+  deserialization.add_schema(schemas::event_description_PickUp);
+  deserialization.add_schema(schemas::event_description_DropOff);
   auto validate_payload_transfer =
     deserialization.make_validator_shared(
       schemas::event_description_PayloadTransfer);
-  deserialization.add_schema(schemas::event_description_PayloadTransfer);
 
   deserialization.consider_pickup =
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
@@ -407,9 +412,6 @@ void add_delivery(
 
   auto validate_delivery =
     deserialization.make_validator_shared(schemas::task_description_Delivery);
-  deserialization.add_schema(schemas::task_description_Delivery);
-  deserialization.add_schema(schemas::event_description_PickUp);
-  deserialization.add_schema(schemas::event_description_DropOff);
 
   auto deserialize_delivery =
     [deserialize_pickup, deserialize_dropoff](

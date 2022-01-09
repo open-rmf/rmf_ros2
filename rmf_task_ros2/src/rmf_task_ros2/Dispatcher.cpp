@@ -161,8 +161,6 @@ public:
 
   DispatchStateCallback on_change_fn;
 
-  std::queue<bidding::BidNoticeMsg> task_bid_queue;
-
   DispatchStates active_dispatch_states;
   DispatchStates finished_dispatch_states;
   std::size_t task_counter = 0; // index for generating task_id
@@ -177,7 +175,8 @@ public:
       {4, "patrol"}
     };
 
-  using LegacyConversion = std::function<std::string(const TaskDescription&)>;
+  using LegacyConversion =
+    std::function<nlohmann::json(const TaskDescription&)>;
   using LegacyConversionMap = std::unordered_map<std::string, LegacyConversion>;
   LegacyConversionMap legacy_task_types;
 
@@ -313,7 +312,7 @@ public:
 
     // Loop
     legacy_task_types["patrol"] =
-      [](const TaskDescription& task_description) -> std::string
+      [](const TaskDescription& task_description) -> nlohmann::json
       {
         const auto& loop = task_description.loop;
         nlohmann::json description;
@@ -323,12 +322,12 @@ public:
         description["places"] = std::move(places);
         description["rounds"] = loop.num_loops;
 
-        return description.dump();
+        return description;
       };
 
     // Delivery
     legacy_task_types["delivery"] =
-      [](const TaskDescription& task_description) -> std::string
+      [](const TaskDescription& task_description) -> nlohmann::json
       {
         const auto& delivery = task_description.delivery;
         std::vector<nlohmann::json> payload;
@@ -356,18 +355,18 @@ public:
         description["pickup"] = pickup;
         description["dropoff"] = dropoff;
 
-        return description.dump();
+        return description;
       };
 
     // Clean
     legacy_task_types["clean"] =
-      [](const TaskDescription& task_description) -> std::string
+      [](const TaskDescription& task_description) -> nlohmann::json
       {
         const auto& clean = task_description.clean;
         nlohmann::json description;
         description["zone"] = clean.start_waypoint;
 
-        return description.dump();
+        return description;
       };
   }
 
@@ -419,8 +418,11 @@ public:
         api_response->publish(response);
       }
 
-      const std::string task_id = "dispatch#" + std::to_string(task_counter++);
       const auto task_request_json = msg_json["request"];
+      const std::string task_id =
+        task_request_json["category"].get<std::string>()
+        + ":dispatch#" + std::to_string(task_counter++);
+
       push_bid_notice(
         rmf_task_msgs::build<bidding::BidNoticeMsg>()
           .request(task_request_json.dump())
@@ -473,7 +475,8 @@ public:
     const std::string category = desc_it->second;
 
     // auto generate a task_id for a given submitted task
-    const auto task_id = "dispatch#" + std::to_string(task_counter++);
+    const auto task_id =
+      category + ":dispatch#" + std::to_string(task_counter++);
 
     RCLCPP_INFO(node->get_logger(),
       "Received Task Submission [%s]", task_id.c_str());
@@ -530,10 +533,7 @@ public:
     if (on_change_fn)
       on_change_fn(*new_dispatch_state);
 
-    task_bid_queue.push(bid_notice);
-
-    if (task_bid_queue.size() == 1)
-      auctioneer->start_bidding(task_bid_queue.front());
+    auctioneer->request_bid(bid_notice);
   }
 
   bool cancel_task(const TaskID& task_id)
@@ -695,19 +695,6 @@ public:
       if (on_change_fn)
         on_change_fn(*dispatch_state);
 
-      if (task_bid_queue.empty())
-      {
-        RCLCPP_ERROR(
-          node->get_logger(),
-          "task_bid_queue is empty while a bid is concluding. This indicates a "
-          "serious bug. Please report this to the RMF developers.");
-        return;
-      }
-
-      task_bid_queue.pop();
-      if (!task_bid_queue.empty())
-        auctioneer->start_bidding(task_bid_queue.front());
-
       return;
     }
 
@@ -717,6 +704,7 @@ public:
         winner->fleet_name,
         winner->expected_robot_name
       };
+    dispatch_state->status = DispatchState::Status::Selected;
 
     RCLCPP_INFO(
       node->get_logger(),
@@ -817,7 +805,7 @@ public:
       const auto& request = it->second;
       RCLCPP_ERROR(
         node->get_logger(),
-        "Dispatch request [%lu] type [%u] for task [%s] directed at fleet [%s] "
+        "Dispatch command [%lu] type [%u] for task [%s] directed at fleet [%s] "
         "has expired. This likely means something is wrong with the fleet "
         "adapter for [%s] preventing it from responding.",
         id,
@@ -825,6 +813,9 @@ public:
         request.task_id.c_str(),
         request.fleet_name.c_str(),
         request.fleet_name.c_str());
+
+      if (request.type == request.TYPE_AWARD)
+        auctioneer->ready_for_next_bid();
 
       lingering_commands.erase(it);
     }
@@ -879,6 +870,7 @@ public:
           static_cast<uint8_t>(state->status));
       }
 
+      auctioneer->ready_for_next_bid();
       return;
     }
     else if (command.type == DispatchCommandMsg::TYPE_REMOVE)

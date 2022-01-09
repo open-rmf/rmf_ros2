@@ -343,7 +343,7 @@ void MockAdapter::dispatch_task(
           req.task_id = task_id;
           req.fleet_name = fimpl.name;
           req.type = req.TYPE_AWARD;
-          fimpl.dispatch_request_cb(
+          fimpl.dispatch_command_cb(
             std::make_shared<rmf_task_msgs::msg::DispatchCommand>(req));
         }
         else

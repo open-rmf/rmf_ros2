@@ -55,6 +55,7 @@
 #include <rmf_api_msgs/schemas/skip_phase_response.hpp>
 #include <rmf_api_msgs/schemas/undo_skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/undo_skip_phase_response.hpp>
+#include <rmf_api_msgs/schemas/error.hpp>
 
 namespace rmf_fleet_adapter {
 
@@ -187,7 +188,8 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::skip_phase_request,
     rmf_api_msgs::schemas::skip_phase_response,
     rmf_api_msgs::schemas::undo_skip_phase_request,
-    rmf_api_msgs::schemas::undo_skip_phase_response
+    rmf_api_msgs::schemas::undo_skip_phase_response,
+    rmf_api_msgs::schemas::error
   };
 
   for (const auto& schema : schemas)
@@ -328,6 +330,7 @@ nlohmann::json& copy_phase_data(
 
   auto& phase_logs = all_phase_logs[std::to_string(id)];
   auto& event_logs = phase_logs["events"];
+  event_logs = std::unordered_map<std::string, std::vector<nlohmann::json>>();
 
   while (!event_queue.empty())
   {
@@ -1250,7 +1253,8 @@ void TaskManager::_validate_and_publish_websocket(
   {
     RCLCPP_ERROR(
       _context->node()->get_logger(),
-      "[%s]",
+      "Failed to validate message [%s]: [%s]",
+      msg.dump().c_str(),
       error.c_str());
     return;
   }
@@ -1594,7 +1598,8 @@ namespace {
 //==============================================================================
 std::vector<std::string> get_labels(const nlohmann::json& request)
 {
-  if (const auto& labels = request["labels"])
+  const auto& labels = request["labels"];
+  if (!labels.is_null())
     return labels.get<std::vector<std::string>>();
 
   return {};

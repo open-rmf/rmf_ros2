@@ -21,16 +21,22 @@ namespace rmf_task_ros2 {
 namespace bidding {
 
 //==============================================================================
-Auctioneer::Implementation::Implementation(const std::shared_ptr<rclcpp::Node>& node_,
-  BiddingResultCallback result_callback, ConstEvaluatorPtr evaluator)
+Auctioneer::Implementation::Implementation(
+  const std::shared_ptr<rclcpp::Node>& node_,
+  BiddingResultCallback result_callback,
+  ConstEvaluatorPtr evaluator_)
 : node{std::move(node_)},
-  bidding_result_callback{std::move(result_callback)}
+  bidding_result_callback{std::move(result_callback)},
+  evaluator(std::move(evaluator_))
 {
   // default evaluator
-  evaluator = std::make_shared<QuickestFinishEvaluator>();
-  RCLCPP_INFO(
-    node->get_logger(),
-    "Dispatcher evaluator set to QuickestFinishEvaluator");
+  if (!evaluator)
+  {
+    evaluator = std::make_shared<QuickestFinishEvaluator>();
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Dispatcher evaluator set to QuickestFinishEvaluator by default");
+  }
   const auto dispatch_qos = rclcpp::ServicesQoS().reliable();
 
   bid_notice_pub = node->create_publisher<BidNoticeMsg>(
@@ -50,7 +56,7 @@ Auctioneer::Implementation::Implementation(const std::shared_ptr<rclcpp::Node>& 
 }
 
 //==============================================================================
-void Auctioneer::Implementation::start_bidding(
+void Auctioneer::Implementation::request_bid(
   const BidNoticeMsg& bid_notice)
 {
   RCLCPP_INFO(node->get_logger(), "Add Task [%s] to a bidding queue",
@@ -95,21 +101,20 @@ void Auctioneer::Implementation::finish_bidding_process()
   // Executing the task at the front queue
   auto front_task = open_bid_queue.front();
 
-  if (bidding_in_proccess)
+  if (bidding_in_process)
   {
     if (determine_winner(front_task))
     {
       open_bid_queue.pop();
-      bidding_in_proccess = false;
     }
   }
   else
   {
-    RCLCPP_DEBUG(node->get_logger(), " - Start new bidding task: %s",
+    RCLCPP_INFO(node->get_logger(), " - Start new bidding task: %s",
       front_task.bid_notice.task_id.c_str());
     open_bid_queue.front().start_time = node->now();
     bid_notice_pub->publish(front_task.bid_notice);
-    bidding_in_proccess = true;
+    bidding_in_process = true;
   }
 }
 
@@ -198,9 +203,15 @@ std::shared_ptr<Auctioneer> Auctioneer::make(
 }
 
 //==============================================================================
-void Auctioneer::start_bidding(const BidNoticeMsg& bid_notice)
+void Auctioneer::request_bid(const BidNoticeMsg& bid_notice)
 {
-  _pimpl->start_bidding(bid_notice);
+  _pimpl->request_bid(bid_notice);
+}
+
+//==============================================================================
+void Auctioneer::ready_for_next_bid()
+{
+  _pimpl->bidding_in_process = false;
 }
 
 //==============================================================================
