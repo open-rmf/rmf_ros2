@@ -732,6 +732,33 @@ std::optional<std::string> TaskManager::current_task_id() const
 }
 
 //==============================================================================
+auto TaskManager::get_queue() const -> const std::vector<Assignment>&
+{
+  return _queue;
+}
+
+//==============================================================================
+bool TaskManager::cancel_task_if_present(const std::string& task_id)
+{
+  if (_active_task && _active_task.id() == task_id)
+  {
+    _active_task.cancel({"DispatchRequest"}, _context->now());
+    return true;
+  }
+
+  for (auto it = _queue.begin(); it != _queue.end(); ++it)
+  {
+    if (it->request()->booking()->id() == task_id)
+    {
+      _queue.erase(it);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+//==============================================================================
 std::string TaskManager::robot_status() const
 {
   if (!_active_task)

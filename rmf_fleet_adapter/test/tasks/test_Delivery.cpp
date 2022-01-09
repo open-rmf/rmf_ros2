@@ -446,21 +446,20 @@ SCENARIO("Test Delivery")
   // Note: wait for task_manager to start, else TM will be suspicously "empty"
   std::this_thread::sleep_for(1s);
 
-  // Dispatch Delivery LegacyTask
-  rmf_task_msgs::msg::TaskProfile task_profile;
-  task_profile.task_id = delivery_id;
-  task_profile.description.start_time = adapter.node()->now();
-  task_profile.description.task_type.type =
-    rmf_task_msgs::msg::TaskType::TYPE_DELIVERY;
+  // Dispatch Delivery Task
+  nlohmann::json request;
+  request["category"] = "delivery";
+  auto& desc = request["description"];
+  auto& pickup = desc["pickup"];
+  pickup["place"] = pickup_name;
+  pickup["handler"] = quiet_dispenser_name;
+  pickup["payload"] = std::vector<nlohmann::json>();
+  auto& dropoff = desc["dropoff"];
+  dropoff["place"] = dropoff_name;
+  dropoff["handler"] = flaky_ingestor_name;
+  dropoff["payload"] = std::vector<nlohmann::json>();
 
-  rmf_task_msgs::msg::Delivery delivery;
-  delivery.pickup_place_name = pickup_name;
-  delivery.pickup_dispenser = quiet_dispenser_name;
-  delivery.dropoff_place_name = dropoff_name;
-  delivery.dropoff_ingestor = flaky_ingestor_name;
-
-  task_profile.description.delivery = delivery;
-  adapter.dispatch_task(task_profile);
+  adapter.dispatch_task(delivery_id, request);
 
   const auto quiet_status = quiet_future.wait_for(15s);
   REQUIRE(quiet_status == std::future_status::ready);

@@ -302,14 +302,12 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       priority,
       deserialized_task.description);
 
-  generated_requests.insert({task_id, new_request});
-
   // TODO(MXG): Make the task planning asynchronous. The worker should schedule
   // a job to perform the planning which should then spawn a job to save the
   // plan result and respond. I started to refactor allocate_tasks(~) to make it
   // async, but I will save the remaining effort for later, when there is more
   // time to spare.
-  auto allocation_result = allocate_tasks(new_request, nullptr, &errors);
+  auto allocation_result = allocate_tasks(new_request, &errors);
   if (!allocation_result.has_value())
     return respond({std::nullopt, std::move(errors)});
 
@@ -406,26 +404,62 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
 //==============================================================================
 void FleetUpdateHandle::Implementation::dispatch_request_cb(
-  const DispatchRequest::SharedPtr msg)
+  const DispatchCmdMsg::SharedPtr msg)
 {
-  if (msg->fleet_name != name)
-    return;
-
   const auto& task_id = msg->task_id;
+  if (msg->fleet_name != name)
+  {
+    // This task is either being awarded or canceled for another fleet. Either
+    // way, we will delete it from our record of bid notice assignments.
+    bid_notice_assignments.erase(task_id);
+    return;
+  }
+
   DispatchAck dispatch_ack;
   dispatch_ack.success = false;
   dispatch_ack.dispatch_id = msg->dispatch_id;
-  if (msg->type == DispatchRequest::TYPE_AWARD)
+  if (msg->type == DispatchCmdMsg::TYPE_AWARD)
   {
     const auto task_it = bid_notice_assignments.find(task_id);
     if (task_it == bid_notice_assignments.end())
     {
+      // We don't have a record of this bid_notice, so let's check if we already
+      // received the task assignment.
+      bool already_assigned = false;
+      for (const auto& tm : task_managers)
+      {
+        const auto current = tm.second->current_task_id();
+        if (current == task_id)
+        {
+          already_assigned = true;
+          break;
+        }
+
+        for (const auto& p : tm.second->get_queue())
+        {
+          if (p.request()->booking()->id() == task_id)
+          {
+            already_assigned = true;
+            break;
+          }
+        }
+
+        if (already_assigned)
+          break;
+      }
+
+      if (already_assigned)
+      {
+        dispatch_ack.success = true;
+        dispatch_ack_pub->publish(dispatch_ack);
+        return;
+      }
+
       std::string error_str =
-        "Received DispatchRequest for task_id [" + task_id
+        "Received DispatchRequest award for task_id [" + task_id
         + "] before receiving BidNotice. This request will be ignored.";
 
       RCLCPP_ERROR(node->get_logger(), "%s", error_str.c_str());
-
       dispatch_ack.errors.push_back(
         make_error_str(14, "Invalid sequence", std::move(error_str)));
       dispatch_ack_pub->publish(dispatch_ack);
@@ -438,7 +472,8 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
       task_id.c_str(),
       name.c_str());
 
-    auto& assignments = task_it->second;
+    auto assignments = std::move(task_it->second);
+    bid_notice_assignments.erase(task_it);
 
     if (assignments.size() != task_managers.size())
     {
@@ -457,33 +492,46 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
       return;
     }
 
-    const auto request_it = generated_requests.find(task_id);
-    if (request_it == generated_requests.end())
-    {
-      std::string error_str =
-        "Unable to find generated request for task_id [" + task_id
-        + "]. This request will be ignored.";
-
-      RCLCPP_ERROR(node->get_logger(), "%s", error_str.c_str());
-      dispatch_ack.errors.push_back(
-        make_error_str(14, "Invalid sequence", std::move(error_str)));
-
-      dispatch_ack_pub->publish(dispatch_ack);
-      return;
-    }
-
     // Here we make sure none of the tasks in the assignments has already begun
     // execution. If so, we replan assignments until a valid set is obtained
     // and only then update the task manager queues
     bool valid_assignments = is_valid_assignments(assignments);
     if (!valid_assignments)
     {
+      rmf_task::ConstRequestPtr request;
+      for (const auto& a : assignments)
+      {
+        for (const auto& r : a)
+        {
+          if (r.request()->booking()->id() == task_id)
+          {
+            request = r.request();
+            break;
+          }
+        }
+
+        if (request)
+          break;
+      }
+
+      if (!request)
+      {
+        std::string error_str =
+          "Could not find task_id [" + task_id + "] in the set of assignments "
+          "associated with it. This is a critical bug and should be reported "
+          "to the RMF developers";
+
+        RCLCPP_ERROR(node->get_logger(), "%s", error_str.c_str());
+        dispatch_ack.errors.push_back(
+          make_error_str(13, "Internal bug", std::move(error_str)));
+        dispatch_ack_pub->publish(dispatch_ack);
+        return;
+      }
+
       // TODO: This replanning is blocking the main thread. Instead, the
       // replanning should run on a separate worker and then deliver the
       // result back to the main worker.
-      const auto replan_results = allocate_tasks(
-        request_it->second, nullptr, &dispatch_ack.errors);
-
+      const auto replan_results = allocate_tasks(request, &dispatch_ack.errors);
       if (!replan_results)
       {
         std::string error_str =
@@ -491,6 +539,8 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
           + "]. This request will be ignored.";
 
         RCLCPP_ERROR(node->get_logger(), "%s", error_str.c_str());
+        dispatch_ack.errors.push_back(
+          make_error_str(9, "Not feasible", std::move(error_str)));
         dispatch_ack_pub->publish(dispatch_ack);
         return;
       }
@@ -510,7 +560,6 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     }
 
     current_assignment_cost = task_planner->compute_cost(assignments);
-    assigned_requests.insert({task_id, request_it->second});
     dispatch_ack.success = true;
     dispatch_ack_pub->publish(dispatch_ack);
 
@@ -519,90 +568,77 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
       "Assignments updated for robots in fleet [%s] to accommodate task_id:[%s]",
       name.c_str(), task_id.c_str());
   }
-  else if (msg->type == DispatchRequest::TYPE_REMOVE)
+  else if (msg->type == DispatchCmdMsg::TYPE_REMOVE)
   {
-    // When a queued task is to be cancelled, we simply re-plan and re-allocate
-    // task assignments for the request set containing all the queued tasks
-    // excluding the task to be cancelled.
-    if (cancelled_task_ids.find(id) != cancelled_task_ids.end())
+    const auto bid_it = bid_notice_assignments.find(task_id);
+    if (bid_it != bid_notice_assignments.end())
     {
-      RCLCPP_WARN(
-        node->get_logger(),
-        "Request with task_id:[%s] has already been cancelled.",
-        id.c_str());
-
-      dispatch_ack.success = true;
-      dispatch_ack_pub->publish(dispatch_ack);
-      return;
+      // The task was still in the bid notice assignments, so it was never
+      // actually assigned to a robot. We will just delete it from this map
+      // and we're done.
+      bid_notice_assignments.erase(bid_it);
     }
-
-    auto request_to_cancel_it = assigned_requests.find(id);
-    if (request_to_cancel_it == assigned_requests.end())
+    else
     {
-      RCLCPP_WARN(
-        node->get_logger(),
-        "Unable to cancel task with task_id:[%s] as it is not assigned to "
-        "fleet:[%s].",
-        id.c_str(), name.c_str());
+      bool task_was_found = false;
+      // Make sure the task isn't running in any of the task managers
+      for (const auto& [_, tm] : task_managers)
+      {
+        task_was_found = tm->cancel_task_if_present(task_id);
+        if (task_was_found)
+          break;
+      }
 
-      dispatch_ack_pub->publish(dispatch_ack);
-      return;
+      if (task_was_found)
+      {
+        // Re-plan assignments while ignoring request for task to be cancelled
+        std::vector<std::string> errors;
+        const auto replan_results = allocate_tasks(nullptr, &errors);
+        if (!replan_results.has_value())
+        {
+          std::stringstream ss;
+          ss << "Unabled to replan assignments when cancelling task ["
+             << task_id << "]. ";
+          if (errors.empty())
+          {
+            ss << "No planner error messages were provided.";
+          }
+          else
+          {
+            ss << "The following planner errors occurred:";
+            for (const auto& e : errors)
+            {
+              const auto err = nlohmann::json::parse(e);
+              ss << "\n -- " << err["detail"].get<std::string>();
+            }
+          }
+          ss << "\n";
+
+          RCLCPP_WARN(node->get_logger(), "%s", ss.str().c_str());
+        }
+        else
+        {
+          const auto& assignments = replan_results.value();
+          std::size_t index = 0;
+          for (auto& t : task_managers)
+          {
+            t.second->set_queue(assignments[index]);
+            ++index;
+          }
+
+          current_assignment_cost = task_planner->compute_cost(assignments);
+
+          RCLCPP_INFO(
+            node->get_logger(),
+            "Task with task_id [%s] has successfully been cancelled. Assignments "
+            "updated for robots in fleet [%s].",
+            task_id.c_str(), name.c_str());
+        }
+      }
     }
-
-    std::unordered_set<std::string> executed_tasks;
-    for (const auto& [context, mgr] : task_managers)
-    {
-      const auto& tasks = mgr->get_executed_tasks();
-      executed_tasks.insert(tasks.begin(), tasks.end());
-    }
-
-    // Check if received request is to cancel an active task
-    if (executed_tasks.find(id) != executed_tasks.end())
-    {
-      RCLCPP_WARN(
-        node->get_logger(),
-        "Unable to cancel active task with task_id:[%s]. Only queued tasks may "
-        "be cancelled.",
-        id.c_str());
-
-      dispatch_ack_pub->publish(dispatch_ack);
-      return;
-    }
-
-    // Re-plan assignments while ignoring request for task to be cancelled
-    const auto replan_results = allocate_tasks(
-      nullptr, request_to_cancel_it->second);
-
-    if (!replan_results.has_value())
-    {
-      RCLCPP_WARN(
-        node->get_logger(),
-        "Unable to re-plan assignments when cancelling task with task_id:[%s]",
-        id.c_str());
-
-      dispatch_ack_pub->publish(dispatch_ack);
-      return;
-    }
-
-    const auto& assignments = replan_results.value();
-    std::size_t index = 0;
-    for (auto& t : task_managers)
-    {
-      t.second->set_queue(assignments[index]);
-      ++index;
-    }
-
-    current_assignment_cost = task_planner->compute_cost(assignments);
 
     dispatch_ack.success = true;
     dispatch_ack_pub->publish(dispatch_ack);
-    cancelled_task_ids.insert(id);
-
-    RCLCPP_INFO(
-      node->get_logger(),
-      "LegacyTask with task_id:[%s] has successfully been cancelled. Assignments "
-      "updated for robots in fleet [%s].",
-      id.c_str(), name.c_str());
   }
   else
   {
@@ -611,6 +647,7 @@ void FleetUpdateHandle::Implementation::dispatch_request_cb(
     RCLCPP_ERROR(node->get_logger(), "%s", error_str.c_str());
     dispatch_ack.errors.push_back(
       make_error_str(4, "Unsupported type", std::move(error_str)));
+    dispatch_ack_pub->publish(dispatch_ack);
   }
 }
 
@@ -926,7 +963,6 @@ auto FleetUpdateHandle::Implementation::aggregate_expectations() const
 //==============================================================================
 auto FleetUpdateHandle::Implementation::allocate_tasks(
   rmf_task::ConstRequestPtr new_request,
-  rmf_task::ConstRequestPtr ignore_request,
   std::vector<std::string>* errors) const -> std::optional<Assignments>
 {
   // Collate robot states, constraints and combine new requestptr with
@@ -938,34 +974,6 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
   {
     expect.pending_requests.push_back(new_request);
     id = new_request->booking()->id();
-  }
-
-  // Remove the request to be ignored if present
-  if (ignore_request)
-  {
-    auto ignore_request_it = expect.pending_requests.end();
-    for (auto it = expect.pending_requests.begin();
-         it != expect.pending_requests.end(); ++it)
-    {
-      auto pending_request = *it;
-      if (pending_request->booking()->id() == ignore_request->booking()->id())
-        ignore_request_it = it;
-    }
-    if (ignore_request_it != expect.pending_requests.end())
-    {
-      expect.pending_requests.erase(ignore_request_it);
-      RCLCPP_INFO(
-        node->get_logger(),
-        "Request with task_id:[%s] will be ignored during task allocation.",
-        ignore_request->booking()->id().c_str());
-    }
-    else
-    {
-      RCLCPP_WARN(
-        node->get_logger(),
-        "Request with task_id:[%s] is not present in any of the task queues.",
-        ignore_request->booking()->id().c_str());
-    }
   }
 
   RCLCPP_INFO(
@@ -1381,7 +1389,7 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
 FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
   AcceptTaskRequest check)
 {
-  const auto legacy_adapter =
+  const auto legacy_converter =
     [check = std::move(check)](
       const rmf_task_msgs::msg::TaskProfile& profile,
       Confirmation& confirm)
@@ -1429,7 +1437,7 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       return items;
     };
 
-  auto consider_pickup = [legacy_adapter, convert_items](
+  auto consider_pickup = [legacy_converter, convert_items](
     const nlohmann::json& msg, Confirmation& confirm)
     {
       rmf_task_msgs::msg::TaskProfile profile;
@@ -1441,16 +1449,16 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
           .task_id("")
           .items(convert_items(msg["payload"]))
           .pickup_place_name(msg["place"].get<std::string>())
-          .pickup_dispenser(msg["hanlder"].get<std::string>())
+          .pickup_dispenser(msg["handler"].get<std::string>())
           .pickup_behavior(rmf_task_msgs::msg::Behavior{})
           .dropoff_place_name("")
           .dropoff_ingestor("")
           .dropoff_behavior(rmf_task_msgs::msg::Behavior{});
 
-      legacy_adapter(profile, confirm);
+      legacy_converter(profile, confirm);
     };
 
-  auto consider_dropoff = [legacy_adapter, convert_items](
+  auto consider_dropoff = [legacy_converter, convert_items](
     const nlohmann::json& msg, Confirmation& confirm)
     {
     rmf_task_msgs::msg::TaskProfile profile;
@@ -1465,10 +1473,10 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
         .pickup_dispenser("")
         .pickup_behavior(rmf_task_msgs::msg::Behavior{})
         .dropoff_place_name(msg["place"].get<std::string>())
-        .dropoff_ingestor(msg["hanlder"].get<std::string>())
+        .dropoff_ingestor(msg["handler"].get<std::string>())
         .dropoff_behavior(rmf_task_msgs::msg::Behavior{});
 
-      legacy_adapter(profile, confirm);
+      legacy_converter(profile, confirm);
     };
 
   consider_delivery_requests(
@@ -1476,7 +1484,7 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
     std::move(consider_dropoff));
 
   consider_patrol_requests(
-    [legacy_adapter](const nlohmann::json& msg, Confirmation& confirm)
+    [legacy_converter](const nlohmann::json& msg, Confirmation& confirm)
     {
       rmf_task_msgs::msg::TaskProfile profile;
 
@@ -1520,11 +1528,11 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       loop.num_loops = msg["rounds"].get<uint32_t>();
       profile.description.loop = std::move(loop);
 
-      legacy_adapter(profile, confirm);
+      legacy_converter(profile, confirm);
     });
 
   consider_cleaning_requests(
-    [legacy_adapter](const nlohmann::json& msg, Confirmation& confirm)
+    [legacy_converter](const nlohmann::json& msg, Confirmation& confirm)
     {
       rmf_task_msgs::msg::TaskProfile profile;
 
@@ -1533,7 +1541,7 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
 
       profile.description.clean.start_waypoint = msg["zone"].get<std::string>();
 
-      legacy_adapter(profile, confirm);
+      legacy_converter(profile, confirm);
     });
 
   return *this;

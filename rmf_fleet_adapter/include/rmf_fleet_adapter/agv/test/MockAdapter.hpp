@@ -72,7 +72,7 @@ public:
   void stop();
 
   /// Submit a task request
-  void dispatch_task(const rmf_task_msgs::msg::TaskProfile& profile);
+  void dispatch_task(std::string task_id, const nlohmann::json& request);
 
   ~MockAdapter();
 

@@ -81,6 +81,10 @@ public:
 
   std::optional<std::string> current_task_id() const;
 
+  const std::vector<Assignment>& get_queue() const;
+
+  bool cancel_task_if_present(const std::string& task_id);
+
   std::string robot_status() const;
 
   /// The state of the robot.

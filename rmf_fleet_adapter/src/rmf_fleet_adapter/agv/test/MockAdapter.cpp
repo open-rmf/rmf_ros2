@@ -307,29 +307,50 @@ void MockAdapter::stop()
 }
 
 //==============================================================================
-void MockAdapter::dispatch_task(const rmf_task_msgs::msg::TaskProfile& profile)
+void MockAdapter::dispatch_task(
+  std::string task_id,
+  const nlohmann::json& request)
 {
-  _pimpl->worker.schedule([profile, fleets = _pimpl->fleets](const auto&)
+  _pimpl->worker.schedule(
+    [
+      request,
+      task_id = std::move(task_id),
+      fleets = _pimpl->fleets
+    ](const auto&)
     {
       for (auto& fleet : fleets)
       {
         auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
-        if (!fimpl.legacy_accept_task)
-          continue;
 
-        // NOTE: althought the current adapter supports multiple fleets. The test
+        // NOTE: although the current adapter supports multiple fleets. The test
         // here assumses using a single fleet for each adapter
-        rmf_task_msgs::msg::BidNotice bid;
-        bid.task_profile = profile;
-        fimpl.bid_notice_cb(
-          std::make_shared<rmf_task_msgs::msg::BidNotice>(bid));
+        bool accepted = false;
+        auto bid = rmf_task_msgs::build<rmf_task_msgs::msg::BidNotice>()
+            .request(request)
+            .task_id(task_id)
+            .time_window(rclcpp::Duration(2, 0));
 
-        rmf_task_msgs::msg::DispatchRequest req;
-        req.task_profile = profile;
-        req.fleet_name = fimpl.name;
-        req.method = req.ADD;
-        fimpl.dispatch_request_cb(
-          std::make_shared<rmf_task_msgs::msg::DispatchRequest>(req));
+        fimpl.bid_notice_cb(
+          bid,
+          [&accepted](const rmf_task_ros2::bidding::Response& response)
+          {
+            accepted = response.proposal.has_value();
+          });
+
+        if (accepted)
+        {
+          rmf_task_msgs::msg::DispatchCommand req;
+          req.task_id = task_id;
+          req.fleet_name = fimpl.name;
+          req.type = req.TYPE_AWARD;
+          fimpl.dispatch_request_cb(
+            std::make_shared<rmf_task_msgs::msg::DispatchCommand>(req));
+        }
+        else
+        {
+          std::cout << "Fleet [" << fimpl.name << "] rejected the task request"
+                    << std::endl;
+        }
       }
     });
 }

@@ -832,7 +832,7 @@ public:
 
   void handle_dispatch_ack(const DispatchAckMsg& ack)
   {
-    const auto command_it = lingering_commands.find(ack.request_id);
+    const auto command_it = lingering_commands.find(ack.dispatch_id);
     if (command_it == lingering_commands.end())
     {
       // Already processed this acknowledgment

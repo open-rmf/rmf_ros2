@@ -301,19 +301,21 @@ SCENARIO("Test loop requests", "[.flaky]")
   task_profile.description.task_type.type =
     rmf_task_msgs::msg::TaskType::TYPE_LOOP;
 
-  // Dsipatch Loop 0 LegacyTask
-  task_profile.task_id = loop_0;
-  task_profile.description.loop.num_loops = n_loops;
-  task_profile.description.loop.robot_type = fleet_type;
-  task_profile.description.loop.start_name = south;
-  task_profile.description.loop.finish_name = east;
-  adapter.dispatch_task(task_profile);
+  // Dsipatch Loop 0 Task
+  nlohmann::json request;
+  request["category"] = "patrol";
+  auto& desc = request["description"];
+  auto& places = desc["places"];
+  places.push_back(south);
+  places.push_back(east);
+  desc["rounds"] = n_loops;
+  adapter.dispatch_task(loop_0, request);
 
-  // Dispatch Loop 1 LegacyTask
-  task_profile.task_id = loop_1;
-  task_profile.description.loop.start_name = north;
-  task_profile.description.loop.finish_name = east;
-  adapter.dispatch_task(task_profile);
+  // Dispatch Loop 1 Task
+  places.clear();
+  places.push_back(north);
+  places.push_back(east);
+  adapter.dispatch_task(loop_1, request);
 
   const auto task_0_completed_status = task_0_completed_future.wait_for(20s);
   CHECK(task_0_completed_status == std::future_status::ready);

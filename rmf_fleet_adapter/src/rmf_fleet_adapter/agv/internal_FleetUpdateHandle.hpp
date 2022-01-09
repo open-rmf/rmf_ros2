@@ -22,7 +22,7 @@
 
 #include <rmf_task_ros2/bidding/AsyncBidder.hpp>
 
-#include <rmf_task_msgs/msg/dispatch_request.hpp>
+#include <rmf_task_msgs/msg/dispatch_command.hpp>
 #include <rmf_task_msgs/msg/dispatch_ack.hpp>
 
 #include <rmf_task/TaskPlanner.hpp>
@@ -233,23 +233,17 @@ public:
   // TODO Support for various charging configurations
   std::unordered_set<std::size_t> charging_waypoints = {};
 
-  std::shared_ptr<rmf_task_ros2::bidding::AsyncBidder> bidder;
+  std::shared_ptr<rmf_task_ros2::bidding::AsyncBidder> bidder = nullptr;
 
   double current_assignment_cost = 0.0;
   // Map to store task id with assignments for BidNotice
   std::unordered_map<std::string, Assignments> bid_notice_assignments = {};
 
-  std::unordered_map<
-    std::string, rmf_task::ConstRequestPtr> generated_requests = {};
-  std::unordered_map<
-    std::string, rmf_task::ConstRequestPtr> assigned_requests = {};
-  std::unordered_set<std::string> cancelled_task_ids = {};
-
   using BidNoticeMsg = rmf_task_msgs::msg::BidNotice;
 
-  using DispatchRequest = rmf_task_msgs::msg::DispatchRequest;
-  using DispatchRequestSub = rclcpp::Subscription<DispatchRequest>::SharedPtr;
-  DispatchRequestSub dispatch_request_sub = nullptr;
+  using DispatchCmdMsg = rmf_task_msgs::msg::DispatchCommand;
+  using DispatchCommandSub = rclcpp::Subscription<DispatchCmdMsg>::SharedPtr;
+  DispatchCommandSub dispatch_request_sub = nullptr;
 
   using DispatchAck = rmf_task_msgs::msg::DispatchAck;
   using DispatchAckPub = rclcpp::Publisher<DispatchAck>::SharedPtr;
@@ -306,10 +300,10 @@ public:
 
     // Subscribe DispatchRequest
     handle->_pimpl->dispatch_request_sub =
-      handle->_pimpl->node->create_subscription<DispatchRequest>(
+      handle->_pimpl->node->create_subscription<DispatchCmdMsg>(
       DispatchRequestTopicName,
       default_qos,
-      [w = handle->weak_from_this()](const DispatchRequest::SharedPtr msg)
+      [w = handle->weak_from_this()](const DispatchCmdMsg::SharedPtr msg)
       {
         if (const auto self = w.lock())
           self->_pimpl->dispatch_request_cb(msg);
@@ -365,7 +359,7 @@ public:
     const BidNoticeMsg& msg,
     rmf_task_ros2::bidding::AsyncBidder::Respond respond);
 
-  void dispatch_request_cb(const DispatchRequest::SharedPtr msg);
+  void dispatch_request_cb(const DispatchCmdMsg::SharedPtr msg);
 
   std::optional<std::size_t> get_nearest_charger(
     const rmf_traffic::agv::Planner::Start& start);
@@ -383,7 +377,6 @@ public:
   /// new request and while optionally ignoring a specific request.
   std::optional<Assignments> allocate_tasks(
     rmf_task::ConstRequestPtr new_request = nullptr,
-    rmf_task::ConstRequestPtr ignore_request = nullptr,
     std::vector<std::string>* errors = nullptr) const;
 
   /// Helper function to check if assignments are valid. An assignment set is

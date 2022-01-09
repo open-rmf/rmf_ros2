@@ -483,17 +483,7 @@ rmf_api_generate_schema_headers(
 # -----------------------------------------------------------------------------
 
 ament_export_targets(rmf_fleet_adapter HAS_LIBRARY_TARGET)
-ament_export_dependencies(
-  rmf_task
-  rmf_task_sequence
-  rmf_traffic_ros2
-  rmf_fleet_msgs
-  rmf_door_msgs
-  rmf_lift_msgs
-  rmf_ingestor_msgs
-  rmf_dispenser_msgs
-  websocketpp
-)
+ament_export_dependencies(${dep_pkgs})
 
 install(
   TARGETS
