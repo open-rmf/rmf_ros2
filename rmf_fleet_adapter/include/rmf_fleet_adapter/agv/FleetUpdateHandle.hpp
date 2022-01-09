@@ -424,6 +424,10 @@ public:
   FleetUpdateHandle& fleet_state_update_period(
     std::optional<rmf_traffic::Duration> value);
 
+  // Do not allow moving
+  FleetUpdateHandle(FleetUpdateHandle&&) = delete;
+  FleetUpdateHandle& operator=(FleetUpdateHandle&&) = delete;
+
   class Implementation;
 private:
   FleetUpdateHandle();

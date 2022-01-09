@@ -180,6 +180,7 @@ class FleetUpdateHandle::Implementation
 {
 public:
 
+  std::weak_ptr<FleetUpdateHandle> weak_self;
   std::string name;
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner;
   std::shared_ptr<Node> node;
@@ -243,8 +244,6 @@ public:
   std::unordered_map<
     std::string, rmf_task::ConstRequestPtr> assigned_requests = {};
   std::unordered_set<std::string> cancelled_task_ids = {};
-  using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
-  std::unordered_map<std::string, TaskProfileMsg> task_profile_map = {};
 
   using BidNoticeMsg = rmf_task_msgs::msg::BidNotice;
 
@@ -265,7 +264,7 @@ public:
   {
     auto handle = std::shared_ptr<FleetUpdateHandle>(new FleetUpdateHandle);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
-      Implementation{std::forward<Args>(args)...});
+      Implementation{handle, std::forward<Args>(args)...});
 
     handle->_pimpl->add_standard_tasks();
 
@@ -371,12 +370,21 @@ public:
   std::optional<std::size_t> get_nearest_charger(
     const rmf_traffic::agv::Planner::Start& start);
 
+  struct Expectations
+  {
+    std::vector<rmf_task::State> states;
+    std::vector<rmf_task::ConstRequestPtr> pending_requests;
+  };
+
+  Expectations aggregate_expectations() const;
+
   /// Generate task assignments for a collection of task requests comprising of
   /// task requests currently in TaskManager queues while optionally including a
   /// new request and while optionally ignoring a specific request.
   std::optional<Assignments> allocate_tasks(
     rmf_task::ConstRequestPtr new_request = nullptr,
-    rmf_task::ConstRequestPtr ignore_request = nullptr) const;
+    rmf_task::ConstRequestPtr ignore_request = nullptr,
+    std::vector<std::string>* errors = nullptr) const;
 
   /// Helper function to check if assignments are valid. An assignment set is
   /// invalid if one of the assignments has already begun execution.
