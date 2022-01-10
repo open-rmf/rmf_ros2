@@ -111,14 +111,9 @@ TaskDeserialization::make_validator_shared(nlohmann::json schema) const
 //==============================================================================
 TaskDeserialization::TaskDeserialization()
 {
-  task =
-    std::make_shared<DeserializeJSON<FleetUpdateHandle::DeserializedTask>>();
-
-  phase =
-    std::make_shared<DeserializeJSON<FleetUpdateHandle::DeserializedPhase>>();
-
-  event =
-    std::make_shared<DeserializeJSON<FleetUpdateHandle::DeserializedEvent>>();
+  task = std::make_shared<DeserializeJSON<DeserializedTask>>();
+  phase = std::make_shared<DeserializeJSON<DeserializedPhase>>();
+  event = std::make_shared<DeserializeJSON<DeserializedEvent>>();
 
   _schema_dictionary = std::make_shared<SchemaDictionary>();
   _loader = [dict = _schema_dictionary](
@@ -868,12 +863,12 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
 }
 
 namespace {
-FleetUpdateHandle::PlaceDeserializer make_place_deserializer(
+PlaceDeserializer make_place_deserializer(
   std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>>
     planner)
 {
   return [planner = std::move(planner)](const nlohmann::json& msg)
-      -> agv::FleetUpdateHandle::DeserializedPlace
+      -> agv::DeserializedPlace
     {
       std::optional<rmf_traffic::agv::Plan::Goal> place;
       const auto& graph = (*planner)->get_configuration().graph();
@@ -1334,6 +1329,13 @@ FleetUpdateHandle& FleetUpdateHandle::consider_patrol_requests(
 {
   *_pimpl->deserialization.consider_patrol = std::move(consider);
   return *this;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::consider_composed_requests(
+  ConsiderRequest consider)
+{
+  *_pimpl->deserialization.consider_composed = std::move(consider);
 }
 
 //==============================================================================

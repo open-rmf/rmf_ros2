@@ -287,11 +287,11 @@ struct TransferItems : public rmf_task_sequence::events::Placeholder::Descriptio
 };
 
 //==============================================================================
-using DeserializedItemTransfer = agv::FleetUpdateHandle::DeserializedEvent;
+using DeserializedItemTransfer = agv::DeserializedEvent;
 template<typename T>
 std::function<DeserializedItemTransfer(const nlohmann::json& msg)>
 make_deserializer(
-  const agv::FleetUpdateHandle::PlaceDeserializer& place_deser,
+  const agv::PlaceDeserializer& place_deser,
   const std::shared_ptr<agv::FleetUpdateHandle::ConsiderRequest>& consider)
 {
   auto parse_payload_component = [](const nlohmann::json& msg)
@@ -314,8 +314,7 @@ make_deserializer(
       place_deser,
       consider,
       parse_payload_component = std::move(parse_payload_component)
-    ](const nlohmann::json& msg)
-      -> agv::FleetUpdateHandle::DeserializedEvent
+    ](const nlohmann::json& msg) -> agv::DeserializedEvent
     {
       if (!consider || !(*consider))
         return {nullptr, {"Not accepting delivery requests"}};
@@ -415,7 +414,7 @@ void add_delivery(
 
   auto deserialize_delivery =
     [deserialize_pickup, deserialize_dropoff](
-      const nlohmann::json& msg) -> agv::FleetUpdateHandle::DeserializedTask
+      const nlohmann::json& msg) -> agv::DeserializedTask
     {
       const auto pickup = deserialize_pickup(msg["pickup"]);
       const auto dropoff = deserialize_dropoff(msg["dropoff"]);

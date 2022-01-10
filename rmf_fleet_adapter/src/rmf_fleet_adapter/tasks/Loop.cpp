@@ -133,7 +133,7 @@ void add_loop(
 
   auto deserialize_go_to_place =
     [place_deser = deserialization.place](const nlohmann::json& msg)
-      -> agv::FleetUpdateHandle::DeserializedEvent
+      -> agv::DeserializedEvent
     {
       auto place = place_deser(msg);
       if (!place.description.has_value())
@@ -164,8 +164,7 @@ void add_loop(
     [
       place_deser = deserialization.place,
       consider = deserialization.consider_patrol
-    ](const nlohmann::json& msg)
-      -> agv::FleetUpdateHandle::DeserializedTask
+    ](const nlohmann::json& msg) -> agv::DeserializedTask
     {
       if (!(*consider))
         return {nullptr, {"Not accepting patrol requests"}};

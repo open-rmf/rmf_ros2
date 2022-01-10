@@ -78,12 +78,56 @@ struct TaskActivation
 };
 
 //==============================================================================
+template<typename T>
+struct DeserializedDescription
+{
+  T description;
+  std::vector<std::string> errors;
+};
+
+//==============================================================================
+using DeserializedTask =
+  DeserializedDescription<std::shared_ptr<const rmf_task::Task::Description>>;
+
+//==============================================================================
+using TaskDescriptionDeserializer =
+  std::function<DeserializedTask(const nlohmann::json&)>;
+
+//==============================================================================
+using DeserializedPhase =
+  DeserializedDescription<
+    std::shared_ptr<const rmf_task_sequence::Phase::Description>
+  >;
+
+//==============================================================================
+using PhaseDescriptionDeserializer =
+  std::function<DeserializedPhase(const nlohmann::json&)>;
+
+//==============================================================================
+using DeserializedEvent =
+  DeserializedDescription<
+    std::shared_ptr<const rmf_task_sequence::Event::Description>
+  >;
+
+//==============================================================================
+using EventDescriptionDeserializer =
+  std::function<DeserializedEvent(const nlohmann::json&)>;
+
+//==============================================================================
+using DeserializedPlace =
+  DeserializedDescription<std::optional<rmf_traffic::agv::Plan::Goal>>;
+
+//==============================================================================
+using PlaceDeserializer =
+  std::function<DeserializedPlace(const nlohmann::json&)>;
+
+//==============================================================================
 struct TaskDeserialization
 {
-  DeserializeJSONPtr<FleetUpdateHandle::DeserializedTask> task;
-  DeserializeJSONPtr<FleetUpdateHandle::DeserializedPhase> phase;
-  DeserializeJSONPtr<FleetUpdateHandle::DeserializedEvent> event;
-  FleetUpdateHandle::PlaceDeserializer place;
+  DeserializeJSONPtr<DeserializedTask> task;
+  DeserializeJSONPtr<DeserializedPhase> phase;
+  DeserializeJSONPtr<DeserializedEvent> event;
+  PlaceDeserializer place;
 
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_pickup;
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_dropoff;
