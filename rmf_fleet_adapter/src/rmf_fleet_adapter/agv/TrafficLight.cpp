@@ -261,6 +261,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_path(
     path.clear();
     departure_timing.clear();
     blockade->cancel();
+    current_range = rmf_traffic::blockade::ReservedRange{0, 0};
     return;
   }
   else if (new_path.size() == 1)
