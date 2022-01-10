@@ -21,7 +21,7 @@
         "properties": {
           "activity": { "$ref": "#/$defs/activity" },
           "on_cancel": {
-            "description": "A list of activities to perform if the task is canceled during this phase (each activity is given its own phase which can be skipped but not canceled).",
+            "description": "A list of activities to perform if the task is canceled during this phase. Each activity is given its own phase which can be skipped but not canceled.",
             "type": "array",
             "items": { "$ref": "#/$defs/activity" }
           }

@@ -1336,6 +1336,7 @@ FleetUpdateHandle& FleetUpdateHandle::consider_composed_requests(
   ConsiderRequest consider)
 {
   *_pimpl->deserialization.consider_composed = std::move(consider);
+  return *this;
 }
 
 //==============================================================================

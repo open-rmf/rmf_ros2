@@ -35,6 +35,7 @@ void add_compose(
 {
   deserialization.add_schema(
     rmf_fleet_adapter::schemas::task_description_Compose);
+
   deserialization.add_schema(
     rmf_fleet_adapter::schemas::event_description_Sequence);
 
