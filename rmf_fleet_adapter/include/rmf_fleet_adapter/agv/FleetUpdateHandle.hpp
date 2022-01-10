@@ -171,6 +171,20 @@ public:
   ///   robots before triggering this callback.
   FleetUpdateHandle& consider_patrol_requests(ConsiderRequest consider);
 
+  /// Allow this fleet adapter to consider composed requests.
+  ///
+  /// Pass in a nullptr to disable composed requests.
+  ///
+  /// By default, composed requests are always accepted, as long as the events
+  /// that they are composed of are accepted.
+  ///
+  /// \param[in] consider
+  ///   Decide whether to accept a composed request. The description will
+  ///   satisfy the task_description_Compose.json schema of rmf_fleet_adapter.
+  ///   The FleetUpdateHandle will ensure that the request is feasible for the
+  ///   robots before triggering this callback.
+  FleetUpdateHandle& consider_composed_requests(ConsiderRequest consider);
+
   template<typename T>
   struct DeserializedDescription
   {

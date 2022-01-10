@@ -29,6 +29,7 @@
 #include "../tasks/Loop.hpp"
 #include "../tasks/Clean.hpp"
 #include "../tasks/ChargeBattery.hpp"
+#include "../tasks/Compose.hpp"
 #include "../events/GoToPlace.hpp"
 
 #include <rmf_task/Constraints.hpp>
@@ -110,6 +111,15 @@ TaskDeserialization::make_validator_shared(nlohmann::json schema) const
 //==============================================================================
 TaskDeserialization::TaskDeserialization()
 {
+  task =
+    std::make_shared<DeserializeJSON<FleetUpdateHandle::DeserializedTask>>();
+
+  phase =
+    std::make_shared<DeserializeJSON<FleetUpdateHandle::DeserializedPhase>>();
+
+  event =
+    std::make_shared<DeserializeJSON<FleetUpdateHandle::DeserializedEvent>>();
+
   _schema_dictionary = std::make_shared<SchemaDictionary>();
   _loader = [dict = _schema_dictionary](
       const nlohmann::json_uri& id,
@@ -221,8 +231,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
   const auto& category = request_msg["category"].get<std::string>();
 
-  const auto task_deser_it = deserialization.task.handlers.find(category);
-  if (task_deser_it == deserialization.task.handlers.end())
+  const auto task_deser_it = deserialization.task->handlers.find(category);
+  if (task_deser_it == deserialization.task->handlers.end())
   {
     return respond(
       {
@@ -961,6 +971,11 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     *activation.task,
     activation.phase,
     *activation.event,
+    node->clock());
+
+  tasks::add_compose(
+    deserialization,
+    activation,
     node->clock());
 }
 

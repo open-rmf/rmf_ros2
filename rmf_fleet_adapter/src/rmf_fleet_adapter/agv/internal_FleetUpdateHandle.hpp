@@ -80,15 +80,16 @@ struct TaskActivation
 //==============================================================================
 struct TaskDeserialization
 {
-  DeserializeJSON<FleetUpdateHandle::DeserializedTask> task;
-  DeserializeJSON<FleetUpdateHandle::DeserializedPhase> phase;
-  DeserializeJSON<FleetUpdateHandle::DeserializedEvent> event;
+  DeserializeJSONPtr<FleetUpdateHandle::DeserializedTask> task;
+  DeserializeJSONPtr<FleetUpdateHandle::DeserializedPhase> phase;
+  DeserializeJSONPtr<FleetUpdateHandle::DeserializedEvent> event;
   FleetUpdateHandle::PlaceDeserializer place;
 
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_pickup;
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_dropoff;
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_clean;
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_patrol;
+  std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_composed;
 
   void add_schema(const nlohmann::json& schema);
 

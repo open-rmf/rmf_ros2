@@ -351,7 +351,7 @@ void add_clean(
         confirm.errors()
       };
     };
-  deserialization.task.add("clean", validate_clean_task, deserialize_clean);
+  deserialization.task->add("clean", validate_clean_task, deserialize_clean);
 
   auto deserialize_clean_event =
     [deserialize_clean](const nlohmann::json& msg)
@@ -367,7 +367,7 @@ void add_clean(
           std::move(clean_task.errors)
       };
     };
-  deserialization.event.add(
+  deserialization.event->add(
     "clean", validate_clean_event, deserialize_clean_event);
 
   CleanEvent::add(*activation.event);

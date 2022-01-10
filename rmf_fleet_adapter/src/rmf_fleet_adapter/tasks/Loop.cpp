@@ -145,7 +145,7 @@ void add_loop(
       };
     };
 
-  deserialization.event.add(
+  deserialization.event->add(
     "go_to_place", validate_go_to_place, deserialize_go_to_place);
 
   auto validate_patrol =
@@ -153,7 +153,9 @@ void add_loop(
 
   deserialization.consider_patrol =
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
-  *deserialization.consider_patrol = [](const auto&, auto confirm)
+
+  // Accept patrol tasks by default
+  *deserialization.consider_patrol = [](const auto&, auto& confirm)
     {
       confirm.accept();
     };
@@ -212,7 +214,7 @@ void add_loop(
       return {builder.build("Patrol", ""), std::move(errors)};
     };
 
-  deserialization.task.add("patrol", validate_patrol, deserialize_patrol);
+  deserialization.task->add("patrol", validate_patrol, deserialize_patrol);
 
   auto loop_unfolder =
     [](const Loop::Description& loop)

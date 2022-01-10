@@ -66,6 +66,9 @@ public:
 
 };
 
+template<typename T>
+using DeserializeJSONPtr = std::shared_ptr<DeserializeJSON<T>>;
+
 } // namespace rmf_fleet_adapter
 
 #endif // SRC__RMF_FLEET_ADAPTER__DESERIALIZEJSON_HPP

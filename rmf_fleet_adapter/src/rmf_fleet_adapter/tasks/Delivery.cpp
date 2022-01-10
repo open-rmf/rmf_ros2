@@ -399,7 +399,7 @@ void add_delivery(
   auto deserialize_pickup =
     make_deserializer<PickUp::Description>(
       deserialization.place, deserialization.consider_pickup);
-  deserialization.event.add(
+  deserialization.event->add(
     "pickup", validate_payload_transfer, deserialize_pickup);
 
   deserialization.consider_dropoff =
@@ -407,7 +407,7 @@ void add_delivery(
   auto deserialize_dropoff =
     make_deserializer<DropOff::Description>(
       deserialization.place, deserialization.consider_dropoff);
-  deserialization.event.add(
+  deserialization.event->add(
     "dropoff", validate_payload_transfer, deserialize_dropoff);
 
   auto validate_delivery =
@@ -438,7 +438,7 @@ void add_delivery(
       return {builder.build("Delivery", ""), std::move(errors)};
     };
 
-  deserialization.task.add("delivery", validate_delivery, deserialize_delivery);
+  deserialization.task->add("delivery", validate_delivery, deserialize_delivery);
 
   auto private_initializer =
     std::make_shared<rmf_task_sequence::Event::Initializer>();
