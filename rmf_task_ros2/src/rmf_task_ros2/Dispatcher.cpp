@@ -421,7 +421,7 @@ public:
       const auto task_request_json = msg_json["request"];
       const std::string task_id =
         task_request_json["category"].get<std::string>()
-        + ":dispatch#" + std::to_string(task_counter++);
+        + "-dispatch_" + std::to_string(task_counter++);
 
       push_bid_notice(
         rmf_task_msgs::build<bidding::BidNoticeMsg>()
@@ -476,7 +476,7 @@ public:
 
     // auto generate a task_id for a given submitted task
     const auto task_id =
-      category + ":dispatch#" + std::to_string(task_counter++);
+      category + "-dispatch_" + std::to_string(task_counter++);
 
     RCLCPP_INFO(node->get_logger(),
       "Received Task Submission [%s]", task_id.c_str());
