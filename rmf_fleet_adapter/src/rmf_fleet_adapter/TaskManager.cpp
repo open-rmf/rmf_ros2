@@ -1603,9 +1603,9 @@ namespace {
 //==============================================================================
 std::vector<std::string> get_labels(const nlohmann::json& request)
 {
-  const auto& labels = request["labels"];
-  if (!labels.is_null())
-    return labels.get<std::vector<std::string>>();
+  const auto labels_it = request.find("labels");
+  if (labels_it != request.end())
+    return labels_it->get<std::vector<std::string>>();
 
   return {};
 }

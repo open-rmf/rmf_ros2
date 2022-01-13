@@ -196,9 +196,9 @@ void add_loop(
         return {nullptr, errors};
 
       std::size_t rounds = 1;
-      const auto& rounds_json = msg["rounds"];
-      if (!rounds_json.is_null())
-        rounds = rounds_json.get<std::size_t>();
+      const auto& rounds_json_it = msg.find("rounds");
+      if (rounds_json_it != msg.end())
+        rounds = rounds_json_it->get<std::size_t>();
 
       rmf_task_sequence::Task::Builder builder;
       for (std::size_t i=0; i < rounds; ++i)
