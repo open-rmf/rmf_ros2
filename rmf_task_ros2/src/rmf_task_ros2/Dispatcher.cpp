@@ -372,22 +372,32 @@ public:
 
   void handle_api_request(const ApiRequestMsg& msg)
   {
+    RCLCPP_INFO(node->get_logger(), "Received an API request message");
+
     const auto check = api_memory.lookup(msg.request_id);
     if (check.has_value())
     {
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Receive duplicate request, republishing the previous message");
       api_response->publish(*check);
       return;
     }
 
     const auto msg_json = nlohmann::json::parse(msg.json_msg);
-//    const auto& type = msg_json["type"];
     const auto type_it = msg_json.find("type");
     if (type_it == msg_json.end())
     {
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Received an unknown type of request:\n%s", msg.json_msg.c_str());
       // Whatever type of message this is, we don't support it
       return;
     }
 
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Received a request of type [%s]", msg.json_msg.c_str());
     if (!type_it.value().is_string())
     {
       // We expect the type field to contain a string
@@ -398,7 +408,12 @@ public:
     {
       const auto& type_str = type_it.value().get<std::string>();
       if (type_str != "dispatch_task_request")
+      {
+        RCLCPP_INFO(
+          node->get_logger(),
+          "Rejecting because we only accept dispatch_task_request type");
         return;
+      }
 
       static const auto request_validator =
         make_validator(rmf_api_msgs::schemas::dispatch_task_request);
@@ -406,6 +421,7 @@ public:
       try
       {
         request_validator.validate(msg_json);
+        RCLCPP_INFO(node->get_logger(), "Message was succesfully validated");
       }
       catch (const std::exception& e)
       {
@@ -459,6 +475,7 @@ public:
         .request_id(msg.request_id);
 
       api_memory.add(response);
+      RCLCPP_INFO(node->get_logger(), "Publishing API response");
       api_response->publish(response);
 
       // TODO(MXG): Make some way to keep pushing task state updates to the
