@@ -1565,8 +1565,12 @@ void TaskManager::_handle_request(
   const std::string& request_id)
 {
   const auto request_json = nlohmann::json::parse(request_msg);
-  const auto& type = request_json["type"];
-  if (!type)
+  const auto type_it = request_json.find("type");
+  if (type_it == request_json.end())
+    return;
+
+  const auto& type = type_it.value();
+  if (!type.is_string())
     return;
 
   try
