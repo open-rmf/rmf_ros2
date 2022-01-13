@@ -279,21 +279,21 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
   rmf_traffic::Time earliest_start_time =
     rmf_traffic::Time(rmf_traffic::Duration::min());
-  const auto& t = request_msg["unix_millis_earliest_start_time"];
-  if (!t.is_null())
+  const auto t_it = request_msg.find("unix_millis_earliest_start_time");
+  if (t_it != request_msg.end())
   {
     earliest_start_time =
-      rmf_traffic::Time(std::chrono::milliseconds(t.get<uint64_t>()));
+      rmf_traffic::Time(std::chrono::milliseconds(t_it->get<uint64_t>()));
   }
 
   rmf_task::ConstPriorityPtr priority;
-  const auto& p = request_msg["priority"];
-  if (!p.is_null())
+  const auto p_it = request_msg.find("priority");
+  if (p_it != request_msg.end())
   {
-    const auto& p_type = p["type"];
+    const auto& p_type = (*p_it)["type"];
     if (p_type.is_string() && p_type.get<std::string>() == "binary")
     {
-      const auto& p_value = p["value"];
+      const auto& p_value = (*p_it)["value"];
       if (p_value.is_number_integer())
       {
         if (p_value.is_number_integer() && p_value.get<uint64_t>() > 0)
@@ -308,7 +308,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       errors.push_back(
         make_error_str(
           4, "Unsupported type",
-          "Fleet [" + name + "] does not support priority request: " + p.dump()
+          "Fleet [" + name + "] does not support priority request: " + p_it->dump()
           + "\nDefaulting to low binary priority."));
     }
   }
@@ -1447,9 +1447,9 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       rmf_dispenser_msgs::msg::DispenserRequestItem output;
       output.type_guid = item["sku"];
       output.quantity = item["quantity"];
-      const auto& compartment = item["compartment"];
-      if (!compartment.is_null())
-        output.compartment_name = compartment.get<std::string>();
+      const auto compartment_it = item.find("compartment");
+      if (compartment_it != item.end())
+        output.compartment_name = compartment_it->get<std::string>();
 
       return output;
     };
