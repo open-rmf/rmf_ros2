@@ -313,15 +313,16 @@ nlohmann::json& copy_phase_data(
   const auto& tag = *snapshot.tag();
   const auto& header = tag.header();
   const auto id = tag.id();
-  auto& phase = phases[std::to_string(id)];
-  phase["id"] = id;
-  phase["category"] = header.category();
-  phase["detail"] = header.detail();
-  phase["original_estimate_millis"] =
+  auto& phase_state = phases[std::to_string(id)];
+  phase_state["id"] = id;
+  phase_state["category"] = header.category();
+  phase_state["detail"] = header.detail();
+  phase_state["original_estimate_millis"] =
     std::max(0l, to_millis(header.original_duration_estimate()).count());
-  phase["estimate_millis"] =
+  phase_state["estimate_millis"] =
     std::max(0l, to_millis(snapshot.estimate_remaining_time()).count());
-  phase["final_event_id"] = snapshot.final_event()->id();
+  phase_state["final_event_id"] = snapshot.final_event()->id();
+  auto& event_states = phase_state["events"];
 
   // TODO(MXG): Add in skip request information
 
@@ -337,7 +338,7 @@ nlohmann::json& copy_phase_data(
     const auto top = event_queue.back();
     event_queue.pop_back();
 
-    nlohmann::json event_state;
+    auto& event_state = event_states[std::to_string(top->id())];
     event_state["id"] = top->id();
     event_state["status"] = status_to_string(top->status());
 
@@ -367,7 +368,7 @@ nlohmann::json& copy_phase_data(
     event_state["deps"] = std::move(deps);
   }
 
-  return phase;
+  return phase_state;
 }
 
 //==============================================================================
@@ -1564,8 +1565,12 @@ void TaskManager::_handle_request(
   const std::string& request_id)
 {
   const auto request_json = nlohmann::json::parse(request_msg);
-  const auto& type = request_json["type"];
-  if (!type)
+  const auto type_it = request_json.find("type");
+  if (type_it == request_json.end())
+    return;
+
+  const auto& type = type_it.value();
+  if (!type.is_string())
     return;
 
   try
