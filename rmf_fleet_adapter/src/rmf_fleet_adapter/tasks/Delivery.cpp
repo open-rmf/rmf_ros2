@@ -299,9 +299,9 @@ make_deserializer(
     {
       std::string compartment = "";
 
-      const auto& compartment_json = msg["compartment"];
-      if (!compartment_json.is_null())
-        compartment = compartment_json.get<std::string>();
+      const auto compartment_json_it = msg.find("compartment");
+      if (compartment_json_it != msg.end())
+        compartment = compartment_json_it->get<std::string>();
 
       return rmf_task::Payload::Component(
         msg["sku"].get<std::string>(),
@@ -349,10 +349,10 @@ make_deserializer(
       }
 
       std::string handler;
-      const auto& handler_json = msg["handler"];
-      if (!handler_json.is_null())
+      const auto& handler_json_it = msg.find("handler");
+      if (handler_json_it != msg.end())
       {
-        handler = handler_json.get<std::string>();
+        handler = handler_json_it->get<std::string>();
       }
 
       agv::FleetUpdateHandle::Confirmation confirm;
