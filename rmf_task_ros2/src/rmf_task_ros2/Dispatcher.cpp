@@ -442,19 +442,23 @@ public:
 
         api_memory.add(response);
         api_response->publish(response);
+        return;
       }
 
+      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       const auto task_request_json = msg_json["request"];
       const std::string task_id =
         task_request_json["category"].get<std::string>()
         + ".dispatch-" + std::to_string(task_counter++);
 
+      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       push_bid_notice(
         rmf_task_msgs::build<bidding::BidNoticeMsg>()
           .request(task_request_json.dump())
           .task_id(task_id)
           .time_window(bidding_time_window));
 
+      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       nlohmann::json response_json;
       response_json["success"] = true;
 
@@ -466,9 +470,11 @@ public:
       booking["priority"] = task_request_json["priority"];
       booking["labels"] = task_request_json["labels"];
 
+      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       auto& dispatch = task_state["dispatch"];
       dispatch["status"] = "queued";
 
+      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       auto response = rmf_task_msgs::build<ApiResponseMsg>()
         .type(ApiResponseMsg::TYPE_RESPONDING)
         .json_msg(task_state.dump())
@@ -478,6 +484,7 @@ public:
       RCLCPP_INFO(node->get_logger(), "Publishing API response");
       api_response->publish(response);
 
+      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       // TODO(MXG): Make some way to keep pushing task state updates to the
       // api-server as the bidding process progresses. We could do a websocket
       // connection or maybe just a simple ROS2 publisher.
