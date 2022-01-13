@@ -380,13 +380,23 @@ public:
     }
 
     const auto msg_json = nlohmann::json::parse(msg.json_msg);
-    const auto& type = msg_json["type"];
-    if (!type)
+//    const auto& type = msg_json["type"];
+    const auto type_it = msg_json.find("type");
+    if (type_it == msg_json.end())
+    {
+      // Whatever type of message this is, we don't support it
       return;
+    }
+
+    if (!type_it.value().is_string())
+    {
+      // We expect the type field to contain a string
+      return;
+    }
 
     try
     {
-      const auto& type_str = type.get<std::string>();
+      const auto& type_str = type_it.value().get<std::string>();
       if (type_str != "dispatch_task_request")
         return;
 
