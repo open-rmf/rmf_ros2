@@ -379,8 +379,21 @@ public:
       return;
     }
 
-    const auto msg_json = nlohmann::json::parse(msg.json_msg);
-//    const auto& type = msg_json["type"];
+    nlohmann::json msg_json;
+    try
+    {
+      msg_json = nlohmann::json::parse(msg.json_msg);
+    }
+    catch(const std::exception& e)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Error parsing json_msg: %s",
+        e.what());
+      return;
+    }
+
+    // const auto& type = msg_json["type"];
     const auto type_it = msg_json.find("type");
     if (type_it == msg_json.end())
     {
