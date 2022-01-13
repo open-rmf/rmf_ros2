@@ -4,7 +4,7 @@
 #include <pybind11/chrono.h>
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
-
+#include "pybind11_json/pybind11_json.hpp"
 #include <memory>
 
 #include "rmf_traffic_ros2/Time.hpp"
@@ -29,6 +29,13 @@ namespace battery = rmf_battery::agv;
 
 using TimePoint = std::chrono::time_point<std::chrono::system_clock,
     std::chrono::nanoseconds>;
+
+/// Note: This ModifiedConsiderRequest is a minor alteration of ConsiderRequest
+///       in FleetUpdateHandle. This is to replace the ref `confirm` arg with
+///       a return value
+using Confirmation = agv::FleetUpdateHandle::Confirmation;
+using ModifiedConsiderRequest = 
+  std::function<Confirmation(const nlohmann::json &description)>;
 
 void bind_types(py::module&);
 void bind_graph(py::module&);
@@ -219,11 +226,11 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("finishing_request_string") = "nothing")
   .def("accept_delivery_requests",
     &agv::FleetUpdateHandle::accept_delivery_requests,
-    "NOTE: deprecated, use accept_task_requests() instead")
+    "NOTE: deprecated, use consider_delivery_requests() instead")
   .def("accept_task_requests",
     &agv::FleetUpdateHandle::accept_task_requests,
     py::arg("check"),
-    "Provide a callback function which will accept rmf tasks requests")
+    "NOTE: deprecated, use the consider_..._requests functions instead")
   .def_property("default_maximum_delay",
     py::overload_cast<>(
       &agv::FleetUpdateHandle::default_maximum_delay, py::const_),
@@ -234,7 +241,109 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("fleet_state_publish_period",
     &agv::FleetUpdateHandle::fleet_state_publish_period,
     py::arg("value"),
-    "The default value is 1s");
+    "NOTE, deprecated, Use fleet_state_topic_publish_period instead")
+  .def("fleet_state_topic_publish_period",
+    &agv::FleetUpdateHandle::fleet_state_topic_publish_period,
+    py::arg("value"),
+    "Specify a period for how often the fleet state is updated in the\
+     database and to the API server, default value is 1s, passing None\
+     will disable the updating")
+  .def("fleet_state_update_period",
+    &agv::FleetUpdateHandle::fleet_state_update_period,
+    py::arg("value"),
+    "Specify a period for how often the fleet state message is published for\
+     this fleet. Passing in None will disable the fleet state message\
+     publishing. The default value is 1s")
+  .def("consider_delivery_requests",
+     [&](agv::FleetUpdateHandle& self,
+         ModifiedConsiderRequest consider_pickup,
+         ModifiedConsiderRequest consider_dropoff)
+    {
+      self.consider_delivery_requests(
+          [consider_pickup = std::move(consider_pickup)](
+            const nlohmann::json &description, Confirmation &confirm)
+          {
+            nlohmann::json desc = description;
+            confirm = consider_pickup(desc); // confirm is returned by user
+          },
+          [consider_dropoff = std::move(consider_dropoff)](
+            const nlohmann::json &description, Confirmation &confirm)
+          {
+            nlohmann::json desc = description;
+            confirm = consider_dropoff(desc); // confirm is returned by user
+          }
+        );
+    },
+    py::arg("consider_pickup"),
+    py::arg("consider_dropoff"))
+  .def("consider_cleaning_requests",
+     [&](agv::FleetUpdateHandle& self,
+         ModifiedConsiderRequest consider)
+    {
+      self.consider_cleaning_requests(
+          [consider = std::move(consider)](
+            const nlohmann::json &description, Confirmation &confirm)
+          {
+            nlohmann::json desc = description;
+            confirm = consider(desc); // confirm is returned by user
+          }
+        );
+    },
+    py::arg("consider"))
+  .def("consider_patrol_requests",
+     [&](agv::FleetUpdateHandle& self,
+         ModifiedConsiderRequest consider)
+    {
+      self.consider_patrol_requests(
+          [consider = std::move(consider)](
+            const nlohmann::json &description, Confirmation &confirm)
+          {
+            nlohmann::json desc = description;
+            confirm = consider(desc); // confirm is returned by user
+          }
+        );
+    },
+    py::arg("consider"))
+  .def("consider_composed_requests",
+     [&](agv::FleetUpdateHandle& self,
+         ModifiedConsiderRequest consider)
+    {
+      self.consider_composed_requests(
+          [consider = std::move(consider)](
+            const nlohmann::json &description, Confirmation &confirm)
+          {
+            nlohmann::json desc = description;
+            confirm = consider(desc); // confirm is returned by user
+          }
+        );
+    },
+    py::arg("consider"));
+
+  // TASK REQUEST CONFIRMATION ===============================================
+  auto m_fleet_update_handle = m.def_submodule("fleet_update_handle");
+
+  py::class_<Confirmation>(
+    m_fleet_update_handle, "Confirmation")
+  .def(py::init<>())
+  .def("accept",
+    &Confirmation::accept, py::return_value_policy::reference_internal)
+  .def("is_accepted", &Confirmation::is_accepted)
+  .def("set_errors",
+    [&](Confirmation& self, std::vector<std::string> error_messages)
+    {
+      self.errors(error_messages);
+    })
+  .def("add_errors",
+    &Confirmation::add_errors,
+    py::arg("value"),
+    py::return_value_policy::reference_internal)
+  .def_property("errors",
+    py::overload_cast<>(
+      &Confirmation::errors, py::const_),\
+      [&](Confirmation& self)
+    {
+      return self.errors();
+    });
 
   // EASY TRAFFIC LIGHT HANDLE ===============================================
   py::class_<agv::Waypoint>(m, "Waypoint")
@@ -389,7 +498,11 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property_readonly("node",
     py::overload_cast<>(
       &agv::test::MockAdapter::node))
-  .def("dispatch_task", &agv::test::MockAdapter::dispatch_task) // Exposed for testing
+   /// Note: Exposed dispatch_task() for testing
+  .def("dispatch_task", 
+    &agv::test::MockAdapter::dispatch_task,
+    py::arg("task_id"),
+    py::arg("request"))
   .def("start", &agv::test::MockAdapter::start)
   .def("stop", &agv::test::MockAdapter::stop)
   .def("now", [&](agv::test::MockAdapter& self)

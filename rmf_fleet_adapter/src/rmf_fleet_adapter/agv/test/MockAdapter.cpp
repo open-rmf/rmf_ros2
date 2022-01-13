@@ -345,6 +345,8 @@ void MockAdapter::dispatch_task(
           req.type = req.TYPE_AWARD;
           fimpl.dispatch_command_cb(
             std::make_shared<rmf_task_msgs::msg::DispatchCommand>(req));
+          std::cout << "Fleet [" << fimpl.name << "] accepted the task request"
+                    << std::endl;
         }
         else
         {

@@ -2,6 +2,7 @@
 
 import rclpy
 import time
+import json
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 
@@ -20,7 +21,7 @@ from test_utils import TaskSummaryObserver
 
 from functools import partial
 
-test_name = 'test_delivery'  # aka task_id
+test_task_id = 'delivery.direct_dispatch.001'  # aka task_id
 map_name = "test_map"
 fleet_name = "test_fleet"
 
@@ -54,7 +55,7 @@ def main():
     test_graph.add_waypoint(map_name, [10.0, 0.0])  # 7
     test_graph.add_waypoint(map_name, [0.0, 5.0])  # 8
     test_graph.add_waypoint(map_name, [5.0, 5.0]).set_holding_point(True)  # 9
-    test_graph.add_waypoint(map_name, [0.0, 10.0])  # 10
+    test_graph.add_waypoint(map_name, [0.0, 10.0]).set_charger(True) # 10
 
     assert test_graph.get_waypoint(2).holding_point
     assert test_graph.get_waypoint(9).holding_point
@@ -119,16 +120,21 @@ def main():
     adapter = adpt.MockAdapter("TestDeliveryAdapter")
     fleet = adapter.add_fleet(fleet_name, robot_traits, test_graph)
 
-    # Set up task request callback function
-    # we will only accept delivery task here
-    def task_request_cb(task_profile):
-        from rmf_task_msgs.msg import TaskType	
-        if(task_profile.description.task_type == TaskType.TYPE_DELIVERY):
-            return True
-        else:
-            return False
+    def pickup_req_cb(json_desc):
+        confirmation = adpt.fleet_update_handle.Confirmation()
+        confirmation.accept()
+        print(f" accepted pickup req: {json_desc}")
+        return confirmation
 
-    fleet.accept_task_requests(task_request_cb)
+    def dropoff_req_cb(json_desc):
+        confirmation = adpt.fleet_update_handle.Confirmation()
+        confirmation.accept()
+        print(f" accepted dropoff req: {json_desc}")
+        return confirmation
+
+    # Callback when a delivery request is received
+    fleet.consider_delivery_requests(
+        pickup_req_cb, dropoff_req_cb)
 
     # Set fleet battery profile
     battery_sys = battery.BatterySystem.make(24.0, 40.0, 8.8)
@@ -179,14 +185,14 @@ def main():
 
     # INIT TASK SUMMARY OBSERVER ==============================================
     # Note: this is used for assertation check on TaskSummary.Msg
-    observer = TaskSummaryObserver()
+    # observer = TaskSummaryObserver()
 
     # FINAL PREP ==============================================================
     rclpy_executor = SingleThreadedExecutor()
     rclpy_executor.add_node(cmd_node)
     rclpy_executor.add_node(dispenser)
     rclpy_executor.add_node(ingestor)
-    rclpy_executor.add_node(observer)
+    # rclpy_executor.add_node(observer)
 
     # GO! =====================================================================
     adapter.start()
@@ -197,36 +203,49 @@ def main():
 
     dispenser.reset()
     ingestor.reset()
-    observer.reset()
-    observer.add_task(test_name)
+    # observer.reset()
 
-    task_desc = Type.CPPTaskDescriptionMsg()
-    # this is the time when the robot reaches the pick up point
-    task_desc.start_time_sec = int(time.time()) + 50
-    task_desc.delivery = Type.CPPDeliveryMsg(pickup_name,
-                                             dispenser_name,
-                                             dropoff_name,
-                                             ingestor_name)
-    task_profile = Type.CPPTaskProfileMsg()
-    task_profile.description = task_desc
-    task_profile.task_id = test_name
-    adapter.dispatch_task(task_profile)
+    # TODO: update the code for observer
+    # observer.add_task(test_task_id)
+    # TODO: import rmf_api_msgs task schema pydantic here
+
+    json_obj = {
+        "category": "delivery",
+        # "unix_millis_earliest_start_time": 0,
+        "description": {
+            "pickup": {
+                "place": pickup_name,
+                "handler": dispenser_name,
+                "payload": []
+            },
+            "dropoff": {
+                "place": dropoff_name,
+                "handler": ingestor_name,
+                "payload": []
+            }
+        }
+    }
+    json_string = json.dumps(json_obj)
+    print(json_string)
+
+    adapter.dispatch_task(test_task_id, json_string)
+    print("Done!")
 
     rclpy_executor.spin_once(1)
 
     for i in range(1000):
-        if observer.all_tasks_complete():
-            print("Tasks Complete.")
-            break
+        # if observer.all_tasks_complete():
+        #     print("Tasks Complete.")
+        #     break
         rclpy_executor.spin_once(1)
-        # time.sleep(0.2)
+        time.sleep(0.2)
 
-    results = observer.count_successful_tasks()
+    # results = observer.count_successful_tasks()
     print("\n== DEBUG TASK REPORT ==")
     print("Visited waypoints:", robot_cmd.visited_waypoints)
-    print(f"Sucessful Tasks: {results[0]} / {results[1]}")
+    # print(f"Sucessful Tasks: {results[0]} / {results[1]}")
 
-    assert results[0] == results[1], "Not all tasks were completed."
+    # assert results[0] == results[1], "Not all tasks were completed."
 
     error_msg = "Robot did not take the expected route"
     assert robot_cmd.visited_waypoints == [
@@ -255,7 +274,7 @@ def main():
     print("\n~ Shutting Down everything ~")
 
     cmd_node.destroy_node()
-    observer.destroy_node()
+    # observer.destroy_node()
     dispenser.destroy_node()
     ingestor.destroy_node()
 

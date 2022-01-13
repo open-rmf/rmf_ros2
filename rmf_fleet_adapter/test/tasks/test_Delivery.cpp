@@ -407,15 +407,34 @@ SCENARIO("Test Delivery")
   fleet->set_task_planner_params(
     battery_system, motion_sink, ambient_sink, tool_sink, 0.2, 1.0, false);
 
-  fleet->accept_task_requests(
-    [&delivery_id](const rmf_task_msgs::msg::TaskProfile& task)
+  // fleet->accept_task_requests(
+  //   [&delivery_id](const rmf_task_msgs::msg::TaskProfile& task)
+  //   {
+  //     std::cout << "callback check" << std::endl;
+  //     // Accept all delivery task requests
+  //     CHECK(task.description.task_type.type ==
+  //     rmf_task_msgs::msg::TaskType::TYPE_DELIVERY);
+  //     CHECK(task.task_id == delivery_id);
+  //     return true;
+  //   });
+
+  /// TODO: complete this test case
+  fleet->consider_delivery_requests(
+    [&](
+      const nlohmann::json& msg, 
+      rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
-      // Accept all delivery task requests
-      CHECK(task.description.task_type.type ==
-      rmf_task_msgs::msg::TaskType::TYPE_DELIVERY);
-      CHECK(task.task_id == delivery_id);
-      return true;
-    });
+      std::cout<<"accept pickup"<< std::endl;
+      confirm.accept();
+    },
+    [&](
+      const nlohmann::json& msg, 
+      rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
+    {
+      std::cout<<"accept dropoff"<< std::endl;
+      confirm.accept();
+    }
+  );
 
   const auto now = rmf_traffic_ros2::convert(adapter.node()->now());
   const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};
@@ -459,7 +478,9 @@ SCENARIO("Test Delivery")
   dropoff["handler"] = flaky_ingestor_name;
   dropoff["payload"] = std::vector<nlohmann::json>();
 
+  std::cout << "hi1" <<std::endl;
   adapter.dispatch_task(delivery_id, request);
+  std::cout << "hi2" <<std::endl;
 
   const auto quiet_status = quiet_future.wait_for(15s);
   REQUIRE(quiet_status == std::future_status::ready);
