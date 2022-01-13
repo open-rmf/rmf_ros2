@@ -172,7 +172,7 @@ public:
     {
       {1, "patrol"},
       {2, "delivery"},
-      {4, "patrol"}
+      {4, "clean"}
     };
 
   using LegacyConversion =
