@@ -172,7 +172,7 @@ public:
     {
       {1, "patrol"},
       {2, "delivery"},
-      {4, "patrol"}
+      {4, "clean"}
     };
 
   using LegacyConversion =
@@ -379,7 +379,20 @@ public:
       return;
     }
 
-    const auto msg_json = nlohmann::json::parse(msg.json_msg);
+    nlohmann::json msg_json;
+    try
+    {
+      msg_json = nlohmann::json::parse(msg.json_msg);
+    }
+    catch(const std::exception& e)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Error parsing json_msg: %s",
+        e.what());
+      return;
+    }
+
     const auto type_it = msg_json.find("type");
     if (type_it == msg_json.end())
     {
