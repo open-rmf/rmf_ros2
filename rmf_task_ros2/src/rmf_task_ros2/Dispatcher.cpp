@@ -372,14 +372,9 @@ public:
 
   void handle_api_request(const ApiRequestMsg& msg)
   {
-    RCLCPP_INFO(node->get_logger(), "Received an API request message");
-
     const auto check = api_memory.lookup(msg.request_id);
     if (check.has_value())
     {
-      RCLCPP_INFO(
-        node->get_logger(),
-        "Receive duplicate request, republishing the previous message");
       api_response->publish(*check);
       return;
     }
@@ -388,16 +383,10 @@ public:
     const auto type_it = msg_json.find("type");
     if (type_it == msg_json.end())
     {
-      RCLCPP_INFO(
-        node->get_logger(),
-        "Received an unknown type of request:\n%s", msg.json_msg.c_str());
       // Whatever type of message this is, we don't support it
       return;
     }
 
-    RCLCPP_INFO(
-      node->get_logger(),
-      "Received a request of type [%s]", msg.json_msg.c_str());
     if (!type_it.value().is_string())
     {
       // We expect the type field to contain a string
@@ -409,9 +398,6 @@ public:
       const auto& type_str = type_it.value().get<std::string>();
       if (type_str != "dispatch_task_request")
       {
-        RCLCPP_INFO(
-          node->get_logger(),
-          "Rejecting because we only accept dispatch_task_request type");
         return;
       }
 
@@ -421,7 +407,6 @@ public:
       try
       {
         request_validator.validate(msg_json);
-        RCLCPP_INFO(node->get_logger(), "Message was succesfully validated");
       }
       catch (const std::exception& e)
       {
@@ -445,35 +430,29 @@ public:
         return;
       }
 
-      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       const auto& task_request_json = msg_json["request"];
       const std::string task_id =
         task_request_json["category"].get<std::string>()
         + ".dispatch-" + std::to_string(task_counter++);
 
-      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       const auto task_state = push_bid_notice(
         rmf_task_msgs::build<bidding::BidNoticeMsg>()
           .request(task_request_json.dump())
           .task_id(task_id)
           .time_window(bidding_time_window));
 
-      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       nlohmann::json response_json;
       response_json["success"] = true;
       response_json["state"] = task_state;
 
-      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       auto response = rmf_task_msgs::build<ApiResponseMsg>()
         .type(ApiResponseMsg::TYPE_RESPONDING)
         .json_msg(task_state.dump())
         .request_id(msg.request_id);
 
       api_memory.add(response);
-      RCLCPP_INFO(node->get_logger(), "Publishing API response");
       api_response->publish(response);
 
-      RCLCPP_INFO(node->get_logger(), "Made it to line %d", __LINE__);
       // TODO(MXG): Make some way to keep pushing task state updates to the
       // api-server as the bidding process progresses. We could do a websocket
       // connection or maybe just a simple ROS2 publisher.
