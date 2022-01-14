@@ -331,7 +331,7 @@ class MockRobotCommand(adpt.RobotCommandHandle):
         self.visited_waypoints.append(waypoint)
 
         docking_finished_callback()
-        print("[RobotCommandHandle] DOCKING FINISHED")
+        print(f"[RobotCommandHandle] DOCKING FINISHED to waypoint {waypoint}")
 
     def _timer_cb(self,
                   waypoints,

@@ -30,6 +30,7 @@ dropoff_name = "dropoff"
 
 dispenser_name = "mock_dispenser"
 ingestor_name = "mock_ingestor"
+rmf_server_uri = "ws://localhost:7878" # random port
 
 
 def main():
@@ -118,7 +119,8 @@ def main():
 
     # Manages delivery or loop requests
     adapter = adpt.MockAdapter("TestDeliveryAdapter")
-    fleet = adapter.add_fleet(fleet_name, robot_traits, test_graph)
+    fleet = adapter.add_fleet(
+        fleet_name, robot_traits, test_graph, rmf_server_uri)
 
     def pickup_req_cb(json_desc):
         confirmation = adpt.fleet_update_handle.Confirmation()
@@ -233,10 +235,13 @@ def main():
 
     rclpy_executor.spin_once(1)
 
+    # TODO: dummy timeout. impl observer
+    start_time = time.time()
     for i in range(1000):
         # if observer.all_tasks_complete():
-        #     print("Tasks Complete.")
-        #     break
+        if ((time.time() - start_time) > 10):
+            print("Tasks Complete.")
+            break
         rclpy_executor.spin_once(1)
         time.sleep(0.2)
 

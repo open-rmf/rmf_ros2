@@ -478,9 +478,7 @@ SCENARIO("Test Delivery")
   dropoff["handler"] = flaky_ingestor_name;
   dropoff["payload"] = std::vector<nlohmann::json>();
 
-  std::cout << "hi1" <<std::endl;
   adapter.dispatch_task(delivery_id, request);
-  std::cout << "hi2" <<std::endl;
 
   const auto quiet_status = quiet_future.wait_for(15s);
   REQUIRE(quiet_status == std::future_status::ready);

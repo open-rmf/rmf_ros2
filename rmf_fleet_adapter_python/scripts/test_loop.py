@@ -25,9 +25,10 @@ test_task_id = 'patrol.direct_dispatch.001'  # aka task_id
 map_name = "test_map"
 fleet_name = "test_fleet"
 
-start_name = "start"
-finish_name = "finish"
+start_name = "start_wp" # 7
+finish_name = "finish_wp" # 10
 loop_count = 2
+rmf_server_uri = "ws://localhost:7878" # random port
 
 
 def main():
@@ -53,7 +54,7 @@ def main():
     test_graph.add_waypoint(map_name, [10.0, 0.0])  # 7
     test_graph.add_waypoint(map_name, [0.0, 5.0])  # 8
     test_graph.add_waypoint(map_name, [5.0, 5.0]).set_holding_point(True)  # 9
-    test_graph.add_waypoint(map_name, [0.0, 10.0]).set_charger(True)  # 10
+    test_graph.add_waypoint(map_name, [0.0, 10.0]).set_holding_point(True).set_charger(True)  # 10
 
     assert test_graph.get_waypoint(2).holding_point
     assert test_graph.get_waypoint(9).holding_point
@@ -116,7 +117,8 @@ def main():
 
     # Manages loop requests
     adapter = adpt.MockAdapter("TestLoopAdapter")
-    fleet = adapter.add_fleet(fleet_name, robot_traits, test_graph)
+    fleet = adapter.add_fleet(
+        fleet_name, robot_traits, test_graph, rmf_server_uri)
 
     def patrol_req_cb(json_desc):
         confirmation = adpt.fleet_update_handle.Confirmation()
@@ -205,10 +207,13 @@ def main():
     print(f" Dispatching: {json_string}")
     adapter.dispatch_task(test_task_id, json_string)
 
+    # TODO: dummy timeout. impl observer
+    start_time = time.time()
     for i in range(1000):
         # if observer.all_tasks_complete():
-        #     print("Tasks Complete.")
-        #     break
+        if ((time.time() - start_time) > 5):
+            print("Tasks Complete.")
+            break
         rclpy_executor.spin_once(1)
         time.sleep(0.2)
 
@@ -225,7 +230,6 @@ def main():
         6, 5, 5, 8, 8, 10,
         8, 5, 5, 6, 6, 7,
         6, 5, 5, 8, 8, 10], error_msg
-
     cmd_node.destroy_node()
     # observer.destroy_node()
     rclpy_executor.shutdown()
