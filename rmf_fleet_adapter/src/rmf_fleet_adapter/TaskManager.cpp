@@ -1564,7 +1564,20 @@ void TaskManager::_handle_request(
   const std::string& request_msg,
   const std::string& request_id)
 {
-  const auto request_json = nlohmann::json::parse(request_msg);
+  nlohmann::json request_json;
+  try
+  {
+    request_json = nlohmann::json::parse(request_msg);
+  }
+  catch(const std::exception& e)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Error parsing json_msg: %s",
+      e.what());
+    return;
+  }
+
   const auto type_it = request_json.find("type");
   if (type_it == request_json.end())
     return;
