@@ -187,6 +187,12 @@ public:
   /// Return the current mode of the robot
   uint32_t current_mode() const;
 
+  /// Update the estimated time remaining for the action that the robot may be
+  /// performing
+  void action_remaining_time(const rmf_traffic::Duration time_remaining);
+
+  std::optional<rmf_traffic::Duration> action_remaining_time() const;
+
 private:
   friend class FleetUpdateHandle;
   friend class RobotUpdateHandle;
@@ -241,6 +247,8 @@ private:
 
   // Mode value for RobotMode message
   uint32_t _current_mode;
+
+  std::optional<rmf_traffic::Duration> _action_remaining_time;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

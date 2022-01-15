@@ -394,6 +394,20 @@ uint32_t RobotContext::current_mode() const
 }
 
 //==============================================================================
+void RobotContext::action_remaining_time(
+  const rmf_traffic::Duration remaining_time)
+{
+  _action_remaining_time = remaining_time;
+}
+
+//==============================================================================
+std::optional<rmf_traffic::Duration> RobotContext::action_remaining_time()
+const
+{
+  return _action_remaining_time;
+}
+
+//==============================================================================
 RobotContext::RobotContext(
   std::shared_ptr<RobotCommandHandle> command_handle,
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
@@ -433,6 +447,8 @@ RobotContext::RobotContext(
   _battery_soc_obs = _battery_soc_publisher.get_observable();
 
   _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
+
+  _action_remaining_time = std::nullopt;
 }
 
 } // namespace agv

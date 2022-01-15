@@ -202,6 +202,20 @@ void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 }
 
 //==============================================================================
+void RobotUpdateHandle::update_action_remaining_time(
+  const rmf_traffic::Duration remaining_time_estimate)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [context, remaining_time_estimate](const auto&)
+      {
+        context->action_remaining_time(remaining_time_estimate);
+      });
+  }
+}
+
+//==============================================================================
 RobotUpdateHandle& RobotUpdateHandle::maximum_delay(
   rmf_utils::optional<rmf_traffic::Duration> value)
 {

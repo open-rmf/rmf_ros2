@@ -918,9 +918,9 @@ PlaceDeserializer make_place_deserializer(
 
       if (msg.is_object())
       {
-        const auto& ori_json = msg["orientation"];
-        if (ori_json)
-          place->orientation(ori_json.get<double>());
+        const auto& ori_it = msg.find("orientation");
+        if (ori_it != msg.end())
+          place->orientation(ori_it->get<double>());
       }
 
       return {place, {}};
