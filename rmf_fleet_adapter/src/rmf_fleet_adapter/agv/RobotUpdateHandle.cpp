@@ -202,6 +202,20 @@ void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 }
 
 //==============================================================================
+void RobotUpdateHandle::set_action_executor(
+  RobotUpdateHandle::ActionExecutor action_executor)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [context, action_executor](const auto&)
+      {
+        context->action_executor(action_executor);
+      });
+  }
+}
+
+//==============================================================================
 void RobotUpdateHandle::update_action_remaining_time(
   const rmf_traffic::Duration remaining_time_estimate)
 {

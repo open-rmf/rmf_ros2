@@ -34,8 +34,7 @@ class PerformAction : public rmf_task_sequence::Event
 {
 public:
 
-  using DescriptionPtr =
-    rmf_task_sequence::events::PerformAction::DescriptionPtr;
+  using Description = rmf_task_sequence::events::PerformAction::Description;
 
   static void add(rmf_task_sequence::Event::Initializer& initializer);
 
@@ -47,7 +46,7 @@ public:
       const AssignIDPtr& id,
       const std::function<rmf_task::State()>& get_state,
       const rmf_task::ConstParametersPtr& parameters,
-      const DescriptionPtr& description,
+      const rmf_task_sequence::events::PerformAction::Description& description,
       std::function<void()> update);
 
     /// Documentation inherited
@@ -63,9 +62,9 @@ public:
 
   private:
 
-    Standby(DescriptionPtr description);
+    Standby(rmf_task_sequence::events::PerformAction::Description description);
 
-    DescriptionPtr _description;
+    rmf_task_sequence::events::PerformAction::Description _description;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
     rmf_traffic::Duration _time_estimate;

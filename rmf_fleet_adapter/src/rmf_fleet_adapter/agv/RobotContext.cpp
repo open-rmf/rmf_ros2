@@ -408,6 +408,20 @@ const
 }
 
 //==============================================================================
+void RobotContext::action_executor(
+  RobotUpdateHandle::ActionExecutor action_executor)
+{
+  if (action_executor != nullptr)
+    _action_executor = action_executor;
+}
+
+//==============================================================================
+RobotUpdateHandle::ActionExecutor RobotContext::action_executor() const
+{
+  return _action_executor;
+}
+
+//==============================================================================
 RobotContext::RobotContext(
   std::shared_ptr<RobotCommandHandle> command_handle,
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
@@ -449,6 +463,8 @@ RobotContext::RobotContext(
   _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
 
   _action_remaining_time = std::nullopt;
+
+  _action_executor = nullptr;
 }
 
 } // namespace agv

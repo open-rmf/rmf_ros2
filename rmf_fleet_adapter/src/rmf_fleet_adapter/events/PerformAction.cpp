@@ -17,8 +17,6 @@
 
 #include "PerformAction.hpp"
 
-#include <rmf_traffic/schedule/StubbornNegotiator.hpp>
-
 #include <rmf_traffic_ros2/Time.hpp>
 
 namespace rmf_fleet_adapter {
@@ -59,13 +57,12 @@ auto PerformAction::Standby::make(
   const AssignIDPtr& id,
   const std::function<rmf_task::State()>& get_state,
   const rmf_task::ConstParametersPtr& parameters,
-  const DescriptionPtr& description,
-  std::function<void()> update)
--> std::shared_ptr<Standby>
+  const rmf_task_sequence::events::PerformAction::Description& description,
+  std::function<void()> update) -> std::shared_ptr<Standby>
 {
   const auto state = get_state();
   const auto context = state.get<agv::GetContext>()->value;
-  const auto header = description->generate_header(state, *parameters);
+  const auto header = description.generate_header(state, *parameters);
 
   auto standby = std::make_shared<Standby>(Standby{description});
   standby->_assign_id = id;
@@ -84,7 +81,8 @@ auto PerformAction::Standby::make(
 }
 
 //==============================================================================
-PerformAction::Standby::Standby(Standby::DescriptionPtr description)
+PerformAction::Standby::Standby(
+  rmf_task_sequence::events::PerformAction::Description description)
 : _description(std::move(description))
 {
   // Do nothing
@@ -112,7 +110,7 @@ auto PerformAction::Standby::begin(
     _active = Active::make(
       _assign_id,
       _context,
-      _description->action(),
+      _description.action(),
       _time_estimate,
       _state,
       _update,
@@ -133,7 +131,7 @@ auto PerformAction::Active::make(
   std::function<void()> finished) -> std::shared_ptr<Active>
 {
   auto active = std::make_shared<Active>(
-    Active(std::move(action), std::move(_time_estimate)));
+    Active(std::move(action), time_estimate));
   active->_assign_id = id;
   active->_context = std::move(context);
   active->_update = std::move(update);
@@ -141,7 +139,7 @@ auto PerformAction::Active::make(
   active->_state = std::move(state);
   active->_execute_action();
   active->_expected_finish_time =
-    active->_context->now() + action->_time_estimate;
+    active->_context->now() + time_estimate;
   return active;
 }
 
@@ -164,9 +162,9 @@ auto PerformAction::Active::state() const -> ConstStatePtr
 //==============================================================================
 rmf_traffic::Duration PerformAction::Active::remaining_time_estimate() const
 {
-  if (_context->action_time_remaining().has_value())
+  if (_context->action_remaining_time().has_value())
   {
-    return _context->action_time_remaining().value();
+    return _context->action_remaining_time().value();
   }
 
   // If an estimate is not provided we compute one based on the expected finish
@@ -185,8 +183,6 @@ auto PerformAction::Active::backup() const -> Backup
 auto PerformAction::Active::interrupt(
   std::function<void()> task_is_interrupted) -> Resume
 {
-  _negotiator->clear_license();
-
   _state->update_status(Status::Standby);
   _state->update_log().info("Going into standby for an interruption");
   _state->update_dependencies({});
@@ -225,3 +221,24 @@ void PerformAction::Active::kill()
   _state->update_log().info("Received signal to kill");
   _finished();
 }
+
+//==============================================================================
+void PerformAction::Active::_execute_action()
+{
+  auto action_executor = _context->action_executor();
+  if (action_executor == nullptr)
+  {
+    // The action_executor has not been set by the user
+    _state->update_status(Status::Error);
+    const std::string msg = "ActionExecutor not set via RobotUpdateHandle. "
+      "Unable to perform the requested action.";
+    _state->update_log().info(msg);
+    _finished();
+    return;
+  }
+
+  action_executor(_action, _finished);
+}
+
+} // namespace events
+} // namespace rmf_fleet_adapter

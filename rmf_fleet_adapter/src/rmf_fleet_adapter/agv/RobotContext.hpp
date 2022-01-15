@@ -187,11 +187,21 @@ public:
   /// Return the current mode of the robot
   uint32_t current_mode() const;
 
-  /// Update the estimated time remaining for the action that the robot may be
+  /// Set the estimated time remaining for the action that the robot may be
   /// performing
   void action_remaining_time(const rmf_traffic::Duration time_remaining);
 
+  /// Get the estimated time remaining for the action that the robot may be
+  /// performing
   std::optional<rmf_traffic::Duration> action_remaining_time() const;
+
+  /// Set the action executor for requesting this robot to execute a
+  /// PerformAction activity
+  void action_executor(RobotUpdateHandle::ActionExecutor action_executor);
+
+  /// Get the action executor for requesting this robot to execute a
+  /// PerformAction activity
+  RobotUpdateHandle::ActionExecutor action_executor() const;
 
 private:
   friend class FleetUpdateHandle;
@@ -248,6 +258,7 @@ private:
   // Mode value for RobotMode message
   uint32_t _current_mode;
 
+  RobotUpdateHandle::ActionExecutor _action_executor;
   std::optional<rmf_traffic::Duration> _action_remaining_time;
 };
 

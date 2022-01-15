@@ -31,6 +31,7 @@
 #include "../tasks/ChargeBattery.hpp"
 #include "../tasks/Compose.hpp"
 #include "../events/GoToPlace.hpp"
+#include "../events/PerformAction.hpp"
 
 #include <rmf_task/Constraints.hpp>
 #include <rmf_task/Parameters.hpp>
@@ -39,6 +40,7 @@
 #include <rmf_task/requests/Loop.hpp>
 
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
+#include <rmf_task_sequence/events/PerformAction.hpp>
 
 #include <sstream>
 #include <unordered_map>
@@ -46,6 +48,7 @@
 #include <stdexcept>
 
 #include <rmf_fleet_adapter/schemas/Place.hpp>
+#include <rmf_fleet_adapter/schemas/event_description_PerformAction.hpp>
 #include <rmf_api_msgs/schemas/task_request.hpp>
 
 namespace rmf_fleet_adapter {
@@ -942,6 +945,7 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     *activation.phase, activation.event);
 
   events::GoToPlace::add(*activation.event);
+  events::PerformAction::add(*activation.event);
   deserialization.place = make_place_deserializer(planner);
   deserialization.add_schema(schemas::Place);
 
@@ -972,6 +976,76 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     deserialization,
     activation,
     node->clock());
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::add_performable_action(
+  const std::string& category)
+{
+  if (category.empty())
+    return *this;
+
+  // TODO(YV): Consider storing the validator and deserializer within
+  // TaskDeserialization
+  auto validator = _pimpl->deserialization.make_validator_shared(
+    schemas::event_description_PerformAction);
+
+  const auto deserializer =
+    [validator, place = _pimpl->deserialization.place](
+      const nlohmann::json& msg) -> DeserializedEvent
+    {
+      validator->validate(msg);
+      try
+      {
+        const nlohmann::json action =
+          nlohmann::json::parse(msg["action"].get<std::string>());
+        rmf_traffic::Duration duration_estimate = rmf_traffic::Duration(0);
+        bool use_tool_sink = false;
+        std::optional<rmf_traffic::agv::Planner::Goal> finish_location =
+          std::nullopt;
+        auto it = msg.find("unix_millis_action_duration_estimate");
+        if (it != msg.end())
+        {
+          duration_estimate =
+            rmf_traffic::Duration(
+            std::chrono::milliseconds(it->get<uint64_t>()));
+        }
+        it = msg.find("use_tool_sink");
+        if (it != msg.end())
+        {
+          use_tool_sink = it->get<bool>();
+        }
+        it = msg.find("expected_finish_location");
+        if (it != msg.end())
+        {
+          auto deser_place =
+            place(msg["expected_finish_location"]);
+          if (!deser_place.description.has_value())
+          {
+            return {nullptr, deser_place.errors};
+          }
+          finish_location = deser_place.description.value();
+        }
+
+        const auto description =
+          rmf_task_sequence::events::PerformAction::Description::make(
+            action,
+            duration_estimate,
+            use_tool_sink,
+            finish_location);
+
+        std::vector<std::string> errors = {};
+        return {description, errors};
+      }
+      catch(const std::exception& e)
+      {
+        return {nullptr, {e.what()}};
+      }
+    };
+
+  _pimpl->deserialization.event->add(category, validator, deserializer);
+
+  return *this;
 }
 
 //==============================================================================
