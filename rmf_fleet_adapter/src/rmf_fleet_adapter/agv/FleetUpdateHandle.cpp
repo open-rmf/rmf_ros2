@@ -283,8 +283,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
   std::vector<std::string> errors;
 
-  rmf_traffic::Time earliest_start_time =
-    rmf_traffic::Time(rmf_traffic::Duration::min());
+  rmf_traffic::Time earliest_start_time = rmf_traffic_ros2::convert(
+    node->get_clock()->now());
   const auto t_it = request_msg.find("unix_millis_earliest_start_time");
   if (t_it != request_msg.end())
   {
