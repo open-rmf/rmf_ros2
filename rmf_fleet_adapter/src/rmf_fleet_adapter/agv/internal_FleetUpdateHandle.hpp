@@ -134,6 +134,9 @@ struct TaskDeserialization
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_clean;
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_patrol;
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_composed;
+  // Map category string to its ConsiderRequest for PerformAction events
+  std::shared_ptr<std::unordered_map<
+    std::string, FleetUpdateHandle::ConsiderRequest>> consider_actions;
 
   void add_schema(const nlohmann::json& schema);
 

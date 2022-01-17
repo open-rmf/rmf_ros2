@@ -110,7 +110,8 @@ auto PerformAction::Standby::begin(
     _active = Active::make(
       _assign_id,
       _context,
-      _description.action(),
+      _description.category(),
+      _description.description(),
       _time_estimate,
       _state,
       _update,
@@ -124,14 +125,15 @@ auto PerformAction::Standby::begin(
 auto PerformAction::Active::make(
   const AssignIDPtr& id,
   agv::RobotContextPtr context,
-  nlohmann::json action,
+  const std::string& category,
+  nlohmann::json desc,
   rmf_traffic::Duration time_estimate,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> update,
   std::function<void()> finished) -> std::shared_ptr<Active>
 {
   auto active = std::make_shared<Active>(
-    Active(std::move(action), time_estimate));
+    Active(std::move(category), std::move(desc), time_estimate));
   active->_assign_id = id;
   active->_context = std::move(context);
   active->_update = std::move(update);
@@ -145,9 +147,11 @@ auto PerformAction::Active::make(
 
 //==============================================================================
 PerformAction::Active::Active(
-  nlohmann::json action,
+  const std::string& category,
+  nlohmann::json desc,
   rmf_traffic::Duration time_estimate)
-: _action(std::move(action)),
+: _action_category(std::move(category)),
+  _action_description(std::move(desc)),
   _time_estimate(std::move(time_estimate))
 {
   // Do nothing
@@ -237,7 +241,7 @@ void PerformAction::Active::_execute_action()
     return;
   }
 
-  action_executor(_action, _finished);
+  action_executor(_action_category, _action_description, _finished);
 }
 
 } // namespace events

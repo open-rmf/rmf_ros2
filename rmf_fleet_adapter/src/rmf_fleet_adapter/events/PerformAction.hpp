@@ -82,7 +82,8 @@ public:
     static std::shared_ptr<Active> make(
       const AssignIDPtr& id,
       agv::RobotContextPtr context,
-      nlohmann::json action,
+      const std::string& action_category,
+      nlohmann::json action_description,
       rmf_traffic::Duration _time_estimate,
       rmf_task::events::SimpleEventStatePtr state,
       std::function<void()> update,
@@ -103,14 +104,16 @@ public:
   private:
 
     Active(
-      nlohmann::json action,
+      const std::string& action_category,
+      nlohmann::json action_description,
       rmf_traffic::Duration time_estimate);
 
     void _execute_action();
 
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
-    nlohmann::json _action;
+    std::string _action_category;
+    nlohmann::json _action_description;
     rmf_traffic::Duration _time_estimate;
     std::function<void()> _update;
     std::function<void()> _finished;

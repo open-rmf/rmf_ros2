@@ -5,9 +5,13 @@
   "description": "Have the robot perform a custom action",
   "type": "object",
   "properties": {
-    "action": {
-      "description": "A string that can be deserialized into a JSON description of the action",
+    "category": {
+      "description": "A string that describes the nature of this action. It should match that passed into FleetUpdateHandle::add_performable_action()",
       "type": "string"
+    },
+    "description": {
+      "description": "A dictionary describing the action to be performed.",
+      "type": "object"
     },
     "unix_millis_action_duration_estimate": {
       "description": "(Optional) The estimated duration for this action",
@@ -22,5 +26,5 @@
       "$ref": "Place.json"
     }
   },
-  "required": ["action"]
+  "required": ["category", "description"]
 }

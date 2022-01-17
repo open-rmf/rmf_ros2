@@ -117,6 +117,9 @@ TaskDeserialization::TaskDeserialization()
   task = std::make_shared<DeserializeJSON<DeserializedTask>>();
   phase = std::make_shared<DeserializeJSON<DeserializedPhase>>();
   event = std::make_shared<DeserializeJSON<DeserializedEvent>>();
+  consider_actions =
+    std::make_shared<std::unordered_map<
+      std::string, FleetUpdateHandle::ConsiderRequest>>();
 
   _schema_dictionary = std::make_shared<SchemaDictionary>();
   _loader = [dict = _schema_dictionary](
@@ -980,10 +983,14 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
 
 //==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::add_performable_action(
-  const std::string& category)
+  const std::string& category,
+  ConsiderRequest consider)
 {
   if (category.empty())
     return *this;
+
+  _pimpl->deserialization.consider_actions->insert_or_assign(
+    category, consider);
 
   // TODO(YV): Consider storing the validator and deserializer within
   // TaskDeserialization
@@ -991,14 +998,27 @@ FleetUpdateHandle& FleetUpdateHandle::add_performable_action(
     schemas::event_description_PerformAction);
 
   const auto deserializer =
-    [validator, place = _pimpl->deserialization.place](
+    [validator, place = _pimpl->deserialization.place, consider_actions = _pimpl->deserialization.consider_actions](
       const nlohmann::json& msg) -> DeserializedEvent
     {
       validator->validate(msg);
       try
       {
-        const nlohmann::json action =
-          nlohmann::json::parse(msg["action"].get<std::string>());
+        const std::string& category = msg["category"].get<std::string>();
+        const auto consider_action_it = consider_actions->find(category);
+        if (consider_action_it == consider_actions->end())
+        {
+          return {nullptr, {"Fleet not configured to perform this action"}};
+        }
+        Confirmation confirm;
+        const auto& consider = consider_action_it->second;
+        consider(msg, confirm);
+        if (!confirm.is_accepted())
+        {
+          return {nullptr, confirm.errors()};
+        }
+
+        const nlohmann::json desc = msg["description"];
         rmf_traffic::Duration duration_estimate = rmf_traffic::Duration(0);
         bool use_tool_sink = false;
         std::optional<rmf_traffic::agv::Planner::Goal> finish_location =
@@ -1029,7 +1049,8 @@ FleetUpdateHandle& FleetUpdateHandle::add_performable_action(
 
         const auto description =
           rmf_task_sequence::events::PerformAction::Description::make(
-            action,
+            category,
+            desc,
             duration_estimate,
             use_tool_sink,
             finish_location);

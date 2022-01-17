@@ -117,7 +117,10 @@ public:
 
   /// Signature for a callback to request the robot to perform an action
   ///
-  /// \param[in] action
+  /// \param[in] category
+  ///   A category of the action to be performed
+  ///
+  /// \param[in] description
   ///   A description of the action to be performed
   ///
   /// \param[in] completed
@@ -125,8 +128,9 @@ public:
   ///   robot has completed the action
   using ActionExecutor =
     std::function<void(
-      const nlohmann::json& action,
-      const ActionCompleted& completed)
+      const std::string& category,
+      const nlohmann::json& description,
+      ActionCompleted completed)
     >;
 
   /// Set the ActionExecutor for this robot
