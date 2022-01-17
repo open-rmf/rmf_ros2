@@ -1064,7 +1064,8 @@ FleetUpdateHandle& FleetUpdateHandle::add_performable_action(
       }
     };
 
-  _pimpl->deserialization.event->add(category, validator, deserializer);
+  _pimpl->deserialization.event->add(
+    "perform_action", validator, deserializer);
 
   return *this;
 }

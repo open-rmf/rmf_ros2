@@ -720,6 +720,18 @@ public:
       if (on_change_fn)
         on_change_fn(*dispatch_state);
 
+      // Print the errors
+      std::size_t error_count = 1;
+      for (const auto& error : errors)
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "No submission error[%d]: %s",
+          error_count,
+          error.c_str());
+        ++error_count;
+      }
+
       return;
     }
 
