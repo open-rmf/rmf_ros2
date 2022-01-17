@@ -17,13 +17,12 @@ import rmf_adapter.type as Type
 # Deps for rmf_msg observer
 import asyncio
 import threading
-from rmf_msg_observer import task_state_observer_thread
 
 from itertools import groupby
 
 from test_utils import MockRobotCommand
 from test_utils import MockDispenser, MockIngestor
-from test_utils import TaskSummaryObserver
+from test_utils import task_state_observer_fn
 
 from functools import partial
 
@@ -193,14 +192,14 @@ def main():
     print(test_graph_vis)
 
     # INIT TASK STATE OBSERVER ==============================================
-    # TODO: Cleanup rmf_msg_observer impl
+    # TODO(YL): Cleanup rmf_msg_observer impl
     print("spawn observer thread")
     fut = asyncio.Future()
     observer_th = threading.Thread(
-        target=task_state_observer_thread, args=(fut, test_task_id))
+        target=task_state_observer_fn, args=(fut, test_task_id))
     observer_th.start()
 
-    # TODO: import rmf_api_msgs task schema pydantic here
+    # TODO(YL): import rmf_api_msgs task schema pydantic here
     # Create a task to dispatch
     task_json_obj = {
         "category": "patrol",
@@ -215,11 +214,10 @@ def main():
     # check observer completion and timeout
     start_time = time.time()
     for i in range(1000):
-        if ((time.time() - start_time) > 10):
-            if fut.done():
-                print("Tasks Complete.")
-                break    
-            assert False, "target task is not Completed."
+        if ((time.time() - start_time) > 8):
+            assert fut.done(), "Timeout, target task is not Completed."
+            print("Tasks Complete.")
+            break
 
         if fut.done():
             print("Tasks Complete.")

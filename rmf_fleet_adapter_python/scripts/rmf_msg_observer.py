@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
+import sys
+
 import asyncio
 import websockets
 import json
@@ -47,8 +50,6 @@ def filter_rmf_msg(
         json_str: str,
         filters: Dict[RmfMsgType, List[str]] = {}
 ) -> Optional[Tuple[RmfMsgType, Dict]]:
-    # msg_type: Optional[RmfMsgType] = None,
-    # data_filter: List[str] = []) -> dict:
     obj = json.loads(json_str)
     if "type" not in obj:
         print("ERRORRRR: type is not avail as json key")
@@ -108,7 +109,7 @@ class AsyncRmfMsgObserver:
         self.future = future
         asyncio.run(self.__internal_spin())
 
-    async def __msg_handler(self, websocket, path):  # PATH?
+    async def __msg_handler(self, websocket, path):
         try:
             async for message in websocket:
                 ret_data = filter_rmf_msg(
@@ -122,10 +123,9 @@ class AsyncRmfMsgObserver:
 
     async def __check_future(self):
         while not self.future.done():
-            # print("is done? ", self.future.done())
             await asyncio.sleep(1)  # arbitrary loop freq check
         print("Received exit signal")
-        # TODO: debug the reason why future is not awaitable outside
+        # TODO(YL): debug the reason why future is not awaitable outside
         # of the loop problem. Thread safe?
         # return await asyncio.wrap_future(self.future)
 
@@ -135,46 +135,60 @@ class AsyncRmfMsgObserver:
             await self.__check_future()
 
 
-#####################################################################
+###############################################################################
 
+def main(argv=sys.argv):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-s', '--server_url', default="localhost",
+                        type=str, help='websocket server')
+    parser.add_argument('-p', '--port', default="7878",
+                        type=str, help='port number for websocket server')
+    parser.add_argument("--task_log", action="store_true",
+                        help='show task log')
+    parser.add_argument("--task_state", action="store_true",
+                        help='show task state')
+    parser.add_argument("--fleet_log", action="store_true",
+                        help='show fleet log')
+    parser.add_argument("--fleet_state", action="store_true",
+                        help='show fleet state')
+    parser.add_argument('--msg_filters', nargs='+', type=str,
+                        help="list of keys to filter data field")
+    args = parser.parse_args(argv[1:])
 
-# Provide future to indicate when to stop the thread,
-# :param: task_id, the target task id to check on completion state
-# future will also be set to done internally when a task is completed.
-def task_state_observer_thread(fut: asyncio.Future, target_id):
-    print("starting observer thread")
-    start_time = time.time()
+    print(f"Spawning server with url: [{args.server_url}:{args.port}]")
 
-    # sample function for user to provide
-    def checkstate_callback(msg_type, data):
-        print(f" \nReceived [{msg_type}] :: \n   "
-              f"{data['booking']['id']}: {data['status']}")
-        if (data['status'] == 'completed' and
-                data['booking']['id'] == target_id):
-            print("COMPLETED, set future as DONE! from observer")
-            fut.set_result(True)
+    msg_type = ""
+    if args.fleet_state:
+        msg_type = RmfMsgType.FleetState
+    elif args.fleet_log:
+        msg_type = RmfMsgType.FleetLog
+    elif args.task_state:
+        msg_type = RmfMsgType.TaskState
+    elif args.task_log:
+        msg_type = RmfMsgType.TaskLog
+    else:
+        print('Error! No msg_type is selected. select one: \n', 
+              '  task_state, task_log, fleet_state, fleet_log \n')
+        parser.print_help(sys.stderr)
+        exit(1)
 
-    print("creating sync rmf_observer class")
+    if args.msg_filters is None:
+        args.msg_filters = []
+
+    print(f"Listening to [{msg_type}] with filters {args.msg_filters}.....")
+
+    def msg_callback(msg_type, data):
+        print(f" \nReceived [{msg_type}] :: Data: \n   "
+              f"{data}")
+
     observer = AsyncRmfMsgObserver(
-        checkstate_callback,
-        msg_filters={
-            RmfMsgType.TaskState: []}
+        msg_callback,
+        msg_filters={msg_type: args.msg_filters},
+        server_url=args.server_url,
+        server_port=args.port
     )
-    print("Done")
-    observer.spin(fut)
+    observer.spin()
 
 
-def main():
-    # TODO: Create a script with --argsparser for usage CLI
-    print("spawn observer thread")
-    fut = asyncio.Future()
-    th = threading.Thread(target=task_state_observer_thread, args=(fut,))
-    th.start()
-    print("start the thread")
-    th.join()
-    print("Thread join")
-    print("exit everything")
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    main(sys.argv)
