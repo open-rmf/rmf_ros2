@@ -393,7 +393,6 @@ public:
       return;
     }
 
-    // const auto& type = msg_json["type"];
     const auto type_it = msg_json.find("type");
     if (type_it == msg_json.end())
     {
@@ -411,7 +410,9 @@ public:
     {
       const auto& type_str = type_it.value().get<std::string>();
       if (type_str != "dispatch_task_request")
+      {
         return;
+      }
 
       static const auto request_validator =
         make_validator(rmf_api_msgs::schemas::dispatch_task_request);
@@ -439,14 +440,15 @@ public:
 
         api_memory.add(response);
         api_response->publish(response);
+        return;
       }
 
-      const auto task_request_json = msg_json["request"];
+      const auto& task_request_json = msg_json["request"];
       const std::string task_id =
         task_request_json["category"].get<std::string>()
         + ".dispatch-" + std::to_string(task_counter++);
 
-      push_bid_notice(
+      const auto task_state = push_bid_notice(
         rmf_task_msgs::build<bidding::BidNoticeMsg>()
           .request(task_request_json.dump())
           .task_id(task_id)
@@ -454,17 +456,7 @@ public:
 
       nlohmann::json response_json;
       response_json["success"] = true;
-
-      auto& task_state = response_json["state"];
-      auto& booking = task_state["booking"];
-      booking["id"] = task_id;
-      booking["unix_millis_earliest_start_time"] =
-          task_request_json["unix_millis_earliest_start_time"];
-      booking["priority"] = task_request_json["priority"];
-      booking["labels"] = task_request_json["labels"];
-
-      auto& dispatch = task_state["dispatch"];
-      dispatch["status"] = "queued";
+      response_json["state"] = task_state;
 
       auto response = rmf_task_msgs::build<ApiResponseMsg>()
         .type(ApiResponseMsg::TYPE_RESPONDING)
@@ -478,9 +470,11 @@ public:
       // api-server as the bidding process progresses. We could do a websocket
       // connection or maybe just a simple ROS2 publisher.
     }
-    catch (const std::exception&)
+    catch (const std::exception& e)
     {
-      // Do nothing. The message is not meant for us.
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Failed to handle API request message: %s", e.what());
     }
   }
 
@@ -526,7 +520,7 @@ public:
     return task_id;
   }
 
-  void push_bid_notice(bidding::BidNoticeMsg bid_notice)
+  nlohmann::json push_bid_notice(bidding::BidNoticeMsg bid_notice)
   {
     nlohmann::json state;
     auto& booking = state["booking"];
@@ -540,10 +534,17 @@ public:
       };
 
     for (const auto& field : copy_fields)
-      booking[field] = request.at(field);
+    {
+      const auto f_it = request.find(field);
+      if (f_it != request.end())
+        booking[field] = f_it.value();
+    }
 
     state["category"] = request["category"];
     state["detail"] = request["description"];
+
+    auto& dispatch = state["dispatch"];
+    dispatch["status"] = "queued";
 
     // TODO(MXG): Publish this initial task state message to the websocket!
 
@@ -557,6 +558,7 @@ public:
       on_change_fn(*new_dispatch_state);
 
     auctioneer->request_bid(bid_notice);
+    return state;
   }
 
   bool cancel_task(const TaskID& task_id)
