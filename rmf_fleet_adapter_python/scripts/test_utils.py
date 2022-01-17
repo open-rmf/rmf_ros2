@@ -392,6 +392,7 @@ class MockRobotCommand(adpt.RobotCommandHandle):
             print("[RobotCommandHandle] PATH FINISHED")
 
 
+# TODO: Remove this
 class TaskSummaryObserver(Node):
     def __init__(self):
         super().__init__('task_observer')

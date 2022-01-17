@@ -15,6 +15,13 @@ import rmf_adapter.plan as plan
 import rmf_adapter.type as Type
 import rmf_adapter.schedule as schedule
 
+# Deps for rmf_msg observer
+import asyncio
+import threading
+from rmf_msg_observer import state_observer_thread
+
+from itertools import groupby
+
 from test_utils import MockRobotCommand
 from test_utils import MockDispenser, MockIngestor
 from test_utils import TaskSummaryObserver
@@ -30,7 +37,7 @@ dropoff_name = "dropoff"
 
 dispenser_name = "mock_dispenser"
 ingestor_name = "mock_ingestor"
-rmf_server_uri = "ws://localhost:7878" # random port
+rmf_server_uri = "ws://localhost:7878"  # random port
 
 
 def main():
@@ -56,7 +63,7 @@ def main():
     test_graph.add_waypoint(map_name, [10.0, 0.0])  # 7
     test_graph.add_waypoint(map_name, [0.0, 5.0])  # 8
     test_graph.add_waypoint(map_name, [5.0, 5.0]).set_holding_point(True)  # 9
-    test_graph.add_waypoint(map_name, [0.0, 10.0]).set_charger(True) # 10
+    test_graph.add_waypoint(map_name, [0.0, 10.0]).set_charger(True)  # 10
 
     assert test_graph.get_waypoint(2).holding_point
     assert test_graph.get_waypoint(9).holding_point
@@ -143,7 +150,8 @@ def main():
     mech_sys = battery.MechanicalSystem.make(70.0, 40.0, 0.22)
     motion_sink = battery.SimpleMotionPowerSink(battery_sys, mech_sys)
     ambient_power_sys = battery.PowerSystem.make(20.0)
-    ambient_sink = battery.SimpleDevicePowerSink(battery_sys, ambient_power_sys)
+    ambient_sink = battery.SimpleDevicePowerSink(
+        battery_sys, ambient_power_sys)
     tool_power_sys = battery.PowerSystem.make(10.0)
     tool_sink = battery.SimpleDevicePowerSink(battery_sys, tool_power_sys)
 
@@ -185,10 +193,6 @@ def main():
     dispenser = MockDispenser(dispenser_name)
     ingestor = MockIngestor(ingestor_name)
 
-    # INIT TASK SUMMARY OBSERVER ==============================================
-    # Note: this is used for assertation check on TaskSummary.Msg
-    # observer = TaskSummaryObserver()
-
     # FINAL PREP ==============================================================
     rclpy_executor = SingleThreadedExecutor()
     rclpy_executor.add_node(cmd_node)
@@ -205,13 +209,17 @@ def main():
 
     dispenser.reset()
     ingestor.reset()
-    # observer.reset()
 
-    # TODO: update the code for observer
-    # observer.add_task(test_task_id)
+    # INIT TASK STATE OBSERVER ==============================================
+    # TODO: Cleanup rmf_msg_observer impl
+    print("spawn observer thread")
+    fut = asyncio.Future()
+    observer_th = threading.Thread(
+        target=state_observer_thread, args=(fut, test_task_id))
+    observer_th.start()
+
     # TODO: import rmf_api_msgs task schema pydantic here
-
-    json_obj = {
+    task_json_obj = {
         "category": "delivery",
         # "unix_millis_earliest_start_time": 0,
         "description": {
@@ -227,10 +235,7 @@ def main():
             }
         }
     }
-    json_string = json.dumps(json_obj)
-    print(json_string)
-
-    adapter.dispatch_task(test_task_id, json_string)
+    adapter.dispatch_task(test_task_id, task_json_obj)
     print("Done!")
 
     rclpy_executor.spin_once(1)
@@ -238,24 +243,28 @@ def main():
     # TODO: dummy timeout. impl observer
     start_time = time.time()
     for i in range(1000):
-        # if observer.all_tasks_complete():
-        if ((time.time() - start_time) > 10):
+        if ((time.time() - start_time) > 15):
+            if fut.done():
+                print("Tasks Complete.")
+                break
+            assert False, "target task is not Completed."
+
+        if fut.done():
             print("Tasks Complete.")
             break
         rclpy_executor.spin_once(1)
         time.sleep(0.2)
 
-    # results = observer.count_successful_tasks()
+    observer_th.join()
+
     print("\n== DEBUG TASK REPORT ==")
     print("Visited waypoints:", robot_cmd.visited_waypoints)
-    # print(f"Sucessful Tasks: {results[0]} / {results[1]}")
 
-    # assert results[0] == results[1], "Not all tasks were completed."
-
-    error_msg = "Robot did not take the expected route"
-    assert robot_cmd.visited_waypoints == [
-        0, 0, 5, 5, 6, 6, 7,
-        6, 5, 5, 8, 8, 10], error_msg
+    # Filter the wps, this will remove consecutive duplicated waypoints
+    filtered_visited_wps = [x[0] for x in groupby(robot_cmd.visited_waypoints)]
+    expected_route = [0, 5, 6, 7, 6, 5, 8, 10]
+    assert filtered_visited_wps == expected_route, (
+        f"Robot did not take the expected route")
 
     # check if unstable partcipant works
     # this is helpful for to update the robot when it is
@@ -274,12 +283,11 @@ def main():
     assert routeid != new_routeid
 
     # TODO(YL) There's an issue with during shutdown of the adapter, occurs
-    # when set_itinerary() function above is used. Similarly with a non-mock 
+    # when set_itinerary() function above is used. Similarly with a non-mock
     # adpater, will need to address this in near future
     print("\n~ Shutting Down everything ~")
 
     cmd_node.destroy_node()
-    # observer.destroy_node()
     dispenser.destroy_node()
     ingestor.destroy_node()
 
@@ -287,6 +295,7 @@ def main():
     adapter.stop()
     rclpy_executor.shutdown()
     rclpy.shutdown()
+
 
 if __name__ == "__main__":
     main()

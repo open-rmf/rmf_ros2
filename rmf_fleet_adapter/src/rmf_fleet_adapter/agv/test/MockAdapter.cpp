@@ -326,7 +326,7 @@ void MockAdapter::dispatch_task(
         // here assumses using a single fleet for each adapter
         bool accepted = false;
         auto bid = rmf_task_msgs::build<rmf_task_msgs::msg::BidNotice>()
-            .request(request)
+            .request(request.dump())
             .task_id(task_id)
             .time_window(rclcpp::Duration(2, 0));
 

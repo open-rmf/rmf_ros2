@@ -362,6 +362,9 @@ SCENARIO("Test Delivery")
   bool at_least_one_incomplete = false;
   bool fulfilled_promise = false;
   auto completed_future = completed_promise.get_future();
+
+  // TODO: task summary is no longer is used, should listen directly to 
+  // socket client's broadcast task_state_updates
   const auto task_sub = adapter.node()->create_subscription<
     rmf_task_msgs::msg::TaskSummary>(
     rmf_fleet_adapter::TaskSummaryTopicName, rclcpp::SystemDefaultsQoS(),
@@ -465,9 +468,15 @@ SCENARIO("Test Delivery")
   // Note: wait for task_manager to start, else TM will be suspicously "empty"
   std::this_thread::sleep_for(1s);
 
+  std::cout << "start to dispatch" << std::endl;
+
   // Dispatch Delivery Task
   nlohmann::json request;
   request["category"] = "delivery";
+  // request["category"] = "delivery";
+
+  // nlohmann::json desc;
+
   auto& desc = request["description"];
   auto& pickup = desc["pickup"];
   pickup["place"] = pickup_name;
@@ -477,8 +486,10 @@ SCENARIO("Test Delivery")
   dropoff["place"] = dropoff_name;
   dropoff["handler"] = flaky_ingestor_name;
   dropoff["payload"] = std::vector<nlohmann::json>();
-
+  std::cout << request << std::endl;
   adapter.dispatch_task(delivery_id, request);
+
+  std::cout << "end dispatch" << std::endl;
 
   const auto quiet_status = quiet_future.wait_for(15s);
   REQUIRE(quiet_status == std::future_status::ready);

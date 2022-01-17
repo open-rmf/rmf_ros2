@@ -86,6 +86,7 @@ install(PROGRAMS
   scripts/test_utils.py
   scripts/test_loop.py
   scripts/test_delivery.py
+  scripts/rmf_msg_observer.py
   scripts/traffic_light.py
   scripts/schedule_blockade_nodes.py
   DESTINATION lib/${PROJECT_NAME}
