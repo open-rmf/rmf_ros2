@@ -377,6 +377,12 @@ void GoToPlace::Active::_execute_plan(rmf_traffic::agv::Plan plan)
   if (_is_interrupted)
     return;
 
+  if (plan.get_itinerary().empty())
+  {
+    _finished();
+    return;
+  }
+
   _execution = ExecutePlan::make(
     _context, std::move(plan), _assign_id, _state,
     _update, _finished, _tail_period);
