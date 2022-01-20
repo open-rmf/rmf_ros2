@@ -16,6 +16,7 @@
 */
 
 #include "../mock/MockRobotCommand.hpp"
+#include "../mock/MockWebSocketServer.hpp"
 
 #include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic/schedule/Database.hpp>
@@ -341,6 +342,8 @@ SCENARIO("Test Delivery")
   REQUIRE(graph.add_key(dropoff_name, 10));
 
   const std::string delivery_id = "test_delivery";
+  const std::string quiet_dispenser_name = "quiet";
+  const std::string flaky_ingestor_name = "flaky";
 
   rmf_traffic::Profile profile{
     rmf_traffic::geometry::make_final_convex<
@@ -363,15 +366,24 @@ SCENARIO("Test Delivery")
   bool fulfilled_promise = false;
   auto completed_future = completed_promise.get_future();
 
-  // TODO: task summary is no longer is used, should listen directly to 
-  // socket client's broadcast task_state_updates
-  const auto task_sub = adapter.node()->create_subscription<
-    rmf_task_msgs::msg::TaskSummary>(
-    rmf_fleet_adapter::TaskSummaryTopicName, rclcpp::SystemDefaultsQoS(),
-    [&completed_promise, &at_least_one_incomplete, &fulfilled_promise](
-      const rmf_task_msgs::msg::TaskSummary::SharedPtr msg)
-    {
-      if (msg->STATE_COMPLETED == msg->state)
+  /// Mock Task State observer server, This checks the task_state
+  /// of the targeted task id, by listening to the task_state_update
+  /// from the websocket connection
+  using MockServer = rmf_fleet_adapter_test::MockWebSocketServer;
+	MockServer mock_server(
+		37878,
+    [ &delivery_id, &completed_promise, 
+      &at_least_one_incomplete, &fulfilled_promise](
+      const nlohmann::json &data)
+		{
+      assert(data.contains("booking"));
+      assert(data.contains("status"));
+      const auto id = data.at("booking").at("id");
+      const auto status = data.at("status");
+			std::cout << "[MockWebSocketServer] id: [" << id 
+                << "] ::: json state ::: " << status << std::endl;
+
+      if (id == delivery_id && status == "completed")
       {
         if (!fulfilled_promise)
         {
@@ -381,9 +393,13 @@ SCENARIO("Test Delivery")
       }
       else
         at_least_one_incomplete = true;
-    });
+		},
+    MockServer::ApiMsgType::TaskStateUpdate
+  );
 
-  const auto fleet = adapter.add_fleet("test_fleet", traits, graph);
+  // provide the same port number as the observer mock server
+  const auto fleet = adapter.add_fleet(
+    "test_fleet", traits, graph, "ws://localhost:37878");
 
   // Configure default battery param
   using BatterySystem = rmf_battery::agv::BatterySystem;
@@ -410,31 +426,23 @@ SCENARIO("Test Delivery")
   fleet->set_task_planner_params(
     battery_system, motion_sink, ambient_sink, tool_sink, 0.2, 1.0, false);
 
-  // fleet->accept_task_requests(
-  //   [&delivery_id](const rmf_task_msgs::msg::TaskProfile& task)
-  //   {
-  //     std::cout << "callback check" << std::endl;
-  //     // Accept all delivery task requests
-  //     CHECK(task.description.task_type.type ==
-  //     rmf_task_msgs::msg::TaskType::TYPE_DELIVERY);
-  //     CHECK(task.task_id == delivery_id);
-  //     return true;
-  //   });
-
-  /// TODO: complete this test case
+  /// Callback function when a task is requested
+  ///   replacement api for deprecated: 'accept_task_requests'
   fleet->consider_delivery_requests(
-    [&](
+    [&pickup_name, &quiet_dispenser_name](
       const nlohmann::json& msg, 
       rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
-      std::cout<<"accept pickup"<< std::endl;
+      CHECK(msg.at("place") == pickup_name);
+      CHECK(msg.at("handler") == quiet_dispenser_name);
       confirm.accept();
     },
-    [&](
+    [&dropoff_name, &flaky_ingestor_name](
       const nlohmann::json& msg, 
       rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
-      std::cout<<"accept dropoff"<< std::endl;
+      CHECK(msg.at("place") == dropoff_name);
+      CHECK(msg.at("handler") == flaky_ingestor_name);
       confirm.accept();
     }
   );
@@ -453,17 +461,16 @@ SCENARIO("Test Delivery")
       robot_cmd->updater = std::move(updater);
     });
 
-  const std::string quiet_dispenser_name = "quiet";
   auto quiet_dispenser = MockQuietDispenser::make(
     adapter.node(), quiet_dispenser_name);
   auto quiet_future = quiet_dispenser->success_promise.get_future();
 
-  const std::string flaky_ingestor_name = "flaky";
   auto flaky_ingestor = MockFlakyIngestor::make(
     adapter.node(), flaky_ingestor_name);
   auto flaky_future = flaky_ingestor->success_promise.get_future();
 
   adapter.start();
+  mock_server.start();
 
   // Note: wait for task_manager to start, else TM will be suspicously "empty"
   std::this_thread::sleep_for(1s);
@@ -473,9 +480,6 @@ SCENARIO("Test Delivery")
   // Dispatch Delivery Task
   nlohmann::json request;
   request["category"] = "delivery";
-  // request["category"] = "delivery";
-
-  // nlohmann::json desc;
 
   auto& desc = request["description"];
   auto& pickup = desc["pickup"];
@@ -513,5 +517,6 @@ SCENARIO("Test Delivery")
   REQUIRE(completed_future.get());
   CHECK(at_least_one_incomplete);
 
+  mock_server.stop();
   adapter.stop();
 }

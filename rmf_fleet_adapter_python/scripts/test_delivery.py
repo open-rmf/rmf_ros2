@@ -242,10 +242,11 @@ def main():
     # check observer completion and timeout
     start_time = time.time()
     for i in range(1000):
-        if ((time.time() - start_time) > 8):
-            assert fut.done(), "Timeout, target task is not Completed."
-            print("Tasks Complete.")
-            break
+        if ((time.time() - start_time) > 15):
+            if fut.done():
+                break
+            fut.set_result(True) # Properly end observer thread
+            assert False, "Timeout, target task is not Completed."
 
         if fut.done():
             print("Tasks Complete.")
