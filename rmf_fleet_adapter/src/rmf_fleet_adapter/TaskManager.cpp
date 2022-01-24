@@ -821,6 +821,13 @@ void TaskManager::set_queue(
   // function that is called at the end of this function.
   {
     std::lock_guard<std::mutex> guard(_mutex);
+    // Do not remove automatic task if assignments is empty. See Issue #138
+    if (assignments.empty() &&
+      _queue.size() == 1 &&
+      _queue.front().request()->booking()->automatic())
+    {
+      return;
+    }
     _queue = assignments;
     _publish_task_queue();
   }
