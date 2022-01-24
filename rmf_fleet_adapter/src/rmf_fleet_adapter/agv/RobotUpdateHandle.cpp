@@ -300,6 +300,12 @@ void RobotUpdateHandle::ActionExecution::finished()
 }
 
 //==============================================================================
+bool RobotUpdateHandle::ActionExecution::okay() const
+{
+  return _pimpl->data->okay;
+}
+
+//==============================================================================
 RobotUpdateHandle::ActionExecution::ActionExecution()
 {
   // Do nothing

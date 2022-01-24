@@ -34,6 +34,8 @@ public:
 
     std::function<void()> finished;
     std::optional<rmf_traffic::Duration> remaining_time;
+    bool okay;
+    // TODO: Consider adding a mutex to lock read/write
 
     Data(
       std::function<void()> finished_,
@@ -41,6 +43,7 @@ public:
     {
       finished = std::move(finished_);
       remaining_time = remaining_time_;
+      okay = true;
     }
   };
 

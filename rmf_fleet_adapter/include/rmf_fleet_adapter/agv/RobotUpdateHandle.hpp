@@ -122,6 +122,9 @@ public:
     // Trigger this when the action is finished
     void finished();
 
+    // Returns false if the Action has been killed or cancelled
+    bool okay() const;
+
     // TODO: Consider giving access to the participant schedule and
     // traffic negotiation
 
