@@ -187,6 +187,14 @@ public:
   /// Return the current mode of the robot
   uint32_t current_mode() const;
 
+  /// Set the action executor for requesting this robot to execute a
+  /// PerformAction activity
+  void action_executor(RobotUpdateHandle::ActionExecutor action_executor);
+
+  /// Get the action executor for requesting this robot to execute a
+  /// PerformAction activity
+  RobotUpdateHandle::ActionExecutor action_executor() const;
+
 private:
   friend class FleetUpdateHandle;
   friend class RobotUpdateHandle;
@@ -241,6 +249,8 @@ private:
 
   // Mode value for RobotMode message
   uint32_t _current_mode;
+
+  RobotUpdateHandle::ActionExecutor _action_executor;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;
