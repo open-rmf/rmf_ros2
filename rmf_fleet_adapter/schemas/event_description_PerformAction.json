@@ -10,8 +10,7 @@
       "type": "string"
     },
     "description": {
-      "description": "A dictionary describing the action to be performed.",
-      "type": "object"
+      "description": "Additional information that will be passed along to the action executor."
     },
     "unix_millis_action_duration_estimate": {
       "description": "(Recommended) The estimated duration for this action",

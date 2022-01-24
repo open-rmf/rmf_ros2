@@ -51,7 +51,7 @@ public:
   {
     ActionExecution execution;
     execution._pimpl = rmf_utils::make_impl<Implementation>(
-        Implementation{std::move(data)});
+      Implementation{std::move(data)});
 
     return execution;
   }
@@ -74,18 +74,18 @@ public:
 
     RobotUpdateHandle handle;
     handle._pimpl = rmf_utils::make_impl<Implementation>(
-        Implementation{std::move(context), std::move(name)});
+      Implementation{std::move(context), std::move(name)});
     handle._pimpl->unstable._pimpl =
-        &RobotUpdateHandle::Implementation::get(handle);
+      &RobotUpdateHandle::Implementation::get(handle);
     return std::make_shared<RobotUpdateHandle>(std::move(handle));
   }
 
-  static Implementation &get(RobotUpdateHandle &handle)
+  static Implementation& get(RobotUpdateHandle& handle)
   {
     return *handle._pimpl;
   }
 
-  static const Implementation &get(const RobotUpdateHandle &handle)
+  static const Implementation& get(const RobotUpdateHandle& handle)
   {
     return *handle._pimpl;
   }

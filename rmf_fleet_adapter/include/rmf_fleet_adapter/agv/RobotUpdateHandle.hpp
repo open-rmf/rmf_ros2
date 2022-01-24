@@ -128,11 +128,7 @@ public:
     // TODO: Consider giving access to the participant schedule and
     // traffic negotiation
 
-    ~ActionExecution()
-    {
-      // Automatically trigger finished when this object dies
-      finished();
-    }
+    ~ActionExecution();
 
     class Implementation;
   private:

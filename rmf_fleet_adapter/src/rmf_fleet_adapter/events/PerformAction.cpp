@@ -248,7 +248,7 @@ void PerformAction::Active::_execute_action()
     _state->update_status(Status::Error);
     const std::string msg = "ActionExecutor not set via RobotUpdateHandle. "
       "Unable to perform the requested action.";
-    _state->update_log().info(msg);
+    _state->update_log().error(msg);
     _finished();
     return;
   }

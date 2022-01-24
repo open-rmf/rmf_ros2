@@ -397,8 +397,16 @@ uint32_t RobotContext::current_mode() const
 void RobotContext::action_executor(
   RobotUpdateHandle::ActionExecutor action_executor)
 {
-  if (action_executor != nullptr)
-    _action_executor = action_executor;
+  if (action_executor == nullptr)
+  {
+    RCLCPP_WARN(
+      _node->get_logger(),
+      "ActionExecutor set to nullptr for robot [%s]. If this robot needs to "
+      "perform an action as part of a task, a critical task error will be "
+      "thrown.",
+      this->name().c_str());
+  }
+  _action_executor = action_executor;
 }
 
 //==============================================================================
