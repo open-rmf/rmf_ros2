@@ -185,6 +185,21 @@ public:
   ///   robots before triggering this callback.
   FleetUpdateHandle& consider_composed_requests(ConsiderRequest consider);
 
+  /// Allow this fleet adapter to execute a PerformAction activity of specified
+  /// category which may be present in sequence event.
+  ///
+  /// \param[in] category
+  ///   A string that categorizes the action. This value should be used when
+  ///   filling out the category field in event_description_PerformAction.json
+  ///   schema.
+  ///
+  /// \param[in] consider
+  ///   Decide whether to accept the action based on the description field in
+  ///   event_description_PerformAction.json schema.
+  FleetUpdateHandle& add_performable_action(
+    const std::string& category,
+    ConsiderRequest consider);
+
   /// Specify a set of lanes that should be closed.
   void close_lanes(std::vector<std::size_t> lane_indices);
 

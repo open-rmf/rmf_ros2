@@ -202,6 +202,20 @@ void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 }
 
 //==============================================================================
+void RobotUpdateHandle::set_action_executor(
+  RobotUpdateHandle::ActionExecutor action_executor)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [context, action_executor](const auto&)
+      {
+        context->action_executor(action_executor);
+      });
+  }
+}
+
+//==============================================================================
 RobotUpdateHandle& RobotUpdateHandle::maximum_delay(
   rmf_utils::optional<rmf_traffic::Duration> value)
 {
@@ -271,6 +285,44 @@ void RobotUpdateHandle::Unstable::set_lift_entry_watchdog(
       });
   }
 }
+
+//==============================================================================
+void RobotUpdateHandle::ActionExecution::update_remaining_time(
+    rmf_traffic::Duration remaining_time_estimate)
+{
+  _pimpl->data->remaining_time = remaining_time_estimate;
+}
+
+//==============================================================================
+void RobotUpdateHandle::ActionExecution::finished()
+{
+  if (!_pimpl->data->finished)
+    return;
+
+  _pimpl->data->finished();
+  _pimpl->data->finished = nullptr;
+}
+
+//==============================================================================
+bool RobotUpdateHandle::ActionExecution::okay() const
+{
+  return _pimpl->data->okay;
+}
+
+//==============================================================================
+RobotUpdateHandle::ActionExecution::ActionExecution()
+{
+  // Do nothing
+}
+
+//==============================================================================
+RobotUpdateHandle::ActionExecution::~ActionExecution()
+{
+  // Automatically trigger finished when this object dies
+  if (_pimpl->data->finished)
+    _pimpl->data->finished();
+}
+
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

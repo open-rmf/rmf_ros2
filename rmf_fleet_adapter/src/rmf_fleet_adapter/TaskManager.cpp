@@ -428,7 +428,6 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
 
   const auto& booking = *_task->tag()->booking();
   copy_booking_data(_state_msg["booking"], booking);
-
   const auto& header = _task->tag()->header();
   _state_msg["category"] = header.category();
   _state_msg["detail"] = header.detail();
@@ -440,7 +439,6 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   copy_assignment(_state_msg["assigned_to"], *mgr._context);
   _state_msg["status"] =
     status_to_string(_task->status_overview());
-
   auto& phases = _state_msg["phases"];
 
   nlohmann::json task_logs;
@@ -454,7 +452,6 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
     const auto& snapshot = completed->snapshot();
     auto& phase = copy_phase_data(
       phases, *snapshot, mgr._log_reader, phase_logs);
-
     phase["unix_millis_start_time"] =
       completed->start_time().time_since_epoch().count();
 
@@ -466,8 +463,9 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   _state_msg["completed"] = std::move(completed_ids);
 
   const auto active_phase = _task->active_phase();
+  if (active_phase == nullptr)
+    return;
   copy_phase_data(phases, *active_phase, mgr._log_reader, phase_logs);
-
   _state_msg["active"] = active_phase->tag()->id();
 
   std::vector<uint64_t> pending_ids;

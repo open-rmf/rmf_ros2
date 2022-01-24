@@ -23,7 +23,7 @@ namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
-void GoToPlace::add(rmf_task_sequence::Event::Initializer &initializer)
+void GoToPlace::add(rmf_task_sequence::Event::Initializer& initializer)
 {
   initializer.add<Description>(
     [](
