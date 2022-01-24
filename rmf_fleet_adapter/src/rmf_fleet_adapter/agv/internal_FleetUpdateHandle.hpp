@@ -525,6 +525,14 @@ public:
   void update_fleet_state() const;
 
   void add_standard_tasks();
+
+  std::string make_error_str(
+    uint64_t code, std::string category, std::string detail) const;
+
+  std::shared_ptr<rmf_task::Request> convert(
+    const std::string& task_id,
+    const nlohmann::json& request_msg,
+    std::vector<std::string>& errors);
 };
 
 } // namespace agv

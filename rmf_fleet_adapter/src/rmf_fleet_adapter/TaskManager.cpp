@@ -26,6 +26,7 @@
 
 #include <rmf_traffic/agv/Planner.hpp>
 
+#include "agv/internal_FleetUpdateHandle.hpp"
 #include "tasks/Clean.hpp"
 #include "tasks/ChargeBattery.hpp"
 #include "tasks/Delivery.hpp"
@@ -64,12 +65,14 @@ namespace rmf_fleet_adapter {
 //==============================================================================
 TaskManagerPtr TaskManager::make(
   agv::RobotContextPtr context,
-  std::weak_ptr<BroadcastClient> broadcast_client)
+  std::weak_ptr<BroadcastClient> broadcast_client,
+  std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 {
   auto mgr = TaskManagerPtr(
     new TaskManager(
       std::move(context),
-      std::move(broadcast_client)));
+      std::move(broadcast_client),
+      std::move(fleet_handle)));
 
   auto begin_pullover = [w = mgr->weak_from_this()]()
     {
@@ -208,9 +211,11 @@ TaskManagerPtr TaskManager::make(
 //==============================================================================
 TaskManager::TaskManager(
   agv::RobotContextPtr context,
-  std::weak_ptr<BroadcastClient> broadcast_client)
+  std::weak_ptr<BroadcastClient> broadcast_client,
+  std::weak_ptr<agv::FleetUpdateHandle fleet_handle)
 : _context(std::move(context)),
   _broadcast_client(std::move(broadcast_client)),
+  _fleet_handle(std::move(fleet_handle)),
   _last_update_time(std::chrono::steady_clock::now() - std::chrono::seconds(1))
 {
   // Do nothing. The make() function does all further initialization.
@@ -1679,6 +1684,20 @@ void TaskManager::_handle_direct_request(
     return;
 
   const nlohmann::json& request = request_json["request"];
+  auto fleet = _fleet_handle.lock();
+  if (!fleet)
+    return;
+  const auto& impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
+  std::vector<std::string> errors;
+  const auto new_request = impl.convert(request_id, request_json, errors);
+  agv::FleetUpdateHandle::Implementation::Expectations expect;
+  // Fill out expectations with only this robot
+
+  const auto results = impl.allocate_tasks(
+    new_request,
+    &errors,
+    expect);
+
 }
 
 //==============================================================================

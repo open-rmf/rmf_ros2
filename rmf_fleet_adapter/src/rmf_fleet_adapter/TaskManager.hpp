@@ -51,7 +51,8 @@ public:
 
   static std::shared_ptr<TaskManager> make(
     agv::RobotContextPtr context,
-    std::weak_ptr<BroadcastClient> broadcast_client);
+    std::weak_ptr<BroadcastClient> broadcast_client,
+    std::weak_ptr<agv::FleetUpdateHandle> fleet_handle);
 
   using Start = rmf_traffic::agv::Plan::Start;
   using StartSet = rmf_traffic::agv::Plan::StartSet;
@@ -107,7 +108,8 @@ private:
 
   TaskManager(
     agv::RobotContextPtr context,
-    std::weak_ptr<BroadcastClient> broadcast_client);
+    std::weak_ptr<BroadcastClient> broadcast_client,
+    std::weak_ptr<agv::FleetUpdateHandle>);
 
   class ActiveTask
   {
@@ -191,6 +193,7 @@ private:
 
   agv::RobotContextPtr _context;
   std::weak_ptr<BroadcastClient> _broadcast_client;
+  std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
   rmf_task::ConstActivatorPtr _task_activator;
   ActiveTask _active_task;
   bool _emergency_active = false;
