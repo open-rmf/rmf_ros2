@@ -296,7 +296,11 @@ void RobotUpdateHandle::ActionExecution::update_remaining_time(
 //==============================================================================
 void RobotUpdateHandle::ActionExecution::finished()
 {
+  if (!_pimpl->data->finished)
+    return;
+
   _pimpl->data->finished();
+  _pimpl->data->finished = nullptr;
 }
 
 //==============================================================================
@@ -315,7 +319,8 @@ RobotUpdateHandle::ActionExecution::ActionExecution()
 RobotUpdateHandle::ActionExecution::~ActionExecution()
 {
   // Automatically trigger finished when this object dies
-  _pimpl->data->finished();
+  if (_pimpl->data->finished)
+    _pimpl->data->finished();
 }
 
 

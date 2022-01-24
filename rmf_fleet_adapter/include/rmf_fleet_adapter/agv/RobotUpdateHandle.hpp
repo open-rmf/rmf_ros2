@@ -128,6 +128,7 @@ public:
     // TODO: Consider giving access to the participant schedule and
     // traffic negotiation
 
+    // The desctructor will trigger finished() if it has not already been called
     ~ActionExecution();
 
     class Implementation;
