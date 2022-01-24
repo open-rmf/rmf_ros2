@@ -40,7 +40,6 @@
 #include <rmf_task/requests/Loop.hpp>
 
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
-#include <rmf_task_sequence/events/PerformAction.hpp>
 
 #include <sstream>
 #include <unordered_map>
@@ -48,7 +47,6 @@
 #include <stdexcept>
 
 #include <rmf_fleet_adapter/schemas/Place.hpp>
-#include <rmf_fleet_adapter/schemas/event_description_PerformAction.hpp>
 #include <rmf_api_msgs/schemas/task_request.hpp>
 
 namespace rmf_fleet_adapter {
@@ -987,85 +985,16 @@ FleetUpdateHandle& FleetUpdateHandle::add_performable_action(
   ConsiderRequest consider)
 {
   if (category.empty())
+  {
+    RCLCPP_ERROR(
+      _pimpl->node->get_logger(),
+      "FleetUpdateHandle::add_performable_action(~) called with empty category"
+    );
     return *this;
+  }
 
   _pimpl->deserialization.consider_actions->insert_or_assign(
     category, consider);
-
-  // TODO(YV): Consider storing the validator and deserializer within
-  // TaskDeserialization
-  auto validator = _pimpl->deserialization.make_validator_shared(
-    schemas::event_description_PerformAction);
-
-  const auto deserializer =
-    [validator, place = _pimpl->deserialization.place, consider_actions = _pimpl->deserialization.consider_actions](
-      const nlohmann::json& msg) -> DeserializedEvent
-    {
-      validator->validate(msg);
-      try
-      {
-        const std::string& category = msg["category"].get<std::string>();
-        const auto consider_action_it = consider_actions->find(category);
-        if (consider_action_it == consider_actions->end())
-        {
-          return {nullptr, {"Fleet not configured to perform this action"}};
-        }
-        Confirmation confirm;
-        const auto& consider = consider_action_it->second;
-        consider(msg, confirm);
-        if (!confirm.is_accepted())
-        {
-          return {nullptr, confirm.errors()};
-        }
-
-        const nlohmann::json desc = msg["description"];
-        rmf_traffic::Duration duration_estimate = rmf_traffic::Duration(0);
-        bool use_tool_sink = false;
-        std::optional<rmf_traffic::agv::Planner::Goal> finish_location =
-          std::nullopt;
-        auto it = msg.find("unix_millis_action_duration_estimate");
-        if (it != msg.end())
-        {
-          duration_estimate =
-            rmf_traffic::Duration(
-            std::chrono::milliseconds(it->get<uint64_t>()));
-        }
-        it = msg.find("use_tool_sink");
-        if (it != msg.end())
-        {
-          use_tool_sink = it->get<bool>();
-        }
-        it = msg.find("expected_finish_location");
-        if (it != msg.end())
-        {
-          auto deser_place =
-            place(msg["expected_finish_location"]);
-          if (!deser_place.description.has_value())
-          {
-            return {nullptr, deser_place.errors};
-          }
-          finish_location = deser_place.description.value();
-        }
-
-        const auto description =
-          rmf_task_sequence::events::PerformAction::Description::make(
-            category,
-            desc,
-            duration_estimate,
-            use_tool_sink,
-            finish_location);
-
-        std::vector<std::string> errors = {};
-        return {description, errors};
-      }
-      catch(const std::exception& e)
-      {
-        return {nullptr, {e.what()}};
-      }
-    };
-
-  _pimpl->deserialization.event->add(
-    "perform_action", validator, deserializer);
 
   return *this;
 }

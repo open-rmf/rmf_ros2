@@ -139,7 +139,7 @@ public:
   /// Update the estimate of the time remaining for the action that the robot
   /// may be performing
   void update_action_remaining_time(
-  const rmf_traffic::Duration remaining_time_estimate);
+    const rmf_traffic::Duration remaining_time_estimate);
 
   class Implementation;
 

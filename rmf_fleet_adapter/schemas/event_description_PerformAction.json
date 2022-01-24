@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description_PerformAction.json",
   "title": "PerformAction event Description",
-  "description": "Have the robot perform a custom action",
+  "description": "Description schema for the perform_action category",
   "type": "object",
   "properties": {
     "category": {
@@ -14,7 +14,7 @@
       "type": "object"
     },
     "unix_millis_action_duration_estimate": {
-      "description": "(Optional) The estimated duration for this action",
+      "description": "(Recommended) The estimated duration for this action",
       "type": "integer"
     },
     "use_tool_sink": {

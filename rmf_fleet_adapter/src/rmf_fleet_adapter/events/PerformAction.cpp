@@ -173,13 +173,18 @@ rmf_traffic::Duration PerformAction::Active::remaining_time_estimate() const
 
   // If an estimate is not provided we compute one based on the expected finish
   // time
-  return _expected_finish_time - _context->now();
+  const auto estimate =
+    std::max(rmf_traffic::Duration(0),
+      _expected_finish_time - _context->now());
+  return estimate;
 }
 
 //==============================================================================
 auto PerformAction::Active::backup() const -> Backup
 {
-  // PerformAction doesn't need to be backed up
+  // TODO: Consider adding a function to ActionExecution that allows the
+  // system integrator to periodically send in backup messages. For now, we
+  // do not generate backup messages.
   return Backup::make(0, nlohmann::json());
 }
 
