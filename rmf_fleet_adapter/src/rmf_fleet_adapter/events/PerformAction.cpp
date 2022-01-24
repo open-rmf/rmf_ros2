@@ -17,8 +17,6 @@
 
 #include "PerformAction.hpp"
 
-#include "../agv/internal_RobotUpdateHandle.hpp"
-
 #include <rmf_traffic_ros2/Time.hpp>
 
 namespace rmf_fleet_adapter {
@@ -168,10 +166,12 @@ auto PerformAction::Active::state() const -> ConstStatePtr
 //==============================================================================
 rmf_traffic::Duration PerformAction::Active::remaining_time_estimate() const
 {
-  if (_context->action_remaining_time().has_value())
-  {
-    return _context->action_remaining_time().value();
-  }
+  auto execution = _execution_data.lock();
+  if (!execution)
+    return rmf_traffic::Duration(0);
+
+  if (execution->remaining_time.has_value())
+    return execution->remaining_time.value();
 
   // If an estimate is not provided we compute one based on the expected finish
   // time
@@ -207,6 +207,7 @@ auto PerformAction::Active::interrupt(
   // TODO(YV): Currently we will ask the robot to perform the action again when
   // resumed. Future work can be to receive a callback from RobotUpdateHandle
   // which can be used to ask the robot to resume from its interrupted state.
+  // This callback can be accepted by RobotUpdateHandle::ActionExecution
   return Resume::make(
     [w = weak_from_this()]()
     {
@@ -248,12 +249,16 @@ void PerformAction::Active::_execute_action()
     return;
   }
 
-  auto action_execution =
-    agv::RobotUpdateHandle::ActionExecution::Implementation::make(
-    _context,
-    _finished);
+  auto data = std::make_shared<ExecutionData>(_finished, std::nullopt);
+  _execution_data = data;
 
-  action_executor(_action_category, _action_description, action_execution);
+  auto action_execution =
+    agv::RobotUpdateHandle::ActionExecution::Implementation::make(data);
+
+  action_executor(
+    _action_category,
+    _action_description,
+    std::move(action_execution));
 }
 
 } // namespace events

@@ -122,12 +122,8 @@ public:
     // Trigger this when the action is finished
     void finished();
 
-    // Allow the action performer to report directly to the schedule.
-    // This returns nullptr after `finished()` has been triggered.
-    rmf_traffic::schedule::Participant* schedule();
-    const rmf_traffic::schedule::Participant* schedule() const;
-
-    // TODO: Consider giving access to the traffic negotiation
+    // TODO: Consider giving access to the participant schedule and
+    // traffic negotiation
 
     ~ActionExecution()
     {
@@ -138,10 +134,8 @@ public:
     class Implementation;
   private:
     ActionExecution();
-    rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+    rmf_utils::impl_ptr<Implementation> _pimpl;
   };
-
-  using ActionExecutionPtr = std::shared_ptr<ActionExecution>;
 
   /// Signature for a callback to request the robot to perform an action
   ///
@@ -151,13 +145,13 @@ public:
   /// \param[in] description
   ///   A description of the action to be performed
   ///
-  /// \param[in] completed
+  /// \param[in] execution
   ///   An ActionExecution object that will be provided to the user for
-  ///   managing the state of the action.
+  ///   updating the state of the action.
   using ActionExecutor = std::function<void(
     const std::string& category,
     const nlohmann::json& description,
-    ActionExecutionPtr execution)>;
+    ActionExecution execution)>;
 
   /// Set the ActionExecutor for this robot
   void set_action_executor(ActionExecutor action_executor);

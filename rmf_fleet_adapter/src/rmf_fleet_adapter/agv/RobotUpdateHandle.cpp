@@ -290,43 +290,13 @@ void RobotUpdateHandle::Unstable::set_lift_entry_watchdog(
 void RobotUpdateHandle::ActionExecution::update_remaining_time(
     rmf_traffic::Duration remaining_time_estimate)
 {
-  if (auto context = _pimpl->context.lock())
-  {
-    context->action_remaining_time(remaining_time_estimate);
-  }
-  return;
+  _pimpl->data->remaining_time = remaining_time_estimate;
 }
 
 //==============================================================================
 void RobotUpdateHandle::ActionExecution::finished()
 {
-  _pimpl->finished();
-}
-
-//==============================================================================
-rmf_traffic::schedule::Participant *
-RobotUpdateHandle::ActionExecution::schedule()
-{
-  if (const auto c = _pimpl->context.lock())
-  {
-    auto &itinerary = c->itinerary();
-    return &itinerary;
-  }
-
-  return nullptr;
-}
-
-//==============================================================================
-const rmf_traffic::schedule::Participant *
-RobotUpdateHandle::ActionExecution::schedule() const
-{
-  if (const auto c = _pimpl->context.lock())
-  {
-    const auto &itinerary = c->itinerary();
-    return &itinerary;
-  }
-
-  return nullptr;
+  _pimpl->data->finished();
 }
 
 //==============================================================================

@@ -164,7 +164,7 @@ public:
     rclcpp::Publisher<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr;
 
   using ActionExecution =
-    rmf_fleet_adapter::agv::RobotUpdateHandle::ActionExecutionPtr;
+    rmf_fleet_adapter::agv::RobotUpdateHandle::ActionExecution;
 
   FleetDriverRobotCommandHandle(
     rclcpp::Node& node,
@@ -595,11 +595,11 @@ void set_action_execution(ActionExecution action_execution)
 
 void complete_robot_action()
 {
-  if (_action_execution == nullptr)
+  if (!_action_execution.has_value())
     return;
 
   _action_execution->finished();
-  _action_execution = nullptr;
+  _action_execution = std::nullopt;
 
   RCLCPP_INFO(
   _node->get_logger(),
@@ -631,7 +631,7 @@ private:
   std::mutex _mutex;
 
   // ActionExecution for managing teleop action
-  ActionExecution _action_execution = nullptr;
+  std::optional<ActionExecution> _action_execution = std::nullopt;
 
   std::unique_lock<std::mutex> _lock()
   {

@@ -28,18 +28,32 @@ namespace agv {
 class RobotUpdateHandle::ActionExecution::Implementation
 {
 public:
-  template<typename... Args>
-  static ActionExecutionPtr make(Args&& ...args)
+
+  struct Data
   {
-    auto execution = std::shared_ptr<ActionExecution>(new ActionExecution);
-    execution->_pimpl = rmf_utils::make_unique_impl<Implementation>(
-        Implementation{std::forward<Args>(args)...});
+
+    std::function<void()> finished;
+    std::optional<rmf_traffic::Duration> remaining_time;
+
+    Data(
+      std::function<void()> finished_,
+      std::optional<rmf_traffic::Duration> remaining_time_ = std::nullopt)
+    {
+      finished = std::move(finished_);
+      remaining_time = remaining_time_;
+    }
+  };
+
+  static ActionExecution make(std::shared_ptr<Data> data)
+  {
+    ActionExecution execution;
+    execution._pimpl = rmf_utils::make_impl<Implementation>(
+        Implementation{std::move(data)});
 
     return execution;
   }
 
-  std::weak_ptr<RobotContext> context;
-  std::function<void()> finished;
+  std::shared_ptr<Data> data;
 };
 
 //==============================================================================

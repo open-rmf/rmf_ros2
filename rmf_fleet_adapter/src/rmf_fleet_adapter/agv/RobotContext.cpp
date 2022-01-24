@@ -394,20 +394,6 @@ uint32_t RobotContext::current_mode() const
 }
 
 //==============================================================================
-void RobotContext::action_remaining_time(
-  const rmf_traffic::Duration remaining_time)
-{
-  _action_remaining_time = remaining_time;
-}
-
-//==============================================================================
-std::optional<rmf_traffic::Duration> RobotContext::action_remaining_time()
-const
-{
-  return _action_remaining_time;
-}
-
-//==============================================================================
 void RobotContext::action_executor(
   RobotUpdateHandle::ActionExecutor action_executor)
 {
@@ -461,8 +447,6 @@ RobotContext::RobotContext(
   _battery_soc_obs = _battery_soc_publisher.get_observable();
 
   _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
-
-  _action_remaining_time = std::nullopt;
 
   _action_executor = nullptr;
 }

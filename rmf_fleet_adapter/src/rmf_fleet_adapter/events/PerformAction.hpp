@@ -18,6 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__PERFORMACTION_HPP
 #define SRC__RMF_FLEET_ADAPTER__EVENTS__PERFORMACTION_HPP
 
+#include "../agv/internal_RobotUpdateHandle.hpp"
 #include "../agv/RobotContext.hpp"
 
 #include <rmf_task_sequence/Event.hpp>
@@ -79,6 +80,9 @@ public:
   {
   public:
 
+    using ExecutionData =
+      agv::RobotUpdateHandle::ActionExecution::Implementation::Data;
+
     static std::shared_ptr<Active> make(
       const AssignIDPtr& id,
       agv::RobotContextPtr context,
@@ -120,6 +124,7 @@ public:
     rmf_task::events::SimpleEventStatePtr _state;
     rmf_traffic::Time _expected_finish_time;
     std::shared_ptr<void> _be_stubborn;
+    std::weak_ptr<ExecutionData> _execution_data;
   };
 };
 
