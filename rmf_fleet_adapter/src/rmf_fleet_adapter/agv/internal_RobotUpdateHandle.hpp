@@ -25,10 +25,27 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
+class RobotUpdateHandle::ActionExecution::Implementation
+{
+public:
+  template<typename... Args>
+  static ActionExecutionPtr make(Args&& ...args)
+  {
+    auto execution = std::shared_ptr<ActionExecution>(new ActionExecution);
+    execution->_pimpl = rmf_utils::make_unique_impl<Implementation>(
+        Implementation{std::forward<Args>(args)...});
+
+    return execution;
+  }
+
+  std::weak_ptr<RobotContext> context;
+  std::function<void()> finished;
+};
+
+//==============================================================================
 class RobotUpdateHandle::Implementation
 {
 public:
-
   std::weak_ptr<RobotContext> context;
   std::string name;
   RobotUpdateHandle::Unstable unstable = RobotUpdateHandle::Unstable();
@@ -40,18 +57,18 @@ public:
 
     RobotUpdateHandle handle;
     handle._pimpl = rmf_utils::make_impl<Implementation>(
-      Implementation{std::move(context), std::move(name)});
+        Implementation{std::move(context), std::move(name)});
     handle._pimpl->unstable._pimpl =
-      &RobotUpdateHandle::Implementation::get(handle);
+        &RobotUpdateHandle::Implementation::get(handle);
     return std::make_shared<RobotUpdateHandle>(std::move(handle));
   }
 
-  static Implementation& get(RobotUpdateHandle& handle)
+  static Implementation &get(RobotUpdateHandle &handle)
   {
     return *handle._pimpl;
   }
 
-  static const Implementation& get(const RobotUpdateHandle& handle)
+  static const Implementation &get(const RobotUpdateHandle &handle)
   {
     return *handle._pimpl;
   }
@@ -59,7 +76,6 @@ public:
   std::shared_ptr<RobotContext> get_context();
 
   std::shared_ptr<const RobotContext> get_context() const;
-
 };
 
 } // namespace agv

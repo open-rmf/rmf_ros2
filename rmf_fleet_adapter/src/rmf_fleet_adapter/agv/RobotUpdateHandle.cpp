@@ -216,20 +216,6 @@ void RobotUpdateHandle::set_action_executor(
 }
 
 //==============================================================================
-void RobotUpdateHandle::update_action_remaining_time(
-  const rmf_traffic::Duration remaining_time_estimate)
-{
-  if (const auto context = _pimpl->get_context())
-  {
-    context->worker().schedule(
-      [context, remaining_time_estimate](const auto&)
-      {
-        context->action_remaining_time(remaining_time_estimate);
-      });
-  }
-}
-
-//==============================================================================
 RobotUpdateHandle& RobotUpdateHandle::maximum_delay(
   rmf_utils::optional<rmf_traffic::Duration> value)
 {
@@ -298,6 +284,55 @@ void RobotUpdateHandle::Unstable::set_lift_entry_watchdog(
         context->set_lift_entry_watchdog(watchdog, wait_duration);
       });
   }
+}
+
+//==============================================================================
+void RobotUpdateHandle::ActionExecution::update_remaining_time(
+    rmf_traffic::Duration remaining_time_estimate)
+{
+  if (auto context = _pimpl->context.lock())
+  {
+    context->action_remaining_time(remaining_time_estimate);
+  }
+  return;
+}
+
+//==============================================================================
+void RobotUpdateHandle::ActionExecution::finished()
+{
+  _pimpl->finished();
+}
+
+//==============================================================================
+rmf_traffic::schedule::Participant *
+RobotUpdateHandle::ActionExecution::schedule()
+{
+  if (const auto c = _pimpl->context.lock())
+  {
+    auto &itinerary = c->itinerary();
+    return &itinerary;
+  }
+
+  return nullptr;
+}
+
+//==============================================================================
+const rmf_traffic::schedule::Participant *
+RobotUpdateHandle::ActionExecution::schedule() const
+{
+  if (const auto c = _pimpl->context.lock())
+  {
+    const auto &itinerary = c->itinerary();
+    return &itinerary;
+  }
+
+  return nullptr;
+}
+
+//==============================================================================
+RobotUpdateHandle::ActionExecution::ActionExecution()
+{
+  // Do nothing
 }
 
 } // namespace agv

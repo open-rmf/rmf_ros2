@@ -111,9 +111,37 @@ public:
   /// value that was given to the setter.
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
 
-  /// Signature for a callback to be executed to let the fleet adapter know that
-  /// the robot has completed the requested action
-  using ActionCompleted = std::function<void()>;
+  /// The ActionExecution class should be used to manage the execution of and
+  /// provide updates on ongoing actions.
+  class ActionExecution
+  {
+  public:
+    // Update the amount of time remaining for this action
+    void update_remaining_time(rmf_traffic::Duration remaining_time_estimate);
+
+    // Trigger this when the action is finished
+    void finished();
+
+    // Allow the action performer to report directly to the schedule.
+    // This returns nullptr after `finished()` has been triggered.
+    rmf_traffic::schedule::Participant* schedule();
+    const rmf_traffic::schedule::Participant* schedule() const;
+
+    // TODO: Consider giving access to the traffic negotiation
+
+    ~ActionExecution()
+    {
+      // Automatically trigger finished when this object dies
+      finished();
+    }
+
+    class Implementation;
+  private:
+    ActionExecution();
+    rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+  };
+
+  using ActionExecutionPtr = std::shared_ptr<ActionExecution>;
 
   /// Signature for a callback to request the robot to perform an action
   ///
@@ -124,22 +152,15 @@ public:
   ///   A description of the action to be performed
   ///
   /// \param[in] completed
-  ///   An ActionCompleted callback that should be called by the user when the
-  ///   robot has completed the action
-  using ActionExecutor =
-    std::function<void(
-      const std::string& category,
-      const nlohmann::json& description,
-      ActionCompleted completed)
-    >;
+  ///   An ActionExecution object that will be provided to the user for
+  ///   managing the state of the action.
+  using ActionExecutor = std::function<void(
+    const std::string& category,
+    const nlohmann::json& description,
+    ActionExecutionPtr execution)>;
 
   /// Set the ActionExecutor for this robot
   void set_action_executor(ActionExecutor action_executor);
-
-  /// Update the estimate of the time remaining for the action that the robot
-  /// may be performing
-  void update_action_remaining_time(
-    const rmf_traffic::Duration remaining_time_estimate);
 
   class Implementation;
 

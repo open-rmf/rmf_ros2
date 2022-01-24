@@ -163,8 +163,8 @@ public:
   using ModeRequestPub =
     rclcpp::Publisher<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr;
 
-  using ActionCompleted =
-    rmf_fleet_adapter::agv::RobotUpdateHandle::ActionCompleted;
+  using ActionExecution =
+    rmf_fleet_adapter::agv::RobotUpdateHandle::ActionExecutionPtr;
 
   FleetDriverRobotCommandHandle(
     rclcpp::Node& node,
@@ -491,7 +491,7 @@ public:
     const auto teleop_executioner =
       [w = weak_from_this()](const std::string& category,
         const nlohmann::json& description,
-        ActionCompleted completed)
+        ActionExecution execution)
       {
         // We do not do anything here. The user can can move the robot by
         // sending PathRequest msgs. Instead we simply store the completed
@@ -499,7 +499,7 @@ public:
         const auto self = w.lock();
         if (!self)
           return;
-        self->set_action_completed(completed);
+        self->set_action_execution(execution);
       };
     _travel_info.updater->set_action_executor(teleop_executioner);
   }
@@ -588,18 +588,18 @@ public:
       _travel_info.updater->interrupted();
   }
 
-void set_action_completed(ActionCompleted action_completed)
+void set_action_execution(ActionExecution action_execution)
 {
-  _action_completed = action_completed;
+  _action_execution = action_execution;
 }
 
 void complete_robot_action()
 {
-  if (_action_completed == nullptr)
+  if (_action_execution == nullptr)
     return;
 
-  _action_completed();
-  _action_completed == nullptr;
+  _action_execution->finished();
+  _action_execution = nullptr;
 
   RCLCPP_INFO(
   _node->get_logger(),
@@ -630,8 +630,8 @@ private:
 
   std::mutex _mutex;
 
-  // Callback for ending PerformAction events
-  ActionCompleted _action_completed = nullptr;
+  // ActionExecution for managing teleop action
+  ActionExecution _action_execution = nullptr;
 
   std::unique_lock<std::mutex> _lock()
   {
@@ -956,7 +956,7 @@ std::shared_ptr<Connections> make_fleet(
 
     connections->mode_request_sub =
       adapter->node()->create_subscription<rmf_fleet_msgs::msg::ModeRequest>(
-      "/action_completed_notice",
+      "/action_execution_notice",
       rclcpp::SystemDefaultsQoS(),
       [w = connections->weak_from_this(), fleet_name](
       rmf_fleet_msgs::msg::ModeRequest::UniquePtr msg)

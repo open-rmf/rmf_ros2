@@ -17,6 +17,8 @@
 
 #include "PerformAction.hpp"
 
+#include "../agv/internal_RobotUpdateHandle.hpp"
+
 #include <rmf_traffic_ros2/Time.hpp>
 
 namespace rmf_fleet_adapter {
@@ -246,7 +248,12 @@ void PerformAction::Active::_execute_action()
     return;
   }
 
-  action_executor(_action_category, _action_description, _finished);
+  auto action_execution =
+    agv::RobotUpdateHandle::ActionExecution::Implementation::make(
+    _context,
+    _finished);
+
+  action_executor(_action_category, _action_description, action_execution);
 }
 
 } // namespace events
