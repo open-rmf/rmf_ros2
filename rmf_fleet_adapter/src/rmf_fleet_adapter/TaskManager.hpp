@@ -196,7 +196,10 @@ private:
   bool _emergency_active = false;
   std::optional<std::string> _emergency_pullover_interrupt_token;
   rmf_task_sequence::Event::ActivePtr _emergency_pullover;
+  // Queue for dispatched tasks
   std::vector<Assignment> _queue;
+  // Queue for directly assigned tasks
+  std::vector<Assignment> _direct_queue;
   rmf_utils::optional<Start> _expected_finish_location;
   rxcpp::subscription _task_sub;
   rxcpp::subscription _emergency_sub;
@@ -358,6 +361,10 @@ private:
 
   void _handle_request(
     const std::string& request_msg,
+    const std::string& request_id);
+
+  void _handle_direct_request(
+    const nlohmann::json& request_json,
     const std::string& request_id);
 
   void _handle_cancel_request(

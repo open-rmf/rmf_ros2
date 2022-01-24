@@ -51,8 +51,10 @@
 #include <rmf_api_msgs/schemas/resume_task_response.hpp>
 #include <rmf_api_msgs/schemas/rewind_task_request.hpp>
 #include <rmf_api_msgs/schemas/rewind_task_response.hpp>
+#include <rmf_api_msgs/schemas/robot_task_request.hpp>
 #include <rmf_api_msgs/schemas/skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/skip_phase_response.hpp>
+#include <rmf_api_msgs/schemas/task_request.hpp>
 #include <rmf_api_msgs/schemas/undo_skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/undo_skip_phase_response.hpp>
 #include <rmf_api_msgs/schemas/error.hpp>
@@ -185,8 +187,10 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::resume_task_response,
     rmf_api_msgs::schemas::rewind_task_request,
     rmf_api_msgs::schemas::rewind_task_response,
+    rmf_api_msgs::schemas::robot_task_request,
     rmf_api_msgs::schemas::skip_phase_request,
     rmf_api_msgs::schemas::skip_phase_response,
+    rmf_api_msgs::schemas::task_request,
     rmf_api_msgs::schemas::undo_skip_phase_request,
     rmf_api_msgs::schemas::undo_skip_phase_response,
     rmf_api_msgs::schemas::error
@@ -1603,6 +1607,10 @@ void TaskManager::_handle_request(
       _handle_skip_phase_request(request_json, request_id);
     else if (type_str == "undo_phase_skip_request")
       _handle_undo_skip_phase_request(request_json, request_id);
+    else if (type_str == "robot_task_request")
+      _handle_direct_request(request_json, request_id);
+    else
+      return;
   }
   catch (const std::exception& e)
   {
@@ -1644,6 +1652,28 @@ void remove_task_from_queue(
     }
   }
 }
+} // namespace anonymous
+
+//==============================================================================
+void TaskManager::_handle_direct_request(
+  const  nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::robot_task_request);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& robot = request_json["robot"].get<std::string>();
+  if (robot.empty() || robot != _context->name())
+    return;
+
+  const auto& fleet = request_json["fleet"].get<std::string>();
+  if (fleet.empty() || fleet != _context->group())
+    return;
+
+  const nlohmann::json& request = request_json["request"];
 }
 
 //==============================================================================
