@@ -780,15 +780,7 @@ auto TaskManager::expected_finish_state() const -> State
 
   if (!_direct_queue.empty())
   {
-    rmf_task::State finish_state;
-    auto queue = _direct_queue;
-    while (!queue.empty())
-    {
-      const auto top = queue.top();
-      finish_state = top.assignment.finish_state();
-      queue.pop();
-    }
-    return finish_state;
+    return _direct_queue.rbegin()->assignment.finish_state();
   }
 
   if (_active_task)
@@ -913,19 +905,18 @@ void TaskManager::_begin_next_task()
     return;
   }
 
+  // The next task should one in the direct assignment queue if present
+  const bool is_next_task_direct = _direct_queue.empty() ? false : true;
+  const auto assignment = is_next_task_direct ?
+    _direct_queue.begin()->assignment :
+    _queue.front();
+
   // We take the minimum of the two to deal with cases where the deployment_time
   // as computed by the task planner is greater than the earliest_start_time
   // which is greater than now. This can happen for example if the previous task
   // completed earlier than estimated.
   // TODO: Reactively replan task assignments across agents in a fleet every
   // time as task is completed.
-
-  // The next task should one in the direct assignment queue if present
-
-  const bool is_next_task_direct = _direct_queue.empty() ? false : true;
-  const auto assignment = is_next_task_direct ? _direct_queue.top().assignment
-    : _queue.front();
-
   const auto deployment_time = std::min(
     assignment.request()->booking()->earliest_start_time(),
     assignment.deployment_time());
@@ -949,7 +940,7 @@ void TaskManager::_begin_next_task()
       _task_finished(id));
 
     if (is_next_task_direct)
-       _direct_queue.pop();
+       _direct_queue.erase(_direct_queue.begin());
    else
     _queue.erase(_queue.begin());
 
@@ -1484,9 +1475,22 @@ void TaskManager::_send_simple_error_if_queued(
   const std::string& request_id,
   const std::string& type)
 {
+  // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
+  // unordered_sets and perform a lookup to see which queue to iterate.
   for (const auto& a : _queue)
   {
     if (a.request()->booking()->id() == task_id)
+    {
+      return _send_simple_error_response(
+        request_id, 6, "Invalid Circumstances",
+        type + " a task that is queued (not yet active) "
+        "is not currently supported");
+    }
+  }
+
+  for (const auto& a : _direct_queue)
+  {
+    if (a.assignment.request()->booking()->id() == task_id)
     {
       return _send_simple_error_response(
         request_id, 6, "Invalid Circumstances",
@@ -1650,7 +1654,7 @@ std::vector<std::string> get_labels(const nlohmann::json& request)
 }
 
 //==============================================================================
-void remove_task_from_queue(
+bool remove_task_from_queue(
   const std::string& task_id,
   std::vector<TaskManager::Assignment>& queue)
 {
@@ -1666,9 +1670,33 @@ void remove_task_from_queue(
     if (it->request()->booking()->id() == task_id)
     {
       queue.erase(it);
-      break;
+      return true;
     }
   }
+  return false;
+}
+
+//==============================================================================
+bool remove_task_from_queue(
+  const std::string& task_id,
+  TaskManager::DirectQueue& queue)
+{
+  // If the task is queued, then we should make sure to remove it from the
+  // queue, just in case it reaches an active state before the dispatcher
+  // issues its cancellation request.
+  //
+  // TODO(MXG): We should do a much better of job of coordinating these
+  // different moving parts in the system. E.g. who is ultimately responsible
+  // for issuing the response to the request or updating the task state?
+  for (auto it = queue.begin(); it != queue.end(); ++it)
+  {
+    if (it->assignment.request()->booking()->id() == task_id)
+    {
+      queue.erase(it);
+      return true;
+    }
+  }
+  return false;
 }
 } // namespace anonymous
 
@@ -1748,7 +1776,7 @@ void TaskManager::_handle_direct_request(
         deployment_time)
     };
   ++_next_sequence_number;
-  _direct_queue.push(assignment);
+  _direct_queue.insert(assignment);
 }
 
 //==============================================================================
@@ -1770,8 +1798,10 @@ void TaskManager::_handle_cancel_request(
     _task_state_update_available = true;
     return _send_simple_success_response(request_id);
   }
-
-  remove_task_from_queue(task_id, _queue);
+  // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
+  // unordered_sets and perform a lookup to see which function to call.
+  if (!remove_task_from_queue(task_id, _queue))
+    remove_task_from_queue(task_id, _direct_queue);
 }
 
 //==============================================================================
@@ -1794,7 +1824,10 @@ void TaskManager::_handle_kill_request(
     return _send_simple_success_response(request_id);
   }
 
-  remove_task_from_queue(task_id, _queue);
+  // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
+  // unordered_sets and perform a lookup to see which function to call.
+  if (!remove_task_from_queue(task_id, _queue))
+    remove_task_from_queue(task_id, _direct_queue);
 }
 
 //==============================================================================

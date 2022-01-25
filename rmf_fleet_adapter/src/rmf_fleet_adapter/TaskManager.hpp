@@ -36,7 +36,7 @@
 #include <nlohmann/json-schema.hpp>
 
 #include <mutex>
-#include <queue>
+#include <set>
 
 namespace rmf_fleet_adapter {
 
@@ -63,6 +63,45 @@ public:
   using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
   using TaskProfiles = std::unordered_map<std::string, TaskProfileMsg>;
   using TaskSummaryMsg = rmf_task_msgs::msg::TaskSummary;
+
+  struct DirectAssignment
+  {
+    std::size_t sequence_number;
+    Assignment assignment;
+
+    DirectAssignment(
+      std::size_t sequence_number_,
+      Assignment assignment_)
+    : sequence_number(sequence_number_),
+      assignment(std::move(assignment_))
+    {
+      // Do nothing
+    }
+
+  };
+
+  struct DirectQueuePriority
+  {
+    bool operator()(const DirectAssignment& a, const DirectAssignment& b) const
+    {
+      // Sort by start time and then sequence_number if tie
+      const auto start_time_b =
+        b.assignment.request()->booking()->earliest_start_time();
+      const auto start_time_a =
+        a.assignment.request()->booking()->earliest_start_time();
+
+      if (start_time_b == start_time_a)
+      {
+        return b.sequence_number < a.sequence_number;
+      }
+
+      return start_time_b < start_time_a;
+    }
+  };
+
+  using DirectQueue = std::set<
+    DirectAssignment,
+    DirectQueuePriority>;
 
   const agv::RobotContextPtr& context();
 
@@ -105,46 +144,6 @@ public:
   std::vector<nlohmann::json> task_log_updates() const;
 
 private:
-
-  struct DirectAssignment
-  {
-    std::size_t sequence_number;
-    Assignment assignment;
-
-    DirectAssignment(
-      std::size_t sequence_number_,
-      Assignment assignment_)
-    : sequence_number(sequence_number_),
-      assignment(std::move(assignment_))
-    {
-      // Do nothing
-    }
-
-  };
-
-  struct QueuePriority
-  {
-    bool operator()(const DirectAssignment& a, const DirectAssignment& b)
-    {
-      // Sort by start time and then sequence_number if tie
-      const auto start_time_b =
-        b.assignment.request()->booking()->earliest_start_time();
-      const auto start_time_a =
-        a.assignment.request()->booking()->earliest_start_time();
-
-      if (start_time_b == start_time_a)
-      {
-        return b.sequence_number < a.sequence_number;
-      }
-
-      return start_time_b < start_time_a;
-    }
-  };
-
-  using PriorityQueue = std::priority_queue<
-    DirectAssignment,
-    std::vector<DirectAssignment>,
-    QueuePriority>;
 
   TaskManager(
     agv::RobotContextPtr context,
@@ -244,7 +243,7 @@ private:
   // An ID to keep track of the FIFO order of direct tasks
   std::size_t _next_sequence_number;
   // Queue for directly assigned tasks
-  PriorityQueue _direct_queue;
+  DirectQueue _direct_queue;
   rmf_utils::optional<Start> _expected_finish_location;
   rxcpp::subscription _task_sub;
   rxcpp::subscription _emergency_sub;
@@ -439,6 +438,7 @@ private:
   void _handle_undo_skip_phase_request(
     const nlohmann::json& request_json,
     const std::string& request_id);
+
 };
 
 using TaskManagerPtr = std::shared_ptr<TaskManager>;
