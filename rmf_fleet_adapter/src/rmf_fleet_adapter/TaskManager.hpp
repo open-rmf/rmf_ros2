@@ -63,10 +63,6 @@ public:
   using TaskProfiles = std::unordered_map<std::string, TaskProfileMsg>;
   using TaskSummaryMsg = rmf_task_msgs::msg::TaskSummary;
 
-  /// The location where we expect this robot to be at the end of its current
-  /// task queue.
-  StartSet expected_finish_location() const;
-
   const agv::RobotContextPtr& context();
 
   agv::ConstRobotContextPtr context() const;
@@ -89,7 +85,7 @@ public:
   std::string robot_status() const;
 
   /// The state of the robot.
-  State expected_finish_state() const;
+  State expected_finish_state(bool for_direct_assignment = false) const;
 
   /// Callback for the retreat timer. Appends a charging task to the task queue
   /// when robot is idle and battery level drops below a retreat threshold.

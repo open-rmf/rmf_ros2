@@ -212,7 +212,7 @@ TaskManagerPtr TaskManager::make(
 TaskManager::TaskManager(
   agv::RobotContextPtr context,
   std::weak_ptr<BroadcastClient> broadcast_client,
-  std::weak_ptr<agv::FleetUpdateHandle fleet_handle)
+  std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 : _context(std::move(context)),
   _broadcast_client(std::move(broadcast_client)),
   _fleet_handle(std::move(fleet_handle)),
@@ -725,15 +725,6 @@ std::vector<std::string> TaskManager::ActiveTask::remove_skips(
 }
 
 //==============================================================================
-auto TaskManager::expected_finish_location() const -> StartSet
-{
-  if (_expected_finish_location)
-    return {*_expected_finish_location};
-
-  return _context->location();
-}
-
-//==============================================================================
 std::optional<std::string> TaskManager::current_task_id() const
 {
   if (_active_task)
@@ -780,22 +771,35 @@ std::string TaskManager::robot_status() const
 }
 
 //==============================================================================
-auto TaskManager::expected_finish_state() const -> State
+auto TaskManager::expected_finish_state(
+  bool for_direct_assignment) const -> State
 {
-  // If an active task exists, return the estimated finish state of that task
-  /// else update the current time and battery level for the state and return
+  rmf_task::State current_state =
+    _context->make_get_state()()
+    .time(rmf_traffic_ros2::convert(_context->node()->now()));
+
+  if (!for_direct_assignment)
+  {
+    if (!_active_task)
+    {
+      // There may be queued up direct tasks but since none of them are active
+      // we assume they may be scheduled in the future.
+      return current_state;
+    }
+
+    if (!_direct_queue.empty())
+    {
+      return _direct_queue.back().finish_state();
+    }
+
+    return _context->current_task_end_state();
+  }
+
+  // Assume we can replan for the queued direct tasks
   if (_active_task)
     return _context->current_task_end_state();
 
-  // Update battery soc and finish time in the current state
-  auto finish_state = _context->current_task_end_state();
-  auto location = finish_state.extract_plan_start().value();
-  finish_state.time(rmf_traffic_ros2::convert(_context->node()->now()));
-
-  const double current_battery_soc = _context->current_battery_soc();
-  finish_state.battery_soc(current_battery_soc);
-
-  return finish_state;
+  return current_state;
 }
 
 //==============================================================================
@@ -1119,7 +1123,7 @@ void TaskManager::retreat_to_charger()
   if (!task_planner->configuration().constraints().drain_battery())
     return;
 
-  const auto current_state = expected_finish_state();
+  const auto current_state = expected_finish_state(true);
   const auto charging_waypoint =
     current_state.dedicated_charging_waypoint().value();
   if (current_state.waypoint() == charging_waypoint)
@@ -1684,20 +1688,45 @@ void TaskManager::_handle_direct_request(
     return;
 
   const nlohmann::json& request = request_json["request"];
-  auto fleet = _fleet_handle.lock();
-  if (!fleet)
+  auto fleet_handle = _fleet_handle.lock();
+  if (!fleet_handle)
     return;
-  const auto& impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
+  const auto& impl =
+    agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
   std::vector<std::string> errors;
-  const auto new_request = impl.convert(request_id, request_json, errors);
+  const auto new_request = impl.convert(request_id, request_json, &errors);
+  if (!new_request)
+  {
+    // TODO(YV): Publish response
+    return;
+  }
   agv::FleetUpdateHandle::Implementation::Expectations expect;
-  // Fill out expectations with only this robot
+  // TODO(YV): Update this once the task planner can support sequence
+  // constraints that respect timeline segmentations
+  // For now we will replan with all the queued direct assignments
+  expect.states.push_back(expected_finish_state(true));
+  expect.pending_requests.push_back(new_request);
+
+  std::lock_guard<std::mutex> lock(_mutex);
+  for (const auto& a : _direct_queue)
+  {
+    if (a.request()->booking()->automatic())
+      continue;
+    expect.pending_requests.push_back(a.request());
+  }
 
   const auto results = impl.allocate_tasks(
     new_request,
     &errors,
     expect);
 
+  if (!results.has_value())
+  {
+    // TODO(YV): Publish response
+  }
+
+  assert(!results.value().front().empty());
+  _direct_queue = results.value().front();
 }
 
 //==============================================================================

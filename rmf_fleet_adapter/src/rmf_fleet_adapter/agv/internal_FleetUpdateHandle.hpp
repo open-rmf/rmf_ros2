@@ -504,7 +504,8 @@ public:
   /// new request and while optionally ignoring a specific request.
   std::optional<Assignments> allocate_tasks(
     rmf_task::ConstRequestPtr new_request = nullptr,
-    std::vector<std::string>* errors = nullptr) const;
+    std::vector<std::string>* errors = nullptr,
+    std::optional<Expectations> expectations = std::nullopt) const;
 
   /// Helper function to check if assignments are valid. An assignment set is
   /// invalid if one of the assignments has already begun execution.
@@ -532,7 +533,7 @@ public:
   std::shared_ptr<rmf_task::Request> convert(
     const std::string& task_id,
     const nlohmann::json& request_msg,
-    std::vector<std::string>& errors);
+    std::vector<std::string>* errors) const;
 };
 
 } // namespace agv
