@@ -53,6 +53,7 @@
 #include <rmf_api_msgs/schemas/rewind_task_request.hpp>
 #include <rmf_api_msgs/schemas/rewind_task_response.hpp>
 #include <rmf_api_msgs/schemas/robot_task_request.hpp>
+#include <rmf_api_msgs/schemas/robot_task_response.hpp>
 #include <rmf_api_msgs/schemas/skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/skip_phase_response.hpp>
 #include <rmf_api_msgs/schemas/task_request.hpp>
@@ -191,6 +192,7 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::rewind_task_request,
     rmf_api_msgs::schemas::rewind_task_response,
     rmf_api_msgs::schemas::robot_task_request,
+    rmf_api_msgs::schemas::robot_task_response,
     rmf_api_msgs::schemas::skip_phase_request,
     rmf_api_msgs::schemas::skip_phase_response,
     rmf_api_msgs::schemas::task_request,
@@ -1708,6 +1710,9 @@ void TaskManager::_handle_direct_request(
   static const auto request_validator =
     _make_validator(rmf_api_msgs::schemas::robot_task_request);
 
+  static const auto response_validator =
+    _make_validator(rmf_api_msgs::schemas::robot_task_response);
+
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
@@ -1726,16 +1731,34 @@ void TaskManager::_handle_direct_request(
   const auto& impl =
     agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
   std::vector<std::string> errors;
-  const auto new_request = impl.convert(request_id, request_json, &errors);
+  const auto new_request = impl.convert(request_id, request, &errors);
   if (!new_request)
   {
-    // TODO(YV): Publish response
+    nlohmann::json response_json;
+    response_json["success"] = false;
+    std::vector<nlohmann::json> json_errors = {};
+    for (const auto& e : errors)
+      json_errors.push_back(nlohmann::json::parse(e));
+    response_json["errors"] = std::move(json_errors);
+
+    _validate_and_publish_api_response(
+      response_json,
+      response_validator,
+      request_id);
+
     return;
   }
   // Generate Assignment for the request
   const auto task_planner = _context->task_planner();
   if (!task_planner)
+  {
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      "Fleet [%s] is not configured with parameters for task planning."
+      "Use FleetUpdateHandle::set_task_planner_params(~) to set the "
+      "parameters required.", fleet.c_str());
     return;
+  }
 
   const auto current_state = expected_finish_state();
   const auto& constraints = task_planner->configuration().constraints();
@@ -1777,6 +1800,23 @@ void TaskManager::_handle_direct_request(
     };
   ++_next_sequence_number;
   _direct_queue.insert(assignment);
+
+  // Publish api response
+  nlohmann::json response_json;
+  response_json["success"] = true;
+
+  auto task_state = _task_state_json;
+  copy_booking_data(task_state["booking"], *new_request->booking());
+  task_state["category"] = request_json["category"];
+  task_state["detail"] = request_json["description"];
+  auto& dispatch = task_state["dispatch"];
+  dispatch["status"] = "queued";
+  response_json["state"] = task_state;
+
+  _validate_and_publish_api_response(
+    response_json,
+    response_validator,
+    request_id);
 }
 
 //==============================================================================
