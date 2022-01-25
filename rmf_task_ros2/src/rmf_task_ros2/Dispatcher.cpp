@@ -44,6 +44,8 @@
 #include <rmf_api_msgs/schemas/task_state.hpp>
 #include <rmf_api_msgs/schemas/error.hpp>
 
+#include <unordered_set>
+
 namespace rmf_task_ros2 {
 
 namespace {
@@ -211,7 +213,10 @@ public:
     api_request = node->create_subscription<ApiRequestMsg>(
       "task_api_requests",
       rclcpp::SystemDefaultsQoS().reliable().transient_local(),
-      [this](const ApiRequestMsg& msg) { this->handle_api_request(msg); });
+      [this](const ApiRequestMsg::UniquePtr msg)
+      {
+        this->handle_api_request(*msg);
+      });
 
     api_response = node->create_publisher<ApiResponseMsg>(
       "task_api_responses",
@@ -235,9 +240,9 @@ public:
     dispatch_ack_sub = node->create_subscription<DispatchAckMsg>(
       rmf_task_ros2::DispatchAckTopicName,
       rclcpp::ServicesQoS().keep_last(20).transient_local(),
-      [this](const DispatchAckMsg& msg)
+      [this](const DispatchAckMsg::UniquePtr msg)
       {
-        this->handle_dispatch_ack(msg);
+        this->handle_dispatch_ack(*msg);
       });
 
     auctioneer = bidding::Auctioneer::make(
@@ -719,6 +724,18 @@ public:
 
       if (on_change_fn)
         on_change_fn(*dispatch_state);
+
+      // Print the errors
+      std::size_t error_count = 1;
+      for (const auto& error : errors)
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "No submission error[%d]: %s",
+          error_count,
+          error.c_str());
+        ++error_count;
+      }
 
       return;
     }

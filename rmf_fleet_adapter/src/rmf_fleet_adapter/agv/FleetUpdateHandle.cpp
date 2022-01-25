@@ -31,6 +31,7 @@
 #include "../tasks/ChargeBattery.hpp"
 #include "../tasks/Compose.hpp"
 #include "../events/GoToPlace.hpp"
+#include "../events/PerformAction.hpp"
 
 #include <rmf_task/Constraints.hpp>
 #include <rmf_task/Parameters.hpp>
@@ -114,6 +115,9 @@ TaskDeserialization::TaskDeserialization()
   task = std::make_shared<DeserializeJSON<DeserializedTask>>();
   phase = std::make_shared<DeserializeJSON<DeserializedPhase>>();
   event = std::make_shared<DeserializeJSON<DeserializedEvent>>();
+  consider_actions =
+    std::make_shared<std::unordered_map<
+      std::string, FleetUpdateHandle::ConsiderRequest>>();
 
   _schema_dictionary = std::make_shared<SchemaDictionary>();
   _loader = [dict = _schema_dictionary](
@@ -277,8 +281,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
   std::vector<std::string> errors;
 
-  rmf_traffic::Time earliest_start_time =
-    rmf_traffic::Time(rmf_traffic::Duration::min());
+  rmf_traffic::Time earliest_start_time = rmf_traffic_ros2::convert(
+    node->get_clock()->now());
   const auto t_it = request_msg.find("unix_millis_earliest_start_time");
   if (t_it != request_msg.end())
   {
@@ -918,9 +922,9 @@ PlaceDeserializer make_place_deserializer(
 
       if (msg.is_object())
       {
-        const auto& ori_json = msg["orientation"];
-        if (ori_json)
-          place->orientation(ori_json.get<double>());
+        const auto& ori_it = msg.find("orientation");
+        if (ori_it != msg.end())
+          place->orientation(ori_it->get<double>());
       }
 
       return {place, {}};
@@ -942,6 +946,7 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     *activation.phase, activation.event);
 
   events::GoToPlace::add(*activation.event);
+  events::PerformAction::add(*activation.event);
   deserialization.place = make_place_deserializer(planner);
   deserialization.add_schema(schemas::Place);
 
@@ -972,6 +977,26 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     deserialization,
     activation,
     node->clock());
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::add_performable_action(
+  const std::string& category,
+  ConsiderRequest consider)
+{
+  if (category.empty())
+  {
+    RCLCPP_ERROR(
+      _pimpl->node->get_logger(),
+      "FleetUpdateHandle::add_performable_action(~) called with empty category"
+    );
+    return *this;
+  }
+
+  _pimpl->deserialization.consider_actions->insert_or_assign(
+    category, consider);
+
+  return *this;
 }
 
 //==============================================================================
