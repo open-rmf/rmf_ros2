@@ -37,6 +37,8 @@ using Confirmation = agv::FleetUpdateHandle::Confirmation;
 using ModifiedConsiderRequest = 
   std::function<Confirmation(const nlohmann::json &description)>;
 
+using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
+
 void bind_types(py::module&);
 void bind_graph(py::module&);
 void bind_shapes(py::module&);
@@ -147,7 +149,21 @@ PYBIND11_MODULE(rmf_adapter, m) {
       return self.unstable().get_participant();
     },
     py::return_value_policy::reference_internal,
-    "Experimental API to access the schedule participant");
+    "Experimental API to access the schedule participant")
+  .def("set_action_executor",
+    &agv::RobotUpdateHandle::set_action_executor,
+    py::arg("action_executor"));
+
+  // ACTION EXECUTOR   ===============================================
+  auto m_robot_update_handle = m.def_submodule("robot_update_handle");
+
+  py::class_<ActionExecution>(
+    m_robot_update_handle, "ActionExecution")
+  .def("finished", &ActionExecution::finished)
+  .def("okay", &ActionExecution::okay)
+  .def("update_remaining_time",
+    &ActionExecution::update_remaining_time,
+    py::arg("remaining_time_estimate"));
 
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
@@ -317,6 +333,23 @@ PYBIND11_MODULE(rmf_adapter, m) {
           }
         );
     },
+    py::arg("consider"))
+  .def("add_performable_action",
+     [&](agv::FleetUpdateHandle& self,
+         const std::string& category,
+         ModifiedConsiderRequest consider)
+    {
+      self.add_performable_action(
+          category,
+          [consider = std::move(consider)](
+            const nlohmann::json &description, Confirmation &confirm)
+          {
+            nlohmann::json desc = description;
+            confirm = consider(desc); // confirm is returned by user
+          }
+        );
+    },
+    py::arg("category"),
     py::arg("consider"));
 
   // TASK REQUEST CONFIRMATION ===============================================
