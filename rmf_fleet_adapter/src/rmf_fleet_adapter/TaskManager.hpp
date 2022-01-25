@@ -36,6 +36,7 @@
 #include <nlohmann/json-schema.hpp>
 
 #include <mutex>
+#include <queue>
 
 namespace rmf_fleet_adapter {
 
@@ -84,8 +85,11 @@ public:
 
   std::string robot_status() const;
 
-  /// The state of the robot.
-  State expected_finish_state(bool for_direct_assignment = false) const;
+  /// The state of the robot. If the direct assignment queue is not empty,
+  /// This will always return the state of the robot after completing all
+  /// the tasks in the direct assignment queue. Otherwise, the current state
+  /// is returned
+  State expected_finish_state() const;
 
   /// Callback for the retreat timer. Appends a charging task to the task queue
   /// when robot is idle and battery level drops below a retreat threshold.
@@ -101,6 +105,46 @@ public:
   std::vector<nlohmann::json> task_log_updates() const;
 
 private:
+
+  struct DirectAssignment
+  {
+    std::size_t sequence_number;
+    Assignment assignment;
+
+    DirectAssignment(
+      std::size_t sequence_number_,
+      Assignment assignment_)
+    : sequence_number(sequence_number_),
+      assignment(std::move(assignment_))
+    {
+      // Do nothing
+    }
+
+  };
+
+  struct QueuePriority
+  {
+    bool operator()(const DirectAssignment& a, const DirectAssignment& b)
+    {
+      // Sort by start time and then sequence_number if tie
+      const auto start_time_b =
+        b.assignment.request()->booking()->earliest_start_time();
+      const auto start_time_a =
+        a.assignment.request()->booking()->earliest_start_time();
+
+      if (start_time_b == start_time_a)
+      {
+        return b.sequence_number < a.sequence_number;
+      }
+
+      return start_time_b < start_time_a;
+    }
+  };
+
+  using PriorityQueue = std::priority_queue<
+    DirectAssignment,
+    std::vector<DirectAssignment>,
+    QueuePriority>;
 
   TaskManager(
     agv::RobotContextPtr context,
@@ -197,8 +241,10 @@ private:
   rmf_task_sequence::Event::ActivePtr _emergency_pullover;
   // Queue for dispatched tasks
   std::vector<Assignment> _queue;
+  // An ID to keep track of the FIFO order of direct tasks
+  std::size_t _next_sequence_number;
   // Queue for directly assigned tasks
-  std::vector<Assignment> _direct_queue;
+  PriorityQueue _direct_queue;
   rmf_utils::optional<Start> _expected_finish_location;
   rxcpp::subscription _task_sub;
   rxcpp::subscription _emergency_sub;

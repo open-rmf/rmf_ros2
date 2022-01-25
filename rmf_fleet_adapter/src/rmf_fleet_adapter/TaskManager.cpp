@@ -216,6 +216,7 @@ TaskManager::TaskManager(
 : _context(std::move(context)),
   _broadcast_client(std::move(broadcast_client)),
   _fleet_handle(std::move(fleet_handle)),
+  _next_sequence_number(0),
   _last_update_time(std::chrono::steady_clock::now() - std::chrono::seconds(1))
 {
   // Do nothing. The make() function does all further initialization.
@@ -771,31 +772,25 @@ std::string TaskManager::robot_status() const
 }
 
 //==============================================================================
-auto TaskManager::expected_finish_state(
-  bool for_direct_assignment) const -> State
+auto TaskManager::expected_finish_state() const -> State
 {
   rmf_task::State current_state =
     _context->make_get_state()()
     .time(rmf_traffic_ros2::convert(_context->node()->now()));
 
-  if (!for_direct_assignment)
+  if (!_direct_queue.empty())
   {
-    if (!_active_task)
+    rmf_task::State finish_state;
+    auto queue = _direct_queue;
+    while (!queue.empty())
     {
-      // There may be queued up direct tasks but since none of them are active
-      // we assume they may be scheduled in the future.
-      return current_state;
+      const auto top = queue.top();
+      finish_state = top.assignment.finish_state();
+      queue.pop();
     }
-
-    if (!_direct_queue.empty())
-    {
-      return _direct_queue.back().finish_state();
-    }
-
-    return _context->current_task_end_state();
+    return finish_state;
   }
 
-  // Assume we can replan for the queued direct tasks
   if (_active_task)
     return _context->current_task_end_state();
 
@@ -904,7 +899,7 @@ void TaskManager::_begin_next_task()
 
   std::lock_guard<std::mutex> guard(_mutex);
 
-  if (_queue.empty())
+  if (_queue.empty() && _direct_queue.empty())
   {
     if (!_waiting)
       _begin_waiting();
@@ -918,26 +913,32 @@ void TaskManager::_begin_next_task()
     return;
   }
 
-  const rmf_traffic::Time now = rmf_traffic_ros2::convert(
-    _context->node()->now());
-  const auto next_task = _queue.front();
   // We take the minimum of the two to deal with cases where the deployment_time
   // as computed by the task planner is greater than the earliest_start_time
   // which is greater than now. This can happen for example if the previous task
   // completed earlier than estimated.
   // TODO: Reactively replan task assignments across agents in a fleet every
   // time as task is completed.
+
+  // The next task should one in the direct assignment queue if present
+
+  const bool is_next_task_direct = _direct_queue.empty() ? false : true;
+  const auto assignment = is_next_task_direct ? _direct_queue.top().assignment
+    : _queue.front();
+
   const auto deployment_time = std::min(
-    next_task.deployment_time(),
-    next_task.request()->booking()->earliest_start_time());
+    assignment.request()->booking()->earliest_start_time(),
+    assignment.deployment_time());
+
+  const rmf_traffic::Time now = rmf_traffic_ros2::convert(
+    _context->node()->now());
 
   if (now >= deployment_time)
   {
     // Update state in RobotContext and Assign active task
-    const auto id = _queue.front().request()->booking()->id();
-    _context->current_task_end_state(_queue.front().finish_state());
+    const auto& id = assignment.request()->booking()->id();
+    _context->current_task_end_state(assignment.finish_state());
     _context->current_task_id(id);
-    const auto assignment = _queue.front();
     _active_task = _context->task_activator()->activate(
       _context->make_get_state(),
       _context->task_parameters(),
@@ -947,6 +948,9 @@ void TaskManager::_begin_next_task()
       _phase_finished_cb(),
       _task_finished(id));
 
+    if (is_next_task_direct)
+       _direct_queue.pop();
+   else
     _queue.erase(_queue.begin());
 
     if (!_active_task)
@@ -1123,7 +1127,7 @@ void TaskManager::retreat_to_charger()
   if (!task_planner->configuration().constraints().drain_battery())
     return;
 
-  const auto current_state = expected_finish_state(true);
+  const auto current_state = expected_finish_state();
   const auto charging_waypoint =
     current_state.dedicated_charging_waypoint().value();
   if (current_state.waypoint() == charging_waypoint)
@@ -1700,33 +1704,51 @@ void TaskManager::_handle_direct_request(
     // TODO(YV): Publish response
     return;
   }
-  agv::FleetUpdateHandle::Implementation::Expectations expect;
-  // TODO(YV): Update this once the task planner can support sequence
-  // constraints that respect timeline segmentations
-  // For now we will replan with all the queued direct assignments
-  expect.states.push_back(expected_finish_state(true));
-  expect.pending_requests.push_back(new_request);
+  // Generate Assignment for the request
+  const auto task_planner = _context->task_planner();
+  if (!task_planner)
+    return;
 
-  std::lock_guard<std::mutex> lock(_mutex);
-  for (const auto& a : _direct_queue)
+  const auto current_state = expected_finish_state();
+  const auto& constraints = task_planner->configuration().constraints();
+  const auto& parameters = task_planner->configuration().parameters();
+  const auto model = new_request->description()->make_model(
+    new_request->booking()->earliest_start_time(),
+    parameters);
+  const auto estimate = model->estimate_finish(
+    current_state,
+    constraints,
+    *_travel_estimator);
+
+  rmf_task::State finish_state;
+  rmf_traffic::Time deployment_time;
+
+  if (!estimate.has_value())
   {
-    if (a.request()->booking()->automatic())
-      continue;
-    expect.pending_requests.push_back(a.request());
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      "Unable to estimate final state for direct task request [%s]. This may "
+      "be due to insufficient resources to perform the task. The task will be "
+      "still be added to the queue.",
+      request_id.c_str());
+    finish_state = current_state;
+    deployment_time = new_request->booking()->earliest_start_time();
+  }
+  else
+  {
+    finish_state = estimate.value().finish_state();
+    deployment_time = estimate.value().wait_until();
   }
 
-  const auto results = impl.allocate_tasks(
-    new_request,
-    &errors,
-    expect);
-
-  if (!results.has_value())
-  {
-    // TODO(YV): Publish response
-  }
-
-  assert(!results.value().front().empty());
-  _direct_queue = results.value().front();
+  DirectAssignment assignment = DirectAssignment{
+    _next_sequence_number,
+    Assignment(
+        new_request,
+        finish_state,
+        deployment_time)
+    };
+  ++_next_sequence_number;
+  _direct_queue.push(assignment);
 }
 
 //==============================================================================
