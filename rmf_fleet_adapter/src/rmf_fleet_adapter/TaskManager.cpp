@@ -757,6 +757,7 @@ bool TaskManager::cancel_task_if_present(const std::string& task_id)
     return true;
   }
 
+  std::lock_guard<std::mutex> lock(_mutex);
   for (auto it = _queue.begin(); it != _queue.end(); ++it)
   {
     if (it->request()->booking()->id() == task_id)
@@ -786,6 +787,7 @@ auto TaskManager::expected_finish_state() const -> State
     _context->make_get_state()()
     .time(rmf_traffic_ros2::convert(_context->node()->now()));
 
+  std::lock_guard<std::mutex> lock(_mutex);
   if (!_direct_queue.empty())
   {
     return _direct_queue.rbegin()->assignment.finish_state();
@@ -843,6 +845,7 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
   using namespace rmf_task::requests;
   std::vector<rmf_task::ConstRequestPtr> requests;
   requests.reserve(_queue.size());
+  std::lock_guard<std::mutex> lock(_mutex);
   for (const auto& task : _queue)
   {
     if (task.request()->booking()->automatic())
@@ -1114,9 +1117,9 @@ void TaskManager::_resume_from_emergency()
 void TaskManager::retreat_to_charger()
 {
   {
-    std::lock_guard<std::mutex> guard(_mutex);
-    if (_active_task || !_queue.empty())
-      return;
+  std::lock_guard<std::mutex> guard(_mutex);
+  if (_active_task || !_queue.empty())
+    return;
   }
 
   const auto task_planner = _context->task_planner();
@@ -1485,6 +1488,7 @@ void TaskManager::_send_simple_error_if_queued(
 {
   // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
   // unordered_sets and perform a lookup to see which queue to iterate.
+  std::lock_guard<std::mutex> lock(_mutex);
   for (const auto& a : _queue)
   {
     if (a.request()->booking()->id() == task_id)
@@ -1810,13 +1814,16 @@ void TaskManager::_handle_direct_request(
         deployment_time)
     };
   ++_next_sequence_number;
+  {
+  std::lock_guard<std::mutex> lock(_mutex);
   _direct_queue.insert(assignment);
+  }
 
-    RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "Direct request [%s] successfully queued for robot [%s]",
-      request_id.c_str(),
-      robot.c_str());
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Direct request [%s] successfully queued for robot [%s]",
+    request_id.c_str(),
+    robot.c_str());
 
   // Publish api response
   nlohmann::json response_json;
@@ -1860,6 +1867,7 @@ void TaskManager::_handle_cancel_request(
   }
   // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
   // unordered_sets and perform a lookup to see which function to call.
+  std::lock_guard<std::mutex> lock(_mutex);
   if (!remove_task_from_queue(task_id, _queue))
     remove_task_from_queue(task_id, _direct_queue);
 }
@@ -1886,6 +1894,7 @@ void TaskManager::_handle_kill_request(
 
   // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
   // unordered_sets and perform a lookup to see which function to call.
+  std::lock_guard<std::mutex> lock(_mutex);
   if (!remove_task_from_queue(task_id, _queue))
     remove_task_from_queue(task_id, _direct_queue);
 }
