@@ -1281,10 +1281,15 @@ void FleetUpdateHandle::add_robot(
             return;
           }
 
+          std::optional<std::weak_ptr<BroadcastClient>> broadcast_client =
+            std::nullopt;
+          if (fleet->_pimpl->broadcast_client)
+            broadcast_client = fleet->_pimpl->broadcast_client;
+
           fleet->_pimpl->task_managers.insert({context,
             TaskManager::make(
               context,
-              fleet->_pimpl->broadcast_client,
+              broadcast_client,
               std::weak_ptr<FleetUpdateHandle>(fleet))});
         });
     });

@@ -69,7 +69,7 @@ namespace rmf_fleet_adapter {
 //==============================================================================
 TaskManagerPtr TaskManager::make(
   agv::RobotContextPtr context,
-  std::weak_ptr<BroadcastClient> broadcast_client,
+  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
   std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 {
   auto mgr = TaskManagerPtr(
@@ -219,7 +219,7 @@ TaskManagerPtr TaskManager::make(
 //==============================================================================
 TaskManager::TaskManager(
   agv::RobotContextPtr context,
-  std::weak_ptr<BroadcastClient> broadcast_client,
+  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
   std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 : _context(std::move(context)),
   _broadcast_client(std::move(broadcast_client)),
@@ -812,7 +812,8 @@ agv::ConstRobotContextPtr TaskManager::context() const
 }
 
 //==============================================================================
-std::weak_ptr<BroadcastClient> TaskManager::broadcast_client() const
+std::optional<std::weak_ptr<BroadcastClient>> TaskManager::broadcast_client()
+const
 {
   return _broadcast_client;
 }
@@ -1291,7 +1292,10 @@ void TaskManager::_validate_and_publish_websocket(
     return;
   }
 
-  const auto client = _broadcast_client.lock();
+  if (!_broadcast_client.has_value())
+    return;
+
+  const auto client = _broadcast_client->lock();
   if (!client)
   {
     RCLCPP_ERROR(
