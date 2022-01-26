@@ -1181,7 +1181,14 @@ void TaskManager::retreat_to_charger()
       finish.value().finish_state(),
       current_state.time().value());
 
-    set_queue({charging_assignment});
+    const DirectAssignment assignment = DirectAssignment{
+      _next_sequence_number,
+      charging_assignment};
+    ++_next_sequence_number;
+    {
+    std::lock_guard<std::mutex> lock(_mutex);
+    _direct_queue.insert(assignment);
+    }
 
     RCLCPP_INFO(
       _context->node()->get_logger(),
@@ -1806,7 +1813,7 @@ void TaskManager::_handle_direct_request(
     deployment_time = estimate.value().wait_until();
   }
 
-  DirectAssignment assignment = DirectAssignment{
+  const DirectAssignment assignment = DirectAssignment{
     _next_sequence_number,
     Assignment(
         new_request,
