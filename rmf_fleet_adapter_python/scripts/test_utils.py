@@ -359,13 +359,6 @@ class MockRobotCommand(adpt.RobotCommandHandle):
 
             self.visited_waypoints.append(previous_waypoint_graph_idx)
 
-        else:
-            print("[RobotUpdateHandle] UPDATING ROBOT POSITION DEFAULT:",
-                  previous_waypoint.position)
-            # TODO(CH3): NOTE(CH3): Confirm this magic string is wanted
-            self.updater.update_position("test_map",
-                                         previous_waypoint.position)
-
         if self.current_waypoint_target < len(waypoints):
             # Again, this waypoint is a plan waypoint! NOT a graph waypoint!!
             waypoint = waypoints[self.current_waypoint_target]
