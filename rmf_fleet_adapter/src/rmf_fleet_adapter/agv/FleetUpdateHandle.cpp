@@ -167,14 +167,14 @@ std::string FleetUpdateHandle::Implementation::make_error_str(
 std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
   const std::string& task_id,
   const nlohmann::json& request_msg,
-  std::vector<std::string>* errors) const
+  std::vector<std::string>& errors) const
 {
   const auto& category = request_msg["category"].get<std::string>();
 
   const auto task_deser_it = deserialization.task->handlers.find(category);
   if (task_deser_it == deserialization.task->handlers.end())
   {
-    errors->push_back(make_error_str(
+    errors.push_back(make_error_str(
       4, "Unsupported type",
       "Fleet [" + name + "] does not support task category ["
       + category + "]"));
@@ -198,7 +198,7 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
       e.what(),
       description_msg.dump(2, ' ').c_str());
 
-    errors->push_back(make_error_str(5, "Invalid request format", e.what()));
+    errors.push_back(make_error_str(5, "Invalid request format", e.what()));
     return nullptr;
   }
 
@@ -207,7 +207,7 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
 
   if (!deserialized_task.description)
   {
-    *errors = deserialized_task.errors;
+    errors = deserialized_task.errors;
     return nullptr;
   }
 
@@ -240,7 +240,7 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
 
     if (!priority)
     {
-      errors->push_back(
+      errors.push_back(
         make_error_str(
           4, "Unsupported type",
           "Fleet [" + name + "] does not support priority request: " + p_it->dump()
@@ -326,7 +326,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   }
 
   std::vector<std::string> errors = {};
-  const auto new_request = convert(task_id, request_msg, &errors);
+  const auto new_request = convert(task_id, request_msg, errors);
   if (!new_request)
   {
     return respond(

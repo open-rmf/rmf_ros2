@@ -533,7 +533,7 @@ public:
   std::shared_ptr<rmf_task::Request> convert(
     const std::string& task_id,
     const nlohmann::json& request_msg,
-    std::vector<std::string>* errors) const;
+    std::vector<std::string>& errors) const;
 };
 
 } // namespace agv

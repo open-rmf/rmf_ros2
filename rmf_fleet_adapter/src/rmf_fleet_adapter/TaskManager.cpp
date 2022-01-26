@@ -53,6 +53,9 @@
 #include <rmf_api_msgs/schemas/rewind_task_request.hpp>
 #include <rmf_api_msgs/schemas/rewind_task_response.hpp>
 #include <rmf_api_msgs/schemas/robot_task_request.hpp>
+#include <rmf_api_msgs/schemas/dispatch_task_response.hpp>
+#include <rmf_api_msgs/schemas/task_state.hpp>
+#include <rmf_api_msgs/schemas/error.hpp>
 #include <rmf_api_msgs/schemas/robot_task_response.hpp>
 #include <rmf_api_msgs/schemas/skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/skip_phase_response.hpp>
@@ -192,6 +195,9 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::rewind_task_request,
     rmf_api_msgs::schemas::rewind_task_response,
     rmf_api_msgs::schemas::robot_task_request,
+    rmf_api_msgs::schemas::dispatch_task_response,
+    rmf_api_msgs::schemas::task_state,
+    rmf_api_msgs::schemas::error,
     rmf_api_msgs::schemas::robot_task_response,
     rmf_api_msgs::schemas::skip_phase_request,
     rmf_api_msgs::schemas::skip_phase_response,
@@ -1731,7 +1737,7 @@ void TaskManager::_handle_direct_request(
   const auto& impl =
     agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
   std::vector<std::string> errors;
-  const auto new_request = impl.convert(request_id, request, &errors);
+  const auto new_request = impl.convert(request_id, request, errors);
   if (!new_request)
   {
     nlohmann::json response_json;
@@ -1807,10 +1813,14 @@ void TaskManager::_handle_direct_request(
 
   auto task_state = _task_state_json;
   copy_booking_data(task_state["booking"], *new_request->booking());
-  task_state["category"] = request_json["category"];
-  task_state["detail"] = request_json["description"];
+  task_state["category"] = request_json["category"].get<std::string>();
+  task_state["detail"] = request_json["description"].get<std::string>();
+  task_state["status"] = "queued";
   auto& dispatch = task_state["dispatch"];
   dispatch["status"] = "queued";
+  auto& assign = dispatch["assignment"];
+  assign["fleet_name"] = fleet;
+  assign["expected_robot_name"] = robot;
   response_json["state"] = task_state;
 
   _validate_and_publish_api_response(
