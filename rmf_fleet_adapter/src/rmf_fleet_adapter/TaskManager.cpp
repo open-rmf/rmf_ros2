@@ -1740,6 +1740,11 @@ void TaskManager::_handle_direct_request(
   const auto new_request = impl.convert(request_id, request, errors);
   if (!new_request)
   {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Unable to generate a valid request for direct task [%s]",
+      request_id.c_str());
+
     nlohmann::json response_json;
     response_json["success"] = false;
     std::vector<nlohmann::json> json_errors = {};
@@ -1758,7 +1763,7 @@ void TaskManager::_handle_direct_request(
   const auto task_planner = _context->task_planner();
   if (!task_planner)
   {
-    RCLCPP_WARN(
+    RCLCPP_ERROR(
       _context->node()->get_logger(),
       "Fleet [%s] is not configured with parameters for task planning."
       "Use FleetUpdateHandle::set_task_planner_params(~) to set the "
@@ -1807,20 +1812,25 @@ void TaskManager::_handle_direct_request(
   ++_next_sequence_number;
   _direct_queue.insert(assignment);
 
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Direct request [%s] successfully queued for robot [%s]",
+      request_id.c_str(),
+      robot.c_str());
+
   // Publish api response
   nlohmann::json response_json;
   response_json["success"] = true;
-
-  auto task_state = _task_state_json;
+  nlohmann::json task_state;;
   copy_booking_data(task_state["booking"], *new_request->booking());
-  task_state["category"] = request_json["category"].get<std::string>();
-  task_state["detail"] = request_json["description"].get<std::string>();
+  // task_state["category"] = request["category"].get<std::string>();
+  task_state["detail"] = request["description"];
   task_state["status"] = "queued";
   auto& dispatch = task_state["dispatch"];
   dispatch["status"] = "queued";
-  auto& assign = dispatch["assignment"];
-  assign["fleet_name"] = fleet;
-  assign["expected_robot_name"] = robot;
+  auto& assign = task_state["assigned_to"];
+  assign["group"] = fleet;
+  assign["name"] = robot;
   response_json["state"] = task_state;
 
   _validate_and_publish_api_response(
