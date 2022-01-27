@@ -140,7 +140,18 @@ PYBIND11_MODULE(rmf_adapter, m) {
       return self.unstable().get_participant();
     },
     py::return_value_policy::reference_internal,
-    "Experimental API to access the schedule participant");
+    "Experimental API to access the schedule participant")
+  .def("set_action_executor", &agv::RobotUpdateHandle::set_action_executor,
+    py::arg("action_executor"),
+    py::call_guard<py::scoped_ostream_redirect,
+    py::scoped_estream_redirect>());
+
+  py::class_<agv::RobotUpdateHandle::ActionExecution,
+    std::shared_ptr<agv::RobotUpdateHandle::ActionExecution>>(
+    m, "ActionExecution")
+  .def("finished", &agv::RobotUpdateHandle::ActionExecution::finished,
+    py::call_guard<py::scoped_ostream_redirect,
+    py::scoped_estream_redirect>());
 
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
@@ -234,7 +245,16 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("fleet_state_publish_period",
     &agv::FleetUpdateHandle::fleet_state_publish_period,
     py::arg("value"),
-    "The default value is 1s");
+    "The default value is 1s")
+  .def("add_performable_action",
+    &agv::FleetUpdateHandle::add_performable_action,
+    py::arg("category"),
+    py::arg("consider"));
+
+  py::class_<agv::FleetUpdateHandle::Confirmation,
+    std::shared_ptr<agv::FleetUpdateHandle::Confirmation>>(
+    m, "Confirmation")
+  .def("accept", &agv::FleetUpdateHandle::Confirmation::accept);
 
   // EASY TRAFFIC LIGHT HANDLE ===============================================
   py::class_<agv::Waypoint>(m, "Waypoint")
@@ -398,3 +418,4 @@ PYBIND11_MODULE(rmf_adapter, m) {
       .time_since_epoch());
     });
 }
+
