@@ -127,29 +127,27 @@ void add_compose(
           phase_activity.errors.begin(), phase_activity.errors.end());
 
         std::vector<rmf_task_sequence::Phase::ConstDescriptionPtr> cancel = {};
-        const auto it = phase_json.find("on_cancel");
-        if (it != phase_json.end())
+        const auto cancel_it = phase_json.find("on_cancel");
+        if (cancel_it != phase_json.end() && cancel_it.value().is_array())
         {
-          const auto& on_cancel_json = phase_json["on_cancel"];
-          if (on_cancel_json.is_array())
+          const auto& on_cancel_json = cancel_it.value();
+          cancel.reserve(on_cancel_json.size());
+          for (const auto& cancellation_activity_json : on_cancel_json)
           {
-            cancel.reserve(on_cancel_json.size());
-            for (const auto& cancellation_activity_json : on_cancel_json)
-            {
-              auto cancellation_activity =
-                deser_activity(cancellation_activity_json);
+            auto cancellation_activity =
+              deser_activity(cancellation_activity_json);
 
-              if (!cancellation_activity.description)
-                return {nullptr, std::move(cancellation_activity.errors)};
+            if (!cancellation_activity.description)
+              return {nullptr, std::move(cancellation_activity.errors)};
 
-              cancel.push_back(cancellation_activity.description);
-              errors.insert(
-                errors.end(),
-                cancellation_activity.errors.begin(),
-                cancellation_activity.errors.end());
-            }
+            cancel.push_back(cancellation_activity.description);
+            errors.insert(
+              errors.end(),
+              cancellation_activity.errors.begin(),
+              cancellation_activity.errors.end());
           }
         }
+
         builder.add_phase(phase_activity.description, cancel);
       }
 
