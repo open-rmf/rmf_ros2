@@ -98,7 +98,7 @@ public:
   ///   Specify the URI for the websocket server that receives updates on tasks
   ///   and states. If nullopt, data will not be published.
   ///
-  /// \param[in] backup_filename
+  /// \param[in] backup_file_path
   ///   Loads and logs backup data to the specified file. If the file already,
   ///   exists the fleet handle will be restored to the last backup state. If
   ///   the file does not exist, a new one will be created.
@@ -108,7 +108,7 @@ public:
     rmf_traffic::agv::VehicleTraits traits,
     rmf_traffic::agv::Graph navigation_graph,
     std::optional<std::string> server_uri = std::nullopt,
-    std::optional<std::string> backup_filename = std::nullopt);
+    std::optional<std::string> backup_file_path = std::nullopt);
 
   /// Create a traffic light to help manage robots that can only support pause
   /// and resume commands.

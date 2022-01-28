@@ -45,6 +45,7 @@
 #include "../TaskManager.hpp"
 #include "../BroadcastClient.hpp"
 #include "../DeserializeJSON.hpp"
+#include "../DatabaseLogger.hpp"
 
 #include <rmf_traffic/schedule/Snapshot.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>
@@ -63,8 +64,6 @@
 #include <rmf_api_msgs/schemas/location_2D.hpp>
 
 #include <rmf_fleet_adapter/schemas/event_description_PerformAction.hpp>
-
-#include "../DatabaseLogger.hpp"
 
 #include <iostream>
 #include <unordered_set>
@@ -269,9 +268,6 @@ public:
   rclcpp::TimerBase::SharedPtr fleet_state_topic_publish_timer = nullptr;
   rclcpp::TimerBase::SharedPtr fleet_state_update_timer = nullptr;
 
-  // Map task id to pair of <RequestPtr, Assignments>
-  using Assignments = rmf_task::TaskPlanner::Assignments;
-
   using DockParamMap =
     std::unordered_map<
       std::string,
@@ -291,7 +287,9 @@ public:
 
   double current_assignment_cost = 0.0;
   // Map to store task id with assignments for BidNotice
-  std::unordered_map<std::string, Assignments> bid_notice_assignments = {};
+  using Assignments = rmf_task::TaskPlanner::Assignments;
+  using BidNoticeAssignments = std::unordered_map<std::string, Assignments>;
+  BidNoticeAssignments bid_notice_assignments = {};
 
   using BidNoticeMsg = rmf_task_msgs::msg::BidNotice;
 

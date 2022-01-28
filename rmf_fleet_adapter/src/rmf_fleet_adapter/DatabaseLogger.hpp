@@ -21,10 +21,13 @@
 #include <rmf_task/TaskPlanner.hpp>
 
 #include "TaskManager.hpp"
+#include "agv/internal_FleetUpdateHandle.hpp"
 
 #include <sqlite3.h>
+#include <nlohmann/json.hpp>
 
 #include <memory>
+#include <mutex>
 
 namespace rmf_fleet_adapter {
 //==============================================================================
@@ -34,26 +37,58 @@ namespace rmf_fleet_adapter {
 class DatabaseLogger
 {
 public:
+  using Assignment = rmf_task::TaskPlanner::Assignment;
   using Assignments = rmf_task::TaskPlanner::Assignments;
+  using BidNoticeAssignments =
+    std::unordered_map<std::string, Assignments>;
   // Bundle up the restored state of the fleet adapter
   // TODO(YV): Ensure index of managers correspond to index of Assignments
+  // We should return some sort of map<robot_name, manager> which
+  // FleetUpdateHandle::add_robot() can lookup for restored task managers.
+  // But if a new robot is being added, what do we do with the
+  // previous bid_notice_assignments? The index order will be incorrect.
+  // We would need to modify the implementation of dispatch_command_cb to not
+  // return an error when the number of robots do not match the number in
+  // Assignments.
   struct Restored
   {
     std::vector<TaskManager> managers;
-    std::unordered_map<std::string, Assignments> bid_notice_assignments
+    BidNoticeAssignments bid_notice_assignments;
   };
 
   static std::shared_ptr<DatabaseLogger> make(
-    const std::string& filename);
+    const std::string& file_path);
 
+  // Returns nullopt if file_path did not exist previously
+  std::optional<Restored> restore() const;
 
+  // TODO(YV): Consider having internal_FleetUpdateHandle and TaskManager
+  // receive these functions as callbacks to trigger on updates
+  // Backup bid_notice_assignments
+  void backup(const BidNoticeAssignments& assignments);
+
+  // Backup active task state along with task queues
+  void backup(const TaskManager& mgr);
+
+  // Do not allow copying or moving
+  // DatabaseLogger(const DatabaseLogger&) = delete;
+  // DatabaseLogger& operator=(const DatabaseLogger&) = delete;
+  // DatabaseLogger(DatabaseLogger&&) = delete;
+  // DatabaseLogger& operator=(DatabaseLogger&&) = delete;
 
   ~DatabaseLogger();
 
 private:
   DatabaseLogger();
-  std::shared_ptr<sqlite3> db;
 
+  // Helper functions to serialize/deserialize assignments
+  // TODO(YV): Consider formalizing the schema in rmf_fleet_adapter/schemas
+  nlohmann::json _convert(const Assignment& assignment);
+  Assignment _convert(const nlohmann::json& msg);
+
+  std::string _file_path;
+  sqlite3* _db;
+  std::mutex _mutex;
 };
 
 } // namespace rmf_fleet_adapter
