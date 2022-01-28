@@ -64,6 +64,8 @@
 
 #include <rmf_fleet_adapter/schemas/event_description_PerformAction.hpp>
 
+#include <sqlite3.h>
+
 #include <iostream>
 #include <unordered_set>
 #include <optional>
