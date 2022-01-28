@@ -294,17 +294,20 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   const auto p_it = request_msg.find("priority");
   if (p_it != request_msg.end())
   {
-    const auto& p_type = (*p_it)["type"];
-    if (p_type.is_string() && p_type.get<std::string>() == "binary")
+    if (p_it->contains("type") && p_it->contains("value"))
     {
-      const auto& p_value = (*p_it)["value"];
-      if (p_value.is_number_integer())
+      const auto& p_type = (*p_it)["type"];
+      if (p_type.is_string() && p_type.get<std::string>() == "binary")
       {
-        if (p_value.is_number_integer() && p_value.get<uint64_t>() > 0)
-          priority = rmf_task::BinaryPriorityScheme::make_high_priority();
-      }
+        const auto& p_value = (*p_it)["value"];
+        if (p_value.is_number_integer())
+        {
+          if (p_value.is_number_integer() && p_value.get<uint64_t>() > 0)
+            priority = rmf_task::BinaryPriorityScheme::make_high_priority();
+        }
 
-      priority = rmf_task::BinaryPriorityScheme::make_low_priority();
+        priority = rmf_task::BinaryPriorityScheme::make_low_priority();
+      }
     }
 
     if (!priority)
