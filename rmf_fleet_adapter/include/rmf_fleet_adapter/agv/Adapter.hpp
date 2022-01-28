@@ -97,11 +97,18 @@ public:
   /// \param[in] server_uri
   ///   Specify the URI for the websocket server that receives updates on tasks
   ///   and states. If nullopt, data will not be published.
+  ///
+  /// \param[in] backup_filename
+  ///   Loads and logs backup data to the specified file. If the file already,
+  ///   exists the fleet handle will be restored to the last backup state. If
+  ///   the file does not exist, a new one will be created.
+  ///   If nullopt, the fleet adapter will not perform any backup/restore.
   std::shared_ptr<FleetUpdateHandle> add_fleet(
     const std::string& fleet_name,
     rmf_traffic::agv::VehicleTraits traits,
     rmf_traffic::agv::Graph navigation_graph,
-    std::optional<std::string> server_uri = std::nullopt);
+    std::optional<std::string> server_uri = std::nullopt,
+    std::optional<std::string> backup_filename = std::nullopt);
 
   /// Create a traffic light to help manage robots that can only support pause
   /// and resume commands.

@@ -64,7 +64,7 @@
 
 #include <rmf_fleet_adapter/schemas/event_description_PerformAction.hpp>
 
-#include <sqlite3.h>
+#include "../DatabaseLogger.hpp"
 
 #include <iostream>
 #include <unordered_set>
@@ -241,6 +241,8 @@ public:
   std::shared_ptr<rmf_traffic::schedule::Snappable> snappable;
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
   std::optional<std::string> server_uri;
+  // Database for backup and restore
+  std::shared_ptr<DatabaseLogger> db;
 
   TaskActivation activation = TaskActivation();
   TaskDeserialization deserialization = TaskDeserialization();
