@@ -541,7 +541,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   if (impl.db)
   {
     impl.db->backup_active_task(robot, _state_msg);
-    impl.db->backup_task_logs(robot, task_logs);
+    impl.db->backup_task_logs(booking.id(), task_logs);
   }
 
 }

@@ -71,9 +71,9 @@ public:
     const std::string& robot,
     const nlohmann::json& task_state);
 
-  // Key used: (robot,task_id)
+  // Key used: (task_id)
   void backup_task_logs(
-    const std::string& robot,
+    const std::string& task_id,
     const nlohmann::json& task_logs);
 
   ~DatabaseLogger();

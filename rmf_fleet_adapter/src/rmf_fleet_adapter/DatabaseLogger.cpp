@@ -77,8 +77,7 @@ std::shared_ptr<DatabaseLogger>
   // DISPATCH and DIRECT will be jsons containing deserialized assignment jsons
   sql = "CREATE TABLE IF NOT EXISTS TASK_QUEUES("
         "ROBOT TEXT PRIMARY KEY NOT NULL, "
-        "DISPATCH TEXT, "
-        "DIRECT TEXT);";
+        "QUEUES TEXT NOT NULL);";
   error = sqlite3_exec(logger->_db, sql.c_str(), NULL, NULL, &error_msg);
   if (error)
     std::cout << "Error from creating TASK_QUEUES table: " << error_msg << std::endl;
@@ -142,43 +141,28 @@ void DatabaseLogger::backup_task_queues(const TaskManager& mgr)
   const auto& request_jsons = impl.task_request_jsons;
   std::vector<std::string> errors;
 
-  nlohmann::json queue;
-  std::vector<nlohmann::json> assignments;
+  nlohmann::json queues = {{"dispatch",{}}, {"direct",{}}};
   for (const auto& assignment : mgr._queue)
   {
-    assignments.push_back(convert(assignment, request_jsons));
-  }
-  queue = assignments;
-  // Write to db
-  {
-  std::lock_guard<std::mutex> lock(_mutex);
-  std::string data = queue.dump();
-  std::string sql = "REPLACE INTO TASK_QUEUES (ROBOT,DISPATCH) "
-    "VALUES('" + robot + "', '" + data + "');";
-  char* error_msg;
-  auto error = sqlite3_exec(_db, sql.c_str(), NULL, NULL, &error_msg);
-  if (error)
-    std::cout << "Error updating dispatch queue: " << error_msg << std::endl;
+    queues["dispatch"].push_back(convert(assignment, request_jsons));
   }
 
   // Direct assignments
-  queue = {};
-  assignments.clear();
+
   for (const auto& assignment : mgr._direct_queue)
   {
-    assignments.push_back(convert(assignment.assignment, request_jsons));
+    queues["direct"].push_back(convert(assignment.assignment, request_jsons));
   }
-  queue = assignments;
   // Write to db
   {
   std::lock_guard<std::mutex> lock(_mutex);
-  std::string data = queue.dump();
-  std::string sql = "REPLACE INTO TASK_QUEUES (ROBOT,DIRECT) "
+  std::string data = queues.dump();
+  std::string sql = "REPLACE INTO TASK_QUEUES (ROBOT,QUEUES) "
     "VALUES('" + robot + "', '" + data + "');";
   char* error_msg;
   auto error = sqlite3_exec(_db, sql.c_str(), NULL, NULL, &error_msg);
   if (error)
-    std::cout << "Error updating dispatch queue: " << error_msg << std::endl;
+    std::cout << "Error updating task queue: " << error_msg << std::endl;
   }
 
 }
@@ -201,22 +185,13 @@ void DatabaseLogger::backup_active_task(
 
 //==============================================================================
 void DatabaseLogger::backup_task_logs(
-    const std::string& robot,
+    const std::string& task_id,
     const nlohmann::json& task_logs)
 {
   std::lock_guard<std::mutex> lock(_mutex);
-  const auto it = task_logs.find("task_id");
-  if (it == task_logs.end())
-    return;
-  const auto& task_id = it.value();
-  if (!task_id.is_string())
-    return;
-
-  const std::string id = "(" + robot + "," + task_id.get<std::string>() + ")";
   const std::string logs = task_logs.dump();
-
   const std::string sql = "REPLACE INTO TASK_LOGS (ID,LOGS) "
-    "VALUES('" + id + "', '" + logs + "');";
+    "VALUES('" + task_id + "', '" + logs + "');";
   char* error_msg;
   auto error = sqlite3_exec(_db, sql.c_str(), NULL, NULL, &error_msg);
   if (error)
