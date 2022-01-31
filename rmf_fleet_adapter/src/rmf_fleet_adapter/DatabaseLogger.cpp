@@ -77,8 +77,8 @@ std::shared_ptr<DatabaseLogger>
   // DISPATCH and DIRECT will be jsons containing deserialized assignment jsons
   sql = "CREATE TABLE IF NOT EXISTS TASK_QUEUES("
         "ROBOT TEXT PRIMARY KEY NOT NULL, "
-        "DISPATCH TEXT NOT NULL, "
-        "DIRECT TEXT NOT NULL);";
+        "DISPATCH TEXT, "
+        "DIRECT TEXT);";
   error = sqlite3_exec(logger->_db, sql.c_str(), NULL, NULL, &error_msg);
   if (error)
     std::cout << "Error from creating TASK_QUEUES table: " << error_msg << std::endl;

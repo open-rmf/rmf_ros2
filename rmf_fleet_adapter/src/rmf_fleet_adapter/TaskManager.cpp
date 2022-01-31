@@ -851,6 +851,15 @@ void TaskManager::set_queue(
     _publish_task_queue();
   }
 
+  // Backup queue
+  auto fleet_handle = _fleet_handle.lock();
+  if (fleet_handle)
+  {
+    const auto& impl =
+      agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+    impl.db->backup_task_queues(*this);
+  }
+
   _begin_next_task();
 }
 
@@ -969,6 +978,15 @@ void TaskManager::_begin_next_task()
       _direct_queue.erase(_direct_queue.begin());
    else
       _queue.erase(_queue.begin());
+
+    // Backup queue
+    auto fleet_handle = _fleet_handle.lock();
+    if (fleet_handle)
+    {
+      const auto& impl =
+        agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+      impl.db->backup_task_queues(*this);
+    }
 
     if (!_active_task)
     {
@@ -1203,6 +1221,14 @@ void TaskManager::retreat_to_charger()
     {
     std::lock_guard<std::mutex> lock(_mutex);
     _direct_queue.insert(assignment);
+    }
+
+    auto fleet_handle = _fleet_handle.lock();
+    if (fleet_handle)
+    {
+      const auto& impl =
+        agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+      impl.db->backup_task_queues(*this);
     }
 
     RCLCPP_INFO(
@@ -1847,6 +1873,9 @@ void TaskManager::_handle_direct_request(
   std::lock_guard<std::mutex> lock(_mutex);
   _direct_queue.insert(assignment);
   }
+
+  // Backup direct queue
+  impl.db->backup_task_queues(*this);
 
   RCLCPP_INFO(
     _context->node()->get_logger(),
