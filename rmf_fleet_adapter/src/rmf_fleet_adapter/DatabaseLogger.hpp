@@ -21,7 +21,6 @@
 #include <rmf_task/TaskPlanner.hpp>
 
 #include "TaskManager.hpp"
-#include "agv/internal_FleetUpdateHandle.hpp"
 
 #include <sqlite3.h>
 #include <nlohmann/json.hpp>

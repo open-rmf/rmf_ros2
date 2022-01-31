@@ -34,7 +34,7 @@ std::shared_ptr<DatabaseLogger>
       std::filesystem::absolute(file_path).parent_path());
   }
 
-  auto error = sqlite3_open(file_path, *logger->_db)
+  auto error = sqlite3_open(file_path.c_str(), &logger->_db);
   if (error)
     return nullptr;
 
@@ -57,7 +57,7 @@ DatabaseLogger::DatabaseLogger()
 }
 
 //==============================================================================
-DatabaseLogger::DatabaseLogger()
+DatabaseLogger::~DatabaseLogger()
 {
   // Safely destruct the sqlite3 object
   sqlite3_close(_db);
@@ -85,7 +85,7 @@ nlohmann::json DatabaseLogger::_convert(const Assignment& assignment)
 auto DatabaseLogger::_convert(const nlohmann::json& msg) -> Assignment
 {
   rmf_task::State state;
-  Assignment assignment{nullptr, state, rmf_traffic::Time(0)};
+  Assignment assignment{nullptr, state, std::chrono::steady_clock::now()};
   return assignment;
 }
 
