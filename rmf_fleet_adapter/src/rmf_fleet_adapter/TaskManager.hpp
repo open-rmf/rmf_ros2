@@ -229,6 +229,7 @@ private:
   };
 
   friend class ActiveTask;
+  friend class DatabaseLogger;
 
   agv::RobotContextPtr _context;
   std::optional<std::weak_ptr<BroadcastClient>> _broadcast_client;

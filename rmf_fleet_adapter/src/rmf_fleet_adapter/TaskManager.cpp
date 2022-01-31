@@ -530,6 +530,16 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   static const auto log_update_validator =
     mgr._make_validator(rmf_api_msgs::schemas::task_log_update);
   mgr._validate_and_publish_websocket(task_log_update, log_update_validator);
+
+  // Backup task state and logs
+  // TOOO(YV): Validate first
+  auto fleet_handle = mgr._fleet_handle.lock();
+  if (!fleet_handle)
+    return;
+  const auto impl = agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+  const std::string& robot = mgr._context->name();
+  impl.db->backup_active_task(robot, _state_msg);
+  impl.db->backup_task_logs(robot, task_logs);
 }
 
 //==============================================================================

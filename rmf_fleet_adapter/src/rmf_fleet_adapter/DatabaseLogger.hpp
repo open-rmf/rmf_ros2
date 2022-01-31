@@ -41,33 +41,44 @@ public:
   using BidNoticeAssignments =
     std::unordered_map<std::string, Assignments>;
   // Bundle up the restored state of the fleet adapter
-  // TODO(YV): Ensure index of managers correspond to index of Assignments
-  // We should return some sort of map<robot_name, manager> which
-  // FleetUpdateHandle::add_robot() can lookup for restored task managers.
-  // But if a new robot is being added, what do we do with the
+  // TODO(YV): FleetUpdateHandle::add_robot() can lookup for restored task
+  // managers. But if a new robot is being added, what do we do with the
   // previous bid_notice_assignments? The index order will be incorrect.
   // We would need to modify the implementation of dispatch_command_cb to not
   // return an error when the number of robots do not match the number in
   // Assignments.
   struct Restored
   {
-    std::vector<TaskManager> managers;
+    std::unordered_map<std::string, TaskManager> managers;
     BidNoticeAssignments bid_notice_assignments;
   };
 
+  // TODO(YV): Should we accept a bool to delete/drop all tables?
   static std::shared_ptr<DatabaseLogger> make(
     const std::string& file_path);
 
   // Returns nullopt if file_path did not exist previously
   std::optional<Restored> restore() const;
 
-  // TODO(YV): Consider having internal_FleetUpdateHandle and TaskManager
-  // receive these functions as callbacks to trigger on updates
-  // Backup bid_notice_assignments
-  void backup(const BidNoticeAssignments& assignments);
+  void backup_bid_notice_assignments(const BidNoticeAssignments& assignments);
 
-  // Backup active task state along with task queues
-  void backup(const TaskManager& mgr);
+  void backup_task_queues(TaskManager& mgr);
+
+  void backup_active_task(
+    const std::string& robot,
+    const nlohmann::json& task_state);
+
+  void backup_task_logs(
+    const std::string& robot,
+    const nlohmann::json& task_logs);
+
+  // Backup the TaskManager. By default this will only backup the direct and
+  // dispatch queues. The active_task and task_logs will be backed up if
+  // provided.
+  // void backup(
+  //   const TaskManager& mgr,
+  //   std::optional<nlohmann::json> active_task = std::nullopt,
+  //   std::optional<nlohmann::json> task_logs = std::nullopt);
 
   // Do not allow copying or moving
   // DatabaseLogger(const DatabaseLogger&) = delete;
@@ -82,12 +93,15 @@ private:
 
   // Helper functions to serialize/deserialize assignments
   // TODO(YV): Consider formalizing the schema in rmf_fleet_adapter/schemas
-  nlohmann::json _convert(const Assignment& assignment);
-  Assignment _convert(const nlohmann::json& msg);
+  nlohmann::json convert(const Assignment& assignment);
+  Assignment convert(const nlohmann::json& msg);
+
+  // TODO(YV): Explore using an open-source library to build sql statements
 
   std::string _file_path;
   sqlite3* _db;
   std::mutex _mutex;
+  // std::optional<Restored> _restored = std::nullopt;
 };
 
 } // namespace rmf_fleet_adapter
