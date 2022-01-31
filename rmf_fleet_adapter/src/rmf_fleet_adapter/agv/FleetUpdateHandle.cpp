@@ -151,10 +151,9 @@ void FleetUpdateHandle::Implementation::dock_summary_cb(
   return;
 }
 
-namespace {
 //==============================================================================
-std::string make_error_str(
-  uint64_t code, std::string category, std::string detail)
+std::string FleetUpdateHandle::Implementation::make_error_str(
+  uint64_t code, std::string category, std::string detail) const
 {
   nlohmann::json error;
   error["code"] = code;
@@ -163,13 +162,114 @@ std::string make_error_str(
 
   return error.dump();
 }
-} // anonymous namespace
+
+//==============================================================================
+std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
+  const std::string& task_id,
+  const nlohmann::json& request_msg,
+  std::vector<std::string>& errors) const
+{
+  const auto& category = request_msg["category"].get<std::string>();
+
+  const auto task_deser_it = deserialization.task->handlers.find(category);
+  if (task_deser_it == deserialization.task->handlers.end())
+  {
+    errors.push_back(make_error_str(
+      4, "Unsupported type",
+      "Fleet [" + name + "] does not support task category ["
+      + category + "]"));
+    return nullptr;
+  }
+
+  const auto& description_msg = request_msg["description"];
+  const auto& task_deser_handler = task_deser_it->second;
+
+  try
+  {
+    task_deser_handler.validator->validate(description_msg);
+  }
+  catch (const std::exception& e)
+  {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Received a request description for [%s] with an invalid format. "
+      "Error: %s\nRequest:\n%s",
+      category.c_str(),
+      e.what(),
+      description_msg.dump(2, ' ').c_str());
+
+    errors.push_back(make_error_str(5, "Invalid request format", e.what()));
+    return nullptr;
+  }
+
+  const auto deserialized_task =
+    task_deser_handler.deserializer(description_msg);
+
+  if (!deserialized_task.description)
+  {
+    errors = deserialized_task.errors;
+    return nullptr;
+  }
+
+  rmf_traffic::Time earliest_start_time = rmf_traffic_ros2::convert(
+    node->get_clock()->now());
+  const auto t_it = request_msg.find("unix_millis_earliest_start_time");
+  if (t_it != request_msg.end())
+  {
+    earliest_start_time =
+      rmf_traffic::Time(std::chrono::milliseconds(t_it->get<uint64_t>()));
+  }
+
+  rmf_task::ConstPriorityPtr priority;
+  const auto p_it = request_msg.find("priority");
+  if (p_it != request_msg.end())
+  {
+    // TODO(YV): Validate with priority_description_Binary.json
+    if (p_it->contains("type") && p_it->contains("value"))
+    {
+      const auto& p_type = (*p_it)["type"];
+      if (p_type.is_string() && p_type.get<std::string>() == "binary")
+      {
+        const auto& p_value = (*p_it)["value"];
+        if (p_value.is_number_integer())
+        {
+          if (p_value.is_number_integer() && p_value.get<uint64_t>() > 0)
+            priority = rmf_task::BinaryPriorityScheme::make_high_priority();
+        }
+
+        priority = rmf_task::BinaryPriorityScheme::make_low_priority();
+      }
+    }
+
+    if (!priority)
+    {
+      errors.push_back(
+        make_error_str(
+          4, "Unsupported type",
+          "Fleet [" + name + "] does not support priority request: " + p_it->dump()
+          + "\nDefaulting to low binary priority."));
+    }
+  }
+
+  if (!priority)
+    priority = rmf_task::BinaryPriorityScheme::make_low_priority();
+
+  const auto new_request =
+    std::make_shared<rmf_task::Request>(
+      task_id,
+      earliest_start_time,
+      priority,
+      deserialized_task.description);
+
+  return new_request;
+}
 
 //==============================================================================
 void FleetUpdateHandle::Implementation::bid_notice_cb(
   const BidNoticeMsg& bid_notice,
   rmf_task_ros2::bidding::AsyncBidder::Respond respond)
 {
+  // TODO(YV): Consider moving these checks into convert()
   const auto& task_id = bid_notice.task_id;
   if (task_managers.empty())
   {
@@ -228,107 +328,16 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       });
   }
 
-  const auto& category = request_msg["category"].get<std::string>();
-
-  const auto task_deser_it = deserialization.task->handlers.find(category);
-  if (task_deser_it == deserialization.task->handlers.end())
+  std::vector<std::string> errors = {};
+  const auto new_request = convert(task_id, request_msg, errors);
+  if (!new_request)
   {
     return respond(
       {
         std::nullopt,
-        {make_error_str(
-          4, "Unsupported type",
-          "Fleet [" + name + "] does not support task category ["
-          + category + "]")}
+        errors
       });
   }
-
-  const auto& description_msg = request_msg["description"];
-  const auto& task_deser_handler = task_deser_it->second;
-
-  try
-  {
-    task_deser_handler.validator->validate(description_msg);
-  }
-  catch (const std::exception& e)
-  {
-    RCLCPP_ERROR(
-      node->get_logger(),
-      "Received a request description for [%s] with an invalid format. "
-      "Error: %s\nRequest:\n%s",
-      category.c_str(),
-      e.what(),
-      description_msg.dump(2, ' ').c_str());
-
-    return respond(
-      rmf_task_ros2::bidding::Response{
-        std::nullopt,
-        {make_error_str(5, "Invalid request format", e.what())}
-      });
-  }
-
-  const auto deserialized_task =
-    task_deser_handler.deserializer(description_msg);
-
-  if (!deserialized_task.description)
-  {
-    return respond(
-      {
-        std::nullopt,
-        deserialized_task.errors
-      });
-  }
-
-  std::vector<std::string> errors;
-
-  rmf_traffic::Time earliest_start_time = rmf_traffic_ros2::convert(
-    node->get_clock()->now());
-  const auto t_it = request_msg.find("unix_millis_earliest_start_time");
-  if (t_it != request_msg.end())
-  {
-    earliest_start_time =
-      rmf_traffic::Time(std::chrono::milliseconds(t_it->get<uint64_t>()));
-  }
-
-  rmf_task::ConstPriorityPtr priority;
-  const auto p_it = request_msg.find("priority");
-  if (p_it != request_msg.end())
-  {
-    if (p_it->contains("type") && p_it->contains("value"))
-    {
-      const auto& p_type = (*p_it)["type"];
-      if (p_type.is_string() && p_type.get<std::string>() == "binary")
-      {
-        const auto& p_value = (*p_it)["value"];
-        if (p_value.is_number_integer())
-        {
-          if (p_value.is_number_integer() && p_value.get<uint64_t>() > 0)
-            priority = rmf_task::BinaryPriorityScheme::make_high_priority();
-        }
-
-        priority = rmf_task::BinaryPriorityScheme::make_low_priority();
-      }
-    }
-
-    if (!priority)
-    {
-      errors.push_back(
-        make_error_str(
-          4, "Unsupported type",
-          "Fleet [" + name + "] does not support priority request: " + p_it->dump()
-          + "\nDefaulting to low binary priority."));
-    }
-  }
-
-  if (!priority)
-    priority = rmf_task::BinaryPriorityScheme::make_low_priority();
-
-  const auto new_request =
-    std::make_shared<rmf_task::Request>(
-      task_id,
-      earliest_start_time,
-      priority,
-      deserialized_task.description);
 
   // TODO(MXG): Make the task planning asynchronous. The worker should schedule
   // a job to perform the planning which should then spawn a job to save the
@@ -1021,11 +1030,13 @@ auto FleetUpdateHandle::Implementation::aggregate_expectations() const
 //==============================================================================
 auto FleetUpdateHandle::Implementation::allocate_tasks(
   rmf_task::ConstRequestPtr new_request,
-  std::vector<std::string>* errors) const -> std::optional<Assignments>
+  std::vector<std::string>* errors,
+  std::optional<Expectations> expectations) const -> std::optional<Assignments>
 {
   // Collate robot states, constraints and combine new requestptr with
   // requestptr of non-charging tasks in task manager queues
-  auto expect = aggregate_expectations();
+  auto expect = expectations.has_value() ? expectations.value() :
+    aggregate_expectations();
   std::string id = "";
 
   if (new_request)
@@ -1273,8 +1284,16 @@ void FleetUpdateHandle::add_robot(
             return;
           }
 
+          std::optional<std::weak_ptr<BroadcastClient>> broadcast_client =
+            std::nullopt;
+          if (fleet->_pimpl->broadcast_client)
+            broadcast_client = fleet->_pimpl->broadcast_client;
+
           fleet->_pimpl->task_managers.insert({context,
-            TaskManager::make(context, fleet->_pimpl->broadcast_client)});
+            TaskManager::make(
+              context,
+              broadcast_client,
+              std::weak_ptr<FleetUpdateHandle>(fleet))});
         });
     });
 }
