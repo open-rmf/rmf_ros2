@@ -538,8 +538,12 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
     return;
   const auto impl = agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
   const std::string& robot = mgr._context->name();
-  impl.db->backup_active_task(robot, _state_msg);
-  impl.db->backup_task_logs(robot, task_logs);
+  if (impl.db)
+  {
+    impl.db->backup_active_task(robot, _state_msg);
+    impl.db->backup_task_logs(robot, task_logs);
+  }
+
 }
 
 //==============================================================================

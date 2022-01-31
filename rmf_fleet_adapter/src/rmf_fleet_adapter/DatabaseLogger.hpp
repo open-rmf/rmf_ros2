@@ -64,27 +64,15 @@ public:
 
   void backup_task_queues(TaskManager& mgr);
 
+  // Key used: robot
   void backup_active_task(
     const std::string& robot,
     const nlohmann::json& task_state);
 
+  // Key used: (robot,task_id)
   void backup_task_logs(
     const std::string& robot,
     const nlohmann::json& task_logs);
-
-  // Backup the TaskManager. By default this will only backup the direct and
-  // dispatch queues. The active_task and task_logs will be backed up if
-  // provided.
-  // void backup(
-  //   const TaskManager& mgr,
-  //   std::optional<nlohmann::json> active_task = std::nullopt,
-  //   std::optional<nlohmann::json> task_logs = std::nullopt);
-
-  // Do not allow copying or moving
-  // DatabaseLogger(const DatabaseLogger&) = delete;
-  // DatabaseLogger& operator=(const DatabaseLogger&) = delete;
-  // DatabaseLogger(DatabaseLogger&&) = delete;
-  // DatabaseLogger& operator=(DatabaseLogger&&) = delete;
 
   ~DatabaseLogger();
 

@@ -20,6 +20,7 @@
 #include <filesystem>
 #include <fstream>
 
+// TODO(YV) Remove
 #include <iostream>
 
 namespace rmf_fleet_adapter {
@@ -46,28 +47,21 @@ std::shared_ptr<DatabaseLogger>
   if (error)
     return nullptr;
 
-  auto table_exists =
-    [logger](const std::string& name) -> bool
-    {
-      char* error_msg;
-      const std::string query = "SELECT name FROM sqlite_master "
-      "WHERE type='table' AND name='" + name +"';";
-      auto error = sqlite3_exec(logger->_db, query.c_str(), NULL, 0, &error_msg);
-      // TOOD(YV): Distinguish between error code from bad statement and table
-      // not existing.
-      return !error;
-    };
+  // Create table for active task states
+  sql = "CREATE TABLE IF NOT EXISTS ACTIVE_TASK("
+        "ROBOT TEXT PRIMARY KEY NOT NULL, "
+        "STATE TEXT NOT NULL);";
+  error = sqlite3_exec(logger->_db, sql.c_str(), NULL, NULL, &error_msg);
+  if (error)
+    std::cout << "Error from creating ACTIVE_TASK table: " << error_msg << std::endl;
 
-  // Create tables if they do not already exist
-  // Active Task Table
-  if (!table_exists("ACTIVE_TASK"))
-  {
-    sql = "CREATE TABLE ACTIVE_TASK("
-          "ROBOT TEXT PRIMARY KEY NOT NULL, "
-          "STATE TEXT NOT NULL);";
-    error = sqlite3_exec(logger->_db, sql.c_str(), NULL, 0, &error_msg);
-    assert(!error);
-  }
+  // Create table for task logs
+  sql = "CREATE TABLE IF NOT EXISTS TASK_LOGS("
+        "ID TEXT PRIMARY KEY NOT NULL, "
+        "LOGS TEXT NOT NULL);";
+  error = sqlite3_exec(logger->_db, sql.c_str(), NULL, NULL, &error_msg);
+  if (error)
+    std::cout << "Error from creating TASK_LOGS table: " << error_msg << std::endl;
 
   // TODO(YV): Tables for task queues, task logs and bid notice assignments
 
@@ -77,6 +71,8 @@ std::shared_ptr<DatabaseLogger>
 
   // TODO(YV): If db is not empty, generate Restore. For now we will set it to
   // nullopt.
+
+  std::cout << "Created database" << std::endl;
 
   return logger;
 }
@@ -121,26 +117,13 @@ void DatabaseLogger::backup_active_task(
   std::lock_guard<std::mutex> lock(_mutex);
   const std::string state = task_state.dump();
 
-  const std::string sql = "IF EXISTS(SELECT * FROM ACTIVE_TASK WHERE ROBOT=" +
-  robot +")" + "UPDATE ACTIVE_TASK SET STATE=" + state + "WHERE ROBOT=" + robot +
-  "ELSE INSERT INTO ACTIVE_TASK(" + robot +") values(" + state + ");";
+  const std::string sql = "REPLACE INTO ACTIVE_TASK (ROBOT,STATE) "
+    "VALUES('" + robot + "', '" + state + "');";
+
   char* error_msg;
-
-  auto print_table =
-    [](void* data, int num_col, char** col_values, char** col_names)
-    {
-      int i;
-      fprintf(stderr, "%s: ", (const char*)data);
-
-      for (i = 0; i < num_col; i++) {
-          printf("%s = %s\n", col_names[i], col_values[i] ? col_values[i] : "NULL");
-      }
-
-      printf("\n");
-      return 0;
-    };
-  auto error = sqlite3_exec(_db, sql.c_str(), print_table, 0, &error_msg);
-
+  auto error = sqlite3_exec(_db, sql.c_str(), NULL, NULL, &error_msg);
+  if (error)
+    std::cout << "Error updating active task: " << error_msg << std::endl;
 }
 
 //==============================================================================
@@ -148,7 +131,24 @@ void DatabaseLogger::backup_task_logs(
     const std::string& robot,
     const nlohmann::json& task_logs)
 {
-  // TODO
+  std::lock_guard<std::mutex> lock(_mutex);
+  const auto it = task_logs.find("task_id");
+  if (it == task_logs.end())
+    return;
+  const auto& task_id = it.value();
+  if (!task_id.is_string())
+    return;
+
+  const std::string id = "(" + robot + "," + task_id.get<std::string>() + ")";
+  const std::string logs = task_logs.dump();
+
+  const std::string sql = "REPLACE INTO TASK_LOGS (ID,LOGS) "
+    "VALUES('" + id + "', '" + logs + "');";
+
+  char* error_msg;
+  auto error = sqlite3_exec(_db, sql.c_str(), NULL, NULL, &error_msg);
+  if (error)
+    std::cout << "Error updating active task: " << error_msg << std::endl;
 }
 
 //==============================================================================

@@ -899,8 +899,10 @@ std::shared_ptr<Connections> make_fleet(
     server_uri = uri;
   }
 
+  // TODO(YV): Remove this before merging. Replace with declare_param
+  const std::string& db_path = fleet_name + ".db";
   connections->fleet = adapter->add_fleet(
-    fleet_name, *connections->traits, *connections->graph, server_uri);
+    fleet_name, *connections->traits, *connections->graph, server_uri, db_path);
 
   // We disable fleet state publishing for this fleet adapter because we expect
   // the fleet drivers to publish these messages.
