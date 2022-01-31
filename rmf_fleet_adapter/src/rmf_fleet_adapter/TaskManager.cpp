@@ -26,6 +26,7 @@
 
 #include <rmf_traffic/agv/Planner.hpp>
 
+#include "agv/internal_FleetUpdateHandle.hpp"
 #include "tasks/Clean.hpp"
 #include "tasks/ChargeBattery.hpp"
 #include "tasks/Delivery.hpp"
@@ -51,8 +52,14 @@
 #include <rmf_api_msgs/schemas/resume_task_response.hpp>
 #include <rmf_api_msgs/schemas/rewind_task_request.hpp>
 #include <rmf_api_msgs/schemas/rewind_task_response.hpp>
+#include <rmf_api_msgs/schemas/robot_task_request.hpp>
+#include <rmf_api_msgs/schemas/dispatch_task_response.hpp>
+#include <rmf_api_msgs/schemas/task_state.hpp>
+#include <rmf_api_msgs/schemas/error.hpp>
+#include <rmf_api_msgs/schemas/robot_task_response.hpp>
 #include <rmf_api_msgs/schemas/skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/skip_phase_response.hpp>
+#include <rmf_api_msgs/schemas/task_request.hpp>
 #include <rmf_api_msgs/schemas/undo_skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/undo_skip_phase_response.hpp>
 #include <rmf_api_msgs/schemas/error.hpp>
@@ -62,12 +69,14 @@ namespace rmf_fleet_adapter {
 //==============================================================================
 TaskManagerPtr TaskManager::make(
   agv::RobotContextPtr context,
-  std::weak_ptr<BroadcastClient> broadcast_client)
+  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+  std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 {
   auto mgr = TaskManagerPtr(
     new TaskManager(
       std::move(context),
-      std::move(broadcast_client)));
+      std::move(broadcast_client),
+      std::move(fleet_handle)));
 
   auto begin_pullover = [w = mgr->weak_from_this()]()
     {
@@ -185,8 +194,14 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::resume_task_response,
     rmf_api_msgs::schemas::rewind_task_request,
     rmf_api_msgs::schemas::rewind_task_response,
+    rmf_api_msgs::schemas::robot_task_request,
+    rmf_api_msgs::schemas::dispatch_task_response,
+    rmf_api_msgs::schemas::task_state,
+    rmf_api_msgs::schemas::error,
+    rmf_api_msgs::schemas::robot_task_response,
     rmf_api_msgs::schemas::skip_phase_request,
     rmf_api_msgs::schemas::skip_phase_response,
+    rmf_api_msgs::schemas::task_request,
     rmf_api_msgs::schemas::undo_skip_phase_request,
     rmf_api_msgs::schemas::undo_skip_phase_response,
     rmf_api_msgs::schemas::error
@@ -204,9 +219,12 @@ TaskManagerPtr TaskManager::make(
 //==============================================================================
 TaskManager::TaskManager(
   agv::RobotContextPtr context,
-  std::weak_ptr<BroadcastClient> broadcast_client)
+  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+  std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 : _context(std::move(context)),
   _broadcast_client(std::move(broadcast_client)),
+  _fleet_handle(std::move(fleet_handle)),
+  _next_sequence_number(0),
   _last_update_time(std::chrono::steady_clock::now() - std::chrono::seconds(1))
 {
   // Do nothing. The make() function does all further initialization.
@@ -716,15 +734,6 @@ std::vector<std::string> TaskManager::ActiveTask::remove_skips(
 }
 
 //==============================================================================
-auto TaskManager::expected_finish_location() const -> StartSet
-{
-  if (_expected_finish_location)
-    return {*_expected_finish_location};
-
-  return _context->location();
-}
-
-//==============================================================================
 std::optional<std::string> TaskManager::current_task_id() const
 {
   if (_active_task)
@@ -748,6 +757,7 @@ bool TaskManager::cancel_task_if_present(const std::string& task_id)
     return true;
   }
 
+  std::lock_guard<std::mutex> lock(_mutex);
   for (auto it = _queue.begin(); it != _queue.end(); ++it)
   {
     if (it->request()->booking()->id() == task_id)
@@ -773,20 +783,20 @@ std::string TaskManager::robot_status() const
 //==============================================================================
 auto TaskManager::expected_finish_state() const -> State
 {
-  // If an active task exists, return the estimated finish state of that task
-  /// else update the current time and battery level for the state and return
+  rmf_task::State current_state =
+    _context->make_get_state()()
+    .time(rmf_traffic_ros2::convert(_context->node()->now()));
+
+  std::lock_guard<std::mutex> lock(_mutex);
+  if (!_direct_queue.empty())
+  {
+    return _direct_queue.rbegin()->assignment.finish_state();
+  }
+
   if (_active_task)
     return _context->current_task_end_state();
 
-  // Update battery soc and finish time in the current state
-  auto finish_state = _context->current_task_end_state();
-  auto location = finish_state.extract_plan_start().value();
-  finish_state.time(rmf_traffic_ros2::convert(_context->node()->now()));
-
-  const double current_battery_soc = _context->current_battery_soc();
-  finish_state.battery_soc(current_battery_soc);
-
-  return finish_state;
+  return current_state;
 }
 
 //==============================================================================
@@ -802,7 +812,8 @@ agv::ConstRobotContextPtr TaskManager::context() const
 }
 
 //==============================================================================
-std::weak_ptr<BroadcastClient> TaskManager::broadcast_client() const
+std::optional<std::weak_ptr<BroadcastClient>> TaskManager::broadcast_client()
+const
 {
   return _broadcast_client;
 }
@@ -815,6 +826,13 @@ void TaskManager::set_queue(
   // function that is called at the end of this function.
   {
     std::lock_guard<std::mutex> guard(_mutex);
+    // Do not remove automatic task if assignments is empty. See Issue #138
+    if (assignments.empty() &&
+      _queue.size() == 1 &&
+      _queue.front().request()->booking()->automatic())
+    {
+      return;
+    }
     _queue = assignments;
     _publish_task_queue();
   }
@@ -828,6 +846,7 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
   using namespace rmf_task::requests;
   std::vector<rmf_task::ConstRequestPtr> requests;
   requests.reserve(_queue.size());
+  std::lock_guard<std::mutex> lock(_mutex);
   for (const auto& task : _queue)
   {
     if (task.request()->booking()->automatic())
@@ -884,7 +903,7 @@ void TaskManager::_begin_next_task()
 
   std::lock_guard<std::mutex> guard(_mutex);
 
-  if (_queue.empty())
+  if (_queue.empty() && _direct_queue.empty())
   {
     if (!_waiting)
       _begin_waiting();
@@ -898,9 +917,12 @@ void TaskManager::_begin_next_task()
     return;
   }
 
-  const rmf_traffic::Time now = rmf_traffic_ros2::convert(
-    _context->node()->now());
-  const auto next_task = _queue.front();
+  // The next task should one in the direct assignment queue if present
+  const bool is_next_task_direct = !_direct_queue.empty();
+  const auto assignment = is_next_task_direct ?
+    _direct_queue.begin()->assignment :
+    _queue.front();
+
   // We take the minimum of the two to deal with cases where the deployment_time
   // as computed by the task planner is greater than the earliest_start_time
   // which is greater than now. This can happen for example if the previous task
@@ -908,16 +930,18 @@ void TaskManager::_begin_next_task()
   // TODO: Reactively replan task assignments across agents in a fleet every
   // time as task is completed.
   const auto deployment_time = std::min(
-    next_task.deployment_time(),
-    next_task.request()->booking()->earliest_start_time());
+    assignment.request()->booking()->earliest_start_time(),
+    assignment.deployment_time());
+
+  const rmf_traffic::Time now = rmf_traffic_ros2::convert(
+    _context->node()->now());
 
   if (now >= deployment_time)
   {
     // Update state in RobotContext and Assign active task
-    const auto id = _queue.front().request()->booking()->id();
-    _context->current_task_end_state(_queue.front().finish_state());
+    const auto& id = assignment.request()->booking()->id();
+    _context->current_task_end_state(assignment.finish_state());
     _context->current_task_id(id);
-    const auto assignment = _queue.front();
     _active_task = _context->task_activator()->activate(
       _context->make_get_state(),
       _context->task_parameters(),
@@ -927,7 +951,10 @@ void TaskManager::_begin_next_task()
       _phase_finished_cb(),
       _task_finished(id));
 
-    _queue.erase(_queue.begin());
+    if (is_next_task_direct)
+      _direct_queue.erase(_direct_queue.begin());
+   else
+      _queue.erase(_queue.begin());
 
     if (!_active_task)
     {
@@ -1091,9 +1118,9 @@ void TaskManager::_resume_from_emergency()
 void TaskManager::retreat_to_charger()
 {
   {
-    std::lock_guard<std::mutex> guard(_mutex);
-    if (_active_task || !_queue.empty())
-      return;
+  std::lock_guard<std::mutex> guard(_mutex);
+  if (_active_task || !_queue.empty())
+    return;
   }
 
   const auto task_planner = _context->task_planner();
@@ -1155,7 +1182,14 @@ void TaskManager::retreat_to_charger()
       finish.value().finish_state(),
       current_state.time().value());
 
-    set_queue({charging_assignment});
+    const DirectAssignment assignment = DirectAssignment{
+      _next_sequence_number,
+      charging_assignment};
+    ++_next_sequence_number;
+    {
+    std::lock_guard<std::mutex> lock(_mutex);
+    _direct_queue.insert(assignment);
+    }
 
     RCLCPP_INFO(
       _context->node()->get_logger(),
@@ -1258,7 +1292,10 @@ void TaskManager::_validate_and_publish_websocket(
     return;
   }
 
-  const auto client = _broadcast_client.lock();
+  if (!_broadcast_client.has_value())
+    return;
+
+  const auto client = _broadcast_client->lock();
   if (!client)
   {
     RCLCPP_ERROR(
@@ -1460,9 +1497,23 @@ void TaskManager::_send_simple_error_if_queued(
   const std::string& request_id,
   const std::string& type)
 {
+  // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
+  // unordered_sets and perform a lookup to see which queue to iterate.
+  std::lock_guard<std::mutex> lock(_mutex);
   for (const auto& a : _queue)
   {
     if (a.request()->booking()->id() == task_id)
+    {
+      return _send_simple_error_response(
+        request_id, 6, "Invalid Circumstances",
+        type + " a task that is queued (not yet active) "
+        "is not currently supported");
+    }
+  }
+
+  for (const auto& a : _direct_queue)
+  {
+    if (a.assignment.request()->booking()->id() == task_id)
     {
       return _send_simple_error_response(
         request_id, 6, "Invalid Circumstances",
@@ -1601,6 +1652,10 @@ void TaskManager::_handle_request(
       _handle_skip_phase_request(request_json, request_id);
     else if (type_str == "undo_phase_skip_request")
       _handle_undo_skip_phase_request(request_json, request_id);
+    else if (type_str == "robot_task_request")
+      _handle_direct_request(request_json, request_id);
+    else
+      return;
   }
   catch (const std::exception& e)
   {
@@ -1622,7 +1677,7 @@ std::vector<std::string> get_labels(const nlohmann::json& request)
 }
 
 //==============================================================================
-void remove_task_from_queue(
+bool remove_task_from_queue(
   const std::string& task_id,
   std::vector<TaskManager::Assignment>& queue)
 {
@@ -1638,10 +1693,168 @@ void remove_task_from_queue(
     if (it->request()->booking()->id() == task_id)
     {
       queue.erase(it);
-      break;
+      return true;
     }
   }
+  return false;
 }
+
+//==============================================================================
+bool remove_task_from_queue(
+  const std::string& task_id,
+  TaskManager::DirectQueue& queue)
+{
+  // If the task is queued, then we should make sure to remove it from the
+  // queue, just in case it reaches an active state before the dispatcher
+  // issues its cancellation request.
+  //
+  // TODO(MXG): We should do a much better of job of coordinating these
+  // different moving parts in the system. E.g. who is ultimately responsible
+  // for issuing the response to the request or updating the task state?
+  for (auto it = queue.begin(); it != queue.end(); ++it)
+  {
+    if (it->assignment.request()->booking()->id() == task_id)
+    {
+      queue.erase(it);
+      return true;
+    }
+  }
+  return false;
+}
+} // namespace anonymous
+
+//==============================================================================
+void TaskManager::_handle_direct_request(
+  const  nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::robot_task_request);
+
+  static const auto response_validator =
+    _make_validator(rmf_api_msgs::schemas::robot_task_response);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& robot = request_json["robot"].get<std::string>();
+  if (robot.empty() || robot != _context->name())
+    return;
+
+  const auto& fleet = request_json["fleet"].get<std::string>();
+  if (fleet.empty() || fleet != _context->group())
+    return;
+
+  const nlohmann::json& request = request_json["request"];
+  auto fleet_handle = _fleet_handle.lock();
+  if (!fleet_handle)
+    return;
+  const auto& impl =
+    agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+  std::vector<std::string> errors;
+  const auto new_request = impl.convert(request_id, request, errors);
+  if (!new_request)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Unable to generate a valid request for direct task [%s]",
+      request_id.c_str());
+
+    nlohmann::json response_json;
+    response_json["success"] = false;
+    std::vector<nlohmann::json> json_errors = {};
+    for (const auto& e : errors)
+      json_errors.push_back(nlohmann::json::parse(e));
+    response_json["errors"] = std::move(json_errors);
+
+    _validate_and_publish_api_response(
+      response_json,
+      response_validator,
+      request_id);
+
+    return;
+  }
+  // Generate Assignment for the request
+  const auto task_planner = _context->task_planner();
+  if (!task_planner)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Fleet [%s] is not configured with parameters for task planning."
+      "Use FleetUpdateHandle::set_task_planner_params(~) to set the "
+      "parameters required.", fleet.c_str());
+    return;
+  }
+
+  const auto current_state = expected_finish_state();
+  const auto& constraints = task_planner->configuration().constraints();
+  const auto& parameters = task_planner->configuration().parameters();
+  const auto model = new_request->description()->make_model(
+    new_request->booking()->earliest_start_time(),
+    parameters);
+  const auto estimate = model->estimate_finish(
+    current_state,
+    constraints,
+    *_travel_estimator);
+
+  rmf_task::State finish_state;
+  rmf_traffic::Time deployment_time;
+
+  if (!estimate.has_value())
+  {
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      "Unable to estimate final state for direct task request [%s]. This may "
+      "be due to insufficient resources to perform the task. The task will be "
+      "still be added to the queue.",
+      request_id.c_str());
+    finish_state = current_state;
+    deployment_time = new_request->booking()->earliest_start_time();
+  }
+  else
+  {
+    finish_state = estimate.value().finish_state();
+    deployment_time = estimate.value().wait_until();
+  }
+
+  const DirectAssignment assignment = DirectAssignment{
+    _next_sequence_number,
+    Assignment(
+        new_request,
+        finish_state,
+        deployment_time)
+    };
+  ++_next_sequence_number;
+  {
+  std::lock_guard<std::mutex> lock(_mutex);
+  _direct_queue.insert(assignment);
+  }
+
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Direct request [%s] successfully queued for robot [%s]",
+    request_id.c_str(),
+    robot.c_str());
+
+  // Publish api response
+  nlohmann::json response_json;
+  response_json["success"] = true;
+  nlohmann::json task_state;;
+  copy_booking_data(task_state["booking"], *new_request->booking());
+  // task_state["category"] = request["category"].get<std::string>();
+  task_state["detail"] = request["description"];
+  task_state["status"] = "queued";
+  auto& dispatch = task_state["dispatch"];
+  dispatch["status"] = "queued";
+  auto& assign = task_state["assigned_to"];
+  assign["group"] = fleet;
+  assign["name"] = robot;
+  response_json["state"] = task_state;
+
+  _validate_and_publish_api_response(
+    response_json,
+    response_validator,
+    request_id);
 }
 
 //==============================================================================
@@ -1663,8 +1876,11 @@ void TaskManager::_handle_cancel_request(
     _task_state_update_available = true;
     return _send_simple_success_response(request_id);
   }
-
-  remove_task_from_queue(task_id, _queue);
+  // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
+  // unordered_sets and perform a lookup to see which function to call.
+  std::lock_guard<std::mutex> lock(_mutex);
+  if (!remove_task_from_queue(task_id, _queue))
+    remove_task_from_queue(task_id, _direct_queue);
 }
 
 //==============================================================================
@@ -1687,7 +1903,11 @@ void TaskManager::_handle_kill_request(
     return _send_simple_success_response(request_id);
   }
 
-  remove_task_from_queue(task_id, _queue);
+  // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
+  // unordered_sets and perform a lookup to see which function to call.
+  std::lock_guard<std::mutex> lock(_mutex);
+  if (!remove_task_from_queue(task_id, _queue))
+    remove_task_from_queue(task_id, _direct_queue);
 }
 
 //==============================================================================

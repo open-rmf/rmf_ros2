@@ -36,6 +36,7 @@
 #include <nlohmann/json-schema.hpp>
 
 #include <mutex>
+#include <set>
 
 namespace rmf_fleet_adapter {
 
@@ -51,7 +52,8 @@ public:
 
   static std::shared_ptr<TaskManager> make(
     agv::RobotContextPtr context,
-    std::weak_ptr<BroadcastClient> broadcast_client);
+    std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+    std::weak_ptr<agv::FleetUpdateHandle> fleet_handle);
 
   using Start = rmf_traffic::agv::Plan::Start;
   using StartSet = rmf_traffic::agv::Plan::StartSet;
@@ -62,15 +64,50 @@ public:
   using TaskProfiles = std::unordered_map<std::string, TaskProfileMsg>;
   using TaskSummaryMsg = rmf_task_msgs::msg::TaskSummary;
 
-  /// The location where we expect this robot to be at the end of its current
-  /// task queue.
-  StartSet expected_finish_location() const;
+  struct DirectAssignment
+  {
+    std::size_t sequence_number;
+    Assignment assignment;
+
+    DirectAssignment(
+      std::size_t sequence_number_,
+      Assignment assignment_)
+    : sequence_number(sequence_number_),
+      assignment(std::move(assignment_))
+    {
+      // Do nothing
+    }
+
+  };
+
+  struct DirectQueuePriority
+  {
+    bool operator()(const DirectAssignment& a, const DirectAssignment& b) const
+    {
+      // Sort by start time and then sequence_number if tie
+      const auto start_time_b =
+        b.assignment.request()->booking()->earliest_start_time();
+      const auto start_time_a =
+        a.assignment.request()->booking()->earliest_start_time();
+
+      if (start_time_b == start_time_a)
+      {
+        return b.sequence_number < a.sequence_number;
+      }
+
+      return start_time_b < start_time_a;
+    }
+  };
+
+  using DirectQueue = std::set<
+    DirectAssignment,
+    DirectQueuePriority>;
 
   const agv::RobotContextPtr& context();
 
   agv::ConstRobotContextPtr context() const;
 
-  std::weak_ptr<BroadcastClient> broadcast_client() const;
+  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client() const;
 
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
@@ -87,7 +124,10 @@ public:
 
   std::string robot_status() const;
 
-  /// The state of the robot.
+  /// The state of the robot. If the direct assignment queue is not empty,
+  /// This will always return the state of the robot after completing all
+  /// the tasks in the direct assignment queue. Otherwise, the current state
+  /// is returned
   State expected_finish_state() const;
 
   /// Callback for the retreat timer. Appends a charging task to the task queue
@@ -107,7 +147,8 @@ private:
 
   TaskManager(
     agv::RobotContextPtr context,
-    std::weak_ptr<BroadcastClient> broadcast_client);
+    std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+    std::weak_ptr<agv::FleetUpdateHandle>);
 
   class ActiveTask
   {
@@ -190,13 +231,19 @@ private:
   friend class ActiveTask;
 
   agv::RobotContextPtr _context;
-  std::weak_ptr<BroadcastClient> _broadcast_client;
+  std::optional<std::weak_ptr<BroadcastClient>> _broadcast_client;
+  std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
   rmf_task::ConstActivatorPtr _task_activator;
   ActiveTask _active_task;
   bool _emergency_active = false;
   std::optional<std::string> _emergency_pullover_interrupt_token;
   rmf_task_sequence::Event::ActivePtr _emergency_pullover;
+  // Queue for dispatched tasks
   std::vector<Assignment> _queue;
+  // An ID to keep track of the FIFO order of direct tasks
+  std::size_t _next_sequence_number;
+  // Queue for directly assigned tasks
+  DirectQueue _direct_queue;
   rmf_utils::optional<Start> _expected_finish_location;
   rxcpp::subscription _task_sub;
   rxcpp::subscription _emergency_sub;
@@ -209,7 +256,7 @@ private:
   // TODO: Eliminate the need for a mutex by redesigning the use of the task
   // manager so that modifications of shared data only happen on designated
   // rxcpp worker
-  std::mutex _mutex;
+  mutable std::mutex _mutex;
   rclcpp::TimerBase::SharedPtr _task_timer;
   rclcpp::TimerBase::SharedPtr _retreat_timer;
   rclcpp::TimerBase::SharedPtr _update_timer;
@@ -360,6 +407,10 @@ private:
     const std::string& request_msg,
     const std::string& request_id);
 
+  void _handle_direct_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
   void _handle_cancel_request(
     const nlohmann::json& request_json,
     const std::string& request_id);
@@ -387,6 +438,7 @@ private:
   void _handle_undo_skip_phase_request(
     const nlohmann::json& request_json,
     const std::string& request_id);
+
 };
 
 using TaskManagerPtr = std::shared_ptr<TaskManager>;
