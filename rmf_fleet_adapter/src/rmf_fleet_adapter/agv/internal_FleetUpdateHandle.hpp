@@ -411,9 +411,9 @@ public:
       consider_actions = handle->_pimpl->deserialization.consider_actions](
         const nlohmann::json& msg) -> DeserializedEvent
       {
-        validator->validate(msg);
         try
         {
+          validator->validate(msg);
           const std::string& category = msg["category"].get<std::string>();
           const auto consider_action_it = consider_actions->find(category);
           if (consider_action_it == consider_actions->end())

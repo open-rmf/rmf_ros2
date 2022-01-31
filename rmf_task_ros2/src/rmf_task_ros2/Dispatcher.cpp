@@ -465,7 +465,7 @@ public:
 
       auto response = rmf_task_msgs::build<ApiResponseMsg>()
         .type(ApiResponseMsg::TYPE_RESPONDING)
-        .json_msg(task_state.dump())
+        .json_msg(response_json.dump())
         .request_id(msg.request_id);
 
       api_memory.add(response);
