@@ -16,12 +16,23 @@
 */
 
 #include "DatabaseLogger.hpp"
+#include "agv/internal_FleetUpdateHandle.hpp"
 
 #include <filesystem>
 #include <fstream>
 
 // TODO(YV) Remove
 #include <iostream>
+
+//==============================================================================
+// int sqlite3_exec(
+//   sqlite3*,                                  /* An open database */
+//   const char *sql,                           /* SQL to be evaluated */
+//   int (*callback)(void*,int,char**,char**),  /* Callback function */
+//   void *,                                    /* 1st argument to callback */
+//   char **errmsg                              /* Error msg written here */
+// );
+//==============================================================================
 
 namespace rmf_fleet_adapter {
 //==============================================================================
@@ -41,7 +52,6 @@ std::shared_ptr<DatabaseLogger>
   int error;
   std::string sql;
   char* error_msg;
-
 
   error = sqlite3_open(file_path.c_str(), &logger->_db);
   if (error)
@@ -63,7 +73,18 @@ std::shared_ptr<DatabaseLogger>
   if (error)
     std::cout << "Error from creating TASK_LOGS table: " << error_msg << std::endl;
 
-  // TODO(YV): Tables for task queues, task logs and bid notice assignments
+  // Create table for task logs
+  // DISPATCH and DIRECT will be jsons containing deserialized assignment jsons
+  sql = "CREATE TABLE IF NOT EXISTS TASK_QUEUES("
+        "ROBOT TEXT PRIMARY KEY NOT NULL, "
+        "DISPATCH TEXT NOT NULL, "
+        "DIRECT TEXT NOT NULL);";
+  error = sqlite3_exec(logger->_db, sql.c_str(), NULL, NULL, &error_msg);
+  if (error)
+    std::cout << "Error from creating TASK_QUEUES table: " << error_msg << std::endl;
+
+
+  // TODO(YV): Table for bid notice assignments
 
   // TODO(YV): Also store history of task & state logs along with latest state.
   // Proposed key (robot, task, phase, event, seq)
@@ -86,7 +107,7 @@ DatabaseLogger::DatabaseLogger()
 //==============================================================================
 auto DatabaseLogger::restore() const -> std::optional<Restored>
 {
-  return std::nullopt;
+  return _restored;
 }
 
 //==============================================================================
@@ -104,9 +125,62 @@ void DatabaseLogger::backup_bid_notice_assignments(
 }
 
 //==============================================================================
-void DatabaseLogger::backup_task_queues(TaskManager& mgr)
+void DatabaseLogger::backup_task_queues(const TaskManager& mgr)
 {
-  // TODO
+  // We can access private members of TaskManager as DatabaseLogger is a friend
+
+  auto fleet_handle = mgr._fleet_handle.lock();
+  if (!fleet_handle)
+  {
+    std::cout << "Unable to lock fleet handle inside backup_task_queues"
+              << std::endl;
+    return;
+  }
+  auto& impl =
+    agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+  const std::string& robot = mgr._context->name();
+  const auto& request_jsons = impl.task_request_jsons;
+  std::vector<std::string> errors;
+
+  nlohmann::json queue;
+  std::vector<nlohmann::json> assignments;
+  for (const auto& assignment : mgr._queue)
+  {
+    assignments.push_back(convert(assignment, request_jsons));
+  }
+  queue = assignments;
+  // Write to db
+  {
+  std::lock_guard<std::mutex> lock(_mutex);
+  std::string data = queue.dump();
+  std::string sql = "REPLACE INTO TASK_QUEUES (ROBOT,DISPATCH) "
+    "VALUES('" + robot + "', '" + data + "');";
+  char* error_msg;
+  auto error = sqlite3_exec(_db, sql.c_str(), NULL, NULL, &error_msg);
+  if (error)
+    std::cout << "Error updating dispatch queue: " << error_msg << std::endl;
+  }
+
+  // Direct assignments
+  queue = {};
+  assignments.clear();
+  for (const auto& assignment : mgr._direct_queue)
+  {
+    assignments.push_back(convert(assignment.assignment, request_jsons));
+  }
+  queue = assignments;
+  // Write to db
+  {
+  std::lock_guard<std::mutex> lock(_mutex);
+  std::string data = queue.dump();
+  std::string sql = "REPLACE INTO TASK_QUEUES (ROBOT,DIRECT) "
+    "VALUES('" + robot + "', '" + data + "');";
+  char* error_msg;
+  auto error = sqlite3_exec(_db, sql.c_str(), NULL, NULL, &error_msg);
+  if (error)
+    std::cout << "Error updating dispatch queue: " << error_msg << std::endl;
+  }
+
 }
 
 //==============================================================================
@@ -119,7 +193,6 @@ void DatabaseLogger::backup_active_task(
 
   const std::string sql = "REPLACE INTO ACTIVE_TASK (ROBOT,STATE) "
     "VALUES('" + robot + "', '" + state + "');";
-
   char* error_msg;
   auto error = sqlite3_exec(_db, sql.c_str(), NULL, NULL, &error_msg);
   if (error)
@@ -144,24 +217,99 @@ void DatabaseLogger::backup_task_logs(
 
   const std::string sql = "REPLACE INTO TASK_LOGS (ID,LOGS) "
     "VALUES('" + id + "', '" + logs + "');";
-
   char* error_msg;
   auto error = sqlite3_exec(_db, sql.c_str(), NULL, NULL, &error_msg);
   if (error)
     std::cout << "Error updating active task: " << error_msg << std::endl;
 }
 
+namespace {
 //==============================================================================
-nlohmann::json DatabaseLogger::convert(const Assignment& assignment)
+std::chrono::milliseconds to_millis(rmf_traffic::Duration duration)
 {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+}
+
+} // namespace anonymous
+
+//==============================================================================
+nlohmann::json DatabaseLogger::convert(const rmf_task::State& state) const
+{
+  // State schmea
+  // {
+  //   waypoint: integer,
+  //   orientation: double,[optional]
+  //   time: integer
+  //   charger: integer
+  //   battery_soc
+  // }
+
   nlohmann::json msg;
+
+  // To be safe we check if the optionals have value but they definitely should
+  auto waypoint_opt = state.waypoint();
+  if (waypoint_opt.has_value())
+    msg["waypoint"] = waypoint_opt.value();
+  auto orientation_opt = state.orientation();
+  if (orientation_opt.has_value())
+    msg["orientation"] = orientation_opt.value();
+  auto time_opt = state.time();
+  if (time_opt.has_value())
+    msg["time"] = to_millis(time_opt.value().time_since_epoch()).count();
+  auto charger_opt = state.dedicated_charging_waypoint();
+  if (charger_opt.has_value())
+    msg["charger"] = charger_opt.value();
+  auto soc_opt = state.battery_soc();
+  if (soc_opt.has_value())
+    msg["battery_soc"] = soc_opt.value();
+
   return msg;
 }
 
 //==============================================================================
-auto DatabaseLogger::convert(const nlohmann::json& msg) -> Assignment
+nlohmann::json DatabaseLogger::convert(
+  const Assignment& assignment,
+  const std::unordered_map<std::string, nlohmann::json> request_jsons) const
 {
+
+  // Assignment schema
+  // {
+  //   request: ref rmf_api_msgs::schemas::task_request,
+  //   state: ref State schema,
+  //   unix_millis_deployment_time: integer,
+  // }
+
+  nlohmann::json msg;
+  const auto request = assignment.request();
+  const auto& state = assignment.finish_state();
+  const auto deployment_time = assignment.deployment_time();
+
+  msg["state"] = convert(state);
+  msg["unix_millis_deployment_time"] =
+    to_millis(deployment_time.time_since_epoch()).count();
+
+  const auto it = request_jsons.find(request->booking()->id());
+  if (it != request_jsons.end())
+  {
+    msg["request"] = it->second;
+  }
+  else
+  {
+    // TODO(YV): Deserialize this automatic task into schemas::task_request
+  }
+
+  return msg;
+}
+
+//==============================================================================
+auto DatabaseLogger::convert(const nlohmann::json& msg) const -> Assignment
+{
+  // msg follows the Assignment schema defined above
+
+  // TODO(YV): Fix
   rmf_task::State state;
+  // We can use FleetUpdateHandle::Implementation::convert(json_requst) to get
+  // ConstRequestPtr
   Assignment assignment{nullptr, state, std::chrono::steady_clock::now()};
   return assignment;
 }

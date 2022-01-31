@@ -283,6 +283,11 @@ public:
   // TODO Support for various charging configurations
   std::unordered_set<std::size_t> charging_waypoints = {};
 
+  // Map task_id to schemas::task_reqest.json
+  // TODO(YV): How would we insert request jsons for automatic tasks?
+  // Perhaps we should just deserialize in DatabaseLogger
+  std::unordered_map<std::string, nlohmann::json> task_request_jsons = {};
+
   std::shared_ptr<rmf_task_ros2::bidding::AsyncBidder> bidder = nullptr;
 
   double current_assignment_cost = 0.0;

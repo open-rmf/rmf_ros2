@@ -49,7 +49,7 @@ public:
   // Assignments.
   struct Restored
   {
-    std::unordered_map<std::string, TaskManager> managers;
+    std::unordered_map<std::string, std::shared_ptr<TaskManager>> managers;
     BidNoticeAssignments bid_notice_assignments;
   };
 
@@ -57,12 +57,14 @@ public:
   static std::shared_ptr<DatabaseLogger> make(
     const std::string& file_path);
 
-  // Returns nullopt if file_path did not exist previously
+  // Returns nullopt if file_path did not exist previously.
+  // Does this function require a weak_ptr<FleetUpdateHandle> to generating
+  // requests/deserialization/validation?
   std::optional<Restored> restore() const;
 
   void backup_bid_notice_assignments(const BidNoticeAssignments& assignments);
 
-  void backup_task_queues(TaskManager& mgr);
+  void backup_task_queues(const TaskManager& mgr);
 
   // Key used: robot
   void backup_active_task(
@@ -81,15 +83,20 @@ private:
 
   // Helper functions to serialize/deserialize assignments
   // TODO(YV): Consider formalizing the schema in rmf_fleet_adapter/schemas
-  nlohmann::json convert(const Assignment& assignment);
-  Assignment convert(const nlohmann::json& msg);
+  nlohmann::json convert(const rmf_task::State& state) const;
+
+  nlohmann::json convert(
+    const Assignment& assignment,
+    const std::unordered_map<std::string, nlohmann::json> request_jsons) const;
+
+  Assignment convert(const nlohmann::json& msg) const;
 
   // TODO(YV): Explore using an open-source library to build sql statements
 
   std::string _file_path;
   sqlite3* _db;
   std::mutex _mutex;
-  // std::optional<Restored> _restored = std::nullopt;
+  std::optional<Restored> _restored = std::nullopt;
 };
 
 } // namespace rmf_fleet_adapter

@@ -1763,7 +1763,7 @@ void TaskManager::_handle_direct_request(
   auto fleet_handle = _fleet_handle.lock();
   if (!fleet_handle)
     return;
-  const auto& impl =
+  auto& impl =
     agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
   std::vector<std::string> errors;
   const auto new_request = impl.convert(request_id, request, errors);
@@ -1788,6 +1788,10 @@ void TaskManager::_handle_direct_request(
 
     return;
   }
+
+  // Cache for backups
+  impl.task_request_jsons.insert({request_id, request});
+
   // Generate Assignment for the request
   const auto task_planner = _context->task_planner();
   if (!task_planner)

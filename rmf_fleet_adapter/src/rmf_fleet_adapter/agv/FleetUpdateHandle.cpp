@@ -339,6 +339,9 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       });
   }
 
+  // Cache request_msg
+  task_request_jsons.insert({task_id, request_msg});
+
   // TODO(MXG): Make the task planning asynchronous. The worker should schedule
   // a job to perform the planning which should then spawn a job to save the
   // plan result and respond. I started to refactor allocate_tasks(~) to make it

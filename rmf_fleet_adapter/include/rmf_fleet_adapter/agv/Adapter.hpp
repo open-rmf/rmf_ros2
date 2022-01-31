@@ -103,6 +103,11 @@ public:
   ///   exists the fleet handle will be restored to the last backup state. If
   ///   the file does not exist, a new one will be created.
   ///   If nullopt, the fleet adapter will not perform any backup/restore.
+  ///
+  /// TODO(YV): Add this param
+  /// \param[in] restore_from_backup
+  ///   If true, fleet adapter will be restored to last known backup state.
+  ///   [Not implemented yet]
   std::shared_ptr<FleetUpdateHandle> add_fleet(
     const std::string& fleet_name,
     rmf_traffic::agv::VehicleTraits traits,
