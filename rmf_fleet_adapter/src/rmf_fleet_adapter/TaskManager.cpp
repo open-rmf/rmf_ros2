@@ -918,7 +918,7 @@ void TaskManager::_begin_next_task()
   }
 
   // The next task should one in the direct assignment queue if present
-  const bool is_next_task_direct = _direct_queue.empty() ? false : true;
+  const bool is_next_task_direct = !_direct_queue.empty();
   const auto assignment = is_next_task_direct ?
     _direct_queue.begin()->assignment :
     _queue.front();
@@ -952,9 +952,9 @@ void TaskManager::_begin_next_task()
       _task_finished(id));
 
     if (is_next_task_direct)
-       _direct_queue.erase(_direct_queue.begin());
+      _direct_queue.erase(_direct_queue.begin());
    else
-    _queue.erase(_queue.begin());
+      _queue.erase(_queue.begin());
 
     if (!_active_task)
     {
