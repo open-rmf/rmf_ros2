@@ -132,7 +132,7 @@ bool Auctioneer::Implementation::determine_winner(
   auto task_id = bidding_task.bid_notice.task_id;
   RCLCPP_DEBUG(
     node->get_logger(),
-    "Bidding Deadline reached: %s",
+    "Bidding Deadline reached for [%s]",
     task_id.c_str());
 
   std::vector<std::string> errors;
@@ -143,8 +143,8 @@ bool Auctioneer::Implementation::determine_winner(
 
   if (bidding_task.responses.empty())
   {
-    RCLCPP_DEBUG(node->get_logger(),
-      "Bidding task has not received any bids");
+    RCLCPP_INFO(node->get_logger(),
+      "Task auction for [%s] did not received any bids", task_id.c_str());
 
     bidding_result_callback(task_id, std::nullopt, errors);
     return true;

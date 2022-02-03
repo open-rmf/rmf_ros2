@@ -731,12 +731,13 @@ public:
       {
         RCLCPP_ERROR(
           node->get_logger(),
-          "No submission error[%d]: %s",
+          "No submission error[%lu]: %s",
           error_count,
           error.c_str());
         ++error_count;
       }
 
+      auctioneer->ready_for_next_bid();
       return;
     }
 
