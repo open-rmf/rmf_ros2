@@ -153,7 +153,11 @@ private:
   class ActiveTask
   {
   public:
-    ActiveTask(rmf_task::Task::ActivePtr task = nullptr);
+    ActiveTask();
+
+    static ActiveTask start(
+      rmf_task::Task::ActivePtr task,
+      rmf_traffic::Time time);
 
     const std::string& id() const;
 
@@ -198,6 +202,7 @@ private:
 
   private:
     rmf_task::Task::ActivePtr _task;
+    rmf_traffic::Time _start_time;
     nlohmann::json _state_msg;
 
     std::unordered_map<std::string, nlohmann::json> _active_interruptions;

@@ -231,8 +231,8 @@ TaskManager::TaskManager(
 }
 
 //==============================================================================
-TaskManager::ActiveTask::ActiveTask(rmf_task::Task::ActivePtr task)
-: _task(std::move(task)),
+TaskManager::ActiveTask::ActiveTask()
+: _task(nullptr),
   _interruption_handler(std::make_shared<InterruptionHandler>())
 {
   // Do nothing
@@ -436,6 +436,18 @@ nlohmann::json make_simple_success_response()
 } // anonymous namespace
 
 //==============================================================================
+TaskManager::ActiveTask TaskManager::ActiveTask::start(
+  rmf_task::Task::ActivePtr task,
+  rmf_traffic::Time time)
+{
+  ActiveTask new_task;
+  new_task._task = std::move(task);
+  new_task._start_time = time;
+
+  return new_task;
+}
+
+//==============================================================================
 void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
 {
   auto task_state_update = mgr._task_state_update_json;
@@ -445,11 +457,17 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   const auto& header = _task->tag()->header();
   _state_msg["category"] = header.category();
   _state_msg["detail"] = header.detail();
-  // TODO(MXG): Add unix_millis_start_time and unix_millis_finish_time
+
+  const auto remaining_time_estimate = _task->estimate_remaining_time();
+  const auto finish_estimate = mgr.context()->now()+remaining_time_estimate;
+  _state_msg["unix_millis_start_time"] =
+    to_millis(_start_time.time_since_epoch()).count();
+  _state_msg["unix_millis_finish_time"] =
+    to_millis(finish_estimate.time_since_epoch()).count();
   _state_msg["original_estimate_millis"] =
     std::max(0l, to_millis(header.original_duration_estimate()).count());
   _state_msg["estimate_millis"] =
-    std::max(0l, to_millis(_task->estimate_remaining_time()).count());
+    std::max(0l, to_millis(remaining_time_estimate).count());
   copy_assignment(_state_msg["assigned_to"], *mgr._context);
   _state_msg["status"] =
     status_to_string(_task->status_overview());
@@ -942,14 +960,16 @@ void TaskManager::_begin_next_task()
     const auto& id = assignment.request()->booking()->id();
     _context->current_task_end_state(assignment.finish_state());
     _context->current_task_id(id);
-    _active_task = _context->task_activator()->activate(
-      _context->make_get_state(),
-      _context->task_parameters(),
-      *assignment.request(),
-      _update_cb(),
-      _checkpoint_cb(),
-      _phase_finished_cb(),
-      _task_finished(id));
+    _active_task = ActiveTask::start(
+      _context->task_activator()->activate(
+        _context->make_get_state(),
+        _context->task_parameters(),
+        *assignment.request(),
+        _update_cb(),
+        _checkpoint_cb(),
+        _phase_finished_cb(),
+        _task_finished(id)),
+      _context->now());
 
     if (is_next_task_direct)
       _direct_queue.erase(_direct_queue.begin());
