@@ -180,6 +180,7 @@ RobotContext::observe_interrupt() const
 //==============================================================================
 void RobotContext::trigger_interrupt()
 {
+  this->_stop(this->name());
   _interrupt_publisher.get_subscriber().on_next(Empty{});
 }
 

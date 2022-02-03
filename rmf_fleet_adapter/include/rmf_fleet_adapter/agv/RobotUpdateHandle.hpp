@@ -47,6 +47,11 @@ public:
   /// latest position of the robot before calling this function.
   void interrupted();
 
+  /// Store the stop callback in RobotContext to command the robot to stop when
+  /// interrupt is triggered
+  void set_stop_callback(
+    std::function<void(std::string)> stop);
+
   /// Update the current position of the robot by specifying the waypoint that
   /// the robot is on and its orientation.
   void update_position(
