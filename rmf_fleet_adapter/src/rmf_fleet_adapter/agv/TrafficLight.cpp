@@ -1012,7 +1012,7 @@ bool TrafficLight::UpdateHandle::Implementation::Data::valid_plan(
 //==============================================================================
 void TrafficLight::UpdateHandle::Implementation::Data::update_location(
   const std::size_t path_version,
-  const std::size_t plan_version,
+  const std::size_t,
   const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
   const Eigen::Vector3d location,
   const std::size_t checkpoint_index)
@@ -1693,6 +1693,8 @@ TrafficLight::UpdateHandle::Implementation::Data::publish_fleet_state() const
     .x(p.x())
     .y(p.y())
     .yaw(p[2])
+    .obey_approach_speed_limit(false)
+    .approach_speed_limit(0.0)
     .level_name(map)
     .index(0);
 
