@@ -35,7 +35,8 @@
           "description": {
             "description": "A description of the activity. This must match a schema supported by a fleet for the activity category."
           }
-        }
+        },
+        "required": ["category", "description"]
       },
       "minimum": 1
     }

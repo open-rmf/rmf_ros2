@@ -304,8 +304,8 @@ make_deserializer(
         compartment = compartment_json_it->get<std::string>();
 
       return rmf_task::Payload::Component(
-        msg["sku"].get<std::string>(),
-        msg["quantity"].get<uint64_t>(),
+        msg.at("sku").get<std::string>(),
+        msg.at("quantity").get<uint64_t>(),
         std::move(compartment));
     };
 
@@ -319,14 +319,14 @@ make_deserializer(
       if (!consider || !(*consider))
         return {nullptr, {"Not accepting delivery requests"}};
 
-      auto place = place_deser(msg["place"]);
+      auto place = place_deser(msg.at("place"));
       if (!place.description.has_value())
       {
         return {nullptr, std::move(place.errors)};
       }
 
       std::vector<rmf_task::Payload::Component> payload_components;
-      const auto& payload_json = msg["payload"];
+      const auto& payload_json = msg.at("payload");
       if (payload_json.is_object())
       {
         payload_components.push_back(parse_payload_component(payload_json));
@@ -416,8 +416,8 @@ void add_delivery(
     [deserialize_pickup, deserialize_dropoff](
       const nlohmann::json& msg) -> agv::DeserializedTask
     {
-      const auto pickup = deserialize_pickup(msg["pickup"]);
-      const auto dropoff = deserialize_dropoff(msg["dropoff"]);
+      const auto pickup = deserialize_pickup(msg.at("pickup"));
+      const auto dropoff = deserialize_dropoff(msg.at("dropoff"));
       std::vector<std::string> errors;
       errors.reserve(pickup.errors.size() + dropoff.errors.size());
       errors.insert(

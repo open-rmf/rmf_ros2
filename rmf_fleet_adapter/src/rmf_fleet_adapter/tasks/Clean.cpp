@@ -293,7 +293,7 @@ void add_clean(
         };
       }
 
-      const auto zone = msg["zone"].get<std::string>();
+      const auto zone = msg.at("zone").get<std::string>();
       const auto clean_it = dock_params->find(zone);
       if (clean_it == dock_params->end())
       {

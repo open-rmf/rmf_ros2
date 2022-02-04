@@ -169,7 +169,7 @@ void add_loop(
       if (!(*consider))
         return {nullptr, {"Not accepting patrol requests"}};
 
-      const auto& places_json = msg["places"];
+      const auto& places_json = msg.at("places");
       std::vector<rmf_traffic::agv::Plan::Goal> places;
       std::vector<std::string> errors;
       bool any_failure = false;

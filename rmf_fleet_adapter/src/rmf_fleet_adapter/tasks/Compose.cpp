@@ -48,8 +48,8 @@ void add_compose(
       deser_event = deserialization.event
     ](const nlohmann::json& msg) -> agv::DeserializedPhase
     {
-      const auto& category = msg["category"].get<std::string>();
-      const auto& description_json = msg["description"];
+      const auto& category = msg.at("category").get<std::string>();
+      const auto& description_json = msg.at("description");
 
       const auto p_it = deser_phase->handlers.find(category);
       if (p_it != deser_phase->handlers.end())
@@ -105,20 +105,20 @@ void add_compose(
 
       rmf_task_sequence::Task::Builder builder;
       std::string category = "Composed Task";
-      const auto& category_json = msg["category"];
-      if (category_json.is_string())
-        category = category_json.get<std::string>();
+      const auto category_it = msg.find("category");
+      if (category_it != msg.end() && category_it->is_string())
+        category = category_it->get<std::string>();
 
       std::string detail = "";
-      const auto& detail_json = msg["detail"];
-      if (detail_json.is_string())
-        detail = detail_json.get<std::string>();
+      const auto detail_it = msg.find("detail");
+      if (detail_it != msg.end() && detail_it->is_string())
+        detail = detail_it->get<std::string>();
 
       std::vector<std::string> errors;
-      const auto& phases_json = msg["phases"];
+      const auto& phases_json = msg.at("phases");
       for (const auto& phase_json : phases_json)
       {
-        auto phase_activity = deser_activity(phase_json["activity"]);
+        auto phase_activity = deser_activity(phase_json.at("activity"));
         if (!phase_activity.description)
           return {nullptr, std::move(phase_activity.errors)};
 
@@ -194,8 +194,8 @@ void add_compose(
       deps.reserve(msg.size());
       for (const auto& activity_json : msg)
       {
-        const auto& category = activity_json["category"].get<std::string>();
-        const auto& description_json = activity_json["description"];
+        const auto& category = activity_json.at("category").get<std::string>();
+        const auto& description_json = activity_json.at("description");
         const auto e_it = deser_event->handlers.find(category);
         if (e_it == deser_event->handlers.end())
         {
@@ -227,15 +227,15 @@ void add_compose(
       }
       else
       {
-        dependencies = deserialize_event_dependencies(msg["activities"]);
+        dependencies = deserialize_event_dependencies(msg.at("activities"));
 
-        const auto& category_json = msg["category"];
-        if (category_json.is_string())
-          category = category_json.get<std::string>();
+        const auto category_it = msg.find("category");
+        if (category_it != msg.end() && category_it->is_string())
+          category = category_it->get<std::string>();
 
-        const auto& detail_json = msg["detail"];
-        if (detail_json.is_string())
-          detail = detail_json.get<std::string>();
+        const auto detail_it = msg.find("detail");
+        if (detail_it != msg.end() && detail_it->is_string())
+          detail = detail_it->get<std::string>();
       }
 
       if (!dependencies.description.has_value())
