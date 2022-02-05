@@ -141,10 +141,22 @@ PYBIND11_MODULE(rmf_adapter, m) {
     },
     py::return_value_policy::reference_internal,
     "Experimental API to access the schedule participant")
-  .def("set_action_executor", &agv::RobotUpdateHandle::set_action_executor,
-    py::arg("action_executor"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>());
+  .def("set_action_executor",
+    [&](agv::RobotUpdateHandle& self,
+    std::function<void(agv::RobotUpdateHandle::ActionExecution)> set_action_execution)
+    {
+      const auto teleop_executioner =
+      [set_action_execution](const std::string& category,
+        const nlohmann::json& description,
+        agv::RobotUpdateHandle::ActionExecution execution)
+      {
+        // We do not do anything here. The user can can move the robot by
+        // sending PathRequest msgs. Instead we simply store the completed
+        // callback which will be called when we receive a RobotModeRequest.
+        set_action_execution(execution);
+      };
+      self.set_action_executor(teleop_executioner);
+    });
 
   py::class_<agv::RobotUpdateHandle::ActionExecution,
     std::shared_ptr<agv::RobotUpdateHandle::ActionExecution>>(
@@ -247,14 +259,18 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("value"),
     "The default value is 1s")
   .def("add_performable_action",
-    &agv::FleetUpdateHandle::add_performable_action,
-    py::arg("category"),
-    py::arg("consider"));
-
-  py::class_<agv::FleetUpdateHandle::Confirmation,
-    std::shared_ptr<agv::FleetUpdateHandle::Confirmation>>(
-    m, "Confirmation")
-  .def("accept", &agv::FleetUpdateHandle::Confirmation::accept);
+    [&](agv::FleetUpdateHandle& self,
+    const std::string& category)
+    {
+      const auto consider =
+        [](const nlohmann::json& /*description*/,
+          agv::FleetUpdateHandle::Confirmation& confirm)
+        {
+          // We accept all actions for different types of robots
+          confirm.accept();
+        };
+      self.add_performable_action(category, consider);
+    });
 
   // EASY TRAFFIC LIGHT HANDLE ===============================================
   py::class_<agv::Waypoint>(m, "Waypoint")
