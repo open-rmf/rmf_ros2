@@ -35,10 +35,10 @@
 #include <rmf_task_sequence/Task.hpp>
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 
-#include <rmf_fleet_adapter/schemas/event_description_PayloadTransfer.hpp>
-#include <rmf_fleet_adapter/schemas/event_description_PickUp.hpp>
-#include <rmf_fleet_adapter/schemas/event_description_DropOff.hpp>
-#include <rmf_fleet_adapter/schemas/task_description_Delivery.hpp>
+#include <rmf_fleet_adapter/schemas/event_description__payload_transfer.hpp>
+#include <rmf_fleet_adapter/schemas/event_description__pickup.hpp>
+#include <rmf_fleet_adapter/schemas/event_description__dropoff.hpp>
+#include <rmf_fleet_adapter/schemas/task_description__delivery.hpp>
 
 namespace rmf_fleet_adapter {
 namespace tasks {
@@ -385,13 +385,13 @@ void add_delivery(
   using Phase = rmf_task_sequence::phases::SimplePhase;
   using DeliveryDescription = rmf_task::requests::Delivery::Description;
 
-  deserialization.add_schema(schemas::event_description_PayloadTransfer);
-  deserialization.add_schema(schemas::task_description_Delivery);
-  deserialization.add_schema(schemas::event_description_PickUp);
-  deserialization.add_schema(schemas::event_description_DropOff);
+  deserialization.add_schema(schemas::event_description__payload_transfer);
+  deserialization.add_schema(schemas::task_description__delivery);
+  deserialization.add_schema(schemas::event_description__pickup);
+  deserialization.add_schema(schemas::event_description__dropoff);
   auto validate_payload_transfer =
     deserialization.make_validator_shared(
-      schemas::event_description_PayloadTransfer);
+      schemas::event_description__payload_transfer);
 
   deserialization.consider_pickup =
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
@@ -410,7 +410,7 @@ void add_delivery(
     "dropoff", validate_payload_transfer, deserialize_dropoff);
 
   auto validate_delivery =
-    deserialization.make_validator_shared(schemas::task_description_Delivery);
+    deserialization.make_validator_shared(schemas::task_description__delivery);
 
   auto deserialize_delivery =
     [deserialize_pickup, deserialize_dropoff](

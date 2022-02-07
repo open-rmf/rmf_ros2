@@ -62,7 +62,7 @@
 #include <rmf_api_msgs/schemas/robot_state.hpp>
 #include <rmf_api_msgs/schemas/location_2D.hpp>
 
-#include <rmf_fleet_adapter/schemas/event_description_PerformAction.hpp>
+#include <rmf_fleet_adapter/schemas/event_description__perform_action.hpp>
 
 #include <iostream>
 #include <unordered_set>
@@ -403,7 +403,7 @@ public:
 
     // Add PerformAction event to deserialization
     auto validator = handle->_pimpl->deserialization.make_validator_shared(
-      schemas::event_description_PerformAction);
+      schemas::event_description__perform_action);
 
     const auto deserializer =
       [validator,

@@ -46,7 +46,7 @@
 #include <unordered_set>
 #include <stdexcept>
 
-#include <rmf_fleet_adapter/schemas/Place.hpp>
+#include <rmf_fleet_adapter/schemas/place.hpp>
 #include <rmf_api_msgs/schemas/task_request.hpp>
 
 namespace rmf_fleet_adapter {
@@ -960,7 +960,7 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
   events::GoToPlace::add(*activation.event);
   events::PerformAction::add(*activation.event);
   deserialization.place = make_place_deserializer(planner);
-  deserialization.add_schema(schemas::Place);
+  deserialization.add_schema(schemas::place);
 
   tasks::add_delivery(
     deserialization,

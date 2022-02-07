@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/task_description_Patrol.json",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/task_description__patrol.json",
   "title": "Patrol Task Description",
   "description": "Description of a patrolling task",
   "type": "object",
@@ -8,7 +8,7 @@
     "places": {
       "description": "A list of which places to patrol between",
       "type": "array",
-      "items": { "$ref": "Place.json" }
+      "items": { "$ref": "place.json" }
     },
     "rounds": {
       "description": "How many times the patrol should be performed. By default this is 1.",

@@ -23,8 +23,8 @@
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 #include <rmf_task_sequence/events/GoToPlace.hpp>
 
-#include <rmf_fleet_adapter/schemas/event_description_GoToPlace.hpp>
-#include <rmf_fleet_adapter/schemas/task_description_Patrol.hpp>
+#include <rmf_fleet_adapter/schemas/event_description__go_to_place.hpp>
+#include <rmf_fleet_adapter/schemas/task_description__patrol.hpp>
 
 namespace rmf_fleet_adapter {
 namespace tasks {
@@ -126,10 +126,11 @@ void add_loop(
   using Phase = rmf_task_sequence::phases::SimplePhase;
   using GoToPlace = rmf_task_sequence::events::GoToPlace;
 
-  deserialization.add_schema(schemas::task_description_Patrol);
-  deserialization.add_schema(schemas::event_description_GoToPlace);
+  deserialization.add_schema(schemas::task_description__patrol);
+  deserialization.add_schema(schemas::event_description__go_to_place);
   auto validate_go_to_place =
-    deserialization.make_validator_shared(schemas::event_description_GoToPlace);
+    deserialization.make_validator_shared(
+      schemas::event_description__go_to_place);
 
   auto deserialize_go_to_place =
     [place_deser = deserialization.place](const nlohmann::json& msg)
@@ -149,7 +150,7 @@ void add_loop(
     "go_to_place", validate_go_to_place, deserialize_go_to_place);
 
   auto validate_patrol =
-    deserialization.make_validator_shared(schemas::task_description_Patrol);
+    deserialization.make_validator_shared(schemas::task_description__patrol);
 
   deserialization.consider_patrol =
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();

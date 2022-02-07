@@ -27,8 +27,8 @@
 #include "../events/Error.hpp"
 #include "../events/GoToPlace.hpp"
 
-#include <rmf_fleet_adapter/schemas/event_description_Clean.hpp>
-#include <rmf_fleet_adapter/schemas/task_description_Clean.hpp>
+#include <rmf_fleet_adapter/schemas/event_description__clean.hpp>
+#include <rmf_fleet_adapter/schemas/task_description__clean.hpp>
 
 namespace rmf_fleet_adapter {
 namespace tasks {
@@ -266,13 +266,13 @@ void add_clean(
 
   auto validate_clean_event =
     deserialization.make_validator_shared(
-      schemas::event_description_Clean);
-  deserialization.add_schema(schemas::event_description_Clean);
+      schemas::event_description__clean);
+  deserialization.add_schema(schemas::event_description__clean);
 
   auto validate_clean_task =
     deserialization.make_validator_shared(
-      schemas::task_description_Clean);
-  deserialization.add_schema(schemas::task_description_Clean);
+      schemas::task_description__clean);
+  deserialization.add_schema(schemas::task_description__clean);
 
   deserialization.consider_clean =
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();

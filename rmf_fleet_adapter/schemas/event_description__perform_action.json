@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description_PerformAction.json",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description__perform_action.json",
   "title": "PerformAction event Description",
   "description": "Description schema for the perform_action category",
   "type": "object",
@@ -22,7 +22,7 @@
     },
     "expected_finish_location": {
       "description": "(Optional) A place that the robot will end up after the action. Default to last known location",
-      "$ref": "Place.json"
+      "$ref": "place.json"
     }
   },
   "required": ["category", "description"]

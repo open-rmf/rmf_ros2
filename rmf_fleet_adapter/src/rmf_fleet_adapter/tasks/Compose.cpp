@@ -21,8 +21,8 @@
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 #include <rmf_task_sequence/events/Bundle.hpp>
 
-#include <rmf_fleet_adapter/schemas/task_description_Compose.hpp>
-#include <rmf_fleet_adapter/schemas/event_description_Sequence.hpp>
+#include <rmf_fleet_adapter/schemas/task_description__compose.hpp>
+#include <rmf_fleet_adapter/schemas/event_description__sequence.hpp>
 
 namespace rmf_fleet_adapter {
 namespace tasks {
@@ -34,13 +34,13 @@ void add_compose(
   std::function<rmf_traffic::Time()> clock)
 {
   deserialization.add_schema(
-    rmf_fleet_adapter::schemas::task_description_Compose);
+    rmf_fleet_adapter::schemas::task_description__compose);
 
   deserialization.add_schema(
-    rmf_fleet_adapter::schemas::event_description_Sequence);
+    rmf_fleet_adapter::schemas::event_description__sequence);
 
   auto validate_compose_task =
-    deserialization.make_validator_shared(schemas::task_description_Compose);
+    deserialization.make_validator_shared(schemas::task_description__compose);
 
   auto deserialize_activity =
     [
@@ -183,7 +183,7 @@ void add_compose(
   rmf_task_sequence::Task::add(*activation.task, activation.phase, clock);
 
   auto validate_event_sequence =
-    deserialization.make_validator_shared(schemas::event_description_Sequence);
+    deserialization.make_validator_shared(schemas::event_description__sequence);
 
   auto deserialize_event_dependencies =
     [deser_event = deserialization.event](const nlohmann::json& msg)

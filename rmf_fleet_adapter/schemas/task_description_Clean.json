@@ -1,7 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/task_description_Clean.json",
-  "title": "Clean Task",
-  "description": "Clean a zone",
-  "$ref": "event_description_Clean.json"
-}
