@@ -1400,11 +1400,20 @@ void TaskManager::_publish_task_queue()
 
     pending_json["category"] = info.category;
     pending_json["detail"] = info.detail;
+    
+    pending_json["unix_millis_start_time"] =
+      to_millis(pending.deployment_time().time_since_epoch()).count();
 
-    const auto estimate =
-      pending.finish_state().time().value() - pending.deployment_time();
-    pending_json["original_estimate_millis"] =
-      std::max(0l, to_millis(estimate).count());
+    if(pending.finish_state().time())
+    {
+      pending_json["unix_millis_finish_time"] =
+        to_millis(pending.finish_state().time()->time_since_epoch()).count();
+
+      const auto estimate =
+        pending.finish_state().time().value() - pending.deployment_time();
+      pending_json["original_estimate_millis"] =
+        std::max(0l, to_millis(estimate).count());
+    }
     copy_assignment(pending_json["assigned_to"], *_context);
     pending_json["status"] = "queued";
 
