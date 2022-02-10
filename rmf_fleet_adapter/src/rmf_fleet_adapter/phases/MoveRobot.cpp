@@ -30,9 +30,10 @@ MoveRobot::ActivePhase::ActivePhase(
   _tail_period(tail_period)
 {
   std::ostringstream oss;
-  oss << "Moving [" << _context->requester_id() << "]: ("
-      << waypoints.front().position().transpose()
-      << ") -> (" << waypoints.back().position().transpose() << ")";
+  oss << "Moving to "
+      << destination(
+           waypoints.back(),
+           _context->planner()->get_configuration().graph());
   _description = oss.str();
 
   _action = std::make_shared<MoveRobot::Action>(
@@ -90,8 +91,10 @@ MoveRobot::PendingPhase::PendingPhase(
   _tail_period(tail_period)
 {
   std::ostringstream oss;
-  oss << "Move [" << _context->requester_id() << "] to ("
-      << _waypoints.back().position().transpose() << ")";
+  oss << "Move to "
+      << destination(
+           _waypoints.back(),
+           _context->planner()->get_configuration().graph());
   _description = oss.str();
 }
 

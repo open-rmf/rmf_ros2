@@ -26,6 +26,21 @@
 namespace rmf_fleet_adapter {
 namespace phases {
 
+namespace {
+//==============================================================================
+inline std::string destination(
+  const rmf_traffic::agv::Plan::Waypoint& wp,
+  const rmf_traffic::agv::Graph& graph)
+{
+  if (wp.graph_index().has_value())
+    return rmf_task::standard_waypoint_name(graph, *wp.graph_index());
+
+  std::ostringstream oss;
+  oss << "(" << wp.position().block<2, 1>(0, 0).transpose() << ")";
+  return oss.str();
+}
+} // anonymous namespace
+
 struct MoveRobot
 {
   class Action;
@@ -147,28 +162,25 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 
         if (path_index < action->_waypoints.size())
         {
-          std::ostringstream oss;
-          oss << "Moving [" << r << "]: ("
-              << action->_waypoints[path_index].position().transpose() << ") -> ("
-              << action->_waypoints.back().position().transpose() << ")";
-          msg.status = oss.str();
+          msg.status = "Heading towards "
+            + destination(
+              action->_waypoints[path_index],
+              action->_context->planner()->get_configuration().graph());
         }
         else
         {
-          std::ostringstream oss;
-          oss << "Moving [" << r << "] | ERROR: Bad state. Arrived at path index ["
-              << path_index << "] but path only has ["
-              << action->_waypoints.size() << "] elements.";
-          msg.status = oss.str();
+          // TODO(MXG): This should really be a warning, but the legacy phase shim
+          // does not have a way for us to specify a warning.
+          msg.status = "[Bug] [MoveRobot] Current path index was specified as ["
+              + std::to_string(path_index) + "] but that exceeds the limit of ["
+              + std::to_string(action->_waypoints.size()-1) + "]";
         }
 
         s.on_next(msg);
       }
 
-      if (action->_next_path_index >= action->_waypoints.size())
+      if (action->_next_path_index > action->_waypoints.size())
       {
-        // TODO(MXG): Consider a warning here. We'll ignore it for now, because
-        // maybe it was called when the robot arrived at the final waypoint.
         return;
       }
 
