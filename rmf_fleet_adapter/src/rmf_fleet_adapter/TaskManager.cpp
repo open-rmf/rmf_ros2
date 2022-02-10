@@ -485,10 +485,10 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
     auto& phase = copy_phase_data(
       phases, *snapshot, mgr._log_reader, phase_logs);
     phase["unix_millis_start_time"] =
-      completed->start_time().time_since_epoch().count();
+      to_millis(completed->start_time().time_since_epoch()).count();
 
     phase["unix_millis_finish_time"] =
-      completed->finish_time().time_since_epoch().count();
+      to_millis(completed->finish_time().time_since_epoch()).count();
 
     completed_ids.push_back(snapshot->tag()->id());
   }
@@ -497,7 +497,13 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   const auto active_phase = _task->active_phase();
   if (active_phase == nullptr)
     return;
-  copy_phase_data(phases, *active_phase, mgr._log_reader, phase_logs);
+  auto& active =
+    copy_phase_data(phases, *active_phase, mgr._log_reader, phase_logs);
+  if (_task->active_phase_start_time().has_value())
+  {
+    active["unix_millis_start_time"] =
+      to_millis(_task->active_phase_start_time()->time_since_epoch()).count();
+  }
   _state_msg["active"] = active_phase->tag()->id();
 
   std::vector<uint64_t> pending_ids;
