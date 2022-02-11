@@ -139,8 +139,7 @@ void DoorClose::ActivePhase::_update_status(
   }
   else
   {
-    _status.status = "[" + _context->name() + "] waiting for door ["
-      + _door_name + "] to close";
+    _status.status = "Waiting for [door:" + _door_name + "] to close";
   }
 }
 
@@ -153,7 +152,7 @@ DoorClose::ActivePhase::ActivePhase(
   _door_name(std::move(door_name)),
   _request_id(std::move(request_id))
 {
-  _description = "Closing door \"" + _door_name + "\"";
+  _description = "Closing [door:" + _door_name + "]";
 }
 
 //==============================================================================
@@ -165,7 +164,7 @@ DoorClose::PendingPhase::PendingPhase(
   _door_name(std::move(door_name)),
   _request_id(std::move(request_id))
 {
-  _description = "Close door \"" + _door_name + "\"";
+  _description = "Close [door:" + _door_name + "]";
 }
 
 //==============================================================================

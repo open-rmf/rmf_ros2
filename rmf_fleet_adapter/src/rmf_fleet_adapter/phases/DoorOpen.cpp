@@ -54,7 +54,7 @@ DoorOpen::ActivePhase::ActivePhase(
   _request_id(std::move(request_id)),
   _expected_finish(std::move(expected_finish))
 {
-  _description = "Opening door \"" + _door_name + "\"";
+  _description = "Opening [door:" + _door_name + "]";
 }
 
 //==============================================================================
@@ -205,8 +205,7 @@ void DoorOpen::ActivePhase::_update_status(
   }
   else
   {
-    _status.status = "[" + _context->name() + "] waiting for door ["
-      + _door_name + "] to open";
+    _status.status = "Waiting for [door:" + _door_name + "] to open";
   }
 }
 
@@ -221,7 +220,7 @@ DoorOpen::PendingPhase::PendingPhase(
   _request_id(std::move(request_id)),
   _expected_finish(std::move(expected_finish))
 {
-  _description = "Open door \"" + _door_name + "\"";
+  _description = "Open [door:" + _door_name + "]";
 }
 
 //==============================================================================
