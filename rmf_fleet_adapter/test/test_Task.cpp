@@ -183,11 +183,11 @@ public:
         {std::chrono::steady_clock::now(), 0, 0.0}, 0, 1.0);
       _subtasks =
         rmf_fleet_adapter::LegacyTask::make(
-          "subtasks", std::move(phases),
-          rxcpp::schedulers::make_event_loop().create_worker(),
-          std::chrono::steady_clock::now(),
-          state,
-          nullptr);
+        "subtasks", std::move(phases),
+        rxcpp::schedulers::make_event_loop().create_worker(),
+        std::chrono::steady_clock::now(),
+        state,
+        nullptr);
       _desc = "subtasks";
       _status_obs = _status_publisher.get_observable();
     }

@@ -101,7 +101,7 @@ auto Error::Active::interrupt(std::function<void()> task_is_interrupted)
 -> Resume
 {
   task_is_interrupted();
-  return Resume::make([](){});
+  return Resume::make([]() {});
 }
 
 //==============================================================================

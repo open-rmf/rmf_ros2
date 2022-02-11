@@ -48,7 +48,7 @@ void PerformAction::add(rmf_task_sequence::Event::Initializer& initializer)
     {
       return Standby::make(
         id, get_state, parameters, description, std::move(update))
-        ->begin(std::move(checkpoint), std::move(finished));
+      ->begin(std::move(checkpoint), std::move(finished));
     });
 }
 

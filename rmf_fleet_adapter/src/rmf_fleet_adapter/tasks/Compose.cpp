@@ -44,8 +44,8 @@ void add_compose(
 
   auto deserialize_activity =
     [
-      deser_phase = deserialization.phase,
-      deser_event = deserialization.event
+    deser_phase = deserialization.phase,
+    deser_event = deserialization.event
     ](const nlohmann::json& msg) -> agv::DeserializedPhase
     {
       const auto& category = msg.at("category").get<std::string>();
@@ -78,10 +78,12 @@ void add_compose(
         return {nullptr, std::move(event.errors)};
 
       using rmf_task_sequence::phases::SimplePhase;
+      /* *INDENT-OFF* */
       return {
         SimplePhase::Description::make(event.description),
         std::move(event.errors)
       };
+      /* *INDENT-ON* */
     };
 
   deserialization.consider_composed =
@@ -95,8 +97,8 @@ void add_compose(
 
   auto deserialize_compose_task =
     [
-      deser_activity = deserialize_activity,
-      consider = deserialization.consider_composed
+    deser_activity = deserialize_activity,
+    consider = deserialization.consider_composed
     ](const nlohmann::json& msg)
     -> agv::DeserializedTask
     {
@@ -152,7 +154,7 @@ void add_compose(
           else
           {
             errors.push_back("The on_cancel property for one of the phases is "
-            "not an array. The intended activities will not be performed.");
+              "not an array. The intended activities will not be performed.");
           }
         }
 
@@ -164,16 +166,18 @@ void add_compose(
       if (!confirm.is_accepted())
         return {nullptr, confirm.errors()};
 
+      /* *INDENT-OFF* */
       return {
         builder.build(category, detail),
         std::move(errors)
       };
+      /* *INDENT-ON* */
     };
 
   using rmf_task_sequence::events::Bundle;
   using DeserializedDependencies =
     agv::DeserializedDescription<
-      std::optional<Bundle::Description::Dependencies>>;
+    std::optional<Bundle::Description::Dependencies>>;
 
   // Deserialize composed tasks
   deserialization.task->add(
@@ -187,7 +191,7 @@ void add_compose(
 
   auto deserialize_event_dependencies =
     [deser_event = deserialization.event](const nlohmann::json& msg)
-      -> DeserializedDependencies
+    -> DeserializedDependencies
     {
       std::vector<std::string> errors;
       Bundle::Description::Dependencies deps;
@@ -216,7 +220,7 @@ void add_compose(
 
   auto deserialize_event_sequence =
     [deserialize_event_dependencies](const nlohmann::json& msg)
-      -> agv::DeserializedEvent
+    -> agv::DeserializedEvent
     {
       DeserializedDependencies dependencies;
       std::optional<std::string> category;
@@ -241,6 +245,7 @@ void add_compose(
       if (!dependencies.description.has_value())
         return {nullptr, std::move(dependencies.errors)};
 
+      /* *INDENT-OFF* */
       return {
         std::make_shared<Bundle::Description>(
           *dependencies.description,
@@ -249,6 +254,7 @@ void add_compose(
           std::move(detail)),
         std::move(dependencies.errors)
       };
+      /* *INDENT-ON* */
     };
 
   // Deserialize activity sequences

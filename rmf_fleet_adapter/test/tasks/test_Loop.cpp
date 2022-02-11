@@ -164,6 +164,7 @@ SCENARIO("Test loop requests")
   /// Mock Task State observer server, This checks the task_state
   /// of the targeted task id, by listening to the task_state_update
   /// from the websocket connection
+  /* *INDENT-OFF* */
   using MockServer = rmf_fleet_adapter_test::MockWebSocketServer;
 	MockServer mock_server(
 		27878,
@@ -172,59 +173,60 @@ SCENARIO("Test loop requests")
       &at_least_one_incomplete_task_0,
       &at_least_one_incomplete_task_1](
       const nlohmann::json &data)
-		{
-      assert(data.contains("status"));
-      const auto id = data.at("booking").at("id");
-      const auto status = data.at("status");
-			std::cout << "[MockWebSocketServer] id: [" << id 
-                << "] ::: json state ::: " << status << std::endl;
-      
-      if (status == "completed")
       {
-        if (id == loop_0)
-        {
-          task_0_completed_promise.set_value(true);
-          completed_0_count++;
-        }
-        else if (id == loop_1)
-        {
-          task_1_completed_promise.set_value(true);
-          completed_1_count++;
-        }
-      }
-      else
-      {
-        if (id == loop_0)
-          at_least_one_incomplete_task_0 = true;
-        else if (id == loop_1)
-          at_least_one_incomplete_task_1 = true;
-      }
+        assert(data.contains("status"));
+        const auto id = data.at("booking").at("id");
+        const auto status = data.at("status");
+        std::cout << "[MockWebSocketServer] id: [" << id
+                  << "] ::: json state ::: " << status << std::endl;
 
-      /// TODO(YL) listen to task_log_update.
-      /// Note: This testcases block is copied over from the previous
-      /// task summary msg check. The current msg field is nested within
-      /// phases->events->[ text ] field. Thus a better impl is needed.
-      ///
-      // if (msg->task_id == loop_0)
-      // {
-      //   last_task_0_msg = *msg;
-      //   if (msg->status.find("Finding a plan for") != std::string::npos)
-      //   {
-      //     ++finding_a_plan_0_count;
-      //     finding_a_plan_0_statuses.push_back(msg->status);
-      //   }
-      // }
-      // else if (msg->task_id == loop_1)
-      // {
-      //   last_task_1_msg = *msg;
-      //   if (msg->status.find("Finding a plan for") != std::string::npos)
-      //   {
-      //     ++finding_a_plan_1_count;
-      //     finding_a_plan_1_statuses.push_back(msg->status);
-      //   }
-      // }
-		},
+        if (status == "completed")
+        {
+          if (id == loop_0)
+          {
+            task_0_completed_promise.set_value(true);
+            completed_0_count++;
+          }
+          else if (id == loop_1)
+          {
+            task_1_completed_promise.set_value(true);
+            completed_1_count++;
+          }
+        }
+        else
+        {
+          if (id == loop_0)
+            at_least_one_incomplete_task_0 = true;
+          else if (id == loop_1)
+            at_least_one_incomplete_task_1 = true;
+        }
+
+        /// TODO(YL) listen to task_log_update.
+        /// Note: This testcases block is copied over from the previous
+        /// task summary msg check. The current msg field is nested within
+        /// phases->events->[ text ] field. Thus a better impl is needed.
+        ///
+        // if (msg->task_id == loop_0)
+        // {
+        //   last_task_0_msg = *msg;
+        //   if (msg->status.find("Finding a plan for") != std::string::npos)
+        //   {
+        //     ++finding_a_plan_0_count;
+        //     finding_a_plan_0_statuses.push_back(msg->status);
+        //   }
+        // }
+        // else if (msg->task_id == loop_1)
+        // {
+        //   last_task_1_msg = *msg;
+        //   if (msg->status.find("Finding a plan for") != std::string::npos)
+        //   {
+        //     ++finding_a_plan_1_count;
+        //     finding_a_plan_1_statuses.push_back(msg->status);
+        //   }
+        // }
+      },
     MockServer::ApiMsgType::TaskStateUpdate);
+  /* *INDENT-ON* */
 
   const std::size_t n_loops = 3;
 
@@ -261,10 +263,10 @@ SCENARIO("Test loop requests")
   ///   replacement api for deprecated: 'accept_task_requests'
   fleet->consider_patrol_requests(
     [&](
-      const nlohmann::json& msg, 
+      const nlohmann::json& msg,
       rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
-      assert( msg.contains("places"));
+      assert(msg.contains("places"));
       CHECK(msg["places"].size() == 2);
       confirm.accept();
     }

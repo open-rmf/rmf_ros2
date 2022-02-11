@@ -149,9 +149,9 @@ public:
   ///   An ActionExecution object that will be provided to the user for
   ///   updating the state of the action.
   using ActionExecutor = std::function<void(
-    const std::string& category,
-    const nlohmann::json& description,
-    ActionExecution execution)>;
+        const std::string& category,
+        const nlohmann::json& description,
+        ActionExecution execution)>;
 
   /// Set the ActionExecutor for this robot
   void set_action_executor(ActionExecutor action_executor);

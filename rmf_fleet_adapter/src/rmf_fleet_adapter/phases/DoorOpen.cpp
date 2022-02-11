@@ -58,7 +58,8 @@ DoorOpen::ActivePhase::ActivePhase(
 }
 
 //==============================================================================
-const rxcpp::observable<LegacyTask::StatusMsg>& DoorOpen::ActivePhase::observe() const
+const rxcpp::observable<LegacyTask::StatusMsg>&
+DoorOpen::ActivePhase::observe() const
 {
   return _obs;
 }

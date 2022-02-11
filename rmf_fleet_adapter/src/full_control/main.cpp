@@ -153,7 +153,7 @@ std::optional<DistanceFromGraph> distance_from_graph(
 //==============================================================================
 class FleetDriverRobotCommandHandle
   : public rmf_fleet_adapter::agv::RobotCommandHandle,
-    public std::enable_shared_from_this<FleetDriverRobotCommandHandle>
+  public std::enable_shared_from_this<FleetDriverRobotCommandHandle>
 {
 public:
 
@@ -588,24 +588,24 @@ public:
       _travel_info.updater->interrupted();
   }
 
-void set_action_execution(ActionExecution action_execution)
-{
-  _action_execution = action_execution;
-}
+  void set_action_execution(ActionExecution action_execution)
+  {
+    _action_execution = action_execution;
+  }
 
-void complete_robot_action()
-{
-  if (!_action_execution.has_value())
-    return;
+  void complete_robot_action()
+  {
+    if (!_action_execution.has_value())
+      return;
 
-  _action_execution->finished();
-  _action_execution = std::nullopt;
+    _action_execution->finished();
+    _action_execution = std::nullopt;
 
-  RCLCPP_INFO(
-  _node->get_logger(),
-  "Robot [%s] has completed the action it was performing",
-  _travel_info.robot_name.c_str());
-}
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "Robot [%s] has completed the action it was performing",
+      _travel_info.robot_name.c_str());
+  }
 
 private:
 
@@ -954,33 +954,35 @@ std::shared_ptr<Connections> make_fleet(
       connections->closed_lanes_pub->publish(state_msg);
     });
 
-    connections->mode_request_sub =
-      adapter->node()->create_subscription<rmf_fleet_msgs::msg::ModeRequest>(
-      "/action_execution_notice",
-      rclcpp::SystemDefaultsQoS(),
-      [w = connections->weak_from_this(), fleet_name](
+  /* *INDENT-OFF* */
+  connections->mode_request_sub =
+    adapter->node()->create_subscription<rmf_fleet_msgs::msg::ModeRequest>(
+    "/action_execution_notice",
+    rclcpp::SystemDefaultsQoS(),
+    [w = connections->weak_from_this(), fleet_name](
       rmf_fleet_msgs::msg::ModeRequest::UniquePtr msg)
+    {
+      if (msg->fleet_name.empty() ||
+        msg->fleet_name != fleet_name ||
+        msg->robot_name.empty())
       {
-        if (msg->fleet_name.empty() ||
-          msg->fleet_name != fleet_name ||
-          msg->robot_name.empty())
-        {
+        return;
+      }
+
+      if (msg->mode.mode == msg->mode.MODE_IDLE)
+      {
+        const auto self = w.lock();
+        if (!self)
           return;
-        }
 
-        if (msg->mode.mode == msg->mode.MODE_IDLE)
-        {
-          const auto self = w.lock();
-          if (!self)
-            return;
+        const auto command_it = self->robots.find(msg->robot_name);
+        if (command_it == self->robots.end())
+          return;
 
-          const auto command_it = self->robots.find(msg->robot_name);
-          if (command_it == self->robots.end())
-            return;
-
-          command_it->second->complete_robot_action();
-        }
-      });
+        command_it->second->complete_robot_action();
+      }
+    });
+  /* *INDENT-ON* */
 
   // Parameters required for task planner
   // Battery system

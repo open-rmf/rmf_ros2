@@ -49,10 +49,10 @@ int main(int argc, char* argv[])
       std::cout << "[MockBidder] Providing best estimates" << std::endl;
       const auto req = nlohmann::json::parse(notice.request);
       const auto& start_time_json = req["unix_millis_earliest_start_time"];
-      const auto req_start_time = start_time_json?
-        rmf_traffic::Time(
-          std::chrono::milliseconds(start_time_json.get<int64_t>()))
-        : rmf_traffic_ros2::convert(node->now());
+      const auto req_start_time = start_time_json ?
+      rmf_traffic::Time(
+        std::chrono::milliseconds(start_time_json.get<int64_t>())) :
+      rmf_traffic_ros2::convert(node->now());
 
       resp(bidding::Response{
         bidding::Response::Proposal{

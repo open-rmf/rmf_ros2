@@ -119,8 +119,8 @@ public:
   ///   Use this object to decide if you want to accept the task
   using ConsiderRequest =
     std::function<void(
-      const nlohmann::json& description,
-      Confirmation& confirm)
+        const nlohmann::json& description,
+        Confirmation& confirm)
     >;
 
   /// Allow this fleet adapter to consider delivery requests.

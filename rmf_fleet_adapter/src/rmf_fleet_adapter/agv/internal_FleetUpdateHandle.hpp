@@ -98,7 +98,7 @@ using TaskDescriptionDeserializer =
 //==============================================================================
 using DeserializedPhase =
   DeserializedDescription<
-    std::shared_ptr<const rmf_task_sequence::Phase::Description>
+  std::shared_ptr<const rmf_task_sequence::Phase::Description>
   >;
 
 //==============================================================================
@@ -108,7 +108,7 @@ using PhaseDescriptionDeserializer =
 //==============================================================================
 using DeserializedEvent =
   DeserializedDescription<
-    std::shared_ptr<const rmf_task_sequence::Event::Description>
+  std::shared_ptr<const rmf_task_sequence::Event::Description>
   >;
 
 //==============================================================================
@@ -138,7 +138,7 @@ struct TaskDeserialization
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_composed;
   // Map category string to its ConsiderRequest for PerformAction events
   std::shared_ptr<std::unordered_map<
-    std::string, FleetUpdateHandle::ConsiderRequest>> consider_actions;
+      std::string, FleetUpdateHandle::ConsiderRequest>> consider_actions;
 
   void add_schema(const nlohmann::json& schema);
 
@@ -270,8 +270,8 @@ public:
 
   using DockParamMap =
     std::unordered_map<
-      std::string,
-      rmf_fleet_msgs::msg::DockParameter
+    std::string,
+    rmf_fleet_msgs::msg::DockParameter
     >;
 
   using ConstDockParamsPtr = std::shared_ptr<const DockParamMap>;
@@ -321,9 +321,9 @@ public:
     // changes.
     handle->_pimpl->task_parameters =
       std::make_shared<rmf_task::Parameters>(
-        *handle->_pimpl->planner,
-        *rmf_battery::agv::BatterySystem::make(1.0, 1.0, 1.0),
-        nullptr, nullptr, nullptr);
+      *handle->_pimpl->planner,
+      *rmf_battery::agv::BatterySystem::make(1.0, 1.0, 1.0),
+      nullptr, nullptr, nullptr);
 
     handle->_pimpl->fleet_state_pub = handle->_pimpl->node->fleet_state();
     handle->fleet_state_topic_publish_period(std::chrono::seconds(1));
@@ -406,10 +406,11 @@ public:
       schemas::event_description__perform_action);
 
     const auto deserializer =
-      [validator,
+      [
+      validator,
       place = handle->_pimpl->deserialization.place,
-      consider_actions = handle->_pimpl->deserialization.consider_actions](
-        const nlohmann::json& msg) -> DeserializedEvent
+      consider_actions = handle->_pimpl->deserialization.consider_actions
+      ](const nlohmann::json& msg) -> DeserializedEvent
       {
         try
         {
@@ -459,16 +460,16 @@ public:
 
           const auto description =
             rmf_task_sequence::events::PerformAction::Description::make(
-              category,
-              desc,
-              duration_estimate,
-              use_tool_sink,
-              finish_location);
+            category,
+            desc,
+            duration_estimate,
+            use_tool_sink,
+            finish_location);
 
           std::vector<std::string> errors = {};
           return {description, errors};
         }
-        catch(const std::exception& e)
+        catch (const std::exception& e)
         {
           return {nullptr, {e.what()}};
         }

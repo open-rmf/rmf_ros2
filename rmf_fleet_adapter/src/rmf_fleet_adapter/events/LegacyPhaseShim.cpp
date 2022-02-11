@@ -70,9 +70,11 @@ auto LegacyPhaseShim::Standby::begin(
 {
   if (!_legacy)
   {
+    /* *INDENT-OFF* */
     throw std::runtime_error(
       "[rmf_fleet_adapter::events::LegacyPhaseShim::begin] "
       "Triggering begin twice!");
+    /* *INDENT-ON* */
   }
 
   return Active::make(
@@ -119,6 +121,7 @@ auto LegacyPhaseShim::Active::make(
             log.info(msg.status);
         }
 
+        /* *INDENT-OFF* */
         if (!self->_last_state_value.has_value()
             || *self->_last_state_value != msg.state)
         {
@@ -138,6 +141,7 @@ auto LegacyPhaseShim::Active::make(
           else
             self->_state->update_status(Event::Status::Uninitialized);
         }
+        /* *INDENT-ON* */
 
         if (need_update)
           self->_parent_update();
@@ -188,7 +192,7 @@ auto LegacyPhaseShim::Active::interrupt(std::function<void()>) -> Resume
   // Legacy phases cannot be interrupted. We need to let the phase just run to
   // completion. We will never be able to safely trigger the task_is_interrupted
   // callback.
-  return Resume::make([](){ /* do nothing */});
+  return Resume::make([]() { /* do nothing */});
 }
 
 //==============================================================================

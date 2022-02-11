@@ -134,7 +134,8 @@ std::shared_ptr<LegacyTask> make_delivery(
 }
 
 //==============================================================================
-struct TransferItems : public rmf_task_sequence::events::Placeholder::Description
+struct TransferItems
+  : public rmf_task_sequence::events::Placeholder::Description
 {
   enum class Dir
   {
@@ -281,7 +282,7 @@ struct TransferItems : public rmf_task_sequence::events::Placeholder::Descriptio
       {
         return standby(
           id, get_state, parameters, description, std::move(update))
-          ->begin(std::move(checkpoint), std::move(finished));
+        ->begin(std::move(checkpoint), std::move(finished));
       });
   }
 };
@@ -311,9 +312,9 @@ make_deserializer(
 
   return
     [
-      place_deser,
-      consider,
-      parse_payload_component = std::move(parse_payload_component)
+    place_deser,
+    consider,
+    parse_payload_component = std::move(parse_payload_component)
     ](const nlohmann::json& msg) -> agv::DeserializedEvent
     {
       if (!consider || !(*consider))
@@ -340,12 +341,14 @@ make_deserializer(
       }
       else
       {
+        /* *INDENT-OFF* */
         return {
           nullptr,
           {"invalid data type provided for 'payload' property: expected an "
            "object or an array but got " + std::string(payload_json.type_name())
            + " type instead"}
         };
+        /* *INDENT-ON* */
       }
 
       std::string handler;
@@ -391,13 +394,13 @@ void add_delivery(
   deserialization.add_schema(schemas::event_description__dropoff);
   auto validate_payload_transfer =
     deserialization.make_validator_shared(
-      schemas::event_description__payload_transfer);
+    schemas::event_description__payload_transfer);
 
   deserialization.consider_pickup =
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
   auto deserialize_pickup =
     make_deserializer<PickUp::Description>(
-      deserialization.place, deserialization.consider_pickup);
+    deserialization.place, deserialization.consider_pickup);
   deserialization.event->add(
     "pickup", validate_payload_transfer, deserialize_pickup);
 
@@ -405,7 +408,7 @@ void add_delivery(
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
   auto deserialize_dropoff =
     make_deserializer<DropOff::Description>(
-      deserialization.place, deserialization.consider_dropoff);
+    deserialization.place, deserialization.consider_dropoff);
   deserialization.event->add(
     "dropoff", validate_payload_transfer, deserialize_dropoff);
 
@@ -414,7 +417,7 @@ void add_delivery(
 
   auto deserialize_delivery =
     [deserialize_pickup, deserialize_dropoff](
-      const nlohmann::json& msg) -> agv::DeserializedTask
+    const nlohmann::json& msg) -> agv::DeserializedTask
     {
       const auto pickup = deserialize_pickup(msg.at("pickup"));
       const auto dropoff = deserialize_dropoff(msg.at("dropoff"));
@@ -437,7 +440,8 @@ void add_delivery(
       return {builder.build("Delivery", ""), std::move(errors)};
     };
 
-  deserialization.task->add("delivery", validate_delivery, deserialize_delivery);
+  deserialization.task->add(
+    "delivery", validate_delivery, deserialize_delivery);
 
   auto private_initializer =
     std::make_shared<rmf_task_sequence::Event::Initializer>();
@@ -445,6 +449,7 @@ void add_delivery(
   TransferItems::add(*private_initializer);
   events::GoToPlace::add(*private_initializer);
 
+  /* *INDENT-OFF* */
   auto pickup_unfolder =
     [](const PickUp::Description& pickup)
     {
@@ -453,10 +458,12 @@ void add_delivery(
         std::make_shared<TransferItems>(pickup)
       }, Bundle::Type::Sequence, "Pick up");
     };
+  /* *INDENT-ON* */
 
   Bundle::unfold<PickUp::Description>(
     std::move(pickup_unfolder), *activation.event, private_initializer);
 
+  /* *INDENT-OFF* */
   auto dropoff_unfolder =
     [](const DropOff::Description& dropoff)
     {
@@ -465,6 +472,7 @@ void add_delivery(
         std::make_shared<TransferItems>(dropoff)
       }, Bundle::Type::Sequence, "Drop Off");
     };
+  /* *INDENT-ON* */
 
   Bundle::unfold<DropOff::Description>(
     std::move(dropoff_unfolder), *activation.event, private_initializer);
@@ -474,20 +482,20 @@ void add_delivery(
     {
       rmf_task_sequence::Task::Builder builder;
       builder
-        .add_phase(
-          Phase::Description::make(
-            PickUp::Description::make(
-              delivery.pickup_waypoint(),
-              delivery.pickup_from_dispenser(),
-              delivery.payload(),
-              delivery.pickup_wait())), {})
-        .add_phase(
-          Phase::Description::make(
-            DropOff::Description::make(
-              delivery.dropoff_waypoint(),
-              delivery.dropoff_to_ingestor(),
-              delivery.payload(),
-              delivery.dropoff_wait())), {});
+      .add_phase(
+        Phase::Description::make(
+          PickUp::Description::make(
+            delivery.pickup_waypoint(),
+            delivery.pickup_from_dispenser(),
+            delivery.payload(),
+            delivery.pickup_wait())), {})
+      .add_phase(
+        Phase::Description::make(
+          DropOff::Description::make(
+            delivery.dropoff_waypoint(),
+            delivery.dropoff_to_ingestor(),
+            delivery.payload(),
+            delivery.dropoff_wait())), {});
 
       // TODO(MXG): Consider making the category and detail more detailed
       return *builder.build("Delivery", "");

@@ -86,17 +86,17 @@ TaskManagerPtr TaskManager::make(
 
       self->_context->worker().schedule(
         [w = self->weak_from_this()](const auto&)
-      {
-        const auto self = w.lock();
+        {
+          const auto self = w.lock();
 
-        if (!self->_emergency_active)
-          return;
+          if (!self->_emergency_active)
+            return;
 
-        // TODO(MXG): Consider subscribing to the emergency pullover update
-        self->_emergency_pullover = events::EmergencyPullover::Standby::make(
-          rmf_task_sequence::Event::AssignID::make(), self->_context, [](){})
-            ->begin([](){}, self->_make_resume_from_emergency());
-      });
+          // TODO(MXG): Consider subscribing to the emergency pullover update
+          self->_emergency_pullover = events::EmergencyPullover::Standby::make(
+            rmf_task_sequence::Event::AssignID::make(), self->_context, []() {})
+          ->begin([]() {}, self->_make_resume_from_emergency());
+        });
     };
 
   mgr->_emergency_sub = mgr->_context->node()->emergency_notice()
@@ -115,10 +115,10 @@ TaskManagerPtr TaskManager::make(
           if (mgr->_active_task)
           {
             mgr->_emergency_pullover_interrupt_token =
-              mgr->_active_task.add_interruption(
-                {"emergency pullover"},
-                mgr->_context->now(),
-                [begin_pullover]() { begin_pullover(); });
+            mgr->_active_task.add_interruption(
+              {"emergency pullover"},
+              mgr->_context->now(),
+              [begin_pullover]() { begin_pullover(); });
           }
           else
           {
@@ -155,26 +155,33 @@ TaskManagerPtr TaskManager::make(
 
   mgr->_begin_waiting();
 
-  mgr->_travel_estimator = std::make_shared<rmf_task::TravelEstimator>(
-    mgr->_context->task_planner()->configuration().parameters());
+  // TODO(MXG): The tests allow a task manager to be created before a task
+  // planner is available. To deal with that we'll skip making the
+  // travel_estimator here. This code is unsound and the flow of object
+  // construction and inter-dependencies should be improved.
+  if (mgr->_context->task_planner())
+  {
+    mgr->_travel_estimator = std::make_shared<rmf_task::TravelEstimator>(
+      mgr->_context->task_planner()->configuration().parameters());
+  }
 
   mgr->_update_timer = mgr->_context->node()->try_create_wall_timer(
     std::chrono::milliseconds(100),
     [w = mgr->weak_from_this()]()
-  {
-    if (const auto self = w.lock())
-      self->_consider_publishing_updates();
-  });
+    {
+      if (const auto self = w.lock())
+        self->_consider_publishing_updates();
+    });
 
   mgr->_task_request_api_sub = mgr->_context->node()->task_api_request()
     .observe_on(rxcpp::identity_same_worker(mgr->_context->worker()))
     .subscribe(
-      [w = mgr->weak_from_this()](
-        const rmf_task_msgs::msg::ApiRequest::SharedPtr& request)
-      {
-        if (const auto self = w.lock())
-          self->_handle_request(request->json_msg, request->request_id);
-      });
+    [w = mgr->weak_from_this()](
+      const rmf_task_msgs::msg::ApiRequest::SharedPtr& request)
+    {
+      if (const auto self = w.lock())
+        self->_handle_request(request->json_msg, request->request_id);
+    });
 
   const std::vector<nlohmann::json> schemas = {
     rmf_api_msgs::schemas::task_state,
@@ -243,9 +250,11 @@ const std::string& TaskManager::ActiveTask::id() const
 {
   if (!_task)
   {
+    /* *INDENT-OFF* */
     throw std::runtime_error(
       "[TaskManager::ActiveTask::id] Called when there is no active task. "
       "This is a serious bug, please report this to the developers of RMF ");
+    /* *INDENT-ON* */
   }
 
   return _task->tag()->booking()->id();
@@ -264,30 +273,30 @@ std::string status_to_string(rmf_task::Event::Status status)
   using Status = rmf_task::Event::Status;
   switch (status)
   {
-  case Status::Uninitialized:
-    return "uninitialized";
-  case Status::Blocked:
-    return "blocked";
-  case Status::Error:
-    return "error";
-  case Status::Failed:
-    return "failed";
-  case Status::Standby:
-    return "standby";
-  case Status::Underway:
-    return "underway";
-  case Status::Delayed:
-    return "delayed";
-  case Status::Skipped:
-    return "skipped";
-  case Status::Canceled:
-    return "canceled";
-  case Status::Killed:
-    return "killed";
-  case Status::Completed:
-    return "completed";
-  default:
-    return "uninitialized";
+    case Status::Uninitialized:
+      return "uninitialized";
+    case Status::Blocked:
+      return "blocked";
+    case Status::Error:
+      return "error";
+    case Status::Failed:
+      return "failed";
+    case Status::Standby:
+      return "standby";
+    case Status::Underway:
+      return "underway";
+    case Status::Delayed:
+      return "delayed";
+    case Status::Skipped:
+      return "skipped";
+    case Status::Canceled:
+      return "canceled";
+    case Status::Killed:
+      return "killed";
+    case Status::Completed:
+      return "completed";
+    default:
+      return "uninitialized";
   }
 }
 
@@ -297,14 +306,14 @@ std::string tier_to_string(rmf_task::Log::Entry::Tier tier)
   using Tier = rmf_task::Log::Entry::Tier;
   switch (tier)
   {
-  case Tier::Info:
-    return "info";
-  case Tier::Warning:
-    return "warning";
-  case Tier::Error:
-    return "error";
-  default:
-    return "uninitialized";
+    case Tier::Info:
+      return "info";
+    case Tier::Warning:
+      return "warning";
+    case Tier::Error:
+      return "error";
+    default:
+      return "uninitialized";
   }
 }
 
@@ -582,7 +591,7 @@ std::string TaskManager::ActiveTask::add_interruption(
     else
     {
       _interruption_handler->interruption_listeners
-        .push_back(std::move(task_is_interrupted));
+      .push_back(std::move(task_is_interrupted));
     }
 
     return token;
@@ -979,7 +988,7 @@ void TaskManager::_begin_next_task()
 
     if (is_next_task_direct)
       _direct_queue.erase(_direct_queue.begin());
-   else
+    else
       _queue.erase(_queue.begin());
 
     if (!_active_task)
@@ -1099,13 +1108,13 @@ void TaskManager::_begin_waiting()
 std::function<void()> TaskManager::_make_resume_from_emergency()
 {
   return [w = weak_from_this()]()
-  {
-    const auto self = w.lock();
-    if (!self)
-      return;
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
 
-    self->_resume_from_emergency();
-  };
+      self->_resume_from_emergency();
+    };
 }
 
 //==============================================================================
@@ -1143,10 +1152,13 @@ void TaskManager::_resume_from_emergency()
 //==============================================================================
 void TaskManager::retreat_to_charger()
 {
-  {
-  std::lock_guard<std::mutex> guard(_mutex);
-  if (_active_task || !_queue.empty())
+  if (!_travel_estimator)
     return;
+
+  {
+    std::lock_guard<std::mutex> guard(_mutex);
+    if (_active_task || !_queue.empty())
+      return;
   }
 
   const auto task_planner = _context->task_planner();
@@ -1213,8 +1225,8 @@ void TaskManager::retreat_to_charger()
       charging_assignment};
     ++_next_sequence_number;
     {
-    std::lock_guard<std::mutex> lock(_mutex);
-    _direct_queue.insert(assignment);
+      std::lock_guard<std::mutex> lock(_mutex);
+      _direct_queue.insert(assignment);
     }
 
     RCLCPP_INFO(
@@ -1352,9 +1364,9 @@ void TaskManager::_validate_and_publish_api_response(
 
   _context->node()->task_api_response()->publish(
     rmf_task_msgs::build<rmf_task_msgs::msg::ApiResponse>()
-      .type(rmf_task_msgs::msg::ApiResponse::TYPE_RESPONDING)
-      .json_msg(response.dump())
-      .request_id(request_id));
+    .type(rmf_task_msgs::msg::ApiResponse::TYPE_RESPONDING)
+    .json_msg(response.dump())
+    .request_id(request_id));
 }
 
 //==============================================================================
@@ -1406,11 +1418,11 @@ void TaskManager::_publish_task_queue()
 
     pending_json["category"] = info.category;
     pending_json["detail"] = info.detail;
-    
+
     pending_json["unix_millis_start_time"] =
       to_millis(pending.deployment_time().time_since_epoch()).count();
 
-    if(pending.finish_state().time())
+    if (pending.finish_state().time())
     {
       pending_json["unix_millis_finish_time"] =
         to_millis(pending.finish_state().time()->time_since_epoch()).count();
@@ -1596,14 +1608,14 @@ TaskManager::_update_cb()
 std::function<void(rmf_task::Task::Active::Backup)>
 TaskManager::_checkpoint_cb()
 {
-  return [w = weak_from_this()](rmf_task::Task::Active::Backup backup)
-  {
-    const auto self = w.lock();
-    if (!self)
-      return;
+  return [w = weak_from_this()](rmf_task::Task::Active::Backup)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
 
-    // TODO(MXG): Save the backup
-  };
+      // TODO(MXG): Save the backup
+    };
 }
 
 //==============================================================================
@@ -1653,7 +1665,7 @@ void TaskManager::_handle_request(
   {
     request_json = nlohmann::json::parse(request_msg);
   }
-  catch(const std::exception& e)
+  catch (const std::exception& e)
   {
     RCLCPP_ERROR(
       _context->node()->get_logger(),
@@ -1855,14 +1867,14 @@ void TaskManager::_handle_direct_request(
   const DirectAssignment assignment = DirectAssignment{
     _next_sequence_number,
     Assignment(
-        new_request,
-        finish_state,
-        deployment_time)
-    };
+      new_request,
+      finish_state,
+      deployment_time)
+  };
   ++_next_sequence_number;
   {
-  std::lock_guard<std::mutex> lock(_mutex);
-  _direct_queue.insert(assignment);
+    std::lock_guard<std::mutex> lock(_mutex);
+    _direct_queue.insert(assignment);
   }
 
   RCLCPP_INFO(
@@ -1874,7 +1886,7 @@ void TaskManager::_handle_direct_request(
   // Publish api response
   nlohmann::json response_json;
   response_json["success"] = true;
-  nlohmann::json task_state;;
+  nlohmann::json task_state;
   copy_booking_data(task_state["booking"], *new_request->booking());
   // task_state["category"] = request["category"].get<std::string>();
   task_state["detail"] = request["description"];
@@ -1963,7 +1975,7 @@ void TaskManager::_handle_interrupt_request(
     _task_state_update_available = true;
     return _send_token_success_response(
       _active_task.add_interruption(
-        get_labels(request_json), _context->now(), [](){}),
+        get_labels(request_json), _context->now(), []() {}),
       request_id);
   }
 
@@ -1995,7 +2007,7 @@ void TaskManager::_handle_resume_request(
       return _send_simple_success_response(request_id);
 
     std::string detail = "[";
-    for (std::size_t i=0; i < unknown_tokens.size(); ++i)
+    for (std::size_t i = 0; i < unknown_tokens.size(); ++i)
     {
       detail += unknown_tokens[i];
       if (i < unknown_tokens.size()-1)
@@ -2085,7 +2097,7 @@ void TaskManager::_handle_undo_skip_phase_request(
       return _send_simple_success_response(request_id);
 
     std::string detail = "[";
-    for (std::size_t i=0; i < unknown_tokens.size(); ++i)
+    for (std::size_t i = 0; i < unknown_tokens.size(); ++i)
     {
       detail += unknown_tokens[i];
       if (i < unknown_tokens.size()-1)

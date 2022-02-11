@@ -91,16 +91,16 @@ auto EmergencyPullover::Active::make(
   active->_state = std::move(state);
   active->_negotiator =
     Negotiator::make(
-      active->_context,
-      [w = active->weak_from_this()](
-        const auto& t, const auto& r) -> Negotiator::NegotiatePtr
-      {
-        if (const auto self = w.lock())
-          return self->_respond(t, r);
+    active->_context,
+    [w = active->weak_from_this()](
+      const auto& t, const auto& r) -> Negotiator::NegotiatePtr
+    {
+      if (const auto self = w.lock())
+        return self->_respond(t, r);
 
-        r->forfeit({});
-        return nullptr;
-      });
+      r->forfeit({});
+      return nullptr;
+    });
 
   active->_find_plan();
   return active;
@@ -190,7 +190,7 @@ void EmergencyPullover::Active::_find_plan()
 
   _pullover_subscription =
     rmf_rxcpp::make_job<services::FindEmergencyPullover::Result>(
-      _find_pullover_service)
+    _find_pullover_service)
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
     .subscribe(
     [w = weak_from_this()](
@@ -210,7 +210,7 @@ void EmergencyPullover::Active::_find_plan()
         self->_schedule_retry();
 
         self->_context->worker().schedule(
-          [update = self->_update](const auto&){ update(); });
+          [update = self->_update](const auto&) { update(); });
 
         return;
       }

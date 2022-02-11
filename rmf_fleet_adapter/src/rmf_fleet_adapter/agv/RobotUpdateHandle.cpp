@@ -288,7 +288,7 @@ void RobotUpdateHandle::Unstable::set_lift_entry_watchdog(
 
 //==============================================================================
 void RobotUpdateHandle::ActionExecution::update_remaining_time(
-    rmf_traffic::Duration remaining_time_estimate)
+  rmf_traffic::Duration remaining_time_estimate)
 {
   _pimpl->data->remaining_time = remaining_time_estimate;
 }

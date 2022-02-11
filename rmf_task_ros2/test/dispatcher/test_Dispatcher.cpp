@@ -70,7 +70,7 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
     REQUIRE(cancel_client->wait_for_service(std::chrono::milliseconds(0)));
     auto get_tasks_client =
       dispatcher->node()->create_client<GetDispatchStatesSrv>(
-        rmf_task_ros2::GetDispatchStatesSrvName);
+      rmf_task_ros2::GetDispatchStatesSrvName);
     REQUIRE(get_tasks_client->wait_for_service(std::chrono::milliseconds(0)));
   }
 
@@ -128,7 +128,7 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
     // Default 2s timeout, wait 3s for timetout, should fail here
     std::this_thread::sleep_for(std::chrono::milliseconds(3500));
     CHECK(dispatcher->get_dispatch_state(*id)->status ==
-        DispatchState::Status::FailedToAssign);
+      DispatchState::Status::FailedToAssign);
 
     CHECK(dispatcher->finished_dispatches().size() == 1);
     // TODO(MXG): Flake out after previous line: SIGABRT

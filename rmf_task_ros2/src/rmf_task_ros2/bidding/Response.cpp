@@ -26,11 +26,11 @@ namespace bidding {
 BidProposalMsg convert(const Response::Proposal& proposal)
 {
   return rmf_task_msgs::build<BidProposalMsg>()
-      .fleet_name(proposal.fleet_name)
-      .expected_robot_name(proposal.expected_robot_name)
-      .prev_cost(proposal.prev_cost)
-      .new_cost(proposal.new_cost)
-      .finish_time(rmf_traffic_ros2::convert(proposal.finish_time));
+    .fleet_name(proposal.fleet_name)
+    .expected_robot_name(proposal.expected_robot_name)
+    .prev_cost(proposal.prev_cost)
+    .new_cost(proposal.new_cost)
+    .finish_time(rmf_traffic_ros2::convert(proposal.finish_time));
 }
 
 //==============================================================================
@@ -41,10 +41,10 @@ BidResponseMsg convert(
   if (response.proposal.has_value())
   {
     return rmf_task_msgs::build<BidResponseMsg>()
-    .task_id(task_id)
-    .has_proposal(true)
-    .proposal(convert(*response.proposal))
-    .errors(response.errors);
+      .task_id(task_id)
+      .has_proposal(true)
+      .proposal(convert(*response.proposal))
+      .errors(response.errors);
   }
 
   return rmf_task_msgs::build<BidResponseMsg>()

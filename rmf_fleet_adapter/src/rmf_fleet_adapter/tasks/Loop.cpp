@@ -130,20 +130,22 @@ void add_loop(
   deserialization.add_schema(schemas::event_description__go_to_place);
   auto validate_go_to_place =
     deserialization.make_validator_shared(
-      schemas::event_description__go_to_place);
+    schemas::event_description__go_to_place);
 
   auto deserialize_go_to_place =
     [place_deser = deserialization.place](const nlohmann::json& msg)
-      -> agv::DeserializedEvent
+    -> agv::DeserializedEvent
     {
       auto place = place_deser(msg);
       if (!place.description.has_value())
         return {nullptr, std::move(place.errors)};
 
+      /* *INDENT-OFF* */
       return {
         GoToPlace::Description::make(std::move(*place.description)),
         std::move(place.errors)
       };
+      /* *INDENT-ON* */
     };
 
   deserialization.event->add(
@@ -163,8 +165,8 @@ void add_loop(
 
   auto deserialize_patrol =
     [
-      place_deser = deserialization.place,
-      consider = deserialization.consider_patrol
+    place_deser = deserialization.place,
+    consider = deserialization.consider_patrol
     ](const nlohmann::json& msg) -> agv::DeserializedTask
     {
       if (!(*consider))
@@ -202,7 +204,7 @@ void add_loop(
         rounds = rounds_json_it->get<std::size_t>();
 
       rmf_task_sequence::Task::Builder builder;
-      for (std::size_t i=0; i < rounds; ++i)
+      for (std::size_t i = 0; i < rounds; ++i)
       {
         for (const auto& place : places)
         {
@@ -220,15 +222,15 @@ void add_loop(
     [](const Loop::Description& loop)
     {
       rmf_task_sequence::Task::Builder builder;
-      for (std::size_t i=0; i < loop.num_loops(); ++i)
+      for (std::size_t i = 0; i < loop.num_loops(); ++i)
       {
         builder
-          .add_phase(
-            Phase::Description::make(
-              GoToPlace::Description::make(loop.start_waypoint())), {})
-          .add_phase(
-            Phase::Description::make(
-              GoToPlace::Description::make(loop.finish_waypoint())), {});
+        .add_phase(
+          Phase::Description::make(
+            GoToPlace::Description::make(loop.start_waypoint())), {})
+        .add_phase(
+          Phase::Description::make(
+            GoToPlace::Description::make(loop.finish_waypoint())), {});
       }
 
       // TODO(MXG): Consider making the category and detail more details

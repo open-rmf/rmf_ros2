@@ -225,7 +225,7 @@ std::optional<EventGroupInfo> search_for_door_group(
           [legacy = *it, context, id](UpdateFn update)
           {
             return LegacyPhaseShim::Standby::make(
-                  legacy, context->worker(), context->clock(), id, update);
+              legacy, context->worker(), context->clock(), id, update);
           });
       }
 
@@ -484,8 +484,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
       standbys.push_back(door->group);
       head = door->tail;
     }
-    else if (const auto lift =
-             search_for_lift_group(head, end, context, id, state))
+    else if (
+      const auto lift = search_for_lift_group(head, end, context, id, state))
     {
       standbys.push_back(lift->group);
       head = lift->tail;
@@ -505,7 +505,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
   auto sequence = rmf_task_sequence::events::Bundle::standby(
     rmf_task_sequence::events::Bundle::Type::Sequence,
-    standbys, state, std::move(update))->begin([](){}, std::move(finished));
+    standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
   context->itinerary().set(plan.get_itinerary());
 

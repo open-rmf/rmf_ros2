@@ -71,7 +71,7 @@ rmf_traffic::Time RobotContext::now() const
 //==============================================================================
 std::function<rmf_traffic::Time()> RobotContext::clock() const
 {
-  return [self = shared_from_this()](){ return self->now(); };
+  return [self = shared_from_this()]() { return self->now(); };
 }
 
 //==============================================================================

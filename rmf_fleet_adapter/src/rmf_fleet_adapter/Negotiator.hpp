@@ -28,7 +28,7 @@ namespace rmf_fleet_adapter {
 //==============================================================================
 class Negotiator
   : public rmf_traffic::schedule::Negotiator,
-    public std::enable_shared_from_this<Negotiator>
+  public std::enable_shared_from_this<Negotiator>
 {
 public:
 

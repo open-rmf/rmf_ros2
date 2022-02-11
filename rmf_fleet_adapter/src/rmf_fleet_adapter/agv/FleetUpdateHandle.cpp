@@ -117,12 +117,12 @@ TaskDeserialization::TaskDeserialization()
   event = std::make_shared<DeserializeJSON<DeserializedEvent>>();
   consider_actions =
     std::make_shared<std::unordered_map<
-      std::string, FleetUpdateHandle::ConsiderRequest>>();
+        std::string, FleetUpdateHandle::ConsiderRequest>>();
 
   _schema_dictionary = std::make_shared<SchemaDictionary>();
   _loader = [dict = _schema_dictionary](
-      const nlohmann::json_uri& id,
-      nlohmann::json& value)
+    const nlohmann::json_uri& id,
+    nlohmann::json& value)
     {
       const auto it = dict->find(id.url());
       if (it == dict->end())
@@ -175,9 +175,9 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
   if (task_deser_it == deserialization.task->handlers.end())
   {
     errors.push_back(make_error_str(
-      4, "Unsupported type",
-      "Fleet [" + name + "] does not support task category ["
-      + category + "]"));
+        4, "Unsupported type",
+        "Fleet [" + name + "] does not support task category ["
+        + category + "]"));
     return nullptr;
   }
 
@@ -246,8 +246,8 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
       errors.push_back(
         make_error_str(
           4, "Unsupported type",
-          "Fleet [" + name + "] does not support priority request: " + p_it->dump()
-          + "\nDefaulting to low binary priority."));
+          "Fleet [" + name + "] does not support priority request: "
+          + p_it->dump() + "\nDefaulting to low binary priority."));
     }
   }
 
@@ -256,10 +256,10 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
 
   const auto new_request =
     std::make_shared<rmf_task::Request>(
-      task_id,
-      earliest_start_time,
-      priority,
-      deserialized_task.description);
+    task_id,
+    earliest_start_time,
+    priority,
+    deserialized_task.description);
 
   return new_request;
 }
@@ -881,16 +881,16 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
 namespace {
 PlaceDeserializer make_place_deserializer(
   std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>>
-    planner)
+  planner)
 {
   return [planner = std::move(planner)](const nlohmann::json& msg)
-      -> agv::DeserializedPlace
+    -> agv::DeserializedPlace
     {
       std::optional<rmf_traffic::agv::Plan::Goal> place;
       const auto& graph = (*planner)->get_configuration().graph();
       if (msg.is_number() || (msg.is_object() && msg["waypoint"].is_number()))
       {
-        const auto wp_index = msg.is_number()?
+        const auto wp_index = msg.is_number() ?
           msg.get<std::size_t>() : msg["waypoint"].get<std::size_t>();
 
         if (graph.num_waypoints() <= wp_index)
@@ -905,9 +905,10 @@ PlaceDeserializer make_place_deserializer(
 
         place = rmf_traffic::agv::Plan::Goal(wp_index);
       }
-      else if (msg.is_string() || (msg.is_object() && msg["waypoint"].is_string()))
+      else if (msg.is_string() ||
+        (msg.is_object() && msg["waypoint"].is_string()))
       {
-        const auto& wp_name = msg.is_string()?
+        const auto& wp_name = msg.is_string() ?
           msg.get<std::string>() : msg["waypoint"].get<std::string>();
 
         const auto* wp = graph.find_waypoint(wp_name);
@@ -916,7 +917,7 @@ PlaceDeserializer make_place_deserializer(
           return {
             std::nullopt,
             {"waypoint name for Place [" + wp_name + "] cannot be "
-             "found in the navigation graph"}
+              "found in the navigation graph"}
           };
         }
 
@@ -927,8 +928,8 @@ PlaceDeserializer make_place_deserializer(
         return {
           std::nullopt,
           {"invalid data type provided for Place: expected a number "
-           "or a string or an object but got " + std::string(msg.type_name())
-           + " type instead"}
+            "or a string or an object but got " + std::string(msg.type_name())
+            + " type instead"}
         };
       }
 
@@ -1284,8 +1285,9 @@ void FleetUpdateHandle::add_robot(
             return;
           }
 
-          std::optional<std::weak_ptr<BroadcastClient>> broadcast_client =
-            std::nullopt;
+          std::optional<std::weak_ptr<BroadcastClient>>
+          broadcast_client = std::nullopt;
+
           if (fleet->_pimpl->broadcast_client)
             broadcast_client = fleet->_pimpl->broadcast_client;
 
@@ -1476,8 +1478,8 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
 {
   const auto legacy_converter =
     [check = std::move(check)](
-      const rmf_task_msgs::msg::TaskProfile& profile,
-      Confirmation& confirm)
+    const rmf_task_msgs::msg::TaskProfile& profile,
+    Confirmation& confirm)
     {
       if (check(profile))
       {
@@ -1516,8 +1518,10 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       }
       else
       {
+        /* *INDENT-OFF* */
         throw std::runtime_error(
-          "Invalid payload schema for delivery request:" + payload.dump());
+          "Invalid payload message for delivery request: " + payload.dump());
+        /* *INDENT-ON* */
       }
 
       return items;
@@ -1532,14 +1536,14 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
 
       profile.description.delivery =
         rmf_task_msgs::build<rmf_task_msgs::msg::Delivery>()
-          .task_id("")
-          .items(convert_items(msg["payload"]))
-          .pickup_place_name(msg["place"].get<std::string>())
-          .pickup_dispenser(msg["handler"].get<std::string>())
-          .pickup_behavior(rmf_task_msgs::msg::Behavior{})
-          .dropoff_place_name("")
-          .dropoff_ingestor("")
-          .dropoff_behavior(rmf_task_msgs::msg::Behavior{});
+        .task_id("")
+        .items(convert_items(msg["payload"]))
+        .pickup_place_name(msg["place"].get<std::string>())
+        .pickup_dispenser(msg["handler"].get<std::string>())
+        .pickup_behavior(rmf_task_msgs::msg::Behavior{})
+        .dropoff_place_name("")
+        .dropoff_ingestor("")
+        .dropoff_behavior(rmf_task_msgs::msg::Behavior{});
 
       legacy_converter(profile, confirm);
     };
@@ -1547,12 +1551,12 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
   auto consider_dropoff = [legacy_converter, convert_items](
     const nlohmann::json& msg, Confirmation& confirm)
     {
-    rmf_task_msgs::msg::TaskProfile profile;
-    profile.description.task_type.type =
-      rmf_task_msgs::msg::TaskType::TYPE_DELIVERY;
+      rmf_task_msgs::msg::TaskProfile profile;
+      profile.description.task_type.type =
+        rmf_task_msgs::msg::TaskType::TYPE_DELIVERY;
 
-    profile.description.delivery =
-      rmf_task_msgs::build<rmf_task_msgs::msg::Delivery>()
+      profile.description.delivery =
+        rmf_task_msgs::build<rmf_task_msgs::msg::Delivery>()
         .task_id("")
         .items(convert_items(msg["payload"]))
         .pickup_place_name("")
@@ -1577,7 +1581,7 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       // We use loop here because patrol wasn't supported during the legacy
       // versions anyway.
       profile.description.task_type.type =
-        rmf_task_msgs::msg::TaskType::TYPE_LOOP;
+      rmf_task_msgs::msg::TaskType::TYPE_LOOP;
 
       rmf_task_msgs::msg::Loop loop;
       const auto& places = msg["places"];
@@ -1588,7 +1592,7 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
         {
           confirm.errors(
             {"Legacy AcceptTaskRequest only accepts destination names "
-             "for patrol requests"});
+              "for patrol requests"});
           return;
         }
 
@@ -1603,7 +1607,7 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
         {
           confirm.errors(
             {"Legacy AcceptTaskRequest only accepts destination names "
-             "for patrol requests"});
+              "for patrol requests"});
           return;
         }
 
@@ -1623,7 +1627,7 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       rmf_task_msgs::msg::TaskProfile profile;
 
       profile.description.task_type.type =
-        rmf_task_msgs::msg::TaskType::TYPE_CLEAN;
+      rmf_task_msgs::msg::TaskType::TYPE_CLEAN;
 
       profile.description.clean.start_waypoint = msg["zone"].get<std::string>();
 
@@ -1696,10 +1700,10 @@ FleetUpdateHandle& FleetUpdateHandle::fleet_state_update_period(
       _pimpl->node->try_create_wall_timer(
       value.value(),
       [me = weak_from_this()]
-    {
-      if (const auto self = me.lock())
-        self->_pimpl->update_fleet_state();
-    });
+      {
+        if (const auto self = me.lock())
+          self->_pimpl->update_fleet_state();
+      });
   }
   else
   {

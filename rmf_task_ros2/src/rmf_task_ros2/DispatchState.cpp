@@ -39,15 +39,15 @@ rmf_task_msgs::msg::Assignment convert(
   if (assignment.has_value())
   {
     return rmf_task_msgs::build<rmf_task_msgs::msg::Assignment>()
-        .is_assigned(true)
-        .fleet_name(assignment->fleet_name)
-        .expected_robot_name(assignment->expected_robot_name);
+      .is_assigned(true)
+      .fleet_name(assignment->fleet_name)
+      .expected_robot_name(assignment->expected_robot_name);
   }
 
   return rmf_task_msgs::build<rmf_task_msgs::msg::Assignment>()
-      .is_assigned(false)
-      .fleet_name("")
-      .expected_robot_name("");
+    .is_assigned(false)
+    .fleet_name("")
+    .expected_robot_name("");
 }
 
 //=============================================================================
@@ -65,10 +65,10 @@ std::vector<std::string> convert(const std::vector<nlohmann::json>& values)
 rmf_task_msgs::msg::DispatchState convert(const DispatchState& state)
 {
   return rmf_task_msgs::build<rmf_task_msgs::msg::DispatchState>()
-      .task_id(state.task_id)
-      .status(static_cast<uint8_t>(state.status))
-      .assignment(convert(state.assignment))
-      .errors(convert(state.errors));
+    .task_id(state.task_id)
+    .status(static_cast<uint8_t>(state.status))
+    .assignment(convert(state.assignment))
+    .errors(convert(state.errors));
 }
 
 } // namespace rmf_task_ros2

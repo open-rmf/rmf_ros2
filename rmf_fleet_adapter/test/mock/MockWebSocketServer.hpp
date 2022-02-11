@@ -30,8 +30,7 @@
 
 using Server = websocketpp::server<websocketpp::config::asio>;
 
-namespace rmf_fleet_adapter_test
-{
+namespace rmf_fleet_adapter_test {
 
 //==============================================================================
 /// This MockWebSocketServer is a wrapper of a websocket server. User need to
@@ -49,8 +48,7 @@ public:
     FleetLogUpdate,
   };
 
-  using ApiMessageCallback = std::function<void(const nlohmann::json &)>;
-
+  using ApiMessageCallback = std::function<void(const nlohmann::json&)>;
 
   /// Add a callback to convert from a Description into an active Task.
   ///
@@ -64,10 +62,10 @@ public:
   ///   selected msg type to listen. Will listen to all msg if nullopt
   ///
   MockWebSocketServer(
-      const int port,
-      ApiMessageCallback callback,
-      std::optional<ApiMsgType> msg_selection = std::nullopt)
-      : _selection(msg_selection), _msg_callback{std::move(callback)}
+    const int port,
+    ApiMessageCallback callback,
+    std::optional<ApiMsgType> msg_selection = std::nullopt)
+  : _selection(msg_selection), _msg_callback{std::move(callback)}
   {
     std::cout << "Run websocket server with port " << port << std::endl;
     try
@@ -87,7 +85,7 @@ public:
       _echo_server.listen(port);
       _echo_server.start_accept();
     }
-    catch (websocketpp::exception const &e)
+    catch (const websocketpp::exception& e)
     {
       std::cout << e.what() << std::endl;
     }
@@ -103,8 +101,8 @@ public:
     std::cout << "Start Mock Server" << std::endl;
     // Start the ASIO io_service run loop
     _server_thread = std::thread(
-        [this]()
-        { this->_echo_server.run(); });
+      [this]()
+      { this->_echo_server.run(); });
   }
 
   /// Stop Server
@@ -126,13 +124,13 @@ public:
   }
 
   /// Get the string name of the ApiMsgType
-  static const std::string to_string(const ApiMsgType &type)
+  static const std::string to_string(const ApiMsgType& type)
   {
     const std::unordered_map<ApiMsgType, std::string> map(
-        {{ApiMsgType::TaskStateUpdate, "task_state_update"},
-          {ApiMsgType::TaskLogUpdate, "task_log_update"},
-          {ApiMsgType::FleetStateUpdate, "fleet_state_update"},
-          {ApiMsgType::FleetLogUpdate, "fleet_log_update"}});
+      {{ApiMsgType::TaskStateUpdate, "task_state_update"},
+        {ApiMsgType::TaskLogUpdate, "task_log_update"},
+        {ApiMsgType::FleetStateUpdate, "fleet_state_update"},
+        {ApiMsgType::FleetLogUpdate, "fleet_log_update"}});
     return map.at(type);
   }
 

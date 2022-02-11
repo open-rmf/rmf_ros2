@@ -44,10 +44,10 @@ public:
   ///   single winner from all submissions. nullopt if non
   using BiddingResultCallback =
     std::function<
-      void(
-        const std::string& task_id,
-        const std::optional<Response::Proposal> winner,
-        const std::vector<std::string>& errors)>;
+    void(
+      const std::string& task_id,
+      const std::optional<Response::Proposal> winner,
+      const std::vector<std::string>& errors)>;
 
   /// A pure abstract interface class for the auctioneer to choose the best
   /// choosing the best submissions.

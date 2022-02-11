@@ -49,23 +49,23 @@ void Negotiator::respond(
     rmf_rxcpp::make_job<services::Negotiate::Result>(service)
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
     .subscribe(
-      [w = weak_from_this()](const auto& result)
+    [w = weak_from_this()](const auto& result)
+    {
+      if (auto self = w.lock())
       {
-        if (auto self = w.lock())
-        {
-          result.respond();
-          self->_negotiate_services.erase(result.service);
-        }
-        else
-        {
-          // We need to make sure we respond in some way so that we don't risk
-          // making a negotiation hang forever. If this task is dead, then we
-          // should at least respond by forfeiting.
-          const auto service = result.service;
-          const auto responder = service->responder();
-          responder->forfeit({});
-        }
-      });
+        result.respond();
+        self->_negotiate_services.erase(result.service);
+      }
+      else
+      {
+        // We need to make sure we respond in some way so that we don't risk
+        // making a negotiation hang forever. If this task is dead, then we
+        // should at least respond by forfeiting.
+        const auto service = result.service;
+        const auto responder = service->responder();
+        responder->forfeit({});
+      }
+    });
 
   using namespace std::chrono_literals;
   const auto wait_duration = 2s + table_viewer->sequence().back().version * 10s;
@@ -77,11 +77,10 @@ void Negotiator::respond(
         service->interrupt();
     });
 
-  _negotiate_services[service] =
-    NegotiationManagers{
-      std::move(negotiate_sub),
-      std::move(negotiation_timer)
-    };
+  _negotiate_services[service] = NegotiationManagers{
+    std::move(negotiate_sub),
+    std::move(negotiation_timer)
+  };
 }
 
 //==============================================================================

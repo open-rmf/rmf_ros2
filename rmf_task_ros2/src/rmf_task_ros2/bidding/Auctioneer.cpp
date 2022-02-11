@@ -234,7 +234,7 @@ std::optional<std::size_t> select_best(
 {
   std::optional<std::size_t> best_index;
   std::optional<double> best_cost;
-  for (std::size_t i=0; i < responses.size(); ++i)
+  for (std::size_t i = 0; i < responses.size(); ++i)
   {
     if (responses[i].proposal.has_value())
     {

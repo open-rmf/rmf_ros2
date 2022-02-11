@@ -76,7 +76,7 @@ public:
 
   class Active
     : public rmf_task_sequence::Event::Active,
-      public std::enable_shared_from_this<Active>
+    public std::enable_shared_from_this<Active>
   {
   public:
 

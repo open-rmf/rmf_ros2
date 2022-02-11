@@ -369,33 +369,35 @@ SCENARIO("Test Delivery")
   /// Mock Task State observer server, This checks the task_state
   /// of the targeted task id, by listening to the task_state_update
   /// from the websocket connection
+  /* *INDENT-OFF* */
   using MockServer = rmf_fleet_adapter_test::MockWebSocketServer;
 	MockServer mock_server(
 		37878,
     [ &delivery_id, &completed_promise, 
       &at_least_one_incomplete, &fulfilled_promise](
       const nlohmann::json &data)
-		{
-      assert(data.contains("booking"));
-      assert(data.contains("status"));
-      const auto id = data.at("booking").at("id");
-      const auto status = data.at("status");
-			std::cout << "[MockWebSocketServer] id: [" << id 
-                << "] ::: json state ::: " << status << std::endl;
-
-      if (id == delivery_id && status == "completed")
       {
-        if (!fulfilled_promise)
+        assert(data.contains("booking"));
+        assert(data.contains("status"));
+        const auto id = data.at("booking").at("id");
+        const auto status = data.at("status");
+        std::cout << "[MockWebSocketServer] id: [" << id
+                  << "] ::: json state ::: " << status << std::endl;
+
+        if (id == delivery_id && status == "completed")
         {
-          fulfilled_promise = true;
-          completed_promise.set_value(true);
+          if (!fulfilled_promise)
+          {
+            fulfilled_promise = true;
+            completed_promise.set_value(true);
+          }
         }
-      }
-      else
-        at_least_one_incomplete = true;
-		},
+        else
+          at_least_one_incomplete = true;
+      },
     MockServer::ApiMsgType::TaskStateUpdate
   );
+  /* *INDENT-ON* */
 
   // provide the same port number as the observer mock server
   const auto fleet = adapter.add_fleet(
@@ -430,7 +432,7 @@ SCENARIO("Test Delivery")
   ///   replacement api for deprecated: 'accept_task_requests'
   fleet->consider_delivery_requests(
     [&pickup_name, &quiet_dispenser_name](
-      const nlohmann::json& msg, 
+      const nlohmann::json& msg,
       rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
       CHECK(msg.at("place") == pickup_name);
@@ -438,7 +440,7 @@ SCENARIO("Test Delivery")
       confirm.accept();
     },
     [&dropoff_name, &flaky_ingestor_name](
-      const nlohmann::json& msg, 
+      const nlohmann::json& msg,
       rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
       CHECK(msg.at("place") == dropoff_name);

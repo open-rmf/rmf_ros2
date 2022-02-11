@@ -99,7 +99,7 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
       test_notice_bidder1 = notice.request;
       best_robot_estimate.fleet_name = "bidder1";
       best_robot_estimate.finish_time =
-        std::chrono::steady_clock::time_point::max();
+      std::chrono::steady_clock::time_point::max();
 
       respond(Response{best_robot_estimate, {}});
     }

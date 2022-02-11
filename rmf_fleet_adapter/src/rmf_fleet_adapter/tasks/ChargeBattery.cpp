@@ -73,8 +73,7 @@ struct GoToChargerDescription
   : public rmf_task_sequence::events::Placeholder::Description
 {
   GoToChargerDescription()
-    : rmf_task_sequence::events::Placeholder::Description(
-        "Go to charger", "")
+  : rmf_task_sequence::events::Placeholder::Description("Go to charger", "")
   {
     // Do nothing
   }
@@ -121,7 +120,7 @@ struct GoToChargerDescription
       {
         return standby(
           id, get_state, parameters, description, std::move(update))
-          ->begin(std::move(checkpoint), std::move(finished));
+        ->begin(std::move(checkpoint), std::move(finished));
       });
   }
 };
@@ -182,7 +181,7 @@ struct WaitForChargeDescription
       {
         return standby(
           id, get_state, parameters, description, std::move(update))
-          ->begin(std::move(checkpoint), std::move(finished));
+        ->begin(std::move(checkpoint), std::move(finished));
       });
   }
 };
@@ -220,12 +219,12 @@ void add_charge_battery(
 
   auto charge_battery_event_unfolder =
     [](const ChargeBatteryEventDescription&)
-  {
-    return Bundle::Description({
-       std::make_shared<GoToChargerDescription>(),
-       std::make_shared<WaitForChargeDescription>()
-     }, Bundle::Sequence, "Charge Battery");
-  };
+    {
+      return Bundle::Description({
+            std::make_shared<GoToChargerDescription>(),
+            std::make_shared<WaitForChargeDescription>()
+          }, Bundle::Sequence, "Charge Battery");
+    };
 
   Bundle::unfold<ChargeBatteryEventDescription>(
     std::move(charge_battery_event_unfolder),
@@ -236,10 +235,10 @@ void add_charge_battery(
     {
       rmf_task_sequence::Task::Builder builder;
       builder
-        .add_phase(
-          Phase::Description::make(
-            std::make_shared<ChargeBatteryEventDescription>(),
-            "Charge Battery", ""), {});
+      .add_phase(
+        Phase::Description::make(
+          std::make_shared<ChargeBatteryEventDescription>(),
+          "Charge Battery", ""), {});
 
       return *builder.build("Charge Battery", "");
     };

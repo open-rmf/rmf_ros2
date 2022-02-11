@@ -48,7 +48,7 @@ void GoToPlace::add(rmf_task_sequence::Event::Initializer& initializer)
     {
       return Standby::make(
         id, get_state, parameters, description, std::move(update))
-        ->begin(std::move(checkpoint), std::move(finished));
+      ->begin(std::move(checkpoint), std::move(finished));
     });
 }
 
@@ -141,16 +141,16 @@ auto GoToPlace::Active::make(
   active->_state = std::move(state);
   active->_negotiator =
     Negotiator::make(
-      active->_context,
-      [w = active->weak_from_this()](
-        const auto& t, const auto& r) -> Negotiator::NegotiatePtr
-      {
-        if (const auto self = w.lock())
-          return self->_respond(t, r);
+    active->_context,
+    [w = active->weak_from_this()](
+      const auto& t, const auto& r) -> Negotiator::NegotiatePtr
+    {
+      if (const auto self = w.lock())
+        return self->_respond(t, r);
 
-        r->forfeit({});
-        return nullptr;
-      });
+      r->forfeit({});
+      return nullptr;
+    });
 
   active->_find_plan();
   return active;
@@ -309,7 +309,7 @@ void GoToPlace::Active::_find_plan()
         self->_schedule_retry();
 
         self->_context->worker()
-          .schedule([update = self->_update](const auto&){ update(); });
+        .schedule([update = self->_update](const auto&) { update(); });
 
         return;
       }
@@ -358,17 +358,17 @@ void GoToPlace::Active::_schedule_retry()
   _retry_timer = _context->node()->try_create_wall_timer(
     std::chrono::seconds(5),
     [w = weak_from_this()]()
-  {
-    const auto self = w.lock();
-    if (!self)
-      return;
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
 
-    self->_retry_timer = nullptr;
-    if (self->_execution.has_value())
-      return;
+      self->_retry_timer = nullptr;
+      if (self->_execution.has_value())
+        return;
 
-    self->_find_plan();
-  });
+      self->_find_plan();
+    });
 }
 
 //==============================================================================

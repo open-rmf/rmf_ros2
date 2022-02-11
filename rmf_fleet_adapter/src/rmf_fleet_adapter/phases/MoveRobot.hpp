@@ -163,17 +163,17 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         if (path_index < action->_waypoints.size())
         {
           msg.status = "Heading towards "
-            + destination(
-              action->_waypoints[path_index],
-              action->_context->planner()->get_configuration().graph());
+          + destination(
+            action->_waypoints[path_index],
+            action->_context->planner()->get_configuration().graph());
         }
         else
         {
           // TODO(MXG): This should really be a warning, but the legacy phase shim
           // does not have a way for us to specify a warning.
           msg.status = "[Bug] [MoveRobot] Current path index was specified as ["
-              + std::to_string(path_index) + "] but that exceeds the limit of ["
-              + std::to_string(action->_waypoints.size()-1) + "]";
+          + std::to_string(path_index) + "] but that exceeds the limit of ["
+          + std::to_string(action->_waypoints.size()-1) + "]";
         }
 
         s.on_next(msg);

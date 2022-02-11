@@ -101,14 +101,14 @@ struct CleanEvent : public rmf_task_sequence::events::Placeholder::Description
 
   struct DockChecker : public rmf_traffic::agv::Graph::Lane::Executor
   {
-    void execute(const Dock& dock) final { found_dock = dock.dock_name(); };
-    void execute(const Wait&) final {};
-    void execute(const DoorOpen&) final {};
-    void execute(const LiftMove&) final {};
-    void execute(const DoorClose&) final {};
-    void execute(const LiftDoorOpen&) final {};
-    void execute(const LiftSessionEnd&) final {};
-    void execute(const LiftSessionBegin&) final {};
+    void execute(const Dock& dock) final { found_dock = dock.dock_name(); }
+    void execute(const Wait&) final {}
+    void execute(const DoorOpen&) final {}
+    void execute(const LiftMove&) final {}
+    void execute(const DoorClose&) final {}
+    void execute(const LiftDoorOpen&) final {}
+    void execute(const LiftSessionEnd&) final {}
+    void execute(const LiftSessionBegin&) final {}
 
     std::optional<std::string> found_dock = std::nullopt;
   };
@@ -184,15 +184,16 @@ struct CleanEvent : public rmf_task_sequence::events::Placeholder::Description
     using MakeStandby = std::function<StandbyPtr(UpdateFn)>;
     using GoToPlaceDesc = rmf_task_sequence::events::GoToPlace::Description;
 
-    auto go_to_place = [id, get_state, parameters](std::size_t wp)
-    {
-      return [id, get_state, parameters, wp](UpdateFn update)
+    auto go_to_place =
+      [id, get_state, parameters](std::size_t wp)
       {
-        return events::GoToPlace::Standby::make(
-          id, get_state, parameters,
-          *GoToPlaceDesc::make(wp), std::move(update));
+        return [id, get_state, parameters, wp](UpdateFn update)
+          {
+            return events::GoToPlace::Standby::make(
+              id, get_state, parameters,
+              *GoToPlaceDesc::make(wp), std::move(update));
+          };
       };
-    };
 
     std::vector<MakeStandby> events;
     if (!will_pass_through_dock)
@@ -245,7 +246,7 @@ struct CleanEvent : public rmf_task_sequence::events::Placeholder::Description
       {
         return standby(
           id, get_state, parameters, description, std::move(update))
-          ->begin(std::move(checkpoint), std::move(finished));
+        ->begin(std::move(checkpoint), std::move(finished));
       });
   }
 
@@ -266,12 +267,12 @@ void add_clean(
 
   auto validate_clean_event =
     deserialization.make_validator_shared(
-      schemas::event_description__clean);
+    schemas::event_description__clean);
   deserialization.add_schema(schemas::event_description__clean);
 
   auto validate_clean_task =
     deserialization.make_validator_shared(
-      schemas::task_description__clean);
+    schemas::task_description__clean);
   deserialization.add_schema(schemas::task_description__clean);
 
   deserialization.consider_clean =
@@ -279,35 +280,39 @@ void add_clean(
 
   auto deserialize_clean =
     [
-      dock_params,
-      traits,
-      place_deser = deserialization.place,
-      consider = deserialization.consider_clean
+    dock_params,
+    traits,
+    place_deser = deserialization.place,
+    consider = deserialization.consider_clean
     ](const nlohmann::json& msg) -> agv::DeserializedTask
     {
       if (!consider || !(*consider))
       {
+        /* *INDENT-OFF* */
         return {
           nullptr,
           {"Not accepting cleaning tasks"}
         };
+        /* *INDENT-ON* */
       }
 
       const auto zone = msg.at("zone").get<std::string>();
       const auto clean_it = dock_params->find(zone);
       if (clean_it == dock_params->end())
       {
+        /* *INDENT-OFF* */
         return {
           nullptr,
           {"No cleaning zone named [" + zone + "] for this fleet adapter"}
         };
+        /* *INDENT-ON* */
       }
 
       const auto& clean_info = clean_it->second;
       auto start_place = place_deser(clean_info.start);
       auto exit_place = place_deser(clean_info.finish);
       if (!start_place.description.has_value()
-          || !exit_place.description.has_value())
+        || !exit_place.description.has_value())
       {
         auto errors = std::move(start_place.errors);
         errors.insert(
@@ -321,18 +326,20 @@ void add_clean(
 
       rmf_traffic::Trajectory clean_path =
         rmf_traffic::agv::Interpolate::positions(
-          traits,
-          rmf_traffic::Time(rmf_traffic::Duration(0)),
-          positions);
+        traits,
+        rmf_traffic::Time(rmf_traffic::Duration(0)),
+        positions);
 
       if (clean_path.size() < 2)
       {
+        /* *INDENT-OFF* */
         return {
           nullptr,
           {"Invalid cleaning path for zone named [" + zone
             + "]: Too few waypoints [" + std::to_string(clean_path.size())
             + "]"}
         };
+        /* *INDENT-ON* */
       }
 
       agv::FleetUpdateHandle::Confirmation confirm;
@@ -341,6 +348,7 @@ void add_clean(
         return {nullptr, confirm.errors()};
 
       // TODO(MXG): Validate the type of cleaning (vacuum, mopping, etc)
+      /* *INDENT-OFF* */
       return {
         rmf_task::requests::Clean::Description::make(
           start_place.description->waypoint(),
@@ -348,6 +356,7 @@ void add_clean(
           std::move(clean_path)),
         confirm.errors()
       };
+      /* *INDENT-ON* */
     };
   deserialization.task->add("clean", validate_clean_task, deserialize_clean);
 
@@ -358,11 +367,13 @@ void add_clean(
       if (!clean_task.description)
         return {nullptr, std::move(clean_task.errors)};
 
+      /* *INDENT-OFF* */
       return {
         std::make_shared<CleanEvent>(
           static_cast<const Clean::Description&>(*clean_task.description)),
           std::move(clean_task.errors)
       };
+      /* *INDENT-ON* */
     };
   deserialization.event->add(
     "clean", validate_clean_event, deserialize_clean_event);
@@ -371,14 +382,14 @@ void add_clean(
 
   auto clean_unfolder =
     [](const Clean::Description& clean)
-  {
-    rmf_task_sequence::Task::Builder builder;
-    builder.add_phase(
-      Phase::Description::make(std::make_shared<CleanEvent>(clean)), {});
+    {
+      rmf_task_sequence::Task::Builder builder;
+      builder.add_phase(
+        Phase::Description::make(std::make_shared<CleanEvent>(clean)), {});
 
-    // TODO(MXG): Make the name and detail more detailed
-    return *builder.build("Clean", "");
-  };
+      // TODO(MXG): Make the name and detail more detailed
+      return *builder.build("Clean", "");
+    };
 
   rmf_task_sequence::Task::unfold<rmf_task::requests::Clean::Description>(
     std::move(clean_unfolder), *activation.task,

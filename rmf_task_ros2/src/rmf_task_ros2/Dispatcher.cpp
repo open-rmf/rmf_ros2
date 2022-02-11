@@ -150,7 +150,7 @@ public:
 
   ApiMemory api_memory;
 
-  using DispatchStatesPub =rclcpp::Publisher<DispatchStatesMsg>;
+  using DispatchStatesPub = rclcpp::Publisher<DispatchStatesMsg>;
   DispatchStatesPub::SharedPtr dispatch_states_pub;
   rclcpp::TimerBase::SharedPtr dispatch_states_pub_timer;
 
@@ -171,11 +171,11 @@ public:
   int publish_active_tasks_period;
 
   std::unordered_map<std::size_t, std::string> legacy_task_type_names =
-    {
-      {1, "patrol"},
-      {2, "delivery"},
-      {4, "clean"}
-    };
+  {
+    {1, "patrol"},
+    {2, "delivery"},
+    {4, "clean"}
+  };
 
   using LegacyConversion =
     std::function<nlohmann::json(const TaskDescription&)>;
@@ -191,7 +191,7 @@ public:
     RCLCPP_INFO(node->get_logger(),
       " Declared Time Window Param as: %f secs", bidding_time_window_param);
     bidding_time_window = rmf_traffic_ros2::convert(
-          rmf_traffic::time::from_seconds(bidding_time_window_param));
+      rmf_traffic::time::from_seconds(bidding_time_window_param));
 
     terminated_tasks_max_size =
       node->declare_parameter<int>("terminated_tasks_max_size", 100);
@@ -235,7 +235,7 @@ public:
     // TODO(MXG): Make this publishing period configurable
     dispatch_command_timer = node->create_wall_timer(
       std::chrono::seconds(1),
-      [this](){ this->publish_lingering_commands(); });
+      [this]() { this->publish_lingering_commands(); });
 
     dispatch_ack_sub = node->create_subscription<DispatchAckMsg>(
       rmf_task_ros2::DispatchAckTopicName,
@@ -246,15 +246,15 @@ public:
       });
 
     auctioneer = bidding::Auctioneer::make(
-        node,
-        [this](
-          const TaskID& task_id,
-          const std::optional<bidding::Response::Proposal> winner,
-          const std::vector<std::string>& errors)
-        {
-          this->conclude_bid(task_id, std::move(winner), errors);
-        },
-        std::make_shared<bidding::LeastFleetDiffCostEvaluator>());
+      node,
+      [this](
+        const TaskID& task_id,
+        const std::optional<bidding::Response::Proposal> winner,
+        const std::vector<std::string>& errors)
+      {
+        this->conclude_bid(task_id, std::move(winner), errors);
+      },
+      std::make_shared<bidding::LeastFleetDiffCostEvaluator>());
 
     // Setup up stream srv interfaces
     submit_task_srv = node->create_service<SubmitTaskSrv>(
@@ -295,8 +295,10 @@ public:
       {
         std::unordered_set<std::string> relevant_tasks;
         relevant_tasks.insert(
-          request->task_ids.begin(), request->task_ids.end());
+          request->task_ids.begin(),
+          request->task_ids.end());
 
+        /* *INDENT-OFF* */
         const auto fill_states = [&relevant_tasks](auto& into, const auto& from)
           {
             for (const auto& [id, state] : from)
@@ -307,6 +309,7 @@ public:
                 into.push_back(convert(*state));
             }
           };
+        /* *INDENT-ON* */
 
         fill_states(response->states.active, this->active_dispatch_states);
         fill_states(response->states.finished, this->finished_dispatch_states);
@@ -389,7 +392,7 @@ public:
     {
       msg_json = nlohmann::json::parse(msg.json_msg);
     }
-    catch(const std::exception& e)
+    catch (const std::exception& e)
     {
       RCLCPP_ERROR(
         node->get_logger(),
@@ -439,9 +442,9 @@ public:
           std::vector<nlohmann::json>({std::move(error)});
 
         auto response = rmf_task_msgs::build<ApiResponseMsg>()
-            .type(ApiResponseMsg::TYPE_RESPONDING)
-            .json_msg(std::move(response_json))
-            .request_id(msg.request_id);
+          .type(ApiResponseMsg::TYPE_RESPONDING)
+          .json_msg(std::move(response_json))
+          .request_id(msg.request_id);
 
         api_memory.add(response);
         api_response->publish(response);
@@ -455,9 +458,9 @@ public:
 
       const auto task_state = push_bid_notice(
         rmf_task_msgs::build<bidding::BidNoticeMsg>()
-          .request(task_request_json.dump())
-          .task_id(task_id)
-          .time_window(bidding_time_window));
+        .request(task_request_json.dump())
+        .task_id(task_id)
+        .time_window(bidding_time_window));
 
       nlohmann::json response_json;
       response_json["success"] = true;
@@ -506,8 +509,8 @@ public:
     nlohmann::json task_request;
     task_request["unix_millis_earliest_start_time"] =
       std::chrono::duration_cast<std::chrono::milliseconds>(
-        rmf_traffic_ros2::convert(submission.start_time).time_since_epoch())
-        .count();
+      rmf_traffic_ros2::convert(submission.start_time).time_since_epoch())
+      .count();
 
     auto& priority = task_request["priority"];
     priority["type"] = "binary";
@@ -518,9 +521,9 @@ public:
 
     push_bid_notice(
       rmf_task_msgs::build<bidding::BidNoticeMsg>()
-        .request(task_request.dump())
-        .task_id(task_id)
-        .time_window(bidding_time_window));
+      .request(task_request.dump())
+      .task_id(task_id)
+      .time_window(bidding_time_window));
 
     return task_id;
   }
@@ -533,10 +536,10 @@ public:
 
     const auto request = nlohmann::json::parse(bid_notice.request);
     static const std::vector<std::string> copy_fields = {
-        "unix_millis_earliest_start_time",
-        "priority",
-        "labels"
-      };
+      "unix_millis_earliest_start_time",
+      "priority",
+      "labels"
+    };
 
     for (const auto& field : copy_fields)
     {
@@ -555,7 +558,7 @@ public:
 
     auto new_dispatch_state =
       std::make_shared<DispatchState>(
-        bid_notice.task_id, std::chrono::steady_clock::now());
+      bid_notice.task_id, std::chrono::steady_clock::now());
 
     active_dispatch_states[bid_notice.task_id] = new_dispatch_state;
 
@@ -575,7 +578,7 @@ public:
     if (finished_it != finished_dispatch_states.end())
     {
       if (finished_it->second->status == Status::FailedToAssign
-          || finished_it->second->status == Status::CanceledInFlight)
+        || finished_it->second->status == Status::CanceledInFlight)
       {
         // This task was never assigned to a fleet adapter so we will respond
         // positively that it is cancelled.
@@ -640,11 +643,11 @@ public:
       else
       {
         auto cancel_command = rmf_task_msgs::build<DispatchCommandMsg>()
-            .fleet_name(canceled_dispatch->assignment->fleet_name)
-            .task_id(task_id)
-            .dispatch_id(next_dispatch_command_id++)
-            .timestamp(node->get_clock()->now())
-            .type(DispatchCommandMsg::TYPE_REMOVE);
+          .fleet_name(canceled_dispatch->assignment->fleet_name)
+          .task_id(task_id)
+          .dispatch_id(next_dispatch_command_id++)
+          .timestamp(node->get_clock()->now())
+          .type(DispatchCommandMsg::TYPE_REMOVE);
 
         lingering_commands[cancel_command.dispatch_id] = cancel_command;
         dispatch_command_pub->publish(cancel_command);
@@ -742,11 +745,10 @@ public:
     }
 
     // now we know which fleet will execute the task
-    dispatch_state->assignment =
-      DispatchState::Assignment{
-        winner->fleet_name,
-        winner->expected_robot_name
-      };
+    dispatch_state->assignment = DispatchState::Assignment{
+      winner->fleet_name,
+      winner->expected_robot_name
+    };
     dispatch_state->status = DispatchState::Status::Selected;
 
     RCLCPP_INFO(
@@ -758,11 +760,11 @@ public:
       winner->expected_robot_name.c_str());
 
     auto award_command = rmf_task_msgs::build<DispatchCommandMsg>()
-        .fleet_name(winner->fleet_name)
-        .task_id(task_id)
-        .dispatch_id(next_dispatch_command_id++)
-        .timestamp(node->get_clock()->now())
-        .type(DispatchCommandMsg::TYPE_AWARD);
+      .fleet_name(winner->fleet_name)
+      .task_id(task_id)
+      .dispatch_id(next_dispatch_command_id++)
+      .timestamp(node->get_clock()->now())
+      .type(DispatchCommandMsg::TYPE_AWARD);
 
     lingering_commands[award_command.dispatch_id] = award_command;
     dispatch_command_pub->publish(award_command);
@@ -807,8 +809,8 @@ public:
 
     dispatch_states_pub->publish(
       rmf_task_msgs::build<DispatchStatesMsg>()
-          .active(std::move(active))
-          .finished(std::move(finished)));
+      .active(std::move(active))
+      .finished(std::move(finished)));
   }
 
   void publish_lingering_commands()
