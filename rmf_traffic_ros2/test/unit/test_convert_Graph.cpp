@@ -20,6 +20,7 @@
 #include <rmf_traffic_ros2/agv/Graph.hpp>
 #include <rmf_traffic_ros2/schedule/ParticipantRegistry.hpp>
 
+// TODO: Resuscitate these tests when time permits
 /*
 static auto make_graph_node(const double x, const double y,
   const std::string& name,
