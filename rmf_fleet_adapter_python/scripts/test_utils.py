@@ -9,9 +9,11 @@ from rclpy.node import Node
 import rmf_adapter as adpt
 import rmf_adapter.graph as graph
 
+import time
 import datetime
 from functools import partial
-
+import asyncio
+from rmf_msg_observer import AsyncRmfMsgObserver, RmfMsgType
 
 class Constants:
     # Static Definitions
@@ -331,7 +333,7 @@ class MockRobotCommand(adpt.RobotCommandHandle):
         self.visited_waypoints.append(waypoint)
 
         docking_finished_callback()
-        print("[RobotCommandHandle] DOCKING FINISHED")
+        print(f"[RobotCommandHandle] DOCKING FINISHED to waypoint {waypoint}")
 
     def _timer_cb(self,
                   waypoints,
@@ -356,13 +358,6 @@ class MockRobotCommand(adpt.RobotCommandHandle):
             )
 
             self.visited_waypoints.append(previous_waypoint_graph_idx)
-
-        else:
-            print("[RobotUpdateHandle] UPDATING ROBOT POSITION DEFAULT:",
-                  previous_waypoint.position)
-            # TODO(CH3): NOTE(CH3): Confirm this magic string is wanted
-            self.updater.update_position("test_map",
-                                         previous_waypoint.position)
 
         if self.current_waypoint_target < len(waypoints):
             # Again, this waypoint is a plan waypoint! NOT a graph waypoint!!
@@ -392,41 +387,35 @@ class MockRobotCommand(adpt.RobotCommandHandle):
             print("[RobotCommandHandle] PATH FINISHED")
 
 
-class TaskSummaryObserver(Node):
-    def __init__(self):
-        super().__init__('task_observer')
-        # Maps task_ids to True/False Completions
-        self.tasks_status = {}
+"""
+Function which runs a async websocket listener to listen to rmf task
+state msg. with the input ayncio.Future, it will set a result when the
+provided 'task_id' is completed. Note that this is a blocking function.
+Thus it is recommended to run this on a different thread,
 
-        # Pub-sub
-        self.request_sub = self.create_subscription(
-            TaskSummary,
-            Constants.task_summary_topic,
-            self._process_task_summary_cb,
-            1
-        )
+:param fut:     
+    future will also be set to done internally when a task is completed.
+:param task_id: 
+    the target task id to check on completion state
+"""
+def task_state_observer_fn(fut: asyncio.Future, target_id: str):
+    print("Starting task state observer")
+    start_time = time.time()
 
-    def all_tasks_complete(self):
-        return all(list(self.tasks_status.values()))
+    # sample function for user to provide
+    def checkstate_callback(msg_type, data):
+        print(f" [Observer] Received [{msg_type}] :: "
+              f"{data['booking']['id']}: {data['status']}")
+        if (data['status'] == 'completed' and
+                data['booking']['id'] == target_id):
+            print(f" {target_id} COMPLETED, set as DONE!")
+            fut.set_result(True)
 
-    def add_task(self, task_name):
-        self.tasks_status[task_name] = False
-
-    def count_successful_tasks(self):
-        successful = 0
-        statuses = self.tasks_status.values()
-        for status_complete in statuses:
-            if status_complete:
-                successful += 1
-        return (successful, len(statuses))
-
-    def reset(self):
-        self.tasks_status = {}
-
-    def _process_task_summary_cb(self, msg):
-        task_name = msg.task_id
-        if task_name not in self.tasks_status.keys():
-            print('Observed Unaccounted Task. This should not happen')
-            return
-        if msg.state == TaskSummary.STATE_COMPLETED:
-            self.tasks_status[task_name] = True
+    print("creating sync rmf_observer class")
+    observer = AsyncRmfMsgObserver(
+        checkstate_callback,
+        msg_filters={
+            RmfMsgType.TaskState: []}
+    )
+    print("Exit observer function")
+    observer.spin(fut)
