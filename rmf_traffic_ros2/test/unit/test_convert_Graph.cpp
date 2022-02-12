@@ -29,10 +29,11 @@ static auto make_map_message(const std::string& map_path)
   std::ifstream f(map_path);
   std::stringstream string_buffer;
   string_buffer << f.rdbuf();
+  const std::string contents = string_buffer.str();
   // Make the message
   rmf_site_map_msgs::msg::SiteMap msg;
   msg.encoding = msg.MAP_DATA_GEOJSON;
-  msg.data = {string_buffer.str().begin(), string_buffer.str().end()};
+  msg.data = {contents.begin(), contents.end()};
   return msg;
 }
 
@@ -43,8 +44,8 @@ SCENARIO("Test conversion from rmf_building_map_msgs to rmf_traffic")
     auto graph = rmf_traffic_ros2::convert(make_map_message(MAP_PATH), 0);
     THEN("Map has all the graph waypoints and lanes")
     {
-      // 68 total vertices in map, 29 in nav graph related lanes
-      CHECK(graph.num_waypoints() == 29);
+      // 68 waypoints in the map
+      CHECK(graph.num_waypoints() == 68);
       // 7 waypoints are named
       CHECK(graph.keys().size() == 7);
       // 64 lanes (32 bidirectional)
