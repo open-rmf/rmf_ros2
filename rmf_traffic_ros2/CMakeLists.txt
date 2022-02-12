@@ -192,6 +192,7 @@ ament_export_dependencies(
   rclcpp
   yaml-cpp
   nlohmann_json
+  ZLIB
 )
 
 # TODO(MXG): Change these executables into shared libraries that can act as
@@ -253,4 +254,7 @@ install(
   ARCHIVE DESTINATION lib
 )
 
-ament_package()
+ament_package(
+  CONFIG_EXTRAS
+    cmake/proj_dependency.cmake
+)
