@@ -24,6 +24,12 @@ find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(ZLIB REQUIRED)
 
+# NOTE(MXG): libproj-dev does not currently distribute its cmake config-files
+# in Debian, so we can't use find_package and need to rely on pkg-config.
+# find_package(PROJ REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PROJ REQUIRED IMPORTED_TARGET proj)
+
 if (rmf_traffic_FOUND)
   message(STATUS "found rmf_traffic")
   message(STATUS "rmf_traffic_LIBRARIES: ${rmf_traffic_LIBRARIES}")
@@ -165,9 +171,9 @@ target_link_libraries(rmf_traffic_ros2
     ${rmf_traffic_msgs_LIBRARIES}
     ${rmf_site_map_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
-    proj
     yaml-cpp
-    z
+    ZLIB::ZLIB
+    PkgConfig::PROJ
 )
 
 target_include_directories(rmf_traffic_ros2
