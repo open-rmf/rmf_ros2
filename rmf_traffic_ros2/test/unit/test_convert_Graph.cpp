@@ -15,44 +15,71 @@
  *
 */
 
+#include <fstream>
+
 #include <rmf_utils/catch.hpp>
 
 #include <rmf_traffic_ros2/agv/Graph.hpp>
 #include <rmf_traffic_ros2/schedule/ParticipantRegistry.hpp>
 
-// TODO: Resuscitate these tests when time permits
+const std::string MAP_PATH = TEST_RESOURCES_DIR "/office_map.geojson";
+
+static auto make_map_message(const std::string& map_path)
+{
+  std::ifstream f(map_path);
+  std::stringstream string_buffer;
+  string_buffer << f.rdbuf();
+  const std::string contents = string_buffer.str();
+  // Make the message
+  rmf_site_map_msgs::msg::SiteMap msg;
+  msg.encoding = msg.MAP_DATA_GEOJSON;
+  msg.data = {contents.begin(), contents.end()};
+  return msg;
+}
+
+SCENARIO("Test conversion from rmf_building_map_msgs to rmf_traffic")
+{
+  GIVEN("A sample map from an office demo world")
+  {
+    auto graph = rmf_traffic_ros2::convert(make_map_message(MAP_PATH), 0);
+    THEN("Map has all the graph waypoints and lanes")
+    {
+      // 68 waypoints in the map
+      CHECK(graph.num_waypoints() == 68);
+      // 7 waypoints are named
+      CHECK(graph.keys().size() == 7);
+      // 64 lanes (32 bidirectional)
+      CHECK(graph.num_lanes() == 64);
+    }
+    THEN("Waypoint properties are parsed correctly")
+    {
+      const auto pantry_wp = graph.find_waypoint("tinyRobot1_charger");
+      const auto non_existing_wp = graph.find_waypoint("non_existing_wp");
+      CHECK(non_existing_wp == nullptr);
+      REQUIRE(pantry_wp != nullptr);
+      CHECK(pantry_wp->get_map_name() == "building");
+      // TODO check location
+      //CHECK(pantry_wp->get_location() == {1, 2});
+      CHECK(pantry_wp->is_holding_point() == true);
+      CHECK(pantry_wp->is_passthrough_point() == false);
+      CHECK(pantry_wp->is_parking_spot() == true);
+      CHECK(pantry_wp->is_charger() == true);
+    }
+    THEN("Lane connectivity")
+    {
+      const auto coe_wp = graph.find_waypoint("coe");
+      REQUIRE(coe_wp != nullptr);
+      const std::size_t wp_idx = coe_wp->index();
+      const auto lanes_from_coe = graph.lanes_from(wp_idx);
+      REQUIRE(lanes_from_coe.size() == 1);
+      // TODO check this goes to the correct lane
+      // TODO lane properties + waypoint events
+    }
+  }
+
+}
+
 /*
-static auto make_graph_node(const double x, const double y,
-  const std::string& name,
-  const std::vector<rmf_building_map_msgs::msg::Param>& params)
-{
-  rmf_building_map_msgs::msg::GraphNode node;
-  node.x = x;
-  node.y = y;
-  node.name = name;
-  for (const auto& param : params)
-    node.params.push_back(param);
-  return node;
-}
-
-static auto make_bool_param(const std::string& name, const bool val)
-{
-  rmf_building_map_msgs::msg::Param param;
-  param.name = name;
-  param.type = param.TYPE_BOOL;
-  param.value_bool = val;
-  return param;
-} 
-
-static auto make_string_param(const std::string& name, const std::string& val)
-{
-  rmf_building_map_msgs::msg::Param param;
-  param.name = name;
-  param.type = param.TYPE_STRING;
-  param.value_string = val;
-  return param;
-}
-
 SCENARIO("Test conversion from rmf_building_map_msgs to rmf_traffic")
 {
   GIVEN("a graph with two nodes")

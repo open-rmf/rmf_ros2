@@ -55,6 +55,10 @@ if(BUILD_TESTING)
     test_rmf_traffic_ros2 test/main.cpp ${unit_test_srcs}
     TIMEOUT 300)
 
+  target_compile_definitions(test_rmf_traffic_ros2
+    PRIVATE
+      "-DTEST_RESOURCES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test/resources/\"")
+
   target_link_libraries(test_rmf_traffic_ros2
       rmf_traffic_ros2
       yaml-cpp
