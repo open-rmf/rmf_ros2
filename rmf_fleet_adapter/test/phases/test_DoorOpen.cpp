@@ -210,7 +210,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
     AND_WHEN("door state is open and supervisor has session")
     {
       rmf_rxcpp::subscription_guard sub2 =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(10))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
         [publish_door_state, publish_heartbeat_with_session](const auto&)
@@ -223,7 +223,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(
-          lk, std::chrono::milliseconds(10),
+          lk, std::chrono::milliseconds(100),
           [test]()
           {
             return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
@@ -235,7 +235,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
     AND_WHEN("door state is open and supervisor do not have session")
     {
       rmf_rxcpp::subscription_guard sub2 =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(10))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe([publish_door_state, publish_empty_heartbeat](const auto&)
           {
@@ -247,7 +247,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(
-          lk, std::chrono::milliseconds(10),
+          lk, std::chrono::milliseconds(100),
           [test]()
           {
             return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
@@ -259,7 +259,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
     AND_WHEN("door state is closed and supervisor has session")
     {
       rmf_rxcpp::subscription_guard sub2 =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(10))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe([publish_door_state, publish_empty_heartbeat](const auto&)
           {
@@ -271,7 +271,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(
-          lk, std::chrono::milliseconds(10),
+          lk, std::chrono::milliseconds(100),
           [test]()
           {
             return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
