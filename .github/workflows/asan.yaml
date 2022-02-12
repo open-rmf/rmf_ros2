@@ -14,7 +14,7 @@ jobs:
         env:
           CC: gcc -g
           CXX: g++ -g
-          ASAN_OPTIONS: detect_leaks=0 
+          ASAN_OPTIONS: detect_leaks=0
         with:
           target-ros2-distro: galactic
           # build all packages listed in the meta package
@@ -23,7 +23,7 @@ jobs:
             rmf_task_ros2
             rmf_fleet_adapter
           vcs-repo-file-url: |
-            https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
+            https://raw.githubusercontent.com/open-rmf/rmf/redesign_v2/rmf.repos
           colcon-defaults: |
             {
               "build": {
