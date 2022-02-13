@@ -45,6 +45,7 @@
 #include "../TaskManager.hpp"
 #include "../BroadcastClient.hpp"
 #include "../DeserializeJSON.hpp"
+#include "../DatabaseLogger.hpp"
 
 #include <rmf_traffic/schedule/Snapshot.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>
@@ -239,6 +240,8 @@ public:
   std::shared_ptr<rmf_traffic::schedule::Snappable> snappable;
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
   std::optional<std::string> server_uri;
+  // Database for backup and restore
+  std::shared_ptr<DatabaseLogger> db;
 
   TaskActivation activation = TaskActivation();
   TaskDeserialization deserialization = TaskDeserialization();
@@ -265,9 +268,6 @@ public:
   rclcpp::TimerBase::SharedPtr fleet_state_topic_publish_timer = nullptr;
   rclcpp::TimerBase::SharedPtr fleet_state_update_timer = nullptr;
 
-  // Map task id to pair of <RequestPtr, Assignments>
-  using Assignments = rmf_task::TaskPlanner::Assignments;
-
   using DockParamMap =
     std::unordered_map<
     std::string,
@@ -283,11 +283,18 @@ public:
   // TODO Support for various charging configurations
   std::unordered_set<std::size_t> charging_waypoints = {};
 
+  // Map task_id to schemas::task_reqest.json
+  // TODO(YV): How would we insert request jsons for automatic tasks?
+  // Perhaps we should just deserialize in DatabaseLogger
+  std::unordered_map<std::string, nlohmann::json> task_request_jsons = {};
+
   std::shared_ptr<rmf_task_ros2::bidding::AsyncBidder> bidder = nullptr;
 
   double current_assignment_cost = 0.0;
   // Map to store task id with assignments for BidNotice
-  std::unordered_map<std::string, Assignments> bid_notice_assignments = {};
+  using Assignments = rmf_task::TaskPlanner::Assignments;
+  using BidNoticeAssignments = std::unordered_map<std::string, Assignments>;
+  BidNoticeAssignments bid_notice_assignments = {};
 
   using BidNoticeMsg = rmf_task_msgs::msg::BidNotice;
 

@@ -42,6 +42,7 @@ set(dep_pkgs
   websocketpp
   nlohmann_json
   nlohmann_json_schema_validator_vendor
+  SQLite3
 )
 foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
@@ -92,6 +93,7 @@ target_link_libraries(rmf_fleet_adapter
     ${rmf_ingestor_msgs_LIBRARIES}
     ${websocketpp_LIBRARIES}
     nlohmann_json_schema_validator
+    ${SQLite3_LIBRARIES}
 )
 
 target_include_directories(rmf_fleet_adapter
@@ -112,6 +114,7 @@ target_include_directories(rmf_fleet_adapter
     ${rmf_api_msgs_INCLUDE_DIRS}
     ${WEBSOCKETPP_INCLUDE_DIR}
     ${nlohmann_json_schema_validator_INCLUDE_DIRS}
+    ${SQLite3_INCLUDE_DIRS}
 )
 
 if (BUILD_TESTING)

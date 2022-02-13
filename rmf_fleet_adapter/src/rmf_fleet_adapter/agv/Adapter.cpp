@@ -31,6 +31,8 @@
 
 #include "../load_param.hpp"
 
+#include "../DatabaseLogger.hpp"
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -209,7 +211,8 @@ std::shared_ptr<FleetUpdateHandle> Adapter::add_fleet(
   const std::string& fleet_name,
   rmf_traffic::agv::VehicleTraits traits,
   rmf_traffic::agv::Graph navigation_graph,
-  std::optional<std::string> server_uri)
+  std::optional<std::string> server_uri,
+  std::optional<std::string> backup_file_path)
 {
   auto planner =
     std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(
@@ -219,10 +222,13 @@ std::shared_ptr<FleetUpdateHandle> Adapter::add_fleet(
         std::move(traits)),
       rmf_traffic::agv::Planner::Options(nullptr)));
 
+  auto backup_db = backup_file_path.has_value() ?
+    DatabaseLogger::make(backup_file_path.value()) : nullptr;
+
   auto fleet = FleetUpdateHandle::Implementation::make(
     fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
     _pimpl->schedule_writer, _pimpl->mirror_manager.snapshot_handle(),
-    _pimpl->negotiation, server_uri);
+    _pimpl->negotiation, server_uri, std::move(backup_db));
 
   _pimpl->fleets.push_back(fleet);
   return fleet;

@@ -34,6 +34,7 @@
   <depend>libwebsocketpp-dev</depend>
   <depend>nlohmann-json-dev</depend>
   <depend>nlohmann_json_schema_validator_vendor</depend>
+  <depend>libsqlite3-dev</depend>
 
   <build_depend>eigen</build_depend>
   <build_depend>yaml-cpp</build_depend>

@@ -563,6 +563,20 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   static const auto log_update_validator =
     mgr._make_validator(rmf_api_msgs::schemas::task_log_update);
   mgr._validate_and_publish_websocket(task_log_update, log_update_validator);
+
+  // Backup task state and logs
+  // TOOO(YV): Validate first
+  auto fleet_handle = mgr._fleet_handle.lock();
+  if (!fleet_handle)
+    return;
+  const auto impl = agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+  const std::string& robot = mgr._context->name();
+  if (impl.db)
+  {
+    impl.db->backup_active_task(robot, _state_msg);
+    impl.db->backup_task_logs(booking.id(), task_logs);
+  }
+
 }
 
 //==============================================================================
@@ -870,6 +884,15 @@ void TaskManager::set_queue(
     _publish_task_queue();
   }
 
+  // Backup queue
+  auto fleet_handle = _fleet_handle.lock();
+  if (fleet_handle)
+  {
+    const auto& impl =
+      agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+    impl.db->backup_task_queues(*this);
+  }
+
   _begin_next_task();
 }
 
@@ -990,6 +1013,15 @@ void TaskManager::_begin_next_task()
       _direct_queue.erase(_direct_queue.begin());
     else
       _queue.erase(_queue.begin());
+
+    // Backup queue
+    auto fleet_handle = _fleet_handle.lock();
+    if (fleet_handle)
+    {
+      const auto& impl =
+        agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+      impl.db->backup_task_queues(*this);
+    }
 
     if (!_active_task)
     {
@@ -1227,6 +1259,14 @@ void TaskManager::retreat_to_charger()
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _direct_queue.insert(assignment);
+    }
+
+    auto fleet_handle = _fleet_handle.lock();
+    if (fleet_handle)
+    {
+      const auto& impl =
+        agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+      impl.db->backup_task_queues(*this);
     }
 
     RCLCPP_INFO(
@@ -1796,7 +1836,7 @@ void TaskManager::_handle_direct_request(
   auto fleet_handle = _fleet_handle.lock();
   if (!fleet_handle)
     return;
-  const auto& impl =
+  auto& impl =
     agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
   std::vector<std::string> errors;
   const auto new_request = impl.convert(request_id, request, errors);
@@ -1821,6 +1861,10 @@ void TaskManager::_handle_direct_request(
 
     return;
   }
+
+  // Cache for backups
+  impl.task_request_jsons.insert({request_id, request});
+
   // Generate Assignment for the request
   const auto task_planner = _context->task_planner();
   if (!task_planner)
@@ -1876,6 +1920,9 @@ void TaskManager::_handle_direct_request(
     std::lock_guard<std::mutex> lock(_mutex);
     _direct_queue.insert(assignment);
   }
+
+  // Backup direct queue
+  impl.db->backup_task_queues(*this);
 
   RCLCPP_INFO(
     _context->node()->get_logger(),
