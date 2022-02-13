@@ -23,7 +23,7 @@ jobs:
             rmf_task_ros2
             rmf_fleet_adapter
           vcs-repo-file-url: |
-            https://raw.githubusercontent.com/open-rmf/rmf/redesign_v2/rmf.repos
+            https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
           colcon-defaults: |
             {
               "build": {
