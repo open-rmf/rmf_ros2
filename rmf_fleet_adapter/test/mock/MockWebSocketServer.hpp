@@ -65,25 +65,30 @@ public:
     const int port,
     ApiMessageCallback callback,
     std::optional<ApiMsgType> msg_selection = std::nullopt)
-  : _selection(msg_selection), _msg_callback{std::move(callback)}
+  : _data(std::make_shared<Data>(std::move(callback), std::move(msg_selection)))
   {
     std::cout << "Run websocket server with port " << port << std::endl;
     try
     {
       // Hide all logs from websocketpp
-      _echo_server.clear_access_channels(websocketpp::log::alevel::all);
+      _data->echo_server.clear_access_channels(websocketpp::log::alevel::all);
       // enable reuse of address if server is respawned
-      _echo_server.set_reuse_addr(true);
-      _echo_server.init_asio();
+      _data->echo_server.set_reuse_addr(true);
+      _data->echo_server.init_asio();
 
       // Register our message handler
       using websocketpp::lib::placeholders::_1;
       using websocketpp::lib::placeholders::_2;
-      _echo_server.set_message_handler(websocketpp::lib::bind(
-          &MockWebSocketServer::on_message, this, _1, _2));
+      _data->echo_server.set_message_handler(
+        [w = _data->weak_from_this()](const auto& hdl, const auto& msg)
+        {
+          if (const auto data = w.lock())
+            data->on_message(hdl, msg);
+        });
 
-      _echo_server.listen(port);
-      _echo_server.start_accept();
+
+      _data->echo_server.listen(port);
+      _data->echo_server.start_accept();
     }
     catch (const websocketpp::exception& e)
     {
@@ -101,8 +106,7 @@ public:
     std::cout << "Start Mock Server" << std::endl;
     // Start the ASIO io_service run loop
     _server_thread = std::thread(
-      [this]()
-      { this->_echo_server.run(); });
+      [data = _data]() { data->echo_server.run(); });
   }
 
   /// Stop Server
@@ -111,8 +115,8 @@ public:
     std::cout << "Stop Mock Server" << std::endl;
     if (_server_thread.joinable())
     {
-      _echo_server.stop_listening();
-      _echo_server.stop();
+      _data->echo_server.stop_listening();
+      _data->echo_server.stop();
       // TODO: properly close all connections
       _server_thread.join();
     }
@@ -135,30 +139,42 @@ public:
   }
 
 private:
-  /// Define an internal callback to handle incoming messages
-  void on_message(websocketpp::connection_hdl hdl, Server::message_ptr msg)
+
+  struct Data : public std::enable_shared_from_this<Data>
   {
-    const auto msg_string = msg->get_payload();
-    if (!msg_string.empty())
+    Data(ApiMessageCallback callback, std::optional<ApiMsgType> msg_selection)
+    : selection(std::move(msg_selection)),
+      msg_callback(std::move(callback))
     {
-      const nlohmann::json msg_json = nlohmann::json::parse(msg_string);
-
-      if (_selection)
-      {
-        const auto target_msg_type = to_string(*_selection);
-        const auto type = msg_json.at("type");
-        if (type == target_msg_type)
-          _msg_callback(msg_json.at("data"));
-      }
-      else
-        _msg_callback(msg_json);
+      // Do nothing
     }
-  }
 
-  /// private class variables
-  Server _echo_server;
-  std::optional<ApiMsgType> _selection;
-  ApiMessageCallback _msg_callback;
+    /// private class variables
+    Server echo_server;
+    std::optional<ApiMsgType> selection;
+    ApiMessageCallback msg_callback;
+
+    /// Define an internal callback to handle incoming messages
+    void on_message(websocketpp::connection_hdl, Server::message_ptr msg)
+    {
+      const auto msg_string = msg->get_payload();
+      if (!msg_string.empty())
+      {
+        const nlohmann::json msg_json = nlohmann::json::parse(msg_string);
+
+        if (selection)
+        {
+          const auto target_msg_type = to_string(*selection);
+          const auto type = msg_json.at("type");
+          if (type == target_msg_type)
+            msg_callback(msg_json.at("data"));
+        }
+        else
+          msg_callback(msg_json);
+      }
+    }
+  };
+  std::shared_ptr<Data> _data;
   std::thread _server_thread;
 };
 
