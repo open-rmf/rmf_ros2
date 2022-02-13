@@ -1768,7 +1768,7 @@ bool FleetUpdateHandle::set_task_planner_params(
           t.first->task_planner(self->_pimpl->task_planner);
       });
 
-      return true;
+    return true;
   }
 
   return false;
