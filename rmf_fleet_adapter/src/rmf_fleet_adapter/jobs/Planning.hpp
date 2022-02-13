@@ -33,7 +33,7 @@ class Planning : public std::enable_shared_from_this<Planning>
 public:
   struct Result
   {
-    Planning& job;
+    std::shared_ptr<Planning> job;
   };
 
   Planning(

@@ -69,7 +69,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
 
       Result next{search->_greedy_job, show_compliant, Type::greedy};
 
-      const auto& r = result.job.progress();
+      const auto& r = result.job->progress();
       if (r.success())
       {
         if (search->_compliant_finished)
@@ -171,7 +171,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
 
       Result next{show_greedy, search->_compliant_job, Type::compliant};
 
-      auto& r = result.job.progress();
+      auto& r = result.job->progress();
       if (r.success())
       {
         // Return the successful schedule-compliant plan
@@ -224,7 +224,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
         {
           // Push the maximum out a bit more and let the job try again.
           r.options().maximum_cost_estimate(new_maximum);
-          result.job.resume();
+          result.job->resume();
           return;
         }
 
