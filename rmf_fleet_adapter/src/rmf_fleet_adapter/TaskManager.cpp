@@ -490,8 +490,11 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   completed_ids.reserve(_task->completed_phases().size());
   for (const auto& completed : _task->completed_phases())
   {
-    std::lock_guard<std::mutex> guard(_mutex);
-    _queue.clear();
+    const auto& snapshot = completed->snapshot();
+    auto& phase = copy_phase_data(
+      phases, *snapshot, mgr._log_reader, phase_logs);
+    phase["unix_millis_start_time"] =
+      to_millis(completed->start_time().time_since_epoch()).count();
 
     phase["unix_millis_finish_time"] =
       to_millis(completed->finish_time().time_since_epoch()).count();
