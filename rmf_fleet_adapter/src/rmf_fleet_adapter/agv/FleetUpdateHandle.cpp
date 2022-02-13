@@ -1749,17 +1749,26 @@ bool FleetUpdateHandle::set_task_planner_params(
       false,
       nullptr,
       finishing_request};
-    _pimpl->task_planner = std::make_shared<rmf_task::TaskPlanner>(
-      std::move(task_config), std::move(options));
 
-    // Here we update the task planner in all the RobotContexts.
-    // The TaskManagers rely on the parameters in the task planner for
-    // automatic retreat. Hence, we also update them whenever the
-    // task planner here is updated.
-    for (const auto& t : _pimpl->task_managers)
-      t.first->task_planner(_pimpl->task_planner);
+    _pimpl->worker.schedule(
+      [w = weak_from_this(), task_config, options](const auto&)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
 
-    return true;
+        // Here we update the task planner in all the RobotContexts.
+        // The TaskManagers rely on the parameters in the task planner for
+        // automatic retreat. Hence, we also update them whenever the
+        // task planner here is updated.
+        self->_pimpl->task_planner = std::make_shared<rmf_task::TaskPlanner>(
+          std::move(task_config), std::move(options));
+
+        for (const auto& t : self->_pimpl->task_managers)
+          t.first->task_planner(self->_pimpl->task_planner);
+      });
+
+      return true;
   }
 
   return false;

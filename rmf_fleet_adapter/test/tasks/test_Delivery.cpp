@@ -365,6 +365,7 @@ SCENARIO("Test Delivery")
   bool at_least_one_incomplete = false;
   bool fulfilled_promise = false;
   auto completed_future = completed_promise.get_future();
+  std::mutex cb_mutex;
 
   /// Mock Task State observer server, This checks the task_state
   /// of the targeted task id, by listening to the task_state_update
@@ -373,10 +374,11 @@ SCENARIO("Test Delivery")
   using MockServer = rmf_fleet_adapter_test::MockWebSocketServer;
 	MockServer mock_server(
 		37878,
-    [ &delivery_id, &completed_promise, 
+    [ &cb_mutex, delivery_id, &completed_promise,
       &at_least_one_incomplete, &fulfilled_promise](
-      const nlohmann::json &data)
+      const nlohmann::json& data)
       {
+        std::lock_guard<std::mutex> lock(cb_mutex);
         assert(data.contains("booking"));
         assert(data.contains("status"));
         const auto id = data.at("booking").at("id");
@@ -431,7 +433,7 @@ SCENARIO("Test Delivery")
   /// Callback function when a task is requested
   ///   replacement api for deprecated: 'accept_task_requests'
   fleet->consider_delivery_requests(
-    [&pickup_name, &quiet_dispenser_name](
+    [pickup_name, quiet_dispenser_name](
       const nlohmann::json& msg,
       rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
@@ -439,7 +441,7 @@ SCENARIO("Test Delivery")
       CHECK(msg.at("handler") == quiet_dispenser_name);
       confirm.accept();
     },
-    [&dropoff_name, &flaky_ingestor_name](
+    [dropoff_name, flaky_ingestor_name](
       const nlohmann::json& msg,
       rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
@@ -517,6 +519,7 @@ SCENARIO("Test Delivery")
   const auto completed_status = completed_future.wait_for(15s);
   REQUIRE(completed_status == std::future_status::ready);
   REQUIRE(completed_future.get());
+  std::lock_guard<std::mutex> lock(cb_mutex);
   CHECK(at_least_one_incomplete);
 
   mock_server.stop();
