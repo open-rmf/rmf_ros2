@@ -15,8 +15,8 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__TASK_HPP
-#define SRC__RMF_FLEET_ADAPTER__TASK_HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__LEGACYTASK_HPP
+#define SRC__RMF_FLEET_ADAPTER__LEGACYTASK_HPP
 
 #include <string>
 #include <memory>
@@ -27,7 +27,7 @@
 #include <rmf_task_msgs/msg/task_summary.hpp>
 
 #include <rmf_task/Request.hpp>
-#include <rmf_task/agv/State.hpp>
+#include <rmf_task/State.hpp>
 
 #include <rmf_rxcpp/RxJobs.hpp>
 #include <rmf_rxcpp/Publisher.hpp>
@@ -35,14 +35,14 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-class Task : public std::enable_shared_from_this<Task>
+class LegacyTask : public std::enable_shared_from_this<LegacyTask>
 {
 public:
 
   using StatusMsg = rmf_task_msgs::msg::TaskSummary;
 
-  /// This class represents the active phase of a Task. It provides an
-  /// observable that the Task can track to stay up-to-date on the status and to
+  /// This class represents the active phase of a LegacyTask. It provides an
+  /// observable that the LegacyTask can track to stay up-to-date on the status and to
   /// know when to begin the next phase.
   ///
   /// The ActivePhase class must be a schedule Negotiator so that it can
@@ -52,7 +52,7 @@ public:
   {
   public:
 
-    using StatusMsg = Task::StatusMsg;
+    using StatusMsg = LegacyTask::StatusMsg;
 
     /// Get a reference to an observable for the status of this ActivePhase.
     /// When this phase is complete, it will trigger on_completed()
@@ -98,17 +98,17 @@ public:
   using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
 
   // Make a new task
-  static std::shared_ptr<Task> make(
+  static std::shared_ptr<LegacyTask> make(
     std::string id,
     PendingPhases phases,
     rxcpp::schedulers::worker worker,
     rmf_traffic::Time deployment_time,
-    rmf_task::agv::State finish_state,
+    rmf_task::State finish_state,
     rmf_task::ConstRequestPtr request);
 
   void begin();
 
-  /// Get a reference to an observable for the status of this Task
+  /// Get a reference to an observable for the status of this LegacyTask
   const rxcpp::observable<StatusMsg>& observe() const;
 
   /// Get the current phase of the task
@@ -128,11 +128,11 @@ public:
   /// Get the request used to generate this task
   const rmf_task::ConstRequestPtr request() const;
 
-  /// Get the deployment time of this Task
+  /// Get the deployment time of this LegacyTask
   const rmf_traffic::Time deployment_time() const;
 
-  /// Get the finish state of this Task
-  const rmf_task::agv::State finish_state() const;
+  /// Get the finish state of this LegacyTask
+  const rmf_task::State finish_state() const;
 
   /// Set the TaskProfile of this task
   void task_profile(TaskProfileMsg profile);
@@ -142,12 +142,12 @@ public:
 
 private:
 
-  Task(
+  LegacyTask(
     std::string id,
     PendingPhases phases,
     rxcpp::schedulers::worker worker,
     rmf_traffic::Time deployment_time,
-    rmf_task::agv::State finish_state,
+    rmf_task::State finish_state,
     rmf_task::ConstRequestPtr request);
 
   std::string _id;
@@ -167,7 +167,7 @@ private:
   rmf_utils::optional<builtin_interfaces::msg::Time> _initial_time;
 
   rmf_traffic::Time _deployment_time;
-  rmf_task::agv::State _finish_state;
+  rmf_task::State _finish_state;
   rmf_task::ConstRequestPtr _request;
 
   TaskProfileMsg _profile;
@@ -179,4 +179,4 @@ private:
 
 }
 
-#endif // SRC__RMF_FLEET_ADAPTER__TASK_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__LEGACYTASK_HPP

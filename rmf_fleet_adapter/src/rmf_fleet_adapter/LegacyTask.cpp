@@ -15,7 +15,7 @@
  *
 */
 
-#include "Task.hpp"
+#include "LegacyTask.hpp"
 
 #include <rclcpp/time.hpp>
 #include <rclcpp/duration.hpp>
@@ -27,16 +27,16 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
-std::shared_ptr<Task> Task::make(
+std::shared_ptr<LegacyTask> LegacyTask::make(
   std::string id,
   PendingPhases phases,
   rxcpp::schedulers::worker worker,
   rmf_traffic::Time deployment_time,
-  rmf_task::agv::State finish_state,
+  rmf_task::State finish_state,
   rmf_task::ConstRequestPtr request)
 {
-  return std::make_shared<Task>(
-    Task(std::move(id),
+  return std::make_shared<LegacyTask>(
+    LegacyTask(std::move(id),
     std::move(phases),
     std::move(worker),
     deployment_time,
@@ -45,38 +45,38 @@ std::shared_ptr<Task> Task::make(
 }
 
 //==============================================================================
-void Task::begin()
+void LegacyTask::begin()
 {
   if (!_active_phase)
     _start_next_phase();
 }
 
 //==============================================================================
-auto Task::observe() const -> const rxcpp::observable<StatusMsg>&
+auto LegacyTask::observe() const -> const rxcpp::observable<StatusMsg>&
 {
   return _status_obs;
 }
 
 //==============================================================================
-auto Task::current_phase() -> const std::shared_ptr<ActivePhase>&
+auto LegacyTask::current_phase() -> const std::shared_ptr<ActivePhase>&
 {
   return _active_phase;
 }
 
 //==============================================================================
-auto Task::current_phase() const -> std::shared_ptr<const ActivePhase>
+auto LegacyTask::current_phase() const -> std::shared_ptr<const ActivePhase>
 {
   return _active_phase;
 }
 
 //==============================================================================
-auto Task::pending_phases() const -> const PendingPhases&
+auto LegacyTask::pending_phases() const -> const PendingPhases&
 {
   return _pending_phases;
 }
 
 //==============================================================================
-void Task::cancel()
+void LegacyTask::cancel()
 {
   _pending_phases.clear();
   if (_active_phase)
@@ -84,49 +84,49 @@ void Task::cancel()
 }
 
 //==============================================================================
-const std::string& Task::id() const
+const std::string& LegacyTask::id() const
 {
   return _id;
 }
 
 //==============================================================================
-const rmf_task::ConstRequestPtr Task::request() const
+const rmf_task::ConstRequestPtr LegacyTask::request() const
 {
   return _request;
 }
 
 //==============================================================================
-const rmf_traffic::Time Task::deployment_time() const
+const rmf_traffic::Time LegacyTask::deployment_time() const
 {
   return _deployment_time;
 }
 
 //==============================================================================
-const rmf_task::agv::State Task::finish_state() const
+const rmf_task::State LegacyTask::finish_state() const
 {
   return _finish_state;
 }
 
 //==============================================================================
-void Task::task_profile(Task::TaskProfileMsg profile)
+void LegacyTask::task_profile(LegacyTask::TaskProfileMsg profile)
 {
   _profile = profile;
   return;
 }
 
 //==============================================================================
-const Task::TaskProfileMsg& Task::task_profile() const
+const LegacyTask::TaskProfileMsg& LegacyTask::task_profile() const
 {
   return _profile;
 }
 
 //==============================================================================
-Task::Task(
+LegacyTask::LegacyTask(
   std::string id,
   std::vector<std::unique_ptr<PendingPhase>> phases,
   rxcpp::schedulers::worker worker,
   rmf_traffic::Time deployment_time,
-  rmf_task::agv::State finish_state,
+  rmf_task::State finish_state,
   rmf_task::ConstRequestPtr request)
 : _id(std::move(id)),
   _pending_phases(std::move(phases)),
@@ -140,7 +140,7 @@ Task::Task(
 }
 
 //==============================================================================
-void Task::_start_next_phase()
+void LegacyTask::_start_next_phase()
 {
   if (_pending_phases.empty())
   {
@@ -170,7 +170,7 @@ void Task::_start_next_phase()
   {
     // *INDENT-OFF*
     throw std::runtime_error(
-      "[Task::_start_next_phase] INTERNAL ERROR: Next phase has a null value");
+      "[LegacyTask::_start_next_phase] INTERNAL ERROR: Next phase has a null value");
     // *INDENT-ON*
   }
   _active_phase = next_pending->begin();
@@ -189,7 +189,7 @@ void Task::_start_next_phase()
 
       auto summary = msg;
       // We have received a status update from the phase. We will forward
-      // this to whoever is subscribing to the Task.
+      // this to whoever is subscribing to the LegacyTask.
       summary.task_id = task->_id;
 
       // We don't want to say that the task is complete until the very end.
@@ -239,7 +239,7 @@ void Task::_start_next_phase()
 }
 
 //==============================================================================
-auto Task::_process_summary(const StatusMsg& input_msg) -> StatusMsg
+auto LegacyTask::_process_summary(const StatusMsg& input_msg) -> StatusMsg
 {
   auto output = input_msg;
   if (!_initial_time.has_value())

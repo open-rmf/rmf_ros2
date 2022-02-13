@@ -17,7 +17,7 @@
 
 #include <rmf_utils/catch.hpp>
 
-#include <Task.hpp>
+#include <LegacyTask.hpp>
 
 #include "thread_cooldown.hpp"
 
@@ -67,7 +67,7 @@ public:
 
   };
 
-  class Active : public rmf_fleet_adapter::Task::ActivePhase
+  class Active : public rmf_fleet_adapter::LegacyTask::ActivePhase
   {
   public:
 
@@ -124,7 +124,7 @@ public:
   };
 
 
-  class Pending : public rmf_fleet_adapter::Task::PendingPhase
+  class Pending : public rmf_fleet_adapter::LegacyTask::PendingPhase
   {
   public:
 
@@ -141,7 +141,7 @@ public:
       // Do nothing
     }
 
-    std::shared_ptr<rmf_fleet_adapter::Task::ActivePhase> begin() final
+    std::shared_ptr<rmf_fleet_adapter::LegacyTask::ActivePhase> begin() final
     {
       return std::make_shared<Active>(_desc, _count, _count_length, _period);
     }
@@ -168,23 +168,26 @@ class MockSubtaskPhase
 {
 public:
 
-  using PendingPhases = rmf_fleet_adapter::Task::PendingPhases;
+  using PendingPhases = rmf_fleet_adapter::LegacyTask::PendingPhases;
 
   class Active
-    : public rmf_fleet_adapter::Task::ActivePhase,
+    : public rmf_fleet_adapter::LegacyTask::ActivePhase,
     public std::enable_shared_from_this<Active>
   {
   public:
 
     Active(PendingPhases phases)
-    : _subtasks(
-        rmf_fleet_adapter::Task::make(
-          "subtasks", std::move(phases),
-          rxcpp::schedulers::make_event_loop().create_worker(),
-          std::chrono::steady_clock::now(),
-          {{std::chrono::steady_clock::now(), 0, 0.0}, 0, 1.0},
-          nullptr))
     {
+      rmf_task::State state;
+      state.load_basic(
+        {std::chrono::steady_clock::now(), 0, 0.0}, 0, 1.0);
+      _subtasks =
+        rmf_fleet_adapter::LegacyTask::make(
+        "subtasks", std::move(phases),
+        rxcpp::schedulers::make_event_loop().create_worker(),
+        std::chrono::steady_clock::now(),
+        state,
+        nullptr);
       _desc = "subtasks";
       _status_obs = _status_publisher.get_observable();
     }
@@ -237,7 +240,7 @@ public:
 
   private:
 
-    std::shared_ptr<rmf_fleet_adapter::Task> _subtasks;
+    std::shared_ptr<rmf_fleet_adapter::LegacyTask> _subtasks;
     rxcpp::subscription _subscription;
     rxcpp::subjects::subject<StatusMsg> _status_publisher;
     rxcpp::observable<StatusMsg> _status_obs;
@@ -246,7 +249,7 @@ public:
   };
 
 
-  class Pending : public rmf_fleet_adapter::Task::PendingPhase
+  class Pending : public rmf_fleet_adapter::LegacyTask::PendingPhase
   {
   public:
 
@@ -256,7 +259,7 @@ public:
       _desc = "subtasks";
     }
 
-    std::shared_ptr<rmf_fleet_adapter::Task::ActivePhase> begin() final
+    std::shared_ptr<rmf_fleet_adapter::LegacyTask::ActivePhase> begin() final
     {
       auto active = std::make_shared<Active>(std::move(_phases));
       active->begin();
@@ -288,17 +291,18 @@ SCENARIO("Test simple task")
   std::shared_ptr<std::size_t> count = std::make_shared<std::size_t>(0);
   const auto dt = 10ms;
 
-  rmf_fleet_adapter::Task::PendingPhases phases;
+  rmf_fleet_adapter::LegacyTask::PendingPhases phases;
   phases.push_back(std::make_unique<MockPhase::Pending>("A", count, 5, dt));
   phases.push_back(std::make_unique<MockPhase::Pending>("B", count, 15, dt));
   phases.push_back(std::make_unique<MockPhase::Pending>("C", count, 18, dt));
 
   // Dummy parameters
   rmf_traffic::Time deployment_time;
-  rmf_task::agv::State finish_state{{deployment_time, 0, 0.0}, 0, 1.0};
+  rmf_task::State finish_state;
+  finish_state.load_basic({deployment_time, 0, 0.0}, 0, 1.0);
 
-  std::shared_ptr<rmf_fleet_adapter::Task> task =
-    rmf_fleet_adapter::Task::make(
+  std::shared_ptr<rmf_fleet_adapter::LegacyTask> task =
+    rmf_fleet_adapter::LegacyTask::make(
     "test_Task", std::move(phases),
     rxcpp::schedulers::make_event_loop().create_worker(), deployment_time,
     finish_state, nullptr);
@@ -307,7 +311,7 @@ SCENARIO("Test simple task")
   auto completed_future = completed_promise.get_future();
   auto status_sub = task->observe()
     .subscribe(
-    [](const rmf_fleet_adapter::Task::StatusMsg& msg)
+    [](const rmf_fleet_adapter::LegacyTask::StatusMsg& msg)
     {
       if (msg.status.find("A") != std::string::npos)
       {
@@ -344,7 +348,7 @@ SCENARIO("Test nested task")
 {
   rmf_fleet_adapter_test::thread_cooldown = true;
 
-  using PendingPhases = rmf_fleet_adapter::Task::PendingPhases;
+  using PendingPhases = rmf_fleet_adapter::LegacyTask::PendingPhases;
 
   std::shared_ptr<std::size_t> count = std::make_shared<std::size_t>(0);
   const auto dt = 10ms;
@@ -395,9 +399,10 @@ SCENARIO("Test nested task")
 
   // Dummy parameters
   rmf_traffic::Time deployment_time;
-  rmf_task::agv::State finish_state{{deployment_time, 0, 0.0}, 0, 1.0};
+  rmf_task::State finish_state;
+  finish_state.load_basic({deployment_time, 0, 0.0}, 0, 1.0);
 
-  const auto task = rmf_fleet_adapter::Task::make(
+  const auto task = rmf_fleet_adapter::LegacyTask::make(
     "test_NestedTask", std::move(phases),
     rxcpp::schedulers::make_event_loop().create_worker(), deployment_time,
     finish_state, nullptr);
@@ -406,7 +411,7 @@ SCENARIO("Test nested task")
   auto completed_future = completed_promise.get_future();
   auto status_sub = task->observe()
     .subscribe(
-    [&count_limits](const rmf_fleet_adapter::Task::StatusMsg& msg)
+    [&count_limits](const rmf_fleet_adapter::LegacyTask::StatusMsg& msg)
     {
       std::pair<std::size_t, std::size_t> limits = {0, 0};
       for (const auto& element : count_limits)

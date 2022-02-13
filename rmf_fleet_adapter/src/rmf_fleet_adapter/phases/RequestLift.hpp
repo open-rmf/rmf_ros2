@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__REQUESTLIFT_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__REQUESTLIFT_HPP
 
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 #include "rmf_fleet_adapter/StandardNames.hpp"
 #include "EndLiftSession.hpp"
@@ -34,7 +34,7 @@ struct RequestLift
     Outside
   };
 
-  class ActivePhase : public Task::ActivePhase,
+  class ActivePhase : public LegacyTask::ActivePhase,
     public std::enable_shared_from_this<ActivePhase>
   {
   public:
@@ -46,7 +46,7 @@ struct RequestLift
       rmf_traffic::Time expected_finish,
       Located located);
 
-    const rxcpp::observable<Task::StatusMsg>& observe() const override;
+    const rxcpp::observable<LegacyTask::StatusMsg>& observe() const override;
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 
@@ -65,7 +65,7 @@ struct RequestLift
     rxcpp::subjects::behavior<bool> _cancelled =
       rxcpp::subjects::behavior<bool>(false);
     std::string _description;
-    rxcpp::observable<Task::StatusMsg> _obs;
+    rxcpp::observable<LegacyTask::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
     std::shared_ptr<EndLiftSession::Active> _lift_end_phase;
     Located _located;
@@ -90,13 +90,13 @@ struct RequestLift
 
     void _init_obs();
 
-    Task::StatusMsg _get_status(
+    LegacyTask::StatusMsg _get_status(
       const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
 
     void _do_publish();
   };
 
-  class PendingPhase : public Task::PendingPhase
+  class PendingPhase : public LegacyTask::PendingPhase
   {
   public:
 
@@ -107,11 +107,16 @@ struct RequestLift
       rmf_traffic::Time expected_finish,
       Located located);
 
-    std::shared_ptr<Task::ActivePhase> begin() override;
+    std::shared_ptr<LegacyTask::ActivePhase> begin() override;
 
     rmf_traffic::Duration estimate_phase_duration() const override;
 
     const std::string& description() const override;
+
+    const std::string& lift_name() const
+    {
+      return _lift_name;
+    }
 
   private:
     agv::RobotContextPtr _context;

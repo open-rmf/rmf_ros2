@@ -154,7 +154,7 @@ void ResponsiveWait::Active::_begin_movement()
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> ResponsiveWait::Pending::begin()
+std::shared_ptr<LegacyTask::ActivePhase> ResponsiveWait::Pending::begin()
 {
   auto active = std::shared_ptr<Active>(new Active(_info));
   active->_begin_movement();

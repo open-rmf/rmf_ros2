@@ -19,7 +19,7 @@
 #ifndef SRC__RMF_TASK_ROS2__BIDDING__INTERNAL_AUCTIONEER_HPP
 #define SRC__RMF_TASK_ROS2__BIDDING__INTERNAL_AUCTIONEER_HPP
 
-#include <rmf_task_ros2/bidding/Submission.hpp>
+#include <rmf_task_ros2/bidding/Response.hpp>
 #include <rmf_task_ros2/bidding/Auctioneer.hpp>
 #include <rmf_task_msgs/msg/bid_proposal.hpp>
 
@@ -29,49 +29,49 @@
 namespace rmf_task_ros2 {
 namespace bidding {
 
-using BidProposal = rmf_task_msgs::msg::BidProposal;
-
 //==============================================================================
 class Auctioneer::Implementation
 {
 public:
+
   std::shared_ptr<rclcpp::Node> node;
   rclcpp::TimerBase::SharedPtr timer;
   BiddingResultCallback bidding_result_callback;
-  std::shared_ptr<Evaluator> evaluator;
+  ConstEvaluatorPtr evaluator;
 
-  struct BiddingTask
+  struct OpenBid
   {
-    BidNotice bid_notice;
+    BidNoticeMsg bid_notice;
     builtin_interfaces::msg::Time start_time;
-    std::vector<bidding::Submission> submissions;
+    std::vector<bidding::Response> responses;
   };
 
-  bool bidding_in_proccess = false;
-  std::queue<BiddingTask> queue_bidding_tasks;
+  bool bidding_in_process = false;
+  std::queue<OpenBid> open_bid_queue;
 
-  using BidNoticePub = rclcpp::Publisher<BidNotice>;
+  using BidNoticePub = rclcpp::Publisher<BidNoticeMsg>;
   BidNoticePub::SharedPtr bid_notice_pub;
 
-  using BidProposalSub = rclcpp::Subscription<BidProposal>;
-  BidProposalSub::SharedPtr bid_proposal_sub;
+  using BidResponseSub = rclcpp::Subscription<BidResponseMsg>;
+  BidResponseSub::SharedPtr bid_proposal_sub;
 
   Implementation(
     const std::shared_ptr<rclcpp::Node>& node_,
-    BiddingResultCallback result_callback);
+    BiddingResultCallback result_callback,
+    ConstEvaluatorPtr evaluator);
 
   /// Start a bidding process
-  void start_bidding(const BidNotice& bid_notice);
+  void request_bid(const BidNoticeMsg& bid_notice);
 
   // Receive proposal and evaluate
-  void receive_proposal(const BidProposal& msg);
+  void receive_response(const BidResponseMsg& msg);
 
   // determine the winner within a bidding task instance
-  void check_bidding_process();
+  void finish_bidding_process();
 
-  bool determine_winner(const BiddingTask& bidding_task);
+  bool determine_winner(const OpenBid& bidding_task);
 
-  std::optional<Submission> evaluate(const Submissions& submissions);
+  std::optional<Response::Proposal> evaluate(const Responses& responses);
 
   static const Implementation& get(const Auctioneer& auctioneer)
   {
@@ -80,12 +80,12 @@ public:
 };
 
 //==============================================================================
-std::optional<Submission> evaluate(
+std::optional<Response::Proposal> evaluate(
   const Auctioneer& auctioneer,
-  const Submissions& submissions)
+  const Responses& responses)
 {
   auto fimpl = Auctioneer::Implementation::get(auctioneer);
-  return fimpl.evaluate(submissions);
+  return fimpl.evaluate(responses);
 }
 
 } // namespace bidding

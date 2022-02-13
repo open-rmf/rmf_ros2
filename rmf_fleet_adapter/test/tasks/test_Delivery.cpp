@@ -16,6 +16,7 @@
 */
 
 #include "../mock/MockRobotCommand.hpp"
+#include "../mock/MockWebSocketServer.hpp"
 
 #include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic/schedule/Database.hpp>
@@ -341,6 +342,8 @@ SCENARIO("Test Delivery")
   REQUIRE(graph.add_key(dropoff_name, 10));
 
   const std::string delivery_id = "test_delivery";
+  const std::string quiet_dispenser_name = "quiet";
+  const std::string flaky_ingestor_name = "flaky";
 
   rmf_traffic::Profile profile{
     rmf_traffic::geometry::make_final_convex<
@@ -362,25 +365,45 @@ SCENARIO("Test Delivery")
   bool at_least_one_incomplete = false;
   bool fulfilled_promise = false;
   auto completed_future = completed_promise.get_future();
-  const auto task_sub = adapter.node()->create_subscription<
-    rmf_task_msgs::msg::TaskSummary>(
-    rmf_fleet_adapter::TaskSummaryTopicName, rclcpp::SystemDefaultsQoS(),
-    [&completed_promise, &at_least_one_incomplete, &fulfilled_promise](
-      const rmf_task_msgs::msg::TaskSummary::SharedPtr msg)
-    {
-      if (msg->STATE_COMPLETED == msg->state)
-      {
-        if (!fulfilled_promise)
-        {
-          fulfilled_promise = true;
-          completed_promise.set_value(true);
-        }
-      }
-      else
-        at_least_one_incomplete = true;
-    });
+  std::mutex cb_mutex;
 
-  const auto fleet = adapter.add_fleet("test_fleet", traits, graph);
+  /// Mock Task State observer server, This checks the task_state
+  /// of the targeted task id, by listening to the task_state_update
+  /// from the websocket connection
+  /* *INDENT-OFF* */
+  using MockServer = rmf_fleet_adapter_test::MockWebSocketServer;
+	MockServer mock_server(
+		37878,
+    [ &cb_mutex, delivery_id, &completed_promise,
+      &at_least_one_incomplete, &fulfilled_promise](
+      const nlohmann::json& data)
+      {
+        std::lock_guard<std::mutex> lock(cb_mutex);
+        assert(data.contains("booking"));
+        assert(data.contains("status"));
+        const auto id = data.at("booking").at("id");
+        const auto status = data.at("status");
+        std::cout << "[MockWebSocketServer] id: [" << id
+                  << "] ::: json state ::: " << status << std::endl;
+
+        if (id == delivery_id && status == "completed")
+        {
+          if (!fulfilled_promise)
+          {
+            fulfilled_promise = true;
+            completed_promise.set_value(true);
+          }
+        }
+        else
+          at_least_one_incomplete = true;
+      },
+    MockServer::ApiMsgType::TaskStateUpdate
+  );
+  /* *INDENT-ON* */
+
+  // provide the same port number as the observer mock server
+  const auto fleet = adapter.add_fleet(
+    "test_fleet", traits, graph, "ws://localhost:37878");
 
   // Configure default battery param
   using BatterySystem = rmf_battery::agv::BatterySystem;
@@ -407,15 +430,26 @@ SCENARIO("Test Delivery")
   fleet->set_task_planner_params(
     battery_system, motion_sink, ambient_sink, tool_sink, 0.2, 1.0, false);
 
-  fleet->accept_task_requests(
-    [&delivery_id](const rmf_task_msgs::msg::TaskProfile& task)
+  /// Callback function when a task is requested
+  ///   replacement api for deprecated: 'accept_task_requests'
+  fleet->consider_delivery_requests(
+    [pickup_name, quiet_dispenser_name](
+      const nlohmann::json& msg,
+      rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
-      // Accept all delivery task requests
-      CHECK(task.description.task_type.type ==
-      rmf_task_msgs::msg::TaskType::TYPE_DELIVERY);
-      CHECK(task.task_id == delivery_id);
-      return true;
-    });
+      CHECK(msg.at("place") == pickup_name);
+      CHECK(msg.at("handler") == quiet_dispenser_name);
+      confirm.accept();
+    },
+    [dropoff_name, flaky_ingestor_name](
+      const nlohmann::json& msg,
+      rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
+    {
+      CHECK(msg.at("place") == dropoff_name);
+      CHECK(msg.at("handler") == flaky_ingestor_name);
+      confirm.accept();
+    }
+  );
 
   const auto now = rmf_traffic_ros2::convert(adapter.node()->now());
   const rmf_traffic::agv::Plan::StartSet starts = {{now, 0, 0.0}};
@@ -431,36 +465,39 @@ SCENARIO("Test Delivery")
       robot_cmd->updater = std::move(updater);
     });
 
-  const std::string quiet_dispenser_name = "quiet";
   auto quiet_dispenser = MockQuietDispenser::make(
     adapter.node(), quiet_dispenser_name);
   auto quiet_future = quiet_dispenser->success_promise.get_future();
 
-  const std::string flaky_ingestor_name = "flaky";
   auto flaky_ingestor = MockFlakyIngestor::make(
     adapter.node(), flaky_ingestor_name);
   auto flaky_future = flaky_ingestor->success_promise.get_future();
 
   adapter.start();
+  mock_server.start();
 
   // Note: wait for task_manager to start, else TM will be suspicously "empty"
   std::this_thread::sleep_for(1s);
 
+  std::cout << "start to dispatch" << std::endl;
+
   // Dispatch Delivery Task
-  rmf_task_msgs::msg::TaskProfile task_profile;
-  task_profile.task_id = delivery_id;
-  task_profile.description.start_time = adapter.node()->now();
-  task_profile.description.task_type.type =
-    rmf_task_msgs::msg::TaskType::TYPE_DELIVERY;
+  nlohmann::json request;
+  request["category"] = "delivery";
 
-  rmf_task_msgs::msg::Delivery delivery;
-  delivery.pickup_place_name = pickup_name;
-  delivery.pickup_dispenser = quiet_dispenser_name;
-  delivery.dropoff_place_name = dropoff_name;
-  delivery.dropoff_ingestor = flaky_ingestor_name;
+  auto& desc = request["description"];
+  auto& pickup = desc["pickup"];
+  pickup["place"] = pickup_name;
+  pickup["handler"] = quiet_dispenser_name;
+  pickup["payload"] = std::vector<nlohmann::json>();
+  auto& dropoff = desc["dropoff"];
+  dropoff["place"] = dropoff_name;
+  dropoff["handler"] = flaky_ingestor_name;
+  dropoff["payload"] = std::vector<nlohmann::json>();
+  std::cout << request << std::endl;
+  adapter.dispatch_task(delivery_id, request);
 
-  task_profile.description.delivery = delivery;
-  adapter.dispatch_task(task_profile);
+  std::cout << "end dispatch" << std::endl;
 
   const auto quiet_status = quiet_future.wait_for(15s);
   REQUIRE(quiet_status == std::future_status::ready);
@@ -482,7 +519,9 @@ SCENARIO("Test Delivery")
   const auto completed_status = completed_future.wait_for(15s);
   REQUIRE(completed_status == std::future_status::ready);
   REQUIRE(completed_future.get());
+  std::lock_guard<std::mutex> lock(cb_mutex);
   CHECK(at_least_one_incomplete);
 
+  mock_server.stop();
   adapter.stop();
 }

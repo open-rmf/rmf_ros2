@@ -25,7 +25,7 @@ jobs:
             rmf_fleet_adapter
           #  rmf_fleet_adapter_python # TODO(MXG): These tests are failing in the CI, and it seems to be related to https://github.com/ros2/launch/pull/592. Figure out how to fix this.
           vcs-repo-file-url: |
-            https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
+            https://raw.githubusercontent.com/open-rmf/rmf/redesign_v2/rmf.repos
           colcon-defaults: |
             {
               "build": {

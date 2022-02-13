@@ -43,7 +43,7 @@ std::shared_ptr<RequestLift::ActivePhase> RequestLift::ActivePhase::make(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>&
+const rxcpp::observable<LegacyTask::StatusMsg>&
 RequestLift::ActivePhase::observe() const
 {
   return _obs;
@@ -138,20 +138,20 @@ void RequestLift::ActivePhase::_init_obs()
       {
         auto me = weak.lock();
         if (!me)
-          return Task::StatusMsg();
+          return LegacyTask::StatusMsg();
 
         return me->_get_status(v);
       })
-    .lift<Task::StatusMsg>(grab_while([weak =
-      weak_from_this()](const Task::StatusMsg& status)
+    .lift<LegacyTask::StatusMsg>(grab_while([weak =
+      weak_from_this()](const LegacyTask::StatusMsg& status)
       {
         auto me = weak.lock();
         if (!me)
           return false;
 
         if (
-          status.state == Task::StatusMsg::STATE_COMPLETED ||
-          status.state == Task::StatusMsg::STATE_FAILED)
+          status.state == LegacyTask::StatusMsg::STATE_COMPLETED ||
+          status.state == LegacyTask::StatusMsg::STATE_FAILED)
         {
           me->_timer.reset();
           return false;
@@ -159,7 +159,7 @@ void RequestLift::ActivePhase::_init_obs()
         return true;
       }))
     .take_until(_cancelled.get_observable().filter([](auto b) { return b; }))
-    .concat(rxcpp::observable<>::create<Task::StatusMsg>(
+    .concat(rxcpp::observable<>::create<LegacyTask::StatusMsg>(
         [weak = weak_from_this()](const auto& s)
         {
           auto me = weak.lock();
@@ -185,13 +185,13 @@ void RequestLift::ActivePhase::_init_obs()
 }
 
 //==============================================================================
-Task::StatusMsg RequestLift::ActivePhase::_get_status(
+LegacyTask::StatusMsg RequestLift::ActivePhase::_get_status(
   const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state)
 {
   using rmf_lift_msgs::msg::LiftState;
   using rmf_lift_msgs::msg::LiftRequest;
-  Task::StatusMsg status{};
-  status.state = Task::StatusMsg::STATE_ACTIVE;
+  LegacyTask::StatusMsg status{};
+  status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
   if (!_rewaiting &&
     lift_state->lift_name == _lift_name &&
     lift_state->current_floor == _destination &&
@@ -273,7 +273,7 @@ Task::StatusMsg RequestLift::ActivePhase::_get_status(
 
     if (completed)
     {
-      status.state = Task::StatusMsg::STATE_COMPLETED;
+      status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
       status.status = "success";
       _timer.reset();
     }
@@ -334,7 +334,7 @@ RequestLift::PendingPhase::PendingPhase(
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> RequestLift::PendingPhase::begin()
+std::shared_ptr<LegacyTask::ActivePhase> RequestLift::PendingPhase::begin()
 {
   return ActivePhase::make(
     _context,

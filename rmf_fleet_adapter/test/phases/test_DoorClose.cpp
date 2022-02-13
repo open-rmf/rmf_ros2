@@ -39,7 +39,7 @@ struct TestData
   std::list<DoorRequest::UniquePtr> received_requests;
 
   std::condition_variable status_updates_cv;
-  std::list<Task::StatusMsg> status_updates;
+  std::list<LegacyTask::StatusMsg> status_updates;
 
   std::optional<uint32_t> last_state_value() const
   {
@@ -191,7 +191,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
     AND_WHEN("door state is closed and supervisor do not have session")
     {
       rmf_rxcpp::subscription_guard sub2 =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(10))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
         [publish_door_state, publish_empty_heartbeat](const auto&)
@@ -204,10 +204,10 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(
-          lk, std::chrono::milliseconds(100),
+          lk, std::chrono::milliseconds(1000),
           [test]()
           {
-            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(completed);
       }
@@ -216,7 +216,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
     AND_WHEN("door state is open and supervisor do not have session")
     {
       rmf_rxcpp::subscription_guard sub2 =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(10))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe([publish_door_state, publish_empty_heartbeat](const auto&)
           {
@@ -228,9 +228,9 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(
-          lk, std::chrono::milliseconds(100), [test]()
+          lk, std::chrono::milliseconds(1000), [test]()
           {
-            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(completed);
       }
@@ -239,7 +239,7 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
     AND_WHEN("door state is closed and supervisor has session")
     {
       rmf_rxcpp::subscription_guard sub2 =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
         [publish_door_state, publish_heartbeat_with_session](const auto&)
@@ -252,9 +252,9 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(
-          lk, std::chrono::milliseconds(100), [test]()
+          lk, std::chrono::milliseconds(1000), [test]()
           {
-            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(!completed);
       }
@@ -267,11 +267,11 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
 
       bool completed =
         test->status_updates_cv.wait_for(
-        lk, std::chrono::milliseconds(100), [test]()
+        lk, std::chrono::milliseconds(1000), [test]()
         {
           for (const auto& status : test->status_updates)
           {
-            if (status.state == Task::StatusMsg::STATE_COMPLETED)
+            if (status.state == LegacyTask::StatusMsg::STATE_COMPLETED)
               return true;
           }
           test->status_updates.clear();

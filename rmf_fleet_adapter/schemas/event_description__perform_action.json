@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description__perform_action.json",
+  "title": "PerformAction event Description",
+  "description": "Description schema for the perform_action category",
+  "type": "object",
+  "properties": {
+    "category": {
+      "description": "A string that describes the nature of this action. It should match that passed into FleetUpdateHandle::add_performable_action()",
+      "type": "string"
+    },
+    "description": {
+      "description": "Additional information that will be passed along to the action executor."
+    },
+    "unix_millis_action_duration_estimate": {
+      "description": "(Recommended) The estimated duration for this action",
+      "type": "integer"
+    },
+    "use_tool_sink": {
+      "description": "(Optional) Whether the tool on the robot will be powered during the action. Default to false",
+      "type": "boolean"
+    },
+    "expected_finish_location": {
+      "description": "(Optional) A place that the robot will end up after the action. Default to last known location",
+      "$ref": "place.json"
+    }
+  },
+  "required": ["category", "description"]
+}

@@ -58,7 +58,10 @@
 #include <rmf_battery/agv/SimpleDevicePowerSink.hpp>
 
 #include <Eigen/Geometry>
+#include <nlohmann/json.hpp>
+
 #include <unordered_set>
+#include <optional>
 
 //==============================================================================
 rmf_fleet_adapter::agv::RobotUpdateHandle::Unstable::Decision
@@ -149,7 +152,8 @@ std::optional<DistanceFromGraph> distance_from_graph(
 
 //==============================================================================
 class FleetDriverRobotCommandHandle
-  : public rmf_fleet_adapter::agv::RobotCommandHandle
+  : public rmf_fleet_adapter::agv::RobotCommandHandle,
+  public std::enable_shared_from_this<FleetDriverRobotCommandHandle>
 {
 public:
 
@@ -158,6 +162,9 @@ public:
 
   using ModeRequestPub =
     rclcpp::Publisher<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr;
+
+  using ActionExecution =
+    rmf_fleet_adapter::agv::RobotUpdateHandle::ActionExecution;
 
   FleetDriverRobotCommandHandle(
     rclcpp::Node& node,
@@ -480,6 +487,21 @@ public:
   void set_updater(rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
   {
     _travel_info.updater = std::move(updater);
+    // Set the action_executor for the robot
+    const auto teleop_executioner =
+      [w = weak_from_this()](const std::string& category,
+        const nlohmann::json& description,
+        ActionExecution execution)
+      {
+        // We do not do anything here. The user can can move the robot by
+        // sending PathRequest msgs. Instead we simply store the completed
+        // callback which will be called when we receive a RobotModeRequest.
+        const auto self = w.lock();
+        if (!self)
+          return;
+        self->set_action_execution(execution);
+      };
+    _travel_info.updater->set_action_executor(teleop_executioner);
   }
 
   void newly_closed_lanes(const std::unordered_set<std::size_t>& closed_lanes)
@@ -566,6 +588,25 @@ public:
       _travel_info.updater->interrupted();
   }
 
+  void set_action_execution(ActionExecution action_execution)
+  {
+    _action_execution = action_execution;
+  }
+
+  void complete_robot_action()
+  {
+    if (!_action_execution.has_value())
+      return;
+
+    _action_execution->finished();
+    _action_execution = std::nullopt;
+
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "Robot [%s] has completed the action it was performing",
+      _travel_info.robot_name.c_str());
+  }
+
 private:
 
   rclcpp::Node* _node;
@@ -588,6 +629,9 @@ private:
   uint32_t _current_task_id = 0;
 
   std::mutex _mutex;
+
+  // ActionExecution for managing teleop action
+  std::optional<ActionExecution> _action_execution = std::nullopt;
 
   std::unique_lock<std::mutex> _lock()
   {
@@ -638,6 +682,10 @@ struct Connections : public std::enable_shared_from_this<Connections>
   /// The publisher for sending out mode requests
   rclcpp::Publisher<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr
     mode_request_pub;
+
+  /// The topic subscription for ending teleop actions
+  rclcpp::Subscription<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr
+    mode_request_sub;
 
   /// The client for listening to whether there is clearance in a lift
   rclcpp::Client<rmf_fleet_msgs::srv::LiftClearance>::SharedPtr
@@ -839,12 +887,24 @@ std::shared_ptr<Connections> make_fleet(
   for (const auto& key : connections->graph->keys())
     std::cout << " -- " << key.first << std::endl;
 
+  std::optional<std::string> server_uri = std::nullopt;
+  const std::string uri =
+    node->declare_parameter("server_uri", std::string());
+  if (!uri.empty())
+  {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "API server URI: [%s]", uri.c_str());
+
+    server_uri = uri;
+  }
+
   connections->fleet = adapter->add_fleet(
-    fleet_name, *connections->traits, *connections->graph);
+    fleet_name, *connections->traits, *connections->graph, server_uri);
 
   // We disable fleet state publishing for this fleet adapter because we expect
   // the fleet drivers to publish these messages.
-  connections->fleet->fleet_state_publish_period(std::nullopt);
+  connections->fleet->fleet_state_topic_publish_period(std::nullopt);
 
   connections->closed_lanes_pub =
     adapter->node()->create_publisher<rmf_fleet_msgs::msg::ClosedLanes>(
@@ -893,6 +953,36 @@ std::shared_ptr<Connections> make_fleet(
 
       connections->closed_lanes_pub->publish(state_msg);
     });
+
+  /* *INDENT-OFF* */
+  connections->mode_request_sub =
+    adapter->node()->create_subscription<rmf_fleet_msgs::msg::ModeRequest>(
+    "/action_execution_notice",
+    rclcpp::SystemDefaultsQoS(),
+    [w = connections->weak_from_this(), fleet_name](
+      rmf_fleet_msgs::msg::ModeRequest::UniquePtr msg)
+    {
+      if (msg->fleet_name.empty() ||
+        msg->fleet_name != fleet_name ||
+        msg->robot_name.empty())
+      {
+        return;
+      }
+
+      if (msg->mode.mode == msg->mode.MODE_IDLE)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        const auto command_it = self->robots.find(msg->robot_name);
+        if (command_it == self->robots.end())
+          return;
+
+        command_it->second->complete_robot_action();
+      }
+    });
+  /* *INDENT-ON* */
 
   // Parameters required for task planner
   // Battery system
@@ -1051,6 +1141,20 @@ std::shared_ptr<Connections> make_fleet(
 
       return false;
     });
+
+  const auto consider =
+    [](const nlohmann::json& /*description*/,
+      rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
+    {
+      // We accept all actions since full_control may be used for different
+      // types of robots.
+      confirm.accept();
+    };
+
+  // Configure this fleet to perform any kind of teleop action
+  connections->fleet->add_performable_action(
+    "teleop",
+    consider);
 
   if (node->declare_parameter<bool>("disable_delay_threshold", false))
   {

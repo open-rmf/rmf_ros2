@@ -25,6 +25,7 @@
 #include <rmf_traffic/schedule/Participant.hpp>
 
 #include <Eigen/Geometry>
+#include <nlohmann/json.hpp>
 
 #include <vector>
 #include <memory>
@@ -109,6 +110,51 @@ public:
   /// it may take some time for the return value of this getter to match the
   /// value that was given to the setter.
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
+
+  /// The ActionExecution class should be used to manage the execution of and
+  /// provide updates on ongoing actions.
+  class ActionExecution
+  {
+  public:
+    // Update the amount of time remaining for this action
+    void update_remaining_time(rmf_traffic::Duration remaining_time_estimate);
+
+    // Trigger this when the action is finished
+    void finished();
+
+    // Returns false if the Action has been killed or cancelled
+    bool okay() const;
+
+    // TODO: Consider giving access to the participant schedule and
+    // traffic negotiation
+
+    // The desctructor will trigger finished() if it has not already been called
+    ~ActionExecution();
+
+    class Implementation;
+  private:
+    ActionExecution();
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
+  /// Signature for a callback to request the robot to perform an action
+  ///
+  /// \param[in] category
+  ///   A category of the action to be performed
+  ///
+  /// \param[in] description
+  ///   A description of the action to be performed
+  ///
+  /// \param[in] execution
+  ///   An ActionExecution object that will be provided to the user for
+  ///   updating the state of the action.
+  using ActionExecutor = std::function<void(
+        const std::string& category,
+        const nlohmann::json& description,
+        ActionExecution execution)>;
+
+  /// Set the ActionExecutor for this robot
+  void set_action_executor(ActionExecutor action_executor);
 
   class Implementation;
 

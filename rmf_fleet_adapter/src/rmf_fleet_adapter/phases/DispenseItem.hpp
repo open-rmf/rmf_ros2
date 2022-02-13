@@ -19,7 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__PHASES__DISPENSEITEM_HPP
 
 #include "RxOperators.hpp"
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 #include "rmf_fleet_adapter/StandardNames.hpp"
 
@@ -33,7 +33,7 @@ namespace phases {
 
 struct DispenseItem
 {
-  class ActivePhase : public Task::ActivePhase,
+  class ActivePhase : public LegacyTask::ActivePhase,
     public std::enable_shared_from_this<ActivePhase>
   {
   public:
@@ -45,7 +45,7 @@ struct DispenseItem
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items);
 
-    const rxcpp::observable<Task::StatusMsg>& observe() const override;
+    const rxcpp::observable<LegacyTask::StatusMsg>& observe() const override;
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 
@@ -63,7 +63,7 @@ struct DispenseItem
     std::string _transporter_type;
     std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> _items;
     std::string _description;
-    rxcpp::observable<Task::StatusMsg> _obs;
+    rxcpp::observable<LegacyTask::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
     bool _request_acknowledged = false;
     builtin_interfaces::msg::Time _last_msg;
@@ -77,14 +77,14 @@ struct DispenseItem
 
     void _init_obs();
 
-    Task::StatusMsg _get_status(
+    LegacyTask::StatusMsg _get_status(
       const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result,
       const rmf_dispenser_msgs::msg::DispenserState::SharedPtr& dispenser_state);
 
     void _do_publish();
   };
 
-  class PendingPhase : public Task::PendingPhase
+  class PendingPhase : public LegacyTask::PendingPhase
   {
   public:
 
@@ -95,7 +95,7 @@ struct DispenseItem
       std::string transporter_type,
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items);
 
-    std::shared_ptr<Task::ActivePhase> begin() override;
+    std::shared_ptr<LegacyTask::ActivePhase> begin() override;
 
     rmf_traffic::Duration estimate_phase_duration() const override;
 

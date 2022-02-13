@@ -18,17 +18,25 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__TASKMANAGER_HPP
 #define SRC__RMF_FLEET_ADAPTER__TASKMANAGER_HPP
 
-#include "Task.hpp"
+#include "LegacyTask.hpp"
 #include "agv/RobotContext.hpp"
+#include "BroadcastClient.hpp"
 
 #include <rmf_traffic/agv/Planner.hpp>
 
-#include <rmf_task/agv/TaskPlanner.hpp>
+#include <rmf_task/TaskPlanner.hpp>
+#include <rmf_task/Activator.hpp>
+
+#include <rmf_task_sequence/Event.hpp>
 
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
 
+#include <nlohmann/json.hpp>
+#include <nlohmann/json-schema.hpp>
+
 #include <mutex>
+#include <set>
 
 namespace rmf_fleet_adapter {
 
@@ -42,37 +50,84 @@ class TaskManager : public std::enable_shared_from_this<TaskManager>
 {
 public:
 
-  static std::shared_ptr<TaskManager> make(agv::RobotContextPtr context);
+  static std::shared_ptr<TaskManager> make(
+    agv::RobotContextPtr context,
+    std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+    std::weak_ptr<agv::FleetUpdateHandle> fleet_handle);
 
   using Start = rmf_traffic::agv::Plan::Start;
   using StartSet = rmf_traffic::agv::Plan::StartSet;
-  using Assignment = rmf_task::agv::TaskPlanner::Assignment;
-  using State = rmf_task::agv::State;
+  using Assignment = rmf_task::TaskPlanner::Assignment;
+  using State = rmf_task::State;
   using RobotModeMsg = rmf_fleet_msgs::msg::RobotMode;
   using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
   using TaskProfiles = std::unordered_map<std::string, TaskProfileMsg>;
   using TaskSummaryMsg = rmf_task_msgs::msg::TaskSummary;
 
-  /// The location where we expect this robot to be at the end of its current
-  /// task queue.
-  StartSet expected_finish_location() const;
+  struct DirectAssignment
+  {
+    std::size_t sequence_number;
+    Assignment assignment;
+
+    DirectAssignment(
+      std::size_t sequence_number_,
+      Assignment assignment_)
+    : sequence_number(sequence_number_),
+      assignment(std::move(assignment_))
+    {
+      // Do nothing
+    }
+
+  };
+
+  struct DirectQueuePriority
+  {
+    bool operator()(const DirectAssignment& a, const DirectAssignment& b) const
+    {
+      // Sort by start time and then sequence_number if tie
+      const auto start_time_b =
+        b.assignment.request()->booking()->earliest_start_time();
+      const auto start_time_a =
+        a.assignment.request()->booking()->earliest_start_time();
+
+      if (start_time_b == start_time_a)
+      {
+        return b.sequence_number < a.sequence_number;
+      }
+
+      return start_time_b < start_time_a;
+    }
+  };
+
+  using DirectQueue = std::set<
+    DirectAssignment,
+    DirectQueuePriority>;
 
   const agv::RobotContextPtr& context();
 
   agv::ConstRobotContextPtr context() const;
 
-  const Task* current_task() const;
+  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client() const;
 
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
-  void set_queue(
-    const std::vector<Assignment>& assignments,
-    const TaskProfiles& task_profiles = {});
+  void set_queue(const std::vector<Assignment>& assignments);
 
   /// Get the non-charging requests among pending tasks
   const std::vector<rmf_task::ConstRequestPtr> requests() const;
 
-  /// The state of the robot.
+  std::optional<std::string> current_task_id() const;
+
+  const std::vector<Assignment>& get_queue() const;
+
+  bool cancel_task_if_present(const std::string& task_id);
+
+  std::string robot_status() const;
+
+  /// The state of the robot. If the direct assignment queue is not empty,
+  /// This will always return the state of the robot after completing all
+  /// the tasks in the direct assignment queue. Otherwise, the current state
+  /// is returned
   State expected_finish_state() const;
 
   /// Callback for the retreat timer. Appends a charging task to the task queue
@@ -85,13 +140,115 @@ public:
 
   RobotModeMsg robot_mode() const;
 
+  /// Get a vector of task logs that are validated against the schema
+  std::vector<nlohmann::json> task_log_updates() const;
+
 private:
 
-  TaskManager(agv::RobotContextPtr context);
+  TaskManager(
+    agv::RobotContextPtr context,
+    std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+    std::weak_ptr<agv::FleetUpdateHandle>);
+
+  class ActiveTask
+  {
+  public:
+    ActiveTask();
+
+    static ActiveTask start(
+      rmf_task::Task::ActivePtr task,
+      rmf_traffic::Time time);
+
+    const std::string& id() const;
+
+    void publish_task_state(TaskManager& mgr);
+
+    operator bool() const
+    {
+      return static_cast<bool>(_task);
+    }
+
+    /// Adds an interruption
+    std::string add_interruption(
+      std::vector<std::string> labels,
+      rmf_traffic::Time time,
+      std::function<void()> task_is_interrupted);
+
+    // Any unknown tokens that were included will be returned
+    std::vector<std::string> remove_interruption(
+      std::vector<std::string> for_tokens,
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
+
+    void cancel(
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
+
+    void kill(
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
+
+    void rewind(uint64_t phase_id);
+
+    std::string skip(
+      uint64_t phase_id,
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
+
+    std::vector<std::string> remove_skips(
+      const std::vector<std::string>& for_tokens,
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
+
+  private:
+    rmf_task::Task::ActivePtr _task;
+    rmf_traffic::Time _start_time;
+    nlohmann::json _state_msg;
+
+    std::unordered_map<std::string, nlohmann::json> _active_interruptions;
+    std::unordered_map<std::string, nlohmann::json> _removed_interruptions;
+    std::optional<rmf_task::Task::Active::Resume> _resume_task;
+
+    struct InterruptionHandler
+      : public std::enable_shared_from_this<InterruptionHandler>
+    {
+      std::mutex mutex;
+      std::vector<std::function<void()>> interruption_listeners;
+      bool is_interrupted = false;
+    };
+
+    std::shared_ptr<InterruptionHandler> _interruption_handler;
+
+    std::optional<nlohmann::json> _cancellation;
+    std::optional<nlohmann::json> _killed;
+
+    struct SkipInfo
+    {
+      std::unordered_map<std::string, nlohmann::json> active_skips;
+      std::unordered_map<std::string, nlohmann::json> removed_skips;
+    };
+
+    std::unordered_map<uint64_t, SkipInfo> _skip_info_map;
+
+    uint64_t _next_token = 0;
+  };
+
+  friend class ActiveTask;
 
   agv::RobotContextPtr _context;
-  std::shared_ptr<Task> _active_task;
-  std::vector<std::shared_ptr<Task>> _queue;
+  std::optional<std::weak_ptr<BroadcastClient>> _broadcast_client;
+  std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
+  rmf_task::ConstActivatorPtr _task_activator;
+  ActiveTask _active_task;
+  bool _emergency_active = false;
+  std::optional<std::string> _emergency_pullover_interrupt_token;
+  rmf_task_sequence::Event::ActivePtr _emergency_pullover;
+  // Queue for dispatched tasks
+  std::vector<Assignment> _queue;
+  // An ID to keep track of the FIFO order of direct tasks
+  std::size_t _next_sequence_number;
+  // Queue for directly assigned tasks
+  DirectQueue _direct_queue;
   rmf_utils::optional<Start> _expected_finish_location;
   rxcpp::subscription _task_sub;
   rxcpp::subscription _emergency_sub;
@@ -99,18 +256,51 @@ private:
   /// This phase will kick in automatically when no task is being executed. It
   /// will ensure that the agent continues to respond to traffic negotiations so
   /// it does not become a blocker for other traffic participants.
-  std::shared_ptr<Task::ActivePhase> _waiting;
+  std::shared_ptr<LegacyTask::ActivePhase> _waiting;
 
   // TODO: Eliminate the need for a mutex by redesigning the use of the task
   // manager so that modifications of shared data only happen on designated
   // rxcpp worker
-  std::mutex _mutex;
+  mutable std::mutex _mutex;
   rclcpp::TimerBase::SharedPtr _task_timer;
   rclcpp::TimerBase::SharedPtr _retreat_timer;
+  rclcpp::TimerBase::SharedPtr _update_timer;
+  bool _task_state_update_available = true;
+  std::chrono::steady_clock::time_point _last_update_time;
 
   // Container to keep track of tasks that have been started by this TaskManager
   // Use the _register_executed_task() to populate this container.
   std::vector<std::string> _executed_task_registry;
+
+  // TravelEstimator for caching travel estimates for automatic charging
+  // retreat. TODO(YV): Expose the TaskPlanner's TravelEstimator.
+  std::shared_ptr<rmf_task::TravelEstimator> _travel_estimator;
+
+  // Map schema url to schema for validator.
+  // TODO: Get this and loader from FleetUpdateHandle
+  std::unordered_map<std::string, nlohmann::json> _schema_dictionary = {};
+
+  rmf_rxcpp::subscription_guard _task_request_api_sub;
+
+  // Constant jsons with validated schemas for internal use
+  // TODO(YV): Replace these with codegen tools
+  const nlohmann::json _task_log_update_msg =
+  {{"type", "task_log_update"}, {"data", {}}};
+  const nlohmann::json _task_log_json =
+  {{"task_id", {}}, {"log", {}}, {"phases", {{"log", {}}, {"events, {}"}}}};
+  const nlohmann::json _task_state_update_json =
+  {{"type", "task_state_update"}, {"data", {}}};
+  const nlohmann::json _task_state_json =
+  {{"booking", {}}, {"category", {}}, {"detail", {}},
+    {"unix_millis_start_time", {}}, {"unix_millis_finish_time", {}},
+    {"estimate_millis", {}}, {"phases", {}}, {"completed", {}}, {"active", {}},
+    {"pending", {}}, {"interruptions", {}}, {"cancellation", {}},
+    {"killed", {}}};
+
+  rmf_task::Log::Reader _log_reader;
+
+  // Map task_id to task_log.json for all tasks managed by this TaskManager
+  std::unordered_map<std::string, nlohmann::json> _task_logs = {};
 
   /// Callback for task timer which begins next task if its deployment time has passed
   void _begin_next_task();
@@ -118,15 +308,142 @@ private:
   /// Begin responsively waiting for the next task
   void _begin_waiting();
 
+  /// Make the callback for resuming
+  std::function<void()> _make_resume_from_emergency();
+
+  /// Resume whatever the task manager should be doing
+  void _resume_from_emergency();
+
+  /// Get the current state of the robot
+  rmf_task::State _get_state() const;
+
+  /// Check whether publishing should happen
+  void _consider_publishing_updates();
+
+  /// Publish the current task state
+  void _publish_task_state();
+
+  /// Publish the current pending task list
+  void _publish_task_queue();
+
+  /// Schema loader for validating jsons
+  void _schema_loader(
+    const nlohmann::json_uri& id, nlohmann::json& value) const;
+
+  /// Returns true if json is valid.
+  // TODO: Move this into a utils?
+  bool _validate_json(
+    const nlohmann::json& json,
+    const nlohmann::json_schema::json_validator& validator,
+    std::string& error) const;
+
+  /// If the request message is valid this will return true. If it is not valid,
+  /// this will publish an error message for this request and return false. The
+  /// caller should not attempt to process this request or respond to it any
+  /// further.
+  bool _validate_request_message(
+    const nlohmann::json& request,
+    const nlohmann::json_schema::json_validator& validator,
+    const std::string& request_id);
+
+  void _send_simple_success_response(
+    const std::string& request_id);
+
+  void _send_token_success_response(
+    std::string token,
+    const std::string& request_id);
+
+  /// Make a validator for the given schema
+  nlohmann::json_schema::json_validator _make_validator(
+    const nlohmann::json& schema) const;
+
+  void _send_simple_error_response(
+    const std::string& request_id,
+    uint64_t code,
+    std::string category,
+    std::string detail);
+
+  void _send_simple_error_if_queued(
+    const std::string& task_id,
+    const std::string& request_id,
+    const std::string& type);
+
+  /// Make an error message to return
+  static nlohmann::json _make_error_response(
+    uint64_t code,
+    std::string category,
+    std::string detail);
+
+  /// Validate and publish a json. This can be used for task
+  /// state and log updates
+  void _validate_and_publish_websocket(
+    const nlohmann::json& msg,
+    const nlohmann::json_schema::json_validator& validator) const;
+
+  /// Validate and publish a response message over the ROS2 API response topic
+  void _validate_and_publish_api_response(
+    const nlohmann::json& msg,
+    const nlohmann::json_schema::json_validator& validator,
+    const std::string& request_id);
+
+  /// Callback for when the task has a significat update
+  std::function<void(rmf_task::Phase::ConstSnapshotPtr)> _update_cb();
+
+  /// Callback for when the task reaches a checkpoint
+  std::function<void(rmf_task::Task::Active::Backup)> _checkpoint_cb();
+
+  /// Callback for when a phase within a task has finished
+  std::function<void(rmf_task::Phase::ConstCompletedPtr)> _phase_finished_cb();
+
+  /// Callback for when the task has finished
+  std::function<void()> _task_finished(std::string id);
+
   /// Function to register the task id of a task that has begun execution
   /// The input task id will be inserted into the registry such that the max
   /// size of the registry is 100.
   void _register_executed_task(const std::string& id);
 
   void _populate_task_summary(
-    std::shared_ptr<Task> task,
+    std::shared_ptr<LegacyTask> task,
     uint32_t task_summary_state,
     TaskSummaryMsg& msg);
+
+  void _handle_request(
+    const std::string& request_msg,
+    const std::string& request_id);
+
+  void _handle_direct_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_cancel_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_kill_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_interrupt_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_resume_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_rewind_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_skip_phase_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_undo_skip_phase_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
 };
 
 using TaskManagerPtr = std::shared_ptr<TaskManager>;

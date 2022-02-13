@@ -191,7 +191,7 @@ void Negotiate::operator()(const Subscriber& s)
       }
 
       bool resume = false;
-      if (n->_evaluator.evaluate(result.job.progress()))
+      if (n->_evaluator.evaluate(result.job->progress()))
       {
         resume = true;
       }
@@ -199,12 +199,12 @@ void Negotiate::operator()(const Subscriber& s)
       && n->_viewer->parent_id())
       {
         const auto parent_id = *n->_viewer->parent_id();
-        for (const auto p : result.job.progress().blockers())
+        for (const auto p : result.job->progress().blockers())
         {
           if (p == parent_id)
           {
             n->_attempting_rollout = true;
-            auto rollout_source = result.job.progress();
+            auto rollout_source = result.job->progress();
             static_cast<rmf_traffic::agv::NegotiatingRouteValidator*>(
               rollout_source.options().validator().get())->mask(parent_id);
 
@@ -228,7 +228,7 @@ void Negotiate::operator()(const Subscriber& s)
 
       if (!check_if_finished())
       {
-        const auto job = result.job.shared_from_this();
+        const auto job = result.job;
         if (resume)
         {
           if (n->_current_jobs.find(job) != n->_current_jobs.end())

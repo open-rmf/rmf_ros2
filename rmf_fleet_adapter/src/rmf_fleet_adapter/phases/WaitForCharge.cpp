@@ -92,7 +92,7 @@ WaitForCharge::Active::Active(
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> WaitForCharge::Pending::begin()
+std::shared_ptr<LegacyTask::ActivePhase> WaitForCharge::Pending::begin()
 {
   const auto& now = std::chrono::steady_clock::now();
 

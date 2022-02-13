@@ -38,7 +38,7 @@ struct TestData
   std::list<DispenserRequest> received_requests;
 
   std::condition_variable status_updates_cv;
-  std::list<Task::StatusMsg> status_updates;
+  std::list<LegacyTask::StatusMsg> status_updates;
 
   std::optional<uint32_t> last_state_value() const
   {
@@ -137,11 +137,11 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
 
       bool completed =
         test->status_updates_cv.wait_for(
-        lk, std::chrono::milliseconds(30), [test]()
+        lk, std::chrono::milliseconds(3000), [test]()
         {
           for (const auto& status : test->status_updates)
           {
-            if (status.state == Task::StatusMsg::STATE_COMPLETED)
+            if (status.state == LegacyTask::StatusMsg::STATE_COMPLETED)
               return true;
           }
           test->status_updates.clear();
@@ -162,7 +162,7 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
         std::weak_ptr<rclcpp::Publisher<DispenserState>>(state_pub);
 
       auto timer = data->node->try_create_wall_timer(
-        std::chrono::milliseconds(1),
+        std::chrono::milliseconds(100),
         [weak_test_ptr,
         weak_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
         request_guid,
@@ -202,9 +202,9 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(
-          lk, std::chrono::milliseconds(10), [test]()
+          lk, std::chrono::milliseconds(1000), [test]()
           {
-            return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(completed);
       }
@@ -226,7 +226,7 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
         std::weak_ptr<rclcpp::Publisher<DispenserState>>(state_pub);
 
       auto timer = data->node->try_create_wall_timer(
-        std::chrono::milliseconds(1),
+        std::chrono::milliseconds(100),
         [weak_test_ptr,
         weak_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
         request_guid,
@@ -267,9 +267,9 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
         std::unique_lock<std::mutex> lk(test->m);
         bool failed =
           test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              10), [test]()
+              1000), [test]()
             {
-              return test->last_state_value() == Task::StatusMsg::STATE_FAILED;
+              return test->last_state_value() == LegacyTask::StatusMsg::STATE_FAILED;
             });
         CHECK(failed);
       }
@@ -291,7 +291,7 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
         std::weak_ptr<rclcpp::Publisher<DispenserState>>(state_pub);
 
       auto interval =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
         [weak_node = std::weak_ptr<rclcpp::Node>(data->ros_node),
@@ -330,9 +330,9 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              10), [test]()
+              1000), [test]()
             {
-              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
             });
         CHECK(completed);
       }
@@ -354,7 +354,7 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
         std::weak_ptr<rclcpp::Publisher<DispenserState>>(state_pub);
 
       auto interval =
-        rxcpp::observable<>::interval(std::chrono::milliseconds(1))
+        rxcpp::observable<>::interval(std::chrono::milliseconds(100))
         .subscribe_on(rxcpp::observe_on_new_thread())
         .subscribe(
         [
@@ -396,9 +396,9 @@ SCENARIO_METHOD(MockAdapterFixture, "dispense item phase", "[phases]")
       {
         std::unique_lock<std::mutex> lk(test->m);
         bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
-              10), [test]()
+              1000), [test]()
             {
-              return test->last_state_value() == Task::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
             });
         CHECK(!completed);
       }

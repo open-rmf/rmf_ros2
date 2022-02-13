@@ -19,7 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__PHASES__DOOROPEN_HPP
 
 #include "DoorClose.hpp"
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 
 #include <rmf_rxcpp/Transport.hpp>
@@ -39,7 +39,7 @@ struct DoorOpen
    * 2. It is completed when the supervisor state contains the requester_id and the door has an OPEN mode
    * 4. If cancelled, should start a door close phase
    */
-  class ActivePhase : public Task::ActivePhase,
+  class ActivePhase : public LegacyTask::ActivePhase,
     public std::enable_shared_from_this<ActivePhase>
   {
   public:
@@ -50,7 +50,7 @@ struct DoorOpen
       std::string request_id,
       rmf_traffic::Time expected_finish);
 
-    const rxcpp::observable<Task::StatusMsg>& observe() const override;
+    const rxcpp::observable<LegacyTask::StatusMsg>& observe() const override;
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 
@@ -68,10 +68,10 @@ struct DoorOpen
     rmf_traffic::Time _expected_finish;
     rxcpp::subjects::behavior<bool> _cancelled =
       rxcpp::subjects::behavior<bool>(false);
-    rxcpp::observable<Task::StatusMsg> _obs;
+    rxcpp::observable<LegacyTask::StatusMsg> _obs;
     std::string _description;
     rclcpp::TimerBase::SharedPtr _timer;
-    Task::StatusMsg _status;
+    LegacyTask::StatusMsg _status;
     std::shared_ptr<DoorClose::ActivePhase> _door_close_phase;
 
     ActivePhase(
@@ -89,7 +89,7 @@ struct DoorOpen
       const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat);
   };
 
-  class PendingPhase : public Task::PendingPhase
+  class PendingPhase : public LegacyTask::PendingPhase
   {
   public:
 
@@ -99,11 +99,16 @@ struct DoorOpen
       std::string request_id,
       rmf_traffic::Time expected_finish);
 
-    std::shared_ptr<Task::ActivePhase> begin() override;
+    std::shared_ptr<LegacyTask::ActivePhase> begin() override;
 
     rmf_traffic::Duration estimate_phase_duration() const override;
 
     const std::string& description() const override;
+
+    const std::string& door_name() const
+    {
+      return _door_name;
+    }
 
   private:
 

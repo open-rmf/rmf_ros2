@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__DOORCLOSE_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__DOORCLOSE_HPP
 
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 
 #include <rmf_rxcpp/Transport.hpp>
@@ -38,7 +38,7 @@ struct DoorClose
    * 3. It is completed when the supervisor state does NOT contains the requester_id, regardless of the door state
    * 4. Cancellation requests are ignored
    */
-  class ActivePhase : public Task::ActivePhase,
+  class ActivePhase : public LegacyTask::ActivePhase,
     public std::enable_shared_from_this<ActivePhase>
   {
   public:
@@ -48,7 +48,7 @@ struct DoorClose
       std::string door_name,
       std::string request_id);
 
-    const rxcpp::observable<Task::StatusMsg>& observe() const override;
+    const rxcpp::observable<LegacyTask::StatusMsg>& observe() const override;
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 
@@ -63,10 +63,10 @@ struct DoorClose
     agv::RobotContextPtr _context;
     std::string _door_name;
     std::string _request_id;
-    rxcpp::observable<Task::StatusMsg> _obs;
+    rxcpp::observable<LegacyTask::StatusMsg> _obs;
     std::string _description;
     rclcpp::TimerBase::SharedPtr _timer;
-    Task::StatusMsg _status;
+    LegacyTask::StatusMsg _status;
 
     ActivePhase(
       agv::RobotContextPtr context,
@@ -81,7 +81,7 @@ struct DoorClose
       const rmf_door_msgs::msg::SupervisorHeartbeat::SharedPtr& heartbeat);
   };
 
-  class PendingPhase : public Task::PendingPhase
+  class PendingPhase : public LegacyTask::PendingPhase
   {
   public:
 
@@ -90,11 +90,16 @@ struct DoorClose
       std::string door_name,
       std::string request_id);
 
-    std::shared_ptr<Task::ActivePhase> begin() override;
+    std::shared_ptr<LegacyTask::ActivePhase> begin() override;
 
     rmf_traffic::Duration estimate_phase_duration() const override;
 
     const std::string& description() const override;
+
+    const std::string& door_name() const
+    {
+      return _door_name;
+    }
 
   private:
 

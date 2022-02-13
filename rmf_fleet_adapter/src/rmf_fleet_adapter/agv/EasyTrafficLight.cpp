@@ -321,7 +321,7 @@ auto EasyTrafficLight::Implementation::moving_from(
       RCLCPP_WARN(
         node->get_logger(),
         "[EasyTrafficLight::moving_from] [%s] owned by [%s] is moving from an "
-        "invalid checkpoint [%u]. This robot currently does not have a path.",
+        "invalid checkpoint [%lu]. This robot currently does not have a path.",
         name.c_str(), owner.c_str(), checkpoint);
     }
     else
@@ -329,8 +329,8 @@ auto EasyTrafficLight::Implementation::moving_from(
       RCLCPP_WARN(
         node->get_logger(),
         "[EasyTrafficLight::moving_from] [%s] owned by [%s] is moving from "
-        "an invalid checkpoint [%u]. The highest checkpoint value that you "
-        "can move from is [%u].",
+        "an invalid checkpoint [%lu]. The highest checkpoint value that you "
+        "can move from is [%lu].",
         name.c_str(), owner.c_str(),
         checkpoint, current_checkpoints.size()-1);
     }
@@ -471,7 +471,7 @@ auto EasyTrafficLight::Implementation::waiting_at(
     RCLCPP_WARN(
       node->get_logger(),
       "[EasyTrafficLight::waiting_at] [%s] owned by [%s] is waiting at "
-      "checkpoint [%u] but the highest possible checkpoint is [%u]",
+      "checkpoint [%lu] but the highest possible checkpoint is [%lu]",
       name.c_str(), owner.c_str(), checkpoint, current_path.size()-1);
     return WaitingInstruction::WaitingError;
   }
@@ -503,8 +503,8 @@ auto EasyTrafficLight::Implementation::waiting_at(
     RCLCPP_WARN(
       node->get_logger(),
       "[EasyTrafficLight::waiting_at] [%s] owned by [%s] is waiting at "
-      "checkpoint [%u] but the robot was supposed to standby at checkpoint "
-      "[%u]",
+      "checkpoint [%lu] but the robot was supposed to standby at checkpoint "
+      "[%lu]",
       name.c_str(), owner.c_str(), checkpoint, standby_at);
     return WaitingInstruction::WaitingError;
   }
@@ -533,7 +533,7 @@ auto EasyTrafficLight::Implementation::waiting_after(
     RCLCPP_WARN(
       node->get_logger(),
       "[EasyTrafficLight::waiting_after] [%s] owned by [%s] waiting after "
-      "passing checkpoint [%u] but the highest possible checkpoint is [%u]",
+      "passing checkpoint [%lu] but the highest possible checkpoint is [%lu]",
       name.c_str(), owner.c_str(), checkpoint, current_path.size()-1);
     return WaitingInstruction::WaitingError;
   }
@@ -561,8 +561,8 @@ auto EasyTrafficLight::Implementation::waiting_after(
     RCLCPP_WARN(
       node->get_logger(),
       "[EasyTrafficLight::waiting_after] [%s] owned by [%s] waiting after "
-      "passing checkpoint [%u] but the robot was supposed to standby at "
-      "checkpoint [%u]",
+      "passing checkpoint [%lu] but the robot was supposed to standby at "
+      "checkpoint [%lu]",
       name.c_str(), owner.c_str(), checkpoint, standby_at);
     return WaitingInstruction::WaitingError;
   }

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description__go_to_place.json",
+  "title": "Go To Place Event Description",
+  "description": "Have a robot go to a place",
+  "$ref": "place.json"
+}

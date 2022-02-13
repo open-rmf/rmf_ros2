@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/task_description__compose.json",
+  "title": "Compose Task Description",
+  "description": "Compose a task description based on activities that are supported by fleets. When supported by fleets, this can be used as a task description for task_request.",
+  "type": "object",
+  "properties": {
+    "category": {
+      "description": "Specify the category for this composed task, as the operators should see it.",
+      "type": "string"
+    },
+    "detail": {
+      "description": "Specify the detail for this composed task, as the operators should see it.",
+      "type": "string"
+    },
+    "phases": {
+      "description": "List the phases of the task in the order that they should be performed.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "activity": { "$ref": "#/$defs/activity" },
+          "on_cancel": {
+            "description": "A list of activities to perform if the task is canceled during this phase. Each activity is given its own phase which can be skipped but not canceled.",
+            "type": "array",
+            "items": { "$ref": "#/$defs/activity" }
+          }
+        },
+        "required": ["activity"]
+      },
+      "minimum": 1
+    }
+  },
+  "required": ["phases"],
+  "$defs": {
+    "activity": {
+      "description": "Describe the activity of the phase. This must match an activity description supported by one of the fleets. If there should be multiple activities within a phase, then use a Sequence activity.",
+      "type": "object",
+      "properties": {
+        "category": {
+          "description": "The category of this phase's activity.",
+          "type": "string"
+        },
+        "description": {
+          "description": "A description of the activity. This must match a schema supported by a fleet for the category of this activity."
+        }
+      },
+      "required": ["category", "description"]
+    }
+  }
+}

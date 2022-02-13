@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description__clean.json",
+  "title": "Clean Event",
+  "description": "Clean a zone",
+  "type": "object",
+  "properties": {
+    "zone": { "type": "string" },
+    "type": { "type": "string" }
+  },
+  "required": ["zone"]
+}

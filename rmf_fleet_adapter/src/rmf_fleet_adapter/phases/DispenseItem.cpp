@@ -42,7 +42,7 @@ std::shared_ptr<DispenseItem::ActivePhase> DispenseItem::ActivePhase::make(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>&
+const rxcpp::observable<LegacyTask::StatusMsg>&
 DispenseItem::ActivePhase::observe() const
 {
   return _obs;
@@ -87,7 +87,7 @@ DispenseItem::ActivePhase::ActivePhase(
   _items(std::move(items))
 {
   std::ostringstream oss;
-  oss << "Dispense items (";
+  oss << "Receive items (";
   for (size_t i = 0; i < _items.size(); i++)
   {
     oss << _items[i].type_guid;
@@ -135,11 +135,11 @@ void DispenseItem::ActivePhase::_init_obs()
       {
         auto me = weak.lock();
         if (!me)
-          return Task::StatusMsg();
+          return LegacyTask::StatusMsg();
 
         return me->_get_status(std::get<0>(v), std::get<1>(v));
       })
-    .lift<Task::StatusMsg>(grab_while_active())
+    .lift<LegacyTask::StatusMsg>(grab_while_active())
     .finally([weak = weak_from_this()]()
       {
         auto me = weak.lock();
@@ -152,12 +152,12 @@ void DispenseItem::ActivePhase::_init_obs()
 }
 
 //==============================================================================
-Task::StatusMsg DispenseItem::ActivePhase::_get_status(
+LegacyTask::StatusMsg DispenseItem::ActivePhase::_get_status(
   const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result,
   const rmf_dispenser_msgs::msg::DispenserState::SharedPtr& dispenser_state)
 {
-  Task::StatusMsg status{};
-  status.state = Task::StatusMsg::STATE_ACTIVE;
+  LegacyTask::StatusMsg status{};
+  status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
 
   using rmf_dispenser_msgs::msg::DispenserResult;
   if (dispenser_result
@@ -171,10 +171,10 @@ Task::StatusMsg DispenseItem::ActivePhase::_get_status(
         _request_acknowledged = true;
         break;
       case DispenserResult::SUCCESS:
-        status.state = Task::StatusMsg::STATE_COMPLETED;
+        status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
         break;
       case DispenserResult::FAILED:
-        status.state = Task::StatusMsg::STATE_FAILED;
+        status.state = LegacyTask::StatusMsg::STATE_FAILED;
         break;
     }
   }
@@ -200,7 +200,7 @@ Task::StatusMsg DispenseItem::ActivePhase::_get_status(
     {
       // The request has been received, so if it's no longer in the queue,
       // then we'll assume it's finished.
-      status.state = Task::StatusMsg::STATE_COMPLETED;
+      status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
     }
   }
 
@@ -245,7 +245,7 @@ DispenseItem::PendingPhase::PendingPhase(
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> DispenseItem::PendingPhase::begin()
+std::shared_ptr<LegacyTask::ActivePhase> DispenseItem::PendingPhase::begin()
 {
   return DispenseItem::ActivePhase::make(
     _context,

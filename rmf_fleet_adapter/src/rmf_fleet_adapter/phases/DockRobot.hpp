@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__DOCKROBOT_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__DOCKROBOT_HPP
 
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 
 namespace rmf_fleet_adapter {
@@ -29,7 +29,7 @@ struct DockRobot
 {
   class Action;
 
-  class ActivePhase : public Task::ActivePhase
+  class ActivePhase : public LegacyTask::ActivePhase
   {
   public:
 
@@ -37,7 +37,7 @@ struct DockRobot
       agv::RobotContextPtr context,
       std::string dock_name);
 
-    const rxcpp::observable<Task::StatusMsg>& observe() const override;
+    const rxcpp::observable<LegacyTask::StatusMsg>& observe() const override;
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 
@@ -54,10 +54,11 @@ struct DockRobot
     std::string _dock_name;
     std::string _description;
     std::shared_ptr<Action> _action;
-    rxcpp::observable<Task::StatusMsg> _obs;
+    rxcpp::observable<LegacyTask::StatusMsg> _obs;
+    std::shared_ptr<void> _be_stubborn;
   };
 
-  class PendingPhase : public Task::PendingPhase
+  class PendingPhase : public LegacyTask::PendingPhase
   {
   public:
 
@@ -65,7 +66,7 @@ struct DockRobot
       agv::RobotContextPtr context,
       std::string dock_name);
 
-    std::shared_ptr<Task::ActivePhase> begin() override;
+    std::shared_ptr<LegacyTask::ActivePhase> begin() override;
 
     rmf_traffic::Duration estimate_phase_duration() const override;
 
@@ -96,8 +97,8 @@ struct DockRobot
 template<typename Subscriber>
 void DockRobot::Action::operator()(const Subscriber& s)
 {
-  Task::StatusMsg status;
-  status.state = Task::StatusMsg::STATE_ACTIVE;
+  LegacyTask::StatusMsg status;
+  status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
   status.status = "Docking [" + _phase->_context->requester_id() +
     "] into dock ["
     + _phase->_dock_name + "]";
@@ -107,10 +108,10 @@ void DockRobot::Action::operator()(const Subscriber& s)
     _phase->_dock_name,
     [s, dock_name = _phase->_dock_name, context = _phase->_context]()
     {
-      Task::StatusMsg status;
+      LegacyTask::StatusMsg status;
       status.status = "Finished docking [" + context->requester_id()
       + "] into dock [" + dock_name + "]";
-      status.state = Task::StatusMsg::STATE_COMPLETED;
+      status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
       s.on_next(status);
       s.on_completed();
     });
