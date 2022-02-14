@@ -25,20 +25,21 @@ DockRobot::ActivePhase::ActivePhase(
   agv::RobotContextPtr context,
   std::string dock_name)
 : _context{std::move(context)},
-  _dock_name{std::move(dock_name)}
+  _dock_name{std::move(dock_name)},
+  _be_stubborn(_context->be_stubborn())
 {
   std::ostringstream oss;
   oss << "Docking robot to " << _dock_name;
   _description = oss.str();
 
   _action = std::make_shared<Action>(this);
-  _obs = rmf_rxcpp::make_job<Task::StatusMsg>(_action);
+  _obs = rmf_rxcpp::make_job<LegacyTask::StatusMsg>(_action);
 
   _context->current_mode(rmf_fleet_msgs::msg::RobotMode::MODE_DOCKING);
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>&
+const rxcpp::observable<LegacyTask::StatusMsg>&
 DockRobot::ActivePhase::observe() const
 {
   return _obs;
@@ -82,7 +83,7 @@ DockRobot::PendingPhase::PendingPhase(
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> DockRobot::PendingPhase::begin()
+std::shared_ptr<LegacyTask::ActivePhase> DockRobot::PendingPhase::begin()
 {
   return std::make_shared<DockRobot::ActivePhase>(_context, _dock_name);
 }

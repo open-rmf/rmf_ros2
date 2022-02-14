@@ -408,12 +408,12 @@ public:
     {
       request.version = minimum_version.value();
       request.full_update = false;
-      RCLCPP_INFO(
-        node->get_logger(),
-        "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
-        "for query ID [%ld] since version [%ld]",
-        request.query_id,
-        request.version);
+//      RCLCPP_INFO(
+//        node->get_logger(),
+//        "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
+//        "for query ID [%ld] since version [%ld]",
+//        request.query_id,
+//        request.version);
     }
     else
     {

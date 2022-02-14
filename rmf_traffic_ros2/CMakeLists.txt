@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.14)
 
 project(rmf_traffic_ros2)
 
@@ -16,10 +16,19 @@ include(GNUInstallDirs)
 find_package(ament_cmake REQUIRED)
 find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
+find_package(rmf_site_map_msgs REQUIRED)
 find_package(rmf_fleet_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(nlohmann_json REQUIRED)
+find_package(ZLIB REQUIRED)
+
+# NOTE(MXG): libproj-dev does not currently distribute its cmake config-files
+# in Debian, so we can't use find_package and need to rely on pkg-config.
+# find_package(PROJ REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PROJ REQUIRED IMPORTED_TARGET proj)
 
 if (rmf_traffic_FOUND)
   message(STATUS "found rmf_traffic")
@@ -45,6 +54,10 @@ if(BUILD_TESTING)
   ament_add_catch2(
     test_rmf_traffic_ros2 test/main.cpp ${unit_test_srcs}
     TIMEOUT 300)
+
+  target_compile_definitions(test_rmf_traffic_ros2
+    PRIVATE
+      "-DTEST_RESOURCES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test/resources/\"")
 
   target_link_libraries(test_rmf_traffic_ros2
       rmf_traffic_ros2
@@ -154,9 +167,13 @@ add_library(rmf_traffic_ros2 SHARED ${core_lib_srcs})
 target_link_libraries(rmf_traffic_ros2
   PUBLIC
     rmf_traffic::rmf_traffic
+    nlohmann_json::nlohmann_json
     ${rmf_traffic_msgs_LIBRARIES}
+    ${rmf_site_map_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     yaml-cpp
+    ZLIB::ZLIB
+    PkgConfig::PROJ
 )
 
 target_include_directories(rmf_traffic_ros2
@@ -164,6 +181,7 @@ target_include_directories(rmf_traffic_ros2
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_msgs_INCLUDE_DIRS}
+    ${rmf_site_map_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
 )
 
@@ -173,9 +191,12 @@ ament_export_dependencies(
   rmf_traffic
   rmf_traffic_msgs
   rmf_fleet_msgs
+  rmf_site_map_msgs
   Eigen3
   rclcpp
   yaml-cpp
+  nlohmann_json
+  ZLIB
 )
 
 # TODO(MXG): Change these executables into shared libraries that can act as
@@ -237,4 +258,7 @@ install(
   ARCHIVE DESTINATION lib
 )
 
-ament_package()
+ament_package(
+  CONFIG_EXTRAS
+    cmake/proj_dependency.cmake
+)

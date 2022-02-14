@@ -38,7 +38,7 @@ struct TestData
   std::string session_id;
 
   std::condition_variable status_updates_cv;
-  std::list<Task::StatusMsg> status_updates;
+  std::list<LegacyTask::StatusMsg> status_updates;
 };
 } // anonymous namespace
 
@@ -191,7 +191,7 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
             if (test->status_updates.empty())
               return false;
             const auto& state = test->status_updates.back().state;
-            return state == Task::StatusMsg::STATE_COMPLETED;
+            return state == LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(completed);
       }

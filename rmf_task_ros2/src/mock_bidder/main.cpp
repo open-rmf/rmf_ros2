@@ -17,14 +17,14 @@
 
 /// Note: This is a testing bidder node script
 
-#include <rmf_task_ros2/bidding/MinimalBidder.hpp>
-#include "../rmf_task_ros2/action/Server.hpp"
+#include <rmf_task_ros2/bidding/AsyncBidder.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
 
+#include <nlohmann/json.hpp>
+
 using namespace rmf_task_ros2;
-using TaskType = bidding::MinimalBidder::TaskType;
 
 int main(int argc, char* argv[])
 {
@@ -39,73 +39,31 @@ int main(int argc, char* argv[])
 
   //============================================================================
   // Create Bidder instance
-  std::shared_ptr<bidding::MinimalBidder> bidder = bidding::MinimalBidder::make(
+  std::shared_ptr<bidding::AsyncBidder> bidder = bidding::AsyncBidder::make(
     node,
-    fleet_name,
-    { TaskType::Clean, TaskType::Delivery },
-    [](const bidding::BidNotice& notice)
+    [node](
+      const bidding::BidNoticeMsg& notice,
+      bidding::AsyncBidder::Respond resp)
     {
-      // Here user will provice the best robot as a bid submission
+      // Here user will provide the best robot as a bid submission
       std::cout << "[MockBidder] Providing best estimates" << std::endl;
-      auto req_start_time =
-      rmf_traffic_ros2::convert(notice.task_profile.description.start_time);
+      const auto req = nlohmann::json::parse(notice.request);
+      const auto& start_time_json = req["unix_millis_earliest_start_time"];
+      const auto req_start_time = start_time_json ?
+      rmf_traffic::Time(
+        std::chrono::milliseconds(start_time_json.get<int64_t>())) :
+      rmf_traffic_ros2::convert(node->now());
 
-      bidding::Submission best_robot_estimate;
-      best_robot_estimate.robot_name = "dumbot";
-      best_robot_estimate.prev_cost = 10.2;
-      best_robot_estimate.new_cost = 13.5;
-      best_robot_estimate.finish_time =
-      rmf_traffic::time::apply_offset(req_start_time, 7);
-      return best_robot_estimate;
-    }
-  );
-
-  //============================================================================
-  // Create sample RMF task action server
-  auto action_server = action::Server::make(node, fleet_name);
-
-  action_server->register_callbacks(
-    [&action_server, &node](const TaskProfile& task_profile)
-    {
-      std::cout << "[MockBidder] ~Start Queue Task: "
-                << task_profile.task_id<<std::endl;
-
-      // async on executing task
-      // auto _ = std::async(std::launch::async,
-      auto t = std::thread(
-        [&action_server, &node](auto profile)
-        {
-          TaskStatus status;
-          status.task_profile = profile;
-          status.robot_name = "dumbot";
-          status.start_time = rmf_traffic_ros2::convert(node->now());
-          status.end_time =
-          rmf_traffic::time::apply_offset(status.start_time, 7);
-
-          const auto id = profile.task_id;
-          std::cout << " [MockBidder] Queued, TaskID: "  << id << std::endl;
-          action_server->update_status(status);
-
-          std::this_thread::sleep_for(std::chrono::seconds(2));
-          std::cout << " [MockBidder] Executing, TaskID: " << id << std::endl;
-          status.state = TaskStatus::State::Executing;
-          action_server->update_status(status);
-
-          std::this_thread::sleep_for(std::chrono::seconds(5));
-          std::cout << " [MockBidder] Completed, TaskID: " << id << std::endl;
-          status.state = TaskStatus::State::Completed;
-          action_server->update_status(status);
-        }, task_profile
-      );
-      t.detach();
-
-      return true; //successs (send State::Queued)
-    },
-    [&action_server](const TaskProfile& task_profile)
-    {
-      std::cout << "[MockBidder] ~Cancel Executing Task: "
-                << task_profile.task_id<<std::endl;
-      return true; //success , send State::Canceled
+      resp(bidding::Response{
+        bidding::Response::Proposal{
+          "mockfleet",
+          "mockbot",
+          10.2,
+          13.5,
+          rmf_traffic::time::apply_offset(req_start_time, 7)
+        },
+        {}
+      });
     }
   );
 

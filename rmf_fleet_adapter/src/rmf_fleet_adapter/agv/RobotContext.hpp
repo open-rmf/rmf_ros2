@@ -9,9 +9,10 @@
 #include <rmf_traffic/schedule/Participant.hpp>
 #include <rmf_traffic/schedule/Snapshot.hpp>
 
-#include <rmf_task/agv/State.hpp>
-#include <rmf_task/agv/Constraints.hpp>
-#include <rmf_task/agv/TaskPlanner.hpp>
+#include <rmf_task/State.hpp>
+#include <rmf_task/Constraints.hpp>
+#include <rmf_task/TaskPlanner.hpp>
+#include <rmf_task/Activator.hpp>
 
 #include <rclcpp/node.hpp>
 
@@ -49,6 +50,9 @@ public:
   /// Get the current time
   rmf_traffic::Time now() const;
 
+  /// Get a clock that can be used by task loggers
+  std::function<rmf_traffic::Time()> clock() const;
+
   /// This is the current "location" of the robot, which can be used to initiate
   /// a planning job
   const std::vector<rmf_traffic::agv::Plan::Start>& location() const;
@@ -73,6 +77,9 @@ public:
   /// Get the name of this robot
   const std::string& name() const;
 
+  /// Get the group (fleet) of this robot
+  const std::string& group() const;
+
   /// Get the requester ID to use for this robot when sending requests
   const std::string& requester_id() const;
 
@@ -89,6 +96,13 @@ public:
   /// robot.
   std::shared_ptr<NegotiatorLicense> set_negotiator(
     rmf_traffic::schedule::Negotiator* negotiator);
+
+  /// This function will indicate that GoToPlace should have a stubborn
+  /// negotiation behavior for as long as the returned handle is alive.
+  std::shared_ptr<void> be_stubborn();
+
+  /// If anything is holding onto a be_stubborn handle, this will return true.
+  bool is_stubborn() const;
 
   struct Empty {};
   const rxcpp::observable<Empty>& observe_interrupt() const;
@@ -116,12 +130,28 @@ public:
     const TableViewerPtr& table_viewer,
     const ResponderPtr& responder) final;
 
+  /// Get the task activator for this robot
+  const rmf_task::ConstActivatorPtr& task_activator() const;
+
+  const rmf_task::ConstParametersPtr& task_parameters() const;
+
   /// Set the state of this robot at the end of its current task
-  RobotContext& current_task_end_state(const rmf_task::agv::State& state);
+  RobotContext& current_task_end_state(const rmf_task::State& state);
 
   /// Get a mutable reference to the state of this robot at the end of its
   // current task
-  const rmf_task::agv::State& current_task_end_state() const;
+  const rmf_task::State& current_task_end_state() const;
+
+  /// Make a way to get the state for this robot
+  std::function<rmf_task::State()> make_get_state();
+
+  /// Get the current task ID of the robot, or a nullptr if the robot is not
+  /// performing any task
+  const std::string* current_task_id() const;
+
+  /// Set the current task ID of the robot, or give a nullopt if a task is not
+  /// being performed.
+  RobotContext& current_task_id(std::optional<std::string> id);
 
   /// Get the current battery state of charge
   double current_battery_soc() const;
@@ -130,15 +160,17 @@ public:
   /// publishes the battery soc via _battery_soc_publisher.
   RobotContext& current_battery_soc(const double battery_soc);
 
+  std::size_t dedicated_charger_wp() const;
+
   // Get a reference to the battery soc observer of this robot.
   const rxcpp::observable<double>& observe_battery_soc() const;
 
   /// Get a mutable reference to the task planner for this robot
-  const std::shared_ptr<const rmf_task::agv::TaskPlanner>& task_planner() const;
+  const std::shared_ptr<const rmf_task::TaskPlanner>& task_planner() const;
 
   /// Set the task planner for this robot
   RobotContext& task_planner(
-    const std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner);
+    const std::shared_ptr<const rmf_task::TaskPlanner> task_planner);
 
   void set_lift_entry_watchdog(
     RobotUpdateHandle::Unstable::Watchdog watchdog,
@@ -155,6 +187,14 @@ public:
   /// Return the current mode of the robot
   uint32_t current_mode() const;
 
+  /// Set the action executor for requesting this robot to execute a
+  /// PerformAction activity
+  void action_executor(RobotUpdateHandle::ActionExecutor action_executor);
+
+  /// Get the action executor for requesting this robot to execute a
+  /// PerformAction activity
+  RobotUpdateHandle::ActionExecutor action_executor() const;
+
 private:
   friend class FleetUpdateHandle;
   friend class RobotUpdateHandle;
@@ -165,11 +205,13 @@ private:
     rmf_traffic::schedule::Participant itinerary,
     std::shared_ptr<const Snappable> schedule,
     std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
+    rmf_task::ConstActivatorPtr activator,
+    rmf_task::ConstParametersPtr parameters,
     std::shared_ptr<Node> node,
     const rxcpp::schedulers::worker& worker,
     rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
-    rmf_task::agv::State state,
-    std::shared_ptr<const rmf_task::agv::TaskPlanner> task_planner);
+    rmf_task::State state,
+    std::shared_ptr<const rmf_task::TaskPlanner> task_planner);
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
@@ -177,9 +219,12 @@ private:
   rmf_traffic::schedule::Participant _itinerary;
   std::shared_ptr<const Snappable> _schedule;
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> _planner;
+  rmf_task::ConstActivatorPtr _task_activator;
+  rmf_task::ConstParametersPtr _task_parameters;
   std::shared_ptr<const rmf_traffic::Profile> _profile;
 
   std::shared_ptr<void> _negotiation_license;
+  std::shared_ptr<void> _stubbornness;
 
   rxcpp::subjects::subject<Empty> _interrupt_publisher;
   rxcpp::observable<Empty> _interrupt_obs;
@@ -193,20 +238,30 @@ private:
 
   /// Always call the current_battery_soc() setter to set a new value
   double _current_battery_soc = 1.0;
+  std::size_t _charger_wp;
   rxcpp::subjects::subject<double> _battery_soc_publisher;
   rxcpp::observable<double> _battery_soc_obs;
-  rmf_task::agv::State _current_task_end_state;
-  std::shared_ptr<const rmf_task::agv::TaskPlanner> _task_planner;
+  rmf_task::State _current_task_end_state;
+  std::optional<std::string> _current_task_id;
+  std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);
 
   // Mode value for RobotMode message
   uint32_t _current_mode;
+
+  RobotUpdateHandle::ActionExecutor _action_executor;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;
 using ConstRobotContextPtr = std::shared_ptr<const RobotContext>;
+
+//==============================================================================
+struct GetContext
+{
+  RobotContextPtr value;
+};
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

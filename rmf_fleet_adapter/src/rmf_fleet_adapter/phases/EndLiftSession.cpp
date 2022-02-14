@@ -49,7 +49,7 @@ EndLiftSession::Active::Active(
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>&
+const rxcpp::observable<LegacyTask::StatusMsg>&
 EndLiftSession::Active::observe() const
 {
   return _obs;
@@ -108,10 +108,10 @@ void EndLiftSession::Active::_init_obs()
       {
         const auto me = weak.lock();
         if (!me)
-          return Task::StatusMsg();
+          return LegacyTask::StatusMsg();
 
-        Task::StatusMsg msg;
-        msg.state = Task::StatusMsg::STATE_ACTIVE;
+        LegacyTask::StatusMsg msg;
+        msg.state = LegacyTask::StatusMsg::STATE_ACTIVE;
 
         if (state->lift_name != me->_lift_name)
           return msg;
@@ -119,12 +119,12 @@ void EndLiftSession::Active::_init_obs()
         if (state->session_id != me->_context->requester_id())
         {
           msg.status = "success";
-          msg.state = Task::StatusMsg::STATE_COMPLETED;
+          msg.state = LegacyTask::StatusMsg::STATE_COMPLETED;
         }
 
         return msg;
       })
-    .lift<Task::StatusMsg>(grab_while_active())
+    .lift<LegacyTask::StatusMsg>(grab_while_active())
     .finally([weak = weak_from_this()]()
       {
         const auto me = weak.lock();
@@ -160,7 +160,7 @@ EndLiftSession::Pending::Pending(
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> EndLiftSession::Pending::begin()
+std::shared_ptr<LegacyTask::ActivePhase> EndLiftSession::Pending::begin()
 {
   return Active::make(
     std::move(_context),

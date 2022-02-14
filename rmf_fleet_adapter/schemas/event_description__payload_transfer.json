@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description__payload_transfer.json",
+  "title": "Item Transfer Event Description",
+  "description": "Description for a drop off or a pick up event category",
+  "type": "object",
+  "properties": {
+    "place": { "$ref": "place.json" },
+    "handler": { "type": "string" },
+    "payload" : {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/payload_component"
+        },
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/payload_component" }
+        }
+      ]
+    }
+  },
+  "required": ["place", "payload"],
+  "$defs": {
+    "payload_component": {
+      "type": "object",
+      "properties": {
+        "sku": { "type": "string" },
+        "quantity": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "compartment": { "type": "string" }
+      },
+      "required": ["sku", "quantity"]
+    }
+  }
+}

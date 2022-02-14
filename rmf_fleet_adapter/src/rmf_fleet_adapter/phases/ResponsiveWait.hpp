@@ -38,11 +38,11 @@ private:
 
 public:
 
-  using StatusMsg = Task::StatusMsg;
+  using StatusMsg = LegacyTask::StatusMsg;
   class Pending;
 
   class Active
-    : public Task::ActivePhase,
+    : public LegacyTask::ActivePhase,
     public std::enable_shared_from_this<Active>
   {
   public:
@@ -72,15 +72,15 @@ public:
     rxcpp::observable<StatusMsg> _status_obs;
     rxcpp::subjects::subject<StatusMsg> _status_publisher;
     rmf_rxcpp::subscription_guard _movement_subscription;
-    std::shared_ptr<Task::ActivePhase> _movement;
+    std::shared_ptr<LegacyTask::ActivePhase> _movement;
   };
 
-  class Pending : public Task::PendingPhase
+  class Pending : public LegacyTask::PendingPhase
   {
   public:
 
     // Documentation inherited
-    std::shared_ptr<Task::ActivePhase> begin() final;
+    std::shared_ptr<LegacyTask::ActivePhase> begin() final;
 
     // Documentation inherited
     rmf_traffic::Duration estimate_phase_duration() const final;

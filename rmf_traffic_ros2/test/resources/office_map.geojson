@@ -1,0 +1,1885 @@
+{
+  "features": [
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.5824722729539,
+          1.0255337442883958
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58696991419195,
+          1.0166571149261503
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58407531956907,
+          1.0291685753591946
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60533020732623,
+          1.0309638369378948
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60699115466403,
+          1.0284743541376067
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60826764742619,
+          1.0195994130005688
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59298010391055,
+          1.0212985040465252
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59819121447609,
+          1.0212168847332959
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60090671761854,
+          1.0211836764844966
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60091113172784,
+          1.0227707275499787
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60023122722856,
+          1.022804754171925
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59895044047363,
+          1.0228243391398208
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59821391749033,
+          1.0228341243428114
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59669421839008,
+          1.0189994400345126
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60688688296449,
+          1.01934517244764
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60632039020354,
+          1.0227100458218228
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60237145243975,
+          1.0227997550577297
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60239599806127,
+          1.0268146594204188
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.602390961424,
+          1.0277646340974216
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60240580710011,
+          1.0285946107993573
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60562458494793,
+          1.0283098528167125
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60592777460676,
+          1.0255399483570875
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59630106182654,
+          1.0290891520501433
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59320153443178,
+          1.029033915635053
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59012189541858,
+          1.0285586937212876
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.5870610928512,
+          1.027688275027746
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58416829601893,
+          1.0264405416922064
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58868488016145,
+          1.0174864432697321
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59075940431067,
+          1.01833989026606
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59249533400411,
+          1.0187971021810172
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59428804329656,
+          1.0190519582133102
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59468301097623,
+          1.0190424647915663
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59076433105538,
+          1.0194976955463133
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58972858069353,
+          1.021541891814493
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59060016873777,
+          1.021984976258748
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59051386160844,
+          1.022132642378931
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58725870481062,
+          1.0202944115751709
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59013458793966,
+          1.0229994410096026
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58764401359441,
+          1.0278442134732066
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58907244457035,
+          1.0184284976936362
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "is_parking_spot": false,
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59262766312183,
+          1.0195682948642872
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59245573220846,
+          1.0237211235108812
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.5928240196296,
+          1.0222209109090254
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "is_charger": true,
+        "is_holding_point": true,
+        "is_parking_spot": true,
+        "level_idx": 0,
+        "name": "tinyRobot1_charger",
+        "spawn_robot_name": "tinyRobot1",
+        "spawn_robot_type": "TinyRobot"
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59964045557126,
+          1.0236168886301638
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59963049810369,
+          1.0220387090711036
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "is_holding_point": true,
+        "is_parking_spot": false,
+        "level_idx": 0,
+        "name": "pantry",
+        "pickup_dispenser": "coke_dispenser"
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60163964269795,
+          1.0236091486194254
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "is_parking_spot": false,
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60169763855464,
+          1.0273464802569072
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60286696517166,
+          1.0199056604981398
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "is_holding_point": true,
+        "is_parking_spot": false,
+        "level_idx": 0,
+        "name": "lounge"
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.5956870371583,
+          1.0205008722840594
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59120951163405,
+          1.022868445109988
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.6039837332762,
+          1.0242752522146519
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "dropoff_ingestor": "coke_ingestor",
+        "is_holding_point": true,
+        "is_parking_spot": false,
+        "level_idx": 0,
+        "name": "hardware_2"
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59015102536746,
+          1.0247245330078576
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "is_parking_spot": false,
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58742565555747,
+          1.021581362335121
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "is_holding_point": true,
+        "is_parking_spot": false,
+        "level_idx": 0,
+        "name": "coe"
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59783734003983,
+          1.0282592460093032
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.5940125631763,
+          1.0283539083443207
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60171819465656,
+          1.028101305097213
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59022896870967,
+          1.0277813245268368
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59170224612089,
+          1.0281688280407946
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58839957540249,
+          1.0200205328963619
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "is_parking_spot": true,
+        "level_idx": 0,
+        "name": "supplies"
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60162872090821,
+          1.0204277841715783
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59402619411426,
+          1.0237397993002852
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59798776185056,
+          1.023667483433854
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.5940343710202,
+          1.0261471664279505
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59784759378708,
+          1.0261396375732619
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.58866823454075,
+          1.0218550623600697
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.59986477758096,
+          1.028121363574092
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60392557834824,
+          1.0272782362975372
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_idx": 0,
+        "name": ""
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_vertex",
+      "geometry": {
+        "coordinates": [
+          103.60342718350094,
+          1.0219407352685843
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "is_charger": true,
+        "is_holding_point": true,
+        "is_parking_spot": true,
+        "level_idx": 0,
+        "name": "tinyRobot2_charger",
+        "spawn_robot_name": "tinyRobot2",
+        "spawn_robot_type": "TinyRobot"
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.58907244457035,
+            1.0184284976936362
+          ],
+          [
+            103.59262766312183,
+            1.0195682948642872
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59964045557126,
+            1.0236168886301638
+          ],
+          [
+            103.60163964269795,
+            1.0236091486194254
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59964045557126,
+            1.0236168886301638
+          ],
+          [
+            103.59963049810369,
+            1.0220387090711036
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.5956870371583,
+            1.0205008722840594
+          ],
+          [
+            103.59262766312183,
+            1.0195682948642872
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59262766312183,
+            1.0195682948642872
+          ],
+          [
+            103.59120951163405,
+            1.022868445109988
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59120951163405,
+            1.022868445109988
+          ],
+          [
+            103.59245573220846,
+            1.0237211235108812
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59120951163405,
+            1.022868445109988
+          ],
+          [
+            103.59015102536746,
+            1.0247245330078576
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.60171819465656,
+            1.028101305097213
+          ],
+          [
+            103.60169763855464,
+            1.0273464802569072
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59015102536746,
+            1.0247245330078576
+          ],
+          [
+            103.59022896870967,
+            1.0277813245268368
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59022896870967,
+            1.0277813245268368
+          ],
+          [
+            103.59170224612089,
+            1.0281688280407946
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.58907244457035,
+            1.0184284976936362
+          ],
+          [
+            103.58839957540249,
+            1.0200205328963619
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.60162872090821,
+            1.0204277841715783
+          ],
+          [
+            103.5956870371583,
+            1.0205008722840594
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.60162872090821,
+            1.0204277841715783
+          ],
+          [
+            103.60286696517166,
+            1.0199056604981398
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59245573220846,
+            1.0237211235108812
+          ],
+          [
+            103.5928240196296,
+            1.0222209109090254
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59245573220846,
+            1.0237211235108812
+          ],
+          [
+            103.59402619411426,
+            1.0237397993002852
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59402619411426,
+            1.0237397993002852
+          ],
+          [
+            103.59798776185056,
+            1.023667483433854
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59798776185056,
+            1.023667483433854
+          ],
+          [
+            103.59964045557126,
+            1.0236168886301638
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.5940125631763,
+            1.0283539083443207
+          ],
+          [
+            103.5940343710202,
+            1.0261471664279505
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.5940343710202,
+            1.0261471664279505
+          ],
+          [
+            103.59402619411426,
+            1.0237397993002852
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59783734003983,
+            1.0282592460093032
+          ],
+          [
+            103.59784759378708,
+            1.0261396375732619
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59784759378708,
+            1.0261396375732619
+          ],
+          [
+            103.59798776185056,
+            1.023667483433854
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59120951163405,
+            1.022868445109988
+          ],
+          [
+            103.58866823454075,
+            1.0218550623600697
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.58866823454075,
+            1.0218550623600697
+          ],
+          [
+            103.58742565555747,
+            1.021581362335121
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.60163964269795,
+            1.0236091486194254
+          ],
+          [
+            103.60169763855464,
+            1.0273464802569072
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.60171819465656,
+            1.028101305097213
+          ],
+          [
+            103.59986477758096,
+            1.028121363574092
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.60169763855464,
+            1.0273464802569072
+          ],
+          [
+            103.60392557834824,
+            1.0272782362975372
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.60392557834824,
+            1.0272782362975372
+          ],
+          [
+            103.6039837332762,
+            1.0242752522146519
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59170224612089,
+            1.0281688280407946
+          ],
+          [
+            103.5940125631763,
+            1.0283539083443207
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.5940125631763,
+            1.0283539083443207
+          ],
+          [
+            103.59783734003983,
+            1.0282592460093032
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.59783734003983,
+            1.0282592460093032
+          ],
+          [
+            103.59986477758096,
+            1.028121363574092
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.60162872090821,
+            1.0204277841715783
+          ],
+          [
+            103.60342718350094,
+            1.0219407352685843
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0
+      },
+      "type": "Feature"
+    },
+    {
+      "feature_type": "rmf_lane",
+      "geometry": {
+        "coordinates": [
+          [
+            103.60162872090821,
+            1.0204277841715783
+          ],
+          [
+            103.60163964269795,
+            1.0236091486194254
+          ]
+        ],
+        "type": "LineString"
+      },
+      "properties": {
+        "bidirectional": true,
+        "demo_mock_floor_name": "",
+        "demo_mock_lift_name": "",
+        "graph_idx": 0,
+        "level_idx": 0,
+        "orientation": "",
+        "speed_limit": 0.5
+      },
+      "type": "Feature"
+    }
+  ],
+  "preferred_crs": "EPSG:3414",
+  "site_name": "building",
+  "suggested_offset_x": 123.0,
+  "suggested_offset_y": 456.0,
+  "type": "FeatureCollection"
+}

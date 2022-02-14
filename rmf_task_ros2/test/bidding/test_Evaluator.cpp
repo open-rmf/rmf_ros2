@@ -25,19 +25,19 @@ namespace bidding {
 //==============================================================================
 auto now = std::chrono::steady_clock::now();
 
-Submission submission1{
+Response::Proposal submission1{
   "fleet1", "", 2.3, 3.4, rmf_traffic::time::apply_offset(now, 5)
 };
-Submission submission2{
+Response::Proposal submission2{
   "fleet2", "", 3.5, 3.6, rmf_traffic::time::apply_offset(now, 5.5)
 };
-Submission submission3{
+Response::Proposal submission3{
   "fleet3", "", 0.0, 1.4, rmf_traffic::time::apply_offset(now, 3)
 };
-Submission submission4{
+Response::Proposal submission4{
   "fleet4", "", 5.0, 5.4, rmf_traffic::time::apply_offset(now, 4)
 };
-Submission submission5{
+Response::Proposal submission5{
   "fleet5", "", 0.5, 0.8, rmf_traffic::time::apply_offset(now, 3.5)
 };
 
@@ -50,24 +50,29 @@ SCENARIO("Auctioneer Winner Evaluator", "[Evaluator]")
     "test_selfbidding", rclcpp::NodeOptions().context(rcl_context));
 
   auto auctioneer = Auctioneer::make(node,
-      [](const std::string&, const std::optional<Submission>) {});
+      [](const auto&, const auto, const auto&) {},
+      nullptr);
 
   WHEN("Least Diff Cost Evaluator")
   {
     auto eval = std::make_shared<LeastFleetDiffCostEvaluator>();
-    auctioneer->select_evaluator(eval);
+    auctioneer->set_evaluator(eval);
 
     AND_WHEN("0 submissions")
     {
-      std::vector<Submission> submissions{};
-      auto winner = evaluate(*auctioneer, submissions);
+      std::vector<Response> responses{};
+      auto winner = evaluate(*auctioneer, responses);
       REQUIRE(!winner); // no winner
     }
     AND_WHEN("5 submissions")
     {
-      std::vector<Submission> submissions{
-        submission1, submission2, submission3, submission4, submission5 };
-      auto winner = evaluate(*auctioneer, submissions);
+      std::vector<Response> responses{
+        Response{submission1, {}},
+        Response{submission2, {}},
+        Response{submission3, {}},
+        Response{submission4, {}},
+        Response{submission5, {}} };
+      auto winner = evaluate(*auctioneer, responses);
       REQUIRE(winner->fleet_name == "fleet2"); // least diff cost agent
     }
   }
@@ -75,18 +80,22 @@ SCENARIO("Auctioneer Winner Evaluator", "[Evaluator]")
   WHEN("Least Fleet Cost Evaluator")
   {
     auto eval = std::make_shared<LeastFleetCostEvaluator>();
-    auctioneer->select_evaluator(eval);
+    auctioneer->set_evaluator(eval);
 
     AND_WHEN("0 submissions")
     {
-      std::vector<Submission> submissions{};
+      std::vector<Response> submissions{};
       auto winner = evaluate(*auctioneer, submissions);
       REQUIRE(!winner); // no winner
     }
     AND_WHEN("5 submissions")
     {
-      std::vector<Submission> submissions{
-        submission1, submission2, submission3, submission4, submission5 };
+      std::vector<Response> submissions{
+        Response{submission1, {}},
+        Response{submission2, {}},
+        Response{submission3, {}},
+        Response{submission4, {}},
+        Response{submission5, {}} };
       auto winner = evaluate(*auctioneer, submissions);
       REQUIRE(winner->fleet_name == "fleet5"); // least diff cost agent
     }
@@ -95,18 +104,22 @@ SCENARIO("Auctioneer Winner Evaluator", "[Evaluator]")
   WHEN("Quickest Finish Time Evaluator")
   {
     auto eval = std::make_shared<QuickestFinishEvaluator>();
-    auctioneer->select_evaluator(eval);
+    auctioneer->set_evaluator(eval);
 
     AND_WHEN("0 submissions")
     {
-      std::vector<Submission> submissions{};
+      std::vector<Response> submissions{};
       auto winner = evaluate(*auctioneer, submissions);
       REQUIRE(!winner); // no winner
     }
     AND_WHEN("5 submissions")
     {
-      std::vector<Submission> submissions{
-        submission1, submission2, submission3, submission4, submission5 };
+      std::vector<Response> submissions{
+        Response{submission1, {}},
+        Response{submission2, {}},
+        Response{submission3, {}},
+        Response{submission4, {}},
+        Response{submission5, {}} };
       auto winner = evaluate(*auctioneer, submissions);
       REQUIRE(winner->fleet_name == "fleet3"); // least diff cost agent
     }

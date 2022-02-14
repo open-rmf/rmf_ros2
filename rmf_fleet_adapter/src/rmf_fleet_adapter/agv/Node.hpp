@@ -36,6 +36,11 @@
 
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
 
+#include <rmf_task_msgs/msg/api_request.hpp>
+#include <rmf_task_msgs/msg/api_response.hpp>
+
+#include <rmf_traffic/Time.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -48,6 +53,8 @@ public:
     rxcpp::schedulers::worker worker,
     const std::string& node_name,
     const rclcpp::NodeOptions& options);
+
+  std::function<rmf_traffic::Time()> clock() const;
 
   using DoorState = rmf_door_msgs::msg::DoorState;
   using DoorStateObs = rxcpp::observable<DoorState::SharedPtr>;
@@ -105,6 +112,14 @@ public:
   using FleetStatePub = rclcpp::Publisher<FleetState>::SharedPtr;
   const FleetStatePub& fleet_state() const;
 
+  using ApiRequest = rmf_task_msgs::msg::ApiRequest;
+  using ApiRequestObs = rxcpp::observable<ApiRequest::SharedPtr>;
+  const ApiRequestObs& task_api_request() const;
+
+  using ApiResponse = rmf_task_msgs::msg::ApiResponse;
+  using ApiResponsePub = rclcpp::Publisher<ApiResponse>::SharedPtr;
+  const ApiResponsePub& task_api_response() const;
+
   template<typename DurationRepT, typename DurationT, typename CallbackT>
   rclcpp::TimerBase::SharedPtr try_create_wall_timer(
     std::chrono::duration<DurationRepT, DurationT> period,
@@ -160,6 +175,8 @@ private:
   Bridge<IngestorResult> _ingestor_result_obs;
   Bridge<IngestorState> _ingestor_state_obs;
   FleetStatePub _fleet_state_pub;
+  Bridge<ApiRequest> _task_api_request_obs;
+  ApiResponsePub _task_api_response_pub;
 };
 
 } // namespace agv

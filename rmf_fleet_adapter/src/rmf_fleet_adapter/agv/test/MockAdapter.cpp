@@ -227,7 +227,8 @@ MockAdapter::MockAdapter(
 std::shared_ptr<FleetUpdateHandle> MockAdapter::add_fleet(
   const std::string& fleet_name,
   rmf_traffic::agv::VehicleTraits traits,
-  rmf_traffic::agv::Graph navigation_graph)
+  rmf_traffic::agv::Graph navigation_graph,
+  std::optional<std::string> server_uri)
 {
   auto planner =
     std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(
@@ -240,7 +241,7 @@ std::shared_ptr<FleetUpdateHandle> MockAdapter::add_fleet(
   auto fleet = FleetUpdateHandle::Implementation::make(
     fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
     std::make_shared<SimpleParticipantFactory>(_pimpl->schedule),
-    _pimpl->schedule->snappable(), nullptr);
+    _pimpl->schedule->snappable(), nullptr, server_uri);
 
   _pimpl->fleets.push_back(fleet);
   return fleet;
@@ -306,29 +307,52 @@ void MockAdapter::stop()
 }
 
 //==============================================================================
-void MockAdapter::dispatch_task(const rmf_task_msgs::msg::TaskProfile& profile)
+void MockAdapter::dispatch_task(
+  std::string task_id,
+  const nlohmann::json& request)
 {
-  _pimpl->worker.schedule([profile, fleets = _pimpl->fleets](const auto&)
+  _pimpl->worker.schedule(
+    [
+      request,
+      task_id = std::move(task_id),
+      fleets = _pimpl->fleets
+    ](const auto&)
     {
       for (auto& fleet : fleets)
       {
         auto& fimpl = FleetUpdateHandle::Implementation::get(*fleet);
-        if (!fimpl.accept_task)
-          continue;
 
-        // NOTE: althought the current adapter supports multiple fleets. The test
+        // NOTE: although the current adapter supports multiple fleets. The test
         // here assumses using a single fleet for each adapter
-        rmf_task_msgs::msg::BidNotice bid;
-        bid.task_profile = profile;
-        fimpl.bid_notice_cb(
-          std::make_shared<rmf_task_msgs::msg::BidNotice>(bid));
+        bool accepted = false;
+        auto bid = rmf_task_msgs::build<rmf_task_msgs::msg::BidNotice>()
+        .request(request.dump())
+        .task_id(task_id)
+        .time_window(rclcpp::Duration(2, 0));
 
-        rmf_task_msgs::msg::DispatchRequest req;
-        req.task_profile = profile;
-        req.fleet_name = fimpl.name;
-        req.method = req.ADD;
-        fimpl.dispatch_request_cb(
-          std::make_shared<rmf_task_msgs::msg::DispatchRequest>(req));
+        fimpl.bid_notice_cb(
+          bid,
+          [&accepted](const rmf_task_ros2::bidding::Response& response)
+          {
+            accepted = response.proposal.has_value();
+          });
+
+        if (accepted)
+        {
+          rmf_task_msgs::msg::DispatchCommand req;
+          req.task_id = task_id;
+          req.fleet_name = fimpl.name;
+          req.type = req.TYPE_AWARD;
+          fimpl.dispatch_command_cb(
+            std::make_shared<rmf_task_msgs::msg::DispatchCommand>(req));
+          std::cout << "Fleet [" << fimpl.name << "] accepted the task request"
+                    << std::endl;
+        }
+        else
+        {
+          std::cout << "Fleet [" << fimpl.name << "] rejected the task request"
+                    << std::endl;
+        }
       }
     });
 }

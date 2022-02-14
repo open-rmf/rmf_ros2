@@ -44,7 +44,7 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
   const bool completed =
     _current_result->success() || !_current_result->cost_estimate();
 
-  s.on_next(Result{*this});
+  s.on_next(Result{shared_from_this()});
   if (completed)
   {
     // The plan is either finished or is guaranteed to never finish

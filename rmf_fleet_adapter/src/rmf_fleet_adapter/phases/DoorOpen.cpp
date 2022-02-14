@@ -54,11 +54,12 @@ DoorOpen::ActivePhase::ActivePhase(
   _request_id(std::move(request_id)),
   _expected_finish(std::move(expected_finish))
 {
-  _description = "Opening door \"" + _door_name + "\"";
+  _description = "Opening [door:" + _door_name + "]";
 }
 
 //==============================================================================
-const rxcpp::observable<Task::StatusMsg>& DoorOpen::ActivePhase::observe() const
+const rxcpp::observable<LegacyTask::StatusMsg>&
+DoorOpen::ActivePhase::observe() const
 {
   return _obs;
 }
@@ -107,7 +108,7 @@ void DoorOpen::ActivePhase::_init_obs()
         if (!me)
           return;
 
-        me->_status.state = Task::StatusMsg::STATE_ACTIVE;
+        me->_status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
         me->_publish_open_door();
         me->_timer =
         transport->try_create_wall_timer(std::chrono::milliseconds(1000),
@@ -139,12 +140,12 @@ void DoorOpen::ActivePhase::_init_obs()
       {
         auto me = weak.lock();
         if (!me)
-          return Task::StatusMsg();
+          return LegacyTask::StatusMsg();
 
         me->_update_status(std::get<0>(v), std::get<1>(v));
         return me->_status;
       })
-    .lift<Task::StatusMsg>(grab_while_active())
+    .lift<LegacyTask::StatusMsg>(grab_while_active())
     .finally([weak = weak_from_this()]()
       {
         auto me = weak.lock();
@@ -156,7 +157,7 @@ void DoorOpen::ActivePhase::_init_obs()
     // When the phase is cancelled, queue a door close phase to make sure that there is no hanging
     // open doors
     .take_until(_cancelled.get_observable().filter([](auto b) { return b; }))
-    .concat(rxcpp::observable<>::create<Task::StatusMsg>(
+    .concat(rxcpp::observable<>::create<LegacyTask::StatusMsg>(
         [weak = weak_from_this()](const auto& s)
         {
           auto me = weak.lock();
@@ -201,12 +202,11 @@ void DoorOpen::ActivePhase::_update_status(
     && supervisor_has_session(*heartbeat, _request_id, _door_name))
   {
     _status.status = "success";
-    _status.state = Task::StatusMsg::STATE_COMPLETED;
+    _status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
   }
   else
   {
-    _status.status = "[" + _context->name() + "] waiting for door ["
-      + _door_name + "] to open";
+    _status.status = "Waiting for [door:" + _door_name + "] to open";
   }
 }
 
@@ -221,11 +221,11 @@ DoorOpen::PendingPhase::PendingPhase(
   _request_id(std::move(request_id)),
   _expected_finish(std::move(expected_finish))
 {
-  _description = "Open door \"" + _door_name + "\"";
+  _description = "Open [door:" + _door_name + "]";
 }
 
 //==============================================================================
-std::shared_ptr<Task::ActivePhase> DoorOpen::PendingPhase::begin()
+std::shared_ptr<LegacyTask::ActivePhase> DoorOpen::PendingPhase::begin()
 {
   return ActivePhase::make(_context, _door_name, _request_id, _expected_finish);
 }

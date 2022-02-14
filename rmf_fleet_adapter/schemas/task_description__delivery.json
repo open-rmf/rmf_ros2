@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/task_description__delivery.json",
+  "title": "Delivery Task Description",
+  "description": "Description for a simple delivery task category",
+  "type": "object",
+  "properties": {
+    "pickup": { "$ref": "event_description__pickup.json" },
+    "dropoff": { "$ref": "event_description__dropoff.json" }
+  },
+  "required": ["pickup", "dropoff"]
+}

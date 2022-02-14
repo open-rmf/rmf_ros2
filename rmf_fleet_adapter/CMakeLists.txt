@@ -33,9 +33,15 @@ set(dep_pkgs
   rmf_task_msgs
   rmf_traffic
   rmf_traffic_ros2
+  rmf_task_ros2
   rmf_battery
   rmf_task
+  rmf_task_sequence
   std_msgs
+  rmf_api_msgs
+  websocketpp
+  nlohmann_json
+  nlohmann_json_schema_validator_vendor
 )
 foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
@@ -70,21 +76,28 @@ target_link_libraries(rmf_fleet_adapter
     rmf_traffic_ros2::rmf_traffic_ros2
     rmf_battery::rmf_battery
     rmf_task::rmf_task
+    rmf_task_sequence::rmf_task_sequence
+    rmf_task_ros2::rmf_task_ros2
     yaml-cpp
     ${rmf_fleet_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     ${rmf_task_msgs_LIBRARIES}
   PRIVATE
     rmf_rxcpp
+    nlohmann_json::nlohmann_json
+    rmf_api_msgs::rmf_api_msgs
     ${rmf_door_msgs_LIBRARIES}
     ${rmf_lift_msgs_LIBRARIES}
     ${rmf_dispenser_msgs_LIBRARIES}
     ${rmf_ingestor_msgs_LIBRARIES}
+    ${websocketpp_LIBRARIES}
+    nlohmann_json_schema_validator
 )
 
 target_include_directories(rmf_fleet_adapter
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/rmf_api_generate_schema_headers/include> # for auto-generated schema headers
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_ros2_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
@@ -96,6 +109,9 @@ target_include_directories(rmf_fleet_adapter
     ${rmf_lift_msgs_INCLUDE_DIRS}
     ${rmf_dispenser_msgs_INCLUDE_DIRS}
     ${rmf_ingestor_msgs_INCLUDE_DIRS}
+    ${rmf_api_msgs_INCLUDE_DIRS}
+    ${WEBSOCKETPP_INCLUDE_DIR}
+    ${nlohmann_json_schema_validator_INCLUDE_DIRS}
 )
 
 if (BUILD_TESTING)
@@ -130,7 +146,10 @@ if (BUILD_TESTING)
       ${rmf_lift_msgs_INCLUDE_DIRS}
       ${rmf_dispenser_msgs_INCLUDE_DIRS}
       ${rmf_ingestor_msgs_INCLUDE_DIRS}
+      ${rmf_api_msgs_INCLUDE_DIRS}
       ${std_msgs_INCLUDE_DIRS}
+      ${WEBSOCKETPP_INCLUDE_DIR}
+      ${nlohmann_json_schema_validator_INCLUDE_DIRS}
   )
   target_link_libraries(test_rmf_fleet_adapter
     PRIVATE
@@ -143,7 +162,10 @@ if (BUILD_TESTING)
       ${rmf_ingestor_msgs_LIBRARIES}
       rmf_fleet_adapter
       rmf_utils::rmf_utils
+      rmf_api_msgs::rmf_api_msgs
       ${std_msgs_LIBRARIES}
+      ${websocketpp_LIBRARIES}
+      nlohmann_json_schema_validator
   )
 
   target_compile_definitions(test_rmf_fleet_adapter
@@ -453,16 +475,15 @@ target_include_directories(close_lanes
 
 # -----------------------------------------------------------------------------
 
-ament_export_targets(rmf_fleet_adapter HAS_LIBRARY_TARGET)
-ament_export_dependencies(
-  rmf_task
-  rmf_traffic_ros2
-  rmf_fleet_msgs
-  rmf_door_msgs
-  rmf_lift_msgs
-  rmf_ingestor_msgs
-  rmf_dispenser_msgs
+rmf_api_generate_schema_headers(
+  PACKAGE rmf_fleet_adapter
+  SCHEMAS_DIR ${CMAKE_CURRENT_LIST_DIR}/schemas
 )
+
+# -----------------------------------------------------------------------------
+
+ament_export_targets(rmf_fleet_adapter HAS_LIBRARY_TARGET)
+ament_export_dependencies(${dep_pkgs})
 
 install(
   TARGETS
@@ -499,4 +520,3 @@ install(
 )
 
 ament_package()
-

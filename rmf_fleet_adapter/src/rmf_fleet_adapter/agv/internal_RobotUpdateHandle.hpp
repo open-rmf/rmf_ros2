@@ -25,10 +25,44 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
-class RobotUpdateHandle::Implementation
+class RobotUpdateHandle::ActionExecution::Implementation
 {
 public:
 
+  struct Data
+  {
+
+    std::function<void()> finished;
+    std::optional<rmf_traffic::Duration> remaining_time;
+    bool okay;
+    // TODO: Consider adding a mutex to lock read/write
+
+    Data(
+      std::function<void()> finished_,
+      std::optional<rmf_traffic::Duration> remaining_time_ = std::nullopt)
+    {
+      finished = std::move(finished_);
+      remaining_time = remaining_time_;
+      okay = true;
+    }
+  };
+
+  static ActionExecution make(std::shared_ptr<Data> data)
+  {
+    ActionExecution execution;
+    execution._pimpl = rmf_utils::make_impl<Implementation>(
+      Implementation{std::move(data)});
+
+    return execution;
+  }
+
+  std::shared_ptr<Data> data;
+};
+
+//==============================================================================
+class RobotUpdateHandle::Implementation
+{
+public:
   std::weak_ptr<RobotContext> context;
   std::string name;
   RobotUpdateHandle::Unstable unstable = RobotUpdateHandle::Unstable();
@@ -59,7 +93,6 @@ public:
   std::shared_ptr<RobotContext> get_context();
 
   std::shared_ptr<const RobotContext> get_context() const;
-
 };
 
 } // namespace agv

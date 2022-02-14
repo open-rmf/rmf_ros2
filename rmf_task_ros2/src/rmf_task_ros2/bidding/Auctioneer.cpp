@@ -21,145 +21,156 @@ namespace rmf_task_ros2 {
 namespace bidding {
 
 //==============================================================================
-Submission convert(const BidProposal& from)
-{
-  Submission submission;
-  submission.fleet_name = from.fleet_name;
-  submission.robot_name = from.robot_name;
-  submission.prev_cost = from.prev_cost;
-  submission.new_cost = from.new_cost;
-  submission.finish_time = rmf_traffic_ros2::convert(from.finish_time);
-  return submission;
-}
-
-//==============================================================================
 Auctioneer::Implementation::Implementation(
   const std::shared_ptr<rclcpp::Node>& node_,
-  BiddingResultCallback result_callback)
+  BiddingResultCallback result_callback,
+  ConstEvaluatorPtr evaluator_)
 : node{std::move(node_)},
-  bidding_result_callback{std::move(result_callback)}
+  bidding_result_callback{std::move(result_callback)},
+  evaluator(std::move(evaluator_))
 {
   // default evaluator
-  evaluator = std::make_shared<QuickestFinishEvaluator>();
-  RCLCPP_INFO(
-    node->get_logger(),
-    "Dispatcher evaluator set to QuickestFinishEvaluator");
+  if (!evaluator)
+  {
+    evaluator = std::make_shared<QuickestFinishEvaluator>();
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Dispatcher evaluator set to QuickestFinishEvaluator by default");
+  }
   const auto dispatch_qos = rclcpp::ServicesQoS().reliable();
 
-  bid_notice_pub = node->create_publisher<BidNotice>(
+  bid_notice_pub = node->create_publisher<BidNoticeMsg>(
     rmf_task_ros2::BidNoticeTopicName, dispatch_qos);
 
-  bid_proposal_sub = node->create_subscription<BidProposal>(
-    rmf_task_ros2::BidProposalTopicName, dispatch_qos,
-    [&](const BidProposal::UniquePtr msg)
+  bid_proposal_sub = node->create_subscription<BidResponseMsg>(
+    rmf_task_ros2::BidResponseTopicName, dispatch_qos,
+    [&](const BidResponseMsg::UniquePtr msg)
     {
-      this->receive_proposal(*msg);
+      this->receive_response(*msg);
     });
 
   timer = node->create_wall_timer(std::chrono::milliseconds(200), [&]()
       {
-        this->check_bidding_process();
+        this->finish_bidding_process();
       });
 }
 
 //==============================================================================
-void Auctioneer::Implementation::start_bidding(
-  const BidNotice& bid_notice)
+void Auctioneer::Implementation::request_bid(
+  const BidNoticeMsg& bid_notice)
 {
   RCLCPP_INFO(node->get_logger(), "Add Task [%s] to a bidding queue",
-    bid_notice.task_profile.task_id.c_str());
+    bid_notice.task_id.c_str());
 
-  BiddingTask bidding_task;
-  bidding_task.bid_notice = bid_notice;
-  bidding_task.start_time = node->now();
-  queue_bidding_tasks.push(bidding_task);
+  open_bid_queue.push(OpenBid{bid_notice, node->now(), {}});
 }
 
 //==============================================================================
-void Auctioneer::Implementation::receive_proposal(
-  const BidProposal& msg)
+void Auctioneer::Implementation::receive_response(const BidResponseMsg& msg)
 {
-  const auto id = msg.task_profile.task_id;
-  RCLCPP_DEBUG(node->get_logger(),
-    "[Auctioneer] Receive proposal from task_id: %s | from: %s",
-    id.c_str(), msg.fleet_name.c_str());
+  const auto id = msg.task_id;
+
+  const auto response = convert(msg);
+  if (response.proposal.has_value())
+  {
+    RCLCPP_DEBUG(node->get_logger(),
+      "[Auctioneer] Receive proposal from task_id: %s | from: %s",
+      id.c_str(), response.proposal->fleet_name.c_str());
+  }
+  else if (!response.errors.empty())
+  {
+    RCLCPP_DEBUG(
+      node->get_logger(),
+      "[Auctioneer] Received %lu errors from a bidder",
+      response.errors.size());
+  }
 
   // check if bidding task is initiated by the auctioneer previously
   // add submited proposal to the current bidding tasks list
-  if (queue_bidding_tasks.front().bid_notice.task_profile.task_id == id)
-    queue_bidding_tasks.front().submissions.push_back(convert(msg));
+  if (open_bid_queue.front().bid_notice.task_id == id)
+    open_bid_queue.front().responses.push_back(response);
 }
 
 //==============================================================================
 // determine the winner within a bidding task instance
-void Auctioneer::Implementation::check_bidding_process()
+void Auctioneer::Implementation::finish_bidding_process()
 {
-  if (queue_bidding_tasks.size() == 0)
+  if (open_bid_queue.size() == 0)
     return;
 
   // Executing the task at the front queue
-  auto front_task = queue_bidding_tasks.front();
+  auto front_task = open_bid_queue.front();
 
-  if (bidding_in_proccess)
+  if (bidding_in_process)
   {
     if (determine_winner(front_task))
     {
-      queue_bidding_tasks.pop();
-      bidding_in_proccess = false;
+      open_bid_queue.pop();
     }
   }
   else
   {
-    RCLCPP_DEBUG(node->get_logger(), " - Start new bidding task: %s",
-      front_task.bid_notice.task_profile.task_id.c_str());
-    queue_bidding_tasks.front().start_time = node->now();
+    RCLCPP_INFO(node->get_logger(), " - Start new bidding task: %s",
+      front_task.bid_notice.task_id.c_str());
+    open_bid_queue.front().start_time = node->now();
     bid_notice_pub->publish(front_task.bid_notice);
-    bidding_in_proccess = true;
+    bidding_in_process = true;
   }
 }
 
 //==============================================================================
 bool Auctioneer::Implementation::determine_winner(
-  const BiddingTask& bidding_task)
+  const OpenBid& bidding_task)
 {
   const auto duration = node->now() - bidding_task.start_time;
+  if (duration < bidding_task.bid_notice.time_window)
+    return false;
 
-  if (duration > bidding_task.bid_notice.time_window)
+  if (!bidding_result_callback)
+    return true;
+
+  auto task_id = bidding_task.bid_notice.task_id;
+  RCLCPP_DEBUG(
+    node->get_logger(),
+    "Bidding Deadline reached for [%s]",
+    task_id.c_str());
+
+  std::vector<std::string> errors;
+  for (const auto& r : bidding_task.responses)
   {
-    auto id = bidding_task.bid_notice.task_profile.task_id;
-    RCLCPP_DEBUG(node->get_logger(), "Bidding Deadline reached: %s",
-      id.c_str());
-    std::optional<Submission> winner = std::nullopt;
+    errors.insert(errors.end(), r.errors.begin(), r.errors.end());
+  }
 
-    if (bidding_task.submissions.size() == 0)
-    {
-      RCLCPP_DEBUG(node->get_logger(),
-        "Bidding task has not received any bids");
-    }
-    else
-    {
-      winner = evaluate(bidding_task.submissions);
-      RCLCPP_INFO(
-        node->get_logger(),
-        "Determined winning Fleet Adapter: [%s], from %ld submissions",
-        winner->fleet_name.c_str(),
-        bidding_task.submissions.size());
-    }
+  if (bidding_task.responses.empty())
+  {
+    RCLCPP_INFO(node->get_logger(),
+      "Task auction for [%s] did not received any bids", task_id.c_str());
 
-    // Call the user defined callback function
-    if (bidding_result_callback)
-      bidding_result_callback(id, winner);
-
+    bidding_result_callback(task_id, std::nullopt, errors);
     return true;
   }
-  return false;
+
+  auto winner = evaluate(bidding_task.responses);
+  if (winner.has_value())
+  {
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Determined winning Fleet Adapter: [%s], from %ld responses",
+      winner->fleet_name.c_str(),
+      bidding_task.responses.size());
+  }
+
+  // Call the user defined callback function
+  bidding_result_callback(task_id, winner, errors);
+
+  return true;
 }
 
 //==============================================================================
-std::optional<Submission> Auctioneer::Implementation::evaluate(
-  const Submissions& submissions)
+std::optional<Response::Proposal> Auctioneer::Implementation::evaluate(
+  const Responses& responses)
 {
-  if (submissions.size() == 0)
+  if (responses.size() == 0)
     return std::nullopt;
 
   if (!evaluator)
@@ -168,35 +179,43 @@ std::optional<Submission> Auctioneer::Implementation::evaluate(
     return std::nullopt;
   }
 
-  const std::size_t choice = evaluator->choose(submissions);
-
-  if (choice >= submissions.size())
+  const auto choice = evaluator->choose(responses);
+  if (!choice.has_value())
     return std::nullopt;
 
-  return submissions[choice];
+  if (*choice >= responses.size())
+    return std::nullopt;
+
+  return responses[*choice].proposal;
 }
 
 //==============================================================================
 std::shared_ptr<Auctioneer> Auctioneer::make(
   const std::shared_ptr<rclcpp::Node>& node,
-  BiddingResultCallback result_callback)
+  BiddingResultCallback result_callback,
+  ConstEvaluatorPtr evaluator)
 {
-  auto pimpl = rmf_utils::make_unique_impl<Implementation>(
-    node, result_callback);
   auto auctioneer = std::shared_ptr<Auctioneer>(new Auctioneer());
-  auctioneer->_pimpl = std::move(pimpl);
+  auctioneer->_pimpl = rmf_utils::make_unique_impl<Implementation>(
+    node, std::move(result_callback), std::move(evaluator));
+
   return auctioneer;
 }
 
 //==============================================================================
-void Auctioneer::start_bidding(const BidNotice& bid_notice)
+void Auctioneer::request_bid(const BidNoticeMsg& bid_notice)
 {
-  _pimpl->start_bidding(bid_notice);
+  _pimpl->request_bid(bid_notice);
 }
 
 //==============================================================================
-void Auctioneer::select_evaluator(
-  std::shared_ptr<Auctioneer::Evaluator> evaluator)
+void Auctioneer::ready_for_next_bid()
+{
+  _pimpl->bidding_in_process = false;
+}
+
+//==============================================================================
+void Auctioneer::set_evaluator(ConstEvaluatorPtr evaluator)
 {
   _pimpl->evaluator = std::move(evaluator);
 }
@@ -207,51 +226,60 @@ Auctioneer::Auctioneer()
   // do nothing
 }
 
+namespace {
 //==============================================================================
-std::size_t LeastFleetDiffCostEvaluator::choose(
-  const Submissions& submissions) const
+std::optional<std::size_t> select_best(
+  const Responses& responses,
+  const std::function<double(const Response::Proposal&)> eval)
 {
-  auto winner_it = submissions.begin();
-  float winner_cost_diff = winner_it->new_cost - winner_it->prev_cost;
-  for (auto nominee_it = ++submissions.begin();
-    nominee_it != submissions.end(); ++nominee_it)
+  std::optional<std::size_t> best_index;
+  std::optional<double> best_cost;
+  for (std::size_t i = 0; i < responses.size(); ++i)
   {
-    float nominee_cost_diff = nominee_it->new_cost - nominee_it->prev_cost;
-    if (nominee_cost_diff < winner_cost_diff)
+    if (responses[i].proposal.has_value())
     {
-      winner_it = nominee_it;
-      winner_cost_diff = nominee_cost_diff;
+      const auto cost = eval(*responses[i].proposal);
+      if (!best_cost.has_value() || cost < *best_cost)
+      {
+        best_index = i;
+        best_cost = cost;
+      }
     }
   }
-  return std::distance(submissions.begin(), winner_it);
+
+  return best_index;
+}
+} // anonymous namespace
+
+//==============================================================================
+std::optional<std::size_t> LeastFleetDiffCostEvaluator::choose(
+  const Responses& responses) const
+{
+  return select_best(
+    responses,
+    [](const auto& nominee) { return nominee.new_cost - nominee.prev_cost; });
 }
 
 //==============================================================================
-std::size_t LeastFleetCostEvaluator::choose(
-  const Submissions& submissions) const
+std::optional<std::size_t> LeastFleetCostEvaluator::choose(
+  const Responses& responses) const
 {
-  auto winner_it = submissions.begin();
-  for (auto nominee_it = ++submissions.begin();
-    nominee_it != submissions.end(); ++nominee_it)
-  {
-    if (nominee_it->new_cost < winner_it->new_cost)
-      winner_it = nominee_it;
-  }
-  return std::distance(submissions.begin(), winner_it);
+  return select_best(
+    responses,
+    [](const auto& nominee) { return nominee.new_cost; });
 }
 
 //==============================================================================
-std::size_t QuickestFinishEvaluator::choose(
-  const Submissions& submissions) const
+std::optional<std::size_t> QuickestFinishEvaluator::choose(
+  const Responses& responses) const
 {
-  auto winner_it = submissions.begin();
-  for (auto nominee_it = ++submissions.begin();
-    nominee_it != submissions.end(); ++nominee_it)
-  {
-    if (nominee_it->finish_time < winner_it->finish_time)
-      winner_it = nominee_it;
-  }
-  return std::distance(submissions.begin(), winner_it);
+  return select_best(
+    responses,
+    [](const auto& nominee)
+    {
+      return rmf_traffic::time::to_seconds(
+        nominee.finish_time.time_since_epoch());
+    });
 }
 
 } // namespace bidding

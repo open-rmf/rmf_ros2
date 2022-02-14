@@ -18,7 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__PHASES__ENDLIFTSESSION_HPP
 #define SRC__RMF_FLEET_ADAPTER__PHASES__ENDLIFTSESSION_HPP
 
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 #include "rmf_fleet_adapter/StandardNames.hpp"
 
@@ -27,7 +27,7 @@ namespace phases {
 
 struct EndLiftSession
 {
-  class Active : public Task::ActivePhase,
+  class Active : public LegacyTask::ActivePhase,
     public std::enable_shared_from_this<Active>
   {
   public:
@@ -42,7 +42,7 @@ struct EndLiftSession
       std::string lift_name,
       std::string destination);
 
-    const rxcpp::observable<Task::StatusMsg>& observe() const override;
+    const rxcpp::observable<LegacyTask::StatusMsg>& observe() const override;
 
     rmf_traffic::Duration estimate_remaining_time() const override;
 
@@ -58,14 +58,14 @@ struct EndLiftSession
     std::string _lift_name;
     std::string _destination;
     std::string _description;
-    rxcpp::observable<Task::StatusMsg> _obs;
+    rxcpp::observable<LegacyTask::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
 
     void _init_obs();
     void _publish_session_end();
   };
 
-  class Pending : public Task::PendingPhase
+  class Pending : public LegacyTask::PendingPhase
   {
   public:
 
@@ -74,11 +74,21 @@ struct EndLiftSession
       std::string lift_name,
       std::string destination);
 
-    std::shared_ptr<Task::ActivePhase> begin() final;
+    std::shared_ptr<LegacyTask::ActivePhase> begin() final;
 
     rmf_traffic::Duration estimate_phase_duration() const final;
 
     const std::string& description() const override;
+
+    const std::string& lift_name() const
+    {
+      return _lift_name;
+    }
+
+    const std::string& destination() const
+    {
+      return _destination;
+    }
 
   private:
     agv::RobotContextPtr _context;

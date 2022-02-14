@@ -49,15 +49,6 @@ SCENARIO("Test idempotency of shape type")
   REQUIRE_THROWS(shape_type(node["type"]));
 }
 
-namespace rmf_traffic {
-
-bool operator==(const Profile p1, const Profile p2)
-{
-  return rmf_traffic_ros2::convert(p1) == rmf_traffic_ros2::convert(p2);
-}
-
-}
-
 namespace rmf_traffic_ros2 {
 namespace schedule {
 

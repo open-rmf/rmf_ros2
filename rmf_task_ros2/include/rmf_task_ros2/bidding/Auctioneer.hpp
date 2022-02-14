@@ -22,7 +22,7 @@
 #include <rclcpp/node.hpp>
 #include <rmf_utils/impl_ptr.hpp>
 
-#include <rmf_task_ros2/bidding/Submission.hpp>
+#include <rmf_task_ros2/bidding/Response.hpp>
 
 namespace rmf_task_ros2 {
 namespace bidding {
@@ -34,6 +34,7 @@ namespace bidding {
 class Auctioneer : public std::enable_shared_from_this<Auctioneer>
 {
 public:
+
   /// Callback which will provide the winner when a bid is concluded
   ///
   /// \param[in] task_id
@@ -42,8 +43,27 @@ public:
   /// \param[in] winner
   ///   single winner from all submissions. nullopt if non
   using BiddingResultCallback =
-    std::function<void( const std::string& task_id,
-      const std::optional<Submission> winner)>;
+    std::function<
+    void(
+      const std::string& task_id,
+      const std::optional<Response::Proposal> winner,
+      const std::vector<std::string>& errors)>;
+
+  /// A pure abstract interface class for the auctioneer to choose the best
+  /// choosing the best submissions.
+  class Evaluator
+  {
+  public:
+
+    /// Given a list of submissions, choose the one that is the "best". It is
+    /// up to the implementation of the Evaluator to decide how to rank.
+    virtual std::optional<std::size_t> choose(
+      const Responses& responses) const = 0;
+
+    virtual ~Evaluator() = default;
+  };
+
+  using ConstEvaluatorPtr = std::shared_ptr<const Evaluator>;
 
   /// Create an instance of the Auctioneer. This instance will handle all
   /// the task dispatching bidding mechanism. A default evaluator is used.
@@ -57,33 +77,24 @@ public:
   /// \sa make()
   static std::shared_ptr<Auctioneer> make(
     const std::shared_ptr<rclcpp::Node>& node,
-    BiddingResultCallback result_callback);
+    BiddingResultCallback result_callback,
+    ConstEvaluatorPtr evaluator);
 
   /// Start a bidding process by provide a bidding task. Note the each
   /// bidding process is conducted sequentially
   ///
   /// \param[in] bid_notice
   ///   bidding task, task which will call for bid
-  void start_bidding(const BidNotice& bid_notice);
+  void request_bid(const BidNoticeMsg& bid_notice);
 
-  /// A pure abstract interface class for the auctioneer to choose the best
-  /// choosing the best submissions.
-  class Evaluator
-  {
-  public:
-
-    /// Given a list of submissions, choose the one that is the "best". It is
-    /// up to the implementation of the Evaluator to decide how to rank.
-    virtual std::size_t choose(const Submissions& submissions) const = 0;
-
-    virtual ~Evaluator() = default;
-  };
+  /// Call this to tell the auctioneer that it may begin to perform the next bid
+  void ready_for_next_bid();
 
   /// Provide a custom evaluator which will be used to choose the best bid
   /// If no selection is given, Default is: LeastFleetDiffCostEvaluator
   ///
   /// \param[in] evaluator
-  void select_evaluator(std::shared_ptr<Evaluator> evaluator);
+  void set_evaluator(ConstEvaluatorPtr evaluator);
 
   class Implementation;
 
@@ -96,21 +107,21 @@ private:
 class LeastFleetDiffCostEvaluator : public Auctioneer::Evaluator
 {
 public:
-  std::size_t choose(const Submissions& submissions) const final;
+  std::optional<std::size_t> choose(const Responses& responses) const final;
 };
 
 //==============================================================================
 class LeastFleetCostEvaluator : public Auctioneer::Evaluator
 {
 public:
-  std::size_t choose(const Submissions& submissions) const final;
+  std::optional<std::size_t> choose(const Responses& submissions) const final;
 };
 
 //==============================================================================
 class QuickestFinishEvaluator : public Auctioneer::Evaluator
 {
 public:
-  std::size_t choose(const Submissions& submissions) const final;
+  std::optional<std::size_t> choose(const Responses& submissions) const final;
 };
 
 } // namespace bidding

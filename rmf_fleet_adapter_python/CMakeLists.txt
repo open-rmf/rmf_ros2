@@ -31,6 +31,9 @@ include_directories(
 
 find_package(pybind11_vendor REQUIRED)
 find_package(pybind11 REQUIRED)
+find_package(nlohmann_json REQUIRED)
+find_package(pybind11_json_vendor REQUIRED)
+find_package(pybind11_json REQUIRED)
 
 pybind11_add_module(rmf_adapter SHARED
   src/adapter.cpp
@@ -47,7 +50,9 @@ pybind11_add_module(rmf_adapter SHARED
 )
 
 target_link_libraries(rmf_adapter PRIVATE
-  rmf_fleet_adapter::rmf_fleet_adapter)
+  rmf_fleet_adapter::rmf_fleet_adapter
+  nlohmann_json::nlohmann_json
+  pybind11_json)
 
 target_include_directories(rmf_adapter
   PUBLIC
@@ -81,6 +86,7 @@ install(PROGRAMS
   scripts/test_utils.py
   scripts/test_loop.py
   scripts/test_delivery.py
+  scripts/rmf_msg_observer.py
   scripts/traffic_light.py
   scripts/schedule_blockade_nodes.py
   DESTINATION lib/${PROJECT_NAME}

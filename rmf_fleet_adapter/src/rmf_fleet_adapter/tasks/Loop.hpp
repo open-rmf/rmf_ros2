@@ -18,21 +18,31 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__TASKS__LOOP_HPP
 #define SRC__RMF_FLEET_ADAPTER__TASKS__LOOP_HPP
 
-#include "../Task.hpp"
+#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 
 #include <rmf_task/requests/Loop.hpp>
+
+#include <rmf_task_sequence/Phase.hpp>
+
+#include "../agv/internal_FleetUpdateHandle.hpp"
 
 namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-std::shared_ptr<Task> make_loop(
+std::shared_ptr<LegacyTask> make_loop(
   const rmf_task::ConstRequestPtr request,
   const agv::RobotContextPtr& context,
   const rmf_traffic::agv::Plan::Start start,
   const rmf_traffic::Time deployment_time,
-  const rmf_task::agv::State finish_state);
+  const rmf_task::State finish_state);
+
+//==============================================================================
+void add_loop(
+  agv::TaskDeserialization& deserialization,
+  agv::TaskActivation& activation,
+  std::function<rmf_traffic::Time()> clock);
 
 } // namespace tasks
 } // namespace rmf_fleet_adapter
