@@ -59,7 +59,7 @@ void RobotUpdateHandle::interrupted()
 
 //==============================================================================
 void RobotUpdateHandle::set_stop_callback(
-  std::function<void(std::string)> stop)
+  RobotUpdateHandle::StopCallback stop)
 {
   if (const auto context = _pimpl->get_context())
   {
