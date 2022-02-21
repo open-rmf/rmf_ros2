@@ -1,5 +1,11 @@
 ## Changelog for package rmf_fleet_adapter
 
+1.5.0 (2022-02-14)
+------------------
+* Support flexible task definitions [#168](https://github.com/open-rmf/rmf_ros2/pull/168)
+* Add lane speed limit to graph parsing function [#124](https://github.com/open-rmf/rmf_ros2/pull/124)
+* Support for geojson graphs [#142](https://github.com/open-rmf/rmf_ros2/pull/142)
+
 1.4.0 (2021-09-01)
 ------------------
 * Add read_only_blockade adapter: [#110](https://github.com/open-rmf/rmf_ros2/pull/110)
