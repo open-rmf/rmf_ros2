@@ -263,7 +263,26 @@ public:
 
   void stop() final
   {
-    // This is currently not used by the fleet drivers
+    auto lock = _lock();
+    _clear_last_command();
+
+    if (!_last_known_state.has_value())
+    {
+      RCLCPP_WARN(
+        _node->get_logger(),
+        "Cannot ask slotcar [%s] to stop because we have never received a "
+        "state from it.",
+        _travel_info.robot_name.c_str());
+      return;
+    }
+
+    rmf_fleet_msgs::msg::Location location;
+    _current_path_request.task_id = std::to_string(++_current_task_id);
+    _current_path_request.path.clear();
+    _current_path_request.path.push_back(_last_known_state->location);
+
+    _path_requested_time = std::chrono::steady_clock::now();
+    _path_request_pub->publish(_current_path_request);
   }
 
   class DockFinder : public rmf_traffic::agv::Graph::Lane::Executor

@@ -202,6 +202,11 @@ auto GoToPlace::Active::interrupt(std::function<void()> task_is_interrupted)
   _state->update_log().info("Going into standby for an interruption");
   _state->update_dependencies({});
 
+  if (const auto command = _context->command())
+    command->stop();
+
+  _context->itinerary().clear();
+
   _context->worker().schedule(
     [task_is_interrupted](const auto&)
     {
