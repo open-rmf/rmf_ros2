@@ -33,6 +33,7 @@
 #include <rmf_fleet_msgs/srv/lift_clearance.hpp>
 #include <rmf_fleet_msgs/msg/lane_request.hpp>
 #include <rmf_fleet_msgs/msg/closed_lanes.hpp>
+#include <rmf_fleet_msgs/msg/interrupt_request.hpp>
 
 // RMF Task messages
 #include <rmf_task_msgs/msg/task_type.hpp>
@@ -403,13 +404,13 @@ public:
 
         RCLCPP_INFO(
           _node->get_logger(),
-          "Fleet driver [%s] reported interruption for [%s]",
+          "Fleet driver [%s] reported a need to replan for [%s]",
           _current_path_request.fleet_name.c_str(),
           _current_path_request.robot_name.c_str());
 
         _interrupted = true;
         estimate_state(_node, state.location, _travel_info);
-        return _travel_info.updater->interrupted();
+        return _travel_info.updater->replan();
       }
 
       if (state.path.empty())
@@ -489,8 +490,9 @@ public:
     _travel_info.updater = std::move(updater);
     // Set the action_executor for the robot
     const auto teleop_executioner =
-      [w = weak_from_this()](const std::string& category,
-        const nlohmann::json& description,
+      [w = weak_from_this()](
+        const std::string&,
+        const nlohmann::json&,
         ActionExecution execution)
       {
         // We do not do anything here. The user can can move the robot by
@@ -585,7 +587,7 @@ public:
     }
 
     if (need_to_replan)
-      _travel_info.updater->interrupted();
+      _travel_info.updater->replan();
   }
 
   void set_action_execution(ActionExecution action_execution)
@@ -607,6 +609,39 @@ public:
       _travel_info.robot_name.c_str());
   }
 
+  void handle_interrupt_request(
+    const rmf_fleet_msgs::msg::InterruptRequest& request)
+  {
+    const auto it = _interruptions.find(request.interrupt_id);
+    if (it == _interruptions.end())
+    {
+      if (request.type == request.TYPE_RESUME)
+        return;
+
+      _interruptions.insert({request.interrupt_id,
+        _travel_info.updater->interrupt(
+          request.labels,
+          [id = request.interrupt_id, name = _travel_info.robot_name]()
+          {
+            std::cout << "[" << name << "] is interrupted for " << id
+                      << "!" << std::endl;
+          })});
+
+      return;
+    }
+    else
+    {
+      if (request.type == request.TYPE_INTERRUPT)
+        return;
+
+      it->second.resume(request.labels);
+      std::cout << "Asking [" << _travel_info.robot_name << "] to resume for "
+                << request.interrupt_id << std::endl;
+
+      _interruptions.erase(it);
+    }
+  }
+
 private:
 
   rclcpp::Node* _node;
@@ -625,6 +660,9 @@ private:
     std::chrono::steady_clock::now();
   RequestCompleted _dock_finished_callback;
   ModeRequestPub _mode_request_pub;
+
+  using Interruption = rmf_fleet_adapter::agv::RobotUpdateHandle::Interruption;
+  std::unordered_map<std::string, Interruption> _interruptions;
 
   uint32_t _current_task_id = 0;
 
@@ -702,9 +740,12 @@ struct Connections : public std::enable_shared_from_this<Connections>
   /// Container for remembering which lanes are currently closed
   std::unordered_set<std::size_t> closed_lanes;
 
+  /// The topic subscription for robot interruption requests
+  rclcpp::Subscription<rmf_fleet_msgs::msg::InterruptRequest>::SharedPtr
+    interrupt_request_sub;
+
   /// The container for robot update handles
-  std::unordered_map<std::string, FleetDriverRobotCommandHandlePtr>
-  robots;
+  std::unordered_map<std::string, FleetDriverRobotCommandHandlePtr> robots;
 
   void add_robot(
     const std::string& fleet_name,
@@ -952,6 +993,34 @@ std::shared_ptr<Connections> make_fleet(
         connections->closed_lanes.end());
 
       connections->closed_lanes_pub->publish(state_msg);
+    });
+
+  connections->interrupt_request_sub =
+    adapter->node()->create_subscription<rmf_fleet_msgs::msg::InterruptRequest>(
+    rmf_fleet_adapter::InterruptRequestTopicName,
+    rclcpp::SystemDefaultsQoS(),
+    [w = connections->weak_from_this(), fleet_name](
+      rmf_fleet_msgs::msg::InterruptRequest::UniquePtr request_msg)
+    {
+      const auto connections = w.lock();
+      if (!connections)
+        return;
+
+      if (request_msg->fleet_name != fleet_name)
+        return;
+
+      const auto rit = connections->robots.find(request_msg->robot_name);
+      if (rit == connections->robots.end())
+      {
+        RCLCPP_WARN(
+          connections->adapter->node()->get_logger(),
+          "Could not find robot [%s] in fleet [%s]",
+          request_msg->robot_name.c_str(),
+          fleet_name.c_str());
+        return;
+      }
+
+      rit->second->handle_interrupt_request(*request_msg);
     });
 
   /* *INDENT-OFF* */

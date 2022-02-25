@@ -92,10 +92,26 @@ TaskManagerPtr TaskManager::make(
           if (!self->_emergency_active)
             return;
 
+          auto task_id = "emergency_pullover." + self->_context->name() + "."
+            + self->_context->group() + "-"
+            + std::to_string(self->_count_emergency_pullover++);
+
           // TODO(MXG): Consider subscribing to the emergency pullover update
-          self->_emergency_pullover = events::EmergencyPullover::Standby::make(
-            rmf_task_sequence::Event::AssignID::make(), self->_context, []() {})
-          ->begin([]() {}, self->_make_resume_from_emergency());
+          self->_emergency_pullover =
+            ActiveTask::start(
+              events::EmergencyPullover::start(
+                task_id,
+                self->_context,
+                self->_update_cb(),
+                self->_make_resume_from_emergency()),
+            self->_context->now());
+
+          self->_context->worker().schedule(
+            [w = self->weak_from_this()](const auto&)
+            {
+              if (const auto self = w.lock())
+                self->_process_robot_interrupts();
+            });
         });
     };
 
@@ -127,8 +143,18 @@ TaskManagerPtr TaskManager::make(
         }
         else
         {
-          if (auto pullover = mgr->_emergency_pullover)
-            pullover->cancel();
+          if (mgr->_emergency_pullover)
+          {
+            if (mgr->_emergency_pullover.is_finished())
+            {
+              mgr->_resume_from_emergency();
+            }
+            else
+            {
+              mgr->_emergency_pullover.cancel(
+                {"emergency notice topic"}, mgr->_context->now());
+            }
+          }
         }
       }
     });
@@ -219,6 +245,8 @@ TaskManagerPtr TaskManager::make(
     const auto json_uri = nlohmann::json_uri{schema["$id"]};
     mgr->_schema_dictionary.insert({json_uri.url(), schema});
   }
+
+  mgr->_context->_set_task_manager(mgr);
 
   return mgr;
 }
@@ -597,6 +625,9 @@ std::string TaskManager::ActiveTask::add_interruption(
     return token;
   }
 
+  _interruption_handler->interruption_listeners
+  .push_back(std::move(task_is_interrupted));
+
   _resume_task = _task->interrupt(
     [w = _interruption_handler->weak_from_this()]()
     {
@@ -607,10 +638,27 @@ std::string TaskManager::ActiveTask::add_interruption(
       std::lock_guard<std::mutex> lock(handler->mutex);
       handler->is_interrupted = true;
       for (const auto& listener : handler->interruption_listeners)
+      {
         listener();
+      }
     });
 
   return token;
+}
+
+//==============================================================================
+bool TaskManager::ActiveTask::is_interrupted() const
+{
+  return _interruption_handler->is_interrupted;
+}
+
+//==============================================================================
+bool TaskManager::ActiveTask::is_finished() const
+{
+  if (_task)
+    return _task->finished();
+
+  return true;
 }
 
 //==============================================================================
@@ -620,7 +668,7 @@ std::vector<std::string> TaskManager::ActiveTask::remove_interruption(
   rmf_traffic::Time time)
 {
   nlohmann::json resume_json;
-  resume_json["unix_millis_request_time"] =
+  resume_json["unix_millis_resume_time"] =
     to_millis(time.time_since_epoch()).count();
 
   resume_json["labels"] = std::move(labels);
@@ -929,6 +977,182 @@ std::vector<nlohmann::json> TaskManager::task_log_updates() const
 }
 
 //==============================================================================
+nlohmann::json TaskManager::submit_direct_request(
+  const nlohmann::json& request,
+  const std::string& request_id)
+{
+  auto fleet_handle = _fleet_handle.lock();
+  if (!fleet_handle)
+  {
+    return _make_error_response(
+      18, "Shutdown", "The fleet adapter is shutting down");
+  }
+
+  const auto& fleet = _context->group();
+  const auto& robot = _context->name();
+
+  const auto& impl =
+    agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+  std::vector<std::string> errors;
+  const auto new_request = impl.convert(request_id, request, errors);
+  if (!new_request)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Unable to generate a valid request for direct task [%s]",
+      request_id.c_str());
+
+    nlohmann::json response_json;
+    response_json["success"] = false;
+    std::vector<nlohmann::json> json_errors = {};
+    for (const auto& e : errors)
+      json_errors.push_back(nlohmann::json::parse(e));
+    response_json["errors"] = std::move(json_errors);
+
+    return response_json;
+  }
+  // Generate Assignment for the request
+  const auto task_planner = _context->task_planner();
+  if (!task_planner)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Fleet [%s] is not configured with parameters for task planning."
+      "Use FleetUpdateHandle::set_task_planner_params(~) to set the "
+      "parameters required.", fleet.c_str());
+
+    return _make_error_response(
+      19, "Misconfigured",
+      "The fleet adapter is not configured for task planning");
+  }
+
+  const auto current_state = expected_finish_state();
+  const auto& constraints = task_planner->configuration().constraints();
+  const auto& parameters = task_planner->configuration().parameters();
+  const auto model = new_request->description()->make_model(
+    new_request->booking()->earliest_start_time(),
+    parameters);
+  const auto estimate = model->estimate_finish(
+    current_state,
+    constraints,
+    *_travel_estimator);
+
+  rmf_task::State finish_state;
+  rmf_traffic::Time deployment_time;
+
+  if (!estimate.has_value())
+  {
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      "Unable to estimate final state for direct task request [%s]. This may "
+      "be due to insufficient resources to perform the task. The task will be "
+      "still be added to the queue.",
+      request_id.c_str());
+    finish_state = current_state;
+    deployment_time = new_request->booking()->earliest_start_time();
+  }
+  else
+  {
+    finish_state = estimate.value().finish_state();
+    deployment_time = estimate.value().wait_until();
+  }
+
+  const DirectAssignment assignment = DirectAssignment{
+    _next_sequence_number,
+    Assignment(
+      new_request,
+      finish_state,
+      deployment_time)
+  };
+  ++_next_sequence_number;
+  {
+    std::lock_guard<std::mutex> lock(_mutex);
+    _direct_queue.insert(assignment);
+  }
+
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Direct request [%s] successfully queued for robot [%s]",
+    request_id.c_str(),
+    robot.c_str());
+
+  // Publish api response
+  nlohmann::json response_json;
+  response_json["success"] = true;
+  nlohmann::json task_state;
+  copy_booking_data(task_state["booking"], *new_request->booking());
+  // task_state["category"] = request["category"].get<std::string>();
+  task_state["detail"] = request["description"];
+  task_state["status"] = "queued";
+  auto& dispatch = task_state["dispatch"];
+  dispatch["status"] = "queued";
+  auto& assign = task_state["assigned_to"];
+  assign["group"] = fleet;
+  assign["name"] = robot;
+  response_json["state"] = task_state;
+
+  return response_json;
+}
+
+//==============================================================================
+void TaskManager::Interruption::resume(std::vector<std::string> labels)
+{
+  if (resumed)
+    return;
+
+  std::lock_guard<std::mutex> lock(mutex);
+  resumed = true;
+  if (const auto mgr = w_mgr.lock())
+  {
+    mgr->_context->worker().schedule(
+      [w = mgr->weak_from_this(),
+      token_map = std::move(token_map),
+      labels = std::move(labels)](const auto&)
+      {
+        const auto mgr = w.lock();
+        if (!mgr)
+          return;
+
+        const auto now = mgr->_context->now();
+        for (auto* task : {&mgr->_active_task, &mgr->_emergency_pullover})
+        {
+          if (*task)
+          {
+            const auto token_it = token_map.find(task->id());
+            if (token_it == token_map.end())
+              continue;
+
+            task->remove_interruption(
+              {token_it->second}, std::move(labels), now);
+          }
+        }
+      });
+  }
+}
+
+//==============================================================================
+TaskManager::Interruption::~Interruption()
+{
+  resume({"automatic release"});
+}
+
+//==============================================================================
+void TaskManager::interrupt_robot(
+  std::shared_ptr<Interruption> interruption,
+  std::vector<std::string> labels,
+  std::function<void()> robot_is_interrupted)
+{
+  _robot_interrupts.push_back(
+    RobotInterrupt{
+      std::move(interruption),
+      std::move(labels),
+      std::move(robot_is_interrupted)
+    });
+
+  _process_robot_interrupts();
+}
+
+//==============================================================================
 void TaskManager::_begin_next_task()
 {
   if (_active_task)
@@ -1027,6 +1251,91 @@ void TaskManager::_begin_next_task()
     if (!_waiting)
       _begin_waiting();
   }
+
+  _context->worker().schedule(
+    [w = weak_from_this()](const auto&)
+    {
+      if (const auto self = w.lock())
+        self->_process_robot_interrupts();
+    });
+}
+
+//==============================================================================
+void TaskManager::_process_robot_interrupts()
+{
+  const auto now = _context->now();
+  for (auto& r : _robot_interrupts)
+  {
+    const auto interruption = r.interruption.lock();
+    if (!interruption)
+      continue;
+
+    std::lock_guard<std::mutex> lock(interruption->mutex);
+    if (interruption->resumed)
+      continue;
+
+    for (auto* task : {&_active_task, &_emergency_pullover})
+    {
+      if (!*task)
+        continue;
+
+      const auto [it, inserted] =
+        interruption->token_map.insert({task->id(), ""});
+
+      if (inserted)
+      {
+        it->second = task->add_interruption(
+          r.labels, now, _robot_interruption_callback());
+      }
+    }
+  }
+
+  // Clear out expired interruptions so they don't leak memory.
+  const auto remove_it = std::remove_if(
+    _robot_interrupts.begin(),
+    _robot_interrupts.end(),
+    [](const auto& r) { return !r.interruption.lock(); });
+
+  _robot_interrupts.erase(remove_it, _robot_interrupts.end());
+}
+
+//==============================================================================
+std::function<void()> TaskManager::_robot_interruption_callback()
+{
+  return [w = weak_from_this()]()
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_context->worker().schedule(
+        [w = self->weak_from_this()](const auto&)
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
+
+          for (auto* task : {&self->_active_task, &self->_emergency_pullover})
+          {
+            if ((*task) && !task->is_interrupted())
+            {
+              return;
+            }
+          }
+
+          // Both the active task and the emergency pullover are either idle or
+          // interrupted, so now we can trigger the interruption ready callback
+          // on any robot interruptions that are waiting for it.
+          for (auto& r : self->_robot_interrupts)
+          {
+            if (r.robot_is_interrupted)
+            {
+              r.robot_is_interrupted();
+              r.robot_is_interrupted = nullptr;
+            }
+          }
+        });
+    };
 }
 
 //==============================================================================
@@ -1133,7 +1442,7 @@ void TaskManager::_resume_from_emergency()
       if (!self->_emergency_pullover_interrupt_token.has_value())
         return;
 
-      self->_emergency_pullover = nullptr;
+      self->_emergency_pullover = ActiveTask();
       if (self->_active_task)
       {
         self->_active_task.remove_interruption(
@@ -1793,115 +2102,8 @@ void TaskManager::_handle_direct_request(
     return;
 
   const nlohmann::json& request = request_json["request"];
-  auto fleet_handle = _fleet_handle.lock();
-  if (!fleet_handle)
-    return;
-  const auto& impl =
-    agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
-  std::vector<std::string> errors;
-  const auto new_request = impl.convert(request_id, request, errors);
-  if (!new_request)
-  {
-    RCLCPP_ERROR(
-      _context->node()->get_logger(),
-      "Unable to generate a valid request for direct task [%s]",
-      request_id.c_str());
-
-    nlohmann::json response_json;
-    response_json["success"] = false;
-    std::vector<nlohmann::json> json_errors = {};
-    for (const auto& e : errors)
-      json_errors.push_back(nlohmann::json::parse(e));
-    response_json["errors"] = std::move(json_errors);
-
-    _validate_and_publish_api_response(
-      response_json,
-      response_validator,
-      request_id);
-
-    return;
-  }
-  // Generate Assignment for the request
-  const auto task_planner = _context->task_planner();
-  if (!task_planner)
-  {
-    RCLCPP_ERROR(
-      _context->node()->get_logger(),
-      "Fleet [%s] is not configured with parameters for task planning."
-      "Use FleetUpdateHandle::set_task_planner_params(~) to set the "
-      "parameters required.", fleet.c_str());
-    return;
-  }
-
-  const auto current_state = expected_finish_state();
-  const auto& constraints = task_planner->configuration().constraints();
-  const auto& parameters = task_planner->configuration().parameters();
-  const auto model = new_request->description()->make_model(
-    new_request->booking()->earliest_start_time(),
-    parameters);
-  const auto estimate = model->estimate_finish(
-    current_state,
-    constraints,
-    *_travel_estimator);
-
-  rmf_task::State finish_state;
-  rmf_traffic::Time deployment_time;
-
-  if (!estimate.has_value())
-  {
-    RCLCPP_WARN(
-      _context->node()->get_logger(),
-      "Unable to estimate final state for direct task request [%s]. This may "
-      "be due to insufficient resources to perform the task. The task will be "
-      "still be added to the queue.",
-      request_id.c_str());
-    finish_state = current_state;
-    deployment_time = new_request->booking()->earliest_start_time();
-  }
-  else
-  {
-    finish_state = estimate.value().finish_state();
-    deployment_time = estimate.value().wait_until();
-  }
-
-  const DirectAssignment assignment = DirectAssignment{
-    _next_sequence_number,
-    Assignment(
-      new_request,
-      finish_state,
-      deployment_time)
-  };
-  ++_next_sequence_number;
-  {
-    std::lock_guard<std::mutex> lock(_mutex);
-    _direct_queue.insert(assignment);
-  }
-
-  RCLCPP_INFO(
-    _context->node()->get_logger(),
-    "Direct request [%s] successfully queued for robot [%s]",
-    request_id.c_str(),
-    robot.c_str());
-
-  // Publish api response
-  nlohmann::json response_json;
-  response_json["success"] = true;
-  nlohmann::json task_state;
-  copy_booking_data(task_state["booking"], *new_request->booking());
-  // task_state["category"] = request["category"].get<std::string>();
-  task_state["detail"] = request["description"];
-  task_state["status"] = "queued";
-  auto& dispatch = task_state["dispatch"];
-  dispatch["status"] = "queued";
-  auto& assign = task_state["assigned_to"];
-  assign["group"] = fleet;
-  assign["name"] = robot;
-  response_json["state"] = task_state;
-
-  _validate_and_publish_api_response(
-    response_json,
-    response_validator,
-    request_id);
+  const auto response = submit_direct_request(request, request_id);
+  _validate_and_publish_api_response(response, response_validator, request_id);
 }
 
 //==============================================================================

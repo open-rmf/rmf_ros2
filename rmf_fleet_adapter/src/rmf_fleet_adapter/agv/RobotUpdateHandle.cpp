@@ -16,6 +16,7 @@
 */
 
 #include "internal_RobotUpdateHandle.hpp"
+#include "../TaskManager.hpp"
 
 #include <rmf_traffic_ros2/Time.hpp>
 
@@ -49,6 +50,12 @@ RobotUpdateHandle::Implementation::get_context() const
 
 //==============================================================================
 void RobotUpdateHandle::interrupted()
+{
+  replan();
+}
+
+//==============================================================================
+void RobotUpdateHandle::replan()
 {
   if (const auto context = _pimpl->get_context())
   {
@@ -213,6 +220,126 @@ void RobotUpdateHandle::set_action_executor(
         context->action_executor(action_executor);
       });
   }
+}
+
+//==============================================================================
+void RobotUpdateHandle::submit_direct_request(
+  nlohmann::json task_request,
+  std::string request_id,
+  std::function<void(nlohmann::json)> receive_response)
+{
+  auto context_missing_error = [receive_response]()
+    {
+      nlohmann::json response;
+      response["success"] = false;
+
+      nlohmann::json error;
+      error["code"] = 18;
+      error["category"] = "Shutdown";
+      error["detail"] = "Robot is shutting down";
+
+      response["errors"] = std::vector<nlohmann::json>({std::move(error)});
+      receive_response(response);
+    };
+
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+      task_request = std::move(task_request),
+      request_id = std::move(request_id),
+      receive_response,
+      c = context->weak_from_this(),
+      context_missing_error
+      ](const auto&)
+      {
+        const auto context = c.lock();
+        if (!context)
+          return context_missing_error();
+
+        const auto mgr = context->task_manager();
+        if (!mgr)
+          return context_missing_error();
+
+        auto response = mgr->submit_direct_request(task_request, request_id);
+        receive_response(std::move(response));
+      });
+  }
+  else
+  {
+    context_missing_error();
+  }
+}
+
+//==============================================================================
+class RobotUpdateHandle::Interruption::Implementation
+{
+public:
+  std::shared_ptr<TaskManager::Interruption> interruption;
+
+  static Interruption make()
+  {
+    Interruption output;
+    output._pimpl->interruption = std::make_shared<TaskManager::Interruption>();
+
+    return output;
+  }
+
+  static std::shared_ptr<TaskManager::Interruption> get_impl(
+    Interruption& handle)
+  {
+    return handle._pimpl->interruption;
+  }
+};
+
+//==============================================================================
+void RobotUpdateHandle::Interruption::resume(
+  std::vector<std::string> labels)
+{
+  _pimpl->interruption->resume(std::move(labels));
+}
+
+//==============================================================================
+RobotUpdateHandle::Interruption::Interruption()
+: _pimpl(rmf_utils::make_unique_impl<Implementation>())
+{
+  // Do nothing
+}
+
+//==============================================================================
+auto RobotUpdateHandle::interrupt(
+  std::vector<std::string> labels,
+  std::function<void()> robot_is_interrupted)
+-> Interruption
+{
+  Interruption handle = Interruption::Implementation::make();
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+      labels = std::move(labels),
+      robot_is_interrupted = std::move(robot_is_interrupted),
+      c = context->weak_from_this(),
+      handle = Interruption::Implementation::get_impl(handle)
+      ](const auto&)
+      {
+        const auto context = c.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        if (!mgr)
+          return;
+
+        handle->w_mgr = mgr;
+        mgr->interrupt_robot(
+          handle,
+          std::move(labels),
+          std::move(robot_is_interrupted));
+      });
+  }
+
+  return handle;
 }
 
 //==============================================================================

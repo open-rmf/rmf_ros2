@@ -24,6 +24,10 @@
 #include "Node.hpp"
 
 namespace rmf_fleet_adapter {
+
+// Forward declaration
+class TaskManager;
+
 namespace agv {
 
 //==============================================================================
@@ -195,9 +199,13 @@ public:
   /// PerformAction activity
   RobotUpdateHandle::ActionExecutor action_executor() const;
 
+  /// Get the task manager for this robot, if it exists.
+  std::shared_ptr<TaskManager> task_manager();
+
 private:
   friend class FleetUpdateHandle;
   friend class RobotUpdateHandle;
+  friend class rmf_fleet_adapter::TaskManager;
 
   RobotContext(
     std::shared_ptr<RobotCommandHandle> command_handle,
@@ -212,6 +220,10 @@ private:
     rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
     rmf_task::State state,
     std::shared_ptr<const rmf_task::TaskPlanner> task_planner);
+
+  /// Set the task manager for this robot. This should only be called in the
+  /// TaskManager::make function.
+  void _set_task_manager(std::shared_ptr<TaskManager> mgr);
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
@@ -243,6 +255,7 @@ private:
   rmf_task::State _current_task_end_state;
   std::optional<std::string> _current_task_id;
   std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
+  std::weak_ptr<TaskManager> _task_manager;
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);

@@ -592,8 +592,8 @@ void FleetAdapterNode::update_arrival(
   {
     RCLCPP_ERROR(
       get_logger(),
-      "[FleetAdapterNode::update_arrival] Index mismatch: Target index [%d], "
-      "timing vector size: [%d], path vector size: [%d]",
+      "[FleetAdapterNode::update_arrival] Index mismatch: Target index [%lu], "
+      "timing vector size: [%lu], path vector size: [%lu]",
       next_waypoint,
       robot.expectation->timing.size(),
       robot.expectation->path.size());

@@ -60,6 +60,8 @@ const std::string DockSummaryTopicName = "dock_summary";
 const std::string LaneClosureRequestTopicName = "lane_closure_requests";
 const std::string ClosedLaneTopicName = "closed_lanes";
 
+const std::string InterruptRequestTopicName = "robot_interrupt_request";
+
 const std::string TaskApiRequests = "task_api_requests";
 const std::string TaskApiResponses = "task_api_responses";
 

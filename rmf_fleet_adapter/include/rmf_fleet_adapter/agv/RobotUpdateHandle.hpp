@@ -42,11 +42,14 @@ class RobotUpdateHandle
 {
 public:
 
-  /// Tell the RMF schedule that the robot was interrupted and needs a new plan.
-  /// A new plan will be generated, starting from the last position that was
-  /// given by update_position(). It is best to call update_position() with the
-  /// latest position of the robot before calling this function.
+  [[deprecated("Use replan() instead")]]
   void interrupted();
+
+  /// Tell the RMF schedule that the robot needs a new plan. A new plan will be
+  /// generated, starting from the last position that was given by
+  /// update_position(). It is best to call update_position() with the latest
+  /// position of the robot before calling this function.
+  void replan();
 
   /// Update the current position of the robot by specifying the waypoint that
   /// the robot is on and its orientation.
@@ -155,6 +158,50 @@ public:
 
   /// Set the ActionExecutor for this robot
   void set_action_executor(ActionExecutor action_executor);
+
+  /// Submit a direct task request to this manager
+  /// \param[in] task_request
+  ///   A JSON description of the task request. It should match the
+  ///   task_request.json schema of rmf_api_msgs, in particular it must contain
+  ///   `category` and `description` properties.
+  ///
+  /// \param[in] request_id
+  ///   The unique ID for this task request.
+  ///
+  /// \param[in] receive_response
+  ///   Provide a callback to receive the response. The response will be a
+  ///   robot_task_response.json message from rmf_api_msgs (note: this message
+  ///   is not validated before being returned).
+  void submit_direct_request(
+    nlohmann::json task_request,
+    std::string request_id,
+    std::function<void(nlohmann::json response)> receive_response);
+
+  /// An object to maintain an interruption of the current task. When this
+  /// object is destroyed, the task will resume.
+  class Interruption
+  {
+  public:
+    /// Call this function to resume the task while providing labels for
+    /// resuming.
+    void resume(std::vector<std::string> labels);
+
+    class Implementation;
+  private:
+    Interruption();
+    rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+  };
+
+  /// Interrupt (pause) the current task, yielding control of the robot away
+  /// from the fleet adapter's task manager.
+  ///
+  /// \param[in] labels
+  ///   Labels that will be assigned to this interruption. It is recommended to
+  ///   include information about why the interruption is happening.
+  ///
+  /// \return a handle for this interruption.
+  Interruption interrupt(std::vector<std::string> labels,
+    std::function<void()> robot_is_interrupted);
 
   class Implementation;
 

@@ -36,6 +36,12 @@ class EmergencyPullover : public rmf_task_sequence::Event
 {
 public:
 
+  static rmf_task::Task::ActivePtr start(
+    const std::string& task_id,
+    agv::RobotContextPtr& context,
+    std::function<void(rmf_task::Phase::ConstSnapshotPtr)> update,
+    std::function<void()> finished);
+
   class Standby : public rmf_task_sequence::Event::Standby
   {
   public:
@@ -114,6 +120,10 @@ public:
 
     bool _is_interrupted = false;
   };
+
+private:
+  static rmf_task::Activator _make_activator(
+    std::function<rmf_traffic::Time()> clock);
 };
 
 } // namespace events

@@ -19,8 +19,51 @@
 
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 
+#include <rmf_task_sequence/Task.hpp>
+#include <rmf_task_sequence/phases/SimplePhase.hpp>
+#include <rmf_task_sequence/events/Placeholder.hpp>
+
 namespace rmf_fleet_adapter {
 namespace events {
+
+//==============================================================================
+class EmergencyPulloverDescription
+  : public rmf_task_sequence::events::Placeholder::Description
+{
+public:
+  EmergencyPulloverDescription()
+  : rmf_task_sequence::events::Placeholder::Description(
+    "Emergency Pullover", "")
+  {
+    // Do nothing
+  }
+};
+
+//==============================================================================
+rmf_task::Task::ActivePtr EmergencyPullover::start(
+  const std::string& task_id,
+  agv::RobotContextPtr& context,
+  std::function<void(rmf_task::Phase::ConstSnapshotPtr)> update,
+  std::function<void()> finished)
+{
+  static auto activator = _make_activator(context->clock());
+  rmf_task_sequence::Task::Builder builder;
+  builder.add_phase(
+    rmf_task_sequence::phases::SimplePhase::Description::make(
+      std::make_shared<EmergencyPulloverDescription>()), {});
+
+  const auto desc = builder.build("Emergency Pullover", "");
+  const rmf_task::Request request(task_id, context->now(), nullptr, desc, true);
+
+  return activator.activate(
+    context->make_get_state(),
+    context->task_parameters(),
+    request,
+    std::move(update),
+    [](const auto&) {},
+    [](const auto&) {},
+    std::move(finished));
+}
 
 //==============================================================================
 auto EmergencyPullover::Standby::make(
@@ -314,6 +357,47 @@ Negotiator::NegotiatePtr EmergencyPullover::Active::_respond(
     responder, std::move(approval_cb), std::move(evaluator));
 }
 
+//==============================================================================
+rmf_task::Activator EmergencyPullover::_make_activator(
+  std::function<rmf_traffic::Time()> clock)
+{
+  auto event_activator =
+    std::make_shared<rmf_task_sequence::Event::Initializer>();
+  event_activator->add<EmergencyPulloverDescription>(
+    [](
+      const AssignIDPtr& id,
+      const std::function<rmf_task::State()>& get_state,
+      const rmf_task::ConstParametersPtr&,
+      const Description&,
+      std::function<void()> update) -> rmf_task_sequence::Event::StandbyPtr
+    {
+      return EmergencyPullover::Standby::make(
+        id, get_state().get<agv::GetContext>()->value, std::move(update));
+    },
+    [](
+      const AssignIDPtr& id,
+      const std::function<rmf_task::State()>& get_state,
+      const rmf_task::ConstParametersPtr&,
+      const EmergencyPulloverDescription&,
+      const nlohmann::json&,
+      std::function<void()> update,
+      std::function<void()> checkpoint,
+      std::function<void()> finished) -> rmf_task_sequence::Event::ActivePtr
+    {
+      return EmergencyPullover::Standby::make(
+        id, get_state().get<agv::GetContext>()->value, std::move(update))
+        ->begin(std::move(checkpoint), std::move(finished));
+    });
+
+  auto phase_activator =
+    std::make_shared<rmf_task_sequence::Phase::Activator>();
+  rmf_task_sequence::phases::SimplePhase::add(
+    *phase_activator, event_activator);
+
+  rmf_task::Activator activator;
+  rmf_task_sequence::Task::add(activator, phase_activator, std::move(clock));
+  return activator;
+}
 
 } // namespace events
 } // namespace rmf_fleet_adapter
