@@ -58,16 +58,6 @@ void RobotUpdateHandle::interrupted()
 }
 
 //==============================================================================
-void RobotUpdateHandle::set_stop_callback(
-  RobotUpdateHandle::StopCallback stop)
-{
-  if (const auto context = _pimpl->get_context())
-  {
-    context->_stop = stop;
-  }
-}
-
-//==============================================================================
 void RobotUpdateHandle::update_position(
   std::size_t waypoint,
   double orientation)

@@ -152,10 +152,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     "Experimental API to access the schedule participant")
   .def("set_action_executor",
     &agv::RobotUpdateHandle::set_action_executor,
-    py::arg("action_executor"))
-  .def("set_stop_callback",
-    &agv::RobotUpdateHandle::set_stop_callback,
-    py::arg("stop"));
+    py::arg("action_executor"));
 
   // ACTION EXECUTOR   ===============================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");

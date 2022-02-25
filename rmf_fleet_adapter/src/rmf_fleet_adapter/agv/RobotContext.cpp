@@ -204,8 +204,8 @@ RobotContext::observe_interrupt() const
 //==============================================================================
 void RobotContext::trigger_interrupt()
 {
-  if (_stop != nullptr)
-    _stop();
+  if (const auto c = command())
+    c->stop();
   _interrupt_publisher.get_subscriber().on_next(Empty{});
 }
 

@@ -215,7 +215,6 @@ private:
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
-  RobotUpdateHandle::StopCallback _stop;
   rmf_traffic::schedule::Participant _itinerary;
   std::shared_ptr<const Snappable> _schedule;
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> _planner;
