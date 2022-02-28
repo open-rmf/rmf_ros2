@@ -32,7 +32,7 @@ jobs:
             {
               "build": {
                 "mixin": ["coverage-gcc"],
-                "executor": "sequential"
+                "executor": ["sequential"]
               }
             }
           colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml

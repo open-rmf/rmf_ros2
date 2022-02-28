@@ -30,7 +30,7 @@ jobs:
               "build": {
                 "mixin": ["asan-gcc"],
                 "cmake-args": ["-DCMAKE_BUILD_TYPE=Debug"],
-                "executor": "sequential"
+                "executor": ["sequential"]
               }
             }
           colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
