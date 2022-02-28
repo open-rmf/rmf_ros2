@@ -16,6 +16,8 @@ jobs:
           required-ros-distributions: ${{ matrix.ros_distribution }}
       - name: build
         uses: ros-tooling/action-ros-ci@v0.2
+        env:
+          MAKEFLAGS: j1
         with:
           target-ros2-distro: ${{ matrix.ros_distribution }}
           # build all packages listed in the meta package
@@ -29,7 +31,8 @@ jobs:
           colcon-defaults: |
             {
               "build": {
-                "mixin": ["coverage-gcc"]
+                "mixin": ["coverage-gcc"],
+                "executor": "sequential"
               }
             }
           colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
