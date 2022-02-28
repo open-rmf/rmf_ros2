@@ -297,14 +297,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider_pickup = std::move(consider_pickup)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider_pickup(desc); // confirm is returned by user
+            confirm = consider_pickup(description); // confirm is returned by user
           },
           [consider_dropoff = std::move(consider_dropoff)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider_dropoff(desc); // confirm is returned by user
+            confirm = consider_dropoff(description); // confirm is returned by user
           }
         );
     },
@@ -318,8 +316,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider = std::move(consider)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider(desc); // confirm is returned by user
+            confirm = consider(description); // confirm is returned by user
           }
         );
     },
@@ -332,8 +329,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider = std::move(consider)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider(desc); // confirm is returned by user
+            confirm = consider(description); // confirm is returned by user
           }
         );
     },
@@ -346,8 +342,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider = std::move(consider)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider(desc); // confirm is returned by user
+            confirm = consider(description); // confirm is returned by user
           }
         );
     },
@@ -362,8 +357,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider = std::move(consider)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider(desc); // confirm is returned by user
+            confirm = consider(description); // confirm is returned by user
           }
         );
     },
