@@ -199,8 +199,7 @@ GoToPlace::Active::Active(
   _status_publisher.get_subscriber().on_next(initial_msg);
   const auto now = _context->node()->now();
   initial_msg.start_time = now;
-  initial_msg.end_time =
-    now + rclcpp::Duration::from_nanoseconds(_latest_time_estimate);
+  initial_msg.end_time = now + rclcpp::Duration(_latest_time_estimate);
 
   _status_obs = _status_publisher
     .get_observable()
