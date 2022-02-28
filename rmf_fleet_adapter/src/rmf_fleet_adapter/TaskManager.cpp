@@ -999,14 +999,26 @@ nlohmann::json TaskManager::submit_direct_request(
   {
     RCLCPP_ERROR(
       _context->node()->get_logger(),
-      "Unable to generate a valid request for direct task [%s]",
-      request_id.c_str());
+      "Unable to generate a valid request for direct task [%s]:\n%s",
+      request_id.c_str(),
+      request.dump().c_str());
 
     nlohmann::json response_json;
     response_json["success"] = false;
     std::vector<nlohmann::json> json_errors = {};
     for (const auto& e : errors)
-      json_errors.push_back(nlohmann::json::parse(e));
+    {
+      RCLCPP_ERROR(_context->node()->get_logger(), "%s", e.c_str());
+      try
+      {
+        auto error = nlohmann::json::parse(e);
+        json_errors.push_back(error);
+      }
+      catch(const std::exception&)
+      {
+        json_errors.push_back(e);
+      }
+    }
     response_json["errors"] = std::move(json_errors);
 
     return response_json;

@@ -200,7 +200,8 @@ public:
   ///   include information about why the interruption is happening.
   ///
   /// \return a handle for this interruption.
-  Interruption interrupt(std::vector<std::string> labels,
+  Interruption interrupt(
+    std::vector<std::string> labels,
     std::function<void()> robot_is_interrupted);
 
   class Implementation;
