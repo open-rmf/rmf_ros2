@@ -311,7 +311,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider = std::move(consider)](
             const nlohmann::json &description, Confirmation &confirm)
           {
- //           nlohmann::json desc = description;
             confirm = consider(description); // confirm is returned by user
           }
         );
