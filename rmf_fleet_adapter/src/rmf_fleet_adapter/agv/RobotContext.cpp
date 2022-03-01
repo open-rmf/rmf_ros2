@@ -416,6 +416,12 @@ RobotUpdateHandle::ActionExecutor RobotContext::action_executor() const
 }
 
 //==============================================================================
+std::shared_ptr<TaskManager> RobotContext::task_manager()
+{
+  return _task_manager.lock();
+}
+
+//==============================================================================
 RobotContext::RobotContext(
   std::shared_ptr<RobotCommandHandle> command_handle,
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
@@ -457,6 +463,12 @@ RobotContext::RobotContext(
   _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
 
   _action_executor = nullptr;
+}
+
+//==============================================================================
+void RobotContext::_set_task_manager(std::shared_ptr<TaskManager> mgr)
+{
+  _task_manager = std::move(mgr);
 }
 
 } // namespace agv

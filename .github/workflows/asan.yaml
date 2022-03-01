@@ -15,6 +15,7 @@ jobs:
           CC: gcc -g
           CXX: g++ -g
           ASAN_OPTIONS: detect_leaks=0
+          MAKEFLAGS: j1
         with:
           target-ros2-distro: galactic
           # build all packages listed in the meta package
@@ -28,7 +29,8 @@ jobs:
             {
               "build": {
                 "mixin": ["asan-gcc"],
-                "cmake-args": ["-DCMAKE_BUILD_TYPE=Debug"]
+                "cmake-args": ["-DCMAKE_BUILD_TYPE=Debug"],
+                "executor": "sequential"
               }
             }
           colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml

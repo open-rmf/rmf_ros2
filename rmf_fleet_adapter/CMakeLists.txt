@@ -475,6 +475,22 @@ target_include_directories(close_lanes
 
 # -----------------------------------------------------------------------------
 
+add_executable(interrupt_robot src/interrupt_robot/main.cpp)
+
+target_link_libraries(interrupt_robot
+  PRIVATE
+    ${rmf_fleet_msgs_LIBRARIES}
+    rclcpp::rclcpp
+    rmf_fleet_adapter
+)
+
+target_include_directories(interrupt_robot
+  PRIVATE
+    ${rmf_fleet_msgs_INCLUDE_DIRS}
+)
+
+# -----------------------------------------------------------------------------
+
 rmf_api_generate_schema_headers(
   PACKAGE rmf_fleet_adapter
   SCHEMAS_DIR ${CMAKE_CURRENT_LIST_DIR}/schemas
@@ -500,6 +516,7 @@ install(
     task_aggregator
     open_lanes
     close_lanes
+    interrupt_robot
     robot_state_aggregator_main
   EXPORT rmf_fleet_adapter
   RUNTIME DESTINATION lib/rmf_fleet_adapter

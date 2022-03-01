@@ -14,28 +14,23 @@ import rmf_adapter.battery as battery
 import rmf_adapter.plan as plan
 import rmf_adapter.type as Type
 
-# Deps for rmf_msg observer
 import asyncio
 import threading
-
 from itertools import groupby
 
 from test_utils import MockRobotCommand
-from test_utils import MockDispenser, MockIngestor
 from test_utils import task_state_observer_fn
 
 from functools import partial
 
-
-test_task_id = 'patrol.direct_dispatch.001'  # aka task_id
+test_task_id = "patrol.direct.001"  # aka task_id
 map_name = "test_map"
 fleet_name = "test_fleet"
+rmf_server_uri = "ws://localhost:7878"  # random port
 
 start_name = "start_wp"  # 7
 finish_name = "finish_wp"  # 10
 loop_count = 2
-rmf_server_uri = "ws://localhost:7878"  # random port
-
 
 def main():
     # INIT RCL ================================================================
@@ -48,51 +43,21 @@ def main():
         pass
 
     # INIT GRAPH ==============================================================
+    # Copied from test_loop.py
     test_graph = graph.Graph()
 
     test_graph.add_waypoint(map_name, [0.0, -10.0])  # 0
     test_graph.add_waypoint(map_name, [0.0, -5.0])  # 1
-    test_graph.add_waypoint(map_name, [5.0, -5.0]).set_holding_point(True)  # 2
+    test_graph.add_waypoint(map_name, [5.0, -5.0]) # 2
     test_graph.add_waypoint(map_name, [-10.0, 0])  # 3
     test_graph.add_waypoint(map_name, [-5.0, 0.0])  # 4
     test_graph.add_waypoint(map_name, [0.0, 0.0])  # 5
     test_graph.add_waypoint(map_name, [5.0, 0.0])  # 6
     test_graph.add_waypoint(map_name, [10.0, 0.0])  # 7
     test_graph.add_waypoint(map_name, [0.0, 5.0])  # 8
-    test_graph.add_waypoint(map_name, [5.0, 5.0]).set_holding_point(True)  # 9
+    test_graph.add_waypoint(map_name, [5.0, 5.0]) # 9
     test_graph.add_waypoint(map_name, [0.0, 10.0]).set_holding_point(
         True).set_charger(True)  # 10
-
-    assert test_graph.get_waypoint(2).holding_point
-    assert test_graph.get_waypoint(9).holding_point
-
-    test_graph_legend = \
-        """
-        D : Dispenser
-        I : Ingestor
-        H : Holding Point
-        K : Dock
-        Numerals : Waypoints
-        ---- : Lanes
-        """
-
-    test_graph_vis = \
-        test_graph_legend + \
-        """
-                         10(I,K)
-                          |
-                          |
-                          8------9(H)
-                          |      |
-                          |      |
-            3------4------5------6------7(D,K)
-                          |      |
-                          |      |
-                          1------2(H)
-                          |
-                          |
-                          0
-       """
 
     test_graph.add_bidir_lane(0, 1)  # 0   1
     test_graph.add_bidir_lane(1, 2)  # 2   3
@@ -107,24 +72,21 @@ def main():
     test_graph.add_bidir_lane(8, 9)  # 20 21
     test_graph.add_dock_lane(8, 10, "B")  # 22 23
 
-    assert test_graph.num_lanes == 24
-
     test_graph.add_key(start_name, 7)
     test_graph.add_key(finish_name, 10)
 
-    assert len(test_graph.keys) == 2 and start_name in test_graph.keys \
-        and finish_name in test_graph.keys
-
     # INIT FLEET ==============================================================
     profile = traits.Profile(geometry.make_final_convex_circle(1.0))
-    robot_traits = traits.VehicleTraits(linear=traits.Limits(0.7, 0.3),
-                                        angular=traits.Limits(1.0, 0.45),
-                                        profile=profile)
+    robot_traits = traits.VehicleTraits(
+        linear=traits.Limits(0.7, 0.3),
+        angular=traits.Limits(1.0, 0.45),
+        profile=profile
+    )
 
-    # Manages loop requests
-    adapter = adpt.MockAdapter("TestLoopAdapter")
+    adapter = adpt.MockAdapter("TestInterruptAdapter")
     fleet = adapter.add_fleet(
-        fleet_name, robot_traits, test_graph, rmf_server_uri)
+        fleet_name, robot_traits, test_graph, rmf_server_uri
+    )
 
     def patrol_req_cb(json_desc):
         confirmation = adpt.fleet_update_handle.Confirmation()
@@ -153,32 +115,17 @@ def main():
 
     cmd_node = Node("RobotCommandHandle")
 
-    # Test compute_plan_starts, which tries to place the robot on the navgraph
-    # Your robot MUST be near a waypoint or lane for this to work though!
-    starts = plan.compute_plan_starts(test_graph,
-                                      map_name,
-                                      [[-10.0], [0.0], [0.0]],
-                                      adapter.now())
-    assert [x.waypoint for x in starts] == [3], [x.waypoint for x in starts]
+    start = plan.Start(adapter.now(), 0, 0.0)
 
-    # Alternatively, if you DO know where your robot is, place it directly!
-    starts = [plan.Start(adapter.now(),
-                         0,
-                         0.0)]
-
-    # Lambda to insert an adapter
     def updater_inserter(handle_obj, updater):
         updater.update_battery_soc(1.0)
         handle_obj.updater = updater
 
-    # Manages and executes robot commands
     robot_cmd = MockRobotCommand(cmd_node, test_graph)
 
-    fleet.add_robot(robot_cmd,
-                    "T0",
-                    profile,
-                    starts,
-                    partial(updater_inserter, robot_cmd))
+    fleet.add_robot(
+        robot_cmd, "T0", profile, [start], partial(updater_inserter, robot_cmd)
+    )
 
     # FINAL PREP ==============================================================
     rclpy_executor = SingleThreadedExecutor()
@@ -188,11 +135,9 @@ def main():
     adapter.start()
 
     print("\n")
-    print("# SENDING SINGLE LOOP REQUEST ####################################")
-    print(test_graph_vis)
+    print("# SENDING SINGLE DIRECT REQUEST ####################################")
 
     # INIT TASK STATE OBSERVER ==============================================
-    # TODO(YL): Cleanup rmf_msg_observer impl
     print("spawn observer thread")
     fut = asyncio.Future()
     observer_th = threading.Thread(
@@ -209,11 +154,48 @@ def main():
             "rounds": loop_count
         }
     }
-    adapter.dispatch_task(test_task_id, task_json_obj)
+
+    def receive_response(response):
+        if not response['success']:
+            print(f'Received failure response:\n{response}')
+        assert response['success']
+
+    print(' -- About to submit direct task request')
+    robot_cmd.updater.submit_direct_request(
+        task_json_obj,
+        test_task_id,
+        receive_response
+    )
+    print(' -- Submitted direct task request')
+
+    print('About to sleep...')
+    time.sleep(1)
+    print('...Done sleeping')
 
     # check observer completion and timeout
     start_time = time.time()
-    for i in range(1000):
+    for _ in range(5):
+        rclpy_executor.spin_once(1)
+        time.sleep(0.2)
+
+    is_interrupted = False
+    def on_interrupted():
+        nonlocal is_interrupted
+        is_interrupted = True
+
+    interruption = robot_cmd.updater.interrupt(
+        ['test'],
+        on_interrupted
+    )
+
+    for _ in range(5):
+        rclpy_executor.spin_once(1)
+        time.sleep(0.2)
+
+    assert is_interrupted, "on_interrupted callback did not get triggered"
+    interruption.resume(['verified'])
+
+    for _ in range(1000):
         if ((time.time() - start_time) > 15):
             if fut.done():
                 break
@@ -238,7 +220,6 @@ def main():
     cmd_node.destroy_node()
     rclpy_executor.shutdown()
     rclpy.shutdown()
-
 
 if __name__ == "__main__":
     main()

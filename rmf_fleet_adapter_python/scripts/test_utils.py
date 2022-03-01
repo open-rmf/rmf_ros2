@@ -349,7 +349,7 @@ class MockRobotCommand(adpt.RobotCommandHandle):
             previous_waypoint = waypoints[self.current_waypoint_target - 1]
 
             previous_waypoint_graph_idx = previous_waypoint.graph_index
-            print("[RobotUpdateHandle] UPDATING ROBOT POSITION:", 
+            print("[RobotUpdateHandle] UPDATING ROBOT POSITION:",
                   previous_waypoint_graph_idx)
 
             self.updater.update_current_waypoint(
@@ -357,7 +357,8 @@ class MockRobotCommand(adpt.RobotCommandHandle):
                 previous_waypoint.position[2]
             )
 
-            self.visited_waypoints.append(previous_waypoint_graph_idx)
+            if previous_waypoint_graph_idx is not None:
+                self.visited_waypoints.append(previous_waypoint_graph_idx)
 
         if self.current_waypoint_target < len(waypoints):
             # Again, this waypoint is a plan waypoint! NOT a graph waypoint!!
@@ -393,9 +394,9 @@ state msg. with the input ayncio.Future, it will set a result when the
 provided 'task_id' is completed. Note that this is a blocking function.
 Thus it is recommended to run this on a different thread,
 
-:param fut:     
+:param fut:
     future will also be set to done internally when a task is completed.
-:param task_id: 
+:param task_id:
     the target task id to check on completion state
 """
 def task_state_observer_fn(fut: asyncio.Future, target_id: str):
@@ -417,5 +418,5 @@ def task_state_observer_fn(fut: asyncio.Future, target_id: str):
         msg_filters={
             RmfMsgType.TaskState: []}
     )
-    print("Exit observer function")
     observer.spin(fut)
+    print("Exit observer function")
