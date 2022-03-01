@@ -510,9 +510,9 @@ public:
     // Set the action_executor for the robot
     const auto teleop_executioner =
       [w = weak_from_this()](
-        const std::string&,
-        const nlohmann::json&,
-        ActionExecution execution)
+      const std::string&,
+      const nlohmann::json&,
+      ActionExecution execution)
       {
         // We do not do anything here. The user can can move the robot by
         // sending PathRequest msgs. Instead we simply store the completed
@@ -637,14 +637,17 @@ public:
       if (request.type == request.TYPE_RESUME)
         return;
 
-      _interruptions.insert({request.interrupt_id,
-        _travel_info.updater->interrupt(
-          request.labels,
-          [id = request.interrupt_id, name = _travel_info.robot_name]()
-          {
-            std::cout << "[" << name << "] is interrupted for " << id
-                      << "!" << std::endl;
-          })});
+      _interruptions.insert(
+        {
+          request.interrupt_id,
+          _travel_info.updater->interrupt(
+            request.labels,
+            [id = request.interrupt_id, name = _travel_info.robot_name]()
+            {
+              std::cout << "[" << name << "] is interrupted for " << id
+                        << "!" << std::endl;
+            })
+        });
 
       return;
     }

@@ -93,17 +93,16 @@ TaskManagerPtr TaskManager::make(
             return;
 
           auto task_id = "emergency_pullover." + self->_context->name() + "."
-            + self->_context->group() + "-"
-            + std::to_string(self->_count_emergency_pullover++);
+          + self->_context->group() + "-"
+          + std::to_string(self->_count_emergency_pullover++);
 
           // TODO(MXG): Consider subscribing to the emergency pullover update
-          self->_emergency_pullover =
-            ActiveTask::start(
-              events::EmergencyPullover::start(
-                task_id,
-                self->_context,
-                self->_update_cb(),
-                self->_make_resume_from_emergency()),
+          self->_emergency_pullover = ActiveTask::start(
+            events::EmergencyPullover::start(
+              task_id,
+              self->_context,
+              self->_update_cb(),
+              self->_make_resume_from_emergency()),
             self->_context->now());
 
           self->_context->worker().schedule(
@@ -1014,7 +1013,7 @@ nlohmann::json TaskManager::submit_direct_request(
         auto error = nlohmann::json::parse(e);
         json_errors.push_back(error);
       }
-      catch(const std::exception&)
+      catch (const std::exception&)
       {
         json_errors.push_back(e);
       }

@@ -62,19 +62,19 @@ int main(int argc, char* argv[])
 
   using Request = rmf_fleet_msgs::msg::InterruptRequest;
   auto request = rmf_fleet_msgs::build<Request>()
-      .fleet_name(args[fleet_index])
-      .robot_name(args[robot_index])
-      .interrupt_id(args[id_index])
-      .labels(std::move(labels))
-      .type(resuming ? Request::TYPE_RESUME : Request::TYPE_INTERRUPT);
+    .fleet_name(args[fleet_index])
+    .robot_name(args[robot_index])
+    .interrupt_id(args[id_index])
+    .labels(std::move(labels))
+    .type(resuming ? Request::TYPE_RESUME : Request::TYPE_INTERRUPT);
 
   const auto node = std::make_shared<rclcpp::Node>(
     args[fleet_index] + "_" + args[robot_index] + "_interrupt_robot");
 
   const auto publisher =
     node->create_publisher<Request>(
-      rmf_fleet_adapter::InterruptRequestTopicName,
-      rclcpp::SystemDefaultsQoS());
+    rmf_fleet_adapter::InterruptRequestTopicName,
+    rclcpp::SystemDefaultsQoS());
 
   publisher->publish(request);
 

@@ -246,11 +246,11 @@ void RobotUpdateHandle::submit_direct_request(
   {
     context->worker().schedule(
       [
-      task_request = std::move(task_request),
-      request_id = std::move(request_id),
-      receive_response,
-      c = context->weak_from_this(),
-      context_missing_error
+        task_request = std::move(task_request),
+        request_id = std::move(request_id),
+        receive_response,
+        c = context->weak_from_this(),
+        context_missing_error
       ](const auto&)
       {
         const auto context = c.lock();
@@ -317,10 +317,10 @@ auto RobotUpdateHandle::interrupt(
   {
     context->worker().schedule(
       [
-      labels = std::move(labels),
-      robot_is_interrupted = std::move(robot_is_interrupted),
-      c = context->weak_from_this(),
-      handle = Interruption::Implementation::get_impl(handle)
+        labels = std::move(labels),
+        robot_is_interrupted = std::move(robot_is_interrupted),
+        c = context->weak_from_this(),
+        handle = Interruption::Implementation::get_impl(handle)
       ](const auto&)
       {
         const auto context = c.lock();

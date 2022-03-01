@@ -33,7 +33,7 @@ class EmergencyPulloverDescription
 public:
   EmergencyPulloverDescription()
   : rmf_task_sequence::events::Placeholder::Description(
-    "Emergency Pullover", "")
+      "Emergency Pullover", "")
   {
     // Do nothing
   }
@@ -391,7 +391,7 @@ rmf_task::Activator EmergencyPullover::_make_activator(
     {
       return EmergencyPullover::Standby::make(
         id, get_state().get<agv::GetContext>()->value, std::move(update))
-        ->begin(std::move(checkpoint), std::move(finished));
+      ->begin(std::move(checkpoint), std::move(finished));
     });
 
   auto phase_activator =
