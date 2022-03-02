@@ -77,7 +77,6 @@ public:
     {
       // Do nothing
     }
-
   };
 
   struct DirectQueuePriority
@@ -143,6 +142,56 @@ public:
   /// Get a vector of task logs that are validated against the schema
   std::vector<nlohmann::json> task_log_updates() const;
 
+  /// Submit a direct task request to this manager
+  ///
+  /// \param[in] task_request
+  ///   A JSON description of the task request. It should match the
+  ///   task_request.json schema of rmf_api_msgs, in particular it must contain
+  ///   `category` and `description` properties.
+  ///
+  /// \param[in] request_id
+  ///   The unique ID for this task request.
+  ///
+  /// \return A robot_task_response.json message from rmf_api_msgs (note: this
+  /// message is not validated before being returned).
+  nlohmann::json submit_direct_request(
+    const nlohmann::json& task_request,
+    const std::string& request_id);
+
+  class Interruption
+  {
+  public:
+    void resume(std::vector<std::string> labels);
+
+    ~Interruption();
+
+    std::mutex mutex;
+    std::weak_ptr<TaskManager> w_mgr;
+
+    // Map from task_id to interruption token
+    std::unordered_map<std::string, std::string> token_map;
+
+    std::atomic_bool resumed = false;
+  };
+
+  /// Fully interrupt the robot, interrupting any active task(s) including
+  /// emergency actions. Also immediately interrupt any new tasks that get
+  /// started. This can be used to maintain human operator control of the robot
+  /// and prevent RMF from performing any automated behaviors.
+  ///
+  /// \param[in] interruption
+  ///   This will be filled with interruption tokens for each task that gets
+  ///   interrupted. The owner of this resource should let it expire when the
+  ///   interruption should be released.
+  ///
+  /// \param[in] labels
+  ///   Labels related to the interruption to inform operators about the nature
+  ///   of the interruption.
+  void interrupt_robot(
+    std::shared_ptr<Interruption> interruption,
+    std::vector<std::string> labels,
+    std::function<void()> robot_is_interrupted);
+
 private:
 
   TaskManager(
@@ -173,6 +222,10 @@ private:
       std::vector<std::string> labels,
       rmf_traffic::Time time,
       std::function<void()> task_is_interrupted);
+
+    bool is_interrupted() const;
+
+    bool is_finished() const;
 
     // Any unknown tokens that were included will be returned
     std::vector<std::string> remove_interruption(
@@ -242,7 +295,8 @@ private:
   ActiveTask _active_task;
   bool _emergency_active = false;
   std::optional<std::string> _emergency_pullover_interrupt_token;
-  rmf_task_sequence::Event::ActivePtr _emergency_pullover;
+  ActiveTask _emergency_pullover;
+  uint64_t _count_emergency_pullover = 0;
   // Queue for dispatched tasks
   std::vector<Assignment> _queue;
   // An ID to keep track of the FIFO order of direct tasks
@@ -304,6 +358,24 @@ private:
 
   /// Callback for task timer which begins next task if its deployment time has passed
   void _begin_next_task();
+
+  // Interrupts that were issued when there was no active task. They will be
+  // applied when a task becomes active.
+  //
+  // TODO(MXG): This entire system of robot interruptions is sloppy and fragile.
+  // The implementation should be refactored with more meaningful and testable
+  // encapsulations.
+  struct RobotInterrupt
+  {
+    std::weak_ptr<Interruption> interruption;
+    std::vector<std::string> labels;
+    std::function<void()> robot_is_interrupted;
+  };
+  std::vector<RobotInterrupt> _robot_interrupts;
+
+  void _process_robot_interrupts();
+
+  std::function<void()> _robot_interruption_callback();
 
   /// Begin responsively waiting for the next task
   void _begin_waiting();

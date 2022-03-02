@@ -38,6 +38,7 @@ using ModifiedConsiderRequest =
   std::function<Confirmation(const nlohmann::json &description)>;
 
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
+using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 
 void bind_types(py::module&);
 void bind_graph(py::module&);
@@ -77,7 +78,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     std::shared_ptr<agv::RobotUpdateHandle>>(
     m, "RobotUpdateHandle")
   // Private constructor: Only to be constructed via FleetUpdateHandle!
-  .def("interrupted", &agv::RobotUpdateHandle::interrupted)
+  .def("interrupted", &agv::RobotUpdateHandle::replan)
+  .def("replan", &agv::RobotUpdateHandle::replan)
   .def("update_current_waypoint",
     py::overload_cast<std::size_t, double>(
       &agv::RobotUpdateHandle::update_position),
@@ -152,9 +154,18 @@ PYBIND11_MODULE(rmf_adapter, m) {
     "Experimental API to access the schedule participant")
   .def("set_action_executor",
     &agv::RobotUpdateHandle::set_action_executor,
-    py::arg("action_executor"));
+    py::arg("action_executor"))
+  .def("submit_direct_request",
+    &agv::RobotUpdateHandle::submit_direct_request,
+    py::arg("task_request"),
+    py::arg("request_id"),
+    py::arg("receive_response"))
+  .def("interrupt",
+    &agv::RobotUpdateHandle::interrupt,
+    py::arg("labels"),
+    py::arg("robot_is_interrupted"));
 
-  // ACTION EXECUTOR   ===============================================
+  // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");
 
   py::class_<ActionExecution>(
@@ -164,6 +175,13 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("update_remaining_time",
     &ActionExecution::update_remaining_time,
     py::arg("remaining_time_estimate"));
+
+  // ROBOT INTERRUPTION   ====================================================
+  py::class_<RobotInterruption>(
+    m_robot_update_handle, "RobotInterruption")
+  .def("resume",
+    &RobotInterruption::resume,
+    py::arg("labels"));
 
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
@@ -279,14 +297,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider_pickup = std::move(consider_pickup)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider_pickup(desc); // confirm is returned by user
+            confirm = consider_pickup(description); // confirm is returned by user
           },
           [consider_dropoff = std::move(consider_dropoff)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider_dropoff(desc); // confirm is returned by user
+            confirm = consider_dropoff(description); // confirm is returned by user
           }
         );
     },
@@ -300,8 +316,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider = std::move(consider)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider(desc); // confirm is returned by user
+            confirm = consider(description); // confirm is returned by user
           }
         );
     },
@@ -314,8 +329,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider = std::move(consider)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider(desc); // confirm is returned by user
+            confirm = consider(description); // confirm is returned by user
           }
         );
     },
@@ -328,8 +342,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider = std::move(consider)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider(desc); // confirm is returned by user
+            confirm = consider(description); // confirm is returned by user
           }
         );
     },
@@ -344,8 +357,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           [consider = std::move(consider)](
             const nlohmann::json &description, Confirmation &confirm)
           {
-            nlohmann::json desc = description;
-            confirm = consider(desc); // confirm is returned by user
+            confirm = consider(description); // confirm is returned by user
           }
         );
     },

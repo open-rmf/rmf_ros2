@@ -1,5 +1,10 @@
 ## Changelog for package rmf_fleet_adapter_python
 
+1.5.0 (2022-02-14)
+------------------
+* Support flexible task definitions [#168](https://github.com/open-rmf/rmf_ros2/pull/168)
+* Add lane speed limit to graph parsing function [#124](https://github.com/open-rmf/rmf_ros2/pull/124)
+
 1.3.0 (2021-06-07)
 ------------------
 * Modifications to support refactor of rmf_task (`#51 <https://github.com/open-rmf/rmf_ros2/issues/51>`_)
