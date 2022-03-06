@@ -60,7 +60,9 @@ int main(int argc, char* argv[])
           Eigen::Vector3d::UnitX(),
           Eigen::Vector3d::Zero());
 
-        participant->set({{"test_map", traj}});
+        participant->set(
+          participant->plan_id_assigner()->assign(), {{"test_map", traj}});
+
         return;
       }
 

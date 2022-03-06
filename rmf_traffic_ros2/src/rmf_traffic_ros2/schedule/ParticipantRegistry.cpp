@@ -92,7 +92,10 @@ public:
       }
 
       return Registration(
-        id, _database->itinerary_version(id), _database->last_route_id(id));
+        id,
+        _database->itinerary_version(id),
+        _database->latest_plan_id(id),
+        _database->next_storage_base(id));
     }
 
     const auto registration = _database->register_participant(new_description);

@@ -23,6 +23,8 @@
 #include <rmf_traffic_msgs/msg/schedule_change_add.hpp>
 #include <rmf_traffic_msgs/msg/schedule_change_delay.hpp>
 
+#include "internal_convert_vector.hpp"
+
 using Time = rmf_traffic::Time;
 using Duration = rmf_traffic::Duration;
 
@@ -33,26 +35,13 @@ rmf_traffic::schedule::Patch::Participant convert(
   const rmf_traffic_msgs::msg::ScheduleParticipantPatch& from);
 
 //==============================================================================
-
-//==============================================================================
-template<typename T_out, typename T_in>
-void convert_vector(
-  std::vector<T_out>& output,
-  const std::vector<T_in>& input)
+rmf_traffic_msgs::msg::ScheduleChangeAdd convert(
+  const rmf_traffic::schedule::Change::Add& additions)
 {
-  output.reserve(input.size());
-  for (const auto& i : input)
-    output.emplace_back(convert(i));
-}
-
-//==============================================================================
-template<typename T_out, typename T_in>
-std::vector<T_out> convert_vector(
-  const std::vector<T_in>& input)
-{
-  std::vector<T_out> output;
-  convert_vector(output, input);
-  return output;
+  return rmf_traffic_msgs::build<rmf_traffic_msgs::msg::ScheduleChangeAdd>()
+    .plan_id(additions.plan_id())
+    .items(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeAddItem>(
+        additions.items()));
 }
 
 //==============================================================================
@@ -66,8 +55,7 @@ rmf_traffic_msgs::msg::ScheduleParticipantPatch convert(
     .erasures(from.erasures().ids())
     .delays(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeDelay>(
         from.delays()))
-    .additions(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeAdd>(
-        from.additions().items()));
+    .additions(convert(from.additions()));
 }
 
 //==============================================================================
@@ -79,9 +67,7 @@ rmf_traffic::schedule::Patch::Participant convert(
     from.itinerary_version,
     rmf_traffic::schedule::Change::Erase{from.erasures},
     convert_vector<rmf_traffic::schedule::Change::Delay>(from.delays),
-    rmf_traffic::schedule::Change::Add{
-      convert_vector<rmf_traffic::schedule::Change::Add::Item>(from.additions)
-    }
+    convert(from.additions)
   };
 }
 

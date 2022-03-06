@@ -25,6 +25,14 @@
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
+rmf_traffic_msgs::msg::ScheduleParticipantPatch convert(
+  const rmf_traffic::schedule::Patch::Participant& from);
+
+//==============================================================================
+rmf_traffic::schedule::Patch::Participant convert(
+  const rmf_traffic_msgs::msg::ScheduleParticipantPatch& from);
+
+//==============================================================================
 rmf_traffic_msgs::msg::SchedulePatch convert(
   const rmf_traffic::schedule::Patch& from);
 

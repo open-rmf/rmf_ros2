@@ -205,10 +205,6 @@ public:
   void itinerary_delay(const ItineraryDelay& delay);
   rclcpp::Subscription<ItineraryDelay>::SharedPtr itinerary_delay_sub;
 
-  using ItineraryErase = rmf_traffic_msgs::msg::ItineraryErase;
-  void itinerary_erase(const ItineraryErase& erase);
-  rclcpp::Subscription<ItineraryErase>::SharedPtr itinerary_erase_sub;
-
   using ItineraryClear = rmf_traffic_msgs::msg::ItineraryClear;
   void itinerary_clear(const ItineraryClear& clear);
   rclcpp::Subscription<ItineraryClear>::SharedPtr itinerary_clear_sub;

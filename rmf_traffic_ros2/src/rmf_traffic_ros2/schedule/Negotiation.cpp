@@ -100,6 +100,7 @@ public:
     }
 
     void submit(
+      rmf_traffic::PlanId plan_id,
       std::vector<rmf_traffic::Route> itinerary,
       std::function<UpdateVersion()> approval_callback) const final
     {
@@ -107,7 +108,7 @@ public:
       if (table->defunct())
         return;
 
-      if (table->submit(itinerary, table_version+1))
+      if (table->submit(plan_id, itinerary, table_version+1))
       {
         impl->approvals[conflict_version][table] = {
           table->sequence(),
@@ -416,7 +417,7 @@ public:
         + std::to_string(msg.conflict_version) + "], table ["
         + table_to_string(msg.table) + " ]";
 
-      RCLCPP_WARN(node.get_logger(), error.c_str());
+      RCLCPP_WARN(node.get_logger(), "%s", error.c_str());
 
       return;
     }
@@ -572,7 +573,7 @@ public:
           p.version);
       error += " " + std::to_string(msg.for_participant) + " ]";
 
-      RCLCPP_WARN(node.get_logger(), error.c_str());
+      RCLCPP_WARN(node.get_logger(), "%s", error.c_str());
       room.cached_proposals.push_back(msg);
       return;
     }
@@ -580,8 +581,8 @@ public:
     // We'll keep track of these negotiations whether or not we're participating
     // in them, because one of our negotiators might get added to it in the
     // future
-    const bool updated =
-      received_table->submit(convert(msg.itinerary), msg.proposal_version);
+    const bool updated = received_table->submit(
+      msg.plan_id, convert(msg.itinerary), msg.proposal_version);
 
     if (!updated)
       return;
@@ -637,7 +638,7 @@ public:
           p.version);
       error += " ]";
 
-      RCLCPP_WARN(node.get_logger(), error.c_str());
+      RCLCPP_WARN(node.get_logger(), "%s", error.c_str());
 
       room.cached_rejections.push_back(msg);
       return;
