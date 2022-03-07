@@ -26,11 +26,12 @@
 #include "RobotContext.hpp"
 
 #include "../tasks/Delivery.hpp"
-#include "../tasks/Loop.hpp"
+#include "../tasks/Patrol.hpp"
 #include "../tasks/Clean.hpp"
 #include "../tasks/ChargeBattery.hpp"
 #include "../tasks/Compose.hpp"
 #include "../events/GoToPlace.hpp"
+#include "../events/ResponsiveWait.hpp"
 #include "../events/PerformAction.hpp"
 
 #include <rmf_task/Constraints.hpp>
@@ -963,12 +964,14 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
   deserialization.place = make_place_deserializer(planner);
   deserialization.add_schema(schemas::place);
 
+  events::ResponsiveWait::add(*activation.event);
+
   tasks::add_delivery(
     deserialization,
     activation,
     node->clock());
 
-  tasks::add_loop(
+  tasks::add_patrol(
     deserialization,
     activation,
     node->clock());

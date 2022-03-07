@@ -324,7 +324,8 @@ void GoToPlace::Active::_find_plan()
         "Found a plan to move from ["
         + start_name + "] to [" + goal_name + "]");
 
-      self->_execute_plan(*std::move(result));
+      self->_execute_plan(
+        self->_context->itinerary().assign_plan_id(), *std::move(result));
       self->_find_path_service = nullptr;
       self->_retry_timer = nullptr;
     });
@@ -377,7 +378,9 @@ void GoToPlace::Active::_schedule_retry()
 }
 
 //==============================================================================
-void GoToPlace::Active::_execute_plan(rmf_traffic::agv::Plan plan)
+void GoToPlace::Active::_execute_plan(
+  const rmf_traffic::PlanId plan_id,
+  rmf_traffic::agv::Plan plan)
 {
   if (_is_interrupted)
     return;
@@ -389,7 +392,7 @@ void GoToPlace::Active::_execute_plan(rmf_traffic::agv::Plan plan)
   }
 
   _execution = ExecutePlan::make(
-    _context, std::move(plan), _assign_id, _state,
+    _context, plan_id, std::move(plan), _assign_id, _state,
     _update, _finished, _tail_period);
 
   if (!_execution.has_value())
@@ -415,12 +418,13 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
   }
 
   auto approval_cb = [w = weak_from_this()](
+    const rmf_traffic::PlanId plan_id,
     const rmf_traffic::agv::Plan& plan)
     -> std::optional<rmf_traffic::schedule::ItineraryVersion>
     {
       if (auto self = w.lock())
       {
-        self->_execute_plan(plan);
+        self->_execute_plan(plan_id, plan);
         return self->_context->itinerary().version();
       }
 
@@ -429,7 +433,8 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
 
   const auto evaluator = Negotiator::make_evaluator(table_view);
   return services::Negotiate::path(
-    _context->planner(), _context->location(), _goal, table_view,
+    _context->itinerary().assign_plan_id(), _context->planner(),
+    _context->location(), _goal, table_view,
     responder, std::move(approval_cb), std::move(evaluator));
 }
 

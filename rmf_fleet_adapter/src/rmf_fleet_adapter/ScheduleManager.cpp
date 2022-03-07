@@ -64,7 +64,9 @@ void ScheduleManager::push_routes(const std::vector<rmf_traffic::Route>& routes)
     return;
   }
 
-  _participant.set(std::move(valid_routes));
+  _participant.set(
+    _participant.plan_id_assigner()->assign(),
+    std::move(valid_routes));
 }
 
 //==============================================================================

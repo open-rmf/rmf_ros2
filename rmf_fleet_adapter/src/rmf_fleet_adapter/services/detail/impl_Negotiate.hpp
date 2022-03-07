@@ -90,7 +90,8 @@ void Negotiate::operator()(const Subscriber& s)
               [r = *_evaluator.best_result.progress,
               initial_itinerary = std::move(_initial_itinerary),
               approval = std::move(_approval),
-              responder = _responder]()
+              responder = _responder,
+              plan_id = _plan_id]()
               {
                 std::vector<rmf_traffic::Route> final_itinerary;
                 final_itinerary.reserve(
@@ -106,12 +107,13 @@ void Negotiate::operator()(const Subscriber& s)
                 }
 
                 responder->submit(
+                  plan_id,
                   std::move(final_itinerary),
-                  [plan = *r, approval = std::move(approval)]()
+                  [plan_id, plan = *r, approval = std::move(approval)]()
                   -> UpdateVersion
                   {
                     if (approval)
-                      return approval(plan);
+                      return approval(plan_id, plan);
 
                     return rmf_utils::nullopt;
                   });

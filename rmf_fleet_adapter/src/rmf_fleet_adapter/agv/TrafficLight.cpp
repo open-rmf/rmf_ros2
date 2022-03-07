@@ -143,6 +143,7 @@ public:
   rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion> update_timing(
     std::size_t version,
     std::vector<Waypoint> new_path,
+    rmf_traffic::PlanId plan_id_,
     rmf_traffic::agv::Plan new_plan,
     std::shared_ptr<rmf_traffic::agv::Planner> new_planner);
 
@@ -412,6 +413,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::plan_timing(
       data->update_timing(
         version,
         std::move(new_path),
+        data->itinerary.assign_plan_id(),
         std::move(*result),
         std::move(new_planner));
     });
@@ -659,6 +661,7 @@ rmf_utils::optional<rmf_traffic::Time> interpolate_time(
 
 //==============================================================================
 void update_itineraries(
+  rmf_traffic::PlanId plan_id,
   rmf_traffic::schedule::Participant& scheduled_itinerary,
   std::vector<rmf_traffic::Route>& stashed_itinerary,
   std::vector<rmf_traffic::Route>& active_itinerary,
@@ -691,7 +694,7 @@ void update_itineraries(
     plan_itinerary.begin(),
     plan_itinerary.end());
 
-  scheduled_itinerary.set(std::move(full_itinerary));
+  scheduled_itinerary.set(plan_id, std::move(full_itinerary));
 }
 
 //==============================================================================
@@ -747,6 +750,7 @@ rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion>
 TrafficLight::UpdateHandle::Implementation::Data::update_timing(
   const std::size_t version,
   std::vector<Waypoint> path_,
+  rmf_traffic::PlanId plan_id_,
   rmf_traffic::agv::Plan plan_,
   std::shared_ptr<rmf_traffic::agv::Planner> planner_)
 {
@@ -935,7 +939,7 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
     last_immediate_stop.reset();
 
   update_itineraries(
-    itinerary, stashed_itinerary, active_itinerary, plan_itinerary);
+    plan_id_, itinerary, stashed_itinerary, active_itinerary, plan_itinerary);
 
   if (resend_checkpoints)
   {
@@ -1758,7 +1762,7 @@ void TrafficLight::UpdateHandle::Implementation::Negotiator::respond(
   {
     // If we have reached the end of the path, we can just submit an empty
     // proposal.
-    return responder->submit({});
+    return responder->submit(data->itinerary.assign_plan_id(), {});
   }
 
   auto start = data->current_location();
@@ -1769,6 +1773,7 @@ void TrafficLight::UpdateHandle::Implementation::Negotiator::respond(
   auto approval_cb =
     [w = data->weak_from_this(),
       version = data->current_path_version](
+    const rmf_traffic::PlanId plan_id,
     const rmf_traffic::agv::Plan& plan)
     -> rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion>
     {
@@ -1785,7 +1790,12 @@ void TrafficLight::UpdateHandle::Implementation::Negotiator::respond(
         return std::nullopt;
       }
 
-      return data->update_timing(version, data->path, plan, data->planner);
+      return data->update_timing(
+        version,
+        data->path,
+        plan_id,
+        plan,
+        data->planner);
     };
 
   // TODO(MXG): The management of negotiation services should probably get
@@ -1800,7 +1810,8 @@ void TrafficLight::UpdateHandle::Implementation::Negotiator::respond(
   }
 
   auto negotiate = services::Negotiate::path(
-    data->planner, {std::move(start)}, std::move(goal),
+    data->itinerary.assign_plan_id(), data->planner,
+    {std::move(start)}, std::move(goal),
     table_viewer, responder, std::move(approval_cb), std::move(evaluator));
 
   auto negotiate_sub =

@@ -65,24 +65,29 @@ public:
 
   void set(
     ParticipantId participant,
-    const Input& itinerary,
+    PlanId plan,
+    const Itinerary& itinerary,
+    StorageId storage,
     ItineraryVersion version) final
   {
     _worker.schedule(
       [
         database = _database,
         participant,
+        plan,
         itinerary,
+        storage,
         version
       ](const auto&)
       {
-        database->set(participant, itinerary, version);
+        database->set(participant, plan, itinerary, storage, version);
       });
   }
 
   void extend(
     ParticipantId participant,
-    const Input& routes, ItineraryVersion version) final
+    const Itinerary& routes,
+    ItineraryVersion version) final
   {
     _worker.schedule(
       [
@@ -113,7 +118,7 @@ public:
       });
   }
 
-  void erase(
+  void clear(
     ParticipantId participant,
     ItineraryVersion version) final
   {
@@ -123,24 +128,7 @@ public:
         participant, version
       ](const auto&)
       {
-        database->erase(participant, version);
-      });
-  }
-
-  void erase(
-    ParticipantId participant,
-    const std::vector<RouteId>& routes,
-    ItineraryVersion version) final
-  {
-    _worker.schedule(
-      [
-        database = _database,
-        participant,
-        routes,
-        version
-      ](const auto&)
-      {
-        database->erase(participant, routes, version);
+        database->clear(participant, version);
       });
   }
 

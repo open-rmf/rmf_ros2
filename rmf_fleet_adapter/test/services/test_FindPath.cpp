@@ -189,7 +189,7 @@ SCENARIO("Find a path")
 
     // Now we perform FindPath again for p1, but with p0's itinerary
     // in the schedule
-    p0.set(result_0->get_itinerary());
+    p0.set(p0.assign_plan_id(), result_0->get_itinerary());
 
     path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
       planner, rmf_traffic::agv::Plan::StartSet({start_1}),
@@ -245,7 +245,7 @@ SCENARIO("Find a path")
     rmf_traffic::Route blocking_route(
       graph.get_waypoint(5).get_map_name(), blocking_traj);
 
-    p0.set({blocking_route});
+    p0.set(p0.assign_plan_id(), {blocking_route});
 
     auto path_service = std::make_shared<rmf_fleet_adapter::services::FindPath>(
       planner, rmf_traffic::agv::Plan::StartSet({start_1}), goal_1,

@@ -128,7 +128,6 @@ if (BUILD_TESTING)
       test/phases/test_RequestLift.cpp
       test/phases/test_DispenseItem.cpp
       test/phases/test_IngestItem.cpp
-      test/phases/test_GoToPlace.cpp
       test/services/test_FindEmergencyPullover.cpp
       test/services/test_FindPath.cpp
       test/services/test_Negotiate.cpp

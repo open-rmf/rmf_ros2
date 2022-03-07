@@ -270,7 +270,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
   LegacyPhases::const_iterator head,
   LegacyPhases::const_iterator end,
   const agv::RobotContextPtr& context,
-  const rmf_task::Event::AssignIDPtr& id,
+  const rmf_task::Event::AssignIDPtr& event_id,
   const rmf_task::events::SimpleEventStatePtr& state)
 {
   const auto lift_begin = dynamic_cast<const RequestLift*>(head->get());
@@ -316,7 +316,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
         + "] to [floor:" + lift_end->destination() + "]";
 
       auto group_state = rmf_task::events::SimpleEventState::make(
-        id->assign(), std::move(category),
+        event_id->assign(), std::move(category),
         "", rmf_task::Event::Status::Standby, {}, context->clock());
 
       std::vector<MakeStandby> lift_group;
@@ -324,10 +324,10 @@ std::optional<EventGroupInfo> search_for_lift_group(
       for (auto it = head; it != tail; ++it)
       {
         lift_group.push_back(
-          [legacy = *it, context, id](UpdateFn update)
+          [legacy = *it, context, event_id](UpdateFn update)
           {
             return LegacyPhaseShim::Standby::make(
-              legacy, context->worker(), context->clock(), id, update);
+              legacy, context->worker(), context->clock(), event_id, update);
           });
       }
 
@@ -364,8 +364,9 @@ std::optional<EventGroupInfo> search_for_lift_group(
 //==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
+  const rmf_traffic::PlanId plan_id,
   rmf_traffic::agv::Plan plan,
-  const rmf_task::Event::AssignIDPtr& id,
+  const rmf_task::Event::AssignIDPtr& event_id,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> update,
   std::function<void()> finished,
@@ -479,13 +480,13 @@ std::optional<ExecutePlan> ExecutePlan::make(
   const auto end = legacy_phases.cend();
   while (head != end)
   {
-    if (const auto door = search_for_door_group(head, end, context, id))
+    if (const auto door = search_for_door_group(head, end, context, event_id))
     {
       standbys.push_back(door->group);
       head = door->tail;
     }
-    else if (
-      const auto lift = search_for_lift_group(head, end, context, id, state))
+    else if (const auto lift =
+        search_for_lift_group(head, end, context, event_id, state))
     {
       standbys.push_back(lift->group);
       head = lift->tail;
@@ -493,10 +494,10 @@ std::optional<ExecutePlan> ExecutePlan::make(
     else
     {
       standbys.push_back(
-        [legacy = *head, context, id](UpdateFn update)
+        [legacy = *head, context, event_id](UpdateFn update)
         {
           return LegacyPhaseShim::Standby::make(
-            legacy, context->worker(), context->clock(), id, update);
+            legacy, context->worker(), context->clock(), event_id, update);
         });
 
       ++head;
@@ -507,7 +508,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
-  context->itinerary().set(plan.get_itinerary());
+  context->itinerary().set(plan_id, plan.get_itinerary());
 
   return ExecutePlan{
     std::move(plan),

@@ -31,8 +31,9 @@ struct ExecutePlan
 {
   static std::optional<ExecutePlan> make(
     agv::RobotContextPtr context,
+    rmf_traffic::PlanId plan_id,
     rmf_traffic::agv::Plan plan,
-    const rmf_task_sequence::Event::AssignIDPtr& id,
+    const rmf_task_sequence::Event::AssignIDPtr& event_id,
     rmf_task::events::SimpleEventStatePtr state,
     std::function<void()> update,
     std::function<void()> finished,

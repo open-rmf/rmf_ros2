@@ -110,7 +110,9 @@ public:
 
     void _find_plan();
 
-    void _execute_plan(rmf_traffic::agv::Plan plan);
+    void _execute_plan(
+      rmf_traffic::PlanId plan_id,
+      rmf_traffic::agv::Plan plan);
 
     Negotiator::NegotiatePtr _respond(
       const Negotiator::TableViewerPtr& table_view,

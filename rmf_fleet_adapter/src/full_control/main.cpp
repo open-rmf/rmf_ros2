@@ -491,6 +491,7 @@ public:
           _travel_info.updater->unstable().get_participant())
         {
           participant->set(
+            participant->assign_plan_id(),
             {rmf_traffic::Route{state.location.level_name, trajectory}});
           _dock_schedule_time = now;
         }

@@ -135,21 +135,21 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
             const auto& other_profile = other_participant->profile();
             for (const auto& other_route : p.itinerary)
             {
-              for (const auto& item : itinerary)
+              for (const auto& route : itinerary)
               {
-                if (item.route->map() != other_route->map())
+                if (route.map() != other_route.map())
                   continue;
 
                 if (rmf_traffic::DetectConflict::between(
                   profile,
-                  item.route->trajectory(),
+                  route.trajectory(),
                   other_profile,
-                  other_route->trajectory()))
+                  other_route.trajectory()))
                 {
                   rmf_traffic::schedule::Itinerary alternative;
                   alternative.reserve(itinerary.size());
-                  for (const auto& item : itinerary)
-                    alternative.emplace_back(item.route);
+                  for (const auto& r : itinerary)
+                    alternative.emplace_back(r);
 
                   return responder->reject({std::move(alternative)});
                 }
@@ -159,10 +159,12 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
 
           std::vector<rmf_traffic::Route> submission;
           submission.reserve(itinerary.size());
-          for (const auto& item : itinerary)
-            submission.push_back(*item.route);
+          for (const auto& r : itinerary)
+            submission.push_back(r);
 
-          return responder->submit(std::move(submission));
+          return responder->submit(
+            this->schedule->participant().current_plan_id(),
+            std::move(submission));
         });
     }, async_mutex);
 }

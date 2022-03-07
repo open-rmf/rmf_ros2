@@ -21,8 +21,6 @@
 #include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 
-#include <rmf_task/requests/Delivery.hpp>
-
 #include <rmf_task_msgs/msg/delivery.hpp>
 
 #include "../agv/internal_FleetUpdateHandle.hpp"
@@ -31,14 +29,6 @@ namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-std::shared_ptr<LegacyTask> make_delivery(
-  const rmf_task::ConstRequestPtr request,
-  const agv::RobotContextPtr& context,
-  const rmf_traffic::agv::Plan::Start pickup_start,
-  const rmf_traffic::Time deployment_time,
-  const rmf_task::State finish_state,
-  const rmf_task_msgs::msg::Delivery delivery_profile);
-
 void add_delivery(
   agv::TaskDeserialization& deserialization,
   agv::TaskActivation& activation,

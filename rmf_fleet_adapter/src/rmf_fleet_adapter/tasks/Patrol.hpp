@@ -15,13 +15,8 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__TASKS__LOOP_HPP
-#define SRC__RMF_FLEET_ADAPTER__TASKS__LOOP_HPP
-
-#include "../LegacyTask.hpp"
-#include "../agv/RobotContext.hpp"
-
-#include <rmf_task/requests/Loop.hpp>
+#ifndef SRC__RMF_FLEET_ADAPTER__TASKS__PATROL_HPP
+#define SRC__RMF_FLEET_ADAPTER__TASKS__PATROL_HPP
 
 #include <rmf_task_sequence/Phase.hpp>
 
@@ -31,15 +26,7 @@ namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-std::shared_ptr<LegacyTask> make_loop(
-  const rmf_task::ConstRequestPtr request,
-  const agv::RobotContextPtr& context,
-  const rmf_traffic::agv::Plan::Start start,
-  const rmf_traffic::Time deployment_time,
-  const rmf_task::State finish_state);
-
-//==============================================================================
-void add_loop(
+void add_patrol(
   agv::TaskDeserialization& deserialization,
   agv::TaskActivation& activation,
   std::function<rmf_traffic::Time()> clock);
@@ -47,4 +34,4 @@ void add_loop(
 } // namespace tasks
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__TASKS__LOOP_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__TASKS__PATROL_HPP

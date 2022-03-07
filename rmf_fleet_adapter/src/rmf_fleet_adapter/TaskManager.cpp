@@ -30,9 +30,9 @@
 #include "tasks/Clean.hpp"
 #include "tasks/ChargeBattery.hpp"
 #include "tasks/Delivery.hpp"
-#include "tasks/Loop.hpp"
+#include "tasks/Patrol.hpp"
 
-#include "phases/ResponsiveWait.hpp"
+#include "events/ResponsiveWait.hpp"
 #include "events/EmergencyPullover.hpp"
 
 #include <rmf_api_msgs/schemas/task_state_update.hpp>
@@ -1181,7 +1181,7 @@ void TaskManager::_begin_next_task()
 
   if (_waiting)
   {
-    _waiting->cancel();
+    _waiting.cancel({"New task ready"}, _context->now());
     return;
   }
 
@@ -1285,7 +1285,7 @@ void TaskManager::_process_robot_interrupts()
     if (interruption->resumed)
       continue;
 
-    for (auto* task : {&_active_task, &_emergency_pullover})
+    for (auto* task : {&_active_task, &_emergency_pullover, &_waiting})
     {
       if (!*task)
         continue;
@@ -1326,7 +1326,11 @@ std::function<void()> TaskManager::_robot_interruption_callback()
           if (!self)
             return;
 
-          for (auto* task : {&self->_active_task, &self->_emergency_pullover})
+          for (auto* task : {
+               &self->_active_task,
+               &self->_emergency_pullover,
+               &self->_waiting
+            })
           {
             if ((*task) && !task->is_interrupted())
             {
@@ -1370,58 +1374,18 @@ void TaskManager::_begin_waiting()
     }
   }
 
-  _waiting = phases::ResponsiveWait::make_indefinite(
-    _context, waiting_point)->begin();
+  const auto task_id = "wait." + _context->name() + "."
+    + _context->group() + "-"
+    + std::to_string(_count_waiting++);
 
-  _task_sub = _waiting->observe()
-    .observe_on(rxcpp::identity_same_worker(_context->worker()))
-    .subscribe(
-    [me = weak_from_this()](LegacyTask::StatusMsg msg)
-    {
-      const auto self = me.lock();
-      if (!self)
-        return;
-
-      self->_populate_task_summary(nullptr, msg.state, msg);
-      self->_context->node()->task_summary()->publish(msg);
-    },
-    [me = weak_from_this()](std::exception_ptr e)
-    {
-      const auto self = me.lock();
-      if (!self)
-        return;
-
-      rmf_task_msgs::msg::TaskSummary msg;
-
-      try
-      {
-        std::rethrow_exception(e);
-      }
-      catch (const std::exception& e)
-      {
-        msg.status = e.what();
-      }
-
-      self->_populate_task_summary(nullptr, msg.STATE_FAILED, msg);
-      self->_context->node()->task_summary()->publish(msg);
-
-      RCLCPP_WARN(
-        self->_context->node()->get_logger(),
-        "Robot [%s] encountered an error while doing a ResponsiveWait: %s",
-        self->_context->requester_id().c_str(), msg.status.c_str());
-
-      // Go back to waiting if an error has occurred
-      self->_begin_waiting();
-    },
-    [me = weak_from_this()]()
-    {
-      const auto self = me.lock();
-      if (!self)
-        return;
-
-      self->_waiting = nullptr;
-      self->_begin_next_task();
-    });
+  _waiting = ActiveTask::start(
+    events::ResponsiveWait::start(
+      task_id,
+      _context,
+      waiting_point,
+      _update_cb(),
+      _make_resume_from_waiting()),
+    _context->now());
 }
 
 //==============================================================================
@@ -1467,6 +1431,28 @@ void TaskManager::_resume_from_emergency()
         self->_begin_next_task();
       }
     });
+}
+
+//==============================================================================
+std::function<void()> TaskManager::_make_resume_from_waiting()
+{
+  return [w = weak_from_this()]()
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_context->worker().schedule(
+        [w = self->weak_from_this()](const auto&)
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
+
+          self->_waiting = ActiveTask();
+          self->_begin_next_task();
+        });
+    };
 }
 
 //==============================================================================
