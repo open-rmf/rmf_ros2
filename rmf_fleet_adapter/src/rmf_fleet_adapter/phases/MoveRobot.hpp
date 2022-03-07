@@ -116,7 +116,6 @@ struct MoveRobot
     std::optional<rmf_traffic::Duration> _tail_period;
     std::optional<rmf_traffic::Time> _last_tail_bump;
     std::size_t _next_path_index = 0;
-    bool _interrupted = false;
   };
 };
 
@@ -205,18 +204,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         // expectations
         return newly_expected_arrival - previously_expected_arrival;
       } ();
-
-      if (!action->_interrupted)
-      {
-        if (const auto max_delay = action->_context->maximum_delay())
-        {
-          if (*max_delay < current_delay + new_delay)
-          {
-            action->_interrupted = true;
-            action->_context->trigger_interrupt();
-          }
-        }
-      }
 
       if (std::chrono::milliseconds(500).count() < std::abs(new_delay.count()))
       {

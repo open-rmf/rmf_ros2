@@ -109,9 +109,9 @@ public:
   bool is_stubborn() const;
 
   struct Empty {};
-  const rxcpp::observable<Empty>& observe_interrupt() const;
+  const rxcpp::observable<Empty>& observe_replan_request() const;
 
-  void trigger_interrupt();
+  void request_replan();
 
   /// Get a reference to the rclcpp node
   const std::shared_ptr<Node>& node();

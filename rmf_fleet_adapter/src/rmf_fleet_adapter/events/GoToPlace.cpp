@@ -152,6 +152,23 @@ auto GoToPlace::Active::make(
       return nullptr;
     });
 
+  active->_replan_request_subscription =
+    active->_context->observe_replan_request()
+    .observe_on(rxcpp::identity_same_worker(active->_context->worker()))
+    .subscribe(
+    [w = active->weak_from_this()](const auto&)
+    {
+      const auto self = w.lock();
+      if (self && !self->_find_path_service)
+      {
+        RCLCPP_INFO(
+          self->_context->node()->get_logger(),
+          "Replanning requested for [%s]",
+          self->_context->requester_id().c_str());
+        self->_find_plan();
+      }
+    });
+
   active->_find_plan();
   return active;
 }
@@ -196,16 +213,11 @@ auto GoToPlace::Active::interrupt(std::function<void()> task_is_interrupted)
 {
   _negotiator->clear_license();
   _is_interrupted = true;
-  _execution = std::nullopt;
+  _stop_and_clear();
 
   _state->update_status(Status::Standby);
   _state->update_log().info("Going into standby for an interruption");
   _state->update_dependencies({});
-
-  if (const auto command = _context->command())
-    command->stop();
-
-  _context->itinerary().clear();
 
   _context->worker().schedule(
     [task_is_interrupted](const auto&)
@@ -228,7 +240,7 @@ auto GoToPlace::Active::interrupt(std::function<void()> task_is_interrupted)
 //==============================================================================
 void GoToPlace::Active::cancel()
 {
-  _execution = std::nullopt;
+  _stop_and_clear();
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
   _finished();
@@ -237,7 +249,7 @@ void GoToPlace::Active::cancel()
 //==============================================================================
 void GoToPlace::Active::kill()
 {
-  _execution = std::nullopt;
+  _stop_and_clear();
   _state->update_status(Status::Killed);
   _state->update_log().info("Received signal to kill");
   _finished();
@@ -403,6 +415,16 @@ void GoToPlace::Active::_execute_plan(
       "Please report this incident to the Open-RMF developers.");
     _schedule_retry();
   }
+}
+
+//==============================================================================
+void GoToPlace::Active::_stop_and_clear()
+{
+  _execution = std::nullopt;
+  if (const auto command = _context->command())
+    command->stop();
+
+  _context->itinerary().clear();
 }
 
 //==============================================================================

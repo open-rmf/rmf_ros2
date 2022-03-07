@@ -1262,7 +1262,7 @@ void FleetUpdateHandle::add_robot(
                   }
 
                   last_time = now;
-                  c->trigger_interrupt();
+                  c->request_replan();
                 }
               });
           }

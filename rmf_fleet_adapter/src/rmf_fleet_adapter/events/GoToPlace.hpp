@@ -114,6 +114,8 @@ public:
       rmf_traffic::PlanId plan_id,
       rmf_traffic::agv::Plan plan);
 
+    void _stop_and_clear();
+
     Negotiator::NegotiatePtr _respond(
       const Negotiator::TableViewerPtr& table_view,
       const Negotiator::ResponderPtr& responder);
@@ -131,6 +133,8 @@ public:
     rmf_rxcpp::subscription_guard _plan_subscription;
     rclcpp::TimerBase::SharedPtr _find_path_timeout;
     rclcpp::TimerBase::SharedPtr _retry_timer;
+
+    rmf_rxcpp::subscription_guard _replan_request_subscription;
 
     bool _is_interrupted = false;
   };

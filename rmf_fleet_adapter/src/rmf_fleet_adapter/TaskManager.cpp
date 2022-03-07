@@ -1125,7 +1125,11 @@ void TaskManager::Interruption::resume(std::vector<std::string> labels)
           return;
 
         const auto now = mgr->_context->now();
-        for (auto* task : {&mgr->_active_task, &mgr->_emergency_pullover})
+        for (auto* task : {
+          &mgr->_active_task,
+          &mgr->_emergency_pullover,
+          &mgr->_waiting
+        })
         {
           if (*task)
           {

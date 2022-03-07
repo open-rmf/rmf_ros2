@@ -196,13 +196,13 @@ bool RobotContext::is_stubborn() const
 
 //==============================================================================
 const rxcpp::observable<RobotContext::Empty>&
-RobotContext::observe_interrupt() const
+RobotContext::observe_replan_request() const
 {
   return _interrupt_obs;
 }
 
 //==============================================================================
-void RobotContext::trigger_interrupt()
+void RobotContext::request_replan()
 {
   if (const auto c = command())
     c->stop();
