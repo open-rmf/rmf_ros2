@@ -30,21 +30,23 @@ void bind_schedule(py::module& m)
     m_schedule, "Participant")
   .def_property_readonly("id", &schedule::Participant::id)
   .def_property_readonly("version", &schedule::Participant::id)
-  .def_property_readonly("last_route_id", &schedule::Participant::last_route_id)
+  .def_property_readonly(
+    "current_plan_id",
+    &schedule::Participant::current_plan_id)
   .def_property("delay",
     py::overload_cast<>(
       &schedule::Participant::delay, py::const_),
     py::overload_cast<
       rmf_traffic::Duration>(&schedule::Participant::delay))
-  .def("erase", &schedule::Participant::erase, py::arg("routes"))
   .def("clear", &schedule::Participant::clear)
   .def("get_itinerary", &schedule::Participant::itinerary)
-  .def("set_itinerary", &schedule::Participant::set, py::arg("itinerary"));
-
-  /// Writer::Item =============================================================
-  py::class_<schedule::Writer::Item>(m_schedule, "Item")
-  .def_readwrite("id", &schedule::Writer::Item::id)
-  .def_readwrite("route", &schedule::Writer::Item::route);
+  .def("set_itinerary",
+    [&](schedule::Participant& self,
+      const std::vector<rmf_traffic::Route>& itinerary)
+    {
+      self.set(self.assign_plan_id(), itinerary);
+    },
+    py::arg("itinerary"));
 
   /// ROUTE ====================================================================
   /// TODO(YL) The current organization of modules differ slighty with the
