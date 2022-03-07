@@ -362,7 +362,7 @@ Negotiator::NegotiatePtr EmergencyPullover::Active::_respond(
 
   const auto evaluator = Negotiator::make_evaluator(table_view);
   return services::Negotiate::emergency_pullover(
-     _context->itinerary().assign_plan_id(), _context->planner(),
+    _context->itinerary().assign_plan_id(), _context->planner(),
     _context->location(), table_view,
     responder, std::move(approval_cb), std::move(evaluator));
 }

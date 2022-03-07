@@ -1327,10 +1327,10 @@ std::function<void()> TaskManager::_robot_interruption_callback()
             return;
 
           for (auto* task : {
-               &self->_active_task,
-               &self->_emergency_pullover,
-               &self->_waiting
-            })
+            &self->_active_task,
+            &self->_emergency_pullover,
+            &self->_waiting
+          })
           {
             if ((*task) && !task->is_interrupted())
             {

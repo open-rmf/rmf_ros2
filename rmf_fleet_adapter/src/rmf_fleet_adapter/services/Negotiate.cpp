@@ -31,8 +31,8 @@ Negotiate::Negotiate(
   ApprovalCallback approval,
   const ProgressEvaluator evaluator,
   std::vector<rmf_traffic::Route> initial_itinerary)
-  // We add 1000 to give room for other plan adjustments that could happen while
-  // the negotiation is ongoing.
+// We add 1000 to the assigned ID to give room for other plan adjustments that
+// could happen while the negotiation is ongoing.
 : _plan_id(assigned_id + 1000),
   _planner(std::move(planner)),
   _starts(std::move(starts)),

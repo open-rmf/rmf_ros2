@@ -35,8 +35,9 @@ public:
   using UpdateVersion = rmf_utils::optional<ItineraryVersion>;
   using ApprovalCallback =
     std::function<UpdateVersion(
-      rmf_traffic::PlanId,
-      const rmf_traffic::agv::Plan&)>;
+        rmf_traffic::PlanId,
+        const rmf_traffic::agv::Plan&)
+    >;
 
   Negotiate(
     rmf_traffic::PlanId assigned_id,

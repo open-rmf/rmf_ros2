@@ -485,8 +485,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
       standbys.push_back(door->group);
       head = door->tail;
     }
-    else if (const auto lift =
-        search_for_lift_group(head, end, context, event_id, state))
+    else if (const auto lift = search_for_lift_group(
+        head, end, context, event_id, state))
     {
       standbys.push_back(lift->group);
       head = lift->tail;
