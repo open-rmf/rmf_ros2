@@ -890,12 +890,14 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
     auto& robots_msg = fleet_log_msg["robots"];
     for (const auto& [context, _] : task_managers)
     {
-      auto& robot_log_msg_array = robots_msg[context->name()];
-      robot_log_msg_array = std::vector<nlohmann::json>();
+      auto robot_log_msg_array = std::vector<nlohmann::json>();
 
       const auto& log = context->reporting().log();
       for (const auto& entry : log_reader.read(log.view()))
         robot_log_msg_array.push_back(log_to_json(entry));
+
+      if (!robot_log_msg_array.empty())
+        robots_msg[context->name()] = std::move(robot_log_msg_array);
     }
 
     if (robots_msg.empty())
