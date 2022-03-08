@@ -47,6 +47,7 @@ public:
     OpenIssues open_issues;
     rmf_task::Log log;
     rxcpp::schedulers::worker worker;
+    std::mutex mutex;
   };
 
   class Ticket
@@ -70,7 +71,12 @@ public:
 
   Reporting();
 
-  Ticket create_issue(std::string category, nlohmann::json detail);
+  std::mutex& mutex() const;
+
+  Ticket create_issue(
+    rmf_task::Log::Tier tier,
+    std::string category,
+    nlohmann::json detail);
 
   const std::unordered_set<IssuePtr>& open_issues() const;
 

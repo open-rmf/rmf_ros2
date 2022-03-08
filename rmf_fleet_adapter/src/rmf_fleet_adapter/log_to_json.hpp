@@ -32,9 +32,9 @@ inline std::chrono::milliseconds to_millis(std::chrono::nanoseconds duration)
 }
 
 //==============================================================================
-inline std::string tier_to_string(rmf_task::Log::Entry::Tier tier)
+inline std::string tier_to_string(rmf_task::Log::Tier tier)
 {
-  using Tier = rmf_task::Log::Entry::Tier;
+  using Tier = rmf_task::Log::Tier;
   switch (tier)
   {
     case Tier::Info:

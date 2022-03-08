@@ -40,8 +40,12 @@ void Reporting::Ticket::resolve(nlohmann::json msg)
       if (!upstream)
         return;
 
+      std::lock_guard<std::mutex> lock(upstream->mutex);
       if (upstream->open_issues.erase(issue) > 0)
-        upstream->log.info("Resolved issue [" + issue->category + "]: " + msg.dump());
+      {
+        upstream->log.info(
+          "Resolved issue [" + issue->category + "]: " + msg.dump());
+      }
     });
 
   _issue = nullptr;
@@ -67,6 +71,7 @@ Reporting::Ticket::~Ticket()
       if (!upstream)
         return;
 
+      std::lock_guard<std::mutex> lock(upstream->mutex);
       if (upstream->open_issues.erase(issue) > 0)
         upstream->log.warn("Dropped issue [" + issue->category + "]");
     });
@@ -88,14 +93,23 @@ Reporting::Reporting()
 }
 
 //==============================================================================
+std::mutex& Reporting::mutex() const
+{
+  return _data->mutex;
+}
+
+//==============================================================================
 Reporting::Ticket Reporting::create_issue(
+  rmf_task::Log::Tier tier,
   std::string category,
   nlohmann::json detail)
 {
   auto issue = std::make_shared<Issue>(
     Issue{std::move(category), std::move(detail)});
 
-  _data->log.warn("Opened issue [" + issue->category + "]: " + detail.dump());
+  std::lock_guard<std::mutex> lock(_data->mutex);
+  _data->log.push(
+    tier, "Opened issue [" + issue->category + "]: " + detail.dump());
 
   _data->open_issues.insert(issue);
   return Ticket(issue, _data);

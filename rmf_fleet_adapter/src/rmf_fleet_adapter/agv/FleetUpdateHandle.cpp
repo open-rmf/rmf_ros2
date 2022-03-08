@@ -846,6 +846,7 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
       location["y"] = location_msg.y;
       location["yaw"] = location_msg.yaw;
 
+      std::lock_guard<std::mutex> lock(context->reporting().mutex());
       const auto& issues = context->reporting().open_issues();
       auto& issues_msg = json["issues"];
       issues_msg = std::vector<nlohmann::json>();
@@ -892,6 +893,7 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
     {
       auto robot_log_msg_array = std::vector<nlohmann::json>();
 
+      std::lock_guard<std::mutex> lock(context->reporting().mutex());
       const auto& log = context->reporting().log();
       for (const auto& entry : log_reader.read(log.view()))
         robot_log_msg_array.push_back(log_to_json(entry));
