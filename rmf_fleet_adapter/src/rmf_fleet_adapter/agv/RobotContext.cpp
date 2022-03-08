@@ -424,6 +424,18 @@ std::shared_ptr<TaskManager> RobotContext::task_manager()
 }
 
 //==============================================================================
+Reporting& RobotContext::reporting()
+{
+  return _reporting;
+}
+
+//==============================================================================
+const Reporting& RobotContext::reporting() const
+{
+  return _reporting;
+}
+
+//==============================================================================
 RobotContext::RobotContext(
   std::shared_ptr<RobotCommandHandle> command_handle,
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,

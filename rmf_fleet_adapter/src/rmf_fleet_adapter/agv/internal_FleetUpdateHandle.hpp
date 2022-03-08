@@ -303,6 +303,8 @@ public:
   using DockSummarySub = rclcpp::Subscription<DockSummary>::SharedPtr;
   DockSummarySub dock_summary_sub = nullptr;
 
+  mutable rmf_task::Log::Reader log_reader = {};
+
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&& ... args)
   {
@@ -524,7 +526,13 @@ public:
 
   void publish_fleet_state_topic() const;
 
+  void update_fleet() const;
+
   void update_fleet_state() const;
+  void update_fleet_logs() const;
+
+  nlohmann::json_schema::json_validator make_validator(
+    const nlohmann::json& schema) const;
 
   void add_standard_tasks();
 
