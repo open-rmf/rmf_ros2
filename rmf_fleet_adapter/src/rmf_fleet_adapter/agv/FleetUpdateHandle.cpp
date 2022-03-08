@@ -49,7 +49,6 @@
 
 #include <rmf_fleet_adapter/schemas/place.hpp>
 #include <rmf_api_msgs/schemas/task_request.hpp>
-#include <rmf_api_msgs/schemas/fleet_log_update.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {

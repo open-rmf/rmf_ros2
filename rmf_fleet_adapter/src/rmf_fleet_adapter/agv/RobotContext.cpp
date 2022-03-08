@@ -465,7 +465,8 @@ RobotContext::RobotContext(
   _charger_wp(state.dedicated_charging_waypoint().value()),
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
-  _task_planner(std::move(task_planner))
+  _task_planner(std::move(task_planner)),
+  _reporting(_worker)
 {
   _profile = std::make_shared<rmf_traffic::Profile>(
     _itinerary.description().profile());

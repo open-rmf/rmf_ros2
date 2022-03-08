@@ -61,6 +61,9 @@
 #include <rmf_api_msgs/schemas/fleet_state.hpp>
 #include <rmf_api_msgs/schemas/robot_state.hpp>
 #include <rmf_api_msgs/schemas/location_2D.hpp>
+#include <rmf_api_msgs/schemas/fleet_log_update.hpp>
+#include <rmf_api_msgs/schemas/fleet_log.hpp>
+#include <rmf_api_msgs/schemas/log_entry.hpp>
 
 #include <rmf_fleet_adapter/schemas/event_description__perform_action.hpp>
 
@@ -382,18 +385,20 @@ public:
     }
 
     // Initialize schema dictionary
-    auto schema = rmf_api_msgs::schemas::fleet_state_update;
-    nlohmann::json_uri json_uri = nlohmann::json_uri{schema["$id"]};
-    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
-    schema = rmf_api_msgs::schemas::fleet_state;
-    json_uri = nlohmann::json_uri{schema["$id"]};
-    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
-    schema = rmf_api_msgs::schemas::robot_state;
-    json_uri = nlohmann::json_uri{schema["$id"]};
-    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
-    schema = rmf_api_msgs::schemas::location_2D;
-    json_uri = nlohmann::json_uri{schema["$id"]};
-    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
+    const std::vector<nlohmann::json> schemas = {
+      rmf_api_msgs::schemas::fleet_state_update,
+      rmf_api_msgs::schemas::fleet_state,
+      rmf_api_msgs::schemas::robot_state,
+      rmf_api_msgs::schemas::location_2D,
+      rmf_api_msgs::schemas::fleet_log,
+      rmf_api_msgs::schemas::log_entry
+    };
+
+    for (const auto& schema : schemas)
+    {
+      const auto json_uri = nlohmann::json_uri{schema["$id"]};
+      handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
+    }
 
     // Start the BroadcastClient
     if (handle->_pimpl->server_uri.has_value())

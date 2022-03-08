@@ -373,9 +373,9 @@ class RobotUpdateHandle::IssueTicket::Implementation
 {
 public:
 
-  Reporting::Ticket ticket;
+  std::unique_ptr<Reporting::Ticket> ticket;
 
-  static IssueTicket make(Reporting::Ticket ticket)
+  static IssueTicket make(std::unique_ptr<Reporting::Ticket> ticket)
   {
     IssueTicket output;
     output._pimpl = rmf_utils::make_unique_impl<Implementation>(
@@ -387,7 +387,7 @@ public:
 //==============================================================================
 void RobotUpdateHandle::IssueTicket::resolve(nlohmann::json msg)
 {
-  _pimpl->ticket.resolve(std::move(msg));
+  _pimpl->ticket->resolve(std::move(msg));
 }
 
 //==============================================================================

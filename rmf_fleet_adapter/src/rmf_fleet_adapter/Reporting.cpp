@@ -20,6 +20,13 @@
 namespace rmf_fleet_adapter {
 
 //==============================================================================
+Reporting::Upstream::Upstream(rxcpp::schedulers::worker worker_)
+: worker(std::move(worker_))
+{
+  // Do nothing
+}
+
+//==============================================================================
 void Reporting::Ticket::resolve(nlohmann::json msg)
 {
   const auto upstream = _upstream.lock();
@@ -72,6 +79,7 @@ Reporting::Ticket::~Ticket()
         return;
 
       std::lock_guard<std::mutex> lock(upstream->mutex);
+
       if (upstream->open_issues.erase(issue) > 0)
         upstream->log.warn("Dropped issue [" + issue->category + "]");
     });
@@ -86,8 +94,8 @@ Reporting::Ticket::Ticket(IssuePtr issue, std::shared_ptr<Upstream> upstream)
 }
 
 //==============================================================================
-Reporting::Reporting()
-: _data(std::make_shared<Upstream>())
+Reporting::Reporting(rxcpp::schedulers::worker worker_)
+: _data(std::make_shared<Upstream>(std::move(worker_)))
 {
   // Do nothing
 }
@@ -99,7 +107,7 @@ std::mutex& Reporting::mutex() const
 }
 
 //==============================================================================
-Reporting::Ticket Reporting::create_issue(
+std::unique_ptr<Reporting::Ticket> Reporting::create_issue(
   rmf_task::Log::Tier tier,
   std::string category,
   nlohmann::json detail)
@@ -112,7 +120,7 @@ Reporting::Ticket Reporting::create_issue(
     tier, "Opened issue [" + issue->category + "]: " + detail.dump());
 
   _data->open_issues.insert(issue);
-  return Ticket(issue, _data);
+  return std::unique_ptr<Ticket>(new Ticket(issue, _data));
 }
 
 //==============================================================================

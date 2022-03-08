@@ -132,7 +132,8 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
           {
             RCLCPP_ERROR(
               impl.node->get_logger(),
-              "BroadcastClient unable to publish message");
+              "BroadcastClient unable to publish message: %s",
+              ec.message().c_str());
             // TODO(YV): Check if we should re-connect to server
             break;
           }

@@ -130,6 +130,7 @@ class AsyncRmfMsgObserver:
         # return await asyncio.wrap_future(self.future)
 
     async def __internal_spin(self):
+        print('Beginning websocket.serve')
         async with websockets.serve(
                 self.__msg_handler, self.server_url, self.server_port):
             await self.__check_future()
@@ -167,7 +168,7 @@ def main(argv=sys.argv):
     elif args.task_log:
         msg_type = RmfMsgType.TaskLog
     else:
-        print('Error! No msg_type is selected. select one: \n', 
+        print('Error! No msg_type is selected. select one: \n',
               '  task_state, task_log, fleet_state, fleet_log \n')
         parser.print_help(sys.stderr)
         exit(1)

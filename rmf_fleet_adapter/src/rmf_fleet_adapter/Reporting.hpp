@@ -44,6 +44,8 @@ public:
 
   struct Upstream : public std::enable_shared_from_this<Upstream>
   {
+    Upstream(rxcpp::schedulers::worker worker_);
+
     OpenIssues open_issues;
     rmf_task::Log log;
     rxcpp::schedulers::worker worker;
@@ -69,11 +71,11 @@ public:
     std::weak_ptr<Upstream> _upstream;
   };
 
-  Reporting();
+  Reporting(rxcpp::schedulers::worker worker);
 
   std::mutex& mutex() const;
 
-  Ticket create_issue(
+  std::unique_ptr<Ticket> create_issue(
     rmf_task::Log::Tier tier,
     std::string category,
     nlohmann::json detail);

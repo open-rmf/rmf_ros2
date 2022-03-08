@@ -401,7 +401,6 @@ Thus it is recommended to run this on a different thread,
 """
 def task_state_observer_fn(fut: asyncio.Future, target_id: str):
     print("Starting task state observer")
-    start_time = time.time()
 
     # sample function for user to provide
     def checkstate_callback(msg_type, data):
@@ -416,7 +415,17 @@ def task_state_observer_fn(fut: asyncio.Future, target_id: str):
     observer = AsyncRmfMsgObserver(
         checkstate_callback,
         msg_filters={
-            RmfMsgType.TaskState: []}
+            RmfMsgType.TaskState: []
+        }
     )
     observer.spin(fut)
     print("Exit observer function")
+
+def fleet_state_observer_fn(callback, fut: asyncio.Future):
+    observer = AsyncRmfMsgObserver(
+        callback,
+        msg_filters={
+            RmfMsgType.FleetState: []
+        }
+    )
+    observer.spin(fut)
