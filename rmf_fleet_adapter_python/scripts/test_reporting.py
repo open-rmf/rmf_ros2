@@ -141,7 +141,8 @@ def main():
             if type == RmfMsgType.FleetState:
                 fleet_state = data
             elif type == RmfMsgType.FleetLog:
-                logs.append(data)
+                for log in data['robots']['R0']:
+                    logs.append(log)
             cv_update.notify_all()
 
     # INIT TASK STATE OBSERVER ==============================================
@@ -162,10 +163,10 @@ def main():
     while counter < 10:
         with cv_update:
             if not cv_update.wait(timeout=10.0):
-                raise RuntimeError('Failed to ever receive a fleet state')
+                raise RuntimeError('Failed to receive an update')
 
             if fleet_state is None:
-                raise RuntimeError('Failed to receive a fleet state')
+                raise RuntimeError('Failed to receive an update')
 
             for robot, state in fleet_state['robots'].items():
                 assert robot == 'R0', f'Wrong name of robot: {robot}'
@@ -226,7 +227,7 @@ def main():
     while counter < counter_limit:
         with cv_update:
             if not cv_update.wait(timeout=10.0):
-                raise RuntimeError('Failed to receive a fleet state')
+                raise RuntimeError('Failed to receive an update')
 
             num_issues = len(fleet_state['robots']['R0']['issues'])
             if num_issues > 1:
@@ -259,7 +260,7 @@ def main():
     while counter < counter_limit:
         with cv_update:
             if not cv_update.wait(timeout=10.0):
-                raise RuntimeError('Failed to receive a fleet state')
+                raise RuntimeError('Failed to receive an update')
 
             num_issues = len(fleet_state['robots']['R0']['issues'])
             if num_issues < 2:
@@ -286,7 +287,7 @@ def main():
     while counter < counter_limit:
         with cv_update:
             if not cv_update.wait(timeout=10.0):
-                raise RuntimeError('Failed to receive a fleet state')
+                raise RuntimeError('Failed to receive an update')
 
             num_issues = len(fleet_state['robots']['R0']['issues'])
             if num_issues == 0:
@@ -302,9 +303,30 @@ def main():
     assert both_issues_gone
     assert len(logs) == 4, f'Wrong number of logs: {len(logs)}'
 
+    robot_cmd.updater.log_info('I am logging some info')
+    robot_cmd.updater.log_warning('I am logging a warning')
+    robot_cmd.updater.log_error('I am logging an error')
+
+    counter = 0
+    counter_limit = 1000
+    received_all_logs = False
+    with cv_update:
+        while counter < counter_limit and len(logs) < 7:
+            if not cv_update.wait(timeout=10.0):
+                raise RuntimeError('Failed to receive an update')
+
+            if not received_all_logs and len(logs) == 7:
+                print('Received all the logs')
+                received_all_logs = True
+                counter_limit = counter + 50
+
+            counter += 1
+
     print(f'Noticed {len(logs)} logs:')
     for log in logs:
         print(f'{log}')
+
+    assert len(logs) == 7, f'Received the wrong number of logs: {len(logs)}'
 
     fut.set_result(True)
 

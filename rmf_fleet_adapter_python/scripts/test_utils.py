@@ -421,6 +421,6 @@ def task_state_observer_fn(fut: asyncio.Future, target_id: str):
     observer.spin(fut)
     print("Exit observer function")
 
-def update_observer(callback, fut: asyncio.Future, msg_filter):
-    observer = AsyncRmfMsgObserver(callback, msg_filter)
+def update_observer(callback, fut: asyncio.Future, msg_filters):
+    observer = AsyncRmfMsgObserver(callback, msg_filters=msg_filters)
     observer.spin(fut)
