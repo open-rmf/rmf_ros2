@@ -418,7 +418,7 @@ auto RobotUpdateHandle::create_issue(
         case Tier::Error: return rmf_task::Log::Tier::Error;
         default: return rmf_task::Log::Tier::Uninitialized;
       }
-    }(tier);
+    } (tier);
 
   auto ticket = context->reporting()
     .create_issue(inner_tier, std::move(category), std::move(detail));
