@@ -117,7 +117,7 @@ std::unique_ptr<Reporting::Ticket> Reporting::create_issue(
 
   std::lock_guard<std::mutex> lock(_data->mutex);
   _data->log.push(
-    tier, "Opened issue [" + issue->category + "]: " + detail.dump());
+    tier, "Opened issue [" + issue->category + "]: " + issue->detail.dump());
 
   _data->open_issues.insert(issue);
   return std::unique_ptr<Ticket>(new Ticket(issue, _data));
