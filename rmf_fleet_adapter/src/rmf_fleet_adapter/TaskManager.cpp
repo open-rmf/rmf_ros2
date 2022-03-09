@@ -16,6 +16,7 @@
 */
 
 #include "TaskManager.hpp"
+#include "log_to_json.hpp"
 
 #include <rmf_task/requests/ChargeBattery.hpp>
 #include <rmf_task/requests/Clean.hpp>
@@ -288,11 +289,6 @@ const std::string& TaskManager::ActiveTask::id() const
 }
 
 namespace {
-//==============================================================================
-std::chrono::milliseconds to_millis(rmf_traffic::Duration duration)
-{
-  return std::chrono::duration_cast<std::chrono::milliseconds>(duration);
-}
 
 //==============================================================================
 std::string status_to_string(rmf_task::Event::Status status)
@@ -325,36 +321,6 @@ std::string status_to_string(rmf_task::Event::Status status)
     default:
       return "uninitialized";
   }
-}
-
-//==============================================================================
-std::string tier_to_string(rmf_task::Log::Entry::Tier tier)
-{
-  using Tier = rmf_task::Log::Entry::Tier;
-  switch (tier)
-  {
-    case Tier::Info:
-      return "info";
-    case Tier::Warning:
-      return "warning";
-    case Tier::Error:
-      return "error";
-    default:
-      return "uninitialized";
-  }
-}
-
-//==============================================================================
-nlohmann::json log_to_json(const rmf_task::Log::Entry& entry)
-{
-  nlohmann::json output;
-  output["seq"] = entry.seq();
-  output["tier"] = tier_to_string(entry.tier());
-  output["unix_millis_time"] =
-    to_millis(entry.time().time_since_epoch()).count();
-  output["text"] = entry.text();
-
-  return output;
 }
 
 //==============================================================================

@@ -61,6 +61,9 @@
 #include <rmf_api_msgs/schemas/fleet_state.hpp>
 #include <rmf_api_msgs/schemas/robot_state.hpp>
 #include <rmf_api_msgs/schemas/location_2D.hpp>
+#include <rmf_api_msgs/schemas/fleet_log_update.hpp>
+#include <rmf_api_msgs/schemas/fleet_log.hpp>
+#include <rmf_api_msgs/schemas/log_entry.hpp>
 
 #include <rmf_fleet_adapter/schemas/event_description__perform_action.hpp>
 
@@ -303,6 +306,8 @@ public:
   using DockSummarySub = rclcpp::Subscription<DockSummary>::SharedPtr;
   DockSummarySub dock_summary_sub = nullptr;
 
+  mutable rmf_task::Log::Reader log_reader = {};
+
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&& ... args)
   {
@@ -380,18 +385,20 @@ public:
     }
 
     // Initialize schema dictionary
-    auto schema = rmf_api_msgs::schemas::fleet_state_update;
-    nlohmann::json_uri json_uri = nlohmann::json_uri{schema["$id"]};
-    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
-    schema = rmf_api_msgs::schemas::fleet_state;
-    json_uri = nlohmann::json_uri{schema["$id"]};
-    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
-    schema = rmf_api_msgs::schemas::robot_state;
-    json_uri = nlohmann::json_uri{schema["$id"]};
-    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
-    schema = rmf_api_msgs::schemas::location_2D;
-    json_uri = nlohmann::json_uri{schema["$id"]};
-    handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
+    const std::vector<nlohmann::json> schemas = {
+      rmf_api_msgs::schemas::fleet_state_update,
+      rmf_api_msgs::schemas::fleet_state,
+      rmf_api_msgs::schemas::robot_state,
+      rmf_api_msgs::schemas::location_2D,
+      rmf_api_msgs::schemas::fleet_log,
+      rmf_api_msgs::schemas::log_entry
+    };
+
+    for (const auto& schema : schemas)
+    {
+      const auto json_uri = nlohmann::json_uri{schema["$id"]};
+      handle->_pimpl->schema_dictionary.insert({json_uri.url(), schema});
+    }
 
     // Start the BroadcastClient
     if (handle->_pimpl->server_uri.has_value())
@@ -524,7 +531,13 @@ public:
 
   void publish_fleet_state_topic() const;
 
+  void update_fleet() const;
+
   void update_fleet_state() const;
+  void update_fleet_logs() const;
+
+  nlohmann::json_schema::json_validator make_validator(
+    const nlohmann::json& schema) const;
 
   void add_standard_tasks();
 

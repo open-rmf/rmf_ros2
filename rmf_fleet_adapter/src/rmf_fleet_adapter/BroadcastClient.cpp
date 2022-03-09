@@ -49,7 +49,7 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
       const auto fleet = c->_fleet_handle.lock();
       if (!fleet)
         return;
-      const auto impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
+      const auto& impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
       for (const auto& [conext, mgr] : impl.task_managers)
       {
         // Publish all task logs to the server
@@ -83,7 +83,7 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
         {
           continue;
         }
-        const auto impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
+        const auto& impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
 
         // Try to connect to the server if we are not connected yet
         if (!c->_connected)
@@ -132,7 +132,8 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
           {
             RCLCPP_ERROR(
               impl.node->get_logger(),
-              "BroadcastClient unable to publish message");
+              "BroadcastClient unable to publish message: %s",
+              ec.message().c_str());
             // TODO(YV): Check if we should re-connect to server
             break;
           }

@@ -39,6 +39,7 @@ using ModifiedConsiderRequest =
 
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
+using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
 
 void bind_types(py::module&);
 void bind_graph(py::module&);
@@ -163,7 +164,21 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("interrupt",
     &agv::RobotUpdateHandle::interrupt,
     py::arg("labels"),
-    py::arg("robot_is_interrupted"));
+    py::arg("robot_is_interrupted"))
+  .def("create_issue",
+    &agv::RobotUpdateHandle::create_issue,
+    py::arg("tier"),
+    py::arg("category"),
+    py::arg("detail"))
+  .def("log_info",
+    &agv::RobotUpdateHandle::log_info,
+    py::arg("text"))
+  .def("log_warning",
+    &agv::RobotUpdateHandle::log_warning,
+    py::arg("text"))
+  .def("log_error",
+    &agv::RobotUpdateHandle::log_error,
+    py::arg("text"));
 
   // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");
@@ -182,6 +197,20 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("resume",
     &RobotInterruption::resume,
     py::arg("labels"));
+
+  // ISSUE TICKET   ==========================================================
+  py::class_<IssueTicket>(
+    m_robot_update_handle, "IssueTicket")
+  .def("resolve",
+    &IssueTicket::resolve,
+    py::arg("msg"));
+
+  // Tier   ==================================================================
+  py::enum_<agv::RobotUpdateHandle::Tier>(
+    m_robot_update_handle, "Tier")
+    .value("Info", agv::RobotUpdateHandle::Tier::Info)
+    .value("Warning", agv::RobotUpdateHandle::Tier::Warning)
+    .value("Error", agv::RobotUpdateHandle::Tier::Error);
 
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
