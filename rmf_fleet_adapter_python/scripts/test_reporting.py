@@ -23,7 +23,8 @@ import threading
 from itertools import groupby
 
 from test_utils import MockRobotCommand
-from test_utils import fleet_state_observer_fn
+from test_utils import update_observer
+from rmf_msg_observer import RmfMsgType
 
 from functools import partial
 
@@ -131,24 +132,36 @@ def main():
     adapter.start()
 
     fleet_state = None
-    cv_fleet_state = threading.Condition()
-    def update_fleet_state(_, data):
+    logs = []
+    cv_update = threading.Condition()
+    def receive_fleet_update(type, data):
         nonlocal fleet_state
-        with cv_fleet_state:
-            fleet_state = data
-            cv_fleet_state.notify_all()
+        nonlocal logs
+        with cv_update:
+            if type == RmfMsgType.FleetState:
+                fleet_state = data
+            elif type == RmfMsgType.FleetLog:
+                logs.append(data)
+            cv_update.notify_all()
 
     # INIT TASK STATE OBSERVER ==============================================
     print("spawn observer thread")
     fut = asyncio.Future()
     observer_th = threading.Thread(
-        target=fleet_state_observer_fn, args=(update_fleet_state, fut))
+        target=update_observer,
+        args=(
+            receive_fleet_update,
+            fut,
+            {
+                RmfMsgType.FleetState: [],
+                RmfMsgType.FleetLog: []
+            }))
     observer_th.start()
 
     counter = 0
     while counter < 10:
-        with cv_fleet_state:
-            if not cv_fleet_state.wait(timeout=10.0):
+        with cv_update:
+            if not cv_update.wait(timeout=10.0):
                 raise RuntimeError('Failed to ever receive a fleet state')
 
             if fleet_state is None:
@@ -175,8 +188,8 @@ def main():
     counter_limit = 1000
     noticed_the_issue = False
     while counter < counter_limit:
-        with cv_fleet_state:
-            if not cv_fleet_state.wait(timeout=10.0):
+        with cv_update:
+            if not cv_update.wait(timeout=10.0):
                 raise RuntimeError('Failed to receive a fleet state')
 
             num_issues = len(fleet_state['robots']['R0']['issues'])
@@ -193,6 +206,7 @@ def main():
         counter += 1
 
     assert noticed_the_issue, 'The first issue was never noticed!'
+    assert len(logs) == 1, f'Wrong number of logs: {len(logs)}'
 
     second_issue_ticket = robot_cmd.updater.create_issue(
         Tier.Error,
@@ -210,8 +224,8 @@ def main():
     counter_limit = 1000
     noticed_both_issues = False
     while counter < counter_limit:
-        with cv_fleet_state:
-            if not cv_fleet_state.wait(timeout=10.0):
+        with cv_update:
+            if not cv_update.wait(timeout=10.0):
                 raise RuntimeError('Failed to receive a fleet state')
 
             num_issues = len(fleet_state['robots']['R0']['issues'])
@@ -229,6 +243,9 @@ def main():
 
         counter += 1
 
+    assert noticed_both_issues, 'The second issue was never noticed!'
+    assert len(logs) == 2, f'Wrong number of logs: {len(logs)}'
+
     first_issue_ticket.resolve(
         {
             'This': 'issue',
@@ -240,8 +257,8 @@ def main():
     counter = 0
     counter_limit = 1000
     while counter < counter_limit:
-        with cv_fleet_state:
-            if not cv_fleet_state.wait(timeout=10.0):
+        with cv_update:
+            if not cv_update.wait(timeout=10.0):
                 raise RuntimeError('Failed to receive a fleet state')
 
             num_issues = len(fleet_state['robots']['R0']['issues'])
@@ -258,6 +275,7 @@ def main():
         counter += 1
 
     assert first_issue_gone
+    assert len(logs) == 3, f'Wrong number of logs: {len(logs)}'
 
     # Delete the second ticket, causing its issue to get dropped
     del second_issue_ticket
@@ -266,8 +284,8 @@ def main():
     counter = 0
     counter_limit = 1000
     while counter < counter_limit:
-        with cv_fleet_state:
-            if not cv_fleet_state.wait(timeout=10.0):
+        with cv_update:
+            if not cv_update.wait(timeout=10.0):
                 raise RuntimeError('Failed to receive a fleet state')
 
             num_issues = len(fleet_state['robots']['R0']['issues'])
@@ -282,7 +300,14 @@ def main():
         counter += 1
 
     assert both_issues_gone
+    assert len(logs) == 4, f'Wrong number of logs: {len(logs)}'
+
+    print(f'Noticed {len(logs)} logs:')
+    for log in logs:
+        print(f'{log}')
+
     fut.set_result(True)
+
 
 if __name__ == "__main__":
     main()
