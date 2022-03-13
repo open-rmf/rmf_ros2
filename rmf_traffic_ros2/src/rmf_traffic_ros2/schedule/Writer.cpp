@@ -23,7 +23,7 @@
 #include <rmf_traffic_msgs/msg/itinerary_set.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_extend.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_delay.hpp>
-#include <rmf_traffic_msgs/msg/itinerary_erase.hpp>
+#include <rmf_traffic_msgs/msg/itinerary_reached.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_clear.hpp>
 
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
@@ -132,7 +132,8 @@ public:
     for (const auto& r : msg.ranges)
       ranges.emplace_back(Range{r.lower, r.upper});
 
-    stub->rectifier.retransmit(ranges, msg.last_known_version);
+    stub->rectifier.retransmit(
+      ranges, msg.last_known_itinerary, msg.last_known_progress);
   }
 
   struct ChangeID
@@ -273,12 +274,13 @@ public:
     using Set = rmf_traffic_msgs::msg::ItinerarySet;
     using Extend = rmf_traffic_msgs::msg::ItineraryExtend;
     using Delay = rmf_traffic_msgs::msg::ItineraryDelay;
-    using Erase = rmf_traffic_msgs::msg::ItineraryErase;
+    using Reached = rmf_traffic_msgs::msg::ItineraryReached;
     using Clear = rmf_traffic_msgs::msg::ItineraryClear;
 
     rclcpp::Publisher<Set>::SharedPtr set_pub;
     rclcpp::Publisher<Extend>::SharedPtr extend_pub;
     rclcpp::Publisher<Delay>::SharedPtr delay_pub;
+    rclcpp::Publisher<Reached>::SharedPtr reached_pub;
     rclcpp::Publisher<Clear>::SharedPtr clear_pub;
 
     rclcpp::Context::SharedPtr context;
@@ -321,6 +323,10 @@ public:
 
       transport->delay_pub = node->create_publisher<Delay>(
         ItineraryDelayTopicName,
+        itinerary_qos);
+
+      transport->reached_pub = node->create_publisher<Reached>(
+        ItineraryReachedTopicName,
         itinerary_qos);
 
       transport->clear_pub = node->create_publisher<Clear>(
@@ -406,6 +412,20 @@ public:
         .participant(participant)
         .delay(duration.count())
         .itinerary_version(version));
+    }
+
+    void reached(
+      const ParticipantId participant,
+      const PlanId plan,
+      const std::vector<CheckpointId>& reached_checkpoints,
+      const ProgressVersion version) final
+    {
+      reached_pub->publish(
+        rmf_traffic_msgs::build<Reached>()
+        .participant(participant)
+        .plan(plan)
+        .reached_checkpoints(reached_checkpoints)
+        .progress_version(version));
     }
 
     void clear(

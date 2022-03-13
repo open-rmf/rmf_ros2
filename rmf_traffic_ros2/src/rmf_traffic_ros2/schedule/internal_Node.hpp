@@ -32,9 +32,9 @@
 
 #include <rmf_traffic_msgs/msg/itinerary_clear.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_delay.hpp>
-#include <rmf_traffic_msgs/msg/itinerary_erase.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_extend.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_set.hpp>
+#include <rmf_traffic_msgs/msg/itinerary_reached.hpp>
 
 #include <rmf_traffic_msgs/msg/negotiation_ack.hpp>
 #include <rmf_traffic_msgs/msg/negotiation_repeat.hpp>
@@ -204,6 +204,10 @@ public:
   using ItineraryDelay = rmf_traffic_msgs::msg::ItineraryDelay;
   void itinerary_delay(const ItineraryDelay& delay);
   rclcpp::Subscription<ItineraryDelay>::SharedPtr itinerary_delay_sub;
+
+  using ItineraryReached = rmf_traffic_msgs::msg::ItineraryReached;
+  void itinerary_reached(const ItineraryReached& msg);
+  rclcpp::Subscription<ItineraryReached>::SharedPtr itinerary_reached_sub;
 
   using ItineraryClear = rmf_traffic_msgs::msg::ItineraryClear;
   void itinerary_clear(const ItineraryClear& clear);

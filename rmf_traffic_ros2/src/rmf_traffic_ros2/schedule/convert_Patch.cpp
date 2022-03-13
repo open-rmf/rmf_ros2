@@ -22,6 +22,7 @@
 #include <rmf_traffic_msgs/msg/schedule_change_cull.hpp>
 #include <rmf_traffic_msgs/msg/schedule_change_add.hpp>
 #include <rmf_traffic_msgs/msg/schedule_change_delay.hpp>
+#include <rmf_traffic_msgs/msg/schedule_change_progress.hpp>
 
 #include "internal_convert_vector.hpp"
 
@@ -45,6 +46,36 @@ rmf_traffic_msgs::msg::ScheduleChangeAdd convert(
 }
 
 //==============================================================================
+rmf_traffic_msgs::msg::ScheduleChangeProgress convert(
+  const std::optional<rmf_traffic::schedule::Change::Progress>& from)
+{
+  using ProgressMsg = rmf_traffic_msgs::msg::ScheduleChangeProgress;
+  if (!from.has_value())
+  {
+    return rmf_traffic_msgs::build<ProgressMsg>()
+      .has_progress(false)
+      .version({})
+      .checkpoints({});
+  }
+
+  return rmf_traffic_msgs::build<ProgressMsg>()
+    .has_progress(true)
+    .version(from->version())
+    .checkpoints(from->checkpoints());
+}
+
+//==============================================================================
+std::optional<rmf_traffic::schedule::Change::Progress> convert(
+  const rmf_traffic_msgs::msg::ScheduleChangeProgress& from)
+{
+  if (!from.has_progress)
+    return std::nullopt;
+
+  return rmf_traffic::schedule::Change::Progress(
+    from.version, from.checkpoints);
+}
+
+//==============================================================================
 rmf_traffic_msgs::msg::ScheduleParticipantPatch convert(
   const rmf_traffic::schedule::Patch::Participant& from)
 {
@@ -55,7 +86,8 @@ rmf_traffic_msgs::msg::ScheduleParticipantPatch convert(
     .erasures(from.erasures().ids())
     .delays(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeDelay>(
         from.delays()))
-    .additions(convert(from.additions()));
+    .additions(convert(from.additions()))
+    .progress(convert(from.progress()));
 }
 
 //==============================================================================
@@ -67,7 +99,8 @@ rmf_traffic::schedule::Patch::Participant convert(
     from.itinerary_version,
     rmf_traffic::schedule::Change::Erase{from.erasures},
     convert_vector<rmf_traffic::schedule::Change::Delay>(from.delays),
-    convert(from.additions)
+    convert(from.additions),
+    convert(from.progress)
   };
 }
 

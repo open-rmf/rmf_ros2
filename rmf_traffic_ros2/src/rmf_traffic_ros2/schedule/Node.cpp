@@ -57,6 +57,7 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
   for (const auto participant : participants)
   {
     const auto itinerary = *viewer.get_itinerary(participant);
+    const auto plan_id = *viewer.get_current_plan_id(participant);
     const auto description = viewer.get_participant(participant);
     if (!description)
       continue;
@@ -76,17 +77,21 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
         continue;
       }
 
-      for (const auto& route : itinerary)
+      for (std::size_t r = 0; r < itinerary.size(); ++r)
       {
+        const auto& route = itinerary[r];
         assert(route);
         if (route->map() != vc->route.map())
           continue;
 
+        const auto* dep_v =
+          vc->route.check_dependencies(participant, plan_id, r);
+        const auto* dep_u =
+          route->check_dependencies(vc->participant, vc->plan_id, vc->route_id);
+
         if (rmf_traffic::DetectConflict::between(
-            vc->description.profile(),
-            vc->route.trajectory(),
-            description->profile(),
-            route->trajectory()))
+            vc->description.profile(), vc->route.trajectory(), dep_v,
+            description->profile(), route->trajectory(), dep_u))
         {
           conflicts.push_back({participant, vc->participant});
         }
@@ -311,6 +316,15 @@ void ScheduleNode::setup_itinerary_topics()
     [=](const ItineraryDelay::UniquePtr msg)
     {
       this->itinerary_delay(*msg);
+    });
+
+  itinerary_reached_sub =
+    create_subscription<ItineraryReached>(
+    rmf_traffic_ros2::ItineraryReachedTopicName,
+    itinerary_qos,
+    [=](const ItineraryReached::UniquePtr msg)
+    {
+      this->itinerary_reached(*msg);
     });
 
   itinerary_clear_sub =
@@ -885,6 +899,28 @@ void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
 }
 
 //==============================================================================
+void ScheduleNode::itinerary_reached(const ItineraryReached& msg)
+{
+  std::unique_lock<std::mutex> lock(database_mutex);
+  try
+  {
+    database->reached(
+      msg.participant,
+      msg.plan,
+      msg.reached_checkpoints,
+      msg.progress_version);
+
+    // There is no risk of inconsistencies or conflicts occurring due to new
+    // progress being reported, so we do not need to check for either.
+  }
+  catch (const std::runtime_error& e)
+  {
+    RCLCPP_WARN(
+      get_logger(), "Failed to update itinerary progress: %s", e.what());
+  }
+}
+
+//==============================================================================
 void ScheduleNode::itinerary_clear(const ItineraryClear& clear)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
@@ -916,7 +952,8 @@ void ScheduleNode::publish_inconsistencies(
   if (it->ranges.size() == 0)
     return;
 
-  inconsistency_pub->publish(rmf_traffic_ros2::convert(*it));
+  inconsistency_pub->publish(
+    rmf_traffic_ros2::convert(*it, database->get_current_progress_version(id)));
 }
 
 //==============================================================================

@@ -33,10 +33,12 @@ rmf_traffic::Route convert(const rmf_traffic_msgs::msg::Route& from)
   {
     route.add_dependency(
       dep.dependent_checkpoint,
-      dep.on_participant,
-      dep.on_plan,
-      dep.on_route,
-      dep.on_checkpoint);
+      {
+        dep.on_participant,
+        dep.on_plan,
+        dep.on_route,
+        dep.on_checkpoint
+      });
   }
 
   return route;
