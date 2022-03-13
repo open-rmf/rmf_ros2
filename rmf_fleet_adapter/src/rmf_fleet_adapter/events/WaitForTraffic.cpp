@@ -34,7 +34,7 @@ auto WaitForTraffic::Standby::make(
   standby->_expected_time = expected_time;
   standby->_state = rmf_task::events::SimpleEventState::make(
     id->assign(), "Wait for traffic", "",
-    rmf_task::Event::Status::Standby, {}, context->clock());
+    rmf_task::Event::Status::Standby, {}, standby->_context->clock());
   standby->_update = std::move(update);
 
   return standby;
