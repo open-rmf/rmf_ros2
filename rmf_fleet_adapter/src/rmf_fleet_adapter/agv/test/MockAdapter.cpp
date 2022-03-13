@@ -53,14 +53,15 @@ public:
 
   MockScheduleNode(rxcpp::schedulers::worker worker)
   : _worker(worker),
-    _database(std::make_shared<rmf_traffic::schedule::Database>())
+    _database(std::make_shared<rmf_traffic::schedule::Database>()),
+    _mirror(std::make_shared<rmf_traffic::schedule::Mirror>())
   {
     // Do nothing
   }
 
-  std::shared_ptr<rmf_traffic::schedule::Snappable> snappable() const
+  std::shared_ptr<const rmf_traffic::schedule::Mirror> view() const
   {
-    return _database;
+    return _mirror;
   }
 
   void set(
@@ -73,6 +74,7 @@ public:
     _worker.schedule(
       [
         database = _database,
+        update = update_mirror(),
         participant,
         plan,
         itinerary,
@@ -81,6 +83,7 @@ public:
       ](const auto&)
       {
         database->set(participant, plan, itinerary, storage, version);
+        update();
       });
   }
 
@@ -92,12 +95,14 @@ public:
     _worker.schedule(
       [
         database = _database,
+        update = update_mirror(),
         participant,
         routes,
         version
       ](const auto&)
       {
         database->extend(participant, routes, version);
+        update();
       });
   }
 
@@ -109,12 +114,35 @@ public:
     _worker.schedule(
       [
         database = _database,
+        update = update_mirror(),
         participant,
         delay,
         version
       ](const auto&)
       {
         database->delay(participant, delay, version);
+        update();
+      });
+  }
+
+  void reached(
+    ParticipantId participant,
+    PlanId plan,
+    const std::vector<CheckpointId>& reached_checkpoints,
+    ProgressVersion version) final
+  {
+    _worker.schedule(
+      [
+        database = _database,
+        update = update_mirror(),
+        participant,
+        plan,
+        reached_checkpoints,
+        version
+      ](const auto&)
+      {
+        database->reached(participant, plan, reached_checkpoints, version);
+        update();
       });
   }
 
@@ -125,10 +153,12 @@ public:
     _worker.schedule(
       [
         database = _database,
+        update = update_mirror(),
         participant, version
       ](const auto&)
       {
         database->clear(participant, version);
+        update();
       });
   }
 
@@ -144,15 +174,21 @@ public:
     // to explicitly use the worker for any of the functions besides
     // unregister_participant() but it isn't difficult when they have void
     // return types (unlike this function).
-    return _database->register_participant(participant_info);
+    auto registration = _database->register_participant(participant_info);
+    update_participants()();
+    return registration;
   }
 
   void unregister_participant(ParticipantId participant) final
   {
     _worker.schedule(
-      [database = _database, participant](const auto&)
+      [
+        database = _database,
+        update = update_participants(),
+        participant](const auto&)
       {
         database->unregister_participant(participant);
+        update();
       });
   }
 
@@ -161,17 +197,43 @@ public:
     ParticipantDescription desc) final
   {
     _worker.schedule(
-      [database = _database, participant, desc](const auto&)
+      [
+        database = _database,
+        update = update_participants(),
+        participant, desc](const auto&)
       {
         database->update_description(participant, desc);
+        update();
       });
+  }
+
+  std::function<void()> update_mirror()
+  {
+    return [database = _database, mirror = _mirror]()
+    {
+      mirror->update(
+          database->changes(
+            rmf_traffic::schedule::query_all(), mirror->latest_version()));
+    };
+  }
+
+  std::function<void()> update_participants()
+  {
+    return [database = _database, mirror = _mirror]()
+      {
+        rmf_traffic::schedule::ParticipantDescriptionsMap desc;
+        for (const auto id : database->participant_ids())
+          desc.insert_or_assign(id, *database->get_participant(id));
+
+        mirror->update_participants_info(desc);
+      };
   }
 
 private:
 
   rxcpp::schedulers::worker _worker;
   std::shared_ptr<rmf_traffic::schedule::Database> _database;
-
+  std::shared_ptr<rmf_traffic::schedule::Mirror> _mirror;
 };
 
 //==============================================================================
@@ -229,7 +291,7 @@ std::shared_ptr<FleetUpdateHandle> MockAdapter::add_fleet(
   auto fleet = FleetUpdateHandle::Implementation::make(
     fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
     std::make_shared<SimpleParticipantFactory>(_pimpl->schedule),
-    _pimpl->schedule->snappable(), nullptr, server_uri);
+    _pimpl->schedule->view(), nullptr, server_uri);
 
   _pimpl->fleets.push_back(fleet);
   return fleet;
@@ -257,7 +319,7 @@ TrafficLight::UpdateHandlePtr MockAdapter::add_traffic_light(
     std::move(participant),
     _pimpl->blockade_writer,
     std::move(traits),
-    _pimpl->schedule->snappable(),
+    _pimpl->schedule->view(),
     _pimpl->worker,
     _pimpl->node,
     nullptr);

@@ -192,8 +192,8 @@ SCENARIO("Emergency Pullover")
       for (const auto& t1 : pre_result_1->get_itinerary())
       {
         at_least_one_conflict |= rmf_traffic::DetectConflict::between(
-          p0.description().profile(), t0.trajectory(),
-          p1.description().profile(), t1.trajectory()).has_value();
+          p0.description().profile(), t0.trajectory(), nullptr,
+          p1.description().profile(), t1.trajectory(), nullptr).has_value();
       }
     }
 
@@ -232,8 +232,8 @@ SCENARIO("Emergency Pullover")
       for (const auto& t1 : result_1->get_itinerary())
       {
         CHECK_FALSE(rmf_traffic::DetectConflict::between(
-            p0.description().profile(), t0.trajectory(),
-            p1.description().profile(), t1.trajectory()));
+            p0.description().profile(), t0.trajectory(), nullptr,
+            p1.description().profile(), t1.trajectory(), nullptr));
       }
     }
   }
@@ -289,8 +289,8 @@ SCENARIO("Emergency Pullover")
       for (const auto& t1 : result_1->get_itinerary())
       {
         at_least_one_conflict |= rmf_traffic::DetectConflict::between(
-          p0.description().profile(), t0.trajectory(),
-          p1.description().profile(), t1.trajectory()).has_value();
+          p0.description().profile(), t0.trajectory(), nullptr,
+          p1.description().profile(), t1.trajectory(), nullptr).has_value();
       }
     }
 

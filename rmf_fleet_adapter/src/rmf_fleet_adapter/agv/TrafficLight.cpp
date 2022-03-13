@@ -52,7 +52,7 @@ public:
 
   rmf_traffic::agv::VehicleTraits traits;
 
-  std::shared_ptr<rmf_traffic::schedule::Snappable> schedule;
+  std::shared_ptr<const Mirror> schedule;
 
   rxcpp::schedulers::worker worker;
 
@@ -211,7 +211,7 @@ public:
     std::shared_ptr<CommandHandle> command_,
     rmf_traffic::schedule::Participant itinerary_,
     rmf_traffic::agv::VehicleTraits traits_,
-    std::shared_ptr<rmf_traffic::schedule::Snappable> schedule_,
+    std::shared_ptr<const Mirror> schedule_,
     rxcpp::schedulers::worker worker_,
     std::shared_ptr<Node> node_)
   : command(std::move(command_)),
@@ -711,7 +711,7 @@ void update_active_itinerary(
     const std::size_t initial_i = active_itinerary.empty() ?
       0 : active_itinerary.size()-1;
 
-    for (auto i = initial_i; i <= wp.itinerary_index(); ++i)
+    for (auto i = initial_i; i <= wp.arrival_checkpoints().back().route_id; ++i)
     {
       const auto& route = plan_itinerary.at(i);
       const auto& planned = route.trajectory();
@@ -731,8 +731,8 @@ void update_active_itinerary(
 
       const auto* last_wp = [&]() -> const rmf_traffic::Trajectory::Waypoint*
         {
-          if (i == wp.itinerary_index())
-            return &planned[wp.trajectory_index()];
+          if (i == wp.arrival_checkpoints().back().route_id)
+            return &planned[wp.arrival_checkpoints().back().checkpoint_id];
 
           return &planned.back();
         } ();
@@ -1877,7 +1877,7 @@ TrafficLight::UpdateHandle::Implementation::Implementation(
   rmf_traffic::schedule::Participant itinerary_,
   std::shared_ptr<rmf_traffic_ros2::blockade::Writer> blockade_writer,
   rmf_traffic::agv::VehicleTraits traits_,
-  std::shared_ptr<rmf_traffic::schedule::Snappable> schedule_,
+  std::shared_ptr<const Mirror> schedule_,
   rxcpp::schedulers::worker worker_,
   std::shared_ptr<Node> node_)
 : data(std::make_shared<Data>(
@@ -1906,7 +1906,7 @@ TrafficLight::UpdateHandle::Implementation::make(
   rmf_traffic::schedule::Participant itinerary,
   std::shared_ptr<rmf_traffic_ros2::blockade::Writer> blockade_writer,
   rmf_traffic::agv::VehicleTraits traits,
-  std::shared_ptr<rmf_traffic::schedule::Snappable> schedule,
+  std::shared_ptr<const Mirror> schedule,
   rxcpp::schedulers::worker worker,
   std::shared_ptr<Node> node,
   rmf_traffic_ros2::schedule::Negotiation* negotiation)

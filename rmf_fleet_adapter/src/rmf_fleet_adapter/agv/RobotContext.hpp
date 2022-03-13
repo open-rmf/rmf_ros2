@@ -7,7 +7,7 @@
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
-#include <rmf_traffic/schedule/Snapshot.hpp>
+#include <rmf_traffic/schedule/Mirror.hpp>
 
 #include <rmf_task/State.hpp>
 #include <rmf_task/Constraints.hpp>
@@ -67,10 +67,10 @@ public:
   /// Get a const-reference to the schedule of this robot
   const rmf_traffic::schedule::Participant& itinerary() const;
 
-  using Snappable = rmf_traffic::schedule::Snappable;
+  using Mirror = rmf_traffic::schedule::Mirror;
   /// Get a const-reference to an interface that lets you get a snapshot of the
   /// schedule.
-  const std::shared_ptr<const Snappable>& schedule() const;
+  const std::shared_ptr<const Mirror>& schedule() const;
 
   /// Get the schedule description of this robot
   const rmf_traffic::schedule::ParticipantDescription& description() const;
@@ -211,7 +211,7 @@ private:
     std::shared_ptr<RobotCommandHandle> command_handle,
     std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
     rmf_traffic::schedule::Participant itinerary,
-    std::shared_ptr<const Snappable> schedule,
+    std::shared_ptr<const Mirror> schedule,
     std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
     rmf_task::ConstActivatorPtr activator,
     rmf_task::ConstParametersPtr parameters,
@@ -228,7 +228,7 @@ private:
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
   rmf_traffic::schedule::Participant _itinerary;
-  std::shared_ptr<const Snappable> _schedule;
+  std::shared_ptr<const Mirror> _schedule;
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> _planner;
   rmf_task::ConstActivatorPtr _task_activator;
   rmf_task::ConstParametersPtr _task_parameters;

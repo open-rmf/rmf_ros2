@@ -24,6 +24,7 @@
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
+#include <rmf_traffic/schedule/Mirror.hpp>
 #include <rmf_traffic_ros2/blockade/Writer.hpp>
 
 #include <rmf_traffic_ros2/schedule/Negotiation.hpp>
@@ -40,6 +41,8 @@ class TrafficLight::UpdateHandle::Implementation
 {
 public:
 
+  using Mirror = rmf_traffic::schedule::Mirror;
+
   class Data;
   class Negotiator;
 
@@ -54,7 +57,7 @@ public:
     rmf_traffic::schedule::Participant itinerary_,
     std::shared_ptr<rmf_traffic_ros2::blockade::Writer> blockade_writer,
     rmf_traffic::agv::VehicleTraits traits_,
-    std::shared_ptr<rmf_traffic::schedule::Snappable> schedule_,
+    std::shared_ptr<const Mirror> schedule_,
     rxcpp::schedulers::worker worker_,
     std::shared_ptr<Node> node_);
 
@@ -63,7 +66,7 @@ public:
     rmf_traffic::schedule::Participant itinerary,
     std::shared_ptr<rmf_traffic_ros2::blockade::Writer> blockade_writer,
     rmf_traffic::agv::VehicleTraits traits,
-    std::shared_ptr<rmf_traffic::schedule::Snappable> schedule,
+    std::shared_ptr<const Mirror> schedule,
     rxcpp::schedulers::worker worker,
     std::shared_ptr<Node> node,
     rmf_traffic_ros2::schedule::Negotiation* negotiation);

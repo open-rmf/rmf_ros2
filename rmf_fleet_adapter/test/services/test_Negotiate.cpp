@@ -120,8 +120,8 @@ bool no_conflicts(
         continue;
 
       if (rmf_traffic::DetectConflict::between(
-          p0, r0.trajectory(),
-          p1, r1.trajectory()))
+          p0, r0.trajectory(), nullptr,
+          p1, r1.trajectory(), nullptr))
         return false;
     }
   }

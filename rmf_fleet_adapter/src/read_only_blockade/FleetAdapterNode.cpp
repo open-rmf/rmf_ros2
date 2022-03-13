@@ -85,7 +85,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     if (ready)
     {
       auto mirror = mirror_future.get();
-      auto snapshot = mirror.snapshot_handle();
+      auto snapshot = mirror.view();
       node->_connect = Connections{
         std::move(writer),
         rmf_traffic_ros2::blockade::Writer::make(*node),

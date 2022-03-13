@@ -1189,7 +1189,7 @@ void FleetUpdateHandle::add_robot(
           std::move(command),
           std::move(start),
           std::move(participant),
-          fleet->_pimpl->snappable,
+          fleet->_pimpl->mirror,
           fleet->_pimpl->planner,
           fleet->_pimpl->activation.task,
           fleet->_pimpl->task_parameters,

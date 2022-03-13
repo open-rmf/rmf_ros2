@@ -602,14 +602,8 @@ auto MirrorManager::Options::update_on_wakeup(bool choice) -> Options&
 }
 
 //==============================================================================
-const rmf_traffic::schedule::Viewer& MirrorManager::viewer() const
-{
-  return *_pimpl->mirror;
-}
-
-//==============================================================================
-std::shared_ptr<rmf_traffic::schedule::Snappable>
-MirrorManager::snapshot_handle() const
+std::shared_ptr<const rmf_traffic::schedule::Mirror>
+MirrorManager::view() const
 {
   return _pimpl->mirror;
 }

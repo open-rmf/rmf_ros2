@@ -46,7 +46,7 @@
 #include "../BroadcastClient.hpp"
 #include "../DeserializeJSON.hpp"
 
-#include <rmf_traffic/schedule/Snapshot.hpp>
+#include <rmf_traffic/schedule/Mirror.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>
 #include <rmf_traffic/Trajectory.hpp>
 #include <rmf_traffic/agv/LaneClosure.hpp>
@@ -236,7 +236,7 @@ public:
   std::shared_ptr<Node> node;
   rxcpp::schedulers::worker worker;
   std::shared_ptr<ParticipantFactory> writer;
-  std::shared_ptr<rmf_traffic::schedule::Snappable> snappable;
+  std::shared_ptr<const rmf_traffic::schedule::Mirror> mirror;
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
   std::optional<std::string> server_uri;
 

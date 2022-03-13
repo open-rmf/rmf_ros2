@@ -159,7 +159,7 @@ public:
 
         auto negotiation =
           std::make_shared<rmf_traffic_ros2::schedule::Negotiation>(
-          *node, mirror_manager.snapshot_handle(),
+          *node, mirror_manager.view(),
           std::make_shared<WorkerWrapper>(worker));
 
         return rmf_utils::make_unique_impl<Implementation>(
@@ -221,7 +221,7 @@ std::shared_ptr<FleetUpdateHandle> Adapter::add_fleet(
 
   auto fleet = FleetUpdateHandle::Implementation::make(
     fleet_name, std::move(planner), _pimpl->node, _pimpl->worker,
-    _pimpl->schedule_writer, _pimpl->mirror_manager.snapshot_handle(),
+    _pimpl->schedule_writer, _pimpl->mirror_manager.view(),
     _pimpl->negotiation, server_uri);
 
   _pimpl->fleets.push_back(fleet);
@@ -262,7 +262,7 @@ void Adapter::add_traffic_light(
     command = std::move(command),
     traits = std::move(traits),
     blockade_writer = _pimpl->blockade_writer,
-    schedule = _pimpl->mirror_manager.snapshot_handle(),
+    schedule = _pimpl->mirror_manager.view(),
     worker = _pimpl->worker,
     handle_cb = std::move(handle_cb),
     negotiation = _pimpl->negotiation,

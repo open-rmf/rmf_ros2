@@ -68,7 +68,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     {
       node->_mirror = mirror_future.get();
       node->_negotiation = rmf_traffic_ros2::schedule::Negotiation(
-        *node, node->_mirror->snapshot_handle());
+        *node, node->_mirror->view());
 
       // Don't subscribe until everything else is ready
       node->_fleet_state_subscription =
@@ -120,7 +120,7 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
           for (const auto& p : proposals)
           {
             const auto other_participant =
-            node->_mirror->viewer().get_participant(p.participant);
+            node->_mirror->view()->get_participant(p.participant);
 
             if (!other_participant)
             {
@@ -141,10 +141,8 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
                   continue;
 
                 if (rmf_traffic::DetectConflict::between(
-                  profile,
-                  route.trajectory(),
-                  other_profile,
-                  other_route.trajectory()))
+                  profile, route.trajectory(), nullptr,
+                  other_profile, other_route.trajectory(), nullptr))
                 {
                   rmf_traffic::schedule::Itinerary alternative;
                   alternative.reserve(itinerary.size());
