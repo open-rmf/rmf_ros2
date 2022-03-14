@@ -2172,7 +2172,7 @@ void TaskManager::_handle_resume_request(
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
-  const auto& task_id = request_json["for_tokens"].get<std::string>();
+  const auto& task_id = request_json["for_task"].get<std::string>();
 
   if (_active_task && _active_task.id() == task_id)
   {
