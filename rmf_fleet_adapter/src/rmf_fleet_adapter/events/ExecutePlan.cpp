@@ -462,7 +462,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
         {
           legacy_phases.emplace_back(
             std::make_shared<phases::MoveRobot::PendingPhase>(
-              context, move_through, tail_period),
+              context, move_through, plan_id, tail_period),
             it->time(), it->dependencies());
         }
 
@@ -513,7 +513,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
         {
           legacy_phases.emplace_back(
             std::make_shared<phases::MoveRobot::PendingPhase>(
-              context, move_through, tail_period),
+              context, move_through, plan_id, tail_period),
             it->time(), it->dependencies());
         }
         else
@@ -541,7 +541,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
       // need for any dependencies.
       legacy_phases.emplace_back(
         std::make_shared<phases::MoveRobot::PendingPhase>(
-          context, move_through, tail_period),
+          context, move_through, plan_id, tail_period),
         finish_time_estimate.value(), rmf_traffic::Dependencies{});
     }
 

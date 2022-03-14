@@ -96,24 +96,41 @@ auto WaitForTraffic::Active::make(
     };
 
   active->_dependencies.reserve(dependencies.size());
+  bool all_reached_already = true;
+  bool one_deprecated = false;
+  std::unordered_set<rmf_traffic::ParticipantId> waiting_for_participants;
   for (const auto& dep : dependencies)
   {
     active->_dependencies.push_back(
       active->_context->schedule()->watch_dependency(
         dep, consider_going, consider_going));
+
+    const auto& sub = active->_dependencies.back();
+    if (!sub.reached())
+    {
+      all_reached_already = false;
+      waiting_for_participants.insert(dep.on_participant);
+    }
+
+    if (sub.deprecated())
+      one_deprecated = true;
   }
 
-  const auto check_time =
-    expected_time - active->_context->now() + std::chrono::seconds(31);
-  if (check_time.count() > 0)
+  for (const auto p : waiting_for_participants)
   {
-    active->_timeout = active->_context->node()->try_create_wall_timer(
-      check_time, consider_going);
+    const auto participant = active->_context->schedule()->get_participant(p);
+    if (participant)
+    {
+      active->_state->update_log().info(
+        "Waiting for [robot:" + participant->name() + "]");
+    }
   }
-  else
-  {
+
+  if (all_reached_already || one_deprecated)
     consider_going();
-  }
+
+  active->_timer = active->_context->node()->try_create_wall_timer(
+    std::chrono::seconds(1), consider_going);
 
   return active;
 }
@@ -209,14 +226,18 @@ void WaitForTraffic::Active::_consider_going()
     return _finished();
   }
 
-  // TODO(MXG): Make the waiting time configurable
-  if (_expected_time + std::chrono::seconds(30) < _context->now())
+  const auto delay = _context->now() - _expected_time;
+  if (std::chrono::seconds(30) < delay)
   {
+    // TODO(MXG): Make the max waiting time configurable
     _state->update_status(Status::Delayed);
     _state->update_log().info(
       "Replanning because a traffic dependency is excessively delayed");
     return _replan();
   }
+
+  if (_context->itinerary().delay() < delay)
+    _context->itinerary().delay(delay - _context->itinerary().delay());
 }
 
 //==============================================================================

@@ -98,7 +98,7 @@ public:
     rmf_task::events::SimpleEventStatePtr _state;
     std::function<void()> _update;
     std::function<void()> _finished;
-    rclcpp::TimerBase::SharedPtr _timeout;
+    rclcpp::TimerBase::SharedPtr _timer;
     bool _decision_made = false;
   };
 
