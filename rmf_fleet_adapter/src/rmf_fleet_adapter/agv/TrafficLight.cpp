@@ -63,7 +63,6 @@ public:
   rmf_traffic::blockade::ReservedRange current_range =
     rmf_traffic::blockade::ReservedRange{0, 0};
   std::size_t current_path_version = 0;
-  std::size_t current_plan_version = 0;
 
   std::shared_ptr<rmf_traffic::Profile> profile;
 
@@ -74,10 +73,6 @@ public:
   std::map<std::size_t, rmf_traffic::Time> arrival_timing;
   std::map<std::size_t, rclcpp::Time> departure_timing;
   std::map<std::size_t, std::size_t> pending_waypoint_index;
-
-  std::vector<rmf_traffic::Route> stashed_itinerary;
-  std::vector<rmf_traffic::Route> active_itinerary;
-  std::vector<rmf_traffic::Route> plan_itinerary;
   std::vector<rmf_traffic::agv::Plan::Waypoint> pending_waypoints;
 
   struct Location
@@ -140,7 +135,7 @@ public:
     std::shared_ptr<rmf_traffic::agv::Planner> new_planner,
     std::function<void()> approval_cb);
 
-  rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion> update_timing(
+  std::optional<rmf_traffic::schedule::ItineraryVersion> update_timing(
     std::size_t version,
     std::vector<Waypoint> new_path,
     rmf_traffic::PlanId plan_id_,
@@ -241,7 +236,6 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_path(
 
   const auto now = rmf_traffic_ros2::convert(node->now());
 
-  plan_itinerary.clear();
   pending_waypoints.clear();
   itinerary.clear();
   ready_check_timer = nullptr;
@@ -409,6 +403,14 @@ void TrafficLight::UpdateHandle::Implementation::Data::plan_timing(
       approval_cb();
 
       assert(!result->get_waypoints().empty());
+      if (result->get_waypoints().empty())
+      {
+        // This means the robot is already at its destination
+        data->itinerary.clear();
+        data->waiting_timer = nullptr;
+        data->ready_check_timer = nullptr;
+        return;
+      }
 
       data->update_timing(
         version,
@@ -430,10 +432,10 @@ std::optional<rmf_traffic::Time> linear_interpolate_time(
   const Eigen::Vector2d p0 = wp0.position().block<2, 1>(0, 0);
   const Eigen::Vector2d p1 = wp1.position().block<2, 1>(0, 0);
   if ((p1 - p0).dot(p - p0) < 0)
-    return rmf_utils::nullopt;
+    return std::nullopt;
 
   if ((p1 - p0).dot(p1 - p) < 0)
-    return rmf_utils::nullopt;
+    return std::nullopt;
 
   const double v = wp0.velocity().block<2, 1>(0, 0).norm();
   assert(std::abs(v - wp1.velocity().block<2, 1>(0, 0).norm()) < 1e-2);
@@ -446,7 +448,7 @@ std::optional<rmf_traffic::Time> linear_interpolate_time(
 }
 
 //==============================================================================
-rmf_utils::optional<rmf_traffic::Time> parabolic_interpolate_time(
+std::optional<rmf_traffic::Time> parabolic_interpolate_time(
   const rmf_traffic::Trajectory::Waypoint& wp0,
   const rmf_traffic::Trajectory::Waypoint& wp1,
   const Eigen::Vector2d& p)
@@ -454,10 +456,10 @@ rmf_utils::optional<rmf_traffic::Time> parabolic_interpolate_time(
   const Eigen::Vector2d p0 = wp0.position().block<2, 1>(0, 0);
   const Eigen::Vector2d p1 = wp1.position().block<2, 1>(0, 0);
   if ((p1 - p0).dot(p - p0) < 0)
-    return rmf_utils::nullopt;
+    return std::nullopt;
 
   if ((p1 - p0).dot(p1 - p) < 0)
-    return rmf_utils::nullopt;
+    return std::nullopt;
 
   const double r = (p - p0).norm();
   const double v0 = wp0.velocity().block<2, 1>(0, 0).norm();
@@ -475,7 +477,7 @@ rmf_utils::optional<rmf_traffic::Time> parabolic_interpolate_time(
   if (0 <= t_plus && t_plus <= dt)
     return wp0.time() + rmf_traffic::time::from_seconds(t_plus);
 
-  return rmf_utils::nullopt;
+  return std::nullopt;
 }
 
 //==============================================================================
@@ -537,7 +539,7 @@ rmf_traffic::Time interpolate_time(
 }
 
 //==============================================================================
-rmf_utils::optional<rmf_traffic::Time> interpolate_time(
+std::optional<rmf_traffic::Time> interpolate_time(
   const rmf_traffic::Time now,
   const rmf_traffic::agv::VehicleTraits& traits,
   const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
@@ -576,7 +578,7 @@ rmf_utils::optional<rmf_traffic::Time> interpolate_time(
       // If the vehicle has deviated significantly from the path, then we should
       // recompute the timing information.
       if (deviation > deviation_threshold)
-        return rmf_utils::nullopt;
+        return std::nullopt;
 
       if (traversal < 0.0)
       {
@@ -594,7 +596,7 @@ rmf_utils::optional<rmf_traffic::Time> interpolate_time(
       {
         // TODO(MXG): This is kind of suspicious. Should we escalate the issue
         // at this point?
-        return rmf_utils::nullopt;
+        return std::nullopt;
       }
     }
     else
@@ -656,97 +658,13 @@ rmf_utils::optional<rmf_traffic::Time> interpolate_time(
     }
   }
 
-  return rmf_utils::nullopt;
-}
-
-//==============================================================================
-void update_itineraries(
-  rmf_traffic::PlanId plan_id,
-  rmf_traffic::schedule::Participant& scheduled_itinerary,
-  std::vector<rmf_traffic::Route>& stashed_itinerary,
-  std::vector<rmf_traffic::Route>& active_itinerary,
-  const std::vector<rmf_traffic::Route>& plan_itinerary)
-{
-  // TODO(MXG): Revisit the way we keep the schedule up to date, since we can
-  // probably do better.
-  for (const auto& r : active_itinerary)
-    stashed_itinerary.push_back(r);
-  active_itinerary.clear();
-
-  const auto cumulative_delay = scheduled_itinerary.delay();
-  for (auto& r : stashed_itinerary)
-  {
-    assert(!r.trajectory().empty());
-    if (!r.trajectory().empty())
-      r.trajectory().front().adjust_times(cumulative_delay);
-  }
-
-  std::vector<rmf_traffic::Route> full_itinerary;
-  full_itinerary.reserve(stashed_itinerary.size() + active_itinerary.size());
-
-  full_itinerary.insert(
-    full_itinerary.end(),
-    stashed_itinerary.begin(),
-    stashed_itinerary.end());
-
-  full_itinerary.insert(
-    full_itinerary.end(),
-    plan_itinerary.begin(),
-    plan_itinerary.end());
-
-  scheduled_itinerary.set(plan_id, std::move(full_itinerary));
-}
-
-//==============================================================================
-void update_active_itinerary(
-  std::vector<rmf_traffic::Route>& active_itinerary,
-  const std::vector<rmf_traffic::Route>& plan_itinerary,
-  const std::vector<rmf_traffic::agv::Plan::Waypoint>& pending_waypoints,
-  const std::vector<rmf_traffic::agv::Plan::Waypoint>::const_iterator& end_plan_it)
-{
-  for (auto it = pending_waypoints.begin(); it != end_plan_it; ++it)
-  {
-    const auto& wp = *it;
-
-    const std::size_t initial_i = active_itinerary.empty() ?
-      0 : active_itinerary.size()-1;
-
-    for (auto i = initial_i; i <= wp.arrival_checkpoints().back().route_id; ++i)
-    {
-      const auto& route = plan_itinerary.at(i);
-      const auto& planned = route.trajectory();
-
-      if (active_itinerary.size() <= i)
-        active_itinerary.push_back({route.map(), {}});
-
-      auto& active = active_itinerary.at(i).trajectory();
-
-      const auto begin_it = [&]()
-        {
-          if (active.empty())
-            return planned.begin();
-
-          return ++planned.find(active.back().time());
-        } ();
-
-      const auto* last_wp = [&]() -> const rmf_traffic::Trajectory::Waypoint*
-        {
-          if (i == wp.arrival_checkpoints().back().route_id)
-            return &planned[wp.arrival_checkpoints().back().checkpoint_id];
-
-          return &planned.back();
-        } ();
-
-      for (auto it = begin_it; &(*it) != last_wp; ++it)
-        active.insert(*it);
-    }
-  }
+  return std::nullopt;
 }
 
 } // anonymous namespace
 
 //==============================================================================
-rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion>
+std::optional<rmf_traffic::schedule::ItineraryVersion>
 TrafficLight::UpdateHandle::Implementation::Data::update_timing(
   const std::size_t version,
   std::vector<Waypoint> path_,
@@ -755,20 +673,18 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
   std::shared_ptr<rmf_traffic::agv::Planner> planner_)
 {
   if (version != current_path_version)
-    return rmf_utils::nullopt;
+    return std::nullopt;
 
   // TODO(MXG): Is this really the best place to set the path member variable?
   // Maybe it should be set earlier in the chain.
   path = std::move(path_);
   assert(!path.empty());
 
-  plan_itinerary = plan_.get_itinerary();
   planner = std::move(planner_);
 
   pending_waypoints = plan_.get_waypoints();
+  itinerary.set(plan_id_, plan_.get_itinerary());
   approved = false;
-
-  ++current_plan_version;
 
   assert(!pending_waypoints.empty());
   const rclcpp::Time initial_t =
@@ -855,10 +771,6 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
 
   if (immediately_stop_until.has_value())
   {
-    // An immediate stop will invalidate these earlier trajectories
-    stashed_itinerary.clear();
-    active_itinerary.clear();
-
     // It would be very strange if this happened, but let's try to be robust
     // to the possibility that the robot has diverged from its original path
     // and is returning to the zeroth waypoint.
@@ -878,9 +790,6 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
       resume_waypoints.push_back(*end_resume_it);
     }
 
-    update_active_itinerary(
-      active_itinerary, plan_itinerary, pending_waypoints, end_resume_it);
-
     pending_waypoints.erase(pending_waypoints.begin(), end_resume_it);
 
     assert(!pending_waypoints.empty());
@@ -889,7 +798,7 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
     auto stopped_at =
       [w = weak_from_this(),
         path_version = current_path_version,
-        plan_version = current_plan_version,
+        plan_version = itinerary.current_plan_id(),
         target = next_departure_checkpoint,
         expected_location = expected_start.value()](
       Eigen::Vector3d location)
@@ -905,7 +814,7 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
     auto departed =
       [w = weak_from_this(),
         path_version = current_path_version,
-        plan_version = current_plan_version,
+        plan_version = itinerary.current_plan_id(),
         checkpoint_index = resume_target-1,
         waypoints = std::move(resume_waypoints)](
       Eigen::Vector3d location)
@@ -938,15 +847,12 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
   if (!immediately_stop_until.has_value())
     last_immediate_stop.reset();
 
-  update_itineraries(
-    plan_id_, itinerary, stashed_itinerary, active_itinerary, plan_itinerary);
-
   if (resend_checkpoints)
   {
     auto approval_cb =
       [w = weak_from_this(),
         path_version = current_path_version,
-        plan_version = current_plan_version]()
+        plan_version = itinerary.current_plan_id()]()
       {
         if (const auto data = w.lock())
           data->approve(path_version, plan_version);
@@ -955,7 +861,7 @@ TrafficLight::UpdateHandle::Implementation::Data::update_timing(
     auto reject_cb =
       [w = weak_from_this(),
         path_version = current_path_version,
-        plan_version = current_plan_version](
+        plan_version = itinerary.current_plan_id()](
       const std::size_t last_departed,
       Eigen::Vector3d stopped_location)
       {
@@ -1060,13 +966,14 @@ void TrafficLight::UpdateHandle::Implementation::Data::update_location(
       {
         if (checkpoint_index < data->current_range.end)
         {
-          data->approve(data->current_path_version, data->current_plan_version);
+          data->approve(
+            data->current_path_version, data->itinerary.current_plan_id());
         }
         else
         {
           data->reject(
             data->current_path_version,
-            data->current_plan_version,
+            data->itinerary.current_plan_id(),
             checkpoint_index,
             location);
         }
@@ -1199,7 +1106,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::new_range(
   auto reject =
     [w = weak_from_this(),
       path_version = current_path_version,
-      plan_version = current_plan_version](
+      plan_version = itinerary.current_plan_id()](
     const std::size_t last_departed,
     Eigen::Vector3d stopped_location)
     {
@@ -1312,7 +1219,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::send_checkpoints(
         [w = weak_from_this(),
           approval_callback = approval_callback,
           path_version = current_path_version,
-          plan_version = current_plan_version,
+          plan_version = itinerary.current_plan_id(),
           checkpoint_index = c,
           waypoints = departed_waypoints](Eigen::Vector3d location)
         {
@@ -1382,9 +1289,6 @@ void TrafficLight::UpdateHandle::Implementation::Data::send_checkpoints(
 
       return it;
     } ();
-
-  update_active_itinerary(
-    active_itinerary, plan_itinerary, pending_waypoints, end_plan_it);
 
   pending_waypoints.erase(pending_waypoints.begin(), end_plan_it);
 
@@ -1491,11 +1395,11 @@ bool TrafficLight::UpdateHandle::Implementation::Data::check_if_ready(
   {
     if (checkpoint_id <= current_range.end)
     {
-      approve(current_path_version, current_plan_version);
+      approve(current_path_version, itinerary.current_plan_id());
     }
     else
     {
-      reject(current_path_version, current_plan_version,
+      reject(current_path_version, itinerary.current_plan_id(),
         checkpoint_id-1, last_known_location.value().position);
     }
 
@@ -1576,7 +1480,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::approve(
       if (path_version != data->current_path_version)
         return;
 
-      if (plan_version != data->current_plan_version)
+      if (plan_version != data->itinerary.current_plan_id())
         return;
 
       if (data->approved)
@@ -1622,7 +1526,7 @@ void TrafficLight::UpdateHandle::Implementation::Data::reject(
         stopped_location
       };
 
-      if (plan_version != data->current_plan_version)
+      if (plan_version != data->itinerary.current_plan_id())
         return;
 
       if (data->check_if_finished(actual_last_departed))
@@ -1775,7 +1679,7 @@ void TrafficLight::UpdateHandle::Implementation::Negotiator::respond(
       version = data->current_path_version](
     const rmf_traffic::PlanId plan_id,
     const rmf_traffic::agv::Plan& plan)
-    -> rmf_utils::optional<rmf_traffic::schedule::ItineraryVersion>
+    -> std::optional<rmf_traffic::schedule::ItineraryVersion>
     {
       const auto data = w.lock();
       if (!data)
