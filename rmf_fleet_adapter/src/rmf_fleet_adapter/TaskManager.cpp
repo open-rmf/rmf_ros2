@@ -647,8 +647,8 @@ std::vector<std::string> TaskManager::ActiveTask::remove_interruption(
       if (_removed_interruptions.count(token) == 0)
       {
         missing_tokens.push_back(token);
-        continue;
       }
+      continue;
     }
 
     auto interruption_json = it->second;
@@ -2172,7 +2172,7 @@ void TaskManager::_handle_resume_request(
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
-  const auto& task_id = request_json["for_tokens"].get<std::string>();
+  const auto& task_id = request_json["for_task"].get<std::string>();
 
   if (_active_task && _active_task.id() == task_id)
   {

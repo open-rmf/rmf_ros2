@@ -384,6 +384,9 @@ void GoToPlace::Active::_execute_plan(rmf_traffic::agv::Plan plan)
 
   if (plan.get_itinerary().empty())
   {
+    _state->update_status(Status::Completed);
+    _state->update_log().info(
+      "The planner indicates that the robot is already at its goal.");
     _finished();
     return;
   }
