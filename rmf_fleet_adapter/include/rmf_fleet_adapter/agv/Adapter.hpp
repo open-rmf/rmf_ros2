@@ -130,7 +130,7 @@ public:
     rmf_traffic::agv::VehicleTraits traits,
     std::function<void(TrafficLight::UpdateHandlePtr handle)> handle_cb);
 
-  using Blockers = std::vector<TrafficLight::CommandHandle::Blocker>;
+  using Blockers = std::vector<EasyTrafficLight::Blocker>;
 
   /// Create an easy-to-use version of a traffic light to help manage robots
   /// that can only support pause and resume commands.
@@ -164,7 +164,7 @@ public:
   ///   The callback that will be triggered by the traffic light when the robot
   ///   may resume moving forward.
   ///
-  /// \param[in] blocker_callback
+  /// \param[in] deadlock_callback
   ///   The callback that will be triggered by the traffic light if there is a
   ///   permanent blocker disrupting the ability of this vehicle to proceed.
   ///   Manual intervention may be required in this circumstance. A callback
@@ -177,7 +177,7 @@ public:
     rmf_traffic::agv::VehicleTraits traits,
     std::function<void()> pause_callback,
     std::function<void()> resume_callback,
-    std::function<void(Blockers)> blocker_callback = nullptr);
+    std::function<void(Blockers)> deadlock_callback = nullptr);
 
 
   /// Get the rclcpp::Node that this adapter will be using for communication.

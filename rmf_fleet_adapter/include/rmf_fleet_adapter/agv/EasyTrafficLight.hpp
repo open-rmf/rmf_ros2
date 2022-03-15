@@ -149,6 +149,27 @@ public:
   EasyTrafficLight& fleet_state_publish_period(
     std::optional<rmf_traffic::Duration> value);
 
+  /// This class will be provided to the deadlock_callback when a deadlock has
+  /// occurred due to an unresolvable conflict. Human intervention may be
+  /// required at this point, because the RMF traffic negotiation system does
+  /// not have a high enough level of control over the conflicting participants
+  /// to resolve it.
+  class Blocker
+  {
+  public:
+
+    /// Get the schedule participant ID of the blocker.
+    rmf_traffic::schedule::ParticipantId participant_id() const;
+
+    /// Get the description of the blocker.
+    const rmf_traffic::schedule::ParticipantDescription& description() const;
+
+    class Implementation;
+  private:
+    Blocker();
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
   class Implementation;
 private:
   EasyTrafficLight();

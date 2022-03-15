@@ -350,42 +350,57 @@ void Adapter::add_easy_traffic_light(
     return;
   }
 
-  const auto command_handle =
-    std::make_shared<EasyTrafficLight::Implementation::CommandHandle>();
-
-  add_traffic_light(
-    command_handle,
-    fleet_name,
+  rmf_traffic::schedule::ParticipantDescription description(
     robot_name,
-    std::move(traits),
-    [command_handle,
+    fleet_name,
+    rmf_traffic::schedule::ParticipantDescription::Rx::Responsive,
+    traits.profile());
+
+  _pimpl->schedule_writer->async_make_participant(
+    std::move(description),
+    [mutex = &_pimpl->_traffic_light_init_mutex,
+    traits = std::move(traits),
     pause_callback = std::move(pause_callback),
     resume_callback = std::move(resume_callback),
     handle_callback = std::move(handle_callback),
     blocker_callback = std::move(blocker_callback),
+    blockade_writer = _pimpl->blockade_writer,
+    schedule = _pimpl->mirror_manager.view(),
     worker = _pimpl->worker,
-    node = _pimpl->node,
-    fleet_name,
-    robot_name](
-      TrafficLight::UpdateHandlePtr update_handle)
+    handle_cb = std::move(handle_callback),
+    negotiation = _pimpl->negotiation,
+    node = _pimpl->node](
+      rmf_traffic::schedule::Participant participant)
     {
+      std::unique_lock<std::mutex> lock(*mutex, std::defer_lock);
+      while (!lock.try_lock())
+      {
+        // Intententionally busy wait
+      }
+
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Added a traffic light controller for [%s] with participant ID [%ld]",
+        participant.description().name().c_str(),
+        participant.id());
+
       EasyTrafficLightPtr easy_handle = EasyTrafficLight::Implementation::make(
-        std::move(update_handle),
         std::move(pause_callback),
         std::move(resume_callback),
         std::move(blocker_callback),
+        schedule,
         worker,
         node,
-        robot_name,
-        fleet_name);
-
-      command_handle->pimpl = easy_handle;
+        std::move(traits),
+        std::move(participant),
+        blockade_writer,
+        negotiation.get());
 
       worker.schedule(
-        [easy_handle = std::move(easy_handle),
-        handle_callback = std::move(handle_callback)](const auto&)
+        [handle_callback = std::move(handle_callback),
+        easy_handle = std::move(easy_handle)](const auto&)
         {
-          handle_callback(easy_handle);
+          handle_callback(std::move(easy_handle));
         });
     });
 }

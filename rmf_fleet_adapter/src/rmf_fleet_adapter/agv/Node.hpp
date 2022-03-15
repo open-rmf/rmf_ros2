@@ -56,6 +56,8 @@ public:
 
   std::function<rmf_traffic::Time()> clock() const;
 
+  rmf_traffic::Time rmf_now() const;
+
   using DoorState = rmf_door_msgs::msg::DoorState;
   using DoorStateObs = rxcpp::observable<DoorState::SharedPtr>;
   const DoorStateObs& door_state() const;
