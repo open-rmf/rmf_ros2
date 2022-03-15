@@ -209,6 +209,32 @@ void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 }
 
 //==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::maximum_delay(
+  rmf_utils::optional<rmf_traffic::Duration> value)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [context, value](const auto&)
+      {
+        context->maximum_delay(value);
+      });
+  }
+
+  return *this;
+}
+
+//==============================================================================
+rmf_utils::optional<rmf_traffic::Duration>
+RobotUpdateHandle::maximum_delay() const
+{
+  if (const auto context = _pimpl->get_context())
+    return context->maximum_delay();
+
+  return rmf_utils::nullopt;
+}
+
+//==============================================================================
 void RobotUpdateHandle::set_action_executor(
   RobotUpdateHandle::ActionExecutor action_executor)
 {
@@ -343,29 +369,100 @@ auto RobotUpdateHandle::interrupt(
 }
 
 //==============================================================================
-RobotUpdateHandle& RobotUpdateHandle::maximum_delay(
-  rmf_utils::optional<rmf_traffic::Duration> value)
+class RobotUpdateHandle::IssueTicket::Implementation
 {
-  if (const auto context = _pimpl->get_context())
-  {
-    context->worker().schedule(
-      [context, value](const auto&)
-      {
-        context->maximum_delay(value);
-      });
-  }
+public:
 
-  return *this;
+  std::unique_ptr<Reporting::Ticket> ticket;
+
+  static IssueTicket make(std::unique_ptr<Reporting::Ticket> ticket)
+  {
+    IssueTicket output;
+    output._pimpl = rmf_utils::make_unique_impl<Implementation>(
+      Implementation{std::move(ticket)});
+    return output;
+  }
+};
+
+//==============================================================================
+void RobotUpdateHandle::IssueTicket::resolve(nlohmann::json msg)
+{
+  _pimpl->ticket->resolve(std::move(msg));
 }
 
 //==============================================================================
-rmf_utils::optional<rmf_traffic::Duration>
-RobotUpdateHandle::maximum_delay() const
+RobotUpdateHandle::IssueTicket::IssueTicket()
 {
-  if (const auto context = _pimpl->get_context())
-    return context->maximum_delay();
+  // Do nothing
+}
 
-  return rmf_utils::nullopt;
+//==============================================================================
+auto RobotUpdateHandle::create_issue(
+  Tier tier, std::string category, nlohmann::json detail) -> IssueTicket
+{
+  const auto context = _pimpl->get_context();
+  if (!context)
+  {
+    // *INDENT-OFF*
+    throw std::runtime_error(
+      "[RobotUpdateHandle::create_issue] Robot context is unavailable.");
+    // *INDENT-ON*
+  }
+
+  auto inner_tier = [](Tier tier) -> rmf_task::Log::Tier
+    {
+      switch (tier)
+      {
+        case Tier::Info: return rmf_task::Log::Tier::Info;
+        case Tier::Warning: return rmf_task::Log::Tier::Warning;
+        case Tier::Error: return rmf_task::Log::Tier::Error;
+        default: return rmf_task::Log::Tier::Uninitialized;
+      }
+    } (tier);
+
+  auto ticket = context->reporting()
+    .create_issue(inner_tier, std::move(category), std::move(detail));
+
+  return RobotUpdateHandle::IssueTicket::Implementation
+    ::make(std::move(ticket));
+}
+
+//==============================================================================
+void RobotUpdateHandle::log_info(std::string text)
+{
+  const auto context = _pimpl->get_context();
+
+  // Should we throw an exception when the context is gone?
+  if (!context)
+    return;
+
+  auto& report = context->reporting();
+  std::lock_guard<std::mutex> lock(report.mutex());
+  report.log().info(std::move(text));
+}
+
+//==============================================================================
+void RobotUpdateHandle::log_warning(std::string text)
+{
+  const auto context = _pimpl->get_context();
+  if (!context)
+    return;
+
+  auto& report = context->reporting();
+  std::lock_guard<std::mutex> lock(report.mutex());
+  report.log().warn(std::move(text));
+}
+
+//==============================================================================
+void RobotUpdateHandle::log_error(std::string text)
+{
+  const auto context = _pimpl->get_context();
+  if (!context)
+    return;
+
+  auto& report = context->reporting();
+  std::lock_guard<std::mutex> lock(report.mutex());
+  report.log().error(std::move(text));
 }
 
 //==============================================================================
@@ -440,14 +537,6 @@ bool RobotUpdateHandle::ActionExecution::okay() const
 RobotUpdateHandle::ActionExecution::ActionExecution()
 {
   // Do nothing
-}
-
-//==============================================================================
-RobotUpdateHandle::ActionExecution::~ActionExecution()
-{
-  // Automatically trigger finished when this object dies
-  if (_pimpl->data->finished)
-    _pimpl->data->finished();
 }
 
 

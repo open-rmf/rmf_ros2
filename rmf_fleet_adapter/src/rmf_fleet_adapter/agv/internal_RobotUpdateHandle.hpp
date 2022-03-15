@@ -45,6 +45,12 @@ public:
       remaining_time = remaining_time_;
       okay = true;
     }
+
+    ~Data()
+    {
+      if (finished)
+        finished();
+    }
   };
 
   static ActionExecution make(std::shared_ptr<Data> data)

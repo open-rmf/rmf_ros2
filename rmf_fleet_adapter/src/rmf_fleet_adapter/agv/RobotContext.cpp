@@ -424,6 +424,18 @@ std::shared_ptr<TaskManager> RobotContext::task_manager()
 }
 
 //==============================================================================
+Reporting& RobotContext::reporting()
+{
+  return _reporting;
+}
+
+//==============================================================================
+const Reporting& RobotContext::reporting() const
+{
+  return _reporting;
+}
+
+//==============================================================================
 RobotContext::RobotContext(
   std::shared_ptr<RobotCommandHandle> command_handle,
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
@@ -453,7 +465,8 @@ RobotContext::RobotContext(
   _charger_wp(state.dedicated_charging_waypoint().value()),
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
-  _task_planner(std::move(task_planner))
+  _task_planner(std::move(task_planner)),
+  _reporting(_worker)
 {
   _profile = std::make_shared<rmf_traffic::Profile>(
     _itinerary.description().profile());

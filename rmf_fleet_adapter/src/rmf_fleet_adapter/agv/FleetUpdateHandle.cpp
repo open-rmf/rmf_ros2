@@ -25,6 +25,7 @@
 #include "internal_RobotUpdateHandle.hpp"
 #include "RobotContext.hpp"
 
+#include "../log_to_json.hpp"
 #include "../tasks/Delivery.hpp"
 #include "../tasks/Patrol.hpp"
 #include "../tasks/Clean.hpp"
@@ -809,12 +810,21 @@ void FleetUpdateHandle::Implementation::publish_fleet_state_topic() const
 }
 
 //==============================================================================
+void FleetUpdateHandle::Implementation::update_fleet() const
+{
+  update_fleet_state();
+  update_fleet_logs();
+}
+
+//==============================================================================
 void FleetUpdateHandle::Implementation::update_fleet_state() const
 {
   // Publish to API server
   if (broadcast_client)
   {
-    nlohmann::json fleet_state_msg;
+    nlohmann::json fleet_state_update_msg;
+    fleet_state_update_msg["type"] = "fleet_state_update";
+    auto& fleet_state_msg = fleet_state_update_msg["data"];
     fleet_state_msg["name"] = name;
     auto& robots = fleet_state_msg["robots"];
     for (const auto& [context, mgr] : task_managers)
@@ -836,50 +846,113 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
       location["y"] = location_msg.y;
       location["yaw"] = location_msg.yaw;
 
-      // TODO(YV): json["issues"]
+      std::lock_guard<std::mutex> lock(context->reporting().mutex());
+      const auto& issues = context->reporting().open_issues();
+      auto& issues_msg = json["issues"];
+      issues_msg = std::vector<nlohmann::json>();
+      for (const auto& issue : issues)
+      {
+        nlohmann::json issue_msg;
+        issue_msg["category"] = issue->category;
+        issue_msg["detail"] = issue->detail;
+        issues_msg.push_back(std::move(issue_msg));
+      }
     }
 
-    const auto fleet_schema = rmf_api_msgs::schemas::fleet_state_update;
-    const auto loader =
-      [n = node, s = schema_dictionary](const nlohmann::json_uri& id,
-        nlohmann::json& value)
-      {
-        const auto it = s.find(id.url());
-        if (it == s.end())
-        {
-          RCLCPP_ERROR(
-            n->get_logger(),
-            "url: %s not found in schema dictionary", id.url().c_str());
-          return;
-        }
-
-        value = it->second;
-      };
-
-    nlohmann::json fleet_state_update_msg;
-    fleet_state_update_msg["type"] = "fleet_state_update";
-    fleet_state_update_msg["data"] = fleet_state_msg;
     try
     {
-      static const nlohmann::json_schema::json_validator
-        validator(fleet_schema, loader);
+      static const auto validator =
+        make_validator(rmf_api_msgs::schemas::fleet_state_update);
 
       validator.validate(fleet_state_update_msg);
+      broadcast_client->publish(fleet_state_update_msg);
     }
     catch (const std::exception& e)
     {
       RCLCPP_ERROR(
         node->get_logger(),
-        "Unable to publish fleet state json message: %s",
-        e.what());
-      return;
+        "Malformed outgoing fleet state json message: %s\nMessage:\n%s",
+        e.what(),
+        fleet_state_update_msg.dump(2).c_str());
     }
-
-    broadcast_client->publish(fleet_state_update_msg);
   }
 }
 
+//==============================================================================
+void FleetUpdateHandle::Implementation::update_fleet_logs() const
+{
+  if (broadcast_client)
+  {
+    nlohmann::json fleet_log_update_msg;
+    fleet_log_update_msg["type"] = "fleet_log_update";
+    auto& fleet_log_msg = fleet_log_update_msg["data"];
+    fleet_log_msg["name"] = name;
+    // TODO(MXG): fleet_log_msg["log"]
+    auto& robots_msg = fleet_log_msg["robots"];
+    for (const auto& [context, _] : task_managers)
+    {
+      auto robot_log_msg_array = std::vector<nlohmann::json>();
+
+      std::lock_guard<std::mutex> lock(context->reporting().mutex());
+      const auto& log = context->reporting().log();
+      for (const auto& entry : log_reader.read(log.view()))
+        robot_log_msg_array.push_back(log_to_json(entry));
+
+      if (!robot_log_msg_array.empty())
+        robots_msg[context->name()] = std::move(robot_log_msg_array);
+    }
+
+    if (robots_msg.empty())
+    {
+      // No new logs to report
+      return;
+    }
+
+    try
+    {
+      static const auto validator =
+        make_validator(rmf_api_msgs::schemas::fleet_log_update);
+
+      validator.validate(fleet_log_update_msg);
+      broadcast_client->publish(fleet_log_update_msg);
+    }
+    catch (const std::exception& e)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Malformed outgoing fleet log json message: %s\nMessage:\n%s",
+        e.what(),
+        fleet_log_update_msg.dump(2).c_str());
+    }
+  }
+}
+
+//==============================================================================
+nlohmann::json_schema::json_validator
+FleetUpdateHandle::Implementation::make_validator(
+  const nlohmann::json& schema) const
+{
+  const auto loader =
+    [n = node, s = schema_dictionary](const nlohmann::json_uri& id,
+      nlohmann::json& value)
+    {
+      const auto it = s.find(id.url());
+      if (it == s.end())
+      {
+        RCLCPP_ERROR(
+          n->get_logger(),
+          "url: %s not found in schema dictionary", id.url().c_str());
+        return;
+      }
+
+      value = it->second;
+    };
+
+  return nlohmann::json_schema::json_validator(schema, loader);
+}
+
 namespace {
+//==============================================================================
 PlaceDeserializer make_place_deserializer(
   std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>>
   planner)
@@ -1705,7 +1778,7 @@ FleetUpdateHandle& FleetUpdateHandle::fleet_state_update_period(
       [me = weak_from_this()]
       {
         if (const auto self = me.lock())
-          self->_pimpl->update_fleet_state();
+          self->_pimpl->update_fleet();
       });
   }
   else

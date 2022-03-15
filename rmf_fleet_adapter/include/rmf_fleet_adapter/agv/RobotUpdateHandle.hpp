@@ -128,12 +128,6 @@ public:
     // Returns false if the Action has been killed or cancelled
     bool okay() const;
 
-    // TODO: Consider giving access to the participant schedule and
-    // traffic negotiation
-
-    // The desctructor will trigger finished() if it has not already been called
-    ~ActionExecution();
-
     class Implementation;
   private:
     ActionExecution();
@@ -203,6 +197,63 @@ public:
   Interruption interrupt(
     std::vector<std::string> labels,
     std::function<void()> robot_is_interrupted);
+
+  enum class Tier
+  {
+    /// General status information, does not require special attention
+    Info,
+
+    /// Something unusual that might require attention
+    Warning,
+
+    /// A critical failure that requires immediate operator attention
+    Error
+  };
+
+  /// An object to maintain an issue that is happening with the robot. When this
+  /// object is destroyed without calling resolve(), the issue will be
+  /// "dropped", which issues a warning to the log.
+  class IssueTicket
+  {
+  public:
+
+    /// Indicate that the issue has been resolved. The provided message will be
+    /// logged for this robot and the issue will be removed from the robot
+    /// state.
+    void resolve(nlohmann::json msg);
+
+    class Implementation;
+  private:
+    IssueTicket();
+    rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+  };
+
+  /// Create a new issue for the robot.
+  ///
+  /// \param[in] tier
+  ///   The severity of the issue
+  ///
+  /// \param[in] category
+  ///   A brief category to describe the issue
+  ///
+  /// \param[in] detail
+  ///   Full details of the issue that might be relevant to an operator or
+  ///   logging system.
+  ///
+  /// \return A ticket for this issue
+  IssueTicket create_issue(
+    Tier tier, std::string category, nlohmann::json detail);
+
+  // TODO(MXG): Should we offer a "clear_all_issues" function?
+
+  /// Add a log entry with Info severity
+  void log_info(std::string text);
+
+  /// Add a log entry with Warning severity
+  void log_warning(std::string text);
+
+  /// Add a log entry with Error severity
+  void log_error(std::string text);
 
   class Implementation;
 
