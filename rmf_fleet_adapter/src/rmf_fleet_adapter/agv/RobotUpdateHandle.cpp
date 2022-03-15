@@ -539,14 +539,6 @@ RobotUpdateHandle::ActionExecution::ActionExecution()
   // Do nothing
 }
 
-//==============================================================================
-RobotUpdateHandle::ActionExecution::~ActionExecution()
-{
-  // Automatically trigger finished when this object dies
-  if (_pimpl->data->finished)
-    _pimpl->data->finished();
-}
-
 
 } // namespace agv
 } // namespace rmf_fleet_adapter
