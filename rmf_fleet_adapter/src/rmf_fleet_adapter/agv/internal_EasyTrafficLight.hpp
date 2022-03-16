@@ -44,6 +44,8 @@ class EasyTrafficLight::Implementation
 {
 public:
 
+  using MirrorPtr = std::shared_ptr<const rmf_traffic::schedule::Mirror>;
+
   struct NegotiateManagers
   {
     rmf_rxcpp::subscription_guard subscription;
@@ -65,12 +67,13 @@ public:
       const rmf_traffic::Dependency& dep,
       const std::shared_ptr<const rmf_traffic::schedule::Mirror>& mirror);
 
-    bool ready() const;
+    bool ready(std::size_t line, rmf_traffic::Time time, const MirrorPtr& mirror, rmf_traffic::ParticipantId me) const;
 
-    bool deprecated() const;
+    bool deprecated(const MirrorPtr& mirror, const std::string& me) const;
 
   private:
     std::vector<DependencyPtr> _subscriptions;
+    mutable rmf_traffic::Time _last_time = rmf_traffic::Time(rmf_traffic::Duration(0));
   };
 
   struct Plan
@@ -79,6 +82,7 @@ public:
     rmf_traffic::agv::Plan plan;
     DependencyTracker immediate_stop_dependencies;
     std::map<std::size_t, DependencyTracker> dependencies;
+    std::unordered_map<std::size_t, rmf_traffic::agv::Plan::Checkpoints> arrivals;
   };
 
   struct Location
@@ -132,6 +136,8 @@ public:
 
     // Things for populating the fleet state
     double battery_soc = 0.0;
+
+    std::string name;
 
     // Negotiation fields
     std::shared_ptr<void> negotiation_license;

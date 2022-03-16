@@ -84,6 +84,12 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
         if (route->map() != vc->route.map())
           continue;
 
+        if (route->should_ignore(vc->participant, vc->plan_id))
+          continue;
+
+        if (vc->route.should_ignore(participant, plan_id))
+          continue;
+
         const auto* dep_v =
           vc->route.check_dependencies(participant, plan_id, r);
         const auto* dep_u =

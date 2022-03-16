@@ -32,27 +32,78 @@ void EasyTrafficLight::Implementation::DependencyTracker::add(
   _subscriptions.push_back(
     std::make_shared<Dependency>(
       mirror->watch_dependency(dep, []() {}, []() {})));
+
+  if (_subscriptions.back()->deprecated())
+  {
+    std::cout << "Deprecated from the start: {" << mirror->get_participant(dep.on_participant)
+              << " " << dep.on_plan << " " << dep.on_route << " " << dep.on_checkpoint
+              << "}" << std::endl;
+  }
 }
 
 //==============================================================================
-bool EasyTrafficLight::Implementation::DependencyTracker::ready() const
+bool EasyTrafficLight::Implementation::DependencyTracker::ready(
+    std::size_t line,
+    rmf_traffic::Time time,
+    const std::shared_ptr<const rmf_traffic::schedule::Mirror>& mirror,
+    const rmf_traffic::ParticipantId me) const
 {
+  bool report = false;
+  if (time - _last_time > std::chrono::seconds(2))
+  {
+    report = true;
+    _last_time = time;
+    std::cout << "Line " << line << ": " << mirror->get_participant(me)->name()
+              << " waiting for";
+  }
+
   for (const auto& dep : _subscriptions)
   {
     if (!dep->reached())
+    {
+      if (report)
+      {
+        const auto& d = dep->dependency();
+        std::cout << " {" << mirror->get_participant(d.on_participant)->name()
+                  << " " << d.on_plan << " " << d.on_route << " " << d.on_checkpoint
+                  << "} which is at";
+
+        const auto& p = mirror->get_current_progress(d.on_participant);
+        const auto other_plan_id = *mirror->get_current_plan_id(d.on_participant);
+        for (std::size_t i=0; i < p->size(); ++i)
+        {
+          std::cout << " {" << mirror->get_participant(d.on_participant)->name()
+                    << " " << other_plan_id << " " << i << " " << (*p)[i] << "}";
+        }
+
+        std::cout << std::endl;
+      }
       return false;
+    }
   }
+
+  if (report)
+    std::cout << " nothing" << std::endl;
 
   return true;
 }
 
 //==============================================================================
-bool EasyTrafficLight::Implementation::DependencyTracker::deprecated() const
+bool EasyTrafficLight::Implementation::DependencyTracker::deprecated(
+  const MirrorPtr& mirror, const std::string& name) const
 {
   for (const auto& dep : _subscriptions)
   {
     if (dep->deprecated())
+    {
+      const auto& d = dep->dependency();
+      const auto& other_name = mirror->get_participant(d.on_participant)->name();
+      std::cout << "dependency of " << name << " is deprecated: {" << other_name
+                << " " << d.on_plan << " " << d.on_route << " " << d.on_checkpoint
+                << "} replaced by plan " << *mirror->get_current_plan_id(d.on_participant)
+                << std::endl;
       return true;
+    }
   }
 
   return false;
@@ -274,6 +325,12 @@ void EasyTrafficLight::Implementation::Shared::make_plan(
   if (state.find_path_service)
     return;
 
+  if (!negotiate_services.empty())
+  {
+    std::cout << "Not replanning because a negotiation is happening" << std::endl;
+    return;
+  }
+
   rmf_traffic::agv::Plan::Goal goal(
     state.planner->get_configuration().graph().num_waypoints()-1);
 
@@ -307,6 +364,7 @@ void EasyTrafficLight::Implementation::Shared::make_plan(
         return;
       }
 
+      self->state.find_path_service = nullptr;
       self->receive_plan(
         request_path_version, self->state.itinerary->assign_plan_id(), *result);
     });
@@ -324,13 +382,24 @@ EasyTrafficLight::Implementation::Shared::receive_plan(
   if (request_path_version != path_version)
     return std::nullopt;
 
-  Plan new_plan{plan_id, plan, {}, {}};
+  std::cout << name << " switching to plan " << plan_id
+            << " which depends on:";
+
+  Plan new_plan{plan_id, plan, {}, {}, {}};
   for (const auto& wp : plan.get_waypoints())
   {
     if (wp.graph_index().has_value())
     {
       for (const auto& dep : wp.dependencies())
+      {
         new_plan.dependencies[*wp.graph_index()].add(dep, hooks.schedule);
+        const auto& other_name = hooks.schedule->get_participant(dep.on_participant)->name();
+        std::cout << " {" << other_name << " " << dep.on_plan << " "
+                  << dep.on_route << " " << dep.on_checkpoint << "}";
+      }
+
+      for (const auto& arr : wp.arrival_checkpoints())
+        new_plan.arrivals[*wp.graph_index()].push_back(arr);
     }
     else
     {
@@ -339,9 +408,11 @@ EasyTrafficLight::Implementation::Shared::receive_plan(
     }
   }
 
+  std::cout << std::endl;
+
   state.proposal = std::move(new_plan);
 
-  if (!state.proposal->immediate_stop_dependencies.ready())
+  if (!state.proposal->immediate_stop_dependencies.ready(__LINE__, hooks.node->rmf_now(), hooks.schedule, state.itinerary->id()))
   {
     // If there are dependencies calling for an immediate stop, then we should
     // immediately trigger the pause callback.
@@ -443,6 +514,12 @@ bool EasyTrafficLight::Implementation::Shared::update_location(
   }
 
   state.blockade->reached(checkpoint);
+  for (const auto& arr : state.current_plan->arrivals[checkpoint])
+  {
+    state.itinerary->reached(
+      state.current_plan->id, arr.route_id, arr.checkpoint_id);
+  }
+
   update_delay(checkpoint, location);
 
   if (checkpoint >= state.checkpoints.size() - 1)
@@ -485,7 +562,7 @@ bool EasyTrafficLight::Implementation::Shared::consider_proposal()
   {
     // If there are any dependencies on a passed checkpoint and those
     // dependencies were not ready, then we need to reject the proposal.
-    if (!d_it->second.ready())
+    if (!d_it->second.ready(__LINE__, hooks.node->rmf_now(), hooks.schedule, state.itinerary->id()))
     {
       make_plan(path_version, state.last_known_location.value());
       return false;
@@ -498,10 +575,11 @@ bool EasyTrafficLight::Implementation::Shared::consider_proposal()
     if (d_it == deps.end())
       continue;
 
-    if (!d_it->second.ready())
+    if (!d_it->second.ready(__LINE__, hooks.node->rmf_now(), hooks.schedule, state.itinerary->id()))
     {
       // If our dependencies changed, then we should release the portion of the
       // range that has unmet dependencies.
+      std::cout << name << " releasing after " << i << std::endl;
       state.blockade->release(i);
       state.range.end = i;
       break;
@@ -516,36 +594,44 @@ bool EasyTrafficLight::Implementation::Shared::consider_proposal()
 //==============================================================================
 bool EasyTrafficLight::Implementation::Shared::finish_immediate_stop()
 {
-  if (state.current_plan->immediate_stop_dependencies.deprecated())
+  if (state.current_plan->immediate_stop_dependencies.deprecated(hooks.schedule, name))
   {
+    std::cout << "Asking to make a new plan from an immediate stop" << std::endl;
     make_plan(path_version, state.last_known_location.value());
     return false;
   }
 
-  return state.current_plan->immediate_stop_dependencies.ready();
+  return state.current_plan->immediate_stop_dependencies.ready(__LINE__,
+    hooks.node->rmf_now(), hooks.schedule, state.itinerary->id());
 }
 
 //==============================================================================
 bool EasyTrafficLight::Implementation::Shared::check_if_ready(
   std::size_t to_move_past_checkpoint)
 {
-  if (state.range.end > to_move_past_checkpoint)
+  if (to_move_past_checkpoint < state.range.end)
     return true;
 
   const auto& dependency =
     state.current_plan.value().dependencies[to_move_past_checkpoint];
 
-  if (dependency.deprecated())
+  if (dependency.deprecated(hooks.schedule, name))
   {
+    std::cout << "Asking to make new plan" << std::endl;
     make_plan(path_version, state.last_known_location.value());
     return false;
   }
 
-  const auto ready = dependency.ready();
-  if (ready)
+  if (dependency.ready(__LINE__, hooks.node->rmf_now(), hooks.schedule, state.itinerary->id()))
+  {
+    // Notify the blockade that we are ready to move past the next checkpoint.
     state.blockade->ready(to_move_past_checkpoint);
+  }
 
-  return ready;
+  // Always return false here because if it were actually ready to move past
+  // the next waypoint, we would have returned true at the start of this
+  // function. We need to wait until the blockade approves.
+  return false;
 }
 
 //==============================================================================
@@ -554,19 +640,25 @@ auto EasyTrafficLight::Implementation::Shared::moving_from(
   Eigen::Vector3d location) -> MovingInstruction
 {
   const auto l = lock();
+  const auto& name = hooks.schedule->get_participant(state.itinerary->id())->name();
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   if (!update_location(checkpoint, location))
     return MovingInstruction::MovingError;
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   if (!consider_proposal())
     return MovingInstruction::PauseImmediately;
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   if (!finish_immediate_stop())
     return MovingInstruction::PauseImmediately;
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   if (!check_if_ready(checkpoint + 1))
     return MovingInstruction::WaitAtNextCheckpoint;
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   return MovingInstruction::ContinueAtNextCheckpoint;
 }
 
@@ -575,19 +667,25 @@ auto EasyTrafficLight::Implementation::Shared::waiting_at(
   std::size_t checkpoint) -> WaitingInstruction
 {
   const auto l = lock();
+  const auto& name = hooks.schedule->get_participant(state.itinerary->id())->name();
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << std::endl;
   if (!update_location(checkpoint, std::nullopt))
     return WaitingInstruction::WaitingError;
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << std::endl;
   if (!consider_proposal())
     return WaitingInstruction::Wait;
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << std::endl;
   if (!finish_immediate_stop())
     return WaitingInstruction::Wait;
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << std::endl;
   if (!check_if_ready(checkpoint))
     return WaitingInstruction::Wait;
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << std::endl;
   return WaitingInstruction::Resume;
 }
 
@@ -597,13 +695,17 @@ auto EasyTrafficLight::Implementation::Shared::waiting_after(
   Eigen::Vector3d location) -> WaitingInstruction
 {
   const auto l = lock();
+  const auto& name = hooks.schedule->get_participant(state.itinerary->id())->name();
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   if (!update_location(checkpoint, location))
     return WaitingInstruction::WaitingError;
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   if (!consider_proposal())
     return WaitingInstruction::Wait;
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   if (!finish_immediate_stop())
     return WaitingInstruction::Wait;
 
@@ -611,6 +713,7 @@ auto EasyTrafficLight::Implementation::Shared::waiting_after(
   // When the robot is waiting after a checkpoint, we only care about whether
   // or not it can resume moving towards it next immediate target.
 
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   return WaitingInstruction::Resume;
 }
 
@@ -855,6 +958,8 @@ EasyTrafficLightPtr EasyTrafficLight::Implementation::make(
 
   handle->_pimpl->shared->state.itinerary =
     std::make_shared<rmf_traffic::schedule::Participant>(std::move(itinerary_));
+
+  handle->_pimpl->shared->name = handle->_pimpl->shared->state.itinerary->description().name();
 
   handle->_pimpl->shared->state.blockade =
     std::make_shared<rmf_traffic::blockade::Participant>(
