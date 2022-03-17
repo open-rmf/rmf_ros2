@@ -300,7 +300,7 @@ public:
     struct Wait
     {
       Version negotiation_version;
-      rmf_utils::optional<ItineraryVersion> itinerary_update_version;
+      std::optional<ItineraryVersion> itinerary_update_version;
     };
 
     ConflictRecord(
@@ -310,7 +310,7 @@ public:
       // Do nothing
     }
 
-    rmf_utils::optional<Entry> insert(const ConflictSet& conflicts)
+    std::optional<Entry> insert(const ConflictSet& conflicts)
     {
       ConflictSet add_to_negotiation;
       const Version* existing_negotiation = nullptr;
@@ -322,7 +322,7 @@ public:
           // Ignore conflicts with participants that we're waiting for an update
           // from. Otherwise we might announce conflicts for them faster than
           // they can respond to them.
-          return rmf_utils::nullopt;
+          return std::nullopt;
         }
 
         const auto it = _version.find(c);
@@ -341,13 +341,13 @@ public:
       }
 
       if (add_to_negotiation.empty())
-        return rmf_utils::nullopt;
+        return std::nullopt;
 
       const Version negotiation_version = existing_negotiation ?
         *existing_negotiation : _next_negotiation_version++;
 
       const auto insertion = _negotiations.insert(
-        std::make_pair(negotiation_version, rmf_utils::nullopt));
+        std::make_pair(negotiation_version, std::nullopt));
 
       for (const auto p : add_to_negotiation)
         _version[p] = negotiation_version;
@@ -391,7 +391,7 @@ public:
       for (const auto p : participants)
       {
         const auto insertion =
-          _waiting.insert({p, Wait{version, rmf_utils::nullopt}});
+          _waiting.insert({p, Wait{version, std::nullopt}});
 
         assert(insertion.second);
         (void)(insertion);
@@ -421,7 +421,7 @@ public:
     void acknowledge(
       const Version negotiation_version,
       const ParticipantId p,
-      const rmf_utils::optional<ItineraryVersion> update_version)
+      const std::optional<ItineraryVersion> update_version)
     {
       const auto wait_it = _waiting.find(p);
       if (wait_it == _waiting.end())
@@ -475,7 +475,7 @@ public:
 //  private:
     std::unordered_map<ParticipantId, Version> _version;
     std::unordered_map<Version,
-      rmf_utils::optional<NegotiationRoom>> _negotiations;
+      std::optional<NegotiationRoom>> _negotiations;
     std::unordered_map<ParticipantId, Wait> _waiting;
     std::shared_ptr<const rmf_traffic::schedule::Snappable> _viewer;
     Version _next_negotiation_version = 0;

@@ -67,12 +67,18 @@ public:
       const rmf_traffic::Dependency& dep,
       const std::shared_ptr<const rmf_traffic::schedule::Mirror>& mirror);
 
+    void set_time(rmf_traffic::Time expected_time);
+
     bool ready(std::size_t line, rmf_traffic::Time time, const MirrorPtr& mirror, rmf_traffic::ParticipantId me) const;
 
-    bool deprecated(const MirrorPtr& mirror, const std::string& me) const;
+    bool deprecated(
+      const rmf_traffic::Time current_time,
+      const MirrorPtr& mirror,
+      const std::string& me) const;
 
   private:
     std::vector<DependencyPtr> _subscriptions;
+    std::optional<rmf_traffic::Time> _expected_time;
     mutable rmf_traffic::Time _last_time = rmf_traffic::Time(rmf_traffic::Duration(0));
   };
 
@@ -161,6 +167,10 @@ public:
 
     rmf_traffic::agv::Plan::Start current_location() const;
 
+    void update_immediate_stop(
+      std::size_t checkpoint,
+      std::optional<Eigen::Vector3d> location);
+
     void update_delay(
       std::size_t checkpoint,
       std::optional<Eigen::Vector3d> location);
@@ -169,7 +179,9 @@ public:
       std::size_t checkpoint,
       std::optional<Eigen::Vector3d> location);
 
-    bool consider_proposal();
+    bool consider_proposal(
+      std::size_t checkpoint,
+      std::optional<Eigen::Vector3d> location);
 
     bool finish_immediate_stop();
 

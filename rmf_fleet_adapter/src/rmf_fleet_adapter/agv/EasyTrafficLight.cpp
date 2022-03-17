@@ -42,6 +42,14 @@ void EasyTrafficLight::Implementation::DependencyTracker::add(
 }
 
 //==============================================================================
+void EasyTrafficLight::Implementation::DependencyTracker::set_time(
+  const rmf_traffic::Time expected_time)
+{
+  if (!_expected_time.has_value() || *_expected_time < expected_time)
+    _expected_time = expected_time;
+}
+
+//==============================================================================
 bool EasyTrafficLight::Implementation::DependencyTracker::ready(
     std::size_t line,
     rmf_traffic::Time time,
@@ -49,7 +57,7 @@ bool EasyTrafficLight::Implementation::DependencyTracker::ready(
     const rmf_traffic::ParticipantId me) const
 {
   bool report = false;
-  if (time - _last_time > std::chrono::seconds(2))
+//  if (time - _last_time > std::chrono::seconds(2))
   {
     report = true;
     _last_time = time;
@@ -90,7 +98,9 @@ bool EasyTrafficLight::Implementation::DependencyTracker::ready(
 
 //==============================================================================
 bool EasyTrafficLight::Implementation::DependencyTracker::deprecated(
-  const MirrorPtr& mirror, const std::string& name) const
+  const rmf_traffic::Time current_time,
+  const MirrorPtr& mirror,
+  const std::string& name) const
 {
   for (const auto& dep : _subscriptions)
   {
@@ -104,6 +114,17 @@ bool EasyTrafficLight::Implementation::DependencyTracker::deprecated(
                 << std::endl;
       return true;
     }
+  }
+
+  // TODO(MXG): Make the limit configurable.
+  // TODO(MXG): Instead of having a timeout limit, we should look for circular
+  // dependencies in the blockade+schedule. Perhaps the blockade and schedule
+  // systems should be fused somehow.
+  const auto limit = std::chrono::minutes(1);
+  if (_expected_time.has_value() && *_expected_time + limit < current_time)
+  {
+    std::cout << "TIMING OUT BECAUSE THE DEPENDENCY IS TAKING TOO LONG" << std::endl;
+    return true;
   }
 
   return false;
@@ -156,10 +177,11 @@ struct Range
 
   void consider(std::size_t c)
   {
-    if (!(lower < c))
+//    std::cout << "considering " << c << std::endl;
+    if (!lower.has_value() || c < *lower)
       lower = c;
 
-    if (!(upper > c))
+    if (!upper.has_value() || *upper < c)
       upper = c;
   }
 };
@@ -185,36 +207,168 @@ EasyTrafficLight::Implementation::State::current_itinerary_slice() const
         "RMF developers.");
     } ();
 
+//  if (include_initial_wps)
+//    std::cout << "Including initial wps for slices" << std::endl;
+//  else
+//    std::cout << "Not including initial wps for slices" << std::endl;
+
+  const auto include = [&](std::optional<std::size_t> opt_wp) -> bool
+    {
+//      std::cout << "include " << opt_wp.has_value();
+//      if (opt_wp.has_value())
+//        std::cout << " (" << *opt_wp << ")";
+//      std::cout << "?" << std::endl;
+
+      if (!opt_wp.has_value())
+        return include_initial_wps;
+
+      const auto wp = *opt_wp;
+      if (!last_passed.has_value())
+      {
+//        std::cout << "No last passed" << std::endl;
+        return (wp == 0);
+      }
+
+//      std::cout << *last_passed << " <= " << wp << " <= " << *last_passed + 1 << std::endl;
+      return (*last_passed <= wp) && (wp <= *last_passed + 1);
+    };
+
+  const auto should_break = [&](std::optional<std::size_t> opt_wp) -> bool
+    {
+//      std::cout << "break " << opt_wp.has_value();
+//      if (opt_wp.has_value())
+//        std::cout << " (" << *opt_wp << ")";
+//      std::cout << "?" << std::endl;
+
+      // If this point has no value then definitely do not break here
+      if (!opt_wp.has_value())
+        return false;
+
+      // If we have never passed a point, but this point has a value, then we
+      // should break here.
+      if (!last_passed.has_value())
+      {
+//        std::cout << "No last passed" << std::endl;
+        return true;
+      }
+
+      // If we have reached the current target point then break here
+      const auto wp = *opt_wp;
+//      std::cout << wp << " >= " << *last_passed + 1 << std::endl;
+      return wp >= (*last_passed + 1);
+    };
+
   // We need to reject any proposal that would interfere with the segment of
   // the plan that we are already traversing.
   std::vector<Range> slice_ranges;
   slice_ranges.resize(itin.size());
   for (const auto& wp : current_plan->plan.get_waypoints())
   {
-    if (wp.graph_index() > *last_passed+1)
-      break;
-
-    if (include_initial_wps || wp.graph_index() > last_reached)
+    for (const auto& [progress_wp, progress_cp, _] : wp.progress_checkpoints())
     {
-      for (const auto& c : wp.arrival_checkpoints())
-        slice_ranges.at(c.route_id).consider(c.checkpoint_id);
+      if (include(progress_wp))
+      {
+//        std::cout << "Progress checkpoints for " << progress_wp << ":\n";
+        for (const auto& c : progress_cp)
+        {
+//          std::cout << "{" << c.route_id << " " << c.checkpoint_id << "}" << std::endl;
+          slice_ranges.at(c.route_id).consider(c.checkpoint_id);
+//          std::cout << "have values: " << slice_ranges.at(c.route_id).lower.has_value()
+//                    << " " << slice_ranges.at(c.route_id).upper.has_value() << std::endl;
+        }
+//        std::cout << " -- end progress checkpoints" << std::endl;
+      }
     }
+
+    if (include(wp.graph_index()))
+    {
+//      std::cout << "Arrival checkpoints:" << std::endl;
+      for (const auto& c : wp.arrival_checkpoints())
+      {
+//        std::cout << "{" << c.route_id << " " << c.checkpoint_id << "}" << std::endl;
+        slice_ranges.at(c.route_id).consider(c.checkpoint_id);
+//        std::cout << "have values: " << slice_ranges.at(c.route_id).lower.has_value()
+//                  << " " << slice_ranges.at(c.route_id).upper.has_value() << std::endl;
+      }
+//      std::cout << " -- end arrival checkpoints" << std::endl;
+    }
+
+    if (should_break(wp.graph_index()))
+      break;
   }
 
+//  std::cout << "final ranges:" << std::endl;
+//  for (std::size_t i=0; i < slice_ranges.size(); ++i)
+//  {
+//    std::cout << " -- " << i << ": ";
+//    const auto& r = slice_ranges[i];
+//    if (r.lower.has_value() && r.upper.has_value())
+//      std::cout << "[" << *r.lower << " " << *r.upper << "]" << std::endl;
+//    else
+//    {
+//      if (!r.lower.has_value())
+//        std::cout << " missing lower ";
+//      if (!r.upper.has_value())
+//        std::cout << " missing upper ";
+//      std::cout << std::endl;
+//    }
+//  }
+
   std::vector<rmf_traffic::Route> slices;
+//  std::cout << "Iterating through " << itin.size() << " routes" << std::endl;
   for (std::size_t i = 0; i < itin.size(); ++i)
   {
+//    std::cout << "Looking at route " << i << std::endl;
     const auto& range = slice_ranges.at(i);
     if (!range.lower.has_value() || !range.upper.has_value())
+    {
+//      std::cout << "Slice " << i << ": range is empty" << std::endl;
       continue;
+    }
 
+//    std::cout << "Slice " << i << " has range [" << *range.lower << " " << *range.upper << "]" << std::endl;
     rmf_traffic::Trajectory partial_trajectory;
     const auto& route = itin.at(i);
     for (std::size_t j = *range.lower; j <= *range.upper; ++j)
-      partial_trajectory.insert(route.trajectory().at(j));
+    {
+      if (j >= route.trajectory().size())
+      {
+        // Dump this data because some nonsense is going on
+        std::cout << " !! BROKEN CHECKPOINTS" << std::endl;
+        for (const auto& wp : current_plan->plan.get_waypoints())
+        {
+          for (const auto& [progress_wp, progress_cp, _] : wp.progress_checkpoints())
+          {
+            std::cout << "Progress checkpoints for " << progress_wp << ":\n";
+            for (const auto& c : progress_cp)
+            {
+              std::cout << "{" << c.route_id << " " << c.checkpoint_id << "}" << std::endl;
+            }
+            std::cout << " -- end progress checkpoints" << std::endl;
+          }
 
-    if (partial_trajectory.size() > 2)
+          std::cout << "Arrival checkpoints:" << std::endl;
+          for (const auto& c : wp.arrival_checkpoints())
+          {
+            std::cout << "{" << c.route_id << " " << c.checkpoint_id << "}" << std::endl;
+          }
+          std::cout << " -- end arrival checkpoints" << std::endl;
+        }
+
+        std::cout << "Size of route " << j << ": " << route.trajectory().size() << std::endl;
+      }
+
+//      std::cout << "Inserting " << j << std::endl;
+      partial_trajectory.insert(route.trajectory().at(j));
+    }
+
+    if (partial_trajectory.size() > 1)
+    {
+//      std::cout << "Adding slice" << std::endl;
       slices.push_back({route.map(), std::move(partial_trajectory)});
+    }
+//    else
+//      std::cout << "Slice " << i << ": No trajectory points for the range [" << range.lower.value() << " " << range.upper.value() << "]" << std::endl;
   }
 
   return slices;
@@ -320,16 +474,24 @@ void EasyTrafficLight::Implementation::Shared::make_plan(
   rmf_traffic::agv::Plan::Start start)
 {
   if (path_version != request_path_version)
+  {
+    std::cout << "Not replanning because path version is outdated" << std::endl;
     return;
+  }
 
   if (state.find_path_service)
+  {
+    std::cout << "Not replanning because a plan is already generating" << std::endl;
     return;
+  }
 
   if (!negotiate_services.empty())
   {
     std::cout << "Not replanning because a negotiation is happening" << std::endl;
     return;
   }
+
+  const auto plan_id = state.itinerary->assign_plan_id();
 
   rmf_traffic::agv::Plan::Goal goal(
     state.planner->get_configuration().graph().num_waypoints()-1);
@@ -344,7 +506,7 @@ void EasyTrafficLight::Implementation::Shared::make_plan(
     state.find_path_service)
       .observe_on(rxcpp::identity_same_worker(hooks.worker))
       .subscribe(
-        [w = weak_from_this(), request_path_version](
+        [w = weak_from_this(), request_path_version, plan_id](
       const services::FindPath::Result& result)
     {
       const auto self = w.lock();
@@ -365,8 +527,7 @@ void EasyTrafficLight::Implementation::Shared::make_plan(
       }
 
       self->state.find_path_service = nullptr;
-      self->receive_plan(
-        request_path_version, self->state.itinerary->assign_plan_id(), *result);
+      self->receive_plan(request_path_version, plan_id, *result);
     });
 }
 
@@ -382,20 +543,115 @@ EasyTrafficLight::Implementation::Shared::receive_plan(
   if (request_path_version != path_version)
     return std::nullopt;
 
+  if (state.proposal.has_value())
+  {
+    if (rmf_utils::modular(plan_id).less_than(state.proposal->id))
+      return std::nullopt;
+  }
+
+  if (state.current_plan.has_value())
+  {
+    if (rmf_utils::modular(plan_id).less_than(state.current_plan->id))
+      return std::nullopt;
+  }
+
+  if (rmf_utils::modular(plan_id).less_than(state.itinerary->current_plan_id()))
+    return std::nullopt;
+
   std::cout << name << " switching to plan " << plan_id
-            << " which depends on:";
+            << " which depends on:\n";
+
+  bool broken_checkpoints = false;
+  for (const auto& wp : plan.get_waypoints())
+  {
+    for (const auto& [_, progress_cp, t] : wp.progress_checkpoints())
+    {
+      for (const auto& c : progress_cp)
+      {
+        if (c.checkpoint_id >= plan.get_itinerary().at(c.route_id).trajectory().size())
+        {
+          broken_checkpoints = true;
+          break;
+        }
+      }
+
+      if (broken_checkpoints)
+        break;
+    }
+
+    if (broken_checkpoints)
+      break;
+
+    for (const auto& c : wp.arrival_checkpoints())
+    {
+      if (c.checkpoint_id >= plan.get_itinerary().at(c.route_id).trajectory().size())
+      {
+        broken_checkpoints = true;
+        break;
+      }
+    }
+
+    if (broken_checkpoints)
+      break;
+  }
+
+  if (broken_checkpoints)
+  {
+    // Dump this data because some nonsense is going on
+    std::cout << " !! BROKEN CHECKPOINTS" << std::endl;
+    for (const auto& wp : plan.get_waypoints())
+    {
+      for (const auto& [progress_wp, progress_cp, _] : wp.progress_checkpoints())
+      {
+        std::cout << "Progress checkpoints for " << progress_wp << ":\n";
+        for (const auto& c : progress_cp)
+        {
+          std::cout << "{" << c.route_id << " " << c.checkpoint_id << "}" << std::endl;
+        }
+        std::cout << " -- end progress checkpoints" << std::endl;
+      }
+
+//      std::cout << "Arrival checkpoints for ":" << std::endl;
+      if (wp.graph_index().has_value())
+        std::cout << "Arrival checkpoints for " << *wp.graph_index() << ":\n";
+      else
+        std::cout << "Arrival checkpoints for mid-lane:\n";
+
+      for (const auto& c : wp.arrival_checkpoints())
+      {
+        std::cout << "{" << c.route_id << " " << c.checkpoint_id << "}" << std::endl;
+      }
+      std::cout << " -- end arrival checkpoints" << std::endl;
+    }
+
+    std::cout << "Size of routes:";
+    for (const auto& r : plan.get_itinerary())
+      std::cout << " " << r.trajectory().size();
+    std::cout << std::endl;
+
+    throw std::runtime_error("BROKEN CHECKPOINTS GIVEN IN PLAN");
+  }
 
   Plan new_plan{plan_id, plan, {}, {}, {}};
   for (const auto& wp : plan.get_waypoints())
   {
     if (wp.graph_index().has_value())
     {
+      auto& dep_tracker = new_plan.dependencies[*wp.graph_index()];
+      dep_tracker.set_time(wp.time());
+
       for (const auto& dep : wp.dependencies())
       {
-        new_plan.dependencies[*wp.graph_index()].add(dep, hooks.schedule);
+        dep_tracker.add(dep, hooks.schedule);
         const auto& other_name = hooks.schedule->get_participant(dep.on_participant)->name();
         std::cout << " {" << other_name << " " << dep.on_plan << " "
-                  << dep.on_route << " " << dep.on_checkpoint << "}";
+                  << dep.on_route << " " << dep.on_checkpoint << "}\n";
+      }
+
+      for (const auto& [c, progress, t] : wp.progress_checkpoints())
+      {
+        for (const auto& arr : progress)
+          new_plan.arrivals[c].push_back(arr);
       }
 
       for (const auto& arr : wp.arrival_checkpoints())
@@ -424,29 +680,61 @@ EasyTrafficLight::Implementation::Shared::receive_plan(
 }
 
 //==============================================================================
+void EasyTrafficLight::Implementation::Shared::update_immediate_stop(
+  std::size_t checkpoint,
+  std::optional<Eigen::Vector3d> location)
+{
+  // A proposed plan was rejected so we will create an itinerary that says the
+  // robot will stand in place for a while.
+  const auto& wp = state.planner->get_configuration()
+      .graph().get_waypoint(checkpoint);
+  const auto& map_name = wp.get_map_name();
+
+  auto route = rmf_traffic::Route(map_name, rmf_traffic::Trajectory());
+
+  if (!location.has_value())
+  {
+    const auto p = wp.get_location();
+    // TODO(MXG): See if we can infer the yaw in a nice way
+    location = Eigen::Vector3d(p[0], p[1], 0.0);
+  }
+
+  const auto now = hooks.node->rmf_now();
+  route.trajectory().insert(now, *location, Eigen::Vector3d::Zero());
+  route.trajectory().insert(
+    now + std::chrono::seconds(30), *location, Eigen::Vector3d::Zero());
+
+  state.itinerary->set(state.itinerary->assign_plan_id(), {std::move(route)});
+}
+
+//==============================================================================
 void EasyTrafficLight::Implementation::Shared::update_delay(
   const std::size_t checkpoint,
   const std::optional<Eigen::Vector3d> location)
 {
   // We update the last_reacheed and last_passed here because we need to make
   // sure they are set correctly before we call state.current_itinerary_slice()
-  state.last_reached = checkpoint;
-  if (location.has_value())
-    state.last_passed = checkpoint;
-  else if (checkpoint > 0)
-    state.last_passed = checkpoint-1;
 
   std::optional<rmf_traffic::Duration> new_delay;
   if (location.has_value())
   {
     const auto slices = state.current_itinerary_slice();
+    std::cout << "Number of slices: " << slices.size() << std::endl;
+
     for (const auto& slice : slices)
     {
+      for (const auto& wp : slice.trajectory())
+        std::cout << " t=" << rmf_traffic::time::to_seconds(wp.time().time_since_epoch())
+                  << " p=(" << wp.position().transpose() << ") v=<"
+                  << wp.velocity().transpose() << "> --> ";
+      std::cout << std::endl;
+
       try
       {
         const auto [expected_time, _] =
           rmf_traffic::agv::interpolate_time_along_quadratic_straight_line(
             slice.trajectory(), location->block<2, 1>(0, 0));
+        std::cout << "Calculated Time: " << rmf_traffic::time::to_seconds(expected_time.time_since_epoch()) << std::endl;
 
         new_delay = hooks.node->rmf_now() - expected_time;
         break;
@@ -464,18 +752,60 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
   {
     for (const auto& wp : state.current_plan->plan.get_waypoints())
     {
-      if (wp.graph_index() != checkpoint)
+      if (!wp.graph_index().has_value())
         continue;
 
-      new_delay = hooks.node->rmf_now() - wp.time();
-      break;
+      for (const auto& [progress, _, time] : wp.progress_checkpoints())
+      {
+        if (progress == checkpoint)
+        {
+          new_delay = hooks.node->rmf_now() - time - state.itinerary->delay();
+          std::cout << "Expected time for " << progress
+                    << ": " << rmf_traffic::time::to_seconds(wp.time().time_since_epoch()) << std::endl;
+          break;
+        }
+      }
+
+      if (new_delay.has_value())
+        break;
+
+      if (*wp.graph_index() != checkpoint)
+        continue;
+
+      new_delay = (hooks.node->rmf_now() - wp.time()) - state.itinerary->delay();
+      std::cout << "Expected time for " << *wp.graph_index()
+                << ": " << rmf_traffic::time::to_seconds(wp.time().time_since_epoch()) << std::endl;
     }
   }
 
   if (new_delay.has_value())
   {
-    if (*new_delay > std::chrono::seconds(1))
+    if (std::chrono::abs(*new_delay) > std::chrono::seconds(1))
+    {
+      if (std::chrono::abs(*new_delay) > std::chrono::hours(1))
+      {
+        if (state.current_plan.has_value())
+        {
+          std::cout << "WE DO HAVE A CURRENT PLAN: " << state.current_plan->id
+                    << " vs " << state.itinerary->current_plan_id() << std::endl;
+        }
+        else
+        {
+          std::cout << "WE DO NOT HAVE A CURRENT PLAN??" << std::endl;
+        }
+
+        const auto t = rmf_traffic::time::to_seconds(*new_delay);
+        // If this happens, there may be an edge case that
+        // interpolate_time_along_quadratic_straight_line is not accounting for.
+        throw std::runtime_error(
+          "[EasyTrafficLight::Implementation::Shared::update_delay] "
+          "Excessive delay was calculated: " + std::to_string(t)
+          + "s. This is likely an internal bug in RMF. Please report this to "
+          "the RMF developers.");
+      }
+
       state.itinerary->delay(*new_delay);
+    }
   }
   else
   {
@@ -520,7 +850,11 @@ bool EasyTrafficLight::Implementation::Shared::update_location(
       state.current_plan->id, arr.route_id, arr.checkpoint_id);
   }
 
-  update_delay(checkpoint, location);
+  state.last_reached = checkpoint;
+  if (location.has_value())
+    state.last_passed = checkpoint;
+  else if (checkpoint > 0)
+    state.last_passed = checkpoint-1;
 
   if (checkpoint >= state.checkpoints.size() - 1)
   {
@@ -551,10 +885,27 @@ bool EasyTrafficLight::Implementation::Shared::update_location(
 }
 
 //==============================================================================
-bool EasyTrafficLight::Implementation::Shared::consider_proposal()
+bool EasyTrafficLight::Implementation::Shared::consider_proposal(
+  const std::size_t checkpoint,
+  std::optional<Eigen::Vector3d> location)
 {
   if (!state.proposal.has_value())
     return state.current_plan.has_value();
+
+  if (state.proposal->id != state.itinerary->current_plan_id())
+  {
+    // A new plan slipped in while this proposal was waiting, so we will clear
+    // out the proposal.
+    state.proposal = std::nullopt;
+    if (!state.current_plan.has_value())
+    {
+      update_immediate_stop(checkpoint, location);
+      make_plan(path_version, state.last_known_location.value());
+      return false;
+    }
+
+    return true;
+  }
 
   const auto& deps = state.proposal->dependencies;
   auto d_it = deps.begin();
@@ -564,6 +915,8 @@ bool EasyTrafficLight::Implementation::Shared::consider_proposal()
     // dependencies were not ready, then we need to reject the proposal.
     if (!d_it->second.ready(__LINE__, hooks.node->rmf_now(), hooks.schedule, state.itinerary->id()))
     {
+      state.current_plan = std::nullopt;
+      update_immediate_stop(checkpoint, location);
       make_plan(path_version, state.last_known_location.value());
       return false;
     }
@@ -594,7 +947,8 @@ bool EasyTrafficLight::Implementation::Shared::consider_proposal()
 //==============================================================================
 bool EasyTrafficLight::Implementation::Shared::finish_immediate_stop()
 {
-  if (state.current_plan->immediate_stop_dependencies.deprecated(hooks.schedule, name))
+  if (state.current_plan->immediate_stop_dependencies.deprecated(
+        hooks.node->rmf_now(), hooks.schedule, name))
   {
     std::cout << "Asking to make a new plan from an immediate stop" << std::endl;
     make_plan(path_version, state.last_known_location.value());
@@ -615,7 +969,7 @@ bool EasyTrafficLight::Implementation::Shared::check_if_ready(
   const auto& dependency =
     state.current_plan.value().dependencies[to_move_past_checkpoint];
 
-  if (dependency.deprecated(hooks.schedule, name))
+  if (dependency.deprecated(hooks.node->rmf_now(), hooks.schedule, name))
   {
     std::cout << "Asking to make new plan" << std::endl;
     make_plan(path_version, state.last_known_location.value());
@@ -642,13 +996,21 @@ auto EasyTrafficLight::Implementation::Shared::moving_from(
   const auto l = lock();
   const auto& name = hooks.schedule->get_participant(state.itinerary->id())->name();
 
-  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << "), range [" << state.range.begin << " " << state.range.end << "], ready: ";
+  if (state.blockade->last_ready().has_value())
+    std::cout << *state.blockade->last_ready();
+  else
+    std::cout << "never";
+  std::cout << std::endl;
+
   if (!update_location(checkpoint, location))
     return MovingInstruction::MovingError;
 
   std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
-  if (!consider_proposal())
+  if (!consider_proposal(checkpoint, location))
     return MovingInstruction::PauseImmediately;
+
+  update_delay(checkpoint, location);
 
   std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   if (!finish_immediate_stop())
@@ -669,13 +1031,21 @@ auto EasyTrafficLight::Implementation::Shared::waiting_at(
   const auto l = lock();
   const auto& name = hooks.schedule->get_participant(state.itinerary->id())->name();
 
-  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << std::endl;
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << ", range [" << state.range.begin << " " << state.range.end << "], ready: ";
+  if (state.blockade->last_ready().has_value())
+    std::cout << *state.blockade->last_ready();
+  else
+    std::cout << "never";
+  std::cout << std::endl;
+
   if (!update_location(checkpoint, std::nullopt))
     return WaitingInstruction::WaitingError;
 
   std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << std::endl;
-  if (!consider_proposal())
+  if (!consider_proposal(checkpoint, std::nullopt))
     return WaitingInstruction::Wait;
+
+  update_delay(checkpoint, std::nullopt);
 
   std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << std::endl;
   if (!finish_immediate_stop())
@@ -697,13 +1067,22 @@ auto EasyTrafficLight::Implementation::Shared::waiting_after(
   const auto l = lock();
   const auto& name = hooks.schedule->get_participant(state.itinerary->id())->name();
 
-  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
+  std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << "), range [" << state.range.begin << " " << state.range.end << "], ready: ";
+  if (state.blockade->last_ready().has_value())
+    std::cout << *state.blockade->last_ready();
+  else
+    std::cout << "never";
+  std::cout << std::endl;
+
   if (!update_location(checkpoint, location))
     return WaitingInstruction::WaitingError;
 
   std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
-  if (!consider_proposal())
+  if (!consider_proposal(checkpoint, location))
     return WaitingInstruction::Wait;
+
+
+  update_delay(checkpoint, location);
 
   std::cout << name << ": Line " << __LINE__ << " inputs " << checkpoint << " (" << location.transpose() << ")" << std::endl;
   if (!finish_immediate_stop())
@@ -761,17 +1140,33 @@ bool rejected(
     auto validators =
       rmf_traffic::agv::NegotiatingRouteValidator::Generator(viewer).all();
 
+    const auto start_t = viewer->earliest_base_proposal_time();
+    const auto finish_t = viewer->latest_base_proposal_time();
+    if (!start_t.has_value() || !finish_t.has_value())
+      return false;
+
     bool reject_table = false;
     for (const auto& slice : slices)
     {
       if (slice.trajectory().size() < 2)
         continue;
 
+      const auto p = slice.trajectory().back().position();
+      rmf_traffic::Trajectory endcap;
+      endcap.insert(*start_t, p, Eigen::Vector3d::Zero());
+      endcap.insert(*finish_t, p, Eigen::Vector3d::Zero());
+      rmf_traffic::Route endcap_route(slice.map(), std::move(endcap));
+
       bool at_least_one_valid = false;
       for (const auto& v : validators)
       {
-        if (!v->find_conflict(slice).has_value())
-          at_least_one_valid = true;
+        if (v->find_conflict(slice).has_value())
+          continue;
+
+        if (v->find_conflict(endcap_route).has_value())
+          continue;
+
+        at_least_one_valid = true;
       }
 
       if (!at_least_one_valid)

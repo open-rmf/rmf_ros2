@@ -40,6 +40,50 @@
 namespace rmf_traffic_ros2 {
 namespace schedule {
 
+void print_route(const rmf_traffic::Trajectory& traj)
+{
+  for (std::size_t i = 0; i < traj.size(); ++i)
+  {
+    const auto& wp = traj[i];
+    std::cout << i << " (" << wp.index() << "). t=" << rmf_traffic::time::to_seconds(wp.time().time_since_epoch())
+              << " (" << wp.position().transpose() << ")" << std::endl;
+  }
+}
+
+void print_deps(
+  const rmf_traffic::DependsOnCheckpoint* deps,
+  const rmf_traffic::DependsOnParticipant& all_deps,
+  const std::string& name,
+  const std::size_t participant,
+  const std::size_t plan,
+  const std::size_t route)
+{
+  if (deps)
+  {
+    std::cout << "Deps on {" << name << " " << plan << " " << route << "}:";
+    for (const auto& [a, b] : *deps)
+      std::cout << " {" << a << ": " << b << "}";
+    std::cout << std::endl;
+  }
+  else
+  {
+    std::cout << "No deps on {" << name << " " << plan << " " << route << "}" << std::endl;
+    const auto p_it = all_deps.find(participant);
+    if (p_it == all_deps.end())
+    {
+      std::cout << "No deps on " << name << " at all!" << std::endl;
+    }
+    else if (p_it->second.plan().has_value())
+    {
+      std::cout << "Deps on nullopt plan for " << name << std::endl;
+    }
+    else
+    {
+      std::cout << "Instead deps on plan " << p_it->second.plan().value() << std::endl;
+    }
+  }
+}
+
 //==============================================================================
 std::vector<ScheduleNode::ConflictSet> get_conflicts(
   const rmf_traffic::schedule::Viewer::View& view_changes,
@@ -92,14 +136,32 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 
         const auto* dep_v =
           vc->route.check_dependencies(participant, plan_id, r);
+        if (dep_v && !dep_v->empty())
+          continue;
+
         const auto* dep_u =
           route->check_dependencies(vc->participant, vc->plan_id, vc->route_id);
+        if (dep_u && !dep_u->empty())
+          continue;
 
-        if (rmf_traffic::DetectConflict::between(
-            vc->description.profile(), vc->route.trajectory(), dep_v,
-            description->profile(), route->trajectory(), dep_u))
+        const auto found_conflict = rmf_traffic::DetectConflict::between(
+              vc->description.profile(), vc->route.trajectory(), dep_v,
+              description->profile(), route->trajectory(), dep_u);
+        if (found_conflict.has_value())
         {
           conflicts.push_back({participant, vc->participant});
+          std::cout << "Conflict at " << rmf_traffic::time::to_seconds(found_conflict->time.time_since_epoch())
+                    << " found between {"
+                    << description->name() << " " << plan_id << "} and {"
+                    << vc->description.name() << " " << vc->plan_id << "}" << std::endl;
+
+          std::cout << description->name() << ":\n";
+          print_route(route->trajectory());
+          print_deps(dep_u, route->dependencies(), vc->description.name(), vc->participant, vc->plan_id, vc->route_id);
+
+          std::cout << vc->description.name() << ":\n";
+          print_route(vc->route.trajectory());
+          print_deps(dep_v, vc->route.dependencies(), description->name(), participant, plan_id, r);
         }
       }
     }
@@ -462,7 +524,49 @@ void ScheduleNode::setup_conflict_topics_and_thread()
           }
         }
 
-        const auto conflicts = get_conflicts(view_changes, mirror);
+        auto conflicts = get_conflicts(view_changes, mirror);
+        for (ConflictSet& conflict : conflicts)
+        {
+          // Collect all other participants that have dependencies on the ones
+          // conflicting before we open the negotiation.
+          std::vector<rmf_traffic::ParticipantId> queue;
+          for (const auto p : conflict)
+            queue.push_back(p);
+
+          while (!queue.empty())
+          {
+            const auto check = queue.back();
+            queue.pop_back();
+
+            for (const auto& p : mirror.participant_ids())
+            {
+              if (conflict.count(p) > 0)
+                continue;
+
+              const auto& itinerary = mirror.get_itinerary(p);
+              if (!itinerary.has_value())
+                continue;
+
+              for (const auto& r : *itinerary)
+              {
+                const auto d_it = r->dependencies().find(check);
+                if (d_it != r->dependencies().end()
+                    && d_it->second.plan().has_value())
+                {
+                  queue.push_back(p);
+                  conflict.insert(p);
+                  break;
+                }
+              }
+            }
+          }
+
+          std::cout << "Beginning negotiation with:";
+          for (const auto p : conflict)
+            std::cout << " " << p;
+          std::cout << std::endl;
+        }
+
         std::unordered_map<Version, const Negotiation*> new_negotiations;
         for (const auto& conflict : conflicts)
         {
@@ -885,11 +989,29 @@ void ScheduleNode::itinerary_extend(const ItineraryExtend& extend)
 void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
 {
   std::unique_lock<std::mutex> lock(database_mutex);
+  const auto duration = rmf_traffic::Duration(delay.delay);
+
+  const auto delay_limit = std::chrono::hours(1);
+  if (duration > delay_limit)
+  {
+    const auto& desc = database->get_participant(delay.participant);
+    // TODO(MXG): Make this limit configurable
+    RCLCPP_ERROR(
+      get_logger(),
+      "Delay of %lus for %s of group %s exceeds maximum delay limit of %lus.",
+      duration.count(),
+      desc->name().c_str(),
+      desc->owner().c_str(),
+      delay_limit.count());
+
+    return;
+  }
+
   try
   {
     database->delay(
       delay.participant,
-      rmf_traffic::Duration(delay.delay),
+      duration,
       delay.itinerary_version);
 
     publish_inconsistencies(delay.participant);

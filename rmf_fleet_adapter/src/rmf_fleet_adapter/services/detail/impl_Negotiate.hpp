@@ -68,30 +68,30 @@ void Negotiate::operator()(const Subscriber& s)
   for (const auto& job : _queued_jobs)
     job->progress().options().maximum_cost_estimate(initial_max_cost);
 
-  // It's technically okay for us to capture `this` by value here because this
-  // lambda will only be used in the callback of _search_sub below, which will
-  // capture `this` instance by weak_ptr and lock that weak_ptr before
-  // attempting to call the check_if_finished lambda.
-  auto check_if_finished = [this, s, N_jobs]() -> bool
+  auto check_if_finished = [w = weak_from_this(), s, N_jobs]() -> bool
     {
-      if (_finished)
+      const auto self = w.lock();
+      if (!self)
         return true;
 
-      if (_evaluator.finished_count >= N_jobs || *_interrupted)
+      if (self->_finished)
+        return true;
+
+      if (self->_evaluator.finished_count >= N_jobs || *self->_interrupted)
       {
-        if (_evaluator.best_result.progress
-          && _evaluator.best_result.progress->success())
+        if (self->_evaluator.best_result.progress
+          && self->_evaluator.best_result.progress->success())
         {
-          _finished = true;
+          self->_finished = true;
           // This means we found a successful plan to submit to the negotiation.
           s.on_next(
             Result{
-              shared_from_this(),
-              [r = *_evaluator.best_result.progress,
-              initial_itinerary = std::move(_initial_itinerary),
-              approval = std::move(_approval),
-              responder = _responder,
-              plan_id = _plan_id]()
+              self->shared_from_this(),
+              [r = *self->_evaluator.best_result.progress,
+              initial_itinerary = std::move(self->_initial_itinerary),
+              approval = std::move(self->_approval),
+              responder = self->_responder,
+              plan_id = self->_plan_id]()
               {
                 std::vector<rmf_traffic::Route> final_itinerary;
                 final_itinerary.reserve(
@@ -121,36 +121,36 @@ void Negotiate::operator()(const Subscriber& s)
             });
 
           s.on_completed();
-          this->interrupt();
+          self->interrupt();
           return true;
         }
-        else if (_alternatives && !_alternatives->empty())
+        else if (self->_alternatives && !self->_alternatives->empty())
         {
-          _finished = true;
+          self->_finished = true;
           // This means we could not find a successful plan, but we have some
           // alternatives to offer the parent in the negotiation.
           s.on_next(
             Result{
-              shared_from_this(),
-              [alts = *_alternatives, responder = _responder]()
+              self->shared_from_this(),
+              [alts = *self->_alternatives, responder = self->_responder]()
               {
                 responder->reject(alts);
               }
             });
 
           s.on_completed();
-          this->interrupt();
+          self->interrupt();
           return true;
         }
-        else if (!_attempting_rollout)
+        else if (!self->_attempting_rollout)
         {
-          _finished = true;
+          self->_finished = true;
           // This means we could not find any plan or any alternatives to offer
           // the parent, so all we can do is forfeit.
           s.on_next(
             Result{
-              shared_from_this(),
-              [n = shared_from_this()]()
+              self->shared_from_this(),
+              [n = self->shared_from_this()]()
               {
                 std::vector<rmf_traffic::schedule::ParticipantId> blockers(
                   n->_blockers.begin(), n->_blockers.end());
@@ -160,7 +160,7 @@ void Negotiate::operator()(const Subscriber& s)
             });
 
           s.on_completed();
-          this->interrupt();
+          self->interrupt();
           return true;
         }
 
