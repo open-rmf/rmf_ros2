@@ -101,8 +101,8 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
           continue;
 
         const auto found_conflict = rmf_traffic::DetectConflict::between(
-              vc->description.profile(), vc->route.trajectory(), dep_v,
-              description->profile(), route->trajectory(), dep_u);
+          vc->description.profile(), vc->route.trajectory(), dep_v,
+          description->profile(), route->trajectory(), dep_u);
         if (found_conflict.has_value())
         {
           conflicts.push_back({participant, vc->participant});
@@ -494,8 +494,10 @@ void ScheduleNode::setup_conflict_topics_and_thread()
               for (const auto& r : *itinerary)
               {
                 const auto d_it = r->dependencies().find(check);
-                if (d_it != r->dependencies().end()
-                    && d_it->second.plan().has_value())
+                const bool include = d_it != r->dependencies().end()
+                && d_it->second.plan().has_value();
+
+                if (include)
                 {
                   queue.push_back(p);
                   conflict.insert(p);

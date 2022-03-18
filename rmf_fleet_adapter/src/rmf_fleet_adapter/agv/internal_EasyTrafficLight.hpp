@@ -75,7 +75,8 @@ public:
   private:
     std::vector<DependencyPtr> _subscriptions;
     std::optional<rmf_traffic::Time> _expected_time;
-    mutable rmf_traffic::Time _last_time = rmf_traffic::Time(rmf_traffic::Duration(0));
+    mutable rmf_traffic::Time _last_time =
+      rmf_traffic::Time(rmf_traffic::Duration(0));
   };
 
   struct Plan
@@ -84,7 +85,9 @@ public:
     rmf_traffic::agv::Plan plan;
     DependencyTracker immediate_stop_dependencies;
     std::map<std::size_t, DependencyTracker> dependencies;
-    std::unordered_map<std::size_t, rmf_traffic::agv::Plan::Checkpoints> arrivals;
+
+    using Checkpoints = rmf_traffic::agv::Plan::Checkpoints;
+    std::unordered_map<std::size_t, Checkpoints> arrivals;
   };
 
   struct Location

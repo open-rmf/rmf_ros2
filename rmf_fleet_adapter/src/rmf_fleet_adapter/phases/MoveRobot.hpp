@@ -183,12 +183,12 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         if (path_index > 0)
         {
           const auto& arrival =
-            action->_waypoints[path_index - 1].arrival_checkpoints();
+          action->_waypoints[path_index - 1].arrival_checkpoints();
 
           for (const auto& c : arrival)
           {
             action->_context->itinerary()
-              .reached(action->_plan_id, c.route_id, c.checkpoint_id);
+            .reached(action->_plan_id, c.route_id, c.checkpoint_id);
           }
         }
 
@@ -207,12 +207,12 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         for (const auto& c : progress.checkpoints)
         {
           const auto& c_wp =
-            itinerary[c.route_id].trajectory()[c.checkpoint_id];
+          itinerary[c.route_id].trajectory()[c.checkpoint_id];
 
           if (estimate < target_wp.time() - c_wp.time())
           {
             action->_context->itinerary()
-              .reached(action->_plan_id, c.route_id, c.checkpoint_id);
+            .reached(action->_plan_id, c.route_id, c.checkpoint_id);
           }
         }
       }

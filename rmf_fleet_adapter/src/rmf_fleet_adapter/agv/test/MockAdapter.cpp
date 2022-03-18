@@ -209,11 +209,11 @@ public:
   std::function<void()> update_mirror()
   {
     return [database = _database, mirror = _mirror]()
-    {
-      mirror->update(
+      {
+        mirror->update(
           database->changes(
             rmf_traffic::schedule::query_all(), mirror->latest_version()));
-    };
+      };
   }
 
   std::function<void()> update_participants()

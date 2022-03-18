@@ -90,9 +90,9 @@ EasyTrafficLight::Implementation::Shared::lock()
 
 //==============================================================================
 EasyTrafficLight::Implementation::Shared::Shared(Hooks hooks)
-  : state{},
-    hooks{std::move(hooks)},
-    path_version{0}
+: state{},
+  hooks{std::move(hooks)},
+  path_version{0}
 {
   // Do nothing
 }
@@ -143,12 +143,14 @@ EasyTrafficLight::Implementation::State::current_itinerary_slice() const
           return wp.graph_index() > last_passed;
       }
 
+      // *INDENT-OFF*
       throw std::runtime_error(
         "[EasyTrafficLight::Implementation::Shared::respond] Internal bug: "
         "Current plan of size ["
         + std::to_string(current_plan->plan.get_waypoints().size())
         + "] does not contain any graph indices. Please report this to the "
         "RMF developers.");
+      // *INDENT-ON*
     } ();
 
   const auto include = [&](std::optional<std::size_t> opt_wp) -> bool
@@ -158,7 +160,7 @@ EasyTrafficLight::Implementation::State::current_itinerary_slice() const
 
       const auto wp = *opt_wp;
       if (!last_passed.has_value())
-        return (wp == 0);
+        return wp == 0;
 
       return (*last_passed <= wp) && (wp <= *last_passed + 1);
     };
@@ -359,9 +361,9 @@ void EasyTrafficLight::Implementation::Shared::make_plan(
   state.find_path_subscription =
     rmf_rxcpp::make_job<services::FindPath::Result>(
     state.find_path_service)
-      .observe_on(rxcpp::identity_same_worker(hooks.worker))
-      .subscribe(
-        [w = weak_from_this(), request_path_version, plan_id](
+    .observe_on(rxcpp::identity_same_worker(hooks.worker))
+    .subscribe(
+    [w = weak_from_this(), request_path_version, plan_id](
       const services::FindPath::Result& result)
     {
       const auto self = w.lock();
@@ -464,7 +466,7 @@ void EasyTrafficLight::Implementation::Shared::update_immediate_stop(
   // A proposed plan was rejected so we will create an itinerary that says the
   // robot will stand in place for a while.
   const auto& wp = state.planner->get_configuration()
-      .graph().get_waypoint(checkpoint);
+    .graph().get_waypoint(checkpoint);
   const auto& map_name = wp.get_map_name();
 
   auto route = rmf_traffic::Route(map_name, rmf_traffic::Trajectory());
@@ -503,7 +505,7 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
       {
         const auto [expected_time, _] =
           rmf_traffic::agv::interpolate_time_along_quadratic_straight_line(
-            slice.trajectory(), location->block<2, 1>(0, 0));
+          slice.trajectory(), location->block<2, 1>(0, 0));
 
         new_delay = hooks.node->rmf_now() - expected_time;
         break;
@@ -539,7 +541,8 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
       if (*wp.graph_index() != checkpoint)
         continue;
 
-      new_delay = (hooks.node->rmf_now() - wp.time()) - state.itinerary->delay();
+      new_delay =
+        (hooks.node->rmf_now() - wp.time()) - state.itinerary->delay();
     }
   }
 
@@ -552,11 +555,13 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
         const auto t = rmf_traffic::time::to_seconds(*new_delay);
         // If this happens, there may be an edge case that
         // interpolate_time_along_quadratic_straight_line is not accounting for.
+        // *INDENT-OFF*
         throw std::runtime_error(
           "[EasyTrafficLight::Implementation::Shared::update_delay] "
           "Excessive delay was calculated: " + std::to_string(t)
           + "s. This is likely an internal bug in RMF. Please report this to "
           "the RMF developers.");
+        // *INDENT-ON*
       }
 
       state.itinerary->delay(*new_delay);
@@ -702,7 +707,7 @@ bool EasyTrafficLight::Implementation::Shared::consider_proposal(
 bool EasyTrafficLight::Implementation::Shared::finish_immediate_stop()
 {
   if (state.current_plan->immediate_stop_dependencies.deprecated(
-        hooks.node->rmf_now()))
+      hooks.node->rmf_now()))
   {
     make_plan(path_version, state.last_known_location.value());
     return false;
@@ -989,11 +994,10 @@ void EasyTrafficLight::Implementation::Shared::respond(
         service->interrupt();
     });
 
-  negotiate_services[negotiate] =
-    NegotiateManagers{
-      std::move(negotiate_sub),
-      std::move(negotiate_timer)
-    };
+  negotiate_services[negotiate] = NegotiateManagers{
+    std::move(negotiate_sub),
+    std::move(negotiate_timer)
+  };
 }
 
 //==============================================================================
@@ -1053,33 +1057,34 @@ EasyTrafficLightPtr EasyTrafficLight::Implementation::make(
   handle->_pimpl = rmf_utils::make_unique_impl<Implementation>();
 
   handle->_pimpl->shared = std::make_shared<Shared>(
-      Hooks{
-        std::move(pause_),
-        std::move(resume_),
-        std::move(blocker_),
-        std::move(schedule_),
-        std::move(worker_),
-        std::move(node_),
-        std::move(traits_),
-        std::make_shared<rmf_traffic::Profile>(
-          itinerary_.description().profile())
-      });
+    Hooks{
+      std::move(pause_),
+      std::move(resume_),
+      std::move(blocker_),
+      std::move(schedule_),
+      std::move(worker_),
+      std::move(node_),
+      std::move(traits_),
+      std::make_shared<rmf_traffic::Profile>(
+        itinerary_.description().profile())
+    });
 
   handle->_pimpl->shared->state.itinerary =
     std::make_shared<rmf_traffic::schedule::Participant>(std::move(itinerary_));
 
-  handle->_pimpl->shared->name = handle->_pimpl->shared->state.itinerary->description().name();
+  handle->_pimpl->shared->name =
+    handle->_pimpl->shared->state.itinerary->description().name();
 
   handle->_pimpl->shared->state.blockade =
     std::make_shared<rmf_traffic::blockade::Participant>(
-      make_blockade(*blockade_writer_, handle->_pimpl->shared));
+    make_blockade(*blockade_writer_, handle->_pimpl->shared));
 
   if (negotiation_)
   {
     handle->_pimpl->shared->negotiation_license =
       negotiation_->register_negotiator(
-        handle->_pimpl->shared->state.itinerary->id(),
-        std::make_unique<Negotiator>(handle->_pimpl->shared));
+      handle->_pimpl->shared->state.itinerary->id(),
+      std::make_unique<Negotiator>(handle->_pimpl->shared));
   }
 
   return handle;

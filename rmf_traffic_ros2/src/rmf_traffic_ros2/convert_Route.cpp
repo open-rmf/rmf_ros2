@@ -61,11 +61,11 @@ std::vector<rmf_traffic_msgs::msg::TrafficDependency> convert(
       {
         deps.push_back(
           rmf_traffic_msgs::build<rmf_traffic_msgs::msg::TrafficDependency>()
-            .dependent_checkpoint(dependent_checkpoint)
-            .on_participant(on_participant)
-            .on_plan(on_plan)
-            .on_route(on_route)
-            .on_checkpoint(on_checkpoint));
+          .dependent_checkpoint(dependent_checkpoint)
+          .on_participant(on_participant)
+          .on_plan(on_plan)
+          .on_route(on_route)
+          .on_checkpoint(on_checkpoint));
       }
     }
   }
@@ -81,10 +81,10 @@ rmf_traffic_msgs::msg::Route convert(const rmf_traffic::Route& from)
     from.checkpoints().end());
 
   return rmf_traffic_msgs::build<rmf_traffic_msgs::msg::Route>()
-     .map(from.map())
-      .trajectory(convert(from.trajectory()))
-      .checkpoints(std::move(checkpoints))
-      .dependencies(convert(from.dependencies()));
+    .map(from.map())
+    .trajectory(convert(from.trajectory()))
+    .checkpoints(std::move(checkpoints))
+    .dependencies(convert(from.dependencies()));
 }
 
 //==============================================================================
