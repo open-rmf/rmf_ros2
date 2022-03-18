@@ -69,12 +69,9 @@ public:
 
     void set_time(rmf_traffic::Time expected_time);
 
-    bool ready(std::size_t line, rmf_traffic::Time time, const MirrorPtr& mirror, rmf_traffic::ParticipantId me) const;
+    bool ready() const;
 
-    bool deprecated(
-      const rmf_traffic::Time current_time,
-      const MirrorPtr& mirror,
-      const std::string& me) const;
+    bool deprecated(const rmf_traffic::Time current_time) const;
 
   private:
     std::vector<DependencyPtr> _subscriptions;

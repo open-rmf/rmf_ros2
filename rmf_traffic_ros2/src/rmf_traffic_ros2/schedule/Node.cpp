@@ -40,50 +40,6 @@
 namespace rmf_traffic_ros2 {
 namespace schedule {
 
-void print_route(const rmf_traffic::Trajectory& traj)
-{
-  for (std::size_t i = 0; i < traj.size(); ++i)
-  {
-    const auto& wp = traj[i];
-    std::cout << i << " (" << wp.index() << "). t=" << rmf_traffic::time::to_seconds(wp.time().time_since_epoch())
-              << " (" << wp.position().transpose() << ")" << std::endl;
-  }
-}
-
-void print_deps(
-  const rmf_traffic::DependsOnCheckpoint* deps,
-  const rmf_traffic::DependsOnParticipant& all_deps,
-  const std::string& name,
-  const std::size_t participant,
-  const std::size_t plan,
-  const std::size_t route)
-{
-  if (deps)
-  {
-    std::cout << "Deps on {" << name << " " << plan << " " << route << "}:";
-    for (const auto& [a, b] : *deps)
-      std::cout << " {" << a << ": " << b << "}";
-    std::cout << std::endl;
-  }
-  else
-  {
-    std::cout << "No deps on {" << name << " " << plan << " " << route << "}" << std::endl;
-    const auto p_it = all_deps.find(participant);
-    if (p_it == all_deps.end())
-    {
-      std::cout << "No deps on " << name << " at all!" << std::endl;
-    }
-    else if (p_it->second.plan().has_value())
-    {
-      std::cout << "Deps on nullopt plan for " << name << std::endl;
-    }
-    else
-    {
-      std::cout << "Instead deps on plan " << p_it->second.plan().value() << std::endl;
-    }
-  }
-}
-
 //==============================================================================
 std::vector<ScheduleNode::ConflictSet> get_conflicts(
   const rmf_traffic::schedule::Viewer::View& view_changes,
@@ -150,18 +106,6 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
         if (found_conflict.has_value())
         {
           conflicts.push_back({participant, vc->participant});
-          std::cout << "Conflict at " << rmf_traffic::time::to_seconds(found_conflict->time.time_since_epoch())
-                    << " found between {"
-                    << description->name() << " " << plan_id << "} and {"
-                    << vc->description.name() << " " << vc->plan_id << "}" << std::endl;
-
-          std::cout << description->name() << ":\n";
-          print_route(route->trajectory());
-          print_deps(dep_u, route->dependencies(), vc->description.name(), vc->participant, vc->plan_id, vc->route_id);
-
-          std::cout << vc->description.name() << ":\n";
-          print_route(vc->route.trajectory());
-          print_deps(dep_v, vc->route.dependencies(), description->name(), participant, plan_id, r);
         }
       }
     }
