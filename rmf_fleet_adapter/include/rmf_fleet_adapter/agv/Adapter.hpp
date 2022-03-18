@@ -18,7 +18,6 @@
 #define RMF_FLEET_ADAPTER__AGV__ADAPTER_HPP
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
-#include <rmf_fleet_adapter/agv/TrafficLight.hpp>
 #include <rmf_fleet_adapter/agv/EasyTrafficLight.hpp>
 
 #include <rmf_traffic/agv/VehicleTraits.hpp>
@@ -102,33 +101,6 @@ public:
     rmf_traffic::agv::VehicleTraits traits,
     rmf_traffic::agv::Graph navigation_graph,
     std::optional<std::string> server_uri = std::nullopt);
-
-  /// Create a traffic light to help manage robots that can only support pause
-  /// and resume commands.
-  ///
-  /// \param[in] command
-  ///   The handle for the traffic light to use to trigger commands. You must
-  ///   implement the TrafficLight::CommandHandle abstract interface for your
-  ///   robot or fleet.
-  ///
-  /// \param[in] fleet_name
-  ///   The name of the fleet
-  ///
-  /// \param[in] robot_name
-  ///   The name of the robot
-  ///
-  /// \param[in] traits
-  ///   The traits of the robot
-  ///
-  /// \param[in] handle_cb
-  ///   The callback that will be triggered when the traffic light handle is
-  ///   ready to be used. This callback will only be triggered once.
-  void add_traffic_light(
-    std::shared_ptr<TrafficLight::CommandHandle> command,
-    const std::string& fleet_name,
-    const std::string& robot_name,
-    rmf_traffic::agv::VehicleTraits traits,
-    std::function<void(TrafficLight::UpdateHandlePtr handle)> handle_cb);
 
   using Blockers = std::vector<EasyTrafficLight::Blocker>;
 

@@ -19,7 +19,6 @@
 #define SRC__RMF_FLEET_ADAPTER__AGV__INTERNAL_EASYTRAFFICLIGHT_HPP
 
 #include <rmf_fleet_adapter/agv/EasyTrafficLight.hpp>
-#include <rmf_fleet_adapter/agv/TrafficLight.hpp>
 
 #include "../services/FindPath.hpp"
 #include "../services/Negotiate.hpp"
