@@ -14,7 +14,7 @@ endif()
 include(GNUInstallDirs)
 
 find_package(ament_cmake REQUIRED)
-find_package(rmf_traffic REQUIRED)
+find_package(rmf_traffic 2 REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
 find_package(rmf_site_map_msgs REQUIRED)
 find_package(rmf_fleet_msgs REQUIRED)

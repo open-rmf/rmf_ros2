@@ -31,7 +31,6 @@ set(dep_pkgs
   rmf_fleet_msgs
   rmf_lift_msgs
   rmf_task_msgs
-  rmf_traffic
   rmf_traffic_ros2
   rmf_task_ros2
   rmf_battery

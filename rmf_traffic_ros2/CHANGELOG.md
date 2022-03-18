@@ -1,5 +1,9 @@
 ## Changelog for package rmf_traffic_ros2
 
+2.0.0 (2022-03-18)
+------------------
+* Update to the traffic dependency system: Add PR Here
+
 1.5.0 (2022-02-14)
 ------------------
 * Allow participants to sync up with remote databases when discrepancies arise [#145](https://github.com/open-rmf/rmf_ros2/pull/142)
