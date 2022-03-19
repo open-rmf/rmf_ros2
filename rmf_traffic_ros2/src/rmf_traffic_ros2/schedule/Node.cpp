@@ -81,17 +81,17 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
       {
         const auto& route = itinerary[r];
         assert(route);
-        if (route->map() != vc->route.map())
+        if (route->map() != vc->route->map())
           continue;
 
         if (route->should_ignore(vc->participant, vc->plan_id))
           continue;
 
-        if (vc->route.should_ignore(participant, plan_id))
+        if (vc->route->should_ignore(participant, plan_id))
           continue;
 
         const auto* dep_v =
-          vc->route.check_dependencies(participant, plan_id, r);
+          vc->route->check_dependencies(participant, plan_id, r);
         if (dep_v && !dep_v->empty())
           continue;
 
@@ -101,7 +101,7 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
           continue;
 
         const auto found_conflict = rmf_traffic::DetectConflict::between(
-          vc->description.profile(), vc->route.trajectory(), dep_v,
+          vc->description.profile(), vc->route->trajectory(), dep_v,
           description->profile(), route->trajectory(), dep_u);
         if (found_conflict.has_value())
         {
