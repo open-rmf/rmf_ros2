@@ -160,7 +160,8 @@ void estimate_midlane_state(
     }
   }
 
-  const std::size_t target_gi = [&]() -> std::size_t
+  const std::optional<std::size_t> target_gi = [&]()
+    -> std::optional<std::size_t>
     {
       // At least one future waypoint must have a graph index
       if (target_wp.graph_index())
@@ -173,69 +174,50 @@ void estimate_midlane_state(
           return *gi;
       }
 
-      std::cout << "Critical error in estimate_midlane_state:" << std::endl;
-      std::cout << "next_index: " << next_index << ", all waypoints:";
-      for (std::size_t i = 0; i < info.waypoints.size(); ++i)
-      {
-        const auto& wp = info.waypoints[i];
-        std::cout << "\n -- " << i << ". t="
-                  << rmf_traffic::time::to_seconds(
-                       wp.time().time_since_epoch());
-        if (wp.graph_index().has_value())
-        {
-          std::cout << *wp.graph_index() << " p=("
-                    << wp.position().transpose() << ")";
-        }
-        else
-          std::cout << "midlane" << " (" << wp.position().transpose() << ")";
-      }
-      std::cout << std::endl;
-
-      // *INDENT-OFF*
-      throw std::runtime_error(
-        "CRITICAL ERROR: Remaining waypoint sequence has no graph indices for "
-        "robot [" + info.robot_name + "]");
-      // *INDENT-ON*
+      return std::nullopt;
     } ();
 
-  if (lane_start)
+  if (target_gi.has_value())
   {
-    const auto last_gi = *lane_start;
-    if (last_gi == target_gi)
+    if (lane_start.has_value())
     {
-      // This implies that the robot is either waiting at or rotating on the
-      // waypoint.
-      info.updater->update_position(target_gi, l.yaw);
-    }
-    else if (const auto* forward_lane =
-      info.graph->lane_from(last_gi, target_gi))
-    {
-      // This implies that the robot is moving down a lane.
-      std::vector<std::size_t> lanes;
-      lanes.push_back(forward_lane->index());
-
-      if (const auto* reverse_lane = info.graph->lane_from(target_gi, last_gi))
+      const auto last_gi = *lane_start;
+      if (last_gi == target_gi)
       {
-        if (!reverse_lane->entry().event())
-        {
-          // We don't allow the robot to turn back mid-lane if the reverse lane
-          // has an entry event, because if that entry event is docking, then it
-          // needs to be triggered for the robot to approach the exit.
-          //
-          // TODO(MXG): This restriction isn't needed for reversing on door or
-          // lift events, so with some effort we could loosen this restriction
-          // to only apply to docking.
-          lanes.push_back(reverse_lane->index());
-        }
+        // This implies that the robot is either waiting at or rotating on the
+        // waypoint.
+        return info.updater->update_position(*target_gi, l.yaw);
       }
+      else if (const auto* forward_lane =
+        info.graph->lane_from(last_gi, *target_gi))
+      {
+        // This implies that the robot is moving down a lane.
+        std::vector<std::size_t> lanes;
+        lanes.push_back(forward_lane->index());
 
-      info.updater->update_position({l.x, l.y, l.yaw}, std::move(lanes));
+        if (const auto* reverse_lane = info.graph->lane_from(*target_gi, last_gi))
+        {
+          if (!reverse_lane->entry().event())
+          {
+            // We don't allow the robot to turn back mid-lane if the reverse lane
+            // has an entry event, because if that entry event is docking, then it
+            // needs to be triggered for the robot to approach the exit.
+            //
+            // TODO(MXG): This restriction isn't needed for reversing on door or
+            // lift events, so with some effort we could loosen this restriction
+            // to only apply to docking.
+            lanes.push_back(reverse_lane->index());
+          }
+        }
+
+        return info.updater->update_position({l.x, l.y, l.yaw}, std::move(lanes));
+      }
     }
+
+    return info.updater->update_position({l.x, l.y, l.yaw}, *target_gi);
   }
 
-  // The target should always have a graph index, because only the first
-  // waypoint in a command should ever be lacking a graph index.
-  info.updater->update_position({l.x, l.y, l.yaw}, target_gi);
+  info.updater->update_position(l.level_name, {l.x, l.y, l.yaw});
 }
 
 //==============================================================================
