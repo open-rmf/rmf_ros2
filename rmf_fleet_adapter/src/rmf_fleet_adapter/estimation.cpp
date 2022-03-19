@@ -31,41 +31,47 @@ void check_path_finish(
   const Eigen::Vector2d p{l.x, l.y};
   const double dist = (p - wp.position().block<2, 1>(0, 0)).norm();
 
-  assert(wp.graph_index());
-  info.last_known_wp = *wp.graph_index();
-
-  assert(info.waypoints.size() >= 2);
-
-  if (dist > 2.0)
+  if (wp.graph_index().has_value())
   {
-    RCLCPP_ERROR(
-      node->get_logger(),
-      "Robot named [%s] belonging to fleet [%s] is very far [%fm] from where "
-      "it is supposed to be, but its remaining path is empty. This means the "
-      "robot believes it is finished, but it is not where it's supposed to be.",
-      info.robot_name.c_str(), info.fleet_name.c_str(), dist);
-    estimate_state(node, state.location, info);
-    return;
-  }
+    info.last_known_wp = *wp.graph_index();
 
-  if (dist > 0.5)
-  {
-    RCLCPP_WARN(
-      node->get_logger(),
-      "The robot is somewhat far [%fm] from where it is supposed to be, "
-      "but we will proceed anyway.",
-      dist);
+    if (dist > 2.0)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Robot named [%s] belonging to fleet [%s] is very far [%fm] from where "
+        "it is supposed to be, but its remaining path is empty. This means the "
+        "robot believes it is finished, but it is not where it's supposed to be.",
+        info.robot_name.c_str(), info.fleet_name.c_str(), dist);
+      estimate_state(node, state.location, info);
+      return;
+    }
 
-    const auto& last_wp = info.waypoints[info.waypoints.size()-2];
-    estimate_midlane_state(
-      state.location, last_wp.graph_index(), info.waypoints.size()-1, info);
+    if (dist > 0.5)
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "The robot is somewhat far [%fm] from where it is supposed to be, "
+        "but we will proceed anyway.",
+        dist);
+
+      const auto& last_wp = info.waypoints[info.waypoints.size()-2];
+      estimate_midlane_state(
+        state.location, last_wp.graph_index(), info.waypoints.size()-1, info);
+    }
+    else
+    {
+      // We are close enough to the goal that we will say the robot is
+      // currently located there.
+      info.updater->update_position(*wp.graph_index(), l.yaw);
+    }
   }
   else
   {
-    // We are close enough to the goal that we will say the robot is
-    // currently located there.
-    info.updater->update_position(*wp.graph_index(), l.yaw);
+    estimate_state(node, state.location, info);
   }
+
+  assert(info.waypoints.size() >= 2);
 
   assert(info.path_finished_callback);
   info.path_finished_callback();
@@ -167,8 +173,29 @@ void estimate_midlane_state(
           return *gi;
       }
 
+      std::cout << "Critical error in estimate_midlane_state:" << std::endl;
+      std::cout << "next_index: " << next_index << ", all waypoints:";
+      for (std::size_t i = 0; i < info.waypoints.size(); ++i)
+      {
+        const auto& wp = info.waypoints[i];
+        std::cout << "\n -- " << i << ". t="
+                  << rmf_traffic::time::to_seconds(
+                       wp.time().time_since_epoch());
+        if (wp.graph_index().has_value())
+        {
+          std::cout << *wp.graph_index() << " p=("
+                    << wp.position().transpose() << ")";
+        }
+        else
+          std::cout << "midlane" << " (" << wp.position().transpose() << ")";
+      }
+      std::cout << std::endl;
+
+      // *INDENT-OFF*
       throw std::runtime_error(
-              "CRITICAL ERROR: Remaining waypoint sequence has no graph indices");
+        "CRITICAL ERROR: Remaining waypoint sequence has no graph indices for "
+        "robot [" + info.robot_name + "]");
+      // *INDENT-ON*
     } ();
 
   if (lane_start)
