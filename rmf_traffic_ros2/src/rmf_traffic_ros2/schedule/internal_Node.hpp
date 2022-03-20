@@ -311,7 +311,7 @@ public:
     {
       Version negotiation_version;
       std::optional<ItineraryVersion> itinerary_update_version;
-      rmf_traffic::Time start_time;
+      rmf_traffic::Time conclusion_time;
     };
 
     ConflictRecord(
@@ -399,7 +399,7 @@ public:
       return &(it->second->room);
     }
 
-    void conclude(const Version version)
+    void conclude(const Version version, rmf_traffic::Time time)
     {
       const auto negotiation_it = _negotiations.find(version);
       if (negotiation_it == _negotiations.end())
@@ -417,7 +417,7 @@ public:
               Wait{
                 version,
                 std::nullopt,
-                negotiation_it->second->start_time
+                time
               }
             });
 

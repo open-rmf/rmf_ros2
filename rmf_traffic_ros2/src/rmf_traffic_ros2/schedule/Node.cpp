@@ -719,39 +719,12 @@ void ScheduleNode::cleanup_queries()
 //==============================================================================
 void ScheduleNode::cull()
 {
+  const auto time = rmf_traffic_ros2::convert(now());
   {
     // Cull unnecessary data from the schedule
     std::lock_guard<std::mutex> lock(database_mutex);
-    database->cull(rmf_traffic_ros2::convert(now()));
-  }
-
-  const auto time = rmf_traffic_ros2::convert(now());
-  {
-    // Break out of negotiations that have hung up
-    std::lock_guard<std::mutex> lock(active_conflicts_mutex);
-    std::vector<std::size_t> erase;
-    for (const auto& [v, conflict] : active_conflicts._negotiations)
-    {
-      if (!conflict.has_value())
-      {
-        erase.push_back(v);
-      }
-      else
-      {
-        if (conflict->start_time + std::chrono::minutes(1) > time)
-        {
-          erase.push_back(v);
-        }
-      }
-    }
-
-    for (const auto c : erase)
-    {
-      RCLCPP_WARN(
-        get_logger(),
-        "Forcibly ending negotiation [%lu] because it has timed out.", c);
-      refuse(c);
-    }
+    database->set_current_time(time);
+    database->cull(time - std::chrono::hours(2));
   }
 
   {
@@ -760,7 +733,7 @@ void ScheduleNode::cull()
     std::vector<std::size_t> erase;
     for (const auto& [v, wait] : active_conflicts._waiting)
     {
-      if (wait.start_time + std::chrono::minutes(1) > time)
+      if (wait.conclusion_time + std::chrono::seconds(30) > time)
       {
         erase.push_back(v);
       }
@@ -1301,7 +1274,8 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
       negotiation.evaluate(rmf_traffic::schedule::QuickestFinishEvaluator());
     assert(choose);
 
-    active_conflicts.conclude(msg.conflict_version);
+    active_conflicts.conclude(
+      msg.conflict_version, rmf_traffic_ros2::convert(now()));
 
     ConflictConclusion conclusion;
     conclusion.conflict_version = msg.conflict_version;
@@ -1325,7 +1299,8 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
       + std::to_string(msg.conflict_version) + "]";
     RCLCPP_INFO(get_logger(), "%s", output.c_str());
 
-    active_conflicts.conclude(msg.conflict_version);
+    active_conflicts.conclude(
+      msg.conflict_version, rmf_traffic_ros2::convert(now()));
 
     // This implies a complete failure
     ConflictConclusion conclusion;
@@ -1423,7 +1398,8 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
       + std::to_string(msg.conflict_version) + "]";
     RCLCPP_INFO(get_logger(), "%s", output.c_str());
 
-    active_conflicts.conclude(msg.conflict_version);
+    active_conflicts.conclude(
+      msg.conflict_version, rmf_traffic_ros2::convert(now()));
 
     ConflictConclusion conclusion;
     conclusion.conflict_version = msg.conflict_version;
