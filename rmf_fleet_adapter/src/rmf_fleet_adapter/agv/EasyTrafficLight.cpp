@@ -235,6 +235,29 @@ EasyTrafficLight::Implementation::State::current_itinerary_slice() const
 }
 
 //==============================================================================
+auto EasyTrafficLight::Implementation::State::location() const
+-> std::optional<Location>
+{
+  if (idle_location.has_value())
+    return idle_location;
+
+  if (!last_known_location.has_value())
+    return std::nullopt;
+
+  if (!planner)
+    return std::nullopt;
+
+  const auto& graph = planner->get_configuration().graph();
+  const auto wp = last_known_location->waypoint();
+  if (graph.num_waypoints() <= wp)
+    return std::nullopt;
+
+  const auto& g_wp = graph.get_waypoint(wp);
+  const auto p = g_wp.get_location();
+  return Location{g_wp.get_map_name(), {p[0], p[1], 0.0}};
+}
+
+//==============================================================================
 void EasyTrafficLight::Implementation::Shared::follow_new_path(
   const std::vector<Waypoint>& new_path)
 {
@@ -1001,6 +1024,60 @@ void EasyTrafficLight::Implementation::Shared::respond(
 }
 
 //==============================================================================
+void EasyTrafficLight::Implementation::Shared::publish_fleet_state() const
+{
+  const auto reported_location = state.location();
+  if (!reported_location.has_value())
+    return;
+
+  auto robot_mode = [&]()
+    {
+      if (state.range.begin == state.range.end)
+      {
+        return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotMode>()
+          .mode(rmf_fleet_msgs::msg::RobotMode::MODE_WAITING)
+          // NOTE(MXG): This field is currently only used by the fleet drivers.
+          // For now, we will just fill it with a zero.
+          .mode_request_id(0);
+      }
+
+      return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotMode>()
+        .mode(rmf_fleet_msgs::msg::RobotMode::MODE_MOVING)
+        // NOTE(MXG): This field is currently only used by the fleet drivers.
+        // For now, we will just fill it with a zero.
+        .mode_request_id(0);
+    } ();
+
+  const auto& map = reported_location->map;
+  const auto p = reported_location->position;
+  auto location = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
+    .t(hooks.node->now())
+    .x(p.x())
+    .y(p.y())
+    .yaw(p[2])
+    .obey_approach_speed_limit(false)
+    .approach_speed_limit(0.0)
+    .level_name(map)
+    .index(0);
+
+  const auto& fleet_name = state.itinerary->description().owner();
+  auto robot_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotState>()
+    .name(state.itinerary->description().name())
+    .model(fleet_name)
+    // TODO(MXG): Have a way to fill this in
+    .task_id("")
+    // TODO(MXG): We could keep track of the seq value and increment it once
+    // with each publication. This is not currently an important feature
+    // outside of the fleet driver, so for now we just set it to zero.
+    .seq(0)
+    .mode(std::move(robot_mode))
+    // We multiply by 100 to convert from the [0.0, 1.0] range to percentage
+    .battery_percent(battery_soc*100.0)
+    .location(std::move(location))
+    .path({});
+}
+
+//==============================================================================
 EasyTrafficLight::Implementation::Negotiator::Negotiator(
   const std::shared_ptr<Shared>& shared)
 : _shared(shared)
@@ -1063,10 +1140,21 @@ EasyTrafficLightPtr EasyTrafficLight::Implementation::make(
       std::move(blocker_),
       std::move(schedule_),
       std::move(worker_),
-      std::move(node_),
+      node_,
       std::move(traits_),
       std::make_shared<rmf_traffic::Profile>(
-        itinerary_.description().profile())
+        itinerary_.description().profile()),
+      node_->fleet_state(),
+      nullptr
+    });
+
+  handle->_pimpl->shared->hooks.fleet_update_timer =
+    handle->_pimpl->shared->hooks.node->try_create_wall_timer(
+      std::chrono::seconds(1),
+      [w = handle->_pimpl->shared->weak_from_this()]()
+    {
+      if (const auto self = w.lock())
+        self->publish_fleet_state();
     });
 
   handle->_pimpl->shared->state.itinerary =
@@ -1158,10 +1246,50 @@ EasyTrafficLight& EasyTrafficLight::update_battery_soc(double battery_soc)
 }
 
 //==============================================================================
+EasyTrafficLight& EasyTrafficLight::replan()
+{
+  _pimpl->shared->hooks.worker.schedule(
+    [w = _pimpl->shared->weak_from_this()](const auto&)
+    {
+      if (const auto self = w.lock())
+      {
+        if (self->state.last_known_location.has_value())
+        {
+          self->make_plan(
+            self->path_version, self->state.last_known_location.value());
+        }
+        else
+        {
+          RCLCPP_ERROR(
+            self->hooks.node->get_logger(),
+            "[EasyTrafficLight::replan] A replan was requested when the fleet "
+            "adapter does not know the current location of the robot.");
+        }
+      }
+    });
+
+  return *this;
+}
+
+//==============================================================================
 EasyTrafficLight& EasyTrafficLight::fleet_state_publish_period(
   std::optional<rmf_traffic::Duration> value)
 {
-  // TODO(MXG): Set up timer for publishing the fleet state
+  if (value.has_value())
+  {
+    _pimpl->shared->hooks.fleet_update_timer =
+      _pimpl->shared->hooks.node->try_create_wall_timer(
+        *value, [w = _pimpl->shared->weak_from_this()]()
+        {
+          if (const auto self = w.lock())
+            self->publish_fleet_state();
+        });
+  }
+  else
+  {
+    _pimpl->shared->hooks.fleet_update_timer = nullptr;
+  }
+
   return *this;
 }
 

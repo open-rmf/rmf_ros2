@@ -242,6 +242,7 @@ void ScheduleNode::setup(const QueryMap& queries)
   setup_itinerary_topics();
   setup_incosistency_pub();
   setup_conflict_topics_and_thread();
+  setup_cull_timer();
 }
 
 //==============================================================================
@@ -517,7 +518,8 @@ void ScheduleNode::setup_conflict_topics_and_thread()
         for (const auto& conflict : conflicts)
         {
           std::unique_lock<std::mutex> lock(active_conflicts_mutex);
-          const auto new_negotiation = active_conflicts.insert(conflict);
+          const auto new_negotiation = active_conflicts.insert(
+            conflict, rmf_traffic_ros2::convert(now()));
 
           if (new_negotiation)
             new_negotiations[new_negotiation->first] = new_negotiation->second;
@@ -536,6 +538,13 @@ void ScheduleNode::setup_conflict_topics_and_thread()
         }
       }
     });
+}
+
+//==============================================================================
+void ScheduleNode::setup_cull_timer()
+{
+  cull_timer = create_wall_timer(
+    std::chrono::minutes(1), [this](){ cull(); });
 }
 
 //==============================================================================
@@ -705,6 +714,67 @@ void ScheduleNode::cleanup_queries()
 
   if (any_erased)
     broadcast_queries();
+}
+
+//==============================================================================
+void ScheduleNode::cull()
+{
+  {
+    // Cull unnecessary data from the schedule
+    std::lock_guard<std::mutex> lock(database_mutex);
+    database->cull(rmf_traffic_ros2::convert(now()));
+  }
+
+  const auto time = rmf_traffic_ros2::convert(now());
+  {
+    // Break out of negotiations that have hung up
+    std::lock_guard<std::mutex> lock(active_conflicts_mutex);
+    std::vector<std::size_t> erase;
+    for (const auto& [v, conflict] : active_conflicts._negotiations)
+    {
+      if (!conflict.has_value())
+      {
+        erase.push_back(v);
+      }
+      else
+      {
+        if (conflict->start_time + std::chrono::minutes(1) > time)
+        {
+          erase.push_back(v);
+        }
+      }
+    }
+
+    for (const auto c : erase)
+    {
+      RCLCPP_WARN(
+        get_logger(),
+        "Forcibly ending negotiation [%lu] because it has timed out.", c);
+      refuse(c);
+    }
+  }
+
+  {
+    // Break out of negotiation waits that have hung up
+    std::lock_guard<std::mutex> lock(active_conflicts_mutex);
+    std::vector<std::size_t> erase;
+    for (const auto& [v, wait] : active_conflicts._waiting)
+    {
+      if (wait.start_time + std::chrono::minutes(1) > time)
+      {
+        erase.push_back(v);
+      }
+    }
+
+    for (const auto c : erase)
+    {
+      RCLCPP_WARN(
+        get_logger(),
+        "Forcibly ending the wait period for negotiation [%lu] because it has "
+        "timed out.", c);
+      active_conflicts._waiting.erase(c);
+    }
+  }
 }
 
 //==============================================================================
@@ -1154,20 +1224,26 @@ void ScheduleNode::receive_conclusion_ack(const ConflictAck& msg)
 void ScheduleNode::receive_refusal(const ConflictRefusal& msg)
 {
   std::unique_lock<std::mutex> lock(active_conflicts_mutex);
+  refuse(msg.conflict_version);
+}
+
+//==============================================================================
+void ScheduleNode::refuse(std::size_t conflict_version)
+{
   auto* negotiation_room =
-    active_conflicts.negotiation(msg.conflict_version);
+    active_conflicts.negotiation(conflict_version);
 
   if (!negotiation_room)
     return;
 
   std::string output = "Refused negotiation ["
-    + std::to_string(msg.conflict_version) + "]";
+    + std::to_string(conflict_version) + "]";
   RCLCPP_INFO(get_logger(), "%s", output.c_str());
 
-  active_conflicts.refuse(msg.conflict_version);
+  active_conflicts.refuse(conflict_version);
 
   ConflictConclusion conclusion;
-  conclusion.conflict_version = msg.conflict_version;
+  conclusion.conflict_version = conflict_version;
   conclusion.resolved = false;
   conflict_conclusion_pub->publish(conclusion);
 }

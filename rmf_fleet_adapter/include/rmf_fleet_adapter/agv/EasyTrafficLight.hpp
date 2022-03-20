@@ -143,6 +143,9 @@ public:
   /// charge as a fraction of its total charge capacity.
   EasyTrafficLight& update_battery_soc(double battery_soc);
 
+  /// Tell the fleet adapter to replan. This can help to break out of deadlocks.
+  EasyTrafficLight& replan();
+
   /// Specify a period for how often the fleet state message is published for
   /// this fleet. Passing in std::nullopt will disable the fleet state message
   /// publishing. The default value is 1s.

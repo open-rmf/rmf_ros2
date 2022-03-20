@@ -141,6 +141,9 @@ public:
   rclcpp::TimerBase::SharedPtr query_cleanup_timer;
   void cleanup_queries();
 
+  rclcpp::TimerBase::SharedPtr cull_timer;
+  void cull();
+
   virtual void setup_query_services();
 
   using RegisterParticipant = rmf_traffic_msgs::srv::RegisterParticipant;
@@ -264,6 +267,7 @@ public:
   using ConflictRefusalSub = rclcpp::Subscription<ConflictRefusal>;
   ConflictRefusalSub::SharedPtr conflict_refusal_sub;
   void receive_refusal(const ConflictRefusal& msg);
+  void refuse(std::size_t conflict_version);
 
   using ConflictProposal = rmf_traffic_msgs::msg::NegotiationProposal;
   using ConflictProposalSub = rclcpp::Subscription<ConflictProposal>;
@@ -297,10 +301,17 @@ public:
 
     using NegotiationRoom = rmf_traffic_ros2::schedule::NegotiationRoom;
     using Entry = std::pair<Version, const Negotiation*>;
+    struct OpenNegotiation
+    {
+      NegotiationRoom room;
+      rmf_traffic::Time start_time;
+    };
+
     struct Wait
     {
       Version negotiation_version;
       std::optional<ItineraryVersion> itinerary_update_version;
+      rmf_traffic::Time start_time;
     };
 
     ConflictRecord(
@@ -310,7 +321,9 @@ public:
       // Do nothing
     }
 
-    std::optional<Entry> insert(const ConflictSet& conflicts)
+    std::optional<Entry> insert(
+      const ConflictSet& conflicts,
+      const rmf_traffic::Time time)
     {
       ConflictSet add_to_negotiation;
       const Version* existing_negotiation = nullptr;
@@ -355,17 +368,24 @@ public:
       auto& update_negotiation = insertion.first->second;
       if (!update_negotiation)
       {
-        update_negotiation = *rmf_traffic::schedule::Negotiation::make(
-          _viewer->snapshot(), std::vector<ParticipantId>(
-            add_to_negotiation.begin(), add_to_negotiation.end()));
+        update_negotiation =
+          OpenNegotiation{
+            *rmf_traffic::schedule::Negotiation::make(
+              _viewer->snapshot(), std::vector<ParticipantId>(
+              add_to_negotiation.begin(), add_to_negotiation.end())),
+            time
+          };
       }
       else
       {
         for (const auto p : add_to_negotiation)
-          update_negotiation->negotiation.add_participant(p);
+        {
+          update_negotiation->room.negotiation.add_participant(p);
+          update_negotiation->start_time = time;
+        }
       }
 
-      return Entry{negotiation_version, &update_negotiation->negotiation};
+      return Entry{negotiation_version, &update_negotiation->room.negotiation};
     }
 
     NegotiationRoom* negotiation(const Version version)
@@ -376,7 +396,7 @@ public:
 
       assert(it->second);
 
-      return &(*it->second);
+      return &(it->second->room);
     }
 
     void conclude(const Version version)
@@ -386,12 +406,20 @@ public:
         return;
 
       const auto& participants =
-        negotiation_it->second->negotiation.participants();
+        negotiation_it->second->room.negotiation.participants();
 
       for (const auto p : participants)
       {
         const auto insertion =
-          _waiting.insert({p, Wait{version, std::nullopt}});
+          _waiting.insert(
+            {
+              p,
+              Wait{
+                version,
+                std::nullopt,
+                negotiation_it->second->start_time
+              }
+            });
 
         assert(insertion.second);
         (void)(insertion);
@@ -408,7 +436,7 @@ public:
         return;
 
       const auto& participants =
-        negotiation_it->second->negotiation.participants();
+        negotiation_it->second->room.negotiation.participants();
 
       for (const auto p : participants)
         _version.erase(p);
@@ -475,7 +503,7 @@ public:
 //  private:
     std::unordered_map<ParticipantId, Version> _version;
     std::unordered_map<Version,
-      std::optional<NegotiationRoom>> _negotiations;
+      std::optional<OpenNegotiation>> _negotiations;
     std::unordered_map<ParticipantId, Wait> _waiting;
     std::shared_ptr<const rmf_traffic::schedule::Snappable> _viewer;
     Version _next_negotiation_version = 0;
@@ -486,6 +514,7 @@ public:
   std::shared_ptr<ParticipantRegistry> participant_registry;
 
   virtual void setup_conflict_topics_and_thread();
+  void setup_cull_timer();
 
   // TODO(MXG): Build this into the Database/Mirror class, tracking participant
   // description versions separately from itinerary versions.

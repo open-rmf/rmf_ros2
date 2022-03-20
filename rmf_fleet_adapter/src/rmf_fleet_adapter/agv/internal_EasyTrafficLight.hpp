@@ -18,6 +18,11 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__AGV__INTERNAL_EASYTRAFFICLIGHT_HPP
 #define SRC__RMF_FLEET_ADAPTER__AGV__INTERNAL_EASYTRAFFICLIGHT_HPP
 
+#include <rmf_fleet_msgs/msg/fleet_state.hpp>
+#include <rmf_fleet_msgs/msg/robot_state.hpp>
+#include <rmf_fleet_msgs/msg/robot_mode.hpp>
+#include <rmf_fleet_msgs/msg/location.hpp>
+
 #include <rmf_fleet_adapter/agv/EasyTrafficLight.hpp>
 
 #include "../services/FindPath.hpp"
@@ -119,7 +124,10 @@ public:
 
     void clear();
     rmf_traffic::schedule::Itinerary current_itinerary_slice() const;
+    std::optional<Location> location() const;
   };
+
+  using FleetState = rmf_fleet_msgs::msg::FleetState;
 
   struct Hooks
   {
@@ -131,6 +139,8 @@ public:
     std::shared_ptr<Node> node;
     rmf_traffic::agv::VehicleTraits traits;
     std::shared_ptr<const rmf_traffic::Profile> profile;
+    rclcpp::Publisher<FleetState>::SharedPtr fleet_state_pub;
+    rclcpp::TimerBase::SharedPtr fleet_update_timer;
   };
 
   struct Shared : public std::enable_shared_from_this<Shared>
@@ -207,6 +217,8 @@ public:
     void respond(
       const rmf_traffic::schedule::Negotiator::TableViewerPtr& table_viewer,
       const rmf_traffic::schedule::Negotiator::ResponderPtr& responder);
+
+    void publish_fleet_state() const;
   };
 
   class Negotiator : public rmf_traffic::schedule::Negotiator
