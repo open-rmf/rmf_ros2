@@ -544,7 +544,7 @@ void ScheduleNode::setup_conflict_topics_and_thread()
 void ScheduleNode::setup_cull_timer()
 {
   cull_timer = create_wall_timer(
-    std::chrono::minutes(1), [this](){ cull(); });
+    std::chrono::minutes(1), [this]() { cull(); });
 }
 
 //==============================================================================

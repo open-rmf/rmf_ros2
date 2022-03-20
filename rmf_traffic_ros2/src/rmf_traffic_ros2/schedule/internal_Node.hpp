@@ -368,13 +368,12 @@ public:
       auto& update_negotiation = insertion.first->second;
       if (!update_negotiation)
       {
-        update_negotiation =
-          OpenNegotiation{
-            *rmf_traffic::schedule::Negotiation::make(
-              _viewer->snapshot(), std::vector<ParticipantId>(
+        update_negotiation = OpenNegotiation{
+          *rmf_traffic::schedule::Negotiation::make(
+            _viewer->snapshot(), std::vector<ParticipantId>(
               add_to_negotiation.begin(), add_to_negotiation.end())),
-            time
-          };
+          time
+        };
       }
       else
       {
@@ -412,14 +411,14 @@ public:
       {
         const auto insertion =
           _waiting.insert(
-            {
-              p,
-              Wait{
-                version,
-                std::nullopt,
-                time
-              }
-            });
+          {
+            p,
+            Wait{
+              version,
+              std::nullopt,
+              time
+            }
+          });
 
         assert(insertion.second);
         (void)(insertion);

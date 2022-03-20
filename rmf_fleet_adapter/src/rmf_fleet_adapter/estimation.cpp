@@ -195,7 +195,8 @@ void estimate_midlane_state(
         std::vector<std::size_t> lanes;
         lanes.push_back(forward_lane->index());
 
-        if (const auto* reverse_lane = info.graph->lane_from(*target_gi, last_gi))
+        const auto* reverse_lane = info.graph->lane_from(*target_gi, last_gi);
+        if (reverse_lane)
         {
           if (!reverse_lane->entry().event())
           {
@@ -210,7 +211,8 @@ void estimate_midlane_state(
           }
         }
 
-        return info.updater->update_position({l.x, l.y, l.yaw}, std::move(lanes));
+        return info.updater->update_position({l.x, l.y, l.yaw},
+            std::move(lanes));
       }
     }
 

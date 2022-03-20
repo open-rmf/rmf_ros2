@@ -1150,8 +1150,8 @@ EasyTrafficLightPtr EasyTrafficLight::Implementation::make(
 
   handle->_pimpl->shared->hooks.fleet_update_timer =
     handle->_pimpl->shared->hooks.node->try_create_wall_timer(
-      std::chrono::seconds(1),
-      [w = handle->_pimpl->shared->weak_from_this()]()
+    std::chrono::seconds(1),
+    [w = handle->_pimpl->shared->weak_from_this()]()
     {
       if (const auto self = w.lock())
         self->publish_fleet_state();
@@ -1279,11 +1279,11 @@ EasyTrafficLight& EasyTrafficLight::fleet_state_publish_period(
   {
     _pimpl->shared->hooks.fleet_update_timer =
       _pimpl->shared->hooks.node->try_create_wall_timer(
-        *value, [w = _pimpl->shared->weak_from_this()]()
-        {
-          if (const auto self = w.lock())
-            self->publish_fleet_state();
-        });
+      *value, [w = _pimpl->shared->weak_from_this()]()
+      {
+        if (const auto self = w.lock())
+          self->publish_fleet_state();
+      });
   }
   else
   {
