@@ -296,7 +296,7 @@ private:
   bool _emergency_active = false;
   std::optional<std::string> _emergency_pullover_interrupt_token;
   ActiveTask _emergency_pullover;
-  uint64_t _count_emergency_pullover = 0;
+  uint16_t _count_emergency_pullover = 0;
   // Queue for dispatched tasks
   std::vector<Assignment> _queue;
   // An ID to keep track of the FIFO order of direct tasks
@@ -310,7 +310,8 @@ private:
   /// This phase will kick in automatically when no task is being executed. It
   /// will ensure that the agent continues to respond to traffic negotiations so
   /// it does not become a blocker for other traffic participants.
-  std::shared_ptr<LegacyTask::ActivePhase> _waiting;
+  ActiveTask _waiting;
+  uint16_t _count_waiting = 0;
 
   // TODO: Eliminate the need for a mutex by redesigning the use of the task
   // manager so that modifications of shared data only happen on designated
@@ -385,6 +386,8 @@ private:
 
   /// Resume whatever the task manager should be doing
   void _resume_from_emergency();
+
+  std::function<void()> _make_resume_from_waiting();
 
   /// Get the current state of the robot
   rmf_task::State _get_state() const;

@@ -85,7 +85,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     if (ready)
     {
       auto mirror = mirror_future.get();
-      auto snapshot = mirror.snapshot_handle();
+      auto snapshot = mirror.view();
       node->_connect = Connections{
         std::move(writer),
         rmf_traffic_ros2::blockade::Writer::make(*node),
@@ -234,13 +234,13 @@ bool different_location(
   if (participant.itinerary().size() != 1)
     return true;
 
-  const auto& route = participant.itinerary().front().route;
+  const auto& route = participant.itinerary().front();
 
   const auto& location = state.location;
-  if (route->map() != location.level_name)
+  if (route.map() != location.level_name)
     return true;
 
-  const auto& trajectory = route->trajectory();
+  const auto& trajectory = route.trajectory();
   if (trajectory.size() != 2)
     return true;
 
@@ -277,7 +277,8 @@ void FleetAdapterNode::update_robot(
     {
       // Switch to not having a task
       robot->current_goal = std::nullopt;
-      robot->schedule->set(make_hold(state, now));
+      robot->schedule->set(
+        robot->schedule->assign_plan_id(), make_hold(state, now));
       robot->blockade.cancel();
       return;
     }
@@ -304,12 +305,14 @@ void FleetAdapterNode::update_robot(
       // Just report our current location to the schedule
       if (robot->schedule->itinerary().empty())
       {
-        robot->schedule->set(make_hold(state, now));
+        robot->schedule->set(
+          robot->schedule->assign_plan_id(), make_hold(state, now));
         return;
       }
       else if (different_location(*robot->schedule, state))
       {
-        robot->schedule->set(make_hold(state, now));
+        robot->schedule->set(
+          robot->schedule->assign_plan_id(), make_hold(state, now));
         return;
       }
       else
@@ -334,7 +337,7 @@ rmf_traffic::Duration FleetAdapterNode::make_delay(
   rmf_traffic::Time now)
 {
   const auto original_t =
-    schedule.itinerary().front().route->trajectory().front().time();
+    schedule.itinerary().front().trajectory().front().time();
 
   return now - original_t;
 }
@@ -482,7 +485,8 @@ void FleetAdapterNode::make_plan(
   {
     // TODO(MXG): Refactor this condition with the one down below
     // We don't actually need to go anywhere
-    robot.schedule->set(make_hold(state, now));
+    robot.schedule->set(
+      robot.schedule->assign_plan_id(), make_hold(state, now));
     robot.blockade.cancel();
     robot.expectation = std::nullopt;
     robot.current_goal = std::nullopt;
@@ -494,7 +498,8 @@ void FleetAdapterNode::make_plan(
   if (robot.expectation->path.size() == 1)
   {
     // We don't actually need to go anywhere
-    robot.schedule->set(make_hold(state, now));
+    robot.schedule->set(
+      robot.schedule->assign_plan_id(), make_hold(state, now));
     robot.blockade.cancel();
     robot.expectation = std::nullopt;
     robot.current_goal = std::nullopt;
@@ -514,7 +519,7 @@ void FleetAdapterNode::make_plan(
   add_offset_itinerary(std::chrono::seconds(15), original, itinerary);
   add_offset_itinerary(std::chrono::seconds(20), original, itinerary);
 
-  robot.schedule->set(std::move(itinerary));
+  robot.schedule->set(robot.schedule->assign_plan_id(), std::move(itinerary));
   robot.blockade.set(robot.expectation->path);
 
   // Immediately report that all checkpoints are ready. This will (hopefully)

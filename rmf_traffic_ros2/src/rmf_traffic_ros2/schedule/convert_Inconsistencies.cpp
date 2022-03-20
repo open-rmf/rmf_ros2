@@ -21,21 +21,23 @@ namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleInconsistency convert(
-  const rmf_traffic::schedule::Inconsistencies::Element& from)
+  const rmf_traffic::schedule::Inconsistencies::Element& from,
+  const rmf_traffic::schedule::ProgressVersion progress_version)
 {
-  rmf_traffic_msgs::msg::ScheduleInconsistency msg;
-  msg.participant = from.participant;
-  msg.last_known_version = from.ranges.last_known_version();
-
+  std::vector<rmf_traffic_msgs::msg::ScheduleInconsistencyRange> ranges;
   for (const auto& r : from.ranges)
   {
     rmf_traffic_msgs::msg::ScheduleInconsistencyRange range;
     range.lower = r.lower;
     range.upper = r.upper;
-    msg.ranges.push_back(range);
+    ranges.push_back(range);
   }
 
-  return msg;
+  return rmf_traffic_msgs::build<rmf_traffic_msgs::msg::ScheduleInconsistency>()
+    .participant(from.participant)
+    .ranges(std::move(ranges))
+    .last_known_itinerary(from.ranges.last_known_version())
+    .last_known_progress(progress_version);
 }
 
 } // namespace rmf_traffic_ros2

@@ -124,6 +124,12 @@ std::function<rmf_traffic::Time()> Node::clock() const
 }
 
 //==============================================================================
+rmf_traffic::Time Node::rmf_now() const
+{
+  return rmf_traffic_ros2::convert(now());
+}
+
+//==============================================================================
 auto Node::door_state() const -> const DoorStateObs&
 {
   return _door_state_obs->observe();

@@ -62,16 +62,6 @@ inline void print_route(
 inline void print_itinerary(
   const rmf_traffic::schedule::Itinerary& itinerary)
 {
-  auto start_time = print_start(*itinerary.front());
-  for (const auto& r : itinerary)
-    print_route(*r, start_time);
-
-  std::cout << "(end)\n" << std::endl;
-}
-
-//==============================================================================
-inline void print_itinerary(const std::vector<rmf_traffic::Route>& itinerary)
-{
   auto start_time = print_start(itinerary.front());
   for (const auto& r : itinerary)
     print_route(r, start_time);
@@ -269,7 +259,7 @@ struct MetaPlannerAction
     const auto initial_plan = planner_B.plan(start_B, goal_B);
     assert(initial_plan);
 
-    p_B.set(initial_plan->get_itinerary());
+    p_B.set(p_B.plan_id_assigner()->assign(), initial_plan->get_itinerary());
 
     rmf_traffic::agv::Planner planner_A(
       config,
@@ -295,9 +285,8 @@ struct MetaPlannerAction
       rmf_traffic::schedule::Database database;
       const auto p = database.register_participant(description);
       rmf_traffic::schedule::ItineraryVersion v = 0;
-      rmf_traffic::schedule::Version r = 0;
       for (const auto& route : alternative)
-        database.extend(p.id(), {{r, route}}, v++);
+        database.extend(p.id(), {route}, v++);
 
       planner_actions.emplace_back(std::make_shared<PlannerAction>(
           std::move(database), config, start_B, goal_B, sync_failure));

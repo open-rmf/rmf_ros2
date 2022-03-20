@@ -143,11 +143,35 @@ public:
   /// charge as a fraction of its total charge capacity.
   EasyTrafficLight& update_battery_soc(double battery_soc);
 
+  /// Tell the fleet adapter to replan. This can help to break out of deadlocks.
+  EasyTrafficLight& replan();
+
   /// Specify a period for how often the fleet state message is published for
   /// this fleet. Passing in std::nullopt will disable the fleet state message
   /// publishing. The default value is 1s.
   EasyTrafficLight& fleet_state_publish_period(
     std::optional<rmf_traffic::Duration> value);
+
+  /// This class will be provided to the deadlock_callback when a deadlock has
+  /// occurred due to an unresolvable conflict. Human intervention may be
+  /// required at this point, because the RMF traffic negotiation system does
+  /// not have a high enough level of control over the conflicting participants
+  /// to resolve it.
+  class Blocker
+  {
+  public:
+
+    /// Get the schedule participant ID of the blocker.
+    rmf_traffic::schedule::ParticipantId participant_id() const;
+
+    /// Get the description of the blocker.
+    const rmf_traffic::schedule::ParticipantDescription& description() const;
+
+    class Implementation;
+  private:
+    Blocker();
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
 
   class Implementation;
 private:

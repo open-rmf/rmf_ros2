@@ -20,7 +20,6 @@
 
 #include <rmf_traffic/schedule/Writer.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
-#include <rmf_traffic_msgs/msg/schedule_writer_item.hpp>
 
 #include <rclcpp/node.hpp>
 
@@ -93,14 +92,6 @@ private:
 using WriterPtr = std::shared_ptr<Writer>;
 
 } // namespace schedule
-
-//==============================================================================
-rmf_traffic::schedule::Writer::Input convert(
-  const std::vector<rmf_traffic_msgs::msg::ScheduleWriterItem>& from);
-
-//==============================================================================
-std::vector<rmf_traffic_msgs::msg::ScheduleWriterItem> convert(
-  const rmf_traffic::schedule::Writer::Input& from);
 
 } // namespace rmf_traffic_ros2
 

@@ -491,6 +491,7 @@ public:
           _travel_info.updater->unstable().get_participant())
         {
           participant->set(
+            participant->assign_plan_id(),
             {rmf_traffic::Route{state.location.level_name, trajectory}});
           _dock_schedule_time = now;
         }
@@ -688,14 +689,14 @@ private:
 
   uint32_t _current_task_id = 0;
 
-  std::mutex _mutex;
+  std::recursive_mutex _mutex;
 
   // ActionExecution for managing teleop action
   std::optional<ActionExecution> _action_execution = std::nullopt;
 
-  std::unique_lock<std::mutex> _lock()
+  std::unique_lock<std::recursive_mutex> _lock()
   {
-    std::unique_lock<std::mutex> lock(_mutex, std::defer_lock);
+    std::unique_lock<std::recursive_mutex> lock(_mutex, std::defer_lock);
     while (!lock.try_lock())
     {
       // Intentionally busy wait
@@ -892,10 +893,10 @@ struct Connections : public std::enable_shared_from_this<Connections>
       });
   }
 
-  std::mutex _mutex;
-  std::unique_lock<std::mutex> lock()
+  std::recursive_mutex _mutex;
+  std::unique_lock<std::recursive_mutex> lock()
   {
-    std::unique_lock<std::mutex> l(_mutex, std::defer_lock);
+    std::unique_lock<std::recursive_mutex> l(_mutex, std::defer_lock);
     while (!l.try_lock())
     {
       // Intentionally busy wait
@@ -955,7 +956,7 @@ std::shared_ptr<Connections> make_fleet(
     node->declare_parameter("server_uri", std::string());
   if (!uri.empty())
   {
-    RCLCPP_ERROR(
+    RCLCPP_INFO(
       node->get_logger(),
       "API server URI: [%s]", uri.c_str());
 

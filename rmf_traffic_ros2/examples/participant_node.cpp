@@ -79,7 +79,7 @@ std::shared_ptr<ParticipantNode> make_node()
     {
       node->participant = std::move(participant);
       std::cout << "Sending trajectory" << std::endl;
-      node->participant->set({{"test map", std::move(t)}});
+      node->participant->set(0, {{"test map", std::move(t)}});
     });
 
   return node;

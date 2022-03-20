@@ -27,11 +27,12 @@
 
 #include "../log_to_json.hpp"
 #include "../tasks/Delivery.hpp"
-#include "../tasks/Loop.hpp"
+#include "../tasks/Patrol.hpp"
 #include "../tasks/Clean.hpp"
 #include "../tasks/ChargeBattery.hpp"
 #include "../tasks/Compose.hpp"
 #include "../events/GoToPlace.hpp"
+#include "../events/ResponsiveWait.hpp"
 #include "../events/PerformAction.hpp"
 
 #include <rmf_task/Constraints.hpp>
@@ -1036,12 +1037,14 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
   deserialization.place = make_place_deserializer(planner);
   deserialization.add_schema(schemas::place);
 
+  events::ResponsiveWait::add(*activation.event);
+
   tasks::add_delivery(
     deserialization,
     activation,
     node->clock());
 
-  tasks::add_loop(
+  tasks::add_patrol(
     deserialization,
     activation,
     node->clock());
@@ -1259,7 +1262,7 @@ void FleetUpdateHandle::add_robot(
           std::move(command),
           std::move(start),
           std::move(participant),
-          fleet->_pimpl->snappable,
+          fleet->_pimpl->mirror,
           fleet->_pimpl->planner,
           fleet->_pimpl->activation.task,
           fleet->_pimpl->task_parameters,
@@ -1332,7 +1335,7 @@ void FleetUpdateHandle::add_robot(
                   }
 
                   last_time = now;
-                  c->trigger_interrupt();
+                  c->request_replan();
                 }
               });
           }

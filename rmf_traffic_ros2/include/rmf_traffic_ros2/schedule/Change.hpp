@@ -23,16 +23,25 @@
 #include <rmf_traffic_msgs/msg/schedule_change_add.hpp>
 #include <rmf_traffic_msgs/msg/schedule_change_delay.hpp>
 #include <rmf_traffic_msgs/msg/schedule_change_cull.hpp>
+#include <rmf_traffic_msgs/msg/schedule_change_add_item.hpp>
 
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Change::Add::Item convert(
+  const rmf_traffic_msgs::msg::ScheduleChangeAddItem& from);
+
+//==============================================================================
+rmf_traffic_msgs::msg::ScheduleChangeAddItem convert(
+  const rmf_traffic::schedule::Change::Add::Item& from);
+
+//==============================================================================
+rmf_traffic::schedule::Change::Add convert(
   const rmf_traffic_msgs::msg::ScheduleChangeAdd& from);
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleChangeAdd convert(
-  const rmf_traffic::schedule::Change::Add::Item& from);
+  const rmf_traffic::schedule::Change::Add& from);
 
 //==============================================================================
 rmf_traffic::schedule::Change::Delay convert(

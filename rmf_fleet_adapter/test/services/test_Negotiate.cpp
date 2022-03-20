@@ -116,12 +116,12 @@ bool no_conflicts(
   {
     for (const auto& r1 : i1)
     {
-      if (r0->map() != r1->map())
+      if (r0.map() != r1.map())
         continue;
 
       if (rmf_traffic::DetectConflict::between(
-          p0, r0->trajectory(),
-          p1, r1->trajectory()))
+          p0, r0.trajectory(), nullptr,
+          p1, r1.trajectory(), nullptr))
         return false;
     }
   }
@@ -141,17 +141,6 @@ bool no_conflicts(
     p1.description().profile(), i1);
 }
 
-//==============================================================================
-rmf_traffic::schedule::Itinerary convert(
-  const rmf_traffic::schedule::Writer::Input& routes)
-{
-  rmf_traffic::schedule::Itinerary output;
-  output.reserve(routes.size());
-  for (const auto& r : routes)
-    output.push_back(r.route);
-
-  return output;
-}
 //==============================================================================
 inline rmf_traffic::Time print_start(const rmf_traffic::Route& route)
 {
@@ -180,24 +169,6 @@ inline void print_route(
     const auto rel_time = wp.time() - start_time;
     std::cout << "(" << rmf_traffic::time::to_seconds(rel_time) << "; "
               << wp.position().transpose() << ") --> ";
-  }
-}
-
-//==============================================================================
-inline void print_itinerary(
-  const rmf_traffic::schedule::Itinerary& itinerary)
-{
-  if (itinerary.empty())
-  {
-    std::cout << "No plan needed!" << std::endl;
-  }
-  else
-  {
-    auto start_time = print_start(*itinerary.front());
-    for (const auto& r : itinerary)
-      print_route(*r, start_time);
-
-    std::cout << "(end)" << std::endl;
   }
 }
 
@@ -393,7 +364,7 @@ public:
     }
 
     auto negotiate = rmf_fleet_adapter::services::Negotiate::path(
-      _planner, _starts, _goal, table_viewer, responder, nullptr,
+      0, _planner, _starts, _goal, table_viewer, responder, nullptr,
       evaluator);
 
     auto sub = rmf_rxcpp::make_job<
@@ -529,7 +500,7 @@ public:
     }
 
     auto negotiate = rmf_fleet_adapter::services::Negotiate::emergency_pullover(
-      _planner, _starts, table_viewer, responder, nullptr, evaluator);
+      0, _planner, _starts, table_viewer, responder, nullptr, evaluator);
 
     auto sub = rmf_rxcpp::make_job<
       rmf_fleet_adapter::services::Negotiate::Result>(std::move(negotiate))
@@ -613,6 +584,7 @@ public:
     }
 
     void submit(
+      rmf_traffic::PlanId plan,
       std::vector<rmf_traffic::Route> itinerary,
       ApprovalCallback approval_callback = nullptr) const final
     {
@@ -644,7 +616,7 @@ public:
       }
 
       rmf_traffic::schedule::SimpleResponder(_table)
-      .submit(std::move(itinerary), std::move(approval_callback));
+      .submit(plan, std::move(itinerary), std::move(approval_callback));
 
       if (room->_print)
       {
@@ -1006,7 +978,7 @@ SCENARIO("Test Plan Negotiation Between Two Participants", "[.high_cpu]")
 
   const auto plan_1 = planner->plan(start_1, goal_1);
   REQUIRE(plan_1);
-  p1.set(plan_1->get_itinerary());
+  p1.set(p1.assign_plan_id(), plan_1->get_itinerary());
 
   const auto start_2 =
     rmf_traffic::agv::Plan::Start(start_time, 7, 0.0*M_PI/180.0);
@@ -1014,10 +986,10 @@ SCENARIO("Test Plan Negotiation Between Two Participants", "[.high_cpu]")
 
   const auto plan_2 = planner->plan(start_2, goal_2);
   REQUIRE(plan_2);
-  p2.set(plan_2->get_itinerary());
+  p2.set(p2.assign_plan_id(), plan_2->get_itinerary());
 
   CHECK_FALSE(
-    no_conflicts(p1, convert(p1.itinerary()), p2, convert(p2.itinerary())));
+    no_conflicts(p1, p1.itinerary(), p2, p2.itinerary()));
 
   WHEN("Participants Crossing Paths")
   {
@@ -1033,7 +1005,7 @@ SCENARIO("Test Plan Negotiation Between Two Participants", "[.high_cpu]")
         rmf_traffic::agv::Plan::Goal(10));
       REQUIRE(plan_3);
 
-      p3.set(plan_3->get_itinerary());
+      p3.set(p3.assign_plan_id(), plan_3->get_itinerary());
     }
 
     TestPathNegotiator::Intentions intentions;
@@ -1052,9 +1024,9 @@ SCENARIO("Test Plan Negotiation Between Two Participants", "[.high_cpu]")
 
     auto p1_itinerary = get_participant_itinerary(proposal, p1.id()).value();
     auto p2_itinerary = get_participant_itinerary(proposal, p2.id()).value();
-    CHECK(p1_itinerary.back()->trajectory().back().position().segment(0, 2)
+    CHECK(p1_itinerary.back().trajectory().back().position().segment(0, 2)
       == graph.get_waypoint(goal_1.waypoint()).get_location());
-    CHECK(p2_itinerary.back()->trajectory().back().position().segment(0, 2)
+    CHECK(p2_itinerary.back().trajectory().back().position().segment(0, 2)
       == graph.get_waypoint(goal_2.waypoint()).get_location());
 
     CHECK(no_conflicts(p1, p1_itinerary, p2, p2_itinerary));
@@ -1166,11 +1138,11 @@ SCENARIO("Multi-participant negotiation", "[.high_cpu]")
   auto p0_itinerary = get_participant_itinerary(proposal, 0).value();
   auto p1_itinerary = get_participant_itinerary(proposal, 1).value();
   auto p2_itinerary = get_participant_itinerary(proposal, 2).value();
-  CHECK(p0_itinerary.back()->trajectory().back().position()
+  CHECK(p0_itinerary.back().trajectory().back().position()
     .segment(0, 2) == graph.get_waypoint(goal_0).get_location());
-  CHECK(p1_itinerary.back()->trajectory().back().position()
+  CHECK(p1_itinerary.back().trajectory().back().position()
     .segment(0, 2) == graph.get_waypoint(goal_1).get_location());
-  CHECK(p2_itinerary.back()->trajectory().back().position()
+  CHECK(p2_itinerary.back().trajectory().back().position()
     .segment(0, 2) == graph.get_waypoint(goal_2).get_location());
 
   CHECK(no_conflicts(profile, p0_itinerary, profile, p1_itinerary));
@@ -1271,9 +1243,9 @@ SCENARIO("A single lane with an alcove holding space", "[.high_cpu]")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -1319,9 +1291,9 @@ SCENARIO("A single lane with an alcove holding space", "[.high_cpu]")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -1367,9 +1339,9 @@ SCENARIO("A single lane with an alcove holding space", "[.high_cpu]")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -1416,9 +1388,9 @@ SCENARIO("A single lane with an alcove holding space", "[.high_cpu]")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
 
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -1526,9 +1498,9 @@ SCENARIO("A single lane with a alternate one way path", "[.high_cpu]")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -1573,9 +1545,9 @@ SCENARIO("A single lane with a alternate one way path", "[.high_cpu]")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
 
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -1686,9 +1658,9 @@ SCENARIO("A single lane with a alternate two way path", "[.high_cpu]")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
 
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -1733,9 +1705,9 @@ SCENARIO("A single lane with a alternate two way path", "[.high_cpu]")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
 
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["A"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -1853,9 +1825,9 @@ SCENARIO("A single loop with alcoves at each vertex", "[.high_cpu]")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["C'"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D'"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -1899,9 +1871,9 @@ SCENARIO("A single loop with alcoves at each vertex", "[.high_cpu]")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["C'"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["B'"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -1945,9 +1917,9 @@ SCENARIO("A single loop with alcoves at each vertex", "[.high_cpu]")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D'"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["B'"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -2013,11 +1985,11 @@ SCENARIO("A single loop with alcoves at each vertex", "[.high_cpu]")
           get_participant_itinerary(proposal, p1.id()).value();
         auto p2_itinerary =
           get_participant_itinerary(proposal, p2.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["C'"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["D'"].first);
-        CHECK(p2_itinerary.back()->trajectory().back().position()
+        CHECK(p2_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["B'"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -2196,7 +2168,7 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
 
         auto p0_itinerary = get_participant_itinerary(proposal, p0.id());
         CHECK(p0_itinerary);
-        CHECK(p0_itinerary->back()->trajectory().back().position()
+        CHECK(p0_itinerary->back().trajectory().back().position()
           .segment(0, 2) == vertices["Z"].first);
       }
     }
@@ -2227,7 +2199,7 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
 
         auto p0_itinerary = get_participant_itinerary(proposal, p0.id());
         CHECK(p0_itinerary);
-        CHECK(p0_itinerary->back()->trajectory().back().position()
+        CHECK(p0_itinerary->back().trajectory().back().position()
           .segment(0, 2) == vertices["C"].first);
       }
     }
@@ -2279,9 +2251,9 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
 
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["Z"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["V"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -2325,9 +2297,9 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["Z"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["E"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -2371,9 +2343,9 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["X"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["Z"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -2417,9 +2389,9 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
           get_participant_itinerary(proposal, p0.id()).value();
         auto p1_itinerary =
           get_participant_itinerary(proposal, p1.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["Z"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["C"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -2484,11 +2456,11 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
           get_participant_itinerary(proposal, p1.id()).value();
         auto p2_itinerary =
           get_participant_itinerary(proposal, p2.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["Z"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["V"].first);
-        CHECK(p2_itinerary.back()->trajectory().back().position()
+        CHECK(p2_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["X"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -2545,11 +2517,11 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
           get_participant_itinerary(proposal, p1.id()).value();
         auto p2_itinerary =
           get_participant_itinerary(proposal, p2.id()).value();
-        CHECK(p0_itinerary.back()->trajectory().back().position()
+        CHECK(p0_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["Z"].first);
-        CHECK(p1_itinerary.back()->trajectory().back().position()
+        CHECK(p1_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["V"].first);
-        CHECK(p2_itinerary.back()->trajectory().back().position()
+        CHECK(p2_itinerary.back().trajectory().back().position()
           .segment(0, 2) == vertices["C"].first);
 
         CHECK(no_conflicts(p0, p0_itinerary, p1, p1_itinerary));
@@ -2607,7 +2579,7 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
                 continue;
 
               const Eigen::Vector2d p =
-                it.back()->trajectory().back().position().block<2, 1>(0, 0);
+                it.back().trajectory().back().position().block<2, 1>(0, 0);
 
               if ( (p - wp.get_location()).norm() < 1e-3)
                 return true;

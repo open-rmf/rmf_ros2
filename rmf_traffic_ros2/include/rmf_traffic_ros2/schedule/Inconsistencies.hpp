@@ -20,12 +20,14 @@
 
 #include <rmf_traffic/schedule/Inconsistencies.hpp>
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
+#include <rmf_traffic/schedule/Itinerary.hpp>
 
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic_msgs::msg::ScheduleInconsistency convert(
-  const rmf_traffic::schedule::Inconsistencies::Element& from);
+  const rmf_traffic::schedule::Inconsistencies::Element& from,
+  const rmf_traffic::schedule::ProgressVersion progress_version);
 
 } // namespace rmf_traffic_ros2
 

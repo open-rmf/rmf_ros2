@@ -68,7 +68,7 @@ std::shared_ptr<FleetAdapterNode> FleetAdapterNode::make()
     {
       node->_mirror = mirror_future.get();
       node->_negotiation = rmf_traffic_ros2::schedule::Negotiation(
-        *node, node->_mirror->snapshot_handle());
+        *node, node->_mirror->view());
 
       // Don't subscribe until everything else is ready
       node->_fleet_state_subscription =
@@ -120,7 +120,7 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
           for (const auto& p : proposals)
           {
             const auto other_participant =
-            node->_mirror->viewer().get_participant(p.participant);
+            node->_mirror->view()->get_participant(p.participant);
 
             if (!other_participant)
             {
@@ -135,21 +135,19 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
             const auto& other_profile = other_participant->profile();
             for (const auto& other_route : p.itinerary)
             {
-              for (const auto& item : itinerary)
+              for (const auto& route : itinerary)
               {
-                if (item.route->map() != other_route->map())
+                if (route.map() != other_route.map())
                   continue;
 
                 if (rmf_traffic::DetectConflict::between(
-                  profile,
-                  item.route->trajectory(),
-                  other_profile,
-                  other_route->trajectory()))
+                  profile, route.trajectory(), nullptr,
+                  other_profile, other_route.trajectory(), nullptr))
                 {
                   rmf_traffic::schedule::Itinerary alternative;
                   alternative.reserve(itinerary.size());
-                  for (const auto& item : itinerary)
-                    alternative.emplace_back(item.route);
+                  for (const auto& r : itinerary)
+                    alternative.emplace_back(r);
 
                   return responder->reject({std::move(alternative)});
                 }
@@ -159,10 +157,12 @@ FleetAdapterNode::ScheduleEntry::ScheduleEntry(
 
           std::vector<rmf_traffic::Route> submission;
           submission.reserve(itinerary.size());
-          for (const auto& item : itinerary)
-            submission.push_back(*item.route);
+          for (const auto& r : itinerary)
+            submission.push_back(r);
 
-          return responder->submit(std::move(submission));
+          return responder->submit(
+            this->schedule->participant().current_plan_id(),
+            std::move(submission));
         });
     }, async_mutex);
 }

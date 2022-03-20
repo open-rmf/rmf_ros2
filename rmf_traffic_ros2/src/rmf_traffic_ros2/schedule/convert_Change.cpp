@@ -20,26 +20,42 @@
 #include <rmf_traffic_ros2/Time.hpp>
 #include <rmf_traffic_ros2/schedule/ParticipantDescription.hpp>
 
+#include "internal_convert_vector.hpp"
+
 namespace rmf_traffic_ros2 {
 
 //==============================================================================
 rmf_traffic::schedule::Change::Add::Item convert(
-  const rmf_traffic_msgs::msg::ScheduleChangeAdd& from)
+  const rmf_traffic_msgs::msg::ScheduleChangeAddItem& from)
 {
-  return {from.id, std::make_shared<rmf_traffic::Route>(convert(from.route))};
+  return {
+    from.route_id,
+    from.storage_id,
+    std::make_shared<rmf_traffic::Route>(convert(from.route))
+  };
 }
 
 //==============================================================================
-rmf_traffic_msgs::msg::ScheduleChangeAdd convert(
+rmf_traffic_msgs::msg::ScheduleChangeAddItem convert(
   const rmf_traffic::schedule::Change::Add::Item& from)
 {
   if (!from.route)
     throw std::runtime_error("Cannot convert a nullptr route into a message");
 
-  rmf_traffic_msgs::msg::ScheduleChangeAdd output;
-  output.id = from.id;
-  output.route = convert(*from.route);
-  return output;
+  return rmf_traffic_msgs::build<rmf_traffic_msgs::msg::ScheduleChangeAddItem>()
+    .route_id(from.route_id)
+    .storage_id(from.storage_id)
+    .route(convert(*from.route));
+}
+
+//==============================================================================
+rmf_traffic::schedule::Change::Add convert(
+  const rmf_traffic_msgs::msg::ScheduleChangeAdd& from)
+{
+  return {
+    from.plan_id,
+    convert_vector<rmf_traffic::schedule::Change::Add::Item>(from.items)
+  };
 }
 
 //==============================================================================

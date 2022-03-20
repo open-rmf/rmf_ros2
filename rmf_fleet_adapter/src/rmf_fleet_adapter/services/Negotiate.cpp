@@ -22,6 +22,7 @@ namespace services {
 
 //==============================================================================
 Negotiate::Negotiate(
+  rmf_traffic::PlanId assigned_id,
   std::shared_ptr<const rmf_traffic::agv::Planner> planner,
   rmf_traffic::agv::Plan::StartSet starts,
   std::vector<rmf_traffic::agv::Plan::Goal> goals,
@@ -30,7 +31,10 @@ Negotiate::Negotiate(
   ApprovalCallback approval,
   const ProgressEvaluator evaluator,
   std::vector<rmf_traffic::Route> initial_itinerary)
-: _planner(std::move(planner)),
+// We add 1000 to the assigned ID to give room for other plan adjustments that
+// could happen while the negotiation is ongoing.
+: _plan_id(assigned_id + 1000),
+  _planner(std::move(planner)),
   _starts(std::move(starts)),
   _goals(std::move(goals)),
   _viewer(std::move(viewer)),
@@ -44,6 +48,7 @@ Negotiate::Negotiate(
 
 //==============================================================================
 std::shared_ptr<Negotiate> Negotiate::path(
+  const rmf_traffic::PlanId plan_id,
   std::shared_ptr<const rmf_traffic::agv::Planner> planner,
   rmf_traffic::agv::Plan::StartSet starts,
   rmf_traffic::agv::Plan::Goal goal,
@@ -54,6 +59,7 @@ std::shared_ptr<Negotiate> Negotiate::path(
   std::vector<rmf_traffic::Route> initial_itinerary)
 {
   return std::make_shared<Negotiate>(
+    plan_id,
     std::move(planner),
     std::move(starts),
     std::vector<rmf_traffic::agv::Plan::Goal>({std::move(goal)}),
@@ -66,6 +72,7 @@ std::shared_ptr<Negotiate> Negotiate::path(
 
 //==============================================================================
 std::shared_ptr<Negotiate> Negotiate::emergency_pullover(
+  const rmf_traffic::PlanId plan_id,
   std::shared_ptr<const rmf_traffic::agv::Planner> planner,
   rmf_traffic::agv::Plan::StartSet starts,
   rmf_traffic::schedule::Negotiation::Table::ViewerPtr viewer,
@@ -86,6 +93,7 @@ std::shared_ptr<Negotiate> Negotiate::emergency_pullover(
   }
 
   return std::make_shared<Negotiate>(
+    plan_id,
     std::move(planner),
     std::move(starts),
     std::move(goals),

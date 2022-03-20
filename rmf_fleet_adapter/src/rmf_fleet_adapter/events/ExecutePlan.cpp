@@ -17,6 +17,7 @@
 
 #include "ExecutePlan.hpp"
 #include "LegacyPhaseShim.hpp"
+#include "WaitForTraffic.hpp"
 
 #include "../phases/MoveRobot.hpp"
 #include "../phases/DoorOpen.hpp"
@@ -34,7 +35,26 @@ namespace {
 using StandbyPtr = rmf_task_sequence::Event::StandbyPtr;
 using UpdateFn = std::function<void()>;
 using MakeStandby = std::function<StandbyPtr(UpdateFn)>;
-using LegacyPhases = std::vector<std::shared_ptr<LegacyTask::PendingPhase>>;
+
+struct LegacyPhaseWrapper
+{
+  LegacyPhaseWrapper(
+    std::shared_ptr<LegacyTask::PendingPhase> phase_,
+    rmf_traffic::Time time_,
+    rmf_traffic::Dependencies dependencies_)
+  : phase(std::move(phase_)),
+    time(time_),
+    dependencies(std::move(dependencies_))
+  {
+    // Do nothing
+  }
+
+  std::shared_ptr<LegacyTask::PendingPhase> phase;
+  rmf_traffic::Time time;
+  rmf_traffic::Dependencies dependencies;
+};
+
+using LegacyPhases = std::vector<LegacyPhaseWrapper>;
 
 using DockRobot = phases::DockRobot::PendingPhase;
 using DoorOpen = phases::DoorOpen::PendingPhase;
@@ -42,6 +62,20 @@ using DoorClose = phases::DoorClose::PendingPhase;
 using RequestLift = phases::RequestLift::PendingPhase;
 using EndLift = phases::EndLiftSession::Pending;
 using Move = phases::MoveRobot::PendingPhase;
+
+//==============================================================================
+MakeStandby make_wait_for_traffic(
+  const agv::RobotContextPtr& context,
+  const rmf_traffic::Dependencies& deps,
+  const rmf_traffic::Time time,
+  const rmf_task_sequence::Event::AssignIDPtr& id)
+{
+  return [context, deps, time, id](UpdateFn update)
+    {
+      return WaitForTraffic::Standby::make(
+        context, deps, time, id, std::move(update));
+    };
+}
 
 //==============================================================================
 class EventPhaseFactory : public rmf_traffic::agv::Graph::Lane::Executor
@@ -54,10 +88,12 @@ public:
     agv::RobotContextPtr context,
     LegacyPhases& phases,
     rmf_traffic::Time event_start_time,
+    const rmf_traffic::Dependencies& dependencies,
     bool& continuous)
   : _context(std::move(context)),
     _phases(phases),
     _event_start_time(event_start_time),
+    _dependencies(dependencies),
     _continuous(continuous)
   {
     // Do nothing
@@ -66,9 +102,10 @@ public:
   void execute(const Dock& dock) final
   {
     assert(!_moving_lift);
-    _phases.push_back(
+    _phases.emplace_back(
       std::make_shared<phases::DockRobot::PendingPhase>(
-        _context, dock.dock_name()));
+        _context, dock.dock_name()),
+      _event_start_time, _dependencies);
     _continuous = false;
   }
 
@@ -76,12 +113,13 @@ public:
   {
     assert(!_moving_lift);
     const auto node = _context->node();
-    _phases.push_back(
+    _phases.emplace_back(
       std::make_shared<phases::DoorOpen::PendingPhase>(
         _context,
         open.name(),
         _context->requester_id(),
-        _event_start_time + open.duration()));
+        _event_start_time + open.duration()),
+      _event_start_time, _dependencies);
     _continuous = true;
   }
 
@@ -91,11 +129,12 @@ public:
 
     // TODO(MXG): Account for event duration in this phase
     const auto node = _context->node();
-    _phases.push_back(
+    _phases.emplace_back(
       std::make_shared<phases::DoorClose::PendingPhase>(
         _context,
         close.name(),
-        _context->requester_id()));
+        _context->requester_id()),
+      _event_start_time, _dependencies);
     _continuous = true;
   }
 
@@ -103,13 +142,14 @@ public:
   {
     assert(!_moving_lift);
     const auto node = _context->node();
-    _phases.push_back(
+    _phases.emplace_back(
       std::make_shared<phases::RequestLift::PendingPhase>(
         _context,
         open.lift_name(),
         open.floor_name(),
         _event_start_time,
-        phases::RequestLift::Located::Outside));
+        phases::RequestLift::Located::Outside),
+      _event_start_time, _dependencies);
 
     _continuous = true;
   }
@@ -129,13 +169,14 @@ public:
     const auto node = _context->node();
 
     // TODO(MXG): The time calculation here should be considered more carefully.
-    _phases.push_back(
+    _phases.emplace_back(
       std::make_shared<phases::RequestLift::PendingPhase>(
         _context,
         open.lift_name(),
         open.floor_name(),
         _event_start_time + open.duration() + _lifting_duration,
-        phases::RequestLift::Located::Inside));
+        phases::RequestLift::Located::Inside),
+      _event_start_time, _dependencies);
     _moving_lift = false;
 
     _continuous = true;
@@ -145,11 +186,12 @@ public:
   {
     assert(!_moving_lift);
     const auto node = _context->node();
-    _phases.push_back(
+    _phases.emplace_back(
       std::make_shared<phases::EndLiftSession::Pending>(
         _context,
         close.lift_name(),
-        close.floor_name()));
+        close.floor_name()),
+      _event_start_time, _dependencies);
 
     _continuous = true;
   }
@@ -166,8 +208,9 @@ public:
 
 private:
   agv::RobotContextPtr _context;
-  std::vector<std::shared_ptr<LegacyTask::PendingPhase>>& _phases;
+  LegacyPhases& _phases;
   rmf_traffic::Time _event_start_time;
+  const rmf_traffic::Dependencies& _dependencies;
   bool& _continuous;
   bool _moving_lift = false;
   rmf_traffic::Duration _lifting_duration = rmf_traffic::Duration(0);
@@ -189,7 +232,7 @@ std::optional<EventGroupInfo> search_for_door_group(
   const rmf_task::Event::AssignIDPtr& id)
 {
   const auto* door_open = dynamic_cast<const phases::DoorOpen::PendingPhase*>(
-    head->get());
+    head->phase.get());
 
   if (!door_open)
     return std::nullopt;
@@ -200,7 +243,7 @@ std::optional<EventGroupInfo> search_for_door_group(
   auto moving_duration = rmf_traffic::Duration(0);
   while (tail != end)
   {
-    const auto* tail_event = tail->get();
+    const auto* tail_event = tail->phase.get();
     if (const auto* door_close = dynamic_cast<const DoorClose*>(tail_event))
     {
       if (door_open->door_name() != door_close->door_name())
@@ -222,11 +265,17 @@ std::optional<EventGroupInfo> search_for_door_group(
       for (auto it = head; it != tail; ++it)
       {
         door_group.push_back(
-          [legacy = *it, context, id](UpdateFn update)
+          [legacy = it->phase, context, id](UpdateFn update)
           {
             return LegacyPhaseShim::Standby::make(
               legacy, context->worker(), context->clock(), id, update);
           });
+
+        if (!it->dependencies.empty())
+        {
+          door_group.push_back(make_wait_for_traffic(
+              context, it->dependencies, it->time, id));
+        }
       }
 
       return EventGroupInfo{
@@ -270,10 +319,10 @@ std::optional<EventGroupInfo> search_for_lift_group(
   LegacyPhases::const_iterator head,
   LegacyPhases::const_iterator end,
   const agv::RobotContextPtr& context,
-  const rmf_task::Event::AssignIDPtr& id,
+  const rmf_task::Event::AssignIDPtr& event_id,
   const rmf_task::events::SimpleEventStatePtr& state)
 {
-  const auto lift_begin = dynamic_cast<const RequestLift*>(head->get());
+  const auto lift_begin = dynamic_cast<const RequestLift*>(head->phase.get());
 
   if (!lift_begin)
     return std::nullopt;
@@ -283,7 +332,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
   ++tail;
   while (tail != end)
   {
-    const auto* tail_event = tail->get();
+    const auto* tail_event = tail->phase.get();
     if (const auto* lift_request = dynamic_cast<const RequestLift*>(tail_event))
     {
       if (lift_request->lift_name() != lift_name)
@@ -316,7 +365,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
         + "] to [floor:" + lift_end->destination() + "]";
 
       auto group_state = rmf_task::events::SimpleEventState::make(
-        id->assign(), std::move(category),
+        event_id->assign(), std::move(category),
         "", rmf_task::Event::Status::Standby, {}, context->clock());
 
       std::vector<MakeStandby> lift_group;
@@ -324,11 +373,17 @@ std::optional<EventGroupInfo> search_for_lift_group(
       for (auto it = head; it != tail; ++it)
       {
         lift_group.push_back(
-          [legacy = *it, context, id](UpdateFn update)
+          [legacy = it->phase, context, event_id](UpdateFn update)
           {
             return LegacyPhaseShim::Standby::make(
-              legacy, context->worker(), context->clock(), id, update);
+              legacy, context->worker(), context->clock(), event_id, update);
           });
+
+        if (!it->dependencies.empty())
+        {
+          lift_group.push_back(make_wait_for_traffic(
+              context, it->dependencies, it->time, event_id));
+        }
       }
 
       return EventGroupInfo{
@@ -364,8 +419,9 @@ std::optional<EventGroupInfo> search_for_lift_group(
 //==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
+  const rmf_traffic::PlanId plan_id,
   rmf_traffic::agv::Plan plan,
-  const rmf_task::Event::AssignIDPtr& id,
+  const rmf_task::Event::AssignIDPtr& event_id,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> update,
   std::function<void()> finished,
@@ -404,15 +460,16 @@ std::optional<ExecutePlan> ExecutePlan::make(
       {
         if (move_through.size() > 1)
         {
-          legacy_phases.push_back(
+          legacy_phases.emplace_back(
             std::make_shared<phases::MoveRobot::PendingPhase>(
-              context, move_through, tail_period));
+              context, move_through, plan_id, tail_period),
+            it->time(), it->dependencies());
         }
 
         move_through.clear();
         bool continuous = true;
         EventPhaseFactory factory(
-          context, legacy_phases, it->time(), continuous);
+          context, legacy_phases, it->time(), it->dependencies(), continuous);
         it->event()->execute(factory);
         while (factory.moving_lift())
         {
@@ -450,15 +507,42 @@ std::optional<ExecutePlan> ExecutePlan::make(
         event_occurred = true;
         break;
       }
+      else if (!it->dependencies().empty())
+      {
+        if (move_through.size() > 1)
+        {
+          legacy_phases.emplace_back(
+            std::make_shared<phases::MoveRobot::PendingPhase>(
+              context, move_through, plan_id, tail_period),
+            it->time(), it->dependencies());
+        }
+        else
+        {
+          legacy_phases.emplace_back(nullptr, it->time(), it->dependencies());
+        }
+
+        // Have the next sequence of waypoints begin with this one.
+        move_through.clear();
+        move_through.push_back(*it);
+
+        waypoints.erase(waypoints.begin(), it+1);
+        event_occurred = true;
+        break;
+      }
     }
 
     if (move_through.size() > 1)
     {
       // If we have more than one waypoint to move through, then create a
       // moving phase.
-      legacy_phases.push_back(
+      //
+      // If we reach this point in the code and move_through is greater than 1,
+      // then we have reached the end of the path, so there is definitely no
+      // need for any dependencies.
+      legacy_phases.emplace_back(
         std::make_shared<phases::MoveRobot::PendingPhase>(
-          context, move_through, tail_period));
+          context, move_through, plan_id, tail_period),
+        finish_time_estimate.value(), rmf_traffic::Dependencies{});
     }
 
     if (!event_occurred)
@@ -479,25 +563,34 @@ std::optional<ExecutePlan> ExecutePlan::make(
   const auto end = legacy_phases.cend();
   while (head != end)
   {
-    if (const auto door = search_for_door_group(head, end, context, id))
+    if (const auto door = search_for_door_group(head, end, context, event_id))
     {
       standbys.push_back(door->group);
       head = door->tail;
     }
-    else if (
-      const auto lift = search_for_lift_group(head, end, context, id, state))
+    else if (const auto lift = search_for_lift_group(
+        head, end, context, event_id, state))
     {
       standbys.push_back(lift->group);
       head = lift->tail;
     }
     else
     {
-      standbys.push_back(
-        [legacy = *head, context, id](UpdateFn update)
-        {
-          return LegacyPhaseShim::Standby::make(
-            legacy, context->worker(), context->clock(), id, update);
-        });
+      if (head->phase)
+      {
+        standbys.push_back(
+          [legacy = head->phase, context, event_id](UpdateFn update)
+          {
+            return LegacyPhaseShim::Standby::make(
+              legacy, context->worker(), context->clock(), event_id, update);
+          });
+      }
+
+      if (!head->dependencies.empty())
+      {
+        standbys.push_back(make_wait_for_traffic(
+            context, head->dependencies, head->time, event_id));
+      }
 
       ++head;
     }
@@ -507,7 +600,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
-  context->itinerary().set(plan.get_itinerary());
+  context->itinerary().set(plan_id, plan.get_itinerary());
 
   return ExecutePlan{
     std::move(plan),

@@ -18,11 +18,12 @@
 #include <rmf_traffic_ros2/schedule/Writer.hpp>
 #include <rmf_traffic_ros2/schedule/ParticipantDescription.hpp>
 #include <rmf_traffic_ros2/StandardNames.hpp>
+#include <rmf_traffic_ros2/Route.hpp>
 
 #include <rmf_traffic_msgs/msg/itinerary_set.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_extend.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_delay.hpp>
-#include <rmf_traffic_msgs/msg/itinerary_erase.hpp>
+#include <rmf_traffic_msgs/msg/itinerary_reached.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_clear.hpp>
 
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
@@ -44,7 +45,10 @@ rmf_traffic::schedule::Writer::Registration convert(
   const rmf_traffic_msgs::srv::RegisterParticipant::Response& msg)
 {
   return rmf_traffic::schedule::Writer::Registration(
-    msg.participant_id, msg.last_itinerary_version, msg.last_route_id);
+    msg.participant_id,
+    msg.last_itinerary_version,
+    msg.last_plan_id,
+    msg.next_storage_base);
 }
 
 namespace schedule {
@@ -128,7 +132,8 @@ public:
     for (const auto& r : msg.ranges)
       ranges.emplace_back(Range{r.lower, r.upper});
 
-    stub->rectifier.retransmit(ranges, msg.last_known_version);
+    stub->rectifier.retransmit(
+      ranges, msg.last_known_itinerary, msg.last_known_progress);
   }
 
   struct ChangeID
@@ -269,13 +274,13 @@ public:
     using Set = rmf_traffic_msgs::msg::ItinerarySet;
     using Extend = rmf_traffic_msgs::msg::ItineraryExtend;
     using Delay = rmf_traffic_msgs::msg::ItineraryDelay;
-    using Erase = rmf_traffic_msgs::msg::ItineraryErase;
+    using Reached = rmf_traffic_msgs::msg::ItineraryReached;
     using Clear = rmf_traffic_msgs::msg::ItineraryClear;
 
     rclcpp::Publisher<Set>::SharedPtr set_pub;
     rclcpp::Publisher<Extend>::SharedPtr extend_pub;
     rclcpp::Publisher<Delay>::SharedPtr delay_pub;
-    rclcpp::Publisher<Erase>::SharedPtr erase_pub;
+    rclcpp::Publisher<Reached>::SharedPtr reached_pub;
     rclcpp::Publisher<Clear>::SharedPtr clear_pub;
 
     rclcpp::Context::SharedPtr context;
@@ -320,8 +325,8 @@ public:
         ItineraryDelayTopicName,
         itinerary_qos);
 
-      transport->erase_pub = node->create_publisher<Erase>(
-        ItineraryEraseTopicName,
+      transport->reached_pub = node->create_publisher<Reached>(
+        ItineraryReachedTopicName,
         itinerary_qos);
 
       transport->clear_pub = node->create_publisher<Clear>(
@@ -371,28 +376,30 @@ public:
 
     void set(
       const rmf_traffic::schedule::ParticipantId participant,
-      const Input& itinerary,
+      const PlanId plan,
+      const Itinerary& itinerary,
+      const StorageId storage,
       const rmf_traffic::schedule::ItineraryVersion version) final
     {
-      Set msg;
-      msg.participant = participant;
-      msg.itinerary = convert(itinerary);
-      msg.itinerary_version = version;
-
-      set_pub->publish(std::move(msg));
+      set_pub->publish(
+        rmf_traffic_msgs::build<Set>()
+        .participant(participant)
+        .plan(plan)
+        .itinerary(convert(itinerary))
+        .storage_base(storage)
+        .itinerary_version(version));
     }
 
     void extend(
       const rmf_traffic::schedule::ParticipantId participant,
-      const Input& routes,
+      const Itinerary& routes,
       const rmf_traffic::schedule::ItineraryVersion version) final
     {
-      Extend msg;
-      msg.participant = participant;
-      msg.routes = convert(routes);
-      msg.itinerary_version = version;
-
-      extend_pub->publish(std::move(msg));
+      extend_pub->publish(
+        rmf_traffic_msgs::build<Extend>()
+        .participant(participant)
+        .routes(convert(routes))
+        .itinerary_version(version));
     }
 
     void delay(
@@ -400,36 +407,35 @@ public:
       const rmf_traffic::Duration duration,
       const rmf_traffic::schedule::ItineraryVersion version) final
     {
-      Delay msg;
-      msg.participant = participant;
-      msg.delay = duration.count();
-      msg.itinerary_version = version;
-
-      delay_pub->publish(std::move(msg));
+      delay_pub->publish(
+        rmf_traffic_msgs::build<Delay>()
+        .participant(participant)
+        .delay(duration.count())
+        .itinerary_version(version));
     }
 
-    void erase(
-      const rmf_traffic::schedule::ParticipantId participant,
-      const std::vector<rmf_traffic::RouteId>& routes,
-      const rmf_traffic::schedule::ItineraryVersion version) final
+    void reached(
+      const ParticipantId participant,
+      const PlanId plan,
+      const std::vector<CheckpointId>& reached_checkpoints,
+      const ProgressVersion version) final
     {
-      Erase msg;
-      msg.participant = participant;
-      msg.routes = routes;
-      msg.itinerary_version = version;
-
-      erase_pub->publish(std::move(msg));
+      reached_pub->publish(
+        rmf_traffic_msgs::build<Reached>()
+        .participant(participant)
+        .plan(plan)
+        .reached_checkpoints(reached_checkpoints)
+        .progress_version(version));
     }
 
-    void erase(
+    void clear(
       const rmf_traffic::schedule::ParticipantId participant,
       const rmf_traffic::schedule::ItineraryVersion version) final
     {
-      Clear msg;
-      msg.participant = participant;
-      msg.itinerary_version = version;
-
-      clear_pub->publish(std::move(msg));
+      clear_pub->publish(
+        rmf_traffic_msgs::build<Clear>()
+        .participant(participant)
+        .itinerary_version(version));
     }
 
     Registration register_participant(

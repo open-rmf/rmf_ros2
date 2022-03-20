@@ -31,7 +31,6 @@ set(dep_pkgs
   rmf_fleet_msgs
   rmf_lift_msgs
   rmf_task_msgs
-  rmf_traffic
   rmf_traffic_ros2
   rmf_task_ros2
   rmf_battery
@@ -121,14 +120,12 @@ if (BUILD_TESTING)
   ament_add_catch2(
     test_rmf_fleet_adapter
       test/main.cpp
-      test/adapters/test_TrafficLight.cpp
       test/phases/MockAdapterFixture.cpp
       test/phases/test_DoorOpen.cpp
       test/phases/test_DoorClose.cpp
       test/phases/test_RequestLift.cpp
       test/phases/test_DispenseItem.cpp
       test/phases/test_IngestItem.cpp
-      test/phases/test_GoToPlace.cpp
       test/services/test_FindEmergencyPullover.cpp
       test/services/test_FindPath.cpp
       test/services/test_Negotiate.cpp

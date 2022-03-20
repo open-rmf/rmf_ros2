@@ -22,6 +22,9 @@
 #include <rmf_traffic_msgs/msg/schedule_change_cull.hpp>
 #include <rmf_traffic_msgs/msg/schedule_change_add.hpp>
 #include <rmf_traffic_msgs/msg/schedule_change_delay.hpp>
+#include <rmf_traffic_msgs/msg/schedule_change_progress.hpp>
+
+#include "internal_convert_vector.hpp"
 
 using Time = rmf_traffic::Time;
 using Duration = rmf_traffic::Duration;
@@ -33,26 +36,43 @@ rmf_traffic::schedule::Patch::Participant convert(
   const rmf_traffic_msgs::msg::ScheduleParticipantPatch& from);
 
 //==============================================================================
-
-//==============================================================================
-template<typename T_out, typename T_in>
-void convert_vector(
-  std::vector<T_out>& output,
-  const std::vector<T_in>& input)
+rmf_traffic_msgs::msg::ScheduleChangeAdd convert(
+  const rmf_traffic::schedule::Change::Add& additions)
 {
-  output.reserve(input.size());
-  for (const auto& i : input)
-    output.emplace_back(convert(i));
+  return rmf_traffic_msgs::build<rmf_traffic_msgs::msg::ScheduleChangeAdd>()
+    .plan_id(additions.plan_id())
+    .items(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeAddItem>(
+        additions.items()));
 }
 
 //==============================================================================
-template<typename T_out, typename T_in>
-std::vector<T_out> convert_vector(
-  const std::vector<T_in>& input)
+rmf_traffic_msgs::msg::ScheduleChangeProgress convert(
+  const std::optional<rmf_traffic::schedule::Change::Progress>& from)
 {
-  std::vector<T_out> output;
-  convert_vector(output, input);
-  return output;
+  using ProgressMsg = rmf_traffic_msgs::msg::ScheduleChangeProgress;
+  if (!from.has_value())
+  {
+    return rmf_traffic_msgs::build<ProgressMsg>()
+      .has_progress(false)
+      .version({})
+      .checkpoints({});
+  }
+
+  return rmf_traffic_msgs::build<ProgressMsg>()
+    .has_progress(true)
+    .version(from->version())
+    .checkpoints(from->checkpoints());
+}
+
+//==============================================================================
+std::optional<rmf_traffic::schedule::Change::Progress> convert(
+  const rmf_traffic_msgs::msg::ScheduleChangeProgress& from)
+{
+  if (!from.has_progress)
+    return std::nullopt;
+
+  return rmf_traffic::schedule::Change::Progress(
+    from.version, from.checkpoints);
 }
 
 //==============================================================================
@@ -66,8 +86,8 @@ rmf_traffic_msgs::msg::ScheduleParticipantPatch convert(
     .erasures(from.erasures().ids())
     .delays(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeDelay>(
         from.delays()))
-    .additions(convert_vector<rmf_traffic_msgs::msg::ScheduleChangeAdd>(
-        from.additions().items()));
+    .additions(convert(from.additions()))
+    .progress(convert(from.progress()));
 }
 
 //==============================================================================
@@ -79,9 +99,8 @@ rmf_traffic::schedule::Patch::Participant convert(
     from.itinerary_version,
     rmf_traffic::schedule::Change::Erase{from.erasures},
     convert_vector<rmf_traffic::schedule::Change::Delay>(from.delays),
-    rmf_traffic::schedule::Change::Add{
-      convert_vector<rmf_traffic::schedule::Change::Add::Item>(from.additions)
-    }
+    convert(from.additions),
+    convert(from.progress)
   };
 }
 

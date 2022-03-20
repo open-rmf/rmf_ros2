@@ -89,8 +89,10 @@ check_cache(const NegotiatorMap& negotiators)
       if (table)
       {
         const bool updated = table->submit(
-          rmf_traffic_ros2::convert(
-            proposal.itinerary), proposal.proposal_version);
+          proposal.plan_id,
+          rmf_traffic_ros2::convert(proposal.itinerary),
+          proposal.proposal_version);
+
         if (updated)
           new_tables.push_back(table);
 

@@ -31,41 +31,47 @@ void check_path_finish(
   const Eigen::Vector2d p{l.x, l.y};
   const double dist = (p - wp.position().block<2, 1>(0, 0)).norm();
 
-  assert(wp.graph_index());
-  info.last_known_wp = *wp.graph_index();
-
-  assert(info.waypoints.size() >= 2);
-
-  if (dist > 2.0)
+  if (wp.graph_index().has_value())
   {
-    RCLCPP_ERROR(
-      node->get_logger(),
-      "Robot named [%s] belonging to fleet [%s] is very far [%fm] from where "
-      "it is supposed to be, but its remaining path is empty. This means the "
-      "robot believes it is finished, but it is not where it's supposed to be.",
-      info.robot_name.c_str(), info.fleet_name.c_str(), dist);
-    estimate_state(node, state.location, info);
-    return;
-  }
+    info.last_known_wp = *wp.graph_index();
 
-  if (dist > 0.5)
-  {
-    RCLCPP_WARN(
-      node->get_logger(),
-      "The robot is somewhat far [%fm] from where it is supposed to be, "
-      "but we will proceed anyway.",
-      dist);
+    if (dist > 2.0)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Robot named [%s] belonging to fleet [%s] is very far [%fm] from where "
+        "it is supposed to be, but its remaining path is empty. This means the "
+        "robot believes it is finished, but it is not where it's supposed to be.",
+        info.robot_name.c_str(), info.fleet_name.c_str(), dist);
+      estimate_state(node, state.location, info);
+      return;
+    }
 
-    const auto& last_wp = info.waypoints[info.waypoints.size()-2];
-    estimate_midlane_state(
-      state.location, last_wp.graph_index(), info.waypoints.size()-1, info);
+    if (dist > 0.5)
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "The robot is somewhat far [%fm] from where it is supposed to be, "
+        "but we will proceed anyway.",
+        dist);
+
+      const auto& last_wp = info.waypoints[info.waypoints.size()-2];
+      estimate_midlane_state(
+        state.location, last_wp.graph_index(), info.waypoints.size()-1, info);
+    }
+    else
+    {
+      // We are close enough to the goal that we will say the robot is
+      // currently located there.
+      info.updater->update_position(*wp.graph_index(), l.yaw);
+    }
   }
   else
   {
-    // We are close enough to the goal that we will say the robot is
-    // currently located there.
-    info.updater->update_position(*wp.graph_index(), l.yaw);
+    estimate_state(node, state.location, info);
   }
+
+  assert(info.waypoints.size() >= 2);
 
   assert(info.path_finished_callback);
   info.path_finished_callback();
@@ -154,7 +160,8 @@ void estimate_midlane_state(
     }
   }
 
-  const std::size_t target_gi = [&]() -> std::size_t
+  const std::optional<std::size_t> target_gi = [&]()
+    -> std::optional<std::size_t>
     {
       // At least one future waypoint must have a graph index
       if (target_wp.graph_index())
@@ -167,48 +174,52 @@ void estimate_midlane_state(
           return *gi;
       }
 
-      throw std::runtime_error(
-              "CRITICAL ERROR: Remaining waypoint sequence has no graph indices");
+      return std::nullopt;
     } ();
 
-  if (lane_start)
+  if (target_gi.has_value())
   {
-    const auto last_gi = *lane_start;
-    if (last_gi == target_gi)
+    if (lane_start.has_value())
     {
-      // This implies that the robot is either waiting at or rotating on the
-      // waypoint.
-      info.updater->update_position(target_gi, l.yaw);
-    }
-    else if (const auto* forward_lane =
-      info.graph->lane_from(last_gi, target_gi))
-    {
-      // This implies that the robot is moving down a lane.
-      std::vector<std::size_t> lanes;
-      lanes.push_back(forward_lane->index());
-
-      if (const auto* reverse_lane = info.graph->lane_from(target_gi, last_gi))
+      const auto last_gi = *lane_start;
+      if (last_gi == target_gi)
       {
-        if (!reverse_lane->entry().event())
-        {
-          // We don't allow the robot to turn back mid-lane if the reverse lane
-          // has an entry event, because if that entry event is docking, then it
-          // needs to be triggered for the robot to approach the exit.
-          //
-          // TODO(MXG): This restriction isn't needed for reversing on door or
-          // lift events, so with some effort we could loosen this restriction
-          // to only apply to docking.
-          lanes.push_back(reverse_lane->index());
-        }
+        // This implies that the robot is either waiting at or rotating on the
+        // waypoint.
+        return info.updater->update_position(*target_gi, l.yaw);
       }
+      else if (const auto* forward_lane =
+        info.graph->lane_from(last_gi, *target_gi))
+      {
+        // This implies that the robot is moving down a lane.
+        std::vector<std::size_t> lanes;
+        lanes.push_back(forward_lane->index());
 
-      info.updater->update_position({l.x, l.y, l.yaw}, std::move(lanes));
+        const auto* reverse_lane = info.graph->lane_from(*target_gi, last_gi);
+        if (reverse_lane)
+        {
+          if (!reverse_lane->entry().event())
+          {
+            // We don't allow the robot to turn back mid-lane if the reverse lane
+            // has an entry event, because if that entry event is docking, then it
+            // needs to be triggered for the robot to approach the exit.
+            //
+            // TODO(MXG): This restriction isn't needed for reversing on door or
+            // lift events, so with some effort we could loosen this restriction
+            // to only apply to docking.
+            lanes.push_back(reverse_lane->index());
+          }
+        }
+
+        return info.updater->update_position({l.x, l.y, l.yaw},
+            std::move(lanes));
+      }
     }
+
+    return info.updater->update_position({l.x, l.y, l.yaw}, *target_gi);
   }
 
-  // The target should always have a graph index, because only the first
-  // waypoint in a command should ever be lacking a graph index.
-  info.updater->update_position({l.x, l.y, l.yaw}, target_gi);
+  info.updater->update_position(l.level_name, {l.x, l.y, l.yaw});
 }
 
 //==============================================================================

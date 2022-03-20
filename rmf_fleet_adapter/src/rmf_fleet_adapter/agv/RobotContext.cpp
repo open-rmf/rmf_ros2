@@ -93,7 +93,7 @@ const rmf_traffic::schedule::Participant& RobotContext::itinerary() const
 }
 
 //==============================================================================
-auto RobotContext::schedule() const -> const std::shared_ptr<const Snappable>&
+auto RobotContext::schedule() const -> const std::shared_ptr<const Mirror>&
 {
   return _schedule;
 }
@@ -196,13 +196,13 @@ bool RobotContext::is_stubborn() const
 
 //==============================================================================
 const rxcpp::observable<RobotContext::Empty>&
-RobotContext::observe_interrupt() const
+RobotContext::observe_replan_request() const
 {
   return _interrupt_obs;
 }
 
 //==============================================================================
-void RobotContext::trigger_interrupt()
+void RobotContext::request_replan()
 {
   if (const auto c = command())
     c->stop();
@@ -440,7 +440,7 @@ RobotContext::RobotContext(
   std::shared_ptr<RobotCommandHandle> command_handle,
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
   rmf_traffic::schedule::Participant itinerary,
-  std::shared_ptr<const Snappable> schedule,
+  std::shared_ptr<const Mirror> schedule,
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
   rmf_task::ConstActivatorPtr activator,
   rmf_task::ConstParametersPtr parameters,

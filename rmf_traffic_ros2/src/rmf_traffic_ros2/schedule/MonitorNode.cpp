@@ -119,9 +119,9 @@ void MonitorNode::start_heartbeat_listener()
     heartbeat_sub_options);
   RCLCPP_INFO(
     get_logger(),
-    "Set up heartbeat listener on %s with liveliness lease duration of %d ms",
+    "Set up heartbeat listener on %s with liveliness lease duration of %lu ms",
     heartbeat_sub->get_topic_name(),
-    heartbeat_period);
+    heartbeat_period.count());
 }
 
 //==============================================================================
