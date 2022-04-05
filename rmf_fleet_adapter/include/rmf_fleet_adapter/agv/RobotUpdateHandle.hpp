@@ -119,13 +119,27 @@ public:
   class ActionExecution
   {
   public:
-    // Update the amount of time remaining for this action
+    /// Update the amount of time remaining for this action
     void update_remaining_time(rmf_traffic::Duration remaining_time_estimate);
 
-    // Trigger this when the action is finished
+    /// Set task status to underway and optionally log a message (info tier)
+    void underway(std::optional<std::string> text);
+
+    /// Set task status to error and optionally log a message (error tier)
+    void error(std::optional<std::string> text);
+
+    /// Set the task status to delayed and optionally log a message
+    /// (warning tier)
+    void delayed(std::optional<std::string> text);
+
+    /// Set the task status to blocked and optionally log a message
+    /// (warning tier)
+    void blocked(std::optional<std::string> text);
+
+    /// Trigger this when the action is successfully finished
     void finished();
 
-    // Returns false if the Action has been killed or cancelled
+    /// Returns false if the Action has been killed or cancelled
     bool okay() const;
 
     class Implementation;

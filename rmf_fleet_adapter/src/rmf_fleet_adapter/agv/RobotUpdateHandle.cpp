@@ -518,6 +518,42 @@ void RobotUpdateHandle::ActionExecution::update_remaining_time(
 }
 
 //==============================================================================
+void RobotUpdateHandle::ActionExecution::underway(
+  std::optional<std::string> text)
+{
+  _pimpl->data->state->update_status(rmf_task::Event::Status::Underway);
+  if (text.has_value())
+    _pimpl->data->state->update_log().info(*text);
+}
+
+//==============================================================================
+void RobotUpdateHandle::ActionExecution::error(
+  std::optional<std::string> text)
+{
+  _pimpl->data->state->update_status(rmf_task::Event::Status::Error);
+  if (text.has_value())
+    _pimpl->data->state->update_log().error(*text);
+}
+
+//==============================================================================
+void RobotUpdateHandle::ActionExecution::delayed(
+  std::optional<std::string> text)
+{
+  _pimpl->data->state->update_status(rmf_task::Event::Status::Delayed);
+  if (text.has_value())
+    _pimpl->data->state->update_log().warn(*text);
+}
+
+//==============================================================================
+void RobotUpdateHandle::ActionExecution::blocked(
+  std::optional<std::string> text)
+{
+  _pimpl->data->state->update_status(rmf_task::Event::Status::Blocked);
+  if (text.has_value())
+    _pimpl->data->state->update_log().warn(*text);
+}
+
+//==============================================================================
 void RobotUpdateHandle::ActionExecution::finished()
 {
   if (!_pimpl->data->finished)
