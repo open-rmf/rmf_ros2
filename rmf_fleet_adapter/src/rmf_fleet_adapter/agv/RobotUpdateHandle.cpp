@@ -219,8 +219,8 @@ void RobotUpdateHandle::override_status(std::optional<std::string> status)
     {
       const auto loader =
         [n = context->node(), s = _pimpl->schema_dictionary](
-          const nlohmann::json_uri& id,
-          nlohmann::json& value)
+        const nlohmann::json_uri& id,
+        nlohmann::json& value)
         {
           const auto it = s.find(id.url());
           if (it == s.end())
