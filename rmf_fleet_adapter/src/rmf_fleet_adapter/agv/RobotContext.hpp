@@ -204,10 +204,19 @@ public:
 
   /// Set the current mode of the robot. This mode should correspond to a
   /// constant in the RobotMode message
+  [[deprecated]]
   void current_mode(uint32_t mode);
 
   /// Return the current mode of the robot
+  [[deprecated]]
   uint32_t current_mode() const;
+
+  /// Set the current mode of the robot.
+  /// Specify a valid string as specified in the robot_state.json schema
+  void override_status(std::optional<std::string> status);
+
+  /// Return the current mode of the robot
+  std::optional<std::string> override_status() const;
 
   /// Set the action executor for requesting this robot to execute a
   /// PerformAction activity
@@ -284,6 +293,7 @@ private:
 
   // Mode value for RobotMode message
   uint32_t _current_mode;
+  std::optional<std::string> _override_status;
 
   RobotUpdateHandle::ActionExecutor _action_executor;
   Reporting _reporting;

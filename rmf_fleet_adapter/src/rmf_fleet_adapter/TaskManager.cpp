@@ -819,6 +819,9 @@ bool TaskManager::cancel_task_if_present(const std::string& task_id)
 //==============================================================================
 std::string TaskManager::robot_status() const
 {
+  if (_context->override_status().has_value())
+    return _context->override_status().value();
+
   if (!_active_task)
     return "idle";
 

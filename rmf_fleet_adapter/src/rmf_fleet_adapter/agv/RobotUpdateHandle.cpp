@@ -209,6 +209,59 @@ void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 }
 
 //==============================================================================
+void RobotUpdateHandle::override_status(std::optional<std::string> status)
+{
+
+  if (const auto context = _pimpl->get_context())
+  {
+
+    if (status.has_value())
+    {
+      const auto loader =
+        [n = context->node(), s = _pimpl->schema_dictionary](
+          const nlohmann::json_uri& id,
+          nlohmann::json& value)
+        {
+          const auto it = s.find(id.url());
+          if (it == s.end())
+          {
+            RCLCPP_ERROR(
+              n->get_logger(),
+              "url: %s not found in schema dictionary. "
+              "Robot status will not be overwritten.",
+              id.url().c_str());
+            return;
+          }
+
+          value = it->second;
+        };
+
+      try
+      {
+        static const auto validator =
+          nlohmann::json_schema::json_validator(
+          rmf_api_msgs::schemas::robot_state, loader);
+
+        nlohmann::json dummy_msg;
+        dummy_msg["status"] = status.value();
+        validator.validate(dummy_msg);
+
+      }
+      catch (const std::exception& e)
+      {
+        return;
+      }
+    }
+
+    context->worker().schedule(
+      [context, status](const auto&)
+      {
+        context->override_status(status);
+      });
+  }
+}
+
+//==============================================================================
 RobotUpdateHandle& RobotUpdateHandle::maximum_delay(
   rmf_utils::optional<rmf_traffic::Duration> value)
 {

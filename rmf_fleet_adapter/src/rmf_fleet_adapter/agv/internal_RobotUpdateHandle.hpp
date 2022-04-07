@@ -21,6 +21,10 @@
 #include "RobotContext.hpp"
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
 
+#include <nlohmann/json.hpp>
+#include <nlohmann/json-schema.hpp>
+#include <rmf_api_msgs/schemas/robot_state.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -73,6 +77,8 @@ public:
   std::string name;
   RobotUpdateHandle::Unstable unstable = RobotUpdateHandle::Unstable();
   bool reported_loss = false;
+  std::unordered_map<std::string, nlohmann::json> schema_dictionary = {};
+
 
   static std::shared_ptr<RobotUpdateHandle> make(RobotContextPtr context)
   {
@@ -83,6 +89,18 @@ public:
       Implementation{std::move(context), std::move(name)});
     handle._pimpl->unstable._pimpl =
       &RobotUpdateHandle::Implementation::get(handle);
+
+    // Initialize schema dictionary
+    const std::vector<nlohmann::json> schemas = {
+      rmf_api_msgs::schemas::robot_state,
+    };
+
+    for (const auto& schema : schemas)
+    {
+      const auto json_uri = nlohmann::json_uri{schema["$id"]};
+      handle._pimpl->schema_dictionary.insert({json_uri.url(), schema});
+    }
+
     return std::make_shared<RobotUpdateHandle>(std::move(handle));
   }
 
