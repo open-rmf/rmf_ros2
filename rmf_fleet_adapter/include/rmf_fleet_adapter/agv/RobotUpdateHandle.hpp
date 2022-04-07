@@ -102,9 +102,9 @@ public:
   void update_battery_soc(const double battery_soc);
 
   /// Use this function to override the robot status. The string provided must
-  /// be a valid enum as specified the in robot_state.json schema.
+  /// be a valid enum as specified in the robot_state.json schema.
   /// Pass std::nullopt to cancel the override and allow RMF to automatically
-  /// update the status. Default is std::nullopt.
+  /// update the status. The default value is std::nullopt.
   void override_status(std::optional<std::string> status);
 
   /// Specify how high the delay of the current itinerary can become before it
