@@ -217,19 +217,24 @@ void RobotUpdateHandle::override_status(std::optional<std::string> status)
 
     if (status.has_value())
     {
+      // Here we capture [this] to avoid potential costly copy of
+      // schema_dictionary when more enties are inserted in the future.
+      // It is permissible here since the lambda will only be used within the
+      // scope of this function.
       const auto loader =
-        [n = context->node(), s = _pimpl->schema_dictionary](
+        [context, this](
         const nlohmann::json_uri& id,
         nlohmann::json& value)
         {
-          const auto it = s.find(id.url());
-          if (it == s.end())
+          const auto it = _pimpl->schema_dictionary.find(id.url());
+          if (it == _pimpl->schema_dictionary.end())
           {
             RCLCPP_ERROR(
-              n->get_logger(),
+              context->node()->get_logger(),
               "url: %s not found in schema dictionary. "
-              "Robot status will not be overwritten.",
-              id.url().c_str());
+              "Status for robot [%s] will not be overwritten.",
+              id.url().c_str(),
+              context->name().c_str());
             return;
           }
 
@@ -249,6 +254,14 @@ void RobotUpdateHandle::override_status(std::optional<std::string> status)
       }
       catch (const std::exception& e)
       {
+        RCLCPP_ERROR(
+          context->node()->get_logger(),
+          "Encountered error: %s. Please ensure the override status is a "
+          "valid string as per the robot_state.json schema. The status for "
+          "robot [%s] will not over overwritten.",
+          e.what(),
+          context->name().c_str()
+        );
         return;
       }
     }
