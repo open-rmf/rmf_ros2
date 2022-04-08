@@ -187,11 +187,15 @@ PYBIND11_MODULE(rmf_adapter, m) {
 
   py::class_<ActionExecution>(
     m_robot_update_handle, "ActionExecution")
-  .def("finished", &ActionExecution::finished)
-  .def("okay", &ActionExecution::okay)
   .def("update_remaining_time",
     &ActionExecution::update_remaining_time,
-    py::arg("remaining_time_estimate"));
+    py::arg("remaining_time_estimate"))
+  .def("underway", &ActionExecution::underway, py::arg("text"))
+  .def("error", &ActionExecution::error, py::arg("text"))
+  .def("delayed", &ActionExecution::delayed, py::arg("text"))
+  .def("blocked", &ActionExecution::blocked, py::arg("text"))
+  .def("finished", &ActionExecution::finished)
+  .def("okay", &ActionExecution::okay);
 
   // ROBOT INTERRUPTION   ====================================================
   py::class_<RobotInterruption>(
