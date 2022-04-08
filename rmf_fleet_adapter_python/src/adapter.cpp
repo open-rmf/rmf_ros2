@@ -34,7 +34,7 @@ using TimePoint = std::chrono::time_point<std::chrono::system_clock,
 ///       in FleetUpdateHandle. This is to replace the ref `confirm` arg with
 ///       a return value
 using Confirmation = agv::FleetUpdateHandle::Confirmation;
-using ModifiedConsiderRequest = 
+using ModifiedConsiderRequest =
   std::function<Confirmation(const nlohmann::json &description)>;
 
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
@@ -126,6 +126,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("battery_soc"),
     py::call_guard<py::scoped_ostream_redirect,
     py::scoped_estream_redirect>())
+  .def("override_status", &agv::RobotUpdateHandle::override_status,
+    py::arg("battery_soc"))
   .def_property("maximum_delay",
     py::overload_cast<>(
       &agv::RobotUpdateHandle::maximum_delay, py::const_),
@@ -577,7 +579,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::overload_cast<>(
       &agv::test::MockAdapter::node))
    /// Note: Exposed dispatch_task() for testing
-  .def("dispatch_task", 
+  .def("dispatch_task",
     &agv::test::MockAdapter::dispatch_task,
     py::arg("task_id"),
     py::arg("request"))

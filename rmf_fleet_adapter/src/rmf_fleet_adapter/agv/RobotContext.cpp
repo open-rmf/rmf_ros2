@@ -396,6 +396,18 @@ uint32_t RobotContext::current_mode() const
 }
 
 //==============================================================================
+void RobotContext::override_status(std::optional<std::string> status)
+{
+  _override_status = status;
+}
+
+//==============================================================================
+std::optional<std::string> RobotContext::override_status() const
+{
+  return _override_status;
+}
+
+//==============================================================================
 void RobotContext::action_executor(
   RobotUpdateHandle::ActionExecutor action_executor)
 {
@@ -476,6 +488,7 @@ RobotContext::RobotContext(
   _battery_soc_obs = _battery_soc_publisher.get_observable();
 
   _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
+  _override_status = std::nullopt;
 
   _action_executor = nullptr;
 }
