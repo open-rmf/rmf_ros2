@@ -914,11 +914,30 @@ void ScheduleNode::request_changes(
     }
     else
     {
-      if (mirror_update_topic_info.last_sent_version.has_value() &&
-        rmf_utils::modular(request->version).less_than(
-          *mirror_update_topic_info.last_sent_version))
+      if (mirror_update_topic_info.last_sent_version.has_value())
       {
-        mirror_update_topic_info.remediation_requests.insert(request->version);
+        try
+        {
+          if (rmf_utils::modular(request->version).less_than(
+            *mirror_update_topic_info.last_sent_version))
+          {
+            mirror_update_topic_info
+            .remediation_requests.insert(request->version);
+          }
+        }
+        catch(const std::exception& e)
+        {
+          RCLCPP_ERROR(
+            get_logger(),
+            "[ScheduleNode::request_changes] Received suspicious request for "
+            "changes starting at version [%lu]. This request will be ignored."
+            "Error message: %s",
+            request->version,
+            e.what());
+          response->result = RequestChanges::Response::ERROR;
+          response->error = e.what();
+          return;
+        }
       }
     }
 

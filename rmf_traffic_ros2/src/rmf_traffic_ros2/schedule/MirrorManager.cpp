@@ -408,12 +408,6 @@ public:
     {
       request.version = minimum_version.value();
       request.full_update = false;
-//      RCLCPP_INFO(
-//        node->get_logger(),
-//        "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
-//        "for query ID [%ld] since version [%ld]",
-//        request.query_id,
-//        request.version);
     }
     else
     {
@@ -428,7 +422,7 @@ public:
 
     request_changes_client->async_send_request(
       std::make_shared<RequestChanges::Request>(request),
-      [&](const RequestChangesFuture response)
+      [this, minimum_version](const RequestChangesFuture response)
       {
         // Check how the schedule node handled the request. The actual queries
         // update will come separately over the query update topic; this is
@@ -437,6 +431,33 @@ public:
         if (value.result == RequestChanges::Response::UNKNOWN_QUERY_ID)
         {
           redo_query_registration();
+        }
+        else if (value.result == RequestChanges::Response::ERROR)
+        {
+          const auto node = weak_node.lock();
+          if (node)
+          {
+            if (minimum_version.has_value())
+            {
+              RCLCPP_ERROR(
+                node->get_logger(),
+                "[MirrorManager::request_update] Failed to request an update "
+                "for query ID [%ld] up from version [%lu]. Error message: %s",
+                query_id,
+                minimum_version.value(),
+                value.error.c_str());
+            }
+            else
+            {
+              RCLCPP_ERROR(
+                node->get_logger(),
+                "[MirrorManager::request_updpate] Failed to request an update "
+                "for query ID [%ld] from the beginning of recorded history. "
+                "Error message: %s",
+                query_id,
+                value.error.c_str());
+            }
+          }
         }
       });
   }
