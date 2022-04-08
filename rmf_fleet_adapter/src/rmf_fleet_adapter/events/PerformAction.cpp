@@ -253,7 +253,14 @@ void PerformAction::Active::_execute_action()
     return;
   }
 
-  auto data = std::make_shared<ExecutionData>(_finished, std::nullopt);
+  auto finished = [state = _state, cb = _finished]()
+    {
+      state->update_status(Status::Completed);
+      cb();
+    };
+
+  auto data = std::make_shared<ExecutionData>(
+    std::move(finished), _state, std::nullopt);
   _execution_data = data;
 
   auto action_execution =
