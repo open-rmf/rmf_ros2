@@ -919,13 +919,13 @@ void ScheduleNode::request_changes(
         try
         {
           if (rmf_utils::modular(request->version).less_than(
-            *mirror_update_topic_info.last_sent_version))
+              *mirror_update_topic_info.last_sent_version))
           {
             mirror_update_topic_info
             .remediation_requests.insert(request->version);
           }
         }
-        catch(const std::exception& e)
+        catch (const std::exception& e)
         {
           RCLCPP_ERROR(
             get_logger(),
