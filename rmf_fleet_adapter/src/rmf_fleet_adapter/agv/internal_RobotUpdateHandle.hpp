@@ -24,6 +24,7 @@
 #include <nlohmann/json.hpp>
 #include <nlohmann/json-schema.hpp>
 #include <rmf_api_msgs/schemas/robot_state.hpp>
+#include <rmf_api_msgs/schemas/location_2D.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -93,6 +94,7 @@ public:
     // Initialize schema dictionary
     const std::vector<nlohmann::json> schemas = {
       rmf_api_msgs::schemas::robot_state,
+      rmf_api_msgs::schemas::location_2D,
     };
 
     for (const auto& schema : schemas)
