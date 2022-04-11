@@ -15,7 +15,7 @@
  *
  */
 
-#define CATCH_CONFIG_MAIN
+#define CATCH_CONFIG_RUNNER
 #include <rmf_utils/catch.hpp>
 
 #include "test/MockPublisher.hpp"
@@ -24,25 +24,197 @@
 #include "Scheduler.hpp"
 #include "SqliteDataSource.hpp"
 
-#include <rmf_scheduler_msgs/msg/serialized_message.hpp>
+#include <rmf_scheduler_msgs/msg/schedule.hpp>
 #include <rmf_scheduler_msgs/msg/trigger.hpp>
-#include <rclcpp/rclcpp.hpp>
 
+#include <chrono>
 #include <filesystem>
+#include <stdexcept>
 #include <string>
-#include <vector>
 
 namespace rmf::scheduler::test {
 
+static std::string db_file = "Scheduler_TEST.sqlite3";
+
 static Scheduler<VirtualExecutor, MockPublisher> make_scheduler()
 {
-  std::string db_file = Catch::getResultCapture().getCurrentTestName() +
-    ".sqlite3";
-  std::filesystem::remove(db_file);
-  return Scheduler<VirtualExecutor, MockPublisher>{db_file};
+  static SqliteDataSource store{db_file};
+  return Scheduler<VirtualExecutor, MockPublisher>{store};
 }
 
-TEST_CASE("Trigger") {
+static std::string unique_name()
+{
+  return "test_" + std::to_string(
+    std::chrono::steady_clock::now().time_since_epoch().count());
+}
+
+TEST_CASE("Schedule simple") {
+  auto scheduler = make_scheduler();
+
+  auto& executor = scheduler.executor;
+  auto& publisher = scheduler.publisher;
+  auto& store = scheduler.store;
+  executor.advance_until(10);
+
+  rmf_scheduler_msgs::msg::Schedule schedule;
+  schedule.name = unique_name();
+  schedule.schedule = "* * * * * *"; // every sec
+  schedule.start_at = 20;
+  schedule.finish_at = 22;
+  schedule.payload.type = 0;
+  schedule.payload.data.push_back(1);
+  scheduler.schedule_schedule(schedule);
+
+  // check that the schedule is created
+  {
+    auto s = store.fetch_schedule(schedule.name);
+    REQUIRE(s.name == schedule.name);
+    REQUIRE(s.start_at == 20);
+    REQUIRE(s.finish_at == 22);
+
+    auto state = store.fetch_schedule_state(schedule.name);
+    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::CREATED);
+    REQUIRE(state.last_modified == 10);
+    REQUIRE(state.next_run == 21);
+  }
+
+  // check that schedule is ran
+  executor.advance_until(21);
+  REQUIRE(publisher.publishes.size() == 1);
+  REQUIRE(publisher.publishes[0].data[0] == 1);
+
+  // check that the schedule state is updated
+  {
+    auto state = store.fetch_schedule_state(schedule.name);
+    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::STARTED);
+    REQUIRE(state.last_modified == 21);
+    REQUIRE(state.last_ran == 21);
+    REQUIRE(state.next_run == 22);
+  }
+
+  // should run again next sec.
+  executor.advance_until(22);
+  REQUIRE(publisher.publishes.size() == 2);
+  REQUIRE(publisher.publishes[1].data[0] == 1);
+
+  // state should now be finished
+  {
+    auto state = store.fetch_schedule_state(schedule.name);
+    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::FINISHED);
+    REQUIRE(state.last_modified == 22);
+    REQUIRE(state.last_ran == 22);
+    REQUIRE(state.next_run == 0);
+  }
+}
+
+TEST_CASE("Schedule already started")
+{
+  auto scheduler = make_scheduler();
+  auto& store = scheduler.store;
+  scheduler.executor.advance_until(10);
+
+  rmf_scheduler_msgs::msg::Schedule schedule;
+  schedule.name = unique_name();
+  schedule.schedule = "* * * * * *"; // every sec
+  schedule.start_at = 0;
+  schedule.finish_at = 11;
+  schedule.payload.type = 0;
+  schedule.payload.data.push_back(1);
+  scheduler.schedule_schedule(schedule);
+
+  {
+    auto state = store.fetch_schedule_state(schedule.name);
+    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::STARTED);
+    REQUIRE(state.next_run == 11);
+  }
+
+  scheduler.executor.advance_until(11);
+
+  {
+    REQUIRE(scheduler.publisher.publishes.size() == 1);
+
+    auto state = store.fetch_schedule_state(schedule.name);
+    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::FINISHED);
+    REQUIRE(state.next_run == 0);
+  }
+}
+
+TEST_CASE("Schedule already finished")
+{
+  auto scheduler = make_scheduler();
+  auto& store = scheduler.store;
+  scheduler.executor.advance_until(10);
+
+  rmf_scheduler_msgs::msg::Schedule schedule;
+  schedule.name = unique_name();
+  schedule.schedule = "* * * * * *"; // every sec
+  schedule.start_at = 0;
+  schedule.finish_at = 10;
+  schedule.payload.type = 0;
+  schedule.payload.data.push_back(1);
+  scheduler.schedule_schedule(schedule);
+
+  {
+    auto state = store.fetch_schedule_state(schedule.name);
+    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::FINISHED);
+    REQUIRE(state.next_run == 0);
+  }
+
+  scheduler.executor.advance_until(11);
+
+  REQUIRE(scheduler.publisher.publishes.size() == 0);
+}
+
+TEST_CASE("Duplicated schedules are replaced")
+{
+  auto scheduler = make_scheduler();
+  auto& store = scheduler.store;
+
+  auto name = unique_name();
+  {
+    rmf_scheduler_msgs::msg::Schedule schedule;
+    schedule.name = name;
+    schedule.schedule = "* * * * * *"; // every sec
+    schedule.payload.type = 0;
+    schedule.payload.data.push_back(1);
+    scheduler.schedule_schedule(schedule);
+  }
+
+  {
+    rmf_scheduler_msgs::msg::Schedule schedule;
+    schedule.name = name;
+    schedule.schedule = "* * * * * *"; // every sec
+    schedule.payload.type = 0;
+    schedule.payload.data.push_back(2);
+    scheduler.schedule_schedule(schedule);
+  }
+
+  auto schedule = store.fetch_schedule(name);
+  REQUIRE(schedule.payload.data[0] == 2);
+
+  // check that old schedule is not ran
+  scheduler.executor.advance_until(1);
+  REQUIRE(scheduler.publisher.publishes.size() == 1);
+  REQUIRE(scheduler.publisher.publishes[0].data[0] == 2);
+}
+
+TEST_CASE("Schedule error when finish >= start")
+{
+  auto scheduler = make_scheduler();
+  auto& store = scheduler.store;
+
+  rmf_scheduler_msgs::msg::Schedule schedule;
+  schedule.name = unique_name();
+  schedule.schedule = "* * * * * *"; // every sec
+  schedule.start_at = 10;
+  schedule.finish_at = 10;
+  schedule.payload.type = 0;
+  schedule.payload.data.push_back(1);
+
+  REQUIRE_THROWS_AS(scheduler.schedule_schedule(schedule), std::logic_error);
+}
+
+TEST_CASE("Trigger simple") {
   auto scheduler = make_scheduler();
 
   auto& executor = scheduler.executor;
@@ -51,7 +223,7 @@ TEST_CASE("Trigger") {
   executor.advance_until(10);
 
   rmf_scheduler_msgs::msg::Trigger trigger;
-  trigger.name = "test_trigger";
+  trigger.name = unique_name();
   trigger.at = 20;
   trigger.payload.type = 0;
   trigger.payload.data.push_back(1);
@@ -59,11 +231,11 @@ TEST_CASE("Trigger") {
 
   // check that the trigger is created
   {
-    auto trigger = store.fetch_trigger("test_trigger");
-    REQUIRE(trigger.name == "test_trigger");
-    REQUIRE(trigger.at == 20);
+    auto t = store.fetch_trigger(trigger.name);
+    REQUIRE(t.name == trigger.name);
+    REQUIRE(t.at == 20);
 
-    auto state = store.fetch_trigger_state("test_trigger");
+    auto state = store.fetch_trigger_state(trigger.name);
     REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::CREATED);
     REQUIRE(state.last_modified == 10);
   }
@@ -75,7 +247,7 @@ TEST_CASE("Trigger") {
 
   // check that the trigger state is updated
   {
-    auto state = store.fetch_trigger_state("test_trigger");
+    auto state = store.fetch_trigger_state(trigger.name);
     REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::FINISHED);
     REQUIRE(state.last_modified == 20);
     REQUIRE(state.last_ran == 20);
@@ -86,11 +258,11 @@ TEST_CASE("Duplicated triggers are replaced")
 {
   auto scheduler = make_scheduler();
   auto& store = scheduler.store;
-  auto& publisher = scheduler.publisher;
 
+  auto name = unique_name();
   {
     rmf_scheduler_msgs::msg::Trigger trigger;
-    trigger.name = "test_trigger";
+    trigger.name = name;
     trigger.at = 10;
     trigger.payload.type = 0;
     trigger.payload.data.push_back(1);
@@ -99,14 +271,14 @@ TEST_CASE("Duplicated triggers are replaced")
 
   {
     rmf_scheduler_msgs::msg::Trigger trigger;
-    trigger.name = "test_trigger";
+    trigger.name = name;
     trigger.at = 20;
     trigger.payload.type = 0;
     trigger.payload.data.push_back(2);
     scheduler.schedule_trigger(trigger);
   }
 
-  auto trigger = store.fetch_trigger("test_trigger");
+  auto trigger = store.fetch_trigger(name);
   REQUIRE(trigger.at == 20);
   REQUIRE(trigger.payload.data[0] == 2);
 
@@ -116,4 +288,10 @@ TEST_CASE("Duplicated triggers are replaced")
   REQUIRE(scheduler.publisher.publishes[0].data[0] == 2);
 }
 
+}
+
+int main(int argc, char* argv[])
+{
+  std::filesystem::remove(rmf::scheduler::test::db_file);
+  return Catch::Session().run(argc, argv);
 }

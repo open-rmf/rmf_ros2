@@ -42,7 +42,7 @@ public:
 
 private:
   std::multimap<int64_t, std::shared_ptr<Task>> _tasks;
-  int64_t _now;
+  int64_t _now = 0;
 
   void _tick();
 };

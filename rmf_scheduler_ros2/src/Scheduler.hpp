@@ -20,12 +20,18 @@
 #include "SqliteDataSource.hpp"
 #include "Task.hpp"
 
+#include <croncpp.h>
+
+#include <rmf_scheduler_msgs/msg/schedule.hpp>
+#include <rmf_scheduler_msgs/msg/schedule_record.hpp>
+#include <rmf_scheduler_msgs/msg/schedule_state.hpp>
 #include <rmf_scheduler_msgs/msg/trigger.hpp>
 #include <rmf_scheduler_msgs/msg/trigger_record.hpp>
 #include <rmf_scheduler_msgs/msg/trigger_state.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 
@@ -39,10 +45,10 @@ class Scheduler
 public:
   Executor executor;
   Publisher publisher;
-  SqliteDataSource store;
+  SqliteDataSource& store;
 
-  Scheduler(const std::string& db_file)
-  : store(db_file)
+  Scheduler(SqliteDataSource& store)
+  : store(store)
   {
   }
 
@@ -69,11 +75,12 @@ public:
     }
     catch (const std::out_of_range&)
     {
+      // ignore
     }
 
     // capture only the name to avoid storing the payload in memory.
     this->_trigger_tasks[trigger.name] =
-      executor.schedule_task(trigger.at, [this, name = trigger.name]()
+      this->executor.schedule_task(trigger.at, [this, name = trigger.name]()
         {
           auto trigger = this->store.fetch_trigger(name);
           this->publisher.publish(trigger.payload);
@@ -89,7 +96,142 @@ public:
   }
 
 private:
+  // functor to allow self referencing normally not allowd in lambdas.
+  struct _run_schedule_task
+  {
+    using Me = Scheduler<Executor, Publisher>;
+    Me* scheduler;
+    std::string name;
+
+    _run_schedule_task(Me* scheduler, std::string schedule_name)
+    : scheduler(scheduler), name(std::move(schedule_name))
+    {}
+
+    void operator()() const
+    {
+      auto now = this->scheduler->executor.now();
+
+      auto schedule = this->scheduler->store.fetch_schedule(name);
+      this->scheduler->publisher.publish(schedule.payload);
+
+      rmf_scheduler_msgs::msg::ScheduleState state;
+      state.last_modified = now;
+      state.last_ran = now;
+      state.next_run = this->scheduler->_next_schedule_run(schedule, now);
+      if (state.next_run == 0)
+      {
+        state.status = rmf_scheduler_msgs::msg::ScheduleState::FINISHED;
+      }
+      else
+      {
+        state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
+      }
+
+      auto t = this->scheduler->store.begin_transaction();
+      t.save_schedule_state(name, state);
+      this->scheduler->store.commit_transaction();
+
+      if (state.next_run != 0)
+      {
+        this->scheduler->_schedule_tasks[name] =
+          this->scheduler->executor.schedule_task(state.next_run,
+            _run_schedule_task{this->scheduler, name});
+      }
+    }
+  };
+
+public:
+  void schedule_schedule(const rmf_scheduler_msgs::msg::Schedule& schedule)
+  {
+    if (schedule.finish_at <= schedule.start_at)
+    {
+      throw std::logic_error("Finish time must be after start time");
+    }
+
+    auto now = executor.now();
+
+    cron::cron_next(cron::make_cron(schedule.schedule), schedule.start_at);
+
+    rmf_scheduler_msgs::msg::ScheduleRecord record;
+    record.created_at = now;
+    record.state.last_modified = now;
+    record.state.last_ran = 0;
+    record.state.next_run = this->_next_schedule_run(schedule, now);
+    uint8_t status = rmf_scheduler_msgs::msg::ScheduleState::CREATED;
+    if (schedule.start_at <= now)
+    {
+      status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
+    }
+    if (record.state.next_run == 0)
+    {
+      status = rmf_scheduler_msgs::msg::ScheduleState::FINISHED;
+    }
+    record.state.status = status;
+    record.schedule = schedule;
+
+    auto t = this->store.begin_transaction();
+    t.create_schedule(record);
+    this->store.commit_transaction();
+
+    // cancels the previous schedule if it exists
+    try
+    {
+      this->executor.cancel_task(this->_schedule_tasks.at(schedule.name));
+      this->_schedule_tasks.erase(schedule.name);
+    }
+    catch (const std::out_of_range&)
+    {
+      // ignore
+    }
+
+    static auto start_schedule_task = [this, name = schedule.name]()
+      {
+        auto now = this->executor.now();
+        auto state = this->store.fetch_schedule_state(name);
+        state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
+        state.last_modified = now;
+
+        auto t = this->store.begin_transaction();
+        t.save_schedule_state(name, state);
+        this->store.commit_transaction();
+
+        this->_schedule_tasks[name] =
+          this->executor.schedule_task(state.next_run, _run_schedule_task{this,
+              name});
+      };
+
+    if (record.state.status == rmf_scheduler_msgs::msg::ScheduleState::CREATED)
+    {
+      this->_schedule_tasks[schedule.name] =
+        this->executor.schedule_task(record.schedule.start_at,
+          start_schedule_task);
+    }
+    else if (record.state.status ==
+      rmf_scheduler_msgs::msg::ScheduleState::STARTED)
+    {
+      this->_schedule_tasks[schedule.name] =
+        this->executor.schedule_task(record.state.next_run,
+          _run_schedule_task{this, schedule.name});
+    }
+  }
+
+private:
   std::unordered_map<std::string, std::shared_ptr<Task>> _trigger_tasks;
+  std::unordered_map<std::string, std::shared_ptr<Task>> _schedule_tasks;
+
+  int64_t _next_schedule_run(
+    const rmf_scheduler_msgs::msg::Schedule& schedule,
+    int64_t now)
+  {
+    auto next_run = schedule.start_at > now ?
+      cron::cron_next(cron::make_cron(schedule.schedule), schedule.start_at) :
+      cron::cron_next(cron::make_cron(schedule.schedule), now);
+    if (schedule.finish_at < next_run)
+    {
+      return 0;
+    }
+    return next_run;
+  }
 };
 
 }

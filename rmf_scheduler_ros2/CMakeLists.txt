@@ -25,6 +25,7 @@ target_link_libraries(lib${PROJECT_NAME} PUBLIC
   ${rmf_scheduler_msgs_LIBRARIES}
 )
 target_include_directories(lib${PROJECT_NAME} PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/vendor/cronpp-999f7685ab683b58872386c0aa019acf97c6570a
   ${rmf_scheduler_msgs_INCLUDE_DIRS}
 )
 
