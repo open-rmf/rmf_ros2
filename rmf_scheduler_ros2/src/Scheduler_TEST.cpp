@@ -48,7 +48,7 @@ static std::string unique_name()
     std::chrono::steady_clock::now().time_since_epoch().count());
 }
 
-TEST_CASE("Schedule simple") {
+TEST_CASE("Schedule simple", "[Scheduler]") {
   auto scheduler = make_scheduler();
 
   auto& executor = scheduler.executor;
@@ -107,7 +107,7 @@ TEST_CASE("Schedule simple") {
   }
 }
 
-TEST_CASE("Schedule already started")
+TEST_CASE("Schedule already started", "[Scheduler]")
 {
   auto scheduler = make_scheduler();
   auto& store = scheduler.store;
@@ -139,7 +139,7 @@ TEST_CASE("Schedule already started")
   }
 }
 
-TEST_CASE("Schedule already finished")
+TEST_CASE("Schedule already finished", "[Scheduler]")
 {
   auto scheduler = make_scheduler();
   auto& store = scheduler.store;
@@ -165,7 +165,7 @@ TEST_CASE("Schedule already finished")
   REQUIRE(scheduler.publisher.publishes.size() == 0);
 }
 
-TEST_CASE("Duplicated schedules are replaced")
+TEST_CASE("Duplicated schedules are replaced", "[Scheduler]")
 {
   auto scheduler = make_scheduler();
   auto& store = scheduler.store;
@@ -198,7 +198,7 @@ TEST_CASE("Duplicated schedules are replaced")
   REQUIRE(scheduler.publisher.publishes[0].data[0] == 2);
 }
 
-TEST_CASE("Schedule error when finish >= start")
+TEST_CASE("Schedule error when finish >= start", "[Scheduler]")
 {
   auto scheduler = make_scheduler();
   auto& store = scheduler.store;
@@ -214,7 +214,7 @@ TEST_CASE("Schedule error when finish >= start")
   REQUIRE_THROWS_AS(scheduler.schedule_schedule(schedule), std::logic_error);
 }
 
-TEST_CASE("Trigger simple") {
+TEST_CASE("Trigger simple", "[Scheduler]") {
   auto scheduler = make_scheduler();
 
   auto& executor = scheduler.executor;
@@ -254,7 +254,7 @@ TEST_CASE("Trigger simple") {
   }
 }
 
-TEST_CASE("Duplicated triggers are replaced")
+TEST_CASE("Duplicated triggers are replaced", "[Scheduler]")
 {
   auto scheduler = make_scheduler();
   auto& store = scheduler.store;

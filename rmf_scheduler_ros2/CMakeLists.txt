@@ -16,8 +16,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 add_library(lib${PROJECT_NAME} OBJECT
-  src/Scheduler.cpp
   src/SqliteDataSource.cpp
+  src/SystemTimeExecutor.cpp
 )
 target_link_libraries(lib${PROJECT_NAME} PUBLIC
   rclcpp::rclcpp
@@ -58,8 +58,15 @@ if(BUILD_TESTING)
     src/Scheduler_TEST.cpp
     src/test/VirtualExecutor.cpp
   )
-
   target_link_libraries(Scheduler_TEST PRIVATE
+    lib${PROJECT_NAME}
+    rmf_utils::rmf_utils
+  )
+
+  ament_add_catch2(SystemTimeExecutor_TEST TIMEOUT 300
+    src/SystemTimeExecutor_TEST.cpp
+  )
+  target_link_libraries(SystemTimeExecutor_TEST PRIVATE
     lib${PROJECT_NAME}
     rmf_utils::rmf_utils
   )
