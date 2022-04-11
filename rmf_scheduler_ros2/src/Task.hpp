@@ -15,7 +15,20 @@
  *
  */
 
-int main()
+#pragma once
+
+#include <chrono>
+#include <functional>
+
+namespace rmf::scheduler {
+
+struct Task
 {
-  return 0;
+  int64_t when;
+  std::function<void()> action;
+
+  Task(int64_t when, std::function<void()> action)
+  : when(when), action(action) {}
+};
+
 }

@@ -10,9 +10,14 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>rmf_scheduler_msgs</depend>
+  <depend>libsqlite3-0</depend>
+
+  <build_depend>libsqlite3-dev</build_depend>
 
   <test_depend>ament_cmake_catch2</test_depend>
   <test_depend>ament_cmake_uncrustify</test_depend>
+  <test_depend>rmf_utils</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

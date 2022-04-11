@@ -15,7 +15,36 @@
  *
  */
 
-int main()
+#pragma once
+
+#include "../Task.hpp"
+
+#include <functional>
+#include <map>
+#include <memory>
+
+namespace rmf::scheduler {
+
+class VirtualExecutor
 {
-  return 0;
+public:
+  int64_t now() const;
+
+  std::shared_ptr<Task> schedule_task(int64_t at, std::function<void()> action);
+
+  void clear_tasks();
+
+  void cancel_task(std::shared_ptr<Task> task);
+
+  void advance_by(int64_t by);
+
+  void advance_until(int64_t until);
+
+private:
+  std::multimap<int64_t, std::shared_ptr<Task>> _tasks;
+  int64_t _now;
+
+  void _tick();
+};
+
 }

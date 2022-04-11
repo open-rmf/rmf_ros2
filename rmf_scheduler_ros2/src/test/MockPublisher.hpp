@@ -15,7 +15,21 @@
  *
  */
 
-int main()
+#pragma once
+
+#include <rmf_scheduler_msgs/msg/payload.hpp>
+
+namespace rmf::scheduler::test {
+
+class MockPublisher
 {
-  return 0;
+public:
+  std::vector<rmf_scheduler_msgs::msg::Payload> publishes;
+
+  void publish(const rmf_scheduler_msgs::msg::Payload& payload)
+  {
+    this->publishes.push_back(payload);
+  }
+};
+
 }

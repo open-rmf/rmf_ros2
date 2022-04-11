@@ -15,7 +15,14 @@
  *
  */
 
-int main()
+#include "Scheduler.hpp"
+
+namespace rmf::scheduler {
+
+int64_t to_unix_seconds(const std::chrono::system_clock::time_point& t)
 {
-  return 0;
+  return std::chrono::duration_cast<std::chrono::seconds>(
+    t.time_since_epoch()).count();
+}
+
 }
