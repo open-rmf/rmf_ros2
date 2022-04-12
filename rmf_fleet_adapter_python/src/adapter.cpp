@@ -40,6 +40,7 @@ using ModifiedConsiderRequest =
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
+using Stubbornness = agv::RobotUpdateHandle::Unstable::Stubbornness;
 
 void bind_types(py::module&);
 void bind_graph(py::module&);
@@ -155,6 +156,23 @@ PYBIND11_MODULE(rmf_adapter, m) {
     },
     py::return_value_policy::reference_internal,
     "Experimental API to access the schedule participant")
+  .def("unstable_declare_holding",
+    [&](agv::RobotUpdateHandle& self,
+    std::string on_map,
+    Eigen::Vector3d at_position,
+    rmf_traffic::Duration for_duration)
+    {
+      self.unstable().declare_holding(
+        std::move(on_map), at_position, for_duration);
+    },
+    py::arg("on_map"),
+    py::arg("at_position"),
+    py::arg("for_duration"))
+  .def("unstable_be_stubborn",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().be_stubborn();
+    })
   .def("set_action_executor",
     &agv::RobotUpdateHandle::set_action_executor,
     py::arg("action_executor"))
@@ -217,6 +235,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     .value("Info", agv::RobotUpdateHandle::Tier::Info)
     .value("Warning", agv::RobotUpdateHandle::Tier::Warning)
     .value("Error", agv::RobotUpdateHandle::Tier::Error);
+
+  // Stubbornness ============================================================
+  py::class_<Stubbornness>(
+    m_robot_update_handle, "Stubbornness")
+  .def("release",
+    &Stubbornness::release);
 
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
