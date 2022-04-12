@@ -235,7 +235,7 @@ TEST_CASE("Trigger simple", "[Scheduler]") {
     REQUIRE(t.at == 20);
 
     auto state = store.fetch_trigger_state(trigger.name);
-    REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::CREATED);
+    REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::STARTED);
     REQUIRE(state.last_modified == 10);
   }
 

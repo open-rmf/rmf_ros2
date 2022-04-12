@@ -61,7 +61,7 @@ public:
     record.state.last_modified = now;
     record.trigger = trigger;
     record.state.last_ran = 0;
-    record.state.status = rmf_scheduler_msgs::msg::TriggerState::CREATED;
+    record.state.status = rmf_scheduler_msgs::msg::TriggerState::STARTED;
 
     auto t = this->store.begin_transaction();
     t.create_trigger(record);
