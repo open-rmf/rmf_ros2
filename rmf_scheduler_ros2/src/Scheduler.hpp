@@ -56,7 +56,8 @@ public:
       inst._schedule_trigger(trigger);
     }
 
-    for (const auto& name : store.fetch_running_schedules())
+    auto schedules = store.fetch_running_schedules();
+    for (const auto& name : schedules)
     {
       auto schedule = store.fetch_schedule(name);
       auto state = store.fetch_schedule_state(name);
@@ -298,7 +299,7 @@ private:
   void _schedule_schedule(const rmf_scheduler_msgs::msg::Schedule& schedule,
     const rmf_scheduler_msgs::msg::ScheduleState& state)
   {
-    static auto start_schedule_task = [this, name = schedule.name]()
+    auto start_schedule_task = [this, name = schedule.name]()
       {
         auto now = this->executor.now();
         auto state = this->store.fetch_schedule_state(name);
@@ -325,6 +326,7 @@ private:
         this->_schedule_tasks[schedule.name] =
           this->executor.schedule_task(state.next_run,
             _run_schedule_task{this, schedule.name});
+        break;
     }
   }
 };
