@@ -63,7 +63,7 @@ TEST_CASE("Schedule simple", "[Scheduler]") {
   schedule.finish_at = 22;
   schedule.payload.type = 0;
   schedule.payload.data.push_back(1);
-  scheduler.schedule_schedule(schedule);
+  scheduler.create_schedule(schedule);
 
   // check that the schedule is created
   {
@@ -120,7 +120,7 @@ TEST_CASE("Schedule already started", "[Scheduler]")
   schedule.finish_at = 11;
   schedule.payload.type = 0;
   schedule.payload.data.push_back(1);
-  scheduler.schedule_schedule(schedule);
+  scheduler.create_schedule(schedule);
 
   {
     auto state = store.fetch_schedule_state(schedule.name);
@@ -152,7 +152,7 @@ TEST_CASE("Schedule already finished", "[Scheduler]")
   schedule.finish_at = 10;
   schedule.payload.type = 0;
   schedule.payload.data.push_back(1);
-  scheduler.schedule_schedule(schedule);
+  scheduler.create_schedule(schedule);
 
   {
     auto state = store.fetch_schedule_state(schedule.name);
@@ -177,7 +177,7 @@ TEST_CASE("Duplicated schedules are replaced", "[Scheduler]")
     schedule.schedule = "* * * * * *"; // every sec
     schedule.payload.type = 0;
     schedule.payload.data.push_back(1);
-    scheduler.schedule_schedule(schedule);
+    scheduler.create_schedule(schedule);
   }
 
   {
@@ -186,7 +186,7 @@ TEST_CASE("Duplicated schedules are replaced", "[Scheduler]")
     schedule.schedule = "* * * * * *"; // every sec
     schedule.payload.type = 0;
     schedule.payload.data.push_back(2);
-    scheduler.schedule_schedule(schedule);
+    scheduler.create_schedule(schedule);
   }
 
   auto schedule = store.fetch_schedule(name);
@@ -210,7 +210,35 @@ TEST_CASE("Schedule error when finish >= start", "[Scheduler]")
   schedule.payload.type = 0;
   schedule.payload.data.push_back(1);
 
-  REQUIRE_THROWS_AS(scheduler.schedule_schedule(schedule), std::logic_error);
+  REQUIRE_THROWS_AS(scheduler.create_schedule(schedule), std::logic_error);
+}
+
+TEST_CASE("Cancel schedule", "[Scheduler]")
+{
+  auto scheduler = make_scheduler();
+  scheduler.executor.advance_until(10);
+  auto name = unique_name();
+
+  rmf_scheduler_msgs::msg::Schedule schedule;
+  schedule.name = name;
+  schedule.schedule = "* * * * * *";
+  schedule.start_at = 15;
+  schedule.payload.type = 0;
+  schedule.payload.data.push_back(1);
+  scheduler.create_schedule(schedule);
+
+  scheduler.cancel_schedule(name);
+  scheduler.executor.advance_until(20);
+  REQUIRE(scheduler.publisher.publishes.size() == 0);
+  auto state = scheduler.store.fetch_schedule_state(name);
+  REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::CANCELLED);
+  REQUIRE(state.next_run == 0);
+}
+
+TEST_CASE("Cancelling non existent schedule should be noop", "[Scheduler]")
+{
+  auto scheduler = make_scheduler();
+  REQUIRE_NOTHROW(scheduler.cancel_schedule("hello"));
 }
 
 TEST_CASE("Trigger simple", "[Scheduler]") {
@@ -226,7 +254,7 @@ TEST_CASE("Trigger simple", "[Scheduler]") {
   trigger.at = 20;
   trigger.payload.type = 0;
   trigger.payload.data.push_back(1);
-  scheduler.schedule_trigger(trigger);
+  scheduler.create_trigger(trigger);
 
   // check that the trigger is created
   {
@@ -265,7 +293,7 @@ TEST_CASE("Duplicated triggers are replaced", "[Scheduler]")
     trigger.at = 10;
     trigger.payload.type = 0;
     trigger.payload.data.push_back(1);
-    scheduler.schedule_trigger(trigger);
+    scheduler.create_trigger(trigger);
   }
 
   {
@@ -274,7 +302,7 @@ TEST_CASE("Duplicated triggers are replaced", "[Scheduler]")
     trigger.at = 20;
     trigger.payload.type = 0;
     trigger.payload.data.push_back(2);
-    scheduler.schedule_trigger(trigger);
+    scheduler.create_trigger(trigger);
   }
 
   auto trigger = store.fetch_trigger(name);
@@ -285,6 +313,51 @@ TEST_CASE("Duplicated triggers are replaced", "[Scheduler]")
   scheduler.executor.advance_until(20);
   REQUIRE(scheduler.publisher.publishes.size() == 1);
   REQUIRE(scheduler.publisher.publishes[0].data[0] == 2);
+}
+
+TEST_CASE("Late triggers are executed", "[Scheduler]")
+{
+  auto scheduler = make_scheduler();
+  scheduler.executor.advance_until(10);
+  auto name = unique_name();
+
+  rmf_scheduler_msgs::msg::Trigger trigger;
+  trigger.name = name;
+  trigger.at = 1;
+  trigger.payload.type = 0;
+  trigger.payload.data.push_back(1);
+  scheduler.create_trigger(trigger);
+
+  scheduler.executor.advance_until(11);
+  REQUIRE(scheduler.publisher.publishes.size() == 1);
+  auto state = scheduler.store.fetch_trigger_state(name);
+  REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::FINISHED);
+}
+
+TEST_CASE("Cancel trigger", "[Scheduler]")
+{
+  auto scheduler = make_scheduler();
+  scheduler.executor.advance_until(10);
+  auto name = unique_name();
+
+  rmf_scheduler_msgs::msg::Trigger trigger;
+  trigger.name = name;
+  trigger.at = 20;
+  trigger.payload.type = 0;
+  trigger.payload.data.push_back(1);
+  scheduler.create_trigger(trigger);
+
+  scheduler.cancel_trigger(name);
+  scheduler.executor.advance_until(20);
+  REQUIRE(scheduler.publisher.publishes.size() == 0);
+  auto state = scheduler.store.fetch_trigger_state(name);
+  REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::CANCELLED);
+}
+
+TEST_CASE("Cancelling non existent trigger should be noop", "[Scheduler]")
+{
+  auto scheduler = make_scheduler();
+  REQUIRE_NOTHROW(scheduler.cancel_trigger("hello"));
 }
 
 }
