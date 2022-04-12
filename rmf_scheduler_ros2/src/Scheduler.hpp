@@ -43,10 +43,32 @@ template<typename Executor, typename Publisher>
 class Scheduler
 {
 public:
+  /// Creates a scheduler by loading existing tasks from the database.
+  static Scheduler<Executor, Publisher> load_from_db(SqliteDataSource& store)
+  {
+    Scheduler<Executor, Publisher> inst{store};
+
+    for (const auto& name : store.fetch_running_triggers())
+    {
+      auto trigger = store.fetch_trigger(name);
+      inst._schedule_trigger(trigger);
+    }
+
+    for (const auto& name : store.fetch_running_schedules())
+    {
+      auto schedule = store.fetch_schedule(name);
+      auto state = store.fetch_schedule_state(name);
+      inst._schedule_schedule(schedule, state);
+    }
+
+    return inst;
+  }
+
   Executor executor;
   Publisher publisher;
   SqliteDataSource& store;
 
+  /// Creates a new scheduler with no existing tasks.
   Scheduler(SqliteDataSource& store)
   : store(store)
   {

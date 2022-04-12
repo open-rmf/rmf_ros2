@@ -85,10 +85,18 @@ public:
   void commit_transaction();
 
   rmf_scheduler_msgs::msg::Schedule fetch_schedule(const std::string& name);
+
+  /// Fetch schedules which are CREATED or STARTED.
+  std::vector<std::string> fetch_running_schedules();
+
   rmf_scheduler_msgs::msg::ScheduleState fetch_schedule_state(
     const std::string& name);
 
   rmf_scheduler_msgs::msg::Trigger fetch_trigger(const std::string& name);
+
+  /// Fetch triggers which are STARTED.
+  std::vector<std::string> fetch_running_triggers();
+
   rmf_scheduler_msgs::msg::TriggerState fetch_trigger_state(
     const std::string& name);
 

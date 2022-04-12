@@ -297,6 +297,44 @@ WHERE name = ?
   return schedule;
 }
 
+std::vector<std::string> SqliteDataSource::fetch_running_schedules()
+{
+  std::string sql =
+    R"(
+SELECT name FROM Schedule
+WHERE status = ? OR status = ?
+  )";
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql,
+    rmf_scheduler_msgs::msg::ScheduleState::STARTED,
+    rmf_scheduler_msgs::msg::ScheduleState::CREATED);
+
+  if (sqlite3_step(stmt) != SQLITE_ROW)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  std::vector<std::string> schedules;
+  auto result = sqlite3_step(stmt);
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    if (result != SQLITE_ROW)
+    {
+      throw DatabaseError(this->_db);
+    }
+
+    schedules.emplace_back((const char*) sqlite3_column_text(stmt, 0));
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  return schedules;
+}
+
 rmf_scheduler_msgs::msg::ScheduleState SqliteDataSource::fetch_schedule_state(
   const std::string& name)
 {
@@ -358,6 +396,43 @@ WHERE name = ?
   }
 
   return trigger;
+}
+
+std::vector<std::string> SqliteDataSource::fetch_running_triggers()
+{
+  std::string sql =
+    R"(
+SELECT name FROM Trigger
+WHERE status = ?
+  )";
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql,
+    rmf_scheduler_msgs::msg::TriggerState::STARTED);
+
+  if (sqlite3_step(stmt) != SQLITE_ROW)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  std::vector<std::string> triggers;
+  auto result = sqlite3_step(stmt);
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    if (result != SQLITE_ROW)
+    {
+      throw DatabaseError(this->_db);
+    }
+
+    triggers.emplace_back((const char*) sqlite3_column_text(stmt, 0));
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  return triggers;
 }
 
 rmf_scheduler_msgs::msg::TriggerState SqliteDataSource::fetch_trigger_state(

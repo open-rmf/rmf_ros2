@@ -360,6 +360,41 @@ TEST_CASE("Cancelling non existent trigger should be noop", "[Scheduler]")
   REQUIRE_NOTHROW(scheduler.cancel_trigger("hello"));
 }
 
+TEST_CASE("Load from database", "[Scheduler]")
+{
+  using TestScheduler = Scheduler<VirtualExecutor, MockPublisher>;
+  std::string db_file = "load_from_db.sqlite3";
+  std::filesystem::remove(db_file);
+
+  {
+    SqliteDataSource store{db_file};
+    TestScheduler scheduler{store};
+
+    rmf_scheduler_msgs::msg::Trigger trigger;
+    trigger.name = unique_name();
+    trigger.at = 20;
+    trigger.payload.type = 0;
+    trigger.payload.data.push_back(1);
+    scheduler.create_trigger(trigger);
+
+    rmf_scheduler_msgs::msg::Schedule schedule;
+    schedule.name = unique_name();
+    schedule.schedule = "* * * * * *"; // every sec
+    schedule.start_at = 20;
+    schedule.finish_at = 22;
+    schedule.payload.type = 0;
+    schedule.payload.data.push_back(1);
+    scheduler.create_schedule(schedule);
+  }
+
+  {
+    SqliteDataSource store{db_file};
+    auto loaded = TestScheduler::load_from_db(store);
+    loaded.executor.advance_until(21);
+    REQUIRE(loaded.publisher.publishes.size() == 2);
+  }
+}
+
 }
 
 int main(int argc, char* argv[])
