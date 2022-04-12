@@ -20,6 +20,8 @@
 #include "SqliteDataSource.hpp"
 #include "Task.hpp"
 
+#include <sqlite3.h>
+
 #include <croncpp.h>
 
 #include <rmf_scheduler_msgs/msg/schedule.hpp>
@@ -126,9 +128,12 @@ public:
       t.save_trigger_state(trigger_name, state);
       this->store.commit_transaction();
     }
-    catch (const SqliteDataSource::DatabaseError&)
+    catch (const SqliteDataSource::DatabaseError& e)
     {
-      // ignore
+      if (e.code != SQLITE_DONE)
+      {
+        throw;
+      }
     }
   }
 
@@ -200,9 +205,12 @@ public:
       t.save_schedule_state(schedule_name, state);
       this->store.commit_transaction();
     }
-    catch (const SqliteDataSource::DatabaseError&)
+    catch (const SqliteDataSource::DatabaseError& e)
     {
-      // ignore
+      if (e.code != SQLITE_DONE)
+      {
+        throw;
+      }
     }
   }
 
