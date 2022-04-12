@@ -23,8 +23,8 @@
 
 namespace rmf::scheduler {
 
-Publisher::Publisher()
-: rclcpp::Node("rmf_scheduler")
+Publisher::Publisher(rclcpp::Node::SharedPtr node)
+: node(node)
 {
 }
 
@@ -36,7 +36,7 @@ void Publisher::publish(const rmf_scheduler_msgs::msg::Payload& payload)
       return this->_publish_serialized_message(payload.data);
     default:
       RCLCPP_ERROR(
-        this->get_logger(), "Unsupported payload type: %d", payload.type);
+        this->node->get_logger(), "Unsupported payload type: %d", payload.type);
   }
 }
 
@@ -72,7 +72,7 @@ void Publisher::_publish_serialized_message(const PayloadData& data)
   rcl_inner.buffer_capacity = rmf_msg.data.size();
   rclcpp::SerializedMessage inner_sermsg{std::move(rcl_inner)}; // move to avoid copy
 
-  auto pub = this->create_generic_publisher(rmf_msg.topic_name,
+  auto pub = this->node->create_generic_publisher(rmf_msg.topic_name,
       rmf_msg.message_type,
       rclcpp::SystemDefaultsQoS{});
   pub->publish(inner_sermsg);

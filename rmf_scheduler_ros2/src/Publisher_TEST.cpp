@@ -33,10 +33,11 @@ namespace rmf::scheduler::test {
 TEST_CASE("publish serialized message", "[Publisher]")
 {
   rclcpp::init(0, nullptr);
-  auto publisher = std::make_shared<Publisher>();
+  auto node = rclcpp::Node::make_shared("test_node");
+  Publisher publisher{node};
   std::promise<bool> done;
 
-  auto sub = publisher->create_subscription<std_msgs::msg::String>("test_topic",
+  auto sub = node->create_subscription<std_msgs::msg::String>("test_topic",
       rclcpp::SystemDefaultsQoS{}, [&done](std_msgs::msg::String::SharedPtr msg)
       {
         REQUIRE(msg->data == "hello world");
@@ -46,9 +47,9 @@ TEST_CASE("publish serialized message", "[Publisher]")
   std_msgs::msg::String msg;
   msg.data = "hello world";
   auto payload = make_serialized_message("std_msgs/String", "test_topic", msg);
-  publisher->publish(payload);
+  publisher.publish(payload);
 
-  auto result = rclcpp::spin_until_future_complete(publisher,
+  auto result = rclcpp::spin_until_future_complete(node,
       done.get_future(), std::chrono::seconds{1});
   REQUIRE(result == rclcpp::FutureReturnCode::SUCCESS);
 }

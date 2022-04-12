@@ -23,12 +23,14 @@
 
 namespace rmf::scheduler {
 
-class Publisher : public rclcpp::Node
+class Publisher
 {
 public:
   using PayloadData = decltype(rmf_scheduler_msgs::msg::Payload::data);
 
-  Publisher();
+  rclcpp::Node::SharedPtr node;
+
+  Publisher(rclcpp::Node::SharedPtr node);
 
   void publish(const rmf_scheduler_msgs::msg::Payload& payload);
 
