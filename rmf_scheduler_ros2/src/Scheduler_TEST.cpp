@@ -201,7 +201,6 @@ TEST_CASE("Duplicated schedules are replaced", "[Scheduler]")
 TEST_CASE("Schedule error when finish >= start", "[Scheduler]")
 {
   auto scheduler = make_scheduler();
-  auto& store = scheduler.store;
 
   rmf_scheduler_msgs::msg::Schedule schedule;
   schedule.name = unique_name();

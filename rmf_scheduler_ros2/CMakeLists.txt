@@ -55,24 +55,30 @@ if(BUILD_TESTING)
     MAX_LINE_LENGTH 80
   )
 
-  ament_add_catch2(Scheduler_TEST TIMEOUT 300
+  function(add_custom_test target)
+    cmake_parse_arguments(PARSE_ARGV 1 "" "" "" "SOURCES")
+  
+    ament_add_catch2(${target}
+      ${_SOURCES}
+    )
+    target_link_libraries(${target} PRIVATE
+      lib${PROJECT_NAME}
+      rmf_utils::rmf_utils
+    )
+  endfunction()
+
+  add_custom_test(Scheduler_TEST SOURCES
     src/Scheduler_TEST.cpp
     src/test/VirtualExecutor.cpp
   )
-  target_link_libraries(Scheduler_TEST PRIVATE
-    lib${PROJECT_NAME}
-    rmf_utils::rmf_utils
-  )
 
-  ament_add_catch2(SystemTimeExecutor_TEST TIMEOUT 300
+  add_custom_test(SystemTimeExecutor_TEST SOURCES
     src/SystemTimeExecutor_TEST.cpp
   )
-  target_link_libraries(SystemTimeExecutor_TEST PRIVATE
-    lib${PROJECT_NAME}
-    rmf_utils::rmf_utils
+  
+  add_custom_test(Publisher_TEST SOURCES
+    src/Publisher_TEST.cpp
   )
-
-  target_include_directories(Scheduler_TEST PRIVATE ${rmf_utils_INCLUDE_DIRS})
 endif()
 
 #===============================================================================

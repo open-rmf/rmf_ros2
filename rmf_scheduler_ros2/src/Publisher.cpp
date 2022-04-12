@@ -55,22 +55,26 @@ void Publisher::_publish_serialized_message(const PayloadData& data)
     rclcpp::Serialization<rmf_scheduler_msgs::msg::SerializedMessage>;
   static Serializer serializer;
 
-  // Technically we could use rmw_* functions here to avoid a copy, at the expense of
-  // memory safety.
-  rclcpp::SerializedMessage payload_sermsg{data.size()};
-  std::copy(data.begin(), data.end(),
-    payload_sermsg.get_rcl_serialized_message().buffer);
+  // using low level apis to avoid copying needed by rclcpp::SerializedMessage
+  rcl_serialized_message_t rcl_payload;
+  rcl_payload.buffer = const_cast<uint8_t*>(&data.front());
+  rcl_payload.buffer_length = data.size();
+  rcl_payload.buffer_capacity = data.size();
+  rclcpp::SerializedMessage payload_sermsg{std::move(rcl_payload)}; // move to avoid copy
 
   // deserialize the serialized rmf_scheduler_msgs/SerializedMessage
   rmf_scheduler_msgs::msg::SerializedMessage rmf_msg;
   serializer.deserialize_message(&payload_sermsg, &rmf_msg);
 
+  rcl_serialized_message_t rcl_inner;
+  rcl_inner.buffer = rmf_msg.data.data();
+  rcl_inner.buffer_length = rmf_msg.data.size();
+  rcl_inner.buffer_capacity = rmf_msg.data.size();
+  rclcpp::SerializedMessage inner_sermsg{std::move(rcl_inner)}; // move to avoid copy
+
   auto pub = this->create_generic_publisher(rmf_msg.topic_name,
       rmf_msg.message_type,
       rclcpp::SystemDefaultsQoS{});
-  rclcpp::SerializedMessage inner_sermsg{rmf_msg.data.size()}; // this is the serialized form of the message to publish.
-  std::copy(rmf_msg.data.begin(),
-    rmf_msg.data.end(), inner_sermsg.get_rcl_serialized_message().buffer);
   pub->publish(inner_sermsg);
 }
 
