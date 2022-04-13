@@ -309,11 +309,6 @@ WHERE status = ? OR status = ?
     rmf_scheduler_msgs::msg::ScheduleState::STARTED,
     rmf_scheduler_msgs::msg::ScheduleState::CREATED);
 
-  if (sqlite3_step(stmt) != SQLITE_ROW)
-  {
-    throw DatabaseError(this->_db);
-  }
-
   std::vector<std::string> schedules;
   for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
     result = sqlite3_step(stmt))
@@ -407,11 +402,6 @@ WHERE status = ?
   sqlite3_stmt* stmt;
   this->_prepare_stmt(&stmt, sql,
     rmf_scheduler_msgs::msg::TriggerState::STARTED);
-
-  if (sqlite3_step(stmt) != SQLITE_ROW)
-  {
-    throw DatabaseError(this->_db);
-  }
 
   std::vector<std::string> triggers;
   for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
