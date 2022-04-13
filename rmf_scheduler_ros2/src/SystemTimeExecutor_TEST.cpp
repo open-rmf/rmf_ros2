@@ -26,7 +26,7 @@
 
 namespace rmf::scheduler::test {
 
-TEST_CASE("Execute tasks", "[SystemTimeExecutor]")
+TEST_CASE("Execute tasks")
 {
   SystemTimeExecutor executor;
   std::thread t{[&executor]() { executor.spin(); }};
@@ -43,7 +43,7 @@ TEST_CASE("Execute tasks", "[SystemTimeExecutor]")
   t.join();
 }
 
-TEST_CASE("Stress test", "[.][slow][SystemTimeExecutor]")
+TEST_CASE("Stress test", "[.][slow]")
 {
   SystemTimeExecutor executor;
   std::thread t{[&executor]() { executor.spin(); }};

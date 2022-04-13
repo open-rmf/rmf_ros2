@@ -48,7 +48,7 @@ static std::string unique_name()
     std::chrono::steady_clock::now().time_since_epoch().count());
 }
 
-TEST_CASE("Schedule simple", "[Scheduler]") {
+TEST_CASE("Schedule simple", "[Schedule]") {
   auto scheduler = make_scheduler();
 
   auto& executor = scheduler.executor;
@@ -107,7 +107,7 @@ TEST_CASE("Schedule simple", "[Scheduler]") {
   }
 }
 
-TEST_CASE("Schedule already started", "[Scheduler]")
+TEST_CASE("Schedule already started", "[Schedule]")
 {
   auto scheduler = make_scheduler();
   auto& store = scheduler.store;
@@ -139,7 +139,7 @@ TEST_CASE("Schedule already started", "[Scheduler]")
   }
 }
 
-TEST_CASE("Schedule already finished", "[Scheduler]")
+TEST_CASE("Schedule already finished", "[Schedule]")
 {
   auto scheduler = make_scheduler();
   auto& store = scheduler.store;
@@ -165,7 +165,7 @@ TEST_CASE("Schedule already finished", "[Scheduler]")
   REQUIRE(scheduler.publisher.publishes.size() == 0);
 }
 
-TEST_CASE("Duplicated schedules are replaced", "[Scheduler]")
+TEST_CASE("Duplicated schedules are replaced", "[Schedule]")
 {
   auto scheduler = make_scheduler();
   auto& store = scheduler.store;
@@ -198,7 +198,7 @@ TEST_CASE("Duplicated schedules are replaced", "[Scheduler]")
   REQUIRE(scheduler.publisher.publishes[0].data[0] == 2);
 }
 
-TEST_CASE("Schedule error when finish >= start", "[Scheduler]")
+TEST_CASE("Schedule error when finish >= start", "[Schedule]")
 {
   auto scheduler = make_scheduler();
 
@@ -213,7 +213,7 @@ TEST_CASE("Schedule error when finish >= start", "[Scheduler]")
   REQUIRE_THROWS_AS(scheduler.create_schedule(schedule), std::logic_error);
 }
 
-TEST_CASE("Cancel schedule", "[Scheduler]")
+TEST_CASE("Cancel schedule", "[Schedule]")
 {
   auto scheduler = make_scheduler();
   scheduler.executor.advance_until(10);
@@ -235,13 +235,13 @@ TEST_CASE("Cancel schedule", "[Scheduler]")
   REQUIRE(state.next_run == 0);
 }
 
-TEST_CASE("Cancelling non existent schedule should be noop", "[Scheduler]")
+TEST_CASE("Cancelling non existent schedule should be noop", "[Schedule]")
 {
   auto scheduler = make_scheduler();
   REQUIRE_NOTHROW(scheduler.cancel_schedule("hello"));
 }
 
-TEST_CASE("Trigger simple", "[Scheduler]") {
+TEST_CASE("Trigger simple", "[Trigger]") {
   auto scheduler = make_scheduler();
 
   auto& executor = scheduler.executor;
@@ -281,7 +281,7 @@ TEST_CASE("Trigger simple", "[Scheduler]") {
   }
 }
 
-TEST_CASE("Duplicated triggers are replaced", "[Scheduler]")
+TEST_CASE("Duplicated triggers are replaced", "[Trigger]")
 {
   auto scheduler = make_scheduler();
   auto& store = scheduler.store;
@@ -315,7 +315,7 @@ TEST_CASE("Duplicated triggers are replaced", "[Scheduler]")
   REQUIRE(scheduler.publisher.publishes[0].data[0] == 2);
 }
 
-TEST_CASE("Late triggers are executed", "[Scheduler]")
+TEST_CASE("Late triggers are executed", "[Trigger]")
 {
   auto scheduler = make_scheduler();
   scheduler.executor.advance_until(10);
@@ -334,7 +334,7 @@ TEST_CASE("Late triggers are executed", "[Scheduler]")
   REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::FINISHED);
 }
 
-TEST_CASE("Cancel trigger", "[Scheduler]")
+TEST_CASE("Cancel trigger", "[Trigger]")
 {
   auto scheduler = make_scheduler();
   scheduler.executor.advance_until(10);
@@ -354,13 +354,13 @@ TEST_CASE("Cancel trigger", "[Scheduler]")
   REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::CANCELLED);
 }
 
-TEST_CASE("Cancelling non existent trigger should be noop", "[Scheduler]")
+TEST_CASE("Cancelling non existent trigger should be noop", "[Trigger]")
 {
   auto scheduler = make_scheduler();
   REQUIRE_NOTHROW(scheduler.cancel_trigger("hello"));
 }
 
-TEST_CASE("Load from database", "[Scheduler]")
+TEST_CASE("Load from database")
 {
   using TestScheduler = Scheduler<VirtualExecutor, MockPublisher>;
   std::string db_file = "load_from_db.sqlite3";

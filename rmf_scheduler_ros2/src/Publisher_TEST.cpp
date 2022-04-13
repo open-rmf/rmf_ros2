@@ -30,7 +30,7 @@
 
 namespace rmf::scheduler::test {
 
-TEST_CASE("publish serialized message", "[Publisher]")
+TEST_CASE("publish serialized message")
 {
   rclcpp::init(0, nullptr);
   auto node = rclcpp::Node::make_shared("test_node");
