@@ -315,7 +315,6 @@ WHERE status = ? OR status = ?
   }
 
   std::vector<std::string> schedules;
-  auto result = sqlite3_step(stmt);
   for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
     result = sqlite3_step(stmt))
   {
@@ -415,7 +414,6 @@ WHERE status = ?
   }
 
   std::vector<std::string> triggers;
-  auto result = sqlite3_step(stmt);
   for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
     result = sqlite3_step(stmt))
   {
