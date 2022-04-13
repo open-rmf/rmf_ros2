@@ -49,11 +49,10 @@ SqliteDataSource::_Transaction::_Transaction(SqliteDataSource* store)
 }
 
 void SqliteDataSource::_Transaction::create_schedule(
-  const rmf_scheduler_msgs::msg::ScheduleRecord& record)
+  const rmf_scheduler_msgs::msg::Schedule& schedule,
+  const rmf_scheduler_msgs::msg::ScheduleState& state,
+  int64_t created_at)
 {
-  const rmf_scheduler_msgs::msg::Schedule& schedule = record.schedule;
-  const rmf_scheduler_msgs::msg::ScheduleState& state = record.state;
-
   std::string sql =
     R"(
 INSERT OR REPLACE INTO Schedule (
@@ -75,7 +74,7 @@ INSERT OR REPLACE INTO Schedule (
   sqlite3_stmt* stmt;
   this->_store->_prepare_stmt(&stmt, sql,
     schedule.name,
-    record.created_at,
+    created_at,
     schedule.schedule,
     schedule.start_at,
     schedule.finish_at,
@@ -99,7 +98,6 @@ INSERT OR REPLACE INTO Schedule (
 }
 
 void SqliteDataSource::_Transaction::save_schedule_state(
-  const std::string& schedule_name,
   const rmf_scheduler_msgs::msg::ScheduleState& state)
 {
   std::string sql =
@@ -117,7 +115,7 @@ WHERE name = ?
     state.last_ran,
     state.next_run,
     state.status,
-    schedule_name
+    state.name
   );
 
   if (sqlite3_step(stmt) != SQLITE_DONE)
@@ -132,11 +130,10 @@ WHERE name = ?
 }
 
 void SqliteDataSource::_Transaction::create_trigger(
-  const rmf_scheduler_msgs::msg::TriggerRecord& record)
+  const rmf_scheduler_msgs::msg::Trigger& trigger,
+  const rmf_scheduler_msgs::msg::TriggerState& state,
+  int64_t created_at)
 {
-  const rmf_scheduler_msgs::msg::Trigger& trigger = record.trigger;
-  const rmf_scheduler_msgs::msg::TriggerState& state = record.state;
-
   std::string sql =
     R"(
 INSERT OR REPLACE INTO Trigger (name, created_at, last_modified, at, payload_type, payload_data, last_ran, status) VALUES (
@@ -144,8 +141,8 @@ INSERT OR REPLACE INTO Trigger (name, created_at, last_modified, at, payload_typ
 )
   )";
   sqlite3_stmt* stmt;
-  this->_store->_prepare_stmt(&stmt, sql, trigger.name, record.created_at,
-    record.state.last_modified,
+  this->_store->_prepare_stmt(&stmt, sql, trigger.name, created_at,
+    state.last_modified,
     trigger.at, trigger.payload.type,
     trigger.payload.data, state.last_ran,
     state.status);
@@ -162,7 +159,6 @@ INSERT OR REPLACE INTO Trigger (name, created_at, last_modified, at, payload_typ
 }
 
 void SqliteDataSource::_Transaction::save_trigger_state(
-  const std::string& trigger_name,
   const rmf_scheduler_msgs::msg::TriggerState& state)
 {
   std::string sql =
@@ -176,7 +172,7 @@ WHERE name = ?
   sqlite3_stmt* stmt;
   this->_store->_prepare_stmt(&stmt, sql, state.last_modified, state.last_ran,
     state.status,
-    trigger_name);
+    state.name);
 
   if (sqlite3_step(stmt) != SQLITE_DONE)
   {
@@ -334,7 +330,7 @@ rmf_scheduler_msgs::msg::ScheduleState SqliteDataSource::fetch_schedule_state(
 {
   std::string sql =
     R"(
-SELECT last_modified, last_ran, next_run, status FROM Schedule
+SELECT name, last_modified, last_ran, next_run, status FROM Schedule
 WHERE name = ?
   )";
   sqlite3_stmt* stmt;
@@ -346,10 +342,11 @@ WHERE name = ?
   }
 
   rmf_scheduler_msgs::msg::ScheduleState state;
-  state.last_modified = sqlite3_column_int64(stmt, 0);
-  state.last_ran = sqlite3_column_int64(stmt, 1);
-  state.next_run = sqlite3_column_int64(stmt, 2);
-  state.status = sqlite3_column_int(stmt, 3);
+  state.name = (const char*) sqlite3_column_text(stmt, 0);
+  state.last_modified = sqlite3_column_int64(stmt, 1);
+  state.last_ran = sqlite3_column_int64(stmt, 2);
+  state.next_run = sqlite3_column_int64(stmt, 3);
+  state.status = sqlite3_column_int(stmt, 4);
 
   if (sqlite3_finalize(stmt) != SQLITE_OK)
   {
@@ -428,7 +425,7 @@ rmf_scheduler_msgs::msg::TriggerState SqliteDataSource::fetch_trigger_state(
 {
   std::string sql =
     R"(
-SELECT last_modified, last_ran, status FROM Trigger
+SELECT name, last_modified, last_ran, status FROM Trigger
 WHERE name = ?
   )";
   sqlite3_stmt* stmt;
@@ -440,9 +437,10 @@ WHERE name = ?
   }
 
   rmf_scheduler_msgs::msg::TriggerState state;
-  state.last_modified = sqlite3_column_int64(stmt, 0);
-  state.last_ran = sqlite3_column_int64(stmt, 1);
-  state.status = sqlite3_column_int(stmt, 2);
+  state.name = (const char*) sqlite3_column_text(stmt, 0);
+  state.last_modified = sqlite3_column_int64(stmt, 1);
+  state.last_ran = sqlite3_column_int64(stmt, 2);
+  state.status = sqlite3_column_int(stmt, 3);
 
   if (sqlite3_finalize(stmt) != SQLITE_OK)
   {

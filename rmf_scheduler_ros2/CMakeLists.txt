@@ -17,6 +17,7 @@ endif()
 
 add_library(lib${PROJECT_NAME} OBJECT
   src/Publisher.cpp
+  src/SchedulerNode.cpp
   src/SqliteDataSource.cpp
   src/SystemTimeExecutor.cpp
 )
@@ -30,13 +31,13 @@ target_include_directories(lib${PROJECT_NAME} PUBLIC
   ${rmf_scheduler_msgs_INCLUDE_DIRS}
 )
 
-# add_executable(${PROJECT_NAME}
-#   src/main.cpp
-# )
-# target_link_libraries(${PROJECT_NAME} PRIVATE
-#   lib${PROJECT_NAME}
-# )
-# target_include_directories(${PROJECT_NAME} PRIVATE)
+add_executable(${PROJECT_NAME}
+  src/main.cpp
+)
+target_link_libraries(${PROJECT_NAME} PRIVATE
+  lib${PROJECT_NAME}
+)
+target_include_directories(${PROJECT_NAME} PRIVATE)
 
 #===============================================================================
 
@@ -83,6 +84,6 @@ endif()
 
 #===============================================================================
 
-# install(TARGETS ${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION lib/${PROJECT_NAME})
 
 ament_package()

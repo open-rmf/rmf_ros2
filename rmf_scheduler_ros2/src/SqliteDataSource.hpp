@@ -22,10 +22,8 @@
 #include <string>
 
 #include <rmf_scheduler_msgs/msg/schedule.hpp>
-#include <rmf_scheduler_msgs/msg/schedule_record.hpp>
 #include <rmf_scheduler_msgs/msg/schedule_state.hpp>
 #include <rmf_scheduler_msgs/msg/trigger.hpp>
-#include <rmf_scheduler_msgs/msg/trigger_record.hpp>
 #include <rmf_scheduler_msgs/msg/trigger_state.hpp>
 
 class sqlite3;
@@ -58,16 +56,20 @@ private:
     _Transaction(SqliteDataSource* store);
 
 
-    void create_schedule(const rmf_scheduler_msgs::msg::ScheduleRecord& record);
+    void create_schedule(
+      const rmf_scheduler_msgs::msg::Schedule& schedule,
+      const rmf_scheduler_msgs::msg::ScheduleState& state,
+      int64_t created_at);
 
     void save_schedule_state(
-      const std::string& schedule_name,
       const rmf_scheduler_msgs::msg::ScheduleState& state);
 
-    void create_trigger(const rmf_scheduler_msgs::msg::TriggerRecord& record);
+    void create_trigger(
+      const rmf_scheduler_msgs::msg::Trigger& trigger,
+      const rmf_scheduler_msgs::msg::TriggerState& state,
+      int64_t created_at);
 
     void save_trigger_state(
-      const std::string& trigger_name,
       const rmf_scheduler_msgs::msg::TriggerState& state);
 
   private:

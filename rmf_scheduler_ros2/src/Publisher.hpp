@@ -28,9 +28,9 @@ class Publisher
 public:
   using PayloadData = decltype(rmf_scheduler_msgs::msg::Payload::data);
 
-  rclcpp::Node::SharedPtr node;
+  rclcpp::Node* node;
 
-  Publisher(rclcpp::Node::SharedPtr node);
+  Publisher(rclcpp::Node* node);
 
   void publish(const rmf_scheduler_msgs::msg::Payload& payload);
 

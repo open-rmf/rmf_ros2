@@ -34,7 +34,7 @@ TEST_CASE("publish serialized message")
 {
   rclcpp::init(0, nullptr);
   auto node = rclcpp::Node::make_shared("test_node");
-  Publisher publisher{node};
+  Publisher publisher{node.get()};
   std::promise<bool> done;
 
   auto sub = node->create_subscription<std_msgs::msg::String>("test_topic",

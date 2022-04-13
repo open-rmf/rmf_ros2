@@ -23,7 +23,7 @@
 
 namespace rmf::scheduler {
 
-Publisher::Publisher(rclcpp::Node::SharedPtr node)
+Publisher::Publisher(rclcpp::Node* node)
 : node(node)
 {
 }

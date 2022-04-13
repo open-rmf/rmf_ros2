@@ -25,10 +25,8 @@
 #include <croncpp.h>
 
 #include <rmf_scheduler_msgs/msg/schedule.hpp>
-#include <rmf_scheduler_msgs/msg/schedule_record.hpp>
 #include <rmf_scheduler_msgs/msg/schedule_state.hpp>
 #include <rmf_scheduler_msgs/msg/trigger.hpp>
-#include <rmf_scheduler_msgs/msg/trigger_record.hpp>
 #include <rmf_scheduler_msgs/msg/trigger_state.hpp>
 
 #include <rclcpp/rclcpp.hpp>
@@ -46,9 +44,12 @@ class Scheduler
 {
 public:
   /// Creates a scheduler by loading existing tasks from the database.
-  static Scheduler<Executor, Publisher> load_from_db(SqliteDataSource& store)
+  static Scheduler<Executor, Publisher> load_from_db(
+    Executor& executor,
+    SqliteDataSource& store,
+    Publisher& pub)
   {
-    Scheduler<Executor, Publisher> inst{store};
+    Scheduler<Executor, Publisher> inst{executor, store, pub};
 
     for (const auto& name : store.fetch_running_triggers())
     {
@@ -67,13 +68,20 @@ public:
     return inst;
   }
 
-  Executor executor;
-  Publisher publisher;
+  Executor& executor;
   SqliteDataSource& store;
+  Publisher& publisher;
+
+  using TriggerUpdateCb =
+    std::function<void(const rmf_scheduler_msgs::msg::TriggerState&)>;
+  TriggerUpdateCb on_trigger_update;
+  using ScheduleUpdateCb =
+    std::function<void(const rmf_scheduler_msgs::msg::ScheduleState&)>;
+  ScheduleUpdateCb on_schedule_update;
 
   /// Creates a new scheduler with no existing tasks.
-  Scheduler(SqliteDataSource& store)
-  : store(store)
+  Scheduler(Executor& executor, SqliteDataSource& store, Publisher& pub)
+  : executor(executor), store(store), publisher(pub)
   {
   }
 
@@ -93,15 +101,14 @@ public:
 
     auto now = executor.now();
 
-    rmf_scheduler_msgs::msg::TriggerRecord record;
-    record.created_at = now;
-    record.trigger = trigger;
-    record.state.last_modified = now;
-    record.state.last_ran = 0;
-    record.state.status = rmf_scheduler_msgs::msg::TriggerState::STARTED;
+    rmf_scheduler_msgs::msg::TriggerState state;
+    state.name = trigger.name;
+    state.last_modified = now;
+    state.last_ran = 0;
+    state.status = rmf_scheduler_msgs::msg::TriggerState::STARTED;
 
     auto t = this->store.begin_transaction();
-    t.create_trigger(record);
+    t.create_trigger(trigger, state, now);
     this->store.commit_transaction();
 
     this->_schedule_trigger(trigger);
@@ -126,7 +133,7 @@ public:
       state.last_modified = this->executor.now();
       state.status = rmf_scheduler_msgs::msg::TriggerState::CANCELLED;
       auto t = this->store.begin_transaction();
-      t.save_trigger_state(trigger_name, state);
+      t.save_trigger_state(state);
       this->store.commit_transaction();
     }
     catch (const SqliteDataSource::DatabaseError& e)
@@ -159,28 +166,27 @@ public:
     auto now = this->executor.now();
     cron::cron_next(cron::make_cron(schedule.schedule), schedule.start_at);
 
-    rmf_scheduler_msgs::msg::ScheduleRecord record;
-    record.created_at = now;
-    record.state.last_modified = now;
-    record.state.last_ran = 0;
-    record.state.next_run = this->_next_schedule_run(schedule, now);
+    rmf_scheduler_msgs::msg::ScheduleState state;
+    state.name = schedule.name;
+    state.last_modified = now;
+    state.last_ran = 0;
+    state.next_run = this->_next_schedule_run(schedule, now);
     uint8_t status = rmf_scheduler_msgs::msg::ScheduleState::CREATED;
     if (schedule.start_at <= now)
     {
       status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
     }
-    if (record.state.next_run == 0)
+    if (state.next_run == 0)
     {
       status = rmf_scheduler_msgs::msg::ScheduleState::FINISHED;
     }
-    record.state.status = status;
-    record.schedule = schedule;
+    state.status = status;
 
     auto t = this->store.begin_transaction();
-    t.create_schedule(record);
+    t.create_schedule(schedule, state, now);
     this->store.commit_transaction();
 
-    this->_schedule_schedule(schedule, record.state);
+    this->_schedule_schedule(schedule, state);
   }
 
   void cancel_schedule(const std::string& schedule_name)
@@ -203,7 +209,7 @@ public:
       state.next_run = 0;
       state.status = rmf_scheduler_msgs::msg::ScheduleState::CANCELLED;
       auto t = this->store.begin_transaction();
-      t.save_schedule_state(schedule_name, state);
+      t.save_schedule_state(state);
       this->store.commit_transaction();
     }
     catch (const SqliteDataSource::DatabaseError& e)
@@ -243,12 +249,18 @@ private:
           this->publisher.publish(trigger.payload);
           rmf_scheduler_msgs::msg::TriggerState state;
           auto now = this->executor.now();
+          state.name = name;
           state.last_ran = now;
           state.last_modified = now;
           state.status = rmf_scheduler_msgs::msg::TriggerState::FINISHED;
           auto t = this->store.begin_transaction();
-          t.save_trigger_state(name, state);
+          t.save_trigger_state(state);
           this->store.commit_transaction();
+
+          if (this->on_trigger_update)
+          {
+            this->on_trigger_update(state);
+          }
         });
   }
 
@@ -271,6 +283,7 @@ private:
       this->scheduler->publisher.publish(schedule.payload);
 
       rmf_scheduler_msgs::msg::ScheduleState state;
+      state.name = this->name;
       state.last_modified = now;
       state.last_ran = now;
       state.next_run = this->scheduler->_next_schedule_run(schedule, now);
@@ -284,8 +297,13 @@ private:
       }
 
       auto t = this->scheduler->store.begin_transaction();
-      t.save_schedule_state(name, state);
+      t.save_schedule_state(state);
       this->scheduler->store.commit_transaction();
+
+      if (scheduler->on_schedule_update)
+      {
+        scheduler->on_schedule_update(state);
+      }
 
       if (state.next_run != 0)
       {
@@ -307,7 +325,7 @@ private:
         state.last_modified = now;
 
         auto t = this->store.begin_transaction();
-        t.save_schedule_state(name, state);
+        t.save_schedule_state(state);
         this->store.commit_transaction();
 
         this->_schedule_tasks[name] =

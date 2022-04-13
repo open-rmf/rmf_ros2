@@ -15,7 +15,25 @@
  *
  */
 
-int main()
+#include "SchedulerNode.hpp"
+
+#include <rclcpp/rclcpp.hpp>
+
+#include <iostream>
+#include <thread>
+
+int main(int argc, char* argv[])
 {
+  rclcpp::init(argc, argv);
+
+  auto node = std::make_shared<rmf::scheduler::SchedulerNode>();
+
+  std::thread tasks_thread{[node]() { node->executor.spin(); }};
+
+  rclcpp::spin(node);
+
+  node->executor.stop();
+  tasks_thread.join();
+
   return 0;
 }
