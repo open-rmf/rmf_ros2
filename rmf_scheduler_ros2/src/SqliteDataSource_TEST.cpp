@@ -86,8 +86,6 @@ TEST_CASE("all in one")
 
   auto make_schedule = [&store](int8_t status)
     {
-      auto t = store.begin_transaction();
-
       std::string name = make_schedule_name(status);
       rmf_scheduler_msgs::msg::Schedule schedule;
       schedule.name = name;
@@ -97,6 +95,7 @@ TEST_CASE("all in one")
       state.name = name;
       state.status = status;
 
+      auto t = store.begin_transaction();
       t.create_schedule(schedule, state, 0);
       store.commit_transaction();
     };
