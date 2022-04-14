@@ -28,6 +28,7 @@
 #include <boost/process.hpp>
 
 #include <chrono>
+#include <filesystem>
 #include <future>
 #include <memory>
 #include <signal.h>
@@ -104,6 +105,7 @@ int main(int argc, char* argv[])
       rclcpp::spin(node);
     }};
 
+  std::filesystem::remove("e2e.sqlite3");
   server = bp::child{
     bp::search_path("ros2"),
     "run", "rmf_scheduler_ros2", "rmf_scheduler_ros2", "--ros-args", "-p",
