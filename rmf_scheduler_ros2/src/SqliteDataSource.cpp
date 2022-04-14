@@ -211,6 +211,10 @@ CREATE TABLE IF NOT EXISTS Trigger (
   status INTEGER NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS Trigger_index ON Trigger (
+  created_at, last_modified, status
+);
+
 CREATE TABLE IF NOT EXISTS Schedule (
   name TEXT PRIMARY KEY,
   created_at INTEGER NOT NULL,
@@ -223,6 +227,10 @@ CREATE TABLE IF NOT EXISTS Schedule (
   last_ran INTEGER NOT NULL,
   next_run INTEGER NOT NULL,
   status INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS Schedule_index ON Schedule (
+  created_at, last_modified, status
 );
   )", nullptr, nullptr,
     &errmsg);
@@ -356,6 +364,70 @@ WHERE name = ?
   return state;
 }
 
+std::vector<std::string> SqliteDataSource::fetch_schedules_created_after(
+  int64_t created_after)
+{
+  std::string sql =
+    R"(
+SELECT name FROM Schedule
+WHERE created_at > ?
+ORDER BY created_at ASC
+  )";
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql, created_after);
+
+  std::vector<std::string> schedules;
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    if (result != SQLITE_ROW)
+    {
+      throw DatabaseError(this->_db);
+    }
+
+    schedules.emplace_back((const char*) sqlite3_column_text(stmt, 0));
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  return schedules;
+}
+
+std::vector<std::string> SqliteDataSource::fetch_schedules_modified_after(
+  int64_t modified_after)
+{
+  std::string sql =
+    R"(
+SELECT name FROM Schedule
+WHERE last_modified > ?
+ORDER BY last_modified ASC
+  )";
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql, modified_after);
+
+  std::vector<std::string> schedules;
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    if (result != SQLITE_ROW)
+    {
+      throw DatabaseError(this->_db);
+    }
+
+    schedules.emplace_back((const char*) sqlite3_column_text(stmt, 0));
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  return schedules;
+}
+
 rmf_scheduler_msgs::msg::Trigger SqliteDataSource::fetch_trigger(
   const std::string& name)
 {
@@ -387,6 +459,70 @@ WHERE name = ?
   }
 
   return trigger;
+}
+
+std::vector<std::string> SqliteDataSource::fetch_triggers_created_after(
+  int64_t created_after)
+{
+  std::string sql =
+    R"(
+SELECT name FROM Trigger
+WHERE created_at > ?
+ORDER BY created_at ASC
+  )";
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql, created_after);
+
+  std::vector<std::string> triggers;
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    if (result != SQLITE_ROW)
+    {
+      throw DatabaseError(this->_db);
+    }
+
+    triggers.emplace_back((const char*) sqlite3_column_text(stmt, 0));
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  return triggers;
+}
+
+std::vector<std::string> SqliteDataSource::fetch_triggers_modified_after(
+  int64_t modified_after)
+{
+  std::string sql =
+    R"(
+SELECT name FROM Trigger
+WHERE last_modified > ?
+ORDER BY last_modified ASC
+  )";
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql, modified_after);
+
+  std::vector<std::string> triggers;
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    if (result != SQLITE_ROW)
+    {
+      throw DatabaseError(this->_db);
+    }
+
+    triggers.emplace_back((const char*) sqlite3_column_text(stmt, 0));
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  return triggers;
 }
 
 std::vector<std::string> SqliteDataSource::fetch_running_triggers()

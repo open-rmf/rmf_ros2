@@ -45,6 +45,9 @@ TEST_CASE("all in one")
   std::string db_file{"SqliteDataSource_TEST.sqlite3"};
   SqliteDataSource store{db_file};
 
+  /**
+   * Populate database
+   */
   std::array<int8_t, 4> trigger_statuses{
     rmf_scheduler_msgs::msg::TriggerState::STARTED,
     rmf_scheduler_msgs::msg::TriggerState::FINISHED,
@@ -104,6 +107,39 @@ TEST_CASE("all in one")
   }
 
   {
+    std::string name = "trigger_late";
+    rmf_scheduler_msgs::msg::Trigger trigger;
+    trigger.name = name;
+    trigger.payload.data.push_back(1);
+
+    rmf_scheduler_msgs::msg::TriggerState state;
+    state.name = name;
+    state.last_modified = 1000;
+
+    auto t = store.begin_transaction();
+    t.create_trigger(trigger, state, 1000);
+    store.commit_transaction();
+  }
+
+  {
+    std::string name = "schedule_late";
+    rmf_scheduler_msgs::msg::Schedule schedule;
+    schedule.name = name;
+    schedule.payload.data.push_back(1);
+
+    rmf_scheduler_msgs::msg::ScheduleState state;
+    state.name = name;
+    state.last_modified = 1000;
+
+    auto t = store.begin_transaction();
+    t.create_schedule(schedule, state, 1000);
+    store.commit_transaction();
+  }
+
+  /**
+   * Fetch tests
+   */
+  {
     auto name =
       make_trigger_name(rmf_scheduler_msgs::msg::TriggerState::FAILED);
     auto trigger = store.fetch_trigger(name);
@@ -156,6 +192,30 @@ TEST_CASE("all in one")
     }
     CHECK(started_count == 1);
     CHECK(created_count == 1);
+  }
+
+  {
+    auto triggers = store.fetch_triggers_created_after(999);
+    REQUIRE(triggers.size() == 1);
+    CHECK(triggers.front() == "trigger_late");
+  }
+
+  {
+    auto triggers = store.fetch_triggers_modified_after(999);
+    REQUIRE(triggers.size() == 1);
+    CHECK(triggers.front() == "trigger_late");
+  }
+
+  {
+    auto schedules = store.fetch_schedules_created_after(999);
+    REQUIRE(schedules.size() == 1);
+    CHECK(schedules.front() == "schedule_late");
+  }
+
+  {
+    auto schedules = store.fetch_schedules_modified_after(999);
+    REQUIRE(schedules.size() == 1);
+    CHECK(schedules.front() == "schedule_late");
   }
 }
 

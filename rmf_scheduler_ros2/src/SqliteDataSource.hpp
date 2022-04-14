@@ -94,7 +94,17 @@ public:
   rmf_scheduler_msgs::msg::ScheduleState fetch_schedule_state(
     const std::string& name);
 
+  std::vector<std::string> fetch_schedules_created_after(int64_t created_after);
+
+  std::vector<std::string> fetch_schedules_modified_after(
+    int64_t modified_after);
+
   rmf_scheduler_msgs::msg::Trigger fetch_trigger(const std::string& name);
+
+  std::vector<std::string> fetch_triggers_created_after(int64_t created_after);
+
+  std::vector<std::string> fetch_triggers_modified_after(
+    int64_t modified_after);
 
   /// Fetch triggers which are STARTED.
   std::vector<std::string> fetch_running_triggers();
