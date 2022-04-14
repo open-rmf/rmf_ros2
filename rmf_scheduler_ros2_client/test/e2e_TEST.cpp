@@ -23,7 +23,7 @@
 #define CATCH_CONFIG_RUNNER
 #include <rmf_utils/catch.hpp>
 
-#include <SchedulePayload.hpp>
+#include <rmf_scheduler_client/SchedulePayload.hpp>
 
 #include <rmf_scheduler_msgs/srv/cancel_schedule.hpp>
 #include <rmf_scheduler_msgs/srv/cancel_trigger.hpp>
