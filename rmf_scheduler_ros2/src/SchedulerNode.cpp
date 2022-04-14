@@ -82,45 +82,45 @@ SchedulerNode::SchedulerNode(const rclcpp::NodeOptions& options)
       this->_cancel_schedule(req, resp);
     });
 
-  // this->_list_triggers_srv =
-  //   this->create_service<rmf_scheduler_msgs::srv::ListTriggers>(
-  //   "list_triggers",
-  //   [this](
-  //     rmf_scheduler_msgs::srv::ListTriggers::Request::SharedPtr req,
-  //     rmf_scheduler_msgs::srv::ListTriggers::Response::SharedPtr resp)
-  //   {
-  //     this->_list_triggers(req, resp);
-  //   });
+  this->_list_triggers_srv =
+    this->create_service<rmf_scheduler_msgs::srv::ListTriggers>(
+    "list_triggers",
+    [this](
+      rmf_scheduler_msgs::srv::ListTriggers::Request::SharedPtr req,
+      rmf_scheduler_msgs::srv::ListTriggers::Response::SharedPtr resp)
+    {
+      this->_list_triggers(req, resp);
+    });
 
-  // this->_list_trigger_states_srv =
-  //   this->create_service<rmf_scheduler_msgs::srv::ListTriggerStates>(
-  //   "list_trigger_states",
-  //   [this](
-  //     rmf_scheduler_msgs::srv::ListTriggerStates::Request::SharedPtr req,
-  //     rmf_scheduler_msgs::srv::ListTriggerStates::Response::SharedPtr resp)
-  //   {
-  //     this->_list_trigger_states(req, resp);
-  //   });
+  this->_list_trigger_states_srv =
+    this->create_service<rmf_scheduler_msgs::srv::ListTriggerStates>(
+    "list_trigger_states",
+    [this](
+      rmf_scheduler_msgs::srv::ListTriggerStates::Request::SharedPtr req,
+      rmf_scheduler_msgs::srv::ListTriggerStates::Response::SharedPtr resp)
+    {
+      this->_list_trigger_states(req, resp);
+    });
 
-  // this->_list_schedules_srv =
-  //   this->create_service<rmf_scheduler_msgs::srv::ListSchedules>(
-  //   "list_schedules",
-  //   [this](
-  //     rmf_scheduler_msgs::srv::ListSchedules::Request::SharedPtr req,
-  //     rmf_scheduler_msgs::srv::ListSchedules::Response::SharedPtr resp)
-  //   {
-  //     this->_list_schedules(req, resp);
-  //   });
+  this->_list_schedules_srv =
+    this->create_service<rmf_scheduler_msgs::srv::ListSchedules>(
+    "list_schedules",
+    [this](
+      rmf_scheduler_msgs::srv::ListSchedules::Request::SharedPtr req,
+      rmf_scheduler_msgs::srv::ListSchedules::Response::SharedPtr resp)
+    {
+      this->_list_schedules(req, resp);
+    });
 
-  // this->_list_schedule_states_srv =
-  //   this->create_service<rmf_scheduler_msgs::srv::ListScheduleStates>(
-  //   "list_schedule_states",
-  //   [this](
-  //     rmf_scheduler_msgs::srv::ListScheduleStates::Request::SharedPtr req,
-  //     rmf_scheduler_msgs::srv::ListScheduleStates::Response::SharedPtr resp)
-  //   {
-  //     this->_list_schedule_states(req, resp);
-  //   });
+  this->_list_schedule_states_srv =
+    this->create_service<rmf_scheduler_msgs::srv::ListScheduleStates>(
+    "list_schedule_states",
+    [this](
+      rmf_scheduler_msgs::srv::ListScheduleStates::Request::SharedPtr req,
+      rmf_scheduler_msgs::srv::ListScheduleStates::Response::SharedPtr resp)
+    {
+      this->_list_schedule_states(req, resp);
+    });
 
   this->_scheduler.on_trigger_update = [this](const auto& state)
     {
@@ -135,7 +135,7 @@ SchedulerNode::SchedulerNode(const rclcpp::NodeOptions& options)
 
 SqliteDataSource SchedulerNode::_create_store()
 {
-  this->declare_parameter("db_file");
+  this->declare_parameter("db_file", rclcpp::ParameterType::PARAMETER_STRING);
   auto db_file = this->get_parameter("db_file").as_string();
   return SqliteDataSource{db_file};
 }
@@ -210,32 +210,72 @@ void SchedulerNode::_list_triggers(
   rmf_scheduler_msgs::srv::ListTriggers::Request::SharedPtr req,
   rmf_scheduler_msgs::srv::ListTriggers::Response::SharedPtr resp)
 {
-  resp->success = false;
-  resp->message = "not implemented";
+  try
+  {
+    auto [triggers, created] = this->_store.fetch_triggers_created_after(
+      req->created_after);
+    resp->triggers = triggers;
+    resp->created = created;
+    resp->success = true;
+  }
+  catch (const std::exception& e)
+  {
+    resp->success = false;
+    resp->message = e.what();
+  }
 }
 
 void SchedulerNode::_list_trigger_states(
   rmf_scheduler_msgs::srv::ListTriggerStates::Request::SharedPtr req,
   rmf_scheduler_msgs::srv::ListTriggerStates::Response::SharedPtr resp)
 {
-  resp->success = false;
-  resp->message = "not implemented";
+  try
+  {
+    resp->triggers = this->_store.fetch_trigger_states_modified_after(
+      req->modified_after);
+    resp->success = true;
+  }
+  catch (const std::exception& e)
+  {
+    resp->success = false;
+    resp->message = e.what();
+  }
 }
 
 void SchedulerNode::_list_schedules(
   rmf_scheduler_msgs::srv::ListSchedules::Request::SharedPtr req,
   rmf_scheduler_msgs::srv::ListSchedules::Response::SharedPtr resp)
 {
-  resp->success = false;
-  resp->message = "not implemented";
+  try
+  {
+    auto [schedules, created] = this->_store.fetch_schedules_created_after(
+      req->created_after);
+    resp->schedules = schedules;
+    resp->created = created;
+    resp->success = true;
+  }
+  catch (const std::exception& e)
+  {
+    resp->success = false;
+    resp->message = e.what();
+  }
 }
 
 void SchedulerNode::_list_schedule_states(
   rmf_scheduler_msgs::srv::ListScheduleStates::Request::SharedPtr req,
   rmf_scheduler_msgs::srv::ListScheduleStates::Response::SharedPtr resp)
 {
-  resp->success = false;
-  resp->message = "not implemented";
+  try
+  {
+    resp->schedules = this->_store.fetch_schedule_states_modified_after(
+      req->modified_after);
+    resp->success = true;
+  }
+  catch (const std::exception& e)
+  {
+    resp->success = false;
+    resp->message = e.what();
+  }
 }
 
 }

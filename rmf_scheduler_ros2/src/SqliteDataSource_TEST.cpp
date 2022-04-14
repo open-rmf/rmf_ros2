@@ -195,27 +195,31 @@ TEST_CASE("all in one")
   }
 
   {
-    auto triggers = store.fetch_triggers_created_after(999);
+    auto [triggers, created] = store.fetch_triggers_created_after(999);
     REQUIRE(triggers.size() == 1);
-    CHECK(triggers.front() == "trigger_late");
+    CHECK(triggers.front().name == "trigger_late");
+    REQUIRE(created.size() == 1);
+    CHECK(created.front() == 1000);
   }
 
   {
-    auto triggers = store.fetch_triggers_modified_after(999);
-    REQUIRE(triggers.size() == 1);
-    CHECK(triggers.front() == "trigger_late");
+    auto states = store.fetch_trigger_states_modified_after(999);
+    REQUIRE(states.size() == 1);
+    CHECK(states.front().name == "trigger_late");
   }
 
   {
-    auto schedules = store.fetch_schedules_created_after(999);
+    auto [schedules, created] = store.fetch_schedules_created_after(999);
     REQUIRE(schedules.size() == 1);
-    CHECK(schedules.front() == "schedule_late");
+    CHECK(schedules.front().name == "schedule_late");
+    REQUIRE(created.size() == 1);
+    CHECK(created.front() == 1000);
   }
 
   {
-    auto schedules = store.fetch_schedules_modified_after(999);
-    REQUIRE(schedules.size() == 1);
-    CHECK(schedules.front() == "schedule_late");
+    auto states = store.fetch_schedule_states_modified_after(999);
+    REQUIRE(states.size() == 1);
+    CHECK(states.front().name == "schedule_late");
   }
 }
 
