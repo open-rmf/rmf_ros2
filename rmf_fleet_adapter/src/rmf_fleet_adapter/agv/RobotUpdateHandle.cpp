@@ -576,20 +576,20 @@ void RobotUpdateHandle::Unstable::declare_holding(
         at_position,
         for_duration
       ](const auto&)
-    {
-      if (const auto context = w.lock())
       {
-        const auto now = context->now();
-        const auto zero = Eigen::Vector3d::Zero();
-        rmf_traffic::Trajectory holding;
-        holding.insert(now, at_position, zero);
-        holding.insert(now + for_duration, at_position, zero);
+        if (const auto context = w.lock())
+        {
+          const auto now = context->now();
+          const auto zero = Eigen::Vector3d::Zero();
+          rmf_traffic::Trajectory holding;
+          holding.insert(now, at_position, zero);
+          holding.insert(now + for_duration, at_position, zero);
 
-        context->itinerary().set(
-          context->itinerary().assign_plan_id(),
-          {{std::move(on_map), std::move(holding)}});
-      }
-    });
+          context->itinerary().set(
+            context->itinerary().assign_plan_id(),
+            {{std::move(on_map), std::move(holding)}});
+        }
+      });
   }
 }
 
