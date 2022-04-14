@@ -69,42 +69,42 @@ TEST_CASE_METHOD(SchedulerFixture, "Schedule simple", "[Schedule]") {
   // check that the schedule is created
   {
     auto s = store.fetch_schedule(schedule.name);
-    REQUIRE(s.name == schedule.name);
-    REQUIRE(s.start_at == 20);
-    REQUIRE(s.finish_at == 22);
+    CHECK(s.name == schedule.name);
+    CHECK(s.start_at == 20);
+    CHECK(s.finish_at == 22);
 
     auto state = store.fetch_schedule_state(schedule.name);
-    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::CREATED);
-    REQUIRE(state.last_modified == 10);
-    REQUIRE(state.next_run == 21);
+    CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::CREATED);
+    CHECK(state.last_modified == 10);
+    CHECK(state.next_run == 21);
   }
 
   // check that schedule is ran
   executor.advance_until(21);
   REQUIRE(publisher.publishes.size() == 1);
-  REQUIRE(publisher.publishes[0].data[0] == 1);
+  CHECK(publisher.publishes[0].data[0] == 1);
 
   // check that the schedule state is updated
   {
     auto state = store.fetch_schedule_state(schedule.name);
-    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::STARTED);
-    REQUIRE(state.last_modified == 21);
-    REQUIRE(state.last_ran == 21);
-    REQUIRE(state.next_run == 22);
+    CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::STARTED);
+    CHECK(state.last_modified == 21);
+    CHECK(state.last_ran == 21);
+    CHECK(state.next_run == 22);
   }
 
   // should run again next sec.
   executor.advance_until(22);
   REQUIRE(publisher.publishes.size() == 2);
-  REQUIRE(publisher.publishes[1].data[0] == 1);
+  CHECK(publisher.publishes[1].data[0] == 1);
 
   // state should now be finished
   {
     auto state = store.fetch_schedule_state(schedule.name);
-    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::FINISHED);
-    REQUIRE(state.last_modified == 22);
-    REQUIRE(state.last_ran == 22);
-    REQUIRE(state.next_run == 0);
+    CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::FINISHED);
+    CHECK(state.last_modified == 22);
+    CHECK(state.last_ran == 22);
+    CHECK(state.next_run == 0);
   }
 }
 
@@ -124,18 +124,18 @@ TEST_CASE_METHOD(SchedulerFixture, "Schedule already started", "[Schedule]")
 
   {
     auto state = store.fetch_schedule_state(schedule.name);
-    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::STARTED);
-    REQUIRE(state.next_run == 11);
+    CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::STARTED);
+    CHECK(state.next_run == 11);
   }
 
   scheduler.executor.advance_until(11);
 
   {
-    REQUIRE(scheduler.publisher.publishes.size() == 1);
+    CHECK(scheduler.publisher.publishes.size() == 1);
 
     auto state = store.fetch_schedule_state(schedule.name);
-    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::FINISHED);
-    REQUIRE(state.next_run == 0);
+    CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::FINISHED);
+    CHECK(state.next_run == 0);
   }
 }
 
@@ -155,13 +155,13 @@ TEST_CASE_METHOD(SchedulerFixture, "Schedule already finished", "[Schedule]")
 
   {
     auto state = store.fetch_schedule_state(schedule.name);
-    REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::FINISHED);
-    REQUIRE(state.next_run == 0);
+    CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::FINISHED);
+    CHECK(state.next_run == 0);
   }
 
   scheduler.executor.advance_until(11);
 
-  REQUIRE(scheduler.publisher.publishes.size() == 0);
+  CHECK(scheduler.publisher.publishes.size() == 0);
 }
 
 TEST_CASE_METHOD(SchedulerFixture, "Duplicated schedules are replaced",
@@ -189,12 +189,12 @@ TEST_CASE_METHOD(SchedulerFixture, "Duplicated schedules are replaced",
   }
 
   auto schedule = store.fetch_schedule(name);
-  REQUIRE(schedule.payload.data[0] == 2);
+  CHECK(schedule.payload.data[0] == 2);
 
   // check that old schedule is not ran
   scheduler.executor.advance_until(1);
   REQUIRE(scheduler.publisher.publishes.size() == 1);
-  REQUIRE(scheduler.publisher.publishes[0].data[0] == 2);
+  CHECK(scheduler.publisher.publishes[0].data[0] == 2);
 }
 
 TEST_CASE_METHOD(SchedulerFixture, "Schedule error when finish >= start",
@@ -226,10 +226,10 @@ TEST_CASE_METHOD(SchedulerFixture, "Cancel schedule", "[Schedule]")
 
   scheduler.cancel_schedule(name);
   scheduler.executor.advance_until(20);
-  REQUIRE(scheduler.publisher.publishes.size() == 0);
+  CHECK(scheduler.publisher.publishes.size() == 0);
   auto state = scheduler.store.fetch_schedule_state(name);
-  REQUIRE(state.status == rmf_scheduler_msgs::msg::ScheduleState::CANCELLED);
-  REQUIRE(state.next_run == 0);
+  CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::CANCELLED);
+  CHECK(state.next_run == 0);
 }
 
 TEST_CASE_METHOD(SchedulerFixture,
@@ -255,25 +255,25 @@ TEST_CASE_METHOD(SchedulerFixture, "Trigger simple", "[Trigger]") {
   // check that the trigger is created
   {
     auto t = store.fetch_trigger(trigger.name);
-    REQUIRE(t.name == trigger.name);
-    REQUIRE(t.at == 20);
+    CHECK(t.name == trigger.name);
+    CHECK(t.at == 20);
 
     auto state = store.fetch_trigger_state(trigger.name);
-    REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::STARTED);
-    REQUIRE(state.last_modified == 10);
+    CHECK(state.status == rmf_scheduler_msgs::msg::TriggerState::STARTED);
+    CHECK(state.last_modified == 10);
   }
 
   // check that triggers are ran
   executor.advance_until(20);
   REQUIRE(publisher.publishes.size() == 1);
-  REQUIRE(publisher.publishes[0].data[0] == 1);
+  CHECK(publisher.publishes[0].data[0] == 1);
 
   // check that the trigger state is updated
   {
     auto state = store.fetch_trigger_state(trigger.name);
-    REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::FINISHED);
-    REQUIRE(state.last_modified == 20);
-    REQUIRE(state.last_ran == 20);
+    CHECK(state.status == rmf_scheduler_msgs::msg::TriggerState::FINISHED);
+    CHECK(state.last_modified == 20);
+    CHECK(state.last_ran == 20);
   }
 }
 
@@ -302,13 +302,13 @@ TEST_CASE_METHOD(SchedulerFixture, "Duplicated triggers are replaced",
   }
 
   auto trigger = store.fetch_trigger(name);
-  REQUIRE(trigger.at == 20);
-  REQUIRE(trigger.payload.data[0] == 2);
+  CHECK(trigger.at == 20);
+  CHECK(trigger.payload.data[0] == 2);
 
   // check that old trigger is not ran
   scheduler.executor.advance_until(20);
   REQUIRE(scheduler.publisher.publishes.size() == 1);
-  REQUIRE(scheduler.publisher.publishes[0].data[0] == 2);
+  CHECK(scheduler.publisher.publishes[0].data[0] == 2);
 }
 
 TEST_CASE_METHOD(SchedulerFixture, "Late triggers are executed", "[Trigger]")
@@ -324,9 +324,9 @@ TEST_CASE_METHOD(SchedulerFixture, "Late triggers are executed", "[Trigger]")
   scheduler.create_trigger(trigger);
 
   scheduler.executor.advance_until(11);
-  REQUIRE(scheduler.publisher.publishes.size() == 1);
+  CHECK(scheduler.publisher.publishes.size() == 1);
   auto state = scheduler.store.fetch_trigger_state(name);
-  REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::FINISHED);
+  CHECK(state.status == rmf_scheduler_msgs::msg::TriggerState::FINISHED);
 }
 
 TEST_CASE_METHOD(SchedulerFixture, "Cancel trigger", "[Trigger]")
@@ -343,9 +343,9 @@ TEST_CASE_METHOD(SchedulerFixture, "Cancel trigger", "[Trigger]")
 
   scheduler.cancel_trigger(name);
   scheduler.executor.advance_until(20);
-  REQUIRE(scheduler.publisher.publishes.size() == 0);
+  CHECK(scheduler.publisher.publishes.size() == 0);
   auto state = scheduler.store.fetch_trigger_state(name);
-  REQUIRE(state.status == rmf_scheduler_msgs::msg::TriggerState::CANCELLED);
+  CHECK(state.status == rmf_scheduler_msgs::msg::TriggerState::CANCELLED);
 }
 
 TEST_CASE_METHOD(SchedulerFixture,
@@ -388,7 +388,7 @@ TEST_CASE_METHOD(SchedulerFixture, "Load from database")
     MockPublisher pub;
     auto loaded = TestScheduler::load_from_db(executor, store, pub);
     loaded.executor.advance_until(21);
-    REQUIRE(loaded.publisher.publishes.size() == 2);
+    CHECK(loaded.publisher.publishes.size() == 2);
   }
 }
 
