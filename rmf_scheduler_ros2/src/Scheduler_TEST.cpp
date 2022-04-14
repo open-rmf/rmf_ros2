@@ -18,6 +18,7 @@
 #define CATCH_CONFIG_RUNNER
 #include <rmf_utils/catch.hpp>
 
+#include "test/utils.hpp"
 #include "test/MockPublisher.hpp"
 #include "test/VirtualExecutor.hpp"
 
@@ -49,12 +50,6 @@ public:
   SchedulerFixture()
   : scheduler{executor, store, publisher} {}
 };
-
-static std::string unique_name()
-{
-  return "test_" + std::to_string(
-    std::chrono::steady_clock::now().time_since_epoch().count());
-}
 
 TEST_CASE_METHOD(SchedulerFixture, "Schedule simple", "[Schedule]") {
   auto& executor = scheduler.executor;

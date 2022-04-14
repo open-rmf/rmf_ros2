@@ -76,6 +76,10 @@ if(BUILD_TESTING)
   add_custom_test(SystemTimeExecutor_TEST SOURCES
     src/SystemTimeExecutor_TEST.cpp
   )
+
+  add_custom_test(SqliteDataSource_TEST SOURCES
+    src/SqliteDataSource_TEST.cpp
+  )
 endif()
 
 #===============================================================================
