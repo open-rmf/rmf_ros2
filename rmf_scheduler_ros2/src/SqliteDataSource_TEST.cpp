@@ -159,7 +159,7 @@ TEST_CASE("all in one")
   }
 
   {
-    auto triggers = store.fetch_running_triggers();
+    auto triggers = store.fetch_active_triggers();
     REQUIRE(triggers.size() == 1);
     auto trigger = triggers.front();
     CHECK(trigger ==
@@ -167,7 +167,7 @@ TEST_CASE("all in one")
   }
 
   {
-    auto schedules = store.fetch_running_schedules();
+    auto schedules = store.fetch_active_schedules();
     REQUIRE(schedules.size() == 2);
     size_t started_count = 0;
     size_t created_count = 0;

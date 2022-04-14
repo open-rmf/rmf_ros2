@@ -31,7 +31,6 @@ namespace rmf::scheduler {
 /// Creates a serialized message payload.
 template<typename T>
 rmf_scheduler_msgs::msg::Payload make_serialized_message(
-  std::string_view message_type,
   std::string_view topic_name,
   const T& message
 )
@@ -43,7 +42,7 @@ rmf_scheduler_msgs::msg::Payload make_serialized_message(
   static rclcpp::Serialization<rmf_scheduler_msgs::msg::SerializedMessage>
   outer_ser;
   rmf_scheduler_msgs::msg::SerializedMessage outer_msg;
-  outer_msg.message_type = message_type;
+  outer_msg.message_type = rosidl_generator_traits::name<T>();;
   outer_msg.topic_name = topic_name;
   auto& rcl_inner = inner_sermsg.get_rcl_serialized_message();
   outer_msg.data =

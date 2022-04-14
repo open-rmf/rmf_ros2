@@ -125,11 +125,23 @@ SchedulerNode::SchedulerNode(const rclcpp::NodeOptions& options)
 
   this->_scheduler.on_trigger_update = [this](const auto& state)
     {
+      RCLCPP_INFO(
+        this->get_logger(), "ran trigger '%s'", state.name.c_str());
+      RCLCPP_INFO(
+        this->get_logger(), "trigger '%s' status changed to '%d'",
+        state.name.c_str(),
+        state.status);
       this->_trigger_update_pub->publish(state);
     };
 
   this->_scheduler.on_schedule_update = [this](const auto& state)
     {
+      RCLCPP_INFO(
+        this->get_logger(), "ran schedule '%s'", state.name.c_str());
+      RCLCPP_INFO(
+        this->get_logger(), "schedule '%s' status schedule to '%d'",
+        state.name.c_str(),
+        state.status);
       this->_schedule_update_pub->publish(state);
     };
 }
@@ -150,11 +162,14 @@ void SchedulerNode::_create_trigger(
     this->_scheduler.create_trigger(req->trigger);
     this->_new_trigger_pub->publish(req->trigger);
     resp->success = true;
+    RCLCPP_INFO(
+      this->get_logger(), "created trigger '%s'", req->trigger.name.c_str());
   }
   catch (const std::exception& e)
   {
     resp->success = false;
     resp->message = e.what();
+    RCLCPP_ERROR(this->get_logger(), e.what());
   }
 }
 
@@ -167,11 +182,14 @@ void SchedulerNode::_create_schedule(
     this->_scheduler.create_schedule(req->schedule);
     this->_new_schedule_pub->publish(req->schedule);
     resp->success = true;
+    RCLCPP_INFO(
+      this->get_logger(), "created schedule '%s'", req->schedule.name.c_str());
   }
   catch (const std::exception& e)
   {
     resp->success = false;
     resp->message = e.what();
+    RCLCPP_ERROR(this->get_logger(), e.what());
   }
 }
 
@@ -183,11 +201,14 @@ void SchedulerNode::_cancel_trigger(
   {
     this->_scheduler.cancel_trigger(req->name);
     resp->success = true;
+    RCLCPP_INFO(
+      this->get_logger(), "cancelled trigger '%s'", req->name.c_str());
   }
   catch (const std::exception& e)
   {
     resp->success = false;
     resp->message = e.what();
+    RCLCPP_ERROR(this->get_logger(), e.what());
   }
 }
 
@@ -199,11 +220,14 @@ void SchedulerNode::_cancel_schedule(
   {
     this->_scheduler.cancel_schedule(req->name);
     resp->success = true;
+    RCLCPP_INFO(
+      this->get_logger(), "cancelled schedule '%s'", req->name.c_str());
   }
   catch (const std::exception& e)
   {
     resp->success = false;
     resp->message = e.what();
+    RCLCPP_ERROR(this->get_logger(), e.what());
   }
 }
 
@@ -223,6 +247,7 @@ void SchedulerNode::_list_triggers(
   {
     resp->success = false;
     resp->message = e.what();
+    RCLCPP_ERROR(this->get_logger(), e.what());
   }
 }
 
@@ -240,6 +265,7 @@ void SchedulerNode::_list_trigger_states(
   {
     resp->success = false;
     resp->message = e.what();
+    RCLCPP_ERROR(this->get_logger(), e.what());
   }
 }
 
@@ -259,6 +285,7 @@ void SchedulerNode::_list_schedules(
   {
     resp->success = false;
     resp->message = e.what();
+    RCLCPP_ERROR(this->get_logger(), e.what());
   }
 }
 
@@ -276,6 +303,7 @@ void SchedulerNode::_list_schedule_states(
   {
     resp->success = false;
     resp->message = e.what();
+    RCLCPP_ERROR(this->get_logger(), e.what());
   }
 }
 

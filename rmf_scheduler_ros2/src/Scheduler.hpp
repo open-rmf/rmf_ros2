@@ -51,13 +51,13 @@ public:
   {
     Scheduler<Executor, Publisher> inst{executor, store, pub};
 
-    for (const auto& name : store.fetch_running_triggers())
+    for (const auto& name : store.fetch_active_triggers())
     {
       auto trigger = store.fetch_trigger(name);
       inst._schedule_trigger(trigger);
     }
 
-    auto schedules = store.fetch_running_schedules();
+    auto schedules = store.fetch_active_schedules();
     for (const auto& name : schedules)
     {
       auto schedule = store.fetch_schedule(name);

@@ -23,8 +23,12 @@
 #define CATCH_CONFIG_RUNNER
 #include <rmf_utils/catch.hpp>
 
-#include <rmf_scheduler_client/SchedulePayload.hpp>
+#include <rmf_scheduler_client/payload.hpp>
 
+#include <rmf_scheduler_msgs/msg/schedule.hpp>
+#include <rmf_scheduler_msgs/msg/schedule_state.hpp>
+#include <rmf_scheduler_msgs/msg/trigger.hpp>
+#include <rmf_scheduler_msgs/msg/trigger_state.hpp>
 #include <rmf_scheduler_msgs/srv/cancel_schedule.hpp>
 #include <rmf_scheduler_msgs/srv/cancel_trigger.hpp>
 #include <rmf_scheduler_msgs/srv/create_schedule.hpp>
@@ -118,8 +122,7 @@ TEST_CASE("create trigger")
     std::make_shared<rmf_scheduler_msgs::srv::CreateTrigger::Request>();
   req->trigger.name = unique_name();
   req->trigger.at = 0;
-  req->trigger.payload = make_serialized_message("std_msgs/String",
-      "test_topic", msg);
+  req->trigger.payload = make_serialized_message("test_topic", msg);
 
   check_response(client->async_send_request(req));
 
@@ -221,8 +224,7 @@ TEST_CASE("create schedule")
     std::make_shared<rmf_scheduler_msgs::srv::CreateSchedule::Request>();
   req->schedule.name = unique_name();
   req->schedule.schedule = "* * * * * *";
-  req->schedule.payload = make_serialized_message("std_msgs/String",
-      "test_topic", msg);
+  req->schedule.payload = make_serialized_message("test_topic", msg);
 
   check_response(client->async_send_request(req));
 

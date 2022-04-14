@@ -55,22 +55,23 @@ void Publisher::_publish_serialized_message(const PayloadData& data)
     rclcpp::Serialization<rmf_scheduler_msgs::msg::SerializedMessage>;
   static Serializer serializer;
 
-  // using low level apis to avoid copying needed by rclcpp::SerializedMessage
-  rcl_serialized_message_t rcl_payload;
-  rcl_payload.buffer = const_cast<uint8_t*>(&data.front());
+  rclcpp::SerializedMessage payload_sermsg{data.size()};
+  auto& rcl_payload =
+    payload_sermsg.get_rcl_serialized_message();
+  std::copy(&data.front(), &data.back(), rcl_payload.buffer);
   rcl_payload.buffer_length = data.size();
-  rcl_payload.buffer_capacity = data.size();
-  rclcpp::SerializedMessage payload_sermsg{std::move(rcl_payload)}; // move to avoid copy
 
   // deserialize the serialized rmf_scheduler_msgs/SerializedMessage
   rmf_scheduler_msgs::msg::SerializedMessage rmf_msg;
+  auto asd = payload_sermsg.size();
   serializer.deserialize_message(&payload_sermsg, &rmf_msg);
 
-  rcl_serialized_message_t rcl_inner;
-  rcl_inner.buffer = rmf_msg.data.data();
+  rclcpp::SerializedMessage inner_sermsg{rmf_msg.data.size()};
+  auto& rcl_inner =
+    inner_sermsg.get_rcl_serialized_message();
+  std::copy(rmf_msg.data.data(),
+    rmf_msg.data.data() + rmf_msg.data.size(), rcl_inner.buffer);
   rcl_inner.buffer_length = rmf_msg.data.size();
-  rcl_inner.buffer_capacity = rmf_msg.data.size();
-  rclcpp::SerializedMessage inner_sermsg{std::move(rcl_inner)}; // move to avoid copy
 
   auto pub = this->node->create_generic_publisher(rmf_msg.topic_name,
       rmf_msg.message_type,

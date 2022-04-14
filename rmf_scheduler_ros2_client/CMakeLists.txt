@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 
 project(rmf_scheduler_ros2_client)
 
+find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rmf_scheduler_msgs REQUIRED)
 
@@ -65,7 +66,8 @@ endif()
 
 #===============================================================================
 
-install(TARGETS ${PROJECT_NAME})
+install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME})
+ament_export_targets(${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 
 ament_package()

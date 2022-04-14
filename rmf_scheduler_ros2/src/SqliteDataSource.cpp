@@ -301,7 +301,7 @@ WHERE name = ?
   return schedule;
 }
 
-std::vector<std::string> SqliteDataSource::fetch_running_schedules()
+std::vector<std::string> SqliteDataSource::fetch_active_schedules()
 {
   std::string sql =
     R"(
@@ -565,7 +565,7 @@ ORDER BY last_modified ASC
   return states;
 }
 
-std::vector<std::string> SqliteDataSource::fetch_running_triggers()
+std::vector<std::string> SqliteDataSource::fetch_active_triggers()
 {
   std::string sql =
     R"(
