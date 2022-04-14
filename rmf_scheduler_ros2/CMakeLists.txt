@@ -58,7 +58,7 @@ if(BUILD_TESTING)
 
   function(add_custom_test target)
     cmake_parse_arguments(PARSE_ARGV 1 "" "" "" "SOURCES")
-  
+
     ament_add_catch2(${target}
       ${_SOURCES}
     )
@@ -75,10 +75,6 @@ if(BUILD_TESTING)
 
   add_custom_test(SystemTimeExecutor_TEST SOURCES
     src/SystemTimeExecutor_TEST.cpp
-  )
-  
-  add_custom_test(Publisher_TEST SOURCES
-    src/Publisher_TEST.cpp
   )
 endif()
 

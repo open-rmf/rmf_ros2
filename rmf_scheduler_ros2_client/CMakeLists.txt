@@ -44,7 +44,7 @@ if(BUILD_TESTING)
 
   function(add_custom_test target)
     cmake_parse_arguments(PARSE_ARGV 1 "" "" "" "SOURCES")
-  
+
     ament_add_catch2(${target}
       ${_SOURCES}
     )
