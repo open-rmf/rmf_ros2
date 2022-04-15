@@ -1790,6 +1790,15 @@ FleetUpdateHandle& FleetUpdateHandle::fleet_state_update_period(
 }
 
 //==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::set_update_listener(
+  std::function<void(const nlohmann::json&)> listener)
+{
+  std::unique_lock<std::mutex> lock(*_pimpl->update_callback_mutex);
+  _pimpl->update_callback = std::move(listener);
+  return *this;
+}
+
+//==============================================================================
 bool FleetUpdateHandle::set_task_planner_params(
   std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
   std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,

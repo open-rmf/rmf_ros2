@@ -362,6 +362,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
     "Specify a period for how often the fleet state message is published for\
      this fleet. Passing in None will disable the fleet state message\
      publishing. The default value is 1s")
+  .def("set_update_listener",
+    &agv::FleetUpdateHandle::set_update_listener,
+    py::arg("listener"),
+    "Provide a callback that will receive fleet state and task updates.")
   .def("consider_delivery_requests",
      [&](agv::FleetUpdateHandle& self,
          ModifiedConsiderRequest consider_pickup,
