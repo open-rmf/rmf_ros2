@@ -339,13 +339,6 @@ Negotiator::NegotiatePtr EmergencyPullover::Active::_respond(
   const Negotiator::TableViewerPtr& table_view,
   const Negotiator::ResponderPtr& responder)
 {
-  if (_context->is_stubborn())
-  {
-    rmf_traffic::schedule::StubbornNegotiator(_context->itinerary())
-    .respond(table_view, responder);
-    return nullptr;
-  }
-
   auto approval_cb = [w = weak_from_this()](
     const rmf_traffic::PlanId plan_id,
     const rmf_traffic::agv::Plan& plan)

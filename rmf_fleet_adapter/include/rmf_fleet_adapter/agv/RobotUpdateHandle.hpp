@@ -285,6 +285,37 @@ public:
     /// Get the schedule participant of this robot
     rmf_traffic::schedule::Participant* get_participant();
 
+    /// Override the schedule to say that the robot will be holding at a certain
+    /// position. This should not be used while tasks with automatic schedule
+    /// updating are running, or else the traffic schedule will have jumbled up
+    /// information, which can be disruptive to the overall traffic management.
+    void declare_holding(
+      std::string on_map,
+      Eigen::Vector3d at_position,
+      rmf_traffic::Duration for_duration = std::chrono::seconds(30));
+
+    /// Hold onto this class to tell the robot to behave as a "stubborn
+    /// negotiator", meaning it will always refuse to accommodate the schedule
+    /// of any other agent. This could be used when teleoperating a robot, to
+    /// tell other robots that the agent is unable to negotiate.
+    ///
+    /// When the object is destroyed, the stubbornness will automatically be
+    /// released.
+    class Stubbornness
+    {
+    public:
+      /// Stop being stubborn
+      void release();
+
+      class Implementation;
+    private:
+      Stubbornness();
+      rmf_utils::impl_ptr<Implementation> _pimpl;
+    };
+
+    /// Tell this robot to be a stubborn negotiator.
+    Stubbornness be_stubborn();
+
     enum class Decision
     {
       Undefined = 0,

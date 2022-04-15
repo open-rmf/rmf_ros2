@@ -562,6 +562,75 @@ RobotUpdateHandle::Unstable::get_participant()
 }
 
 //==============================================================================
+void RobotUpdateHandle::Unstable::declare_holding(
+  std::string on_map,
+  Eigen::Vector3d at_position,
+  rmf_traffic::Duration for_duration)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+        w = context->weak_from_this(),
+        on_map = std::move(on_map),
+        at_position,
+        for_duration
+      ](const auto&)
+      {
+        if (const auto context = w.lock())
+        {
+          const auto now = context->now();
+          const auto zero = Eigen::Vector3d::Zero();
+          rmf_traffic::Trajectory holding;
+          holding.insert(now, at_position, zero);
+          holding.insert(now + for_duration, at_position, zero);
+
+          context->itinerary().set(
+            context->itinerary().assign_plan_id(),
+            {{std::move(on_map), std::move(holding)}});
+        }
+      });
+  }
+}
+
+//==============================================================================
+class RobotUpdateHandle::Unstable::Stubbornness::Implementation
+{
+public:
+  std::shared_ptr<void> stubbornness;
+
+  static Stubbornness make(std::shared_ptr<void> stubbornness)
+  {
+    Stubbornness output;
+    output._pimpl = rmf_utils::make_impl<Implementation>(
+      Implementation{stubbornness});
+
+    return output;
+  }
+};
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::Stubbornness::release()
+{
+  _pimpl->stubbornness = nullptr;
+}
+
+//==============================================================================
+RobotUpdateHandle::Unstable::Stubbornness::Stubbornness()
+{
+  // Do nothing
+}
+
+//==============================================================================
+auto RobotUpdateHandle::Unstable::be_stubborn() -> Stubbornness
+{
+  if (auto context = _pimpl->get_context())
+    return Stubbornness::Implementation::make(context->be_stubborn());
+
+  return Stubbornness::Implementation::make(nullptr);
+}
+
+//==============================================================================
 void RobotUpdateHandle::Unstable::set_lift_entry_watchdog(
   Watchdog watchdog,
   rmf_traffic::Duration wait_duration)
