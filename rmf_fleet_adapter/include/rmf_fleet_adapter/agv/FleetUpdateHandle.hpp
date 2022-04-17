@@ -328,6 +328,12 @@ public:
   FleetUpdateHandle& fleet_state_update_period(
     std::optional<rmf_traffic::Duration> value);
 
+  /// Set a callback for listening to update messages (e.g. fleet states and
+  /// task updates). This will not receive any update messages that happened
+  /// before the listener was set.
+  FleetUpdateHandle& set_update_listener(
+    std::function<void(const nlohmann::json&)> listener);
+
   // Do not allow moving
   FleetUpdateHandle(FleetUpdateHandle&&) = delete;
   FleetUpdateHandle& operator=(FleetUpdateHandle&&) = delete;
