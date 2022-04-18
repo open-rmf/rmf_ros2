@@ -392,6 +392,72 @@ TEST_CASE_METHOD(SchedulerFixture, "Load from database")
   }
 }
 
+TEST_CASE_METHOD(SchedulerFixture, "cancel all")
+{
+  std::string trigger_group1 = unique_name();
+  std::string trigger_group2 = unique_name();
+  std::string schedule_group1 = unique_name();
+  std::string schedule_group2 = unique_name();
+
+
+  {
+    rmf_scheduler_msgs::msg::Trigger trigger;
+    trigger.name = trigger_group1;
+    trigger.group = "group1";
+    trigger.payload.type = 0;
+    trigger.payload.data.push_back(1);
+    scheduler.create_trigger(trigger);
+  }
+
+  {
+    rmf_scheduler_msgs::msg::Trigger trigger;
+    trigger.name = trigger_group2;
+    trigger.group = "group2";
+    trigger.payload.type = 0;
+    trigger.payload.data.push_back(1);
+    scheduler.create_trigger(trigger);
+  }
+
+  {
+    rmf_scheduler_msgs::msg::Schedule schedule;
+    schedule.name = schedule_group1;
+    schedule.group = "group1";
+    schedule.schedule = "* * * * * *"; // every sec
+    schedule.payload.type = 0;
+    schedule.payload.data.push_back(1);
+    scheduler.create_schedule(schedule);
+  }
+
+  {
+    rmf_scheduler_msgs::msg::Schedule schedule;
+    schedule.name = schedule_group2;
+    schedule.group = "group2";
+    schedule.schedule = "* * * * * *"; // every sec
+    schedule.payload.type = 0;
+    schedule.payload.data.push_back(1);
+    scheduler.create_schedule(schedule);
+  }
+
+  scheduler.cancel_all("group1");
+
+  {
+    auto state = scheduler.store.fetch_trigger_state(trigger_group1).value();
+    CHECK(state.status == rmf_scheduler_msgs::msg::TriggerState::CANCELLED);
+  }
+  {
+    auto state = scheduler.store.fetch_trigger_state(trigger_group2).value();
+    CHECK(state.status == rmf_scheduler_msgs::msg::TriggerState::STARTED);
+  }
+  {
+    auto state = scheduler.store.fetch_schedule_state(schedule_group1).value();
+    CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::CANCELLED);
+  }
+  {
+    auto state = scheduler.store.fetch_schedule_state(schedule_group2).value();
+    CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::STARTED);
+  }
+}
+
 }
 
 int main(int argc, char* argv[])

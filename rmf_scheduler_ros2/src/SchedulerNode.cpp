@@ -83,6 +83,16 @@ SchedulerNode::SchedulerNode(const rclcpp::NodeOptions& options)
       this->_cancel_schedule(req, resp);
     });
 
+  this->_cancel_all_srv =
+    this->create_service<rmf_scheduler_msgs::srv::CancelAll>(
+    "cancel_all",
+    [this](
+      rmf_scheduler_msgs::srv::CancelAll::Request::SharedPtr req,
+      rmf_scheduler_msgs::srv::CancelAll::Response::SharedPtr resp)
+    {
+      this->_cancel_all(req, resp);
+    });
+
   this->_list_triggers_srv =
     this->create_service<rmf_scheduler_msgs::srv::ListTriggers>(
     "list_triggers",
@@ -222,6 +232,26 @@ void SchedulerNode::_cancel_schedule(
     resp->success = true;
     RCLCPP_INFO(
       this->get_logger(), "cancelled schedule '%s'", req->name.c_str());
+  }
+  catch (const std::exception& e)
+  {
+    resp->success = false;
+    resp->message = e.what();
+    RCLCPP_ERROR(this->get_logger(), e.what());
+  }
+}
+
+void SchedulerNode::_cancel_all(
+  rmf_scheduler_msgs::srv::CancelAll::Request::SharedPtr req,
+  rmf_scheduler_msgs::srv::CancelAll::Response::SharedPtr resp)
+{
+  try
+  {
+    this->_scheduler.cancel_all(req->group);
+    resp->success = true;
+    RCLCPP_INFO(
+      this->get_logger(), "cancelled all triggers and schedules in '%s'",
+      req->group.c_str());
   }
   catch (const std::exception& e)
   {

@@ -29,6 +29,7 @@
 #include <rmf_scheduler_msgs/msg/schedule_state.hpp>
 #include <rmf_scheduler_msgs/msg/trigger.hpp>
 #include <rmf_scheduler_msgs/msg/trigger_state.hpp>
+#include <rmf_scheduler_msgs/srv/cancel_all.hpp>
 #include <rmf_scheduler_msgs/srv/cancel_schedule.hpp>
 #include <rmf_scheduler_msgs/srv/cancel_trigger.hpp>
 #include <rmf_scheduler_msgs/srv/create_schedule.hpp>
@@ -284,6 +285,21 @@ TEST_CASE("list schedule states")
   auto req =
     std::make_shared<rmf_scheduler_msgs::srv::ListScheduleStates::Request>();
   req->modified_after = 10;
+
+  check_response(client->async_send_request(req));
+}
+
+TEST_CASE("cancel all")
+{
+  auto client =
+    node->create_client<rmf_scheduler_msgs::srv::CancelAll>(
+    "cancel_all");
+  if (!client->wait_for_service(5s))
+  {
+    FAIL("Timed out waiting for service");
+  }
+
+  auto req = std::make_shared<rmf_scheduler_msgs::srv::CancelAll::Request>();
 
   check_response(client->async_send_request(req));
 }

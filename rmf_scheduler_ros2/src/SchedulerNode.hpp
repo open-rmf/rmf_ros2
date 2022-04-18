@@ -26,6 +26,7 @@
 #include <rmf_scheduler_msgs/msg/schedule_state.hpp>
 #include <rmf_scheduler_msgs/msg/trigger.hpp>
 #include <rmf_scheduler_msgs/msg/trigger_state.hpp>
+#include <rmf_scheduler_msgs/srv/cancel_all.hpp>
 #include <rmf_scheduler_msgs/srv/cancel_schedule.hpp>
 #include <rmf_scheduler_msgs/srv/cancel_trigger.hpp>
 #include <rmf_scheduler_msgs/srv/create_schedule.hpp>
@@ -73,6 +74,8 @@ private:
     _cancel_trigger_srv;
   rclcpp::Service<rmf_scheduler_msgs::srv::CancelSchedule>::SharedPtr
     _cancel_schedule_srv;
+  rclcpp::Service<rmf_scheduler_msgs::srv::CancelAll>::SharedPtr
+    _cancel_all_srv;
   rclcpp::Service<rmf_scheduler_msgs::srv::ListTriggers>::SharedPtr
     _list_triggers_srv;
   rclcpp::Service<rmf_scheduler_msgs::srv::ListTriggerStates>::SharedPtr
@@ -99,6 +102,10 @@ private:
   void _cancel_schedule(
     rmf_scheduler_msgs::srv::CancelSchedule::Request::SharedPtr req,
     rmf_scheduler_msgs::srv::CancelSchedule::Response::SharedPtr resp);
+
+  void _cancel_all(
+    rmf_scheduler_msgs::srv::CancelAll::Request::SharedPtr req,
+    rmf_scheduler_msgs::srv::CancelAll::Response::SharedPtr resp);
 
   void _list_triggers(
     rmf_scheduler_msgs::srv::ListTriggers::Request::SharedPtr req,

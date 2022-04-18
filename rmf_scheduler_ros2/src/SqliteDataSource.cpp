@@ -290,6 +290,29 @@ SqliteDataSource::fetch_active_schedules()
       rmf_scheduler_msgs::msg::ScheduleState::CREATED);
 }
 
+std::vector<std::string>
+SqliteDataSource::fetch_schedules_in_group(const std::string& group)
+{
+  std::string sql = R"(SELECT name FROM Schedule WHERE "group" = ?)";
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql, group);
+
+  std::vector<std::string> schedules;
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    if (result != SQLITE_ROW)
+    {
+      throw DatabaseError(this->_db);
+    }
+
+    schedules.emplace_back(
+      reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
+  }
+
+  return schedules;
+}
+
 std::optional<rmf_scheduler_msgs::msg::ScheduleState>
 SqliteDataSource::fetch_schedule_state(
   const std::string& name)
@@ -350,6 +373,29 @@ SqliteDataSource::fetch_active_triggers()
 {
   return this->_fetch_triggers("WHERE status = ?",
       rmf_scheduler_msgs::msg::TriggerState::STARTED);
+}
+
+std::vector<std::string>
+SqliteDataSource::fetch_triggers_in_group(const std::string& group)
+{
+  std::string sql = R"(SELECT name FROM Trigger WHERE "group" = ?)";
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql, group);
+
+  std::vector<std::string> triggers;
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    if (result != SQLITE_ROW)
+    {
+      throw DatabaseError(this->_db);
+    }
+
+    triggers.emplace_back(
+      reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
+  }
+
+  return triggers;
 }
 
 std::optional<rmf_scheduler_msgs::msg::TriggerState>
