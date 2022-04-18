@@ -50,8 +50,7 @@ SqliteDataSource::_Transaction::_Transaction(SqliteDataSource* store)
 
 void SqliteDataSource::_Transaction::create_schedule(
   const rmf_scheduler_msgs::msg::Schedule& schedule,
-  const rmf_scheduler_msgs::msg::ScheduleState& state,
-  int64_t created_at)
+  const rmf_scheduler_msgs::msg::ScheduleState& state)
 {
   std::string sql =
     R"(
@@ -61,6 +60,7 @@ INSERT OR REPLACE INTO Schedule (
   schedule,
   start_at,
   finish_at,
+  "group",
   payload_type,
   payload_data,
   last_modified,
@@ -68,16 +68,17 @@ INSERT OR REPLACE INTO Schedule (
   next_run,
   status
 ) VALUES (
-  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
   )";
   sqlite3_stmt* stmt;
   this->_store->_prepare_stmt(&stmt, sql,
     schedule.name,
-    created_at,
+    schedule.created_at,
     schedule.schedule,
     schedule.start_at,
     schedule.finish_at,
+    schedule.group,
     schedule.payload.type,
     schedule.payload.data,
     state.last_modified,
@@ -131,19 +132,21 @@ WHERE name = ?
 
 void SqliteDataSource::_Transaction::create_trigger(
   const rmf_scheduler_msgs::msg::Trigger& trigger,
-  const rmf_scheduler_msgs::msg::TriggerState& state,
-  int64_t created_at)
+  const rmf_scheduler_msgs::msg::TriggerState& state)
 {
   std::string sql =
     R"(
-INSERT OR REPLACE INTO Trigger (name, created_at, last_modified, at, payload_type, payload_data, last_ran, status) VALUES (
-  ?, ?, ?, ?, ?, ?, ?, ?
+INSERT OR REPLACE INTO Trigger (
+  name, created_at, last_modified, at, "group", payload_type,
+  payload_data, last_ran, status
+) VALUES (
+  ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
-  )";
+)";
   sqlite3_stmt* stmt;
-  this->_store->_prepare_stmt(&stmt, sql, trigger.name, created_at,
+  this->_store->_prepare_stmt(&stmt, sql, trigger.name, trigger.created_at,
     state.last_modified,
-    trigger.at, trigger.payload.type,
+    trigger.at, trigger.group, trigger.payload.type,
     trigger.payload.data, state.last_ran,
     state.status);
 
@@ -205,6 +208,7 @@ CREATE TABLE IF NOT EXISTS Trigger (
   created_at INTEGER NOT NULL,
   last_modified INTEGER NOT NULL,
   at INTEGER NOT NULL,
+  "group" TEXT NOT NULL,
   payload_type INTEGER NOT NULL,
   payload_data BLOB NOT NULL,
   last_ran INTEGER NOT NULL,
@@ -221,6 +225,7 @@ CREATE TABLE IF NOT EXISTS Schedule (
   schedule TEXT NOT NULL,
   start_at INTEGER NOT NULL,
   finish_at INTEGER NOT NULL,
+  "group" TEXT NOT NULL,
   payload_type INTEGER NOT NULL,
   payload_data BLOB NOT NULL,
   last_modified INTEGER NOT NULL,
@@ -232,7 +237,7 @@ CREATE TABLE IF NOT EXISTS Schedule (
 CREATE INDEX IF NOT EXISTS Schedule_index ON Schedule (
   created_at, last_modified, status
 );
-  )", nullptr, nullptr,
+)", nullptr, nullptr,
     &errmsg);
   if (result != SQLITE_OK)
   {
@@ -266,364 +271,96 @@ void SqliteDataSource::commit_transaction()
   }
 }
 
-rmf_scheduler_msgs::msg::Schedule SqliteDataSource::fetch_schedule(
+std::optional<rmf_scheduler_msgs::msg::Schedule>
+SqliteDataSource::fetch_schedule(const std::string& name)
+{
+  auto schedules = this->_fetch_schedules("WHERE name = ?", name);
+  if (schedules.empty())
+  {
+    return std::nullopt;
+  }
+  return schedules.front();
+}
+
+std::vector<rmf_scheduler_msgs::msg::Schedule>
+SqliteDataSource::fetch_active_schedules()
+{
+  return this->_fetch_schedules("WHERE status = ? OR status = ?",
+      rmf_scheduler_msgs::msg::ScheduleState::STARTED,
+      rmf_scheduler_msgs::msg::ScheduleState::CREATED);
+}
+
+std::optional<rmf_scheduler_msgs::msg::ScheduleState>
+SqliteDataSource::fetch_schedule_state(
   const std::string& name)
 {
-  std::string sql =
-    R"(
-SELECT name, schedule, start_at, finish_at, payload_type, payload_data FROM Schedule
-WHERE name = ?
-  )";
-  sqlite3_stmt* stmt;
-  this->_prepare_stmt(&stmt, sql, name);
-
-  if (sqlite3_step(stmt) != SQLITE_ROW)
+  auto states = this->_fetch_schedule_states("WHERE name = ?", name);
+  if (states.empty())
   {
-    throw DatabaseError(this->_db);
+    return std::nullopt;
   }
-
-  rmf_scheduler_msgs::msg::Schedule schedule;
-  schedule.name = (const char*) sqlite3_column_text(stmt, 0);
-  schedule.schedule = (const char*) sqlite3_column_text(stmt, 1);
-  schedule.start_at = sqlite3_column_int64(stmt, 2);
-  schedule.finish_at = sqlite3_column_int64(stmt, 3);
-  schedule.payload.type = sqlite3_column_int(stmt, 4);
-  auto blob = (uint8_t*) sqlite3_column_blob(stmt, 5);
-  auto payload_size = sqlite3_column_bytes(stmt, 5);
-  using PayloadData = decltype(schedule.payload.data);
-  schedule.payload.data = PayloadData{blob, blob + payload_size};
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  return schedule;
+  return states.front();
 }
 
-std::vector<std::string> SqliteDataSource::fetch_active_schedules()
-{
-  std::string sql =
-    R"(
-SELECT name FROM Schedule
-WHERE status = ? OR status = ?
-  )";
-  sqlite3_stmt* stmt;
-  this->_prepare_stmt(&stmt, sql,
-    rmf_scheduler_msgs::msg::ScheduleState::STARTED,
-    rmf_scheduler_msgs::msg::ScheduleState::CREATED);
-
-  std::vector<std::string> schedules;
-  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
-    result = sqlite3_step(stmt))
-  {
-    if (result != SQLITE_ROW)
-    {
-      throw DatabaseError(this->_db);
-    }
-
-    schedules.emplace_back((const char*) sqlite3_column_text(stmt, 0));
-  }
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  return schedules;
-}
-
-rmf_scheduler_msgs::msg::ScheduleState SqliteDataSource::fetch_schedule_state(
-  const std::string& name)
-{
-  std::string sql =
-    R"(
-SELECT name, last_modified, last_ran, next_run, status FROM Schedule
-WHERE name = ?
-  )";
-  sqlite3_stmt* stmt;
-  this->_prepare_stmt(&stmt, sql, name);
-
-  if (sqlite3_step(stmt) != SQLITE_ROW)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  rmf_scheduler_msgs::msg::ScheduleState state;
-  state.name = (const char*) sqlite3_column_text(stmt, 0);
-  state.last_modified = sqlite3_column_int64(stmt, 1);
-  state.last_ran = sqlite3_column_int64(stmt, 2);
-  state.next_run = sqlite3_column_int64(stmt, 3);
-  state.status = sqlite3_column_int(stmt, 4);
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  return state;
-}
-
-std::tuple<std::vector<rmf_scheduler_msgs::msg::Schedule>,
-  std::vector<int64_t>>
+std::vector<rmf_scheduler_msgs::msg::Schedule>
 SqliteDataSource::fetch_schedules_created_after(
   int64_t created_after)
 {
-  std::string sql =
-    R"(
-SELECT name, schedule, start_at, finish_at, payload_type, payload_data, created_at FROM Schedule
-WHERE created_at > ?
-ORDER BY created_at ASC
-  )";
-  sqlite3_stmt* stmt;
-  this->_prepare_stmt(&stmt, sql, created_after);
-
-  std::vector<rmf_scheduler_msgs::msg::Schedule> schedules;
-  std::vector<int64_t> created;
-  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
-    result = sqlite3_step(stmt))
-  {
-    if (result != SQLITE_ROW)
-    {
-      throw DatabaseError(this->_db);
-    }
-
-    schedules.emplace_back();
-    auto& schedule = schedules.back();
-    schedule.name = (const char*) sqlite3_column_text(stmt, 0);
-    schedule.schedule = (const char*) sqlite3_column_text(stmt, 1);
-    schedule.start_at = sqlite3_column_int64(stmt, 2);
-    schedule.finish_at = sqlite3_column_int64(stmt, 3);
-    schedule.payload.type = sqlite3_column_int(stmt, 4);
-    auto blob = (uint8_t*) sqlite3_column_blob(stmt, 5);
-    auto payload_size = sqlite3_column_bytes(stmt, 5);
-    using PayloadData = decltype(schedule.payload.data);
-    schedule.payload.data = PayloadData{blob, blob + payload_size};
-
-    created.emplace_back(sqlite3_column_int64(stmt, 6));
-  }
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  return {schedules, created};
+  return this->_fetch_schedules(
+    "WHERE created_at > ? ORDER BY created_at ASC", created_after);
 }
 
 std::vector<rmf_scheduler_msgs::msg::ScheduleState>
 SqliteDataSource::fetch_schedule_states_modified_after(
   int64_t modified_after)
 {
-  std::string sql =
-    R"(
-SELECT name, last_modified, last_ran, next_run, status FROM Schedule
-WHERE last_modified > ?
-ORDER BY last_modified ASC
-  )";
-  sqlite3_stmt* stmt;
-  this->_prepare_stmt(&stmt, sql, modified_after);
-
-  std::vector<rmf_scheduler_msgs::msg::ScheduleState> states;
-  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
-    result = sqlite3_step(stmt))
-  {
-    if (result != SQLITE_ROW)
-    {
-      throw DatabaseError(this->_db);
-    }
-
-    states.emplace_back();
-    auto& state = states.back();
-    state.name = (const char*) sqlite3_column_text(stmt, 0);
-    state.last_modified = sqlite3_column_int64(stmt, 1);
-    state.last_ran = sqlite3_column_int64(stmt, 2);
-    state.next_run = sqlite3_column_int64(stmt, 3);
-    state.status = sqlite3_column_int(stmt, 4);
-  }
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  return states;
+  return this->_fetch_schedule_states(
+    "WHERE last_modified > ? ORDER BY last_modified ASC", modified_after);
 }
 
-rmf_scheduler_msgs::msg::Trigger SqliteDataSource::fetch_trigger(
+std::optional<rmf_scheduler_msgs::msg::Trigger> SqliteDataSource::fetch_trigger(
   const std::string& name)
 {
-  std::string sql =
-    R"(
-SELECT name, at, payload_type, payload_data FROM Trigger
-WHERE name = ?
-  )";
-  sqlite3_stmt* stmt;
-  this->_prepare_stmt(&stmt, sql, name);
-
-  if (sqlite3_step(stmt) != SQLITE_ROW)
+  auto triggers = this->_fetch_triggers("WHERE name = ?", name);
+  if (triggers.empty())
   {
-    throw DatabaseError(this->_db);
+    return std::nullopt;
   }
-
-  rmf_scheduler_msgs::msg::Trigger trigger;
-  trigger.name = (const char*) sqlite3_column_text(stmt, 0);
-  trigger.at = sqlite3_column_int64(stmt, 1);
-  trigger.payload.type = sqlite3_column_int(stmt, 2);
-  auto blob = (uint8_t*) sqlite3_column_blob(stmt, 3);
-  auto payload_size = sqlite3_column_bytes(stmt, 3);
-  using PayloadData = decltype(trigger.payload.data);
-  trigger.payload.data = PayloadData{blob, blob + payload_size};
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  return trigger;
+  return triggers.front();
 }
 
-std::tuple<std::vector<rmf_scheduler_msgs::msg::Trigger>, std::vector<int64_t>>
+std::vector<rmf_scheduler_msgs::msg::Trigger>
 SqliteDataSource::fetch_triggers_created_after(
   int64_t created_after)
 {
-  std::string sql =
-    R"(
-SELECT name, at, payload_type, payload_data, created_at FROM Trigger
-WHERE created_at > ?
-ORDER BY created_at ASC
-  )";
-  sqlite3_stmt* stmt;
-  this->_prepare_stmt(&stmt, sql, created_after);
-
-  std::vector<rmf_scheduler_msgs::msg::Trigger> triggers;
-  std::vector<int64_t> created;
-  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
-    result = sqlite3_step(stmt))
-  {
-    if (result != SQLITE_ROW)
-    {
-      throw DatabaseError(this->_db);
-    }
-
-    triggers.emplace_back();
-    auto& trigger = triggers.back();
-    trigger.name = (const char*) sqlite3_column_text(stmt, 0);
-    trigger.at = sqlite3_column_int64(stmt, 1);
-    trigger.payload.type = sqlite3_column_int(stmt, 2);
-    auto blob = (uint8_t*) sqlite3_column_blob(stmt, 3);
-    auto payload_size = sqlite3_column_bytes(stmt, 3);
-    using PayloadData = decltype(trigger.payload.data);
-    trigger.payload.data = PayloadData{blob, blob + payload_size};
-
-    created.push_back(sqlite3_column_int64(stmt, 4));
-  }
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  return {triggers, created};
+  return this->_fetch_triggers("WHERE created_at > ? ORDER BY created_at ASC",
+      created_after);
 }
 
 std::vector<rmf_scheduler_msgs::msg::TriggerState>
 SqliteDataSource::fetch_trigger_states_modified_after(
   int64_t modified_after)
 {
-  std::string sql =
-    R"(
-SELECT name, last_modified, last_ran, status FROM Trigger
-WHERE last_modified > ?
-ORDER BY last_modified ASC
-  )";
-  sqlite3_stmt* stmt;
-  this->_prepare_stmt(&stmt, sql, modified_after);
-
-  std::vector<rmf_scheduler_msgs::msg::TriggerState> states;
-  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
-    result = sqlite3_step(stmt))
-  {
-    if (result != SQLITE_ROW)
-    {
-      throw DatabaseError(this->_db);
-    }
-
-    states.emplace_back();
-    auto& state = states.back();
-    state.name = (const char*) sqlite3_column_text(stmt, 0);
-    state.last_modified = sqlite3_column_int64(stmt, 1);
-    state.last_ran = sqlite3_column_int64(stmt, 2);
-    state.status = sqlite3_column_int(stmt, 3);
-  }
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  return states;
+  return this->_fetch_trigger_states(
+    "WHERE last_modified > ? ORDER BY last_modified ASC", modified_after);
 }
 
-std::vector<std::string> SqliteDataSource::fetch_active_triggers()
+std::vector<rmf_scheduler_msgs::msg::Trigger>
+SqliteDataSource::fetch_active_triggers()
 {
-  std::string sql =
-    R"(
-SELECT name FROM Trigger
-WHERE status = ?
-  )";
-  sqlite3_stmt* stmt;
-  this->_prepare_stmt(&stmt, sql,
-    rmf_scheduler_msgs::msg::TriggerState::STARTED);
-
-  std::vector<std::string> triggers;
-  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
-    result = sqlite3_step(stmt))
-  {
-    if (result != SQLITE_ROW)
-    {
-      throw DatabaseError(this->_db);
-    }
-
-    triggers.emplace_back((const char*) sqlite3_column_text(stmt, 0));
-  }
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  return triggers;
+  return this->_fetch_triggers("WHERE status = ?",
+      rmf_scheduler_msgs::msg::TriggerState::STARTED);
 }
 
-rmf_scheduler_msgs::msg::TriggerState SqliteDataSource::fetch_trigger_state(
-  const std::string& name)
+std::optional<rmf_scheduler_msgs::msg::TriggerState>
+SqliteDataSource::fetch_trigger_state(const std::string& name)
 {
-  std::string sql =
-    R"(
-SELECT name, last_modified, last_ran, status FROM Trigger
-WHERE name = ?
-  )";
-  sqlite3_stmt* stmt;
-  this->_prepare_stmt(&stmt, sql, name);
-
-  if (sqlite3_step(stmt) != SQLITE_ROW)
+  auto states = this->_fetch_trigger_states("WHERE name = ?", name);
+  if (states.empty())
   {
-    throw DatabaseError(this->_db);
+    return std::nullopt;
   }
-
-  rmf_scheduler_msgs::msg::TriggerState state;
-  state.name = (const char*) sqlite3_column_text(stmt, 0);
-  state.last_modified = sqlite3_column_int64(stmt, 1);
-  state.last_ran = sqlite3_column_int64(stmt, 2);
-  state.status = sqlite3_column_int(stmt, 3);
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw DatabaseError(this->_db);
-  }
-
-  return state;
+  return states.front();
 }
 
 template<typename T, std::enable_if_t<std::is_integral_v<T>, bool>>
@@ -678,6 +415,147 @@ void SqliteDataSource::_prepare_stmt(sqlite3_stmt** stmt,
 
   int i = 1;
   (this->_bind_arg(*stmt, i++, std::forward<Args>(args)), ...);
+}
+
+template<typename... Args>
+std::vector<rmf_scheduler_msgs::msg::Trigger>
+SqliteDataSource::_fetch_triggers(const std::string& where, Args&& ... args)
+{
+  std::string sql =
+    R"(SELECT name, created_at, at, "group", payload_type, payload_data FROM Trigger )"
+    + where;
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql, std::forward<Args>(args)...);
+
+  std::vector<rmf_scheduler_msgs::msg::Trigger> triggers;
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    if (result != SQLITE_ROW)
+    {
+      throw DatabaseError(this->_db);
+    }
+
+    auto& trigger = triggers.emplace_back();
+    trigger.name = (const char*) sqlite3_column_text(stmt, 0);
+    trigger.created_at = sqlite3_column_int64(stmt, 1);
+    trigger.at = sqlite3_column_int64(stmt, 2);
+    trigger.group = (const char*) sqlite3_column_text(stmt, 3);
+    trigger.payload.type = sqlite3_column_int(stmt, 4);
+    auto blob = (uint8_t*) sqlite3_column_blob(stmt, 5);
+    auto payload_size = sqlite3_column_bytes(stmt, 5);
+    using PayloadData = decltype(trigger.payload.data);
+    trigger.payload.data = PayloadData{blob, blob + payload_size};
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  return triggers;
+}
+
+template<typename... Args>
+std::vector<rmf_scheduler_msgs::msg::TriggerState>
+SqliteDataSource::_fetch_trigger_states(const std::string& where,
+  Args&& ... args)
+{
+  std::string sql =
+    "SELECT name, last_modified, last_ran, status FROM Trigger " + where;
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql, std::forward<Args>(args)...);
+
+  std::vector<rmf_scheduler_msgs::msg::TriggerState> states;
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    auto& state = states.emplace_back();
+    state.name = (const char*) sqlite3_column_text(stmt, 0);
+    state.last_modified = sqlite3_column_int64(stmt, 1);
+    state.last_ran = sqlite3_column_int64(stmt, 2);
+    state.status = sqlite3_column_int(stmt, 3);
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  return states;
+}
+
+template<typename... Args>
+std::vector<rmf_scheduler_msgs::msg::Schedule>
+SqliteDataSource::_fetch_schedules(const std::string& where, Args&& ... args)
+{
+  std::string sql =
+    R"(SELECT name, created_at, schedule, start_at, finish_at, "group",
+payload_type, payload_data FROM Schedule )"
+    + where;
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql, std::forward<Args>(args)...);
+
+  std::vector<rmf_scheduler_msgs::msg::Schedule> schedules;
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    if (result != SQLITE_ROW)
+    {
+      throw DatabaseError(this->_db);
+    }
+
+    auto& schedule = schedules.emplace_back();
+    schedule.name = (const char*) sqlite3_column_text(stmt, 0);
+    schedule.created_at = sqlite3_column_int64(stmt, 1);
+    schedule.schedule = (const char*) sqlite3_column_text(stmt, 2);
+    schedule.start_at = sqlite3_column_int64(stmt, 3);
+    schedule.finish_at = sqlite3_column_int64(stmt, 4);
+    schedule.group = (const char*) sqlite3_column_text(stmt, 5);
+    schedule.payload.type = sqlite3_column_int(stmt, 6);
+    auto blob = (uint8_t*) sqlite3_column_blob(stmt, 7);
+    auto payload_size = sqlite3_column_bytes(stmt, 7);
+    using PayloadData = decltype(schedule.payload.data);
+    schedule.payload.data = PayloadData{blob, blob + payload_size};
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  return schedules;
+}
+
+template<typename... Args>
+std::vector<rmf_scheduler_msgs::msg::ScheduleState>
+SqliteDataSource::_fetch_schedule_states(const std::string& where,
+  Args&& ... args)
+{
+  std::string sql =
+    "SELECT name, last_modified, last_ran, next_run, status FROM Schedule " +
+    where;
+  sqlite3_stmt* stmt;
+  this->_prepare_stmt(&stmt, sql, std::forward<Args>(args)...);
+
+  std::vector<rmf_scheduler_msgs::msg::ScheduleState> states;
+  for (int result = sqlite3_step(stmt); result != SQLITE_DONE;
+    result = sqlite3_step(stmt))
+  {
+    auto& state = states.emplace_back();
+    state.name = (const char*) sqlite3_column_text(stmt, 0);
+    state.last_modified = sqlite3_column_int64(stmt, 1);
+    state.last_ran = sqlite3_column_int64(stmt, 2);
+    state.next_run = sqlite3_column_int64(stmt, 3);
+    state.status = sqlite3_column_int(stmt, 4);
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw DatabaseError(this->_db);
+  }
+
+  return states;
 }
 
 }

@@ -43,6 +43,7 @@ std::string make_schedule_name(int8_t status)
 TEST_CASE("all in one")
 {
   std::string db_file{"SqliteDataSource_TEST.sqlite3"};
+  std::filesystem::remove(db_file);
   SqliteDataSource store{db_file};
 
   /**
@@ -67,7 +68,7 @@ TEST_CASE("all in one")
       state.status = status;
 
       auto t = store.begin_transaction();
-      t.create_trigger(trigger, state, 0);
+      t.create_trigger(trigger, state);
       store.commit_transaction();
     };
 
@@ -96,7 +97,7 @@ TEST_CASE("all in one")
       state.status = status;
 
       auto t = store.begin_transaction();
-      t.create_schedule(schedule, state, 0);
+      t.create_schedule(schedule, state);
       store.commit_transaction();
     };
 
@@ -109,6 +110,7 @@ TEST_CASE("all in one")
     std::string name = "trigger_late";
     rmf_scheduler_msgs::msg::Trigger trigger;
     trigger.name = name;
+    trigger.created_at = 1000;
     trigger.payload.data.push_back(1);
 
     rmf_scheduler_msgs::msg::TriggerState state;
@@ -116,7 +118,7 @@ TEST_CASE("all in one")
     state.last_modified = 1000;
 
     auto t = store.begin_transaction();
-    t.create_trigger(trigger, state, 1000);
+    t.create_trigger(trigger, state);
     store.commit_transaction();
   }
 
@@ -124,6 +126,7 @@ TEST_CASE("all in one")
     std::string name = "schedule_late";
     rmf_scheduler_msgs::msg::Schedule schedule;
     schedule.name = name;
+    schedule.created_at = 1000;
     schedule.payload.data.push_back(1);
 
     rmf_scheduler_msgs::msg::ScheduleState state;
@@ -131,7 +134,7 @@ TEST_CASE("all in one")
     state.last_modified = 1000;
 
     auto t = store.begin_transaction();
-    t.create_schedule(schedule, state, 1000);
+    t.create_schedule(schedule, state);
     store.commit_transaction();
   }
 
@@ -141,20 +144,20 @@ TEST_CASE("all in one")
   {
     auto name =
       make_trigger_name(rmf_scheduler_msgs::msg::TriggerState::FAILED);
-    auto trigger = store.fetch_trigger(name);
+    auto trigger = store.fetch_trigger(name).value();
     CHECK(trigger.name == name);
 
-    auto state = store.fetch_trigger_state(name);
+    auto state = store.fetch_trigger_state(name).value();
     CHECK(state.name == name);
   }
 
   {
     auto name = make_schedule_name(
       rmf_scheduler_msgs::msg::ScheduleState::FAILED);
-    auto schedule = store.fetch_schedule(name);
+    auto schedule = store.fetch_schedule(name).value();
     CHECK(schedule.name == name);
 
-    auto state = store.fetch_schedule_state(name);
+    auto state = store.fetch_schedule_state(name).value();
     CHECK(state.name == name);
   }
 
@@ -162,7 +165,7 @@ TEST_CASE("all in one")
     auto triggers = store.fetch_active_triggers();
     REQUIRE(triggers.size() == 1);
     auto trigger = triggers.front();
-    CHECK(trigger ==
+    CHECK(trigger.name ==
       make_trigger_name(rmf_scheduler_msgs::msg::TriggerState::STARTED));
   }
 
@@ -171,9 +174,9 @@ TEST_CASE("all in one")
     REQUIRE(schedules.size() == 2);
     size_t started_count = 0;
     size_t created_count = 0;
-    for (const auto& name : schedules)
+    for (const auto& schedule : schedules)
     {
-      auto state = store.fetch_schedule_state(name);
+      auto state = store.fetch_schedule_state(schedule.name).value();
       CHECK((
           state.status == rmf_scheduler_msgs::msg::ScheduleState::STARTED ||
           state.status == rmf_scheduler_msgs::msg::ScheduleState::CREATED));
@@ -194,11 +197,9 @@ TEST_CASE("all in one")
   }
 
   {
-    auto [triggers, created] = store.fetch_triggers_created_after(999);
+    auto triggers = store.fetch_triggers_created_after(999);
     REQUIRE(triggers.size() == 1);
     CHECK(triggers.front().name == "trigger_late");
-    REQUIRE(created.size() == 1);
-    CHECK(created.front() == 1000);
   }
 
   {
@@ -208,11 +209,9 @@ TEST_CASE("all in one")
   }
 
   {
-    auto [schedules, created] = store.fetch_schedules_created_after(999);
+    auto schedules = store.fetch_schedules_created_after(999);
     REQUIRE(schedules.size() == 1);
     CHECK(schedules.front().name == "schedule_late");
-    REQUIRE(created.size() == 1);
-    CHECK(created.front() == 1000);
   }
 
   {

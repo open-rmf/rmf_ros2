@@ -51,17 +51,14 @@ public:
   {
     Scheduler<Executor, Publisher> inst{executor, store, pub};
 
-    for (const auto& name : store.fetch_active_triggers())
+    for (const auto& trigger : store.fetch_active_triggers())
     {
-      auto trigger = store.fetch_trigger(name);
       inst._schedule_trigger(trigger);
     }
 
-    auto schedules = store.fetch_active_schedules();
-    for (const auto& name : schedules)
+    for (const auto& schedule : store.fetch_active_schedules())
     {
-      auto schedule = store.fetch_schedule(name);
-      auto state = store.fetch_schedule_state(name);
+      auto state = store.fetch_schedule_state(schedule.name).value();
       inst._schedule_schedule(schedule, state);
     }
 
@@ -85,7 +82,7 @@ public:
   {
   }
 
-  void create_trigger(const rmf_scheduler_msgs::msg::Trigger& trigger)
+  void create_trigger(rmf_scheduler_msgs::msg::Trigger& trigger)
   {
     // cancels the previous trigger if it exists
     try
@@ -101,6 +98,7 @@ public:
 
     auto now = executor.now();
 
+    trigger.created_at = now;
     rmf_scheduler_msgs::msg::TriggerState state;
     state.name = trigger.name;
     state.last_modified = now;
@@ -108,7 +106,7 @@ public:
     state.status = rmf_scheduler_msgs::msg::TriggerState::STARTED;
 
     auto t = this->store.begin_transaction();
-    t.create_trigger(trigger, state, now);
+    t.create_trigger(trigger, state);
     this->store.commit_transaction();
 
     this->_schedule_trigger(trigger);
@@ -129,23 +127,20 @@ public:
 
     try
     {
-      auto state = this->store.fetch_trigger_state(trigger_name);
+      auto state = this->store.fetch_trigger_state(trigger_name).value();
       state.last_modified = this->executor.now();
       state.status = rmf_scheduler_msgs::msg::TriggerState::CANCELLED;
       auto t = this->store.begin_transaction();
       t.save_trigger_state(state);
       this->store.commit_transaction();
     }
-    catch (const SqliteDataSource::DatabaseError& e)
+    catch (const std::bad_optional_access&)
     {
-      if (e.code != SQLITE_DONE)
-      {
-        throw;
-      }
+      // ignore
     }
   }
 
-  void create_schedule(const rmf_scheduler_msgs::msg::Schedule& schedule)
+  void create_schedule(rmf_scheduler_msgs::msg::Schedule& schedule)
   {
     if (schedule.finish_at <= schedule.start_at)
     {
@@ -166,6 +161,7 @@ public:
     auto now = this->executor.now();
     cron::cron_next(cron::make_cron(schedule.schedule), schedule.start_at);
 
+    schedule.created_at = now;
     rmf_scheduler_msgs::msg::ScheduleState state;
     state.name = schedule.name;
     state.last_modified = now;
@@ -183,7 +179,7 @@ public:
     state.status = status;
 
     auto t = this->store.begin_transaction();
-    t.create_schedule(schedule, state, now);
+    t.create_schedule(schedule, state);
     this->store.commit_transaction();
 
     this->_schedule_schedule(schedule, state);
@@ -204,7 +200,7 @@ public:
 
     try
     {
-      auto state = this->store.fetch_schedule_state(schedule_name);
+      auto state = this->store.fetch_schedule_state(schedule_name).value();
       state.last_modified = this->executor.now();
       state.next_run = 0;
       state.status = rmf_scheduler_msgs::msg::ScheduleState::CANCELLED;
@@ -212,12 +208,9 @@ public:
       t.save_schedule_state(state);
       this->store.commit_transaction();
     }
-    catch (const SqliteDataSource::DatabaseError& e)
+    catch (const std::bad_optional_access&)
     {
-      if (e.code != SQLITE_DONE)
-      {
-        throw;
-      }
+      // ignore
     }
   }
 
@@ -245,7 +238,7 @@ private:
     this->_trigger_tasks[trigger.name] =
       this->executor.schedule_task(trigger.at, [this, name = trigger.name]()
         {
-          auto trigger = this->store.fetch_trigger(name);
+          auto trigger = this->store.fetch_trigger(name).value();
           this->publisher.publish(trigger.payload);
           rmf_scheduler_msgs::msg::TriggerState state;
           auto now = this->executor.now();
@@ -279,7 +272,7 @@ private:
     {
       auto now = this->scheduler->executor.now();
 
-      auto schedule = this->scheduler->store.fetch_schedule(name);
+      auto schedule = this->scheduler->store.fetch_schedule(name).value();
       this->scheduler->publisher.publish(schedule.payload);
 
       rmf_scheduler_msgs::msg::ScheduleState state;
@@ -320,7 +313,7 @@ private:
     auto start_schedule_task = [this, name = schedule.name]()
       {
         auto now = this->executor.now();
-        auto state = this->store.fetch_schedule_state(name);
+        auto state = this->store.fetch_schedule_state(name).value();
         state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
         state.last_modified = now;
 

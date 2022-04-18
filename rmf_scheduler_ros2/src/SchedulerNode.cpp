@@ -237,10 +237,9 @@ void SchedulerNode::_list_triggers(
 {
   try
   {
-    auto [triggers, created] = this->_store.fetch_triggers_created_after(
-      req->created_after);
+    auto triggers =
+      this->_store.fetch_triggers_created_after(req->created_after);
     resp->triggers = triggers;
-    resp->created = created;
     resp->success = true;
   }
   catch (const std::exception& e)
@@ -275,10 +274,9 @@ void SchedulerNode::_list_schedules(
 {
   try
   {
-    auto [schedules, created] = this->_store.fetch_schedules_created_after(
+    auto schedules = this->_store.fetch_schedules_created_after(
       req->created_after);
     resp->schedules = schedules;
-    resp->created = created;
     resp->success = true;
   }
   catch (const std::exception& e)
