@@ -20,16 +20,17 @@
 #include "SqliteDataSource.hpp"
 #include "Task.hpp"
 
-#include <sqlite3.h>
-
 #include <croncpp.h>
+
+#include <rclcpp/logger.hpp>
+#include <rclcpp/logging.hpp>
 
 #include <rmf_scheduler_msgs/msg/schedule.hpp>
 #include <rmf_scheduler_msgs/msg/schedule_state.hpp>
 #include <rmf_scheduler_msgs/msg/trigger.hpp>
 #include <rmf_scheduler_msgs/msg/trigger_state.hpp>
 
-#include <rclcpp/rclcpp.hpp>
+#include <sqlite3.h>
 
 #include <stdexcept>
 #include <string>
@@ -68,6 +69,7 @@ public:
   Executor& executor;
   SqliteDataSource& store;
   Publisher& publisher;
+  rclcpp::Logger logger = rclcpp::get_logger("Scheduler");
 
   using TriggerUpdateCb =
     std::function<void(const rmf_scheduler_msgs::msg::TriggerState&)>;
@@ -249,8 +251,9 @@ private:
   void _schedule_trigger(const rmf_scheduler_msgs::msg::Trigger& trigger)
   {
     // capture only the name to avoid storing the payload in memory.
-    this->_trigger_tasks[trigger.name] =
-      this->executor.schedule_task(trigger.at, [this, name = trigger.name]()
+    auto run = [this, name = trigger.name]()
+      {
+        try
         {
           auto trigger = this->store.fetch_trigger(name).value();
           this->publisher.publish(trigger.payload);
@@ -268,7 +271,16 @@ private:
           {
             this->on_trigger_update(state);
           }
-        });
+        }
+        catch (const std::exception& e)
+        {
+          RCLCPP_ERROR(this->logger, "Failed to run trigger '%s': %s",
+            name.c_str(), e.what());
+        }
+      };
+
+    this->_trigger_tasks[trigger.name] =
+      this->executor.schedule_task(trigger.at, run);
   }
 
   // functor to allow self referencing normally not allowd in lambdas.
@@ -284,39 +296,47 @@ private:
 
     void operator()() const
     {
-      auto now = this->scheduler->executor.now();
-
-      auto schedule = this->scheduler->store.fetch_schedule(name).value();
-      this->scheduler->publisher.publish(schedule.payload);
-
-      rmf_scheduler_msgs::msg::ScheduleState state;
-      state.name = this->name;
-      state.last_modified = now;
-      state.last_ran = now;
-      state.next_run = this->scheduler->_next_schedule_run(schedule, now);
-      if (state.next_run == 0)
+      try
       {
-        state.status = rmf_scheduler_msgs::msg::ScheduleState::FINISHED;
+        auto now = this->scheduler->executor.now();
+
+        auto schedule = this->scheduler->store.fetch_schedule(name).value();
+        this->scheduler->publisher.publish(schedule.payload);
+
+        rmf_scheduler_msgs::msg::ScheduleState state;
+        state.name = this->name;
+        state.last_modified = now;
+        state.last_ran = now;
+        state.next_run = this->scheduler->_next_schedule_run(schedule, now);
+        if (state.next_run == 0)
+        {
+          state.status = rmf_scheduler_msgs::msg::ScheduleState::FINISHED;
+        }
+        else
+        {
+          state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
+        }
+
+        auto t = this->scheduler->store.begin_transaction();
+        t.save_schedule_state(state);
+        this->scheduler->store.commit_transaction();
+
+        if (scheduler->on_schedule_update)
+        {
+          scheduler->on_schedule_update(state);
+        }
+
+        if (state.next_run != 0)
+        {
+          this->scheduler->_schedule_tasks[name] =
+            this->scheduler->executor.schedule_task(state.next_run,
+              _run_schedule_task{this->scheduler, name});
+        }
       }
-      else
+      catch (const std::exception& e)
       {
-        state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
-      }
-
-      auto t = this->scheduler->store.begin_transaction();
-      t.save_schedule_state(state);
-      this->scheduler->store.commit_transaction();
-
-      if (scheduler->on_schedule_update)
-      {
-        scheduler->on_schedule_update(state);
-      }
-
-      if (state.next_run != 0)
-      {
-        this->scheduler->_schedule_tasks[name] =
-          this->scheduler->executor.schedule_task(state.next_run,
-            _run_schedule_task{this->scheduler, name});
+        RCLCPP_ERROR(this->scheduler->logger, "Failed to run schedule '%s': %s",
+          this->name.c_str(), e.what());
       }
     }
   };
@@ -326,18 +346,27 @@ private:
   {
     auto start_schedule_task = [this, name = schedule.name]()
       {
-        auto now = this->executor.now();
-        auto state = this->store.fetch_schedule_state(name).value();
-        state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
-        state.last_modified = now;
+        try
+        {
+          auto now = this->executor.now();
+          auto state = this->store.fetch_schedule_state(name).value();
+          state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
+          state.last_modified = now;
 
-        auto t = this->store.begin_transaction();
-        t.save_schedule_state(state);
-        this->store.commit_transaction();
+          auto t = this->store.begin_transaction();
+          t.save_schedule_state(state);
+          this->store.commit_transaction();
 
-        this->_schedule_tasks[name] =
-          this->executor.schedule_task(state.next_run, _run_schedule_task{this,
-              name});
+          this->_schedule_tasks[name] =
+            this->executor.schedule_task(state.next_run,
+              _run_schedule_task{this,
+                name});
+        }
+        catch (const std::exception& e)
+        {
+          RCLCPP_ERROR(this->logger, "Failed to start schedule '%s': %s",
+            name.c_str(), e.what());
+        }
       };
 
     switch (state.status)
