@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include "SqliteCursor.hpp"
+
 #include <rmf_scheduler_msgs/msg/schedule.hpp>
 #include <rmf_scheduler_msgs/msg/schedule_state.hpp>
 #include <rmf_scheduler_msgs/msg/trigger.hpp>
@@ -35,22 +37,6 @@ namespace rmf::scheduler {
 
 class SqliteDataSource
 {
-private:
-  using _SqlitePtr = std::shared_ptr<sqlite3>;
-
-public:
-  class DatabaseError : public std::exception
-  {
-  public:
-    int code;
-
-    explicit DatabaseError(_SqlitePtr db);
-    explicit DatabaseError(int code, const char* errmsg);
-    const char* what() const noexcept override;
-
-  private: std::string errmsg;
-  };
-
 private:
   class _Transaction
   {
@@ -74,7 +60,7 @@ private:
 
   private:
     SqliteDataSource* _store;
-    _SqlitePtr _db;
+    std::shared_ptr<sqlite3> _db;
   };
 
 public:
@@ -125,7 +111,7 @@ public:
   fetch_trigger_state(const std::string& name);
 
 private:
-  _SqlitePtr _db;
+  std::shared_ptr<sqlite3> _db;
 
   template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
   void _bind_arg(sqlite3_stmt* stmt, int i, T arg);

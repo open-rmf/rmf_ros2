@@ -17,31 +17,14 @@
 
 #include "SqliteDataSource.hpp"
 
+#include "SqliteError.hpp"
+
 #include <sqlite3.h>
 
 #include <chrono>
 #include <stdexcept>
 
 namespace rmf::scheduler {
-
-//====
-
-SqliteDataSource::DatabaseError::DatabaseError(_SqlitePtr db)
-: DatabaseError(sqlite3_errcode(db.get()), sqlite3_errmsg(db.get()))
-{
-}
-
-SqliteDataSource::DatabaseError::DatabaseError(int code, const char* errmsg)
-: code(code), errmsg(errmsg)
-{
-}
-
-const char* SqliteDataSource::DatabaseError::what() const noexcept
-{
-  return this->errmsg.c_str();
-}
-
-//====
 
 SqliteDataSource::_Transaction::_Transaction(SqliteDataSource* store)
 : _store(store), _db(store->_db)
@@ -89,12 +72,12 @@ INSERT OR REPLACE INTO Schedule (
 
   if (sqlite3_step(stmt) != SQLITE_DONE)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 
   if (sqlite3_finalize(stmt) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 }
 
@@ -121,12 +104,12 @@ WHERE name = ?
 
   if (sqlite3_step(stmt) != SQLITE_DONE)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 
   if (sqlite3_finalize(stmt) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 }
 
@@ -152,12 +135,12 @@ INSERT OR REPLACE INTO Trigger (
 
   if (sqlite3_step(stmt) != SQLITE_DONE)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 
   if (sqlite3_finalize(stmt) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 }
 
@@ -179,12 +162,12 @@ WHERE name = ?
 
   if (sqlite3_step(stmt) != SQLITE_DONE)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 
   if (sqlite3_finalize(stmt) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 }
 
@@ -241,7 +224,7 @@ CREATE INDEX IF NOT EXISTS Schedule_index ON Schedule (
     &errmsg);
   if (result != SQLITE_OK)
   {
-    throw DatabaseError(result, errmsg);
+    throw SqliteError{result, errmsg};
   }
 }
 
@@ -253,7 +236,7 @@ SqliteDataSource::_Transaction SqliteDataSource::begin_transaction()
     &errmsg);
   if (result != SQLITE_OK)
   {
-    throw DatabaseError(result, errmsg);
+    throw SqliteError{result, errmsg};
   }
 
   return _Transaction(this);
@@ -267,7 +250,7 @@ void SqliteDataSource::commit_transaction()
     &errmsg);
   if (result != SQLITE_OK)
   {
-    throw DatabaseError(result, errmsg);
+    throw SqliteError{result, errmsg};
   }
 }
 
@@ -303,7 +286,7 @@ SqliteDataSource::fetch_schedules_in_group(const std::string& group)
   {
     if (result != SQLITE_ROW)
     {
-      throw DatabaseError(this->_db);
+      throw SqliteError{this->_db};
     }
 
     schedules.emplace_back(
@@ -388,7 +371,7 @@ SqliteDataSource::fetch_triggers_in_group(const std::string& group)
   {
     if (result != SQLITE_ROW)
     {
-      throw DatabaseError(this->_db);
+      throw SqliteError{this->_db};
     }
 
     triggers.emplace_back(
@@ -416,14 +399,14 @@ void SqliteDataSource::_bind_arg(sqlite3_stmt* stmt, int i, T arg)
   {
     if (sqlite3_bind_int(stmt, i, arg) != SQLITE_OK)
     {
-      throw DatabaseError(this->_db);
+      throw SqliteError{this->_db};
     }
   }
   else
   {
     if (sqlite3_bind_int64(stmt, i, arg) != SQLITE_OK)
     {
-      throw DatabaseError(this->_db);
+      throw SqliteError{this->_db};
     }
   }
 }
@@ -435,7 +418,7 @@ void SqliteDataSource::_bind_arg(sqlite3_stmt* stmt, int i,
   if (sqlite3_bind_blob(stmt, i, arg.template data<const uint8_t>(), arg.size(),
     SQLITE_STATIC) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 }
 
@@ -445,7 +428,7 @@ void SqliteDataSource::_bind_arg(sqlite3_stmt* stmt, int i,
   if (sqlite3_bind_text(stmt, i, arg.c_str(), arg.size(),
     SQLITE_STATIC) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 }
 
@@ -456,7 +439,7 @@ void SqliteDataSource::_prepare_stmt(sqlite3_stmt** stmt,
   if (sqlite3_prepare_v2(this->_db.get(), sql.data(), sql.size() + 1, stmt,
     nullptr) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 
   int i = 1;
@@ -479,7 +462,7 @@ SqliteDataSource::_fetch_triggers(const std::string& where, Args&& ... args)
   {
     if (result != SQLITE_ROW)
     {
-      throw DatabaseError(this->_db);
+      throw SqliteError{this->_db};
     }
 
     auto& trigger = triggers.emplace_back();
@@ -496,7 +479,7 @@ SqliteDataSource::_fetch_triggers(const std::string& where, Args&& ... args)
 
   if (sqlite3_finalize(stmt) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 
   return triggers;
@@ -525,7 +508,7 @@ SqliteDataSource::_fetch_trigger_states(const std::string& where,
 
   if (sqlite3_finalize(stmt) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 
   return states;
@@ -548,7 +531,7 @@ payload_type, payload_data FROM Schedule )"
   {
     if (result != SQLITE_ROW)
     {
-      throw DatabaseError(this->_db);
+      throw SqliteError{this->_db};
     }
 
     auto& schedule = schedules.emplace_back();
@@ -567,7 +550,7 @@ payload_type, payload_data FROM Schedule )"
 
   if (sqlite3_finalize(stmt) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 
   return schedules;
@@ -598,7 +581,7 @@ SqliteDataSource::_fetch_schedule_states(const std::string& where,
 
   if (sqlite3_finalize(stmt) != SQLITE_OK)
   {
-    throw DatabaseError(this->_db);
+    throw SqliteError{this->_db};
   }
 
   return states;

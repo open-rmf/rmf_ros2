@@ -18,6 +18,7 @@ endif()
 add_library(lib${PROJECT_NAME} OBJECT
   src/Publisher.cpp
   src/SchedulerNode.cpp
+  src/SqliteError.cpp
   src/SqliteDataSource.cpp
   src/SystemTimeExecutor.cpp
 )
