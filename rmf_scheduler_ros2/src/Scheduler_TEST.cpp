@@ -386,7 +386,7 @@ TEST_CASE_METHOD(SchedulerFixture, "Load from database")
     VirtualExecutor executor;
     SqliteDataSource store{db_file};
     MockPublisher pub;
-    auto loaded = TestScheduler::load_from_db(executor, store, pub);
+    auto loaded = TestScheduler{executor, store, pub, true};
     loaded.executor.advance_until(21);
     CHECK(loaded.publisher.publishes.size() == 2);
   }

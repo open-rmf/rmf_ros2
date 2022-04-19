@@ -32,6 +32,7 @@
 
 #include <sqlite3.h>
 
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -44,41 +45,6 @@ template<typename Executor, typename Publisher>
 class Scheduler
 {
 public:
-  /// Creates a scheduler by loading existing tasks from the database.
-  static Scheduler<Executor, Publisher> load_from_db(
-    Executor& executor,
-    SqliteDataSource& store,
-    Publisher& pub)
-  {
-    Scheduler<Executor, Publisher> inst{executor, store, pub};
-
-    for (const auto& trigger : store.fetch_active_triggers())
-    {
-      inst._schedule_trigger(trigger);
-    }
-
-    std::unordered_map<std::string,
-      rmf_scheduler_msgs::msg::Schedule> schedules;
-    for (auto schedule : store.fetch_active_schedules())
-    {
-      schedules[schedule.name] = schedule;
-    }
-    std::unordered_map<std::string,
-      rmf_scheduler_msgs::msg::ScheduleState> states;
-    for (auto state : store.fetch_active_schedule_states())
-    {
-      states[state.name] = state;
-    }
-
-    for (auto& [name, schedule] : schedules)
-    {
-      auto state = states[name];
-      inst._schedule_schedule(schedule, state);
-    }
-
-    return inst;
-  }
-
   Executor& executor;
   SqliteDataSource& store;
   Publisher& publisher;
@@ -92,9 +58,36 @@ public:
   ScheduleUpdateCb on_schedule_update;
 
   /// Creates a new scheduler with no existing tasks.
-  Scheduler(Executor& executor, SqliteDataSource& store, Publisher& pub)
+  Scheduler(Executor& executor, SqliteDataSource& store, Publisher& pub,
+    bool load_from_db = false)
   : executor(executor), store(store), publisher(pub)
   {
+    if (load_from_db)
+    {
+      for (const auto& trigger : store.fetch_active_triggers())
+      {
+        this->_schedule_trigger(trigger);
+      }
+
+      std::unordered_map<std::string,
+        rmf_scheduler_msgs::msg::Schedule> schedules;
+      for (auto schedule : store.fetch_active_schedules())
+      {
+        schedules[schedule.name] = schedule;
+      }
+      std::unordered_map<std::string,
+        rmf_scheduler_msgs::msg::ScheduleState> states;
+      for (auto state : store.fetch_active_schedule_states())
+      {
+        states[state.name] = state;
+      }
+
+      for (auto& [name, schedule] : schedules)
+      {
+        auto state = states[name];
+        this->_schedule_schedule(schedule, state);
+      }
+    }
   }
 
   void create_trigger(rmf_scheduler_msgs::msg::Trigger& trigger)
@@ -118,6 +111,7 @@ public:
     // cancels the previous trigger if it exists
     try
     {
+      std::unique_lock lk{this->_tasks_mutex};
       this->executor.cancel_task(this->_trigger_tasks.at(trigger_name));
       this->_trigger_tasks.erase(trigger_name);
     }
@@ -171,6 +165,7 @@ public:
     // cancels the previous trigger if it exists
     try
     {
+      std::unique_lock lk{this->_tasks_mutex};
       this->executor.cancel_task(this->_schedule_tasks.at(schedule_name));
       this->_schedule_tasks.erase(schedule_name);
     }
@@ -249,6 +244,7 @@ public:
 private:
   std::unordered_map<std::string, std::shared_ptr<Task>> _trigger_tasks;
   std::unordered_map<std::string, std::shared_ptr<Task>> _schedule_tasks;
+  std::recursive_mutex _tasks_mutex;
 
   int64_t _next_schedule_run(
     const rmf_scheduler_msgs::msg::Schedule& schedule,
@@ -269,6 +265,7 @@ private:
     // cancels the previous trigger if it exists
     try
     {
+      std::unique_lock lk{this->_tasks_mutex};
       this->executor.cancel_task(this->_trigger_tasks.at(trigger.name));
       this->_trigger_tasks.erase(trigger.name);
     }
@@ -282,7 +279,10 @@ private:
       {
         try
         {
-          this->_trigger_tasks.erase(name);
+          {
+            std::unique_lock lk{this->_tasks_mutex};
+            this->_trigger_tasks.erase(name);
+          }
           auto trigger = this->store.fetch_trigger(name).value();
           this->publisher.publish(trigger.payload);
           rmf_scheduler_msgs::msg::TriggerState state;
@@ -305,8 +305,11 @@ private:
         }
       };
 
-    this->_trigger_tasks[trigger.name] =
-      this->executor.schedule_task(trigger.at, run);
+    {
+      std::unique_lock lk{this->_tasks_mutex};
+      this->_trigger_tasks[trigger.name] =
+        this->executor.schedule_task(trigger.at, run);
+    }
   }
 
   // functor to allow self referencing normally not allowd in lambdas.
@@ -324,7 +327,10 @@ private:
     {
       try
       {
-        this->scheduler->_schedule_tasks.erase(name);
+        {
+          std::unique_lock lk{this->scheduler->_tasks_mutex};
+          this->scheduler->_schedule_tasks.erase(name);
+        }
         auto now = this->scheduler->executor.now();
 
         auto schedule = this->scheduler->store.fetch_schedule(name).value();
@@ -353,6 +359,7 @@ private:
 
         if (state.next_run != 0)
         {
+          std::unique_lock lk{this->scheduler->_tasks_mutex};
           this->scheduler->_schedule_tasks[name] =
             this->scheduler->executor.schedule_task(state.next_run,
               _run_schedule_task{this->scheduler, name});
@@ -377,6 +384,7 @@ private:
     // cancels the previous schedule if it exists
     try
     {
+      std::unique_lock lk{this->_tasks_mutex};
       this->executor.cancel_task(this->_schedule_tasks.at(schedule.name));
       this->_schedule_tasks.erase(schedule.name);
     }
@@ -389,7 +397,10 @@ private:
       {
         try
         {
-          this->_schedule_tasks.erase(name);
+          {
+            std::unique_lock lk{this->_tasks_mutex};
+            this->_schedule_tasks.erase(name);
+          }
           auto now = this->executor.now();
           auto state = this->store.fetch_schedule_state(name).value();
           state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
@@ -397,10 +408,13 @@ private:
 
           this->store.save_schedule_state(state);
 
-          this->_schedule_tasks[name] =
-            this->executor.schedule_task(state.next_run,
-              _run_schedule_task{this,
-                name});
+          {
+            std::unique_lock lk{this->_tasks_mutex};
+            this->_schedule_tasks[name] =
+              this->executor.schedule_task(state.next_run,
+                _run_schedule_task{this,
+                  name});
+          }
         }
         catch (const std::exception& e)
         {
@@ -409,18 +423,21 @@ private:
         }
       };
 
-    switch (state.status)
     {
-      case rmf_scheduler_msgs::msg::ScheduleState::CREATED:
-        this->_schedule_tasks[schedule.name] =
-          this->executor.schedule_task(schedule.start_at,
-            start_schedule_task);
-        break;
-      case rmf_scheduler_msgs::msg::ScheduleState::STARTED:
-        this->_schedule_tasks[schedule.name] =
-          this->executor.schedule_task(state.next_run,
-            _run_schedule_task{this, schedule.name});
-        break;
+      std::unique_lock lk{this->_tasks_mutex};
+      switch (state.status)
+      {
+        case rmf_scheduler_msgs::msg::ScheduleState::CREATED:
+          this->_schedule_tasks[schedule.name] =
+            this->executor.schedule_task(schedule.start_at,
+              start_schedule_task);
+          break;
+        case rmf_scheduler_msgs::msg::ScheduleState::STARTED:
+          this->_schedule_tasks[schedule.name] =
+            this->executor.schedule_task(state.next_run,
+              _run_schedule_task{this, schedule.name});
+          break;
+      }
     }
   }
 };
