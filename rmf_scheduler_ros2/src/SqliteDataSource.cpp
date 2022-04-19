@@ -179,6 +179,14 @@ SqliteDataSource::fetch_active_schedules()
       rmf_scheduler_msgs::msg::ScheduleState::CREATED);
 }
 
+SqliteCursor<rmf_scheduler_msgs::msg::ScheduleState>
+SqliteDataSource::fetch_active_schedule_states()
+{
+  return this->_fetch_schedule_states("WHERE status = ? OR status = ?",
+      rmf_scheduler_msgs::msg::ScheduleState::STARTED,
+      rmf_scheduler_msgs::msg::ScheduleState::CREATED);
+}
+
 SqliteCursor<rmf_scheduler_msgs::msg::Schedule>
 SqliteDataSource::fetch_schedules_created_after(
   int64_t created_after)

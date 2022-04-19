@@ -98,6 +98,10 @@ public:
   SqliteCursor<rmf_scheduler_msgs::msg::Schedule>
   fetch_active_schedules();
 
+  /// Fetch schedule states which are CREATED or STARTED.
+  SqliteCursor<rmf_scheduler_msgs::msg::ScheduleState>
+  fetch_active_schedule_states();
+
   SqliteCursor<rmf_scheduler_msgs::msg::Schedule>
   fetch_schedules_created_after(int64_t created_after);
 

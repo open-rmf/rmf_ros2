@@ -57,9 +57,22 @@ public:
       inst._schedule_trigger(trigger);
     }
 
-    for (const auto& schedule : store.fetch_active_schedules())
+    std::unordered_map<std::string,
+      rmf_scheduler_msgs::msg::Schedule> schedules;
+    for (auto schedule : store.fetch_active_schedules())
     {
-      auto state = store.fetch_schedule_state(schedule.name).value();
+      schedules[schedule.name] = schedule;
+    }
+    std::unordered_map<std::string,
+      rmf_scheduler_msgs::msg::ScheduleState> states;
+    for (auto state : store.fetch_active_schedule_states())
+    {
+      states[state.name] = state;
+    }
+
+    for (auto& [name, schedule] : schedules)
+    {
+      auto state = states[name];
       inst._schedule_schedule(schedule, state);
     }
 
