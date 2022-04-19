@@ -89,7 +89,7 @@ auto WaitUntil::Active::make(
       if (!self)
         return;
 
-      self->_update();
+      self->_update_waiting();
     });
 
   const auto now = active->_context->now();
