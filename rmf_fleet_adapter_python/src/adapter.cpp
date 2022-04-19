@@ -40,6 +40,7 @@ using ModifiedConsiderRequest =
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
+using Stubbornness = agv::RobotUpdateHandle::Unstable::Stubbornness;
 
 void bind_types(py::module&);
 void bind_graph(py::module&);
@@ -155,6 +156,38 @@ PYBIND11_MODULE(rmf_adapter, m) {
     },
     py::return_value_policy::reference_internal,
     "Experimental API to access the schedule participant")
+  .def("unstable_get_participant",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      // This is the same as get_unstable_participant, which was the original
+      // function signature for this binding. Since "unstable" describes the
+      // API and does not describe the participant, it should be at the front
+      // of the function name, not attached to "participant". But too many
+      // downstream packages are using get_unstable_participant, so we cannot
+      // simply remove support for it.
+      return self.unstable().get_participant();
+    },
+    py::return_value_policy::reference_internal,
+    "Experimental API to access the schedule participant")
+  .def("unstable_declare_holding",
+    [&](agv::RobotUpdateHandle& self,
+    std::string on_map,
+    Eigen::Vector3d at_position,
+    double for_duration)
+    {
+      self.unstable().declare_holding(
+        std::move(on_map),
+        at_position,
+        rmf_traffic::time::from_seconds(for_duration));
+    },
+    py::arg("on_map"),
+    py::arg("at_position"),
+    py::arg("for_duration"))
+  .def("unstable_be_stubborn",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().be_stubborn();
+    })
   .def("set_action_executor",
     &agv::RobotUpdateHandle::set_action_executor,
     py::arg("action_executor"))
@@ -217,6 +250,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     .value("Info", agv::RobotUpdateHandle::Tier::Info)
     .value("Warning", agv::RobotUpdateHandle::Tier::Warning)
     .value("Error", agv::RobotUpdateHandle::Tier::Error);
+
+  // Stubbornness ============================================================
+  py::class_<Stubbornness>(
+    m_robot_update_handle, "Stubbornness")
+  .def("release",
+    &Stubbornness::release);
 
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
@@ -323,6 +362,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
     "Specify a period for how often the fleet state message is published for\
      this fleet. Passing in None will disable the fleet state message\
      publishing. The default value is 1s")
+  .def("set_update_listener",
+    &agv::FleetUpdateHandle::set_update_listener,
+    py::arg("listener"),
+    "Provide a callback that will receive fleet state and task updates.")
   .def("consider_delivery_requests",
      [&](agv::FleetUpdateHandle& self,
          ModifiedConsiderRequest consider_pickup,

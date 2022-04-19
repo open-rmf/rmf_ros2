@@ -369,11 +369,11 @@ void RobotContext::respond(
   const TableViewerPtr& table_viewer,
   const ResponderPtr& responder)
 {
-  if (_negotiator)
+  if (_negotiator && !is_stubborn())
     return _negotiator->respond(table_viewer, responder);
 
-  // If there is no negotiator assigned for this robot, then use a
-  // StubbornNegotiator.
+  // If there is no negotiator assigned for this robot or the stubborn mode has
+  // been requested, then use a StubbornNegotiator.
   //
   // TODO(MXG): Consider if this should be scheduled on a separate thread
   // instead of executed immediately. The StubbornNegotiator doesn't do any

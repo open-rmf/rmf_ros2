@@ -85,5 +85,37 @@ void bind_schedule(py::module& m)
 
   // TRAJECTORY ================================================================
   py::class_<rmf_traffic::Trajectory,
-    std::shared_ptr<rmf_traffic::Trajectory>>(m_schedule, "Trajectory");
+    std::shared_ptr<rmf_traffic::Trajectory>>(m_schedule, "Trajectory")
+  .def(py::init<>())
+  .def("size", &rmf_traffic::Trajectory::size)
+  .def("insert",
+    [&](rmf_traffic::Trajectory& self,
+    double seconds,
+    Eigen::Vector3d position,
+    Eigen::Vector3d velocity)
+    {
+      self.insert(
+        rmf_traffic::Time(rmf_traffic::time::from_seconds(seconds)),
+        position,
+        velocity);
+    },
+    py::arg("time"),
+    py::arg("position"),
+    py::arg("velocity"))
+  .def("position", [](const rmf_traffic::Trajectory& self, std::size_t index)
+    {
+      return self.at(index).position();
+    },
+    py::arg("index"))
+  .def("velocity", [](const rmf_traffic::Trajectory& self, std::size_t index)
+    {
+      return self.at(index).velocity();
+    },
+    py::arg("index"))
+  .def("time", [](const rmf_traffic::Trajectory& self, std::size_t index)
+    {
+      return rmf_traffic::time::to_seconds(
+        self.at(index).time().time_since_epoch());
+    },
+    py::arg("index"));
 }
