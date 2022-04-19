@@ -282,6 +282,7 @@ private:
       {
         try
         {
+          this->_trigger_tasks.erase(name);
           auto trigger = this->store.fetch_trigger(name).value();
           this->publisher.publish(trigger.payload);
           rmf_scheduler_msgs::msg::TriggerState state;
@@ -323,6 +324,7 @@ private:
     {
       try
       {
+        this->scheduler->_schedule_tasks.erase(name);
         auto now = this->scheduler->executor.now();
 
         auto schedule = this->scheduler->store.fetch_schedule(name).value();
@@ -387,6 +389,7 @@ private:
       {
         try
         {
+          this->_schedule_tasks.erase(name);
           auto now = this->executor.now();
           auto state = this->store.fetch_schedule_state(name).value();
           state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
