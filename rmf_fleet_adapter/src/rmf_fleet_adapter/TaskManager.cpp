@@ -1684,7 +1684,7 @@ void TaskManager::_publish_task_queue()
   rmf_task::State expected_state = _context->current_task_end_state();
   for (const auto& pending : _queue)
   {
-    _publish_assignment(pending, expected_state,  "queued");
+    _publish_assignment(pending, expected_state, "queued");
     expected_state = pending.finish_state();
   }
 }
