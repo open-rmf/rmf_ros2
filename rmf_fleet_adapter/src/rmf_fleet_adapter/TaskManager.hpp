@@ -401,6 +401,14 @@ private:
   /// Publish the current pending task list
   void _publish_task_queue();
 
+  /// Publish the pending assignment status
+  void _publish_assignment(
+    const Assignment& assignement,
+    const rmf_task::State& expected_state,
+    const std::string& status);
+
+  bool _remove_task_from_queue(const std::string& task_id);
+
   /// Schema loader for validating jsons
   void _schema_loader(
     const nlohmann::json_uri& id, nlohmann::json& value) const;

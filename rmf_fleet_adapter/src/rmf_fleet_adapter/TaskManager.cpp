@@ -1682,45 +1682,53 @@ void TaskManager::_publish_task_state()
 void TaskManager::_publish_task_queue()
 {
   rmf_task::State expected_state = _context->current_task_end_state();
+  for (const auto& pending : _queue)
+  {
+    _publish_assignment(pending, expected_state,  "queued");
+    expected_state = pending.finish_state();
+  }
+}
+
+//==============================================================================
+void TaskManager::_publish_assignment(
+  const Assignment& pending,
+  const rmf_task::State& expected_state,
+  const std::string& status)
+{
   const auto& parameters = *_context->task_parameters();
   static const auto validator =
     _make_validator(rmf_api_msgs::schemas::task_state_update);
 
-  for (const auto& pending : _queue)
+  const auto info = pending.request()->description()->generate_info(
+    expected_state, parameters);
+
+  nlohmann::json pending_json;
+  const auto& booking = *pending.request()->booking();
+  copy_booking_data(pending_json["booking"], booking);
+
+  pending_json["category"] = info.category;
+  pending_json["detail"] = info.detail;
+
+  pending_json["unix_millis_start_time"] =
+    to_millis(pending.deployment_time().time_since_epoch()).count();
+
+  if (pending.finish_state().time())
   {
-    const auto info = pending.request()->description()->generate_info(
-      expected_state, parameters);
+    pending_json["unix_millis_finish_time"] =
+      to_millis(pending.finish_state().time()->time_since_epoch()).count();
 
-    nlohmann::json pending_json;
-    const auto& booking = *pending.request()->booking();
-    copy_booking_data(pending_json["booking"], booking);
-
-    pending_json["category"] = info.category;
-    pending_json["detail"] = info.detail;
-
-    pending_json["unix_millis_start_time"] =
-      to_millis(pending.deployment_time().time_since_epoch()).count();
-
-    if (pending.finish_state().time())
-    {
-      pending_json["unix_millis_finish_time"] =
-        to_millis(pending.finish_state().time()->time_since_epoch()).count();
-
-      const auto estimate =
-        pending.finish_state().time().value() - pending.deployment_time();
-      pending_json["original_estimate_millis"] =
-        std::max(0l, to_millis(estimate).count());
-    }
-    copy_assignment(pending_json["assigned_to"], *_context);
-    pending_json["status"] = "queued";
-
-    auto task_state_update = _task_state_update_json;
-    task_state_update["data"] = pending_json;
-
-    _validate_and_publish_websocket(task_state_update, validator);
-
-    expected_state = pending.finish_state();
+    const auto estimate =
+      pending.finish_state().time().value() - pending.deployment_time();
+    pending_json["original_estimate_millis"] =
+      std::max(0l, to_millis(estimate).count());
   }
+  copy_assignment(pending_json["assigned_to"], *_context);
+  pending_json["status"] = status;
+
+  auto task_state_update = _task_state_update_json;
+  task_state_update["data"] = pending_json;
+
+  _validate_and_publish_websocket(task_state_update, validator);
 }
 
 //==============================================================================
@@ -2002,10 +2010,11 @@ std::vector<std::string> get_labels(const nlohmann::json& request)
   return {};
 }
 
+} // namespace anonymous
+
 //==============================================================================
-bool remove_task_from_queue(
-  const std::string& task_id,
-  std::vector<TaskManager::Assignment>& queue)
+bool TaskManager::_remove_task_from_queue(
+  const std::string& task_id)
 {
   // If the task is queued, then we should make sure to remove it from the
   // queue, just in case it reaches an active state before the dispatcher
@@ -2014,40 +2023,38 @@ bool remove_task_from_queue(
   // TODO(MXG): We should do a much better of job of coordinating these
   // different moving parts in the system. E.g. who is ultimately responsible
   // for issuing the response to the request or updating the task state?
-  for (auto it = queue.begin(); it != queue.end(); ++it)
+  rmf_task::State expected_state = _context->current_task_end_state();
+
+  for (auto it = _queue.begin(); it != _queue.end(); ++it)
   {
     if (it->request()->booking()->id() == task_id)
     {
-      queue.erase(it);
+      // get expected state from previous queud task
+      if (it != _queue.begin())
+        expected_state = (std::prev(it, 1))->finish_state();
+
+      _publish_assignment(*it, expected_state, "canceled");
+      _queue.erase(it);
       return true;
     }
   }
-  return false;
-}
 
-//==============================================================================
-bool remove_task_from_queue(
-  const std::string& task_id,
-  TaskManager::DirectQueue& queue)
-{
-  // If the task is queued, then we should make sure to remove it from the
-  // queue, just in case it reaches an active state before the dispatcher
-  // issues its cancellation request.
-  //
-  // TODO(MXG): We should do a much better of job of coordinating these
-  // different moving parts in the system. E.g. who is ultimately responsible
-  // for issuing the response to the request or updating the task state?
-  for (auto it = queue.begin(); it != queue.end(); ++it)
+  // Also check if queud task is in direct_queue
+  for (auto it = _direct_queue.begin(); it != _direct_queue.end(); ++it)
   {
     if (it->assignment.request()->booking()->id() == task_id)
     {
-      queue.erase(it);
+      // get expected state from previous queud task
+      if (it != _direct_queue.begin())
+        expected_state = (std::prev(it, 1))->assignment.finish_state();
+
+      _publish_assignment(it->assignment, expected_state, "canceled");
+      _direct_queue.erase(it);
       return true;
     }
   }
   return false;
 }
-} // namespace anonymous
 
 //==============================================================================
 void TaskManager::_handle_direct_request(
@@ -2098,8 +2105,7 @@ void TaskManager::_handle_cancel_request(
   // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
   // unordered_sets and perform a lookup to see which function to call.
   std::lock_guard<std::mutex> lock(_mutex);
-  if (!remove_task_from_queue(task_id, _queue))
-    remove_task_from_queue(task_id, _direct_queue);
+  _remove_task_from_queue(task_id);
 }
 
 //==============================================================================
@@ -2125,8 +2131,7 @@ void TaskManager::_handle_kill_request(
   // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
   // unordered_sets and perform a lookup to see which function to call.
   std::lock_guard<std::mutex> lock(_mutex);
-  if (!remove_task_from_queue(task_id, _queue))
-    remove_task_from_queue(task_id, _direct_queue);
+  _remove_task_from_queue(task_id);
 }
 
 //==============================================================================
