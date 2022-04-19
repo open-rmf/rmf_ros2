@@ -102,7 +102,8 @@ public:
 
     void _execute_plan(
       rmf_traffic::PlanId plan_id,
-      rmf_traffic::agv::Plan plan);
+      rmf_traffic::agv::Plan plan,
+      rmf_traffic::schedule::Itinerary full_itinerary);
 
     Negotiator::NegotiatePtr _respond(
       const Negotiator::TableViewerPtr& table_view,

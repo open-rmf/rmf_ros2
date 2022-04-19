@@ -423,6 +423,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
   const rmf_traffic::PlanId plan_id,
   rmf_traffic::agv::Plan plan,
+  rmf_traffic::schedule::Itinerary full_itinerary,
   const rmf_task::Event::AssignIDPtr& event_id,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> update,
@@ -617,7 +618,45 @@ std::optional<ExecutePlan> ExecutePlan::make(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
-  context->itinerary().set(plan_id, plan.get_itinerary());
+  std::stringstream ss;
+  ss << "Submitting itinerary for " << context->name() << " [" << plan_id
+     << "] with these dependencies:";
+  for (std::size_t i = 0; i < full_itinerary.size(); ++i)
+  {
+    ss << "\n  " << i << ".";
+    const auto& r = full_itinerary[i];
+    for (const auto& [p, deps] : r.dependencies())
+    {
+      ss << " " << p << ":";
+      if (deps.plan().has_value())
+      {
+        ss << *deps.plan();
+        for (const auto& [r, _] : deps.routes())
+          ss << "|" << r;
+      }
+      else
+      {
+        ss << "None";
+      }
+    }
+  }
+
+  ss << "\nOriginal had these dependencies:";
+  for (std::size_t i = 0; i < plan.get_itinerary().size(); ++i)
+  {
+    ss << "\n  " << i << ".";
+    const auto& r = plan.get_itinerary()[i];
+    for (const auto& [p, deps] : r.dependencies())
+    {
+      ss << " " << p << ":";
+      if (deps.plan().has_value())
+        ss << *deps.plan();
+    }
+  }
+
+  std::cout << ss.str() << std::endl;
+
+  context->itinerary().set(plan_id, std::move(full_itinerary));
 
   return ExecutePlan{
     std::move(plan),

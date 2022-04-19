@@ -119,10 +119,14 @@ void add_patrol(
       rmf_task_sequence::Task::Builder builder;
       for (std::size_t i = 0; i < rounds; ++i)
       {
-        for (const auto& place : places)
+        for (std::size_t j = 0; j < places.size(); ++j)
         {
-          builder.add_phase(
-            Phase::Description::make(GoToPlace::Description::make(place)), {});
+          const auto& place = places[j];
+          auto go_to_place = GoToPlace::Description::make(place);
+          auto next = places;
+          next.erase(next.begin(), next.begin() + j + 1);
+          go_to_place->expected_next_destinations(std::move(next));
+          builder.add_phase(Phase::Description::make(go_to_place), {});
         }
       }
 

@@ -301,6 +301,7 @@ void ResponsiveWait::Active::_begin_movement()
     _assign_id,
     _context,
     std::move(goal),
+    {},
     _description.period,
     _state,
     _update,
