@@ -21,8 +21,8 @@
 
 namespace rmf::scheduler {
 
-SqliteError::SqliteError(std::shared_ptr<sqlite3> db)
-: SqliteError(sqlite3_errcode(db.get()), sqlite3_errmsg(db.get()))
+SqliteError::SqliteError(sqlite3* db)
+: SqliteError(sqlite3_errcode(db), sqlite3_errmsg(db))
 {
 }
 

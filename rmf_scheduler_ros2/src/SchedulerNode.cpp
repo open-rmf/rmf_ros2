@@ -267,9 +267,8 @@ void SchedulerNode::_list_triggers(
 {
   try
   {
-    auto triggers =
-      this->_store.fetch_triggers_created_after(req->created_after);
-    resp->triggers = triggers;
+    resp->triggers = this->_store.fetch_triggers_created_after(
+      req->created_after).to_vec();
     resp->success = true;
   }
   catch (const std::exception& e)
@@ -287,7 +286,7 @@ void SchedulerNode::_list_trigger_states(
   try
   {
     resp->triggers = this->_store.fetch_trigger_states_modified_after(
-      req->modified_after);
+      req->modified_after).to_vec();
     resp->success = true;
   }
   catch (const std::exception& e)
@@ -304,9 +303,8 @@ void SchedulerNode::_list_schedules(
 {
   try
   {
-    auto schedules = this->_store.fetch_schedules_created_after(
-      req->created_after);
-    resp->schedules = schedules;
+    resp->schedules = this->_store.fetch_schedules_created_after(
+      req->created_after).to_vec();
     resp->success = true;
   }
   catch (const std::exception& e)
@@ -324,7 +322,7 @@ void SchedulerNode::_list_schedule_states(
   try
   {
     resp->schedules = this->_store.fetch_schedule_states_modified_after(
-      req->modified_after);
+      req->modified_after).to_vec();
     resp->success = true;
   }
   catch (const std::exception& e)

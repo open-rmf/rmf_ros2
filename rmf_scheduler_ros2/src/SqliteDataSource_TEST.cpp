@@ -162,7 +162,7 @@ TEST_CASE("all in one")
   }
 
   {
-    auto triggers = store.fetch_active_triggers();
+    auto triggers = store.fetch_active_triggers().to_vec();
     REQUIRE(triggers.size() == 1);
     auto trigger = triggers.front();
     CHECK(trigger.name ==
@@ -170,7 +170,7 @@ TEST_CASE("all in one")
   }
 
   {
-    auto schedules = store.fetch_active_schedules();
+    auto schedules = store.fetch_active_schedules().to_vec();
     REQUIRE(schedules.size() == 2);
     size_t started_count = 0;
     size_t created_count = 0;
@@ -197,25 +197,25 @@ TEST_CASE("all in one")
   }
 
   {
-    auto triggers = store.fetch_triggers_created_after(999);
+    auto triggers = store.fetch_triggers_created_after(999).to_vec();
     REQUIRE(triggers.size() == 1);
     CHECK(triggers.front().name == "trigger_late");
   }
 
   {
-    auto states = store.fetch_trigger_states_modified_after(999);
+    auto states = store.fetch_trigger_states_modified_after(999).to_vec();
     REQUIRE(states.size() == 1);
     CHECK(states.front().name == "trigger_late");
   }
 
   {
-    auto schedules = store.fetch_schedules_created_after(999);
+    auto schedules = store.fetch_schedules_created_after(999).to_vec();
     REQUIRE(schedules.size() == 1);
     CHECK(schedules.front().name == "schedule_late");
   }
 
   {
-    auto states = store.fetch_schedule_states_modified_after(999);
+    auto states = store.fetch_schedule_states_modified_after(999).to_vec();
     REQUIRE(states.size() == 1);
     CHECK(states.front().name == "schedule_late");
   }

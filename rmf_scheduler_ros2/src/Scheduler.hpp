@@ -219,12 +219,12 @@ public:
   /// Cancel all triggers and schedules in group
   void cancel_all(const std::string& group)
   {
-    for (auto& trigger : this->store.fetch_triggers_in_group(group))
+    for (auto trigger : this->store.fetch_triggers_in_group(group))
     {
       this->cancel_trigger(trigger);
     }
 
-    for (auto& schedule : this->store.fetch_schedules_in_group(group))
+    for (auto schedule : this->store.fetch_schedules_in_group(group))
     {
       this->cancel_schedule(schedule);
     }

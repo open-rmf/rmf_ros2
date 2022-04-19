@@ -29,7 +29,7 @@ class SqliteError : public std::exception
 public:
   int code;
 
-  explicit SqliteError(std::shared_ptr<sqlite3> db);
+  explicit SqliteError(sqlite3* db);
   explicit SqliteError(int code, const char* errmsg);
   const char* what() const noexcept override;
 

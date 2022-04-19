@@ -24,11 +24,8 @@
 #include <rmf_scheduler_msgs/msg/trigger.hpp>
 #include <rmf_scheduler_msgs/msg/trigger_state.hpp>
 
-#include <exception>
-#include <memory>
 #include <optional>
 #include <string>
-#include <vector>
 
 class sqlite3;
 class sqlite3_stmt;
@@ -60,11 +57,19 @@ private:
 
   private:
     SqliteDataSource* _store;
-    std::shared_ptr<sqlite3> _db;
+    sqlite3* _db;
   };
 
 public:
   SqliteDataSource(const std::string& file);
+
+  // disallow copying and moving to simplify lifetime management
+  SqliteDataSource(const SqliteDataSource&) = delete;
+  SqliteDataSource(SqliteDataSource&&) = delete;
+  SqliteDataSource& operator=(const SqliteDataSource&) = delete;
+  SqliteDataSource& operator=(SqliteDataSource&&) = delete;
+
+  ~SqliteDataSource();
 
   /// Only one transaction can be active at a time. Starting a 2nd transaction while the
   /// previous transaction has not been committed is a no-op.
@@ -76,42 +81,42 @@ public:
   fetch_schedule(const std::string& name);
 
   /// Fetch schedules which are CREATED or STARTED.
-  std::vector<rmf_scheduler_msgs::msg::Schedule>
+  SqliteCursor<rmf_scheduler_msgs::msg::Schedule>
   fetch_active_schedules();
 
-  std::vector<std::string>
-  fetch_schedules_in_group(const std::string& group);
+  SqliteCursor<rmf_scheduler_msgs::msg::Schedule>
+  fetch_schedules_created_after(int64_t created_after);
 
   std::optional<rmf_scheduler_msgs::msg::ScheduleState>
   fetch_schedule_state(const std::string& name);
 
-  std::vector<rmf_scheduler_msgs::msg::Schedule>
-  fetch_schedules_created_after(int64_t created_after);
-
-  std::vector<rmf_scheduler_msgs::msg::ScheduleState>
+  SqliteCursor<rmf_scheduler_msgs::msg::ScheduleState>
   fetch_schedule_states_modified_after(int64_t modified_after);
+
+  SqliteCursor<std::string>
+  fetch_schedules_in_group(const std::string& group);
 
   std::optional<rmf_scheduler_msgs::msg::Trigger>
   fetch_trigger(const std::string& name);
 
-  std::vector<rmf_scheduler_msgs::msg::Trigger>
-  fetch_triggers_created_after(int64_t created_after);
-
-  std::vector<rmf_scheduler_msgs::msg::TriggerState>
-  fetch_trigger_states_modified_after(int64_t modified_after);
-
   /// Fetch triggers which are STARTED.
-  std::vector<rmf_scheduler_msgs::msg::Trigger>
+  SqliteCursor<rmf_scheduler_msgs::msg::Trigger>
   fetch_active_triggers();
 
-  std::vector<std::string>
-  fetch_triggers_in_group(const std::string& group);
+  SqliteCursor<rmf_scheduler_msgs::msg::Trigger>
+  fetch_triggers_created_after(int64_t created_after);
 
   std::optional<rmf_scheduler_msgs::msg::TriggerState>
   fetch_trigger_state(const std::string& name);
 
+  SqliteCursor<rmf_scheduler_msgs::msg::TriggerState>
+  fetch_trigger_states_modified_after(int64_t modified_after);
+
+  SqliteCursor<std::string>
+  fetch_triggers_in_group(const std::string& group);
+
 private:
-  std::shared_ptr<sqlite3> _db;
+  sqlite3* _db;
 
   template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
   void _bind_arg(sqlite3_stmt* stmt, int i, T arg);
@@ -123,23 +128,22 @@ private:
   void _bind_arg(sqlite3_stmt* stmt, int i, const std::string& arg);
 
   template<typename... Args>
-  void _prepare_stmt(sqlite3_stmt** stmt, std::string_view sql,
-    Args&& ... args);
+  sqlite3_stmt* _prepare_stmt(std::string_view sql, Args&& ... args);
 
   template<typename... Args>
-  std::vector<rmf_scheduler_msgs::msg::Trigger> _fetch_triggers(
+  SqliteCursor<rmf_scheduler_msgs::msg::Trigger> _fetch_triggers(
     const std::string& where, Args&& ... args);
 
   template<typename... Args>
-  std::vector<rmf_scheduler_msgs::msg::TriggerState> _fetch_trigger_states(
+  SqliteCursor<rmf_scheduler_msgs::msg::TriggerState> _fetch_trigger_states(
     const std::string& where, Args&& ... args);
 
   template<typename... Args>
-  std::vector<rmf_scheduler_msgs::msg::Schedule> _fetch_schedules(
+  SqliteCursor<rmf_scheduler_msgs::msg::Schedule> _fetch_schedules(
     const std::string& where, Args&& ... args);
 
   template<typename... Args>
-  std::vector<rmf_scheduler_msgs::msg::ScheduleState> _fetch_schedule_states(
+  SqliteCursor<rmf_scheduler_msgs::msg::ScheduleState> _fetch_schedule_states(
     const std::string& where, Args&& ... args);
 };
 

@@ -39,8 +39,15 @@ public:
 
   class Iter
   {
+  public:
+    using difference_type = void;
+    using value_type = T;
+    using pointer = void;
+    using reference = void;
+    using iterator_category = std::input_iterator_tag;
+
   private:
-    std::shared_ptr<sqlite3> _db;
+    sqlite3* _db;
     sqlite3_stmt* _stmt;
     size_t _n = 0;
     Factory _f;
@@ -54,6 +61,11 @@ public:
     bool operator!=(const Iter& other) const
     {
       return this->_n != other._n || this->_stmt != other._stmt;
+    }
+
+    bool operator==(const Iter& other) const
+    {
+      return !(*this != other);
     }
 
     Iter& operator++()
@@ -80,17 +92,17 @@ public:
   };
 
 public:
-  std::shared_ptr<sqlite3> _db;
+  sqlite3* _db;
   sqlite3_stmt* _stmt;
   Iter _begin;
   Iter _end;
 
   /// Takes ownership of `stmt`.
-  SqliteCursor(std::shared_ptr<sqlite3> db, sqlite3_stmt* stmt, Factory f)
+  SqliteCursor(sqlite3* db, sqlite3_stmt*&& stmt, Factory f)
   : _db(db),
     _stmt(stmt),
-    _begin{stmt, 0, f},
-    _end{stmt, std::numeric_limits<size_t>::max(), f}
+    _begin{db, stmt, 0, f},
+    _end{db, stmt, std::numeric_limits<size_t>::max(), f}
   {
     ++this->_begin;
   }
@@ -101,7 +113,7 @@ public:
   SqliteCursor& operator=(const SqliteCursor&) = delete;
   SqliteCursor& operator=(SqliteCursor&&) = delete;
 
-  ~SqliteCursor()
+  ~SqliteCursor() noexcept(false)
   {
     if (sqlite3_finalize(this->_stmt) != SQLITE_OK)
     {
@@ -117,6 +129,17 @@ public:
   Iter& end()
   {
     return this->_end;
+  }
+
+  bool empty()
+  {
+    return this->_begin == this->_end;
+  }
+
+  /// Converts the cursor into a vector, this consumes the cursor.
+  std::vector<T> to_vec()
+  {
+    return std::vector<T>(this->_begin, this->_end);
   }
 };
 
