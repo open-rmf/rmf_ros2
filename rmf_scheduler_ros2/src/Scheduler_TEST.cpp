@@ -458,6 +458,58 @@ TEST_CASE_METHOD(SchedulerFixture, "cancel all")
   }
 }
 
+TEST_CASE("cancel all is atomic")
+{
+  class BadExecutor : public VirtualExecutor
+  {
+  public:
+    size_t bad_count = 0;
+    size_t good_count = 0;
+
+    void cancel_task(std::shared_ptr<Task> task)
+    {
+      if (task->when == 20 && this->bad_count == 0)
+      {
+        ++this->bad_count;
+        throw std::runtime_error("bad");
+      }
+      else
+      {
+        ++this->good_count;
+        VirtualExecutor::cancel_task(task);
+      }
+    }
+  };
+
+  using TestScheduler = Scheduler<BadExecutor, MockPublisher>;
+  BadExecutor executor;
+  SqliteDataSource store{":memory:"};
+  MockPublisher pub;
+  TestScheduler scheduler{executor, store, pub};
+
+  {
+    rmf_scheduler_msgs::msg::Trigger trigger;
+    trigger.name = "trigger1";
+    trigger.at = 10;
+    trigger.payload.data.push_back(1);
+    scheduler.create_trigger(trigger);
+  }
+
+  {
+    rmf_scheduler_msgs::msg::Trigger trigger;
+    trigger.name = "trigger2";
+    trigger.at = 20;
+    trigger.payload.data.push_back(1);
+    scheduler.create_trigger(trigger);
+  }
+
+  CHECK_THROWS(scheduler.cancel_all("default"));
+  CHECK(executor.bad_count == 1);
+  CHECK(executor.good_count > 0);
+  executor.advance_until(20);
+  CHECK(pub.publishes.size() == 2);
+}
+
 }
 
 int main(int argc, char* argv[])

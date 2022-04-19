@@ -99,18 +99,6 @@ public:
 
   void create_trigger(rmf_scheduler_msgs::msg::Trigger& trigger)
   {
-    // cancels the previous trigger if it exists
-    try
-    {
-      this->executor.cancel_task(this->_trigger_tasks.at(trigger.name));
-      this->_trigger_tasks.erase(trigger.name);
-    }
-    catch (const std::out_of_range&)
-    {
-      // ignore
-    }
-    // no need to update state since we are overwrite with a new state anyway.
-
     auto now = executor.now();
 
     trigger.created_at = now;
@@ -153,22 +141,6 @@ public:
 
   void create_schedule(rmf_scheduler_msgs::msg::Schedule& schedule)
   {
-    if (schedule.finish_at <= schedule.start_at)
-    {
-      throw std::logic_error("Finish time must be after start time");
-    }
-
-    // cancels the previous schedule if it exists
-    try
-    {
-      this->executor.cancel_task(this->_schedule_tasks.at(schedule.name));
-      this->_schedule_tasks.erase(schedule.name);
-    }
-    catch (const std::out_of_range&)
-    {
-      // ignore
-    }
-
     auto now = this->executor.now();
     cron::cron_next(cron::make_cron(schedule.schedule), schedule.start_at);
 
@@ -224,14 +196,53 @@ public:
   /// Cancel all triggers and schedules in group
   void cancel_all(const std::string& group)
   {
-    for (auto trigger : this->store.fetch_triggers_in_group(group))
+    try
     {
-      this->cancel_trigger(trigger);
-    }
+      auto t = this->store.begin_transaction();
+      for (auto trigger : this->store.fetch_triggers_in_group(group))
+      {
+        this->cancel_trigger(trigger);
+      }
 
-    for (auto schedule : this->store.fetch_schedules_in_group(group))
+      for (auto schedule : this->store.fetch_schedules_in_group(group))
+      {
+        this->cancel_schedule(schedule);
+      }
+      t.commit();
+    }
+    catch (const std::exception&)
     {
-      this->cancel_schedule(schedule);
+      for (auto name : this->store.fetch_triggers_in_group(group))
+      {
+        auto trigger = this->store.fetch_trigger(name);
+        if (trigger)
+        {
+          this->_schedule_trigger(*trigger);
+        }
+        else
+        {
+          RCLCPP_ERROR(this->logger,
+            "Unable to fetch trigger '%s' when trying to restore failed cancel",
+            name.c_str());
+        }
+      }
+
+      for (auto name : this->store.fetch_schedules_in_group(group))
+      {
+        auto schedule = this->store.fetch_schedule(name);
+        auto state = this->store.fetch_schedule_state(name);
+        if (schedule && state)
+        {
+          this->_schedule_schedule(*schedule, *state);
+        }
+        else
+        {
+          RCLCPP_ERROR(this->logger,
+            "Unable to fetch schedule '%s' when trying to restore failed cancel",
+            name.c_str());
+        }
+      }
+      throw;
     }
   }
 
@@ -255,6 +266,17 @@ private:
 
   void _schedule_trigger(const rmf_scheduler_msgs::msg::Trigger& trigger)
   {
+    // cancels the previous trigger if it exists
+    try
+    {
+      this->executor.cancel_task(this->_trigger_tasks.at(trigger.name));
+      this->_trigger_tasks.erase(trigger.name);
+    }
+    catch (const std::out_of_range&)
+    {
+      // ignore
+    }
+
     // capture only the name to avoid storing the payload in memory.
     auto run = [this, name = trigger.name]()
       {
@@ -345,6 +367,22 @@ private:
   void _schedule_schedule(const rmf_scheduler_msgs::msg::Schedule& schedule,
     const rmf_scheduler_msgs::msg::ScheduleState& state)
   {
+    if (schedule.finish_at <= schedule.start_at)
+    {
+      throw std::logic_error("Finish time must be after start time");
+    }
+
+    // cancels the previous schedule if it exists
+    try
+    {
+      this->executor.cancel_task(this->_schedule_tasks.at(schedule.name));
+      this->_schedule_tasks.erase(schedule.name);
+    }
+    catch (const std::out_of_range&)
+    {
+      // ignore
+    }
+
     auto start_schedule_task = [this, name = schedule.name]()
       {
         try
