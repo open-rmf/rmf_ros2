@@ -25,158 +25,76 @@
 
 namespace rmf::scheduler {
 
-SqliteDataSource::_Transaction::_Transaction(SqliteDataSource* store)
-: _store(store), _db(store->_db)
+SqliteDataSource::_Transaction::_Transaction(SqliteDataSource* store, bool root)
+: _store(store)
 {
-}
-
-void SqliteDataSource::_Transaction::create_schedule(
-  const rmf_scheduler_msgs::msg::Schedule& schedule,
-  const rmf_scheduler_msgs::msg::ScheduleState& state)
-{
-  std::string sql =
-    R"(
-INSERT OR REPLACE INTO Schedule (
-  name,
-  created_at,
-  schedule,
-  start_at,
-  finish_at,
-  "group",
-  payload_type,
-  payload_data,
-  last_modified,
-  last_ran,
-  next_run,
-  status
-) VALUES (
-  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-)
-  )";
-  sqlite3_stmt* stmt = this->_store->_prepare_stmt(
-    sql,
-    schedule.name,
-    schedule.created_at,
-    schedule.schedule,
-    schedule.start_at,
-    schedule.finish_at,
-    schedule.group,
-    schedule.payload.type,
-    schedule.payload.data,
-    state.last_modified,
-    state.last_ran,
-    state.next_run,
-    state.status
-  );
-
-  if (sqlite3_step(stmt) != SQLITE_DONE)
+  if (root)
   {
-    throw SqliteError{this->_db};
+    char* errmsg;
+    int result = sqlite3_exec(
+      this->_store->_db, "BEGIN TRANSACTION", nullptr, nullptr,
+      &errmsg);
+    if (result != SQLITE_OK)
+    {
+      throw SqliteError{result, errmsg};
+    }
+    this->_store->_in_transaction = true;
   }
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  else
   {
-    throw SqliteError{this->_db};
+    this->_finished = true;
   }
 }
 
-void SqliteDataSource::_Transaction::save_schedule_state(
-  const rmf_scheduler_msgs::msg::ScheduleState& state)
+SqliteDataSource::_Transaction::~_Transaction()
 {
-  std::string sql =
-    R"(
-UPDATE Schedule SET
-  last_modified = ?,
-  last_ran = ?,
-  next_run = ?,
-  status = ?
-WHERE name = ?
-  )";
-  sqlite3_stmt* stmt = this->_store->_prepare_stmt(
-    sql,
-    state.last_modified,
-    state.last_ran,
-    state.next_run,
-    state.status,
-    state.name
-  );
-
-  if (sqlite3_step(stmt) != SQLITE_DONE)
+  if (this->_finished)
   {
-    throw SqliteError{this->_db};
+    return;
   }
-
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
-  {
-    throw SqliteError{this->_db};
-  }
+  this->rollback();
 }
 
-void SqliteDataSource::_Transaction::create_trigger(
-  const rmf_scheduler_msgs::msg::Trigger& trigger,
-  const rmf_scheduler_msgs::msg::TriggerState& state)
+void SqliteDataSource::_Transaction::commit()
 {
-  std::string sql =
-    R"(
-INSERT OR REPLACE INTO Trigger (
-  name, created_at, last_modified, at, "group", payload_type,
-  payload_data, last_ran, status
-) VALUES (
-  ?, ?, ?, ?, ?, ?, ?, ?, ?
-)
-)";
-  sqlite3_stmt* stmt = this->_store->_prepare_stmt(
-    sql,
-    trigger.name,
-    trigger.created_at,
-    state.last_modified,
-    trigger.at,
-    trigger.group,
-    trigger.payload.type,
-    trigger.payload.data,
-    state.last_ran,
-    state.status
-  );
-
-  if (sqlite3_step(stmt) != SQLITE_DONE)
+  if (this->_finished)
   {
-    throw SqliteError{this->_db};
+    return;
   }
 
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  char* errmsg;
+  int result = sqlite3_exec(
+    this->_store->_db, "COMMIT TRANSACTION;", nullptr, nullptr,
+    &errmsg);
+  if (result != SQLITE_OK)
   {
-    throw SqliteError{this->_db};
+    throw SqliteError{result, errmsg};
   }
+  this->_finish();
 }
 
-void SqliteDataSource::_Transaction::save_trigger_state(
-  const rmf_scheduler_msgs::msg::TriggerState& state)
+void SqliteDataSource::_Transaction::rollback()
 {
-  std::string sql =
-    R"(
-UPDATE Trigger SET
-  last_modified = ?,
-  last_ran = ?,
-  status = ?
-WHERE name = ?
-  )";
-  sqlite3_stmt* stmt = this->_store->_prepare_stmt(
-    sql,
-    state.last_modified,
-    state.last_ran,
-    state.status,
-    state.name
-  );
-
-  if (sqlite3_step(stmt) != SQLITE_DONE)
+  if (this->_finished)
   {
-    throw SqliteError{this->_db};
+    return;
   }
 
-  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  char* errmsg;
+  int result = sqlite3_exec(
+    this->_store->_db, "ROLLBACK TRANSACTION;", nullptr, nullptr,
+    &errmsg);
+  if (result != SQLITE_OK)
   {
-    throw SqliteError{this->_db};
+    throw SqliteError{result, errmsg};
   }
+  this->_finish();
+}
+
+void SqliteDataSource::_Transaction::_finish()
+{
+  this->_finished = true;
+  this->_store->_in_transaction = false;
 }
 
 //===
@@ -239,28 +157,7 @@ SqliteDataSource::~SqliteDataSource()
 
 SqliteDataSource::_Transaction SqliteDataSource::begin_transaction()
 {
-  char* errmsg;
-  int result = sqlite3_exec(
-    this->_db, "BEGIN TRANSACTION", nullptr, nullptr,
-    &errmsg);
-  if (result != SQLITE_OK)
-  {
-    throw SqliteError{result, errmsg};
-  }
-
-  return _Transaction(this);
-}
-
-void SqliteDataSource::commit_transaction()
-{
-  char* errmsg;
-  int result = sqlite3_exec(
-    this->_db, "COMMIT TRANSACTION", nullptr, nullptr,
-    &errmsg);
-  if (result != SQLITE_OK)
-  {
-    throw SqliteError{result, errmsg};
-  }
+  return _Transaction(this, !this->_in_transaction);
 }
 
 std::optional<rmf_scheduler_msgs::msg::Schedule>
@@ -380,6 +277,155 @@ SqliteDataSource::fetch_triggers_in_group(const std::string& group)
     {
       return reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
     }};
+}
+
+void SqliteDataSource::create_schedule(
+  const rmf_scheduler_msgs::msg::Schedule& schedule,
+  const rmf_scheduler_msgs::msg::ScheduleState& state)
+{
+  std::string sql =
+    R"(
+INSERT OR REPLACE INTO Schedule (
+  name,
+  created_at,
+  schedule,
+  start_at,
+  finish_at,
+  "group",
+  payload_type,
+  payload_data,
+  last_modified,
+  last_ran,
+  next_run,
+  status
+) VALUES (
+  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+)
+  )";
+  sqlite3_stmt* stmt = this->_prepare_stmt(
+    sql,
+    schedule.name,
+    schedule.created_at,
+    schedule.schedule,
+    schedule.start_at,
+    schedule.finish_at,
+    schedule.group,
+    schedule.payload.type,
+    schedule.payload.data,
+    state.last_modified,
+    state.last_ran,
+    state.next_run,
+    state.status
+  );
+
+  if (sqlite3_step(stmt) != SQLITE_DONE)
+  {
+    throw SqliteError{this->_db};
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw SqliteError{this->_db};
+  }
+}
+
+void SqliteDataSource::save_schedule_state(
+  const rmf_scheduler_msgs::msg::ScheduleState& state)
+{
+  std::string sql =
+    R"(
+UPDATE Schedule SET
+  last_modified = ?,
+  last_ran = ?,
+  next_run = ?,
+  status = ?
+WHERE name = ?
+  )";
+  sqlite3_stmt* stmt = this->_prepare_stmt(
+    sql,
+    state.last_modified,
+    state.last_ran,
+    state.next_run,
+    state.status,
+    state.name
+  );
+
+  if (sqlite3_step(stmt) != SQLITE_DONE)
+  {
+    throw SqliteError{this->_db};
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw SqliteError{this->_db};
+  }
+}
+
+void SqliteDataSource::create_trigger(
+  const rmf_scheduler_msgs::msg::Trigger& trigger,
+  const rmf_scheduler_msgs::msg::TriggerState& state)
+{
+  std::string sql =
+    R"(
+INSERT OR REPLACE INTO Trigger (
+  name, created_at, last_modified, at, "group", payload_type,
+  payload_data, last_ran, status
+) VALUES (
+  ?, ?, ?, ?, ?, ?, ?, ?, ?
+)
+)";
+  sqlite3_stmt* stmt = this->_prepare_stmt(
+    sql,
+    trigger.name,
+    trigger.created_at,
+    state.last_modified,
+    trigger.at,
+    trigger.group,
+    trigger.payload.type,
+    trigger.payload.data,
+    state.last_ran,
+    state.status
+  );
+
+  if (sqlite3_step(stmt) != SQLITE_DONE)
+  {
+    throw SqliteError{this->_db};
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw SqliteError{this->_db};
+  }
+}
+
+void SqliteDataSource::save_trigger_state(
+  const rmf_scheduler_msgs::msg::TriggerState& state)
+{
+  std::string sql =
+    R"(
+UPDATE Trigger SET
+  last_modified = ?,
+  last_ran = ?,
+  status = ?
+WHERE name = ?
+  )";
+  sqlite3_stmt* stmt = this->_prepare_stmt(
+    sql,
+    state.last_modified,
+    state.last_ran,
+    state.status,
+    state.name
+  );
+
+  if (sqlite3_step(stmt) != SQLITE_DONE)
+  {
+    throw SqliteError{this->_db};
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK)
+  {
+    throw SqliteError{this->_db};
+  }
 }
 
 template<typename T, std::enable_if_t<std::is_integral_v<T>, bool>>

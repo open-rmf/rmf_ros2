@@ -67,9 +67,7 @@ TEST_CASE("all in one")
       state.name = name;
       state.status = status;
 
-      auto t = store.begin_transaction();
-      t.create_trigger(trigger, state);
-      store.commit_transaction();
+      store.create_trigger(trigger, state);
     };
 
   for (auto status : trigger_statuses)
@@ -96,9 +94,7 @@ TEST_CASE("all in one")
       state.name = name;
       state.status = status;
 
-      auto t = store.begin_transaction();
-      t.create_schedule(schedule, state);
-      store.commit_transaction();
+      store.create_schedule(schedule, state);
     };
 
   for (auto status : schedule_statuses)
@@ -117,9 +113,7 @@ TEST_CASE("all in one")
     state.name = name;
     state.last_modified = 1000;
 
-    auto t = store.begin_transaction();
-    t.create_trigger(trigger, state);
-    store.commit_transaction();
+    store.create_trigger(trigger, state);
   }
 
   {
@@ -133,9 +127,7 @@ TEST_CASE("all in one")
     state.name = name;
     state.last_modified = 1000;
 
-    auto t = store.begin_transaction();
-    t.create_schedule(schedule, state);
-    store.commit_transaction();
+    store.create_schedule(schedule, state);
   }
 
   /**
@@ -218,6 +210,51 @@ TEST_CASE("all in one")
     auto states = store.fetch_schedule_states_modified_after(999).to_vec();
     REQUIRE(states.size() == 1);
     CHECK(states.front().name == "schedule_late");
+  }
+}
+
+TEST_CASE("transactions rollback on exception")
+{
+  SqliteDataSource store{":memory:"};
+
+  CHECK_THROWS([&store]()
+    {
+      auto t = store.begin_transaction();
+      rmf_scheduler_msgs::msg::Trigger trigger;
+      trigger.name = "trigger";
+      trigger.payload.data.push_back(1);
+      rmf_scheduler_msgs::msg::TriggerState state;
+      state.name = "trigger";
+      store.create_trigger(trigger, state);
+      throw std::runtime_error("test");
+    } ());
+
+  // transaction should be rolled back
+  CHECK(!store.fetch_trigger("trigger").has_value());
+}
+
+TEST_CASE("rolling back root transaction should rollback all changes")
+{
+  SqliteDataSource store{":memory:"};
+
+  {
+    auto t1 = store.begin_transaction();
+
+    {
+      auto t2 = store.begin_transaction();
+      rmf_scheduler_msgs::msg::Trigger trigger;
+      trigger.name = "trigger";
+      trigger.payload.data.push_back(1);
+      rmf_scheduler_msgs::msg::TriggerState state;
+      state.name = "trigger";
+      store.create_trigger(trigger, state);
+      t2.commit();
+    }
+    t1.rollback();
+
+    // even though t2 is committed, because it is not the root transaction,
+    // it should have no effect. Rolling back t1 should rollback the trigger as well.
+    CHECK(!store.fetch_trigger("trigger").has_value());
   }
 }
 

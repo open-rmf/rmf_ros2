@@ -107,9 +107,7 @@ public:
     state.last_ran = 0;
     state.status = rmf_scheduler_msgs::msg::TriggerState::STARTED;
 
-    auto t = this->store.begin_transaction();
-    t.create_trigger(trigger, state);
-    this->store.commit_transaction();
+    this->store.create_trigger(trigger, state);
 
     this->_schedule_trigger(trigger);
   }
@@ -132,9 +130,7 @@ public:
       auto state = this->store.fetch_trigger_state(trigger_name).value();
       state.last_modified = this->executor.now();
       state.status = rmf_scheduler_msgs::msg::TriggerState::CANCELLED;
-      auto t = this->store.begin_transaction();
-      t.save_trigger_state(state);
-      this->store.commit_transaction();
+      this->store.save_trigger_state(state);
     }
     catch (const std::bad_optional_access&)
     {
@@ -180,9 +176,7 @@ public:
     }
     state.status = status;
 
-    auto t = this->store.begin_transaction();
-    t.create_schedule(schedule, state);
-    this->store.commit_transaction();
+    this->store.create_schedule(schedule, state);
 
     this->_schedule_schedule(schedule, state);
   }
@@ -206,9 +200,7 @@ public:
       state.last_modified = this->executor.now();
       state.next_run = 0;
       state.status = rmf_scheduler_msgs::msg::ScheduleState::CANCELLED;
-      auto t = this->store.begin_transaction();
-      t.save_schedule_state(state);
-      this->store.commit_transaction();
+      this->store.save_schedule_state(state);
     }
     catch (const std::bad_optional_access&)
     {
@@ -263,9 +255,7 @@ private:
           state.last_ran = now;
           state.last_modified = now;
           state.status = rmf_scheduler_msgs::msg::TriggerState::FINISHED;
-          auto t = this->store.begin_transaction();
-          t.save_trigger_state(state);
-          this->store.commit_transaction();
+          this->store.save_trigger_state(state);
 
           if (this->on_trigger_update)
           {
@@ -317,9 +307,7 @@ private:
           state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
         }
 
-        auto t = this->scheduler->store.begin_transaction();
-        t.save_schedule_state(state);
-        this->scheduler->store.commit_transaction();
+        this->scheduler->store.save_schedule_state(state);
 
         if (scheduler->on_schedule_update)
         {
@@ -353,9 +341,7 @@ private:
           state.status = rmf_scheduler_msgs::msg::ScheduleState::STARTED;
           state.last_modified = now;
 
-          auto t = this->store.begin_transaction();
-          t.save_schedule_state(state);
-          this->store.commit_transaction();
+          this->store.save_schedule_state(state);
 
           this->_schedule_tasks[name] =
             this->executor.schedule_task(state.next_run,

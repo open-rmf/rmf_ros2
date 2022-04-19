@@ -35,29 +35,35 @@ namespace rmf::scheduler {
 class SqliteDataSource
 {
 private:
+  /// A RAII managed sqlite transaction. The destructor will rollback the transaction
+  /// if it has not already been committed.
   class _Transaction
   {
   public:
-    _Transaction(SqliteDataSource* store);
+    /// Creates a new transaction.
+    ///
+    /// :param root: Indicates if this is a root transaction. Non-root transactions
+    ///   have no effect on the database and are only used for deferring a
+    ///   transaction to the root.
+    _Transaction(SqliteDataSource* store, bool root);
 
+    // disallow copying and moving to simplify lifetime management
+    _Transaction(const _Transaction&) = delete;
+    _Transaction(_Transaction&&) = delete;
+    _Transaction& operator=(const _Transaction&) = delete;
+    _Transaction& operator=(_Transaction&&) = delete;
 
-    void create_schedule(
-      const rmf_scheduler_msgs::msg::Schedule& schedule,
-      const rmf_scheduler_msgs::msg::ScheduleState& state);
+    ~_Transaction();
 
-    void save_schedule_state(
-      const rmf_scheduler_msgs::msg::ScheduleState& state);
+    void commit();
 
-    void create_trigger(
-      const rmf_scheduler_msgs::msg::Trigger& trigger,
-      const rmf_scheduler_msgs::msg::TriggerState& state);
-
-    void save_trigger_state(
-      const rmf_scheduler_msgs::msg::TriggerState& state);
+    void rollback();
 
   private:
     SqliteDataSource* _store;
-    sqlite3* _db;
+    bool _finished = false;
+
+    void _finish();
   };
 
 public:
@@ -71,11 +77,19 @@ public:
 
   ~SqliteDataSource();
 
-  /// Only one transaction can be active at a time. Starting a 2nd transaction while the
-  /// previous transaction has not been committed is a no-op.
+  /// Starts a transaction if not currently in one.
+  ///
+  /// Writes within a transaction needs to be committed by calling
+  /// `_Transaction::commit()` for changes to persisent, if the `_Transaction`
+  /// is not committed, it's destructor will automatically rollback the transaction.
+  ///
+  /// Calling this while already in a transaction will return a `_Transaction` that
+  /// have no effect. This allows "recursive transactions" such that the decision
+  /// to commit or rollback is controlled by the root.
+  ///
+  /// Note that due to how sqlite works, changes within a transaction that is not yet
+  /// committed are still visible to other reads.
   _Transaction begin_transaction();
-
-  void commit_transaction();
 
   std::optional<rmf_scheduler_msgs::msg::Schedule>
   fetch_schedule(const std::string& name);
@@ -115,8 +129,23 @@ public:
   SqliteCursor<std::string>
   fetch_triggers_in_group(const std::string& group);
 
+  void create_schedule(
+    const rmf_scheduler_msgs::msg::Schedule& schedule,
+    const rmf_scheduler_msgs::msg::ScheduleState& state);
+
+  void save_schedule_state(
+    const rmf_scheduler_msgs::msg::ScheduleState& state);
+
+  void create_trigger(
+    const rmf_scheduler_msgs::msg::Trigger& trigger,
+    const rmf_scheduler_msgs::msg::TriggerState& state);
+
+  void save_trigger_state(
+    const rmf_scheduler_msgs::msg::TriggerState& state);
+
 private:
   sqlite3* _db;
+  bool _in_transaction = false;
 
   template<typename T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
   void _bind_arg(sqlite3_stmt* stmt, int i, T arg);
