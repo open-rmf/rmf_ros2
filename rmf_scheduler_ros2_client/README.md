@@ -51,14 +51,15 @@ int main(int argc, char* argv[])
 Schedules are described using a cron string.
 
 ```
-┌───────────── minute (0 - 59)
-│ ┌───────────── hour (0 - 23)
-│ │ ┌───────────── day of the month (1 - 31)
-│ │ │ ┌───────────── month (1 - 12)
-│ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday)
-│ │ │ │ │
-│ │ │ │ │
-* * * * *
+┌─────────────seconds (0 - 59)
+│ ┌───────────── minute (0 - 59)
+│ │ ┌───────────── hour (0 - 23)
+│ │ │ ┌───────────── day of the month (1 - 31)
+│ │ │ │ ┌───────────── month (1 - 12)
+│ │ │ │ │ ┌───────────── day of the week (0 - 6) (Sunday to Saturday)
+│ │ │ │ │ │ ┌───────────── years (1970 - 2099) (optional)
+│ │ │ │ │ │ │
+* * * * * * *
 ```
 
 | Field | Required | Allowed value | Allowed special characters |
