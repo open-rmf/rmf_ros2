@@ -435,6 +435,64 @@ auto RobotUpdateHandle::interrupt(
 }
 
 //==============================================================================
+void RobotUpdateHandle::cancel_task(
+  std::string task_id,
+  std::vector<std::string> labels,
+  std::function<void (bool)> on_cancellation)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+        task_id = std::move(task_id),
+        labels = std::move(labels),
+        on_cancellation = std::move(on_cancellation),
+        c = context->weak_from_this()
+      ](const auto&)
+      {
+        const auto context = c.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        if (!mgr)
+          return;
+
+        on_cancellation(mgr->cancel_task(task_id, labels));
+      });
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::kill_task(
+  std::string task_id,
+  std::vector<std::string> labels,
+  std::function<void (bool)> on_kill)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+        task_id = std::move(task_id),
+        labels = std::move(labels),
+        on_kill = std::move(on_kill),
+        c = context->weak_from_this()
+      ](const auto&)
+      {
+        const auto context = c.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        if (!mgr)
+          return;
+
+        on_kill(mgr->kill_task(task_id, labels));
+      });
+  }
+}
+
+//==============================================================================
 class RobotUpdateHandle::IssueTicket::Implementation
 {
 public:

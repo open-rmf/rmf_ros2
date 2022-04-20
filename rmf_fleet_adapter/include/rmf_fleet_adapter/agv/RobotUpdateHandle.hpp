@@ -218,6 +218,42 @@ public:
     std::vector<std::string> labels,
     std::function<void()> robot_is_interrupted);
 
+  /// Cancel a task, if it has been assigned to this robot
+  ///
+  /// \param[in] task_id
+  ///   The ID of the task to be canceled
+  ///
+  /// \param[in] labels
+  ///   Labels that will be assigned to this cancellation. It is recommended to
+  ///   include information about why the cancellation is happening.
+  ///
+  /// \param[in] on_cancellation
+  ///   Callback that will be triggered after the cancellation is issued.
+  ///   task_was_found will be true if the task was successfully found and
+  ///   issued the cancellation, false otherwise.
+  void cancel_task(
+    std::string task_id,
+    std::vector<std::string> labels,
+    std::function<void(bool task_was_found)> on_cancellation);
+
+  /// Kill a task, if it has been assigned to this robot
+  ///
+  /// \param[in] task_id
+  ///   The ID of the task to be canceled
+  ///
+  /// \param[in] labels
+  ///   Labels that will be assigned to this cancellation. It is recommended to
+  ///   include information about why the cancellation is happening.
+  ///
+  /// \param[in] on_kill
+  ///   Callback that will be triggered after the cancellation is issued.
+  ///   task_was_found will be true if the task was successfully found and
+  ///   issued the kill, false otherwise.
+  void kill_task(
+    std::string task_id,
+    std::vector<std::string> labels,
+    std::function<void(bool task_was_found)> on_kill);
+
   enum class Tier
   {
     /// General status information, does not require special attention

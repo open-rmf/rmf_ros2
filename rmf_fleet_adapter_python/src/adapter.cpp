@@ -200,6 +200,16 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::RobotUpdateHandle::interrupt,
     py::arg("labels"),
     py::arg("robot_is_interrupted"))
+  .def("cancel_task",
+    &agv::RobotUpdateHandle::cancel_task,
+    py::arg("task_id"),
+    py::arg("labels"),
+    py::arg("on_cancellation"))
+  .def("kill_task",
+    &agv::RobotUpdateHandle::kill_task,
+    py::arg("task_id"),
+    py::arg("labels"),
+    py::arg("on_kill"))
   .def("create_issue",
     &agv::RobotUpdateHandle::create_issue,
     py::arg("tier"),
