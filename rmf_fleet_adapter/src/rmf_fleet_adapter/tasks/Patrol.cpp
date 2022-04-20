@@ -49,15 +49,40 @@ void add_patrol(
     [place_deser = deserialization.place](const nlohmann::json& msg)
     -> agv::DeserializedEvent
     {
-      auto place = place_deser(msg);
+      nlohmann::json place_msg;
+      const auto place_it = msg.find("place");
+      if (place_it == msg.end())
+        place_msg = msg;
+      else
+        place_msg = place_it.value();
+
+      auto place = place_deser(place_msg);
       if (!place.description.has_value())
         return {nullptr, std::move(place.errors)};
 
+      const auto desc =
+        GoToPlace::Description::make(std::move(*place.description));
+
+      const auto followed_by_it = msg.find("followed_by");
+      if (followed_by_it != msg.end())
+      {
+        std::vector<rmf_traffic::agv::Plan::Goal> followed_by;
+        for (const auto& f_msg : followed_by_it.value())
+        {
+          auto f = place_deser(f_msg);
+          place.errors.insert(
+            place.errors.end(), f.errors.begin(), f.errors.end());
+
+          if (!f.description.has_value())
+            return {nullptr, place.errors};
+
+          followed_by.push_back(*f.description);
+        }
+        desc->expected_next_destinations(std::move(followed_by));
+      }
+
       /* *INDENT-OFF* */
-      return {
-        GoToPlace::Description::make(std::move(*place.description)),
-        std::move(place.errors)
-      };
+      return {desc, std::move(place.errors)};
       /* *INDENT-ON* */
     };
 
