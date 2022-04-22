@@ -69,9 +69,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     std::shared_ptr<agv::RobotCommandHandle>>(
     m, "RobotCommandHandle", py::dynamic_attr())
   .def(py::init<>())
-  .def("follow_new_path", &agv::RobotCommandHandle::follow_new_path,
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+  .def("follow_new_path", &agv::RobotCommandHandle::follow_new_path)
   .def("stop", &agv::RobotCommandHandle::stop)
   .def("dock", &agv::RobotCommandHandle::dock);
 
@@ -86,25 +84,19 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::overload_cast<std::size_t, double>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("waypoint"),
-    py::arg("orientation"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("orientation"))
   .def("update_current_lanes",
     py::overload_cast<const Eigen::Vector3d&,
     const std::vector<std::size_t>&>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("position"),
-    py::arg("lanes"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("lanes"))
   .def("update_off_grid_position",
     py::overload_cast<const Eigen::Vector3d&,
     std::size_t>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("position"),
-    py::arg("target_waypoint"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("target_waypoint"))
   .def("update_lost_position",
     py::overload_cast<const std::string&,
     const Eigen::Vector3d&,
@@ -116,21 +108,15 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("position"),
     py::arg("max_merge_waypoint_distance") = 0.1,
     py::arg("max_merge_lane_distance") = 1.0,
-    py::arg("min_lane_length") = 1e-8,
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("min_lane_length") = 1e-8)
   .def("update_position",
     py::overload_cast<rmf_traffic::agv::Plan::StartSet>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("start_set"))
   .def("set_charger_waypoint", &agv::RobotUpdateHandle::set_charger_waypoint,
-    py::arg("charger_wp"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("charger_wp"))
   .def("update_battery_soc", &agv::RobotUpdateHandle::update_battery_soc,
-    py::arg("battery_soc"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("battery_soc"))
   .def("override_status", &agv::RobotUpdateHandle::override_status,
     py::arg("battery_soc"))
   .def_property("maximum_delay",
@@ -513,9 +499,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("follow_new_path",
     py::overload_cast<const std::vector<agv::Waypoint>&>(
       &agv::EasyTrafficLight::follow_new_path),
-    py::arg("waypoint"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("waypoint"))
   .def("moving_from",
     py::overload_cast<std::size_t, Eigen::Vector3d>(
       &agv::EasyTrafficLight::moving_from),
@@ -593,9 +577,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("node_name"),
     py::arg("node_options") = rclcpp::NodeOptions(),
     py::arg("wait_time") = rmf_utils::optional<rmf_traffic::Duration>(
-      rmf_utils::nullopt),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+      rmf_utils::nullopt))
   .def("add_fleet", &agv::Adapter::add_fleet,
     py::arg("fleet_name"),
     py::arg("traits"),
@@ -624,9 +606,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def(py::init<const std::string&,
     const rclcpp::NodeOptions&>(),
     py::arg("node_name"),
-    py::arg("node_options") = rclcpp::NodeOptions(),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("node_options") = rclcpp::NodeOptions())
   .def("add_fleet", &agv::test::MockAdapter::add_fleet,
     py::arg("fleet_name"),
     py::arg("traits"),
