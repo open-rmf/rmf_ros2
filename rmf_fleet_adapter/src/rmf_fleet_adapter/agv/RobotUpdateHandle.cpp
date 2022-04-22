@@ -174,6 +174,20 @@ void RobotUpdateHandle::update_position(
 }
 
 //==============================================================================
+void RobotUpdateHandle::update_position(
+  rmf_traffic::agv::Plan::StartSet position)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [context, starts = std::move(position)](const auto&)
+      {
+        context->_location = starts;
+      });
+  }
+}
+
+//==============================================================================
 RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
   const std::size_t charger_wp)
 {

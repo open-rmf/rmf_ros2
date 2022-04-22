@@ -119,6 +119,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("min_lane_length") = 1e-8,
     py::call_guard<py::scoped_ostream_redirect,
     py::scoped_estream_redirect>())
+  .def("update_position",
+    py::overload_cast<rmf_traffic::agv::Plan::StartSet>(
+      &agv::RobotUpdateHandle::update_position),
+    py::arg("start_set"))
   .def("set_charger_waypoint", &agv::RobotUpdateHandle::set_charger_waypoint,
     py::arg("charger_wp"),
     py::call_guard<py::scoped_ostream_redirect,

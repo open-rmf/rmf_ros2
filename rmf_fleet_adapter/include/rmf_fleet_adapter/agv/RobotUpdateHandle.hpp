@@ -19,6 +19,7 @@
 #define RMF_FLEET_ADAPTER__AGV__ROBOTUPDATEHANDLE_HPP
 
 #include <rmf_traffic/Time.hpp>
+#include <rmf_traffic/agv/Planner.hpp>
 #include <rmf_utils/impl_ptr.hpp>
 #include <rmf_utils/optional.hpp>
 
@@ -91,6 +92,10 @@ public:
     const double max_merge_waypoint_distance = 0.1,
     const double max_merge_lane_distance = 1.0,
     const double min_lane_length = 1e-8);
+
+  /// Update the current position of the robot by specifying a plan start set
+  /// for it.
+  void update_position(rmf_traffic::agv::Plan::StartSet position);
 
   /// Set the waypoint where the charger for this robot is located.
   /// If not specified, the nearest waypoint in the graph with the is_charger()
