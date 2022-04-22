@@ -472,7 +472,8 @@ void RobotUpdateHandle::cancel_task(
         if (!mgr)
           return;
 
-        on_cancellation(mgr->cancel_task(task_id, labels));
+        if (on_cancellation)
+          on_cancellation(mgr->cancel_task(task_id, labels));
       });
   }
 }
@@ -501,7 +502,8 @@ void RobotUpdateHandle::kill_task(
         if (!mgr)
           return;
 
-        on_kill(mgr->kill_task(task_id, labels));
+        if (on_kill)
+          on_kill(mgr->kill_task(task_id, labels));
       });
   }
 }

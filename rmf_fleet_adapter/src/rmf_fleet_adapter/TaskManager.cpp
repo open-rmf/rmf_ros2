@@ -1077,10 +1077,10 @@ nlohmann::json TaskManager::submit_direct_request(
 //==============================================================================
 void TaskManager::Interruption::resume(std::vector<std::string> labels)
 {
+  std::lock_guard<std::mutex> lock(mutex);
   if (resumed)
     return;
 
-  std::lock_guard<std::mutex> lock(mutex);
   resumed = true;
   if (const auto mgr = w_mgr.lock())
   {
