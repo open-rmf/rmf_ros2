@@ -613,7 +613,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     RCLCPP_ERROR(
       context->node()->get_logger(),
       "Invalid plan_id [%lu] when current plan_id is [%lu] for [%s] in group "
-      "[%s] while performing task [%s]",
+      "[%s] while performing task [%s]. Please notify an RMF developer.",
       plan_id,
       context->itinerary().current_plan_id(),
       context->name().c_str(),
@@ -621,7 +621,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
       task_id.c_str());
     state->update_log().error(
       "Invalid plan_id [" + std::to_string(plan_id) + "] when current plan_id "
-      "is [" + std::to_string(context->itinerary().current_plan_id()) + "]");
+      "is [" + std::to_string(context->itinerary().current_plan_id()) + "] "
+      "Please notify an RMF developer.");
 
     plan_id = context->itinerary().assign_plan_id();
 
