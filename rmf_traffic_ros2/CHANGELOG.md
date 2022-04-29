@@ -2,7 +2,7 @@
 
 2.0.0 (2022-03-18)
 ------------------
-* Update to the traffic dependency system: Add PR Here
+* Update to the traffic dependency system: [#188](https://github.com/open-rmf/rmf_ros2/pull/188)
 
 1.5.0 (2022-02-14)
 ------------------
