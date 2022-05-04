@@ -262,6 +262,7 @@ target_link_libraries(experimental_lift_watchdog
     ${rclcpp_LIBRARIES}
     ${rmf_fleet_msgs_LIBRARIES}
     ${std_msgs_LIBRARIES}
+    -lpthread
 )
 
 target_include_directories(experimental_lift_watchdog

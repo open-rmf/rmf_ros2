@@ -22,6 +22,7 @@
 #include <rmf_task_msgs/msg/bid_notice.hpp>
 #include <rmf_task_msgs/msg/bid_proposal.hpp>
 #include <rmf_task_msgs/msg/bid_response.hpp>
+#include <optional>
 
 namespace rmf_task_ros2 {
 namespace bidding {
