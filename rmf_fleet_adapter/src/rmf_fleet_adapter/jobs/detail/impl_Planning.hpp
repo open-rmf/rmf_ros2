@@ -27,7 +27,11 @@ namespace jobs {
 template<typename Subscriber, typename Worker>
 void Planning::operator()(const Subscriber& s, const Worker& w)
 {
-  _resume = [a = weak_from_this(), s, w]()
+  // We need to create this lambda as a separate object or else there could be a
+  // race during the copy operation where the lambda previvously captured by
+  // _resume will destroy its own captured variables while they are still being
+  // used.
+  auto next_resume = [a = weak_from_this(), s, w]()
     {
       w.schedule([a, s, w](const auto&)
         {
@@ -35,6 +39,8 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
             (*action)(s, w);
         });
     };
+
+  _resume = std::move(next_resume);
 
   if (!_current_result)
     return;
