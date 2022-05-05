@@ -326,8 +326,8 @@ void EmergencyPullover::Active::_execute_plan(
     return;
 
   _execution = ExecutePlan::make(
-    _context, plan_id, std::move(plan), std::move(full_itinerary), _assign_id, _state,
-    _update, _finished, std::nullopt);
+    _context, plan_id, std::move(plan), std::move(full_itinerary), _assign_id,
+    _state, _update, _finished, std::nullopt);
 
   if (!_execution.has_value())
   {

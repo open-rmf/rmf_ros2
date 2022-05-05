@@ -452,7 +452,7 @@ auto RobotUpdateHandle::interrupt(
 void RobotUpdateHandle::cancel_task(
   std::string task_id,
   std::vector<std::string> labels,
-  std::function<void (bool)> on_cancellation)
+  std::function<void(bool)> on_cancellation)
 {
   if (const auto context = _pimpl->get_context())
   {
@@ -483,7 +483,7 @@ void RobotUpdateHandle::cancel_task(
 void RobotUpdateHandle::kill_task(
   std::string task_id,
   std::vector<std::string> labels,
-  std::function<void (bool)> on_kill)
+  std::function<void(bool)> on_kill)
 {
   if (const auto context = _pimpl->get_context())
   {

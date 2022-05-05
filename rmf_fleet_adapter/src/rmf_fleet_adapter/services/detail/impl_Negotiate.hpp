@@ -137,8 +137,12 @@ void Negotiate::operator()(const Subscriber& s)
                 responder->submit(
                   plan_id,
                   final_itinerary,
-                  [plan_id, plan = *r, approval = std::move(approval),
-                   final_itinerary]()
+                  [
+                    plan_id,
+                    plan = *r,
+                    approval = std::move(approval),
+                    final_itinerary
+                  ]()
                   -> UpdateVersion
                   {
                     if (approval)
