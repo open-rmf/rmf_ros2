@@ -224,7 +224,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       const auto previously_expected_arrival = planned_time + current_delay;
       const auto newly_expected_arrival = now + estimate;
       const auto new_delay =
-        newly_expected_arrival - previously_expected_arrival;
+      newly_expected_arrival - previously_expected_arrival;
 
       if (std::chrono::milliseconds(500).count() < std::abs(new_delay.count()))
       {
