@@ -618,43 +618,43 @@ std::optional<ExecutePlan> ExecutePlan::make(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
-  std::stringstream ss;
-  ss << "Submitting itinerary for " << context->name() << " [" << plan_id
-     << "] with these dependencies:";
-  for (std::size_t i = 0; i < full_itinerary.size(); ++i)
-  {
-    ss << "\n  " << i << ".";
-    const auto& r = full_itinerary[i];
-    for (const auto& [p, deps] : r.dependencies())
-    {
-      ss << " " << p << ":";
-      if (deps.plan().has_value())
-      {
-        ss << *deps.plan();
-        for (const auto& [r, _] : deps.routes())
-          ss << "|" << r;
-      }
-      else
-      {
-        ss << "None";
-      }
-    }
-  }
+//  std::stringstream ss;
+//  ss << "Submitting itinerary for " << context->name() << " [" << plan_id
+//     << "] with these dependencies:";
+//  for (std::size_t i = 0; i < full_itinerary.size(); ++i)
+//  {
+//    ss << "\n  " << i << ".";
+//    const auto& r = full_itinerary[i];
+//    for (const auto& [p, deps] : r.dependencies())
+//    {
+//      ss << " " << p << ":";
+//      if (deps.plan().has_value())
+//      {
+//        ss << *deps.plan();
+//        for (const auto& [r, _] : deps.routes())
+//          ss << "|" << r;
+//      }
+//      else
+//      {
+//        ss << "None";
+//      }
+//    }
+//  }
 
-  ss << "\nOriginal had these dependencies:";
-  for (std::size_t i = 0; i < plan.get_itinerary().size(); ++i)
-  {
-    ss << "\n  " << i << ".";
-    const auto& r = plan.get_itinerary()[i];
-    for (const auto& [p, deps] : r.dependencies())
-    {
-      ss << " " << p << ":";
-      if (deps.plan().has_value())
-        ss << *deps.plan();
-    }
-  }
+//  ss << "\nOriginal had these dependencies:";
+//  for (std::size_t i = 0; i < plan.get_itinerary().size(); ++i)
+//  {
+//    ss << "\n  " << i << ".";
+//    const auto& r = plan.get_itinerary()[i];
+//    for (const auto& [p, deps] : r.dependencies())
+//    {
+//      ss << " " << p << ":";
+//      if (deps.plan().has_value())
+//        ss << *deps.plan();
+//    }
+//  }
 
-  std::cout << ss.str() << std::endl;
+//  std::cout << ss.str() << std::endl;
 
   context->itinerary().set(plan_id, std::move(full_itinerary));
 

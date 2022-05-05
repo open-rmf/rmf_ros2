@@ -2135,7 +2135,6 @@ void TaskManager::_handle_direct_request(
   const  nlohmann::json& request_json,
   const std::string& request_id)
 {
-  std::cout << "Received direct request:\n" << request_json.dump(2) << std::endl;
   static const auto request_validator =
     _make_validator(rmf_api_msgs::schemas::robot_task_request);
 

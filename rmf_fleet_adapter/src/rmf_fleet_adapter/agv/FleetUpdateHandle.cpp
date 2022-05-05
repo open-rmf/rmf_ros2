@@ -755,7 +755,6 @@ std::optional<rmf_fleet_msgs::msg::Location> convert_location(
   const auto& l = context.location().front();
   const auto& wp = graph.get_waypoint(l.waypoint());
   const Eigen::Vector2d p = l.location().value_or(wp.get_location());
-  std::cout << "Publishing fleet state with position: " << p.x() << " " << p.y() << std::endl;
 
   return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
     .t(rmf_traffic_ros2::convert(l.time()))
