@@ -421,7 +421,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
 //==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
-  const rmf_traffic::PlanId plan_id,
+  rmf_traffic::PlanId plan_id,
   rmf_traffic::agv::Plan plan,
   rmf_traffic::schedule::Itinerary full_itinerary,
   const rmf_task::Event::AssignIDPtr& event_id,
@@ -618,45 +618,44 @@ std::optional<ExecutePlan> ExecutePlan::make(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
-//  std::stringstream ss;
-//  ss << "Submitting itinerary for " << context->name() << " [" << plan_id
-//     << "] with these dependencies:";
-//  for (std::size_t i = 0; i < full_itinerary.size(); ++i)
-//  {
-//    ss << "\n  " << i << ".";
-//    const auto& r = full_itinerary[i];
-//    for (const auto& [p, deps] : r.dependencies())
-//    {
-//      ss << " " << p << ":";
-//      if (deps.plan().has_value())
-//      {
-//        ss << *deps.plan();
-//        for (const auto& [r, _] : deps.routes())
-//          ss << "|" << r;
-//      }
-//      else
-//      {
-//        ss << "None";
-//      }
-//    }
-//  }
+  std::size_t attempts = 0;
+  while (!context->itinerary().set(plan_id, std::move(full_itinerary)))
+  {
+    // Some mysterious behavior has been happening where plan_ids are invalid.
+    // We will attempt to catch that here and try to learn more about what
+    // could be causing that, while allowing progress to continue.
+    std::string task_id = "<none>";
+    if (context->current_task_id())
+      task_id = *context->current_task_id();
 
-//  ss << "\nOriginal had these dependencies:";
-//  for (std::size_t i = 0; i < plan.get_itinerary().size(); ++i)
-//  {
-//    ss << "\n  " << i << ".";
-//    const auto& r = plan.get_itinerary()[i];
-//    for (const auto& [p, deps] : r.dependencies())
-//    {
-//      ss << " " << p << ":";
-//      if (deps.plan().has_value())
-//        ss << *deps.plan();
-//    }
-//  }
+    RCLCPP_ERROR(
+      context->node()->get_logger(),
+      "Invalid plan_id [%lu] when current plan_id is [%lu] for [%s] in group "
+      "[%s] while performing task [%s]. Please notify an RMF developer.",
+      plan_id,
+      context->itinerary().current_plan_id(),
+      context->name().c_str(),
+      context->group().c_str(),
+      task_id.c_str());
+    state->update_log().error(
+      "Invalid plan_id [" + std::to_string(plan_id) + "] when current plan_id "
+      "is [" + std::to_string(context->itinerary().current_plan_id()) + "] "
+      "Please notify an RMF developer.");
 
-//  std::cout << ss.str() << std::endl;
+    plan_id = context->itinerary().assign_plan_id();
 
-  context->itinerary().set(plan_id, std::move(full_itinerary));
+    if (++attempts > 5)
+    {
+      RCLCPP_ERROR(
+        context->node()->get_logger(),
+        "Requesting replan for [%s] in group [%s] because plan is repeatedly "
+        "being rejected while performing task [%s]",
+        context->name().c_str(),
+        context->group().c_str(),
+        task_id.c_str());
+      return std::nullopt;
+    }
+  }
 
   return ExecutePlan{
     std::move(plan),
