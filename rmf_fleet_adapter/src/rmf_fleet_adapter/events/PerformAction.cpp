@@ -266,6 +266,7 @@ void PerformAction::Active::_execute_action()
   auto action_execution =
     agv::RobotUpdateHandle::ActionExecution::Implementation::make(data);
 
+  _state->update_status(Status::Underway);
   action_executor(
     _action_category,
     _action_description,
