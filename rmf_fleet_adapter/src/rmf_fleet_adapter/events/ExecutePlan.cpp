@@ -18,6 +18,7 @@
 #include "ExecutePlan.hpp"
 #include "LegacyPhaseShim.hpp"
 #include "WaitForTraffic.hpp"
+#include "WaitUntil.hpp"
 
 #include "../phases/MoveRobot.hpp"
 #include "../phases/DoorOpen.hpp"
@@ -36,6 +37,7 @@ using StandbyPtr = rmf_task_sequence::Event::StandbyPtr;
 using UpdateFn = std::function<void()>;
 using MakeStandby = std::function<StandbyPtr(UpdateFn)>;
 
+//==============================================================================
 struct LegacyPhaseWrapper
 {
   LegacyPhaseWrapper(
@@ -594,6 +596,21 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
       ++head;
     }
+  }
+
+  if (tail_period.has_value() && !legacy_phases.empty())
+  {
+    // A tail period was requested, so this is actually a ResponsiveWait action.
+    // We will ensure that the task doesn't finish until the final time is
+    // reached, even if the robot arrives at the final destination early.
+    const auto wait_until_time = legacy_phases.back().time;
+    standbys.push_back(
+      [context, wait_until_time, event_id](UpdateFn update)
+      -> rmf_task_sequence::Event::StandbyPtr
+      {
+        return WaitUntil::Standby::make(
+          context, wait_until_time, event_id, std::move(update));
+      });
   }
 
   auto sequence = rmf_task_sequence::events::Bundle::standby(
