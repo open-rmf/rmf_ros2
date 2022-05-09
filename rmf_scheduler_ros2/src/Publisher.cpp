@@ -63,7 +63,6 @@ void Publisher::_publish_serialized_message(const PayloadData& data)
 
   // deserialize the serialized rmf_scheduler_msgs/SerializedMessage
   rmf_scheduler_msgs::msg::SerializedMessage rmf_msg;
-  auto asd = payload_sermsg.size();
   serializer.deserialize_message(&payload_sermsg, &rmf_msg);
 
   rclcpp::SerializedMessage inner_sermsg{rmf_msg.data.size()};

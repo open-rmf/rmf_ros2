@@ -140,7 +140,7 @@ TEST_CASE("create trigger")
   }
 }
 
-TEST_CASE("cancel_trigger")
+TEST_CASE("cancel trigger")
 {
   auto client = node->create_client<rmf_scheduler_msgs::srv::CancelTrigger>(
     "cancel_trigger");

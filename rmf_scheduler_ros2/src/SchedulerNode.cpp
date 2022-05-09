@@ -148,7 +148,7 @@ SchedulerNode::SchedulerNode(const rclcpp::NodeOptions& options)
       RCLCPP_INFO(
         this->get_logger(), "ran schedule '%s'", state.name.c_str());
       RCLCPP_INFO(
-        this->get_logger(), "schedule '%s' status schedule to '%d'",
+        this->get_logger(), "schedule '%s' status changed to '%d'",
         state.name.c_str(),
         state.status);
       this->_schedule_update_pub->publish(state);

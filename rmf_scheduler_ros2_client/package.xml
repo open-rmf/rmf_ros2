@@ -12,6 +12,7 @@
   <depend>rclcpp</depend>
   <depend>rmf_scheduler_msgs</depend>
 
+  <test_depend>rmf_scheduler_ros2</test_depend>
   <test_depend>ament_cmake_catch2</test_depend>
   <test_depend>ament_cmake_uncrustify</test_depend>
   <test_depend>rmf_utils</test_depend>

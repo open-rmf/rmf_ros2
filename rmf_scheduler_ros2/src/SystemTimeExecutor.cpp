@@ -78,30 +78,41 @@ void SystemTimeExecutor::stop()
 
 void SystemTimeExecutor::_tick()
 {
-  // wait forever if there are no tasks.
-  Clock::time_point next = Clock::time_point::max();
+  std::vector<std::shared_ptr<Task>> tasks_to_run;
   {
     std::unique_lock lk{this->_tasks_mutex};
-    if (!this->_tasks.empty())
+
+    // wait forever if there are no tasks.
+    Clock::time_point next = Clock::time_point::max();
     {
-      next =
-        Clock::time_point{std::chrono::seconds{this->_tasks.begin()->first}};
+      if (!this->_tasks.empty())
+      {
+        next =
+          Clock::time_point{std::chrono::seconds{this->_tasks.begin()->first}};
+      }
+    }
+
+    // don't need to check for spurious wakes since the loop will exit immediately
+    // if it is not yet time to run a task.
+    this->_cv.wait_until(lk, next);
+
+    for (auto it = this->_tasks.begin(); it != this->_tasks.end();
+      it = this->_tasks.erase(it))
+    {
+      auto task = it->second;
+      if (task->when > this->now())
+      {
+        break;
+      }
+      // we need to copy the tasks to run and run them outside the lock because a
+      // task may schedule another task, resulting in deadlock. std::condition_variable
+      // doesn't seem to support recursive mutex.
+      tasks_to_run.emplace_back(it->second);
     }
   }
 
-  std::unique_lock lk{this->_tasks_mutex};
-
-  // don't need to check for spurious wakes since the loop will exit immediately
-  // if it is not yet time to run a task.
-  this->_cv.wait_until(lk, next);
-  for (auto it = this->_tasks.begin(); it != this->_tasks.end();
-    it = this->_tasks.erase(it))
+  for (auto& task : tasks_to_run)
   {
-    auto task = it->second;
-    if (task->when > this->now())
-    {
-      break;
-    }
     task->action();
   }
 }
