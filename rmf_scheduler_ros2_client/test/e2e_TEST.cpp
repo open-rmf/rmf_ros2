@@ -140,6 +140,92 @@ TEST_CASE("create trigger")
   }
 }
 
+TEST_CASE("multiple subscribers")
+{
+  static constexpr int NumSubscribers = 4;
+
+  std::vector<rclcpp::Node::SharedPtr> sub_nodes;
+  std::vector<rclcpp::Subscription<std_msgs::msg::String>::SharedPtr> subs;
+  std::vector<bool> got_msg;
+  std::vector<rclcpp::executors::SingleThreadedExecutor::SharedPtr> executors;
+  std::vector<std::thread> threads;
+  std::mutex m;
+  int done_count = 0;
+  std::condition_variable cv;
+
+  for (int i = 0; i < NumSubscribers; ++i)
+  {
+    sub_nodes.emplace_back(rclcpp::Node::make_shared("test_subscriber_" +
+      std::to_string(i)));
+    executors.emplace_back(
+      rclcpp::executors::SingleThreadedExecutor::make_shared());
+    got_msg.emplace_back(false);
+  }
+
+  // each node subscribes on a different executor on a different thread
+  for (int i = 0; i < NumSubscribers; ++i)
+  {
+    threads.emplace_back(std::thread([&m, &done_count, &cv, node = sub_nodes[i],
+      executor = executors[i], i]()
+      {
+        std::promise<void> done;
+        rclcpp::Subscription<std_msgs::msg::String>::SharedPtr sub =
+        node->create_subscription<std_msgs::msg::String>("test_topic",
+        rclcpp::SystemDefaultsQoS{},
+        [&m, &done_count, &cv, &done, &sub, i](std_msgs::msg::String::SharedPtr)
+        {
+          sub.reset();
+          std::unique_lock lk{m};
+          ++done_count;
+          done.set_value();
+          cv.notify_all();
+        });
+        executor->add_node(node);
+        executor->spin_until_future_complete(done.get_future());
+      }));
+  }
+
+  // creates the trigger
+  {
+    auto client = node->create_client<rmf_scheduler_msgs::srv::CreateTrigger>(
+      "create_trigger");
+    if (!client->wait_for_service(5s))
+    {
+      FAIL("Timed out waiting for service");
+    }
+
+    auto req =
+      std::make_shared<rmf_scheduler_msgs::srv::CreateTrigger::Request>();
+    req->trigger.name = unique_name();
+    // triggers in the past will run immediately
+    req->trigger.at = 0;
+    std_msgs::msg::String msg;
+    req->trigger.payload = make_serialized_message("test_topic", msg);
+
+    check_response(client->async_send_request(req));
+  }
+
+  // wait for all subscribers to finish
+  {
+    std::unique_lock lk{m};
+    if (!cv.wait_for(lk, std::chrono::seconds{5}, [&done_count]()
+      {
+        return done_count >= NumSubscribers;
+      }))
+    {
+      FAIL("Timed out waiting for subscribers to finish");
+    }
+    else
+    {
+      for (auto& t : threads)
+      {
+        t.join();
+      }
+    }
+  }
+
+}
+
 TEST_CASE("cancel trigger")
 {
   auto client = node->create_client<rmf_scheduler_msgs::srv::CancelTrigger>(
