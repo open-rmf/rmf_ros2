@@ -223,21 +223,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       const auto planned_time = target_wp.time();
       const auto previously_expected_arrival = planned_time + current_delay;
       const auto newly_expected_arrival = now + estimate;
-
-      const auto new_delay = [&]() -> rmf_traffic::Duration
-      {
-        if (newly_expected_arrival < planned_time)
-        {
-          // If the robot is running ahead of time, we should actually fall back
-          // to the original timing prediction, with the assumption that the
-          // robot will stop and wait at the waypoint after arriving.
-          return planned_time - previously_expected_arrival;
-        }
-
-        // Otherwise we will adjust the time to match up with the latest
-        // expectations
-        return newly_expected_arrival - previously_expected_arrival;
-      } ();
+      const auto new_delay =
+      newly_expected_arrival - previously_expected_arrival;
 
       if (std::chrono::milliseconds(500).count() < std::abs(new_delay.count()))
       {

@@ -69,5 +69,17 @@ const rmf_traffic::agv::Planner::Result& Planning::progress() const
   return *_current_result;
 }
 
+//==============================================================================
+std::unique_lock<std::mutex> Planning::_lock_resume() const
+{
+  std::unique_lock<std::mutex> lock(_resume_mutex, std::defer_lock);
+  while (!lock.try_lock())
+  {
+    // Intentionally busy wait to obtain the mutex as fast as possible
+  }
+
+  return lock;
+}
+
 } // namespace jobs
 } // namespace rmf_fleet_adapter

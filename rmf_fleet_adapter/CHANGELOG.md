@@ -1,5 +1,9 @@
 ## Changelog for package rmf_fleet_adapter
 
+2.1.0 (2022-XX-YY)
+------------------
+* Add a WaitUntil event and use it for ResponsiveWait: [#199](https://github.com/open-rmf/rmf_ros2/pull/199)
+
 2.0.0 (2022-03-18)
 ------------------
 * Update to traffic dependency system: [#188](https://github.com/open-rmf/rmf_ros2/pull/188)
