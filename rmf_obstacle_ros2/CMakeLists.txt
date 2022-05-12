@@ -1,0 +1,79 @@
+cmake_minimum_required(VERSION 3.8)
+project(rmf_obstacle_ros2)
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+include(GNUInstallDirs)
+
+# find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(rmf_utils REQUIRED)
+find_package(rmf_obstacle_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+
+#===============================================================================
+file(GLOB_RECURSE core_lib_srcs "src/rmf_obstacle_ros2/*.cpp")
+add_library(rmf_obstacle_ros2 SHARED ${core_lib_srcs})
+
+target_link_libraries(rmf_obstacle_ros2
+  PUBLIC
+    rmf_utils::rmf_utils
+    ${rclcpp_LIBRARIES}
+    ${sensor_msgs_LIBRARIES}
+  PRIVATE
+    ${rmf_obstacle_msgs_LIBRARIES}
+)
+
+target_include_directories(rmf_obstacle_ros2
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    ${rclcpp_INCLUDE_DIRS}
+    ${sensor_msgs_INCLUDE_DIRS}
+  PRIVATE
+    ${rmf_obstacle_msgs_INCLUDE_DIRS}
+)
+
+target_compile_features(rmf_obstacle_ros2 INTERFACE cxx_std_17)
+
+ament_export_targets(rmf_obstacle_ros2 HAS_LIBRARY_TARGET)
+ament_export_dependencies(
+  rclcpp
+  sensor_msgs
+)
+
+#===============================================================================
+if(BUILD_TESTING)
+  find_package(ament_cmake_uncrustify REQUIRED)
+  find_file(uncrustify_config_file
+    NAMES "rmf_code_style.cfg"
+    PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
+
+  ament_uncrustify(
+    ARGN include src
+    CONFIG_FILE ${uncrustify_config_file}
+    MAX_LINE_LENGTH 80
+  )
+
+endif()
+
+#===============================================================================
+install(
+  DIRECTORY include/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+install(
+  TARGETS
+    rmf_obstacle_ros2
+  EXPORT rmf_obstacle_ros2
+  RUNTIME DESTINATION lib/rmf_obstacle_ros2
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+)
+
+ament_package()
