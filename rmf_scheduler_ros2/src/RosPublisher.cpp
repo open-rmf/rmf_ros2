@@ -17,7 +17,7 @@
 
 #include <rclcpp/serialization.hpp>
 
-#include <rmf_scheduler_msgs/msg/serialized_message_payload.hpp>
+#include <rmf_scheduler_msgs/msg/payload.hpp>
 
 #include "RosPublisher.hpp"
 
@@ -46,17 +46,11 @@ void RosPublisher::publish(uint8_t type, const PayloadData& data)
 
 void RosPublisher::_publish_serialized_message(const PayloadData& data)
 {
-  using Serializer =
-    rclcpp::Serialization<rmf_scheduler_msgs::msg::SerializedMessagePayload>;
-  static Serializer serializer;
-
-  rclcpp::SerializedMessage payload_sermsg{data.size()};
-  auto& rcl_payload =
-    payload_sermsg.get_rcl_serialized_message();
-  std::copy(&data.front(), &data.back(), rcl_payload.buffer);
-  rcl_payload.buffer_length = data.size();
-
-  this->_rcl_publisher->publish(payload_sermsg);
+  rclcpp::SerializedMessage serialized{data.size()};
+  auto& rcl_msg = serialized.get_rcl_serialized_message();
+  std::copy(&data.front(), &data.back(), rcl_msg.buffer);
+  rcl_msg.buffer_length = data.size();
+  this->_rcl_publisher->publish(serialized);
 }
 
 RosPublisherFactory::RosPublisherFactory(rclcpp::Node* node)

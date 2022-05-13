@@ -18,7 +18,7 @@
 #pragma once
 
 #include <rmf_scheduler_msgs/msg/payload.hpp>
-#include <rmf_scheduler_msgs/msg/serialized_message.hpp>
+#include <rmf_scheduler_msgs/msg/serialized_message_payload.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/serialization.hpp>
@@ -35,30 +35,19 @@ rmf_scheduler_msgs::msg::Payload make_serialized_message(
   const T& message
 )
 {
+  using PayloadData = decltype(rmf_scheduler_msgs::msg::Payload::data);
+
   rclcpp::Serialization<T> inner_ser;
   rclcpp::SerializedMessage inner_sermsg;
   inner_ser.serialize_message(&message, &inner_sermsg);
-
-  static rclcpp::Serialization<rmf_scheduler_msgs::msg::SerializedMessage>
-  outer_ser;
-  rmf_scheduler_msgs::msg::SerializedMessage outer_msg;
-  outer_msg.message_type = rosidl_generator_traits::name<T>();;
-  outer_msg.topic_name = topic_name;
-  auto& rcl_inner = inner_sermsg.get_rcl_serialized_message();
-  outer_msg.data =
-    std::vector<uint8_t>{rcl_inner.buffer,
-    rcl_inner.buffer + rcl_inner.buffer_length};
-
-  rclcpp::SerializedMessage outer_sermsg;
-  outer_ser.serialize_message(&outer_msg, &outer_sermsg);
+  auto& rcl_msg = inner_sermsg.get_rcl_serialized_message();
 
   rmf_scheduler_msgs::msg::Payload payload;
   payload.type =
     rmf_scheduler_msgs::msg::Payload::PAYLOAD_TYPE_SERIALIZED_MESSAGE;
-  auto& rcl_outer = outer_sermsg.get_rcl_serialized_message();
-  using PayloadData = decltype(rmf_scheduler_msgs::msg::Payload::data);
-  payload.data =
-    PayloadData{rcl_outer.buffer, rcl_outer.buffer + rcl_outer.buffer_length};
+  payload.topic = topic_name;
+  payload.message_type = rosidl_generator_traits::name<T>();
+  payload.data = PayloadData{rcl_msg.buffer, rcl_msg.buffer + rcl_msg.buffer_length};
 
   return payload;
 }
