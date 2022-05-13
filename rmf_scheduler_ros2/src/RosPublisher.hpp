@@ -23,19 +23,35 @@
 
 namespace rmf::scheduler {
 
-class Publisher
+class RosPublisher
 {
 public:
   using PayloadData = decltype(rmf_scheduler_msgs::msg::Payload::data);
 
   rclcpp::Node* node;
 
-  Publisher(rclcpp::Node* node);
+  RosPublisher(rclcpp::Node* node, const std::string& topic,
+    const std::string& message_type);
 
-  void publish(const rmf_scheduler_msgs::msg::Payload& payload);
+  void publish(uint8_t type, const PayloadData& payload);
 
 private:
+  rclcpp::GenericPublisher::SharedPtr _rcl_publisher;
+
   void _publish_serialized_message(const PayloadData& data);
+};
+
+class RosPublisherFactory
+{
+public:
+  using Publisher = RosPublisher;
+
+  rclcpp::Node* node;
+
+  RosPublisherFactory(rclcpp::Node* node);
+
+  RosPublisher operator()(const std::string& topic,
+    const std::string& message_type) const;
 };
 
 }

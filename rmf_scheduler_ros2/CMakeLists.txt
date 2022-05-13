@@ -16,7 +16,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 add_library(lib${PROJECT_NAME} OBJECT
-  src/Publisher.cpp
+  src/RosPublisher.cpp
   src/SchedulerNode.cpp
   src/SqliteError.cpp
   src/SqliteDataSource.cpp

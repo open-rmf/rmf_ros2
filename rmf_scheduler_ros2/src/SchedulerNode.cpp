@@ -24,7 +24,7 @@ namespace rmf::scheduler {
 SchedulerNode::SchedulerNode(const rclcpp::NodeOptions& options)
 : rclcpp::Node{"rmf_scheduler", options},
   _store{this->_create_store()},
-  _scheduler{this->executor, this->_store, this->_publisher, true}
+  _scheduler{this->executor, this->_store, RosPublisherFactory{this}, true}
 {
   this->_new_trigger_pub =
     this->create_publisher<rmf_scheduler_msgs::msg::Trigger>("new_trigger",

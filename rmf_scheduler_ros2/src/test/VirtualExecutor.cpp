@@ -52,28 +52,23 @@ void VirtualExecutor::cancel_task(std::shared_ptr<Task> task)
 
 void VirtualExecutor::advance_by(int64_t by)
 {
-  this->_now += by;
-  this->_tick();
+  this->advance_until(this->_now + by);
 }
 
 void VirtualExecutor::advance_until(int64_t until)
-{
-  this->_now = until;
-  this->_tick();
-}
-
-void VirtualExecutor::_tick()
 {
   for (auto it = this->_tasks.begin(); it != this->_tasks.end();
     it = this->_tasks.erase(it))
   {
     auto task = it->second;
-    if (task->when > this->_now)
+    if (task->when > until)
     {
       break;
     }
+    this->_now = task->when;
     task->action();
   }
+  this->_now = until;
 }
 
 }

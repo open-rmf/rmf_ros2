@@ -24,11 +24,28 @@ namespace rmf::scheduler::test {
 class MockPublisher
 {
 public:
-  std::vector<rmf_scheduler_msgs::msg::Payload> publishes;
+  using PayloadData = decltype(rmf_scheduler_msgs::msg::Payload::data);
 
-  void publish(const rmf_scheduler_msgs::msg::Payload& payload)
+  std::vector<PayloadData> publishes;
+
+  void publish(uint8_t, const PayloadData& data)
   {
-    this->publishes.push_back(payload);
+    this->publishes.push_back(data);
+  }
+};
+
+class MockPublisherFactory
+{
+public:
+  using Publisher = MockPublisher&;
+
+  MockPublisher& publisher;
+
+  MockPublisherFactory(MockPublisher& publisher) : publisher(publisher) {}
+
+  MockPublisher& operator()(const std::string&, const std::string&)
+  {
+    return this->publisher;
   }
 };
 

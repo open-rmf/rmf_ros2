@@ -37,23 +37,22 @@ namespace rmf::scheduler::test {
 
 static std::string db_file = "Scheduler_TEST.sqlite3";
 
-using TestScheduler = Scheduler<VirtualExecutor, MockPublisher>;
+using TestScheduler = Scheduler<VirtualExecutor, MockPublisherFactory>;
 
 class SchedulerFixture
 {
 public:
+  MockPublisher mock_publisher;
   VirtualExecutor executor;
-  MockPublisher publisher;
   SqliteDataSource store{db_file};
   TestScheduler scheduler;
 
   SchedulerFixture()
-  : scheduler{executor, store, publisher} {}
+  : scheduler{executor, store, MockPublisherFactory{mock_publisher}} {}
 };
 
 TEST_CASE_METHOD(SchedulerFixture, "Schedule simple", "[Schedule]") {
   auto& executor = scheduler.executor;
-  auto& publisher = scheduler.publisher;
   auto& store = scheduler.store;
   executor.advance_until(10);
 
@@ -81,8 +80,8 @@ TEST_CASE_METHOD(SchedulerFixture, "Schedule simple", "[Schedule]") {
 
   // check that schedule is ran
   executor.advance_until(21);
-  REQUIRE(publisher.publishes.size() == 1);
-  CHECK(publisher.publishes[0].data[0] == 1);
+  REQUIRE(this->mock_publisher.publishes.size() == 1);
+  CHECK(this->mock_publisher.publishes[0][0] == 1);
 
   // check that the schedule state is updated
   {
@@ -95,8 +94,8 @@ TEST_CASE_METHOD(SchedulerFixture, "Schedule simple", "[Schedule]") {
 
   // should run again next sec.
   executor.advance_until(22);
-  REQUIRE(publisher.publishes.size() == 2);
-  CHECK(publisher.publishes[1].data[0] == 1);
+  REQUIRE(this->mock_publisher.publishes.size() == 2);
+  CHECK(this->mock_publisher.publishes[1][0] == 1);
 
   // state should now be finished
   {
@@ -131,7 +130,7 @@ TEST_CASE_METHOD(SchedulerFixture, "Schedule already started", "[Schedule]")
   scheduler.executor.advance_until(11);
 
   {
-    CHECK(scheduler.publisher.publishes.size() == 1);
+    CHECK(this->mock_publisher.publishes.size() == 1);
 
     auto state = store.fetch_schedule_state(schedule.name).value();
     CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::FINISHED);
@@ -161,7 +160,7 @@ TEST_CASE_METHOD(SchedulerFixture, "Schedule already finished", "[Schedule]")
 
   scheduler.executor.advance_until(11);
 
-  CHECK(scheduler.publisher.publishes.size() == 0);
+  CHECK(this->mock_publisher.publishes.size() == 0);
 }
 
 TEST_CASE_METHOD(SchedulerFixture, "Duplicated schedules are replaced",
@@ -193,8 +192,8 @@ TEST_CASE_METHOD(SchedulerFixture, "Duplicated schedules are replaced",
 
   // check that old schedule is not ran
   scheduler.executor.advance_until(1);
-  REQUIRE(scheduler.publisher.publishes.size() == 1);
-  CHECK(scheduler.publisher.publishes[0].data[0] == 2);
+  REQUIRE(this->mock_publisher.publishes.size() == 1);
+  CHECK(this->mock_publisher.publishes[0][0] == 2);
 }
 
 TEST_CASE_METHOD(SchedulerFixture, "Schedule error when finish >= start",
@@ -226,7 +225,7 @@ TEST_CASE_METHOD(SchedulerFixture, "Cancel schedule", "[Schedule]")
 
   scheduler.cancel_schedule(name);
   scheduler.executor.advance_until(20);
-  CHECK(scheduler.publisher.publishes.size() == 0);
+  CHECK(this->mock_publisher.publishes.size() == 0);
   auto state = scheduler.store.fetch_schedule_state(name).value();
   CHECK(state.status == rmf_scheduler_msgs::msg::ScheduleState::CANCELLED);
   CHECK(state.next_run == 0);
@@ -241,7 +240,6 @@ TEST_CASE_METHOD(SchedulerFixture,
 
 TEST_CASE_METHOD(SchedulerFixture, "Trigger simple", "[Trigger]") {
   auto& executor = scheduler.executor;
-  auto& publisher = scheduler.publisher;
   auto& store = scheduler.store;
   executor.advance_until(10);
 
@@ -265,8 +263,8 @@ TEST_CASE_METHOD(SchedulerFixture, "Trigger simple", "[Trigger]") {
 
   // check that triggers are ran
   executor.advance_until(20);
-  REQUIRE(publisher.publishes.size() == 1);
-  CHECK(publisher.publishes[0].data[0] == 1);
+  REQUIRE(this->mock_publisher.publishes.size() == 1);
+  CHECK(this->mock_publisher.publishes[0][0] == 1);
 
   // check that the trigger state is updated
   {
@@ -307,8 +305,8 @@ TEST_CASE_METHOD(SchedulerFixture, "Duplicated triggers are replaced",
 
   // check that old trigger is not ran
   scheduler.executor.advance_until(20);
-  REQUIRE(scheduler.publisher.publishes.size() == 1);
-  CHECK(scheduler.publisher.publishes[0].data[0] == 2);
+  REQUIRE(this->mock_publisher.publishes.size() == 1);
+  CHECK(this->mock_publisher.publishes[0][0] == 2);
 }
 
 TEST_CASE_METHOD(SchedulerFixture, "Late triggers are executed", "[Trigger]")
@@ -324,7 +322,7 @@ TEST_CASE_METHOD(SchedulerFixture, "Late triggers are executed", "[Trigger]")
   scheduler.create_trigger(trigger);
 
   scheduler.executor.advance_until(11);
-  CHECK(scheduler.publisher.publishes.size() == 1);
+  CHECK(this->mock_publisher.publishes.size() == 1);
   auto state = scheduler.store.fetch_trigger_state(name).value();
   CHECK(state.status == rmf_scheduler_msgs::msg::TriggerState::FINISHED);
 }
@@ -343,7 +341,7 @@ TEST_CASE_METHOD(SchedulerFixture, "Cancel trigger", "[Trigger]")
 
   scheduler.cancel_trigger(name);
   scheduler.executor.advance_until(20);
-  CHECK(scheduler.publisher.publishes.size() == 0);
+  CHECK(this->mock_publisher.publishes.size() == 0);
   auto state = scheduler.store.fetch_trigger_state(name).value();
   CHECK(state.status == rmf_scheduler_msgs::msg::TriggerState::CANCELLED);
 }
@@ -360,10 +358,11 @@ TEST_CASE_METHOD(SchedulerFixture, "Load from database")
   std::filesystem::remove(db_file);
 
   {
+    MockPublisher mock_publisher;
     VirtualExecutor executor;
     SqliteDataSource store{db_file};
-    MockPublisher pub;
-    TestScheduler scheduler{executor, store, pub};
+    TestScheduler scheduler{executor, store,
+      MockPublisherFactory{mock_publisher}};
 
     rmf_scheduler_msgs::msg::Trigger trigger;
     trigger.name = unique_name();
@@ -383,12 +382,14 @@ TEST_CASE_METHOD(SchedulerFixture, "Load from database")
   }
 
   {
+    MockPublisher mock_publisher;
     VirtualExecutor executor;
     SqliteDataSource store{db_file};
-    MockPublisher pub;
-    auto loaded = TestScheduler{executor, store, pub, true};
+    auto loaded =
+      TestScheduler{executor, store, MockPublisherFactory{mock_publisher},
+      true};
     loaded.executor.advance_until(21);
-    CHECK(loaded.publisher.publishes.size() == 2);
+    CHECK(mock_publisher.publishes.size() == 2);
   }
 }
 
@@ -481,11 +482,12 @@ TEST_CASE("cancel all is atomic")
     }
   };
 
-  using TestScheduler = Scheduler<BadExecutor, MockPublisher>;
+  using TestScheduler = Scheduler<BadExecutor, MockPublisherFactory>;
+  MockPublisher mock_publisher;
   BadExecutor executor;
   SqliteDataSource store{":memory:"};
-  MockPublisher pub;
-  TestScheduler scheduler{executor, store, pub};
+  TestScheduler scheduler{executor, store,
+    MockPublisherFactory{mock_publisher}};
 
   {
     rmf_scheduler_msgs::msg::Trigger trigger;
@@ -507,7 +509,96 @@ TEST_CASE("cancel all is atomic")
   CHECK(executor.bad_count == 1);
   CHECK(executor.good_count > 0);
   executor.advance_until(20);
-  CHECK(pub.publishes.size() == 2);
+  CHECK(mock_publisher.publishes.size() == 2);
+}
+
+TEST_CASE_METHOD(SchedulerFixture,
+  "publisher gets cleaned up after publishing") {
+  auto& executor = scheduler.executor;
+
+  int cleanup_count = 0;
+  this->scheduler.on_publisher_cleanup = [&cleanup_count](auto)
+    {
+      ++cleanup_count;
+    };
+
+  rmf_scheduler_msgs::msg::Trigger trigger;
+  trigger.name = unique_name();
+  trigger.payload.data.push_back(1);
+  scheduler.create_trigger(trigger);
+
+  executor.advance_until(TestScheduler::kPublisherKeepAliveSecs - 1);
+  CHECK(cleanup_count == 0);
+  executor.advance_until(TestScheduler::kPublisherKeepAliveSecs);
+  CHECK(cleanup_count == 1);
+}
+
+TEST_CASE_METHOD(SchedulerFixture,
+  "using publisher again keeps it alive") {
+  auto& executor = scheduler.executor;
+
+  int cleanup_count = 0;
+  this->scheduler.on_publisher_cleanup = [&cleanup_count](auto)
+    {
+      ++cleanup_count;
+    };
+
+  {
+    rmf_scheduler_msgs::msg::Trigger trigger;
+    trigger.name = unique_name();
+    trigger.at = 0;
+    trigger.payload.data.push_back(1);
+    scheduler.create_trigger(trigger);
+  }
+  {
+    rmf_scheduler_msgs::msg::Trigger trigger;
+    trigger.name = unique_name();
+    trigger.at = 10;
+    trigger.payload.data.push_back(1);
+    scheduler.create_trigger(trigger);
+  }
+
+  executor.advance_until(TestScheduler::kPublisherKeepAliveSecs);
+  CHECK(cleanup_count == 0);
+  executor.advance_until(TestScheduler::kPublisherKeepAliveSecs + 9);
+  CHECK(cleanup_count == 0);
+  executor.advance_until(TestScheduler::kPublisherKeepAliveSecs + 10);
+  CHECK(cleanup_count == 1);
+}
+
+TEST_CASE_METHOD(SchedulerFixture,
+  "publishers are tracked by payload topic") {
+  auto& executor = scheduler.executor;
+
+  int cleanup_count = 0;
+  this->scheduler.on_publisher_cleanup = [&cleanup_count](auto)
+    {
+      ++cleanup_count;
+    };
+
+  {
+    rmf_scheduler_msgs::msg::Trigger trigger;
+    trigger.name = unique_name();
+    trigger.at = 0;
+    trigger.payload.topic = "topic1";
+    trigger.payload.data.push_back(1);
+    scheduler.create_trigger(trigger);
+  }
+  {
+    rmf_scheduler_msgs::msg::Trigger trigger;
+    trigger.name = unique_name();
+    trigger.at = 10;
+    trigger.payload.topic = "topic2";
+    trigger.payload.data.push_back(1);
+    scheduler.create_trigger(trigger);
+  }
+
+  executor.advance_until(TestScheduler::kPublisherKeepAliveSecs - 1);
+  CHECK(cleanup_count == 0);
+  executor.advance_until(TestScheduler::kPublisherKeepAliveSecs);
+  CHECK(cleanup_count == 1);
+  executor.advance_until(TestScheduler::kPublisherKeepAliveSecs + 10);
+  CHECK(cleanup_count == 2);
 }
 
 }

@@ -41,13 +41,15 @@ namespace rmf::scheduler {
 
 class Task;
 
-template<typename Executor, typename Publisher>
+template<typename Executor, typename PublisherFactory>
 class Scheduler
 {
 public:
+  static constexpr int64_t kPublisherKeepAliveSecs = 30;
+
   Executor& executor;
   SqliteDataSource& store;
-  Publisher& publisher;
+  PublisherFactory publisher_factory;
   rclcpp::Logger logger = rclcpp::get_logger("Scheduler");
 
   using TriggerUpdateCb =
@@ -56,11 +58,15 @@ public:
   using ScheduleUpdateCb =
     std::function<void(const rmf_scheduler_msgs::msg::ScheduleState&)>;
   ScheduleUpdateCb on_schedule_update;
+  using PublisherCleanupCb =
+    std::function<void(const typename PublisherFactory::Publisher&)>;
+  PublisherCleanupCb on_publisher_cleanup;
 
   /// Creates a new scheduler with no existing tasks.
-  Scheduler(Executor& executor, SqliteDataSource& store, Publisher& pub,
+  Scheduler(Executor& executor, SqliteDataSource& store,
+    PublisherFactory pub_factory,
     bool load_from_db = false)
-  : executor(executor), store(store), publisher(pub)
+  : executor(executor), store(store), publisher_factory(pub_factory)
   {
     if (load_from_db)
     {
@@ -242,6 +248,8 @@ public:
   }
 
 private:
+  using _Me = Scheduler<Executor, PublisherFactory>;
+
   std::unordered_map<std::string, std::shared_ptr<Task>> _trigger_tasks;
   std::unordered_map<std::string, std::shared_ptr<Task>> _schedule_tasks;
   std::recursive_mutex _tasks_mutex;
@@ -284,7 +292,9 @@ private:
             this->_trigger_tasks.erase(name);
           }
           auto trigger = this->store.fetch_trigger(name).value();
-          this->publisher.publish(trigger.payload);
+          this->_get_publisher(trigger.payload).publish(
+            trigger.payload.type,
+            trigger.payload.data);
           rmf_scheduler_msgs::msg::TriggerState state;
           auto now = this->executor.now();
           state.name = name;
@@ -315,7 +325,7 @@ private:
   // functor to allow self referencing normally not allowd in lambdas.
   struct _run_schedule_task
   {
-    using Me = Scheduler<Executor, Publisher>;
+    using Me = Scheduler<Executor, PublisherFactory>;
     Me* scheduler;
     std::string name;
 
@@ -334,7 +344,9 @@ private:
         auto now = this->scheduler->executor.now();
 
         auto schedule = this->scheduler->store.fetch_schedule(name).value();
-        this->scheduler->publisher.publish(schedule.payload);
+        this->scheduler->_get_publisher(schedule.payload).publish(
+          schedule.payload.type,
+          schedule.payload.data);
 
         rmf_scheduler_msgs::msg::ScheduleState state;
         state.name = this->name;
@@ -439,6 +451,47 @@ private:
           break;
       }
     }
+  }
+
+  std::unordered_map<std::string,
+    typename PublisherFactory::Publisher> _publishers;
+  std::unordered_map<std::string,
+    std::shared_ptr<Task>> _publisher_cleanup_tasks;
+
+  typename PublisherFactory::Publisher& _get_publisher(
+    const rmf_scheduler_msgs::msg::Payload& payload)
+  {
+    auto& topic = payload.topic;
+
+    if (this->_publishers.count(topic) == 0)
+    {
+      this->_publishers.emplace(topic, this->publisher_factory(topic,
+        payload.message_type));
+    }
+
+    // schedule the publisher to be cleaned up.
+    try
+    {
+      // remove previous task
+      this->executor.cancel_task(this->_publisher_cleanup_tasks.at(topic));
+    }
+    catch (const std::out_of_range&)
+    {
+      // no need to do anything
+    }
+    int64_t cleanup_time = this->executor.now() + kPublisherKeepAliveSecs;
+    this->_publisher_cleanup_tasks.emplace(topic,
+      this->executor.schedule_task(cleanup_time, [this, topic]()
+      {
+        this->_publisher_cleanup_tasks.erase(topic);
+        if (this->on_publisher_cleanup)
+        {
+          this->on_publisher_cleanup(this->_publishers.at(topic));
+        }
+        this->_publishers.erase(topic);
+      }));
+
+    return this->_publishers.at(topic);
   }
 };
 

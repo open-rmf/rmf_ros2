@@ -115,6 +115,8 @@ CREATE TABLE IF NOT EXISTS Trigger (
   at INTEGER NOT NULL,
   "group" TEXT NOT NULL,
   payload_type INTEGER NOT NULL,
+  payload_topic TEXT NOT NULL,
+  payload_message_type TEXT NOT NULL,
   payload_data BLOB NOT NULL,
   last_ran INTEGER NOT NULL,
   status INTEGER NOT NULL
@@ -132,6 +134,8 @@ CREATE TABLE IF NOT EXISTS Schedule (
   finish_at INTEGER NOT NULL,
   "group" TEXT NOT NULL,
   payload_type INTEGER NOT NULL,
+  payload_topic TEXT NOT NULL,
+  payload_message_type TEXT NOT NULL,
   payload_data BLOB NOT NULL,
   last_modified INTEGER NOT NULL,
   last_ran INTEGER NOT NULL,
@@ -301,13 +305,15 @@ INSERT OR REPLACE INTO Schedule (
   finish_at,
   "group",
   payload_type,
+  payload_topic,
+  payload_message_type,
   payload_data,
   last_modified,
   last_ran,
   next_run,
   status
 ) VALUES (
-  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
   )";
   sqlite3_stmt* stmt = this->_prepare_stmt(
@@ -319,6 +325,8 @@ INSERT OR REPLACE INTO Schedule (
     schedule.finish_at,
     schedule.group,
     schedule.payload.type,
+    schedule.payload.topic,
+    schedule.payload.message_type,
     schedule.payload.data,
     state.last_modified,
     state.last_ran,
@@ -377,9 +385,9 @@ void SqliteDataSource::create_trigger(
     R"(
 INSERT OR REPLACE INTO Trigger (
   name, created_at, last_modified, at, "group", payload_type,
-  payload_data, last_ran, status
+  payload_topic, payload_message_type, payload_data, last_ran, status
 ) VALUES (
-  ?, ?, ?, ?, ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 )";
   sqlite3_stmt* stmt = this->_prepare_stmt(
@@ -390,6 +398,8 @@ INSERT OR REPLACE INTO Trigger (
     trigger.at,
     trigger.group,
     trigger.payload.type,
+    trigger.payload.topic,
+    trigger.payload.message_type,
     trigger.payload.data,
     state.last_ran,
     state.status
@@ -498,7 +508,8 @@ SqliteCursor<rmf_scheduler_msgs::msg::Trigger>
 SqliteDataSource::_fetch_triggers(const std::string& where, Args&& ... args)
 {
   std::string sql =
-    R"(SELECT name, created_at, at, "group", payload_type, payload_data FROM Trigger )"
+    R"(SELECT name, created_at, at, "group", payload_type, payload_topic,
+payload_message_type, payload_data FROM Trigger )"
     + where;
   sqlite3_stmt* stmt = this->_prepare_stmt(sql, std::forward<Args>(args)...);
 
@@ -512,8 +523,10 @@ SqliteDataSource::_fetch_triggers(const std::string& where, Args&& ... args)
       trigger.at = sqlite3_column_int64(stmt, 2);
       trigger.group = (const char*) sqlite3_column_text(stmt, 3);
       trigger.payload.type = sqlite3_column_int(stmt, 4);
-      auto blob = (uint8_t*) sqlite3_column_blob(stmt, 5);
-      auto payload_size = sqlite3_column_bytes(stmt, 5);
+      trigger.payload.topic = (const char*) sqlite3_column_text(stmt, 5);
+      trigger.payload.message_type = (const char*) sqlite3_column_text(stmt, 6);
+      auto blob = (uint8_t*) sqlite3_column_blob(stmt, 7);
+      auto payload_size = sqlite3_column_bytes(stmt, 7);
       using PayloadData = decltype(trigger.payload.data);
       trigger.payload.data = PayloadData{blob, blob + payload_size};
       return trigger;
@@ -548,7 +561,7 @@ SqliteDataSource::_fetch_schedules(const std::string& where, Args&& ... args)
 {
   std::string sql =
     R"(SELECT name, created_at, schedule, start_at, finish_at, "group",
-payload_type, payload_data FROM Schedule )"
+payload_type, payload_topic, payload_message_type, payload_data FROM Schedule )"
     + where;
   sqlite3_stmt* stmt = this->_prepare_stmt(sql, std::forward<Args>(args)...);
 
@@ -564,8 +577,11 @@ payload_type, payload_data FROM Schedule )"
       schedule.finish_at = sqlite3_column_int64(stmt, 4);
       schedule.group = (const char*) sqlite3_column_text(stmt, 5);
       schedule.payload.type = sqlite3_column_int(stmt, 6);
-      auto blob = (uint8_t*) sqlite3_column_blob(stmt, 7);
-      auto payload_size = sqlite3_column_bytes(stmt, 7);
+      schedule.payload.topic = (const char*) sqlite3_column_text(stmt, 7);
+      schedule.payload.message_type =
+        (const char*) sqlite3_column_text(stmt, 8);
+      auto blob = (uint8_t*) sqlite3_column_blob(stmt, 9);
+      auto payload_size = sqlite3_column_bytes(stmt, 9);
       using PayloadData = decltype(schedule.payload.data);
       schedule.payload.data = PayloadData{blob, blob + payload_size};
       return schedule;

@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "Publisher.hpp"
+#include "RosPublisher.hpp"
 #include "Scheduler.hpp"
 #include "SqliteDataSource.hpp"
 #include "SystemTimeExecutor.hpp"
@@ -52,10 +52,9 @@ public:
   void spin_tasks();
 
 private:
-  using Scheduler = rmf::scheduler::Scheduler<SystemTimeExecutor, Publisher>;
+  using Scheduler = rmf::scheduler::Scheduler<SystemTimeExecutor, RosPublisherFactory>;
 
   SqliteDataSource _store;
-  Publisher _publisher{this};
   Scheduler _scheduler;
 
   rclcpp::Publisher<rmf_scheduler_msgs::msg::Trigger>::SharedPtr
