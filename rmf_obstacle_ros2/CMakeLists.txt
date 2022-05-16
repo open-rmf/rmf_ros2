@@ -47,6 +47,35 @@ ament_export_dependencies(
 )
 
 #===============================================================================
+add_library(obstacle_manager SHARED src/obstacle_manager/ObstacleManager.cpp)
+
+target_link_libraries(obstacle_manager
+  PRIVATE
+    rmf_utils::rmf_utils
+    ${rclcpp_LIBRARIES}
+    ${sensor_msgs_LIBRARIES}
+    ${rmf_obstacle_msgs_LIBRARIES}
+    ${rclcpp_components_LIBRARIES}
+
+)
+
+target_include_directories(obstacle_manager
+  PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    ${rclcpp_INCLUDE_DIRS}
+    ${rclcpp_components_INCLUDE_DIRS}
+    ${sensor_msgs_INCLUDE_DIRS}
+    ${rmf_obstacle_msgs_INCLUDE_DIRS}
+)
+
+target_compile_features(obstacle_manager INTERFACE cxx_std_17)
+
+rclcpp_components_register_node(obstacle_manager
+  PLUGIN "rmf_obstacle_ros::ObstacleManager"
+  EXECUTABLE obstacle_manager_node)
+
+#===============================================================================
 if(BUILD_TESTING)
   find_package(ament_cmake_uncrustify REQUIRED)
   find_file(uncrustify_config_file
@@ -70,6 +99,7 @@ install(
 install(
   TARGETS
     rmf_obstacle_ros2
+    obstacle_manager
   EXPORT rmf_obstacle_ros2
   RUNTIME DESTINATION lib/rmf_obstacle_ros2
   LIBRARY DESTINATION lib
