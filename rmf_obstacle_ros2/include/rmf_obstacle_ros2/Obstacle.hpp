@@ -15,37 +15,23 @@
  *
 */
 
-#ifndef RMF_OBSTACLE_ROS2__RESPONDER_HPP
-#define RMF_OBSTACLE_ROS2__RESPONDER_HPP
-
-#include <rmf_utils/impl_ptr.hpp>
-
-#include <rclcpp/rclcpp.hpp>
+#ifndef RMF_OBSTACLE_ROS2_OBSTACLE_HPP
+#define RMF_OBSTACLE_ROS2_OBSTACLE_HPP
 
 #include <rmf_obstacle_msgs/msg/obstacles.hpp>
 
-namespace rmf_obstacle_ros2 {
+#include <sensor_msgs/msg/point_cloud2.hpp>
 
 //==============================================================================
-/// Pure abstract class for detecting and reporting obstacles
-class Responder
-{
-public:
-  using Obstacles = rmf_obstacle_msgs::msg::Obstacles;
+namespace rmf_obstacle_ros2 {
 
-  virtual void initialize(const rclcpp::Node& node) = 0;
+using PointCloud2 = sensor_msgs::msg::PointCloud2;
+using Obstacle = rmf_obstacle_msgs::msg::Obstacle;
 
-  virtual std::string name() const = 0;
+//==============================================================================
+static Obstacle convert (const PointCloud2& msg);
 
-  virtual void respond(const Obstacles& obstacles) const = 0;
-
-  ~Responder() = default;
-
-};
-
-using ResponderPtr = std::shared_ptr<Responder>;
-using ConstResponderPtr = std::shared_ptr<const Responder>;
 
 } // namespace rmf_obstacle_ros2
 
-#endif // RMF_OBSTACLE_ROS2__RESPONDER_HPP
+#endif // #indef RMF_OBSTACLE_ROS2_OBSTACLE_HPP

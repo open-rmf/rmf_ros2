@@ -15,37 +15,32 @@
  *
 */
 
-#ifndef RMF_OBSTACLE_ROS2__RESPONDER_HPP
-#define RMF_OBSTACLE_ROS2__RESPONDER_HPP
+#ifndef SRC_RMF_OBSTACLE_ROS2__OBSTACLEMANAGER_HPP
+#define SRC_RMF_OBSTACLE_ROS2__OBSTACLEMANAGER_HPP
 
 #include <rmf_utils/impl_ptr.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 
-#include <rmf_obstacle_msgs/msg/obstacles.hpp>
-
 namespace rmf_obstacle_ros2 {
 
 //==============================================================================
-/// Pure abstract class for detecting and reporting obstacles
-class Responder
+/// Node to detect and publish obstacles to RMF
+class ObstacleManager : public rclcpp::Node
 {
 public:
-  using Obstacles = rmf_obstacle_msgs::msg::Obstacles;
+  /// The implementation expects users to pass the fully qualified plugin paths
+  /// for the detector and responder via ROS 2 parameters. The parameter names
+  /// are detector_plugin and responder_plugin respectively.
+  ObstacleManager(
+    const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
-  virtual void initialize(const rclcpp::Node& node) = 0;
+  class Implementation;
 
-  virtual std::string name() const = 0;
-
-  virtual void respond(const Obstacles& obstacles) const = 0;
-
-  ~Responder() = default;
-
+private:
+  rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
-
-using ResponderPtr = std::shared_ptr<Responder>;
-using ConstResponderPtr = std::shared_ptr<const Responder>;
 
 } // namespace rmf_obstacle_ros2
 
-#endif // RMF_OBSTACLE_ROS2__RESPONDER_HPP
+#endif // SRC_RMF_OBSTACLE_ROS2__OBSTACLEMANAGER_HPP

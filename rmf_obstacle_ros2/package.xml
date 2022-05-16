@@ -11,6 +11,7 @@
 
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
+  <depend>pluginlib</depend>
   <depend>rmf_utils</depend>
   <depend>rmf_obstacle_msgs</depend>
   <depend>sensor_msgs</depend>
