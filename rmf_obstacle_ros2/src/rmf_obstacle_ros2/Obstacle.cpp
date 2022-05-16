@@ -18,8 +18,7 @@
 #include <rmf_obstacle_ros2/Obstacle.hpp>
 
 //==============================================================================
-namespace rmf_obstacle_ros2
-{
+namespace rmf_obstacle_ros2 {
 
 Obstacle convert(const PointCloud2& msg)
 {

@@ -85,7 +85,7 @@ ObstacleManager::ObstacleManager(
   {
     data->detector = detector_loader.createSharedInstance(detector_plugin);
   }
-  catch(pluginlib::PluginlibException& e)
+  catch (pluginlib::PluginlibException& e)
   {
     RCLCPP_ERROR(
       this->get_logger(),
@@ -102,7 +102,7 @@ ObstacleManager::ObstacleManager(
   {
     data->responder = responder_loader.createSharedInstance(responder_plugin);
   }
-  catch(pluginlib::PluginlibException& e)
+  catch (pluginlib::PluginlibException& e)
   {
     RCLCPP_WARN(
       this->get_logger(),
@@ -118,7 +118,7 @@ ObstacleManager::ObstacleManager(
   double rate = this->declare_parameter("rate", 1.0);
   const auto timer_rate =
     std::chrono::duration_cast<std::chrono::nanoseconds>(
-      std::chrono::duration<double>(rate));
+    std::chrono::duration<double>(rate));
 
   data->detection_pub = this->create_publisher<Implementation::Obstacles>(
     ObstaclesTopicName,
@@ -143,10 +143,10 @@ ObstacleManager::ObstacleManager(
       const auto& obstacles = obstacles_opt.value();
       if (auto n = data->node.lock())
       {
-          RCLCPP_INFO(
-            n->get_logger(),
-            "Detector %s detected %ld obstacles",
-            data->detector->name().c_str(), obstacles.obstacles.size());
+        RCLCPP_INFO(
+          n->get_logger(),
+          "Detector %s detected %ld obstacles",
+          data->detector->name().c_str(), obstacles.obstacles.size());
       }
       // Publish obstacles
       data->detection_pub->publish(obstacles);

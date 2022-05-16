@@ -29,7 +29,7 @@ using PointCloud2 = sensor_msgs::msg::PointCloud2;
 using Obstacle = rmf_obstacle_msgs::msg::Obstacle;
 
 //==============================================================================
-static Obstacle convert (const PointCloud2& msg);
+static Obstacle convert(const PointCloud2& msg);
 
 
 } // namespace rmf_obstacle_ros2
