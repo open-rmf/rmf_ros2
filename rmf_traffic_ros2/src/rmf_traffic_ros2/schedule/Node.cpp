@@ -100,11 +100,6 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
         if (dep_u)
           continue;
 
-//        std::cout << "No deps for " << description->name()
-//                  << " " << plan_id << "|" << r << " vs "
-//                  << vc->description.name() << " " << vc->plan_id << "|" << vc->route_id
-//                  << std::endl;
-
         const auto found_conflict = rmf_traffic::DetectConflict::between(
           vc->description.profile(), vc->route->trajectory(), nullptr,
           description->profile(), route->trajectory(), nullptr);
