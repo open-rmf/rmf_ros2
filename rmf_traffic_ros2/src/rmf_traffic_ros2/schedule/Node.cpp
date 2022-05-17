@@ -92,17 +92,17 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 
         const auto* dep_v =
           vc->route->check_dependencies(participant, plan_id, r);
-        if (dep_v && !dep_v->empty())
+        if (dep_v)
           continue;
 
         const auto* dep_u =
           route->check_dependencies(vc->participant, vc->plan_id, vc->route_id);
-        if (dep_u && !dep_u->empty())
+        if (dep_u)
           continue;
 
         const auto found_conflict = rmf_traffic::DetectConflict::between(
-          vc->description.profile(), vc->route->trajectory(), dep_v,
-          description->profile(), route->trajectory(), dep_u);
+          vc->description.profile(), vc->route->trajectory(), nullptr,
+          description->profile(), route->trajectory(), nullptr);
         if (found_conflict.has_value())
         {
           conflicts.push_back({participant, vc->participant});

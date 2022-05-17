@@ -423,6 +423,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
   rmf_traffic::PlanId plan_id,
   rmf_traffic::agv::Plan plan,
+  rmf_traffic::schedule::Itinerary full_itinerary,
   const rmf_task::Event::AssignIDPtr& event_id,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> update,
@@ -618,7 +619,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
   std::size_t attempts = 0;
-  while (!context->itinerary().set(plan_id, plan.get_itinerary()))
+  while (!context->itinerary().set(plan_id, std::move(full_itinerary)))
   {
     // Some mysterious behavior has been happening where plan_ids are invalid.
     // We will attempt to catch that here and try to learn more about what

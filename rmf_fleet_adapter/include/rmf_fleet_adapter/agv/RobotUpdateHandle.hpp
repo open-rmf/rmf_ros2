@@ -19,6 +19,7 @@
 #define RMF_FLEET_ADAPTER__AGV__ROBOTUPDATEHANDLE_HPP
 
 #include <rmf_traffic/Time.hpp>
+#include <rmf_traffic/agv/Planner.hpp>
 #include <rmf_utils/impl_ptr.hpp>
 #include <rmf_utils/optional.hpp>
 
@@ -91,6 +92,10 @@ public:
     const double max_merge_waypoint_distance = 0.1,
     const double max_merge_lane_distance = 1.0,
     const double min_lane_length = 1e-8);
+
+  /// Update the current position of the robot by specifying a plan start set
+  /// for it.
+  void update_position(rmf_traffic::agv::Plan::StartSet position);
 
   /// Set the waypoint where the charger for this robot is located.
   /// If not specified, the nearest waypoint in the graph with the is_charger()
@@ -217,6 +222,42 @@ public:
   Interruption interrupt(
     std::vector<std::string> labels,
     std::function<void()> robot_is_interrupted);
+
+  /// Cancel a task, if it has been assigned to this robot
+  ///
+  /// \param[in] task_id
+  ///   The ID of the task to be canceled
+  ///
+  /// \param[in] labels
+  ///   Labels that will be assigned to this cancellation. It is recommended to
+  ///   include information about why the cancellation is happening.
+  ///
+  /// \param[in] on_cancellation
+  ///   Callback that will be triggered after the cancellation is issued.
+  ///   task_was_found will be true if the task was successfully found and
+  ///   issued the cancellation, false otherwise.
+  void cancel_task(
+    std::string task_id,
+    std::vector<std::string> labels,
+    std::function<void(bool task_was_found)> on_cancellation);
+
+  /// Kill a task, if it has been assigned to this robot
+  ///
+  /// \param[in] task_id
+  ///   The ID of the task to be canceled
+  ///
+  /// \param[in] labels
+  ///   Labels that will be assigned to this cancellation. It is recommended to
+  ///   include information about why the cancellation is happening.
+  ///
+  /// \param[in] on_kill
+  ///   Callback that will be triggered after the cancellation is issued.
+  ///   task_was_found will be true if the task was successfully found and
+  ///   issued the kill, false otherwise.
+  void kill_task(
+    std::string task_id,
+    std::vector<std::string> labels,
+    std::function<void(bool task_was_found)> on_kill);
 
   enum class Tier
   {

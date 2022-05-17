@@ -266,8 +266,12 @@ void EmergencyPullover::Active::_find_plan()
       self->_state->update_status(Status::Underway);
       self->_state->update_log().info("Found an emergency pullover");
 
+      auto full_itinerary = result->get_itinerary();
       self->_execute_plan(
-        self->_context->itinerary().assign_plan_id(), *std::move(result));
+        self->_context->itinerary().assign_plan_id(),
+        *std::move(result),
+        std::move(full_itinerary));
+
       self->_find_pullover_service = nullptr;
       self->_retry_timer = nullptr;
     });
@@ -315,14 +319,15 @@ void EmergencyPullover::Active::_schedule_retry()
 //==============================================================================
 void EmergencyPullover::Active::_execute_plan(
   const rmf_traffic::PlanId plan_id,
-  rmf_traffic::agv::Plan plan)
+  rmf_traffic::agv::Plan plan,
+  rmf_traffic::schedule::Itinerary full_itinerary)
 {
   if (_is_interrupted)
     return;
 
   _execution = ExecutePlan::make(
-    _context, plan_id, std::move(plan), _assign_id, _state,
-    _update, _finished, std::nullopt);
+    _context, plan_id, std::move(plan), std::move(full_itinerary), _assign_id,
+    _state, _update, _finished, std::nullopt);
 
   if (!_execution.has_value())
   {
@@ -341,12 +346,13 @@ Negotiator::NegotiatePtr EmergencyPullover::Active::_respond(
 {
   auto approval_cb = [w = weak_from_this()](
     const rmf_traffic::PlanId plan_id,
-    const rmf_traffic::agv::Plan& plan)
+    const rmf_traffic::agv::Plan& plan,
+    rmf_traffic::schedule::Itinerary full_itinerary)
     -> std::optional<rmf_traffic::schedule::ItineraryVersion>
     {
       if (auto self = w.lock())
       {
-        self->_execute_plan(plan_id, plan);
+        self->_execute_plan(plan_id, plan, std::move(full_itinerary));
         return self->_context->itinerary().version();
       }
 

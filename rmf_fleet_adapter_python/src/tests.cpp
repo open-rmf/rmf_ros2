@@ -1,5 +1,4 @@
 #include <pybind11/pybind11.h>
-#include <pybind11/iostream.h>
 #include <pybind11/functional.h>
 #include <pybind11/eigen.h>
 #include <memory>
@@ -29,9 +28,7 @@ void bind_tests(py::module& m)
     py::arg("print_str") = "DUMMY_DOCK_NAME",
     py::arg("docking_finished_callback") = (std::function<void()>)[] (){},
     "Test a shared_ptr<agv::RobotCommandHandle> "
-    "by testing its dock() method",
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>()
+    "by testing its dock() method"
   );
 
   // Test clone_ptr passing
@@ -47,8 +44,6 @@ void bind_tests(py::module& m)
     },
     "Test a clone_ptr<rmf_traffic::agv::Graph::OrientationConstraint> "
     "by testing its get() method",
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>(),
     py::return_value_policy::reference_internal
   );
 }

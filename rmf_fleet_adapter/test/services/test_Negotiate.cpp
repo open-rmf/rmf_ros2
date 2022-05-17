@@ -364,7 +364,7 @@ public:
     }
 
     auto negotiate = rmf_fleet_adapter::services::Negotiate::path(
-      0, _planner, _starts, _goal, table_viewer, responder, nullptr,
+      0, _planner, _starts, _goal, {}, table_viewer, responder, nullptr,
       evaluator);
 
     auto sub = rmf_rxcpp::make_job<
