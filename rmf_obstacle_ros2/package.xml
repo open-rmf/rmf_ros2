@@ -15,6 +15,7 @@
   <depend>rmf_utils</depend>
   <depend>rmf_obstacle_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>octomap</depend>
 
   <test_depend>ament_cmake_uncrustify</test_depend>
 

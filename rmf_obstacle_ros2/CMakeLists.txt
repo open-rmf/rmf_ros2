@@ -15,9 +15,10 @@ find_package(pluginlib REQUIRED)
 find_package(rmf_utils REQUIRED)
 find_package(rmf_obstacle_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(octomap REQUIRED)
 
 #===============================================================================
-file(GLOB_RECURSE core_lib_srcs "src/rmf_obstacle_ros2/*.cpp")
+file(GLOB_RECURSE core_lib_srcs "src/rmf_obstacle_ros2/Obstacle.cpp")
 add_library(rmf_obstacle_ros2 SHARED ${core_lib_srcs})
 
 target_link_libraries(rmf_obstacle_ros2
@@ -27,6 +28,7 @@ target_link_libraries(rmf_obstacle_ros2
     ${sensor_msgs_LIBRARIES}
   PRIVATE
     ${rmf_obstacle_msgs_LIBRARIES}
+    ${OCTOMAP_LIBRARIES}
 )
 
 target_include_directories(rmf_obstacle_ros2
@@ -37,17 +39,17 @@ target_include_directories(rmf_obstacle_ros2
     ${sensor_msgs_INCLUDE_DIRS}
   PRIVATE
     ${rmf_obstacle_msgs_INCLUDE_DIRS}
+    ${OCTOMAP_INCLUDE_DIRS}
 )
 
 target_compile_features(rmf_obstacle_ros2 INTERFACE cxx_std_17)
 
 ament_export_targets(rmf_obstacle_ros2 HAS_LIBRARY_TARGET)
-ament_export_include_directories(
-  include
-)
+
 ament_export_dependencies(
   rclcpp
   sensor_msgs
+  rmf_obstacle_msgs
 )
 
 #===============================================================================

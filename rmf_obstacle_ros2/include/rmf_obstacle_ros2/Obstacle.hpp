@@ -18,18 +18,32 @@
 #ifndef RMF_OBSTACLE_ROS2_OBSTACLE_HPP
 #define RMF_OBSTACLE_ROS2_OBSTACLE_HPP
 
-#include <rmf_obstacle_msgs/msg/obstacles.hpp>
+#include <rmf_utils/impl_ptr.hpp>
 
+#include <rmf_obstacle_msgs/msg/obstacle_data.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
-//==============================================================================
+#include <optional>
+
 namespace rmf_obstacle_ros2 {
 
-using PointCloud2 = sensor_msgs::msg::PointCloud2;
-using Obstacle = rmf_obstacle_msgs::msg::Obstacle;
+using Header = std_msgs::msg::Header;
+using PointCloud = sensor_msgs::msg::PointCloud2;
+using ObstacleData = rmf_obstacle_msgs::msg::ObstacleData;
+
+// TODO(YV): Consider defining a pure abstract class to perform
+// serialization/deserialization. The abstract class could also have a function
+// to generate MarkerArrays for rviz visualization.
+// Provide a default implementation.
+//==============================================================================
+/// Serialize a PointCloud2 msg into RMF obstacle octree
+static ObstacleData convert(const PointCloud& msg);
 
 //==============================================================================
-static Obstacle convert(const PointCloud2& msg);
+/// Deserialize an RMF obstacle octree into a PointCloud2 msg
+static PointCloud convert(
+  const Header& header,
+  const ObstacleData& msg);
 
 
 } // namespace rmf_obstacle_ros2
