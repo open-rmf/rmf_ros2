@@ -17,17 +17,18 @@
 
 #include <rmf_obstacle_ros2/Obstacle.hpp>
 
-#include <octomap/octomap.h>
+#include <octomap/OcTree.h>
 
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
 namespace rmf_obstacle_ros2 {
 
 //==============================================================================
-ObstacleData convert(const PointCloud& msg)
+void fill_obstacle_data(const PointCloud& msg, Obstacle& obstacle)
 {
-  ObstacleData data;
-  octomap::OcTree tree(data.RESOLUTION);
+  const double resolution = obstacle.data_resolution > 0 ?
+    obstacle.data_resolution : 0.1;
+  octomap::OcTree tree(resolution);
 
   // First convert to octomap::Pointcloud
   octomap::Pointcloud cloud;
@@ -45,7 +46,7 @@ ObstacleData convert(const PointCloud& msg)
       cloud.push_back(*iter_x, *iter_y, *iter_z);
     }
   }
-  // We assume the point cloud data is in global RMF coordinates.
+  // We assume the point cloud data has its origin at the frame id specified
   const octomap::point3d sensor_origin(0.0, 0.0, 0.0);
   tree.insertPointCloud(cloud, sensor_origin);
 
@@ -53,20 +54,17 @@ ObstacleData convert(const PointCloud& msg)
   std::stringstream datastream;
   tree.writeBinaryData(datastream);
   const std::string datastring = datastream.str();
-  data.data = std::vector<int8_t>(datastring.begin(), datastring.end());
-
-  return data;
+  obstacle.data = std::vector<int8_t>(datastring.begin(), datastring.end());
 }
 
 //==============================================================================
 PointCloud convert(
-  const Header& header,
-  const ObstacleData& msg)
+  const Obstacle& msg)
 {
   PointCloud cloud;
-  cloud.header = header;
+  cloud.header = msg.header;
 
-  octomap::OcTree tree(msg.RESOLUTION);
+  octomap::OcTree tree(msg.data_resolution);
   // Construct octree
   if (msg.data.empty())
     return cloud;
@@ -94,6 +92,9 @@ PointCloud convert(
   }
 
   // TODO(YV): Fill other fields
+  cloud.is_bigendian = false;
+  // cloud.point_step = 6;
+  // cloud.row_step = 6;
   return cloud;
 }
 

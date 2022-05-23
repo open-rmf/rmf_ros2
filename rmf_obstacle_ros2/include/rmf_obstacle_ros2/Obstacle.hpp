@@ -20,16 +20,13 @@
 
 #include <rmf_utils/impl_ptr.hpp>
 
-#include <rmf_obstacle_msgs/msg/obstacle_data.hpp>
+#include <rmf_obstacle_msgs/msg/obstacle.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
-
-#include <optional>
 
 namespace rmf_obstacle_ros2 {
 
-using Header = std_msgs::msg::Header;
 using PointCloud = sensor_msgs::msg::PointCloud2;
-using ObstacleData = rmf_obstacle_msgs::msg::ObstacleData;
+using Obstacle = rmf_obstacle_msgs::msg::Obstacle;
 
 // TODO(YV): Consider defining a pure abstract class to perform
 // serialization/deserialization. The abstract class could also have a function
@@ -37,13 +34,12 @@ using ObstacleData = rmf_obstacle_msgs::msg::ObstacleData;
 // Provide a default implementation.
 //==============================================================================
 /// Serialize a PointCloud2 msg into RMF obstacle octree
-static ObstacleData convert(const PointCloud& msg);
+static void fill_obstacle_data(const PointCloud& msg, Obstacle& obstacle);
 
 //==============================================================================
 /// Deserialize an RMF obstacle octree into a PointCloud2 msg
 static PointCloud convert(
-  const Header& header,
-  const ObstacleData& msg);
+  const Obstacle& msg);
 
 
 } // namespace rmf_obstacle_ros2

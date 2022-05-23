@@ -15,10 +15,10 @@ find_package(pluginlib REQUIRED)
 find_package(rmf_utils REQUIRED)
 find_package(rmf_obstacle_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(octomap REQUIRED)
+find_package(OCTOMAP REQUIRED)
 
 #===============================================================================
-file(GLOB_RECURSE core_lib_srcs "src/rmf_obstacle_ros2/Obstacle.cpp")
+file(GLOB_RECURSE core_lib_srcs "src/rmf_obstacle_ros2/*.cpp")
 add_library(rmf_obstacle_ros2 SHARED ${core_lib_srcs})
 
 target_link_libraries(rmf_obstacle_ros2
@@ -26,8 +26,8 @@ target_link_libraries(rmf_obstacle_ros2
     rmf_utils::rmf_utils
     ${rclcpp_LIBRARIES}
     ${sensor_msgs_LIBRARIES}
-  PRIVATE
     ${rmf_obstacle_msgs_LIBRARIES}
+  PRIVATE
     ${OCTOMAP_LIBRARIES}
 )
 
@@ -37,8 +37,8 @@ target_include_directories(rmf_obstacle_ros2
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rclcpp_INCLUDE_DIRS}
     ${sensor_msgs_INCLUDE_DIRS}
-  PRIVATE
     ${rmf_obstacle_msgs_INCLUDE_DIRS}
+  PRIVATE
     ${OCTOMAP_INCLUDE_DIRS}
 )
 
@@ -100,7 +100,7 @@ endif()
 
 #===============================================================================
 install(
-  DIRECTORY include/
+  DIRECTORY include/rmf_obstacle_ros2
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
