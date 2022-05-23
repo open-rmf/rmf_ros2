@@ -932,31 +932,31 @@ std::shared_ptr<Connections> make_fleet(
   connections->adapter = adapter;
   connections->on_set_param =
     node->get_node_parameters_interface()->add_on_set_parameters_callback(
-      [w = connections->weak_from_this()](
-        const std::vector<rclcpp::Parameter>& params)
-        -> rcl_interfaces::msg::SetParametersResult
-      {
-        const auto self = w.lock();
-        if (!self)
-          return rcl_interfaces::msg::SetParametersResult();
+    [w = connections->weak_from_this()](
+      const std::vector<rclcpp::Parameter>& params)
+    -> rcl_interfaces::msg::SetParametersResult
+    {
+      const auto self = w.lock();
+      if (!self)
+        return rcl_interfaces::msg::SetParametersResult();
 
-        for (const auto& p : params)
+      for (const auto& p : params)
+      {
+        if (p.get_name() == "enable_responsive_wait")
         {
-          if (p.get_name() == "enable_responsive_wait")
+          const auto value = p.as_bool();
+          for (auto& [_, cmd] : self->robots)
           {
-            const auto value = p.as_bool();
-            for (auto& [_, cmd] : self->robots)
-            {
-              if (const auto updater = cmd->get_updater())
-                updater->enable_responsive_wait(value);
-            }
+            if (const auto updater = cmd->get_updater())
+              updater->enable_responsive_wait(value);
           }
         }
+      }
 
-        rcl_interfaces::msg::SetParametersResult r;
-        r.successful = true;
-        return r;
-      });
+      rcl_interfaces::msg::SetParametersResult r;
+      r.successful = true;
+      return r;
+    });
 
   const std::string fleet_name_param_name = "fleet_name";
   const std::string fleet_name = node->declare_parameter(
