@@ -19,6 +19,7 @@
 
 #include <exception>
 #include <memory>
+#include <string>
 
 class sqlite3;
 
