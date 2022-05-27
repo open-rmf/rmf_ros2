@@ -48,7 +48,7 @@ void RosPublisher::_publish_serialized_message(const PayloadData& data)
 {
   rclcpp::SerializedMessage serialized{data.size()};
   auto& rcl_msg = serialized.get_rcl_serialized_message();
-  std::copy(&data.front(), &data.back(), rcl_msg.buffer);
+  std::copy(data.begin(), data.end(), rcl_msg.buffer);
   rcl_msg.buffer_length = data.size();
   this->_rcl_publisher->publish(serialized);
 }
