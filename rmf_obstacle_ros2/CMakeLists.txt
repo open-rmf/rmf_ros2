@@ -63,6 +63,8 @@ add_library(obstacle_manager SHARED src/obstacle_manager/ObstacleManager.cpp)
 target_link_libraries(obstacle_manager
   PRIVATE
     rmf_obstacle_ros2
+    pluginlib::pluginlib
+    rclcpp::rclcpp
 )
 
 target_include_directories(obstacle_manager
