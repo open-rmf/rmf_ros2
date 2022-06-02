@@ -66,6 +66,7 @@ public:
     Standby(rmf_traffic::agv::Plan::Goal goal);
 
     rmf_traffic::agv::Plan::Goal _goal;
+    std::vector<rmf_traffic::agv::Plan::Goal> _followed_by;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
     rmf_traffic::Duration _time_estimate;
@@ -85,6 +86,7 @@ public:
       const AssignIDPtr& id,
       agv::RobotContextPtr context,
       rmf_traffic::agv::Plan::Goal goal,
+      std::vector<rmf_traffic::agv::Plan::Goal> followed_by,
       std::optional<rmf_traffic::Duration> tail_period,
       rmf_task::events::SimpleEventStatePtr state,
       std::function<void()> update,
@@ -112,7 +114,8 @@ public:
 
     void _execute_plan(
       rmf_traffic::PlanId plan_id,
-      rmf_traffic::agv::Plan plan);
+      rmf_traffic::agv::Plan plan,
+      rmf_traffic::schedule::Itinerary full_itinerary);
 
     void _stop_and_clear();
 
@@ -121,6 +124,7 @@ public:
       const Negotiator::ResponderPtr& responder);
 
     rmf_traffic::agv::Plan::Goal _goal;
+    std::vector<rmf_traffic::agv::Plan::Goal> _followed_by;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
     std::optional<rmf_traffic::Duration> _tail_period;

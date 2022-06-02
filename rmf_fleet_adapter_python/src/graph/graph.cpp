@@ -1,5 +1,4 @@
 #include <pybind11/pybind11.h>
-#include <pybind11/iostream.h>
 #include <pybind11/chrono.h>
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
@@ -137,9 +136,7 @@ void bind_graph(py::module& m)
     &Graph::add_lane,
     py::arg("entry"),
     py::arg("exit"),
-    py::arg("properties") = Lane::Properties(),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("properties") = Lane::Properties())
   .def("add_dock_lane",
     [&](Graph& self,
     const std::size_t w0,
@@ -162,9 +159,7 @@ void bind_graph(py::module& m)
     py::arg("w1"),
     py::arg("dock_name"),
     py::arg("dock_seconds") = 10,
-    py::arg("properties") = Lane::Properties(),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("properties") = Lane::Properties())
   .def("add_bidir_lane",
     [&](Graph& self,
     const std::size_t w0,
@@ -172,9 +167,7 @@ void bind_graph(py::module& m)
     {
       self.add_lane(w0, w1);
       self.add_lane(w1, w0);
-    },
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    })
   .def("get_lane", py::overload_cast<std::size_t>(&Graph::get_lane))
   .def("get_lane", py::overload_cast<std::size_t>(
       &Graph::get_lane, py::const_))

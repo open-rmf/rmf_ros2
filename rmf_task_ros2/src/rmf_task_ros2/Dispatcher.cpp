@@ -254,7 +254,7 @@ public:
       {
         this->conclude_bid(task_id, std::move(winner), errors);
       },
-      std::make_shared<bidding::LeastFleetDiffCostEvaluator>());
+      std::make_shared<bidding::QuickestFinishEvaluator>());
 
     // Setup up stream srv interfaces
     submit_task_srv = node->create_service<SubmitTaskSrv>(
