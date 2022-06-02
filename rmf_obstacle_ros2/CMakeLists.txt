@@ -7,15 +7,20 @@ endif()
 
 include(GNUInstallDirs)
 
-# find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(rclcpp_components REQUIRED)
-find_package(pluginlib REQUIRED)
-find_package(rmf_utils REQUIRED)
-find_package(rmf_obstacle_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(OCTOMAP REQUIRED)
+
+set(dep_pkgs
+  rclcpp
+  rclcpp_components
+  rmf_utils
+  pluginlib
+  rmf_obstacle_msgs
+  sensor_msgs
+  OCTOMAP
+)
+foreach(pkg ${dep_pkgs})
+  find_package(${pkg} REQUIRED)
+endforeach()
 
 #===============================================================================
 file(GLOB_RECURSE core_lib_srcs "src/rmf_obstacle_ros2/*.cpp")
@@ -46,11 +51,7 @@ target_compile_features(rmf_obstacle_ros2 INTERFACE cxx_std_17)
 
 ament_export_targets(rmf_obstacle_ros2 HAS_LIBRARY_TARGET)
 
-ament_export_dependencies(
-  rclcpp
-  sensor_msgs
-  rmf_obstacle_msgs
-)
+ament_export_dependencies(${dep_pkgs})
 
 #===============================================================================
 add_library(obstacle_manager SHARED src/obstacle_manager/ObstacleManager.cpp)
@@ -58,12 +59,6 @@ add_library(obstacle_manager SHARED src/obstacle_manager/ObstacleManager.cpp)
 target_link_libraries(obstacle_manager
   PRIVATE
     rmf_obstacle_ros2
-    rmf_utils::rmf_utils
-    ${rclcpp_LIBRARIES}
-    ${sensor_msgs_LIBRARIES}
-    ${rmf_obstacle_msgs_LIBRARIES}
-    ${rclcpp_components_LIBRARIES}
-    ${pluginlib_LIBRARIES}
 )
 
 target_include_directories(obstacle_manager
@@ -100,7 +95,7 @@ endif()
 
 #===============================================================================
 install(
-  DIRECTORY include/rmf_obstacle_ros2
+  DIRECTORY include/
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 

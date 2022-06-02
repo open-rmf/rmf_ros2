@@ -75,10 +75,10 @@ ObstacleManager::ObstacleManager(
 
   // Parameters to receive the fully qualified plugin strings
   const std::string detector_plugin = this->declare_parameter(
-    "detector_plugin", "");
+    "detector_plugin", "dummy_detector");
 
   const std::string responder_plugin = this->declare_parameter(
-    "responder_plugin", "");
+    "responder_plugin", "dummy_responder");
 
 
   data->node = this->ObstacleManager::shared_from_this();
