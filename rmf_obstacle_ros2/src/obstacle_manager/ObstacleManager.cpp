@@ -80,24 +80,14 @@ ObstacleManager::ObstacleManager(
   const std::string responder_plugin = this->declare_parameter(
     "responder_plugin", "");
 
-  // Initialize the detector
-  try
-  {
-    data->detector = detector_loader.createSharedInstance(detector_plugin);
-  }
-  catch (pluginlib::PluginlibException& e)
-  {
-    RCLCPP_ERROR(
-      this->get_logger(),
-      "Failed to load detector plugin provided via the detector_plugin ROS 2 "
-      "parameter. Please ensure the fully qualified name of the plugin is "
-      "provided. Detailed error: %s",
-      e.what());
-    return;
-  }
-  data->detector->initialize(*this);
 
-  // Initialize the detector
+  data->node = this->ObstacleManager::shared_from_this();
+
+  data->detection_pub = this->create_publisher<Implementation::Obstacles>(
+    ObstaclesTopicName,
+    rclcpp::QoS(10));
+
+  // Initialize the responder
   try
   {
     data->responder = responder_loader.createSharedInstance(responder_plugin);
@@ -115,32 +105,25 @@ ObstacleManager::ObstacleManager(
   if (data->responder)
     data->responder->initialize(*this);
 
-  double rate = this->declare_parameter("rate", 1.0);
-  const auto timer_rate =
-    std::chrono::duration_cast<std::chrono::nanoseconds>(
-    std::chrono::duration<double>(rate));
+  // Initialize the detector
+  try
+  {
+    data->detector = detector_loader.createSharedInstance(detector_plugin);
+  }
+  catch (pluginlib::PluginlibException& e)
+  {
+    RCLCPP_ERROR(
+      this->get_logger(),
+      "Failed to load detector plugin provided via the detector_plugin ROS 2 "
+      "parameter. Please ensure the fully qualified name of the plugin is "
+      "provided. Detailed error: %s",
+      e.what());
+    return;
+  }
 
-  data->detection_pub = this->create_publisher<Implementation::Obstacles>(
-    ObstaclesTopicName,
-    rclcpp::QoS(10));
-
-  data->detection_timer = this->create_wall_timer(
-    timer_rate,
-    [data = data]()
+  auto detection_cb =
+    [data = data](const Responder::Obstacles& obstacles)
     {
-      const auto obstacles_opt = data->detector->obstacles();
-      if (!obstacles_opt.has_value())
-      {
-        if (auto n = data->node.lock())
-        {
-          RCLCPP_INFO(
-            n->get_logger(),
-            "No obstacles detected by detector %s",
-            data->detector->name().c_str());
-        }
-      }
-
-      const auto& obstacles = obstacles_opt.value();
       if (auto n = data->node.lock())
       {
         RCLCPP_INFO(
@@ -148,6 +131,7 @@ ObstacleManager::ObstacleManager(
           "Detector %s detected %ld obstacles",
           data->detector->name().c_str(), obstacles.obstacles.size());
       }
+
       // Publish obstacles
       data->detection_pub->publish(obstacles);
       if (data->responder)
@@ -161,10 +145,11 @@ ObstacleManager::ObstacleManager(
             data->responder->name().c_str());
         }
       }
+    };
 
-    });
 
-  data->node = this->ObstacleManager::shared_from_this();
+  data->detector->initialize(*this, detection_cb);
+
 
   _pimpl = rmf_utils::make_unique_impl<Implementation>(data);
 }

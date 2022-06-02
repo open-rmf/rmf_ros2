@@ -27,7 +27,8 @@
 namespace rmf_obstacle_ros2 {
 
 //==============================================================================
-/// Pure abstract class for detecting and reporting obstacles
+/// Pure abstract class that reacts to obstacles detected. This should be
+/// implemented as a plugin using pluginlib.
 class Responder
 {
 public:
@@ -39,7 +40,7 @@ public:
 
   virtual void respond(const Obstacles& obstacles) const = 0;
 
-  ~Responder() = default;
+  virtual ~Responder() = default;
 
 };
 

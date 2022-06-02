@@ -30,18 +30,28 @@ namespace rmf_obstacle_ros2 {
 
 //==============================================================================
 /// Pure abstract class for detecting and reporting obstacles
+/// This class should be implemented as a plugin using pluginlib
 class Detector
 {
 public:
   using Obstacles = rmf_obstacle_msgs::msg::Obstacles;
+  using DetectorCallback = std::function<void(const Obstacles& obstacles)>;
 
-  virtual void initialize(const rclcpp::Node& node) = 0;
 
+  /// param[in] node
+  ///   A reference to rclcpp::Node
+  ///
+  /// param[in] cb
+  ///   The callback that should be triggered when this detector detects any
+  ///   obstacles. If nullptr, the detector will not do anything.
+  virtual void initialize(
+    const rclcpp::Node& node,
+    DetectorCallback cb) = 0;
+
+  /// Get the name of this detector
   virtual std::string name() const = 0;
 
-  virtual std::optional<Obstacles> obstacles() const = 0;
-
-  ~Detector() = default;
+  virtual ~Detector() = default;
 
 };
 
