@@ -53,6 +53,10 @@ ament_export_targets(rmf_obstacle_ros2 HAS_LIBRARY_TARGET)
 
 ament_export_dependencies(${dep_pkgs})
 
+ament_export_include_directories(
+  include
+)
+
 #===============================================================================
 add_library(obstacle_manager SHARED src/obstacle_manager/ObstacleManager.cpp)
 

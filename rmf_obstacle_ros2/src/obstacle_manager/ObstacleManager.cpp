@@ -80,9 +80,6 @@ ObstacleManager::ObstacleManager(
   const std::string responder_plugin = this->declare_parameter(
     "responder_plugin", "dummy_responder");
 
-
-  data->node = this->ObstacleManager::shared_from_this();
-
   data->detection_pub = this->create_publisher<Implementation::Obstacles>(
     ObstaclesTopicName,
     rclcpp::QoS(10));
@@ -150,6 +147,7 @@ ObstacleManager::ObstacleManager(
 
   data->detector->initialize(*this, detection_cb);
 
+  data->node = this->ObstacleManager::shared_from_this();
 
   _pimpl = rmf_utils::make_unique_impl<Implementation>(data);
 }
