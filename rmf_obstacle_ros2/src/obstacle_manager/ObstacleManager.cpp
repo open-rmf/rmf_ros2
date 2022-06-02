@@ -18,76 +18,43 @@
 
 #include "ObstacleManager.hpp"
 #include <rmf_obstacle_ros2/StandardNames.hpp>
-#include <rmf_obstacle_ros2/Detector.hpp>
-#include <rmf_obstacle_ros2/Responder.hpp>
 
 #include <rmf_obstacle_msgs/msg/obstacles.hpp>
 
 #include <rclcpp_components/register_node_macro.hpp>
 
-#include <pluginlib/class_loader.hpp>
 
 namespace rmf_obstacle_ros2 {
 
 //==============================================================================
-class ObstacleManager::Implementation
-{
-public:
-  using Obstacles = rmf_obstacle_msgs::msg::Obstacles;
-
-  struct Data
-  {
-    DetectorPtr detector;
-    ResponderPtr responder;
-    std::weak_ptr<rclcpp::Node> node;
-    rclcpp::TimerBase::SharedPtr detection_timer;
-    rclcpp::Publisher<Obstacles>::SharedPtr detection_pub;
-  };
-
-  Implementation(
-    std::shared_ptr<Data> data_)
-  {
-    data = std::move(data_);
-  }
-
-  std::shared_ptr<Data> data;
-};
-
-//==============================================================================
 ObstacleManager::ObstacleManager(
   const rclcpp::NodeOptions& options)
-: Node("obstacle_manager", options)
+: Node("obstacle_manager", options),
+  _detector_loader("rmf_obstacle_ros2", "rmf_obstacle_ros2::Detector"),
+  _responder_loader("rmf_obstacle_ros2", "rmf_obstacle_ros2::Responder")
 {
 
-  auto data = std::make_shared<Implementation::Data>();
-  data->responder = nullptr;
+  _responder = nullptr;
 
   RCLCPP_INFO(
     this->get_logger(),
     "Setting up ObstacleManager...");
 
-  // First argument is the package name of the tempalted base class.
-  // Second argument is the fully qualified base class type
-  pluginlib::ClassLoader<Detector> detector_loader(
-    "rmf_obstacle_ros2", "rmf_obstacle_ros2::Detector");
-  pluginlib::ClassLoader<Responder> responder_loader(
-    "rmf_obstacle_ros2", "rmf_obstacle_ros2::Responder");
-
   // Parameters to receive the fully qualified plugin strings
   const std::string detector_plugin = this->declare_parameter(
-    "detector_plugin", "dummy_detector");
+    "detector_plugin", "");
 
   const std::string responder_plugin = this->declare_parameter(
-    "responder_plugin", "dummy_responder");
+    "responder_plugin", "");
 
-  data->detection_pub = this->create_publisher<Implementation::Obstacles>(
+  _detection_pub = this->create_publisher<Obstacles>(
     ObstaclesTopicName,
     rclcpp::QoS(10));
 
   // Initialize the responder
   try
   {
-    data->responder = responder_loader.createSharedInstance(responder_plugin);
+    _responder = _responder_loader.createSharedInstance(responder_plugin);
   }
   catch (pluginlib::PluginlibException& e)
   {
@@ -99,13 +66,13 @@ ObstacleManager::ObstacleManager(
       "obstacles detected. Detailed error: %s",
       e.what());
   }
-  if (data->responder)
-    data->responder->initialize(*this);
+  if (_responder != nullptr)
+    _responder->initialize(*this);
 
   // Initialize the detector
   try
   {
-    data->detector = detector_loader.createSharedInstance(detector_plugin);
+    _detector = _detector_loader.createSharedInstance(detector_plugin);
   }
   catch (pluginlib::PluginlibException& e)
   {
@@ -118,38 +85,23 @@ ObstacleManager::ObstacleManager(
     return;
   }
 
-  auto detection_cb =
-    [data = data](const Responder::Obstacles& obstacles)
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Successfully loaded detector_plugin: %s",
+    detector_plugin.c_str());
+
+
+  _detector->initialize(*this,
+    [pub=_detection_pub, responder = _responder](
+      const Responder::Obstacles& obstacles)
     {
-      if (auto n = data->node.lock())
+      pub->publish(obstacles);
+      if (responder)
       {
-        RCLCPP_INFO(
-          n->get_logger(),
-          "Detector %s detected %ld obstacles",
-          data->detector->name().c_str(), obstacles.obstacles.size());
+        responder->respond(obstacles);
       }
+    });
 
-      // Publish obstacles
-      data->detection_pub->publish(obstacles);
-      if (data->responder)
-      {
-        data->responder->respond(obstacles);
-        if (auto n = data->node.lock())
-        {
-          RCLCPP_INFO(
-            n->get_logger(),
-            "Responder %s has responded to obstacles",
-            data->responder->name().c_str());
-        }
-      }
-    };
-
-
-  data->detector->initialize(*this, detection_cb);
-
-  data->node = this->ObstacleManager::shared_from_this();
-
-  _pimpl = rmf_utils::make_unique_impl<Implementation>(data);
 }
 
 } // namespace rmf_obstacle_ros2

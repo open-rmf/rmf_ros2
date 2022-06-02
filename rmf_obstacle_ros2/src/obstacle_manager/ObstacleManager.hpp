@@ -18,9 +18,14 @@
 #ifndef SRC__RMF_OBSTACLE_ROS2__OBSTACLEMANAGER_HPP
 #define SRC__RMF_OBSTACLE_ROS2__OBSTACLEMANAGER_HPP
 
-#include <rmf_utils/impl_ptr.hpp>
-
 #include <rclcpp/rclcpp.hpp>
+
+#include <rmf_obstacle_ros2/Detector.hpp>
+#include <rmf_obstacle_ros2/Responder.hpp>
+
+#include <rmf_obstacle_msgs/msg/obstacles.hpp>
+
+#include <pluginlib/class_loader.hpp>
 
 namespace rmf_obstacle_ros2 {
 
@@ -29,16 +34,21 @@ namespace rmf_obstacle_ros2 {
 class ObstacleManager : public rclcpp::Node
 {
 public:
+  using Obstacles = rmf_obstacle_msgs::msg::Obstacles;
   /// The implementation expects users to pass the fully qualified plugin paths
   /// for the detector and responder via ROS 2 parameters. The parameter names
-  /// are detector_plugin and responder_plugin respectively.
+  /// are "detector_plugin" and "responder_plugin" respectively.
   ObstacleManager(
     const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
   class Implementation;
 
 private:
-  rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+  pluginlib::ClassLoader<Detector> _detector_loader;
+  pluginlib::ClassLoader<Responder> _responder_loader;
+  DetectorPtr _detector;
+  ResponderPtr _responder;
+  rclcpp::Publisher<Obstacles>::SharedPtr _detection_pub;
 };
 
 } // namespace rmf_obstacle_ros2
