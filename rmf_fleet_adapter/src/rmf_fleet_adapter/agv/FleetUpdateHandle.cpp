@@ -152,42 +152,42 @@ void FleetUpdateHandle::Implementation::publish_nav_graph() const
     const auto& wp = graph.get_waypoint(i);
     const auto& loc = wp.get_location();
     std::vector<GraphParamMsg> params;
-    params.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
       .name("map_name")
       .type(GraphParamMsg::TYPE_STRING)
       .value_int(0)
       .value_float(0.0)
       .value_string(wp.get_map_name())
       .value_bool(false));
-    params.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
       .name("is_holding_point")
       .type(GraphParamMsg::TYPE_BOOL)
       .value_int(0)
       .value_float(0.0)
       .value_string("")
       .value_bool(wp.is_holding_point()));
-    params.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
       .name("is_passthrough_point")
       .type(GraphParamMsg::TYPE_BOOL)
       .value_int(0)
       .value_float(0.0)
       .value_string("")
       .value_bool(wp.is_passthrough_point()));
-    params.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
       .name("is_parking_spot")
       .type(GraphParamMsg::TYPE_BOOL)
       .value_int(0)
       .value_float(0.0)
       .value_string("")
       .value_bool(wp.is_parking_spot()));
-    params.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
       .name("is_charger")
       .type(GraphParamMsg::TYPE_BOOL)
       .value_int(0)
       .value_float(0.0)
       .value_string("")
       .value_bool(wp.is_charger()));
-    vertices.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    vertices.emplace_back(rmf_building_map_msgs::build<GraphNodeMsg>()
       .x(loc[0])
       .y(loc[1])
       .name(wp.name_or_index())
@@ -198,7 +198,7 @@ void FleetUpdateHandle::Implementation::publish_nav_graph() const
   {
     const auto& lane = graph.get_lane(i);
     // All lanes in rmf_traffic::agv::Graph are unidirectional
-    edges.push_back(
+    edges.emplace_back(
       rmf_building_map_msgs::build<GraphEdgeMsg>()
       .v1_idx(lane.entry().waypoint_index())
       .v2_idx(lane.exit().waypoint_index())
