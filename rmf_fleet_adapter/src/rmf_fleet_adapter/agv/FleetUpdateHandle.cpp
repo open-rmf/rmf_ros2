@@ -142,56 +142,78 @@ void FleetUpdateHandle::Implementation::publish_nav_graph() const
     return;
 
   const auto& graph = (*planner)->get_configuration().graph();
-  std::unique_ptr<GraphMsg> msg = std::make_unique<GraphMsg>();
-  // TODO(YV): Serialize Graph in a separate function if it needs to be reused elsewhere
   const std::size_t n_waypoints = graph.num_waypoints();
   const std::size_t n_lanes = graph.num_lanes();
+  std::vector<GraphNodeMsg> vertices;
+  std::vector<GraphEdgeMsg> edges;
   // Populate vertices
   for (std::size_t i = 0; i < n_waypoints; ++i)
   {
     const auto& wp = graph.get_waypoint(i);
     const auto& loc = wp.get_location();
-    GraphNodeMsg node_msg;
-    node_msg.x = loc[0];
-    node_msg.y = loc[1];
-    node_msg.name = wp.name_or_index();
-    GraphParamMsg param_msg;
-    // Add the map name of this waypoint
-    param_msg.type = param_msg.TYPE_STRING;
-    param_msg.name = "map_name";
-    param_msg.value_string = wp.get_map_name();
-    node_msg.params.push_back(param_msg);
-    // Add other boolean params
-    param_msg.value_string = "";
-    param_msg.type = param_msg.TYPE_BOOL;
-    param_msg.name = "is_holding_point";
-    param_msg.value_bool = wp.is_holding_point();
-    node_msg.params.push_back(param_msg);
-    param_msg.name = "is_passthrough_point";
-    param_msg.value_bool = wp.is_passthrough_point();
-    node_msg.params.push_back(param_msg);
-    param_msg.name = "is_parking_spot";
-    param_msg.value_bool = wp.is_parking_spot();
-    node_msg.params.push_back(param_msg);
-    param_msg.name = "is_charger";
-    param_msg.value_bool = wp.is_charger();
-    node_msg.params.push_back(param_msg);
-    msg->vertices.emplace_back(node_msg);
+    std::vector<GraphParamMsg> params;
+    params.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("map_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string(wp.get_map_name())
+      .value_bool(false));
+    params.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_holding_point")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_holding_point()));
+    params.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_passthrough_point")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_passthrough_point()));
+    params.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_parking_spot")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_parking_spot()));
+    params.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_charger")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_charger()));
+    vertices.push_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .x(loc[0])
+      .y(loc[1])
+      .name(wp.name_or_index())
+      .params(std::move(params)));
   }
   // Populate edges
   for (std::size_t i = 0; i < n_lanes; ++i)
   {
     const auto& lane = graph.get_lane(i);
     // All lanes in rmf_traffic::agv::Graph are unidirectional
-    GraphEdgeMsg edge_msg;
-    edge_msg.v1_idx = lane.entry().waypoint_index();
-    edge_msg.v2_idx = lane.exit().waypoint_index();
-    edge_msg.edge_type = edge_msg.EDGE_TYPE_UNIDIRECTIONAL;
-    msg->edges.emplace_back(edge_msg);
+    edges.push_back(
+      rmf_building_map_msgs::build<GraphEdgeMsg>()
+      .v1_idx(lane.entry().waypoint_index())
+      .v2_idx(lane.exit().waypoint_index())
+      .params({})
+      .edge_type(GraphEdgeMsg::EDGE_TYPE_UNIDIRECTIONAL)
+    );
   }
 
-  // Populate the fleet name
-  msg->name = name;
+  std::unique_ptr<GraphMsg> msg = std::make_unique<GraphMsg>(
+    rmf_building_map_msgs::build<GraphMsg>()
+    .name(name)
+    .vertices(std::move(vertices))
+    .edges(std::move(edges))
+    .params({})
+  );
 
   nav_graph_pub->publish(std::move(msg));
 }
