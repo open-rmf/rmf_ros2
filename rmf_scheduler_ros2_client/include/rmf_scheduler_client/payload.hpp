@@ -18,7 +18,6 @@
 #pragma once
 
 #include <rmf_scheduler_msgs/msg/payload.hpp>
-#include <rmf_scheduler_msgs/msg/serialized_message_payload.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/serialization.hpp>
