@@ -243,6 +243,10 @@ public:
   std::shared_ptr<rmf_traffic_ros2::schedule::Negotiation> negotiation;
   std::optional<std::string> server_uri;
 
+  std::shared_ptr<std::mutex> update_callback_mutex =
+    std::make_shared<std::mutex>();
+  std::function<void(const nlohmann::json&)> update_callback = nullptr;
+
   TaskActivation activation = TaskActivation();
   TaskDeserialization deserialization = TaskDeserialization();
 

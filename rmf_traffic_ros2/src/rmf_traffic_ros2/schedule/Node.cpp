@@ -92,17 +92,17 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 
         const auto* dep_v =
           vc->route->check_dependencies(participant, plan_id, r);
-        if (dep_v && !dep_v->empty())
+        if (dep_v)
           continue;
 
         const auto* dep_u =
           route->check_dependencies(vc->participant, vc->plan_id, vc->route_id);
-        if (dep_u && !dep_u->empty())
+        if (dep_u)
           continue;
 
         const auto found_conflict = rmf_traffic::DetectConflict::between(
-          vc->description.profile(), vc->route->trajectory(), dep_v,
-          description->profile(), route->trajectory(), dep_u);
+          vc->description.profile(), vc->route->trajectory(), nullptr,
+          description->profile(), route->trajectory(), nullptr);
         if (found_conflict.has_value())
         {
           conflicts.push_back({participant, vc->participant});
@@ -914,11 +914,30 @@ void ScheduleNode::request_changes(
     }
     else
     {
-      if (mirror_update_topic_info.last_sent_version.has_value() &&
-        rmf_utils::modular(request->version).less_than(
-          *mirror_update_topic_info.last_sent_version))
+      if (mirror_update_topic_info.last_sent_version.has_value())
       {
-        mirror_update_topic_info.remediation_requests.insert(request->version);
+        try
+        {
+          if (rmf_utils::modular(request->version).less_than(
+              *mirror_update_topic_info.last_sent_version))
+          {
+            mirror_update_topic_info
+            .remediation_requests.insert(request->version);
+          }
+        }
+        catch (const std::exception& e)
+        {
+          RCLCPP_ERROR(
+            get_logger(),
+            "[ScheduleNode::request_changes] Received suspicious request for "
+            "changes starting at version [%lu]. This request will be ignored."
+            "Error message: %s",
+            request->version,
+            e.what());
+          response->result = RequestChanges::Response::ERROR;
+          response->error = e.what();
+          return;
+        }
       }
     }
 

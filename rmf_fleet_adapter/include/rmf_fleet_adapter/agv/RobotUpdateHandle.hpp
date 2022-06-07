@@ -19,6 +19,7 @@
 #define RMF_FLEET_ADAPTER__AGV__ROBOTUPDATEHANDLE_HPP
 
 #include <rmf_traffic/Time.hpp>
+#include <rmf_traffic/agv/Planner.hpp>
 #include <rmf_utils/impl_ptr.hpp>
 #include <rmf_utils/optional.hpp>
 
@@ -92,6 +93,10 @@ public:
     const double max_merge_lane_distance = 1.0,
     const double min_lane_length = 1e-8);
 
+  /// Update the current position of the robot by specifying a plan start set
+  /// for it.
+  void update_position(rmf_traffic::agv::Plan::StartSet position);
+
   /// Set the waypoint where the charger for this robot is located.
   /// If not specified, the nearest waypoint in the graph with the is_charger()
   /// property will be assumed as the charger for this robot.
@@ -100,6 +105,12 @@ public:
   /// Update the current battery level of the robot by specifying its state of
   /// charge as a fraction of its total charge capacity
   void update_battery_soc(const double battery_soc);
+
+  /// Use this function to override the robot status. The string provided must
+  /// be a valid enum as specified in the robot_state.json schema.
+  /// Pass std::nullopt to cancel the override and allow RMF to automatically
+  /// update the status. The default value is std::nullopt.
+  void override_status(std::optional<std::string> status);
 
   /// Specify how high the delay of the current itinerary can become before it
   /// gets interrupted and replanned. A nullopt value will allow for an
@@ -119,13 +130,27 @@ public:
   class ActionExecution
   {
   public:
-    // Update the amount of time remaining for this action
+    /// Update the amount of time remaining for this action
     void update_remaining_time(rmf_traffic::Duration remaining_time_estimate);
 
-    // Trigger this when the action is finished
+    /// Set task status to underway and optionally log a message (info tier)
+    void underway(std::optional<std::string> text);
+
+    /// Set task status to error and optionally log a message (error tier)
+    void error(std::optional<std::string> text);
+
+    /// Set the task status to delayed and optionally log a message
+    /// (warning tier)
+    void delayed(std::optional<std::string> text);
+
+    /// Set the task status to blocked and optionally log a message
+    /// (warning tier)
+    void blocked(std::optional<std::string> text);
+
+    /// Trigger this when the action is successfully finished
     void finished();
 
-    // Returns false if the Action has been killed or cancelled
+    /// Returns false if the Action has been killed or cancelled
     bool okay() const;
 
     class Implementation;
@@ -198,6 +223,42 @@ public:
     std::vector<std::string> labels,
     std::function<void()> robot_is_interrupted);
 
+  /// Cancel a task, if it has been assigned to this robot
+  ///
+  /// \param[in] task_id
+  ///   The ID of the task to be canceled
+  ///
+  /// \param[in] labels
+  ///   Labels that will be assigned to this cancellation. It is recommended to
+  ///   include information about why the cancellation is happening.
+  ///
+  /// \param[in] on_cancellation
+  ///   Callback that will be triggered after the cancellation is issued.
+  ///   task_was_found will be true if the task was successfully found and
+  ///   issued the cancellation, false otherwise.
+  void cancel_task(
+    std::string task_id,
+    std::vector<std::string> labels,
+    std::function<void(bool task_was_found)> on_cancellation);
+
+  /// Kill a task, if it has been assigned to this robot
+  ///
+  /// \param[in] task_id
+  ///   The ID of the task to be canceled
+  ///
+  /// \param[in] labels
+  ///   Labels that will be assigned to this cancellation. It is recommended to
+  ///   include information about why the cancellation is happening.
+  ///
+  /// \param[in] on_kill
+  ///   Callback that will be triggered after the cancellation is issued.
+  ///   task_was_found will be true if the task was successfully found and
+  ///   issued the kill, false otherwise.
+  void kill_task(
+    std::string task_id,
+    std::vector<std::string> labels,
+    std::function<void(bool task_was_found)> on_kill);
+
   enum class Tier
   {
     /// General status information, does not require special attention
@@ -264,6 +325,37 @@ public:
   public:
     /// Get the schedule participant of this robot
     rmf_traffic::schedule::Participant* get_participant();
+
+    /// Override the schedule to say that the robot will be holding at a certain
+    /// position. This should not be used while tasks with automatic schedule
+    /// updating are running, or else the traffic schedule will have jumbled up
+    /// information, which can be disruptive to the overall traffic management.
+    void declare_holding(
+      std::string on_map,
+      Eigen::Vector3d at_position,
+      rmf_traffic::Duration for_duration = std::chrono::seconds(30));
+
+    /// Hold onto this class to tell the robot to behave as a "stubborn
+    /// negotiator", meaning it will always refuse to accommodate the schedule
+    /// of any other agent. This could be used when teleoperating a robot, to
+    /// tell other robots that the agent is unable to negotiate.
+    ///
+    /// When the object is destroyed, the stubbornness will automatically be
+    /// released.
+    class Stubbornness
+    {
+    public:
+      /// Stop being stubborn
+      void release();
+
+      class Implementation;
+    private:
+      Stubbornness();
+      rmf_utils::impl_ptr<Implementation> _pimpl;
+    };
+
+    /// Tell this robot to be a stubborn negotiator.
+    Stubbornness be_stubborn();
 
     enum class Decision
     {

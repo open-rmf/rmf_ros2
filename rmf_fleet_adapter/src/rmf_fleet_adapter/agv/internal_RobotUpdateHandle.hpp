@@ -20,6 +20,12 @@
 
 #include "RobotContext.hpp"
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
+#include <rmf_task/events/SimpleEventState.hpp>
+
+#include <nlohmann/json.hpp>
+#include <nlohmann/json-schema.hpp>
+#include <rmf_api_msgs/schemas/robot_state.hpp>
+#include <rmf_api_msgs/schemas/location_2D.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -31,17 +37,19 @@ public:
 
   struct Data
   {
-
     std::function<void()> finished;
+    std::shared_ptr<rmf_task::events::SimpleEventState> state;
     std::optional<rmf_traffic::Duration> remaining_time;
     bool okay;
     // TODO: Consider adding a mutex to lock read/write
 
     Data(
       std::function<void()> finished_,
+      std::shared_ptr<rmf_task::events::SimpleEventState> state_,
       std::optional<rmf_traffic::Duration> remaining_time_ = std::nullopt)
     {
       finished = std::move(finished_);
+      state = std::move(state_);
       remaining_time = remaining_time_;
       okay = true;
     }
@@ -73,6 +81,8 @@ public:
   std::string name;
   RobotUpdateHandle::Unstable unstable = RobotUpdateHandle::Unstable();
   bool reported_loss = false;
+  std::unordered_map<std::string, nlohmann::json> schema_dictionary = {};
+
 
   static std::shared_ptr<RobotUpdateHandle> make(RobotContextPtr context)
   {
@@ -83,6 +93,19 @@ public:
       Implementation{std::move(context), std::move(name)});
     handle._pimpl->unstable._pimpl =
       &RobotUpdateHandle::Implementation::get(handle);
+
+    // Initialize schema dictionary
+    const std::vector<nlohmann::json> schemas = {
+      rmf_api_msgs::schemas::robot_state,
+      rmf_api_msgs::schemas::location_2D,
+    };
+
+    for (const auto& schema : schemas)
+    {
+      const auto json_uri = nlohmann::json_uri{schema["$id"]};
+      handle._pimpl->schema_dictionary.insert({json_uri.url(), schema});
+    }
+
     return std::make_shared<RobotUpdateHandle>(std::move(handle));
   }
 

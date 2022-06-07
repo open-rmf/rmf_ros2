@@ -369,11 +369,11 @@ void RobotContext::respond(
   const TableViewerPtr& table_viewer,
   const ResponderPtr& responder)
 {
-  if (_negotiator)
+  if (_negotiator && !is_stubborn())
     return _negotiator->respond(table_viewer, responder);
 
-  // If there is no negotiator assigned for this robot, then use a
-  // StubbornNegotiator.
+  // If there is no negotiator assigned for this robot or the stubborn mode has
+  // been requested, then use a StubbornNegotiator.
   //
   // TODO(MXG): Consider if this should be scheduled on a separate thread
   // instead of executed immediately. The StubbornNegotiator doesn't do any
@@ -393,6 +393,18 @@ void RobotContext::current_mode(uint32_t mode)
 uint32_t RobotContext::current_mode() const
 {
   return _current_mode;
+}
+
+//==============================================================================
+void RobotContext::override_status(std::optional<std::string> status)
+{
+  _override_status = status;
+}
+
+//==============================================================================
+std::optional<std::string> RobotContext::override_status() const
+{
+  return _override_status;
 }
 
 //==============================================================================
@@ -476,6 +488,7 @@ RobotContext::RobotContext(
   _battery_soc_obs = _battery_soc_publisher.get_observable();
 
   _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
+  _override_status = std::nullopt;
 
   _action_executor = nullptr;
 }
