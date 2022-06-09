@@ -48,7 +48,7 @@ ObstacleManager::ObstacleManager(
     "responder_plugin", "");
 
   _detection_pub = this->create_publisher<Obstacles>(
-    ObstaclesTopicName,
+    ObstacleTopicName,
     rclcpp::QoS(10));
 
   // Initialize the responder

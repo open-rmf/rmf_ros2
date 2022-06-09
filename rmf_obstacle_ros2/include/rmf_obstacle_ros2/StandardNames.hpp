@@ -22,7 +22,7 @@
 
 namespace rmf_obstacle_ros2 {
 
-const std::string ObstaclesTopicName = "rmf_obstacles";
+const std::string ObstacleTopicName = "rmf_obstacles";
 
 } // namespace rmf_obstacle_ros2
 

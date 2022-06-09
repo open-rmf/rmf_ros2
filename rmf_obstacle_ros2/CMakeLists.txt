@@ -15,8 +15,11 @@ set(dep_pkgs
   rmf_utils
   pluginlib
   rmf_obstacle_msgs
+  rmf_fleet_msgs
+  rmf_building_map_msgs
   sensor_msgs
   OCTOMAP
+  rmf_fleet_adapter
 )
 foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
@@ -85,6 +88,37 @@ rclcpp_components_register_node(obstacle_manager
   EXECUTABLE obstacle_manager_node)
 
 #===============================================================================
+add_library(lane_blocker SHARED src/lane_blocker/LaneBlocker.cpp)
+
+target_link_libraries(lane_blocker
+  PRIVATE
+    rclcpp::rclcpp
+    ${rclcpp_components_LIBRARIES}
+    ${rmf_obstacle_msgs_LIBRARIES}
+    ${rmf_fleet_msgs_LIBRARIES}
+    ${rmf_building_map_msgs_LIBRARIES}
+    rmf_fleet_adapter::rmf_fleet_adapter
+)
+
+target_include_directories(lane_blocker
+  PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    ${rclcpp_INCLUDE_DIRS}
+    ${rclcpp_components_INCLUDE_DIRS}
+    ${rmf_obstacle_msgs_INCLUDE_DIRS}
+    ${rmf_fleet_msgs_INCLUDE_DIRS}
+    ${rmf_building_map_msgs_INCLUDE_DIRS}
+    ${rmf_fleet_adapter_INCLUDE_DIRS}
+)
+
+target_compile_features(lane_blocker INTERFACE cxx_std_17)
+
+rclcpp_components_register_node(lane_blocker
+  PLUGIN "LaneBlocker"
+  EXECUTABLE lane_blocker_node)
+
+#===============================================================================
 if(BUILD_TESTING)
   find_package(ament_cmake_uncrustify REQUIRED)
   find_file(uncrustify_config_file
@@ -109,6 +143,7 @@ install(
   TARGETS
     rmf_obstacle_ros2
     obstacle_manager
+    lane_blocker
   EXPORT rmf_obstacle_ros2
   RUNTIME DESTINATION lib/rmf_obstacle_ros2
   LIBRARY DESTINATION lib
