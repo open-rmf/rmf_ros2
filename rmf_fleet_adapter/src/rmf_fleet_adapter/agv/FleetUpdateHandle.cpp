@@ -136,6 +136,89 @@ TaskDeserialization::TaskDeserialization()
 
 
 //==============================================================================
+void FleetUpdateHandle::Implementation::publish_nav_graph() const
+{
+  if (nav_graph_pub == nullptr)
+    return;
+
+  const auto& graph = (*planner)->get_configuration().graph();
+  const std::size_t n_waypoints = graph.num_waypoints();
+  const std::size_t n_lanes = graph.num_lanes();
+  std::vector<GraphNodeMsg> vertices;
+  std::vector<GraphEdgeMsg> edges;
+  // Populate vertices
+  for (std::size_t i = 0; i < n_waypoints; ++i)
+  {
+    const auto& wp = graph.get_waypoint(i);
+    const auto& loc = wp.get_location();
+    std::vector<GraphParamMsg> params;
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("map_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string(wp.get_map_name())
+      .value_bool(false));
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_holding_point")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_holding_point()));
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_passthrough_point")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_passthrough_point()));
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_parking_spot")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_parking_spot()));
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_charger")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_charger()));
+    vertices.emplace_back(rmf_building_map_msgs::build<GraphNodeMsg>()
+      .x(loc[0])
+      .y(loc[1])
+      .name(wp.name_or_index())
+      .params(std::move(params)));
+  }
+  // Populate edges
+  for (std::size_t i = 0; i < n_lanes; ++i)
+  {
+    const auto& lane = graph.get_lane(i);
+    // All lanes in rmf_traffic::agv::Graph are unidirectional
+    edges.emplace_back(
+      rmf_building_map_msgs::build<GraphEdgeMsg>()
+      .v1_idx(lane.entry().waypoint_index())
+      .v2_idx(lane.exit().waypoint_index())
+      .params({})
+      .edge_type(GraphEdgeMsg::EDGE_TYPE_UNIDIRECTIONAL)
+    );
+  }
+
+  std::unique_ptr<GraphMsg> msg = std::make_unique<GraphMsg>(
+    rmf_building_map_msgs::build<GraphMsg>()
+    .name(name)
+    .vertices(std::move(vertices))
+    .edges(std::move(edges))
+    .params({})
+  );
+
+  nav_graph_pub->publish(std::move(msg));
+}
+
+//==============================================================================
 void FleetUpdateHandle::Implementation::dock_summary_cb(
   const DockSummary::SharedPtr& msg)
 {
@@ -741,13 +824,14 @@ get_nearest_charger(
 
 namespace {
 //==============================================================================
-rmf_fleet_msgs::msg::Location convert_location(const agv::RobotContext& context)
+std::optional<rmf_fleet_msgs::msg::Location> convert_location(
+  const agv::RobotContext& context)
 {
   if (context.location().empty())
   {
     // TODO(MXG): We should emit some kind of critical error if this ever
     // happens
-    return rmf_fleet_msgs::msg::Location();
+    return std::nullopt;
   }
 
   const auto& graph = context.planner()->get_configuration().graph();
@@ -769,9 +853,13 @@ rmf_fleet_msgs::msg::Location convert_location(const agv::RobotContext& context)
 }
 
 //==============================================================================
-rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
+std::optional<rmf_fleet_msgs::msg::RobotState> convert_state(
+  const TaskManager& mgr)
 {
   const RobotContext& context = *mgr.context();
+  const auto location = convert_location(context);
+  if (!location.has_value())
+    return std::nullopt;
 
   const auto mode = mgr.robot_mode();
 
@@ -786,7 +874,7 @@ rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
     .mode(std::move(mode))
     // We multiply by 100 to convert from the [0.0, 1.0] range to percentage
     .battery_percent(context.current_battery_soc()*100.0)
-    .location(convert_location(context))
+    .location(*location)
     // NOTE(MXG): The path field is only used by the fleet drivers. For now,
     // we will just fill it with a zero. We could consider filling it in based
     // on the robot's plan, but that seems redundant with the traffic schedule
@@ -800,7 +888,13 @@ void FleetUpdateHandle::Implementation::publish_fleet_state_topic() const
 {
   std::vector<rmf_fleet_msgs::msg::RobotState> robot_states;
   for (const auto& [context, mgr] : task_managers)
-    robot_states.emplace_back(convert_state(*mgr));
+  {
+    auto state = convert_state(*mgr);
+    if (!state.has_value())
+      continue;
+
+    robot_states.emplace_back(std::move(*state));
+  }
 
   auto fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
     .name(name)
@@ -841,10 +935,13 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
 
       nlohmann::json& location = json["location"];
       const auto location_msg = convert_location(*context);
-      location["map"] = location_msg.level_name;
-      location["x"] = location_msg.x;
-      location["y"] = location_msg.y;
-      location["yaw"] = location_msg.yaw;
+      if (!location_msg.has_value())
+        continue;
+
+      location["map"] = location_msg->level_name;
+      location["x"] = location_msg->x;
+      location["y"] = location_msg->y;
+      location["yaw"] = location_msg->yaw;
 
       std::lock_guard<std::mutex> lock(context->reporting().mutex());
       const auto& issues = context->reporting().open_issues();

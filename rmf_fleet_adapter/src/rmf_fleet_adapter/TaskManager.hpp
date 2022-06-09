@@ -192,6 +192,18 @@ public:
     std::vector<std::string> labels,
     std::function<void()> robot_is_interrupted);
 
+  /// Cancel a task for this robot. Returns true if the task was being managed
+  /// by this task manager, or false if it was not.
+  bool cancel_task(
+    const std::string& task_id,
+    std::vector<std::string> labels);
+
+  /// Kill a task for this robot. Returns true if the task was being managed by
+  /// this task manager, or false if it was not.
+  bool kill_task(
+    const std::string& task_id,
+    std::vector<std::string> labels);
+
 private:
 
   TaskManager(
@@ -398,8 +410,30 @@ private:
   /// Publish the current task state
   void _publish_task_state();
 
+  /// Publish one of the pending tasks
+  rmf_task::State _publish_pending_task(
+    const Assignment& assignment,
+    rmf_task::State expected_state,
+    const rmf_task::Parameters& parameters);
+
   /// Publish the current pending task list
   void _publish_task_queue();
+
+  void _publish_canceled_pending_task(
+    const Assignment& assignment,
+    std::vector<std::string> labels);
+
+  /// Cancel a task that is in the dispatch queue. Returns false if the task
+  /// was not present.
+  bool _cancel_task_from_dispatch_queue(
+    const std::string& task_id,
+    const std::vector<std::string>& labels);
+
+  /// Cancel a task that is in the direct queue. Returns false if the task was
+  /// not present.
+  bool _cancel_task_from_direct_queue(
+    const std::string& task_id,
+    const std::vector<std::string>& labels);
 
   /// Schema loader for validating jsons
   void _schema_loader(

@@ -174,6 +174,20 @@ void RobotUpdateHandle::update_position(
 }
 
 //==============================================================================
+void RobotUpdateHandle::update_position(
+  rmf_traffic::agv::Plan::StartSet position)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [context, starts = std::move(position)](const auto&)
+      {
+        context->_location = starts;
+      });
+  }
+}
+
+//==============================================================================
 RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
   const std::size_t charger_wp)
 {
@@ -432,6 +446,68 @@ auto RobotUpdateHandle::interrupt(
   }
 
   return handle;
+}
+
+//==============================================================================
+void RobotUpdateHandle::cancel_task(
+  std::string task_id,
+  std::vector<std::string> labels,
+  std::function<void(bool)> on_cancellation)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+        task_id = std::move(task_id),
+        labels = std::move(labels),
+        on_cancellation = std::move(on_cancellation),
+        c = context->weak_from_this()
+      ](const auto&)
+      {
+        const auto context = c.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        if (!mgr)
+          return;
+
+        const auto result = mgr->cancel_task(task_id, labels);
+        if (on_cancellation)
+          on_cancellation(result);
+      });
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::kill_task(
+  std::string task_id,
+  std::vector<std::string> labels,
+  std::function<void(bool)> on_kill)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+        task_id = std::move(task_id),
+        labels = std::move(labels),
+        on_kill = std::move(on_kill),
+        c = context->weak_from_this()
+      ](const auto&)
+      {
+        const auto context = c.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        if (!mgr)
+          return;
+
+        const auto result = mgr->kill_task(task_id, labels);
+        if (on_kill)
+          on_kill(result);
+      });
+  }
 }
 
 //==============================================================================
