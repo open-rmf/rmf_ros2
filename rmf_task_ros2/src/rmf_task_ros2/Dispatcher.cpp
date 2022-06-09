@@ -263,7 +263,7 @@ public:
         this->handle_dispatch_ack(*msg);
       });
 
-    if(server_uri)
+    if (server_uri)
       broadcast_client = rmf_task_ros2::BroadcastClient::make(
         *server_uri, node);
 
@@ -818,7 +818,7 @@ public:
 
     /// TODO: (YL) json validator for taskstateupdate
 
-    if(broadcast_client)
+    if (broadcast_client)
       broadcast_client->publish(task_state_update);
     return task_state;
   }
