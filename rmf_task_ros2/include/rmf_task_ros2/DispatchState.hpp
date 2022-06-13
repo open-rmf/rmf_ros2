@@ -20,6 +20,7 @@
 
 #include <unordered_map>
 #include <memory>
+#include <optional>
 
 #include <rmf_traffic_ros2/Time.hpp>
 #include <rmf_task_msgs/msg/dispatch_state.hpp>
