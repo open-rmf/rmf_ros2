@@ -36,9 +36,6 @@
 #include <rmf_task_sequence/events/PerformAction.hpp>
 
 #include <rmf_building_map_msgs/msg/graph.hpp>
-#include <rmf_building_map_msgs/msg/graph_node.hpp>
-#include <rmf_building_map_msgs/msg/graph_edge.hpp>
-#include <rmf_building_map_msgs/msg/param.hpp>
 
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
 
@@ -316,9 +313,6 @@ public:
   DockSummarySub dock_summary_sub = nullptr;
 
   using GraphMsg = rmf_building_map_msgs::msg::Graph;
-  using GraphNodeMsg = rmf_building_map_msgs::msg::GraphNode;
-  using GraphEdgeMsg = rmf_building_map_msgs::msg::GraphEdge;
-  using GraphParamMsg = rmf_building_map_msgs::msg::Param;
   rclcpp::Publisher<GraphMsg>::SharedPtr nav_graph_pub = nullptr;
 
   mutable rmf_task::Log::Reader log_reader = {};

@@ -20,6 +20,7 @@
 #include <rmf_fleet_msgs/msg/location.hpp>
 
 #include <rmf_traffic_ros2/Time.hpp>
+#include <rmf_traffic_ros2/agv/Graph.hpp>
 
 #include "internal_FleetUpdateHandle.hpp"
 #include "internal_RobotUpdateHandle.hpp"
@@ -141,81 +142,12 @@ void FleetUpdateHandle::Implementation::publish_nav_graph() const
   if (nav_graph_pub == nullptr)
     return;
 
-  const auto& graph = (*planner)->get_configuration().graph();
-  const std::size_t n_waypoints = graph.num_waypoints();
-  const std::size_t n_lanes = graph.num_lanes();
-  std::vector<GraphNodeMsg> vertices;
-  std::vector<GraphEdgeMsg> edges;
-  // Populate vertices
-  for (std::size_t i = 0; i < n_waypoints; ++i)
-  {
-    const auto& wp = graph.get_waypoint(i);
-    const auto& loc = wp.get_location();
-    std::vector<GraphParamMsg> params;
-    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-      .name("map_name")
-      .type(GraphParamMsg::TYPE_STRING)
-      .value_int(0)
-      .value_float(0.0)
-      .value_string(wp.get_map_name())
-      .value_bool(false));
-    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-      .name("is_holding_point")
-      .type(GraphParamMsg::TYPE_BOOL)
-      .value_int(0)
-      .value_float(0.0)
-      .value_string("")
-      .value_bool(wp.is_holding_point()));
-    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-      .name("is_passthrough_point")
-      .type(GraphParamMsg::TYPE_BOOL)
-      .value_int(0)
-      .value_float(0.0)
-      .value_string("")
-      .value_bool(wp.is_passthrough_point()));
-    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-      .name("is_parking_spot")
-      .type(GraphParamMsg::TYPE_BOOL)
-      .value_int(0)
-      .value_float(0.0)
-      .value_string("")
-      .value_bool(wp.is_parking_spot()));
-    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-      .name("is_charger")
-      .type(GraphParamMsg::TYPE_BOOL)
-      .value_int(0)
-      .value_float(0.0)
-      .value_string("")
-      .value_bool(wp.is_charger()));
-    vertices.emplace_back(rmf_building_map_msgs::build<GraphNodeMsg>()
-      .x(loc[0])
-      .y(loc[1])
-      .name(wp.name_or_index())
-      .params(std::move(params)));
-  }
-  // Populate edges
-  for (std::size_t i = 0; i < n_lanes; ++i)
-  {
-    const auto& lane = graph.get_lane(i);
-    // All lanes in rmf_traffic::agv::Graph are unidirectional
-    edges.emplace_back(
-      rmf_building_map_msgs::build<GraphEdgeMsg>()
-      .v1_idx(lane.entry().waypoint_index())
-      .v2_idx(lane.exit().waypoint_index())
-      .params({})
-      .edge_type(GraphEdgeMsg::EDGE_TYPE_UNIDIRECTIONAL)
-    );
-  }
+  auto msg = rmf_traffic_ros2::convert(
+    (*planner)->get_configuration().graph(),
+    name);
 
-  std::unique_ptr<GraphMsg> msg = std::make_unique<GraphMsg>(
-    rmf_building_map_msgs::build<GraphMsg>()
-    .name(name)
-    .vertices(std::move(vertices))
-    .edges(std::move(edges))
-    .params({})
-  );
-
-  nav_graph_pub->publish(std::move(msg));
+  if (msg != nullptr)
+    nav_graph_pub->publish(std::move(msg));
 }
 
 //==============================================================================

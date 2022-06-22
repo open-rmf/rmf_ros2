@@ -25,6 +25,12 @@
 
 #include <rmf_traffic_ros2/agv/Graph.hpp>
 
+#include <rmf_building_map_msgs/msg/graph_node.hpp>
+#include <rmf_building_map_msgs/msg/graph_edge.hpp>
+#include <rmf_building_map_msgs/msg/param.hpp>
+
+#include <unordered_set>
+
 namespace rmf_traffic_ros2 {
 
 // Usage map[level_idx][truncated_x][truncated_y] = id;
@@ -336,6 +342,169 @@ rmf_traffic::agv::Graph json_to_graph(
   proj_destroy(projector);
   proj_context_destroy(proj_context);
   return graph;
+}
+
+//==============================================================================
+std::optional<rmf_traffic::agv::Graph> convert(
+  const rmf_building_map_msgs::msg::Graph& navgraph)
+{
+  rmf_traffic::agv::Graph graph;
+  std::unordered_set<std::size_t> added_waypoints = {};
+
+  for (const auto& v : navgraph.vertices)
+  {
+    const std::string wp_name = v.name;
+    std::string map_name = "";
+    bool is_holding_point = false;
+    bool is_passthrough_point = false;
+    bool is_parking_spot = false;
+    bool is_charger = false;
+    Eigen::Vector2d loc = {v.x, v.y};
+    for (const auto& p : v.params)
+    {
+      if (p.name == "is_holding_point")
+      {
+        is_holding_point = p.value_bool;
+      }
+      else if (p.name == "is_passthrough_point")
+      {
+        is_passthrough_point = p.value_bool;
+      }
+      else if (p.name == "is_parking_spot")
+      {
+        is_parking_spot = p.value_bool;
+      }
+      else if (p.name == "is_charger")
+      {
+        is_charger = p.value_bool;
+      }
+      else if (p.name == "map_name")
+      {
+        map_name = p.value_string;
+      }
+    }
+    // The map_name field is essential for a Graph::Waypoint
+    if (map_name.empty())
+      return std::nullopt;
+    graph.add_waypoint(map_name, loc)
+    .set_holding_point(is_holding_point)
+    .set_passthrough_point(is_passthrough_point)
+    .set_parking_spot(is_parking_spot)
+    .set_charger(is_charger);
+    const auto wp_index = graph.num_waypoints() - 1;
+    if (!graph.set_key(wp_name, wp_index))
+      return std::nullopt; // Duplicate name
+    added_waypoints.insert(wp_index);
+  }
+  for (const auto& e : navgraph.edges)
+  {
+    if (added_waypoints.find(e.v1_idx) == added_waypoints.end() ||
+      added_waypoints.find(e.v2_idx) == added_waypoints.end())
+    {
+      return std::nullopt;
+    }
+    // TODO(YV): Deserialize events and properties when available
+    graph.add_lane(
+      {e.v1_idx},
+      {e.v2_idx});
+  }
+
+  return graph;
+}
+
+//==============================================================================
+std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
+  const rmf_traffic::agv::Graph& graph, const::std::string& fleet_name)
+{
+  using GraphMsg = rmf_building_map_msgs::msg::Graph;
+  using GraphNodeMsg = rmf_building_map_msgs::msg::GraphNode;
+  using GraphEdgeMsg = rmf_building_map_msgs::msg::GraphEdge;
+  using GraphParamMsg = rmf_building_map_msgs::msg::Param;
+
+  if (fleet_name.empty())
+    return nullptr;
+
+  const std::size_t n_waypoints = graph.num_waypoints();
+  const std::size_t n_lanes = graph.num_lanes();
+
+  if (n_waypoints == 0 || n_lanes == 0)
+    return nullptr;
+
+  std::vector<GraphNodeMsg> vertices;
+  std::vector<GraphEdgeMsg> edges;
+  // Populate vertices
+  for (std::size_t i = 0; i < n_waypoints; ++i)
+  {
+    const auto& wp = graph.get_waypoint(i);
+    const auto& loc = wp.get_location();
+    std::vector<GraphParamMsg> params;
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("map_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string(wp.get_map_name())
+      .value_bool(false));
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_holding_point")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_holding_point()));
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_passthrough_point")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_passthrough_point()));
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_parking_spot")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_parking_spot()));
+    params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("is_charger")
+      .type(GraphParamMsg::TYPE_BOOL)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string("")
+      .value_bool(wp.is_charger()));
+    const std::string wp_name = wp.name() ? *wp.name() : "";
+    vertices.emplace_back(rmf_building_map_msgs::build<GraphNodeMsg>()
+      .x(loc[0])
+      .y(loc[1])
+      .name(wp_name)
+      .params(std::move(params)));
+  }
+  // Populate edges
+  // TODO(YV): Serialize entry and exit events along with properties
+  // into params
+  for (std::size_t i = 0; i < n_lanes; ++i)
+  {
+    const auto& lane = graph.get_lane(i);
+    // All lanes in rmf_traffic::agv::Graph are unidirectional
+    edges.emplace_back(
+      rmf_building_map_msgs::build<GraphEdgeMsg>()
+      .v1_idx(lane.entry().waypoint_index())
+      .v2_idx(lane.exit().waypoint_index())
+      .params({})
+      .edge_type(GraphEdgeMsg::EDGE_TYPE_UNIDIRECTIONAL)
+    );
+  }
+
+  std::unique_ptr<GraphMsg> msg = std::make_unique<GraphMsg>(
+    rmf_building_map_msgs::build<GraphMsg>()
+    .name(fleet_name)
+    .vertices(std::move(vertices))
+    .edges(std::move(edges))
+    .params({})
+  );
+
+  return msg;
 }
 
 } // namespace rmf_traffic_ros2
