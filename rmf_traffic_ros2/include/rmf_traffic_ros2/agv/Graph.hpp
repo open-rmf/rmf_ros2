@@ -46,7 +46,7 @@ std::optional<rmf_traffic::agv::Graph> convert(
 /// \note The returned graph may not be suitable for traffic planning & control
 ///   as the lane events, properties and constraints will not be defined.
 std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
-  const rmf_traffic::agv::Graph& from, const::std::string& fleet_name);
+  const rmf_traffic::agv::Graph& from, const std::string& fleet_name);
 
 
 } // namespace rmf_traffic_ros2

@@ -414,7 +414,7 @@ std::optional<rmf_traffic::agv::Graph> convert(
 
 //==============================================================================
 std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
-  const rmf_traffic::agv::Graph& graph, const::std::string& fleet_name)
+  const rmf_traffic::agv::Graph& graph, const std::string& fleet_name)
 {
   using GraphMsg = rmf_building_map_msgs::msg::Graph;
   using GraphNodeMsg = rmf_building_map_msgs::msg::GraphNode;
