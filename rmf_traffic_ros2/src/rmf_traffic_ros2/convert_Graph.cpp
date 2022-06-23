@@ -393,7 +393,7 @@ std::optional<rmf_traffic::agv::Graph> convert(
     .set_charger(is_charger);
     const auto wp_index = graph.num_waypoints() - 1;
     if (!graph.set_key(wp_name, wp_index))
-      return std::nullopt; // Duplicate name
+      return std::nullopt;
     added_waypoints.insert(wp_index);
   }
   for (const auto& e : navgraph.edges)
