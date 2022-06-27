@@ -50,8 +50,6 @@ def filter_rmf_msg(
         json_str: str,
         filters: Dict[RmfMsgType, List[str]] = {}
 ) -> Optional[Tuple[RmfMsgType, Dict]]:
-    print("---------raw----------")
-    print(json_str)
     obj = json.loads(json_str)
     if "type" not in obj:
         print("ERRORRRR: type is not avail as json key")

@@ -15,8 +15,8 @@
  *
 */
 
-#ifndef SRC__RMF_WEBSOCKET__BROADCASTCLIENT_HPP
-#define SRC__RMF_WEBSOCKET__BROADCASTCLIENT_HPP
+#ifndef RMF_WEBSOCKET__BROADCAST_CLIENT_HPP
+#define RMF_WEBSOCKET__BROADCAST_CLIENT_HPP
 
 #include <nlohmann/json.hpp>
 
@@ -68,4 +68,4 @@ private:
 
 } // namespace rmf_websocket
 
-#endif // SRC__RMF_WEBSOCKET__BROADCASTCLIENT_HPP
+#endif // RMF_WEBSOCKET__BROADCAST_CLIENT_HPP
