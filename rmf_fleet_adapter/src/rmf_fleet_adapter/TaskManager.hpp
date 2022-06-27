@@ -21,6 +21,7 @@
 #include "LegacyTask.hpp"
 #include "agv/RobotContext.hpp"
 #include "BroadcastClient.hpp"
+#include <rmf_websocket/BroadcastClient.hpp>  // TODO: (YL)
 
 #include <rmf_traffic/agv/Planner.hpp>
 

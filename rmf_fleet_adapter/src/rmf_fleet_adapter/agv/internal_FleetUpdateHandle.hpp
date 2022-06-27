@@ -45,6 +45,7 @@
 #include "../TaskManager.hpp"
 #include "../BroadcastClient.hpp"
 #include "../DeserializeJSON.hpp"
+#include <rmf_websocket/BroadcastClient.hpp> // TODO: (YL)
 
 #include <rmf_traffic/schedule/Mirror.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>

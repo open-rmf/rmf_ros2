@@ -18,7 +18,7 @@
 #include <rmf_task_ros2/Dispatcher.hpp>
 #include <rmf_task_ros2/StandardNames.hpp>
 
-#include "BroadcastClient.hpp"
+#include <rmf_websocket/BroadcastClient.hpp>
 
 #include <rclcpp/node.hpp>
 #include <rclcpp/executors/single_threaded_executor.hpp>
@@ -99,7 +99,7 @@ public:
 
   std::shared_ptr<rclcpp::Node> node;
   std::shared_ptr<bidding::Auctioneer> auctioneer;
-  std::shared_ptr<rmf_task_ros2::BroadcastClient> broadcast_client;
+  std::shared_ptr<rmf_websocket::BroadcastClient> broadcast_client;
 
   const nlohmann::json _task_state_update_json =
   {{"type", "task_state_update"}, {"data", {}}};
@@ -264,7 +264,7 @@ public:
       });
 
     if (server_uri)
-      broadcast_client = rmf_task_ros2::BroadcastClient::make(
+      broadcast_client = rmf_websocket::BroadcastClient::make(
         *server_uri, node);
 
     auctioneer = bidding::Auctioneer::make(
