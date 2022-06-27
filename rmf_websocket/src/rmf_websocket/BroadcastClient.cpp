@@ -35,7 +35,7 @@ public:
     const std::string& uri,
     const std::shared_ptr<rclcpp::Node>& node,
     ProvideJsonUpdates get_json_updates_cb)
-    : _uri{std::move(uri)},
+  : _uri{std::move(uri)},
     _node{std::move(node)},
     _get_json_updates_cb{std::move(get_json_updates_cb)}
   {
@@ -57,7 +57,7 @@ public:
       [c = this](websocketpp::connection_hdl)
       {
         c->_connected = true;
-        
+
         if (c->_get_json_updates_cb)
           c->publish(c->_get_json_updates_cb());
 
@@ -97,7 +97,8 @@ public:
               c->_client.connect(con);
               // TOD(YV): Without sending a test payload, ec seems to be 0 even
               // when the client has not connected. Avoid sending this message.
-              c->_client.send(c->_hdl, "Hello", websocketpp::frame::opcode::text,
+              c->_client.send(c->_hdl, "Hello",
+              websocketpp::frame::opcode::text,
               ec);
             }
 
@@ -155,7 +156,7 @@ public:
     std::lock_guard<std::mutex> lock(_queue_mutex);
     _queue.push(msg);
     _cv.notify_all();
-  };
+  }
 
   // Publish a vector of messages
   void publish(const std::vector<nlohmann::json>& msgs)
@@ -164,7 +165,7 @@ public:
     for (const auto& msg : msgs)
       _queue.push(msg);
     _cv.notify_all();
-  };
+  }
 
   ~Implementation()
   {
@@ -178,7 +179,7 @@ public:
       _client_thread.join();
     }
     _client.stop_perpetual();
-  };
+  }
 
 private:
 
@@ -196,7 +197,7 @@ private:
   std::atomic_bool _connected;
   std::atomic_bool _shutdown;
   ProvideJsonUpdates _get_json_updates_cb;
-};  
+};
 
 //==============================================================================
 std::shared_ptr<BroadcastClient> BroadcastClient::make(
@@ -207,7 +208,7 @@ std::shared_ptr<BroadcastClient> BroadcastClient::make(
   auto client = std::shared_ptr<BroadcastClient>(new BroadcastClient());
   client->_pimpl =
     rmf_utils::make_unique_impl<Implementation>(
-      uri, node, on_open_connection_fn);
+    uri, node, on_open_connection_fn);
   return client;
 }
 

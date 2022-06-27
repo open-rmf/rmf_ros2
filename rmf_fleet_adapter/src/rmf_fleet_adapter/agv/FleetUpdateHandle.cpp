@@ -879,6 +879,10 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
         make_validator(rmf_api_msgs::schemas::fleet_state_update);
 
       validator.validate(fleet_state_update_msg);
+
+      std::unique_lock<std::mutex> lock(*update_callback_mutex);
+      if (update_callback)
+        update_callback(fleet_state_update_msg);
       broadcast_client->publish(fleet_state_update_msg);
     }
     catch (const std::exception& e)
@@ -928,6 +932,10 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
         make_validator(rmf_api_msgs::schemas::fleet_log_update);
 
       validator.validate(fleet_log_update_msg);
+
+      std::unique_lock<std::mutex> lock(*update_callback_mutex);
+      if (update_callback)
+        update_callback(fleet_log_update_msg);
       broadcast_client->publish(fleet_log_update_msg);
     }
     catch (const std::exception& e)
@@ -1375,7 +1383,7 @@ void FleetUpdateHandle::add_robot(
             return;
           }
 
-          std::optional<std::weak_ptr<BroadcastClient>>
+          std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>>
           broadcast_client = std::nullopt;
 
           if (fleet->_pimpl->broadcast_client)

@@ -39,7 +39,6 @@ set(dep_pkgs
   std_msgs
   rmf_api_msgs
   rmf_websocket
-  websocketpp
   nlohmann_json
   nlohmann_json_schema_validator_vendor
 )
@@ -91,7 +90,6 @@ target_link_libraries(rmf_fleet_adapter
     ${rmf_lift_msgs_LIBRARIES}
     ${rmf_dispenser_msgs_LIBRARIES}
     ${rmf_ingestor_msgs_LIBRARIES}
-    ${websocketpp_LIBRARIES}
     nlohmann_json_schema_validator
 )
 
@@ -149,7 +147,6 @@ if (BUILD_TESTING)
       ${rmf_api_msgs_INCLUDE_DIRS}
       ${std_msgs_INCLUDE_DIRS}
       ${rmf_websocket_INCLUDE_DIR}
-      ${WEBSOCKETPP_INCLUDE_DIR}
       ${nlohmann_json_schema_validator_INCLUDE_DIRS}
   )
   target_link_libraries(test_rmf_fleet_adapter
@@ -166,7 +163,6 @@ if (BUILD_TESTING)
       rmf_api_msgs::rmf_api_msgs
       ${std_msgs_LIBRARIES}
       ${rmf_websocket_INCLUDE_DIR}
-      ${websocketpp_LIBRARIES}
       nlohmann_json_schema_validator
   )
 

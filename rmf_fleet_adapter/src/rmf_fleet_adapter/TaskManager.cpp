@@ -70,7 +70,7 @@ namespace rmf_fleet_adapter {
 //==============================================================================
 TaskManagerPtr TaskManager::make(
   agv::RobotContextPtr context,
-  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+  std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
   std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 {
   auto mgr = TaskManagerPtr(
@@ -254,7 +254,7 @@ TaskManagerPtr TaskManager::make(
 //==============================================================================
 TaskManager::TaskManager(
   agv::RobotContextPtr context,
-  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+  std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
   std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 : _context(std::move(context)),
   _broadcast_client(std::move(broadcast_client)),
@@ -861,7 +861,8 @@ agv::ConstRobotContextPtr TaskManager::context() const
 }
 
 //==============================================================================
-std::optional<std::weak_ptr<BroadcastClient>> TaskManager::broadcast_client()
+std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> TaskManager::
+broadcast_client()
 const
 {
   return _broadcast_client;

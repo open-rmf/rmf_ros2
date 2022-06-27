@@ -20,8 +20,7 @@
 
 #include "LegacyTask.hpp"
 #include "agv/RobotContext.hpp"
-#include "BroadcastClient.hpp"
-#include <rmf_websocket/BroadcastClient.hpp>  // TODO: (YL)
+#include <rmf_websocket/BroadcastClient.hpp>
 
 #include <rmf_traffic/agv/Planner.hpp>
 
@@ -53,7 +52,7 @@ public:
 
   static std::shared_ptr<TaskManager> make(
     agv::RobotContextPtr context,
-    std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+    std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
     std::weak_ptr<agv::FleetUpdateHandle> fleet_handle);
 
   using Start = rmf_traffic::agv::Plan::Start;
@@ -107,7 +106,8 @@ public:
 
   agv::ConstRobotContextPtr context() const;
 
-  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client() const;
+  std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client()
+  const;
 
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
@@ -209,7 +209,7 @@ private:
 
   TaskManager(
     agv::RobotContextPtr context,
-    std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+    std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
     std::weak_ptr<agv::FleetUpdateHandle>);
 
   class ActiveTask
@@ -302,7 +302,7 @@ private:
   friend class ActiveTask;
 
   agv::RobotContextPtr _context;
-  std::optional<std::weak_ptr<BroadcastClient>> _broadcast_client;
+  std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> _broadcast_client;
   std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
   rmf_task::ConstActivatorPtr _task_activator;
   ActiveTask _active_task;

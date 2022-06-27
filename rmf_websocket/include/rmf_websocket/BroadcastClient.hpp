@@ -38,7 +38,7 @@ namespace rmf_websocket {
 class BroadcastClient : public std::enable_shared_from_this<BroadcastClient>
 {
 public:
-  using ProvideJsonUpdates =  std::function<std::vector<nlohmann::json>()>;
+  using ProvideJsonUpdates = std::function<std::vector<nlohmann::json>()>;
 
   /// \param[in] uri
   ///   "ws://localhost:9000"
