@@ -14,10 +14,7 @@ endif()
 include(GNUInstallDirs)
 
 find_package(ament_cmake REQUIRED)
-find_package(rmf_api_msgs REQUIRED)
-find_package(rmf_traffic REQUIRED)
-find_package(rmf_traffic_ros2 REQUIRED)
-find_package(rmf_task_msgs REQUIRED)
+find_package(rmf_utils REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
@@ -29,12 +26,9 @@ add_library(rmf_websocket SHARED ${core_lib_srcs})
 
 target_link_libraries(rmf_websocket
   PUBLIC
-    rmf_api_msgs::rmf_api_msgs
-    rmf_traffic::rmf_traffic
-    rmf_traffic_ros2::rmf_traffic_ros2
-    ${rmf_task_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     ${websocketpp_LIBRARIES}
+    rmf_utils::rmf_utils
     nlohmann_json::nlohmann_json
     nlohmann_json_schema_validator
 )
@@ -43,14 +37,12 @@ target_include_directories(rmf_websocket
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    ${rmf_traffic_ros2_INCLUDE_DIRS}
-    ${rmf_task_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
     ${WEBSOCKETPP_INCLUDE_DIR}
 )
 
 ament_export_targets(rmf_websocket HAS_LIBRARY_TARGET)
-ament_export_dependencies(rmf_traffic rmf_task_msgs rclcpp nlohmann_json)
+ament_export_dependencies(rmf_traffic rclcpp nlohmann_json)
 
 #===============================================================================
 install(
