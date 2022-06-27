@@ -85,7 +85,7 @@ rmf_traffic_msgs::msg::ConvexShape convex_shape(YAML::Node node)
 
   rmf_traffic_msgs::msg::ConvexShape shape;
   shape.type = shape_type(node[TypeKey]);
-  shape.index = node[IndexKey].as<uint8_t>();
+  shape.index = node[IndexKey].as<uint16_t>();
   return shape;
 }
 
@@ -249,7 +249,7 @@ YAML::Node serialize(rmf_traffic_msgs::msg::ConvexShape shape)
 {
   YAML::Node node;
   node[TypeKey] = serialize_shape_type(shape.type);
-  node[IndexKey] = shape.index;
+  node[IndexKey] = static_cast<uint16_t>(shape.index);
   return node;
 }
 
