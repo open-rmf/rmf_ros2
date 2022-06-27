@@ -46,7 +46,7 @@ public:
   /// \param[in] node
   ///
   /// \param[in] on_open_connection_fn
-  ///   this function callback will be called when ws client
+  ///   Provided function callback will be called whenever the ws client
   ///   is connected to the server
   static std::shared_ptr<BroadcastClient> make(
     const std::string& uri,

@@ -1,8 +1,8 @@
-This document is a declaration of software quality for the `rmf_task_ros2` package, based on the guidelines in [REP-2004](https://www.ros.org/reps/rep-2004.html).
+This document is a declaration of software quality for the `rmf_websocket` package, based on the guidelines in [REP-2004](https://www.ros.org/reps/rep-2004.html).
 
-# `rmf_task_ros2` Quality Declaration
+# `rmf_websocket` Quality Declaration
 
-The package `rmf_task_ros2` claims to be in the **Quality Level 4** category.
+The package `rmf_websocket` claims to be in the **Quality Level 4** category.
 
 Below are the rationales, notes, and caveats for this claim, organized by each requirement listed in the [Package Requirements for Quality Level 4 in REP-2004](https://www.ros.org/reps/rep-2004.html).
 
@@ -10,11 +10,11 @@ Below are the rationales, notes, and caveats for this claim, organized by each r
 
 ### Version Scheme [1.i]
 
-`rmf_task_ros2` uses `semver` according to the recommendation for ROS Core packages in the [ROS 2 Developer Guide](https://index.ros.org/doc/ros2/Contributing/Developer-Guide/#versioning).
+`rmf_websocket` uses `semver` according to the recommendation for ROS Core packages in the [ROS 2 Developer Guide](https://index.ros.org/doc/ros2/Contributing/Developer-Guide/#versioning).
 
 ### Version Stability [1.ii]
 
-`rmf_task_ros2` is at a stable version, i.e. `>= 1.0.0`.
+`rmf_websocket` is at a stable version, i.e. `>= 1.0.0`.
 The current version can be found in its [package.xml](package.xml), and its change history can be found in its [CHANGELOG](CHANGELOG.rst).
 
 ### Public API Declaration [1.iii]
@@ -28,27 +28,27 @@ All launch files in the installed `launch` directory are considered part of the 
 
 ### API Stability Policy [1.iv]
 
-`rmf_task_ros2` will not break public API within a major version number.
+`rmf_websocket` will not break public API within a major version number.
 
 ### ABI Stability Policy [1.v]
 
-`rmf_task_ros2` will not break public ABI within a major version number.
+`rmf_websocket` will not break public ABI within a major version number.
 
 ### API and ABI Stability Within a Released ROS Distribution [1.vi]
 
-`rmf_task_ros2` will not break public API or ABI within a released ROS distribution, i.e. no major releases into the same ROS distribution once that ROS distribution is released.
+`rmf_websocket` will not break public API or ABI within a released ROS distribution, i.e. no major releases into the same ROS distribution once that ROS distribution is released.
 
 ## Change Control Process [2]
 
-`rmf_task_ros2` follows the recommended guidelines for ROS Core packages in the [ROS 2 Developer Guide](https://index.ros.org/doc/ros2/Contributing/Developer-Guide/#package-requirements).
+`rmf_websocket` follows the recommended guidelines for ROS Core packages in the [ROS 2 Developer Guide](https://index.ros.org/doc/ros2/Contributing/Developer-Guide/#package-requirements).
 
 ### Change Requests [2.i]
 
-`rmf_task_ros2` requires that all changes occur through a pull request.
+`rmf_websocket` requires that all changes occur through a pull request.
 
 ### Contributor Origin [2.ii]
 
-`rmf_task_ros2` uses DCO as its confirmation of contributor origin policy.
+`rmf_websocket` uses DCO as its confirmation of contributor origin policy.
 More information can be found in [CONTRIBUTING](../CONTRIBUTING.md).
 
 ### Peer Review Policy [2.iii]
@@ -69,20 +69,20 @@ All pull requests must resolve related documentation changes before merging.
 
 ### Feature Documentation [3.i]
 
-`rmf_task_ros2` does not provide documentation.
+`rmf_websocket` does not provide documentation.
 
 ### Public API Documentation [3.ii]
 
-`rmf_task_ros2` documents its public API.
+`rmf_websocket` documents its public API.
 The documentation is not hosted.
 
 ### License [3.iii]
 
-The license for `rmf_task_ros2` is Apache 2.0, the type is declared in the [package.xml](package.xml) manifest file, and a full copy of the license is in the repository level [LICENSE](../LICENSE) file.
+The license for `rmf_websocket` is Apache 2.0, the type is declared in the [package.xml](package.xml) manifest file, and a full copy of the license is in the repository level [LICENSE](../LICENSE) file.
 
 ### Copyright Statement [3.iv]
 
-The copyright holders each provide a statement of copyright in each source code file in `rmf_task_ros2`.
+The copyright holders each provide a statement of copyright in each source code file in `rmf_websocket`.
 
 ### Quality declaration document [3.v]
 
@@ -94,51 +94,34 @@ This quality declaration has not been externally peer-reviewed and is not regist
 
 ### Feature Testing [4.i]
 
-Each feature in `rmf_task_ros2` has corresponding tests which simulate typical usage.
-They are located in the [`test`](https://github.com/open-rmf/rmf_ros2/tree/main/rmf_task_ros2/test) directory.
-New features are required to have tests before being added.
-
+`rmf_websocket` does not have testing yet
 ### Public API Testing [4.ii]
 
-Each part of the public API has tests, and new additions or changes to the public API require tests before being added.
-The tests are not run automatically.
-They are located in the [`test`](https://github.com/open-rmf/rmf_ros2/tree/main/rmf_task_ros2/test) directory.
+`rmf_websocket` does not have testing yet
 
 ### Coverage [4.iii]
 
-`rmf_task_ros2` does not track coverage statistics.
+`rmf_websocket` does not track coverage statistics.
 
 ### Performance [4.iv]
 
-`rmf_task_ros2` does not test performance.
+`rmf_websocket` does not test performance.
 
 ### Linters and Static Analysis [4.v]
 
-`rmf_task_ros2` does not use the standard linters and static analysis tools for its CMake code to ensure it follows the [ROS 2 Developer Guide](https://index.ros.org/doc/ros2/Contributing/Developer-Guide/#linters).
+`rmf_websocket` does not use the standard linters and static analysis tools for its CMake code to ensure it follows the [ROS 2 Developer Guide](https://index.ros.org/doc/ros2/Contributing/Developer-Guide/#linters).
 
-`rmf_task_ros2` uses a custom `uncrustify` configuration matching its coding style.
+`rmf_websocket` uses a custom `uncrustify` configuration matching its coding style.
 
 ## Dependencies [5]
 
 ### Direct Runtime ROS Dependencies [5.i]
 
-Below are the required direct runtime ROS dependencies of `rmf_task_ros2` and their evaluations.
+Below are the required direct runtime ROS dependencies of `rmf_websocket` and their evaluations.
 
 #### rmf\_utils
 
 `rmf_utils` is [**Quality Level 4**](https://github.com/open-rmf/rmf_utils/blob/main/rmf_utils/QUALITY_DECLARATION.md).
-
-#### rmf\_traffic
-
-`rmf_traffic` is [**Quality Level 4**](https://github.com/open-rmf/rmf_traffic/blob/main/rmf_traffic/QUALITY_DECLARATION.md).
-
-#### rmf\_traffic\_ros2
-
-`rmf_traffic_ros2` is [**Quality Level 4**](https://github.com/open-rmf/rmf_ros2/blob/main/rmf_traffic_ros2/QUALITY_DECLARATION.md).
-
-#### rmf\_task\_msgs
-
-`rmf_task_msgs` is [**Quality Level 3**](https://github.com/open-rmf/rmf_internal_msgs/blob/main/rmf_task_msgs/QUALITY_DECLARATION.md).
 
 #### rclcpp
 
@@ -146,22 +129,22 @@ Below are the required direct runtime ROS dependencies of `rmf_task_ros2` and th
 
 ### Optional Direct Runtime ROS Dependencies [5.ii]
 
-`rmf_task_ros2` has no optional runtime ROS dependencies.
+`rmf_websocket` has no optional runtime ROS dependencies.
 
 ### Direct Runtime non-ROS Dependency [5.iii]
 
-`rmf_task_ros2` has the following direct runtime non-ROS dependencies.
+`rmf_websocket` has the following direct runtime non-ROS dependencies.
 
-#### eigen
+#### websocketpp
 
-`eigen` is taken to be **Quality Level 3** due to its wide-spread use, history, use of CI, and use of testing.
+`websocketpp` is taken to be **Quality Level 3** due to its wide-spread use, history, use of CI, and use of testing.
 
 ## Platform Support [6]
 
 ### Target platforms [6.i]
 
-`rmf_task_ros2` does not support all of the tier 1 platforms as described in [REP-2000](https://www.ros.org/reps/rep-2000.html#support-tiers).
-`rmf_task_ros2` supports ROS Foxy.
+`rmf_websocket` does not support all of the tier 1 platforms as described in [REP-2000](https://www.ros.org/reps/rep-2000.html#support-tiers).
+`rmf_websocket` supports ROS Foxy.
 
 ## Security [7]
 
