@@ -33,6 +33,7 @@
 #include <rmf_fleet_msgs/srv/lift_clearance.hpp>
 #include <rmf_fleet_msgs/msg/lane_request.hpp>
 #include <rmf_fleet_msgs/msg/closed_lanes.hpp>
+#include <rmf_fleet_msgs/msg/speed_limit_request.hpp>
 #include <rmf_fleet_msgs/msg/interrupt_request.hpp>
 
 // RMF Task messages
@@ -760,6 +761,10 @@ struct Connections : public std::enable_shared_from_this<Connections>
   rclcpp::Publisher<rmf_fleet_msgs::msg::ClosedLanes>::SharedPtr
     closed_lanes_pub;
 
+  /// The topic subscription for listening for speed limit requests
+  rclcpp::Subscription<rmf_fleet_msgs::msg::SpeedLimitRequest>::SharedPtr
+    speed_limit_request_sub;
+
   /// Container for remembering which lanes are currently closed
   std::unordered_set<std::size_t> closed_lanes;
 
@@ -1016,6 +1021,35 @@ std::shared_ptr<Connections> make_fleet(
         connections->closed_lanes.end());
 
       connections->closed_lanes_pub->publish(state_msg);
+    });
+
+  connections->speed_limit_request_sub =
+    adapter->node()->create_subscription<
+    rmf_fleet_msgs::msg::SpeedLimitRequest>(
+    rmf_fleet_adapter::SpeedLimitRequestTopicName,
+    rclcpp::SystemDefaultsQoS(),
+    [w = connections->weak_from_this(), fleet_name](
+      rmf_fleet_msgs::msg::SpeedLimitRequest::ConstSharedPtr request_msg)
+    {
+      const auto connections = w.lock();
+      if (!connections)
+        return;
+
+      if (request_msg->fleet_name != fleet_name &&
+      !request_msg->fleet_name.empty())
+        return;
+
+      std::vector<rmf_fleet_adapter::agv::FleetUpdateHandle::SpeedLimitRequest>
+      requests;
+      for (const auto& limit : request_msg->speed_limits)
+      {
+        auto request =
+          rmf_fleet_adapter::agv::FleetUpdateHandle::SpeedLimitRequest(
+          limit.lane_index, limit.speed_limit);
+        requests.push_back(std::move(request));
+      }
+      connections->fleet->limit_lane_speeds(requests);
+      connections->fleet->remove_speed_limits(request_msg->remove_limits);
     });
 
   connections->interrupt_request_sub =

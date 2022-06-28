@@ -59,6 +59,7 @@ const std::string DockSummaryTopicName = "dock_summary";
 
 const std::string LaneClosureRequestTopicName = "lane_closure_requests";
 const std::string ClosedLaneTopicName = "closed_lanes";
+const std::string SpeedLimitRequestTopicName = "speed_limit_requests";
 const std::string LaneStatesTopicName = "lane_states";
 
 const std::string InterruptRequestTopicName = "robot_interrupt_request";
