@@ -1586,9 +1586,9 @@ FleetUpdateHandle::SpeedLimitRequest::SpeedLimitRequest(
   std::size_t lane_index,
   double speed_limit)
 : _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
-    std::move(lane_index),
-    std::move(speed_limit)
-  }))
+      std::move(lane_index),
+      std::move(speed_limit)
+    }))
 {
   // Do nothing
 }
@@ -1624,14 +1624,14 @@ auto FleetUpdateHandle::limit_lane_speeds(
       {
         // TODO: Check if planner supports negative speed limits.
         if (request.lane_index() >= new_graph.num_lanes() ||
-          request.speed_limit() < 0.0)
+        request.speed_limit() < 0.0)
           continue;
-        auto& properties =
-          new_graph.get_lane(request.lane_index()).properties();
+        auto& properties = new_graph.get_lane(
+          request.lane_index()).properties();
         properties.speed_limit(request.speed_limit());
         // Bookkeeping
         self->_pimpl->speed_limited_lanes[request.lane_index()] =
-          request.speed_limit();
+        request.speed_limit();
       }
 
       *self->_pimpl->planner =
@@ -1661,10 +1661,10 @@ void FleetUpdateHandle::remove_speed_limits(std::vector<std::size_t> requests)
       {
 
         if (auto it = self->_pimpl->speed_limited_lanes.find(request) ==
-          self->_pimpl->speed_limited_lanes.end())
+        self->_pimpl->speed_limited_lanes.end())
           continue;
-        auto& properties =
-          new_graph.get_lane(request).properties();
+        auto& properties = new_graph.get_lane(
+          request).properties();
         properties.speed_limit(std::nullopt);
         // Bookkeeping
         self->_pimpl->speed_limited_lanes.erase(request);
