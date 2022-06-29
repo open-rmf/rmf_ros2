@@ -19,6 +19,9 @@
   <depend>sensor_msgs</depend>
   <depend>octomap</depend>
   <depend>rmf_fleet_adapter</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>geometry_msgs</depend>
 
   <test_depend>ament_cmake_uncrustify</test_depend>
 

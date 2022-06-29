@@ -20,6 +20,9 @@ set(dep_pkgs
   sensor_msgs
   OCTOMAP
   rmf_fleet_adapter
+  tf2_ros
+  geometry_msgs
+  tf2_geometry_msgs
 )
 foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
@@ -98,6 +101,9 @@ target_link_libraries(lane_blocker
     ${rmf_fleet_msgs_LIBRARIES}
     ${rmf_building_map_msgs_LIBRARIES}
     rmf_fleet_adapter::rmf_fleet_adapter
+    ${tf2_ros_LIBRARIES}
+    ${geometry_msgs_LIBRARIES}
+    ${tf2_geometry_msgs_LIBRARIES}
 )
 
 target_include_directories(lane_blocker
@@ -110,6 +116,9 @@ target_include_directories(lane_blocker
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rmf_building_map_msgs_INCLUDE_DIRS}
     ${rmf_fleet_adapter_INCLUDE_DIRS}
+    ${tf2_ros_INCLUDE_DIRS}
+    ${geometry_msgs_INCLUDE_DIRS}
+    ${tf2_geometry_msgs_INCLUDE_DIRS}
 )
 
 target_compile_features(lane_blocker INTERFACE cxx_std_17)
