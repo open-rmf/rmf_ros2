@@ -18,6 +18,7 @@
 #include <rmf_fleet_msgs/msg/robot_state.hpp>
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 #include <rmf_fleet_msgs/msg/location.hpp>
+#include <rmf_fleet_msgs/msg/speed_limited_lane.hpp>
 
 #include <rmf_traffic_ros2/Time.hpp>
 #include <rmf_traffic_ros2/agv/Graph.hpp>
@@ -1525,13 +1526,18 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
       auto new_config = (*self->_pimpl->planner)->get_configuration();
       auto& new_lane_closures = new_config.lane_closures();
       for (const auto& lane : lane_indices)
+      {
         new_lane_closures.close(lane);
+        // Bookkeeping
+        self->_pimpl->closed_lanes.insert(lane);
+      }
 
       *self->_pimpl->planner =
       std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
 
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
+      self->_pimpl->publish_lane_states();
     });
 }
 
@@ -1567,16 +1573,146 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
       auto new_config = (*self->_pimpl->planner)->get_configuration();
       auto& new_lane_closures = new_config.lane_closures();
       for (const auto& lane : lane_indices)
+      {
         new_lane_closures.open(lane);
+        // Bookkeeping
+        self->_pimpl->closed_lanes.erase(lane);
+      }
 
       *self->_pimpl->planner =
       std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
 
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
+      self->_pimpl->publish_lane_states();
     });
 }
 
+//==============================================================================
+class FleetUpdateHandle::SpeedLimitRequest::Implementation
+{
+public:
+  std::size_t lane_index;
+  double speed_limit;
+};
+
+//==============================================================================
+FleetUpdateHandle::SpeedLimitRequest::SpeedLimitRequest(
+  std::size_t lane_index,
+  double speed_limit)
+: _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
+      std::move(lane_index),
+      std::move(speed_limit)
+    }))
+{
+  // Do nothing
+}
+
+//==============================================================================
+std::size_t FleetUpdateHandle::SpeedLimitRequest::lane_index() const
+{
+  return _pimpl->lane_index;
+}
+
+//==============================================================================
+double FleetUpdateHandle::SpeedLimitRequest::speed_limit() const
+{
+  return _pimpl->speed_limit;
+}
+
+//==============================================================================
+auto FleetUpdateHandle::limit_lane_speeds(
+  std::vector<SpeedLimitRequest> requests) -> void
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this(), requests = std::move(requests)](const auto&)
+    {
+      if (requests.empty())
+        return;
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      auto new_config = (*self->_pimpl->planner)->get_configuration();
+      auto& new_graph = new_config.graph();
+      for (const auto& request : requests)
+      {
+        // TODO: Check if planner supports negative speed limits.
+        if (request.lane_index() >= new_graph.num_lanes() ||
+        request.speed_limit() < 0.0)
+          continue;
+        auto& properties = new_graph.get_lane(
+          request.lane_index()).properties();
+        properties.speed_limit(request.speed_limit());
+        // Bookkeeping
+        self->_pimpl->speed_limited_lanes[request.lane_index()] =
+        request.speed_limit();
+      }
+
+      *self->_pimpl->planner =
+      std::make_shared<const rmf_traffic::agv::Planner>(
+        new_config, rmf_traffic::agv::Planner::Options(nullptr));
+
+      self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
+      self->_pimpl->publish_lane_states();
+    });
+}
+
+//==============================================================================
+void FleetUpdateHandle::remove_speed_limits(std::vector<std::size_t> requests)
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this(), requests = std::move(requests)](const auto&)
+    {
+      if (requests.empty())
+        return;
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      auto new_config = (*self->_pimpl->planner)->get_configuration();
+      auto& new_graph = new_config.graph();
+      for (const auto& request : requests)
+      {
+
+        if (auto it = self->_pimpl->speed_limited_lanes.find(request) ==
+        self->_pimpl->speed_limited_lanes.end())
+          continue;
+        auto& properties = new_graph.get_lane(
+          request).properties();
+        properties.speed_limit(std::nullopt);
+        // Bookkeeping
+        self->_pimpl->speed_limited_lanes.erase(request);
+      }
+
+      *self->_pimpl->planner =
+      std::make_shared<const rmf_traffic::agv::Planner>(
+        new_config, rmf_traffic::agv::Planner::Options(nullptr));
+
+      self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
+      self->_pimpl->publish_lane_states();
+    });
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::publish_lane_states() const
+{
+  if (lane_states_pub == nullptr)
+    return;
+  auto msg = std::make_unique<LaneStates>();
+  msg->fleet_name = name;
+  for (const auto& index : closed_lanes)
+    msg->closed_lanes.push_back(index);
+  for (const auto& [index, limit] : speed_limited_lanes)
+  {
+    // TODO(YV): Use type_adapter in Humble to avoid this copy
+    msg->speed_limits.push_back(
+      rmf_fleet_msgs::build<rmf_fleet_msgs::msg::SpeedLimitedLane>()
+      .lane_index(index)
+      .speed_limit(limit));
+  }
+  lane_states_pub->publish(std::move(msg));
+}
 //==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
   AcceptTaskRequest check)
