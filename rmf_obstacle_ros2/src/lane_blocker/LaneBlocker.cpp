@@ -17,6 +17,7 @@
 
 
 #include "LaneBlocker.hpp"
+#include "IntersectionChecker.hpp"
 
 #include <rmf_traffic_ros2/agv/Graph.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
@@ -33,7 +34,6 @@
 LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
 : Node("lane_blocker_node", options)
 {
-
   _tf2_buffer =
     std::make_unique<tf2_ros::Buffer>(this->get_clock());
 
@@ -56,12 +56,35 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
     "Setting parameter obstacle_lane_threshold to %f", _obstacle_lane_threshold
   );
 
+  _lane_width = this->declare_parameter(
+    "lane_width", 1.0);
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Setting parameter lane_width to %f", _lane_width
+  );
+
   _tf2_lookup_duration = this->declare_parameter(
     "tf2_lookup_duration", 0.5);
   RCLCPP_INFO(
     this->get_logger(),
     "Setting parameter tf2_lookup_duration to %f", _tf2_lookup_duration
   );
+
+  const double process_rate = this->declare_parameter("process_rate", 1.0);
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Setting parameter process_rate to %f hz", process_rate
+  );
+
+  auto timer_period =
+    std::chrono::duration_cast<std::chrono::nanoseconds>(
+    std::chrono::duration<double, std::ratio<1>>(1.0 / process_rate));
+  _process_timer = this->create_wall_timer(
+    std::move(timer_period),
+    [=]()
+    {
+      this->process();
+    });
 
   _lane_closure_pub = this->create_publisher<LaneRequest>(
     rmf_fleet_adapter::LaneClosureRequestTopicName,
@@ -118,6 +141,10 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
     },
     ipc_sub_options);
 
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Started lane_blocker node"
+  );
 }
 
 //==============================================================================
@@ -177,7 +204,74 @@ void LaneBlocker::obstacle_cb(const Obstacles& msg)
       after_pose.pose.position.x,
       after_pose.pose.position.y, after_pose.pose.position.z
     );
+    auto new_box =
+      vision_msgs::build<vision_msgs::msg::BoundingBox3D>()
+      .center(std::move(after_pose.pose))
+      .size(std::move(after_size.vector));
+
+    auto obs = std::make_shared<ObstacleData>(
+      rclcpp::Time(obstacle.header.stamp) + rclcpp::Duration(obstacle.lifetime),
+      obstacle.id,
+      obstacle.source,
+      std::move(new_box)
+    );
+
+    // Add to obstacle queue for processing in a separate thread/callback
+    _obstacle_buffer[LaneBlocker::get_obstacle_key(*obs)] =
+      std::move(obs);
   }
+}
+
+//==============================================================================
+void LaneBlocker::process()
+{
+  if (_obstacle_buffer.empty())
+    return;
+
+  for (const auto& [key, obstacle] : _obstacle_buffer)
+  {
+    // If the lifetime of the obstacle has passed, we skip it.
+    if (obstacle->expiry_time < get_clock()->now())
+    {
+      continue;
+    }
+
+    // Then check if this obstacle was previously assigned to a lane. If so,
+    // check if it is still in the vicinity of that lane
+    auto obs_lane_it = _obstacle_to_lanes_map.find(obstacle);
+    if (obs_lane_it != _obstacle_to_lanes_map.end())
+    {
+
+      auto& lanes = obs_lane_it->second;
+
+      RCLCPP_INFO(
+        this->get_logger(),
+        "Obstacle %s was previously in the vicinity of %d lanes",
+        key.c_str(), lanes.size());
+
+      // Check if obstacle is still in the vicinity of these lanes.
+    }
+    else
+    {
+      // New obstacle. It needs to be assigned a lane if within the vicinity of
+      // one
+      RCLCPP_INFO(
+        this->get_logger(),
+        "Obstacle %s was not previously in the vicinity of any lane. Checking "
+        "for any changes", key.c_str()
+      );
+    }
+  }
+
+  // Reinitialize the buffer
+  _obstacle_buffer = {};
+}
+
+//==============================================================================
+void LaneBlocker::cull(
+  const std::string& obstacle_key, const std::string& lane_key)
+{
+
 }
 
 RCLCPP_COMPONENTS_REGISTER_NODE(LaneBlocker)

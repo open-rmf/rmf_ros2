@@ -28,10 +28,14 @@
 #include <rmf_fleet_msgs/msg/speed_limit_request.hpp>
 #include <rmf_fleet_msgs/msg/lane_states.hpp>
 
+#include <vision_msgs/msg/bounding_box3_d.hpp>
+
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 
 #include <unordered_map>
+#include <unordered_set>
+#include <functional>
 
 //==============================================================================
 /// Modify states of lanes for fleet adapters based on density of obstacles
@@ -39,11 +43,14 @@ class LaneBlocker : public rclcpp::Node
 {
 public:
   using Obstacles = rmf_obstacle_msgs::msg::Obstacles;
+  using Obstacle = rmf_obstacle_msgs::msg::Obstacle;
   using NavGraph = rmf_building_map_msgs::msg::Graph;
   using TrafficGraph = rmf_traffic::agv::Graph;
   using LaneRequest = rmf_fleet_msgs::msg::LaneRequest;
   using SpeedLimitRequest = rmf_fleet_msgs::msg::SpeedLimitRequest;
   using LaneStates = rmf_fleet_msgs::msg::LaneStates;
+  using BoundingBox = vision_msgs::msg::BoundingBox3D;
+  using Header = std_msgs::msg::Header;
 
   /// Constructor
   LaneBlocker(
@@ -51,6 +58,9 @@ public:
 
 private:
     void obstacle_cb(const Obstacles& msg);
+    void process();
+    void cull(
+      const std::string& obstacle_key, const std::string& lane_key);
 
     rclcpp::Subscription<Obstacles>::SharedPtr _obstacle_sub;
     rclcpp::Subscription<NavGraph>::SharedPtr _graph_sub;
@@ -65,7 +75,87 @@ private:
 
     std::unordered_map<std::string, TrafficGraph> _traffic_graphs;
     std::unordered_map<std::string, LaneStates::ConstSharedPtr> _lane_states;
+    double _lane_width;
     double _obstacle_lane_threshold;
+
+
+    struct ObstacleData
+    {
+      rclcpp::Time expiry_time;
+      std::size_t id;
+      std::string source;
+      BoundingBox transformed_bbox;
+
+      ObstacleData(
+        rclcpp::Time expiry_time_,
+        std::size_t id_,
+        const std::string& source_,
+        BoundingBox transformed_bbox_)
+      : expiry_time(expiry_time_),
+        id(id_),
+        source(std::move(source_)),
+        transformed_bbox(std::move(transformed_bbox_))
+      { }
+
+      // Overload == for hashing
+      inline bool operator==(const ObstacleData& other)
+      const
+      {
+        const auto lhs_key = LaneBlocker::get_obstacle_key(source, id);
+        const auto rhs_key = LaneBlocker::get_obstacle_key(other.source, other.id);
+        return lhs_key == rhs_key;
+      }
+    };
+    using ObstacleDataConstSharedPtr = std::shared_ptr<const ObstacleData>;
+
+    static inline std::string get_obstacle_key(
+      const std::string& source, const std::size_t id)
+    {
+      return source + "_" + std::to_string(id);
+    }
+
+    static inline std::string get_obstacle_key(const ObstacleData& obstacle)
+    {
+      return LaneBlocker::get_obstacle_key(
+        obstacle.source, obstacle.id);
+    }
+
+    static inline std::string get_lane_key(
+      const std::string& fleet_name,
+      const std::size_t lane_index)
+    {
+      return fleet_name + "_" + std::to_string(lane_index);
+    }
+
+    struct ObstacleHash
+    {
+      std::size_t operator()(
+        const ObstacleDataConstSharedPtr& obstacle) const
+      {
+        const std::string key = LaneBlocker::get_obstacle_key(*obstacle);
+        return std::hash<std::string>()(key);
+      }
+    };
+
+    // Store obstacle after transformation into RMF frame.
+    // Generate key using get_obstacle_key()
+    std::unordered_map<std::string, ObstacleDataConstSharedPtr>
+    _obstacle_buffer = {};
+
+    // Map an obstacle to the lanes in its vicinity
+    std::unordered_map<
+      ObstacleDataConstSharedPtr,
+      std::unordered_set<std::string>,
+      ObstacleHash>  _obstacle_to_lanes_map = {};
+
+    // Map lane to a set of obstacles in its vicinity
+    std::unordered_map<
+      std::string,
+      std::unordered_set<ObstacleDataConstSharedPtr, ObstacleHash>>
+      _lane_to_obstacles_map = {};
+
+    rclcpp::TimerBase::SharedPtr _process_timer;
+    rclcpp::TimerBase::SharedPtr _cull_obstacles_timer;
 };
 
 

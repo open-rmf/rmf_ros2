@@ -14,10 +14,13 @@
   <depend>pluginlib</depend>
   <depend>rmf_utils</depend>
   <depend>rmf_obstacle_msgs</depend>
+  <depend>vision_msgs</depend>
   <depend>rmf_fleet_msgs</depend>
   <depend>rmf_building_map_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>octomap</depend>
+  <depend>rmf_traffic</depend>
+  <depend>rmf_traffic_ros2</depend>
   <depend>rmf_fleet_adapter</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_geometry_msgs</depend>
