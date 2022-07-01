@@ -1639,8 +1639,19 @@ auto FleetUpdateHandle::limit_lane_speeds(
       {
         // TODO: Check if planner supports negative speed limits.
         if (request.lane_index() >= new_graph.num_lanes() ||
-        request.speed_limit() < 0.0)
+        request.speed_limit() <= 0.0)
+        {
+          RCLCPP_WARN(
+            self->_pimpl->node->get_logger(),
+            "Ignoring speed limit request %f for lane %d in fleet %s as it is "
+            "not greater than zero. If you would like to close the lane, use "
+            "the FleetUpdateHandle::close_lanes(~) API instead.",
+            request.speed_limit(),
+            request.lane_index(),
+            self->_pimpl->name.c_str()
+          );
           continue;
+        }
         auto& properties = new_graph.get_lane(
           request.lane_index()).properties();
         properties.speed_limit(request.speed_limit());
