@@ -403,10 +403,21 @@ std::optional<rmf_traffic::agv::Graph> convert(
     {
       return std::nullopt;
     }
-    // TODO(YV): Deserialize events and properties when available
+    auto lane_properties = rmf_traffic::agv::Graph::Lane::Properties();
+    for (const auto& param : e.params)
+    {
+      if (param.name == "speed_limit" &&
+        param.type == param.TYPE_DOUBLE &&
+        param.value_float > 0.0)
+      {
+        lane_properties.speed_limit(param.value_float);
+      }
+      // TODO(YV): Deserialize other events and properties when available
+    }
     graph.add_lane(
       {e.v1_idx},
-      {e.v2_idx});
+      {e.v2_idx},
+      std::move(lane_properties));
   }
 
   return graph;
@@ -487,11 +498,21 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
   {
     const auto& lane = graph.get_lane(i);
     // All lanes in rmf_traffic::agv::Graph are unidirectional
+    std::vector<GraphParamMsg> params;
+    const auto& properties = graph.get_lane(i).properties();
+    if (properties.speed_limit().has_value())
+      params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+        .name("speed_limit")
+        .type(GraphParamMsg::TYPE_DOUBLE)
+        .value_int(0)
+        .value_float(properties.speed_limit().value())
+        .value_string("")
+        .value_bool(false));
     edges.emplace_back(
       rmf_building_map_msgs::build<GraphEdgeMsg>()
       .v1_idx(lane.entry().waypoint_index())
       .v2_idx(lane.exit().waypoint_index())
-      .params({})
+      .params(std::move(params))
       .edge_type(GraphEdgeMsg::EDGE_TYPE_UNIDIRECTIONAL)
     );
   }
