@@ -31,6 +31,7 @@
 #include <rclcpp_components/register_node_macro.hpp>
 
 #include <thread>
+#include <mutex>
 #include <iostream>
 
 //==============================================================================
@@ -79,6 +80,12 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
     "Setting parameter process_rate to %f hz", process_rate
   );
 
+  const double cull_rate = this->declare_parameter("cull_rate", 0.1);
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Setting parameter cull_rate to %f hz", cull_rate
+  );
+
   std::size_t search_millis =
     this->declare_parameter("max_search_millis", 1000);
   RCLCPP_INFO(
@@ -94,14 +101,24 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
     "Setting parameter lane_closure_threshold to %ld", _lane_closure_threshold
   );
 
-  auto timer_period =
+  auto process_timer_period =
     std::chrono::duration_cast<std::chrono::nanoseconds>(
     std::chrono::duration<double, std::ratio<1>>(1.0 / process_rate));
   _process_timer = this->create_wall_timer(
-    std::move(timer_period),
+    std::move(process_timer_period),
     [=]()
     {
       this->process();
+    });
+
+  auto cull_timer_period =
+    std::chrono::duration_cast<std::chrono::nanoseconds>(
+    std::chrono::duration<double, std::ratio<1>>(1.0 / cull_rate));
+  _cull_timer = this->create_wall_timer(
+    std::move(cull_timer_period),
+    [=]()
+    {
+      this->cull();
     });
 
   _lane_closure_pub = this->create_publisher<LaneRequest>(
@@ -457,6 +474,7 @@ void LaneBlocker::request_lane_modifications(
         // Msg was created before. We simply append the new lane id
         msg_it.first->second->close_lanes.push_back(std::move(lane_id));
       }
+      _currently_closed_lanes.insert(lane_key);
     }
     else
     {
@@ -534,10 +552,10 @@ auto LaneBlocker::lane_from_key(
 
 
 //==============================================================================
-void LaneBlocker::cull(
-  const std::string& obstacle_key, const std::string& lane_key)
+void LaneBlocker::cull()
 {
-
+  // Cull obstacles that are past their expiry times.
+  // Also decide whether previously closed lanes should be re-opened.
 }
 
 RCLCPP_COMPONENTS_REGISTER_NODE(LaneBlocker)

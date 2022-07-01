@@ -36,7 +36,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
-#include <mutex>
 
 //==============================================================================
 /// Modify states of lanes for fleet adapters based on density of obstacles
@@ -60,8 +59,7 @@ public:
 private:
     void obstacle_cb(const Obstacles& msg);
     void process();
-    void cull(
-      const std::string& obstacle_key, const std::string& lane_key);
+    void cull();
 
     struct ObstacleData
     {
@@ -137,6 +135,8 @@ private:
     std::unordered_map<std::string, ObstacleDataConstSharedPtr>
     _obstacle_buffer = {};
 
+    // TODO(YV): Based on the current implementation, we should be able to
+    // cache obstacle_key directly
     // Map an obstacle to the lanes in its vicinity
     std::unordered_map<
       ObstacleDataConstSharedPtr,
@@ -148,6 +148,8 @@ private:
       std::string,
       std::unordered_set<ObstacleDataConstSharedPtr, ObstacleHash>>
       _lane_to_obstacles_map = {};
+
+    std::unordered_set<std::string> _currently_closed_lanes;
 
     rclcpp::Subscription<Obstacles>::SharedPtr _obstacle_sub;
     rclcpp::Subscription<NavGraph>::SharedPtr _graph_sub;
@@ -168,7 +170,7 @@ private:
     std::size_t _lane_closure_threshold;
 
     rclcpp::TimerBase::SharedPtr _process_timer;
-    rclcpp::TimerBase::SharedPtr _cull_obstacles_timer;
+    rclcpp::TimerBase::SharedPtr _cull_timer;
 };
 
 #endif // SRC__LANE_BLOCKER__LANEBLOCKER_HPP
