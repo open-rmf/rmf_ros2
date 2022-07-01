@@ -141,12 +141,14 @@ private:
     std::unordered_map<
       ObstacleDataConstSharedPtr,
       std::unordered_set<std::string>,
-      ObstacleHash>  _obstacle_to_lanes_map = {};
+      ObstacleHash> _obstacle_to_lanes_map = {};
 
-    // Map lane to a set of obstacles in its vicinity
+    // Map lane to a set of obstacles in its vicinity. This is only used to
+    // check the number of obstacles in the vicinity of a lane. The obstacles
+    // are represented as their obstacle keys.
     std::unordered_map<
       std::string,
-      std::unordered_set<ObstacleDataConstSharedPtr, ObstacleHash>>
+      std::unordered_set<std::string>>
       _lane_to_obstacles_map = {};
 
     std::unordered_set<std::string> _currently_closed_lanes;
