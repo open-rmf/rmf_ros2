@@ -30,6 +30,9 @@
 
 #include <rclcpp_components/register_node_macro.hpp>
 
+#include <thread>
+#include <iostream>
+
 //==============================================================================
 LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
 : Node("lane_blocker_node", options)
@@ -74,6 +77,21 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
   RCLCPP_INFO(
     this->get_logger(),
     "Setting parameter process_rate to %f hz", process_rate
+  );
+
+  std::size_t search_millis =
+    this->declare_parameter("max_search_millis", 1000);
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Setting parameter max_search_millis to %ld milliseconds", search_millis
+  );
+  _max_search_duration = std::chrono::milliseconds(search_millis);
+
+  _lane_closure_threshold =
+    this->declare_parameter("lane_closure_threshold", 5);
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Setting parameter lane_closure_threshold to %ld", _lane_closure_threshold
   );
 
   auto timer_period =
@@ -197,7 +215,7 @@ void LaneBlocker::obstacle_cb(const Obstacles& msg)
     Vector3Stamped after_size;
     tf2::doTransform(before_pose, after_pose, transform);
     tf2::doTransform(before_size, after_size, transform);
-    RCLCPP_INFO(
+    RCLCPP_DEBUG(
       this->get_logger(),
       "Pose of obstacle id %d in RMF %s frame is [%f, %f, %f]",
       obstacle.id, _rmf_frame.c_str(),
@@ -228,6 +246,10 @@ void LaneBlocker::process()
   if (_obstacle_buffer.empty())
     return;
 
+  // Keep track of which lanes were updated to decided whether to modify lane
+  // state.
+  std::unordered_set<std::string> lanes_with_changes;
+
   for (const auto& [key, obstacle] : _obstacle_buffer)
   {
     // If the lifetime of the obstacle has passed, we skip it.
@@ -241,15 +263,63 @@ void LaneBlocker::process()
     auto obs_lane_it = _obstacle_to_lanes_map.find(obstacle);
     if (obs_lane_it != _obstacle_to_lanes_map.end())
     {
-
-      auto& lanes = obs_lane_it->second;
-
+      auto& lanes_keys = obs_lane_it->second;
       RCLCPP_INFO(
         this->get_logger(),
-        "Obstacle %s was previously in the vicinity of %d lanes",
-        key.c_str(), lanes.size());
+        "Obstacle %s was previously in the vicinity of %ld lanes",
+        key.c_str(), lanes_keys.size());
 
       // Check if obstacle is still in the vicinity of these lanes.
+      for (const auto& lane_key : lanes_keys)
+      {
+        const auto& lane = this->lane_from_key(lane_key);
+        double how_much;
+        auto intersect = IntersectionChecker::between(
+          lane,
+          _lane_width,
+          obstacle->transformed_bbox,
+          how_much
+        );
+        if (intersect || how_much <= _obstacle_lane_threshold)
+        {
+          // Obstacle is still in the vicinity of this lane
+          RCLCPP_INFO(
+            this->get_logger(),
+            "Obstacle %s is still in the vicinity of lane %s",
+            key.c_str(), lane_key.c_str()
+          );
+          // TODO(YV): Is there any value in updating the actual ObstaclePtr
+          // in the other caches?
+          continue;
+        }
+        else
+        {
+          try
+          {
+            RCLCPP_INFO(
+              this->get_logger(),
+              "Obstacle %s is no longer in the vicinity of lane %s. "
+              "Updating cache...", key.c_str(), lane_key.c_str()
+            );
+            // Obstacle is no longer in the vicinity and needs to be removed
+            // Remove from _obstacle_to_lanes_map
+            _obstacle_to_lanes_map[obstacle].erase(lane_key);
+            //Remove from _lane_to_obstacles_map
+            _lane_to_obstacles_map[lane_key].erase(obstacle);
+            lanes_with_changes.insert(lane_key);
+          }
+          catch(const std::exception& e)
+          {
+            RCLCPP_ERROR(
+              this->get_logger(),
+              "[LaneBlocker::process()]: Unable to update obstacle caches."
+              "This is a bug and should be reported. Detailed error: %s",
+              e.what()
+            );
+            continue;
+          }
+        }
+      }
     }
     else
     {
@@ -260,12 +330,208 @@ void LaneBlocker::process()
         "Obstacle %s was not previously in the vicinity of any lane. Checking "
         "for any changes", key.c_str()
       );
+      std::unordered_set<std::string> vicinity_lane_keys = {};
+      std::mutex mutex;
+      auto search_vicinity_lanes =
+        [&vicinity_lane_keys, &mutex](
+          const std::string& fleet_name,
+          const TrafficGraph& graph,
+          const ObstacleData& obstacle,
+          const double threshold,
+          const double lane_width,
+          const std::chrono::nanoseconds max_duration)
+        {
+          const auto start_time = std::chrono::steady_clock::now();
+          const auto max_time = start_time + max_duration;
+          for (std::size_t i = 0; i < graph.num_lanes(); ++i)
+          {
+            if (std::chrono::steady_clock::now() > max_time)
+              return;
+            const auto& lane = graph.get_lane(i);
+            double how_much;
+            auto intersect = IntersectionChecker::between(
+              lane,
+              lane_width,
+              obstacle.transformed_bbox,
+              how_much
+            );
+            if (intersect || how_much < threshold)
+            {
+              std::lock_guard<std::mutex>lock(mutex);
+              vicinity_lane_keys.insert(
+                LaneBlocker::get_lane_key(fleet_name, i));
+            }
+          }
+          const auto finish_time = std::chrono::steady_clock::now();
+          std::cout << "Obstacle " << obstacle.id
+                    << " search in graph for fleet " << fleet_name << " took "
+                    << (finish_time - start_time).count() /1e6
+                    << " ms" << std::endl;
+
+        };
+      std::vector<std::thread> search_threads = {};
+      for (const auto& [fleet_name, graph] : _traffic_graphs)
+      {
+        search_threads.push_back(
+          std::thread(
+          search_vicinity_lanes,
+          fleet_name,
+          graph,
+          *obstacle,
+          _obstacle_lane_threshold,
+          _lane_width,
+          _max_search_duration)
+        );
+      }
+
+      for (auto& t : search_threads)
+      {
+        if (t.joinable())
+          t.join();
+      }
+
+      RCLCPP_INFO(
+        this->get_logger(),
+        "Search concluded with %ld lanes in the vicinity of obstacle %s",
+        vicinity_lane_keys.size(), key.c_str()
+      );
+
+      // Update caches
+      for (const auto& lane_key : vicinity_lane_keys)
+      {
+        _obstacle_to_lanes_map[obstacle].insert(lane_key);
+        _lane_to_obstacles_map[lane_key].insert(obstacle);
+        lanes_with_changes.insert(lane_key);
+      }
     }
   }
 
+  RCLCPP_INFO(
+    this->get_logger(),
+    "There are %ld lanes with changes to the number of obstacles in their "
+    "vicinity", lanes_with_changes.size()
+  );
+  request_lane_modifications(std::move(lanes_with_changes));
   // Reinitialize the buffer
   _obstacle_buffer = {};
 }
+
+//==============================================================================
+void LaneBlocker::request_lane_modifications(
+  const std::unordered_set<std::string>& changes)
+{
+  if (changes.empty())
+    return;
+
+  // A map to collate lanes per fleet that need to be closed
+  std::unordered_map<std::string, std::unique_ptr<LaneRequest>> closure_msgs;
+  // For now we implement a simple heuristic to decide whether to close a lane
+  // or not.
+  for (const auto& lane_key : changes)
+  {
+    if (_lane_to_obstacles_map.find(lane_key) == _lane_to_obstacles_map.end())
+    {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "[LaneBlocker::request_lane_modifications()]: key error. This is a "
+        "bug and should be reported."
+      );
+      continue;
+    }
+    auto [fleet_name, lane_id] = deserialize_key(lane_key);
+    const auto& obstacles = _lane_to_obstacles_map.at(lane_key);
+    if (obstacles.size() >= _lane_closure_threshold)
+    {
+      auto msg_it = closure_msgs.insert({fleet_name, nullptr});
+      if (msg_it.second)
+      {
+        LaneRequest request;
+        request.fleet_name = std::move(fleet_name);
+        request.close_lanes.push_back(std::move(lane_id));
+        msg_it.first->second = std::make_unique<LaneRequest>(
+          std::move(request)
+        );
+      }
+      else
+      {
+        // Msg was created before. We simply append the new lane id
+        msg_it.first->second->close_lanes.push_back(std::move(lane_id));
+      }
+    }
+    else
+    {
+      RCLCPP_INFO(
+        this->get_logger(),
+        "Lane %s has %ld obstacles in its vicinity but will not be closed as "
+        "the threshold is %ld",
+        lane_key.c_str(), obstacles.size(), _lane_closure_threshold
+      );
+      continue;
+    }
+  }
+
+  // Publish lane closures
+  for (auto& [_, msg] : closure_msgs)
+  {
+    if (msg->close_lanes.empty())
+    {
+      RCLCPP_DEBUG(
+        this->get_logger(),
+        "None of the lanes for fleet %s need to be closed",
+        msg->fleet_name.c_str()
+      );
+      continue;
+    }
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Requested %ld lane closures for fleet %s",
+       msg->close_lanes.size(), msg->fleet_name.c_str()
+    );
+    _lane_closure_pub->publish(std::move(msg));
+  }
+}
+
+//==============================================================================
+auto LaneBlocker::deserialize_key(
+  const std::string& key) const-> std::pair<std::string, std::size_t>
+{
+  const std::string delimiter = "_";
+  // This should not throw any errors if keys are constructed using get_key()
+  // TODO(YV): Consider returning an optional instead
+  try
+  {
+    std::string name = key.substr(0, key.find(delimiter));
+    std::string id_str =
+      key.substr(key.find(delimiter) + 1, key.size() - name.size());
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Parsed key %s into [%s, %s]",
+      key.c_str(),
+      name.c_str(),
+      id_str.c_str()
+    );
+    std::stringstream ss(id_str);
+    std::size_t id; ss >> id;
+    return std::make_pair(std::move(name), std::move(id));
+  }
+  catch(const std::exception& e)
+  {
+    // *INDENT-OFF*
+    throw std::runtime_error(
+      "[LaneBlocker::lane_from_key] Unable to parse key. This is a bug and "
+      "should be reported. Detailed error: " + std::string(e.what()));
+    // *INDENT-ON*
+  }
+}
+//==============================================================================
+auto LaneBlocker::lane_from_key(
+  const std::string& key) const-> const TrafficGraph::Lane&
+{
+  const auto [fleet_name, id] = deserialize_key(key);
+  return _traffic_graphs.at(fleet_name).get_lane(id);
+
+}
+
 
 //==============================================================================
 void LaneBlocker::cull(

@@ -24,8 +24,7 @@ bool IntersectionChecker::between(
   const BoundingBox& obstacle,
   double& how_much)
 {
-
+  how_much = std::numeric_limits<double>::max();
   return false;
-
 }
 

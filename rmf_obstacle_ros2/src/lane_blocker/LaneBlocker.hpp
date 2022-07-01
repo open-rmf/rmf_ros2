@@ -36,6 +36,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <functional>
+#include <mutex>
 
 //==============================================================================
 /// Modify states of lanes for fleet adapters based on density of obstacles
@@ -61,23 +62,6 @@ private:
     void process();
     void cull(
       const std::string& obstacle_key, const std::string& lane_key);
-
-    rclcpp::Subscription<Obstacles>::SharedPtr _obstacle_sub;
-    rclcpp::Subscription<NavGraph>::SharedPtr _graph_sub;
-    rclcpp::Subscription<LaneStates>::SharedPtr _lane_states_sub;
-    rclcpp::Publisher<LaneRequest>::SharedPtr _lane_closure_pub;
-    rclcpp::Publisher<SpeedLimitRequest>::SharedPtr _speed_limit_pub;
-    double _tf2_lookup_duration;
-
-    std::string _rmf_frame;
-    std::unique_ptr<tf2_ros::Buffer> _tf2_buffer;
-    std::shared_ptr<tf2_ros::TransformListener> _transform_listener;
-
-    std::unordered_map<std::string, TrafficGraph> _traffic_graphs;
-    std::unordered_map<std::string, LaneStates::ConstSharedPtr> _lane_states;
-    double _lane_width;
-    double _obstacle_lane_threshold;
-
 
     struct ObstacleData
     {
@@ -137,8 +121,19 @@ private:
       }
     };
 
+    std::pair<std::string, std::size_t>
+    deserialize_key(const std::string& key) const;
+
+    const TrafficGraph::Lane& lane_from_key(const std::string& key) const;
+
+    // Modify lanes with changes in number of vicinity obstacles
+    void request_lane_modifications(
+      const std::unordered_set<std::string>& changes);
+
     // Store obstacle after transformation into RMF frame.
     // Generate key using get_obstacle_key()
+    // We cache them based on source + id so that we keep only the latest
+    // version of that obstacle.
     std::unordered_map<std::string, ObstacleDataConstSharedPtr>
     _obstacle_buffer = {};
 
@@ -154,9 +149,26 @@ private:
       std::unordered_set<ObstacleDataConstSharedPtr, ObstacleHash>>
       _lane_to_obstacles_map = {};
 
+    rclcpp::Subscription<Obstacles>::SharedPtr _obstacle_sub;
+    rclcpp::Subscription<NavGraph>::SharedPtr _graph_sub;
+    rclcpp::Subscription<LaneStates>::SharedPtr _lane_states_sub;
+    rclcpp::Publisher<LaneRequest>::SharedPtr _lane_closure_pub;
+    rclcpp::Publisher<SpeedLimitRequest>::SharedPtr _speed_limit_pub;
+    double _tf2_lookup_duration;
+
+    std::string _rmf_frame;
+    std::unique_ptr<tf2_ros::Buffer> _tf2_buffer;
+    std::shared_ptr<tf2_ros::TransformListener> _transform_listener;
+
+    std::unordered_map<std::string, TrafficGraph> _traffic_graphs;
+    std::unordered_map<std::string, LaneStates::ConstSharedPtr> _lane_states;
+    double _lane_width;
+    double _obstacle_lane_threshold;
+    std::chrono::nanoseconds _max_search_duration;
+    std::size_t _lane_closure_threshold;
+
     rclcpp::TimerBase::SharedPtr _process_timer;
     rclcpp::TimerBase::SharedPtr _cull_obstacles_timer;
 };
-
 
 #endif // SRC__LANE_BLOCKER__LANEBLOCKER_HPP
