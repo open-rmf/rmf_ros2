@@ -20,23 +20,25 @@
 
 #include <Eigen/Geometry>
 
-#include <rmf_traffic/agv/Graph.hpp>
+#include <vision_msgs/msg/bounding_box2_d.hpp>
 
-#include<vision_msgs/msg/bounding_box3_d.hpp>
-
+//==============================================================================
 // TODO(YV): Consider making this a loadable plugin via pluginlib
 namespace IntersectionChecker {
 
-using Lane = rmf_traffic::agv::Graph::Lane;
-using BoundingBox = vision_msgs::msg::BoundingBox3D;
+using CollisionGeometry = vision_msgs::msg::BoundingBox2D;
+
+// Return true if intersect.
+bool broadpahse(
+  const CollisionGeometry& o1,
+  const CollisionGeometry& o2);
 
 // Return true if intersect.
 // If intersect, how_much represents the overlap in meters
 // If not intersect, how_much represents the shortest distance.
-bool between(
-  const Lane& lane,
-  const double lane_width,
-  const BoundingBox& obstacle,
+bool narrowphase(
+  const CollisionGeometry& o1,
+  const CollisionGeometry& o2,
   double& how_much);
 
 } // namespace IntersectionChecker

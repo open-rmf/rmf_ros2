@@ -34,6 +34,56 @@
 #include <mutex>
 #include <iostream>
 
+
+//==============================================================================
+namespace {
+
+IntersectionChecker::CollisionGeometry make_collision_geometry(
+  const rmf_traffic::agv::Graph& graph,
+  const rmf_traffic::agv::Graph::Lane& lane,
+  const double lane_width)
+{
+  IntersectionChecker::CollisionGeometry geometry;
+  const Eigen::Vector2d& entry_loc =
+    graph.get_waypoint(lane.entry().waypoint_index()).get_location();
+
+  const Eigen::Vector2d& exit_loc =
+    graph.get_waypoint(lane.entry().waypoint_index()).get_location();
+
+  const auto& center_loc = (exit_loc + entry_loc) * 0.5;
+  const auto& axis = (exit_loc - entry_loc);
+  const double theta = std::atan2(axis[1], axis[2]);
+  const double length = axis.norm();
+
+  geometry.center.x = center_loc[0];
+  geometry.center.y = center_loc[1];
+  geometry.center.theta = theta;
+  geometry.size_x = lane_width;
+  geometry.size_y = length;
+  return geometry;
+}
+
+IntersectionChecker::CollisionGeometry make_collision_geometry(
+  const LaneBlocker::BoundingBox& obstacle)
+{
+  IntersectionChecker::CollisionGeometry geometry;
+
+  const auto& p = obstacle.center.position;
+  const auto& q = obstacle.center.orientation;
+  // Convert quaternion to yaw
+  const double siny_cosp = 2 * (q.w * q.z + q.x * q.y);
+  const double cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z);
+  geometry.center.theta = std::atan2(siny_cosp, cosy_cosp);
+
+  geometry.center.x = p.x;
+  geometry.center.y = p.y;
+  geometry.size_x = obstacle.size.x;
+  geometry.size_y = obstacle.size.y;
+
+  return geometry;
+}
+
+} //namespace anonymous
 //==============================================================================
 LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
 : Node("lane_blocker_node", options)
@@ -306,11 +356,16 @@ void LaneBlocker::process()
       for (const auto& lane_key : lanes_keys)
       {
         const auto& lane = this->lane_from_key(lane_key);
+        const auto [fleet_name, id] = deserialize_key(key);
         double how_much;
-        auto intersect = IntersectionChecker::between(
+        const auto& o1 = make_collision_geometry(
+          _traffic_graphs.at(fleet_name),
           lane,
-          _lane_width,
-          obstacle->transformed_bbox,
+          _lane_width);
+        const auto& o2 = make_collision_geometry(obstacle->transformed_bbox);
+        auto intersect = IntersectionChecker::narrowphase(
+          o1,
+          o2,
           how_much
         );
         if (intersect || how_much <= _obstacle_lane_threshold)
@@ -382,10 +437,15 @@ void LaneBlocker::process()
               return;
             const auto& lane = graph.get_lane(i);
             double how_much;
-            auto intersect = IntersectionChecker::between(
+            const auto& o1 = make_collision_geometry(
+              graph,
               lane,
-              lane_width,
-              obstacle.transformed_bbox,
+              lane_width);
+            const auto& o2 = make_collision_geometry(
+              obstacle.transformed_bbox);
+            auto intersect = IntersectionChecker::narrowphase(
+              o1,
+              o2,
               how_much
             );
             if (intersect || how_much < threshold)

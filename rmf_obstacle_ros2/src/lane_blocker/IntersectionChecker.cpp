@@ -17,14 +17,45 @@
 
 #include "IntersectionChecker.hpp"
 
+//==============================================================================
+namespace IntersectionChecker {
 
-bool IntersectionChecker::between(
-  const Lane& lane,
-  const double lane_width,
-  const BoundingBox& obstacle,
-  double& how_much)
+namespace {
+
+
+
+// CollisionGeometry make_collision_geometry(
+//   Eigen::Vector2d origin,
+//   Eigen::Vector2d p_x,
+//   Eigen::Vector2d p_y)
+// {
+//   CollisionGeometry geometry;
+
+//   return geometry;
+// }
+
+
+
+
+
+
+
+} // anonymous namespace
+
+
+//==============================================================================
+bool broadpahse(
+  const CollisionGeometry& o1,
+  const CollisionGeometry& o2)
 {
-  how_much = std::numeric_limits<double>::max();
   return false;
 }
 
+bool narrowphase(
+  const CollisionGeometry& o1,
+  const CollisionGeometry& o2,
+  double& how_much)
+{
+  return false;
+}
+} // namespace IntersectionChecker
