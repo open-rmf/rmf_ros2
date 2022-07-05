@@ -31,6 +31,14 @@ foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
 endforeach()
 
+if ($ENV{ROS_DISTRO} MATCHES humble)
+  set(tf2_geometry_msgs_include_dirs "")
+  set(tf2_geometry_msgs_link_libraries tf2_geometry_msgs::tf2_geometry_msgs)
+else()
+  set(tf2_geometry_msgs_include_dir ${tf2_geometry_msgs_INCLUDE_DIRS})
+  set(tf2_geometry_msgs_link_libraries ${tf2_geometry_msgs_LIBRARIES})
+endif()
+
 #===============================================================================
 file(GLOB_RECURSE core_lib_srcs "src/rmf_obstacle_ros2/*.cpp")
 add_library(rmf_obstacle_ros2 SHARED ${core_lib_srcs})
@@ -112,7 +120,7 @@ target_link_libraries(lane_blocker
     ${rmf_traffic_ros2_LIBRARIES}
     ${tf2_ros_LIBRARIES}
     ${geometry_msgs_LIBRARIES}
-    ${tf2_geometry_msgs_LIBRARIES}
+    ${tf2_geometry_msgs_link_libraries}
 )
 
 target_include_directories(lane_blocker
@@ -130,7 +138,7 @@ target_include_directories(lane_blocker
     ${rmf_traffic_ros2_INCLUDE_DIRS}
     ${tf2_ros_INCLUDE_DIRS}
     ${geometry_msgs_INCLUDE_DIRS}
-    ${tf2_geometry_msgs_INCLUDE_DIRS}
+    ${tf2_geometry_msgs_include_dirs}
 )
 
 target_compile_features(lane_blocker INTERFACE cxx_std_17)
