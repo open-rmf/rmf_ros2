@@ -69,17 +69,63 @@ bool narrowphase(
   const auto& o1_box = make_collision_box(o1);
 
 
-  // std::vector<Eigen::Vector3d> vertices;
-  // const auto o2_box = make_collision_box(o2);
-  // for (std::size_t i = 0; i < 2; ++i)
-  // {
-  //   for (std::size_t j = 1; j >= 0; --j)
-  //   {
-  //     vertices.push_back({o2_box.min[0], o2_box.min[0], o2_box.min[0]});
-  //   }
-  // }
+  std::vector<Eigen::Vector2d> vertices;
+  const auto o2_box = make_collision_box(o2);
+  vertices.push_back({o2_box.min[0], o2_box.min[1]});
+  vertices.push_back({o2_box.min[0], o2_box.max[1]});
+  vertices.push_back({o2_box.max[0], o2_box.min[1]});
+  vertices.push_back({o2_box.max[0], o2_box.max[1]});
+  // Transform o2 vertices into o1 coordinates
+  const auto& transform = get_transform(o1, o2);
+  for (auto& v : vertices)
+  {
+    v = (transform * Eigen::Vector3d{v[0], v[1], 1.0}).block<2,1>(0, 0);
+  }
 
-  // Use SAT
+  // Use SAT. Project o2 vertices onto o1 X & Y axes
+  // Get the unit vector from o1 center along X Axis
+  // auto x_axis = Eigen::Vector2d{o1_box.max[0] - o1.center.x, 0.0};
+  // x_axis /= x_axis.norm();
+  // auto y_axis = Eigen::Vector2d{0.0, o1_box.max[1] - o1.center.y};
+  // y_axis /= y_axis.norm();
+
+  // Project all transformed o2 points onto each axis and compare bounds with o1_box
+
+  // X-Axis
+  double min_value_x = std::numeric_limits<double>::max();
+  double max_value_x = std::numeric_limits<double>::min();
+  for (const auto& v : vertices)
+  {
+    if (v[0] < min_value_x)
+      min_value_x = v[0];
+  }
+  for (const auto& v : vertices)
+  {
+    if (v[0] > max_value_x)
+      max_value_x = v[0];
+  }
+
+  // X-Axis
+  double min_value_y = std::numeric_limits<double>::max();
+  double max_value_y = std::numeric_limits<double>::min();
+  for (const auto& v : vertices)
+  {
+    if (v[1] < min_value_y)
+      min_value_y = v[1];
+  }
+  for (const auto& v : vertices)
+  {
+    if (v[1] > max_value_y)
+      max_value_y = v[1];
+  }
+
+  if ((min_value_x >= o1_box.min[0] && min_value_x <= o1_box.max[0]) ||
+    (max_value_x >= o1_box.min[0] && min_value_x <= o1_box.max[0]) ||
+    (min_value_y >= o1_box.min[1] && min_value_y <= o1_box.max[1]) ||
+    (max_value_y >= o1_box.min[1] && min_value_y <= o1_box.max[1]))
+  {
+    return true;
+  }
 
 
   return false;
