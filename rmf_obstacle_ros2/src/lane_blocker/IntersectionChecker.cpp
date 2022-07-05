@@ -22,23 +22,23 @@ namespace IntersectionChecker {
 
 namespace {
 
+Eigen::Matrix3d get_transform(const CollisionGeometry& to,
+  const CollisionGeometry& from)
+{
+  Eigen::Transform<double, 2, Eigen::Affine> t;
+  Eigen::Vector2d p1 = {to.center.x, to.center.y};
+  Eigen::Vector2d p2 = {from.center.x, from.center.y};
 
+  t = Eigen::Translation<double, 2>(p2 - p1);
+  t.rotate(Eigen::Rotation2D<double>(from.center.theta - to.center.theta));
+  return t.matrix();
+}
 
-// CollisionGeometry make_collision_geometry(
-//   Eigen::Vector2d origin,
-//   Eigen::Vector2d p_x,
-//   Eigen::Vector2d p_y)
-// {
-//   CollisionGeometry geometry;
-
-//   return geometry;
-// }
-
-
-
-
-
-
+struct CollisionBox
+{
+  Eigen::Vector2d min; // min x & y
+  Eigen::Vector2d max; // max x & y
+};
 
 } // anonymous namespace
 
@@ -56,6 +56,32 @@ bool narrowphase(
   const CollisionGeometry& o2,
   double& how_much)
 {
+
+  auto make_collision_box =
+   [](const CollisionGeometry& o) -> CollisionBox
+   {
+    CollisionBox box;
+    box.min = {o.center.x - o.size_x * 0.5, o.center.y - o.size_y * 0.5};
+    box.max = {o.center.x + o.size_x * 0.5, o.center.y + o.size_y * 0.5};
+    return box;
+   };
+
+  const auto& o1_box = make_collision_box(o1);
+
+
+  // std::vector<Eigen::Vector3d> vertices;
+  // const auto o2_box = make_collision_box(o2);
+  // for (std::size_t i = 0; i < 2; ++i)
+  // {
+  //   for (std::size_t j = 1; j >= 0; --j)
+  //   {
+  //     vertices.push_back({o2_box.min[0], o2_box.min[0], o2_box.min[0]});
+  //   }
+  // }
+
+  // Use SAT
+
+
   return false;
 }
 } // namespace IntersectionChecker
