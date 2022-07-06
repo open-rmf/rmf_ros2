@@ -991,8 +991,8 @@ std::shared_ptr<Connections> make_fleet(
       if (!connections)
         return;
 
-      if (request_msg->fleet_name != fleet_name &&
-      !request_msg->fleet_name.empty())
+      if (request_msg->fleet_name != fleet_name ||
+      request_msg->fleet_name.empty())
         return;
 
       connections->fleet->open_lanes(request_msg->open_lanes);
@@ -1035,8 +1035,8 @@ std::shared_ptr<Connections> make_fleet(
       if (!connections)
         return;
 
-      if (request_msg->fleet_name != fleet_name &&
-      !request_msg->fleet_name.empty())
+      if (request_msg->fleet_name != fleet_name ||
+      request_msg->fleet_name.empty())
         return;
 
       std::vector<rmf_fleet_adapter::agv::FleetUpdateHandle::SpeedLimitRequest>
@@ -1044,7 +1044,7 @@ std::shared_ptr<Connections> make_fleet(
       for (const auto& limit : request_msg->speed_limits)
       {
         auto request =
-          rmf_fleet_adapter::agv::FleetUpdateHandle::SpeedLimitRequest(
+        rmf_fleet_adapter::agv::FleetUpdateHandle::SpeedLimitRequest(
           limit.lane_index, limit.speed_limit);
         requests.push_back(std::move(request));
       }
