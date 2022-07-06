@@ -150,6 +150,8 @@ rclcpp_components_register_node(lane_blocker
 #===============================================================================
 if(BUILD_TESTING)
   find_package(ament_cmake_uncrustify REQUIRED)
+  find_package(ament_cmake_catch2 REQUIRED)
+
   find_file(uncrustify_config_file
     NAMES "rmf_code_style.cfg"
     PATHS "${rmf_utils_DIR}/../../../share/rmf_utils/")
@@ -159,6 +161,8 @@ if(BUILD_TESTING)
     CONFIG_FILE ${uncrustify_config_file}
     MAX_LINE_LENGTH 80
   )
+
+  add_subdirectory(src/lane_blocker/test)
 
 endif()
 

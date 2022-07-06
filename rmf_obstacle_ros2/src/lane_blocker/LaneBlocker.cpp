@@ -104,7 +104,7 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
   );
 
   _obstacle_lane_threshold = this->declare_parameter(
-    "obstacle_lane_threshold", 0.5);
+    "obstacle_lane_threshold", 1.0);
   RCLCPP_INFO(
     this->get_logger(),
     "Setting parameter obstacle_lane_threshold to %f", _obstacle_lane_threshold
@@ -363,7 +363,7 @@ void LaneBlocker::process()
           lane,
           _lane_width);
         const auto& o2 = make_collision_geometry(obstacle->transformed_bbox);
-        auto intersect = IntersectionChecker::narrowphase(
+        auto intersect = IntersectionChecker::between(
           o1,
           o2,
           how_much
@@ -443,7 +443,7 @@ void LaneBlocker::process()
               lane_width);
             const auto& o2 = make_collision_geometry(
               obstacle.transformed_bbox);
-            auto intersect = IntersectionChecker::narrowphase(
+            auto intersect = IntersectionChecker::between(
               o1,
               o2,
               how_much

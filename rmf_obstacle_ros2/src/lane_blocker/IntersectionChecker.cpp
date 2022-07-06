@@ -29,9 +29,10 @@ Eigen::Matrix3d get_transform(const CollisionGeometry& to,
   Eigen::Vector2d p1 = {to.center.x, to.center.y};
   Eigen::Vector2d p2 = {from.center.x, from.center.y};
 
-  t = Eigen::Translation<double, 2>(p2 - p1);
+  t = Eigen::Translation<double, 2>(-p1);
   t.rotate(Eigen::Rotation2D<double>(from.center.theta - to.center.theta));
-  return t.matrix();
+  const auto& matrix = t.matrix();
+  return matrix;
 }
 
 struct CollisionBox
@@ -44,90 +45,59 @@ struct CollisionBox
 
 
 //==============================================================================
-bool broadpahse(
-  const CollisionGeometry& o1,
-  const CollisionGeometry& o2)
-{
-  return false;
-}
-
-bool narrowphase(
+bool between(
   const CollisionGeometry& o1,
   const CollisionGeometry& o2,
   double& how_much)
 {
-
   auto make_collision_box =
-   [](const CollisionGeometry& o) -> CollisionBox
+   [](const CollisionGeometry& o, const bool origin) -> CollisionBox
    {
     CollisionBox box;
-    box.min = {o.center.x - o.size_x * 0.5, o.center.y - o.size_y * 0.5};
-    box.max = {o.center.x + o.size_x * 0.5, o.center.y + o.size_y * 0.5};
+    box.min = origin ? Eigen::Vector2d{-o.size_x * 0.5, -o.size_y * 0.5} :
+      Eigen::Vector2d{o.center.x -o.size_x * 0.5, o.center.y -o.size_y * 0.5};
+    box.max = origin ? Eigen::Vector2d{o.size_x * 0.5, o.size_y * 0.5} :
+      Eigen::Vector2d{o.center.x + o.size_x * 0.5, o.center.y + o.size_y * 0.5};
     return box;
    };
 
-  const auto& o1_box = make_collision_box(o1);
-
-
+  const auto& o1_box = make_collision_box(o1, true);
   std::vector<Eigen::Vector2d> vertices;
-  const auto o2_box = make_collision_box(o2);
+  const auto o2_box = make_collision_box(o2, false);
   vertices.push_back({o2_box.min[0], o2_box.min[1]});
-  vertices.push_back({o2_box.min[0], o2_box.max[1]});
-  vertices.push_back({o2_box.max[0], o2_box.min[1]});
   vertices.push_back({o2_box.max[0], o2_box.max[1]});
   // Transform o2 vertices into o1 coordinates
   const auto& transform = get_transform(o1, o2);
   for (auto& v : vertices)
-  {
     v = (transform * Eigen::Vector3d{v[0], v[1], 1.0}).block<2,1>(0, 0);
-  }
 
   // Use SAT. Project o2 vertices onto o1 X & Y axes
-  // Get the unit vector from o1 center along X Axis
-  // auto x_axis = Eigen::Vector2d{o1_box.max[0] - o1.center.x, 0.0};
-  // x_axis /= x_axis.norm();
-  // auto y_axis = Eigen::Vector2d{0.0, o1_box.max[1] - o1.center.y};
-  // y_axis /= y_axis.norm();
+  CollisionBox o2t_box;
+  o2t_box.min = vertices[0];
+  o2t_box.max = vertices[1];
 
-  // Project all transformed o2 points onto each axis and compare bounds with o1_box
+  how_much =
+    [&]() -> double
+    {
+      double dist = std::numeric_limits<double>::max();
+      for (std::size_t i = 0; i < 2; ++i)
+      {
+        dist = std::min(
+          dist,
+          std::min(
+          std::abs(o2t_box.min[i] - o1_box.max[i]),
+          std::abs(o1_box.min[i] - o2t_box.max[i]))
+        );
+      }
+      return dist;
+    }();
 
-  // X-Axis
-  double min_value_x = std::numeric_limits<double>::max();
-  double max_value_x = std::numeric_limits<double>::min();
-  for (const auto& v : vertices)
+  for (std::size_t i = 0; i < 2; ++i)
   {
-    if (v[0] < min_value_x)
-      min_value_x = v[0];
-  }
-  for (const auto& v : vertices)
-  {
-    if (v[0] > max_value_x)
-      max_value_x = v[0];
-  }
-
-  // X-Axis
-  double min_value_y = std::numeric_limits<double>::max();
-  double max_value_y = std::numeric_limits<double>::min();
-  for (const auto& v : vertices)
-  {
-    if (v[1] < min_value_y)
-      min_value_y = v[1];
-  }
-  for (const auto& v : vertices)
-  {
-    if (v[1] > max_value_y)
-      max_value_y = v[1];
+    if (o2t_box.min[i] > o1_box.max[i] || o2t_box.max[i] < o1_box.min[i])
+      return false;
   }
 
-  if ((min_value_x >= o1_box.min[0] && min_value_x <= o1_box.max[0]) ||
-    (max_value_x >= o1_box.min[0] && min_value_x <= o1_box.max[0]) ||
-    (min_value_y >= o1_box.min[1] && min_value_y <= o1_box.max[1]) ||
-    (max_value_y >= o1_box.min[1] && min_value_y <= o1_box.max[1]))
-  {
-    return true;
-  }
-
-
-  return false;
+  return true;
 }
 } // namespace IntersectionChecker

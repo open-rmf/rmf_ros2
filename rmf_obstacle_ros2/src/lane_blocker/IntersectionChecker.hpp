@@ -29,14 +29,9 @@ namespace IntersectionChecker {
 using CollisionGeometry = vision_msgs::msg::BoundingBox2D;
 
 // Return true if intersect.
-bool broadpahse(
-  const CollisionGeometry& o1,
-  const CollisionGeometry& o2);
-
-// Return true if intersect.
 // If intersect, how_much represents the overlap in meters
-// If not intersect, how_much represents the shortest distance.
-bool narrowphase(
+// If not intersect, how_much represents the separating distance in meters.
+bool between(
   const CollisionGeometry& o1,
   const CollisionGeometry& o2,
   double& how_much);
