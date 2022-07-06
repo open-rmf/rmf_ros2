@@ -64,13 +64,15 @@ private:
     struct ObstacleData
     {
       rclcpp::Time expiry_time;
-      std::size_t id;
+      int id;
       std::string source;
       BoundingBox transformed_bbox;
 
+      ObstacleData() {}
+
       ObstacleData(
         rclcpp::Time expiry_time_,
-        std::size_t id_,
+        int id_,
         const std::string& source_,
         BoundingBox transformed_bbox_)
       : expiry_time(expiry_time_),
@@ -112,9 +114,9 @@ private:
     struct ObstacleHash
     {
       std::size_t operator()(
-        const ObstacleDataConstSharedPtr& obstacle) const
+        const ObstacleData& obstacle) const
       {
-        const std::string key = LaneBlocker::get_obstacle_key(*obstacle);
+        const std::string key = LaneBlocker::get_obstacle_key(obstacle);
         return std::hash<std::string>()(key);
       }
     };
@@ -132,14 +134,14 @@ private:
     // Generate key using get_obstacle_key()
     // We cache them based on source + id so that we keep only the latest
     // version of that obstacle.
-    std::unordered_map<std::string, ObstacleDataConstSharedPtr>
+    std::unordered_map<std::string, ObstacleData>
     _obstacle_buffer = {};
 
     // TODO(YV): Based on the current implementation, we should be able to
     // cache obstacle_key directly
     // Map an obstacle to the lanes in its vicinity
     std::unordered_map<
-      ObstacleDataConstSharedPtr,
+      ObstacleData,
       std::unordered_set<std::string>,
       ObstacleHash> _obstacle_to_lanes_map = {};
 

@@ -23,6 +23,8 @@
 #include <vision_msgs/msg/bounding_box2_d.hpp>
 #include <geometry_msgs/msg/pose2_d.hpp>
 
+#include <iostream>
+
 using CollisionGeometry = IntersectionChecker::CollisionGeometry;
 
 SCENARIO("Test IntersectionChecker")
@@ -82,6 +84,7 @@ SCENARIO("Test IntersectionChecker")
       ob1, ob2, how_much);
     CHECK_FALSE(intersect);
     CHECK((how_much - 0.414) == Approx(0.0).margin(1e-3));
+    std::cout <<"how_much: " << how_much << std::endl;
   }
 
   WHEN("AABB geometries are overlapping along X-Axis")
@@ -203,4 +206,31 @@ SCENARIO("Test IntersectionChecker")
       ob1, ob2, how_much);
     CHECK(intersect);
   }
+
+  WHEN("Test #1")
+  {
+    double how_much;
+    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+      .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
+        .x(8.6824)
+        .y(-10.9616)
+        .theta(0.255513))
+      .size_x(1.43478)
+      .size_y(0.5);
+
+    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+      .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
+        .x(12.002)
+        .y(-10.1094)
+        .theta(0.0))
+      .size_x(0.6)
+      .size_y(0.6);
+
+    const bool intersect = IntersectionChecker::between(
+      ob1, ob2, how_much);
+    CHECK_FALSE(intersect);
+    CHECK((how_much - 2.336) == Approx(0.0).margin(1e-1));
+    std::cout <<"how_much: " << how_much << std::endl;
+  }
+
 }

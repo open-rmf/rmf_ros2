@@ -48,18 +48,22 @@ IntersectionChecker::CollisionGeometry make_collision_geometry(
     graph.get_waypoint(lane.entry().waypoint_index()).get_location();
 
   const Eigen::Vector2d& exit_loc =
-    graph.get_waypoint(lane.entry().waypoint_index()).get_location();
+    graph.get_waypoint(lane.exit().waypoint_index()).get_location();
 
   const auto& center_loc = (exit_loc + entry_loc) * 0.5;
   const auto& axis = (exit_loc - entry_loc);
-  const double theta = std::atan2(axis[1], axis[2]);
+  double theta = std::atan2(std::abs(axis[1]), std::abs(axis[0]));
+  if (theta > M_PI)
+    theta = M_PI -theta;
+  if (theta < -M_PI)
+    theta = M_PI + theta;
   const double length = axis.norm();
 
   geometry.center.x = center_loc[0];
   geometry.center.y = center_loc[1];
   geometry.center.theta = theta;
-  geometry.size_x = lane_width;
-  geometry.size_y = length;
+  geometry.size_y = lane_width;
+  geometry.size_x = length;
   return geometry;
 }
 
@@ -111,7 +115,7 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
   );
 
   _lane_width = this->declare_parameter(
-    "lane_width", 1.0);
+    "lane_width", 0.5);
   RCLCPP_INFO(
     this->get_logger(),
     "Setting parameter lane_width to %f", _lane_width
@@ -294,15 +298,15 @@ void LaneBlocker::obstacle_cb(const Obstacles& msg)
       .center(std::move(after_pose.pose))
       .size(std::move(after_size.vector));
 
-    auto obs = std::make_shared<ObstacleData>(
+    ObstacleData obs{
       rclcpp::Time(obstacle.header.stamp) + rclcpp::Duration(obstacle.lifetime),
       obstacle.id,
       obstacle.source,
       std::move(new_box)
-    );
+    };
 
     // Add to obstacle queue for processing in a separate thread/callback
-    _obstacle_buffer[LaneBlocker::get_obstacle_key(*obs)] =
+    _obstacle_buffer[LaneBlocker::get_obstacle_key(obs)] =
       std::move(obs);
   }
 }
@@ -320,16 +324,15 @@ void LaneBlocker::process()
   for (const auto& [key, obstacle] : _obstacle_buffer)
   {
     // If the lifetime of the obstacle has passed, we skip it.
-    if (obstacle->expiry_time < get_clock()->now() || obstacle == nullptr)
+    if (obstacle.expiry_time < get_clock()->now())
     {
       continue;
     }
 
-    const std::string& obstacle_key = LaneBlocker::get_obstacle_key(
-      *obstacle);
+    const std::string& obstacle_key = LaneBlocker::get_obstacle_key(obstacle);
 
     // The keys in _obstacle_to_lanes_map are hashed only based on source
-    // and id. We should check if this obstacle has expired and if, create
+    // and id. We should check if this obstacle has expired and if so, create
     // a new entry. This is helpful for culling.
     if (auto obs_lane_it = _obstacle_to_lanes_map.find(obstacle) !=
       _obstacle_to_lanes_map.end())
@@ -358,11 +361,13 @@ void LaneBlocker::process()
         const auto& lane = this->lane_from_key(lane_key);
         const auto [fleet_name, id] = deserialize_key(key);
         double how_much;
+        if (_traffic_graphs.find(fleet_name) == _traffic_graphs.end())
+          continue;
         const auto& o1 = make_collision_geometry(
           _traffic_graphs.at(fleet_name),
           lane,
           _lane_width);
-        const auto& o2 = make_collision_geometry(obstacle->transformed_bbox);
+        const auto& o2 = make_collision_geometry(obstacle.transformed_bbox);
         auto intersect = IntersectionChecker::between(
           o1,
           o2,
@@ -450,6 +455,14 @@ void LaneBlocker::process()
             );
             if (intersect || how_much < threshold)
             {
+              if (intersect)
+              {
+                std::cout << "INTERSECTION!!" << std::endl;
+              }
+              else
+              {
+                std::cout << "HOW_MUCH: " << how_much << std::endl;
+              }
               std::lock_guard<std::mutex>lock(mutex);
               vicinity_lane_keys.insert(
                 LaneBlocker::get_lane_key(fleet_name, i));
@@ -470,7 +483,7 @@ void LaneBlocker::process()
           search_vicinity_lanes,
           fleet_name,
           graph,
-          *obstacle,
+          obstacle,
           _obstacle_lane_threshold,
           _lane_width,
           _max_search_duration)
@@ -597,13 +610,6 @@ auto LaneBlocker::deserialize_key(
     std::string name = key.substr(0, key.find(delimiter));
     std::string id_str =
       key.substr(key.find(delimiter) + 1, key.size() - name.size());
-    RCLCPP_INFO(
-      this->get_logger(),
-      "Parsed key %s into [%s, %s]",
-      key.c_str(),
-      name.c_str(),
-      id_str.c_str()
-    );
     std::stringstream ss(id_str);
     std::size_t id; ss >> id;
     return std::make_pair(std::move(name), std::move(id));
@@ -632,13 +638,14 @@ void LaneBlocker::cull()
 {
   // Cull obstacles that are past their expiry times.
   // Also decide whether previously closed lanes should be re-opened.
-  std::unordered_set<ObstacleDataConstSharedPtr, ObstacleHash> to_cull;
+  std::unordered_set<ObstacleData, ObstacleHash> to_cull;
   std::unordered_set<std::string> lanes_with_changes;
 
   const auto now = this->get_clock()->now();
   for (const auto& [obstacle, lanes] : _obstacle_to_lanes_map)
   {
-    if (obstacle->expiry_time > now)
+
+    if (obstacle.expiry_time > now)
     {
       to_cull.insert(obstacle);
       // Then remove this obstacles from lanes map which is used to decide
@@ -646,7 +653,7 @@ void LaneBlocker::cull()
       for (const auto& lane : lanes)
       {
         const std::string obstacle_key =
-          LaneBlocker::get_obstacle_key(*obstacle);
+          LaneBlocker::get_obstacle_key(obstacle);
         _lane_to_obstacles_map[lane].erase(obstacle_key);
         lanes_with_changes.insert(lane);
       }
@@ -657,6 +664,9 @@ void LaneBlocker::cull()
   {
     _obstacle_to_lanes_map.erase(obs);
   }
+
+  // TODO(YV): Open lanes that no longer have obstacles
+
 
   // Open lanes if needed
   // A map to collate lanes per fleet that need to be closed
