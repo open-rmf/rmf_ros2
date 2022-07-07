@@ -86,10 +86,42 @@ bool between(
    {
     // TODO(YV): Account for rotation
     CollisionBox box;
-    box.min = origin ? Eigen::Vector2d{-o.size_x * 0.5, -o.size_y * 0.5} :
-      Eigen::Vector2d{o.center.x -o.size_x * 0.5, o.center.y -o.size_y * 0.5};
-    box.max = origin ? Eigen::Vector2d{o.size_x * 0.5, o.size_y * 0.5} :
-      Eigen::Vector2d{o.center.x + o.size_x * 0.5, o.center.y + o.size_y * 0.5};
+    if (origin)
+    {
+      box.min = Eigen::Vector2d{-o.size_x * 0.5, -o.size_y * 0.5};
+      box.max = Eigen::Vector2d{o.size_x * 0.5, o.size_y * 0.5};
+    }
+    else
+    {
+      box.min = Eigen::Vector2d{-o.size_x * 0.5, -o.size_y * 0.5};
+      box.max = Eigen::Vector2d{o.size_x * 0.5, o.size_y * 0.5};
+      const auto& th = o.center.theta;
+      Eigen::Matrix<double, 3, 3> mat;
+
+      mat(0,0) = std::cos(th); mat(0,1) = std::sin(-1.0 *th); mat(0,2) = o.center.x;
+      mat(1,0) = std::sin(th); mat(1,1) = std::cos(th); mat(1,2) =  o.center.y;
+      mat(2,0) = 0; mat(2,1) =  0; mat(2,2) = 1.0;
+      // Eigen::Transform<double, 2, Eigen::Affine> t;
+      // t = Eigen::Translation<double, 2>(Eigen::Vector2d{o.center.x, o.center.y});
+      // // We need to rotate the point about p1. To do this we translate p2 to p1,
+      // // apply rotation and translate back.
+      // t.rotate(Eigen::Rotation2D<double>(o.center.theta));
+      // // t.rotate(Eigen::Rotation2D<double>(from.center.theta - to.center.theta));
+      std::cout << "make collision Transformation matrix: " << std::endl;
+      std::cout << mat << std::endl;
+      // auto final_t = t.matrix();
+      box.min = (mat * Eigen::Vector3d{box.min[0], box.min[1], 1.0}).block<2,1>(0, 0);
+      box.max = (mat * Eigen::Vector3d{box.max[0], box.max[1], 1.0}).block<2,1>(0, 0);
+
+      // box.min = mat * box.min;
+      // box.max = mat * box.max;
+
+      // box.min =
+      //   Eigen::Vector2d{o.center.x -o.size_x * 0.5, o.center.y -o.size_y * 0.5};
+      // box.max =
+      //   Eigen::Vector2d{o.center.x + o.size_x * 0.5, o.center.y + o.size_y * 0.5};
+    }
+
     return box;
    };
 
