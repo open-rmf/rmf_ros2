@@ -139,9 +139,12 @@ private:
         if (selection)
         {
           const auto target_msg_type = to_string(*selection);
-          const auto type = msg_json.at("type");
-          if (type == target_msg_type)
-            msg_callback(msg_json.at("data"));
+          const auto type_it = msg_json.find("type");
+          if (type_it != msg_json.end())
+          {
+            if (type_it.value() == target_msg_type)
+              msg_callback(msg_json.at("data"));
+          }
         }
         else
           msg_callback(msg_json);
