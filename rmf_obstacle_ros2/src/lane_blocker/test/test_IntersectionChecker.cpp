@@ -57,7 +57,8 @@ SCENARIO("Test IntersectionChecker")
 
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
-    CHECK_FALSE(intersect);
+    REQUIRE_FALSE(intersect);
+    std::cout <<"how_much: " << how_much << std::endl;
     CHECK(how_much - 1.0 == Approx(0.0).margin(1e-3));
   }
 
@@ -82,7 +83,7 @@ SCENARIO("Test IntersectionChecker")
 
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
-    CHECK_FALSE(intersect);
+    REQUIRE_FALSE(intersect);
     std::cout <<"how_much: " << how_much << std::endl;
     CHECK((how_much - 0.586) == Approx(0.0).margin(1e-3));
   }
@@ -228,7 +229,7 @@ SCENARIO("Test IntersectionChecker")
 
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
-    CHECK_FALSE(intersect);
+    REQUIRE_FALSE(intersect);
     CHECK((how_much - 2.336) == Approx(0.0).margin(1e-1));
     std::cout <<"how_much: " << how_much << std::endl;
   }
@@ -254,7 +255,7 @@ SCENARIO("Test IntersectionChecker")
 
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
-    CHECK_FALSE(intersect);
+    REQUIRE_FALSE(intersect);
     CHECK((how_much - 6.773) == Approx(0.0).margin(1e-1));
     std::cout <<"how_much: " << how_much << std::endl;
   }
@@ -280,7 +281,7 @@ SCENARIO("Test IntersectionChecker")
 
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
-    CHECK_FALSE(intersect);
+    REQUIRE_FALSE(intersect);
     CHECK((how_much - 4.314) == Approx(0.0).margin(1e-1));
     std::cout <<"how_much: " << how_much << std::endl;
   }
