@@ -112,10 +112,13 @@ bool between(
       vertices.push_back({o.size_x * 0.5, -o.size_y * 0.5, 1.0});
 
       for (auto& v : vertices)
+      {
         v = mat * v;
+        std::cout << v << std::endl;
+      }
 
       box.min = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
-      box.max = {std::numeric_limits<double>::min(), std::numeric_limits<double>::min()};
+      box.max = {std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest()};
 
       for (const auto& v : vertices)
       {

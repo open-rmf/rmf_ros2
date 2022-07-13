@@ -238,24 +238,24 @@ SCENARIO("Test IntersectionChecker")
     double how_much;
     const auto ob1 = vision_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
-        .x(8.6824)
-        .y(-10.9616)
-        .theta(0.255513))
-      .size_x(1.43478)
+        .x(11.6892)
+        .y(-3.52843)
+        .theta(0.293981))
+      .size_x(3.01193)
       .size_y(0.5);
 
     const auto ob2 = vision_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(12.002)
-        .y(-10.1094)
-        .theta(M_PI_4))
+        .y(-10.9738)
+        .theta(0.0))
       .size_x(0.6)
       .size_y(0.6);
 
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
     CHECK_FALSE(intersect);
-    CHECK((how_much - 2.299) == Approx(0.0).margin(1e-1));
+    CHECK((how_much - 6.773) == Approx(0.0).margin(1e-1));
     std::cout <<"how_much: " << how_much << std::endl;
   }
 
