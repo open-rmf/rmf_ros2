@@ -38,7 +38,7 @@ Eigen::Matrix3d get_transform(const CollisionGeometry& to,
     t.inverse() * Eigen::Rotation2D<double>(to.center.theta - from.center.theta) * t;
   // t.rotate(Eigen::Rotation2D<double>(from.center.theta - to.center.theta));
   std::cout << "Transformation matrix: " << std::endl;
-  auto final_t = (t * r).matrix();
+  auto final_t = t.matrix();
   std::cout << final_t << std::endl;
   return final_t;
   // const auto& matrix = t.matrix();
@@ -84,7 +84,6 @@ bool between(
   auto make_collision_box =
    [](const CollisionGeometry& o, const bool origin) -> CollisionBox
    {
-    // TODO(YV): Account for rotation
     CollisionBox box;
     if (origin)
     {
@@ -93,11 +92,8 @@ bool between(
     }
     else
     {
-      box.min = Eigen::Vector2d{-o.size_x * 0.5, -o.size_y * 0.5};
-      box.max = Eigen::Vector2d{o.size_x * 0.5, o.size_y * 0.5};
-      const auto& th = o.center.theta;
       Eigen::Matrix<double, 3, 3> mat;
-
+      const double th = o.center.theta;
       mat(0,0) = std::cos(th); mat(0,1) = std::sin(-1.0 *th); mat(0,2) = o.center.x;
       mat(1,0) = std::sin(th); mat(1,1) = std::cos(th); mat(1,2) =  o.center.y;
       mat(2,0) = 0; mat(2,1) =  0; mat(2,2) = 1.0;
@@ -109,17 +105,28 @@ bool between(
       // // t.rotate(Eigen::Rotation2D<double>(from.center.theta - to.center.theta));
       std::cout << "make collision Transformation matrix: " << std::endl;
       std::cout << mat << std::endl;
-      // auto final_t = t.matrix();
-      box.min = (mat * Eigen::Vector3d{box.min[0], box.min[1], 1.0}).block<2,1>(0, 0);
-      box.max = (mat * Eigen::Vector3d{box.max[0], box.max[1], 1.0}).block<2,1>(0, 0);
+      std::vector<Eigen::Vector3d> vertices;
+      vertices.push_back({-o.size_x * 0.5, o.size_y * 0.5, 1.0});
+      vertices.push_back({-o.size_x * 0.5, -o.size_y * 0.5, 1.0});
+      vertices.push_back({o.size_x * 0.5, o.size_y * 0.5, 1.0});
+      vertices.push_back({o.size_x * 0.5, -o.size_y * 0.5, 1.0});
 
-      // box.min = mat * box.min;
-      // box.max = mat * box.max;
+      for (auto& v : vertices)
+        v = mat * v;
 
-      // box.min =
-      //   Eigen::Vector2d{o.center.x -o.size_x * 0.5, o.center.y -o.size_y * 0.5};
-      // box.max =
-      //   Eigen::Vector2d{o.center.x + o.size_x * 0.5, o.center.y + o.size_y * 0.5};
+      box.min = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
+      box.max = {std::numeric_limits<double>::min(), std::numeric_limits<double>::min()};
+
+      for (const auto& v : vertices)
+      {
+        for (std::size_t i = 0; i < 2; ++i)
+        {
+          if (v[i] < box.min[i])
+            box.min[i] = v[i];
+          if (v[i] > box.max[i])
+            box.max[i] = v[i];
+        }
+      }
     }
 
     return box;
