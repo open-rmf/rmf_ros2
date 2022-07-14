@@ -61,6 +61,7 @@ private:
     void process();
     void cull();
 
+    // Internal data struct
     struct ObstacleData
     {
       rclcpp::Time expiry_time;
@@ -124,11 +125,13 @@ private:
     std::pair<std::string, std::size_t>
     deserialize_key(const std::string& key) const;
 
-    const TrafficGraph::Lane& lane_from_key(const std::string& key) const;
-
     // Modify lanes with changes in number of vicinity obstacles
     void request_lane_modifications(
       const std::unordered_set<std::string>& changes);
+
+    void purge_obstacles(
+      const std::unordered_set<std::string>& obstacle_keys,
+      const bool erase_from_buffer = true);
 
     // Store obstacle after transformation into RMF frame.
     // Generate key using get_obstacle_key()
@@ -139,11 +142,10 @@ private:
 
     // TODO(YV): Based on the current implementation, we should be able to
     // cache obstacle_key directly
-    // Map an obstacle to the lanes in its vicinity
+    // Map an obstacle key to the lanes keys in its vicinity
     std::unordered_map<
-      ObstacleData,
-      std::unordered_set<std::string>,
-      ObstacleHash> _obstacle_to_lanes_map = {};
+      std::string,
+      std::unordered_set<std::string>> _obstacle_to_lanes_map = {};
 
     // Map lane to a set of obstacles in its vicinity. This is only used to
     // check the number of obstacles in the vicinity of a lane. The obstacles
@@ -171,6 +173,7 @@ private:
     double _lane_width;
     double _obstacle_lane_threshold;
     std::chrono::nanoseconds _max_search_duration;
+    std::chrono::nanoseconds _cull_timer_period;
     std::size_t _lane_closure_threshold;
 
     rclcpp::TimerBase::SharedPtr _process_timer;

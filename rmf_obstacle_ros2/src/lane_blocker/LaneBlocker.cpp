@@ -167,11 +167,11 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
       this->process();
     });
 
-  auto cull_timer_period =
+  _cull_timer_period =
     std::chrono::duration_cast<std::chrono::nanoseconds>(
     std::chrono::duration<double, std::ratio<1>>(1.0 / cull_rate));
   _cull_timer = this->create_wall_timer(
-    std::move(cull_timer_period),
+    _cull_timer_period,
     [=]()
     {
       this->cull();
@@ -308,8 +308,8 @@ void LaneBlocker::obstacle_cb(const Obstacles& msg)
     };
 
     // Add to obstacle queue for processing in a separate thread/callback
-    _obstacle_buffer[LaneBlocker::get_obstacle_key(obs)] =
-      std::move(obs);
+    const auto& obs_key = LaneBlocker::get_obstacle_key(obs);
+    _obstacle_buffer[obs_key] = std::move(obs);
   }
 }
 
@@ -321,52 +321,48 @@ void LaneBlocker::process()
 
   // Keep track of which lanes were updated to decided whether to modify lane
   // state.
-  std::unordered_set<std::string> lanes_with_changes;
+  std::unordered_set<std::string> lanes_with_changes = {};
+  // Map obstacle_id with list of lanes it is no longer in the vicinity of
+  std::unordered_map<std::string, std::unordered_set<std::string>> obstacles_with_changes = {};
 
-  for (const auto& [key, obstacle] : _obstacle_buffer)
+  for (const auto& [obstacle_key, obstacle] : _obstacle_buffer)
   {
-    // If the lifetime of the obstacle has passed, we skip it.
+    // If the lifetime of the obstacle has passed cull() will handle the purging
     if (obstacle.expiry_time < get_clock()->now())
     {
       continue;
     }
 
-    const std::string& obstacle_key = LaneBlocker::get_obstacle_key(obstacle);
-
-    // The keys in _obstacle_to_lanes_map are hashed only based on source
-    // and id. We should check if this obstacle has expired and if so, create
-    // a new entry. This is helpful for culling.
-    if (auto obs_lane_it = _obstacle_to_lanes_map.find(obstacle) !=
-      _obstacle_to_lanes_map.end())
-    {
-      // We update the obstacle key with latest expiry
-      // extract is a C++17 feature
-      auto handler = _obstacle_to_lanes_map.extract(obstacle);
-      handler.key() = obstacle;
-      _obstacle_to_lanes_map.insert(std::move(handler));
-    }
-
     // If this obstacle was previously assigned to a lane,
     // check if it is still in the vicinity of that lane
-    auto obs_lane_it = _obstacle_to_lanes_map.find(obstacle);
+    auto obs_lane_it = _obstacle_to_lanes_map.find(obstacle_key);
     if (obs_lane_it != _obstacle_to_lanes_map.end())
     {
-      auto& lanes_keys = obs_lane_it->second;
+      const auto& lanes_keys = obs_lane_it->second;
       RCLCPP_INFO(
         this->get_logger(),
         "Obstacle %s was previously in the vicinity of %ld lanes",
-        key.c_str(), lanes_keys.size());
+        obstacle_key.c_str(), lanes_keys.size());
 
       // Check if obstacle is still in the vicinity of these lanes.
       for (const auto& lane_key : lanes_keys)
       {
-        const auto& lane = this->lane_from_key(lane_key);
-        const auto [fleet_name, id] = deserialize_key(key);
-        double how_much;
+        const auto [fleet_name, lane_id] = deserialize_key(lane_key);
         if (_traffic_graphs.find(fleet_name) == _traffic_graphs.end())
+        {
+          RCLCPP_ERROR(
+            this->get_logger(),
+            "Lane %s which belongs to fleet %s does not have a traffic graph "
+            "This bug should be reported.",
+            lane_key.c_str(), fleet_name.c_str()
+          );
           continue;
+        }
+        double how_much;
+        const auto& traffic_graph = _traffic_graphs.at(fleet_name);
+        const auto& lane = traffic_graph.get_lane(lane_id);
         const auto& o1 = make_collision_geometry(
-          _traffic_graphs.at(fleet_name),
+          traffic_graph,
           lane,
           _lane_width);
         const auto& o2 = make_collision_geometry(obstacle.transformed_bbox);
@@ -381,38 +377,19 @@ void LaneBlocker::process()
           RCLCPP_INFO(
             this->get_logger(),
             "Obstacle %s is still in the vicinity of lane %s",
-            key.c_str(), lane_key.c_str()
+            obstacle_key.c_str(), lane_key.c_str()
           );
-          // TODO(YV): Is there any value in updating the actual ObstaclePtr
-          // in the other caches?
-          continue;
         }
         else
         {
-          try
-          {
-            RCLCPP_INFO(
-              this->get_logger(),
-              "Obstacle %s is no longer in the vicinity of lane %s. "
-              "Updating cache...", key.c_str(), lane_key.c_str()
-            );
-            // Obstacle is no longer in the vicinity and needs to be removed
-            // Remove from _obstacle_to_lanes_map
-            _obstacle_to_lanes_map[obstacle].erase(lane_key);
-            //Remove from _lane_to_obstacles_map
-            _lane_to_obstacles_map[lane_key].erase(obstacle_key);
-            lanes_with_changes.insert(lane_key);
-          }
-          catch(const std::exception& e)
-          {
-            RCLCPP_ERROR(
-              this->get_logger(),
-              "[LaneBlocker::process()]: Unable to update obstacle caches."
-              "This is a bug and should be reported. Detailed error: %s",
-              e.what()
-            );
-            continue;
-          }
+          RCLCPP_INFO(
+            this->get_logger(),
+            "Obstacle %s is no longer in the vicinity of lane %s. "
+            "Updating cache...", obstacle_key.c_str(), lane_key.c_str()
+          );
+          // Obstacle is no longer in the vicinity and needs to be removed
+          // Remove from _obstacle_to_lanes_map
+          obstacles_with_changes[obstacle_key].insert(lane_key);
         }
       }
     }
@@ -423,7 +400,7 @@ void LaneBlocker::process()
       RCLCPP_INFO(
         this->get_logger(),
         "Obstacle %s was not previously in the vicinity of any lane. Checking "
-        "for any changes", key.c_str()
+        "for any changes", obstacle_key.c_str()
       );
       std::unordered_set<std::string> vicinity_lane_keys = {};
       std::mutex mutex;
@@ -462,8 +439,8 @@ void LaneBlocker::process()
                 LaneBlocker::get_lane_key(fleet_name, i));
             }
           }
-          const auto finish_time = std::chrono::steady_clock::now();
           #ifndef NDEBUG
+          const auto finish_time = std::chrono::steady_clock::now();
           std::cout << "Obstacle " << obstacle.id
                     << " search in graph for fleet " << fleet_name << " took "
                     << (finish_time - start_time).count() /1e6
@@ -495,13 +472,13 @@ void LaneBlocker::process()
       RCLCPP_INFO(
         this->get_logger(),
         "Search concluded with %ld lanes in the vicinity of obstacle %s",
-        vicinity_lane_keys.size(), key.c_str()
+        vicinity_lane_keys.size(), obstacle_key.c_str()
       );
 
       // Update caches
       for (const auto& lane_key : vicinity_lane_keys)
       {
-        _obstacle_to_lanes_map[obstacle].insert(lane_key);
+        _obstacle_to_lanes_map[obstacle_key].insert(lane_key);
         _lane_to_obstacles_map[lane_key].insert(obstacle_key);
         lanes_with_changes.insert(lane_key);
       }
@@ -513,9 +490,22 @@ void LaneBlocker::process()
     "There are %ld lanes with changes to the number of obstacles in their "
     "vicinity", lanes_with_changes.size()
   );
+
+  // Remove obstacles from lanes
+  for (const auto& [obstacle_key, lane_ids] : obstacles_with_changes)
+  {
+    for (const auto& lane_id : lane_ids)
+    {
+      _lane_to_obstacles_map[lane_id].erase(obstacle_key);
+      _obstacle_to_lanes_map[obstacle_key].erase(lane_id);
+      if (_obstacle_to_lanes_map[obstacle_key].empty())
+        _obstacle_to_lanes_map.erase(obstacle_key);
+      lanes_with_changes.insert(lane_id);
+    }
+  }
+
+
   request_lane_modifications(std::move(lanes_with_changes));
-  // Reinitialize the buffer
-  _obstacle_buffer = {};
 }
 
 //==============================================================================
@@ -608,24 +598,42 @@ auto LaneBlocker::deserialize_key(
       key.substr(key.find(delimiter) + 1, key.size() - name.size());
     std::stringstream ss(id_str);
     std::size_t id; ss >> id;
-    return std::make_pair(std::move(name), std::move(id));
+    return std::make_pair(name, id);
   }
   catch(const std::exception& e)
   {
     // *INDENT-OFF*
     throw std::runtime_error(
-      "[LaneBlocker::lane_from_key] Unable to parse key. This is a bug and "
+      "[LaneBlocker::deserialize_key] Unable to parse key. This is a bug and "
       "should be reported. Detailed error: " + std::string(e.what()));
     // *INDENT-ON*
   }
 }
-//==============================================================================
-auto LaneBlocker::lane_from_key(
-  const std::string& key) const-> const TrafficGraph::Lane&
-{
-  const auto [fleet_name, id] = deserialize_key(key);
-  return _traffic_graphs.at(fleet_name).get_lane(id);
 
+//==============================================================================
+void LaneBlocker::purge_obstacles(
+  const std::unordered_set<std::string>& obstacle_keys,
+  const bool erase_from_buffer)
+{
+  for (const auto& obs : obstacle_keys)
+  {
+    auto lanes_it = _obstacle_to_lanes_map.find(obs);
+    if (lanes_it != _obstacle_to_lanes_map.end())
+    {
+      const auto& lanes = lanes_it->second;
+      for (const auto& lane_key : lanes)
+      {
+        auto obs_it = _lane_to_obstacles_map.find(lane_key);
+        if (obs_it != _lane_to_obstacles_map.end())
+        {
+          obs_it->second.erase(obs);
+        }
+      }
+    }
+    _obstacle_to_lanes_map.erase(obs);
+    if (erase_from_buffer)
+      _obstacle_buffer.erase(obs);
+  }
 }
 
 
@@ -634,45 +642,42 @@ void LaneBlocker::cull()
 {
   // Cull obstacles that are past their expiry times.
   // Also decide whether previously closed lanes should be re-opened.
-  std::unordered_set<ObstacleData, ObstacleHash> to_cull;
+  std::unordered_set<std::string> obstacles_to_cull;
   std::unordered_set<std::string> lanes_with_changes;
 
   const auto now = this->get_clock()->now();
-  for (const auto& [obstacle, lanes] : _obstacle_to_lanes_map)
+  for (const auto& [obstacle_key, lanes] : _obstacle_to_lanes_map)
   {
-
-    if (obstacle.expiry_time > now)
+    auto it = _obstacle_buffer.find(obstacle_key);
+    if (it == _obstacle_buffer.end())
     {
-      to_cull.insert(obstacle);
+      // TODO(YV): Purge
+      obstacles_to_cull.insert(obstacle_key);
+      continue;
+    }
+    const auto& obstacle = it->second;
+    if (now - obstacle.expiry_time > _cull_timer_period)
+    {
+      obstacles_to_cull.insert(obstacle_key);
       // Then remove this obstacles from lanes map which is used to decide
       // whether to open/close
       for (const auto& lane : lanes)
       {
-        const std::string obstacle_key =
-          LaneBlocker::get_obstacle_key(obstacle);
         _lane_to_obstacles_map[lane].erase(obstacle_key);
         lanes_with_changes.insert(lane);
       }
     }
   }
+
   // Cull
-  for (const auto& obs : to_cull)
-  {
-    _obstacle_to_lanes_map.erase(obs);
-  }
-
-  // TODO(YV): Open lanes that no longer have obstacles
-
+  purge_obstacles(obstacles_to_cull);
 
   // Open lanes if needed
   // A map to collate lanes per fleet that need to be closed
+  std::unordered_set<std::string> opened_lanes = {};
   std::unordered_map<std::string, std::unique_ptr<LaneRequest>> open_msgs;
-  for (const auto& lane : lanes_with_changes)
+  for (const auto& lane : _currently_closed_lanes)
   {
-    if (_currently_closed_lanes.find(lane) == _currently_closed_lanes.end())
-      continue;
-    // The lane has changes and is currently closed. We check if the obstacle
-    // count is below the threshold and if so open.
     if (_lane_to_obstacles_map.at(lane).size() < _lane_closure_threshold)
     {
       // The lane can be opened
@@ -692,6 +697,7 @@ void LaneBlocker::cull()
         // Msg was created before. We simply append the new lane id
         msg_it.first->second->open_lanes.push_back(std::move(lane_id));
       }
+      opened_lanes.insert(lane);
     }
   }
 
@@ -714,6 +720,9 @@ void LaneBlocker::cull()
     );
     _lane_closure_pub->publish(std::move(msg));
   }
+
+  for (const auto& lane : opened_lanes)
+    _currently_closed_lanes.erase(lane);
 
 }
 
