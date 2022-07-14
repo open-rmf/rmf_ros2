@@ -32,8 +32,10 @@
 
 #include <thread>
 #include <mutex>
-#include <iostream>
 
+#ifndef NDEBUG
+#include <iostream>
+#endif
 
 //==============================================================================
 namespace {
@@ -108,7 +110,7 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
   );
 
   _obstacle_lane_threshold = this->declare_parameter(
-    "obstacle_lane_threshold", 1.0);
+    "obstacle_lane_threshold", 0.25);
   RCLCPP_INFO(
     this->get_logger(),
     "Setting parameter obstacle_lane_threshold to %f", _obstacle_lane_threshold
@@ -455,24 +457,18 @@ void LaneBlocker::process()
             );
             if (intersect || how_much < threshold)
             {
-              if (intersect)
-              {
-                std::cout << "INTERSECTION!!" << std::endl;
-              }
-              else
-              {
-                std::cout << "HOW_MUCH: " << how_much << std::endl;
-              }
               std::lock_guard<std::mutex>lock(mutex);
               vicinity_lane_keys.insert(
                 LaneBlocker::get_lane_key(fleet_name, i));
             }
           }
           const auto finish_time = std::chrono::steady_clock::now();
+          #ifndef NDEBUG
           std::cout << "Obstacle " << obstacle.id
                     << " search in graph for fleet " << fleet_name << " took "
                     << (finish_time - start_time).count() /1e6
                     << " ms" << std::endl;
+          #endif
 
         };
       std::vector<std::thread> search_threads = {};
