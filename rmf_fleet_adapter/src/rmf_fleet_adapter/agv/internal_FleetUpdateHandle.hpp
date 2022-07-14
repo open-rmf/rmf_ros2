@@ -43,8 +43,8 @@
 #include "Node.hpp"
 #include "RobotContext.hpp"
 #include "../TaskManager.hpp"
-#include "../BroadcastClient.hpp"
 #include "../DeserializeJSON.hpp"
+#include <rmf_websocket/BroadcastClient.hpp>
 
 #include <rmf_traffic/schedule/Mirror.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>
@@ -263,7 +263,7 @@ public:
   std::unordered_map<RobotContextPtr,
     std::shared_ptr<TaskManager>> task_managers = {};
 
-  std::shared_ptr<BroadcastClient> broadcast_client = nullptr;
+  std::shared_ptr<rmf_websocket::BroadcastClient> broadcast_client = nullptr;
   // Map uri to schema for validator loader function
   std::unordered_map<std::string, nlohmann::json> schema_dictionary = {};
 
@@ -407,9 +407,19 @@ public:
     // Start the BroadcastClient
     if (handle->_pimpl->server_uri.has_value())
     {
-      handle->_pimpl->broadcast_client = BroadcastClient::make(
+      handle->_pimpl->broadcast_client = rmf_websocket::BroadcastClient::make(
         handle->_pimpl->server_uri.value(),
-        handle->weak_from_this());
+        handle->_pimpl->node,
+        [handle]()
+        {
+          std::vector<nlohmann::json> task_logs;
+          for (const auto& [conext, mgr] : handle->_pimpl->task_managers)
+          {
+            // Publish all task logs to the server
+            task_logs.push_back(mgr->task_log_updates());
+          }
+          return task_logs;
+        });
     }
 
     // Add PerformAction event to deserialization

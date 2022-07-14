@@ -16,7 +16,7 @@
 */
 
 #include "../mock/MockRobotCommand.hpp"
-#include "../mock/MockWebSocketServer.hpp"
+#include <rmf_websocket/BroadcastServer.hpp>
 
 #include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic/schedule/Database.hpp>
@@ -166,8 +166,8 @@ SCENARIO("Test loop requests", "[.flaky]")
   /// of the targeted task id, by listening to the task_state_update
   /// from the websocket connection
   /* *INDENT-OFF* */
-  using MockServer = rmf_fleet_adapter_test::MockWebSocketServer;
-	MockServer mock_server(
+  using WebsocketServer = rmf_websocket::BroadcastServer;
+	const auto ws_server = WebsocketServer::make(
 		27878,
     [ &loop_0, &task_0_completed_promise, &completed_0_count,
       &loop_1, &task_1_completed_promise, &completed_1_count,
@@ -178,7 +178,7 @@ SCENARIO("Test loop requests", "[.flaky]")
         assert(data.contains("status"));
         const auto id = data.at("booking").at("id");
         const auto status = data.at("status");
-        std::cout << "[MockWebSocketServer] id: [" << id
+        std::cout << "[WebSocketServer] id: [" << id
                   << "] ::: json state ::: " << status << std::endl;
 
         if (status == "completed")
@@ -226,7 +226,7 @@ SCENARIO("Test loop requests", "[.flaky]")
         //   }
         // }
       },
-    MockServer::ApiMsgType::TaskStateUpdate);
+    WebsocketServer::ApiMsgType::TaskStateUpdate);
   /* *INDENT-ON* */
 
   const std::size_t n_loops = 3;
@@ -301,7 +301,7 @@ SCENARIO("Test loop requests", "[.flaky]")
     });
 
   adapter.start();
-  mock_server.start();
+  ws_server->start();
 
   // Note: wait for task_manager to start, else TM will be suspicously "empty"
   std::this_thread::sleep_for(1s);
@@ -324,7 +324,7 @@ SCENARIO("Test loop requests", "[.flaky]")
   // Dispatch Loop 1 Task
   places.clear();
   places.push_back(north);
-  places.push_back(east);
+  places.push_back(south);
   adapter.dispatch_task(loop_1, request);
 
   const auto task_0_completed_status = task_0_completed_future.wait_for(20s);
@@ -414,5 +414,5 @@ SCENARIO("Test loop requests", "[.flaky]")
   // }
 
   adapter.stop();
-  mock_server.stop();
+  ws_server->stop();
 }
