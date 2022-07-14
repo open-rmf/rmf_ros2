@@ -31,10 +31,10 @@ SCENARIO("Test IntersectionChecker")
 {
 
   auto radians =
-  [](double degree) -> double
-  {
-    return degree * M_PI / 180.0;
-  };
+    [](double degree) -> double
+    {
+      return degree * M_PI / 180.0;
+    };
 
   WHEN("AABB geometries are not intersecting and 1m apart")
   {

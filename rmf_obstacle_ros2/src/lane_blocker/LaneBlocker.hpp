@@ -54,130 +54,131 @@ public:
 
   /// Constructor
   LaneBlocker(
-    const rclcpp::NodeOptions& options  = rclcpp::NodeOptions());
+    const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
 private:
-    void obstacle_cb(const Obstacles& msg);
-    void process();
-    void cull();
+  void obstacle_cb(const Obstacles& msg);
+  void process();
+  void cull();
 
-    // Internal data struct
-    struct ObstacleData
+  // Internal data struct
+  struct ObstacleData
+  {
+    rclcpp::Time expiry_time;
+    int id;
+    std::string source;
+    BoundingBox transformed_bbox;
+
+    ObstacleData() {}
+
+    ObstacleData(
+      rclcpp::Time expiry_time_,
+      int id_,
+      const std::string& source_,
+      BoundingBox transformed_bbox_)
+    : expiry_time(expiry_time_),
+      id(id_),
+      source(std::move(source_)),
+      transformed_bbox(std::move(transformed_bbox_))
+    {}
+
+    // Overload == for hashing
+    inline bool operator==(const ObstacleData& other)
+    const
     {
-      rclcpp::Time expiry_time;
-      int id;
-      std::string source;
-      BoundingBox transformed_bbox;
-
-      ObstacleData() {}
-
-      ObstacleData(
-        rclcpp::Time expiry_time_,
-        int id_,
-        const std::string& source_,
-        BoundingBox transformed_bbox_)
-      : expiry_time(expiry_time_),
-        id(id_),
-        source(std::move(source_)),
-        transformed_bbox(std::move(transformed_bbox_))
-      { }
-
-      // Overload == for hashing
-      inline bool operator==(const ObstacleData& other)
-      const
-      {
-        const auto lhs_key = LaneBlocker::get_obstacle_key(source, id);
-        const auto rhs_key = LaneBlocker::get_obstacle_key(other.source, other.id);
-        return lhs_key == rhs_key;
-      }
-    };
-    using ObstacleDataConstSharedPtr = std::shared_ptr<const ObstacleData>;
-
-    static inline std::string get_obstacle_key(
-      const std::string& source, const std::size_t id)
-    {
-      return source + "_" + std::to_string(id);
+      const auto lhs_key = LaneBlocker::get_obstacle_key(source, id);
+      const auto rhs_key =
+        LaneBlocker::get_obstacle_key(other.source, other.id);
+      return lhs_key == rhs_key;
     }
+  };
+  using ObstacleDataConstSharedPtr = std::shared_ptr<const ObstacleData>;
 
-    static inline std::string get_obstacle_key(const ObstacleData& obstacle)
+  static inline std::string get_obstacle_key(
+    const std::string& source, const std::size_t id)
+  {
+    return source + "_" + std::to_string(id);
+  }
+
+  static inline std::string get_obstacle_key(const ObstacleData& obstacle)
+  {
+    return LaneBlocker::get_obstacle_key(
+      obstacle.source, obstacle.id);
+  }
+
+  static inline std::string get_lane_key(
+    const std::string& fleet_name,
+    const std::size_t lane_index)
+  {
+    return fleet_name + "_" + std::to_string(lane_index);
+  }
+
+  struct ObstacleHash
+  {
+    std::size_t operator()(
+      const ObstacleData& obstacle) const
     {
-      return LaneBlocker::get_obstacle_key(
-        obstacle.source, obstacle.id);
+      const std::string key = LaneBlocker::get_obstacle_key(obstacle);
+      return std::hash<std::string>()(key);
     }
+  };
 
-    static inline std::string get_lane_key(
-      const std::string& fleet_name,
-      const std::size_t lane_index)
-    {
-      return fleet_name + "_" + std::to_string(lane_index);
-    }
+  std::pair<std::string, std::size_t>
+  deserialize_key(const std::string& key) const;
 
-    struct ObstacleHash
-    {
-      std::size_t operator()(
-        const ObstacleData& obstacle) const
-      {
-        const std::string key = LaneBlocker::get_obstacle_key(obstacle);
-        return std::hash<std::string>()(key);
-      }
-    };
+  // Modify lanes with changes in number of vicinity obstacles
+  void request_lane_modifications(
+    const std::unordered_set<std::string>& changes);
 
-    std::pair<std::string, std::size_t>
-    deserialize_key(const std::string& key) const;
+  void purge_obstacles(
+    const std::unordered_set<std::string>& obstacle_keys,
+    const bool erase_from_buffer = true);
 
-    // Modify lanes with changes in number of vicinity obstacles
-    void request_lane_modifications(
-      const std::unordered_set<std::string>& changes);
+  // Store obstacle after transformation into RMF frame.
+  // Generate key using get_obstacle_key()
+  // We cache them based on source + id so that we keep only the latest
+  // version of that obstacle.
+  std::unordered_map<std::string, ObstacleData>
+  _obstacle_buffer = {};
 
-    void purge_obstacles(
-      const std::unordered_set<std::string>& obstacle_keys,
-      const bool erase_from_buffer = true);
+  // TODO(YV): Based on the current implementation, we should be able to
+  // cache obstacle_key directly
+  // Map an obstacle key to the lanes keys in its vicinity
+  std::unordered_map<
+    std::string,
+    std::unordered_set<std::string>> _obstacle_to_lanes_map = {};
 
-    // Store obstacle after transformation into RMF frame.
-    // Generate key using get_obstacle_key()
-    // We cache them based on source + id so that we keep only the latest
-    // version of that obstacle.
-    std::unordered_map<std::string, ObstacleData>
-    _obstacle_buffer = {};
+  // Map lane to a set of obstacles in its vicinity. This is only used to
+  // check the number of obstacles in the vicinity of a lane. The obstacles
+  // are represented as their obstacle keys.
+  std::unordered_map<
+    std::string,
+    std::unordered_set<std::string>>
+  _lane_to_obstacles_map = {};
 
-    // TODO(YV): Based on the current implementation, we should be able to
-    // cache obstacle_key directly
-    // Map an obstacle key to the lanes keys in its vicinity
-    std::unordered_map<
-      std::string,
-      std::unordered_set<std::string>> _obstacle_to_lanes_map = {};
+  std::unordered_set<std::string> _currently_closed_lanes;
 
-    // Map lane to a set of obstacles in its vicinity. This is only used to
-    // check the number of obstacles in the vicinity of a lane. The obstacles
-    // are represented as their obstacle keys.
-    std::unordered_map<
-      std::string,
-      std::unordered_set<std::string>>
-      _lane_to_obstacles_map = {};
+  rclcpp::Subscription<Obstacles>::SharedPtr _obstacle_sub;
+  rclcpp::Subscription<NavGraph>::SharedPtr _graph_sub;
+  rclcpp::Subscription<LaneStates>::SharedPtr _lane_states_sub;
+  rclcpp::Publisher<LaneRequest>::SharedPtr _lane_closure_pub;
+  rclcpp::Publisher<SpeedLimitRequest>::SharedPtr _speed_limit_pub;
+  double _tf2_lookup_duration;
 
-    std::unordered_set<std::string> _currently_closed_lanes;
+  std::string _rmf_frame;
+  std::unique_ptr<tf2_ros::Buffer> _tf2_buffer;
+  std::shared_ptr<tf2_ros::TransformListener> _transform_listener;
 
-    rclcpp::Subscription<Obstacles>::SharedPtr _obstacle_sub;
-    rclcpp::Subscription<NavGraph>::SharedPtr _graph_sub;
-    rclcpp::Subscription<LaneStates>::SharedPtr _lane_states_sub;
-    rclcpp::Publisher<LaneRequest>::SharedPtr _lane_closure_pub;
-    rclcpp::Publisher<SpeedLimitRequest>::SharedPtr _speed_limit_pub;
-    double _tf2_lookup_duration;
+  std::unordered_map<std::string, TrafficGraph> _traffic_graphs;
+  std::unordered_map<std::string, LaneStates::ConstSharedPtr> _lane_states;
+  double _lane_width;
+  double _obstacle_lane_threshold;
+  std::chrono::nanoseconds _max_search_duration;
+  std::chrono::nanoseconds _cull_timer_period;
+  std::size_t _lane_closure_threshold;
 
-    std::string _rmf_frame;
-    std::unique_ptr<tf2_ros::Buffer> _tf2_buffer;
-    std::shared_ptr<tf2_ros::TransformListener> _transform_listener;
-
-    std::unordered_map<std::string, TrafficGraph> _traffic_graphs;
-    std::unordered_map<std::string, LaneStates::ConstSharedPtr> _lane_states;
-    double _lane_width;
-    double _obstacle_lane_threshold;
-    std::chrono::nanoseconds _max_search_duration;
-    std::chrono::nanoseconds _cull_timer_period;
-    std::size_t _lane_closure_threshold;
-
-    rclcpp::TimerBase::SharedPtr _process_timer;
-    rclcpp::TimerBase::SharedPtr _cull_timer;
+  rclcpp::TimerBase::SharedPtr _process_timer;
+  rclcpp::TimerBase::SharedPtr _cull_timer;
 };
 
 #endif // SRC__LANE_BLOCKER__LANEBLOCKER_HPP

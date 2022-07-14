@@ -36,7 +36,7 @@ CollisionBox make_reference_box(const CollisionGeometry& o)
 {
   CollisionBox box;
   box.min = Eigen::Vector2d{-o.size_x * 0.5, -o.size_y * 0.5};
-  box.max = Eigen::Vector2d{o.size_x * 0.5, o.size_y * 0.5};
+  box.max = Eigen::Vector2d{o.size_x* 0.5, o.size_y* 0.5};
   return box;
 }
 
@@ -48,15 +48,15 @@ std::pair<CollisionBox, std::vector<Eigen::Vector3d>> make_transformed_box(
   // thetas and then translate to the first geometry's frame
   Eigen::Matrix<double, 3, 3> mat;
   const double th = to.center.theta - from.center.theta;
-  mat(0,0) = std::cos(th);
-  mat(0,1) = std::sin(-1.0 *th);
-  mat(0,2) = (from.center.x - to.center.x);
-  mat(1,0) = std::sin(th);
-  mat(1,1) = std::cos(th);
-  mat(1,2) =  (from.center.y - to.center.y);
-  mat(2,0) = 0;
-  mat(2,1) =  0;
-  mat(2,2) = 1.0;
+  mat(0, 0) = std::cos(th);
+  mat(0, 1) = std::sin(-1.0 *th);
+  mat(0, 2) = (from.center.x - to.center.x);
+  mat(1, 0) = std::sin(th);
+  mat(1, 1) = std::cos(th);
+  mat(1, 2) = (from.center.y - to.center.y);
+  mat(2, 0) = 0;
+  mat(2, 1) =  0;
+  mat(2, 2) = 1.0;
 
   #ifndef NDEBUG
   std::cout << "get_vertices matrix: " << std::endl;
@@ -66,8 +66,8 @@ std::pair<CollisionBox, std::vector<Eigen::Vector3d>> make_transformed_box(
   std::vector<Eigen::Vector3d> vertices;
   vertices.push_back({-from.size_x * 0.5, from.size_y * 0.5, 1.0});
   vertices.push_back({-from.size_x * 0.5, -from.size_y * 0.5, 1.0});
-  vertices.push_back({from.size_x * 0.5, from.size_y * 0.5, 1.0});
-  vertices.push_back({from.size_x * 0.5, -from.size_y * 0.5, 1.0});
+  vertices.push_back({from.size_x* 0.5, from.size_y* 0.5, 1.0});
+  vertices.push_back({from.size_x* 0.5, -from.size_y* 0.5, 1.0});
 
   #ifndef NDEBUG
   std::cout << "Obs vertices before trans: ";
@@ -88,9 +88,9 @@ std::pair<CollisionBox, std::vector<Eigen::Vector3d>> make_transformed_box(
 
   CollisionBox o2_box;
   o2_box.min =
-    {std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
+  {std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
   o2_box.max =
-    {std::numeric_limits<double>::lowest(),
+  {std::numeric_limits<double>::lowest(),
     std::numeric_limits<double>::lowest()};
 
   for (const auto& v : vertices)
@@ -118,12 +118,12 @@ bool between(
 {
   #ifndef NDEBUG
   auto print_geom =
-   [](const CollisionGeometry& o, const std::string& name)
-  {
-    std::cout << name << ": {" << o.center.x << ","
-              << o.center.y << "," << o.center.theta << "} [" << o.size_x
-              << "," << o.size_y << "]" << std::endl;
-  };
+    [](const CollisionGeometry& o, const std::string& name)
+    {
+      std::cout << name << ": {" << o.center.x << ","
+                << o.center.y << "," << o.center.theta << "} [" << o.size_x
+                << "," << o.size_y << "]" << std::endl;
+    };
 
   auto print_box =
     [](const CollisionBox& box, const std::string& name)
@@ -135,7 +135,7 @@ bool between(
     };
 
   std::cout << "================================================" << std::endl;
-  std::cout << "Checking collision between: " << std:: endl;
+  std::cout << "Checking collision between: " << std::endl;
   print_geom(o1, "Lane");
   print_geom(o2, "obs");
   #endif
@@ -158,7 +158,7 @@ bool between(
     // O2 projections are on the left of O1 extremas
     if (o2_box.max[i] < o1_box.min[i])
     {
-       dist = std::abs(o2_box.max[i] - o1_box.min[i]);
+      dist = std::abs(o2_box.max[i] - o1_box.min[i]);
     }
     // O2 projections are on the right of O1 extremas
     else if (o2_box.min[i] > o1_box.max[i])

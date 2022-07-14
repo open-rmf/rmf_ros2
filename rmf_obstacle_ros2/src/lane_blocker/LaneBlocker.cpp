@@ -323,7 +323,8 @@ void LaneBlocker::process()
   // state.
   std::unordered_set<std::string> lanes_with_changes = {};
   // Map obstacle_id with list of lanes it is no longer in the vicinity of
-  std::unordered_map<std::string, std::unordered_set<std::string>> obstacles_with_changes = {};
+  std::unordered_map<std::string,
+    std::unordered_set<std::string>> obstacles_with_changes = {};
 
   for (const auto& [obstacle_key, obstacle] : _obstacle_buffer)
   {
@@ -406,12 +407,12 @@ void LaneBlocker::process()
       std::mutex mutex;
       auto search_vicinity_lanes =
         [&vicinity_lane_keys, &mutex](
-          const std::string& fleet_name,
-          const TrafficGraph& graph,
-          const ObstacleData& obstacle,
-          const double threshold,
-          const double lane_width,
-          const std::chrono::nanoseconds max_duration)
+        const std::string& fleet_name,
+        const TrafficGraph& graph,
+        const ObstacleData& obstacle,
+        const double threshold,
+        const double lane_width,
+        const std::chrono::nanoseconds max_duration)
         {
           const auto start_time = std::chrono::steady_clock::now();
           const auto max_time = start_time + max_duration;
@@ -434,7 +435,7 @@ void LaneBlocker::process()
             );
             if (intersect || how_much < threshold)
             {
-              std::lock_guard<std::mutex>lock(mutex);
+              std::lock_guard<std::mutex> lock(mutex);
               vicinity_lane_keys.insert(
                 LaneBlocker::get_lane_key(fleet_name, i));
             }
@@ -453,13 +454,13 @@ void LaneBlocker::process()
       {
         search_threads.push_back(
           std::thread(
-          search_vicinity_lanes,
-          fleet_name,
-          graph,
-          obstacle,
-          _obstacle_lane_threshold,
-          _lane_width,
-          _max_search_duration)
+            search_vicinity_lanes,
+            fleet_name,
+            graph,
+            obstacle,
+            _obstacle_lane_threshold,
+            _lane_width,
+            _max_search_duration)
         );
       }
 
@@ -578,7 +579,7 @@ void LaneBlocker::request_lane_modifications(
     RCLCPP_INFO(
       this->get_logger(),
       "Requested %ld lanes to close for fleet %s",
-       msg->close_lanes.size(), msg->fleet_name.c_str()
+      msg->close_lanes.size(), msg->fleet_name.c_str()
     );
     _lane_closure_pub->publish(std::move(msg));
   }
@@ -600,7 +601,7 @@ auto LaneBlocker::deserialize_key(
     std::size_t id; ss >> id;
     return std::make_pair(name, id);
   }
-  catch(const std::exception& e)
+  catch (const std::exception& e)
   {
     // *INDENT-OFF*
     throw std::runtime_error(
@@ -716,7 +717,7 @@ void LaneBlocker::cull()
     RCLCPP_INFO(
       this->get_logger(),
       "Requested %ld lanes to open for fleet %s",
-       msg->open_lanes.size(), msg->fleet_name.c_str()
+      msg->open_lanes.size(), msg->fleet_name.c_str()
     );
     _lane_closure_pub->publish(std::move(msg));
   }
