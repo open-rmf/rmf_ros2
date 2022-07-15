@@ -15,7 +15,7 @@
  *
 */
 
-#include <rmf_obstacle_ros2/Obstacle.hpp>
+#include <rmf_obstacle_ros2/obstacles/Convert.hpp>
 
 #include <octomap/OcTree.h>
 

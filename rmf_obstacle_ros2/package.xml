@@ -3,15 +3,13 @@
 <package format="3">
   <name>rmf_obstacle_ros2</name>
   <version>2.1.0</version>
-  <description>A package contiainings utilities for managing obstacle data</description>
+  <description>A package contiainings utilities for managing obstacles in RMF</description>
   <maintainer email="yadunund@openrobotics.org">Yadunund</maintainer>
   <license>Apache License 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
-  <depend>rclcpp_components</depend>
-  <depend>pluginlib</depend>
   <depend>rmf_utils</depend>
   <depend>rmf_obstacle_msgs</depend>
   <depend>vision_msgs</depend>

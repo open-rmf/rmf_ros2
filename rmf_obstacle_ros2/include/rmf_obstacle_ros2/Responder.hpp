@@ -18,8 +18,6 @@
 #ifndef RMF_OBSTACLE_ROS2__RESPONDER_HPP
 #define RMF_OBSTACLE_ROS2__RESPONDER_HPP
 
-#include <rmf_utils/impl_ptr.hpp>
-
 #include <rclcpp/rclcpp.hpp>
 
 #include <rmf_obstacle_msgs/msg/obstacles.hpp>
@@ -27,17 +25,19 @@
 namespace rmf_obstacle_ros2 {
 
 //==============================================================================
-/// Pure abstract class that reacts to obstacles detected. This should be
-/// implemented as a plugin using pluginlib.
+/// Pure abstract class that reacts to obstacles detected.
 class Responder
 {
 public:
   using Obstacles = rmf_obstacle_msgs::msg::Obstacles;
 
-  virtual void initialize(const rclcpp::Node& node) = 0;
+  /// Initialize the responder
+  virtual void initialize(std::shared_ptr<rclcpp::Node> node) = 0;
 
+  /// Get the name of the responder
   virtual std::string name() const = 0;
 
+  /// Respond to detections
   virtual void respond(const Obstacles& obstacles) const = 0;
 
   virtual ~Responder() = default;

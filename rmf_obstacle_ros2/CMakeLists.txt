@@ -75,33 +75,6 @@ ament_export_include_directories(
 )
 
 #===============================================================================
-add_library(obstacle_manager SHARED src/obstacle_manager/ObstacleManager.cpp)
-
-target_link_libraries(obstacle_manager
-  PRIVATE
-    rmf_obstacle_ros2
-    pluginlib::pluginlib
-    rclcpp::rclcpp
-)
-
-target_include_directories(obstacle_manager
-  PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    ${rclcpp_INCLUDE_DIRS}
-    ${rclcpp_components_INCLUDE_DIRS}
-    ${sensor_msgs_INCLUDE_DIRS}
-    ${rmf_obstacle_msgs_INCLUDE_DIRS}
-    ${pluginlib_INCLUDE_DIRS}
-)
-
-target_compile_features(obstacle_manager INTERFACE cxx_std_17)
-
-rclcpp_components_register_node(obstacle_manager
-  PLUGIN "rmf_obstacle_ros2::ObstacleManager"
-  EXECUTABLE obstacle_manager_node)
-
-#===============================================================================
 file(GLOB_RECURSE lane_blocker_srcs
   "src/lane_blocker/*.cpp"
 )
@@ -175,7 +148,6 @@ install(
 install(
   TARGETS
     rmf_obstacle_ros2
-    obstacle_manager
     lane_blocker
   EXPORT rmf_obstacle_ros2
   RUNTIME DESTINATION lib/rmf_obstacle_ros2
