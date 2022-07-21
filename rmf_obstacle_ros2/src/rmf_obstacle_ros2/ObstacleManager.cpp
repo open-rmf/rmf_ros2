@@ -22,6 +22,9 @@
 
 #include <thread>
 #include <iostream>
+#include <mutex>
+#include <condition_variable>
+
 namespace rmf_obstacle_ros2 {
 
 //==============================================================================
@@ -60,13 +63,6 @@ auto ObstacleManager::make(
       rclcpp::QoS(10).reliable()
     );
   manager->_pimpl->responder = responder;
-  manager->_pimpl->spin_thread = std::thread(
-    [n = manager->_pimpl->node]()
-    {
-      while (rclcpp::ok())
-        rclcpp::spin_some(n);
-    });
-
   return manager;
 
 }
@@ -97,6 +93,31 @@ std::shared_ptr<const rclcpp::Node> ObstacleManager::node() const
 }
 
 //==============================================================================
+ObstacleManager& ObstacleManager::start()
+{
+  _pimpl->spin_thread = std::thread(
+    [n = _pimpl->node]()
+    {
+      while (rclcpp::ok())
+        rclcpp::spin_some(n);
+    });
+
+  return *this;
+}
+
+//==============================================================================
+ObstacleManager& ObstacleManager::wait()
+{
+  std::mutex temp;
+  std::condition_variable cv;
+  std::unique_lock<std::mutex> lock(temp);
+  cv.wait(
+    lock, [&]() { return !rclcpp::ok(); });
+
+  return *this;
+}
+
+//==============================================================================
 void ObstacleManager::process(const Obstacles& detections)
 {
   // Simple implementation for now
@@ -116,8 +137,6 @@ void ObstacleManager::process(const Obstacles& detections)
       _pimpl->responder->name().c_str()
     );
   }
-
-
 }
 
 } // namespace rmf_obstacle_ros2

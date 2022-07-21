@@ -296,7 +296,7 @@ void LaneBlocker::obstacle_cb(const Obstacles& msg)
       after_pose.pose.position.y, after_pose.pose.position.z
     );
     auto new_box =
-      vision_msgs::build<vision_msgs::msg::BoundingBox3D>()
+      rmf_obstacle_msgs::build<rmf_obstacle_msgs::msg::BoundingBox3D>()
       .center(std::move(after_pose.pose))
       .size(std::move(after_size.vector));
 

@@ -12,7 +12,7 @@ ament_add_catch2(
 
 target_link_libraries(test_intersection_checker
   PRIVATE
-    ${vision_msgs_LIBRARIES}
+    ${rmf_obstacle_msgs_LIBRARIES}
     ${geometry_msgs_LIBRARIES}
     rmf_utils::rmf_utils
 )
@@ -21,7 +21,7 @@ target_include_directories(test_intersection_checker
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     ${EIGEN3_INCLUDE_DIRS}
-    ${vision_msgs_INCLUDE_DIRS}
+    ${rmf_obstacle_msgs_INCLUDE_DIRS}
     ${geometry_msgs_INCLUDE_DIRS}
     ${rmf_utils_INCLUDE_DIRS}
 )

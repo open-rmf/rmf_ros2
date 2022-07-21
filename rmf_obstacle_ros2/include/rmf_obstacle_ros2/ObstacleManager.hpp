@@ -47,7 +47,7 @@ public:
   ///
   /// \param[in] node_options
   ///   The options that the rclcpp::Node will be constructed with.
-  std::shared_ptr<ObstacleManager> make(
+  static std::shared_ptr<ObstacleManager> make(
     const std::string& name,
     ConstResponderPtr responder = nullptr,
     const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions());
@@ -61,6 +61,13 @@ public:
 
   /// const-qualified node()
   std::shared_ptr<const rclcpp::Node> node() const;
+
+  /// Begin running the event loop for this manager. The event loop will run
+  /// in another thread, so this function is non-blocking.
+  ObstacleManager& start();
+
+  /// Wait until the adapter is done spinning.
+  ObstacleManager& wait();
 
   ~ObstacleManager();
 

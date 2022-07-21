@@ -15,7 +15,6 @@ set(dep_pkgs
   rmf_utils
   pluginlib
   rmf_obstacle_msgs
-  vision_msgs
   rmf_fleet_msgs
   rmf_building_map_msgs
   sensor_msgs
@@ -85,7 +84,6 @@ target_link_libraries(lane_blocker
     rclcpp::rclcpp
     ${rclcpp_components_LIBRARIES}
     ${rmf_obstacle_msgs_LIBRARIES}
-    ${vision_msgs_LIBRARIES}
     ${rmf_fleet_msgs_LIBRARIES}
     ${rmf_building_map_msgs_LIBRARIES}
     rmf_fleet_adapter::rmf_fleet_adapter
@@ -103,7 +101,6 @@ target_include_directories(lane_blocker
     ${rclcpp_INCLUDE_DIRS}
     ${rclcpp_components_INCLUDE_DIRS}
     ${rmf_obstacle_msgs_INCLUDE_DIRS}
-    ${vision_msgs_INCLUDE_DIRS}
     ${rmf_fleet_msgs_INCLUDE_DIRS}
     ${rmf_building_map_msgs_INCLUDE_DIRS}
     ${rmf_fleet_adapter_INCLUDE_DIRS}

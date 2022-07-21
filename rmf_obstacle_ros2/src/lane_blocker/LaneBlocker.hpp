@@ -28,7 +28,7 @@
 #include <rmf_fleet_msgs/msg/speed_limit_request.hpp>
 #include <rmf_fleet_msgs/msg/lane_states.hpp>
 
-#include <vision_msgs/msg/bounding_box3_d.hpp>
+#include <rmf_obstacle_msgs/msg/bounding_box3_d.hpp>
 
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -49,7 +49,7 @@ public:
   using LaneRequest = rmf_fleet_msgs::msg::LaneRequest;
   using SpeedLimitRequest = rmf_fleet_msgs::msg::SpeedLimitRequest;
   using LaneStates = rmf_fleet_msgs::msg::LaneStates;
-  using BoundingBox = vision_msgs::msg::BoundingBox3D;
+  using BoundingBox = rmf_obstacle_msgs::msg::BoundingBox3D;
   using Header = std_msgs::msg::Header;
 
   /// Constructor

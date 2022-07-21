@@ -12,7 +12,6 @@
   <depend>rclcpp</depend>
   <depend>rmf_utils</depend>
   <depend>rmf_obstacle_msgs</depend>
-  <depend>vision_msgs</depend>
   <depend>rmf_fleet_msgs</depend>
   <depend>rmf_building_map_msgs</depend>
   <depend>sensor_msgs</depend>

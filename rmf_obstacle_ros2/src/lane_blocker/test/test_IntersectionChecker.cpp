@@ -20,7 +20,7 @@
 
 #include <rmf_utils/catch.hpp>
 
-#include <vision_msgs/msg/bounding_box2_d.hpp>
+#include <rmf_obstacle_msgs/msg/bounding_box2_d.hpp>
 #include <geometry_msgs/msg/pose2_d.hpp>
 
 #include <iostream>
@@ -39,7 +39,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("AABB geometries are not intersecting and 1m apart")
   {
     double how_much;
-    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
         .y(0.0)
@@ -47,7 +47,7 @@ SCENARIO("Test IntersectionChecker")
       .size_x(2.0)
       .size_y(2.0);
 
-    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(4.0)
         .y(0.0)
@@ -65,7 +65,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("OBB geometries are not intersecting and 1m apart")
   {
     double how_much;
-    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
         .y(0.0)
@@ -73,7 +73,7 @@ SCENARIO("Test IntersectionChecker")
       .size_x(2.0)
       .size_y(2.0);
 
-    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(4.0)
         .y(0.0)
@@ -91,7 +91,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("AABB geometries are overlapping along X-Axis")
   {
     double how_much;
-    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
         .y(0.0)
@@ -99,7 +99,7 @@ SCENARIO("Test IntersectionChecker")
       .size_x(2.0)
       .size_y(2.0);
 
-    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(2.5)
         .y(0.0)
@@ -115,7 +115,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("AABB geometries are overlapping along Y-Axis")
   {
     double how_much;
-    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
         .y(0.0)
@@ -123,7 +123,7 @@ SCENARIO("Test IntersectionChecker")
       .size_x(2.0)
       .size_y(2.0);
 
-    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
         .y(1.5)
@@ -139,7 +139,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("AABB geometries are overlapping along X & Y-Axis")
   {
     double how_much;
-    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
         .y(0.0)
@@ -147,7 +147,7 @@ SCENARIO("Test IntersectionChecker")
       .size_x(2.0)
       .size_y(2.0);
 
-    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(2.5)
         .y(0.5)
@@ -163,7 +163,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("AABB geometries are touching")
   {
     double how_much;
-    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
         .y(0.0)
@@ -171,7 +171,7 @@ SCENARIO("Test IntersectionChecker")
       .size_x(2.0)
       .size_y(2.0);
 
-    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(3.0)
         .y(0.0)
@@ -187,7 +187,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("OBB geometries are overlapping along X & Y-Axis")
   {
     double how_much;
-    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(0.0)
         .y(0.0)
@@ -195,7 +195,7 @@ SCENARIO("Test IntersectionChecker")
       .size_x(2.0)
       .size_y(2.0);
 
-    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.414)
         .y(1.0)
@@ -211,7 +211,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("Test #1")
   {
     double how_much;
-    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(8.6824)
         .y(-10.9616)
@@ -219,7 +219,7 @@ SCENARIO("Test IntersectionChecker")
       .size_x(1.43478)
       .size_y(0.5);
 
-    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(12.002)
         .y(-10.1094)
@@ -237,7 +237,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("Test #2")
   {
     double how_much;
-    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(11.6892)
         .y(-3.52843)
@@ -245,7 +245,7 @@ SCENARIO("Test IntersectionChecker")
       .size_x(3.01193)
       .size_y(0.5);
 
-    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(12.002)
         .y(-10.9738)
@@ -263,7 +263,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("Test #3")
   {
     double how_much;
-    const auto ob1 = vision_msgs::build<CollisionGeometry>()
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(9.57985)
         .y(-4.6367)
@@ -271,7 +271,7 @@ SCENARIO("Test IntersectionChecker")
       .size_x(3.36581)
       .size_y(0.5);
 
-    const auto ob2 = vision_msgs::build<CollisionGeometry>()
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(12.1453)
         .y(-11.1404)
