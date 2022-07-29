@@ -23,6 +23,8 @@
 #include <proj.h>
 #include <nlohmann/json.hpp>
 
+#include <rclcpp/rclcpp.hpp>
+
 #include <rmf_traffic_ros2/agv/Graph.hpp>
 
 #include <rmf_building_map_msgs/msg/graph_node.hpp>
@@ -32,6 +34,13 @@
 #include <unordered_set>
 
 namespace rmf_traffic_ros2 {
+
+namespace {
+
+static const rclcpp::Logger LOGGER =
+  rclcpp::get_logger("rmf_traffic_ros2::ConvertGraph");
+
+} // anonymous namespace
 
 // Usage map[level_idx][truncated_x][truncated_y] = id;
 // Truncation is to 1e-3 meters by default
@@ -331,7 +340,7 @@ rmf_traffic::agv::Graph json_to_graph(
     }
 
     // dock_name is only applied to the lane going to the waypoint, not exiting
-    const rmf_traffic::Duration duration = std::chrono::seconds(5);
+    const rmf_traffic::Duration duration = std::chrono::nanoseconds(5);
     if (dock_name.has_value())
       entry_event = Event::make(Lane::Dock(dock_name.value(), duration));
     auto& lane = graph.add_lane({start_wp, entry_event},
@@ -348,6 +357,10 @@ rmf_traffic::agv::Graph json_to_graph(
 std::optional<rmf_traffic::agv::Graph> convert(
   const rmf_building_map_msgs::msg::Graph& navgraph)
 {
+  using GraphParamMsg = rmf_building_map_msgs::msg::Param;
+  using Lane = rmf_traffic::agv::Graph::Lane;
+  using Event = Lane::Event;
+
   rmf_traffic::agv::Graph graph;
   std::unordered_set<std::size_t> added_waypoints = {};
 
@@ -403,25 +416,384 @@ std::optional<rmf_traffic::agv::Graph> convert(
     {
       return std::nullopt;
     }
-    auto lane_properties = rmf_traffic::agv::Graph::Lane::Properties();
+
+    // Maps to generate events and properties
+    std::unordered_map<std::string, GraphParamMsg> entry_params;
+    std::unordered_map<std::string, GraphParamMsg> exit_params;
+    std::unordered_map<std::string, GraphParamMsg> other_params;
     for (const auto& param : e.params)
     {
-      if (param.name == "speed_limit" &&
+      if (param.name.find("entry_") != std::string::npos)
+      {
+        entry_params.insert({param.name.substr(6), param});
+      }
+      else if (param.name.find("exit_") != std::string::npos)
+      {
+        exit_params.insert({param.name.substr(5), param});
+      }
+      else
+      {
+        other_params.insert({param.name, param});
+      }
+    }
+
+    rmf_utils::clone_ptr<Event> entry_event = nullptr;
+    rmf_utils::clone_ptr<rmf_traffic::agv::Graph::OrientationConstraint>
+    entry_constraint = nullptr;
+
+    rmf_utils::clone_ptr<Event> exit_event = nullptr;
+    rmf_utils::clone_ptr<rmf_traffic::agv::Graph::OrientationConstraint>
+    exit_constraint = nullptr;
+
+    auto set_event_and_constraint =
+      [](
+        const std::unordered_map<std::string, GraphParamMsg>& params,
+        rmf_utils::clone_ptr<Event>& event_to_set,
+        rmf_utils::clone_ptr<rmf_traffic::agv::Graph::OrientationConstraint>& constraint_to_set)
+      {
+        using Lane = rmf_traffic::agv::Graph::Lane;
+        using Constraint = rmf_traffic::agv::Graph::OrientationConstraint;
+        using Event = Lane::Event;
+        using DoorOpen = Lane::DoorOpen;
+        using DoorClose = Lane::DoorClose;
+        using LiftSessionBegin = Lane::LiftSessionBegin;
+        using LiftDoorOpen = Lane::LiftDoorOpen;
+        using LiftSessionEnd = Lane::LiftSessionEnd;
+        using LiftMove = Lane::LiftMove;
+        using Dock = Lane::Dock;
+        using Wait = Lane::Wait;
+
+        if (params.empty())
+          return;
+
+        // Dock
+        if (params.find("dock_name") != params.end() &&
+          params.find("dock_duration") != params.end())
+        {
+          std::string name = params.at("dock_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(params.at("dock_duration").value_float));
+          event_to_set = Event::make(Dock(std::move(name), duration));
+        }
+        // DoorOpen
+        else if (params.find("door_open_name") != params.end() &&
+          params.find("door_open_duration") != params.end())
+        {
+          std::string name = params.at("door_open_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(params.at("door_open_duration").value_float));
+          event_to_set = Event::make(DoorOpen(std::move(name), duration));
+        }
+        // DoorClose
+        else if (params.find("door_close_name") != params.end() &&
+          params.find("door_close_duration") != params.end())
+        {
+          std::string name = params.at("door_close_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(params.at("door_close_duration").value_float));
+          event_to_set = Event::make(DoorClose(std::move(name), duration));
+        }
+        // LiftSessionBegin
+        else if (params.find("lift_end_lift_name") != params.end() &&
+          params.find("lift_end_floor_name") != params.end() &&
+          params.find("lift_end_duration") != params.end())
+        {
+          std::string lift_name = params.at("lift_end_lift_name").value_string;
+          std::string floor_name = params.at("lift_end_floor_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(params.at("lift_end_duration").value_float));
+          event_to_set = Event::make(LiftSessionBegin(
+            std::move(lift_name),
+            std::move(floor_name),
+            duration));
+        }
+        // LiftMove
+        else if (params.find("lift_move_lift_name") != params.end() &&
+          params.find("lift_move_floor_name") != params.end() &&
+          params.find("lift_move_duration") != params.end())
+        {
+          std::string lift_name = params.at("lift_move_lift_name").value_string;
+          std::string floor_name = params.at("lift_move_floor_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(params.at("lift_move_duration").value_float));
+          event_to_set = Event::make(LiftMove(
+            std::move(lift_name),
+            std::move(floor_name),
+            duration));
+        }
+        // LiftDoorOpen
+        else if (params.find("lift_door_open_lift_name") != params.end() &&
+          params.find("lift_door_open_floor_name") != params.end() &&
+          params.find("lift_door_open_duration") != params.end())
+        {
+          std::string lift_name = params.at("lift_door_open_lift_name").value_string;
+          std::string floor_name = params.at("lift_door_open_floor_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(params.at("lift_door_open_duration").value_float));
+          event_to_set = Event::make(LiftDoorOpen(
+            std::move(lift_name),
+            std::move(floor_name),
+            duration));
+        }
+        // LiftSessionEnd
+        else if (params.find("lift_end_lift_name") != params.end() &&
+          params.find("lift_end_floor_name") != params.end() &&
+          params.find("lift_end_duration") != params.end())
+        {
+          std::string lift_name = params.at("lift_end_lift_name").value_string;
+          std::string floor_name = params.at("lift_end_floor_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(params.at("lift_end_duration").value_float));
+          event_to_set = Event::make(LiftSessionEnd(
+            std::move(lift_name),
+            std::move(floor_name),
+            duration));
+        }
+        // Dock
+        else if (params.find("wait_duration") != params.end())
+        {
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(params.at("wait_duration").value_float));
+          event_to_set = Event::make(Wait(duration));
+        }
+        //OrientationConstraint
+        else if (params.find("orientation_constraint") != params.end())
+        {
+          const auto& dir_str = params.at("orientation_constraint").value_string;
+          const Constraint::Direction dir = dir_str ==
+            "forward" ? Constraint::Direction::Forward :
+            Constraint::Direction::Backward;
+          constraint_to_set = Constraint::make(
+            dir, Eigen::Vector2d::UnitX());
+        }
+        else
+        {
+          return;
+        }
+      };
+
+    set_event_and_constraint(entry_params, entry_event, entry_constraint);
+    set_event_and_constraint(exit_params, exit_event, exit_constraint);
+
+    // Deserialize other properties
+    auto lane_properties = rmf_traffic::agv::Graph::Lane::Properties();
+    for (const auto& [name, param] : other_params)
+    {
+      if (name == "speed_limit" &&
         param.type == param.TYPE_DOUBLE &&
         param.value_float > 0.0)
       {
         lane_properties.speed_limit(param.value_float);
       }
-      // TODO(YV): Deserialize other events and properties when available
     }
+
     graph.add_lane(
-      {e.v1_idx},
-      {e.v2_idx},
+      {e.v1_idx, entry_event, entry_constraint},
+      {e.v2_idx, exit_event, exit_constraint},
       std::move(lane_properties));
   }
 
   return graph;
 }
+
+//==============================================================================
+// An event factory that will help serialize the event
+class EventPhaseFactory : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+
+  using Lane = rmf_traffic::agv::Graph::Lane;
+  using GraphParamMsg = rmf_building_map_msgs::msg::Param;
+
+  EventPhaseFactory(
+    const std::string& prefix,
+    std::vector<GraphParamMsg>& edge_params)
+  : _prefix(std::move(prefix)),
+    _edge_params(edge_params)
+  {
+    // Do nothing
+  }
+
+  void execute(const Dock& dock) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_dock_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(dock.dock_name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_dock_duration")
+    .type(GraphParamMsg::TYPE_INT)
+    .value_int(0)
+    .value_float(dock.duration().count())
+    .value_string("")
+    .value_bool(false));
+  }
+
+  void execute(const DoorOpen& open) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_door_open_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(open.name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_door_open_duration")
+    .type(GraphParamMsg::TYPE_INT)
+    .value_int(0)
+    .value_float(open.duration().count())
+    .value_string("")
+    .value_bool(false));
+  }
+
+  void execute(const DoorClose& close) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_door_close_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(close.name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_door_close_duration")
+    .type(GraphParamMsg::TYPE_INT)
+    .value_int(0)
+    .value_float(close.duration().count())
+    .value_string("")
+    .value_bool(false));
+  }
+
+  void execute(const LiftSessionBegin& open) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_end_lift_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(open.lift_name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_end_floor_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(open.floor_name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_end_duration")
+    .type(GraphParamMsg::TYPE_INT)
+    .value_int(0)
+    .value_float(open.duration().count())
+    .value_string("")
+    .value_bool(false));
+  }
+
+  void execute(const LiftMove& move) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_move_lift_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(move.lift_name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_move_floor_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(move.floor_name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_move_duration")
+    .type(GraphParamMsg::TYPE_INT)
+    .value_int(0)
+    .value_float(move.duration().count())
+    .value_string("")
+    .value_bool(false));
+  }
+
+  void execute(const LiftDoorOpen& open) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_door_open_lift_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(open.lift_name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_door_open_floor_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(open.floor_name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_door_open_duration")
+    .type(GraphParamMsg::TYPE_INT)
+    .value_int(0)
+    .value_float(open.duration().count())
+    .value_string("")
+    .value_bool(false));
+  }
+
+  void execute(const LiftSessionEnd& close) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_end_lift_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(close.lift_name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_end_floor_name")
+    .type(GraphParamMsg::TYPE_STRING)
+    .value_int(0)
+    .value_float(0)
+    .value_string(close.floor_name())
+    .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_lift_end_duration")
+    .type(GraphParamMsg::TYPE_INT)
+    .value_int(0)
+    .value_float(close.duration().count())
+    .value_string("")
+    .value_bool(false));
+  }
+
+  void execute(const Wait& wait) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+    .name(_prefix + "_wait_duration")
+    .type(GraphParamMsg::TYPE_INT)
+    .value_int(0)
+    .value_float(wait.duration().count())
+    .value_string("")
+    .value_bool(false));
+  }
+
+private:
+  std::string _prefix;
+  std::vector<GraphParamMsg>& _edge_params;
+};
 
 //==============================================================================
 std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
@@ -492,8 +864,6 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
       .params(std::move(params)));
   }
   // Populate edges
-  // TODO(YV): Serialize entry and exit events along with properties
-  // into params
   for (std::size_t i = 0; i < n_lanes; ++i)
   {
     const auto& lane = graph.get_lane(i);
@@ -501,6 +871,7 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
     std::vector<GraphParamMsg> params;
     const auto& properties = graph.get_lane(i).properties();
     if (properties.speed_limit().has_value())
+    {
       params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
         .name("speed_limit")
         .type(GraphParamMsg::TYPE_DOUBLE)
@@ -508,6 +879,51 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
         .value_float(properties.speed_limit().value())
         .value_string("")
         .value_bool(false));
+    }
+    // Serialize events for this lane
+    const auto entry_event = lane.entry().event();
+    if (entry_event != nullptr)
+    {
+      EventPhaseFactory factory("entry", params);
+      entry_event->execute(factory);
+    }
+    const auto* entry_orientation = lane.entry().orientation_constraint();
+    if (entry_orientation != nullptr)
+    {
+      const auto& forward = Eigen::Vector2d::UnitX();
+      Eigen::Vector3d pos = {1.0, 0.0 , 0.0};
+      entry_orientation->apply(pos, forward);
+      std::string dir = std::abs((pos[2] - 0.0)) < 1e-3 ? "forward" : "backward";
+      params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+        .name("entry_orientation_constraint")
+        .type(GraphParamMsg::TYPE_STRING)
+        .value_int(0)
+        .value_float(0.0)
+        .value_string(std::move(dir))
+        .value_bool(false));
+    }
+    const auto exit_event = lane.exit().event();
+    if (exit_event != nullptr)
+    {
+      EventPhaseFactory factory("exit", params);
+      entry_event->execute(factory);
+    }
+    const auto* exit_orientation = lane.entry().orientation_constraint();
+    if (exit_orientation != nullptr)
+    {
+      const auto& forward = Eigen::Vector2d::UnitX();
+      Eigen::Vector3d pos = {1.0, 0.0 , 0.0};
+      exit_orientation->apply(pos, forward);
+      std::string dir = std::abs((pos[2] - 0.0)) < 1e-3 ? "forward" : "backward";
+      params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+        .name("exit_orientation_constraint")
+        .type(GraphParamMsg::TYPE_STRING)
+        .value_int(0)
+        .value_float(0.0)
+        .value_string(std::move(dir))
+        .value_bool(false));
+    }
+    // Add vertices for this lane
     edges.emplace_back(
       rmf_building_map_msgs::build<GraphEdgeMsg>()
       .v1_idx(lane.entry().waypoint_index())
