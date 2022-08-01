@@ -111,6 +111,8 @@ target_include_directories(rmf_fleet_adapter
     ${rmf_dispenser_msgs_INCLUDE_DIRS}
     ${rmf_ingestor_msgs_INCLUDE_DIRS}
     ${rmf_api_msgs_INCLUDE_DIRS}
+    ${rmf_websocket_INCLUDE_DIR}
+    ${rmf_traffic_ros2_INCLUDE_DIRS}
     ${rmf_building_map_msgs_INCLUDE_DIRS}
     ${nlohmann_json_schema_validator_INCLUDE_DIRS}
 )

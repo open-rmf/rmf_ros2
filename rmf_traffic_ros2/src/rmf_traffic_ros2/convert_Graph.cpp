@@ -23,8 +23,6 @@
 #include <proj.h>
 #include <nlohmann/json.hpp>
 
-#include <rclcpp/rclcpp.hpp>
-
 #include <rmf_traffic_ros2/agv/Graph.hpp>
 
 #include <rmf_building_map_msgs/msg/graph_node.hpp>
@@ -34,13 +32,6 @@
 #include <unordered_set>
 
 namespace rmf_traffic_ros2 {
-
-namespace {
-
-static const rclcpp::Logger LOGGER =
-  rclcpp::get_logger("rmf_traffic_ros2::ConvertGraph");
-
-} // anonymous namespace
 
 // Usage map[level_idx][truncated_x][truncated_y] = id;
 // Truncation is to 1e-3 meters by default
@@ -340,7 +331,7 @@ rmf_traffic::agv::Graph json_to_graph(
     }
 
     // dock_name is only applied to the lane going to the waypoint, not exiting
-    const rmf_traffic::Duration duration = std::chrono::nanoseconds(5);
+    const rmf_traffic::Duration duration = std::chrono::seconds(5);
     if (dock_name.has_value())
       entry_event = Event::make(Lane::Dock(dock_name.value(), duration));
     auto& lane = graph.add_lane({start_wp, entry_event},
