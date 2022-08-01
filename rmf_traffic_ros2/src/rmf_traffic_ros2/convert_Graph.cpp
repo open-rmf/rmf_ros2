@@ -447,9 +447,10 @@ std::optional<rmf_traffic::agv::Graph> convert(
 
     auto set_event_and_constraint =
       [](
-        const std::unordered_map<std::string, GraphParamMsg>& params,
-        rmf_utils::clone_ptr<Event>& event_to_set,
-        rmf_utils::clone_ptr<rmf_traffic::agv::Graph::OrientationConstraint>& constraint_to_set)
+      const std::unordered_map<std::string, GraphParamMsg>& params,
+      rmf_utils::clone_ptr<Event>& event_to_set,
+      rmf_utils::clone_ptr<rmf_traffic::agv::Graph::OrientationConstraint>&
+      constraint_to_set)
       {
         using Lane = rmf_traffic::agv::Graph::Lane;
         using Constraint = rmf_traffic::agv::Graph::OrientationConstraint;
@@ -499,13 +500,14 @@ std::optional<rmf_traffic::agv::Graph> convert(
           params.find("lift_end_duration") != params.end())
         {
           std::string lift_name = params.at("lift_end_lift_name").value_string;
-          std::string floor_name = params.at("lift_end_floor_name").value_string;
+          std::string floor_name =
+            params.at("lift_end_floor_name").value_string;
           rmf_traffic::Duration duration = std::chrono::nanoseconds(
             static_cast<uint64_t>(params.at("lift_end_duration").value_float));
           event_to_set = Event::make(LiftSessionBegin(
-            std::move(lift_name),
-            std::move(floor_name),
-            duration));
+                std::move(lift_name),
+                std::move(floor_name),
+                duration));
         }
         // LiftMove
         else if (params.find("lift_move_lift_name") != params.end() &&
@@ -513,27 +515,31 @@ std::optional<rmf_traffic::agv::Graph> convert(
           params.find("lift_move_duration") != params.end())
         {
           std::string lift_name = params.at("lift_move_lift_name").value_string;
-          std::string floor_name = params.at("lift_move_floor_name").value_string;
+          std::string floor_name =
+            params.at("lift_move_floor_name").value_string;
           rmf_traffic::Duration duration = std::chrono::nanoseconds(
             static_cast<uint64_t>(params.at("lift_move_duration").value_float));
           event_to_set = Event::make(LiftMove(
-            std::move(lift_name),
-            std::move(floor_name),
-            duration));
+                std::move(lift_name),
+                std::move(floor_name),
+                duration));
         }
         // LiftDoorOpen
         else if (params.find("lift_door_open_lift_name") != params.end() &&
           params.find("lift_door_open_floor_name") != params.end() &&
           params.find("lift_door_open_duration") != params.end())
         {
-          std::string lift_name = params.at("lift_door_open_lift_name").value_string;
-          std::string floor_name = params.at("lift_door_open_floor_name").value_string;
+          std::string lift_name =
+            params.at("lift_door_open_lift_name").value_string;
+          std::string floor_name =
+            params.at("lift_door_open_floor_name").value_string;
           rmf_traffic::Duration duration = std::chrono::nanoseconds(
-            static_cast<uint64_t>(params.at("lift_door_open_duration").value_float));
+            static_cast<uint64_t>(params.at("lift_door_open_duration").
+            value_float));
           event_to_set = Event::make(LiftDoorOpen(
-            std::move(lift_name),
-            std::move(floor_name),
-            duration));
+                std::move(lift_name),
+                std::move(floor_name),
+                duration));
         }
         // LiftSessionEnd
         else if (params.find("lift_end_lift_name") != params.end() &&
@@ -541,13 +547,14 @@ std::optional<rmf_traffic::agv::Graph> convert(
           params.find("lift_end_duration") != params.end())
         {
           std::string lift_name = params.at("lift_end_lift_name").value_string;
-          std::string floor_name = params.at("lift_end_floor_name").value_string;
+          std::string floor_name =
+            params.at("lift_end_floor_name").value_string;
           rmf_traffic::Duration duration = std::chrono::nanoseconds(
             static_cast<uint64_t>(params.at("lift_end_duration").value_float));
           event_to_set = Event::make(LiftSessionEnd(
-            std::move(lift_name),
-            std::move(floor_name),
-            duration));
+                std::move(lift_name),
+                std::move(floor_name),
+                duration));
         }
         // Dock
         else if (params.find("wait_duration") != params.end())
@@ -559,7 +566,8 @@ std::optional<rmf_traffic::agv::Graph> convert(
         //OrientationConstraint
         else if (params.find("orientation_constraint") != params.end())
         {
-          const auto& dir_str = params.at("orientation_constraint").value_string;
+          const auto& dir_str =
+            params.at("orientation_constraint").value_string;
           const Constraint::Direction dir = dir_str ==
             "forward" ? Constraint::Direction::Forward :
             Constraint::Direction::Backward;
@@ -617,177 +625,177 @@ public:
   void execute(const Dock& dock) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_dock_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(dock.dock_name())
-    .value_bool(false));
+      .name(_prefix + "_dock_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(dock.dock_name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_dock_duration")
-    .type(GraphParamMsg::TYPE_INT)
-    .value_int(0)
-    .value_float(dock.duration().count())
-    .value_string("")
-    .value_bool(false));
+      .name(_prefix + "_dock_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(dock.duration().count())
+      .value_string("")
+      .value_bool(false));
   }
 
   void execute(const DoorOpen& open) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_door_open_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(open.name())
-    .value_bool(false));
+      .name(_prefix + "_door_open_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(open.name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_door_open_duration")
-    .type(GraphParamMsg::TYPE_INT)
-    .value_int(0)
-    .value_float(open.duration().count())
-    .value_string("")
-    .value_bool(false));
+      .name(_prefix + "_door_open_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(open.duration().count())
+      .value_string("")
+      .value_bool(false));
   }
 
   void execute(const DoorClose& close) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_door_close_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(close.name())
-    .value_bool(false));
+      .name(_prefix + "_door_close_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(close.name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_door_close_duration")
-    .type(GraphParamMsg::TYPE_INT)
-    .value_int(0)
-    .value_float(close.duration().count())
-    .value_string("")
-    .value_bool(false));
+      .name(_prefix + "_door_close_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(close.duration().count())
+      .value_string("")
+      .value_bool(false));
   }
 
   void execute(const LiftSessionBegin& open) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_end_lift_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(open.lift_name())
-    .value_bool(false));
+      .name(_prefix + "_lift_end_lift_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(open.lift_name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_end_floor_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(open.floor_name())
-    .value_bool(false));
+      .name(_prefix + "_lift_end_floor_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(open.floor_name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_end_duration")
-    .type(GraphParamMsg::TYPE_INT)
-    .value_int(0)
-    .value_float(open.duration().count())
-    .value_string("")
-    .value_bool(false));
+      .name(_prefix + "_lift_end_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(open.duration().count())
+      .value_string("")
+      .value_bool(false));
   }
 
   void execute(const LiftMove& move) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_move_lift_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(move.lift_name())
-    .value_bool(false));
+      .name(_prefix + "_lift_move_lift_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(move.lift_name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_move_floor_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(move.floor_name())
-    .value_bool(false));
+      .name(_prefix + "_lift_move_floor_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(move.floor_name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_move_duration")
-    .type(GraphParamMsg::TYPE_INT)
-    .value_int(0)
-    .value_float(move.duration().count())
-    .value_string("")
-    .value_bool(false));
+      .name(_prefix + "_lift_move_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(move.duration().count())
+      .value_string("")
+      .value_bool(false));
   }
 
   void execute(const LiftDoorOpen& open) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_door_open_lift_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(open.lift_name())
-    .value_bool(false));
+      .name(_prefix + "_lift_door_open_lift_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(open.lift_name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_door_open_floor_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(open.floor_name())
-    .value_bool(false));
+      .name(_prefix + "_lift_door_open_floor_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(open.floor_name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_door_open_duration")
-    .type(GraphParamMsg::TYPE_INT)
-    .value_int(0)
-    .value_float(open.duration().count())
-    .value_string("")
-    .value_bool(false));
+      .name(_prefix + "_lift_door_open_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(open.duration().count())
+      .value_string("")
+      .value_bool(false));
   }
 
   void execute(const LiftSessionEnd& close) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_end_lift_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(close.lift_name())
-    .value_bool(false));
+      .name(_prefix + "_lift_end_lift_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(close.lift_name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_end_floor_name")
-    .type(GraphParamMsg::TYPE_STRING)
-    .value_int(0)
-    .value_float(0)
-    .value_string(close.floor_name())
-    .value_bool(false));
+      .name(_prefix + "_lift_end_floor_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(close.floor_name())
+      .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_lift_end_duration")
-    .type(GraphParamMsg::TYPE_INT)
-    .value_int(0)
-    .value_float(close.duration().count())
-    .value_string("")
-    .value_bool(false));
+      .name(_prefix + "_lift_end_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(close.duration().count())
+      .value_string("")
+      .value_bool(false));
   }
 
   void execute(const Wait& wait) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-    .name(_prefix + "_wait_duration")
-    .type(GraphParamMsg::TYPE_INT)
-    .value_int(0)
-    .value_float(wait.duration().count())
-    .value_string("")
-    .value_bool(false));
+      .name(_prefix + "_wait_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(wait.duration().count())
+      .value_string("")
+      .value_bool(false));
   }
 
 private:
@@ -891,9 +899,10 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
     if (entry_orientation != nullptr)
     {
       const auto& forward = Eigen::Vector2d::UnitX();
-      Eigen::Vector3d pos = {1.0, 0.0 , 0.0};
+      Eigen::Vector3d pos = {1.0, 0.0, 0.0};
       entry_orientation->apply(pos, forward);
-      std::string dir = std::abs((pos[2] - 0.0)) < 1e-3 ? "forward" : "backward";
+      std::string dir = std::abs((pos[2] - 0.0)) <
+        1e-3 ? "forward" : "backward";
       params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
         .name("entry_orientation_constraint")
         .type(GraphParamMsg::TYPE_STRING)
@@ -912,9 +921,10 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
     if (exit_orientation != nullptr)
     {
       const auto& forward = Eigen::Vector2d::UnitX();
-      Eigen::Vector3d pos = {1.0, 0.0 , 0.0};
+      Eigen::Vector3d pos = {1.0, 0.0, 0.0};
       exit_orientation->apply(pos, forward);
-      std::string dir = std::abs((pos[2] - 0.0)) < 1e-3 ? "forward" : "backward";
+      std::string dir = std::abs((pos[2] - 0.0)) <
+        1e-3 ? "forward" : "backward";
       params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
         .name("exit_orientation_constraint")
         .type(GraphParamMsg::TYPE_STRING)
