@@ -80,7 +80,9 @@ PointCloud convert(
   sensor_msgs::PointCloud2Iterator<float> iter_z(cloud, "z");
 
   // Note that the non-trivial call to tree->end_leafs() should be done only once for efficiency
-  for(auto leaf_it = tree.begin_leafs(), end = tree.end_leafs(); leaf_it != end; ++leaf_it)
+  for (auto leaf_it = tree.begin_leafs(),
+    end = tree.end_leafs(); leaf_it != end;
+    ++leaf_it)
   {
     const auto& p = leaf_it.getCoordinate();
     *iter_x = p.x();
