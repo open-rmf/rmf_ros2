@@ -44,30 +44,37 @@ std::pair<CollisionBox, std::vector<Eigen::Vector3d>> make_transformed_box(
   const CollisionGeometry& to,
   const CollisionGeometry& from)
 {
-  // We will rotate second geometry about the origin by the difference in
-  // thetas and then translate to the first geometry's frame
-  Eigen::Matrix<double, 3, 3> mat;
-  const double th = to.center.theta - from.center.theta;
-  mat(0, 0) = std::cos(th);
-  mat(0, 1) = std::sin(-1.0 *th);
-  mat(0, 2) = (from.center.x - to.center.x);
-  mat(1, 0) = std::sin(th);
-  mat(1, 1) = std::cos(th);
-  mat(1, 2) = (from.center.y - to.center.y);
-  mat(2, 0) = 0;
-  mat(2, 1) =  0;
-  mat(2, 2) = 1.0;
-
-  #ifndef NDEBUG
-  std::cout << "get_vertices matrix: " << std::endl;
-  std::cout << mat << std::endl;
-  #endif
-
+  // Create the 'from' geometry's vertices at the origin
   std::vector<Eigen::Vector3d> vertices;
   vertices.push_back({-from.size_x * 0.5, from.size_y * 0.5, 1.0});
   vertices.push_back({-from.size_x * 0.5, -from.size_y * 0.5, 1.0});
   vertices.push_back({from.size_x* 0.5, from.size_y* 0.5, 1.0});
   vertices.push_back({from.size_x* 0.5, -from.size_y* 0.5, 1.0});
+
+  Eigen::Matrix<double, 3, 3> rot1;
+  const double th2 = from.center.theta;
+  rot1(0, 0) = std::cos(th2);
+  rot1(0, 1) = std::sin(-1.0 *th2);
+  rot1(0, 2) = 0;
+  rot1(1, 0) = std::sin(th2);
+  rot1(1, 1) = std::cos(th2);
+  rot1(1, 2) = 0;
+  rot1(2, 0) = 0;
+  rot1(2, 1) =  0;
+  rot1(2, 2) = 1.0;
+
+  #ifndef NDEBUG
+  std::cout << "Obs rot matrix: " << std::endl;
+  std::cout << rot1 << std::endl;
+  #endif
+
+  // Translate and rotate the 'from' geometry's vertices to their actual positions
+  for (auto& v : vertices)
+  {
+    v = rot1 * v;
+    v[0] = v[0] + from.center.x;
+    v[1] = v[1] + from.center.y;
+  }
 
   #ifndef NDEBUG
   std::cout << "Obs vertices before trans: ";
@@ -76,8 +83,33 @@ std::pair<CollisionBox, std::vector<Eigen::Vector3d>> make_transformed_box(
   std::cout << std::endl;
   #endif
 
+  Eigen::Matrix<double, 3, 3> rot2;
+  const double th3 = -to.center.theta;
+  rot2(0, 0) = std::cos(th3);
+  rot2(0, 1) = std::sin(-1.0 *th3);
+  rot2(0, 2) = 0;
+  rot2(1, 0) = std::sin(th3);
+  rot2(1, 1) = std::cos(th3);
+  rot2(1, 2) = 0;
+  rot2(2, 0) = 0;
+  rot2(2, 1) =  0;
+  rot2(2, 2) = 1.0;
+
+  #ifndef NDEBUG
+  std::cout << "Lane rot inv matrix: " << std::endl;
+  std::cout << rot2 << std::endl;
+  #endif
+
+  // Translate and rotate the 'from' geometry's vertices by
+  // the inverse of the 'to' geometry.
+  // Vertex coordinates of 'from' geometry are now w.r.t. the 'to' geometry's frame,
+  // where the 'to' geometry's frame is at the origin without rotation.
   for (auto& v : vertices)
-    v = mat * v;
+  {
+    v[0] = v[0] - to.center.x;
+    v[1] = v[1] - to.center.y;
+    v = rot2 * v;
+  }
 
   #ifndef NDEBUG
   std::cout << "Obs vertices after trans: ";
@@ -154,7 +186,7 @@ bool between(
   how_much = std::numeric_limits<double>::min();
   for (std::size_t i = 0; i < 2; ++i)
   {
-    double dist;
+    double dist = std::numeric_limits<double>::min();
     // O2 projections are on the left of O1 extremas
     if (o2_box.max[i] < o1_box.min[i])
     {
