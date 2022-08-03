@@ -39,6 +39,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("AABB geometries are not intersecting and 1m apart")
   {
     double how_much;
+    const double expected = 1.0;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
@@ -58,13 +59,15 @@ SCENARIO("Test IntersectionChecker")
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
     REQUIRE_FALSE(intersect);
+    std::cout <<"expected: " << expected << std::endl;
     std::cout <<"how_much: " << how_much << std::endl;
-    CHECK(how_much - 1.0 == Approx(0.0).margin(1e-3));
+    CHECK((how_much - expected) == Approx(0.0).margin(1e-3));
   }
 
   WHEN("OBB geometries are not intersecting and 1m apart")
   {
     double how_much;
+    const double expected = 0.586;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
@@ -84,8 +87,9 @@ SCENARIO("Test IntersectionChecker")
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
     REQUIRE_FALSE(intersect);
+    std::cout <<"expected: " << expected << std::endl;
     std::cout <<"how_much: " << how_much << std::endl;
-    CHECK((how_much - 0.586) == Approx(0.0).margin(1e-3));
+    CHECK((how_much - expected) == Approx(0.0).margin(1e-3));
   }
 
   WHEN("AABB geometries are overlapping along X-Axis")
@@ -211,6 +215,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("Test #1")
   {
     double how_much;
+    const double expected = 2.344;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(8.6824)
@@ -230,13 +235,15 @@ SCENARIO("Test IntersectionChecker")
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
     REQUIRE_FALSE(intersect);
-    CHECK((how_much - 2.336) == Approx(0.0).margin(1e-1));
+    std::cout <<"expected: " << expected << std::endl;
     std::cout <<"how_much: " << how_much << std::endl;
+    CHECK((how_much - expected) == Approx(0.0).margin(1e-3));
   }
 
   WHEN("Test #2")
   {
     double how_much;
+    const double expected = 6.593;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(11.6892)
@@ -256,13 +263,15 @@ SCENARIO("Test IntersectionChecker")
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
     REQUIRE_FALSE(intersect);
-    CHECK((how_much - 6.773) == Approx(0.0).margin(1e-1));
+    std::cout <<"expected: " << expected << std::endl;
     std::cout <<"how_much: " << how_much << std::endl;
+    CHECK((how_much - expected) == Approx(0.0).margin(1e-3));
   }
 
   WHEN("Test #3")
   {
     double how_much;
+    const double expected = 4.292;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(9.57985)
@@ -282,7 +291,64 @@ SCENARIO("Test IntersectionChecker")
     const bool intersect = IntersectionChecker::between(
       ob1, ob2, how_much);
     REQUIRE_FALSE(intersect);
-    CHECK((how_much - 4.314) == Approx(0.0).margin(1e-1));
+    std::cout <<"expected: " << expected << std::endl;
     std::cout <<"how_much: " << how_much << std::endl;
+    CHECK((how_much - expected) == Approx(0.0).margin(1e-3));
+  }
+
+  WHEN("Test #4")
+  {
+    double how_much;
+    const double expected = 7.702;
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
+      .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
+        .x(-3.7801)
+        .y(-2.48618)
+        .theta(-2.95867))
+      .size_x(4.76905)
+      .size_y(0.734582);
+
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
+      .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
+        .x(6.81831)
+        .y(-1.99772)
+        .theta(0.990476))
+      .size_x(0.6)
+      .size_y(0.6);
+
+    const bool intersect = IntersectionChecker::between(
+      ob1, ob2, how_much);
+    REQUIRE_FALSE(intersect);
+    std::cout <<"expected: " << expected << std::endl;
+    std::cout <<"how_much: " << how_much << std::endl;
+    CHECK((how_much - expected) == Approx(0.0).margin(1e-3));
+  }
+
+  WHEN("Test #5")
+  {
+    double how_much;
+    const double expected = 17.126;
+    const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
+      .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
+        .x(-9.12337)
+        .y(2.63674)
+        .theta(7.05773))
+      .size_x(4.92557)
+      .size_y(1.66422);
+
+    const auto ob2 = rmf_obstacle_msgs::build<CollisionGeometry>()
+      .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
+        .x(8.87474)
+        .y(-5.78416)
+        .theta(-1.90750))
+      .size_x(0.7)
+      .size_y(1.1);
+
+    const bool intersect = IntersectionChecker::between(
+      ob1, ob2, how_much);
+    REQUIRE_FALSE(intersect);
+    std::cout <<"expected: " << expected << std::endl;
+    std::cout <<"how_much: " << how_much << std::endl;
+    CHECK((how_much - expected) == Approx(0.0).margin(1e-3));
   }
 }
