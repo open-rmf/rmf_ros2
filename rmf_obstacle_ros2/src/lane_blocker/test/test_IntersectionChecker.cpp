@@ -39,7 +39,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("AABB geometries are not intersecting and 1m apart")
   {
     double how_much;
-    double expected = 1.0;
+    const double expected = 1.0;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
@@ -67,7 +67,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("OBB geometries are not intersecting and 1m apart")
   {
     double how_much;
-    double expected = 0.586;
+    const double expected = 0.586;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(1.0)
@@ -215,7 +215,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("Test #1")
   {
     double how_much;
-    double expected = 2.344;
+    const double expected = 2.344;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(8.6824)
@@ -243,7 +243,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("Test #2")
   {
     double how_much;
-    double expected = 6.593;
+    const double expected = 6.593;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(11.6892)
@@ -271,7 +271,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("Test #3")
   {
     double how_much;
-    double expected = 4.292;
+    const double expected = 4.292;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(9.57985)
@@ -299,7 +299,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("Test #4")
   {
     double how_much;
-    double expected = 7.702;
+    const double expected = 7.702;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(-3.7801)
@@ -327,7 +327,7 @@ SCENARIO("Test IntersectionChecker")
   WHEN("Test #5")
   {
     double how_much;
-    double expected = 17.126;
+    const double expected = 17.126;
     const auto ob1 = rmf_obstacle_msgs::build<CollisionGeometry>()
       .center(geometry_msgs::build<geometry_msgs::msg::Pose2D>()
         .x(-9.12337)
