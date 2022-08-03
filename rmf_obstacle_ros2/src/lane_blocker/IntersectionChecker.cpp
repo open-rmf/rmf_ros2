@@ -40,41 +40,29 @@ CollisionBox make_reference_box(const CollisionGeometry& o)
   return box;
 }
 
-std::pair<CollisionBox, std::vector<Eigen::Vector3d>> make_transformed_box(
+std::pair<CollisionBox, std::vector<Eigen::Vector2d>> make_transformed_box(
   const CollisionGeometry& to,
   const CollisionGeometry& from)
 {
   // Create the 'from' geometry's vertices at the origin
-  std::vector<Eigen::Vector3d> vertices;
-  vertices.push_back({-from.size_x * 0.5, from.size_y * 0.5, 1.0});
-  vertices.push_back({-from.size_x * 0.5, -from.size_y * 0.5, 1.0});
-  vertices.push_back({from.size_x* 0.5, from.size_y* 0.5, 1.0});
-  vertices.push_back({from.size_x* 0.5, -from.size_y* 0.5, 1.0});
+  std::vector<Eigen::Vector2d> vertices;
+  vertices.push_back({-from.size_x * 0.5, from.size_y * 0.5});
+  vertices.push_back({-from.size_x * 0.5, -from.size_y * 0.5});
+  vertices.push_back({from.size_x* 0.5, from.size_y* 0.5});
+  vertices.push_back({from.size_x* 0.5, -from.size_y* 0.5});
 
-  Eigen::Matrix<double, 3, 3> rot1;
-  const double th2 = from.center.theta;
-  rot1(0, 0) = std::cos(th2);
-  rot1(0, 1) = std::sin(-1.0 *th2);
-  rot1(0, 2) = 0;
-  rot1(1, 0) = std::sin(th2);
-  rot1(1, 1) = std::cos(th2);
-  rot1(1, 2) = 0;
-  rot1(2, 0) = 0;
-  rot1(2, 1) =  0;
-  rot1(2, 2) = 1.0;
+  // Rotate then translate the 'from' geometry's vertices to their actual positions
+  Eigen::Rotation2D<double> rot_from(from.center.theta);
+  Eigen::Translation<double, 2> trans_from(from.center.x, from.center.y);
+  for (auto& v : vertices)
+  {
+    v = trans_from * rot_from * v;
+  }
 
   #ifndef NDEBUG
   std::cout << "Obs rot matrix: " << std::endl;
-  std::cout << rot1 << std::endl;
+  std::cout << rot_from.matrix() << std::endl;
   #endif
-
-  // Translate and rotate the 'from' geometry's vertices to their actual positions
-  for (auto& v : vertices)
-  {
-    v = rot1 * v;
-    v[0] = v[0] + from.center.x;
-    v[1] = v[1] + from.center.y;
-  }
 
   #ifndef NDEBUG
   std::cout << "Obs vertices before trans: ";
@@ -83,33 +71,21 @@ std::pair<CollisionBox, std::vector<Eigen::Vector3d>> make_transformed_box(
   std::cout << std::endl;
   #endif
 
-  Eigen::Matrix<double, 3, 3> rot2;
-  const double th3 = -to.center.theta;
-  rot2(0, 0) = std::cos(th3);
-  rot2(0, 1) = std::sin(-1.0 *th3);
-  rot2(0, 2) = 0;
-  rot2(1, 0) = std::sin(th3);
-  rot2(1, 1) = std::cos(th3);
-  rot2(1, 2) = 0;
-  rot2(2, 0) = 0;
-  rot2(2, 1) =  0;
-  rot2(2, 2) = 1.0;
-
-  #ifndef NDEBUG
-  std::cout << "Lane rot inv matrix: " << std::endl;
-  std::cout << rot2 << std::endl;
-  #endif
-
   // Translate and rotate the 'from' geometry's vertices by
   // the inverse of the 'to' geometry.
   // Vertex coordinates of 'from' geometry are now w.r.t. the 'to' geometry's frame,
   // where the 'to' geometry's frame is at the origin without rotation.
+  Eigen::Rotation2D<double> rot_to(to.center.theta);
+  Eigen::Translation<double, 2> trans_to(to.center.x, to.center.y);
   for (auto& v : vertices)
   {
-    v[0] = v[0] - to.center.x;
-    v[1] = v[1] - to.center.y;
-    v = rot2 * v;
+    v = rot_to.inverse() * trans_to.inverse() * v;
   }
+
+  #ifndef NDEBUG
+  std::cout << "Lane rot inv matrix: " << std::endl;
+  std::cout << rot_to.inverse().matrix() << std::endl;
+  #endif
 
   #ifndef NDEBUG
   std::cout << "Obs vertices after trans: ";
