@@ -26,6 +26,7 @@
 #include <rmf_building_map_msgs/msg/graph.hpp>
 #include <rmf_fleet_msgs/msg/lane_request.hpp>
 #include <rmf_fleet_msgs/msg/speed_limit_request.hpp>
+#include <rmf_fleet_msgs/msg/speed_limited_lane.hpp>
 #include <rmf_fleet_msgs/msg/lane_states.hpp>
 
 #include <rmf_obstacle_msgs/msg/bounding_box3_d.hpp>
@@ -48,6 +49,7 @@ public:
   using TrafficGraph = rmf_traffic::agv::Graph;
   using LaneRequest = rmf_fleet_msgs::msg::LaneRequest;
   using SpeedLimitRequest = rmf_fleet_msgs::msg::SpeedLimitRequest;
+  using SpeedLimitedLane = rmf_fleet_msgs::msg::SpeedLimitedLane;
   using LaneStates = rmf_fleet_msgs::msg::LaneStates;
   using BoundingBox = rmf_obstacle_msgs::msg::BoundingBox3D;
   using Header = std_msgs::msg::Header;
@@ -130,6 +132,19 @@ private:
   void request_lane_modifications(
     const std::unordered_set<std::string>& changes);
 
+  enum LaneState { Normal, Closed, SpeedLimited };
+
+  std::unordered_map<
+    std::string,
+    LaneState> _internal_lane_states = {};
+
+  void transition_lane_state(
+    LaneState old_state,
+    LaneState new_state,
+    std::string lane_key,
+    std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs,
+    std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs);
+
   void purge_obstacles(
     const std::unordered_set<std::string>& obstacle_keys,
     const bool erase_from_buffer = true);
@@ -157,6 +172,7 @@ private:
   _lane_to_obstacles_map = {};
 
   std::unordered_set<std::string> _currently_closed_lanes;
+  std::unordered_set<std::string> _currently_speed_limited_lanes;
 
   rclcpp::Subscription<Obstacles>::SharedPtr _obstacle_sub;
   rclcpp::Subscription<NavGraph>::SharedPtr _graph_sub;
@@ -177,6 +193,8 @@ private:
   std::chrono::nanoseconds _cull_timer_period;
   bool _continuous_checker;
   std::size_t _lane_closure_threshold;
+  std::size_t _speed_limit_threshold;
+  double _speed_limit;
 
   rclcpp::TimerBase::SharedPtr _process_timer;
   rclcpp::TimerBase::SharedPtr _cull_timer;
