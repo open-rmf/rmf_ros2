@@ -175,6 +175,7 @@ private:
   double _obstacle_lane_threshold;
   std::chrono::nanoseconds _max_search_duration;
   std::chrono::nanoseconds _cull_timer_period;
+  bool _continuous_checker;
   std::size_t _lane_closure_threshold;
 
   rclcpp::TimerBase::SharedPtr _process_timer;

@@ -150,6 +150,13 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
   );
   _max_search_duration = std::chrono::milliseconds(search_millis);
 
+  _continuous_checker =
+    this->declare_parameter("continuous_checker", false);
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Setting parameter continuous_checker to %s", _continuous_checker ? "true" : "false"
+  );
+
   _lane_closure_threshold =
     this->declare_parameter("lane_closure_threshold", 5);
   RCLCPP_INFO(
@@ -394,10 +401,11 @@ void LaneBlocker::process()
         }
       }
     }
-    else
+
+    if (obs_lane_it == _obstacle_to_lanes_map.end() || _continuous_checker)
     {
-      // New obstacle. It needs to be assigned a lane if within the vicinity of
-      // one
+      // New obstacle or re-check current obstacle.
+      // It needs to be assigned a lane if within the vicinity of one.
       RCLCPP_INFO(
         this->get_logger(),
         "Obstacle %s was not previously in the vicinity of any lane. Checking "
@@ -479,9 +487,24 @@ void LaneBlocker::process()
       // Update caches
       for (const auto& lane_key : vicinity_lane_keys)
       {
-        _obstacle_to_lanes_map[obstacle_key].insert(lane_key);
-        _lane_to_obstacles_map[lane_key].insert(obstacle_key);
-        lanes_with_changes.insert(lane_key);
+        // new obstacle
+        if (obs_lane_it == _obstacle_to_lanes_map.end())
+        {
+          _obstacle_to_lanes_map[obstacle_key].insert(lane_key);
+          _lane_to_obstacles_map[lane_key].insert(obstacle_key);
+          lanes_with_changes.insert(lane_key);
+        }
+        // current obstacle
+        else
+        {
+          const auto& existing_lane_keys = obs_lane_it->second;
+          if (existing_lane_keys.find(lane_key) == existing_lane_keys.end())
+          {
+            _obstacle_to_lanes_map[obstacle_key].insert(lane_key);
+            _lane_to_obstacles_map[lane_key].insert(obstacle_key);
+            lanes_with_changes.insert(lane_key);
+          }
+        }
       }
     }
   }
