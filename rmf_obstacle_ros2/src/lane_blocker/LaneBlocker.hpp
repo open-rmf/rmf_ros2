@@ -145,6 +145,28 @@ private:
     std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs,
     std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs);
 
+  void add_lane_close_req(
+    std::string lane_key,
+    std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs);
+
+  void add_lane_open_req(
+    std::string lane_key,
+    std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs);
+
+  void add_speed_limit_req(
+    std::string lane_key,
+    std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs);
+
+  void add_speed_unlimit_req(
+    std::string lane_key,
+    std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs);
+
+  void publish_lane_req_msgs(
+    std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs);
+
+  void publish_speed_limit_req_msgs(
+    std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs);
+
   void purge_obstacles(
     const std::unordered_set<std::string>& obstacle_keys,
     const bool erase_from_buffer = true);
@@ -170,9 +192,6 @@ private:
     std::string,
     std::unordered_set<std::string>>
   _lane_to_obstacles_map = {};
-
-  std::unordered_set<std::string> _currently_closed_lanes;
-  std::unordered_set<std::string> _currently_speed_limited_lanes;
 
   rclcpp::Subscription<Obstacles>::SharedPtr _obstacle_sub;
   rclcpp::Subscription<NavGraph>::SharedPtr _graph_sub;
