@@ -486,8 +486,7 @@ public:
       if (use_timestamp_for_task_id)
       {
         task_id += std::to_string(
-          std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count());
+          static_cast<int>(node->get_clock()->now().nanoseconds()/1e9));
       }
       else
       {
