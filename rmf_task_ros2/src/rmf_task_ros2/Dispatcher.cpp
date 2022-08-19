@@ -486,7 +486,7 @@ public:
       if (use_timestamp_for_task_id)
       {
         task_id += std::to_string(
-          static_cast<int>(node->get_clock()->now().nanoseconds()/1e9));
+          static_cast<int>(node->get_clock()->now().nanoseconds()/1e6));
       }
       else
       {
