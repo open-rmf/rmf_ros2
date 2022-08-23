@@ -1,6 +1,5 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/functional.h>
-#include <pybind11/iostream.h>
 #include <pybind11/chrono.h>
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
@@ -34,12 +33,13 @@ using TimePoint = std::chrono::time_point<std::chrono::system_clock,
 ///       in FleetUpdateHandle. This is to replace the ref `confirm` arg with
 ///       a return value
 using Confirmation = agv::FleetUpdateHandle::Confirmation;
-using ModifiedConsiderRequest = 
+using ModifiedConsiderRequest =
   std::function<Confirmation(const nlohmann::json &description)>;
 
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
+using Stubbornness = agv::RobotUpdateHandle::Unstable::Stubbornness;
 
 void bind_types(py::module&);
 void bind_graph(py::module&);
@@ -68,9 +68,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     std::shared_ptr<agv::RobotCommandHandle>>(
     m, "RobotCommandHandle", py::dynamic_attr())
   .def(py::init<>())
-  .def("follow_new_path", &agv::RobotCommandHandle::follow_new_path,
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+  .def("follow_new_path", &agv::RobotCommandHandle::follow_new_path)
   .def("stop", &agv::RobotCommandHandle::stop)
   .def("dock", &agv::RobotCommandHandle::dock);
 
@@ -85,25 +83,19 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::overload_cast<std::size_t, double>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("waypoint"),
-    py::arg("orientation"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("orientation"))
   .def("update_current_lanes",
     py::overload_cast<const Eigen::Vector3d&,
     const std::vector<std::size_t>&>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("position"),
-    py::arg("lanes"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("lanes"))
   .def("update_off_grid_position",
     py::overload_cast<const Eigen::Vector3d&,
     std::size_t>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("position"),
-    py::arg("target_waypoint"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("target_waypoint"))
   .def("update_lost_position",
     py::overload_cast<const std::string&,
     const Eigen::Vector3d&,
@@ -115,17 +107,17 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("position"),
     py::arg("max_merge_waypoint_distance") = 0.1,
     py::arg("max_merge_lane_distance") = 1.0,
-    py::arg("min_lane_length") = 1e-8,
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("min_lane_length") = 1e-8)
+  .def("update_position",
+    py::overload_cast<rmf_traffic::agv::Plan::StartSet>(
+      &agv::RobotUpdateHandle::update_position),
+    py::arg("start_set"))
   .def("set_charger_waypoint", &agv::RobotUpdateHandle::set_charger_waypoint,
-    py::arg("charger_wp"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("charger_wp"))
   .def("update_battery_soc", &agv::RobotUpdateHandle::update_battery_soc,
-    py::arg("battery_soc"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("battery_soc"))
+  .def("override_status", &agv::RobotUpdateHandle::override_status,
+    py::arg("battery_soc"))
   .def_property("maximum_delay",
     py::overload_cast<>(
       &agv::RobotUpdateHandle::maximum_delay, py::const_),
@@ -153,6 +145,38 @@ PYBIND11_MODULE(rmf_adapter, m) {
     },
     py::return_value_policy::reference_internal,
     "Experimental API to access the schedule participant")
+  .def("unstable_get_participant",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      // This is the same as get_unstable_participant, which was the original
+      // function signature for this binding. Since "unstable" describes the
+      // API and does not describe the participant, it should be at the front
+      // of the function name, not attached to "participant". But too many
+      // downstream packages are using get_unstable_participant, so we cannot
+      // simply remove support for it.
+      return self.unstable().get_participant();
+    },
+    py::return_value_policy::reference_internal,
+    "Experimental API to access the schedule participant")
+  .def("unstable_declare_holding",
+    [&](agv::RobotUpdateHandle& self,
+    std::string on_map,
+    Eigen::Vector3d at_position,
+    double for_duration)
+    {
+      self.unstable().declare_holding(
+        std::move(on_map),
+        at_position,
+        rmf_traffic::time::from_seconds(for_duration));
+    },
+    py::arg("on_map"),
+    py::arg("at_position"),
+    py::arg("for_duration"))
+  .def("unstable_be_stubborn",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().be_stubborn();
+    })
   .def("set_action_executor",
     &agv::RobotUpdateHandle::set_action_executor,
     py::arg("action_executor"))
@@ -165,6 +189,16 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::RobotUpdateHandle::interrupt,
     py::arg("labels"),
     py::arg("robot_is_interrupted"))
+  .def("cancel_task",
+    &agv::RobotUpdateHandle::cancel_task,
+    py::arg("task_id"),
+    py::arg("labels"),
+    py::arg("on_cancellation"))
+  .def("kill_task",
+    &agv::RobotUpdateHandle::kill_task,
+    py::arg("task_id"),
+    py::arg("labels"),
+    py::arg("on_kill"))
   .def("create_issue",
     &agv::RobotUpdateHandle::create_issue,
     py::arg("tier"),
@@ -185,11 +219,15 @@ PYBIND11_MODULE(rmf_adapter, m) {
 
   py::class_<ActionExecution>(
     m_robot_update_handle, "ActionExecution")
-  .def("finished", &ActionExecution::finished)
-  .def("okay", &ActionExecution::okay)
   .def("update_remaining_time",
     &ActionExecution::update_remaining_time,
-    py::arg("remaining_time_estimate"));
+    py::arg("remaining_time_estimate"))
+  .def("underway", &ActionExecution::underway, py::arg("text"))
+  .def("error", &ActionExecution::error, py::arg("text"))
+  .def("delayed", &ActionExecution::delayed, py::arg("text"))
+  .def("blocked", &ActionExecution::blocked, py::arg("text"))
+  .def("finished", &ActionExecution::finished)
+  .def("okay", &ActionExecution::okay);
 
   // ROBOT INTERRUPTION   ====================================================
   py::class_<RobotInterruption>(
@@ -211,6 +249,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     .value("Info", agv::RobotUpdateHandle::Tier::Info)
     .value("Warning", agv::RobotUpdateHandle::Tier::Warning)
     .value("Error", agv::RobotUpdateHandle::Tier::Error);
+
+  // Stubbornness ============================================================
+  py::class_<Stubbornness>(
+    m_robot_update_handle, "Stubbornness")
+  .def("release",
+    &Stubbornness::release);
 
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
@@ -317,6 +361,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
     "Specify a period for how often the fleet state message is published for\
      this fleet. Passing in None will disable the fleet state message\
      publishing. The default value is 1s")
+  .def("set_update_listener",
+    &agv::FleetUpdateHandle::set_update_listener,
+    py::arg("listener"),
+    "Provide a callback that will receive fleet state and task updates.")
   .def("consider_delivery_requests",
      [&](agv::FleetUpdateHandle& self,
          ModifiedConsiderRequest consider_pickup,
@@ -450,9 +498,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("follow_new_path",
     py::overload_cast<const std::vector<agv::Waypoint>&>(
       &agv::EasyTrafficLight::follow_new_path),
-    py::arg("waypoint"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("waypoint"))
   .def("moving_from",
     py::overload_cast<std::size_t, Eigen::Vector3d>(
       &agv::EasyTrafficLight::moving_from),
@@ -530,9 +576,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("node_name"),
     py::arg("node_options") = rclcpp::NodeOptions(),
     py::arg("wait_time") = rmf_utils::optional<rmf_traffic::Duration>(
-      rmf_utils::nullopt),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+      rmf_utils::nullopt))
   .def("add_fleet", &agv::Adapter::add_fleet,
     py::arg("fleet_name"),
     py::arg("traits"),
@@ -561,9 +605,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def(py::init<const std::string&,
     const rclcpp::NodeOptions&>(),
     py::arg("node_name"),
-    py::arg("node_options") = rclcpp::NodeOptions(),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("node_options") = rclcpp::NodeOptions())
   .def("add_fleet", &agv::test::MockAdapter::add_fleet,
     py::arg("fleet_name"),
     py::arg("traits"),
@@ -573,7 +615,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::overload_cast<>(
       &agv::test::MockAdapter::node))
    /// Note: Exposed dispatch_task() for testing
-  .def("dispatch_task", 
+  .def("dispatch_task",
     &agv::test::MockAdapter::dispatch_task,
     py::arg("task_id"),
     py::arg("request"))

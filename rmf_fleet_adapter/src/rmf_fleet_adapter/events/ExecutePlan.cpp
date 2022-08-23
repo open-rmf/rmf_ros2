@@ -18,6 +18,7 @@
 #include "ExecutePlan.hpp"
 #include "LegacyPhaseShim.hpp"
 #include "WaitForTraffic.hpp"
+#include "WaitUntil.hpp"
 
 #include "../phases/MoveRobot.hpp"
 #include "../phases/DoorOpen.hpp"
@@ -36,6 +37,7 @@ using StandbyPtr = rmf_task_sequence::Event::StandbyPtr;
 using UpdateFn = std::function<void()>;
 using MakeStandby = std::function<StandbyPtr(UpdateFn)>;
 
+//==============================================================================
 struct LegacyPhaseWrapper
 {
   LegacyPhaseWrapper(
@@ -419,8 +421,9 @@ std::optional<EventGroupInfo> search_for_lift_group(
 //==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
-  const rmf_traffic::PlanId plan_id,
+  rmf_traffic::PlanId plan_id,
   rmf_traffic::agv::Plan plan,
+  rmf_traffic::schedule::Itinerary full_itinerary,
   const rmf_task::Event::AssignIDPtr& event_id,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> update,
@@ -596,11 +599,63 @@ std::optional<ExecutePlan> ExecutePlan::make(
     }
   }
 
+  if (tail_period.has_value() && !legacy_phases.empty())
+  {
+    // A tail period was requested, so this is actually a ResponsiveWait action.
+    // We will ensure that the task doesn't finish until the final time is
+    // reached, even if the robot arrives at the final destination early.
+    const auto wait_until_time = legacy_phases.back().time;
+    standbys.push_back(
+      [context, wait_until_time, event_id](UpdateFn update)
+      -> rmf_task_sequence::Event::StandbyPtr
+      {
+        return WaitUntil::Standby::make(
+          context, wait_until_time, event_id, std::move(update));
+      });
+  }
+
   auto sequence = rmf_task_sequence::events::Bundle::standby(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
-  context->itinerary().set(plan_id, plan.get_itinerary());
+  std::size_t attempts = 0;
+  while (!context->itinerary().set(plan_id, std::move(full_itinerary)))
+  {
+    // Some mysterious behavior has been happening where plan_ids are invalid.
+    // We will attempt to catch that here and try to learn more about what
+    // could be causing that, while allowing progress to continue.
+    std::string task_id = "<none>";
+    if (context->current_task_id())
+      task_id = *context->current_task_id();
+
+    RCLCPP_ERROR(
+      context->node()->get_logger(),
+      "Invalid plan_id [%lu] when current plan_id is [%lu] for [%s] in group "
+      "[%s] while performing task [%s]. Please notify an RMF developer.",
+      plan_id,
+      context->itinerary().current_plan_id(),
+      context->name().c_str(),
+      context->group().c_str(),
+      task_id.c_str());
+    state->update_log().error(
+      "Invalid plan_id [" + std::to_string(plan_id) + "] when current plan_id "
+      "is [" + std::to_string(context->itinerary().current_plan_id()) + "] "
+      "Please notify an RMF developer.");
+
+    plan_id = context->itinerary().assign_plan_id();
+
+    if (++attempts > 5)
+    {
+      RCLCPP_ERROR(
+        context->node()->get_logger(),
+        "Requesting replan for [%s] in group [%s] because plan is repeatedly "
+        "being rejected while performing task [%s]",
+        context->name().c_str(),
+        context->group().c_str(),
+        task_id.c_str());
+      return std::nullopt;
+    }
+  }
 
   return ExecutePlan{
     std::move(plan),

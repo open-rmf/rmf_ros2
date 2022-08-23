@@ -964,7 +964,8 @@ void EasyTrafficLight::Implementation::Shared::respond(
   auto approval_cb =
     [w = weak_from_this(), request_path_version = path_version](
     const rmf_traffic::PlanId plan_id,
-    const rmf_traffic::agv::Plan& plan)
+    const rmf_traffic::agv::Plan& plan,
+    const auto&)
     -> std::optional<rmf_traffic::schedule::ItineraryVersion>
     {
       if (const auto self = w.lock())
@@ -986,7 +987,7 @@ void EasyTrafficLight::Implementation::Shared::respond(
 
   auto negotiate = services::Negotiate::path(
     state.itinerary->assign_plan_id(), state.planner,
-    {*state.last_known_location}, std::move(goal),
+    {*state.last_known_location}, std::move(goal), {},
     viewer, responder, std::move(approval_cb), evaluator);
 
   auto negotiate_sub =

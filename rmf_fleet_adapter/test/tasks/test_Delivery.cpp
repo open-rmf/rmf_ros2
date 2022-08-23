@@ -16,7 +16,7 @@
 */
 
 #include "../mock/MockRobotCommand.hpp"
-#include "../mock/MockWebSocketServer.hpp"
+#include <rmf_websocket/BroadcastServer.hpp>
 
 #include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic/schedule/Database.hpp>
@@ -371,8 +371,8 @@ SCENARIO("Test Delivery")
   /// of the targeted task id, by listening to the task_state_update
   /// from the websocket connection
   /* *INDENT-OFF* */
-  using MockServer = rmf_fleet_adapter_test::MockWebSocketServer;
-	MockServer mock_server(
+  using WebsocketServer = rmf_websocket::BroadcastServer;
+	const auto ws_server = WebsocketServer::make(
 		37878,
     [ &cb_mutex, delivery_id, &completed_promise,
       &at_least_one_incomplete, &fulfilled_promise](
@@ -383,7 +383,7 @@ SCENARIO("Test Delivery")
         assert(data.contains("status"));
         const auto id = data.at("booking").at("id");
         const auto status = data.at("status");
-        std::cout << "[MockWebSocketServer] id: [" << id
+        std::cout << "[WebSocketServer] id: [" << id
                   << "] ::: json state ::: " << status << std::endl;
 
         if (id == delivery_id && status == "completed")
@@ -397,7 +397,7 @@ SCENARIO("Test Delivery")
         else
           at_least_one_incomplete = true;
       },
-    MockServer::ApiMsgType::TaskStateUpdate
+    WebsocketServer::ApiMsgType::TaskStateUpdate
   );
   /* *INDENT-ON* */
 
@@ -474,7 +474,7 @@ SCENARIO("Test Delivery")
   auto flaky_future = flaky_ingestor->success_promise.get_future();
 
   adapter.start();
-  mock_server.start();
+  ws_server->start();
 
   // Note: wait for task_manager to start, else TM will be suspicously "empty"
   std::this_thread::sleep_for(1s);
@@ -522,6 +522,6 @@ SCENARIO("Test Delivery")
   std::lock_guard<std::mutex> lock(cb_mutex);
   CHECK(at_least_one_incomplete);
 
-  mock_server.stop();
+  ws_server->stop();
   adapter.stop();
 }

@@ -18,6 +18,8 @@
 #ifndef RMF_TASK_ROS2__BIDDING__RESPONSE_HPP
 #define RMF_TASK_ROS2__BIDDING__RESPONSE_HPP
 
+#include <optional>
+
 #include <rmf_traffic/Time.hpp>
 #include <rmf_task_msgs/msg/bid_notice.hpp>
 #include <rmf_task_msgs/msg/bid_proposal.hpp>

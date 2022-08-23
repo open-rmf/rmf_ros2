@@ -36,7 +36,8 @@ public:
   using ApprovalCallback =
     std::function<UpdateVersion(
         rmf_traffic::PlanId,
-        const rmf_traffic::agv::Plan&)
+        const rmf_traffic::agv::Plan&,
+        rmf_traffic::schedule::Itinerary)
     >;
 
   Negotiate(
@@ -44,6 +45,7 @@ public:
     std::shared_ptr<const rmf_traffic::agv::Planner> planner,
     rmf_traffic::agv::Plan::StartSet starts,
     std::vector<rmf_traffic::agv::Plan::Goal> goals,
+    std::vector<rmf_traffic::agv::Plan::Goal> followed_by,
     rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
     rmf_traffic::schedule::Negotiator::ResponderPtr responder,
     ApprovalCallback approval,
@@ -55,6 +57,7 @@ public:
     std::shared_ptr<const rmf_traffic::agv::Planner> planner,
     rmf_traffic::agv::Plan::StartSet starts,
     rmf_traffic::agv::Plan::Goal goal,
+    std::vector<rmf_traffic::agv::Plan::Goal> followed_by,
     rmf_traffic::schedule::Negotiator::TableViewerPtr viewer,
     rmf_traffic::schedule::Negotiator::ResponderPtr responder,
     ApprovalCallback approval,
@@ -97,6 +100,7 @@ private:
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
   rmf_traffic::agv::Plan::StartSet _starts;
   std::vector<rmf_traffic::agv::Plan::Goal> _goals;
+  std::vector<rmf_traffic::agv::Plan::Goal> _followed_by;
   rmf_traffic::schedule::Negotiator::TableViewerPtr _viewer;
   rmf_traffic::schedule::Negotiator::ResponderPtr _responder;
   ApprovalCallback _approval;

@@ -19,6 +19,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+find_package(Python3 COMPONENTS Interpreter Development)
 find_package(rmf_fleet_adapter REQUIRED)
 find_package(rmf_task REQUIRED)
 find_package(rmf_battery REQUIRED)

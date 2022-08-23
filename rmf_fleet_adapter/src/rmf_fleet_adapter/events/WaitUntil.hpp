@@ -15,20 +15,21 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__WAITFORTRAFFIC_HPP
-#define SRC__RMF_FLEET_ADAPTER__EVENTS__WAITFORTRAFFIC_HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__WAITUNTIL_HPP
+#define SRC__RMF_FLEET_ADAPTER__EVENTS__WAITUNTIL_HPP
 
 #include "../agv/RobotContext.hpp"
 
 #include <rmf_task/events/SimpleEventState.hpp>
+
 #include <rmf_task_sequence/Event.hpp>
-#include <rmf_task_sequence/events/Placeholder.hpp>
+#include <rmf_task_sequence/events/WaitFor.hpp>
 
 namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
-class WaitForTraffic : public rmf_task_sequence::Event
+class WaitUntil : public rmf_task_sequence::Event
 {
 public:
 
@@ -38,8 +39,7 @@ public:
 
     static std::shared_ptr<Standby> make(
       agv::RobotContextPtr context,
-      rmf_traffic::Dependencies dependencies,
-      rmf_traffic::Time expected_time,
+      rmf_traffic::Time until_time,
       const AssignIDPtr& id,
       std::function<void()> update);
 
@@ -53,8 +53,7 @@ public:
 
   private:
     agv::RobotContextPtr _context;
-    rmf_traffic::Dependencies _dependencies;
-    rmf_traffic::Time _expected_time;
+    rmf_traffic::Time _until_time;
     rmf_task::events::SimpleEventStatePtr _state;
     std::function<void()> _update;
   };
@@ -67,8 +66,7 @@ public:
 
     static std::shared_ptr<Active> make(
       agv::RobotContextPtr context,
-      const rmf_traffic::Dependencies& dependencies,
-      rmf_traffic::Time expected_time,
+      const rmf_traffic::Time until_time,
       rmf_task::events::SimpleEventStatePtr state,
       std::function<void()> update,
       std::function<void()> finished);
@@ -86,25 +84,24 @@ public:
     void kill() final;
 
   private:
-    void _consider_going();
-    void _replan();
-
-    using DependencySubscription =
-      rmf_traffic::schedule::ItineraryViewer::DependencySubscription;
-
     agv::RobotContextPtr _context;
-    std::vector<DependencySubscription> _dependencies;
-    rmf_traffic::Time _expected_time;
+    rmf_traffic::Time _until_time;
     rmf_task::events::SimpleEventStatePtr _state;
     std::function<void()> _update;
     std::function<void()> _finished;
+    std::optional<Eigen::Vector3d> _last_position;
     rclcpp::TimerBase::SharedPtr _timer;
-    bool _decision_made = false;
-  };
+    bool _is_interrupted = false;
 
+    void _update_waiting();
+
+    void _update_holding(
+      rmf_traffic::Time now,
+      Eigen::Vector3d position);
+  };
 };
 
 } // namespace events
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__WAITFORTRAFFIC_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__WAITUNTIL_HPP
