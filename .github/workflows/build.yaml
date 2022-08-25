@@ -20,7 +20,7 @@ jobs:
         with:
           required-ros-distributions: ${{ matrix.ros_distribution }}
       - name: install_clang
-        run: apt update && apt install clang clang-tools
+        run: sudo apt update && sudo apt install clang clang-tools
       - name: build
         uses: ros-tooling/action-ros-ci@v0.2
         with:
@@ -38,7 +38,7 @@ jobs:
           colcon-defaults: |
             {
               "build": {
-                "mixin": ["coverage-gcc", "coverage-pytest", "clang-libcxx", "lld"],
+                "mixin": ["coverage-gcc", "coverage-pytest", "lld"],
                 "executor": "sequential"
               }
             }
