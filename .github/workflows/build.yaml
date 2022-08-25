@@ -20,7 +20,7 @@ jobs:
         with:
           required-ros-distributions: ${{ matrix.ros_distribution }}
       - name: install_clang
-        run: sudo apt update && sudo apt install clang clang-tools
+        run: sudo apt update && sudo apt install clang clang-tools lld lldb
       - name: build
         uses: ros-tooling/action-ros-ci@v0.2
         with:
