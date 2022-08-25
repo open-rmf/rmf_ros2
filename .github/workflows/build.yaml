@@ -1,5 +1,8 @@
 name: build
 on: [push, pull_request]
+defaults:
+  run:
+    shell: bash
 jobs:
   build_and_test:
     name: Build and test
@@ -16,6 +19,8 @@ jobs:
         uses: ros-tooling/setup-ros@v0.3
         with:
           required-ros-distributions: ${{ matrix.ros_distribution }}
+      - name: install_clang
+        run: apt update && apt install clang clang-tools
       - name: build
         uses: ros-tooling/action-ros-ci@v0.2
         with:
