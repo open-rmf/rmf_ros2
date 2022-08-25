@@ -4,18 +4,21 @@ jobs:
   asan:
     name: asan
     runs-on: ubuntu-20.04
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-focal-latest
     steps:
       - name: deps
-        uses: ros-tooling/setup-ros@v0.2
+        uses: ros-tooling/setup-ros@v0.3
         with:
           required-ros-distributions: galactic
+      - name: install_clang
+        run: sudo apt update && sudo apt install -y clang clang-tools lld
       - name: build_and_test
         uses: ros-tooling/action-ros-ci@v0.2
         env:
-          CC: gcc -g
-          CXX: g++ -g
+          CC: clang
+          CXX: clang++
           ASAN_OPTIONS: detect_leaks=0
-          MAKEFLAGS: j1
         with:
           target-ros2-distro: galactic
           # build all packages listed in the meta package
@@ -28,7 +31,7 @@ jobs:
           colcon-defaults: |
             {
               "build": {
-                "mixin": ["asan-gcc"],
+                "mixin": ["asan-gcc", "lld"],
                 "cmake-args": ["-DCMAKE_BUILD_TYPE=Debug"],
                 "executor": "sequential"
               }
@@ -40,4 +43,3 @@ jobs:
           name: colcon-test-logs
           path: ${{ steps.build_and_test.outputs.ros-workspace-directory-name }}/log/latest_test/rmf_traffic/streams.log
         if: always()
-
