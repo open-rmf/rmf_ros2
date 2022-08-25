@@ -4,6 +4,8 @@ jobs:
   build_and_test:
     name: Build and test
     runs-on: ubuntu-20.04
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-focal-latest
     strategy:
       matrix:
         ros_distribution:
@@ -11,27 +13,27 @@ jobs:
           - galactic
     steps:
       - name: deps
-        uses: ros-tooling/setup-ros@v0.2
+        uses: ros-tooling/setup-ros@v0.3
         with:
           required-ros-distributions: ${{ matrix.ros_distribution }}
       - name: build
         uses: ros-tooling/action-ros-ci@v0.2
-        env:
-          MAKEFLAGS: j1
         with:
           target-ros2-distro: ${{ matrix.ros_distribution }}
           # build all packages listed in the meta package
           package-name: |
-            rmf_traffic_ros2
-            rmf_task_ros2
             rmf_fleet_adapter
+            rmf_fleet_adapter_python
+            rmf_task_ros2
+            rmf_traffic_ros2
+            rmf_websocket
           #  rmf_fleet_adapter_python # TODO(MXG): These tests are failing in the CI, and it seems to be related to https://github.com/ros2/launch/pull/592. Figure out how to fix this.
           vcs-repo-file-url: |
             https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
           colcon-defaults: |
             {
               "build": {
-                "mixin": ["coverage-gcc"],
+                "mixin": ["coverage-gcc", "coverage-pytest", "clang-libcxx", "lld"],
                 "executor": "sequential"
               }
             }
@@ -48,4 +50,3 @@ jobs:
           files: ros_ws/lcov/total_coverage.info
           flags: tests
           name: lean_and_mean_codecov_bot
-
