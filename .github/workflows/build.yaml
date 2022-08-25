@@ -28,7 +28,6 @@ jobs:
           # build all packages listed in the meta package
           package-name: |
             rmf_fleet_adapter
-            rmf_fleet_adapter_python
             rmf_task_ros2
             rmf_traffic_ros2
             rmf_websocket
