@@ -56,16 +56,10 @@ public:
     ///   The name of the fleet that is being added.
     ///
     /// \param[in] config_file
-    ///   The config file that provides important parameters for setting up the fleet adapter
+    ///   The config file that provides important parameters for setting up the fleet adapter.
     ///
     /// \param[in] nav_graph_path
-    ///   The graph file that this fleet should use for navigation
-    ///
-    /// \param[in] graph
-    ///   The graph which is being used by the fleet.
-    ///
-    /// \param[in] traits
-    ///   The traits of the vehicle that is added to the fleet.
+    ///   The graph file that this fleet should use for navigation.
     ///
     /// \param[in] server_uri
     ///   The URI for the websocket server that receives updates on tasks and
@@ -77,22 +71,22 @@ public:
       const std::string& nav_graph_path,
       std::optional<std::string> server_uri = std::nullopt);
 
-    // Get a const reference to the node name
+    // Get a const reference to the node name.
     const std::string& node_name() const;
 
-    // Get a const reference to the fleet name
+    // Get a const reference to the fleet name.
     const std::string& fleet_name() const;
 
-    // Get the fleet config yaml node
+    // Get the fleet config yaml node.
     const YAML::Node fleet_config() const;
 
-    // Get a reference to the graph
+    // Get the fleet navigation graph.
     Graph graph() const;
 
-    // Get a reference to the vehicle traits
+    // Get the fleet vehicle traits.
     VehicleTraits vehicle_traits() const;
 
-    // Get a const reference to the server uri
+    // Get a const reference to the server uri.
     std::optional<std::string> server_uri() const;
 
     class Implementation;
@@ -101,13 +95,23 @@ public:
   };
 
   struct Navigate {
+
+    // The (x, y, yaw) coordinates that the robot should navigate to.
     Eigen::Vector3d pose;
+
+    // Speed limit that the robot should adhere to.
     std::optional<double> speed_limit;
   };
 
   struct RobotState {
+
+    // Current position of the robot.
     Eigen::Vector3d position;
+
+    // The map that the robot is currently in.
     std::string map_name;
+
+    // Remaining battery level left in the robot.
     double battery_percent;
   };
 
@@ -157,17 +161,6 @@ private:
   EasyFullControl();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 
-  // std::recursive_mutex _mutex;
-  // std::unique_lock<std::recursive_mutex> lock()
-  // {
-  //   std::unique_lock<std::recursive_mutex> l(_mutex, std::defer_lock);
-  //   while (!l.try_lock())
-  //   {
-  //     // Intentionally busy wait
-  //   }
-
-  //   return l;
-  // }
 };
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
