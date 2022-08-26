@@ -35,6 +35,8 @@
 #include <rmf_task_sequence/Event.hpp>
 #include <rmf_task_sequence/events/PerformAction.hpp>
 
+#include <rmf_building_map_msgs/msg/graph.hpp>
+
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
 #include <rmf_fleet_msgs/msg/lane_states.hpp>
 
@@ -44,8 +46,8 @@
 #include "Node.hpp"
 #include "RobotContext.hpp"
 #include "../TaskManager.hpp"
-#include "../BroadcastClient.hpp"
 #include "../DeserializeJSON.hpp"
+#include <rmf_websocket/BroadcastClient.hpp>
 
 #include <rmf_traffic/schedule/Mirror.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>
@@ -264,7 +266,7 @@ public:
   std::unordered_map<RobotContextPtr,
     std::shared_ptr<TaskManager>> task_managers = {};
 
-  std::shared_ptr<BroadcastClient> broadcast_client = nullptr;
+  std::shared_ptr<rmf_websocket::BroadcastClient> broadcast_client = nullptr;
   // Map uri to schema for validator loader function
   std::unordered_map<std::string, nlohmann::json> schema_dictionary = {};
 
@@ -310,6 +312,9 @@ public:
   using DockSummary = rmf_fleet_msgs::msg::DockSummary;
   using DockSummarySub = rclcpp::Subscription<DockSummary>::SharedPtr;
   DockSummarySub dock_summary_sub = nullptr;
+
+  using GraphMsg = rmf_building_map_msgs::msg::Graph;
+  rclcpp::Publisher<GraphMsg>::SharedPtr nav_graph_pub = nullptr;
 
   mutable rmf_task::Log::Reader log_reader = {};
 
@@ -375,6 +380,12 @@ public:
           self->_pimpl->bid_notice_cb(msg, std::move(respond));
       });
 
+    // Publisher for navigation graph
+    handle->_pimpl->nav_graph_pub =
+      handle->_pimpl->node->create_publisher<GraphMsg>(
+      NavGraphTopicName, transient_qos);
+    handle->_pimpl->publish_nav_graph();
+
     // Subscribe DockSummary
     handle->_pimpl->dock_summary_sub =
       handle->_pimpl->node->create_subscription<DockSummary>(
@@ -420,9 +431,19 @@ public:
     // Start the BroadcastClient
     if (handle->_pimpl->server_uri.has_value())
     {
-      handle->_pimpl->broadcast_client = BroadcastClient::make(
+      handle->_pimpl->broadcast_client = rmf_websocket::BroadcastClient::make(
         handle->_pimpl->server_uri.value(),
-        handle->weak_from_this());
+        handle->_pimpl->node,
+        [handle]()
+        {
+          std::vector<nlohmann::json> task_logs;
+          for (const auto& [conext, mgr] : handle->_pimpl->task_managers)
+          {
+            // Publish all task logs to the server
+            task_logs.push_back(mgr->task_log_updates());
+          }
+          return task_logs;
+        });
     }
 
     // Add PerformAction event to deserialization
@@ -504,6 +525,8 @@ public:
 
     return handle;
   }
+
+  void publish_nav_graph() const;
 
   void dock_summary_cb(const DockSummary::SharedPtr& msg);
 

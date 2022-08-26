@@ -32,6 +32,27 @@ DispatchState::DispatchState(
   // Do nothing
 }
 
+//==============================================================================
+std::string status_to_string(DispatchState::Status status)
+{
+  using Status = DispatchState::Status;
+  switch (status)
+  {
+    case Status::Queued:
+      return "queued";
+    case Status::Selected:
+      return "selected";
+    case Status::Dispatched:
+      return "dispatched";
+    case Status::FailedToAssign:
+      return "failed_to_assign";
+    case Status::CanceledInFlight:
+      return "canceled_in_flight";
+    default:
+      return "failed_to_assign";
+  }
+}
+
 //=============================================================================
 rmf_task_msgs::msg::Assignment convert(
   const std::optional<DispatchState::Assignment>& assignment)
