@@ -17,6 +17,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rmf_traffic 2 REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
 find_package(rmf_site_map_msgs REQUIRED)
+find_package(rmf_building_map_msgs REQUIRED)
 find_package(rmf_fleet_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -170,6 +171,7 @@ target_link_libraries(rmf_traffic_ros2
     nlohmann_json::nlohmann_json
     ${rmf_traffic_msgs_LIBRARIES}
     ${rmf_site_map_msgs_LIBRARIES}
+    ${rmf_building_map_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     yaml-cpp
     ZLIB::ZLIB
@@ -182,6 +184,7 @@ target_include_directories(rmf_traffic_ros2
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_msgs_INCLUDE_DIRS}
     ${rmf_site_map_msgs_INCLUDE_DIRS}
+    ${rmf_building_map_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
 )
 
