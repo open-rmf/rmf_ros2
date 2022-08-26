@@ -220,6 +220,23 @@ target_include_directories(full_control
 
 # -----------------------------------------------------------------------------
 
+add_executable(easy_full_control src/full_control/easy_main.cpp)
+
+target_link_libraries(easy_full_control
+  PRIVATE
+    rmf_fleet_adapter
+    ${rmf_fleet_msgs_LIBRARIES}
+    ${rmf_task_msgs_LIBRARIES}
+)
+
+target_include_directories(easy_full_control
+  PRIVATE
+    ${rmf_fleet_msgs_INCLUDE_DIRS}
+    ${rmf_task_msgs_INCLUDE_DIRS}
+)
+
+# -----------------------------------------------------------------------------
+
 add_executable(mock_traffic_light src/mock_traffic_light/main.cpp)
 
 target_link_libraries(mock_traffic_light
@@ -511,6 +528,7 @@ install(
     read_only_blockade
     mock_traffic_light
     full_control
+    easy_full_control
     lift_supervisor
     experimental_lift_watchdog
     door_supervisor

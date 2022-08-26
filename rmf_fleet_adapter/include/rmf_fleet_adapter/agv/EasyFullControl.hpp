@@ -19,14 +19,22 @@
 #define RMF_FLEET_ADAPTER__AGV__EASYFULLCONTROL_HPP
 
 #include <Eigen/Geometry>
+#include <rmf_fleet_adapter/agv/Adapter.hpp>
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
 
 #include <rmf_traffic/agv/Planner.hpp>
 #include <rmf_traffic/agv/VehicleTraits.hpp>
 #include <rmf_traffic/agv/Graph.hpp>
 
+#include <yaml-cpp/yaml.h>
+#include <variant>
+
 namespace rmf_fleet_adapter {
 namespace agv {
+
+using Graph = rmf_traffic::agv::Graph;
+using VehicleTraits = rmf_traffic::agv::VehicleTraits;
+using Planner = rmf_traffic::agv::Planner;
 
 //==============================================================================
 class EasyFullControl : public std::enable_shared_from_this<EasyFullControl>
@@ -47,6 +55,12 @@ public:
     /// \param[in] fleet_name
     ///   The name of the fleet that is being added.
     ///
+    /// \param[in] config_file
+    ///   The config file that provides important parameters for setting up the fleet adapter
+    ///
+    /// \param[in] nav_graph_path
+    ///   The graph file that this fleet should use for navigation
+    ///
     /// \param[in] graph
     ///   The graph which is being used by the fleet.
     ///
@@ -59,13 +73,42 @@ public:
     Configuration(
       const std::string& node_name,
       const std::string& fleet_name,
-      rmf_traffic::agv::Graph graph,
-      rmf_traffic::agv::VehicleTraits traits,
+      const std::string& config_file,
+      const std::string& nav_graph_path,
       std::optional<std::string> server_uri = std::nullopt);
+
+    // Get a const reference to the node name
+    const std::string& node_name() const;
+
+    // Get a const reference to the fleet name
+    const std::string& fleet_name() const;
+
+    // Get the fleet config yaml node
+    const YAML::Node fleet_config() const;
+
+    // Get a reference to the graph
+    Graph graph() const;
+
+    // Get a reference to the vehicle traits
+    VehicleTraits vehicle_traits() const;
+
+    // Get a const reference to the server uri
+    std::optional<std::string> server_uri() const;
 
     class Implementation;
   private:
     rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
+  struct Navigate {
+    Eigen::Vector3d pose;
+    std::optional<double> speed_limit;
+  };
+
+  struct RobotState {
+    Eigen::Vector3d position;
+    std::string map_name;
+    double battery_percent;
   };
 
   /// Initialize and spin an Adapter instance in order to add fleets.
@@ -75,35 +118,56 @@ public:
   ///   fleet robots.
   static std::shared_ptr<EasyFullControl> make(Configuration config);
 
-  using Start = std::variant<rmf_traffic::agv::Planner::Start, Eigen::Vector3d>;
-  using GetPosition = std::function<Eigen::Vector3d()>;
+  using Start = std::variant<Planner::Start, Eigen::Vector3d>;
+  using GetRobotState = std::function<RobotState()>;
   using ProcessCompleted = std::function<bool()>;
 
   /// Initialize a robot in the fleet.
   ///
-  /// \param[in] name
+  /// \param[in] robot_name
   ///   The name of the robot.
   ///
-  /// \param[in] get_position
+  /// \param[in] pose
+  ///   The starting pose of the robot.
+  ///   Accepts either a known Planner::Start or an Eigen::Vector3d pose.
+  ///
+  /// \param[in] get_state
   ///   The position function that returns the robot's current location.
   ///
   /// \param[in] navigate
   ///   The API function for navigating your robot to a pose.
   ///   Returns a ProcessCompleted callback to check status of navigation task.
   ///
+  /// \param[in] stop
+  ///   The API for command your robot to stop.
+  ///   Returns a ProcessCompleted callback to check whether stop was successful.
+  ///
   /// \param[in] action_executor
   ///   The ActionExecutor callback to request the robot to perform an action.
   bool add_robot(
-    const std::string& name,
+    const std::string& robot_name,
     Start pose,
-    GetPosition get_position,
-    std::function<ProcessCompleted(const Eigen::Vector3d pose)> navigate,
-    ActionExecutor action_executor);
+    GetRobotState get_state,
+    std::function<ProcessCompleted(const Navigate command)> navigate,
+    std::function<ProcessCompleted()> stop,
+    RobotUpdateHandle::ActionExecutor action_executor);
 
   class Implementation;
 private:
   EasyFullControl();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+
+  // std::recursive_mutex _mutex;
+  // std::unique_lock<std::recursive_mutex> lock()
+  // {
+  //   std::unique_lock<std::recursive_mutex> l(_mutex, std::defer_lock);
+  //   while (!l.try_lock())
+  //   {
+  //     // Intentionally busy wait
+  //   }
+
+  //   return l;
+  // }
 };
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
