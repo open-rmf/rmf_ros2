@@ -278,7 +278,7 @@ rmf_traffic::agv::Graph parse_graph(
         {
           // Add a waypoint and a lane leading to it for the dock maneuver
           // to be done after the entry event
-          const auto entry_wp = graph.get_waypoint(end);
+          const auto entry_wp = graph.get_waypoint(begin);
           auto& dock_wp = graph.add_waypoint(map_name, entry_wp.get_location());
 
           graph.add_lane(
