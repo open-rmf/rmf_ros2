@@ -33,12 +33,15 @@ int main(int argc, char* argv[])
   std::string nav_graph_path = "/home/xiyu/efc_ws/install/rmf_demos_maps/share/rmf_demos_maps/maps/office/nav_graphs/0.yaml";
 
   // Set up Configuration to easily parse parameters to Adapter
-  auto adapter_config = Configuration("easy_fleet_adapter",
-                                      fleet_name,
+  auto adapter_config = Configuration(fleet_name,
                                       config_file,
                                       nav_graph_path);
 
-  const auto easy_adapter = rmf_fleet_adapter::agv::EasyFullControl::make(adapter_config);
+  const auto adapter = rmf_fleet_adapter::agv::Adapter::make("easy_fleet_adapter");
+  if (!adapter)
+    return 1;
+
+  const auto easy_adapter = EasyFullControl::make(adapter_config, adapter);
   if (!easy_adapter)
     return 1;
 

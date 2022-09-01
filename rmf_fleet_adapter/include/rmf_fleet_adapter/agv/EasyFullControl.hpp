@@ -49,9 +49,6 @@ public:
 
     /// Constructor
     ///
-    /// \param[in] node_name
-    ///   The name for the rclcpp::Node that will be produced for the Adapter.
-    ///
     /// \param[in] fleet_name
     ///   The name of the fleet that is being added.
     ///
@@ -65,14 +62,10 @@ public:
     ///   The URI for the websocket server that receives updates on tasks and
     ///   states. If nullopt, data will not be published.
     Configuration(
-      const std::string& node_name,
       const std::string& fleet_name,
       const std::string& config_file,
       const std::string& nav_graph_path,
       std::optional<std::string> server_uri = std::nullopt);
-
-    // Get a const reference to the node name.
-    const std::string& node_name() const;
 
     // Get a const reference to the fleet name.
     const std::string& fleet_name() const;
@@ -94,16 +87,19 @@ public:
     rmf_utils::impl_ptr<Implementation> _pimpl;
   };
 
-  struct Navigate {
+  struct Target {
 
     // The (x, y, yaw) coordinates that the robot should navigate to.
     Eigen::Vector3d pose;
+
+    // The map that the robot should navigate to.
+    std::string map_name;
 
     // Speed limit that the robot should adhere to.
     std::optional<double> speed_limit;
   };
 
-  struct RobotState {
+  struct Position {
 
     // Current position of the robot.
     Eigen::Vector3d position;
@@ -113,17 +109,23 @@ public:
 
     // Remaining battery level left in the robot.
     double battery_percent;
+
+    // Remaining travel distance to destination
+    std::optional<double> dist_to_target;
   };
 
   /// Initialize and spin an Adapter instance in order to add fleets.
   ///
+  /// \param[in] adapter
+  ///   The Adapter instance for your fleet to be adapted.
+  ///
   /// \param[in] config
   ///   The Configuration for the adapter that contains parameters used by the
   ///   fleet robots.
-  static std::shared_ptr<EasyFullControl> make(Configuration config);
+  static std::shared_ptr<EasyFullControl> make(Configuration config, const AdapterPtr& adapter);
 
   using Start = std::variant<Planner::Start, Eigen::Vector3d>;
-  using GetRobotState = std::function<RobotState()>;
+  using GetPosition = std::function<Position()>;
   using ProcessCompleted = std::function<bool()>;
 
   /// Initialize a robot in the fleet.
@@ -135,8 +137,8 @@ public:
   ///   The starting pose of the robot.
   ///   Accepts either a known Planner::Start or an Eigen::Vector3d pose.
   ///
-  /// \param[in] get_state
-  ///   The position function that returns the robot's current location.
+  /// \param[in] get_position
+  ///   The position function that returns the robot's current location and battery status.
   ///
   /// \param[in] navigate
   ///   The API function for navigating your robot to a pose.
@@ -144,17 +146,19 @@ public:
   ///
   /// \param[in] stop
   ///   The API for command your robot to stop.
-  ///   Returns a ProcessCompleted callback to check whether stop was successful.
+  ///   Returns a bool indicating whether stop was successful.
   ///
   /// \param[in] action_executor
   ///   The ActionExecutor callback to request the robot to perform an action.
   bool add_robot(
     const std::string& robot_name,
     Start pose,
-    GetRobotState get_state,
-    std::function<ProcessCompleted(const Navigate command)> navigate,
-    std::function<ProcessCompleted()> stop,
+    GetPosition get_position,
+    std::function<ProcessCompleted(const Target target)> navigate,
+    ProcessCompleted stop,
     RobotUpdateHandle::ActionExecutor action_executor);
+
+  class EasyCommandHandle;
 
   class Implementation;
 private:
@@ -164,6 +168,7 @@ private:
 };
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
+using EasyCommandHandlePtr = std::shared_ptr<EasyFullControl::EasyCommandHandle>;
 
 } // namespace agv
 } // namespace rmf_fleet_adapter
