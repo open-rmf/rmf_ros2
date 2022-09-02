@@ -49,6 +49,10 @@ public:
   std::shared_ptr<Graph> _graph;
   std::shared_ptr<VehicleTraits> _traits;
 
+  double _max_delay;
+  std::string _charger_waypoint;
+  std::string _map_name;
+
   rclcpp::Publisher<rmf_fleet_msgs::msg::ClosedLanes>::SharedPtr _closed_lanes_pub;
   rclcpp::Subscription<rmf_fleet_msgs::msg::LaneRequest>::SharedPtr _lane_closure_request_sub;
   std::unordered_set<std::size_t> _closed_lanes;
@@ -72,6 +76,25 @@ public:
     IDLE = 0,
     WAITING = 1,
     MOVING = 2
+  };
+
+  struct PlanWaypoint
+  {
+    std::size_t index; // Index in follow_new_path
+    Eigen::Vector3d position;
+    rmf_traffic::Time time;
+    std::optional<std::size_t> graph_index;
+    std::vector<std::size_t> approach_lanes;
+
+    PlanWaypoint(std::size_t index_, const rmf_traffic::agv::Plan::Waypoint& wp)
+    : index(index_),
+      position(wp.position()),
+      time(wp.time()),
+      graph_index(wp.graph_index()),
+      approach_lanes(wp.approach_lanes())
+    {
+      // Do nothing
+    }
   };
 
   /// Constructor
@@ -104,6 +127,8 @@ public:
     RequestCompleted docking_finished_callback) final;
 
   void set_updater(RobotUpdateHandlePtr updater);
+
+  void start_update_thread();
 
   void update_state();
 
@@ -154,14 +179,14 @@ private:
 
   std::mutex _mutex;
 
-  std::optional<std::size_t> _path_index = std::nullopt;
-  std::optional<rmf_traffic::agv::Plan::Waypoint> _target_waypoint;
-  std::vector<rmf_traffic::agv::Plan::Waypoint> _remaining_waypoints;
+  std::optional<PlanWaypoint> _target_waypoint;
+  std::vector<PlanWaypoint> _remaining_waypoints;
 
   std::thread _update_thread;
   std::thread _follow_thread;
   std::atomic_bool _stop_follow_thread;
   std::atomic_bool _navigation_completed;
+  ProcessCompleted _navigation_cb;
   RequestCompleted _path_finished_callback;
   ArrivalEstimator _next_arrival_estimator;
 
