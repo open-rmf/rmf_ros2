@@ -44,6 +44,7 @@
 #include <rmf_traffic_msgs/msg/negotiation_proposal.hpp>
 #include <rmf_traffic_msgs/msg/negotiation_rejection.hpp>
 #include <rmf_traffic_msgs/msg/negotiation_conclusion.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_states.hpp>
 
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
 
@@ -64,6 +65,7 @@
 #include <set>
 #include <unordered_map>
 #include <utility>
+#include <iostream>
 
 namespace rmf_traffic_ros2 {
 namespace schedule {
@@ -226,7 +228,7 @@ public:
 
   rclcpp::TimerBase::SharedPtr mirror_update_timer;
   void update_mirrors();
-  void update_query(
+  bool update_query(
     const MirrorUpdateTopicPublisher& publisher,
     const rmf_traffic::schedule::Query& query,
     VersionOpt last_sent_version,
@@ -240,6 +242,7 @@ public:
   {
     rmf_traffic::schedule::Query query;
     MirrorUpdateTopicPublisher publisher;
+    VersionOpt last_checked_version;
     VersionOpt last_sent_version;
     std::chrono::steady_clock::time_point last_registration_time;
     std::unordered_set<VersionOpt> remediation_requests;
@@ -295,6 +298,11 @@ public:
 
   using Negotiation = rmf_traffic::schedule::Negotiation;
 
+  using NegotiationStates = rmf_traffic_msgs::msg::NegotiationStates;
+  using NegotiationStatesPub = rclcpp::Publisher<NegotiationStates>;
+  NegotiationStatesPub::SharedPtr negotiation_states_pub;
+  void publish_negotiation_states();
+
   class ConflictRecord
   {
   public:
@@ -304,7 +312,7 @@ public:
     struct OpenNegotiation
     {
       NegotiationRoom room;
-      rmf_traffic::Time start_time;
+      rmf_traffic::Time last_active_time;
     };
 
     struct Wait
@@ -314,16 +322,15 @@ public:
       rmf_traffic::Time conclusion_time;
     };
 
-    ConflictRecord(
-      std::shared_ptr<const rmf_traffic::schedule::Snappable> viewer)
-    : _viewer(std::move(viewer))
+    ConflictRecord()
     {
       // Do nothing
     }
 
     std::optional<Entry> insert(
       const ConflictSet& conflicts,
-      const rmf_traffic::Time time)
+      const rmf_traffic::Time time,
+      const rmf_traffic::schedule::Snappable& viewer)
     {
       ConflictSet add_to_negotiation;
       const Version* existing_negotiation = nullptr;
@@ -335,6 +342,7 @@ public:
           // Ignore conflicts with participants that we're waiting for an update
           // from. Otherwise we might announce conflicts for them faster than
           // they can respond to them.
+          std::cout << "Waiting for " << c << " to ack before we add it to a new negotiation" << std::endl;
           return std::nullopt;
         }
 
@@ -343,8 +351,12 @@ public:
         {
           const Version* const it_conflict = &it->second;
           if (existing_negotiation && *existing_negotiation != *it_conflict)
+          {
+            std::cout << "Participant " << c << " is already in the negotiation" << std::endl;
             continue;
+          }
 
+          std::cout << "Adding " << c << " to negotiation #" << *it_conflict << std::endl;
           existing_negotiation = it_conflict;
         }
         else
@@ -368,9 +380,16 @@ public:
       auto& update_negotiation = insertion.first->second;
       if (!update_negotiation)
       {
+        std::stringstream ss;
+        ss << "Creating new negotiation for [";
+        for (const auto& p : add_to_negotiation)
+          ss << " " << p;
+        ss << " ]";
+        std::cout << ss.str() << std::endl;
+
         update_negotiation = OpenNegotiation{
           *rmf_traffic::schedule::Negotiation::make(
-            _viewer->snapshot(), std::vector<ParticipantId>(
+            viewer.snapshot(), std::vector<ParticipantId>(
               add_to_negotiation.begin(), add_to_negotiation.end())),
           time
         };
@@ -380,22 +399,29 @@ public:
         for (const auto p : add_to_negotiation)
         {
           update_negotiation->room.negotiation.add_participant(p);
-          update_negotiation->start_time = time;
+          update_negotiation->last_active_time = time;
         }
+
+        std::stringstream ss;
+        ss << "Negotiation " << negotiation_version << " now contains [";
+        for (const auto& p : update_negotiation->room.negotiation.participants())
+          ss << " " << p;
+        ss << " ]";
+        std::cout << ss.str() << std::endl;
       }
 
+      update_negotiation->room.update_state_msg(negotiation_version);
       return Entry{negotiation_version, &update_negotiation->room.negotiation};
     }
 
-    NegotiationRoom* negotiation(const Version version)
+    OpenNegotiation* negotiation(const Version version)
     {
       const auto it = _negotiations.find(version);
       if (it == _negotiations.end())
         return nullptr;
 
-      assert(it->second);
-
-      return &(it->second->room);
+      assert(it->second.has_value());
+      return &(it->second.value());
     }
 
     void conclude(const Version version, rmf_traffic::Time time)
@@ -459,7 +485,6 @@ public:
                   << "waiting for an acknowledgment from participant [" << p
                   << "] for negotiation [" << negotiation_version << "]"
                   << std::endl;
-        assert(false);
         return;
       }
 
@@ -473,7 +498,6 @@ public:
                   << p << "] regarding negotiation [" << expected_negotiation
                   << "] but received an acknowledgment for negotiation ["
                   << negotiation_version << "] instead." << std::endl;
-        assert(false);
         return;
       }
 
@@ -504,7 +528,6 @@ public:
     std::unordered_map<Version,
       std::optional<OpenNegotiation>> _negotiations;
     std::unordered_map<ParticipantId, Wait> _waiting;
-    std::shared_ptr<const rmf_traffic::schedule::Snappable> _viewer;
     Version _next_negotiation_version = 0;
   };
 

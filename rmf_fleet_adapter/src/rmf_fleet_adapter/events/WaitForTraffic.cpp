@@ -23,6 +23,7 @@ namespace events {
 //==============================================================================
 auto WaitForTraffic::Standby::make(
   agv::RobotContextPtr context,
+  rmf_traffic::PlanId plan_id,
   rmf_traffic::Dependencies dependencies,
   rmf_traffic::Time expected_time,
   const AssignIDPtr& id,
@@ -30,6 +31,7 @@ auto WaitForTraffic::Standby::make(
 {
   auto standby = std::make_shared<Standby>();
   standby->_context = std::move(context);
+  standby->_plan_id = plan_id;
   standby->_dependencies = std::move(dependencies);
   standby->_expected_time = expected_time;
   standby->_state = rmf_task::events::SimpleEventState::make(
@@ -59,6 +61,7 @@ auto WaitForTraffic::Standby::begin(
 {
   return Active::make(
     _context,
+    _plan_id,
     _dependencies,
     _expected_time,
     _state,
@@ -69,6 +72,7 @@ auto WaitForTraffic::Standby::begin(
 //==============================================================================
 auto WaitForTraffic::Active::make(
   agv::RobotContextPtr context,
+  const rmf_traffic::PlanId plan_id,
   const rmf_traffic::Dependencies& dependencies,
   rmf_traffic::Time expected_time,
   rmf_task::events::SimpleEventStatePtr state,
@@ -77,6 +81,7 @@ auto WaitForTraffic::Active::make(
 {
   auto active = std::make_shared<Active>();
   active->_context = std::move(context);
+  active->_plan_id = plan_id;
   active->_expected_time = expected_time;
   active->_state = std::move(state);
   active->_update = std::move(update);
@@ -226,8 +231,10 @@ void WaitForTraffic::Active::_consider_going()
     return _finished();
   }
 
-  const auto delay = _context->now() - _expected_time;
-  if (std::chrono::seconds(30) < delay)
+  using namespace std::chrono_literals;
+  const auto now = _context->now();
+  const auto cumulative_delay = now - _expected_time;
+  if (30s < cumulative_delay)
   {
     // TODO(MXG): Make the max waiting time configurable
     _state->update_status(Status::Delayed);
@@ -236,8 +243,23 @@ void WaitForTraffic::Active::_consider_going()
     return _replan();
   }
 
-  if (_context->itinerary().delay() < delay)
-    _context->itinerary().delay(delay - _context->itinerary().delay());
+  const auto current_delay = _context->itinerary().cumulative_delay(_plan_id);
+  if (current_delay.has_value() && *current_delay < cumulative_delay)
+  {
+    const auto diff = cumulative_delay - *current_delay;
+    if (std::chrono::abs(diff) > std::chrono::seconds(60))
+    {
+      std::stringstream ss;
+      ss << "SUSPICIOUS WaitForTraffic DELAY FOR [" << _context->name() << "]:"
+         << "\n -- expected: " << rmf_traffic::time::to_seconds(_expected_time.time_since_epoch())
+         << "\n -- now:      " << rmf_traffic::time::to_seconds(now.time_since_epoch())
+         << "\n -- delay:    " << rmf_traffic::time::to_seconds(cumulative_delay)
+         << "\n -- diff:     " << rmf_traffic::time::to_seconds(diff);
+      std::cout << ss.str() << std::endl;
+    }
+
+    _context->itinerary().cumulative_delay(_plan_id, cumulative_delay, 500ms);
+  }
 }
 
 //==============================================================================

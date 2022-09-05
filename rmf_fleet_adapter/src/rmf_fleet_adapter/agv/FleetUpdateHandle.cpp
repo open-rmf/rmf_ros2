@@ -838,6 +838,7 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
     auto& fleet_state_msg = fleet_state_update_msg["data"];
     fleet_state_msg["name"] = name;
     auto& robots = fleet_state_msg["robots"];
+    robots = std::unordered_map<std::string, nlohmann::json>();
     for (const auto& [context, mgr] : task_managers)
     {
       const auto& name = context->name();
@@ -907,6 +908,7 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
     fleet_log_msg["name"] = name;
     // TODO(MXG): fleet_log_msg["log"]
     auto& robots_msg = fleet_log_msg["robots"];
+    robots_msg = std::unordered_map<std::string, nlohmann::json>();
     for (const auto& [context, _] : task_managers)
     {
       auto robot_log_msg_array = std::vector<nlohmann::json>();

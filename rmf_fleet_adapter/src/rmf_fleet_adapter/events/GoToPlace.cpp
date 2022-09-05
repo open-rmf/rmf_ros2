@@ -191,7 +191,10 @@ rmf_traffic::Duration GoToPlace::Active::remaining_time_estimate() const
   {
     const auto finish = _execution->finish_time_estimate;
     const auto now = _context->now();
-    return finish - now + _context->itinerary().delay();
+
+    const auto& itin = _context->itinerary();
+    if (const auto delay = itin.cumulative_delay(_execution->plan_id))
+      return finish - now + *delay;
   }
 
   const auto& estimate =

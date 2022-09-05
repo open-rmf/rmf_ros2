@@ -268,8 +268,8 @@ private:
   std::shared_ptr<void> _negotiation_license;
   std::shared_ptr<void> _stubbornness;
 
-  rxcpp::subjects::subject<Empty> _interrupt_publisher;
-  rxcpp::observable<Empty> _interrupt_obs;
+  rxcpp::subjects::subject<Empty> _replan_publisher;
+  rxcpp::observable<Empty> _replan_obs;
 
   std::shared_ptr<Node> _node;
   rxcpp::schedulers::worker _worker;

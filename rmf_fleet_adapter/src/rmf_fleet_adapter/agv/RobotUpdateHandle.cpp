@@ -59,7 +59,7 @@ void RobotUpdateHandle::replan()
 {
   if (const auto context = _pimpl->get_context())
   {
-    context->_interrupt_publisher.get_subscriber().on_next(
+    context->_replan_publisher.get_subscriber().on_next(
       RobotContext::Empty());
   }
 }

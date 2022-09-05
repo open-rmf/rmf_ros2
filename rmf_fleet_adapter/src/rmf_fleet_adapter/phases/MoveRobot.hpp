@@ -150,10 +150,24 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         {
           action->_last_tail_bump = now;
           action->_context->worker().schedule(
-            [context = action->_context, bump = *action->_tail_period](
+            [
+              context = action->_context,
+              bump = *action->_tail_period,
+              plan_id = action->_plan_id
+            ](
               const auto&)
             {
-              context->itinerary().delay(bump);
+              if (bump > std::chrono::seconds(600))
+              {
+                std::cout << "Excessively large bump for ["
+                          << context->name() << "]: " << rmf_traffic::time::to_seconds(bump)
+                          << std::endl;
+              }
+
+              if (const auto c = context->itinerary().cumulative_delay(plan_id))
+              {
+                context->itinerary().cumulative_delay(plan_id, *c + bump);
+              }
             });
         }
       }
@@ -217,23 +231,39 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         }
       }
 
-      const auto current_delay = action->_context->itinerary().delay();
+      if (action->_plan_id != action->_context->itinerary().current_plan_id())
+      {
+        // If the current Plan ID of the itinerary does not match the Plan ID
+        // of this action, then we should not modify the delay here.
+        return;
+      }
 
+      using namespace std::chrono_literals;
       const rmf_traffic::Time now = action->_context->now();
       const auto planned_time = target_wp.time();
-      const auto previously_expected_arrival = planned_time + current_delay;
       const auto newly_expected_arrival = now + estimate;
-      const auto new_delay =
-      newly_expected_arrival - previously_expected_arrival;
-
-      if (std::chrono::milliseconds(500).count() < std::abs(new_delay.count()))
+      const auto new_cumulative_delay = newly_expected_arrival - planned_time;
+      if (std::chrono::abs(new_cumulative_delay) > 60s)
       {
-        action->_context->worker().schedule(
-          [context = action->_context, new_delay](const auto&)
-          {
-            context->itinerary().delay(new_delay);
-          });
+        std::stringstream ss;
+        ss << "Suspicious new delay for [" << action->_context->name() << "]:"
+           << "\n -- duration: " << rmf_traffic::time::to_seconds(estimate)
+           << "\n -- newly:    " << rmf_traffic::time::to_seconds(newly_expected_arrival.time_since_epoch())
+           << "\n -- planned:  " << rmf_traffic::time::to_seconds(planned_time.time_since_epoch())
+           << "\n -- new:      " << rmf_traffic::time::to_seconds(new_cumulative_delay);
+        std::cout << ss.str() << std::endl;
       }
+
+      action->_context->worker().schedule(
+        [
+          context = action->_context,
+          plan_id = action->_plan_id,
+          new_cumulative_delay
+        ](const auto&)
+        {
+          context->itinerary().cumulative_delay(
+            plan_id, new_cumulative_delay, 500ms);
+        });
     },
     [s, w = weak_from_this()]()
     {

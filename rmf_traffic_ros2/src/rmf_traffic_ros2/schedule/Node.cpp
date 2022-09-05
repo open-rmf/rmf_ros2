@@ -125,8 +125,7 @@ ScheduleNode::ScheduleNode(
 : Node("rmf_traffic_schedule_node", options),
   node_version(node_version_),
   heartbeat_qos_profile(1),
-  database(std::move(database_)),
-  active_conflicts(database)
+  database(std::move(database_))
 {
   // Period, in milliseconds, for sending out a heartbeat signal to the monitor
   // node in the redundant pair
@@ -227,7 +226,7 @@ void ScheduleNode::setup(const QueryMap& queries)
       "Successfully loaded logfile %s ",
       log_file_name.c_str());
   }
-  catch (std::runtime_error& e)
+  catch (const std::exception& e)
   {
     RCLCPP_FATAL(get_logger(),
       "Failed to correctly load participant registry: %s\n",
@@ -362,7 +361,10 @@ void ScheduleNode::setup_incosistency_pub()
 //==============================================================================
 void ScheduleNode::setup_conflict_topics_and_thread()
 {
-  const auto negotiation_qos = rclcpp::ServicesQoS().reliable();
+  const auto negotiation_qos = rclcpp::ServicesQoS()
+      .reliable()
+      .keep_last(1000);
+
   conflict_ack_sub = create_subscription<ConflictAck>(
     rmf_traffic_ros2::NegotiationAckTopicName, negotiation_qos,
     [&](const ConflictAck::UniquePtr msg)
@@ -403,6 +405,13 @@ void ScheduleNode::setup_conflict_topics_and_thread()
 
   conflict_conclusion_pub = create_publisher<ConflictConclusion>(
     rmf_traffic_ros2::NegotiationConclusionTopicName, negotiation_qos);
+
+  negotiation_states_pub = create_publisher<NegotiationStates>(
+    rmf_traffic_ros2::NegotiationStatesTopicName,
+    rclcpp::SystemDefaultsQoS()
+        .keep_last(1)
+        .reliable()
+        .transient_local());
 
   conflict_check_quit = false;
   conflict_check_thread = std::thread(
@@ -508,7 +517,7 @@ void ScheduleNode::setup_conflict_topics_and_thread()
             }
           }
 
-          std::cout << "Beginning negotiation with:";
+          std::cout << "Require negotiation for:";
           for (const auto p : conflict)
             std::cout << " " << p;
           std::cout << std::endl;
@@ -519,10 +528,12 @@ void ScheduleNode::setup_conflict_topics_and_thread()
         {
           std::unique_lock<std::mutex> lock(active_conflicts_mutex);
           const auto new_negotiation = active_conflicts.insert(
-            conflict, rmf_traffic_ros2::convert(now()));
+            conflict, rmf_traffic_ros2::convert(now()), mirror);
 
           if (new_negotiation)
+          {
             new_negotiations[new_negotiation->first] = new_negotiation->second;
+          }
         }
 
         for (const auto& n : new_negotiations)
@@ -534,7 +545,48 @@ void ScheduleNode::setup_conflict_topics_and_thread()
           msg.participants = ConflictNotice::_participants_type(
             participants.begin(), participants.end());
 
+          std::stringstream ss;
+          ss << "Notifying about negotiation " << n.first << " with participants [";
+          for (const auto& p : msg.participants)
+            ss << " " << p;
+          ss << " ]";
+          std::cout << ss.str() << std::endl;
           conflict_notice_pub->publish(msg);
+          publish_negotiation_states();
+        }
+
+        if (!conflicts.empty())
+        {
+          std::unique_lock<std::mutex> lock(active_conflicts_mutex);
+          if (active_conflicts._negotiations.empty())
+          {
+            std::cout << "No active negotiations" << std::endl;
+          }
+          else
+          {
+            std::stringstream ss;
+            ss << "Current negotiations:\n";
+            for (const auto& [v, n] : active_conflicts._negotiations)
+            {
+              if (n.has_value())
+              {
+                ss << " -- " << v << ":";
+                for (const auto& p : n->room.negotiation.participants())
+                  ss << " " << p;
+                ss << "\n";
+              }
+            }
+
+            std::cout << ss.str() << std::endl;
+          }
+
+          std::stringstream ss;
+          ss << "Current negotiations of participants:";
+          for (const auto& [p, v] : active_conflicts._version)
+          {
+            ss << "\n -- " << p << ": " << v;
+          }
+          std::cout << ss.str() << std::endl;
         }
       }
     });
@@ -674,13 +726,14 @@ void ScheduleNode::register_query(
   MirrorUpdateTopicPublisher update_publisher =
     create_publisher<MirrorUpdate>(
     rmf_traffic_ros2::QueryUpdateTopicNameBase + std::to_string(query_id),
-    rclcpp::SystemDefaultsQoS());
+    rclcpp::ServicesQoS().reliable().keep_last(5000));
 
   registered_queries.emplace(
     query_id,
     QueryInfo{
       query,
       std::move(update_publisher),
+      std::nullopt,
       std::nullopt,
       std::chrono::steady_clock::now(),
       {}
@@ -730,22 +783,51 @@ void ScheduleNode::cull()
   {
     // Break out of negotiation waits that have hung up
     std::lock_guard<std::mutex> lock(active_conflicts_mutex);
-    std::vector<std::size_t> erase;
+    std::vector<std::size_t> cull_wait;
     for (const auto& [v, wait] : active_conflicts._waiting)
     {
       if (wait.conclusion_time + std::chrono::seconds(30) > time)
       {
-        erase.push_back(v);
+        cull_wait.push_back(v);
       }
     }
 
-    for (const auto c : erase)
+    for (const auto c : cull_wait)
     {
       RCLCPP_WARN(
         get_logger(),
         "Forcibly ending the wait period for negotiation [%lu] because it has "
         "timed out.", c);
       active_conflicts._waiting.erase(c);
+    }
+
+    std::vector<uint64_t> cull_negotiation;
+    for (const auto& [v, open] : active_conflicts._negotiations)
+    {
+      if (open.has_value())
+      {
+        // TODO(MXG): Make this deadline configurable
+        if (open->last_active_time + std::chrono::seconds(30) > time)
+        {
+          cull_negotiation.push_back(v);
+        }
+      }
+      else
+      {
+        RCLCPP_ERROR(
+          get_logger(),
+          "Negotiation #%lu was nullopt. This is not supposed to happen, "
+          "please report this as a bug to the RMF developers.", v);
+        cull_negotiation.push_back(v);
+      }
+    }
+
+    for (const auto v : cull_negotiation)
+    {
+      RCLCPP_WARN(
+        get_logger(),
+        "Culling negotiation %lu because it appears to be hanging", v);
+      refuse(v);
     }
   }
 }
@@ -964,7 +1046,7 @@ void ScheduleNode::itinerary_set(const ItinerarySet& set)
     std::lock_guard<std::mutex> lock2(active_conflicts_mutex);
     active_conflicts.check(set.participant, set.itinerary_version);
   }
-  catch (std::runtime_error& e)
+  catch (const std::exception& e)
   {
     RCLCPP_WARN(get_logger(), "Failed to set itinerary: %s", e.what());
   }
@@ -987,7 +1069,7 @@ void ScheduleNode::itinerary_extend(const ItineraryExtend& extend)
     active_conflicts.check(
       extend.participant, database->itinerary_version(extend.participant));
   }
-  catch (std::runtime_error& e)
+  catch (const std::exception& e)
   {
     RCLCPP_WARN(get_logger(), "Failed to extend itinerary: %s", e.what());
   }
@@ -999,24 +1081,43 @@ void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
   std::unique_lock<std::mutex> lock(database_mutex);
   const auto duration = rmf_traffic::Duration(delay.delay);
 
-  const auto delay_limit = std::chrono::hours(1);
-  if (duration > delay_limit)
+  static const auto delay_limit = std::chrono::hours(1);
+  if (std::chrono::abs(duration) > delay_limit)
   {
     const auto& desc = database->get_participant(delay.participant);
     // TODO(MXG): Make this limit configurable
     RCLCPP_ERROR(
       get_logger(),
-      "Delay of %lus for %s of group %s exceeds maximum delay limit of %lus.",
-      duration.count(),
+      "Delay of %fs for %s of group %s exceeds maximum delay limit of %fs.",
+      rmf_traffic::time::to_seconds(duration),
       desc->name().c_str(),
       desc->owner().c_str(),
-      delay_limit.count());
+      rmf_traffic::time::to_seconds(delay_limit));
 
     return;
   }
 
   try
   {
+    if (const auto d = database->get_cumulative_delay(delay.participant))
+    {
+      // TODO(MXG): Consider having this only issue the warning once per
+      // new itinerary.
+      const auto cumulative = *d + duration;
+      if (std::chrono::abs(cumulative) > delay_limit)
+      {
+        const auto& desc = database->get_participant(delay.participant);
+        RCLCPP_WARN(
+          get_logger(),
+          "Cumulative delay of %fs for %s of group %s exceeds maximum delay "
+          "limit of %fs",
+          rmf_traffic::time::to_seconds(cumulative),
+          desc->name().c_str(),
+          desc->owner().c_str(),
+          rmf_traffic::time::to_seconds(delay_limit));
+      }
+    }
+
     database->delay(
       delay.participant,
       duration,
@@ -1028,7 +1129,7 @@ void ScheduleNode::itinerary_delay(const ItineraryDelay& delay)
     active_conflicts.check(
       delay.participant, database->itinerary_version(delay.participant));
   }
-  catch (std::runtime_error& e)
+  catch (const std::exception& e)
   {
     RCLCPP_WARN(get_logger(), "Failed to delay itinerary: %s", e.what());
   }
@@ -1049,7 +1150,7 @@ void ScheduleNode::itinerary_reached(const ItineraryReached& msg)
     // There is no risk of inconsistencies or conflicts occurring due to new
     // progress being reported, so we do not need to check for either.
   }
-  catch (const std::runtime_error& e)
+  catch (const std::exception& e)
   {
     RCLCPP_WARN(
       get_logger(), "Failed to update itinerary progress: %s", e.what());
@@ -1070,7 +1171,7 @@ void ScheduleNode::itinerary_clear(const ItineraryClear& clear)
     active_conflicts.check(
       clear.participant, database->itinerary_version(clear.participant));
   }
-  catch (std::runtime_error& e)
+  catch (const std::exception& e)
   {
     RCLCPP_WARN(get_logger(), "Failed to clear itinerary: %s", e.what());
   }
@@ -1095,7 +1196,6 @@ void ScheduleNode::publish_inconsistencies(
 //==============================================================================
 void ScheduleNode::update_mirrors()
 {
-
   for (auto& [query_id, query_info] : registered_queries)
   {
     for (const auto request : query_info.remediation_requests)
@@ -1108,39 +1208,42 @@ void ScheduleNode::update_mirrors()
     }
     query_info.remediation_requests.clear();
 
-    if (query_info.last_sent_version == database->latest_version())
+    if (query_info.last_checked_version == database->latest_version())
       continue;
 
-    update_query(
+    query_info.last_checked_version = database->latest_version();
+    const auto updated = update_query(
       query_info.publisher,
       query_info.query,
       query_info.last_sent_version,
       false);
 
-    // Update the latest version sent to this topic
-    query_info.last_sent_version = database->latest_version();
+    if (updated)
+    {
+      // Update the latest version sent to this topic
+      query_info.last_sent_version = database->latest_version();
 
-    RCLCPP_DEBUG(
-      get_logger(),
-      "[ScheduleNode::update_mirrors] Updated query [%ld]",
-      query_id);
+      RCLCPP_DEBUG(
+        get_logger(),
+        "[ScheduleNode::update_mirrors] Updated query [%ld]",
+        query_id);
+    }
   }
 
   conflict_check_cv.notify_all();
 }
 
 //==============================================================================
-void ScheduleNode::update_query(
+bool ScheduleNode::update_query(
   const MirrorUpdateTopicPublisher& publisher,
   const rmf_traffic::schedule::Query& query,
   VersionOpt last_sent_version,
   bool is_remedial)
 {
-
   const auto patch = database->changes(query, last_sent_version);
 
   if (!is_remedial && patch.size() == 0 && !patch.cull())
-    return;
+    return false;
 
   rmf_traffic_msgs::msg::MirrorUpdate msg;
   msg.node_version = node_version;
@@ -1148,6 +1251,7 @@ void ScheduleNode::update_query(
   msg.patch = rmf_traffic_ros2::convert(patch);
   msg.is_remedial_update = is_remedial;
   publisher->publish(msg);
+  return true;
 }
 
 //==============================================================================
@@ -1238,19 +1342,21 @@ void ScheduleNode::refuse(std::size_t conflict_version)
   conclusion.conflict_version = conflict_version;
   conclusion.resolved = false;
   conflict_conclusion_pub->publish(conclusion);
+  publish_negotiation_states();
 }
 
 //==============================================================================
 void ScheduleNode::receive_proposal(const ConflictProposal& msg)
 {
   std::unique_lock<std::mutex> lock(active_conflicts_mutex);
-  auto* negotiation_room =
-    active_conflicts.negotiation(msg.conflict_version);
+  auto* open = active_conflicts.negotiation(msg.conflict_version);
 
-  if (!negotiation_room)
+  if (!open)
     return;
 
-  auto& negotiation = negotiation_room->negotiation;
+  open->last_active_time = convert(now());
+  auto& room = open->room;
+  auto& negotiation = room.negotiation;
 
   const auto search = negotiation.find(
     msg.for_participant, rmf_traffic_ros2::convert(msg.to_accommodate));
@@ -1270,7 +1376,7 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
     error += "]";
 
     RCLCPP_WARN(get_logger(), "%s", error.c_str());
-    negotiation_room->cached_proposals.push_back(msg);
+    room.cached_proposals.push_back(msg);
     return;
   }
 
@@ -1279,11 +1385,13 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
     rmf_traffic_ros2::convert(msg.itinerary),
     msg.proposal_version);
 
-  negotiation_room->check_cache({});
+  room.check_cache({});
 
   // TODO(MXG): This should be removed once we have a negotiation visualizer
-  rmf_traffic_ros2::schedule::print_negotiation_status(msg.conflict_version,
+  rmf_traffic_ros2::schedule::print_negotiation_status(
+    msg.conflict_version,
     negotiation);
+  room.update_state_msg(msg.conflict_version);
 
   if (negotiation.ready())
   {
@@ -1329,18 +1437,22 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
     conflict_conclusion_pub->publish(conclusion);
 //    print_conclusion(active_conflicts._waiting);
   }
+
+  publish_negotiation_states();
 }
 
 //==============================================================================
 void ScheduleNode::receive_rejection(const ConflictRejection& msg)
 {
   std::unique_lock<std::mutex> lock(active_conflicts_mutex);
-  auto* negotiation_room = active_conflicts.negotiation(msg.conflict_version);
+  auto* open = active_conflicts.negotiation(msg.conflict_version);
 
-  if (!negotiation_room)
+  if (!open)
     return;
 
-  auto& negotiation = negotiation_room->negotiation;
+  open->last_active_time = convert(now());
+  auto& room = open->room;
+  auto& negotiation = room.negotiation;
 
   const auto search = negotiation.find(rmf_traffic_ros2::convert(msg.table));
   if (search.deprecated())
@@ -1357,7 +1469,7 @@ void ScheduleNode::receive_rejection(const ConflictRejection& msg)
     error += "]";
 
     RCLCPP_WARN(get_logger(), "%s", error.c_str());
-    negotiation_room->cached_rejections.push_back(msg);
+    room.cached_rejections.push_back(msg);
     return;
   }
 
@@ -1366,24 +1478,29 @@ void ScheduleNode::receive_rejection(const ConflictRejection& msg)
     msg.rejected_by,
     rmf_traffic_ros2::convert(msg.alternatives));
 
-  negotiation_room->check_cache({});
-
+  room.check_cache({});
 
   // TODO(MXG): This should be removed once we have a negotiation visualizer
-  rmf_traffic_ros2::schedule::print_negotiation_status(msg.conflict_version,
+  rmf_traffic_ros2::schedule::print_negotiation_status(
+    msg.conflict_version,
     negotiation);
+  room.update_state_msg(msg.conflict_version);
+
+  publish_negotiation_states();
 }
 
 //==============================================================================
 void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
 {
   std::unique_lock<std::mutex> lock(active_conflicts_mutex);
-  auto* negotiation_room = active_conflicts.negotiation(msg.conflict_version);
+  auto* open = active_conflicts.negotiation(msg.conflict_version);
 
-  if (!negotiation_room)
+  if (!open)
     return;
 
-  auto& negotiation = negotiation_room->negotiation;
+  open->last_active_time = convert(now());
+  auto& room = open->room;
+  auto& negotiation = room.negotiation;
 
   const auto search = negotiation.find(rmf_traffic_ros2::convert(msg.table));
   if (search.deprecated())
@@ -1400,16 +1517,18 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
     error += "]";
 
     RCLCPP_WARN(get_logger(), "%s", error.c_str());
-    negotiation_room->cached_forfeits.push_back(msg);
+    room.cached_forfeits.push_back(msg);
     return;
   }
 
   table->forfeit(msg.table.back().version);
-  negotiation_room->check_cache({});
+  room.check_cache({});
 
   // TODO(MXG): This should be removed once we have a negotiation visualizer
-  rmf_traffic_ros2::schedule::print_negotiation_status(msg.conflict_version,
+  rmf_traffic_ros2::schedule::print_negotiation_status(
+    msg.conflict_version,
     negotiation);
+  room.update_state_msg(msg.conflict_version);
 
   if (negotiation.complete())
   {
@@ -1427,6 +1546,23 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
     conflict_conclusion_pub->publish(conclusion);
 //    print_conclusion(active_conflicts._waiting);
   }
+
+  publish_negotiation_states();
+}
+
+//==============================================================================
+void ScheduleNode::publish_negotiation_states()
+{
+  rmf_traffic_msgs::msg::NegotiationStates msg;
+  for (const auto& [_, n_opt] : active_conflicts._negotiations)
+  {
+    if (n_opt.has_value())
+    {
+      msg.negotiations.push_back(n_opt->room.state_msg);
+    }
+  }
+
+  negotiation_states_pub->publish(msg);
 }
 
 std::shared_ptr<rclcpp::Node> make_node(const rclcpp::NodeOptions& options)

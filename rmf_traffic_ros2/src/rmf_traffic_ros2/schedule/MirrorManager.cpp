@@ -223,11 +223,12 @@ public:
       (QueryUpdateTopicNameBase + std::to_string(query_id)).c_str());
     mirror_update_sub = node->create_subscription<MirrorUpdate>(
       QueryUpdateTopicNameBase + std::to_string(query_id),
-      rclcpp::SystemDefaultsQoS(),
+      rclcpp::ServicesQoS().reliable().keep_last(5000),
       [this](const MirrorUpdate::SharedPtr msg)
       {
         handle_update(msg);
       });
+
     // At this point we know we have the correct ID for our query
     require_query_validation = false;
     process_stashed_queries();
@@ -295,6 +296,27 @@ public:
     stashed_query_updates.clear();
   }
 
+  void apply_patch(
+    const std::shared_ptr<rclcpp::Node>& node,
+    const rmf_traffic_msgs::msg::SchedulePatch& msg,
+    const bool is_remedial)
+  {
+    const rmf_traffic::schedule::Patch patch = convert(msg);
+    if (!mirror->update(patch) && !is_remedial)
+    {
+      std::string patch_base = patch.base_version()?
+        std::to_string(*patch.base_version()) : std::string("any");
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Failed to update using patch for DB version %lu "
+        "(mirror version: %lu, patch base: %s); requesting new update",
+        patch.latest_version(),
+        mirror->latest_version(),
+        patch_base.c_str());
+      request_update(mirror->latest_version());
+    }
+  }
+
   void handle_update(const MirrorUpdate::SharedPtr msg)
   {
     update_timer->reset();
@@ -351,27 +373,11 @@ public:
       if (update_mutex)
       {
         std::lock_guard<std::mutex> lock(*update_mutex);
-        if (!mirror->update(patch) && !msg->is_remedial_update)
-        {
-          RCLCPP_WARN(
-            node->get_logger(),
-            "Failed to update using patch for DB version %lu; "
-            "requesting new update",
-            patch.latest_version());
-          request_update(mirror->latest_version());
-        }
+        apply_patch(node, msg->patch, msg->is_remedial_update);
       }
       else
       {
-        if (!mirror->update(patch) && !msg->is_remedial_update)
-        {
-          RCLCPP_WARN(
-            node->get_logger(),
-            "Failed to update using patch for DB version %lu; "
-            "requesting new update",
-            patch.latest_version());
-          request_update(mirror->latest_version());
-        }
+        apply_patch(node, msg->patch, msg->is_remedial_update);
       }
     }
     catch (const std::exception& e)
