@@ -57,6 +57,7 @@ const std::string DispatchAckTopicName = "rmf_task/dispatch_ack";
 
 const std::string DockSummaryTopicName = "dock_summary";
 
+const std::string NavGraphTopicName = "nav_graphs";
 const std::string LaneClosureRequestTopicName = "lane_closure_requests";
 const std::string ClosedLaneTopicName = "closed_lanes";
 
