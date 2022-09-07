@@ -425,15 +425,9 @@ void GoToPlace::Active::_execute_plan(
     return;
   }
 
-  auto wrap_finished = [f = _finished, plan_id, name = _context->name()]()
-  {
-    std::cout << "[" << name << "] finished GoToPlace with plan [" << plan_id << "]" << std::endl;
-    f();
-  };
-
   _execution = ExecutePlan::make(
     _context, plan_id, std::move(plan), std::move(full_itinerary),
-    _assign_id, _state, _update, wrap_finished, _tail_period);
+    _assign_id, _state, _update, _finished, _tail_period);
 
   if (!_execution.has_value())
   {

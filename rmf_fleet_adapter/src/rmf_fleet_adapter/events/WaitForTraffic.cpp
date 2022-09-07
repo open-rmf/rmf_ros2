@@ -86,7 +86,6 @@ auto WaitForTraffic::Active::make(
   active->_state = std::move(state);
   active->_update = std::move(update);
   active->_finished = std::move(finished);
-  std::cout << "WaitForTraffic [" << active->_context->name() << "] " << active << " starting to wait for traffic" << std::endl;
 
   const auto consider_going = [w = active->weak_from_this()]()
     {
@@ -194,16 +193,16 @@ void WaitForTraffic::Active::kill()
 //==============================================================================
 void WaitForTraffic::Active::_consider_going()
 {
-  std::cout << "WaitForTraffic [" << _context->name() << "] " << this << " considering going" << std::endl;
   if (_decision_made)
   {
-    std::cout << "WaitForTraffic [" << _context->name() << "] " << this << " a decision was already made" << std::endl;
     const auto time_lapse = std::chrono::steady_clock::now() - *_decision_made;
     if (time_lapse > std::chrono::seconds(10))
     {
-      std::cout << "WaitForTraffic [" << _context->name() << "] " << this
-                << " excessive time lapse " << rmf_traffic::time::to_seconds(time_lapse)
-                << " -- replanning" << std::endl;
+      RCLCPP_WARN(
+        _context->node()->get_logger(),
+        "[WaitForTraffic] excessive time lapse of %fs after a decision should "
+        "have been made. Triggering a replan to recover.",
+        rmf_traffic::time::to_seconds(time_lapse));
       _replan();
     }
 
@@ -230,7 +229,6 @@ void WaitForTraffic::Active::_consider_going()
           "Replanning because [robot:" + other->name() + "] changed its plan");
       }
 
-      std::cout << "WaitForTraffic [" << _context->name() << "] " << this << " dependency deprecated" << std::endl;
       return _replan();
     }
 
@@ -243,25 +241,18 @@ void WaitForTraffic::Active::_consider_going()
     _decision_made = std::chrono::steady_clock::now();
     _state->update_status(Status::Completed);
     _state->update_log().info("All traffic dependencies satisfied");
-    std::cout << "WaitForTraffic [" << _context->name() << "] " << this << " all dependencies reached" << std::endl;
     return _finished();
   }
 
   using namespace std::chrono_literals;
   const auto now = _context->now();
   const auto cumulative_delay = now - _expected_time;
-  std::cout << "WaitForTraffic [" << _context->name() << "] " << this << " cumulative_delay "
-            << rmf_traffic::time::to_seconds(cumulative_delay)
-            << " = " << rmf_traffic::time::to_seconds(now.time_since_epoch())
-            << " - " << rmf_traffic::time::to_seconds(_expected_time.time_since_epoch())
-            << std::endl;
   if (30s < cumulative_delay)
   {
     // TODO(MXG): Make the max waiting time configurable
     _state->update_status(Status::Delayed);
     _state->update_log().info(
       "Replanning because a traffic dependency is excessively delayed");
-    std::cout << "WaitForTraffic [" << _context->name() << "] " << this << " replanning for excessive delay" << std::endl;
     return _replan();
   }
 
@@ -275,7 +266,6 @@ void WaitForTraffic::Active::_consider_going()
 //==============================================================================
 void WaitForTraffic::Active::_replan()
 {
-  std::cout << "WaitForTraffic [" << _context->name() << "] " << this << " replanning" << std::endl;
   _decision_made = std::chrono::steady_clock::now();
   _context->request_replan();
 }

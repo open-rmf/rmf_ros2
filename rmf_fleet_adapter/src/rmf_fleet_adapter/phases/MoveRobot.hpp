@@ -113,12 +113,6 @@ struct MoveRobot
     template<typename Subscriber>
     void operator()(const Subscriber& s);
 
-    ~Action()
-    {
-      std::cout << "Destructing MoveRobot Action for [" << _context->name()
-                << "]: " << this << " in plan " << _plan_id << std::endl;
-    }
-
   private:
 
     agv::RobotContextPtr _context;
@@ -263,20 +257,11 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             self->_plan_id, c.route_id, c.checkpoint_id);
         }
 
-        std::cout << "[" << self->_context->name() << "] finished move command "
-                  << self << std::endl;
-
         LegacyTask::StatusMsg msg;
         msg.state = LegacyTask::StatusMsg::STATE_COMPLETED;
         msg.status = "move robot success";
         s.on_next(msg);
         s.on_completed();
-      }
-      else
-      {
-        std::cout << " ============ EXPIRED move command " << ptr
-                  << " in plan " << plan_id
-                  << " for robot [" << robot_name << "]" << std::endl;
       }
     });
 }
