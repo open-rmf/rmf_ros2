@@ -113,6 +113,12 @@ struct MoveRobot
     template<typename Subscriber>
     void operator()(const Subscriber& s);
 
+    ~Action()
+    {
+      std::cout << "Destructing MoveRobot Action for [" << _context->name()
+                << "]: " << this << " in plan " << _plan_id << std::endl;
+    }
+
   private:
 
     agv::RobotContextPtr _context;
@@ -157,13 +163,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             ](
               const auto&)
             {
-              if (bump > std::chrono::seconds(600))
-              {
-                std::cout << "Excessively large bump for ["
-                          << context->name() << "]: " << rmf_traffic::time::to_seconds(bump)
-                          << std::endl;
-              }
-
               if (const auto c = context->itinerary().cumulative_delay(plan_id))
               {
                 context->itinerary().cumulative_delay(plan_id, *c + bump);
@@ -243,17 +242,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       const auto planned_time = target_wp.time();
       const auto newly_expected_arrival = now + estimate;
       const auto new_cumulative_delay = newly_expected_arrival - planned_time;
-      if (std::chrono::abs(new_cumulative_delay) > 60s)
-      {
-        std::stringstream ss;
-        ss << "Suspicious new delay for [" << action->_context->name() << "]:"
-           << "\n -- duration: " << rmf_traffic::time::to_seconds(estimate)
-           << "\n -- newly:    " << rmf_traffic::time::to_seconds(newly_expected_arrival.time_since_epoch())
-           << "\n -- planned:  " << rmf_traffic::time::to_seconds(planned_time.time_since_epoch())
-           << "\n -- new:      " << rmf_traffic::time::to_seconds(new_cumulative_delay);
-        std::cout << ss.str() << std::endl;
-      }
-
       action->_context->worker().schedule(
         [
           context = action->_context,
@@ -265,7 +253,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             plan_id, new_cumulative_delay, 500ms);
         });
     },
-    [s, w = weak_from_this()]()
+    [s, w = weak_from_this(), robot_name = _context->name(), ptr = this, plan_id = _plan_id]()
     {
       if (const auto self = w.lock())
       {
@@ -274,15 +262,22 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           self->_context->itinerary().reached(
             self->_plan_id, c.route_id, c.checkpoint_id);
         }
+
+        std::cout << "[" << self->_context->name() << "] finished move command "
+                  << self << std::endl;
+
+        LegacyTask::StatusMsg msg;
+        msg.state = LegacyTask::StatusMsg::STATE_COMPLETED;
+        msg.status = "move robot success";
+        s.on_next(msg);
+        s.on_completed();
       }
-
-      LegacyTask::StatusMsg msg;
-      msg.state = LegacyTask::StatusMsg::STATE_COMPLETED;
-      msg.status = "move robot success";
-      s.on_next(msg);
-
-      s.on_completed();
-
+      else
+      {
+        std::cout << " ============ EXPIRED move command " << ptr
+                  << " in plan " << plan_id
+                  << " for robot [" << robot_name << "]" << std::endl;
+      }
     });
 }
 

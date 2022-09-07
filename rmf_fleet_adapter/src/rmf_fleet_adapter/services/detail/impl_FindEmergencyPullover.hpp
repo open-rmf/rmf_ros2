@@ -117,14 +117,8 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       {
         if (f->_compliant_evaluator.best_result.progress)
           s.on_next(*f->_compliant_evaluator.best_result.progress);
-        else if (f->_greedy_evaluator.best_result.progress)
-          s.on_next(*f->_greedy_evaluator.best_result.progress);
         else
-        {
-          s.on_error(std::make_exception_ptr(
-            std::runtime_error(
-              "[FindEmergencyPullover] Unable to find a plan")));
-        }
+          s.on_next(*f->_greedy_evaluator.best_result.progress);
 
         s.on_completed();
         return;

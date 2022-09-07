@@ -46,25 +46,6 @@ SearchForPath::SearchForPath(
     greedy_starts.erase(greedy_starts.begin()+1, greedy_starts.end());
 
   auto greedy_setup = _planner->setup(greedy_starts, _goal, greedy_options);
-  if (!greedy_setup.cost_estimate())
-  {
-    // If this ever happens, then there is a serious bug.
-    const auto& desc = _schedule->get_participant(_participant_id);
-    std::string name = desc ?
-      desc->name() + "] owned by [" + desc->owner() :
-      std::to_string(_participant_id);
-
-    std::cerr << "[SearchForPath] CRITICAL ERROR: Impossible plan requested! "
-              << "Participant [" << name << "] Requested path";
-
-    for (const auto& start : _starts)
-      std::cerr << " (" << start.waypoint() << ")";
-    std::cerr << " --> (" << _goal.waypoint() << ")" << std::endl;
-
-    assert(false);
-    return;
-  }
-
   const double base_cost = *greedy_setup.cost_estimate();
   greedy_setup.options().maximum_cost_estimate(_greedy_leeway*base_cost);
 

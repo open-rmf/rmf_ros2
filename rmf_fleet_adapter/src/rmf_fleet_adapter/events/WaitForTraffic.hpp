@@ -103,7 +103,7 @@ public:
     std::function<void()> _update;
     std::function<void()> _finished;
     rclcpp::TimerBase::SharedPtr _timer;
-    bool _decision_made = false;
+    std::optional<rmf_traffic::Time> _decision_made;
   };
 
 };

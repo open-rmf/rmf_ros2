@@ -204,8 +204,6 @@ RobotContext::observe_replan_request() const
 //==============================================================================
 void RobotContext::request_replan()
 {
-  if (const auto c = command())
-    c->stop();
   _replan_publisher.get_subscriber().on_next(Empty{});
 }
 

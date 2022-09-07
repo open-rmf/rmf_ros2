@@ -119,7 +119,6 @@ public:
                 {
                   if (c->_queue.size() > *c->_queue_limit)
                   {
-                    std::cout << " ======== SHRINKING BROADCAST QUEUE" << std::endl;
                     RCLCPP_WARN(
                       c->_node->get_logger(),
                       "Reducing size of broadcast queue from [%lu] down to "

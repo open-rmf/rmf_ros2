@@ -65,7 +65,6 @@
 #include <set>
 #include <unordered_map>
 #include <utility>
-#include <iostream>
 
 namespace rmf_traffic_ros2 {
 namespace schedule {
@@ -342,7 +341,6 @@ public:
           // Ignore conflicts with participants that we're waiting for an update
           // from. Otherwise we might announce conflicts for them faster than
           // they can respond to them.
-          std::cout << "Waiting for " << c << " to ack before we add it to a new negotiation" << std::endl;
           return std::nullopt;
         }
 
@@ -352,11 +350,9 @@ public:
           const Version* const it_conflict = &it->second;
           if (existing_negotiation && *existing_negotiation != *it_conflict)
           {
-            std::cout << "Participant " << c << " is already in the negotiation" << std::endl;
             continue;
           }
 
-          std::cout << "Adding " << c << " to negotiation #" << *it_conflict << std::endl;
           existing_negotiation = it_conflict;
         }
         else
@@ -380,13 +376,6 @@ public:
       auto& update_negotiation = insertion.first->second;
       if (!update_negotiation)
       {
-        std::stringstream ss;
-        ss << "Creating new negotiation for [";
-        for (const auto& p : add_to_negotiation)
-          ss << " " << p;
-        ss << " ]";
-        std::cout << ss.str() << std::endl;
-
         update_negotiation = OpenNegotiation{
           *rmf_traffic::schedule::Negotiation::make(
             viewer.snapshot(), std::vector<ParticipantId>(
@@ -401,13 +390,6 @@ public:
           update_negotiation->room.negotiation.add_participant(p);
           update_negotiation->last_active_time = time;
         }
-
-        std::stringstream ss;
-        ss << "Negotiation " << negotiation_version << " now contains [";
-        for (const auto& p : update_negotiation->room.negotiation.participants())
-          ss << " " << p;
-        ss << " ]";
-        std::cout << ss.str() << std::endl;
       }
 
       update_negotiation->room.update_state_msg(negotiation_version);
@@ -472,6 +454,7 @@ public:
     // Tell the ConflictRecord what ItineraryVersion will resolve this
     // negotiation.
     void acknowledge(
+      const rclcpp::Node& node,
       const Version negotiation_version,
       const ParticipantId p,
       const std::optional<ItineraryVersion> update_version)
@@ -479,25 +462,23 @@ public:
       const auto wait_it = _waiting.find(p);
       if (wait_it == _waiting.end())
       {
-        // TODO(MXG): We should probably output some warning here using
-        // RCLCPP_WARN
-        std::cout << "[ScheduleNode::ConflictRecord::acknowledge] We are NOT "
-                  << "waiting for an acknowledgment from participant [" << p
-                  << "] for negotiation [" << negotiation_version << "]"
-                  << std::endl;
+        RCLCPP_WARN(
+          node.get_logger(),
+          "[ScheduleNode::ConflictRecord::acknowledge] We are NOT waiting for "
+          "an acknowledgment from participant [%lu] for negotiation [%lu]",
+          p, negotiation_version);
         return;
       }
 
       const auto expected_negotiation = wait_it->second.negotiation_version;
       if (expected_negotiation != negotiation_version)
       {
-        // TODO(MXG): We should probably output some warning here using
-        // RCLCPP_WARN
-        std::cout << "[ScheduleNode::ConflictRecord::acknowledge] We are "
-                  << "waiting for an acknowledgment from participant ["
-                  << p << "] regarding negotiation [" << expected_negotiation
-                  << "] but received an acknowledgment for negotiation ["
-                  << negotiation_version << "] instead." << std::endl;
+        RCLCPP_WARN(
+          node.get_logger(),
+          "[ScheduleNode::ConflictRecord::acknowledge] We are waiting for an "
+          "acknowledgment from participant [%lu] regarding negotiation [%lu] "
+          "but received an acknowledgment for negotiation [%lu] instead.",
+          p, expected_negotiation, negotiation_version);
         return;
       }
 

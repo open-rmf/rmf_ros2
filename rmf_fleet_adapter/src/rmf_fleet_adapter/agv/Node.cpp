@@ -93,13 +93,18 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<FleetState>(
     FleetStateTopicName, default_qos);
 
+  auto transient_local_qos = rclcpp::SystemDefaultsQoS()
+    .reliable()
+    .transient_local()
+    .keep_last(100);
+
   node->_task_api_request_obs =
     node->create_observable<ApiRequest>(
-    TaskApiRequests, rclcpp::SystemDefaultsQoS().reliable().transient_local());
+    TaskApiRequests, transient_local_qos);
 
   node->_task_api_response_pub =
     node->create_publisher<ApiResponse>(
-    TaskApiResponses, rclcpp::SystemDefaultsQoS().reliable().transient_local());
+    TaskApiResponses, transient_local_qos);
 
   return node;
 }

@@ -618,6 +618,11 @@ std::optional<ExecutePlan> ExecutePlan::make(
       });
   }
 
+  auto wrap_finished = [finished, name = context->name(), plan_id]()
+    {
+      std::cout << "[" << name << "] finished plan " << plan_id << std::endl;
+      finished();
+    };
   auto sequence = rmf_task_sequence::events::Bundle::standby(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
@@ -661,6 +666,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     }
   }
 
+  std::cout << "[" << context->name() << "] beginning execution of plan " << plan_id << std::endl;
   return ExecutePlan{
     std::move(plan),
     plan_id,

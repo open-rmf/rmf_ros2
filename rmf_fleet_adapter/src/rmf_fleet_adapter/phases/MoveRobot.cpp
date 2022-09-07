@@ -47,8 +47,8 @@ MoveRobot::ActivePhase::ActivePhase(
 }
 
 //==============================================================================
-const rxcpp::observable<LegacyTask::StatusMsg>& MoveRobot::ActivePhase::observe()
-const
+const rxcpp::observable<LegacyTask::StatusMsg>&
+MoveRobot::ActivePhase::observe() const
 {
   return _obs;
 }
@@ -129,6 +129,8 @@ MoveRobot::Action::Action(
   _tail_period{tail_period}
 {
   // no op
+  std::cout << "Beginning MoveRobot Action for [" << _context->name()
+            << "]: " << this << " in plan " << _plan_id << std::endl;
 }
 
 } // namespace phases

@@ -516,11 +516,6 @@ void ScheduleNode::setup_conflict_topics_and_thread()
               }
             }
           }
-
-          std::cout << "Require negotiation for:";
-          for (const auto p : conflict)
-            std::cout << " " << p;
-          std::cout << std::endl;
         }
 
         std::unordered_map<Version, const Negotiation*> new_negotiations;
@@ -538,6 +533,11 @@ void ScheduleNode::setup_conflict_topics_and_thread()
 
         for (const auto& n : new_negotiations)
         {
+          std::cout << "Require negotiation for:";
+          for (const auto p : n.second->participants())
+            std::cout << " " << p;
+
+          std::cout << std::endl;
           ConflictNotice msg;
           msg.conflict_version = n.first;
 
@@ -545,48 +545,8 @@ void ScheduleNode::setup_conflict_topics_and_thread()
           msg.participants = ConflictNotice::_participants_type(
             participants.begin(), participants.end());
 
-          std::stringstream ss;
-          ss << "Notifying about negotiation " << n.first << " with participants [";
-          for (const auto& p : msg.participants)
-            ss << " " << p;
-          ss << " ]";
-          std::cout << ss.str() << std::endl;
           conflict_notice_pub->publish(msg);
           publish_negotiation_states();
-        }
-
-        if (!conflicts.empty())
-        {
-          std::unique_lock<std::mutex> lock(active_conflicts_mutex);
-          if (active_conflicts._negotiations.empty())
-          {
-            std::cout << "No active negotiations" << std::endl;
-          }
-          else
-          {
-            std::stringstream ss;
-            ss << "Current negotiations:\n";
-            for (const auto& [v, n] : active_conflicts._negotiations)
-            {
-              if (n.has_value())
-              {
-                ss << " -- " << v << ":";
-                for (const auto& p : n->room.negotiation.participants())
-                  ss << " " << p;
-                ss << "\n";
-              }
-            }
-
-            std::cout << ss.str() << std::endl;
-          }
-
-          std::stringstream ss;
-          ss << "Current negotiations of participants:";
-          for (const auto& [p, v] : active_conflicts._version)
-          {
-            ss << "\n -- " << p << ": " << v;
-          }
-          std::cout << ss.str() << std::endl;
         }
       }
     });
@@ -1304,12 +1264,12 @@ void ScheduleNode::receive_conclusion_ack(const ConflictAck& msg)
     if (ack.updating)
     {
       active_conflicts.acknowledge(
-        msg.conflict_version, ack.participant, ack.itinerary_version);
+        *this, msg.conflict_version, ack.participant, ack.itinerary_version);
     }
     else
     {
       active_conflicts.acknowledge(
-        msg.conflict_version, ack.participant, rmf_utils::nullopt);
+        *this, msg.conflict_version, ack.participant, rmf_utils::nullopt);
     }
   }
 

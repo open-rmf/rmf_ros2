@@ -38,11 +38,18 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
 
   if (!_greedy_job)
   {
-    // This means the plan was infeasible from the start, so we will declare
-    // that the job is completed without returning any result.
     s.on_error(std::make_exception_ptr(
         std::runtime_error(
           "[SearchForPath] Impossible path requested")));
+    return;
+  }
+
+  if (_greedy_job->progress().disconnected())
+  {
+    // This means the plan was infeasible from the start, so we will immediately
+    // pass back the current greedy progress object
+    s.on_next(Result{_greedy_job, nullptr, Type::greedy});
+    s.on_completed();
     return;
   }
 

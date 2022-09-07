@@ -56,7 +56,7 @@ public:
 
   void setup();
 
-  std::chrono::milliseconds heartbeat_period = 1s;
+  std::chrono::milliseconds heartbeat_period = 10s;
   rclcpp::QoS heartbeat_qos_profile;
   rclcpp::SubscriptionOptions heartbeat_sub_options;
   using Heartbeat = rmf_traffic_msgs::msg::Heartbeat;
