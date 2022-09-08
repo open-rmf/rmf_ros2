@@ -175,6 +175,7 @@ public:
   builtin_interfaces::msg::Duration bidding_time_window;
   std::size_t terminated_tasks_max_size;
   int publish_active_tasks_period;
+  bool use_timestamp_for_task_id;
 
   std::unordered_map<std::size_t, std::string> legacy_task_type_names =
   {
@@ -209,7 +210,11 @@ public:
     RCLCPP_INFO(node->get_logger(),
       " Declared publish_active_tasks_period as: %d secs",
       publish_active_tasks_period);
-
+    use_timestamp_for_task_id =
+      node->declare_parameter<bool>("use_timestamp_for_task_id", false);
+    RCLCPP_INFO(node->get_logger(),
+      " Use timestamp with task_id: %s",
+      (use_timestamp_for_task_id ? "true" : "false"));
 
     std::optional<std::string> server_uri = std::nullopt;
     const std::string uri =
@@ -474,9 +479,19 @@ public:
       }
 
       const auto& task_request_json = msg_json["request"];
-      const std::string task_id =
+      std::string task_id =
         task_request_json["category"].get<std::string>()
-        + ".dispatch-" + std::to_string(task_counter++);
+        + ".dispatch-";
+
+      if (use_timestamp_for_task_id)
+      {
+        task_id += std::to_string(
+          static_cast<int>(node->get_clock()->now().nanoseconds()/1e6));
+      }
+      else
+      {
+        task_id += std::to_string(task_counter++);
+      }
 
       const auto task_state = push_bid_notice(
         rmf_task_msgs::build<bidding::BidNoticeMsg>()
