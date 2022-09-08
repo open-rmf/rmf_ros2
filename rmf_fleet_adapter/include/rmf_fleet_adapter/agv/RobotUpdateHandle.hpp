@@ -326,6 +326,11 @@ public:
     /// Get the schedule participant of this robot
     rmf_traffic::schedule::Participant* get_participant();
 
+    /// Change the radius of the footprint and vicinity of this participant.
+    void change_participant_profile(
+      double footprint_radius,
+      double vicinity_radius);
+
     /// Override the schedule to say that the robot will be holding at a certain
     /// position. This should not be used while tasks with automatic schedule
     /// updating are running, or else the traffic schedule will have jumbled up

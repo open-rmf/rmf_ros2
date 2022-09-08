@@ -158,6 +158,16 @@ PYBIND11_MODULE(rmf_adapter, m) {
     },
     py::return_value_policy::reference_internal,
     "Experimental API to access the schedule participant")
+  .def("unstable_change_participant_profile",
+    [&](agv::RobotUpdateHandle& self,
+    double footprint_radius,
+    double vicinity_radius)
+    {
+      self.unstable().change_participant_profile(
+        footprint_radius, vicinity_radius);
+    },
+    py::arg("footprint_radius"),
+    py::arg("vicinity_radius"))
   .def("unstable_declare_holding",
     [&](agv::RobotUpdateHandle& self,
     std::string on_map,
