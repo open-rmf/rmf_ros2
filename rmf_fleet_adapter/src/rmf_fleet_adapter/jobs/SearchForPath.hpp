@@ -98,8 +98,7 @@ private:
   rmf_utils::optional<double> _explicit_cost_limit;
 
   rxcpp::schedulers::worker _worker;
-  rmf_traffic::Time _start_time;
-  std::optional<rmf_traffic::Duration> _planning_time_limit;
+  std::optional<rmf_traffic::Time> _deadline;
 
   // TODO(MXG): Make these leeway factors configurable
   const double _greedy_leeway = 10.0;
