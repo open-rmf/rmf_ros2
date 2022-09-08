@@ -379,7 +379,7 @@ void EasyTrafficLight::Implementation::Shared::make_plan(
   state.find_path_service = std::make_shared<services::FindPath>(
     state.planner, rmf_traffic::agv::Plan::StartSet{std::move(start)},
     std::move(goal), hooks.schedule->snapshot(), state.itinerary->id(),
-    hooks.profile);
+    hooks.profile, std::nullopt);
 
   state.find_path_subscription =
     rmf_rxcpp::make_job<services::FindPath::Result>(

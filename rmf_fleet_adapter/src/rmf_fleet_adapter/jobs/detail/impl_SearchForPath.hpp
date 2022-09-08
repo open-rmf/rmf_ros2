@@ -173,6 +173,13 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       if (!search)
         return;
 
+      if (search->_planning_time_limit.has_value())
+      {
+        const auto now = std::chrono::steady_clock::now();
+        if (now <= search->_start_time + *search->_planning_time_limit)
+          search->interrupt();
+      }
+
       auto show_greedy = search->_greedy_finished ?
       search->_greedy_job : std::shared_ptr<Planning>(nullptr);
 

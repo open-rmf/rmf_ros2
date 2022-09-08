@@ -129,7 +129,7 @@ ScheduleNode::ScheduleNode(
 {
   // Period, in milliseconds, for sending out a heartbeat signal to the monitor
   // node in the redundant pair
-  declare_parameter<int>("heartbeat_period", 1000);
+  declare_parameter<int>("heartbeat_period", 10000);
   heartbeat_period = std::chrono::milliseconds(
     get_parameter("heartbeat_period").as_int());
 

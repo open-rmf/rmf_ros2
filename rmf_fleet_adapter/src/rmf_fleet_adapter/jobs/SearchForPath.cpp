@@ -27,14 +27,17 @@ SearchForPath::SearchForPath(
   rmf_traffic::agv::Plan::Goal goal,
   std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
   rmf_traffic::schedule::ParticipantId participant_id,
-  const std::shared_ptr<const rmf_traffic::Profile>& profile)
+  const std::shared_ptr<const rmf_traffic::Profile>& profile,
+  std::optional<rmf_traffic::Duration> planning_time_limit)
 : _planner(std::move(planner)),
   _starts(std::move(starts)),
   _goal(std::move(goal)),
   _schedule(std::move(schedule)),
   _participant_id(participant_id),
-  _worker(rxcpp::schedulers::make_event_loop().create_worker())
+  _worker(rxcpp::schedulers::make_event_loop().create_worker()),
+  _planning_time_limit(planning_time_limit)
 {
+  _start_time = std::chrono::steady_clock::now();
   auto greedy_options = _planner->get_default_options();
   greedy_options.validator(nullptr);
 

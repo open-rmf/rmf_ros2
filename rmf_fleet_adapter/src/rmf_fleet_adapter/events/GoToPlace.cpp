@@ -310,10 +310,12 @@ void GoToPlace::Active::_find_plan()
   _state->update_log().info(
     "Generating plan to move from [" + start_name + "] to [" + goal_name + "]");
 
+  // TODO(MXG): Make the planning time limit configurable
   _find_path_service = std::make_shared<services::FindPath>(
     _context->planner(), _context->location(), _goal,
     _context->schedule()->snapshot(), _context->itinerary().id(),
-    _context->profile());
+    _context->profile(),
+    std::chrono::seconds(5));
 
   _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
     _find_path_service)

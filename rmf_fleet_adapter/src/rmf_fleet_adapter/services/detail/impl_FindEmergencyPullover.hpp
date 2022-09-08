@@ -35,8 +35,10 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
     const auto& wp = graph.get_waypoint(i);
     if (wp.is_parking_spot())
     {
+      // TODO(MXG): Make the timeout configurable
       auto search = std::make_shared<jobs::SearchForPath>(
-        _planner, _starts, wp.index(), _schedule, _participant_id, _profile);
+        _planner, _starts, wp.index(), _schedule, _participant_id, _profile,
+        std::chrono::seconds(5));
 
       // Be sure to initialize these individually and not in a single statement,
       // otherwise the logic might short-circuit one of the initialize() calls

@@ -106,7 +106,7 @@ public:
 
   virtual void setup(const QueryMap& queries);
 
-  std::chrono::milliseconds heartbeat_period = 1s;
+  std::chrono::milliseconds heartbeat_period = 10s;
   rclcpp::QoS heartbeat_qos_profile;
   using Heartbeat = rmf_traffic_msgs::msg::Heartbeat;
   using HeartbeatPub = rclcpp::Publisher<Heartbeat>;

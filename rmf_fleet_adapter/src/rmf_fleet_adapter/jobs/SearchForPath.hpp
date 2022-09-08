@@ -40,7 +40,8 @@ public:
     rmf_traffic::agv::Plan::Goal goal,
     std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
     rmf_traffic::schedule::ParticipantId participant_id,
-    const std::shared_ptr<const rmf_traffic::Profile>& profile);
+    const std::shared_ptr<const rmf_traffic::Profile>& profile,
+    std::optional<rmf_traffic::Duration> planning_time_limit);
 
   enum class Type
   {
@@ -97,6 +98,8 @@ private:
   rmf_utils::optional<double> _explicit_cost_limit;
 
   rxcpp::schedulers::worker _worker;
+  rmf_traffic::Time _start_time;
+  std::optional<rmf_traffic::Duration> _planning_time_limit;
 
   // TODO(MXG): Make these leeway factors configurable
   const double _greedy_leeway = 10.0;
