@@ -29,6 +29,7 @@
 #include <rmf_traffic_msgs/msg/participant.hpp>
 #include <rmf_traffic_msgs/msg/participants.hpp>
 #include <rmf_traffic_msgs/msg/schedule_queries.hpp>
+#include <rmf_traffic_msgs/msg/schedule_identity.hpp>
 
 #include <rmf_traffic_msgs/msg/itinerary_clear.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_delay.hpp>
@@ -77,27 +78,24 @@ public:
   using QueryMap = std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
   using VersionOpt = std::optional<rmf_traffic::schedule::Version>;
 
-  using NodeVersion = uint64_t;
-  NodeVersion node_version = 0;
+  using ScheduleId = rmf_traffic_msgs::msg::ScheduleIdentity;
+  ScheduleId node_id;
 
   static struct NoAutomaticSetup{} no_automatic_setup;
 
   ScheduleNode(
-    NodeVersion node_version_,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     const rclcpp::NodeOptions& options,
     NoAutomaticSetup);
 
   ScheduleNode(
-    NodeVersion node_version_,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
     const rclcpp::NodeOptions& options);
 
-  ScheduleNode(NodeVersion node_version_, const rclcpp::NodeOptions& options);
+  ScheduleNode(const rclcpp::NodeOptions& options);
 
   ScheduleNode(
-    NodeVersion node_version_,
     const rclcpp::NodeOptions& options,
     NoAutomaticSetup);
 
@@ -221,6 +219,10 @@ public:
   using InconsistencyMsg = rmf_traffic_msgs::msg::ScheduleInconsistency;
   rclcpp::Publisher<InconsistencyMsg>::SharedPtr inconsistency_pub;
   void publish_inconsistencies(rmf_traffic::schedule::ParticipantId id);
+
+  rclcpp::Subscription<ScheduleId>::SharedPtr startup_sub;
+  rclcpp::Publisher<ScheduleId>::SharedPtr startup_pub;
+  void receive_startup_msg(const ScheduleId& msg);
 
   virtual void setup_incosistency_pub();
 

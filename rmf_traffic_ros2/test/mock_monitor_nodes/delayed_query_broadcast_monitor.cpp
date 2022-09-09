@@ -35,12 +35,10 @@ class DelayedQueryBroadcastScheduleNode
 {
 public:
   DelayedQueryBroadcastScheduleNode(
-    NodeVersion node_version_,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
     const rclcpp::NodeOptions& options)
     : ScheduleNode(
-        node_version_,
         database_,
         registered_queries_,
         options)
@@ -89,7 +87,6 @@ public:
 
     auto node =
       std::make_shared<DelayedQueryBroadcastScheduleNode>(
-        1, // Bump the node version by one
         database,
         registered_queries,
         rclcpp::NodeOptions());
