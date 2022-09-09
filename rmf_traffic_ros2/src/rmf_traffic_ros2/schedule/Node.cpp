@@ -1160,11 +1160,24 @@ void ScheduleNode::update_mirrors()
   {
     for (const auto request : query_info.remediation_requests)
     {
-      update_query(
+      const auto updated = update_query(
         query_info.publisher,
         query_info.query,
         request,
         true);
+
+      if (updated)
+      {
+        const std::string starting_from = request.has_value() ?
+          "version " + std::to_string(*request) : "the beginning";
+
+        RCLCPP_INFO(
+          get_logger(),
+          "[ScheduleNode::update_mirrors] Sending remedial update starting "
+          "from %s for query %ld",
+          starting_from.c_str(),
+          query_id);
+      }
     }
     query_info.remediation_requests.clear();
 
