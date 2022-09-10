@@ -4,76 +4,17 @@ on:
   pull_request:
   schedule:
     - cron: '23 0 * * *'
-defaults:
-  run:
-    shell: bash
+  workflow_dispatch:
+
 jobs:
   build_and_test:
-    strategy:
-      fail-fast: false
-      matrix:
-        ros_distribution:
-          - foxy
-          - galactic
-          - humble
-        ubuntu_distribution:
-          - focal
-          - jammy
-        exclude:
-          - ros_distribution: foxy
-            ubuntu_distribution: jammy
-          - ros_distribution: galactic
-            ubuntu_distribution: jammy
-          - ros_distribution: humble
-            ubuntu_distribution: focal
-
-    name: Build and test
-    runs-on: ubuntu-22.04
-    container:
-      image: rostooling/setup-ros-docker:ubuntu-${{ matrix.ubuntu_distribution }}-latest
-    steps:
-      - name: deps
-        uses: ros-tooling/setup-ros@v0.4
-        with:
-          required-ros-distributions: ${{ matrix.ros_distribution }}
-      - name: install_clang
-        run: sudo apt update && sudo apt install -y clang clang-tools lld
-      - name: hack for uncrustify 0.72 problems # TODO: remove this when uncrustify 0.72 is fixed https://github.com/uncrustify/uncrustify/issues/3191
-        run: wget http://mirrors.kernel.org/ubuntu/pool/universe/u/uncrustify/uncrustify_0.69.0+dfsg1-1build1_amd64.deb && dpkg -i uncrustify_0.69.0+dfsg1-1build1_amd64.deb && apt install -f
-        if: ${{ matrix.ubuntu_distribution == 'jammy' }}
-      - name: build
-        uses: ros-tooling/action-ros-ci@v0.2
-        env:
-          CC: clang
-          CXX: clang++
-        with:
-          target-ros2-distro: ${{ matrix.ros_distribution }}
-          # build all packages listed in the meta package
-          package-name: |
+    name: rmf_ros2
+    uses: open-rmf/rmf_ci_templates/.github/workflows/reusable_build.yaml@main
+    with:
+      # NOTE: Avoid adding comments in the package lines, this can break some of the called scripts in github actions
+      # TODO(MXG): rmf_fleet_adapter_python tests are failing in the CI, and it seems to be related to https://github.com/ros2/launch/pull/592. Figure out how to fix this.
+      packages: |
             rmf_fleet_adapter
             rmf_task_ros2
             rmf_traffic_ros2
             rmf_websocket
-          #  rmf_fleet_adapter_python # TODO(MXG): These tests are failing in the CI, and it seems to be related to https://github.com/ros2/launch/pull/592. Figure out how to fix this.
-          vcs-repo-file-url: |
-            https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
-          colcon-defaults: |
-            {
-              "build": {
-                "mixin": ["coverage-gcc", "coverage-pytest", "lld"],
-                "executor": "sequential"
-              }
-            }
-          colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
-      - name: Upload failed test results
-        uses: actions/upload-artifact@v2
-        if: failure()
-        with:
-          name: test-results
-          path: ros_ws/build/*/test_results/*/*.catch2.xml
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v1
-        with:
-          files: ros_ws/lcov/total_coverage.info
-          flags: tests
-          name: lean_and_mean_codecov_bot
