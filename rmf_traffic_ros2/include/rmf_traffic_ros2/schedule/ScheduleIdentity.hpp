@@ -43,7 +43,7 @@ bool reconnect_schedule(
 //==============================================================================
 /// Equivalent to reconnect_schedule, but it does not modify the previous
 /// argument.
-bool is_newer_schedule(
+bool need_reconnection(
   const rmf_traffic_msgs::msg::ScheduleIdentity& previous,
   const rmf_traffic_msgs::msg::ScheduleIdentity& incoming);
 

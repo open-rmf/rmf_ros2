@@ -85,6 +85,12 @@ public:
   static struct NoAutomaticSetup{} no_automatic_setup;
 
   ScheduleNode(
+    ScheduleId id,
+    std::shared_ptr<rmf_traffic::schedule::Database> database_,
+    const rclcpp::NodeOptions& options,
+    NoAutomaticSetup);
+
+  ScheduleNode(
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     const rclcpp::NodeOptions& options,
     NoAutomaticSetup);

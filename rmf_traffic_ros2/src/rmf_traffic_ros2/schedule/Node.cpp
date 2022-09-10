@@ -43,7 +43,8 @@ namespace rmf_traffic_ros2 {
 namespace schedule {
 
 namespace {
-ScheduleNode::ScheduleId generate_node_id(const rclcpp::Node& node)
+//==============================================================================
+ScheduleNode::ScheduleId generate_node_id()
 {
   uuid_t raw_uuid;
   uuid_generate(raw_uuid);
@@ -51,10 +52,25 @@ ScheduleNode::ScheduleId generate_node_id(const rclcpp::Node& node)
   // 36 bytes + '\n' so we make a buffer of 37.
   char uuid[37];
   uuid_unparse(raw_uuid, uuid);
-  const auto time = node.now();
+  const rclcpp::Time time(
+    std::chrono::system_clock::now().time_since_epoch().count());
+
   return rmf_traffic_msgs::build<ScheduleNode::ScheduleId>()
       .node_uuid(std::string(uuid))
       .timestamp(time);
+}
+
+//==============================================================================
+std::string generate_schedule_node_name(const ScheduleNode::ScheduleId& id)
+{
+  std::string uuid_underscore = id.node_uuid;
+  for (auto& c : uuid_underscore)
+  {
+    if (c == '-')
+      c = '_';
+  }
+
+  return "rmf_traffic_schedule_node_" + uuid_underscore;
 }
 }
 
@@ -136,14 +152,15 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 // This constructor will _not_ automatically call the setup() method to finalise
 // construction of the ScheduleNode object. setup() must be called manually.
 ScheduleNode::ScheduleNode(
+  ScheduleId id,
   std::shared_ptr<rmf_traffic::schedule::Database> database_,
   const rclcpp::NodeOptions& options,
   NoAutomaticSetup)
-: Node("rmf_traffic_schedule_node", options),
+  : Node(generate_schedule_node_name(id), options),
   heartbeat_qos_profile(1),
   database(std::move(database_))
 {
-  node_id = generate_node_id(*this);
+  node_id = std::move(id);
   // Period, in milliseconds, for sending out a heartbeat signal to the monitor
   // node in the redundant pair
   declare_parameter<int>("heartbeat_period", 10000);
@@ -162,6 +179,21 @@ ScheduleNode::ScheduleNode(
 }
 
 //==============================================================================
+ScheduleNode::ScheduleNode(
+  std::shared_ptr<rmf_traffic::schedule::Database> database_,
+  const rclcpp::NodeOptions& options,
+  NoAutomaticSetup)
+: ScheduleNode(
+    generate_node_id(),
+    std::move(database_),
+    options,
+    no_automatic_setup)
+{
+  // Do nothing
+}
+
+
+//==============================================================================
 // This constructor will automatically call the setup() method to finalise
 // construction of the ScheduleNode object.
 ScheduleNode::ScheduleNode(
@@ -169,6 +201,7 @@ ScheduleNode::ScheduleNode(
   QueryMap registered_queries_,
   const rclcpp::NodeOptions& options)
 : ScheduleNode(
+    generate_node_id(),
     database_,
     options,
     no_automatic_setup)
@@ -196,6 +229,7 @@ ScheduleNode::ScheduleNode(
   const rclcpp::NodeOptions& options,
   NoAutomaticSetup)
 : ScheduleNode(  // Call the version that does not call setup(...)
+    generate_node_id(),
     std::make_shared<rmf_traffic::schedule::Database>(),
     options,
     no_automatic_setup)
@@ -430,7 +464,6 @@ void ScheduleNode::setup_conflict_topics_and_thread()
     {
       rmf_traffic::schedule::Mirror mirror;
       const auto query_all = rmf_traffic::schedule::query_all();
-      Version last_checked_version = 0;
 
       while (rclcpp::ok(get_node_options().context()) && !conflict_check_quit)
       {
@@ -442,11 +475,11 @@ void ScheduleNode::setup_conflict_topics_and_thread()
           std::unique_lock<std::mutex> lock(database_mutex);
           conflict_check_cv.wait_for(lock, std::chrono::milliseconds(100), [&]()
           {
-            return (database->latest_version() > last_checked_version)
+            return !(database->latest_version() <= mirror.latest_version())
             && !conflict_check_quit;
           });
 
-          if ( (database->latest_version() == last_checked_version
+          if ( (database->latest_version() == mirror.latest_version()
           && last_known_participants_version == current_participants_version)
           || conflict_check_quit)
           {
@@ -473,14 +506,28 @@ void ScheduleNode::setup_conflict_topics_and_thread()
             }
           }
 
-          next_patch = database->changes(query_all, last_checked_version);
+          const auto last_checked_version = mirror.latest_version().value_or(0);
+          next_patch = database->changes(query_all, mirror.latest_version());
           // TODO(MXG): Check whether the database really needs to remain locked
           // during this update.
           try
           {
-            mirror.update(*next_patch);
+            if (!mirror.update(*next_patch))
+            {
+              const std::string mirror_version = mirror.latest_version()?
+                std::to_string(*mirror.latest_version()) : "none";
+              const std::string patch_base = next_patch->base_version()?
+                std::to_string(*next_patch->base_version()) : "any";
+              RCLCPP_ERROR(
+                get_logger(),
+                "Failed to update conflict detection mirror. Mirror version: %s"
+                ", patch base: %s",
+                mirror_version.c_str(),
+                patch_base.c_str());
+              continue;
+            }
+
             view_changes = database->query(query_all, last_checked_version);
-            last_checked_version = next_patch->latest_version();
           }
           catch (const std::exception& e)
           {
@@ -575,34 +622,45 @@ void ScheduleNode::setup_redundancy()
 {
   start_heartbeat();
 
-  const auto reliable_transient_local = rclcpp::SystemDefaultsQoS()
-    .reliable().keep_last(1).transient_local();
+  const auto permanent_reliable_single_transient_local =
+    rclcpp::SystemDefaultsQoS()
+    .reliable()
+    .keep_last(1)
+    .transient_local();
 
   participants_info_pub =
     create_publisher<ParticipantsInfo>(
     rmf_traffic_ros2::ParticipantsInfoTopicName,
-    reliable_transient_local);
+    permanent_reliable_single_transient_local);
 
   queries_info_pub =
     create_publisher<ScheduleQueries>(
     rmf_traffic_ros2::QueriesInfoTopicName,
-    reliable_transient_local);
+    permanent_reliable_single_transient_local);
 
   startup_pub =
     create_publisher<ScheduleId>(
     rmf_traffic_ros2::ScheduleStartupTopicName,
-    reliable_transient_local);
+    permanent_reliable_single_transient_local);
+  startup_pub->publish(node_id);
+
+  const auto reliable_10_transient_local =
+    rclcpp::SystemDefaultsQoS()
+    .reliable()
+    .keep_last(10)
+    .transient_local();
 
   startup_sub =
     create_subscription<ScheduleId>(
     rmf_traffic_ros2::ScheduleStartupTopicName,
-    reliable_transient_local,
+    reliable_10_transient_local,
     [=](const ScheduleId::UniquePtr msg)
     {
       receive_startup_msg(*msg);
     });
 
   broadcast_queries();
+  broadcast_participants();
 }
 
 //==============================================================================
@@ -943,6 +1001,7 @@ void ScheduleNode::broadcast_participants()
 {
   ++current_participants_version;
   ParticipantsInfo msg;
+  msg.node_id = node_id;
 
   for (const auto& id: database->participant_ids())
   {
@@ -1190,9 +1249,13 @@ void ScheduleNode::receive_startup_msg(const ScheduleId& msg)
     return;
   }
 
-  if (is_newer_schedule(node_id, msg))
+  if (need_reconnection(node_id, msg))
   {
-    // Shut down this schedule node if a newer one has appeared
+    // Shut down this schedule node if a newer one has appeared. We use
+    // std::cout here because I'm not sure if RCLCPP_INFO will get published
+    // during a shutdown.
+    std::cout << "Shutting down traffic schedule node because a new one ["
+              << msg.node_uuid << "] has appeared." << std::endl;
     rclcpp::shutdown(this->get_node_base_interface()->get_context());
   }
   else if (node_id.timestamp == msg.timestamp)
@@ -1284,15 +1347,6 @@ bool ScheduleNode::update_query(
   msg.patch = rmf_traffic_ros2::convert(patch);
   msg.is_remedial_update = is_remedial;
   publisher->publish(msg);
-
-  if (is_remedial)
-  {
-    std::cout << " -- remedial patch participant count: " << patch.size()
-              << " vs " << msg.patch.participants.size()
-              << "\n -- database version " << msg.database_version << " vs "
-              << database->latest_version()
-              << std::endl;
-  }
 
   return true;
 }

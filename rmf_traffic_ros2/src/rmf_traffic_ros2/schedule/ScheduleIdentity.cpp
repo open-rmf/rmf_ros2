@@ -25,13 +25,16 @@ bool reconnect_schedule(
   rmf_traffic_msgs::msg::ScheduleIdentity& previous,
   const rmf_traffic_msgs::msg::ScheduleIdentity& incoming)
 {
-  const bool is_newer = is_newer_schedule(previous, incoming);
-  if (is_newer)
+  const bool need_reconnect = need_reconnection(previous, incoming);
+  if (need_reconnect || previous.node_uuid == incoming.node_uuid)
   {
+    // Reconnection is only needed if the incoming UUID is different from the
+    // one we already had. If it isn't different then we just update the
+    // timestamp that's been saved.
     previous = incoming;
   }
 
-  return is_newer;
+  return need_reconnect;
 }
 
 //==============================================================================
@@ -49,7 +52,7 @@ bool reconnect_schedule(
 }
 
 //==============================================================================
-bool is_newer_schedule(
+bool need_reconnection(
   const rmf_traffic_msgs::msg::ScheduleIdentity& previous,
   const rmf_traffic_msgs::msg::ScheduleIdentity& incoming)
 {
@@ -66,9 +69,6 @@ bool is_newer_schedule(
 
   if (incoming_is_newer)
   {
-    // Reconnection is only needed if the incoming UUID is different from the
-    // one we already had. If it isn't different then we just update the
-    // timestamp that's been saved.
     return previous.node_uuid != incoming.node_uuid;
   }
 
