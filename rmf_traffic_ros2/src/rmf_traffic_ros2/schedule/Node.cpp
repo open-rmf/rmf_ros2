@@ -1174,8 +1174,9 @@ void ScheduleNode::update_mirrors()
         RCLCPP_INFO(
           get_logger(),
           "[ScheduleNode::update_mirrors] Sending remedial update starting "
-          "from %s for query %ld",
+          "from %s going to %lu for query %ld",
           starting_from.c_str(),
+          database->latest_version(),
           query_id);
       }
     }
@@ -1224,6 +1225,16 @@ bool ScheduleNode::update_query(
   msg.patch = rmf_traffic_ros2::convert(patch);
   msg.is_remedial_update = is_remedial;
   publisher->publish(msg);
+
+  if (is_remedial)
+  {
+    std::cout << " -- remedial patch participant count: " << patch.size()
+              << " vs " << msg.patch.participants.size()
+              << "\n -- database version " << msg.database_version << " vs "
+              << database->latest_version()
+              << std::endl;
+  }
+
   return true;
 }
 
