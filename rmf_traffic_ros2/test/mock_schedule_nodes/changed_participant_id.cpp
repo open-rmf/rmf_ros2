@@ -31,7 +31,7 @@ class ChangedParticipantScheduleNode : public rmf_traffic_ros2::schedule::Schedu
 {
 public:
   ChangedParticipantScheduleNode(const rclcpp::NodeOptions& options)
-    : ScheduleNode(0, options)
+    : ScheduleNode(options)
   {
     modify_lists_timer = create_wall_timer(
       11s, [this]() { modify_participants_list(); });

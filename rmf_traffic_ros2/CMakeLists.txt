@@ -11,6 +11,8 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
 endif()
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_LIST_DIR}/cmake)
+
 include(GNUInstallDirs)
 
 find_package(ament_cmake REQUIRED)
@@ -24,6 +26,7 @@ find_package(rclcpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(LibUUID REQUIRED)
 
 # NOTE(MXG): libproj-dev does not currently distribute its cmake config-files
 # in Debian, so we can't use find_package and need to rely on pkg-config.
@@ -176,6 +179,8 @@ target_link_libraries(rmf_traffic_ros2
     yaml-cpp
     ZLIB::ZLIB
     PkgConfig::PROJ
+  PRIVATE
+    LibUUID::LibUUID
 )
 
 target_include_directories(rmf_traffic_ros2

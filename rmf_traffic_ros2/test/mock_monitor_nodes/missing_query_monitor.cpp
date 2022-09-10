@@ -34,16 +34,6 @@ public:
     : MonitorNode(callback, options, MonitorNode::no_automatic_setup)
   {}
 
-  void announce_fail_over() override
-  {
-    // We want to wait a while before announcing the fail over because we want
-    // the change in query information to be the trigger for mirrors to
-    // recognize the fail over. But if we sleep here before issuing the fail
-    // over notice, then the new schedule node won't be able to start until
-    // after the fail over notice is sent. Instead we will do nothing at all
-    // here and create a wall timer in main() that will issue the message.
-  }
-
   std::shared_ptr<rclcpp::Node> create_new_schedule_node() override
   {
     auto database =
@@ -54,7 +44,6 @@ public:
     modified_registered_queries.erase(modified_registered_queries.begin());
 
     auto node = std::make_shared<rmf_traffic_ros2::schedule::ScheduleNode>(
-      1, // Bump the node version by one
       database,
       modified_registered_queries,
       rclcpp::NodeOptions());
@@ -109,19 +98,7 @@ int main(int argc, char** argv)
   {
     auto active_schedule_node = active_node_future.get();
     // Delete the monitor to prevent it reacting to any future events
-    auto fail_over_event_pub = node->fail_over_event_pub;
     node.reset();
-
-    rclcpp::TimerBase::SharedPtr fail_over_timer;
-    fail_over_timer = active_schedule_node->create_wall_timer(
-      std::chrono::seconds(5),
-      [&fail_over_timer, fail_over_event_pub]()
-      {
-        fail_over_event_pub->publish(
-          rmf_traffic_msgs::build<rmf_traffic_msgs::msg::FailOverEvent>()
-          .new_schedule_node_version(1));
-        fail_over_timer.reset();
-      });
 
     RCLCPP_INFO(
       active_schedule_node->get_logger(),

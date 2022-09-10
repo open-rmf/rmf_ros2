@@ -27,14 +27,13 @@
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 #include <rmf_traffic_ros2/schedule/Patch.hpp>
 #include <rmf_traffic_ros2/schedule/Query.hpp>
+#include <rmf_traffic_ros2/schedule/ScheduleIdentity.hpp>
 
 #include <rmf_traffic_msgs/msg/mirror_update.hpp>
 #include <rmf_traffic_msgs/msg/participant.hpp>
 #include <rmf_traffic_msgs/msg/participants.hpp>
 #include <rmf_traffic_msgs/msg/schedule_query.hpp>
 #include <rmf_traffic_msgs/msg/schedule_queries.hpp>
-
-#include <rmf_traffic_msgs/msg/fail_over_event.hpp>
 
 #include <rmf_traffic_msgs/srv/register_query.hpp>
 #include <rmf_traffic_msgs/srv/request_changes.hpp>
@@ -62,15 +61,8 @@ using RegisterQueryFuture = rclcpp::Client<RegisterQuery>::SharedFuture;
 using ScheduleQuery = rmf_traffic_msgs::msg::ScheduleQuery;
 using ScheduleQueries = rmf_traffic_msgs::msg::ScheduleQueries;
 
-using FailOverEvent = rmf_traffic_msgs::msg::FailOverEvent;
-using FailOverEventSub = rclcpp::Subscription<FailOverEvent>::SharedPtr;
-
-namespace {
-bool is_new_version(const uint64_t expected_version, const uint64_t msg_version)
-{
-  return rmf_utils::modular(expected_version).less_than(msg_version);
-}
-}
+using ScheduleIdentity = rmf_traffic_msgs::msg::ScheduleIdentity;
+using ScheduleIdentitySub = rclcpp::Subscription<ScheduleIdentity>::SharedPtr;
 
 //==============================================================================
 class MirrorManager::Implementation
@@ -83,12 +75,12 @@ public:
 
   std::weak_ptr<rclcpp::Node> weak_node;
   rmf_traffic::schedule::Query query;
-  uint64_t query_id = 0;
+  uint64_t query_id;
+  rmf_traffic_msgs::msg::ScheduleIdentity schedule_node_id;
   bool require_query_validation = false;
-  uint64_t expected_node_version = 0;
   std::list<MirrorUpdate::SharedPtr> stashed_query_updates;
   Options options;
-  FailOverEventSub fail_over_event_sub;
+  ScheduleIdentitySub schedule_startup_sub;
   MirrorUpdateSub mirror_update_sub;
   ParticipantsInfoSub participants_info_sub;
   rclcpp::Subscription<ScheduleQueries>::SharedPtr queries_info_sub;
@@ -107,10 +99,12 @@ public:
     const std::shared_ptr<rclcpp::Node>& node,
     rmf_traffic::schedule::Query _query,
     Options _options,
-    uint64_t _query_id)
+    uint64_t _query_id,
+    ScheduleIdentity _schedule_node_id)
   : weak_node(node),
     query(std::move(_query)),
     query_id(_query_id),
+    schedule_node_id(_schedule_node_id),
     options(std::move(_options)),
     mirror(std::make_shared<rmf_traffic::schedule::Mirror>())
   {
@@ -120,12 +114,12 @@ public:
     request_changes_client = node->create_client<RequestChanges>(
       rmf_traffic_ros2::RequestChangesServiceName);
 
-    fail_over_event_sub = node->create_subscription<FailOverEvent>(
-      rmf_traffic_ros2::FailOverEventTopicName,
+    schedule_startup_sub = node->create_subscription<ScheduleIdentity>(
+      rmf_traffic_ros2::ScheduleStartupTopicName,
       rclcpp::SystemDefaultsQoS(),
-      [&](const FailOverEvent::SharedPtr msg)
+      [&](const ScheduleIdentity::SharedPtr msg)
       {
-        handle_fail_over_event(msg->new_schedule_node_version);
+        handle_startup_event(*msg);
       });
   }
 
@@ -140,31 +134,27 @@ public:
       rclcpp::SystemDefaultsQoS().reliable().keep_last(100).transient_local(),
       [=](const ScheduleQueries::SharedPtr msg)
       {
-        const bool is_old_version = rmf_utils::modular(
-          msg->node_version).less_than(expected_node_version);
-
-        if (is_old_version)
+        if (schedule_node_id.node_uuid != msg->node_id.node_uuid)
         {
-          // This is an outdated schedule node version, so we will ignore it
-          return;
+          if (!reconnect_schedule(schedule_node_id, msg->node_id))
+          {
+            // This is an old message so no need to take action
+            return;
+          }
         }
-
-        // In case the new schedule node version is higher, make sure we update
-        // the node version that we're expecting.
-        expected_node_version = msg->node_version;
 
         RCLCPP_INFO(
           node->get_logger(),
           "Mirror handling new sync of %lu queries "
-          "from schedule node version [%lu]",
+          "from schedule node [%s]",
           msg->queries.size(),
-          msg->node_version);
+          msg->node_id.node_uuid.c_str());
 
         // Find what should be our query based on our query ID
         std::optional<uint64_t> our_query = std::nullopt;
         for (std::size_t ii = 0; ii < msg->queries.size(); ++ii)
         {
-          if (msg->ids[ii] == query_id)
+          if (msg->query_ids[ii] == query_id)
           {
             our_query = ii;
             break;
@@ -325,30 +315,18 @@ public:
       return;
 
     // Verify that the expected schedule node version sent the update
-
-    if (rmf_utils::modular(expected_node_version).less_than(msg->node_version))
+    if (is_newer_schedule(schedule_node_id, msg->node_id))
     {
       RCLCPP_WARN(
         node->get_logger(),
-        "Received query update from unexpected schedule node version %lu "
-        "(<%lu); ignoring update",
-        msg->node_version,
-        expected_node_version);
-      return;
-    }
-    else if (msg->node_version > expected_node_version)
-    {
-      RCLCPP_WARN(
-        node->get_logger(),
-        "Received query update from unexpected schedule node version %lu "
-        "(>%lu); validating query registration",
-        msg->node_version,
-        expected_node_version);
+        "Received query update from unexpected newer schedule node [%s], "
+        "expected [%s]; validating query registration",
+        msg->node_id.node_uuid.c_str(),
+        schedule_node_id.node_uuid.c_str());
       require_query_validation = true;
-      expected_node_version = msg->node_version;
       stashed_query_updates.clear();
     }
-    else if (msg->node_version != expected_node_version)
+    else if (schedule_node_id.node_uuid != msg->node_id.node_uuid)
     {
       // Ignore this message because it's coming from an out-of-date version
       return;
@@ -513,9 +491,9 @@ public:
             return;
 
           const auto msg = response.get();
-          if (is_new_version(this->expected_node_version, msg->node_version))
+          if (!reconnect_schedule(schedule_node_id, msg->node_id))
           {
-            this->expected_node_version = msg->node_version;
+            return;
           }
 
           this->query_id = msg->query_id;
@@ -541,16 +519,14 @@ public:
     }
   }
 
-  void handle_fail_over_event(uint64_t new_schedule_node_version)
+  void handle_startup_event(const ScheduleIdentity& node_id)
   {
     const auto node = weak_node.lock();
     if (!node)
       return;
 
-    RCLCPP_INFO(
-      node->get_logger(),
-      "Handling fail over event. New expected schedule node version [%ld].",
-      new_schedule_node_version);
+    if (!reconnect_schedule(schedule_node_id, node_id))
+      return;
 
     // We need to validate that the replacement schedule node has our query
     // correctly. This will be reset to false once we have received the query
@@ -559,12 +535,13 @@ public:
     //
     // While true, all query updates received will be stashed in a list, and
     // will be popped in FIFO order and processed when this is reset to false.
-    if (is_new_version(expected_node_version, new_schedule_node_version))
-    {
-      require_query_validation = true;
-      // The new schedule node will be one version higher
-      expected_node_version = new_schedule_node_version;
-    }
+    require_query_validation = true;
+
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Handling schedule startup event. "
+      "New expected schedule node [%s].",
+      node_id.node_uuid.c_str());
   }
 
   template<typename... Args>
@@ -780,7 +757,8 @@ public:
       node,
       std::move(query),
       std::move(options),
-      registration.query_id);
+      registration.query_id,
+      registration.node_id);
   }
 
   ~Implementation()

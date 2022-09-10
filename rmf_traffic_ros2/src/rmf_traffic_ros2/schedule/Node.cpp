@@ -29,6 +29,7 @@
 #include <rmf_traffic_ros2/schedule/Writer.hpp>
 #include <rmf_traffic_ros2/schedule/ParticipantDescription.hpp>
 #include <rmf_traffic_ros2/schedule/Inconsistencies.hpp>
+#include <rmf_traffic_ros2/schedule/ScheduleIdentity.hpp>
 
 #include <rmf_traffic/DetectConflict.hpp>
 #include <rmf_traffic/schedule/Mirror.hpp>
@@ -36,9 +37,26 @@
 #include <rmf_utils/optional.hpp>
 
 #include <unordered_map>
+#include <uuid/uuid.h>
 
 namespace rmf_traffic_ros2 {
 namespace schedule {
+
+namespace {
+ScheduleNode::ScheduleId generate_node_id(const rclcpp::Node& node)
+{
+  uuid_t raw_uuid;
+  uuid_generate(raw_uuid);
+  // According to these docs, the size of the uuid string will be
+  // 36 bytes + '\n' so we make a buffer of 37.
+  char uuid[37];
+  uuid_unparse(raw_uuid, uuid);
+  const auto time = node.now();
+  return rmf_traffic_msgs::build<ScheduleNode::ScheduleId>()
+      .node_uuid(std::string(uuid))
+      .timestamp(time);
+}
+}
 
 //==============================================================================
 std::vector<ScheduleNode::ConflictSet> get_conflicts(
@@ -118,15 +136,14 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
 // This constructor will _not_ automatically call the setup() method to finalise
 // construction of the ScheduleNode object. setup() must be called manually.
 ScheduleNode::ScheduleNode(
-  NodeVersion node_version_,
   std::shared_ptr<rmf_traffic::schedule::Database> database_,
   const rclcpp::NodeOptions& options,
   NoAutomaticSetup)
 : Node("rmf_traffic_schedule_node", options),
-  node_version(node_version_),
   heartbeat_qos_profile(1),
   database(std::move(database_))
 {
+  node_id = generate_node_id(*this);
   // Period, in milliseconds, for sending out a heartbeat signal to the monitor
   // node in the redundant pair
   declare_parameter<int>("heartbeat_period", 10000);
@@ -148,12 +165,10 @@ ScheduleNode::ScheduleNode(
 // This constructor will automatically call the setup() method to finalise
 // construction of the ScheduleNode object.
 ScheduleNode::ScheduleNode(
-  NodeVersion node_version_,
   std::shared_ptr<rmf_traffic::schedule::Database> database_,
   QueryMap registered_queries_,
   const rclcpp::NodeOptions& options)
 : ScheduleNode(
-    node_version_,
     database_,
     options,
     no_automatic_setup)
@@ -165,10 +180,8 @@ ScheduleNode::ScheduleNode(
 // This constructor will automatically call the setup() method to finalise
 // construction of the ScheduleNode object.
 ScheduleNode::ScheduleNode(
-  NodeVersion node_version_,
   const rclcpp::NodeOptions& options)
 : ScheduleNode(  // Call the version that will automatically call setup(...)
-    node_version_,
     std::make_shared<rmf_traffic::schedule::Database>(),
     QueryMap(),
     options)
@@ -180,11 +193,9 @@ ScheduleNode::ScheduleNode(
 // This constructor will _not_ automatically call the setup() method to finalise
 // construction of the ScheduleNode object. setup() must be called manually.
 ScheduleNode::ScheduleNode(
-  NodeVersion node_version_,
   const rclcpp::NodeOptions& options,
   NoAutomaticSetup)
 : ScheduleNode(  // Call the version that does not call setup(...)
-    node_version_,
     std::make_shared<rmf_traffic::schedule::Database>(),
     options,
     no_automatic_setup)
@@ -564,15 +575,32 @@ void ScheduleNode::setup_redundancy()
 {
   start_heartbeat();
 
+  const auto reliable_transient_local = rclcpp::SystemDefaultsQoS()
+    .reliable().keep_last(1).transient_local();
+
   participants_info_pub =
     create_publisher<ParticipantsInfo>(
     rmf_traffic_ros2::ParticipantsInfoTopicName,
-    rclcpp::SystemDefaultsQoS().reliable().keep_last(1).transient_local());
+    reliable_transient_local);
 
   queries_info_pub =
     create_publisher<ScheduleQueries>(
     rmf_traffic_ros2::QueriesInfoTopicName,
-    rclcpp::SystemDefaultsQoS().reliable().keep_last(1).transient_local());
+    reliable_transient_local);
+
+  startup_pub =
+    create_publisher<ScheduleId>(
+    rmf_traffic_ros2::ScheduleStartupTopicName,
+    reliable_transient_local);
+
+  startup_sub =
+    create_subscription<ScheduleId>(
+    rmf_traffic_ros2::ScheduleStartupTopicName,
+    reliable_transient_local,
+    [=](const ScheduleId::UniquePtr msg)
+    {
+      receive_startup_msg(*msg);
+    });
 
   broadcast_queries();
 }
@@ -620,7 +648,7 @@ void ScheduleNode::register_query(
   rmf_traffic::schedule::Query new_query =
     rmf_traffic_ros2::convert(request->query);
 
-  response->node_version = node_version;
+  response->node_id = node_id;
 
   // Search for an existing query with the same search parameters
   for (auto& [existing_query_id, existing_query] : registered_queries)
@@ -796,11 +824,11 @@ void ScheduleNode::cull()
 void ScheduleNode::broadcast_queries()
 {
   ScheduleQueries msg;
-  msg.node_version = node_version;
+  msg.node_id = node_id;
 
   for (const auto& registered_query: registered_queries)
   {
-    msg.ids.push_back(registered_query.first);
+    msg.query_ids.push_back(registered_query.first);
 
     const rmf_traffic::schedule::Query& original =
       registered_queries.at(registered_query.first).query;
@@ -1154,6 +1182,37 @@ void ScheduleNode::publish_inconsistencies(
 }
 
 //==============================================================================
+void ScheduleNode::receive_startup_msg(const ScheduleId& msg)
+{
+  if (node_id.node_uuid == msg.node_uuid)
+  {
+    // Ignore the messages that are coming from ourself
+    return;
+  }
+
+  if (is_newer_schedule(node_id, msg))
+  {
+    // Shut down this schedule node if a newer one has appeared
+    rclcpp::shutdown(this->get_node_base_interface()->get_context());
+  }
+  else if (node_id.timestamp == msg.timestamp)
+  {
+    // Another node has been launched, but its timestamp is tied with ours. We
+    // should start racing against it.
+    RCLCPP_WARN(
+      get_logger(),
+      "Two schedule nodes [%s] and [%s], have tied for priority at time %d:%d",
+      node_id.node_uuid.c_str(),
+      msg.node_uuid.c_str(),
+      node_id.timestamp.sec,
+      node_id.timestamp.nanosec);
+
+    node_id.timestamp = now();
+    startup_pub->publish(node_id);
+  }
+}
+
+//==============================================================================
 void ScheduleNode::update_mirrors()
 {
   for (auto& [query_id, query_info] : registered_queries)
@@ -1220,7 +1279,7 @@ bool ScheduleNode::update_query(
     return false;
 
   rmf_traffic_msgs::msg::MirrorUpdate msg;
-  msg.node_version = node_version;
+  msg.node_id = node_id;
   msg.database_version = database->latest_version();
   msg.patch = rmf_traffic_ros2::convert(patch);
   msg.is_remedial_update = is_remedial;
@@ -1551,7 +1610,7 @@ void ScheduleNode::publish_negotiation_states()
 
 std::shared_ptr<rclcpp::Node> make_node(const rclcpp::NodeOptions& options)
 {
-  return std::make_shared<ScheduleNode>(0, options);
+  return std::make_shared<ScheduleNode>(options);
 }
 
 } // namespace schedule

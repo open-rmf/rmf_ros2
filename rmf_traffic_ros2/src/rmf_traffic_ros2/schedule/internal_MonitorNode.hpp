@@ -23,7 +23,6 @@
 #include <rclcpp/node.hpp>
 
 #include <rmf_traffic_msgs/msg/heartbeat.hpp>
-#include <rmf_traffic_msgs/msg/fail_over_event.hpp>
 #include <rmf_traffic_msgs/msg/participant.hpp>
 #include <rmf_traffic_msgs/msg/participants.hpp>
 #include <rmf_traffic_msgs/msg/schedule_query.hpp>
@@ -65,20 +64,12 @@ public:
 
   void start_heartbeat_listener();
 
-  using FailOverEvent = rmf_traffic_msgs::msg::FailOverEvent;
-  using FailOverEventPub = rclcpp::Publisher<FailOverEvent>;
-  FailOverEventPub::SharedPtr fail_over_event_pub;
-
-  void start_fail_over_event_broadcaster();
-  virtual void announce_fail_over();
-
   using ScheduleQuery = rmf_traffic_msgs::msg::ScheduleQuery;
   using ScheduleQueries = rmf_traffic_msgs::msg::ScheduleQueries;
   rclcpp::Subscription<ScheduleQueries>::SharedPtr queries_info_sub;
 
   void start_data_synchronisers();
 
-  int next_schedule_node_version = 1;
   virtual std::shared_ptr<rclcpp::Node> create_new_schedule_node();
 
   std::optional<rmf_traffic_ros2::schedule::MirrorManager> mirror;
