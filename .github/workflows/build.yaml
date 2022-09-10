@@ -1,26 +1,46 @@
 name: build
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '23 0 * * *'
 defaults:
   run:
     shell: bash
 jobs:
   build_and_test:
-    name: Build and test
-    runs-on: ubuntu-20.04
-    container:
-      image: rostooling/setup-ros-docker:ubuntu-focal-latest
     strategy:
+      fail-fast: false
       matrix:
         ros_distribution:
           - foxy
           - galactic
+          - humble
+        ubuntu_distribution:
+          - focal
+          - jammy
+        exclude:
+          - ros_distribution: foxy
+            ubuntu_distribution: jammy
+          - ros_distribution: galactic
+            ubuntu_distribution: jammy
+          - ros_distribution: humble
+            ubuntu_distribution: focal
+
+    name: Build and test
+    runs-on: ubuntu-22.04
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-${{ matrix.ubuntu_distribution }}-latest
     steps:
       - name: deps
-        uses: ros-tooling/setup-ros@v0.3
+        uses: ros-tooling/setup-ros@v0.4
         with:
           required-ros-distributions: ${{ matrix.ros_distribution }}
       - name: install_clang
         run: sudo apt update && sudo apt install -y clang clang-tools lld
+      - name: hack for uncrustify 0.72 problems # TODO: remove this when uncrustify 0.72 is fixed https://github.com/uncrustify/uncrustify/issues/3191
+        run: wget http://mirrors.kernel.org/ubuntu/pool/universe/u/uncrustify/uncrustify_0.69.0+dfsg1-1build1_amd64.deb && dpkg -i uncrustify_0.69.0+dfsg1-1build1_amd64.deb && apt install -f
+        if: ${{ matrix.ubuntu_distribution == 'jammy' }}
       - name: build
         uses: ros-tooling/action-ros-ci@v0.2
         env:
