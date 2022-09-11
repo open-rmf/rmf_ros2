@@ -227,18 +227,6 @@ public:
       server_uri = uri;
     }
 
-
-    std::optional<std::string> server_uri = std::nullopt;
-    const std::string uri =
-      node->declare_parameter("server_uri", std::string());
-    if (!uri.empty())
-    {
-      RCLCPP_INFO(
-        node->get_logger(),
-        "API server URI: [%s]", uri.c_str());
-      server_uri = uri;
-    }
-
     const auto qos = rclcpp::ServicesQoS().reliable();
     dispatch_states_pub = node->create_publisher<DispatchStatesMsg>(
       rmf_task_ros2::DispatchStatesTopicName, qos);
