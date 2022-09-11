@@ -121,6 +121,11 @@ struct MoveRobot
     std::optional<rmf_traffic::Duration> _tail_period;
     std::optional<rmf_traffic::Time> _last_tail_bump;
     std::size_t _next_path_index = 0;
+
+    rclcpp::TimerBase::SharedPtr _update_timeout_timer;
+    rclcpp::Time _last_update_rostime;
+    // TODO(MXG): Make this timeout configurable by users
+    rmf_traffic::Duration _update_timeout = std::chrono::seconds(10);
   };
 };
 
@@ -131,6 +136,30 @@ void MoveRobot::Action::operator()(const Subscriber& s)
   if (!command)
     return;
 
+  _last_update_rostime = _context->node()->now();
+  _update_timeout_timer = _context->node()->try_create_wall_timer(
+    _update_timeout, [w = weak_from_this()]()
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      const auto now = self->_context->node()->now();
+      if (now < self->_last_update_rostime + self->_update_timeout)
+      {
+        // The simulation is paused or running slowly, so we should allow more
+        // patience before assuming that there's been a timeout.
+        return;
+      }
+
+      self->_last_update_rostime = now;
+
+      // The RobotCommandHandle seems to have frozen up. Perhaps a bug in the
+      // user's code has caused the RobotCommandHandle to drop the command. We
+      // will request a replan.
+      self->_context->request_replan();
+    });
+
   _context->command()->follow_new_path(
     _waypoints,
     [s, w_action = weak_from_this(), r = _context->requester_id()](
@@ -139,6 +168,9 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       const auto action = w_action.lock();
       if (!action)
         return;
+
+      action->_last_update_rostime = action->_context->node()->now();
+      action->_update_timeout_timer->reset();
 
       if (path_index == action->_waypoints.size()-1
       && estimate < std::chrono::seconds(1)
