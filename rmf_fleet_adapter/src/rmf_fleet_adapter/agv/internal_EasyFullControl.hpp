@@ -22,6 +22,9 @@
 
 #include <rmf_fleet_msgs/msg/lane_request.hpp>
 #include <rmf_fleet_msgs/msg/closed_lanes.hpp>
+#include <rmf_fleet_msgs/msg/dock_summary.hpp>
+#include <rmf_fleet_msgs/msg/mode_request.hpp>
+#include <rmf_fleet_msgs/msg/location.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -113,6 +116,7 @@ public:
     std::size_t charger_waypoint,
     GetPosition get_position,
     std::function<ProcessCompleted(const Target target)> navigate,
+    std::function<ProcessCompleted(const std::string& dock_name)> dock,
     ProcessCompleted stop);
 
   void follow_new_path(
@@ -150,6 +154,8 @@ private:
 
   void start_follow();
 
+  void start_dock();
+
   std::optional<std::size_t> get_current_lane();
 
   double dist(const Eigen::Vector3d& a, const Eigen::Vector3d& b);
@@ -167,6 +173,7 @@ private:
   const std::size_t _charger_waypoint;
   GetPosition _get_position;
   std::function<ProcessCompleted(const Target target)> _navigate; // in robot coordinates
+  std::function<ProcessCompleted(const std::string& dock_name)> _dock;
   ProcessCompleted _stop;
   RobotUpdateHandlePtr _updater;
   bool _is_charger_set;
@@ -181,14 +188,25 @@ private:
 
   std::optional<PlanWaypoint> _target_waypoint;
   std::vector<PlanWaypoint> _remaining_waypoints;
+  std::size_t _dock_waypoint_index;
+  std::size_t _action_waypoint_index;
+
+  std::string _dock_name;
+  std::unordered_map<std::string, std::vector<rmf_fleet_msgs::msg::Location>> _docks;
 
   std::thread _update_thread;
   std::thread _follow_thread;
+  std::thread _dock_thread;
   std::atomic_bool _stop_follow_thread;
-  std::atomic_bool _navigation_completed;
+  std::atomic_bool _stop_dock_thread;
   ProcessCompleted _navigation_cb;
+  ProcessCompleted _docking_cb;
   RequestCompleted _path_finished_callback;
+  RequestCompleted _docking_finished_callback;
   ArrivalEstimator _next_arrival_estimator;
+
+  rclcpp::Subscription<rmf_fleet_msgs::msg::DockSummary>::SharedPtr _dock_summary_sub;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr _action_execution_sub;
 
 };
 

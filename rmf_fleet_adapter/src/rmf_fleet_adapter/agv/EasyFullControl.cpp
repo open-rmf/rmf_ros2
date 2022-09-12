@@ -27,6 +27,9 @@
 #include <rmf_fleet_msgs/msg/lane_request.hpp>
 #include <rmf_fleet_msgs/msg/closed_lanes.hpp>
 #include <rmf_fleet_msgs/msg/interrupt_request.hpp>
+#include <rmf_fleet_msgs/msg/dock_summary.hpp>
+#include <rmf_fleet_msgs/msg/mode_request.hpp>
+#include <rmf_fleet_msgs/msg/robot_mode.hpp>
 
 // ROS2 utilities for rmf_traffic
 #include <rmf_traffic_ros2/Time.hpp>
@@ -40,6 +43,7 @@
 #include <rmf_battery/agv/SimpleMotionPowerSink.hpp>
 #include <rmf_battery/agv/SimpleDevicePowerSink.hpp>
 
+#include "rclcpp/rclcpp.hpp"
 #include "Node.hpp"
 #include <thread>
 #include <yaml-cpp/yaml.h>
@@ -55,7 +59,6 @@ class EasyFullControl::Configuration::Implementation
 {
 public:
 
-  const std::string fleet_name;
   const std::string config_file;
   const std::string nav_graph_path;
   std::optional<std::string> server_uri;
@@ -64,25 +67,17 @@ public:
 
 //==============================================================================
 EasyFullControl::Configuration::Configuration(
-  const std::string& fleet_name,
   const std::string& config_file,
   const std::string& nav_graph_path,
   std::optional<std::string> server_uri)
 : _pimpl(rmf_utils::make_impl<Implementation>(
       Implementation{
-        std::move(fleet_name),
         std::move(config_file),
         std::move(nav_graph_path),
         std::move(server_uri)
       }))
 {
   // Do nothing
-}
-
-//==============================================================================
-const std::string& EasyFullControl::Configuration::fleet_name() const
-{
-  return _pimpl->fleet_name;
 }
 
 //==============================================================================
@@ -157,6 +152,7 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
   std::size_t charger_waypoint,
   GetPosition get_position,
   std::function<ProcessCompleted(const Target target)> navigate,
+  std::function<ProcessCompleted(const std::string& dock_name)> dock,
   ProcessCompleted stop)
 : _node(node),
   _fleet_name(fleet_name),
@@ -171,6 +167,7 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
   _charger_waypoint(charger_waypoint),
   _get_position(std::move(get_position)),
   _navigate(std::move(navigate)),
+  _dock(std::move(dock)),
   _stop(std::move(stop))
 {
   _updater = nullptr;
@@ -184,6 +181,45 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
     _on_waypoint = start.waypoint();
     _last_known_waypoint = start.waypoint();
   }
+
+  _dock_summary_sub =
+    _node->create_subscription<rmf_fleet_msgs::msg::DockSummary>(
+    "dock_summary",
+    rclcpp::QoS(10).reliable().keep_last(1).transient_local(),
+    [this](rmf_fleet_msgs::msg::DockSummary::UniquePtr msg)
+    {
+      for (const auto fleet : msg->docks)
+      {
+        if (fleet.fleet_name == _fleet_name)
+        {
+          for (const auto dock : fleet.params)
+          {
+            _docks[dock.start] = dock.path;
+            std::cout << "---------- dock start is " << dock.start << std::endl;
+          }
+        }
+      }
+    });
+
+  _action_execution_sub =
+    _node->create_subscription<rmf_fleet_msgs::msg::ModeRequest>(
+    "action_execution_notice",
+    rclcpp::SystemDefaultsQoS(),
+    [this](rmf_fleet_msgs::msg::ModeRequest::UniquePtr msg)
+    {
+      if (msg->fleet_name.empty() ||
+          msg->fleet_name != _fleet_name ||
+          msg->robot_name.empty())
+      {
+        return;
+      }
+
+      if (msg->mode.mode == rmf_fleet_msgs::msg::RobotMode::MODE_IDLE)
+      {
+        // TODO: figure out how to bring in action executor
+        // _complete_robot_action();
+      }
+    });
 
   _initialized = true;
 }
@@ -520,7 +556,125 @@ void EasyFullControl::EasyCommandHandle::dock(
   const std::string& dock_name,
   RequestCompleted docking_finished_callback)
 {
-  // TODO
+  std::cout << "------------ WILL I EVER GET PRINTED" << std::endl;
+  RCLCPP_INFO(
+    _node->get_logger(),
+    "Robot [%s] received a docking request to [%s]...",
+    _robot_name.c_str(),
+    dock_name.c_str());
+
+  // stop();
+  if (_dock_thread.joinable())
+  {
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "[stop] _dock_thread present. Calling join");
+    _stop_dock_thread = true;
+    _dock_thread.join();
+  }
+
+  _dock_name = dock_name;
+  assert(docking_finished_callback != nullptr);
+  _docking_finished_callback = std::move(docking_finished_callback);
+
+  // Get the waypoint that the robot is trying to dock into
+  auto dock_waypoint = _graph->find_waypoint(_dock_name);
+  assert(dock_waypoint);
+  _dock_waypoint_index = dock_waypoint->index();
+
+  _stop_dock_thread = false;
+  _dock_thread = std::thread(
+    [w = weak_from_this()]()
+    {
+      auto me = w.lock();
+      if (!me)
+        return;
+      me->start_dock();
+    });
+}
+
+//==============================================================================
+void EasyFullControl::EasyCommandHandle::start_dock()
+{
+  _docking_cb = _dock(_dock_name);
+
+  // Request the robot to start the relevant process
+  while (!_docking_cb)
+  {
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "Requesting robot [%s] to dock at [%s]",
+      _robot_name.c_str(), _dock_name.c_str());
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+
+  std::lock_guard<std::mutex> lock(_mutex);
+  _on_waypoint = std::nullopt;
+  _on_lane = std::nullopt;
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  // Check if requested dock name is valid
+  if (_docks.find(_dock_name) == _docks.end())
+  {
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "Requested dock not found, aborting docking");
+      return;
+  }
+
+  std::vector<Eigen::Vector3d> positions;
+  for (const auto& loc : _docks[_dock_name])
+  {
+    Eigen::Vector3d wp(loc.x, loc.y, loc.yaw);
+    positions.push_back(wp);
+  }
+  RCLCPP_INFO(
+    _node->get_logger(),
+    "Robot [%s] is docking...",
+    _robot_name.c_str());
+
+  while (!_docking_cb())
+  {
+    //
+    if (positions.empty())
+    {
+      continue;
+    }
+
+    const auto& now = std::chrono::steady_clock::time_point(
+      std::chrono::nanoseconds(_node->get_clock()->now().nanoseconds()));
+    const auto trajectory = rmf_traffic::agv::Interpolate::positions(
+      *_traits,
+      now,
+      positions);
+    if (trajectory.size() < 2)
+      return;
+
+    if (auto participant =
+      _updater->unstable().get_participant())
+    {
+      participant->set(
+        participant->assign_plan_id(),
+        {rmf_traffic::Route{_map_name, trajectory}});
+    }
+
+    // Check if we need to abort
+    if (_stop_dock_thread)
+    {
+      RCLCPP_INFO(
+        _node->get_logger(),
+        "Aborting docking");
+        return;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+
+  _on_waypoint = _dock_waypoint_index;
+  // _dock_waypoint_index = std::nullptr;
+  _docking_finished_callback();
+  RCLCPP_INFO(
+    _node->get_logger(),
+    "Robot [%s] has completed docking");
 }
 
 //==============================================================================
@@ -798,6 +952,7 @@ bool EasyFullControl::add_robot(
   Start pose,
   GetPosition get_position,
   std::function<ProcessCompleted(const EasyFullControl::Target target)> navigate,
+  std::function<ProcessCompleted(const std::string& dock_name)> dock,
   ProcessCompleted stop,
   RobotUpdateHandle::ActionExecutor action_executor)
 {
@@ -873,6 +1028,7 @@ bool EasyFullControl::add_robot(
     charger_waypoint_index,
     get_position,
     navigate,
+    dock,
     stop);
 
   if (command->initialized())
@@ -914,8 +1070,11 @@ bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter
 {
   _adapter = adapter;
   const auto& node = adapter->node();
-  _fleet_name = _config.fleet_name();
   _fleet_config = _config.fleet_config();
+
+  const YAML::Node rmf_fleet = _fleet_config["rmf_fleet"];
+  _fleet_name = _fleet_config["rmf_fleet"]["name"].as<std::string>();
+
   _traits = std::make_shared<VehicleTraits>(_config.vehicle_traits());
 
   _graph = std::make_shared<Graph>(_config.graph());
@@ -977,14 +1136,12 @@ bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter
       _closed_lanes_pub->publish(state_msg);
     });
 
-  // Set up parameters required for task planner
-  const YAML::Node rmf_fleet = _fleet_config["rmf_fleet"];
-
   // Set the fleet state topic publish period
   const double fleet_state_frequency = rmf_fleet["publish_fleet_state"].as<double>();
   _fleet_handle->fleet_state_topic_publish_period(
     rmf_traffic::time::from_seconds(1.0/fleet_state_frequency));
 
+  // Set up parameters required for task planner
   // Battery system
   const YAML::Node battery = rmf_fleet["battery_system"];
   const double voltage = battery["voltage"].as<double>();

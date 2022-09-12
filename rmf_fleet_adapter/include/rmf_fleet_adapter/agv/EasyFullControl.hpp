@@ -49,9 +49,6 @@ public:
 
     /// Constructor
     ///
-    /// \param[in] fleet_name
-    ///   The name of the fleet that is being added.
-    ///
     /// \param[in] config_file
     ///   The config file that provides important parameters for setting up the fleet adapter.
     ///
@@ -62,13 +59,9 @@ public:
     ///   The URI for the websocket server that receives updates on tasks and
     ///   states. If nullopt, data will not be published.
     Configuration(
-      const std::string& fleet_name,
       const std::string& config_file,
       const std::string& nav_graph_path,
       std::optional<std::string> server_uri = std::nullopt);
-
-    // Get a const reference to the fleet name.
-    const std::string& fleet_name() const;
 
     // Get the fleet config yaml node.
     const YAML::Node fleet_config() const;
@@ -144,6 +137,10 @@ public:
   ///   The API function for navigating your robot to a pose.
   ///   Returns a ProcessCompleted callback to check status of navigation task.
   ///
+  /// \param[in] dock
+  ///   The API function for starting a dock process.
+  ///   Returns a ProcessCompleted callback to check status of docking task.
+  ///
   /// \param[in] stop
   ///   The API for command your robot to stop.
   ///   Returns a bool indicating whether stop was successful.
@@ -155,6 +152,7 @@ public:
     Start pose,
     GetPosition get_position,
     std::function<ProcessCompleted(const Target target)> navigate,
+    std::function<ProcessCompleted(const std::string& dock_name)> dock,
     ProcessCompleted stop,
     RobotUpdateHandle::ActionExecutor action_executor);
 
