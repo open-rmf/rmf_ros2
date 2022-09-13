@@ -80,8 +80,8 @@ public:
     rmf_utils::impl_ptr<Implementation> _pimpl;
   };
 
-  struct Target {
-
+  struct Target
+  {
     // The (x, y, yaw) coordinates that the robot should navigate to.
     Eigen::Vector3d pose;
 
@@ -92,8 +92,8 @@ public:
     std::optional<double> speed_limit;
   };
 
-  struct Position {
-
+  struct Position
+  {
     // Current position of the robot.
     Eigen::Vector3d position;
 
@@ -115,7 +115,8 @@ public:
   /// \param[in] config
   ///   The Configuration for the adapter that contains parameters used by the
   ///   fleet robots.
-  static std::shared_ptr<EasyFullControl> make(Configuration config, const AdapterPtr& adapter);
+  static std::shared_ptr<EasyFullControl> make(
+    Configuration config, const AdapterPtr& adapter);
 
   using Start = std::variant<Planner::Start, Eigen::Vector3d>;
   using GetPosition = std::function<Position()>;
@@ -166,7 +167,8 @@ private:
 };
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
-using EasyCommandHandlePtr = std::shared_ptr<EasyFullControl::EasyCommandHandle>;
+using EasyCommandHandlePtr =
+  std::shared_ptr<EasyFullControl::EasyCommandHandle>;
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

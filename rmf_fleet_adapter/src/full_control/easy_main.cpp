@@ -59,12 +59,14 @@ public:
     _fleet_name = fleet_name;
 
     // Set up topics
-    _robot_state_sub = node->create_subscription<rmf_fleet_msgs::msg::RobotState>(
+    _robot_state_sub =
+      node->create_subscription<rmf_fleet_msgs::msg::RobotState>(
       "/robot_state",
       rclcpp::QoS(10),
       std::bind(&FleetManager::robot_state_cb, this, std::placeholders::_1));
 
-    _path_request_pub = node->create_publisher<rmf_fleet_msgs::msg::PathRequest>(
+    _path_request_pub =
+      node->create_publisher<rmf_fleet_msgs::msg::PathRequest>(
       rmf_fleet_adapter::PathRequestTopicName,
       rclcpp::SystemDefaultsQoS());
 
@@ -126,7 +128,7 @@ public:
     path_request.fleet_name = _fleet_name;
     path_request.robot_name = robot_name;
     path_request.task_id = std::to_string(++_task_id);
-  
+
     // Append current pose to path request
     rmf_fleet_msgs::msg::Location cur_loc;
     auto location = _robots[robot_name].state.location;
@@ -164,13 +166,13 @@ public:
     _robots[robot_name].destination = target.pose;
 
     auto navigation_completed =
-    [this, robot_name]()
-    {
-      if (!this->_robots[robot_name].destination.has_value())
-        return true;
-      else
-        return false;
-    };
+      [this, robot_name]()
+      {
+        if (!this->_robots[robot_name].destination.has_value())
+          return true;
+        else
+          return false;
+      };
 
     return navigation_completed;
   }
@@ -182,7 +184,7 @@ public:
     stop_request.fleet_name = _fleet_name;
     stop_request.robot_name = robot_name;
     stop_request.task_id = std::to_string(++_task_id);
-  
+
     // Append current pose to path request
     rmf_fleet_msgs::msg::Location cur_loc;
     auto location = _robots[robot_name].state.location;
@@ -219,7 +221,7 @@ public:
     path_request.fleet_name = _fleet_name;
     path_request.robot_name = robot_name;
     path_request.task_id = std::to_string(++_task_id);
-  
+
     // Append current pose to path request
     rmf_fleet_msgs::msg::Location cur_loc;
     auto location = _robots[robot_name].state.location;
@@ -242,16 +244,19 @@ public:
       _fleet_name.c_str(), robot_name.c_str());
     _path_request_pub->publish(path_request);
 
-    _robots[robot_name].destination = Eigen::Vector3d(target_loc.x, target_loc.y, target_loc.yaw);
+    _robots[robot_name].destination = Eigen::Vector3d(
+      target_loc.x,
+      target_loc.y,
+      target_loc.yaw);
 
     auto docking_completed =
-    [this, robot_name]()
-    {
-      if (!this->_robots[robot_name].destination.has_value())
-        return true;
-      else
-        return false;
-    };
+      [this, robot_name]()
+      {
+        if (!this->_robots[robot_name].destination.has_value())
+          return true;
+        else
+          return false;
+      };
 
     return docking_completed;
   }
@@ -271,20 +276,20 @@ public:
       if (_robots.find(msg.name) == _robots.end())
         return;
 
-        const auto me = this->lock();
-        if (!me)
-          return;
+      const auto me = this->lock();
+      if (!me)
+        return;
 
-        std::lock_guard<std::recursive_mutex> lock(_mutex);
+      std::lock_guard<std::recursive_mutex> lock(_mutex);
 
-        _robots[msg.name].state = msg;
+      _robots[msg.name].state = msg;
 
-        // Check if reached destination
-        if ((msg.mode.mode == 0 || msg.mode.mode == 1) &&
-            msg.path.size() == 0)
-        {
-          _robots[msg.name].destination = std::nullopt;
-        }
+      // Check if reached destination
+      if ((msg.mode.mode == 0 || msg.mode.mode == 1) &&
+        msg.path.size() == 0)
+      {
+        _robots[msg.name].destination = std::nullopt;
+      }
     }
   }
 
@@ -300,12 +305,16 @@ public:
   std::shared_ptr<rclcpp::Node> _node;
   std::string _fleet_name;
   std::unordered_map<std::string, State> _robots;
-  std::unordered_map<std::string, std::vector<rmf_fleet_msgs::msg::Location>> _docks;
+  std::unordered_map<std::string,
+    std::vector<rmf_fleet_msgs::msg::Location>> _docks;
   int _task_id = -1;
 
-  rclcpp::Subscription<rmf_fleet_msgs::msg::RobotState>::SharedPtr _robot_state_sub;
-  rclcpp::Publisher<rmf_fleet_msgs::msg::PathRequest>::SharedPtr _path_request_pub;
-  rclcpp::Subscription<rmf_fleet_msgs::msg::DockSummary>::SharedPtr _dock_summary_sub;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::RobotState>::SharedPtr
+    _robot_state_sub;
+  rclcpp::Publisher<rmf_fleet_msgs::msg::PathRequest>::SharedPtr
+    _path_request_pub;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::DockSummary>::SharedPtr
+    _dock_summary_sub;
 
   std::recursive_mutex _mutex;
   std::unique_lock<std::recursive_mutex> lock()
@@ -351,8 +360,10 @@ Eigen::Vector2d get_waypoint(
     {v_nom, a_nom},
     {w_nom, b_nom},
     rmf_traffic::Profile{
-      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(footprint_rad),
-      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(vicinity_rad)
+      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
+        footprint_rad),
+      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
+        vicinity_rad)
     }
   };
   traits.get_differential()->set_reversible(reversible);
@@ -387,7 +398,8 @@ int main(int argc, char* argv[])
     adapter->node()->declare_parameter(nav_graph_param_name, std::string());
   if (nav_graph_path.empty())
   {
-    std::cout << "Missing [" << nav_graph_param_name.c_str() << "] parameter" << std::endl;
+    std::cout << "Missing [" << nav_graph_param_name.c_str()
+              << "] parameter" << std::endl;
     return 1;
   }
 
@@ -396,12 +408,14 @@ int main(int argc, char* argv[])
     adapter->node()->declare_parameter(config_param_name, std::string());
   if (config_file.empty())
   {
-    std::cout << "Missing [" << config_param_name.c_str() << "] parameter" << std::endl;
+    std::cout << "Missing [" << config_param_name.c_str()
+              << "] parameter" << std::endl;
     return 1;
   }
 
   std::optional<std::string> server_uri = std::nullopt;
-  const std::string uri = adapter->node()->declare_parameter("server_uri", std::string());
+  const std::string uri =
+    adapter->node()->declare_parameter("server_uri", std::string());
   if (!uri.empty())
   {
     RCLCPP_INFO(
@@ -412,9 +426,10 @@ int main(int argc, char* argv[])
   }
 
   // Set up Configuration to easily parse parameters to Adapter
-  auto adapter_config = EasyFullControl::Configuration(config_file,
-                                                       nav_graph_path,
-                                                       server_uri);
+  auto adapter_config = EasyFullControl::Configuration(
+    config_file,
+    nav_graph_path,
+    server_uri);
 
   const auto easy_adapter = EasyFullControl::make(adapter_config, adapter);
   if (!easy_adapter)
@@ -428,20 +443,23 @@ int main(int argc, char* argv[])
   const auto config_yaml = YAML::LoadFile(config_file);
   std::vector<std::string> robot_names;
   YAML::Node robot_config = config_yaml["robots"];
-  for (YAML::const_iterator it=robot_config.begin(); it != robot_config.end(); ++it)
+  for (YAML::const_iterator it = robot_config.begin();
+    it != robot_config.end();
+    ++it)
   {
     std::string robot = it->first.as<std::string>();
     robot_names.push_back(robot);
     RCLCPP_INFO(adapter->node()->get_logger(),
-    "Robot detected: %s",
-    robot.c_str());
+      "Robot detected: %s",
+      robot.c_str());
   }
 
-  const std::string fleet_name = config_yaml["rmf_fleet"]["name"].as<std::string>();
+  const std::string fleet_name =
+    config_yaml["rmf_fleet"]["name"].as<std::string>();
   auto fleet_manager = std::make_shared<FleetManager>();
   fleet_manager->initialize_manager(adapter->node(),
-                                    fleet_name,
-                                    robot_names);
+    fleet_name,
+    robot_names);
 
   //----------------------------------------------------------------------------
   // Add robots to fleet adapter
@@ -482,15 +500,13 @@ int main(int argc, char* argv[])
       const nlohmann::json& description,
       RobotUpdateHandle::ActionExecution execution)
       {
-        return fleet_manager->action_executor(robot, category, description, execution);
+        return fleet_manager->action_executor(
+          robot, category, description, execution);
       };
 
     const YAML::Node robot_conf = robot_config[robot]["rmf_config"]["start"];
     std::string start_wp = robot_conf["waypoint"].as<std::string>();
-    RCLCPP_INFO(adapter->node()->get_logger(),
-    start_wp.c_str());
 
-    // auto start_pose = get_position().position;
     auto wp = get_waypoint(start_wp, nav_graph_path, config_yaml);
     Eigen::Vector3d start_pose(wp.x(), wp.y(), 0.0);
     RCLCPP_INFO(adapter->node()->get_logger(),

@@ -121,8 +121,10 @@ VehicleTraits EasyFullControl::Configuration::vehicle_traits() const
     {v_nom, a_nom},
     {w_nom, b_nom},
     rmf_traffic::Profile{
-      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(footprint_rad),
-      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(vicinity_rad)
+      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
+        footprint_rad),
+      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
+        vicinity_rad)
     }
   };
   traits.get_differential()->set_reversible(reversible);
@@ -209,8 +211,8 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
     [this](rmf_fleet_msgs::msg::ModeRequest::UniquePtr msg)
     {
       if (msg->fleet_name.empty() ||
-          msg->fleet_name != _fleet_name ||
-          msg->robot_name.empty())
+        msg->fleet_name != _fleet_name ||
+        msg->robot_name.empty())
         return;
 
       if (msg->mode.mode == rmf_fleet_msgs::msg::RobotMode::MODE_IDLE)
@@ -276,7 +278,8 @@ void EasyFullControl::EasyCommandHandle::follow_new_path(
     RCLCPP_INFO(
       _node->get_logger(),
       "\t[%.2f,%.2f, %.2f]: %d",
-      wp.position()[0], wp.position()[1], wp.position()[1], wp.time().time_since_epoch().count());
+      wp.position()[0], wp.position()[1], wp.position()[1],
+      wp.time().time_since_epoch().count());
   }
 
   // stop();
@@ -303,7 +306,8 @@ void EasyFullControl::EasyCommandHandle::follow_new_path(
     RCLCPP_INFO(
       _node->get_logger(),
       "[%.2f,%.2f, %.2f]: %d",
-      wp.position[0], wp.position[1], wp.position[1], wp.time.time_since_epoch().count());
+      wp.position[0], wp.position[1], wp.position[1],
+      wp.time.time_since_epoch().count());
   }
 
   _next_arrival_estimator = std::move(next_arrival_estimator);
@@ -353,20 +357,20 @@ void EasyFullControl::EasyCommandHandle::start_follow()
         transformed_pose[0], transformed_pose[1], transformed_pose[2]);
 
       // The speed limit is set as the minimum of all the approach lanes' limits
-        std::optional<double> speed_limit = std::nullopt;
-        for (const auto& lane_idx : _target_waypoint.value().approach_lanes)
+      std::optional<double> speed_limit = std::nullopt;
+      for (const auto& lane_idx : _target_waypoint.value().approach_lanes)
+      {
+        const auto& lane = _graph->get_lane(lane_idx);
+        const auto& lane_limit = lane.properties().speed_limit();
+        if (lane_limit.has_value())
         {
-          const auto& lane = _graph->get_lane(lane_idx);
-          const auto& lane_limit = lane.properties().speed_limit();
-          if (lane_limit.has_value())
-          {
-            if (speed_limit.has_value())
-              speed_limit = std::min(speed_limit.value(), lane_limit.value());
-            else
-              speed_limit = lane_limit.value();
-          }
+          if (speed_limit.has_value())
+            speed_limit = std::min(speed_limit.value(), lane_limit.value());
+          else
+            speed_limit = lane_limit.value();
         }
-      
+      }
+
       // Send target pose to robot
       Target target;
       target.pose = transformed_pose;
@@ -468,8 +472,9 @@ void EasyFullControl::EasyCommandHandle::start_follow()
         _node->get_logger(),
         "State: Waiting");
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      const rmf_traffic::Time& now = std::chrono::steady_clock::time_point(
-            std::chrono::nanoseconds(_node->get_clock()->now().nanoseconds()));
+      const rmf_traffic::Time& now =
+        std::chrono::steady_clock::time_point(
+        std::chrono::nanoseconds(_node->get_clock()->now().nanoseconds()));
 
       if (_target_waypoint.has_value())
       {
@@ -619,7 +624,7 @@ void EasyFullControl::EasyCommandHandle::start_dock()
     RCLCPP_INFO(
       _node->get_logger(),
       "Requested dock not found, aborting docking");
-      return;
+    return;
   }
 
   std::vector<Eigen::Vector3d> positions;
@@ -663,7 +668,7 @@ void EasyFullControl::EasyCommandHandle::start_dock()
       RCLCPP_INFO(
         _node->get_logger(),
         "Aborting docking");
-        return;
+      return;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
@@ -759,18 +764,20 @@ void EasyFullControl::EasyCommandHandle::update_position(
     RCLCPP_DEBUG(
       _node->get_logger(),
       "[%s] Calling update with position [%.2f, %.2f, %.2f] and lane count [%d]",
-      _robot_name.c_str(), _position[0], _position[1], _position[2], lanes.size());
+      _robot_name.c_str(), _position[0], _position[1], _position[2],
+      lanes.size());
     _updater->update_position(_position, lanes);
   }
   // If robot is merging into a waypoint
-  else if(_target_waypoint.has_value() &&
+  else if (_target_waypoint.has_value() &&
     _target_waypoint.value().graph_index.has_value())
   {
     const auto& graph_index = _target_waypoint.value().graph_index.value();
     RCLCPP_DEBUG(
       _node->get_logger(),
       "[%s] Calling update with position [%.2f, %.2f, %.2f] and target waypoint [%d]",
-      _robot_name.c_str(), _position[0], _position[1], _position[2], graph_index);
+      _robot_name.c_str(), _position[0], _position[1], _position[2],
+      graph_index);
     _updater->update_position(_position, graph_index);
   }
   // If robot is docking
@@ -780,7 +787,8 @@ void EasyFullControl::EasyCommandHandle::update_position(
     RCLCPP_DEBUG(
       _node->get_logger(),
       "[%s] Calling update with position [%.2f, %.2f, %.2f] and dock waypoint [%d]",
-      _robot_name.c_str(), _position[0], _position[1], _position[2], graph_index);
+      _robot_name.c_str(), _position[0], _position[1], _position[2],
+      graph_index);
     _updater->update_position(_position, graph_index);
   }
   // If robot is performing an action
@@ -790,7 +798,8 @@ void EasyFullControl::EasyCommandHandle::update_position(
     RCLCPP_DEBUG(
       _node->get_logger(),
       "[%s] Calling update with position [%.2f, %.2f, %.2f] and action waypoint [%d]",
-      _robot_name.c_str(), _position[0], _position[1], _position[2], graph_index);
+      _robot_name.c_str(), _position[0], _position[1], _position[2],
+      graph_index);
     _updater->update_position(_position, graph_index);
   }
   // If robot is lost
@@ -799,7 +808,8 @@ void EasyFullControl::EasyCommandHandle::update_position(
     RCLCPP_DEBUG(
       _node->get_logger(),
       "[%s] Calling update with map_name [%s] and position [%.2f, %.2f, %.2f]",
-      _robot_name.c_str(), _map_name.c_str(), _position[0], _position[1], _position[2]);
+      _robot_name.c_str(),
+      _map_name.c_str(), _position[0], _position[1], _position[2]);
     _updater->update_position(_map_name, _position);
   }
 }
@@ -849,7 +859,7 @@ void EasyFullControl::EasyCommandHandle::newly_closed_lanes(
           const auto return_waypoint = lane.entry().waypoint_index();
           const auto* reverse_lane =
             _graph->lane_from(lane.entry().waypoint_index(),
-                              lane.exit().waypoint_index());
+            lane.exit().waypoint_index());
 
           // Lock?
           if (reverse_lane)
@@ -937,9 +947,9 @@ std::optional<std::size_t> EasyFullControl::EasyCommandHandle::get_current_lane(
     const Eigen::Vector2d& target_position,
     const Eigen::Vector2d& lane_entry,
     const Eigen::Vector2d& lane_exit) -> double
-  {
-    return (current_position - target_position).dot(lane_exit - lane_entry);
-  };
+    {
+      return (current_position - target_position).dot(lane_exit - lane_entry);
+    };
 
   if (!_target_waypoint.has_value())
     return std::nullopt;
@@ -961,7 +971,7 @@ std::optional<std::size_t> EasyFullControl::EasyCommandHandle::get_current_lane(
     const bool before_lane = projection(p, p0, p0, p1) < 0.0;
     const bool after_lane = projection(p, p1, p0, p1) >= 0.0;
     if (!before_lane && !after_lane) // the robot is on this lane
-        return lane_index;
+      return lane_index;
   }
 
   return std::nullopt;
@@ -1023,18 +1033,24 @@ bool EasyFullControl::add_robot(
   const std::string& robot_name,
   Start pose,
   GetPosition get_position,
-  std::function<ProcessCompleted(const EasyFullControl::Target target)> navigate,
+  std::function<ProcessCompleted(
+    const EasyFullControl::Target target)> navigate,
   std::function<ProcessCompleted(const std::string& dock_name)> dock,
   ProcessCompleted stop,
   RobotUpdateHandle::ActionExecutor action_executor)
 {
   // Obtain additional robot config from config
   const YAML::Node robot_config = _pimpl->_fleet_config["robots"][robot_name];
-  const double _max_delay = robot_config["robot_config"]["max_delay"].as<double>();
-  std::optional<rmf_traffic::Duration> max_delay = rmf_traffic::time::from_seconds(_max_delay);
-  const std::string charger_waypoint = robot_config["rmf_config"]["charger"]["waypoint"].as<std::string>();
-  const std::size_t charger_waypoint_index = _pimpl->_graph->find_waypoint(charger_waypoint)->index();
-  const std::string map_name = robot_config["rmf_config"]["start"]["map_name"].as<std::string>();
+  const double _max_delay =
+    robot_config["robot_config"]["max_delay"].as<double>();
+  std::optional<rmf_traffic::Duration> max_delay =
+    rmf_traffic::time::from_seconds(_max_delay);
+  const std::string charger_waypoint =
+    robot_config["rmf_config"]["charger"]["waypoint"].as<std::string>();
+  const std::size_t charger_waypoint_index = _pimpl->_graph->find_waypoint(
+    charger_waypoint)->index();
+  const std::string map_name =
+    robot_config["rmf_config"]["start"]["map_name"].as<std::string>();
 
   Planner::StartSet starts;
 
@@ -1076,10 +1092,10 @@ bool EasyFullControl::add_robot(
 
   // TODO(XY) Set up robot-rmf transformation here
   EasyCommandHandle::Transformer rmf_to_robot_transformer =
-  [](Eigen::Vector3d a)
-  {
-    return a;
-  };
+    [](Eigen::Vector3d a)
+    {
+      return a;
+    };
 
   auto initial_position = get_position().position;
   double initial_battery_soc = get_position().battery_percent;
@@ -1109,7 +1125,7 @@ bool EasyFullControl::add_robot(
     // Robot successfully initialized
     // Add robot to fleet
     _pimpl->_fleet_handle->add_robot(
-      command, robot_name, _pimpl->_traits->profile(), starts, 
+      command, robot_name, _pimpl->_traits->profile(), starts,
       [w = this->weak_from_this(), command, robot_name = std::move(robot_name)](
         const RobotUpdateHandlePtr& updater)
       {
@@ -1139,7 +1155,8 @@ bool EasyFullControl::add_robot(
 }
 
 //==============================================================================
-bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter)
+bool EasyFullControl::Implementation::initialize_fleet(
+  const AdapterPtr& adapter)
 {
   _adapter = adapter;
   const auto& node = adapter->node();
@@ -1196,8 +1213,9 @@ bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter
         _closed_lanes.erase(l);
 
       for (auto& [_, robot] : this->_robots)
-        {}
-      //   robot->newly_closed_lanes(newly_closed_lanes);
+      {
+        robot->newly_closed_lanes(newly_closed_lanes);
+      }
 
       rmf_fleet_msgs::msg::ClosedLanes state_msg;
       state_msg.fleet_name = this->_fleet_name;
@@ -1210,7 +1228,8 @@ bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter
     });
 
   // Set the fleet state topic publish period
-  const double fleet_state_frequency = rmf_fleet["publish_fleet_state"].as<double>();
+  const double fleet_state_frequency =
+    rmf_fleet["publish_fleet_state"].as<double>();
   _fleet_handle->fleet_state_topic_publish_period(
     rmf_traffic::time::from_seconds(1.0/fleet_state_frequency));
 
@@ -1278,13 +1297,15 @@ bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter
   // Drain battery
   const bool drain_battery = rmf_fleet["account_for_battery_drain"].as<bool>();
   // Recharge threshold
-  const double recharge_threshold = rmf_fleet["recharge_threshold"].as<double>();
+  const double recharge_threshold =
+    rmf_fleet["recharge_threshold"].as<double>();
   // Recharge state of charge
   const double recharge_soc = rmf_fleet["recharge_soc"].as<double>();
 
   // Finishing tasks
   const YAML::Node task_capabilities = rmf_fleet["task_capabilities"];
-  const std::string finishing_request_string = task_capabilities["finishing_request"].as<std::string>();
+  const std::string finishing_request_string =
+    task_capabilities["finishing_request"].as<std::string>();
   rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
   if (finishing_request_string == "charge")
   {
@@ -1338,11 +1359,11 @@ bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter
 
   // Currently accepting any tasks as long as they are in the config
   const auto consider =
-  [](const nlohmann::json& description,
-    rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
-  {
-    confirm.accept();
-  };
+    [](const nlohmann::json& description,
+      rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
+    {
+      confirm.accept();
+    };
 
   const bool perform_loop = task_capabilities["loop"].as<bool>();
   if (perform_loop)
@@ -1353,8 +1374,8 @@ bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter
   const bool perform_delivery = task_capabilities["delivery"].as<bool>();
   if (perform_delivery)
   {
-    _fleet_handle->consider_delivery_requests(consider,
-                                              consider);
+    _fleet_handle->consider_delivery_requests(
+      consider, consider);
   }
 
   const bool perform_cleaning = task_capabilities["clean"].as<bool>();
@@ -1376,7 +1397,6 @@ bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter
 
   return true;
 }
-
 
 
 } // namespace agv

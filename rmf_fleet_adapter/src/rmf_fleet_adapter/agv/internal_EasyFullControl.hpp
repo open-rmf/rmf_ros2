@@ -56,8 +56,10 @@ public:
   std::string _charger_waypoint;
   std::string _map_name;
 
-  rclcpp::Publisher<rmf_fleet_msgs::msg::ClosedLanes>::SharedPtr _closed_lanes_pub;
-  rclcpp::Subscription<rmf_fleet_msgs::msg::LaneRequest>::SharedPtr _lane_closure_request_sub;
+  rclcpp::Publisher<rmf_fleet_msgs::msg::ClosedLanes>::SharedPtr
+    _closed_lanes_pub;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::LaneRequest>::SharedPtr
+    _lane_closure_request_sub;
   std::unordered_set<std::size_t> _closed_lanes;
   std::unordered_map<std::string, EasyCommandHandlePtr> _robots;
 };
@@ -138,7 +140,7 @@ public:
   void update_state();
 
   void update_position(const Eigen::Vector3d& position,  // in RMF coordinates
-                       const std::string& map_name);
+    const std::string& map_name);
 
   void update_battery_soc(double soc);
 
@@ -185,7 +187,8 @@ private:
   bool _is_charger_set;
   RobotState _state;
   bool _initialized;
-  std::optional<RobotUpdateHandle::ActionExecution> _action_execution = std::nullopt;
+  std::optional<RobotUpdateHandle::ActionExecution>
+    _action_execution = std::nullopt;
 
   std::optional<std::size_t> _on_waypoint = std::nullopt;
   std::optional<std::size_t> _last_known_waypoint = std::nullopt;
@@ -199,7 +202,8 @@ private:
   std::optional<std::size_t> _action_waypoint_index = std::nullopt;
 
   std::string _dock_name;
-  std::unordered_map<std::string, std::vector<rmf_fleet_msgs::msg::Location>> _docks;
+  std::unordered_map<std::string,
+    std::vector<rmf_fleet_msgs::msg::Location>> _docks;
 
   std::thread _update_thread;
   std::thread _follow_thread;
@@ -212,8 +216,10 @@ private:
   RequestCompleted _docking_finished_callback;
   ArrivalEstimator _next_arrival_estimator;
 
-  rclcpp::Subscription<rmf_fleet_msgs::msg::DockSummary>::SharedPtr _dock_summary_sub;
-  rclcpp::Subscription<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr _action_execution_sub;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::DockSummary>::SharedPtr
+    _dock_summary_sub;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::ModeRequest>::SharedPtr
+    _action_execution_sub;
 
 };
 
