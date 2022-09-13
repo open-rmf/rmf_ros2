@@ -102,9 +102,6 @@ public:
 
     // Remaining battery level left in the robot.
     double battery_percent;
-
-    // Remaining travel distance to destination
-    std::optional<double> dist_to_target;
   };
 
   /// Initialize and spin an Adapter instance in order to add fleets.

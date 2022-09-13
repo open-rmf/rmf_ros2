@@ -103,18 +103,6 @@ public:
     position.map_name = location.level_name;
     position.battery_percent = _robots[robot_name].state.battery_percent;
 
-    std::optional<double> dist_to_target;
-    if (_robots[robot_name].destination.has_value())
-    {
-      auto destination = _robots[robot_name].destination.value();
-      dist_to_target = dist(pose, destination);
-    }
-    else
-    {
-      dist_to_target = std::nullopt;
-    }
-    position.dist_to_target = dist_to_target;
-
     return position;
   }
 
@@ -300,7 +288,7 @@ public:
   }
 
 
-// private:
+private:
 
   std::shared_ptr<rclcpp::Node> _node;
   std::string _fleet_name;
@@ -506,9 +494,10 @@ int main(int argc, char* argv[])
 
     const YAML::Node robot_conf = robot_config[robot]["rmf_config"]["start"];
     std::string start_wp = robot_conf["waypoint"].as<std::string>();
+    double start_ori = robot_conf["orientation"].as<double>();
 
     auto wp = get_waypoint(start_wp, nav_graph_path, config_yaml);
-    Eigen::Vector3d start_pose(wp.x(), wp.y(), 0.0);
+    Eigen::Vector3d start_pose(wp.x(), wp.y(), start_ori);
     RCLCPP_INFO(adapter->node()->get_logger(),
       "Set start pose for [%s] to [%.2f, %.2f, %.2f]",
       robot.c_str(), start_pose.x(), start_pose.y(), start_pose.z());

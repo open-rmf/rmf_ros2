@@ -211,8 +211,8 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
     [this](rmf_fleet_msgs::msg::ModeRequest::UniquePtr msg)
     {
       if (msg->fleet_name.empty() ||
-        msg->fleet_name != _fleet_name ||
-        msg->robot_name.empty())
+      msg->fleet_name != _fleet_name ||
+      msg->robot_name.empty())
         return;
 
       if (msg->mode.mode == rmf_fleet_msgs::msg::RobotMode::MODE_IDLE)
@@ -424,7 +424,7 @@ void EasyFullControl::EasyCommandHandle::start_follow()
           const auto& last_location =
             _graph->get_waypoint(_last_known_waypoint.value()).get_location();
           const Eigen::Vector3d last_pose =
-            {last_location[0], last_location[1], 0.0};
+          {last_location[0], last_location[1], 0.0};
           if (_target_waypoint.has_value() &&
             _target_waypoint.value().graph_index.has_value() &&
             dist(_position, _target_waypoint.value().position) < 0.5)
@@ -753,7 +753,6 @@ void EasyFullControl::EasyCommandHandle::update_position(
   // If robot is on a lane
   else if (_on_lane.has_value())
   {
-    // TODO(YV) perform these calculations inside get_current_lane()
     std::vector<std::size_t> lanes = {_on_lane.value()};
     const auto& forward_lane = _graph->get_lane(_on_lane.value());
     const auto& entry_index = forward_lane.entry().waypoint_index();
@@ -859,7 +858,7 @@ void EasyFullControl::EasyCommandHandle::newly_closed_lanes(
           const auto return_waypoint = lane.entry().waypoint_index();
           const auto* reverse_lane =
             _graph->lane_from(lane.entry().waypoint_index(),
-            lane.exit().waypoint_index());
+              lane.exit().waypoint_index());
 
           // Lock?
           if (reverse_lane)
