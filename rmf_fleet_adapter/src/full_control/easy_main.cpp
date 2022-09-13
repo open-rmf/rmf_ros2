@@ -94,9 +94,6 @@ public:
   EasyFullControl::Position get_position(
     const std::string& robot_name)
   {
-    // if (_robots.find(robot_name) == _robots.end())
-    //   return;
-
     EasyFullControl::Position position;
     auto location = _robots[robot_name].state.location;
     Eigen::Vector3d pose(location.x, location.y, location.yaw);
@@ -123,8 +120,7 @@ public:
     const std::string& robot_name,
     const EasyFullControl::Target target)
   {
-    // if (_robots.find(robot_name) == _robots.end())
-    //   return;
+    _robots[robot_name].destination = std::nullopt;
 
     rmf_fleet_msgs::msg::PathRequest path_request;
     path_request.fleet_name = _fleet_name;
@@ -217,10 +213,7 @@ public:
     const std::string& robot_name,
     const std::string& dock_name)
   {
-    // TODO: if robot name not in .....
-    // if (_robots.find(robot_name) == _robots.end() ||
-    //     _docks.find(dock_name) == _docks.end())
-    //   return;
+    _robots[robot_name].destination = std::nullopt;
 
     rmf_fleet_msgs::msg::PathRequest path_request;
     path_request.fleet_name = _fleet_name;

@@ -195,7 +195,6 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
           for (const auto dock : fleet.params)
           {
             _docks[dock.start] = dock.path;
-            std::cout << "---------- dock start is " << dock.start << std::endl;
           }
         }
       }
@@ -401,7 +400,8 @@ void EasyFullControl::EasyCommandHandle::start_follow()
           "Robot [%s] has reached its target waypoint",
           _robot_name.c_str());
         _state = RobotState::WAITING;
-        if (_target_waypoint.has_value())
+        if (_target_waypoint.has_value() &&
+          _target_waypoint.value().graph_index.has_value())
         {
           _on_waypoint = _target_waypoint.value().graph_index;
           _last_known_waypoint = _on_waypoint;
@@ -422,7 +422,8 @@ void EasyFullControl::EasyCommandHandle::start_follow()
             _graph->get_waypoint(_last_known_waypoint.value()).get_location();
           const Eigen::Vector3d last_pose =
             {last_location[0], last_location[1], 0.0};
-          if (_target_waypoint.value().graph_index.has_value() &&
+          if (_target_waypoint.has_value() &&
+            _target_waypoint.value().graph_index.has_value() &&
             dist(_position, _target_waypoint.value().position) < 0.5)
           {
             _on_waypoint = _target_waypoint.value().graph_index.value();
@@ -525,6 +526,7 @@ void EasyFullControl::EasyCommandHandle::start_follow()
     _node->get_logger(),
     "Robot [%s] has successfully completed navigating along requested path.",
     _robot_name.c_str());
+  _target_waypoint = std::nullopt;
   _path_finished_callback = nullptr;
   _next_arrival_estimator = nullptr;
 }
@@ -556,7 +558,6 @@ void EasyFullControl::EasyCommandHandle::dock(
   const std::string& dock_name,
   RequestCompleted docking_finished_callback)
 {
-  std::cout << "------------ WILL I EVER GET PRINTED" << std::endl;
   RCLCPP_INFO(
     _node->get_logger(),
     "Robot [%s] received a docking request to [%s]...",
@@ -581,6 +582,11 @@ void EasyFullControl::EasyCommandHandle::dock(
   auto dock_waypoint = _graph->find_waypoint(_dock_name);
   assert(dock_waypoint);
   _dock_waypoint_index = dock_waypoint->index();
+
+  std::lock_guard<std::mutex> lock(_mutex);
+  _on_waypoint = std::nullopt;
+  _on_lane = std::nullopt;
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   _stop_dock_thread = false;
   _dock_thread = std::thread(
@@ -608,11 +614,6 @@ void EasyFullControl::EasyCommandHandle::start_dock()
     std::this_thread::sleep_for(std::chrono::seconds(1));
   }
 
-  std::lock_guard<std::mutex> lock(_mutex);
-  _on_waypoint = std::nullopt;
-  _on_lane = std::nullopt;
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
   // Check if requested dock name is valid
   if (_docks.find(_dock_name) == _docks.end())
   {
@@ -635,7 +636,6 @@ void EasyFullControl::EasyCommandHandle::start_dock()
 
   while (!_docking_cb())
   {
-    //
     if (positions.empty())
     {
       continue;
@@ -670,11 +670,12 @@ void EasyFullControl::EasyCommandHandle::start_dock()
   }
 
   _on_waypoint = _dock_waypoint_index;
-  // _dock_waypoint_index = std::nullptr;
+  _dock_waypoint_index = std::nullopt;
   _docking_finished_callback();
   RCLCPP_INFO(
     _node->get_logger(),
-    "Robot [%s] has completed docking");
+    "Robot [%s] has completed docking",
+    _robot_name.c_str());
 }
 
 //==============================================================================
@@ -709,6 +710,7 @@ void EasyFullControl::EasyCommandHandle::update_position(
   _position = position;
   _map_name = map_name;
 
+  // If robot is on a waypoint
   if (_on_waypoint.has_value())
   {
     const std::size_t& wp = _on_waypoint.value();
@@ -719,6 +721,7 @@ void EasyFullControl::EasyCommandHandle::update_position(
       _robot_name.c_str(), wp, ori);
     _updater->update_position(wp, ori);
   }
+  // If robot is on a lane
   else if (_on_lane.has_value())
   {
     // TODO(YV) perform these calculations inside get_current_lane()
@@ -735,6 +738,7 @@ void EasyFullControl::EasyCommandHandle::update_position(
       _robot_name.c_str(), _position[0], _position[1], _position[2], lanes.size());
     _updater->update_position(_position, lanes);
   }
+  // If robot is merging into a waypoint
   else if(_target_waypoint.has_value() &&
     _target_waypoint.value().graph_index.has_value())
   {
@@ -745,6 +749,17 @@ void EasyFullControl::EasyCommandHandle::update_position(
       _robot_name.c_str(), _position[0], _position[1], _position[2], graph_index);
     _updater->update_position(_position, graph_index);
   }
+  // If robot is docking
+  else if (_dock_waypoint_index.has_value())
+  {
+    const auto& graph_index = _dock_waypoint_index.value();
+    RCLCPP_DEBUG(
+      _node->get_logger(),
+      "[%s] Calling update with position [%.2f, %.2f, %.2f] and dock waypoint [%d]",
+      _robot_name.c_str(), _position[0], _position[1], _position[2], graph_index);
+    _updater->update_position(_position, graph_index);
+  }
+  // If robot is lost
   else
   {
     RCLCPP_DEBUG(
@@ -759,7 +774,6 @@ void EasyFullControl::EasyCommandHandle::update_position(
 void EasyFullControl::EasyCommandHandle::update_battery_soc(
   double soc)
 {
-  // (XY) create update_state thread to update all these
   if (!_updater)
     return;
   std::lock_guard<std::mutex> lock(_mutex);
@@ -819,7 +833,9 @@ void EasyFullControl::EasyCommandHandle::newly_closed_lanes(
     }
   }
 
-  if (!need_to_replan && _target_waypoint.has_value())
+  if (!need_to_replan &&
+    _target_waypoint.has_value() &&
+    _target_waypoint.value().graph_index.has_value())
   {
     // Check if the remainder of the current plan has been invalidated by the
     // lane closure.

@@ -188,8 +188,8 @@ private:
 
   std::optional<PlanWaypoint> _target_waypoint;
   std::vector<PlanWaypoint> _remaining_waypoints;
-  std::size_t _dock_waypoint_index;
-  std::size_t _action_waypoint_index;
+  std::optional<std::size_t> _dock_waypoint_index = std::nullopt;
+  std::optional<std::size_t> _action_waypoint_index = std::nullopt;
 
   std::string _dock_name;
   std::unordered_map<std::string, std::vector<rmf_fleet_msgs::msg::Location>> _docks;
