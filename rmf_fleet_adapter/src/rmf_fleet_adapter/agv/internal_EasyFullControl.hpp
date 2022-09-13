@@ -117,7 +117,8 @@ public:
     GetPosition get_position,
     std::function<ProcessCompleted(const Target target)> navigate,
     std::function<ProcessCompleted(const std::string& dock_name)> dock,
-    ProcessCompleted stop);
+    ProcessCompleted stop,
+    RobotUpdateHandle::ActionExecutor action_executor);
 
   void follow_new_path(
     const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
@@ -158,6 +159,10 @@ private:
 
   std::optional<std::size_t> get_current_lane();
 
+  void set_action_execution(RobotUpdateHandle::ActionExecution execution);
+
+  void complete_robot_action();
+
   double dist(const Eigen::Vector3d& a, const Eigen::Vector3d& b);
 
   std::shared_ptr<rclcpp::Node> _node;
@@ -175,10 +180,12 @@ private:
   std::function<ProcessCompleted(const Target target)> _navigate; // in robot coordinates
   std::function<ProcessCompleted(const std::string& dock_name)> _dock;
   ProcessCompleted _stop;
+  RobotUpdateHandle::ActionExecutor _action_executor;
   RobotUpdateHandlePtr _updater;
   bool _is_charger_set;
   RobotState _state;
   bool _initialized;
+  std::optional<RobotUpdateHandle::ActionExecution> _action_execution = std::nullopt;
 
   std::optional<std::size_t> _on_waypoint = std::nullopt;
   std::optional<std::size_t> _last_known_waypoint = std::nullopt;

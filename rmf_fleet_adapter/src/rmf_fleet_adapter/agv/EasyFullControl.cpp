@@ -153,7 +153,8 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
   GetPosition get_position,
   std::function<ProcessCompleted(const Target target)> navigate,
   std::function<ProcessCompleted(const std::string& dock_name)> dock,
-  ProcessCompleted stop)
+  ProcessCompleted stop,
+  RobotUpdateHandle::ActionExecutor action_executor)
 : _node(node),
   _fleet_name(fleet_name),
   _robot_name(std::move(robot_name)),
@@ -168,7 +169,8 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
   _get_position(std::move(get_position)),
   _navigate(std::move(navigate)),
   _dock(std::move(dock)),
-  _stop(std::move(stop))
+  _stop(std::move(stop)),
+  _action_executor(std::move(action_executor))
 {
   _updater = nullptr;
   _is_charger_set = false;
@@ -209,14 +211,11 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
       if (msg->fleet_name.empty() ||
           msg->fleet_name != _fleet_name ||
           msg->robot_name.empty())
-      {
         return;
-      }
 
       if (msg->mode.mode == rmf_fleet_msgs::msg::RobotMode::MODE_IDLE)
       {
-        // TODO: figure out how to bring in action executor
-        // _complete_robot_action();
+        complete_robot_action();
       }
     });
 
@@ -683,6 +682,31 @@ void EasyFullControl::EasyCommandHandle::set_updater(
   RobotUpdateHandlePtr updater)
 {
   _updater = std::move(updater);
+
+  // Set the action_executor for the robot
+  const auto action_executor =
+    [w = weak_from_this()](
+    const std::string& category,
+    const nlohmann::json& description,
+    RobotUpdateHandle::ActionExecution execution)
+    {
+      // Store the completed callback which will be called when we receive
+      // a RobotModeRequest
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      std::lock_guard<std::mutex> lock(self->_mutex);
+      self->_action_waypoint_index = self->_last_known_waypoint;
+      self->_on_waypoint = std::nullopt;
+      self->_on_lane = std::nullopt;
+      self->_action_execution = execution;
+
+      self->set_action_execution(execution);
+      self->_action_executor(category, description, execution);
+    };
+
+  _updater->set_action_executor(action_executor);
 }
 
 //==============================================================================
@@ -756,6 +780,16 @@ void EasyFullControl::EasyCommandHandle::update_position(
     RCLCPP_DEBUG(
       _node->get_logger(),
       "[%s] Calling update with position [%.2f, %.2f, %.2f] and dock waypoint [%d]",
+      _robot_name.c_str(), _position[0], _position[1], _position[2], graph_index);
+    _updater->update_position(_position, graph_index);
+  }
+  // If robot is performing an action
+  else if (_action_waypoint_index.has_value())
+  {
+    const auto& graph_index = _action_waypoint_index.value();
+    RCLCPP_DEBUG(
+      _node->get_logger(),
+      "[%s] Calling update with position [%.2f, %.2f, %.2f] and action waypoint [%d]",
       _robot_name.c_str(), _position[0], _position[1], _position[2], graph_index);
     _updater->update_position(_position, graph_index);
   }
@@ -934,6 +968,28 @@ std::optional<std::size_t> EasyFullControl::EasyCommandHandle::get_current_lane(
 }
 
 //==============================================================================
+void EasyFullControl::EasyCommandHandle::set_action_execution(
+  RobotUpdateHandle::ActionExecution execution)
+{
+  _action_execution = execution;
+}
+
+//==============================================================================
+void EasyFullControl::EasyCommandHandle::complete_robot_action()
+{
+  std::lock_guard<std::mutex> lock(_mutex);
+
+  if (!_action_execution.has_value())
+    return;
+  _action_execution->finished();
+  _action_execution = std::nullopt;
+  RCLCPP_INFO(
+    _node->get_logger(),
+    "Robot [%s] has completed the action it was performing.",
+    _robot_name.c_str());
+}
+
+//==============================================================================
 double EasyFullControl::EasyCommandHandle::dist(
   const Eigen::Vector3d& a, const Eigen::Vector3d& b)
 {
@@ -1045,7 +1101,8 @@ bool EasyFullControl::add_robot(
     get_position,
     navigate,
     dock,
-    stop);
+    stop,
+    action_executor);
 
   if (command->initialized())
   {
@@ -1297,7 +1354,7 @@ bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter
   if (perform_delivery)
   {
     _fleet_handle->consider_delivery_requests(consider,
-                                             consider);
+                                              consider);
   }
 
   const bool perform_cleaning = task_capabilities["clean"].as<bool>();
@@ -1306,8 +1363,16 @@ bool EasyFullControl::Implementation::initialize_fleet(const AdapterPtr& adapter
     _fleet_handle->consider_cleaning_requests(consider);
   }
 
-  // Configure this fleet to perform any kind of teleop action
-  _fleet_handle->add_performable_action("teleop", consider);
+  // Currently accepting any actions as long as they are in the config
+  if (task_capabilities["action"])
+  {
+    std::vector<std::string> action_strings =
+      task_capabilities["action"].as<std::vector<std::string>>();
+    for (const auto& action : action_strings)
+    {
+      _fleet_handle->add_performable_action(action, consider);
+    }
+  }
 
   return true;
 }

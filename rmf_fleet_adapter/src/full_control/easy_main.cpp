@@ -262,7 +262,7 @@ public:
     const nlohmann::json& description,
     RobotUpdateHandle::ActionExecution execution)
   {
-    // TODO
+    // do nothing for now
   }
 
   void robot_state_cb(rmf_fleet_msgs::msg::RobotState msg)
@@ -463,6 +463,13 @@ int main(int argc, char* argv[])
         return fleet_manager->navigate(robot, target);
       };
 
+    const auto dock =
+      [fleet_manager, robot](
+      const std::string& dock_name)
+      {
+        return fleet_manager->dock(robot, dock_name);
+      };
+
     const auto stop =
       [fleet_manager, robot]()
       {
@@ -476,13 +483,6 @@ int main(int argc, char* argv[])
       RobotUpdateHandle::ActionExecution execution)
       {
         return fleet_manager->action_executor(robot, category, description, execution);
-      };
-
-    const auto dock =
-      [fleet_manager, robot](
-      const std::string& dock_name)
-      {
-        return fleet_manager->dock(robot, dock_name);
       };
 
     const YAML::Node robot_conf = robot_config[robot]["rmf_config"]["start"];
