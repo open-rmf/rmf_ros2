@@ -17,6 +17,7 @@
 
 #include "NegotiationRoom.hpp"
 
+#include <rmf_traffic_ros2/Time.hpp>
 #include <rmf_traffic_ros2/Route.hpp>
 #include <rmf_traffic_ros2/schedule/Itinerary.hpp>
 
@@ -65,15 +66,20 @@ NegotiationRoom::NegotiationRoom(rmf_traffic::schedule::Negotiation negotiation_
 }
 
 //==============================================================================
-void NegotiationRoom::update_state_msg(const uint64_t conflict_version)
+void NegotiationRoom::update_state_msg(
+  const uint64_t conflict_version,
+  rmf_traffic::Time start_time,
+  rmf_traffic::Time last_active_time)
 {
-  state_msg.participants.clear();
+  state_msg.status.participants.clear();
   state_msg.tree.clear();
   state_msg.orphan_proposals.clear();
   state_msg.orphan_rejections.clear();
   state_msg.orphan_forfeits.clear();
 
-  state_msg.conflict_version = conflict_version;
+  state_msg.status.conflict_version = conflict_version;
+  state_msg.status.start_time = convert(start_time);
+  state_msg.status.last_response_time = convert(last_active_time);
 
   using Negotiation = rmf_traffic::schedule::Negotiation;
   std::vector<Negotiation::ConstTablePtr> queue;
@@ -81,7 +87,7 @@ void NegotiationRoom::update_state_msg(const uint64_t conflict_version)
 
   for (const auto p : negotiation.participants())
   {
-    state_msg.participants.push_back(p);
+    state_msg.status.participants.push_back(p);
     const auto p_table = negotiation.table(p, {});
     assert(p_table);
     queue.push_back(p_table);

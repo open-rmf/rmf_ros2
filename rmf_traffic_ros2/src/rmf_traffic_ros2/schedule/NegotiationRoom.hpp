@@ -57,7 +57,11 @@ struct NegotiationRoom
 
   rmf_traffic_msgs::msg::NegotiationState state_msg;
 
-  void update_state_msg(uint64_t conflict_version);
+  void update_state_msg(
+    uint64_t conflict_version,
+    rmf_traffic::Time start_time,
+    rmf_traffic::Time last_active_time);
+
   std::vector<rmf_traffic::schedule::Negotiation::TablePtr> check_cache(
     const NegotiatorMap& negotiators);
 };

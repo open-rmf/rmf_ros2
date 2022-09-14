@@ -451,12 +451,19 @@ void ScheduleNode::setup_conflict_topics_and_thread()
   conflict_conclusion_pub = create_publisher<ConflictConclusion>(
     rmf_traffic_ros2::NegotiationConclusionTopicName, negotiation_qos);
 
+  const auto single_reliable_transient_local =
+    rclcpp::SystemDefaultsQoS()
+      .keep_last(1)
+      .reliable()
+      .transient_local();
+
   negotiation_states_pub = create_publisher<NegotiationStates>(
     rmf_traffic_ros2::NegotiationStatesTopicName,
-    rclcpp::SystemDefaultsQoS()
-        .keep_last(1)
-        .reliable()
-        .transient_local());
+    single_reliable_transient_local);
+
+  negotiation_stasuses_pub = create_publisher<NegotiationStatuses>(
+    rmf_traffic_ros2::NegotiationStatusesTopicName,
+    single_reliable_transient_local);
 
   conflict_check_quit = false;
   conflict_check_thread = std::thread(
@@ -1488,7 +1495,7 @@ void ScheduleNode::receive_proposal(const ConflictProposal& msg)
   rmf_traffic_ros2::schedule::print_negotiation_status(
     msg.conflict_version,
     negotiation);
-  room.update_state_msg(msg.conflict_version);
+  open->update_state_msg(msg.conflict_version);
 
   if (negotiation.ready())
   {
@@ -1581,7 +1588,7 @@ void ScheduleNode::receive_rejection(const ConflictRejection& msg)
   rmf_traffic_ros2::schedule::print_negotiation_status(
     msg.conflict_version,
     negotiation);
-  room.update_state_msg(msg.conflict_version);
+  open->update_state_msg(msg.conflict_version);
 
   publish_negotiation_states();
 }
@@ -1625,7 +1632,7 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
   rmf_traffic_ros2::schedule::print_negotiation_status(
     msg.conflict_version,
     negotiation);
-  room.update_state_msg(msg.conflict_version);
+  open->update_state_msg(msg.conflict_version);
 
   if (negotiation.complete())
   {
@@ -1650,16 +1657,19 @@ void ScheduleNode::receive_forfeit(const ConflictForfeit& msg)
 //==============================================================================
 void ScheduleNode::publish_negotiation_states()
 {
-  rmf_traffic_msgs::msg::NegotiationStates msg;
+  NegotiationStates states;
+  NegotiationStatuses statuses;
   for (const auto& [_, n_opt] : active_conflicts._negotiations)
   {
     if (n_opt.has_value())
     {
-      msg.negotiations.push_back(n_opt->room.state_msg);
+      states.negotiations.push_back(n_opt->room.state_msg);
+      statuses.negotiations.push_back(n_opt->room.state_msg.status);
     }
   }
 
-  negotiation_states_pub->publish(msg);
+  negotiation_states_pub->publish(states);
+  negotiation_stasuses_pub->publish(statuses);
 }
 
 std::shared_ptr<rclcpp::Node> make_node(const rclcpp::NodeOptions& options)

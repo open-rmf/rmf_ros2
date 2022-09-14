@@ -46,6 +46,7 @@
 #include <rmf_traffic_msgs/msg/negotiation_rejection.hpp>
 #include <rmf_traffic_msgs/msg/negotiation_conclusion.hpp>
 #include <rmf_traffic_msgs/msg/negotiation_states.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_statuses.hpp>
 
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
 
@@ -310,6 +311,11 @@ public:
   NegotiationStatesPub::SharedPtr negotiation_states_pub;
   void publish_negotiation_states();
 
+  using NegotiationStatuses = rmf_traffic_msgs::msg::NegotiationStatuses;
+  using NegotiationStatusesPub = rclcpp::Publisher<NegotiationStatuses>;
+  // Published by publish_negotiation_states
+  NegotiationStatusesPub::SharedPtr negotiation_stasuses_pub;
+
   class ConflictRecord
   {
   public:
@@ -319,7 +325,13 @@ public:
     struct OpenNegotiation
     {
       NegotiationRoom room;
+      rmf_traffic::Time start_time;
       rmf_traffic::Time last_active_time;
+
+      void update_state_msg(uint64_t conflict_version)
+      {
+        room.update_state_msg(conflict_version, start_time, last_active_time);
+      }
     };
 
     struct Wait
@@ -388,7 +400,8 @@ public:
           *rmf_traffic::schedule::Negotiation::make(
             viewer.snapshot(), std::vector<ParticipantId>(
               add_to_negotiation.begin(), add_to_negotiation.end())),
-          time
+          time, // start time
+          time  // last update time
         };
       }
       else
@@ -400,7 +413,7 @@ public:
         }
       }
 
-      update_negotiation->room.update_state_msg(negotiation_version);
+      update_negotiation->update_state_msg(negotiation_version);
       return Entry{negotiation_version, &update_negotiation->room.negotiation};
     }
 
