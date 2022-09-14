@@ -460,10 +460,14 @@ void ScheduleNode::setup_conflict_topics_and_thread()
   negotiation_states_pub = create_publisher<NegotiationStates>(
     rmf_traffic_ros2::NegotiationStatesTopicName,
     single_reliable_transient_local);
+  // Initial conflict-free publication
+  negotiation_states_pub->publish(NegotiationStates{});
 
   negotiation_stasuses_pub = create_publisher<NegotiationStatuses>(
     rmf_traffic_ros2::NegotiationStatusesTopicName,
     single_reliable_transient_local);
+  // Initial conflict-free publication
+  negotiation_stasuses_pub->publish(NegotiationStatuses{});
 
   conflict_check_quit = false;
   conflict_check_thread = std::thread(
