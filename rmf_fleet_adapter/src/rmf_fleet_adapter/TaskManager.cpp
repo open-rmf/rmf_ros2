@@ -913,7 +913,7 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
 TaskManager::RobotModeMsg TaskManager::robot_mode() const
 {
   const auto mode = rmf_fleet_msgs::build<RobotModeMsg>()
-    .mode(_active_task ?
+    .mode(_active_task.is_finished() ?
       RobotModeMsg::MODE_IDLE :
       _context->current_mode())
     .mode_request_id(0);

@@ -35,6 +35,8 @@
 #include <rmf_task_sequence/Event.hpp>
 #include <rmf_task_sequence/events/PerformAction.hpp>
 
+#include <rmf_building_map_msgs/msg/graph.hpp>
+
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
@@ -310,6 +312,9 @@ public:
   using DockSummarySub = rclcpp::Subscription<DockSummary>::SharedPtr;
   DockSummarySub dock_summary_sub = nullptr;
 
+  using GraphMsg = rmf_building_map_msgs::msg::Graph;
+  rclcpp::Publisher<GraphMsg>::SharedPtr nav_graph_pub = nullptr;
+
   mutable rmf_task::Log::Reader log_reader = {};
 
   template<typename... Args>
@@ -368,6 +373,12 @@ public:
         if (const auto self = w.lock())
           self->_pimpl->bid_notice_cb(msg, std::move(respond));
       });
+
+    // Publisher for navigation graph
+    handle->_pimpl->nav_graph_pub =
+      handle->_pimpl->node->create_publisher<GraphMsg>(
+      NavGraphTopicName, transient_qos);
+    handle->_pimpl->publish_nav_graph();
 
     // Subscribe DockSummary
     handle->_pimpl->dock_summary_sub =
@@ -501,6 +512,8 @@ public:
 
     return handle;
   }
+
+  void publish_nav_graph() const;
 
   void dock_summary_cb(const DockSummary::SharedPtr& msg);
 
