@@ -272,18 +272,24 @@ rmf_traffic::agv::Graph parse_graph(
 
       if (const YAML::Node docking_option = options["dock_name"])
       {
-        // TODO(MXG): Add support for this
-        if (entry_event || exit_event)
-        {
-          // *INDENT-OFF*
-          throw std::runtime_error(
-            "We do not currently support a dock_name option when any other "
-            "lane options are also specified");
-          // *INDENT-ON*
-        }
-
         const std::string dock_name = docking_option.as<std::string>();
         const rmf_traffic::Duration duration = std::chrono::seconds(5);
+        if (entry_event)
+        {
+          // Add a waypoint and a lane leading to it for the dock maneuver
+          // to be done after the entry event
+          const auto entry_wp = graph.get_waypoint(begin);
+          auto& dock_wp = graph.add_waypoint(map_name, entry_wp.get_location());
+
+          graph.add_lane(
+            {begin, entry_event},
+            {dock_wp.index(), rmf_utils::clone_ptr<Event>()});
+
+          // First lane from start -> dock, second lane from dock -> end
+          begin = dock_wp.index();
+
+          vnum_temp++;
+        }
         entry_event = Event::make(Lane::Dock(dock_name, duration));
       }
 
