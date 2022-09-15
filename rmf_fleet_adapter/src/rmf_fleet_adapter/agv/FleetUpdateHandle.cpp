@@ -20,6 +20,7 @@
 #include <rmf_fleet_msgs/msg/location.hpp>
 
 #include <rmf_traffic_ros2/Time.hpp>
+#include <rmf_traffic_ros2/agv/Graph.hpp>
 
 #include "internal_FleetUpdateHandle.hpp"
 #include "internal_RobotUpdateHandle.hpp"
@@ -134,6 +135,20 @@ TaskDeserialization::TaskDeserialization()
     };
 }
 
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::publish_nav_graph() const
+{
+  if (nav_graph_pub == nullptr)
+    return;
+
+  auto msg = rmf_traffic_ros2::convert(
+    (*planner)->get_configuration().graph(),
+    name);
+
+  if (msg != nullptr)
+    nav_graph_pub->publish(std::move(msg));
+}
 
 //==============================================================================
 void FleetUpdateHandle::Implementation::dock_summary_cb(
@@ -879,6 +894,10 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
         make_validator(rmf_api_msgs::schemas::fleet_state_update);
 
       validator.validate(fleet_state_update_msg);
+
+      std::unique_lock<std::mutex> lock(*update_callback_mutex);
+      if (update_callback)
+        update_callback(fleet_state_update_msg);
       broadcast_client->publish(fleet_state_update_msg);
     }
     catch (const std::exception& e)
@@ -928,6 +947,10 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
         make_validator(rmf_api_msgs::schemas::fleet_log_update);
 
       validator.validate(fleet_log_update_msg);
+
+      std::unique_lock<std::mutex> lock(*update_callback_mutex);
+      if (update_callback)
+        update_callback(fleet_log_update_msg);
       broadcast_client->publish(fleet_log_update_msg);
     }
     catch (const std::exception& e)

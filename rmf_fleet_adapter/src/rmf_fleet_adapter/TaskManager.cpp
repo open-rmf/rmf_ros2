@@ -70,7 +70,7 @@ namespace rmf_fleet_adapter {
 //==============================================================================
 TaskManagerPtr TaskManager::make(
   agv::RobotContextPtr context,
-  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+  std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
   std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 {
   auto mgr = TaskManagerPtr(
@@ -254,7 +254,7 @@ TaskManagerPtr TaskManager::make(
 //==============================================================================
 TaskManager::TaskManager(
   agv::RobotContextPtr context,
-  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+  std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
   std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 : _context(std::move(context)),
   _broadcast_client(std::move(broadcast_client)),
@@ -861,7 +861,8 @@ agv::ConstRobotContextPtr TaskManager::context() const
 }
 
 //==============================================================================
-std::optional<std::weak_ptr<BroadcastClient>> TaskManager::broadcast_client()
+std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> TaskManager::
+broadcast_client()
 const
 {
   return _broadcast_client;
@@ -935,7 +936,7 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
 TaskManager::RobotModeMsg TaskManager::robot_mode() const
 {
   const auto mode = rmf_fleet_msgs::build<RobotModeMsg>()
-    .mode(_active_task ?
+    .mode(_active_task.is_finished() ?
       RobotModeMsg::MODE_IDLE :
       _context->current_mode())
     .mode_request_id(0);
