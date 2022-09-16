@@ -22,6 +22,9 @@
   <depend>proj</depend>
   <depend>zlib</depend>
 
+  <build_depend>uuid-dev</build_depend>
+  <exec_depend>uuid-dev</exec_depend>
+
   <build_depend>eigen</build_depend>
 
   <test_depend>ament_cmake_catch2</test_depend>
