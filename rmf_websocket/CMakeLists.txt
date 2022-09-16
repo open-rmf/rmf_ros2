@@ -32,6 +32,7 @@ target_link_libraries(rmf_websocket
     rmf_utils::rmf_utils
     nlohmann_json::nlohmann_json
     nlohmann_json_schema_validator
+  PRIVATE
     ${Boost_FILESYSTEM_LIBRARY}
     ${Boost_SYSTEM_LIBRARY}
 )
