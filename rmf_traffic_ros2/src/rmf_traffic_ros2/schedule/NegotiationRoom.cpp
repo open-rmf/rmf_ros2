@@ -106,8 +106,8 @@ void NegotiationRoom::update_state_msg(const uint64_t conflict_version)
 
     using Key = rmf_traffic_msgs::msg::NegotiationKey;
     node.key = rmf_traffic_msgs::build<Key>()
-        .participant(top->participant())
-        .version(top->version());
+      .participant(top->participant())
+      .version(top->version());
 
     node.rejected = top->rejected();
     if (const auto* submission = top->submission())

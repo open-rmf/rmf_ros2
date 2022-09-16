@@ -304,14 +304,16 @@ public:
     const rmf_traffic::schedule::Patch patch = convert(msg);
     if (!mirror->update(patch) && !is_remedial)
     {
-      std::string patch_base = patch.base_version()?
+      std::string patch_base = patch.base_version() ?
         std::to_string(*patch.base_version()) : std::string("any");
+      std::string mirror_version = mirror->latest_version() ?
+        std::to_string(*mirror->latest_version()) : std::string("none");
       RCLCPP_WARN(
         node->get_logger(),
         "Failed to update using patch for DB version %lu "
-        "(mirror version: %lu, patch base: %s); requesting new update",
+        "(mirror version: %s, patch base: %s); requesting new update",
         patch.latest_version(),
-        mirror->latest_version(),
+        mirror_version.c_str(),
         patch_base.c_str());
       request_update(mirror->latest_version());
     }

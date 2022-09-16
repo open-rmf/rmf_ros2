@@ -362,8 +362,8 @@ void ScheduleNode::setup_incosistency_pub()
 void ScheduleNode::setup_conflict_topics_and_thread()
 {
   const auto negotiation_qos = rclcpp::ServicesQoS()
-      .reliable()
-      .keep_last(1000);
+    .reliable()
+    .keep_last(1000);
 
   conflict_ack_sub = create_subscription<ConflictAck>(
     rmf_traffic_ros2::NegotiationAckTopicName, negotiation_qos,
@@ -409,9 +409,9 @@ void ScheduleNode::setup_conflict_topics_and_thread()
   negotiation_states_pub = create_publisher<NegotiationStates>(
     rmf_traffic_ros2::NegotiationStatesTopicName,
     rclcpp::SystemDefaultsQoS()
-        .keep_last(1)
-        .reliable()
-        .transient_local());
+    .keep_last(1)
+    .reliable()
+    .transient_local());
 
   conflict_check_quit = false;
   conflict_check_thread = std::thread(
