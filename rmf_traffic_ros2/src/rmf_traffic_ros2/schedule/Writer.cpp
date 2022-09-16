@@ -17,6 +17,7 @@
 
 #include <rmf_traffic_ros2/schedule/Writer.hpp>
 #include <rmf_traffic_ros2/schedule/ParticipantDescription.hpp>
+#include <rmf_traffic_ros2/schedule/ScheduleIdentity.hpp>
 #include <rmf_traffic_ros2/StandardNames.hpp>
 #include <rmf_traffic_ros2/Route.hpp>
 
@@ -27,8 +28,6 @@
 #include <rmf_traffic_msgs/msg/itinerary_clear.hpp>
 
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
-
-#include <rmf_traffic_msgs/msg/fail_over_event.hpp>
 #include <rmf_traffic_msgs/msg/participants.hpp>
 
 #include <rmf_traffic_msgs/srv/register_participant.hpp>
@@ -291,9 +290,10 @@ public:
     rclcpp::Client<Register>::SharedPtr register_client;
     rclcpp::Client<Unregister>::SharedPtr unregister_client;
 
-    using FailOverEvent = rmf_traffic_msgs::msg::FailOverEvent;
-    using FailOverEventSub = rclcpp::Subscription<FailOverEvent>::SharedPtr;
-    FailOverEventSub fail_over_event_sub;
+    using ScheduleId = rmf_traffic_msgs::msg::ScheduleIdentity;
+    using ScheduleStartupSub = rclcpp::Subscription<ScheduleId>::SharedPtr;
+    ScheduleStartupSub schedule_startup_sub;
+    std::optional<ScheduleId> last_known_schedule_id;
 
     using ParticipantsInfoMsg = rmf_traffic_msgs::msg::Participants;
     rclcpp::Subscription<ParticipantsInfoMsg>::SharedPtr participants_info_sub;
@@ -341,13 +341,16 @@ public:
       transport->unregister_client =
         node->create_client<Unregister>(UnregisterParticipantSrvName);
 
-      transport->fail_over_event_sub = node->create_subscription<FailOverEvent>(
-        rmf_traffic_ros2::FailOverEventTopicName,
+      transport->schedule_startup_sub = node->create_subscription<ScheduleId>(
+        rmf_traffic_ros2::ScheduleStartupTopicName,
         rclcpp::SystemDefaultsQoS(),
-        [w = transport->weak_from_this()](const FailOverEvent::SharedPtr)
+        [w = transport->weak_from_this()](const ScheduleId::SharedPtr msg)
         {
           if (const auto self = w.lock())
-            self->reconnect_services();
+          {
+            if (reconnect_schedule(self->last_known_schedule_id, *msg))
+              self->reconnect_services();
+          }
         });
 
       transport->participants_info_sub =

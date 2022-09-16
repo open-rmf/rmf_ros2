@@ -29,6 +29,7 @@
 #include <rmf_traffic_msgs/msg/participant.hpp>
 #include <rmf_traffic_msgs/msg/participants.hpp>
 #include <rmf_traffic_msgs/msg/schedule_queries.hpp>
+#include <rmf_traffic_msgs/msg/schedule_identity.hpp>
 
 #include <rmf_traffic_msgs/msg/itinerary_clear.hpp>
 #include <rmf_traffic_msgs/msg/itinerary_delay.hpp>
@@ -45,6 +46,7 @@
 #include <rmf_traffic_msgs/msg/negotiation_rejection.hpp>
 #include <rmf_traffic_msgs/msg/negotiation_conclusion.hpp>
 #include <rmf_traffic_msgs/msg/negotiation_states.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_statuses.hpp>
 
 #include <rmf_traffic_msgs/msg/schedule_inconsistency.hpp>
 
@@ -78,27 +80,30 @@ public:
   using QueryMap = std::unordered_map<uint64_t, rmf_traffic::schedule::Query>;
   using VersionOpt = std::optional<rmf_traffic::schedule::Version>;
 
-  using NodeVersion = uint64_t;
-  NodeVersion node_version = 0;
+  using ScheduleId = rmf_traffic_msgs::msg::ScheduleIdentity;
+  ScheduleId node_id;
 
   static struct NoAutomaticSetup{} no_automatic_setup;
 
   ScheduleNode(
-    NodeVersion node_version_,
+    ScheduleId id,
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     const rclcpp::NodeOptions& options,
     NoAutomaticSetup);
 
   ScheduleNode(
-    NodeVersion node_version_,
+    std::shared_ptr<rmf_traffic::schedule::Database> database_,
+    const rclcpp::NodeOptions& options,
+    NoAutomaticSetup);
+
+  ScheduleNode(
     std::shared_ptr<rmf_traffic::schedule::Database> database_,
     QueryMap registered_queries_,
     const rclcpp::NodeOptions& options);
 
-  ScheduleNode(NodeVersion node_version_, const rclcpp::NodeOptions& options);
+  ScheduleNode(const rclcpp::NodeOptions& options);
 
   ScheduleNode(
-    NodeVersion node_version_,
     const rclcpp::NodeOptions& options,
     NoAutomaticSetup);
 
@@ -223,6 +228,10 @@ public:
   rclcpp::Publisher<InconsistencyMsg>::SharedPtr inconsistency_pub;
   void publish_inconsistencies(rmf_traffic::schedule::ParticipantId id);
 
+  rclcpp::Subscription<ScheduleId>::SharedPtr startup_sub;
+  rclcpp::Publisher<ScheduleId>::SharedPtr startup_pub;
+  void receive_startup_msg(const ScheduleId& msg);
+
   virtual void setup_incosistency_pub();
 
   rclcpp::TimerBase::SharedPtr mirror_update_timer;
@@ -302,6 +311,11 @@ public:
   NegotiationStatesPub::SharedPtr negotiation_states_pub;
   void publish_negotiation_states();
 
+  using NegotiationStatuses = rmf_traffic_msgs::msg::NegotiationStatuses;
+  using NegotiationStatusesPub = rclcpp::Publisher<NegotiationStatuses>;
+  // Published by publish_negotiation_states
+  NegotiationStatusesPub::SharedPtr negotiation_stasuses_pub;
+
   class ConflictRecord
   {
   public:
@@ -311,7 +325,13 @@ public:
     struct OpenNegotiation
     {
       NegotiationRoom room;
+      rmf_traffic::Time start_time;
       rmf_traffic::Time last_active_time;
+
+      void update_state_msg(uint64_t conflict_version)
+      {
+        room.update_state_msg(conflict_version, start_time, last_active_time);
+      }
     };
 
     struct Wait
@@ -380,7 +400,8 @@ public:
           *rmf_traffic::schedule::Negotiation::make(
             viewer.snapshot(), std::vector<ParticipantId>(
               add_to_negotiation.begin(), add_to_negotiation.end())),
-          time
+          time, // start time
+          time  // last update time
         };
       }
       else
@@ -392,7 +413,7 @@ public:
         }
       }
 
-      update_negotiation->room.update_state_msg(negotiation_version);
+      update_negotiation->update_state_msg(negotiation_version);
       return Entry{negotiation_version, &update_negotiation->room.negotiation};
     }
 
