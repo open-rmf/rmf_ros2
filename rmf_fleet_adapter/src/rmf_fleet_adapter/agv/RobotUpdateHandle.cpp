@@ -639,6 +639,43 @@ const RobotUpdateHandle::Unstable& RobotUpdateHandle::unstable() const
 }
 
 //==============================================================================
+bool RobotUpdateHandle::Unstable::is_commissioned() const
+{
+  if (const auto context = _pimpl->get_context())
+    return context->is_commissioned();
+
+  return false;
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::decommission()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [w = context->weak_from_this()](const auto&)
+      {
+        if (const auto context = w.lock())
+          context->decommission();
+      });
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::recommission()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [w = context->weak_from_this()](const auto&)
+      {
+        if (const auto context = w.lock())
+          context->recommission();
+      });
+  }
+}
+
+//==============================================================================
 rmf_traffic::schedule::Participant*
 RobotUpdateHandle::Unstable::get_participant()
 {
