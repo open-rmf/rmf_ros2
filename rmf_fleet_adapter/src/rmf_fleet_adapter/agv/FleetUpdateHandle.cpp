@@ -1383,7 +1383,7 @@ void FleetUpdateHandle::add_robot(
             context->name().c_str(),
             context->itinerary().id());
 
-          std::optional<std::weak_ptr<BroadcastClient>>
+          std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>>
           broadcast_client = std::nullopt;
 
           if (fleet->_pimpl->broadcast_client)
