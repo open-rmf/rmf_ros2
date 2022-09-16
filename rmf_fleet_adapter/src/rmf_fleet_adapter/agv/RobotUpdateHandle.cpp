@@ -711,7 +711,7 @@ void RobotUpdateHandle::Unstable::change_participant_profile(
   {
     context->worker().schedule(
       [
-        w =context->weak_from_this(),
+        w = context->weak_from_this(),
         profile = std::move(profile)
       ](const auto&)
       {
