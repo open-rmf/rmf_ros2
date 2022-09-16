@@ -117,7 +117,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("update_battery_soc", &agv::RobotUpdateHandle::update_battery_soc,
     py::arg("battery_soc"))
   .def("override_status", &agv::RobotUpdateHandle::override_status,
-    py::arg("battery_soc"))
+    py::arg("new_status"))
   .def_property("maximum_delay",
     py::overload_cast<>(
       &agv::RobotUpdateHandle::maximum_delay, py::const_),
@@ -191,6 +191,11 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("on_map"),
     py::arg("at_position"),
     py::arg("for_duration"))
+  .def("unstable_current_plan_id",
+    [&](const agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().current_plan_id();
+    })
   .def("unstable_be_stubborn",
     [&](agv::RobotUpdateHandle& self)
     {

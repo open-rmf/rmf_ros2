@@ -245,7 +245,7 @@ void Negotiate::operator()(const Subscriber& s)
 
             n->_rollout_job = std::make_shared<jobs::Rollout>(
               std::move(rollout_source), parent_id,
-              std::chrono::seconds(15), 200);
+              std::chrono::seconds(15), 5);
 
             n->_rollout_sub =
             rmf_rxcpp::make_job<jobs::Rollout::Result>(n->_rollout_job)

@@ -32,22 +32,26 @@ void FindPath::operator()(const Subscriber& s)
     .subscribe(
     [s](const jobs::SearchForPath::Result& result)
     {
-      // The first time we get a result back, it will be when the jobs is
+      // The first time we get a result back, it will be when the jobs are
       // completed.
       if (result.compliant_job && result.compliant_job->progress().success())
       {
         s.on_next(result.compliant_job->progress());
         s.on_completed();
       }
-      else if (result.greedy_job && result.greedy_job->progress().success())
+      else if (result.greedy_job)
       {
+        // We will send back the result of the greedy job, whether or not it
+        // successfully found a plan. It is up to the subscriber to check
+        // whether it was successful and decide what to do about failures.
         s.on_next(result.greedy_job->progress());
         s.on_completed();
       }
       else
       {
         s.on_error(std::make_exception_ptr(
-          std::runtime_error("[FindPath] Unable to find path")));
+          std::runtime_error(
+            "[FindPath] Unexpected result from SearchForPath")));
       }
     },
     [s](std::exception_ptr e)

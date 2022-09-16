@@ -58,6 +58,8 @@ const std::string NegotiationForfeitTopicName = Prefix +
   "negotiation_forfeit";
 const std::string NegotiationConclusionTopicName = Prefix +
   "negotiation_conclusion";
+const std::string NegotiationStatesTopicName = Prefix +
+  "negotiation_states";
 
 const std::string BlockadeCancelTopicName = Prefix +
   "blockade_cancel";
