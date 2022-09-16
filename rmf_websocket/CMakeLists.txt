@@ -20,6 +20,7 @@ find_package(rclcpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(nlohmann_json_schema_validator_vendor REQUIRED)
 find_package(websocketpp REQUIRED)
+find_package(Boost COMPONENTS system filesystem REQUIRED)
 
 file(GLOB_RECURSE core_lib_srcs "src/rmf_websocket/*.cpp")
 add_library(rmf_websocket SHARED ${core_lib_srcs})
@@ -31,6 +32,9 @@ target_link_libraries(rmf_websocket
     rmf_utils::rmf_utils
     nlohmann_json::nlohmann_json
     nlohmann_json_schema_validator
+  PRIVATE
+    ${Boost_FILESYSTEM_LIBRARY}
+    ${Boost_SYSTEM_LIBRARY}
 )
 
 target_include_directories(rmf_websocket
@@ -42,7 +46,7 @@ target_include_directories(rmf_websocket
 )
 
 ament_export_targets(rmf_websocket HAS_LIBRARY_TARGET)
-ament_export_dependencies(rmf_traffic rclcpp nlohmann_json)
+ament_export_dependencies(rmf_traffic rclcpp nlohmann_json websocketpp)
 
 #===============================================================================
 install(
