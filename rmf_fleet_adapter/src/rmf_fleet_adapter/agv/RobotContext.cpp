@@ -436,6 +436,24 @@ std::shared_ptr<TaskManager> RobotContext::task_manager()
 }
 
 //==============================================================================
+bool RobotContext::is_commissioned() const
+{
+  return _commissioned;
+}
+
+//==============================================================================
+void RobotContext::decommission()
+{
+  _commissioned = false;
+}
+
+//==============================================================================
+void RobotContext::recommission()
+{
+  _commissioned = true;
+}
+
+//==============================================================================
 Reporting& RobotContext::reporting()
 {
   return _reporting;

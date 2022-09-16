@@ -335,6 +335,19 @@ public:
   class Unstable
   {
   public:
+    /// True if this robot is allowed to accept new tasks. False if the robot
+    /// will not accept any new tasks.
+    bool is_commissioned() const;
+
+    /// Stop this robot from accepting any new tasks. It will continue to
+    /// perform tasks that are already in its queue. To reassign those tasks,
+    /// you will need to use the task request API to cancel the tasks and
+    /// re-request them.
+    void decommission();
+
+    /// Allow this robot to resume accepting new tasks.
+    void recommission();
+
     /// Get the schedule participant of this robot
     rmf_traffic::schedule::Participant* get_participant();
 
