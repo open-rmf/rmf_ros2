@@ -18,6 +18,8 @@
 #include "internal_RobotUpdateHandle.hpp"
 #include "../TaskManager.hpp"
 
+#include <rmf_traffic/geometry/Circle.hpp>
+
 #include <rmf_traffic_ros2/Time.hpp>
 
 #include <iostream>
@@ -685,6 +687,40 @@ RobotUpdateHandle::Unstable::get_participant()
     return &itinerary;
   }
   return nullptr;
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::change_participant_profile(
+  double footprint_radius,
+  double vicinity_radius)
+{
+  const auto vicinity = [&]() -> rmf_traffic::geometry::FinalConvexShapePtr
+    {
+      if (vicinity_radius <= footprint_radius)
+        return nullptr;
+
+      return rmf_traffic::geometry::make_final_convex(
+        rmf_traffic::geometry::Circle(vicinity_radius));
+    } ();
+
+  const auto footprint = rmf_traffic::geometry::make_final_convex(
+    rmf_traffic::geometry::Circle(footprint_radius));
+
+  rmf_traffic::Profile profile(footprint, vicinity);
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+        w = context->weak_from_this(),
+        profile = std::move(profile)
+      ](const auto&)
+      {
+        if (const auto context = w.lock())
+        {
+          context->itinerary().change_profile(profile);
+        }
+      });
+  }
 }
 
 //==============================================================================
