@@ -316,6 +316,18 @@ public:
   /// Add a log entry with Error severity
   void log_error(std::string text);
 
+  /// Toggle the responsive wait behavior for this robot. When responsive wait
+  /// is active, the robot will remain in the traffic schedule when it is idle
+  /// and will negotiate its position with other traffic participants to
+  /// potentially move out of their way.
+  ///
+  /// Disabling this behavior may be helpful to reduce CPU load or prevent
+  /// parked robots from moving or being seen as conflicts when they are not
+  /// actually at risk of creating traffic conflicts.
+  ///
+  /// By default this behavior is enabled.
+  void enable_responsive_wait(bool value);
+
   class Implementation;
 
   /// This API is experimental and will not be supported in the future. Users

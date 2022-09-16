@@ -869,6 +869,29 @@ const
 }
 
 //==============================================================================
+void TaskManager::enable_responsive_wait(bool value)
+{
+  if (_responsive_wait_enabled == value)
+    return;
+
+  _responsive_wait_enabled = value;
+  if (!_responsive_wait_enabled && static_cast<bool>(_waiting))
+  {
+    _waiting.cancel({"Responsive Wait Disabled"}, _context->now());
+    return;
+  }
+
+  if (_responsive_wait_enabled)
+  {
+    std::lock_guard<std::mutex> guard(_mutex);
+    if (!_active_task && _queue.empty() && _direct_queue.empty() && !_waiting)
+    {
+      _begin_waiting();
+    }
+  }
+}
+
+//==============================================================================
 void TaskManager::set_queue(
   const std::vector<TaskManager::Assignment>& assignments)
 {
@@ -1388,6 +1411,9 @@ std::function<void()> TaskManager::_robot_interruption_callback()
 //==============================================================================
 void TaskManager::_begin_waiting()
 {
+  if (!_responsive_wait_enabled)
+    return;
+
   // Determine the waypoint closest to the robot
   std::size_t waiting_point = _context->location().front().waypoint();
   double min_dist = std::numeric_limits<double>::max();
