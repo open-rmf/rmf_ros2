@@ -607,6 +607,20 @@ void RobotUpdateHandle::log_error(std::string text)
 }
 
 //==============================================================================
+void RobotUpdateHandle::enable_responsive_wait(bool value)
+{
+  const auto context = _pimpl->get_context();
+  if (!context)
+    return;
+
+  context->worker().schedule(
+    [mgr = context->task_manager(), value](const auto&)
+    {
+      mgr->enable_responsive_wait(value);
+    });
+}
+
+//==============================================================================
 RobotUpdateHandle::RobotUpdateHandle()
 {
   // Do nothing

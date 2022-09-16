@@ -409,7 +409,7 @@ target_link_libraries(test_read_only_adapter
 # -----------------------------------------------------------------------------
 
 add_executable(dump_fleet_states
-  test/dump_fleet_states
+  test/dump_fleet_states.cpp
 )
 
 target_link_libraries(dump_fleet_states
