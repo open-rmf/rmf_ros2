@@ -73,6 +73,7 @@
 #include <iostream>
 #include <unordered_set>
 #include <optional>
+#include <malloc.h>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -274,6 +275,7 @@ public:
     fleet_state_pub = nullptr;
   rclcpp::TimerBase::SharedPtr fleet_state_topic_publish_timer = nullptr;
   rclcpp::TimerBase::SharedPtr fleet_state_update_timer = nullptr;
+  rclcpp::TimerBase::SharedPtr memory_trim_timer = nullptr;
 
   // Map task id to pair of <RequestPtr, Assignments>
   using Assignments = rmf_task::TaskPlanner::Assignments;
@@ -348,6 +350,17 @@ public:
     handle->_pimpl->fleet_state_pub = handle->_pimpl->node->fleet_state();
     handle->fleet_state_topic_publish_period(std::chrono::seconds(1));
     handle->fleet_state_update_period(std::chrono::seconds(1));
+
+    // Sometimes difficult negotiations end up seizing an exceedingly large
+    // amount of RAM. This function is used to allow the operating system
+    // to take that RAM back after it's no longer needed. This is mostly
+    // superficial, but it helps us know that the fleet adapter isn't leaking
+    // huge amounts of memory.
+    //
+    // TODO(MXG): Remove this when the planner has been made more
+    // memory-efficient.
+    handle->_pimpl->memory_trim_timer = handle->_pimpl->node->create_wall_timer(
+      std::chrono::minutes(5), []() { malloc_trim(0); });
 
     // Create subs and pubs for bidding
     auto transient_qos = rclcpp::QoS(10).transient_local();

@@ -360,6 +360,9 @@ public:
       Eigen::Vector3d at_position,
       rmf_traffic::Duration for_duration = std::chrono::seconds(30));
 
+    /// Get the current Plan ID that this robot has sent to the traffic schedule
+    rmf_traffic::PlanId current_plan_id() const;
+
     /// Hold onto this class to tell the robot to behave as a "stubborn
     /// negotiator", meaning it will always refuse to accommodate the schedule
     /// of any other agent. This could be used when teleoperating a robot, to
