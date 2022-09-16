@@ -608,6 +608,20 @@ void RobotUpdateHandle::log_error(std::string text)
 }
 
 //==============================================================================
+void RobotUpdateHandle::enable_responsive_wait(bool value)
+{
+  const auto context = _pimpl->get_context();
+  if (!context)
+    return;
+
+  context->worker().schedule(
+    [mgr = context->task_manager(), value](const auto&)
+    {
+      mgr->enable_responsive_wait(value);
+    });
+}
+
+//==============================================================================
 RobotUpdateHandle::RobotUpdateHandle()
 {
   // Do nothing
@@ -623,6 +637,43 @@ RobotUpdateHandle::Unstable& RobotUpdateHandle::unstable()
 const RobotUpdateHandle::Unstable& RobotUpdateHandle::unstable() const
 {
   return _pimpl->unstable;
+}
+
+//==============================================================================
+bool RobotUpdateHandle::Unstable::is_commissioned() const
+{
+  if (const auto context = _pimpl->get_context())
+    return context->is_commissioned();
+
+  return false;
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::decommission()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [w = context->weak_from_this()](const auto&)
+      {
+        if (const auto context = w.lock())
+          context->decommission();
+      });
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::recommission()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [w = context->weak_from_this()](const auto&)
+      {
+        if (const auto context = w.lock())
+          context->recommission();
+      });
+  }
 }
 
 //==============================================================================
