@@ -18,15 +18,10 @@
 #ifndef RMF_WEBSOCKET__BROADCAST_SERVER_HPP
 #define RMF_WEBSOCKET__BROADCAST_SERVER_HPP
 
-#include <websocketpp/config/asio_no_tls.hpp>
-#include <websocketpp/server.hpp>
-
 #include <nlohmann/json.hpp>
 
 #include <optional>
 #include <rmf_utils/impl_ptr.hpp>
-
-using Server = websocketpp::server<websocketpp::config::asio>;
 
 namespace rmf_websocket {
 
