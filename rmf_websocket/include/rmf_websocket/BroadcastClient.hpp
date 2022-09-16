@@ -59,6 +59,9 @@ public:
   // Publish a vector of messages
   void publish(const std::vector<nlohmann::json>& msgs);
 
+  /// Set a limit for how big the queue is allowed to get. Default is 1000.
+  void set_queue_limit(std::optional<std::size_t> limit);
+
   class Implementation;
 
 private:

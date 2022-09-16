@@ -61,8 +61,7 @@ void RobotUpdateHandle::replan()
 {
   if (const auto context = _pimpl->get_context())
   {
-    context->_interrupt_publisher.get_subscriber().on_next(
-      RobotContext::Empty());
+    context->request_replan();
   }
 }
 
@@ -642,6 +641,43 @@ const RobotUpdateHandle::Unstable& RobotUpdateHandle::unstable() const
 }
 
 //==============================================================================
+bool RobotUpdateHandle::Unstable::is_commissioned() const
+{
+  if (const auto context = _pimpl->get_context())
+    return context->is_commissioned();
+
+  return false;
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::decommission()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [w = context->weak_from_this()](const auto&)
+      {
+        if (const auto context = w.lock())
+          context->decommission();
+      });
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::recommission()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [w = context->weak_from_this()](const auto&)
+      {
+        if (const auto context = w.lock())
+          context->recommission();
+      });
+  }
+}
+
+//==============================================================================
 rmf_traffic::schedule::Participant*
 RobotUpdateHandle::Unstable::get_participant()
 {
@@ -717,6 +753,12 @@ void RobotUpdateHandle::Unstable::declare_holding(
         }
       });
   }
+}
+
+//==============================================================================
+rmf_traffic::PlanId RobotUpdateHandle::Unstable::current_plan_id() const
+{
+  return _pimpl->get_context()->itinerary().current_plan_id();
 }
 
 //==============================================================================

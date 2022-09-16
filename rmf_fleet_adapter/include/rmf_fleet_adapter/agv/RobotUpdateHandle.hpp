@@ -335,6 +335,19 @@ public:
   class Unstable
   {
   public:
+    /// True if this robot is allowed to accept new tasks. False if the robot
+    /// will not accept any new tasks.
+    bool is_commissioned() const;
+
+    /// Stop this robot from accepting any new tasks. It will continue to
+    /// perform tasks that are already in its queue. To reassign those tasks,
+    /// you will need to use the task request API to cancel the tasks and
+    /// re-request them.
+    void decommission();
+
+    /// Allow this robot to resume accepting new tasks.
+    void recommission();
+
     /// Get the schedule participant of this robot
     rmf_traffic::schedule::Participant* get_participant();
 
@@ -351,6 +364,9 @@ public:
       std::string on_map,
       Eigen::Vector3d at_position,
       rmf_traffic::Duration for_duration = std::chrono::seconds(30));
+
+    /// Get the current Plan ID that this robot has sent to the traffic schedule
+    rmf_traffic::PlanId current_plan_id() const;
 
     /// Hold onto this class to tell the robot to behave as a "stubborn
     /// negotiator", meaning it will always refuse to accommodate the schedule

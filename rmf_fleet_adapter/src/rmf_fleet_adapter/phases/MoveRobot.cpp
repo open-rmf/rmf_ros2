@@ -44,13 +44,11 @@ MoveRobot::ActivePhase::ActivePhase(
   _obs = make_cancellable(job, _cancel_subject.get_observable())
     .lift<LegacyTask::StatusMsg>(grab_while_active())
     .observe_on(rxcpp::identity_same_worker(_context->worker()));
-
-  _context->current_mode(rmf_fleet_msgs::msg::RobotMode::MODE_MOVING);
 }
 
 //==============================================================================
-const rxcpp::observable<LegacyTask::StatusMsg>& MoveRobot::ActivePhase::observe()
-const
+const rxcpp::observable<LegacyTask::StatusMsg>&
+MoveRobot::ActivePhase::observe() const
 {
   return _obs;
 }

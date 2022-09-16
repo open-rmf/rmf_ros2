@@ -117,7 +117,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("update_battery_soc", &agv::RobotUpdateHandle::update_battery_soc,
     py::arg("battery_soc"))
   .def("override_status", &agv::RobotUpdateHandle::override_status,
-    py::arg("battery_soc"))
+    py::arg("new_status"))
   .def_property("maximum_delay",
     py::overload_cast<>(
       &agv::RobotUpdateHandle::maximum_delay, py::const_),
@@ -138,6 +138,25 @@ PYBIND11_MODULE(rmf_adapter, m) {
       self.maximum_delay(duration);
     },
     py::arg("seconds"))
+  .def("unstable_is_commissioned",
+    [&](const agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().is_commissioned();
+    },
+    "Check if the robot is currently allowed to accept any new tasks")
+  .def("unstable_decommission",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().decommission();
+    },
+    "Stop this robot from accepting any new tasks. Use recommission to resume")
+  .def("unstable_recommission",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().recommission();
+    },
+    "Allow this robot to resume accepting new tasks if it was ever "
+    "decommissioned in the past")
   .def("get_unstable_participant",
     [&](agv::RobotUpdateHandle& self)
     {
@@ -182,6 +201,11 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("on_map"),
     py::arg("at_position"),
     py::arg("for_duration"))
+  .def("unstable_current_plan_id",
+    [&](const agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().current_plan_id();
+    })
   .def("unstable_be_stubborn",
     [&](agv::RobotUpdateHandle& self)
     {

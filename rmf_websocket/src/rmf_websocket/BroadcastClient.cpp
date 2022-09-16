@@ -37,6 +37,7 @@ public:
     ProvideJsonUpdates get_json_updates_cb)
   : _uri{std::move(uri)},
     _node{std::move(node)},
+    _queue_limit(1000),
     _get_json_updates_cb{std::move(get_json_updates_cb)}
   {
     _shutdown = false;
@@ -111,6 +112,26 @@ public:
                 c->_uri.c_str(),
                 ec.message().c_str());
               c->_connected = false;
+
+              {
+                std::lock_guard<std::mutex> lock(c->_queue_mutex);
+                if (c->_queue_limit.has_value())
+                {
+                  if (c->_queue.size() > *c->_queue_limit)
+                  {
+                    RCLCPP_WARN(
+                      c->_node->get_logger(),
+                      "Reducing size of broadcast queue from [%lu] down to "
+                      "its limit of [%lu]",
+                      c->_queue.size(),
+                      *c->_queue_limit);
+
+                    while (c->_queue.size() > *c->_queue_limit)
+                      c->_queue.pop();
+                  }
+                }
+              }
+
               std::this_thread::sleep_for(std::chrono::milliseconds(2000));
               continue;
             }
@@ -167,6 +188,12 @@ public:
     _cv.notify_all();
   }
 
+  void set_queue_limit(std::optional<std::size_t> limit)
+  {
+    std::lock_guard<std::mutex> lock(_queue_mutex);
+    _queue_limit = limit;
+  }
+
   ~Implementation()
   {
     _shutdown = true;
@@ -186,6 +213,7 @@ private:
   // create pimpl
   std::string _uri;
   std::shared_ptr<rclcpp::Node> _node;
+  std::optional<std::size_t> _queue_limit;
   WebsocketClient _client;
   websocketpp::connection_hdl _hdl;
   std::mutex _wait_mutex;
@@ -222,6 +250,12 @@ void BroadcastClient::publish(const nlohmann::json& msg)
 void BroadcastClient::publish(const std::vector<nlohmann::json>& msgs)
 {
   _pimpl->publish(msgs);
+}
+
+//==============================================================================
+void BroadcastClient::set_queue_limit(std::optional<std::size_t> limit)
+{
+  _pimpl->set_queue_limit(limit);
 }
 
 //==============================================================================
