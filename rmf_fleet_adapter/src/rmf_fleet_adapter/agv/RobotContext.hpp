@@ -229,6 +229,14 @@ public:
   /// Get the task manager for this robot, if it exists.
   std::shared_ptr<TaskManager> task_manager();
 
+  /// Return true if this robot is currently commissioned (available to accept
+  /// new tasks).
+  bool is_commissioned() const;
+
+  void decommission();
+
+  void recommission();
+
   Reporting& reporting();
 
   const Reporting& reporting() const;
@@ -290,6 +298,7 @@ private:
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);
+  bool _commissioned = true;
 
   // Mode value for RobotMode message
   uint32_t _current_mode;

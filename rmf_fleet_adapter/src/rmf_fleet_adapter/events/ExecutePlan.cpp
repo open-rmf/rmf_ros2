@@ -570,7 +570,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
   while (head != end)
   {
     if (const auto door =
-        search_for_door_group(head, end, context, plan_id, event_id))
+      search_for_door_group(head, end, context, plan_id, event_id))
     {
       standbys.push_back(door->group);
       head = door->tail;

@@ -138,6 +138,25 @@ PYBIND11_MODULE(rmf_adapter, m) {
       self.maximum_delay(duration);
     },
     py::arg("seconds"))
+  .def("unstable_is_commissioned",
+    [&](const agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().is_commissioned();
+    },
+    "Check if the robot is currently allowed to accept any new tasks")
+  .def("unstable_decommission",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().decommission();
+    },
+    "Stop this robot from accepting any new tasks. Use recommission to resume")
+  .def("unstable_recommission",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().recommission();
+    },
+    "Allow this robot to resume accepting new tasks if it was ever "
+    "decommissioned in the past")
   .def("get_unstable_participant",
     [&](agv::RobotUpdateHandle& self)
     {
@@ -217,7 +236,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("text"))
   .def("log_error",
     &agv::RobotUpdateHandle::log_error,
-    py::arg("text"));
+    py::arg("text"))
+  .def("enable_responsive_wait",
+    &agv::RobotUpdateHandle::enable_responsive_wait,
+    py::arg("value"));
 
   // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");

@@ -407,8 +407,8 @@ void ScheduleNode::setup_incosistency_pub()
 void ScheduleNode::setup_conflict_topics_and_thread()
 {
   const auto negotiation_qos = rclcpp::ServicesQoS()
-      .reliable()
-      .keep_last(1000);
+    .reliable()
+    .keep_last(1000);
 
   conflict_ack_sub = create_subscription<ConflictAck>(
     rmf_traffic_ros2::NegotiationAckTopicName, negotiation_qos,
