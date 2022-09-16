@@ -19,6 +19,9 @@
 
   <build_depend>eigen</build_depend>
 
+  <build_depend>boost</build_depend>
+  <exec_depend>boost</exec_depend>
+
   <test_depend>ament_cmake_catch2</test_depend>
   <test_depend>ament_cmake_uncrustify</test_depend>
 
