@@ -30,7 +30,7 @@ class WrongQueryScheduleNode : public rmf_traffic_ros2::schedule::ScheduleNode
 {
 public:
   WrongQueryScheduleNode(const rclcpp::NodeOptions& options)
-    : ScheduleNode(0, options, ScheduleNode::no_automatic_setup)
+    : ScheduleNode(options, ScheduleNode::no_automatic_setup)
   {
   }
 

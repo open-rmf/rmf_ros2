@@ -28,7 +28,7 @@ class MissingParticipantScheduleNode : public rmf_traffic_ros2::schedule::Schedu
 {
 public:
   MissingParticipantScheduleNode(const rclcpp::NodeOptions& options)
-    : ScheduleNode(0, options)
+    : ScheduleNode(options)
   {
     timer = create_wall_timer(30s, [this]() -> void
       {
