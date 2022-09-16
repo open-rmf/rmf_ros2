@@ -279,7 +279,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             plan_id, new_cumulative_delay, 500ms);
         });
     },
-    [s, w = weak_from_this(), robot_name = _context->name(), ptr = this, plan_id = _plan_id]()
+    [s, w = weak_from_this()]()
     {
       if (const auto self = w.lock())
       {

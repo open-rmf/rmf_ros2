@@ -335,9 +335,9 @@ public:
     const rmf_traffic::schedule::Patch patch = convert(msg);
     if (!mirror->update(patch) && !is_remedial)
     {
-      std::string patch_base = patch.base_version()?
+      std::string patch_base = patch.base_version() ?
         std::to_string(*patch.base_version()) : std::string("any");
-      std::string mirror_version = mirror->latest_version()?
+      std::string mirror_version = mirror->latest_version() ?
         std::to_string(*mirror->latest_version()) : std::string("none");
       RCLCPP_WARN(
         node->get_logger(),
@@ -615,7 +615,7 @@ public:
           return;
 
         register_query_client =
-          node->create_client<RegisterQuery>(RegisterQueryServiceName);
+        node->create_client<RegisterQuery>(RegisterQueryServiceName);
 
         request_changes_client = node->create_client<RequestChanges>(
           RequestChangesServiceName);

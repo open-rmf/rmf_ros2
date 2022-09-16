@@ -56,8 +56,8 @@ ScheduleNode::ScheduleId generate_node_id()
     std::chrono::system_clock::now().time_since_epoch().count());
 
   return rmf_traffic_msgs::build<ScheduleNode::ScheduleId>()
-      .node_uuid(std::string(uuid))
-      .timestamp(time);
+    .node_uuid(std::string(uuid))
+    .timestamp(time);
 }
 
 //==============================================================================
@@ -156,7 +156,7 @@ ScheduleNode::ScheduleNode(
   std::shared_ptr<rmf_traffic::schedule::Database> database_,
   const rclcpp::NodeOptions& options,
   NoAutomaticSetup)
-  : Node(generate_schedule_node_name(id), options),
+: Node(generate_schedule_node_name(id), options),
   heartbeat_qos_profile(1),
   database(std::move(database_))
 {
@@ -453,9 +453,9 @@ void ScheduleNode::setup_conflict_topics_and_thread()
 
   const auto single_reliable_transient_local =
     rclcpp::SystemDefaultsQoS()
-      .keep_last(1)
-      .reliable()
-      .transient_local();
+    .keep_last(1)
+    .reliable()
+    .transient_local();
 
   negotiation_states_pub = create_publisher<NegotiationStates>(
     rmf_traffic_ros2::NegotiationStatesTopicName,
@@ -525,10 +525,10 @@ void ScheduleNode::setup_conflict_topics_and_thread()
           {
             if (!mirror.update(*next_patch))
             {
-              const std::string mirror_version = mirror.latest_version()?
-                std::to_string(*mirror.latest_version()) : "none";
-              const std::string patch_base = next_patch->base_version()?
-                std::to_string(*next_patch->base_version()) : "any";
+              const std::string mirror_version = mirror.latest_version() ?
+              std::to_string(*mirror.latest_version()) : "none";
+              const std::string patch_base = next_patch->base_version() ?
+              std::to_string(*next_patch->base_version()) : "any";
               RCLCPP_ERROR(
                 get_logger(),
                 "Failed to update conflict detection mirror. Mirror version: %s"
