@@ -8,6 +8,7 @@
 
 #include "rmf_traffic_ros2/Time.hpp"
 #include "rmf_fleet_adapter/agv/Adapter.hpp"
+#include "rmf_fleet_adapter/agv/EasyFullControl.hpp"
 #include "rmf_fleet_adapter/agv/test/MockAdapter.hpp"
 #include "rmf_fleet_adapter_python/PyRobotCommandHandle.hpp"
 #include <rmf_fleet_adapter/agv/Waypoint.hpp>
@@ -21,6 +22,7 @@
 #include <rmf_task/requests/ParkRobotFactory.hpp>
 
 #include <rmf_traffic/Time.hpp>
+#include <rmf_traffic/agv/Planner.hpp>
 
 namespace py = pybind11;
 namespace agv = rmf_fleet_adapter::agv;
@@ -40,6 +42,12 @@ using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
 using Stubbornness = agv::RobotUpdateHandle::Unstable::Stubbornness;
+
+using Configuration = agv::EasyFullControl::Configuration;
+using Target = agv::EasyFullControl::Target;
+using Position = agv::EasyFullControl::Position;
+using GetPosition = agv::EasyFullControl::GetPosition;
+using ProcessCompleted = agv::EasyFullControl::ProcessCompleted;
 
 void bind_types(py::module&);
 void bind_graph(py::module&);
@@ -503,6 +511,76 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       return self.errors();
     });
+
+  // EASY FULL CONTROL HANDLE ===============================================
+  py::class_<agv::EasyFullControl,
+    std::shared_ptr<agv::EasyFullControl>>(
+    m, "EasyFullControl")
+  .def_static("make", &agv::EasyFullControl::make,
+    py::arg("config"),
+    py::arg("adapter"))
+  .def("add_robot", [](agv::EasyFullControl& self,
+    const std::string& robot_name,
+    Eigen::Vector3d pose,
+    GetPosition get_position,
+    std::function<ProcessCompleted(const Target target)> navigate,
+    std::function<ProcessCompleted(const std::string& dock_name)> dock,
+    ProcessCompleted stop,
+    agv::RobotUpdateHandle::ActionExecutor action_executor)
+    {
+      return self.add_robot(robot_name, pose, get_position, navigate, dock,
+      stop, action_executor);
+    },
+    py::arg("robot_name"),
+    py::arg("pose"),
+    py::arg("get_position"),
+    py::arg("navigate"),
+    py::arg("dock"),
+    py::arg("stop"),
+    py::arg("action_executor"))
+  .def("add_robot_with_start", [](agv::EasyFullControl& self,
+    const std::string& robot_name,
+    rmf_traffic::agv::Planner::Start pose,
+    GetPosition get_position,
+    std::function<ProcessCompleted(const Target target)> navigate,
+    std::function<ProcessCompleted(const std::string& dock_name)> dock,
+    ProcessCompleted stop,
+    agv::RobotUpdateHandle::ActionExecutor action_executor)
+    {
+      return self.add_robot(robot_name, pose, get_position, navigate, dock,
+      stop, action_executor);
+    },
+    py::arg("robot_name"),
+    py::arg("pose"),
+    py::arg("get_position"),
+    py::arg("navigate"),
+    py::arg("dock"),
+    py::arg("stop"),
+    py::arg("action_executor"));
+
+  // EASY FULL CONTROL CONFIGURATION ===============================================
+  auto m_easy_full_control_handle = m.def_submodule("easy_full_control_handle");
+
+  py::class_<Configuration>(
+    m_easy_full_control_handle, "Configuration")
+  .def(py::init<std::string,
+    std::string,
+    std::optional<std::string>>(),
+    py::arg("config_file"),
+    py::arg("nav_graph_path"),
+    py::arg("server_uri"));
+
+  py::class_<Target>(m_easy_full_control_handle, "Target")
+    .def(py::init<>())
+    .def_readwrite("pose", &Target::pose)
+    .def_readwrite("map_name", &Target::map_name)
+    .def_readwrite("speed_limit", &Target::speed_limit);
+
+  py::class_<Position>(m_easy_full_control_handle, "Position")
+    .def(py::init<>())
+    .def_readwrite("position", &Position::position)
+    .def_readwrite("map_name", &Position::map_name)
+    .def_readwrite("battery_percent", &Position::battery_percent);
 
   // EASY TRAFFIC LIGHT HANDLE ===============================================
   py::class_<agv::Waypoint>(m, "Waypoint")
