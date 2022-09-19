@@ -38,6 +38,7 @@
 #include <rmf_building_map_msgs/msg/graph.hpp>
 
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
+#include <rmf_fleet_msgs/msg/lane_states.hpp>
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
@@ -319,6 +320,11 @@ public:
 
   mutable rmf_task::Log::Reader log_reader = {};
 
+  using LaneStates = rmf_fleet_msgs::msg::LaneStates;
+  rclcpp::Publisher<LaneStates>::SharedPtr lane_states_pub = nullptr;
+  std::unordered_map<std::size_t, double> speed_limited_lanes = {};
+  std::unordered_set<std::size_t> closed_lanes = {};
+
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&& ... args)
   {
@@ -403,6 +409,13 @@ public:
         if (const auto self = w.lock())
           self->_pimpl->dock_summary_cb(msg);
       });
+
+    // Publish LaneStates
+    handle->_pimpl->lane_states_pub =
+      handle->_pimpl->node->create_publisher<LaneStates>(
+      LaneStatesTopicName,
+      transient_qos);
+    handle->_pimpl->publish_lane_states();
 
     // Populate charging waypoints
     const auto& graph = (*handle->_pimpl->planner)->get_configuration().graph();
@@ -570,6 +583,8 @@ public:
   }
 
   void publish_fleet_state_topic() const;
+
+  void publish_lane_states() const;
 
   void update_fleet() const;
 
