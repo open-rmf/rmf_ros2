@@ -39,6 +39,7 @@
   <arg name="recharge_threshold" default="0.2" description="The fraction of total battery capacity below which the robot must return to its charger"/>
   <arg name="recharge_soc" default="1.0" description="The fraction of total battery capacity to which the robot should be charged"/>
   <arg name="experimental_lift_watchdog_service" default="" description="(Experimental) The name of a service to check whether a robot can enter a lift"/>
+  <arg name="enable_responsive_wait" default="true" description="Should the robot wait responsively"/>
   <!-- The uri is set to the TrajectoryServer uri for debugging purposes. The default port needs to be updated before merging -->
   <arg name="server_uri" default="" description="The URI of the api server to trasnmit state and task infromation. If empty, information will not be transmitted"/>
 
@@ -85,6 +86,7 @@
     <param name="recharge_soc" value="$(var recharge_soc)"/>
 
     <param name="experimental_lift_watchdog_service" value="$(var experimental_lift_watchdog_service)"/>
+    <param name="enable_responsive_wait" value="$(var enable_responsive_wait)"/>
 
     <param name="server_uri" value="$(var server_uri)"/>
 

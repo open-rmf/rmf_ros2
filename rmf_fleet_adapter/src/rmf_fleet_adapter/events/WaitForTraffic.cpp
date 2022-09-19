@@ -23,6 +23,7 @@ namespace events {
 //==============================================================================
 auto WaitForTraffic::Standby::make(
   agv::RobotContextPtr context,
+  rmf_traffic::PlanId plan_id,
   rmf_traffic::Dependencies dependencies,
   rmf_traffic::Time expected_time,
   const AssignIDPtr& id,
@@ -30,6 +31,7 @@ auto WaitForTraffic::Standby::make(
 {
   auto standby = std::make_shared<Standby>();
   standby->_context = std::move(context);
+  standby->_plan_id = plan_id;
   standby->_dependencies = std::move(dependencies);
   standby->_expected_time = expected_time;
   standby->_state = rmf_task::events::SimpleEventState::make(
@@ -59,6 +61,7 @@ auto WaitForTraffic::Standby::begin(
 {
   return Active::make(
     _context,
+    _plan_id,
     _dependencies,
     _expected_time,
     _state,
@@ -69,6 +72,7 @@ auto WaitForTraffic::Standby::begin(
 //==============================================================================
 auto WaitForTraffic::Active::make(
   agv::RobotContextPtr context,
+  const rmf_traffic::PlanId plan_id,
   const rmf_traffic::Dependencies& dependencies,
   rmf_traffic::Time expected_time,
   rmf_task::events::SimpleEventStatePtr state,
@@ -77,6 +81,7 @@ auto WaitForTraffic::Active::make(
 {
   auto active = std::make_shared<Active>();
   active->_context = std::move(context);
+  active->_plan_id = plan_id;
   active->_expected_time = expected_time;
   active->_state = std::move(state);
   active->_update = std::move(update);
@@ -161,7 +166,7 @@ auto WaitForTraffic::Active::backup() const -> Backup
 //==============================================================================
 auto WaitForTraffic::Active::interrupt(std::function<void()>) -> Resume
 {
-  _decision_made = true;
+  _decision_made = std::chrono::steady_clock::now();
   // WaitForTraffic is not designed to resume after interrupting.
   // That is handled by GoToPlace.
   return Resume::make([]() { /* do nothing */ });
@@ -170,7 +175,7 @@ auto WaitForTraffic::Active::interrupt(std::function<void()>) -> Resume
 //==============================================================================
 void WaitForTraffic::Active::cancel()
 {
-  _decision_made = true;
+  _decision_made = std::chrono::steady_clock::now();
   _state->update_log().info("Received signal to cancel");
   _state->update_status(Status::Canceled);
   _finished();
@@ -179,7 +184,7 @@ void WaitForTraffic::Active::cancel()
 //==============================================================================
 void WaitForTraffic::Active::kill()
 {
-  _decision_made = true;
+  _decision_made = std::chrono::steady_clock::now();
   _state->update_log().info("Received signal to kill");
   _state->update_status(Status::Killed);
   _finished();
@@ -189,7 +194,20 @@ void WaitForTraffic::Active::kill()
 void WaitForTraffic::Active::_consider_going()
 {
   if (_decision_made)
+  {
+    const auto time_lapse = std::chrono::steady_clock::now() - *_decision_made;
+    if (time_lapse > std::chrono::seconds(10))
+    {
+      RCLCPP_WARN(
+        _context->node()->get_logger(),
+        "[WaitForTraffic] excessive time lapse of %fs after a decision should "
+        "have been made. Triggering a replan to recover.",
+        rmf_traffic::time::to_seconds(time_lapse));
+      _replan();
+    }
+
     return;
+  }
 
   bool all_dependencies_reached = true;
   for (const auto& dep : _dependencies)
@@ -220,14 +238,16 @@ void WaitForTraffic::Active::_consider_going()
 
   if (all_dependencies_reached)
   {
-    _decision_made = true;
+    _decision_made = std::chrono::steady_clock::now();
     _state->update_status(Status::Completed);
     _state->update_log().info("All traffic dependencies satisfied");
     return _finished();
   }
 
-  const auto delay = _context->now() - _expected_time;
-  if (std::chrono::seconds(30) < delay)
+  using namespace std::chrono_literals;
+  const auto now = _context->now();
+  const auto cumulative_delay = now - _expected_time;
+  if (30s < cumulative_delay)
   {
     // TODO(MXG): Make the max waiting time configurable
     _state->update_status(Status::Delayed);
@@ -236,17 +256,17 @@ void WaitForTraffic::Active::_consider_going()
     return _replan();
   }
 
-  if (_context->itinerary().delay() < delay)
-    _context->itinerary().delay(delay - _context->itinerary().delay());
+  const auto current_delay = _context->itinerary().cumulative_delay(_plan_id);
+  if (current_delay.has_value() && *current_delay < cumulative_delay)
+  {
+    _context->itinerary().cumulative_delay(_plan_id, cumulative_delay, 500ms);
+  }
 }
 
 //==============================================================================
 void WaitForTraffic::Active::_replan()
 {
-  if (_decision_made)
-    return;
-
-  _decision_made = true;
+  _decision_made = std::chrono::steady_clock::now();
   _context->request_replan();
 }
 

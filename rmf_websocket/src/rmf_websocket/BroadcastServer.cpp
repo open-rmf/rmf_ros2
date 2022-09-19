@@ -28,6 +28,8 @@
 
 namespace rmf_websocket {
 
+using Server = websocketpp::server<websocketpp::config::asio>;
+
 //==============================================================================
 class BroadcastServer::Implementation
 {

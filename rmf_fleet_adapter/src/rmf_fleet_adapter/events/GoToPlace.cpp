@@ -170,6 +170,10 @@ auto GoToPlace::Active::make(
           self->_context->node()->get_logger(),
           "Replanning requested for [%s]",
           self->_context->requester_id().c_str());
+
+        if (const auto c = self->_context->command())
+          c->stop();
+
         self->_find_plan();
       }
     });
@@ -191,7 +195,10 @@ rmf_traffic::Duration GoToPlace::Active::remaining_time_estimate() const
   {
     const auto finish = _execution->finish_time_estimate;
     const auto now = _context->now();
-    return finish - now + _context->itinerary().delay();
+
+    const auto& itin = _context->itinerary();
+    if (const auto delay = itin.cumulative_delay(_execution->plan_id))
+      return finish - now + *delay;
   }
 
   const auto& estimate =
@@ -303,10 +310,12 @@ void GoToPlace::Active::_find_plan()
   _state->update_log().info(
     "Generating plan to move from [" + start_name + "] to [" + goal_name + "]");
 
+  // TODO(MXG): Make the planning time limit configurable
   _find_path_service = std::make_shared<services::FindPath>(
     _context->planner(), _context->location(), _goal,
     _context->schedule()->snapshot(), _context->itinerary().id(),
-    _context->profile());
+    _context->profile(),
+    std::chrono::seconds(5));
 
   _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
     _find_path_service)

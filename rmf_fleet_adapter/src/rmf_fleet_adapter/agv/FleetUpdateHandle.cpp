@@ -853,6 +853,7 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
     auto& fleet_state_msg = fleet_state_update_msg["data"];
     fleet_state_msg["name"] = name;
     auto& robots = fleet_state_msg["robots"];
+    robots = std::unordered_map<std::string, nlohmann::json>();
     for (const auto& [context, mgr] : task_managers)
     {
       const auto& name = context->name();
@@ -922,6 +923,7 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
     fleet_log_msg["name"] = name;
     // TODO(MXG): fleet_log_msg["log"]
     auto& robots_msg = fleet_log_msg["robots"];
+    robots_msg = std::unordered_map<std::string, nlohmann::json>();
     for (const auto& [context, _] : task_managers)
     {
       auto robot_log_msg_array = std::vector<nlohmann::json>();
@@ -1132,6 +1134,10 @@ auto FleetUpdateHandle::Implementation::aggregate_expectations() const
   Expectations expect;
   for (const auto& t : task_managers)
   {
+    // Ignore any robots that are not currently commissioned.
+    if (!t.first->is_commissioned())
+      continue;
+
     expect.states.push_back(t.second->expected_finish_state());
     const auto requests = t.second->requests();
     expect.pending_requests.insert(
@@ -1383,6 +1389,19 @@ void FleetUpdateHandle::add_robot(
             context->name().c_str(),
             context->itinerary().id());
 
+          std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>>
+          broadcast_client = std::nullopt;
+
+          if (fleet->_pimpl->broadcast_client)
+            broadcast_client = fleet->_pimpl->broadcast_client;
+
+          fleet->_pimpl->task_managers.insert({context,
+            TaskManager::make(
+              context,
+              broadcast_client,
+              std::weak_ptr<FleetUpdateHandle>(fleet))});
+
+          // -- Calling the handle_cb should always happen last --
           if (handle_cb)
           {
             handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
@@ -1395,20 +1414,7 @@ void FleetUpdateHandle::add_robot(
               "receive the RobotUpdateHandle of the new robot. This means you will "
               "not be able to update the state of the new robot. This is likely to "
               "be a fleet adapter development error.");
-            return;
           }
-
-          std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>>
-          broadcast_client = std::nullopt;
-
-          if (fleet->_pimpl->broadcast_client)
-            broadcast_client = fleet->_pimpl->broadcast_client;
-
-          fleet->_pimpl->task_managers.insert({context,
-            TaskManager::make(
-              context,
-              broadcast_client,
-              std::weak_ptr<FleetUpdateHandle>(fleet))});
         });
     });
 }

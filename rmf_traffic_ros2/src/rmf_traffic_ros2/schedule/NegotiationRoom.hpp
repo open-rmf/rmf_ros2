@@ -24,6 +24,7 @@
 #include <rmf_traffic_msgs/msg/negotiation_rejection.hpp>
 #include <rmf_traffic_msgs/msg/negotiation_forfeit.hpp>
 #include <rmf_traffic_msgs/msg/negotiation_key.hpp>
+#include <rmf_traffic_msgs/msg/negotiation_state.hpp>
 
 #include <list>
 
@@ -54,12 +55,20 @@ struct NegotiationRoom
   std::list<rmf_traffic_msgs::msg::NegotiationRejection> cached_rejections;
   std::list<rmf_traffic_msgs::msg::NegotiationForfeit> cached_forfeits;
 
+  rmf_traffic_msgs::msg::NegotiationState state_msg;
+
+  void update_state_msg(
+    uint64_t conflict_version,
+    rmf_traffic::Time start_time,
+    rmf_traffic::Time last_active_time);
+
   std::vector<rmf_traffic::schedule::Negotiation::TablePtr> check_cache(
     const NegotiatorMap& negotiators);
 };
 
 //==============================================================================
 // TODO(MXG): Refactor this by putting it somewhere more meaningful.
+/// Provide a publisher to have this also publish the negotiation state.
 void print_negotiation_status(
   rmf_traffic::schedule::Version conflict_version,
   const rmf_traffic::schedule::Negotiation& negotiation);

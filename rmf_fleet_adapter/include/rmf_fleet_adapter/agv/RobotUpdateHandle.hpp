@@ -316,6 +316,18 @@ public:
   /// Add a log entry with Error severity
   void log_error(std::string text);
 
+  /// Toggle the responsive wait behavior for this robot. When responsive wait
+  /// is active, the robot will remain in the traffic schedule when it is idle
+  /// and will negotiate its position with other traffic participants to
+  /// potentially move out of their way.
+  ///
+  /// Disabling this behavior may be helpful to reduce CPU load or prevent
+  /// parked robots from moving or being seen as conflicts when they are not
+  /// actually at risk of creating traffic conflicts.
+  ///
+  /// By default this behavior is enabled.
+  void enable_responsive_wait(bool value);
+
   class Implementation;
 
   /// This API is experimental and will not be supported in the future. Users
@@ -323,8 +335,26 @@ public:
   class Unstable
   {
   public:
+    /// True if this robot is allowed to accept new tasks. False if the robot
+    /// will not accept any new tasks.
+    bool is_commissioned() const;
+
+    /// Stop this robot from accepting any new tasks. It will continue to
+    /// perform tasks that are already in its queue. To reassign those tasks,
+    /// you will need to use the task request API to cancel the tasks and
+    /// re-request them.
+    void decommission();
+
+    /// Allow this robot to resume accepting new tasks.
+    void recommission();
+
     /// Get the schedule participant of this robot
     rmf_traffic::schedule::Participant* get_participant();
+
+    /// Change the radius of the footprint and vicinity of this participant.
+    void change_participant_profile(
+      double footprint_radius,
+      double vicinity_radius);
 
     /// Override the schedule to say that the robot will be holding at a certain
     /// position. This should not be used while tasks with automatic schedule
@@ -334,6 +364,9 @@ public:
       std::string on_map,
       Eigen::Vector3d at_position,
       rmf_traffic::Duration for_duration = std::chrono::seconds(30));
+
+    /// Get the current Plan ID that this robot has sent to the traffic schedule
+    rmf_traffic::PlanId current_plan_id() const;
 
     /// Hold onto this class to tell the robot to behave as a "stubborn
     /// negotiator", meaning it will always refuse to accommodate the schedule

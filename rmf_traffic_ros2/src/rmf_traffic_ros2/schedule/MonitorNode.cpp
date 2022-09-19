@@ -56,13 +56,7 @@ void MonitorNode::setup()
   heartbeat_period = std::chrono::milliseconds(
     get_parameter("heartbeat_period").as_int());
 
-  // Version number to use for the replacement schedule node.
-  // The default is 1, given the original schedule node starts with 0
-  declare_parameter<int>("next_version", 1);
-  next_schedule_node_version = get_parameter("next_version").as_int();
-
   start_heartbeat_listener();
-  start_fail_over_event_broadcaster();
   start_data_synchronisers();
 }
 
@@ -103,7 +97,6 @@ void MonitorNode::start_heartbeat_listener()
           get_logger(),
           "Detected death of primary schedule node");
         on_fail_over_callback(create_new_schedule_node());
-        announce_fail_over();
       }
     };
   heartbeat_sub = create_subscription<Heartbeat>(
@@ -125,34 +118,6 @@ void MonitorNode::start_heartbeat_listener()
 }
 
 //==============================================================================
-void MonitorNode::start_fail_over_event_broadcaster()
-{
-  fail_over_event_pub = create_publisher<FailOverEvent>(
-    rmf_traffic_ros2::FailOverEventTopicName,
-    rclcpp::ServicesQoS().reliable());
-}
-
-//==============================================================================
-void MonitorNode::announce_fail_over()
-{
-  if (rclcpp::ok())
-  {
-    RCLCPP_INFO(get_logger(), "Announcing fail over");
-    auto message = FailOverEvent();
-    fail_over_event_pub->publish(message);
-  }
-  else
-  {
-    // Skip announcing the fail over because other nodes shouldn't bother doing
-    // anything to handle it when the system is shutting down.
-    RCLCPP_INFO(
-      get_logger(),
-      "Not announcing fail over because ROS is shutting down");
-  }
-}
-
-
-//==============================================================================
 void MonitorNode::start_data_synchronisers()
 {
   queries_info_sub = create_subscription<ScheduleQueries>(
@@ -168,10 +133,10 @@ void MonitorNode::start_data_synchronisers()
       registered_queries.clear();
 
       // Fill up with the new sync'd data
-      for (uint64_t ii = 0; ii < msg->ids.size(); ++ii)
+      for (uint64_t ii = 0; ii < msg->query_ids.size(); ++ii)
       {
         registered_queries.insert(
-          {msg->ids[ii], rmf_traffic_ros2::convert(msg->queries[ii])});
+          {msg->query_ids[ii], rmf_traffic_ros2::convert(msg->queries[ii])});
       }
     });
 }
@@ -181,7 +146,6 @@ std::shared_ptr<rclcpp::Node> MonitorNode::create_new_schedule_node()
 {
   auto database = std::make_shared<Database>(mirror.value().fork());
   auto node = std::make_shared<rmf_traffic_ros2::schedule::ScheduleNode>(
-    next_schedule_node_version,
     database,
     registered_queries,
     rclcpp::NodeOptions());

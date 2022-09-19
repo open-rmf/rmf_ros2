@@ -2,6 +2,7 @@
 
 2.0.0 (2022-03-18)
 ------------------
+* Add support for docking in lanes with entry events [#226](https://github.com/open-rmf/rmf_ros2/pull/226)
 * Update to the traffic dependency system: [#188](https://github.com/open-rmf/rmf_ros2/pull/188)
 
 1.5.0 (2022-02-14)

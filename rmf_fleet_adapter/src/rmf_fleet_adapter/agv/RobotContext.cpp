@@ -198,15 +198,13 @@ bool RobotContext::is_stubborn() const
 const rxcpp::observable<RobotContext::Empty>&
 RobotContext::observe_replan_request() const
 {
-  return _interrupt_obs;
+  return _replan_obs;
 }
 
 //==============================================================================
 void RobotContext::request_replan()
 {
-  if (const auto c = command())
-    c->stop();
-  _interrupt_publisher.get_subscriber().on_next(Empty{});
+  _replan_publisher.get_subscriber().on_next(Empty{});
 }
 
 //==============================================================================
@@ -436,6 +434,24 @@ std::shared_ptr<TaskManager> RobotContext::task_manager()
 }
 
 //==============================================================================
+bool RobotContext::is_commissioned() const
+{
+  return _commissioned;
+}
+
+//==============================================================================
+void RobotContext::decommission()
+{
+  _commissioned = false;
+}
+
+//==============================================================================
+void RobotContext::recommission()
+{
+  _commissioned = true;
+}
+
+//==============================================================================
 Reporting& RobotContext::reporting()
 {
   return _reporting;
@@ -483,7 +499,7 @@ RobotContext::RobotContext(
   _profile = std::make_shared<rmf_traffic::Profile>(
     _itinerary.description().profile());
 
-  _interrupt_obs = _interrupt_publisher.get_observable();
+  _replan_obs = _replan_publisher.get_observable();
 
   _battery_soc_obs = _battery_soc_publisher.get_observable();
 

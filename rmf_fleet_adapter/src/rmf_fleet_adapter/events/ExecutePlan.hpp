@@ -41,6 +41,7 @@ struct ExecutePlan
     std::optional<rmf_traffic::Duration> tail_period);
 
   rmf_traffic::agv::Plan plan;
+  rmf_traffic::PlanId plan_id;
   rmf_traffic::Time finish_time_estimate;
   rmf_task_sequence::Event::ActivePtr sequence;
 };
