@@ -981,22 +981,67 @@ void EasyFullControl::EasyCommandHandle::parse_waypoints(
   for (std::size_t i = 0; i < waypoints.size(); ++i)
     wps.push_back(PlanWaypoint(i, waypoints[i]));
 
-  // We assume the first waypoint is safe for pruning if it is
-  // within a threshold of the robot's current position
-  double filter_threshold = 0.5;
-  auto last_position = _position;
-  const auto&  first_position = wps[0].position;
-  if (waypoints.size() > 2 &&
-    dist(first_position, last_position) < filter_threshold)
+  // If the robot is already in the middle of two waypoints, then we can
+  // truncate all the waypoints that come before it.
+  auto begin_at_index = 0;
+  Eigen::Vector2d p(_position.x(), _position.y());
+  for (int i = wps.size() - 1; i >= 0; i--)
   {
-    wps.erase(wps.begin());
+    int i0, i1;
+    i0 = i;
+    i1 = i + 1;
+    Eigen::Vector2d p0(wps[i0].position.x(), wps[i0].position.y());
+    Eigen::Vector2d p1(wps[i1].position.x(), wps[i1].position.y());
+    auto dp_lane = p1 - p0;
+    double lane_length = dp_lane.norm();
+    if (lane_length < 1e-3)
+      continue;
+    auto n_lane = dp_lane / lane_length;
+    auto p_l = p - p0;
+    double p_l_proj = p_l.dot(n_lane);
+
+    if (lane_length < p_l_proj)
+    {
+      // Check if the robot's position is close enough to the lane
+      // endpoint to merge it
+      if ((p - p1).norm() <= _lane_merge_distance)
+      {
+        begin_at_index = i1;
+        break;
+      }
+      // Otherwise, continue to the next lane because the robot is not
+      // between the lane endpoints
+      continue;
+    }
+    if (p_l_proj < 0.0)
+    {
+      // Check if the robot's position is close enough to the lane
+      // start point to merge it
+      if ((p - p0).norm() <= _lane_merge_distance)
+      {
+        begin_at_index = i0;
+        break;
+      }
+      // Otherwise, continue to the next lane because the robot is not
+      // between the lane endpoints
+      continue;
+    }
+
+    double lane_dist = (p_l - p_l_proj * n_lane).norm();
+    if (lane_dist <= _lane_merge_distance)
+    {
+      begin_at_index = i1;
+      break;
+    }
   }
+
+  if (begin_at_index > 0)
+    wps.erase(wps.begin(), wps.begin() + begin_at_index);
 
   std::lock_guard<std::mutex> lock(_mutex);
   _target_waypoint = std::nullopt;
   _remaining_waypoints = std::move(wps);
   return;
-
 }
 
 //==============================================================================
