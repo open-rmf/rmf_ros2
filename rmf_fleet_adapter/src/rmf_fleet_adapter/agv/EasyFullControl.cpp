@@ -1089,13 +1089,6 @@ bool EasyFullControl::add_robot(
     return false;
   }
 
-  // TODO(XY) Set up robot-rmf transformation here
-  EasyCommandHandle::Transformer rmf_to_robot_transformer =
-    [](Eigen::Vector3d a)
-    {
-      return a;
-    };
-
   auto initial_position = get_position().position;
   double initial_battery_soc = get_position().battery_percent;
 
@@ -1106,7 +1099,7 @@ bool EasyFullControl::add_robot(
     robot_name,
     _pimpl->_graph,
     _pimpl->_traits,
-    rmf_to_robot_transformer,
+    _pimpl->_rmf_to_robot_transformer,
     map_name,
     max_delay,
     starts[0],
@@ -1392,6 +1385,62 @@ bool EasyFullControl::Implementation::initialize_fleet(
     {
       _fleet_handle->add_performable_action(action, consider);
     }
+  }
+
+  // Set up robot-rmf transformer if any
+  if (_fleet_config["reference_coordinates"])
+  {
+    const YAML::Node ref_coord = _fleet_config["reference_coordinates"];
+    const std::vector<std::vector<double>> rmf_coord =
+      ref_coord["rmf"].as<std::vector<std::vector<double>>>();
+    const std::vector<std::vector<double>> robot_coord =
+      ref_coord["robot"].as<std::vector<std::vector<double>>>();
+
+    // Calculate based on first two sets of points provided
+    Eigen::Vector3d rmf0(rmf_coord[0][0], rmf_coord[0][1], 0.0);
+    Eigen::Vector3d robot0(robot_coord[0][0], robot_coord[0][1], 0.0);
+    Eigen::Vector3d rmf1(rmf_coord[1][0], rmf_coord[1][1], 0.0);
+    Eigen::Vector3d robot1(robot_coord[1][0], robot_coord[1][1], 0.0);
+
+    // Find scale
+    auto scale = robot0.norm() / rmf0.norm();
+
+    // Apply scale to rmf0 and rmf1 coords
+    rmf0 = scale * rmf0;
+    rmf1 = scale * rmf1;
+
+    // Find rotation matrix
+    Eigen::Vector3d rmf_u_vector, robot_u_vector;
+    rmf_u_vector = (rmf1 - rmf0).normalized();
+    robot_u_vector = (robot1 - robot0).normalized();
+    Eigen::Matrix3d R = Eigen::Quaterniond().setFromTwoVectors(
+      rmf_u_vector, robot_u_vector).toRotationMatrix();
+
+    // Find translation vector
+    rmf0 = R * rmf0;  // new rotated origin
+    auto translation = robot0 - rmf0;
+
+    _rmf_to_robot_transformer =
+      [scale, R, translation](Eigen::Vector3d rmf_coord)
+      {
+        Eigen::Vector3d robot_coord;
+        // Apply scale
+        robot_coord = scale * rmf_coord;
+        // Apply rotation matrix
+        robot_coord = R * robot_coord;
+        // Apply translation
+        robot_coord = robot_coord + translation;
+        return robot_coord;
+      };
+  }
+  else
+  {
+    // No reference coordinates provided, just return the same coordinate
+    _rmf_to_robot_transformer =
+      [](Eigen::Vector3d rmf_coord)
+      {
+        return rmf_coord;
+      };
   }
 
   return true;

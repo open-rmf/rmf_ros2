@@ -34,6 +34,8 @@ class EasyFullControl::Implementation
 {
 public:
 
+  using Transformer = std::function<Eigen::Vector3d(Eigen::Vector3d)>;
+
   Implementation(
     Configuration config)
   : _config{std::move(config)}
@@ -54,6 +56,7 @@ public:
   double _max_delay;
   std::string _charger_waypoint;
   std::string _map_name;
+  Transformer _rmf_to_robot_transformer;
 
   rclcpp::Publisher<rmf_fleet_msgs::msg::ClosedLanes>::SharedPtr
     _closed_lanes_pub;
@@ -73,7 +76,7 @@ public:
   using Target = EasyFullControl::Target;
   using GetPosition = EasyFullControl::GetPosition;
   using ProcessCompleted = EasyFullControl::ProcessCompleted;
-  using Transformer = std::function<Eigen::Vector3d(Eigen::Vector3d)>;
+  using Transformer = EasyFullControl::Implementation::Transformer;
 
   enum class RobotState : uint8_t
   {
