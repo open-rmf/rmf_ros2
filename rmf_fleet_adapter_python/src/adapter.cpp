@@ -524,7 +524,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     Eigen::Vector3d pose,
     GetPosition get_position,
     std::function<ProcessCompleted(const Target target)> navigate,
-    std::function<ProcessCompleted(const std::string& dock_name)> dock,
+    std::function<ProcessCompleted(
+      const std::string& dock_name, std::size_t cmd_id)> dock,
     ProcessCompleted stop,
     agv::RobotUpdateHandle::ActionExecutor action_executor)
     {
@@ -543,7 +544,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     rmf_traffic::agv::Planner::Start pose,
     GetPosition get_position,
     std::function<ProcessCompleted(const Target target)> navigate,
-    std::function<ProcessCompleted(const std::string& dock_name)> dock,
+    std::function<ProcessCompleted(
+      const std::string& dock_name, std::size_t cmd_id)> dock,
     ProcessCompleted stop,
     agv::RobotUpdateHandle::ActionExecutor action_executor)
     {
@@ -572,6 +574,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
 
   py::class_<Target>(m_easy_full_control_handle, "Target")
     .def(py::init<>())
+    .def_readwrite("cmd_id", &Target::cmd_id)
     .def_readwrite("pose", &Target::pose)
     .def_readwrite("map_name", &Target::map_name)
     .def_readwrite("speed_limit", &Target::speed_limit);

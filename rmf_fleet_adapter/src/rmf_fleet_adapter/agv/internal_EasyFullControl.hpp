@@ -81,8 +81,7 @@ public:
   enum class RobotState : uint8_t
   {
     IDLE = 0,
-    WAITING = 1,
-    MOVING = 2
+    MOVING = 1
   };
 
   struct PlanWaypoint
@@ -114,13 +113,15 @@ public:
     Transformer rmf_to_robot_transformer,
     const std::string& map_name,
     std::optional<rmf_traffic::Duration> max_delay,
+    double lane_merge_distance,
     const Planner::Start& start,
     const Eigen::Vector3d& initial_position,
     double initial_battery_soc,
     std::size_t charger_waypoint,
     GetPosition get_position,
     std::function<ProcessCompleted(const Target target)> navigate,
-    std::function<ProcessCompleted(const std::string& dock_name)> dock,
+    std::function<ProcessCompleted(
+      const std::string& dock_name, std::size_t cmd_id)> dock,
     ProcessCompleted stop,
     RobotUpdateHandle::ActionExecutor action_executor);
 
@@ -154,12 +155,22 @@ public:
 
 private:
 
+  std::size_t next_cmd_id();
+
+  void clear();
+
+  void interrupt();
+
+  void replan();
+
   void parse_waypoints(
     const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints);
 
   void start_follow();
 
   void start_dock();
+
+  void stop_robot();
 
   std::optional<std::size_t> get_current_lane();
 
@@ -177,12 +188,14 @@ private:
   Transformer _rmf_to_robot_transformer;
   std::string _map_name;
   std::optional<rmf_traffic::Duration> _max_delay = std::nullopt;
+  double _lane_merge_distance;
   Eigen::Vector3d _position;
   double _battery_soc;
   const std::size_t _charger_waypoint;
   GetPosition _get_position;
   std::function<ProcessCompleted(const Target target)> _navigate; // in robot coordinates
-  std::function<ProcessCompleted(const std::string& dock_name)> _dock;
+  std::function<ProcessCompleted(
+    const std::string& dock_name, std::size_t cmd_id)> _dock;
   ProcessCompleted _stop;
   RobotUpdateHandle::ActionExecutor _action_executor;
   RobotUpdateHandlePtr _updater;
@@ -202,6 +215,11 @@ private:
   std::vector<PlanWaypoint> _remaining_waypoints;
   std::optional<std::size_t> _dock_waypoint_index = std::nullopt;
   std::optional<std::size_t> _action_waypoint_index = std::nullopt;
+  std::optional<std::chrono::steady_clock::time_point> _last_replan_time =
+    std::nullopt;
+
+  bool _debug = false;
+  std::size_t _current_cmd_id = 0;
 
   std::string _dock_name;
   std::unordered_map<std::string,
@@ -210,8 +228,10 @@ private:
   std::thread _update_thread;
   std::thread _follow_thread;
   std::thread _dock_thread;
-  std::atomic_bool _stop_follow_thread;
-  std::atomic_bool _stop_dock_thread;
+  std::thread _stop_thread;
+  std::atomic_bool _quit_follow_thread;
+  std::atomic_bool _quit_dock_thread;
+  std::atomic_bool _quit_stop_thread;
   ProcessCompleted _navigation_cb;
   ProcessCompleted _docking_cb;
   RequestCompleted _path_finished_callback;

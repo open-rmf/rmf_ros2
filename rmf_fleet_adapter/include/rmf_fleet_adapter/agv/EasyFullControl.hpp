@@ -82,6 +82,9 @@ public:
 
   struct Target
   {
+    // The command id for the current navigation or dock task.
+    std::size_t cmd_id;
+
     // The (x, y, yaw) coordinates that the robot should navigate to.
     Eigen::Vector3d pose;
 
@@ -117,7 +120,7 @@ public:
 
   using Start = std::variant<Planner::Start, Eigen::Vector3d>;
   using GetPosition = std::function<Position()>;
-  using ProcessCompleted = std::function<bool()>;
+  using ProcessCompleted = std::function<bool(std::size_t cmd_id)>;
 
   /// Initialize a robot in the fleet.
   ///
@@ -150,7 +153,8 @@ public:
     Start pose,
     GetPosition get_position,
     std::function<ProcessCompleted(const Target target)> navigate,
-    std::function<ProcessCompleted(const std::string& dock_name)> dock,
+    std::function<ProcessCompleted(
+      const std::string& dock_name, std::size_t cmd_id)> dock,
     ProcessCompleted stop,
     RobotUpdateHandle::ActionExecutor action_executor);
 

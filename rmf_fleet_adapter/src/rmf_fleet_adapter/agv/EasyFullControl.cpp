@@ -148,13 +148,15 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
   Transformer rmf_to_robot_transformer,
   const std::string& map_name,
   std::optional<rmf_traffic::Duration> max_delay,
+  double lane_merge_distance,
   const Planner::Start& start,
   const Eigen::Vector3d& initial_position,
   double initial_battery_soc,
   std::size_t charger_waypoint,
   GetPosition get_position,
   std::function<ProcessCompleted(const Target target)> navigate,
-  std::function<ProcessCompleted(const std::string& dock_name)> dock,
+  std::function<ProcessCompleted(
+    const std::string& dock_name, std::size_t cmd_id)> dock,
   ProcessCompleted stop,
   RobotUpdateHandle::ActionExecutor action_executor)
 : _node(node),
@@ -165,6 +167,7 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
   _rmf_to_robot_transformer(rmf_to_robot_transformer),
   _map_name(std::move(map_name)),
   _max_delay(max_delay),
+  _lane_merge_distance(lane_merge_distance),
   _position(initial_position),
   _battery_soc(initial_battery_soc),
   _charger_waypoint(charger_waypoint),
@@ -176,7 +179,7 @@ EasyFullControl::EasyCommandHandle::EasyCommandHandle(
 {
   _updater = nullptr;
   _is_charger_set = false;
-  _stop_follow_thread = false;
+  _quit_follow_thread = false;
 
   if (start.lane().has_value())
     _on_lane = start.lane().value();
@@ -229,7 +232,7 @@ EasyFullControl::EasyCommandHandle::~EasyCommandHandle()
 {
   if (_follow_thread.joinable())
   {
-    _stop_follow_thread = true;
+    _quit_follow_thread = true;
     _follow_thread.join();
   }
 
@@ -257,6 +260,15 @@ void EasyFullControl::EasyCommandHandle::follow_new_path(
   ArrivalEstimator next_arrival_estimator,
   RequestCompleted path_finished_callback)
 {
+  if (_debug)
+  {
+    auto plan_id = _updater->unstable().current_plan_id();
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "follow_new_path for %s with PlanId %d",
+      _robot_name.c_str(), plan_id);
+  }
+
   if (waypoints.empty() ||
     next_arrival_estimator == nullptr ||
     path_finished_callback == nullptr)
@@ -269,32 +281,22 @@ void EasyFullControl::EasyCommandHandle::follow_new_path(
     return;
   }
 
-  RCLCPP_INFO(
-    _node->get_logger(),
-    "Robot [%s] received a new path to follow...",
-    _robot_name.c_str());
-  for (const auto& wp : waypoints)
-  {
-    RCLCPP_INFO(
-      _node->get_logger(),
-      "\t[%.2f,%.2f, %.2f]: %d",
-      wp.position()[0], wp.position()[1], wp.position()[1],
-      wp.time().time_since_epoch().count());
-  }
-
-  // stop();
+  interrupt();
   if (_follow_thread.joinable())
   {
     RCLCPP_INFO(
       _node->get_logger(),
       "[stop] _follow_thread present. Calling join");
-    _stop_follow_thread = true;
+    _quit_follow_thread = true;
     _follow_thread.join();
   }
+  _quit_follow_thread = false;
+  clear();
 
-  _target_waypoint = std::nullopt;
-  _remaining_waypoints.clear();
-  _state = RobotState::IDLE;
+  RCLCPP_INFO(
+    _node->get_logger(),
+    "Robot [%s] received a new path to follow...",
+    _robot_name.c_str());
 
   parse_waypoints(waypoints);
   RCLCPP_DEBUG(
@@ -313,18 +315,6 @@ void EasyFullControl::EasyCommandHandle::follow_new_path(
   _next_arrival_estimator = std::move(next_arrival_estimator);
   _path_finished_callback = std::move(path_finished_callback);
 
-  // Robot needs to wait
-  if (_target_waypoint.has_value())
-  {
-    RCLCPP_DEBUG(
-      _node->get_logger(),
-      "[follow_new_path] Target waypoint has a value. Robot [%s] will wait...",
-      _robot_name.c_str());
-    _state = RobotState::WAITING;
-    _on_waypoint = _target_waypoint.value().graph_index;
-  }
-
-  _stop_follow_thread = false;
   _follow_thread = std::thread(
     [w = weak_from_this()]()
     {
@@ -340,9 +330,25 @@ void EasyFullControl::EasyCommandHandle::follow_new_path(
 void EasyFullControl::EasyCommandHandle::start_follow()
 {
   while ((!_remaining_waypoints.empty() ||
-    _state == RobotState::MOVING ||
-    _state == RobotState::WAITING) && !_stop_follow_thread)
+    _state == RobotState::MOVING) && !_quit_follow_thread)
   {
+    // Save the current_cmd_id before checking if we need to
+    // abort. We should always be told to abort before the
+    // current_cmd_id gets modified, so whatever the value of
+    // current_cmd_id is before being told to abort will be the
+    // value that we want. If we are saving the wrong value
+    // here, then the next thing we will be told to do is abort.
+    const auto cmd_id = _current_cmd_id;
+    // Check if we need to abort
+    if (_quit_follow_thread)
+    {
+      RCLCPP_INFO(
+        _node->get_logger(),
+        "%s aborting path request",
+        _robot_name.c_str());
+      return;
+    }
+
     if (_state == RobotState::IDLE)
     {
       _target_waypoint = _remaining_waypoints[0];
@@ -373,6 +379,7 @@ void EasyFullControl::EasyCommandHandle::start_follow()
 
       // Send target pose to robot
       Target target;
+      target.cmd_id = next_cmd_id();
       target.pose = transformed_pose;
       target.map_name = _map_name;
       target.speed_limit = 0.0;
@@ -395,27 +402,35 @@ void EasyFullControl::EasyCommandHandle::start_follow()
 
     else if (_state == RobotState::MOVING)
     {
+      // TODO(XY): add requires_replan
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      if (_navigation_cb())
+      std::lock_guard<std::mutex> lock(_mutex);
+
+      // Check if we reached the target
+      if (_navigation_cb(cmd_id))
       {
         RCLCPP_INFO(
           _node->get_logger(),
-          "Robot [%s] has reached its target waypoint",
-          _robot_name.c_str());
-        _state = RobotState::WAITING;
+          "Robot [%s] has reached its target waypoint for cmd_id %d",
+          _robot_name.c_str(), cmd_id);
+        _state = RobotState::IDLE;
         if (_target_waypoint.has_value() &&
           _target_waypoint.value().graph_index.has_value())
         {
           _on_waypoint = _target_waypoint.value().graph_index;
           _last_known_waypoint = _on_waypoint;
         }
+        else
+        {
+          _on_waypoint = std::nullopt; // still on a lane
+        }
       }
       else
       {
+        // Update the lane the robot is on
         _on_lane = get_current_lane();
         if (_on_lane.has_value())
         {
-          std::lock_guard<std::mutex> lock(_mutex);
           _on_waypoint = std::nullopt;
         }
         else
@@ -439,7 +454,6 @@ void EasyFullControl::EasyCommandHandle::start_follow()
           else
           {
             // The robot is probably off-grid
-            std::lock_guard<std::mutex> lock(_mutex);
             _on_waypoint = std::nullopt;
             _on_lane = std::nullopt;
           }
@@ -465,96 +479,92 @@ void EasyFullControl::EasyCommandHandle::start_follow()
         }
       }
     }
-
-    else if (_state == RobotState::WAITING)
-    {
-      RCLCPP_DEBUG(
-        _node->get_logger(),
-        "State: Waiting");
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      const rmf_traffic::Time& now =
-        std::chrono::steady_clock::time_point(
-        std::chrono::nanoseconds(_node->get_clock()->now().nanoseconds()));
-
-      if (_target_waypoint.has_value())
-      {
-        const auto& wait_until = _target_waypoint.value().time;
-        if (wait_until < now)
-        {
-          // Robot can move to next waypoint
-          _state = RobotState::IDLE;
-          RCLCPP_INFO(
-            _node->get_logger(),
-            "Robot [%s] is done waiting. Remaining waypoints: %d",
-            _robot_name.c_str(),
-            _remaining_waypoints.size());
-        }
-        else
-        {
-          const auto& waiting_duration = wait_until - now;
-          RCLCPP_DEBUG(
-            _node->get_logger(),
-            "Robot [%s] waiting at target for [%.1f]seconds",
-            _robot_name.c_str(),
-            waiting_duration.count() / 1e9);
-
-          _next_arrival_estimator(
-            _target_waypoint.value().index,
-            waiting_duration);
-        }
-      }
-      else
-      {
-        RCLCPP_ERROR(
-          _node->get_logger(),
-          "State: Waiting but _target_waypoint is nullopt");
-      }
-    }
-
-    else
-    {
-      RCLCPP_ERROR(
-        _node->get_logger(),
-        "[%s][start_follow]. Invalid state [%d]. Report this bug.",
-        _robot_name.c_str(),
-        _state);
-      _state = RobotState::IDLE;
-    }
-
   }
 
-  // The robot is done navigating through all the waypoints
-  assert(_path_finished_callback);
-  _path_finished_callback();
-  RCLCPP_INFO(
-    _node->get_logger(),
-    "Robot [%s] has successfully completed navigating along requested path.",
-    _robot_name.c_str());
-  _target_waypoint = std::nullopt;
-  _path_finished_callback = nullptr;
-  _next_arrival_estimator = nullptr;
+  if (_remaining_waypoints.empty() && _state == RobotState::IDLE)
+  {
+    // The robot is done navigating through all the waypoints
+    assert(_path_finished_callback);
+    _path_finished_callback();
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "Robot [%s] has successfully completed navigating along requested path.",
+      _robot_name.c_str());
+    clear();
+    _path_finished_callback = nullptr;
+    _next_arrival_estimator = nullptr;
+  }
 }
 
 //==============================================================================
 void EasyFullControl::EasyCommandHandle::stop()
 {
-  // Lock mutex
+  if (_debug)
+  {
+    auto plan_id = _updater->unstable().current_plan_id();
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "Stop for %s with PlanId %d",
+      _robot_name.c_str(), plan_id);
+  }
+
+  interrupt();
+  // Stop the robot. Tracking variables should remain unchanged.
   std::lock_guard<std::mutex> lock(_mutex);
 
-  if (_stop())
+  _quit_stop_thread = false;
+  _stop_thread = std::thread(
+    [w = weak_from_this()]()
+    {
+      auto me = w.lock();
+      if (!me)
+        return;
+      me->stop_robot();
+    }
+  );
+}
+
+//==============================================================================
+void EasyFullControl::EasyCommandHandle::stop_robot()
+{
+  while (!_quit_stop_thread)
   {
     RCLCPP_INFO(
       _node->get_logger(),
-      "Robot [%s] has stopped.",
+      "Requesting %s to stop...",
       _robot_name.c_str());
+
+    if (_stop(next_cmd_id()))
+      break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
-  else
+}
+
+//==============================================================================
+void EasyFullControl::EasyCommandHandle::replan()
+{
+  if (!_updater)
+    return;
+
+  const auto& now = std::chrono::steady_clock::time_point(
+    std::chrono::nanoseconds(_node->get_clock()->now().nanoseconds()));
+  if (_last_replan_time.has_value())
   {
-    RCLCPP_INFO(
-      _node->get_logger(),
-      "Stop command sent to robot [%s] but it failed to stop.",
-      _robot_name.c_str());
+    // TODO: Make the 15s replan cooldown configurable
+    auto current_cooldown =
+      std::chrono::duration_cast<std::chrono::seconds>(
+      now - _last_replan_time.value()).count();
+    if (current_cooldown < 15.0)
+      return;
   }
+
+  _last_replan_time = now;
+  _updater->replan();
+
+  RCLCPP_INFO(
+    _node->get_logger(),
+    "Requesting replan for %s because of an obstacle",
+    _robot_name.c_str());
 }
 
 //==============================================================================
@@ -568,13 +578,13 @@ void EasyFullControl::EasyCommandHandle::dock(
     _robot_name.c_str(),
     dock_name.c_str());
 
-  // stop();
+  interrupt();
   if (_dock_thread.joinable())
   {
     RCLCPP_INFO(
       _node->get_logger(),
       "[stop] _dock_thread present. Calling join");
-    _stop_dock_thread = true;
+    _quit_dock_thread = true;
     _dock_thread.join();
   }
 
@@ -592,7 +602,7 @@ void EasyFullControl::EasyCommandHandle::dock(
   _on_lane = std::nullopt;
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  _stop_dock_thread = false;
+  _quit_dock_thread = false;
   _dock_thread = std::thread(
     [w = weak_from_this()]()
     {
@@ -606,7 +616,8 @@ void EasyFullControl::EasyCommandHandle::dock(
 //==============================================================================
 void EasyFullControl::EasyCommandHandle::start_dock()
 {
-  _docking_cb = _dock(_dock_name);
+  const auto cmd_id = next_cmd_id();
+  _docking_cb = _dock(_dock_name, cmd_id);
 
   // Request the robot to start the relevant process
   while (!_docking_cb)
@@ -624,6 +635,8 @@ void EasyFullControl::EasyCommandHandle::start_dock()
     RCLCPP_INFO(
       _node->get_logger(),
       "Requested dock not found, aborting docking");
+    // TODO: This should open an issue ticket for the robot
+    // to tell the operator that the robot cannot proceed
     return;
   }
 
@@ -635,10 +648,10 @@ void EasyFullControl::EasyCommandHandle::start_dock()
   }
   RCLCPP_INFO(
     _node->get_logger(),
-    "Robot [%s] is docking...",
-    _robot_name.c_str());
+    "Robot [%s] is docking at %s...",
+    _robot_name.c_str(), _dock_name.c_str());
 
-  while (!_docking_cb())
+  while (!_docking_cb(cmd_id))
   {
     if (positions.empty())
     {
@@ -663,7 +676,7 @@ void EasyFullControl::EasyCommandHandle::start_dock()
     }
 
     // Check if we need to abort
-    if (_stop_dock_thread)
+    if (_quit_dock_thread)
     {
       RCLCPP_INFO(
         _node->get_logger(),
@@ -809,7 +822,8 @@ void EasyFullControl::EasyCommandHandle::update_position(
       "[%s] Calling update with map_name [%s] and position [%.2f, %.2f, %.2f]",
       _robot_name.c_str(),
       _map_name.c_str(), _position[0], _position[1], _position[2]);
-    _updater->update_position(_map_name, _position);
+    // TODO(XY): configure default max_merge_waypoint_distance
+    _updater->update_position(_map_name, _position, 0.1, _lane_merge_distance);
   }
 }
 
@@ -907,6 +921,51 @@ void EasyFullControl::EasyCommandHandle::newly_closed_lanes(
 bool EasyFullControl::EasyCommandHandle::initialized()
 {
   return _initialized;
+}
+
+//==============================================================================
+std::size_t EasyFullControl::EasyCommandHandle::next_cmd_id()
+{
+  _current_cmd_id++;
+  if (_debug)
+  {
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "Issuing cmd_id for %s: %d",
+      _robot_name.c_str(), _current_cmd_id);
+  }
+  return _current_cmd_id;
+}
+
+//==============================================================================
+void EasyFullControl::EasyCommandHandle::clear()
+{
+  _target_waypoint = std::nullopt;
+  _remaining_waypoints.clear();
+  _state = RobotState::IDLE;
+}
+
+//==============================================================================
+void EasyFullControl::EasyCommandHandle::interrupt()
+{
+  if (_debug)
+  {
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "Interrupting %s (latest cmd_id is %d)",
+      _robot_name.c_str(), _current_cmd_id);
+  }
+
+  _quit_follow_thread = true;
+  _quit_dock_thread = true;
+  _quit_stop_thread = true;
+
+  if (_follow_thread.joinable())
+    _follow_thread.join();
+  if (_dock_thread.joinable())
+    _dock_thread.join();
+  if (_stop_thread.joinable())
+    _stop_thread.join();
 }
 
 //==============================================================================
@@ -1034,7 +1093,8 @@ bool EasyFullControl::add_robot(
   GetPosition get_position,
   std::function<ProcessCompleted(
     const EasyFullControl::Target target)> navigate,
-  std::function<ProcessCompleted(const std::string& dock_name)> dock,
+  std::function<ProcessCompleted(
+    const std::string& dock_name, std::size_t cmd_id)> dock,
   ProcessCompleted stop,
   RobotUpdateHandle::ActionExecutor action_executor)
 {
@@ -1050,6 +1110,10 @@ bool EasyFullControl::add_robot(
     charger_waypoint)->index();
   const std::string map_name =
     robot_config["rmf_config"]["start"]["map_name"].as<std::string>();
+  double lane_merge_distance = 0.1;
+  const YAML::Node rmf_config = _pimpl->_fleet_config["rmf_fleet"];
+  if (rmf_config["lane_merge_distance"])
+    lane_merge_distance = rmf_config["lane_merge_distance"].as<double>();
 
   Planner::StartSet starts;
 
@@ -1102,6 +1166,7 @@ bool EasyFullControl::add_robot(
     _pimpl->_rmf_to_robot_transformer,
     map_name,
     max_delay,
+    lane_merge_distance,
     starts[0],
     initial_position,
     initial_battery_soc,
