@@ -105,6 +105,9 @@ public:
 
     // Remaining battery level left in the robot.
     double battery_percent;
+
+    // Whether the robot requires replanning.
+    std::optional<bool> replan;
   };
 
   /// Initialize and spin an Adapter instance in order to add fleets.

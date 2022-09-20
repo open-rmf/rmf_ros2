@@ -402,7 +402,9 @@ void EasyFullControl::EasyCommandHandle::start_follow()
 
     else if (_state == RobotState::MOVING)
     {
-      // TODO(XY): add requires_replan
+      const auto need_to_replan = _get_position().replan;
+      if (need_to_replan.has_value() && need_to_replan.value())
+        replan();
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       std::lock_guard<std::mutex> lock(_mutex);
 

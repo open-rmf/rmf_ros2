@@ -583,7 +583,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     .def(py::init<>())
     .def_readwrite("position", &Position::position)
     .def_readwrite("map_name", &Position::map_name)
-    .def_readwrite("battery_percent", &Position::battery_percent);
+    .def_readwrite("battery_percent", &Position::battery_percent)
+    .def_readwrite("replan", &Position::replan);
 
   // EASY TRAFFIC LIGHT HANDLE ===============================================
   py::class_<agv::Waypoint>(m, "Waypoint")
