@@ -1,5 +1,8 @@
 ## Changelog for package rmf_traffic_ros2
 
+2.1.0 (2022-09-29)
+------------------
+
 2.0.0 (2022-03-18)
 ------------------
 * Add support for docking in lanes with entry events [#226](https://github.com/open-rmf/rmf_ros2/pull/226)

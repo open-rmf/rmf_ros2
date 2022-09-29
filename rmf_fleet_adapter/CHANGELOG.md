@@ -1,6 +1,6 @@
 ## Changelog for package rmf_fleet_adapter
 
-2.1.0 (2022-XX-YY)
+2.1.0 (2022-09-29)
 ------------------
 * Add APIs for cancelling and killing tasks from the `RobotUpdateHandle`: [#205](https://github.com/open-rmf/rmf_ros2/pull/205)
 * Add a WaitUntil event and use it for ResponsiveWait: [#199](https://github.com/open-rmf/rmf_ros2/pull/199)

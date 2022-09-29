@@ -1,5 +1,8 @@
 ## Changelog for package rmf_fleet_adapter_python
 
+2.1.0 (2022-09-29)
+------------------
+
 2.0.0 (2022-03-18)
 ------------------
 No changes yet
