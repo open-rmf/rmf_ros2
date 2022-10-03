@@ -16,7 +16,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(GNUInstallDirs)
 
 find_package(ament_cmake REQUIRED)
-find_package(rmf_traffic 2 REQUIRED)
+find_package(rmf_traffic 3 REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
 find_package(rmf_site_map_msgs REQUIRED)
 find_package(rmf_building_map_msgs REQUIRED)
