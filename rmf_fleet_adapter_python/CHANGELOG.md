@@ -1,6 +1,6 @@
 ## Changelog for package rmf_fleet_adapter_python
 
-2.1.0 (2022-XX-YY)
+2.1.0 (2022-10-03)
 ------------------
 * Make async behaviors more robust: [#228](https://github.com/open-rmf/rmf_ros2/pull/228)
 * Allow fleet adapters to change schedule participant profiles: [#229](https://github.com/open-rmf/rmf_ros2/pull/229)

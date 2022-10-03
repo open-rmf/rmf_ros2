@@ -1,6 +1,6 @@
 ## Changelog for package rmf_traffic_ros2
 
-2.1.0 (2022-XX-YY)
+2.1.0 (2022-10-03)
 ------------------
 * Make async behaviors more robust: [#228](https://github.com/open-rmf/rmf_ros2/pull/228)
 * Make schedule failover more robust: [#232](https://github.com/open-rmf/rmf_ros2/pull/232)
