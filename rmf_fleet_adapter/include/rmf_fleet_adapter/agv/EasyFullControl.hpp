@@ -18,125 +18,101 @@
 #ifndef RMF_FLEET_ADAPTER__AGV__EASYFULLCONTROL_HPP
 #define RMF_FLEET_ADAPTER__AGV__EASYFULLCONTROL_HPP
 
-#include <Eigen/Geometry>
-#include <rmf_fleet_adapter/agv/Adapter.hpp>
+// ROS 2 headers
+#include <rclcpp/rclcpp.hpp>
+
+// rmf_fleet_adapter headers
+#include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
 
+// rmf_battery headers
+#include <rmf_battery/agv/BatterySystem.hpp>
+#include <rmf_battery/agv/MechanicalSystem.hpp>
+#include <rmf_battery/agv/SimpleMotionPowerSink.hpp>
+#include <rmf_battery/agv/SimpleDevicePowerSink.hpp>
+
+// rmf_traffic headers
+#include <rmf_traffic/agv/Graph.hpp>
 #include <rmf_traffic/agv/Planner.hpp>
 #include <rmf_traffic/agv/VehicleTraits.hpp>
-#include <rmf_traffic/agv/Graph.hpp>
 
-#include <yaml-cpp/yaml.h>
-#include <variant>
+#include <rmf_utils/impl_ptr.hpp>
+
+// System headers
+#include <Eigen/Geometry>
 
 namespace rmf_fleet_adapter {
 namespace agv {
 
-using Graph = rmf_traffic::agv::Graph;
-using VehicleTraits = rmf_traffic::agv::VehicleTraits;
-using Planner = rmf_traffic::agv::Planner;
-
+/// An easy to initialize full_control fleet adapter.
 //==============================================================================
 class EasyFullControl : public std::enable_shared_from_this<EasyFullControl>
 {
 public:
 
-  /// The Configuration class contains parameters necessary to initialize an
-  /// Adapter instance and add fleets to the adapter.
-  class Configuration
-  {
-  public:
+  // Aliases
+  using Graph = rmf_traffic::agv::Graph;
+  using VehicleTraits = rmf_traffic::agv::VehicleTraits;
+  using Planner = rmf_traffic::agv::Planner;
+  using ActionExecutor = RobotUpdateHandle::ActionExecution;
 
-    /// Constructor
-    ///
-    /// \param[in] config_file
-    ///   The config file that provides important parameters for setting up the fleet adapter.
-    ///
-    /// \param[in] nav_graph_path
-    ///   The graph file that this fleet should use for navigation.
-    ///
-    /// \param[in] server_uri
-    ///   The URI for the websocket server that receives updates on tasks and
-    ///   states. If nullopt, data will not be published.
-    Configuration(
-      const std::string& config_file,
-      const std::string& nav_graph_path,
-      std::optional<std::string> server_uri = std::nullopt);
+  /// Callback definitions
+  using GetStateCallback = std::function<RobotState()>;
+  using GoalCompletedCallback = std::function<bool()>;
+  using NavigationRequest =
+    std::function<GoalCompletedCallback>(
+      const std::string& map_name,
+      const Eigen::Vector3d goal,
+      RobotUpdateHandlePtr robot_handle);
 
-    // Get the fleet config yaml node.
-    const YAML::Node fleet_config() const;
+  using StopRequest = std::function<bool>(void);
 
-    // Get the fleet navigation graph.
-    Graph graph() const;
+  using DockRequest =
+    std::function<GoalCompletedCallback>(
+      const std::string& dock_name,
+      RobotUpdateHandlePtr robot_handle);
 
-    // Get the fleet vehicle traits.
-    VehicleTraits vehicle_traits() const;
+  /// Forward declarations
+  class Configuration;
+  class RobotState;
 
-    // Get a const reference to the server uri.
-    std::optional<std::string> server_uri() const;
-
-    class Implementation;
-  private:
-    rmf_utils::impl_ptr<Implementation> _pimpl;
-  };
-
-  struct Target
-  {
-    // The command id for the current navigation or dock task.
-    std::size_t cmd_id;
-
-    // The (x, y, yaw) coordinates that the robot should navigate to.
-    Eigen::Vector3d pose;
-
-    // The map that the robot should navigate to.
-    std::string map_name;
-
-    // Speed limit that the robot should adhere to.
-    std::optional<double> speed_limit;
-  };
-
-  struct Position
-  {
-    // Current position of the robot.
-    Eigen::Vector3d position;
-
-    // The map that the robot is currently in.
-    std::string map_name;
-
-    // Remaining battery level left in the robot.
-    double battery_percent;
-
-    // Whether the robot requires replanning.
-    std::optional<bool> replan;
-  };
-
-  /// Initialize and spin an Adapter instance in order to add fleets.
-  ///
-  /// \param[in] adapter
-  ///   The Adapter instance for your fleet to be adapted.
-  ///
+  /// Make an EasyFullControl adapter instance.
   /// \param[in] config
   ///   The Configuration for the adapter that contains parameters used by the
   ///   fleet robots.
+  ///
+  /// \param[in] node_options
+  ///   The options that the rclcpp::Node will be constructed with.
+  ///
+  /// \param[in] discovery_timeout
+  ///   How long we will wait to discover the Schedule Node before giving up. If
+  ///   rmf_utils::nullopt is given, then this will try to use the
+  ///   discovery_timeout node paramter, or it will wait 1 minute if the
+  ///   discovery_timeout node parameter was not defined.
   static std::shared_ptr<EasyFullControl> make(
-    Configuration config, const AdapterPtr& adapter);
+    Configuration config,
+    const rclcpp::NodeOptions& options = rclcpp::NodeOptions(),
+     std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt);
 
-  using Start = std::variant<Planner::Start, Eigen::Vector3d>;
-  using GetPosition = std::function<Position()>;
-  using ProcessCompleted = std::function<bool(std::size_t cmd_id)>;
+  /// Get the rclcpp::Node that this adapter will be using for communication.
+  std::shared_ptr<rclcpp::Node> node();
 
-  /// Initialize a robot in the fleet.
+  /// Get the FleetUpdateHandle that this adapter will be using.
+  std::shared_ptr<FleetUpdateHandle> fleet_handle();
+
+  /// Begin running the event loop for this adapter. The event loop will operate
+  /// in another thread, so this function is non-blocking.
+  EasyFullControl& start();
+
+  /// Stop the event loop if it is running.
+  EasyFullControl& stop();
+
+  /// Wait until the adapter is done spinning.
   ///
-  /// \param[in] robot_name
-  ///   The name of the robot.
-  ///
-  /// \param[in] pose
-  ///   The starting pose of the robot.
-  ///   Accepts either a known Planner::Start or an Eigen::Vector3d pose.
-  ///
-  /// \param[in] get_position
-  ///   The position function that returns the robot's current location and battery status.
-  ///
+  /// \sa wait_for()
+  EasyFullControl& wait();
+
+  /// Add a robot to the fleet once it is available.
   /// \param[in] navigate
   ///   The API function for navigating your robot to a pose.
   ///   Returns a ProcessCompleted callback to check status of navigation task.
@@ -151,28 +127,112 @@ public:
   ///
   /// \param[in] action_executor
   ///   The ActionExecutor callback to request the robot to perform an action.
+  ///
+  /// \return false if the robot was not added to the fleet.
   bool add_robot(
-    const std::string& robot_name,
-    Start pose,
-    GetPosition get_position,
-    std::function<ProcessCompleted(const Target target)> navigate,
-    std::function<ProcessCompleted(
-      const std::string& dock_name, std::size_t cmd_id)> dock,
-    ProcessCompleted stop,
-    RobotUpdateHandle::ActionExecutor action_executor);
-
-  class EasyCommandHandle;
+    RobotState start_state,
+    GetStateCallback get_state,
+    NavigationRequest handle_nav_request,
+    StopRequest handle_stop,
+    DockRequest handle_dock,
+    ActionExecutor action_executor);
 
   class Implementation;
 private:
   EasyFullControl();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+};
 
+//==============================================================================
+/// The Configuration class contains parameters necessary to initialize an
+/// Adapter instance and add fleets to the adapter.
+class EasyFullControl::Configuration
+{
+public:
+
+  // TODO(YV): Add params to limit task capability
+
+  /// Constructor
+  ///
+  /// \param[in] config_file
+  ///   The config file that provides important parameters for setting up the fleet adapter.
+  ///
+  /// \param[in] nav_graph_path
+  ///   The graph file that this fleet should use for navigation.
+  ///
+  /// \param[in] server_uri
+  ///   The URI for the websocket server that receives updates on tasks and
+  ///   states. If nullopt, data will not be published.
+  Configuration(
+    const std::string& fleet_name,
+    rmf_traffic::agv::VehicleTraits traits,
+    rmf_traffic::agv::Graph graph,
+    std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
+    std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
+    std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
+    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+    double recharge_threshold,
+    double recharge_soc,
+    bool account_for_battery_drain,
+    std::vector<std::string> action_categories,
+    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
+    std::optional<std::string> server_uri = std::nullopt,
+    rmf_traffic::Duration max_delay = rmf_traffic::from_seconds(10.0)
+  )
+
+  const std::string& fleet_name() const;
+
+  // Get the fleet vehicle traits.
+  VehicleTraits vehicle_traits() const;
+
+  // Get the fleet navigation graph.
+  const Graph& graph() const;
+
+  // Get a const reference to the server uri.
+  std::optional<std::string> server_uri() const;
+
+  std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system() const;
+  std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink() const;
+  std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink() const;
+  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink() const;
+  double recharge_threshold() const;
+  double recharge_soc() const;
+  bool account_for_battery_drain() const;
+  const std::vector<std::string>& action_categories() const;
+  rmf_task::ConstRequestFactoryPtr finishing_request() const;
+  rmf_traffic::Duration max_delay() const;
+
+  class Implementation;
+private:
+  rmf_utils::impl_ptr<Implementation> _pimpl;
+};
+
+//==============================================================================
+class EasyFullControl::RobotState
+{
+public:
+
+  /// Constructor
+  RobotState(
+    const std::string& name,
+    const std::string& charger_name,
+    const std::string& map_name,
+    Eigen::Vector3d location,
+    double battery_soc);
+
+  const std::string& name() const;
+  const std::string& charger_name() const;
+  const std::string& map_name() const;
+  const Eigen::Vector3d& location() const;
+  double battery_soc() const;
+
+  class Implementation;
+
+private:
+rmf_utils::impl_ptr<Implementation> _pimpl;
 };
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
-using EasyCommandHandlePtr =
-  std::shared_ptr<EasyFullControl::EasyCommandHandle>;
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

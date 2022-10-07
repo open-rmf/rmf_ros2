@@ -16,8 +16,7 @@
 */
 
 #include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
-
-#include "internal_EasyFullControl.hpp"
+#include <rmf_fleet_adapter/agv/Adapter.hpp>
 
 #include <rmf_fleet_adapter/agv/parse_graph.hpp>
 #include <rmf_traffic/geometry/Circle.hpp>
@@ -38,17 +37,7 @@
 #include <rmf_task/requests/ChargeBatteryFactory.hpp>
 #include <rmf_task/requests/ParkRobotFactory.hpp>
 
-#include <rmf_battery/agv/BatterySystem.hpp>
-#include <rmf_battery/agv/MechanicalSystem.hpp>
-#include <rmf_battery/agv/SimpleMotionPowerSink.hpp>
-#include <rmf_battery/agv/SimpleDevicePowerSink.hpp>
-
-#include "rclcpp/rclcpp.hpp"
-#include "Node.hpp"
 #include <thread>
-#include <yaml-cpp/yaml.h>
-
-#include <iostream>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -58,78 +47,76 @@ namespace agv {
 class EasyFullControl::Configuration::Implementation
 {
 public:
-
-  const std::string config_file;
-  const std::string nav_graph_path;
+  const std::string& fleet_name;
+  rmf_traffic::agv::VehicleTraits traits;
+  rmf_traffic::agv::Graph graph;
+  std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system;
+  std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink;
+  std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink;
+  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink;
+  double recharge_threshold;
+  double recharge_soc;
+  bool account_for_battery_drain;
+  std::vector<std::string> action_categories;
+  rmf_task::ConstRequestFactoryPtr finishing_request;
   std::optional<std::string> server_uri;
-
+  rmf_traffic::Duration max_delay;
 };
 
 //==============================================================================
 EasyFullControl::Configuration::Configuration(
-  const std::string& config_file,
-  const std::string& nav_graph_path,
-  std::optional<std::string> server_uri)
+  const std::string& fleet_name,
+  rmf_traffic::agv::VehicleTraits traits,
+  rmf_traffic::agv::Graph graph,
+  std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
+  std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
+  std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
+  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+  double recharge_threshold,
+  double recharge_soc,
+  bool account_for_battery_drain,
+  std::vector<std::string> action_categories,
+  rmf_task::ConstRequestFactoryPtr finishing_request,
+  std::optional<std::string> server_uri,
+  rmf_traffic::Duration max_delay)
 : _pimpl(rmf_utils::make_impl<Implementation>(
       Implementation{
-        std::move(config_file),
-        std::move(nav_graph_path),
-        std::move(server_uri)
+        std::move(fleet_name),
+        std::move(traits),
+        std::move(graph),
+        std::move(battery_system),
+        std::move(motion_sink),
+        std::move(ambient_sink),
+        std::move(tool_sink),
+        std::move(recharge_threshold),
+        std::move(recharge_soc),
+        std::move(account_for_battery_drain),
+        std::move(action_categories),
+        std::move(finishing_request),
+        std::move(server_uri),
+        std::move(max_delay)
       }))
 {
   // Do nothing
 }
 
 //==============================================================================
-const YAML::Node EasyFullControl::Configuration::fleet_config() const
+const std::string& EasyFullControl::Configuration::fleet_name() const
 {
-  auto config_str = _pimpl->config_file;
-  const auto fleet_config = YAML::LoadFile(_pimpl->config_file);
-  return fleet_config;
+  return _pimpl->fleet_name;
 }
 
 //==============================================================================
-Graph EasyFullControl::Configuration::graph() const
+auto EasyFullControl::Configuration::graph() const -> const Graph&
 {
-  auto graph = parse_graph(_pimpl->nav_graph_path, vehicle_traits());
-  return graph;
+  return _pimpl->graph;
 }
 
 //==============================================================================
-VehicleTraits EasyFullControl::Configuration::vehicle_traits() const
+auto EasyFullControl::Configuration::vehicle_traits() const
+-> const VehicleTraits&
 {
-  const auto config = fleet_config();
-  const YAML::Node rmf_fleet = config["rmf_fleet"];
-
-  // Profile and traits
-  const YAML::Node profile = rmf_fleet["profile"];
-  const double footprint_rad = profile["footprint"].as<double>();
-  const double vicinity_rad = profile["vicinity"].as<double>();
-  const YAML::Node limits = rmf_fleet["limits"];
-  const YAML::Node linear = limits["linear"];
-  const double v_nom = linear[0].as<double>();
-  const double a_nom = linear[1].as<double>();
-  const YAML::Node angular = limits["angular"];
-  const double w_nom = angular[0].as<double>();
-  const double b_nom = angular[1].as<double>();
-  const bool reversible = rmf_fleet["reversible"].as<bool>();
-
-  if (!reversible)
-    std::cout << " ===== We have an irreversible robot" << std::endl;
-
-  auto traits = VehicleTraits{
-    {v_nom, a_nom},
-    {w_nom, b_nom},
-    rmf_traffic::Profile{
-      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
-        footprint_rad),
-      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
-        vicinity_rad)
-    }
-  };
-  traits.get_differential()->set_reversible(reversible);
-
-  return traits;
+  return _pimpl->traits;
 }
 
 //==============================================================================
@@ -137,6 +124,280 @@ std::optional<std::string> EasyFullControl::Configuration::server_uri() const
 {
   return _pimpl->server_uri;
 }
+
+std::shared_ptr<rmf_battery::agv::BatterySystem>
+EasyFullControl::Configuration::battery_system() const
+{
+  return _pimpl->battery_system;
+}
+
+std::shared_ptr<rmf_battery::MotionPowerSink>
+EasyFullControl::Configuration::motion_sink() const
+{
+  return _pimpl->motion_sink;
+}
+
+//==============================================================================
+std::shared_ptr<rmf_battery::DevicePowerSink>
+EasyFullControl::Configuration::ambient_sink() const
+{
+  return _pimpl->ambient_sink;
+}
+
+//==============================================================================
+std::shared_ptr<rmf_battery::DevicePowerSink>
+EasyFullControl::Configuration::tool_sink() const
+{
+  return _pimpl->tool_sink;
+}
+
+//==============================================================================
+double EasyFullControl::Configuration::recharge_threshold() const
+{
+  return _pimpl->recharge_threshold;
+}
+
+//==============================================================================
+double EasyFullControl::Configuration::recharge_soc() const
+{
+  return _pimpl->recharge_soc;
+}
+
+//==============================================================================
+bool EasyFullControl::Configuration::account_for_battery_drain() const
+{
+  return _pimpl->account_for_battery_drain;
+}
+
+//==============================================================================
+rmf_task::ConstRequestFactoryPtr
+EasyFullControl::Configuration::finishing_request() const
+{
+  return _pimpl->finishing_request;
+}
+
+//==============================================================================
+rmf_traffic::Duration EasyFullControl::Configuration::max_delay() const
+{
+  return _pimpl->max_delay;
+}
+
+//==============================================================================
+std::vector<std::string>
+EasyFullControl::Configuration::action_categories() const
+{
+  return _pimpl->action_categories();
+}
+
+//==============================================================================
+class EasyFullControl::RobotState::Implementation
+{
+public:
+  std::string name;
+  std::string charger_name;
+  std::string map_name;
+  Eigen::Vector3d location;
+  battery_soc;
+}
+
+//==============================================================================
+EasyFullControl::RobotState::RobotState(
+  const std::string& name,
+  const std::string& charger_name,
+  const std::string& map_name,
+  Eigen::Vector3d location,
+  double battery_soc)
+: _pimpl(rmf_utils::make_impl<Implementation>(
+      Implementation{
+        std::move(name),
+        std::move(charger_name),
+        std::move(map_name),
+        std::move(location),
+        std::move(battery_soc)
+      }))
+{
+  // Do nothing
+}
+
+//==============================================================================
+const std::string& EasyFullControl::RobotState::name() const
+{
+  return _pimpl->name;
+}
+
+//==============================================================================
+const std::string& EasyFullControl::RobotState::charger_name() const
+{
+  return _pimpl->charger_name;
+}
+
+//==============================================================================
+const std::string& EasyFullControl::RobotState::map_name() const
+{
+  return _pimpl->map_name;
+}
+
+//==============================================================================
+const Eigen::Vector3d& EasyFullControl::RobotState::location() const
+{
+  return _pimpl->location;
+}
+
+//==============================================================================
+const double EasyFullControl::RobotState::battery_soc() const
+{
+  return _pimpl->battery_soc;
+}
+
+//==============================================================================
+namespace {
+class EasyCommandHandle;
+using EasyCommandHandlePtr = std::shared_ptr<EasyCommandHandle>;
+
+struct RobotHandles
+{
+  RobotUpdateHandlePtr update_handle;
+  EasyCommandHandlePtr command_handle;
+}
+
+} // anonymous namespace
+
+//==============================================================================
+class EasyFullControl::Implementation
+{
+public:
+  std::string fleet_name;
+  std::shared_ptr<Adapter> adapter;
+  std::shared_ptr<FleetUpdateHandle> fleet_handle;
+  // Map robot name to its RobotHandle
+  std::unordered_map<std::string, RobotHandles> robot_handles;
+};
+
+//==============================================================================
+EasyFullControl::EasyFullControl()
+{
+  // Do nothing
+}
+
+//==============================================================================
+std::shared_ptr<EasyFullControl> EasyFullControl::make(
+  Configuration config,
+  const rclcpp::NodeOptions& options = rclcpp::NodeOptions(),
+  std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt)
+{
+  auto easy_adapter = std::shared_ptr<EasyFullControl>(new EasyFullControl);
+  easy_adapter->_pimpl = rmf_utils::make_unique_impl<Implementation>();
+
+  _pimpl->fleet_name = config.fleet_name();
+  _pimpl->adapter = Adapter::make(
+    fleet_name + "_fleet_adapter",
+    options,
+    std::move(discovery_timeout)
+  );
+
+  if (!_pimpl->adapter)
+  {
+    return nullptr;
+  }
+
+  auto node = _pimpl->adapter->node();
+  // Create a FleetUpdateHandle
+  _pimpl->fleet_handle = _pimpl->adapter->add_fleet(
+    _pimpl->fleet_name,
+    _pimpl->config.traits(),
+    _pimpl->config.graph(),
+    _pimpl->config.server_uri()
+  );
+
+  bool ok = _pimpl->fleet_handle->set_task_planner_params(
+    config.battery_system(),
+    config.motion_sink(),
+    config.ambient_sink(),
+    config.tool_sink(),
+    config.recharge_threshold(),
+    config.recharge_soc(),
+    config.account_for_battery_drain(),
+    config.finishing_request(),
+  );
+  if (ok)
+  {
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Initialized task planner parameters."
+    );
+  }
+  else
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Failed to initialize task planner parameters. This fleet will not "
+      "respond to bid requests for tasks"
+    );
+  }
+
+  // TODO(YV): Make an API available to specify what tasks this fleet can perform
+  auto consider_all =
+    [](const nlohmann::json& description, Confirmation& confirm)
+    {
+      confirm.accept();
+    }
+  _pimpl->fleet_handle->consider_delivery_requests(
+    consider_all, consider_all);
+  _pimpl->fleet_handle->consider_cleaning_requests(consider_all);
+  _pimpl->fleet_handle->consider_patrol_requests(consider_all);
+  _pimpl->fleet_handle->consider_composed_requests(consider_all);
+  for (const std::string& action : config.action_categories())
+  {
+    _pimpl->fleet_handle->add_performable_action(action, consider_all);
+  }
+
+  _pimpl->fleet_handle->default_maximum_delay(config.max_delay());
+
+  RCLCPP_INFO(
+    node->get_logger(),
+    "Successfully initialized Full Control adapter for fleet [%s]",
+    fleet_name.c_str()
+  );
+
+  return easy_handle;
+}
+
+//==============================================================================
+class EasyFullControl::Implementation
+{
+public:
+
+  using Transformer = std::function<Eigen::Vector3d(Eigen::Vector3d)>;
+
+  Implementation(
+    Configuration config)
+  : _config{std::move(config)}
+  {
+    // Do nothing
+  }
+
+  bool initialize_fleet(const AdapterPtr& adapter);
+
+  const Configuration _config;
+  AdapterPtr _adapter;
+  std::string _fleet_name;
+  YAML::Node _fleet_config;
+  FleetUpdateHandlePtr _fleet_handle;
+  std::shared_ptr<Graph> _graph;
+  std::shared_ptr<VehicleTraits> _traits;
+
+  double _max_delay;
+  std::string _charger_waypoint;
+  std::string _map_name;
+  Transformer _rmf_to_robot_transformer;
+
+  rclcpp::Publisher<rmf_fleet_msgs::msg::ClosedLanes>::SharedPtr
+    _closed_lanes_pub;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::LaneRequest>::SharedPtr
+    _lane_closure_request_sub;
+  std::unordered_set<std::size_t> _closed_lanes;
+  std::unordered_map<std::string, EasyCommandHandlePtr> _robots;
+};
 
 //==============================================================================
 EasyFullControl::EasyCommandHandle::EasyCommandHandle(
@@ -1109,28 +1370,6 @@ double EasyFullControl::EasyCommandHandle::dist(
   const Eigen::Vector3d& a, const Eigen::Vector3d& b)
 {
   return (a.block<2, 1>(0, 0) - b.block<2, 1>(0, 0)).norm();
-}
-
-//==============================================================================
-EasyFullControl::EasyFullControl()
-{
-  // Do nothing
-}
-
-//==============================================================================
-std::shared_ptr<EasyFullControl> EasyFullControl::make(
-  Configuration config,
-  const AdapterPtr& adapter)
-{
-  auto easy_handle = std::shared_ptr<EasyFullControl>(new EasyFullControl);
-  easy_handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
-    config);
-
-  auto success = easy_handle->_pimpl->initialize_fleet(adapter);
-  if (!success)
-    return nullptr;
-
-  return easy_handle;
 }
 
 //==============================================================================

@@ -29,42 +29,7 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
-//==============================================================================
-class EasyFullControl::Implementation
-{
-public:
 
-  using Transformer = std::function<Eigen::Vector3d(Eigen::Vector3d)>;
-
-  Implementation(
-    Configuration config)
-  : _config{std::move(config)}
-  {
-    // Do nothing
-  }
-
-  bool initialize_fleet(const AdapterPtr& adapter);
-
-  const Configuration _config;
-  AdapterPtr _adapter;
-  std::string _fleet_name;
-  YAML::Node _fleet_config;
-  FleetUpdateHandlePtr _fleet_handle;
-  std::shared_ptr<Graph> _graph;
-  std::shared_ptr<VehicleTraits> _traits;
-
-  double _max_delay;
-  std::string _charger_waypoint;
-  std::string _map_name;
-  Transformer _rmf_to_robot_transformer;
-
-  rclcpp::Publisher<rmf_fleet_msgs::msg::ClosedLanes>::SharedPtr
-    _closed_lanes_pub;
-  rclcpp::Subscription<rmf_fleet_msgs::msg::LaneRequest>::SharedPtr
-    _lane_closure_request_sub;
-  std::unordered_set<std::size_t> _closed_lanes;
-  std::unordered_map<std::string, EasyCommandHandlePtr> _robots;
-};
 
 //==============================================================================
 class EasyFullControl::EasyCommandHandle
