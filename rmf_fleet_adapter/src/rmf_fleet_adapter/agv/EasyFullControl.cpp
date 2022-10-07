@@ -19,7 +19,6 @@
 #include <rmf_fleet_adapter/agv/Adapter.hpp>
 
 #include <rmf_fleet_adapter/agv/parse_graph.hpp>
-#include <rmf_traffic/geometry/Circle.hpp>
 
 #include <rmf_fleet_adapter/StandardNames.hpp>
 #include <rmf_fleet_msgs/msg/mode_request.hpp>
@@ -31,11 +30,8 @@
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 
 // ROS2 utilities for rmf_traffic
+#include <rmf_traffic/agv/Planner.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
-
-// Public rmf_task API headers
-#include <rmf_task/requests/ChargeBatteryFactory.hpp>
-#include <rmf_task/requests/ParkRobotFactory.hpp>
 
 #include <thread>
 
@@ -251,26 +247,93 @@ const double EasyFullControl::RobotState::battery_soc() const
 
 //==============================================================================
 namespace {
-class EasyCommandHandle;
-using EasyCommandHandlePtr = std::shared_ptr<EasyCommandHandle>;
-
-struct RobotHandles
+class EasyCommandHandle : public RobotCommandHandle
 {
-  RobotUpdateHandlePtr update_handle;
-  EasyCommandHandlePtr command_handle;
-}
+public:
+  using Planner = rmf_traffic::agv::Planner;
+  using RobotState = EasyCommandHandle::RobotState;
+  using Graph = rmf_traffic::agv::Graph;
+  using VehicleTraits = rmf_traffic::agv::VehicleTraits;
+  using ActionExecutor = RobotUpdateHandle::ActionExecution;
+  using GetStateCallback = EasyFullControl::GetStateCallback;
+  using GoalCompletedCallback = EasyFullControl::GoalCompletedCallback;
+  using NavigationRequest = EasyFullControl::NavigationRequest;
+  using StopRequest = EasyFullControl::StopRequest;
+  using DockRequest = EasyFullControl::DockRequest;
+
+  EasyCommandHandle(
+    rclcpp::Node::SharedPtr node,
+    const std::string& robot_name,
+    RobotState start_state,
+    GetStateCallback get_state,
+    NavigationRequest handle_nav_request,
+    StopRequest handle_stop,
+    DockRequest handle_dock,
+    ActionExecutor action_executor
+  );
+
+  void stop() final;
+
+  void follow_new_path(
+    const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
+    ArrivalEstimator next_arrival_estimator,
+    RequestCompleted path_finished_callback) final;
+
+  void dock(
+    const std::string& dock_name,
+    RequestCompleted docking_finished_callback) final;
+
+  void set_updater(rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater);
+
+  // Variables
+  rclcpp::Node::SharedPtr node;
+  const std::string& robot_name;
+  GetStateCallback get_state;
+  NavigationRequest handle_nav_request;
+  StopRequest handle_stop;
+  DockRequest handle_dock;
+  ActionExecutor action_executor;
+
+  bool _filter_waypoints;
+  double _filter_threshold;
+  rmf_fleet_adapter::agv::RobotUpdateHandlePtr _updater;
+  bool _is_charger_set;
+  RobotState _state;
+
+  std::optional<std::size_t> _on_waypoint = std::nullopt;
+  std::optional<std::size_t> _last_known_waypoint = std::nullopt;
+  std::optional<std::size_t> _on_lane = std::nullopt;
+
+  std::mutex _mutex;
+
+  std::optional<PlanWaypoint> _target_waypoint;
+  std::vector<PlanWaypoint> _remaining_waypoints;
+
+  std::thread _follow_thread;
+  std::atomic_bool _stop_follow_thread;
+  std::atomic_bool _navigation_completed;
+  GoalHandlePtr _goal_handle; // Result of std::future<GoalHandlePtr>::get();
+  RequestCompleted _path_finished_callback;
+  ArrivalEstimator _next_arrival_estimator;
+};
+
+
+
 
 } // anonymous namespace
 
 //==============================================================================
+using EasyCommandHandlePtr = std::shared_ptr<EasyCommandHandle>;
 class EasyFullControl::Implementation
 {
 public:
   std::string fleet_name;
+  std::shared_ptr<VehicleTraits> traits;
+  std::shared_ptr<Graph> graph;
   std::shared_ptr<Adapter> adapter;
   std::shared_ptr<FleetUpdateHandle> fleet_handle;
-  // Map robot name to its RobotHandle
-  std::unordered_map<std::string, RobotHandles> robot_handles;
+  // Map robot name to its EasyCommandHandle
+  std::unordered_map<std::string, EasyCommandHandlePtr> cmd_handles;
 };
 
 //==============================================================================
@@ -289,6 +352,8 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
   easy_adapter->_pimpl = rmf_utils::make_unique_impl<Implementation>();
 
   _pimpl->fleet_name = config.fleet_name();
+  _pimpl->traits = std::make_shared<VehicleTraits>(config.traits());
+  _pimpl->graph = std::make_shared<Graph>(config.graph());
   _pimpl->adapter = Adapter::make(
     fleet_name + "_fleet_adapter",
     options,
@@ -300,7 +365,7 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
     return nullptr;
   }
 
-  auto node = _pimpl->adapter->node();
+  const auto node = _pimpl->adapter->node();
   // Create a FleetUpdateHandle
   _pimpl->fleet_handle = _pimpl->adapter->add_fleet(
     _pimpl->fleet_name,
@@ -363,6 +428,124 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
 }
 
 //==============================================================================
+std::shared_ptr<rclcpp::Node> EasyFullControl::node()
+{
+  return _pimpl->adapter->node();
+}
+
+//==============================================================================
+std::shared_ptr<FleetUpdateHandle> EasyFullControl::fleet_handle()
+{
+  return _pimpl->adapter->node();
+}
+
+//==============================================================================
+EasyFullControl& EasyFullControl::start()
+{
+  _pimpl->adapter->start();
+}
+
+//==============================================================================
+EasyFullControl& EasyFullControl::stop()
+{
+  _pimpl->adapter->stop();
+}
+
+//==============================================================================
+EasyFullControl& EasyFullControl::wait()
+{
+  _pimpl->adapter->wait();
+}
+
+//==============================================================================
+auto EasyFullControl::add_robot(
+  RobotState start_state,
+  GetStateCallback get_state,
+  NavigationRequest handle_nav_request,
+  StopRequest handle_stop,
+  DockRequest handle_dock,
+  ActionExecutor action_executor) -> bool
+{
+  const auto& robot_name = start_state.name();
+  const auto node = _pimpl->adapter->node();
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Adding robot [%s] to the fleet.", robot_name.c_str()
+  );
+  auto insertion = _pimpl->cmd_handles.insert({robot_name, nullptr});
+  if (!insertion.second)
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Robot [%s] was previously added to the fleet. Ignoring request...",
+      robot_name.c_str()
+    );
+    return false;
+  }
+
+  rmf_traffic::Time now = std::chrono::steady_clock::time_point(
+    std::chrono::nanoseconds(node->now().nanoseconds()));
+
+  // TODO(YV): Get these constants from EasyCommandHandle::Configuration
+  const double max_merge_waypoint_distance = 0.3;
+  const double max_merge_lane_distance = 1.0;
+  const double min_lane_length = 1e-8;
+  auto starts = rmf_traffic::agv::compute_plan_starts(
+    *(_pimpl->graph),
+    start_state.map_name(),
+    start_state.location(),
+    std::move(now),
+    max_merge_waypoint_distance,
+    max_merge_lane_distance,
+    min_lane_length
+  );
+
+  if (starts.empty())
+  {
+    const auto& loc = start_state.location();
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "Unable to compute a StartSet for robot [%s] using level_name [%s] and "
+      "location [%.3f, %.3f, %.3f] specified in the RobotState param. This can "
+      "happen if the level_name in RobotState does not match any "
+      "of the map names in the navigation graph supplied or if the location "
+      "reported in the RobotState is far way from the navigation "
+      "graph. This robot will not be added to the fleet.",
+      robot_name.c_str(),
+      map_name.c_str(),
+      loc[0], loc[1], loc[2]
+    );
+    return false;
+  }
+
+  insertion.first->second = std::make_shared<EasyCommandHandle>(
+    node,
+    robot_name,
+    std::move(start_state),
+    std::move(get_state),
+    std::move(handle_nav_request),
+    std::move(handle_stop),
+    std::move(handle_dock),
+    std::move(action_executor)
+  );
+
+  _pimpl->fleet_handle->add_robot(
+    insertion.first->second,
+    robot_name,
+    _pimpl->traits->profile(),
+    std::move(starts),
+    [cmd_handle = insertion.first->second](
+      const const RobotUpdateHandlePtr& updater)
+    {
+      cmd_handle->set_updater(updater);
+    });
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "Successfully added robot [%s] to the fleet.", robot_name.c_str()
+  );
+}
+
 class EasyFullControl::Implementation
 {
 public:

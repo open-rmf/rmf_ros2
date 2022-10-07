@@ -33,7 +33,6 @@
 
 // rmf_traffic headers
 #include <rmf_traffic/agv/Graph.hpp>
-#include <rmf_traffic/agv/Planner.hpp>
 #include <rmf_traffic/agv/VehicleTraits.hpp>
 
 #include <rmf_utils/impl_ptr.hpp>
@@ -45,6 +44,9 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 /// An easy to initialize full_control fleet adapter.
+/// By default the adapter will be configured to accept all tasks.
+/// To disable specific tasks, call the respective consider_*_requests() method
+/// on the FleetUpdateHandle that can be accessed within this adapter.
 //==============================================================================
 class EasyFullControl : public std::enable_shared_from_this<EasyFullControl>
 {
@@ -53,7 +55,6 @@ public:
   // Aliases
   using Graph = rmf_traffic::agv::Graph;
   using VehicleTraits = rmf_traffic::agv::VehicleTraits;
-  using Planner = rmf_traffic::agv::Planner;
   using ActionExecutor = RobotUpdateHandle::ActionExecution;
 
   /// Callback definitions
@@ -98,6 +99,8 @@ public:
   std::shared_ptr<rclcpp::Node> node();
 
   /// Get the FleetUpdateHandle that this adapter will be using.
+  /// This may be used to perform more specialized customizations using the
+  /// standard FleetUpdateHandle API.
   std::shared_ptr<FleetUpdateHandle> fleet_handle();
 
   /// Begin running the event loop for this adapter. The event loop will operate
@@ -137,6 +140,9 @@ public:
     DockRequest handle_dock,
     ActionExecutor action_executor);
 
+  // TODO(YV): Add an overloaded API for add_robot() where users can pass in a
+  // RobotCommandHandle instead of all the callbacks.
+
   class Implementation;
 private:
   EasyFullControl();
@@ -149,8 +155,6 @@ private:
 class EasyFullControl::Configuration
 {
 public:
-
-  // TODO(YV): Add params to limit task capability
 
   /// Constructor
   ///
