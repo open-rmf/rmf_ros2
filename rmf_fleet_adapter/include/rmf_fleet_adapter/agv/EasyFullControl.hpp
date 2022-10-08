@@ -59,7 +59,10 @@ public:
 
   /// Callback definitions
   using GetStateCallback = std::function<RobotState()>;
-  using GoalCompletedCallback = std::function<bool()>;
+  /// Set replan to true if your robot is stuck and needs a new plan.
+  using GoalCompletedCallback = std::function<bool(
+    rmf_traffic::Duration& remaining_time,
+    bool& replan)>;
   using NavigationRequest =
     std::function<GoalCompletedCallback>(
       const std::string& map_name,
@@ -185,8 +188,9 @@ public:
     std::vector<std::string> action_categories,
     rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
     std::optional<std::string> server_uri = std::nullopt,
-    rmf_traffic::Duration max_delay = rmf_traffic::from_seconds(10.0)
-  )
+    rmf_traffic::Duration max_delay = rmf_traffic::from_seconds(10.0),
+    rmf_traffic::Duration update_interval = rmf_traffic::from_seconds(0.5)
+  );
 
   const std::string& fleet_name() const;
 
@@ -209,6 +213,7 @@ public:
   const std::vector<std::string>& action_categories() const;
   rmf_task::ConstRequestFactoryPtr finishing_request() const;
   rmf_traffic::Duration max_delay() const;
+  rmf_traffic::Duration update_interval() const;
 
   class Implementation;
 private:
