@@ -55,30 +55,30 @@ public:
   // Aliases
   using Graph = rmf_traffic::agv::Graph;
   using VehicleTraits = rmf_traffic::agv::VehicleTraits;
-  using ActionExecutor = RobotUpdateHandle::ActionExecution;
-
-  /// Callback definitions
-  using GetStateCallback = std::function<RobotState()>;
-  /// Set replan to true if your robot is stuck and needs a new plan.
-  using GoalCompletedCallback = std::function<bool(
-    rmf_traffic::Duration& remaining_time,
-    bool& replan)>;
-  using NavigationRequest =
-    std::function<GoalCompletedCallback>(
-      const std::string& map_name,
-      const Eigen::Vector3d goal,
-      RobotUpdateHandlePtr robot_handle);
-
-  using StopRequest = std::function<bool>(void);
-
-  using DockRequest =
-    std::function<GoalCompletedCallback>(
-      const std::string& dock_name,
-      RobotUpdateHandlePtr robot_handle);
+  using ActionExecutor = RobotUpdateHandle::ActionExecutor;
 
   /// Forward declarations
   class Configuration;
   class RobotState;
+
+  /// Callback definitions
+  using GetStateCallback = std::function<RobotState(void)>;
+  /// Set replan to true if your robot is stuck and needs a new plan.
+  using GoalCompletedCallback = std::function<bool(
+    rmf_traffic::Duration& remaining_time,
+    bool& request_replan)>;
+  using NavigationRequest =
+    std::function<GoalCompletedCallback(
+      const std::string& map_name,
+      const Eigen::Vector3d goal,
+      RobotUpdateHandlePtr robot_handle)>;
+
+  using StopRequest = std::function<bool(void)>;
+
+  using DockRequest =
+    std::function<GoalCompletedCallback(
+      const std::string& dock_name,
+      RobotUpdateHandlePtr robot_handle)>;
 
   /// Make an EasyFullControl adapter instance.
   /// \param[in] config
@@ -188,14 +188,14 @@ public:
     std::vector<std::string> action_categories,
     rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
     std::optional<std::string> server_uri = std::nullopt,
-    rmf_traffic::Duration max_delay = rmf_traffic::from_seconds(10.0),
-    rmf_traffic::Duration update_interval = rmf_traffic::from_seconds(0.5)
+    rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
+    rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(0.5)
   );
 
   const std::string& fleet_name() const;
 
   // Get the fleet vehicle traits.
-  VehicleTraits vehicle_traits() const;
+  const VehicleTraits& vehicle_traits() const;
 
   // Get the fleet navigation graph.
   const Graph& graph() const;
@@ -244,6 +244,7 @@ public:
 private:
 rmf_utils::impl_ptr<Implementation> _pimpl;
 };
+
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
 
