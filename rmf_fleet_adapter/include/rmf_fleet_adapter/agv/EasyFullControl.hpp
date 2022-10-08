@@ -132,6 +132,10 @@ public:
   ///   The ActionExecutor callback to request the robot to perform an action.
   ///
   /// \return false if the robot was not added to the fleet.
+  /// \note This will internally call Planner::compute_plan_starts() using the
+  ///    provieded start_state determine the StartSet of the robot. If you
+  ///    have a custom method to determine the StartSet of the robot, consider
+  ///    calling flee_handle()->add_robot() instead.
   bool add_robot(
     RobotState start_state,
     GetStateCallback get_state,
