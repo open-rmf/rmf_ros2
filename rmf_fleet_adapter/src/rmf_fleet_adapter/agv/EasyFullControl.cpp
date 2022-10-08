@@ -406,7 +406,7 @@ void EasyCommandHandle::stop()
             me->node->get_logger(),
             "Successfully stopped robot [%s].",
             me->robot_name.c_str()
-            );
+          );
           break;
         }
         RCLCPP_ERROR(
@@ -659,15 +659,15 @@ void EasyCommandHandle::start_follow()
         {
           auto dist = [](
             const Eigen::Vector3d& a, const Eigen::Vector3d& b) -> double
-          {
-            return (a.block<2, 1>(0, 0) - b.block<2, 1>(0, 0)).norm();
-          };
+            {
+              return (a.block<2, 1>(0, 0) - b.block<2, 1>(0, 0)).norm();
+            };
 
           // The robot may either be on the previous or target waypoint.
           const auto& last_location =
             graph->get_waypoint(last_known_waypoint.value()).get_location();
           const Eigen::Vector3d last_pose =
-            {last_location[0], last_location[1], 0.0};
+          {last_location[0], last_location[1], 0.0};
           if (target_waypoint->graph_index.has_value() &&
             dist(state.location(), target_waypoint->position) < 0.5)
           {
@@ -1131,7 +1131,8 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
 
   easy_adapter->_pimpl->fleet_name = config.fleet_name();
   easy_adapter->_pimpl->update_interval = config.update_interval();
-  easy_adapter->_pimpl->traits = std::make_shared<VehicleTraits>(config.vehicle_traits());
+  easy_adapter->_pimpl->traits = std::make_shared<VehicleTraits>(
+    config.vehicle_traits());
   easy_adapter->_pimpl->graph = std::make_shared<Graph>(config.graph());
   easy_adapter->_pimpl->adapter = Adapter::make(
     config.fleet_name() + "_fleet_adapter",
@@ -1152,7 +1153,7 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
     config.vehicle_traits(),
     config.graph(),
     config.server_uri()
-  );
+    );
 
   bool ok = easy_adapter->_pimpl->fleet_handle->set_task_planner_params(
     config.battery_system(),
@@ -1182,7 +1183,8 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
 
   // TODO(YV): Make an API available to specify what tasks this fleet can perform
   auto consider_all =
-    [](const nlohmann::json& /*description*/, FleetUpdateHandle::Confirmation& confirm)
+    [](const nlohmann::json& /*description*/,
+      FleetUpdateHandle::Confirmation& confirm)
     {
       confirm.accept();
     };
@@ -1193,7 +1195,8 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
   easy_adapter->_pimpl->fleet_handle->consider_composed_requests(consider_all);
   for (const std::string& action : config.action_categories())
   {
-    easy_adapter->_pimpl->fleet_handle->add_performable_action(action, consider_all);
+    easy_adapter->_pimpl->fleet_handle->add_performable_action(action,
+      consider_all);
   }
 
   easy_adapter->_pimpl->fleet_handle->default_maximum_delay(config.max_delay());

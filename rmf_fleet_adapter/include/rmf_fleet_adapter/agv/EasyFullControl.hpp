@@ -65,20 +65,20 @@ public:
   using GetStateCallback = std::function<RobotState(void)>;
   /// Set replan to true if your robot is stuck and needs a new plan.
   using GoalCompletedCallback = std::function<bool(
-    rmf_traffic::Duration& remaining_time,
-    bool& request_replan)>;
+        rmf_traffic::Duration& remaining_time,
+        bool& request_replan)>;
   using NavigationRequest =
     std::function<GoalCompletedCallback(
-      const std::string& map_name,
-      const Eigen::Vector3d goal,
-      RobotUpdateHandlePtr robot_handle)>;
+        const std::string& map_name,
+        const Eigen::Vector3d goal,
+        RobotUpdateHandlePtr robot_handle)>;
 
   using StopRequest = std::function<bool(void)>;
 
   using DockRequest =
     std::function<GoalCompletedCallback(
-      const std::string& dock_name,
-      RobotUpdateHandlePtr robot_handle)>;
+        const std::string& dock_name,
+        RobotUpdateHandlePtr robot_handle)>;
 
   /// Make an EasyFullControl adapter instance.
   /// \param[in] config
@@ -96,7 +96,7 @@ public:
   static std::shared_ptr<EasyFullControl> make(
     Configuration config,
     const rclcpp::NodeOptions& options = rclcpp::NodeOptions(),
-     std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt);
+    std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt);
 
   /// Get the rclcpp::Node that this adapter will be using for communication.
   std::shared_ptr<rclcpp::Node> node();
@@ -242,7 +242,7 @@ public:
   class Implementation;
 
 private:
-rmf_utils::impl_ptr<Implementation> _pimpl;
+  rmf_utils::impl_ptr<Implementation> _pimpl;
 };
 
 
