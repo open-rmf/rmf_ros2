@@ -258,23 +258,29 @@ void EasyCommandHandle::update()
       robot_name.c_str()
     );
   }
-  state = get_state();
-  const auto& charger_name = state.charger_name();
-  auto charger_wp = graph->find_waypoint(charger_name);
-  if (charger_wp)
+  // Make a temporary copy of the new state to check if the charger waypoint
+  // has changed.
+  auto _state = get_state();
+  if (_state.charger_name() != state.charger_name())
   {
-    updater->set_charger_waypoint(charger_wp->index());
+    const auto& charger_name = _state.charger_name();
+    auto charger_wp = graph->find_waypoint(charger_name);
+    if (charger_wp)
+    {
+      updater->set_charger_waypoint(charger_wp->index());
+    }
+    else
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Unable to set charger waypoint of robot [%s] to [%s] as no such "
+        "waypoint exists on the navigation graph provided for the fleet.",
+        robot_name.c_str(),
+        charger_name.c_str()
+      );
+    }
   }
-  else
-  {
-    RCLCPP_WARN(
-      node->get_logger(),
-      "Unable to set charger waypoint of robot [%s] to [%s] as no such "
-      "waypoint exists on the navigation graph provided for the fleet.",
-      robot_name.c_str(),
-      charger_name.c_str()
-    );
-  }
+  state = std::move(_state);
   updater->update_battery_soc(state.battery_soc());
   const auto& position = state.location();
   // Here we call the appropriate RobotUpdateHandle::update() method depending
@@ -402,7 +408,7 @@ void EasyCommandHandle::stop()
         }
         if (me->handle_stop())
         {
-          RCLCPP_ERROR(
+          RCLCPP_INFO(
             me->node->get_logger(),
             "Successfully stopped robot [%s].",
             me->robot_name.c_str()
