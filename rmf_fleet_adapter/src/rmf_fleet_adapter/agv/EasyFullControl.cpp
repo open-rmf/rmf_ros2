@@ -884,7 +884,7 @@ std::optional<std::size_t> EasyCommandHandle::get_current_lane()
 class EasyFullControl::Configuration::Implementation
 {
 public:
-  const std::string& fleet_name;
+  std::string fleet_name;
   rmf_traffic::agv::VehicleTraits traits;
   rmf_traffic::agv::Graph graph;
   std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system;
@@ -903,7 +903,7 @@ public:
 
 //==============================================================================
 EasyFullControl::Configuration::Configuration(
-  const std::string& fleet_name,
+  std::string fleet_name,
   rmf_traffic::agv::VehicleTraits traits,
   rmf_traffic::agv::Graph graph,
   std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,

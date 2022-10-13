@@ -175,7 +175,7 @@ public:
   ///   The URI for the websocket server that receives updates on tasks and
   ///   states. If nullopt, data will not be published.
   Configuration(
-    const std::string& fleet_name,
+    std::string fleet_name,
     rmf_traffic::agv::VehicleTraits traits,
     rmf_traffic::agv::Graph graph,
     std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
