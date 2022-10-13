@@ -1140,7 +1140,7 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
     std::move(discovery_timeout)
   );
 
-  if (!easy_adapter->_pimpl->adapter)
+  if (easy_adapter->_pimpl->adapter == nullptr)
   {
     return nullptr;
   }
@@ -1226,18 +1226,21 @@ std::shared_ptr<FleetUpdateHandle> EasyFullControl::fleet_handle()
 EasyFullControl& EasyFullControl::start()
 {
   _pimpl->adapter->start();
+  return *this;
 }
 
 //==============================================================================
 EasyFullControl& EasyFullControl::stop()
 {
   _pimpl->adapter->stop();
+  return *this;
 }
 
 //==============================================================================
 EasyFullControl& EasyFullControl::wait()
 {
   _pimpl->adapter->wait();
+  return *this;
 }
 
 //==============================================================================
