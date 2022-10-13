@@ -478,9 +478,11 @@ void EasyCommandHandle::follow_new_path(
     robot_name.c_str()
   );
 
+  // TODO(YV): Accept a boolean parameter to indicate whether robots form this
+  // fleet need to be explicitly stopped before sending a new goal.
   // We stop the robot in case the NavigationRequest API does not preempt the
   // previous goal.
-  stop();
+  // stop();
 
   // Lock mutex
   std::lock_guard<std::mutex> lock(mutex);
