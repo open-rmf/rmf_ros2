@@ -903,7 +903,7 @@ public:
 
 //==============================================================================
 EasyFullControl::Configuration::Configuration(
-  std::string fleet_name,
+  const std::string& fleet_name,
   rmf_traffic::agv::VehicleTraits traits,
   rmf_traffic::agv::Graph graph,
   std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
