@@ -446,8 +446,8 @@ void EasyCommandHandle::replan()
 //==============================================================================
 void EasyCommandHandle::follow_new_path(
   const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
-  ArrivalEstimator next_arrival_estimator,
-  RequestCompleted path_finished_callback)
+  ArrivalEstimator next_arrival_estimator_,
+  RequestCompleted path_finished_callback_)
 {
   RCLCPP_DEBUG(
     node->get_logger(),
@@ -458,8 +458,8 @@ void EasyCommandHandle::follow_new_path(
   interrupt();
 
   if (waypoints.empty() ||
-    next_arrival_estimator == nullptr ||
-    path_finished_callback == nullptr)
+    next_arrival_estimator_ == nullptr ||
+    path_finished_callback_ == nullptr)
   {
     RCLCPP_WARN(
       node->get_logger(),
