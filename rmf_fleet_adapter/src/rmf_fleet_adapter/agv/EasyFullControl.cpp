@@ -494,8 +494,8 @@ void EasyCommandHandle::follow_new_path(
     "remaining_waypoints: [%ld]. target_waypoint.has_value: [%ld]",
     remaining_waypoints.size(), target_waypoint.has_value());
 
-  next_arrival_estimator = std::move(next_arrival_estimator);
-  path_finished_callback = std::move(path_finished_callback);
+  next_arrival_estimator = std::move(next_arrival_estimator_);
+  path_finished_callback = std::move(path_finished_callback_);
 
   // With the new event based traffic system, we no longer need to check if the
   // robot has to wait at its current location. A follow_new_path() request
