@@ -671,7 +671,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   py::class_<agv::EasyFullControl, std::shared_ptr<agv::EasyFullControl>>(
     m, "EasyFullControl")
   .def_static("make", &agv::EasyFullControl::make,
-    py::arg("config"),
+    py::arg("config") = std::nullopt,
     py::arg("node_options") = rclcpp::NodeOptions(),
     py::arg("wait_time") = rmf_utils::optional<rmf_traffic::Duration>(
       rmf_utils::nullopt))
@@ -702,6 +702,22 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("stop", &agv::EasyFullControl::stop);
   // EASY FULL CONTROL CONFIGURATION ===============================================
   auto m_easy_full_control = m.def_submodule("easy_full_control");
+
+  // Custom bindings since Python doesn't allow changing ref to primitive types
+  m_easy_full_control.def("goal_completed_callback",[](
+      std::function<std::tuple<
+        bool,
+        rmf_traffic::Duration,
+        bool>(rmf_traffic::Duration&, bool&)> &f) -> agv::EasyFullControl::GoalCompletedCallback
+      {
+        return [f](rmf_traffic::Duration& remaining_time, bool& request_replan) -> bool
+        {
+          auto [completed, _remaining_time, _request_replan] = f(remaining_time, request_replan);
+          remaining_time = _remaining_time;
+          request_replan = _request_replan;
+          return completed;
+        };
+      });
 
   py::class_<agv::EasyFullControl::Configuration>(m_easy_full_control, "Configuration")
   .def(py::init([]( // Lambda function to convert reference to shared ptr
