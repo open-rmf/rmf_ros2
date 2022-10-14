@@ -1154,7 +1154,7 @@ public:
   std::unordered_map<std::string, EasyCommandHandlePtr> cmd_handles;
   // TODO(YV): Get these constants from EasyCommandHandle::Configuration
   double max_merge_waypoint_distance = 0.3;
-  double max_merge_lane_distance = 0.2;
+  double max_merge_lane_distance = 0.1;
   double min_lane_length = 1e-8;
 };
 
