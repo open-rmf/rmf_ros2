@@ -476,7 +476,6 @@ void EasyCommandHandle::follow_new_path(
     robot_name.c_str(), updater->unstable().current_plan_id()
   );
 
-  interrupt();
 
   if (waypoints.empty() ||
     next_arrival_estimator_ == nullptr ||
@@ -490,6 +489,18 @@ void EasyCommandHandle::follow_new_path(
     );
     return;
   }
+
+  interrupt();
+  if (follow_thread.joinable())
+  {
+    RCLCPP_INFO(
+      node->get_logger(),
+      "[stop] _follow_thread present. Calling join");
+    quit_follow_thread = true;
+    follow_thread.join();
+  }
+  quit_follow_thread = false;
+  clear();
 
   RCLCPP_INFO(
     node->get_logger(),
@@ -509,7 +520,7 @@ void EasyCommandHandle::follow_new_path(
   std::lock_guard<std::mutex> lock(mutex);
 
   // Reset internal trackers
-  clear();
+  //clear();
 
   parse_waypoints(waypoints);
   RCLCPP_DEBUG(
@@ -627,6 +638,7 @@ void EasyCommandHandle::start_follow()
 
       if (nav_completed_cb != nullptr)
       {
+        std::lock_guard<std::mutex> lock(mutex);
         remaining_waypoints.erase(remaining_waypoints.begin());
         _state = InternalRobotState::MOVING;
       }
@@ -666,7 +678,7 @@ void EasyCommandHandle::start_follow()
         _state = InternalRobotState::IDLE;
 
         std::lock_guard<std::mutex> lock(mutex);
-        if (target_waypoint.has_value())
+        if (target_waypoint.has_value() && target_waypoint->graph_index.has_value())
         {
           on_waypoint = target_waypoint->graph_index;
           last_known_waypoint = on_waypoint;
@@ -812,7 +824,7 @@ void EasyCommandHandle::parse_waypoints(
   // truncate all the waypoints that come before it.
   auto begin_at_index = 0;
   const auto& p = state.location().block<2, 1>(0, 0);
-  for (std::size_t i = wps.size() - 1; i >= 0; i--)
+  for (int i = wps.size() - 1; i >= 0; i--)
   {
     std::size_t i0, i1;
     i0 = i;
