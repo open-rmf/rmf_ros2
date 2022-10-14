@@ -1168,6 +1168,7 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
   {
     return nullptr;
   }
+  easy_adapter->_pimpl->adapter->start();
 
   const auto node = easy_adapter->_pimpl->adapter->node();
   auto get_config =
@@ -1209,6 +1210,11 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
       traits.get_differential()->set_reversible(reversible);
       const std::string nav_graph_file =
         node->declare_parameter("nav_graph_file", "");
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Parsing navgraph: %s",
+        nav_graph_file.c_str()
+      );
       auto graph =
         rmf_fleet_adapter::agv::parse_graph(nav_graph_file, traits);
 
@@ -1453,21 +1459,7 @@ std::shared_ptr<FleetUpdateHandle> EasyFullControl::fleet_handle()
 }
 
 //==============================================================================
-EasyFullControl& EasyFullControl::start()
-{
-  _pimpl->adapter->start();
-  return *this;
-}
-
-//==============================================================================
-EasyFullControl& EasyFullControl::stop()
-{
-  _pimpl->adapter->stop();
-  return *this;
-}
-
-//==============================================================================
-EasyFullControl& EasyFullControl::wait()
+EasyFullControl& EasyFullControl::run()
 {
   _pimpl->adapter->wait();
   return *this;

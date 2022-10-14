@@ -192,17 +192,8 @@ public:
   /// standard FleetUpdateHandle API.
   std::shared_ptr<FleetUpdateHandle> fleet_handle();
 
-  /// Begin running the event loop for this adapter. The event loop will operate
-  /// in another thread, so this function is non-blocking.
-  EasyFullControl& start();
-
-  /// Stop the event loop if it is running.
-  EasyFullControl& stop();
-
-  /// Wait until the adapter is done spinning.
-  ///
-  /// \sa wait_for()
-  EasyFullControl& wait();
+  /// Begin running the event loop for this adapter.This is blocking.
+  EasyFullControl& run();
 
   /// Add a robot to the fleet once it is available.
   /// \param[in] navigate
