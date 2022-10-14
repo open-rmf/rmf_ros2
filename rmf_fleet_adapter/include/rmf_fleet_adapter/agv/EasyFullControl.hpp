@@ -58,8 +58,92 @@ public:
   using ActionExecutor = RobotUpdateHandle::ActionExecutor;
 
   /// Forward declarations
-  class Configuration;
-  class RobotState;
+  /// The Configuration class contains parameters necessary to initialize an
+  /// Adapter instance and add fleets to the adapter.
+  class Configuration
+  {
+  public:
+
+    /// Constructor
+    ///
+    /// \param[in] config_file
+    ///   The config file that provides important parameters for setting up the fleet adapter.
+    ///
+    /// \param[in] nav_graph_path
+    ///   The graph file that this fleet should use for navigation.
+    ///
+    /// \param[in] server_uri
+    ///   The URI for the websocket server that receives updates on tasks and
+    ///   states. If nullopt, data will not be published.
+    Configuration(
+      const std::string& fleet_name,
+      rmf_traffic::agv::VehicleTraits traits,
+      rmf_traffic::agv::Graph graph,
+      std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
+      std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
+      std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
+      std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+      double recharge_threshold,
+      double recharge_soc,
+      bool account_for_battery_drain,
+      std::vector<std::string> action_categories,
+      rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
+      std::optional<std::string> server_uri = std::nullopt,
+      rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
+      rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(0.5)
+    );
+
+    const std::string& fleet_name() const;
+
+    // Get the fleet vehicle traits.
+    const VehicleTraits& vehicle_traits() const;
+
+    // Get the fleet navigation graph.
+    const Graph& graph() const;
+
+    // Get a const reference to the server uri.
+    std::optional<std::string> server_uri() const;
+
+    std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system() const;
+    std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink() const;
+    std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink() const;
+    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink() const;
+    double recharge_threshold() const;
+    double recharge_soc() const;
+    bool account_for_battery_drain() const;
+    const std::vector<std::string>& action_categories() const;
+    rmf_task::ConstRequestFactoryPtr finishing_request() const;
+    rmf_traffic::Duration max_delay() const;
+    rmf_traffic::Duration update_interval() const;
+
+    class Implementation;
+  private:
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
+  class RobotState
+  {
+  public:
+
+    /// Constructor
+    RobotState(
+      const std::string& name,
+      const std::string& charger_name,
+      const std::string& map_name,
+      Eigen::Vector3d location,
+      double battery_soc);
+
+    const std::string& name() const;
+    const std::string& charger_name() const;
+    const std::string& map_name() const;
+    const Eigen::Vector3d& location() const;
+    double battery_soc() const;
+
+    class Implementation;
+
+  private:
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
 
   /// Callback definitions
   using GetStateCallback = std::function<RobotState(void)>;
@@ -84,6 +168,8 @@ public:
   /// \param[in] config
   ///   The Configuration for the adapter that contains parameters used by the
   ///   fleet robots.
+  ///   If nullopt, the adapter will attempt to read all required parameters
+  ///   via its ROS 2 parameter server.
   ///
   /// \param[in] node_options
   ///   The options that the rclcpp::Node will be constructed with.
@@ -94,7 +180,7 @@ public:
   ///   discovery_timeout node paramter, or it will wait 1 minute if the
   ///   discovery_timeout node parameter was not defined.
   static std::shared_ptr<EasyFullControl> make(
-    Configuration config,
+    std::optional<Configuration> config = std::nullopt,
     const rclcpp::NodeOptions& options = rclcpp::NodeOptions(),
     std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt);
 
@@ -155,96 +241,6 @@ private:
   EasyFullControl();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
-
-//==============================================================================
-/// The Configuration class contains parameters necessary to initialize an
-/// Adapter instance and add fleets to the adapter.
-class EasyFullControl::Configuration
-{
-public:
-
-  /// Constructor
-  ///
-  /// \param[in] config_file
-  ///   The config file that provides important parameters for setting up the fleet adapter.
-  ///
-  /// \param[in] nav_graph_path
-  ///   The graph file that this fleet should use for navigation.
-  ///
-  /// \param[in] server_uri
-  ///   The URI for the websocket server that receives updates on tasks and
-  ///   states. If nullopt, data will not be published.
-  Configuration(
-    const std::string& fleet_name,
-    rmf_traffic::agv::VehicleTraits traits,
-    rmf_traffic::agv::Graph graph,
-    std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
-    std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
-    std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
-    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
-    double recharge_threshold,
-    double recharge_soc,
-    bool account_for_battery_drain,
-    std::vector<std::string> action_categories,
-    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
-    std::optional<std::string> server_uri = std::nullopt,
-    rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
-    rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(0.5)
-  );
-
-  const std::string& fleet_name() const;
-
-  // Get the fleet vehicle traits.
-  const VehicleTraits& vehicle_traits() const;
-
-  // Get the fleet navigation graph.
-  const Graph& graph() const;
-
-  // Get a const reference to the server uri.
-  std::optional<std::string> server_uri() const;
-
-  std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system() const;
-  std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink() const;
-  std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink() const;
-  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink() const;
-  double recharge_threshold() const;
-  double recharge_soc() const;
-  bool account_for_battery_drain() const;
-  const std::vector<std::string>& action_categories() const;
-  rmf_task::ConstRequestFactoryPtr finishing_request() const;
-  rmf_traffic::Duration max_delay() const;
-  rmf_traffic::Duration update_interval() const;
-
-  class Implementation;
-private:
-  rmf_utils::impl_ptr<Implementation> _pimpl;
-};
-
-//==============================================================================
-class EasyFullControl::RobotState
-{
-public:
-
-  /// Constructor
-  RobotState(
-    const std::string& name,
-    const std::string& charger_name,
-    const std::string& map_name,
-    Eigen::Vector3d location,
-    double battery_soc);
-
-  const std::string& name() const;
-  const std::string& charger_name() const;
-  const std::string& map_name() const;
-  const Eigen::Vector3d& location() const;
-  double battery_soc() const;
-
-  class Implementation;
-
-private:
-  rmf_utils::impl_ptr<Implementation> _pimpl;
-};
-
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
 

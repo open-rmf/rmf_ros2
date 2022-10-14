@@ -19,9 +19,19 @@
 #include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
 #include <rmf_fleet_adapter/agv/RobotCommandHandle.hpp>
 
+// Public rmf_task API headers
+#include <rmf_task/requests/ChargeBatteryFactory.hpp>
+#include <rmf_task/requests/ParkRobotFactory.hpp>
+
 // ROS2 utilities for rmf_traffic
 #include <rmf_traffic/agv/Planner.hpp>
+#include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
+
+#include <rmf_battery/agv/BatterySystem.hpp>
+#include <rmf_battery/agv/SimpleMotionPowerSink.hpp>
+#include <rmf_battery/agv/SimpleDevicePowerSink.hpp>
+#include <rmf_fleet_adapter/agv/parse_graph.hpp>
 
 #include <thread>
 
@@ -1130,30 +1140,228 @@ EasyFullControl::EasyFullControl()
 
 //==============================================================================
 std::shared_ptr<EasyFullControl> EasyFullControl::make(
-  Configuration config,
+  std::optional<Configuration> config_,
   const rclcpp::NodeOptions& options,
   std::optional<rmf_traffic::Duration> discovery_timeout)
 {
   auto easy_adapter = std::shared_ptr<EasyFullControl>(new EasyFullControl);
   easy_adapter->_pimpl = rmf_utils::make_unique_impl<Implementation>();
-
-  easy_adapter->_pimpl->fleet_name = config.fleet_name();
-  easy_adapter->_pimpl->update_interval = config.update_interval();
-  easy_adapter->_pimpl->traits = std::make_shared<VehicleTraits>(
-    config.vehicle_traits());
-  easy_adapter->_pimpl->graph = std::make_shared<Graph>(config.graph());
   easy_adapter->_pimpl->adapter = Adapter::make(
-    config.fleet_name() + "_fleet_adapter",
+    "easy_fleet_adapter",
     options,
-    std::move(discovery_timeout)
-  );
-
+    std::move(discovery_timeout));
   if (easy_adapter->_pimpl->adapter == nullptr)
   {
     return nullptr;
   }
 
   const auto node = easy_adapter->_pimpl->adapter->node();
+  auto get_config =
+    [](rclcpp::Node::SharedPtr node) -> std::shared_ptr<Configuration>
+    {
+      const std::string& fleet_name = node->declare_parameter(
+        "fleet_name", "tinyRobot");
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Configuring fleet [%s].",
+        fleet_name.c_str()
+      );
+
+      // Traits and graph
+      const double linear_velocity = node->declare_parameter(
+        "linear_velocity", 0.7);
+      const double linear_acceleration = node->declare_parameter(
+        "linear_acceleration", 1.0);
+      const double angular_velocity = node->declare_parameter(
+        "angular_velocity", 0.5);
+      const double angular_acceleration = node->declare_parameter(
+        "angular_acceleration", 1.5);
+      const double footprint_radius = node->declare_parameter(
+        "footprint_radius", 0.3);
+      const double vicinity_radius = node->declare_parameter(
+        "vicinity_radius", 0.3);
+      const bool reversible = node->declare_parameter(
+        "reversible", false);
+      auto traits = rmf_traffic::agv::VehicleTraits{
+        {linear_velocity, linear_acceleration},
+        {angular_velocity, angular_acceleration},
+        rmf_traffic::Profile{
+          rmf_traffic::geometry::make_final_convex<
+            rmf_traffic::geometry::Circle>(footprint_radius),
+          rmf_traffic::geometry::make_final_convex<
+            rmf_traffic::geometry::Circle>(vicinity_radius)
+        }
+      };
+      traits.get_differential()->set_reversible(reversible);
+      const std::string nav_graph_file =
+        node->declare_parameter("nav_graph_file", "");
+      auto graph =
+        rmf_fleet_adapter::agv::parse_graph(nav_graph_file, traits);
+
+      // Battery
+      const double battery_voltage = node->declare_parameter(
+        "battery_voltage", 24.0);
+      const double battery_capacity = node->declare_parameter(
+        "battery_capacity", 30.0);
+      const double battery_charging_current = node->declare_parameter(
+        "battery_charging_current", 5.0);
+      const auto battery_opt = rmf_battery::agv::BatterySystem::make(
+        battery_voltage, battery_capacity, battery_charging_current);
+      if (!battery_opt.has_value())
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "Invalid battery parameters");
+        return nullptr;
+      }
+      const auto battery_system =
+        std::make_shared<rmf_battery::agv::BatterySystem>(*battery_opt);
+
+      // Sinks
+      const double mass = node->declare_parameter(
+        "mass", 20.0);
+      const double inertia = node->declare_parameter(
+        "inertia", 10.0);
+      const double friction_coefficient = node->declare_parameter(
+        "friction_coefficient", 0.22);
+      const auto mechanical_opt = rmf_battery::agv::MechanicalSystem::make(
+        mass, inertia, friction_coefficient);
+      if (!mechanical_opt.has_value())
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "Invalid mechanical parameters");
+        return nullptr;
+      }
+      std::shared_ptr<rmf_battery::agv::SimpleMotionPowerSink> motion_sink =
+        std::make_shared<rmf_battery::agv::SimpleMotionPowerSink>(
+        *battery_system, mechanical_opt.value());
+      const double ambient_power_drain = node->declare_parameter(
+        "ambient_power_drain", 20.0);
+      const auto ambient_power_system = rmf_battery::agv::PowerSystem::make(
+        ambient_power_drain);
+      if (!ambient_power_system)
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "Invalid values supplied for ambient power system");
+        return nullptr;
+      }
+      std::shared_ptr<rmf_battery::agv::SimpleDevicePowerSink> ambient_sink =
+        std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
+        *battery_system, *ambient_power_system);
+      const double tool_power_drain = node->declare_parameter(
+        "tool_power_drain", 0.0);
+      auto tool_power_system = rmf_battery::agv::PowerSystem::make(
+        tool_power_drain);
+      if (!tool_power_system)
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "Invalid values supplied for tool power system");
+        return nullptr;
+      }
+      std::shared_ptr<rmf_battery::agv::SimpleDevicePowerSink> tool_sink =
+        std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
+        *battery_system, *tool_power_system);
+      std::vector<std::string> actions = {"teleop"};
+      actions = node->declare_parameter("actions", actions);
+
+      const std::string server_uri_string =
+        node->declare_parameter("server_uri", std::string());
+      std::optional<std::string> server_uri = std::nullopt;
+      if (!server_uri_string.empty())
+        server_uri = server_uri_string;
+
+      const double recharge_threshold = node->declare_parameter(
+        "recharge_threshold", 0.2);
+      const double recharge_soc = node->declare_parameter(
+        "recharge_soc", 1.0);
+      const bool drain_battery = node->declare_parameter(
+        "drain_battery", true);
+
+      const double max_delay = node->declare_parameter(
+        "max_delay", 10.0);
+      const double update_interval = node->declare_parameter(
+        "update_interval", 0.5);
+
+      const std::string finishing_request_string =
+        node->declare_parameter("finishing_request", "nothing");
+      rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
+      if (finishing_request_string == "charge")
+      {
+        finishing_request =
+          std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+        RCLCPP_INFO(
+          node->get_logger(),
+          "Fleet is configured to perform ChargeBattery as finishing request");
+      }
+      else if (finishing_request_string == "park")
+      {
+        finishing_request =
+          std::make_shared<rmf_task::requests::ParkRobotFactory>();
+        RCLCPP_INFO(
+          node->get_logger(),
+          "Fleet is configured to perform ParkRobot as finishing request");
+      }
+      else if (finishing_request_string == "nothing")
+      {
+        RCLCPP_INFO(
+          node->get_logger(),
+          "Fleet is not configured to perform any finishing request");
+      }
+      else
+      {
+        RCLCPP_WARN(
+          node->get_logger(),
+          "Provided finishing request [%s] is unsupported. The valid "
+          "finishing requests are [charge, park, nothing]. The task planner will "
+          " default to [nothing].",
+          finishing_request_string.c_str());
+      }
+
+      auto config = std::make_shared<Configuration>(
+        fleet_name,
+        std::move(traits),
+        std::move(graph),
+        battery_system,
+        motion_sink,
+        ambient_sink,
+        tool_sink,
+        recharge_threshold,
+        recharge_soc,
+        drain_battery,
+        actions,
+        finishing_request,
+        server_uri,
+        rmf_traffic::time::from_seconds(max_delay),
+        rmf_traffic::time::from_seconds(update_interval));
+
+      return config;
+    };
+
+  std::shared_ptr<Configuration> config_from_params = nullptr;
+  if (!config_.has_value())
+  {
+    config_from_params = get_config(node);
+    if (!config_from_params)
+    {
+      RCLCPP_ERROR(
+      node->get_logger(),
+      "Unable to configure fleet using provided configuration or ROS 2 "
+      "parameters"
+      );
+      return nullptr;
+    }
+  }
+
+  auto config = config_.has_value() ? config_.value() : *config_from_params;
+  easy_adapter->_pimpl->fleet_name = config.fleet_name();
+  easy_adapter->_pimpl->update_interval = config.update_interval();
+  easy_adapter->_pimpl->traits = std::make_shared<VehicleTraits>(
+    config.vehicle_traits());
+  easy_adapter->_pimpl->graph = std::make_shared<Graph>(config.graph());
+
   // Create a FleetUpdateHandle
   easy_adapter->_pimpl->fleet_handle =
     easy_adapter->_pimpl->adapter->add_fleet(
@@ -1357,6 +1565,8 @@ auto EasyFullControl::add_robot(
 
   return true;
 }
+
+//==============================================================================
 
 } // namespace agv
 } // namespace rmf_fleet_adapter
