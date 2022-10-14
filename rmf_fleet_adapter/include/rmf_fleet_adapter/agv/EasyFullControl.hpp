@@ -193,7 +193,7 @@ public:
   std::shared_ptr<FleetUpdateHandle> fleet_handle();
 
   /// Begin running the event loop for this adapter.This is blocking.
-  EasyFullControl& run();
+  EasyFullControl& wait();
 
   /// Add a robot to the fleet once it is available.
   /// \param[in] navigate

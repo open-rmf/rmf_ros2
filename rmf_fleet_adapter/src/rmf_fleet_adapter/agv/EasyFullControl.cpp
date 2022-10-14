@@ -1459,7 +1459,7 @@ std::shared_ptr<FleetUpdateHandle> EasyFullControl::fleet_handle()
 }
 
 //==============================================================================
-EasyFullControl& EasyFullControl::run()
+EasyFullControl& EasyFullControl::wait()
 {
   _pimpl->adapter->wait();
   return *this;
