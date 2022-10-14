@@ -698,8 +698,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       return self.fleet_handle();
     })
-  .def("start", &agv::EasyFullControl::start)
-  .def("stop", &agv::EasyFullControl::stop);
+  .def("run", &agv::EasyFullControl::run);
   // EASY FULL CONTROL CONFIGURATION ===============================================
   auto m_easy_full_control = m.def_submodule("easy_full_control");
 
