@@ -24,7 +24,10 @@
 #include <rmf_task/requests/ParkRobotFactory.hpp>
 
 // ROS2 utilities for rmf_traffic
+#include <rmf_traffic/Trajectory.hpp>
+#include <rmf_traffic/agv/Interpolate.hpp>
 #include <rmf_traffic/agv/Planner.hpp>
+
 #include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
 
@@ -212,9 +215,11 @@ EasyCommandHandle::EasyCommandHandle(
   min_lane_length(std::move(min_lane_length_)),
   update_interval(std::move(update_interval_))
 {
-
   if (plan_start.lane().has_value())
+  {
+    on_waypoint = std::nullopt;
     on_lane = plan_start.lane().value();
+  }
   else
   {
     on_waypoint = plan_start.waypoint();
@@ -639,7 +644,16 @@ void EasyCommandHandle::start_follow()
     else if (_state == InternalRobotState::MOVING)
     {
       // Variables which the nav_completed_cb will overwrite.
-      rmf_traffic::Duration remaining_time;
+      const auto now = std::chrono::steady_clock::now();
+      const rmf_traffic::Trajectory t =
+        rmf_traffic::agv::Interpolate::positions(
+          *traits,
+          now,
+          {state.location(), target_waypoint->position}
+      );
+      auto trajectory_time = t.finish_time();
+      rmf_traffic::Duration remaining_time  =
+        trajectory_time ? *trajectory_time - now : rmf_traffic::time::from_seconds(5.0);
       bool request_replan = false;
       std::this_thread::sleep_for(update_interval);
       if (nav_completed_cb(remaining_time, request_replan))
