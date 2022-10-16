@@ -57,24 +57,71 @@ public:
   using VehicleTraits = rmf_traffic::agv::VehicleTraits;
   using ActionExecutor = RobotUpdateHandle::ActionExecutor;
 
-  /// Forward declarations
   /// The Configuration class contains parameters necessary to initialize an
-  /// Adapter instance and add fleets to the adapter.
+  /// EasyFullControl instance and add fleets to the adapter.
   class Configuration
   {
   public:
 
     /// Constructor
     ///
-    /// \param[in] config_file
-    ///   The config file that provides important parameters for setting up the fleet adapter.
+    /// \param[in] fleet_name
+    ///   The name of the fleet that is being added.
     ///
-    /// \param[in] nav_graph_path
-    ///   The graph file that this fleet should use for navigation.
+    /// \param[in] traits
+    ///   Specify the approximate traits of the vehicles in this fleet.
+    ///
+    /// \param[in] navigation_graph
+    ///   Specify the navigation graph used by the vehicles in this fleet.
+    ///
+    /// \param[in] battery_system
+    ///   Specify the battery system used by the vehicles in this fleet.
+    ///
+    /// \param[in] motion_sink
+    ///   Specify the motion sink that describes the vehicles in this fleet.
+    ///
+    /// \param[in] ambient_sink
+    ///   Specify the device sink for ambient sensors used by the vehicles in this fleet.
+    ///
+    /// \param[in] tool_sink
+    ///   Specify the device sink for special tools used by the vehicles in this fleet.
+    ///
+    /// \param[in] recharge_threshold
+    ///   The threshold for state of charge below which robots in this fleet
+    ///   will cease to operate and require recharging. A value between 0.0 and
+    ///   1.0 should be specified.
+    ///
+    /// \param[in] recharge_soc
+    ///   The state of charge to which robots in this fleet should be charged up
+    ///   to by automatic recharging tasks. A value between 0.0 and 1.0 should be
+    ///   specified.
+    ///
+    /// \param[in] account_for_battery_drain
+    ///   Specify whether battery drain is to be considered while allocating tasks.
+    ///   If false, battery drain will not be considered when planning for tasks.
+    ///   As a consequence, charging tasks will not be automatically assigned to
+    ///   vehicles in this fleet when battery levels fall below the
+    ///   recharge_threshold.
+    ///
+    /// \param[in] action_categories
+    ///   List of actions that this fleet can perform. Each item represents a
+    ///   category in the PerfromAction description.
+    ///
+    /// \param[in] finishing_request
+    ///   A factory for a request that should be performed by each robot in this
+    ///   fleet at the end of its assignments.
     ///
     /// \param[in] server_uri
     ///   The URI for the websocket server that receives updates on tasks and
     ///   states. If nullopt, data will not be published.
+    ///
+    /// \param[in] max_delay
+    ///   Specify the default value for how high the delay of the current itinerary
+    ///   can become before it gets interrupted and replanned.
+    ///
+    /// \param[in] update_interval
+    ///   The duration between positional state updates that are sent to
+    ///   the fleet adapter.
     Configuration(
       const std::string& fleet_name,
       rmf_traffic::agv::VehicleTraits traits,
@@ -93,27 +140,49 @@ public:
       rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(0.5)
     );
 
+    /// Get the fleet name.
     const std::string& fleet_name() const;
 
-    // Get the fleet vehicle traits.
+    /// Get the fleet vehicle traits.
     const VehicleTraits& vehicle_traits() const;
 
-    // Get the fleet navigation graph.
+    /// Get the fleet navigation graph.
     const Graph& graph() const;
 
-    // Get a const reference to the server uri.
+    /// Get the battery system.
+    std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system() const;
+
+    /// Get the motion sink.
+    std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink() const;
+
+    /// Get the ambient sink.
+    std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink() const;
+
+    /// Get the tool sink.
+    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink() const;
+
+    /// Get the recharge threshold.
+    double recharge_threshold() const;
+
+    /// Get the recharge soc.
+    double recharge_soc() const;
+
+    /// Get whether or not to account for battery drain during task planning.
+    bool account_for_battery_drain() const;
+
+    /// Get the action categories
+    const std::vector<std::string>& action_categories() const;
+
+    /// Get the finishing request.
+    rmf_task::ConstRequestFactoryPtr finishing_request() const;
+
+    /// Get the server uri.
     std::optional<std::string> server_uri() const;
 
-    std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system() const;
-    std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink() const;
-    std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink() const;
-    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink() const;
-    double recharge_threshold() const;
-    double recharge_soc() const;
-    bool account_for_battery_drain() const;
-    const std::vector<std::string>& action_categories() const;
-    rmf_task::ConstRequestFactoryPtr finishing_request() const;
+    /// Get the max delay.
     rmf_traffic::Duration max_delay() const;
+
+    /// Get the update interval.
     rmf_traffic::Duration update_interval() const;
 
     class Implementation;
@@ -121,11 +190,28 @@ public:
     rmf_utils::impl_ptr<Implementation> _pimpl;
   };
 
+  /// The RobotState class encapsulates information about a robot in this fleet.
   class RobotState
   {
   public:
 
     /// Constructor
+    ///
+    /// \param[in] name
+    ///   The name of this robot.
+    ///
+    /// \param[in] charger_name
+    ///   The name of the charger waypoint of this robot.
+    ///
+    /// \param[in] map_name
+    ///   The name of the map this robot is currenly on.
+    ///
+    /// \param[in] location
+    ///   The XY position and orientation of this robot on current map.
+    ///
+    /// \param[in] battery_soc
+    ///   The state of charge of the battery of this robot.
+    ///   This should be a value between 0.0 and 1.0.
     RobotState(
       const std::string& name,
       const std::string& charger_name,
@@ -133,10 +219,19 @@ public:
       Eigen::Vector3d location,
       double battery_soc);
 
+    /// Get the name.
     const std::string& name() const;
+
+    /// Get the charger name.
     const std::string& charger_name() const;
+
+    /// Get the map name.
     const std::string& map_name() const;
+
+    /// Get the location.
     const Eigen::Vector3d& location() const;
+
+    /// Get the battery_soc.
     double battery_soc() const;
 
     class Implementation;
@@ -145,20 +240,61 @@ public:
     rmf_utils::impl_ptr<Implementation> _pimpl;
   };
 
-  /// Callback definitions
+  /// Signature for a callback that returns the current RobotState of the robot.
+  ///
+  /// \return RobotState
   using GetStateCallback = std::function<RobotState(void)>;
-  /// Set replan to true if your robot is stuck and needs a new plan.
+
+  /// Signature for a function that is used to track the status of a goal.
+  ///
+  /// \param[in] remaining_time
+  ///   A mutable reference to set the time remaining for this goal. If not
+  ///   updated, the adapter will derive the time estimate by interpolating
+  ///   the robot's motion to the destination location.
+  ///
+  /// \param[in]  request_replan
+  ///   A mutable reference to request the fleet adapter to generate a new plan
+  ///   for this robot due to issues with completing the goal.
+  ///
+  /// \return True if the robot has completed the goal.
   using GoalCompletedCallback = std::function<bool(
         rmf_traffic::Duration& remaining_time,
         bool& request_replan)>;
+
+  /// Signature for a function to request the robot to navigate to a location.
+  ///
+  /// \param[in] map_name
+  ///   The name of the map where the location exists.
+  ///
+  /// \param[in] location
+  ///   The XY position and orientation of the location.
+  ///
+  /// \param[in] robot_handle
+  ///   The robot_handle may be used to submit issue tickets if the robot
+  ///   is having any challenges with reaching the location.
+  ///
+  /// \return A GoalCompletedCallback to query the status of this request.
   using NavigationRequest =
     std::function<GoalCompletedCallback(
         const std::string& map_name,
-        const Eigen::Vector3d goal,
+        const Eigen::Vector3d location,
         RobotUpdateHandlePtr robot_handle)>;
 
+  /// Signature for a function to request the robot to stop.
+  ///
+  /// \return true if the robot has come to a stop.
   using StopRequest = std::function<bool(void)>;
 
+  /// Signature for a function to request the robot to dock at a location.
+  ///
+  /// \param[in] dock_name
+  ///   The name of the dock.
+  ///
+  /// \param[in] robot_handle
+  ///   The robot_handle may be used to submit issue tickets if the robot
+  ///   is having any challenges with reaching the location.
+  ///
+  /// \return A GoalCompletedCallback to query the status of this request.
   using DockRequest =
     std::function<GoalCompletedCallback(
         const std::string& dock_name,
@@ -177,7 +313,7 @@ public:
   /// \param[in] discovery_timeout
   ///   How long we will wait to discover the Schedule Node before giving up. If
   ///   rmf_utils::nullopt is given, then this will try to use the
-  ///   discovery_timeout node paramter, or it will wait 1 minute if the
+  ///   discovery_timeout node parameter, or it will wait 1 minute if the
   ///   discovery_timeout node parameter was not defined.
   static std::shared_ptr<EasyFullControl> make(
     std::optional<Configuration> config = std::nullopt,
@@ -192,21 +328,27 @@ public:
   /// standard FleetUpdateHandle API.
   std::shared_ptr<FleetUpdateHandle> fleet_handle();
 
-  /// Begin running the event loop for this adapter.This is blocking.
+  /// Wait till the adapter is finished spinning.
   EasyFullControl& wait();
 
   /// Add a robot to the fleet once it is available.
-  /// \param[in] navigate
-  ///   The API function for navigating your robot to a pose.
-  ///   Returns a ProcessCompleted callback to check status of navigation task.
   ///
-  /// \param[in] dock
-  ///   The API function for starting a dock process.
-  ///   Returns a ProcessCompleted callback to check status of docking task.
+  /// \param[in] start_state
+  ///   The initial state of the robot when it is added to the fleet.
+  ///
+  /// \param[in] get_state
+  ///   A function that returns the most recent state of the robot when called.
+  ///
+  /// \param[in] navigate
+  ///   A function that can be used to request the robot to navigate to a location.
+  ///   The function returns a handle which can be used to track the progress of the navigation.
   ///
   /// \param[in] stop
-  ///   The API for command your robot to stop.
-  ///   Returns a bool indicating whether stop was successful.
+  ///   A function to stop the robot.
+  ///
+  /// \param[in] dock
+  ///   A function that can be used to request the robot to dock at a location.
+  ///   The function returns a handle which can be used to track the progress of the docking.
   ///
   /// \param[in] action_executor
   ///   The ActionExecutor callback to request the robot to perform an action.
@@ -219,9 +361,9 @@ public:
   bool add_robot(
     RobotState start_state,
     GetStateCallback get_state,
-    NavigationRequest handle_nav_request,
-    StopRequest handle_stop,
-    DockRequest handle_dock,
+    NavigationRequest navigate,
+    StopRequest stop,
+    DockRequest dock,
     ActionExecutor action_executor);
 
   // TODO(YV): Add an overloaded API for add_robot() where users can pass in a
