@@ -23,6 +23,7 @@
 
 #include <rmf_traffic/Time.hpp>
 #include <rmf_traffic/agv/Planner.hpp>
+#include <rmf_traffic/agv/VehicleTraits.hpp>
 
 namespace py = pybind11;
 namespace agv = rmf_fleet_adapter::agv;
@@ -42,12 +43,6 @@ using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
 using Stubbornness = agv::RobotUpdateHandle::Unstable::Stubbornness;
-
-using Configuration = agv::EasyFullControl::Configuration;
-using Target = agv::EasyFullControl::Target;
-using Position = agv::EasyFullControl::Position;
-using GetPosition = agv::EasyFullControl::GetPosition;
-using ProcessCompleted = agv::EasyFullControl::ProcessCompleted;
 
 void bind_types(py::module&);
 void bind_graph(py::module&);
@@ -512,80 +507,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
       return self.errors();
     });
 
-  // EASY FULL CONTROL HANDLE ===============================================
-  py::class_<agv::EasyFullControl,
-    std::shared_ptr<agv::EasyFullControl>>(
-    m, "EasyFullControl")
-  .def_static("make", &agv::EasyFullControl::make,
-    py::arg("config"),
-    py::arg("adapter"))
-  .def("add_robot", [](agv::EasyFullControl& self,
-    const std::string& robot_name,
-    Eigen::Vector3d pose,
-    GetPosition get_position,
-    std::function<ProcessCompleted(const Target target)> navigate,
-    std::function<ProcessCompleted(
-      const std::string& dock_name, std::size_t cmd_id)> dock,
-    ProcessCompleted stop,
-    agv::RobotUpdateHandle::ActionExecutor action_executor)
-    {
-      return self.add_robot(robot_name, pose, get_position, navigate, dock,
-      stop, action_executor);
-    },
-    py::arg("robot_name"),
-    py::arg("pose"),
-    py::arg("get_position"),
-    py::arg("navigate"),
-    py::arg("dock"),
-    py::arg("stop"),
-    py::arg("action_executor"))
-  .def("add_robot_with_start", [](agv::EasyFullControl& self,
-    const std::string& robot_name,
-    rmf_traffic::agv::Planner::Start pose,
-    GetPosition get_position,
-    std::function<ProcessCompleted(const Target target)> navigate,
-    std::function<ProcessCompleted(
-      const std::string& dock_name, std::size_t cmd_id)> dock,
-    ProcessCompleted stop,
-    agv::RobotUpdateHandle::ActionExecutor action_executor)
-    {
-      return self.add_robot(robot_name, pose, get_position, navigate, dock,
-      stop, action_executor);
-    },
-    py::arg("robot_name"),
-    py::arg("pose"),
-    py::arg("get_position"),
-    py::arg("navigate"),
-    py::arg("dock"),
-    py::arg("stop"),
-    py::arg("action_executor"));
-
-  // EASY FULL CONTROL CONFIGURATION ===============================================
-  auto m_easy_full_control_handle = m.def_submodule("easy_full_control_handle");
-
-  py::class_<Configuration>(
-    m_easy_full_control_handle, "Configuration")
-  .def(py::init<std::string,
-    std::string,
-    std::optional<std::string>>(),
-    py::arg("config_file"),
-    py::arg("nav_graph_path"),
-    py::arg("server_uri"));
-
-  py::class_<Target>(m_easy_full_control_handle, "Target")
-    .def(py::init<>())
-    .def_readwrite("cmd_id", &Target::cmd_id)
-    .def_readwrite("pose", &Target::pose)
-    .def_readwrite("map_name", &Target::map_name)
-    .def_readwrite("speed_limit", &Target::speed_limit);
-
-  py::class_<Position>(m_easy_full_control_handle, "Position")
-    .def(py::init<>())
-    .def_readwrite("position", &Position::position)
-    .def_readwrite("map_name", &Position::map_name)
-    .def_readwrite("battery_percent", &Position::battery_percent)
-    .def_readwrite("replan", &Position::replan);
-
   // EASY TRAFFIC LIGHT HANDLE ===============================================
   py::class_<agv::Waypoint>(m, "Waypoint")
   .def(py::init<std::string,
@@ -745,4 +666,168 @@ PYBIND11_MODULE(rmf_adapter, m) {
       return TimePoint(rmf_traffic_ros2::convert(self.node()->now())
       .time_since_epoch());
     });
+
+  // EASY FULL CONTROL HANDLE ===============================================
+  py::class_<agv::EasyFullControl, std::shared_ptr<agv::EasyFullControl>>(
+    m, "EasyFullControl")
+  .def_static("make", &agv::EasyFullControl::make,
+    py::arg("config") = std::nullopt,
+    py::arg("node_options") = rclcpp::NodeOptions(),
+    py::arg("wait_time") = rmf_utils::optional<rmf_traffic::Duration>(
+      rmf_utils::nullopt))
+  .def("add_robot", [](agv::EasyFullControl& self,
+    agv::EasyFullControl::RobotState start_state,
+    agv::EasyFullControl::GetStateCallback get_state,
+    agv::EasyFullControl::NavigationRequest handle_nav_request,
+    agv::EasyFullControl::StopRequest handle_stop,
+    agv::EasyFullControl::DockRequest handle_dock,
+    agv::EasyFullControl::ActionExecutor action_executor)
+    {
+      return self.add_robot(start_state, get_state, handle_nav_request,
+        handle_stop, handle_dock, action_executor);
+    },
+    py::arg("start_state"),
+    py::arg("get_state"),
+    py::arg("handle_nav_request"),
+    py::arg("handle_stop"),
+    py::arg("handle_dock"),
+    py::arg("action_executor"))
+  .def_property_readonly("node",
+    py::overload_cast<>(&agv::EasyFullControl::node))
+  .def("fleet_handle", [](agv::EasyFullControl& self)
+    {
+      return self.fleet_handle();
+    })
+  .def("wait", &agv::EasyFullControl::wait);
+  // EASY FULL CONTROL CONFIGURATION ===============================================
+  auto m_easy_full_control = m.def_submodule("easy_full_control");
+
+  // Custom bindings since Python doesn't allow changing ref to primitive types
+  m_easy_full_control.def("goal_completed_callback",[](
+      std::function<std::tuple<
+        bool,
+        rmf_traffic::Duration,
+        bool>(rmf_traffic::Duration&, bool&)> &f) -> agv::EasyFullControl::GoalCompletedCallback
+      {
+        return [f](rmf_traffic::Duration& remaining_time, bool& request_replan) -> bool
+        {
+          auto [completed, _remaining_time, _request_replan] = f(remaining_time, request_replan);
+          remaining_time = _remaining_time;
+          request_replan = _request_replan;
+          return completed;
+        };
+      });
+
+  py::class_<agv::EasyFullControl::Configuration>(m_easy_full_control, "Configuration")
+  .def(py::init([]( // Lambda function to convert reference to shared ptr
+        std::string& fleet_name,
+        rmf_traffic::agv::VehicleTraits& traits,
+        rmf_traffic::agv::Graph& graph,
+        battery::BatterySystem& battery_system,
+        battery::SimpleMotionPowerSink& motion_sink,
+        battery::SimpleDevicePowerSink& ambient_sink,
+        battery::SimpleDevicePowerSink& tool_sink,
+        double recharge_threshold,
+        double recharge_soc,
+        bool account_for_battery_drain,
+        std::vector<std::string> action_categories,
+        std::string& finishing_request_string,
+        std::optional<std::string> server_uri,
+        rmf_traffic::Duration max_delay,
+        rmf_traffic::Duration update_interval)
+        {
+          rmf_task::ConstRequestFactoryPtr finishing_request;
+          if (finishing_request_string == "charge")
+          {
+            finishing_request =
+            std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+          }
+          else if (finishing_request_string == "park")
+          {
+            finishing_request =
+            std::make_shared<rmf_task::requests::ParkRobotFactory>();
+          }
+          else
+          {
+            finishing_request = nullptr;
+          }
+          return agv::EasyFullControl::Configuration(
+              fleet_name,
+              traits,
+              graph,
+              std::make_shared<battery::BatterySystem>(battery_system),
+              std::make_shared<battery::SimpleMotionPowerSink>(motion_sink),
+              std::make_shared<battery::SimpleDevicePowerSink>(ambient_sink),
+              std::make_shared<battery::SimpleDevicePowerSink>(tool_sink),
+              recharge_threshold,
+              recharge_soc,
+              account_for_battery_drain,
+              action_categories,
+              finishing_request,
+              server_uri,
+              max_delay,
+              update_interval);
+        }
+        ),
+    py::arg("fleet_name"),
+    py::arg("traits"),
+    py::arg("graph"),
+    py::arg("battery_system"),
+    py::arg("motion_sink"),
+    py::arg("ambient_sink"),
+    py::arg("tool_sink"),
+    py::arg("recharge_threshold"),
+    py::arg("recharge_soc"),
+    py::arg("account_for_battery_drain"),
+    py::arg("action_categories"),
+    py::arg("finishing_request") = "nothing",
+    py::arg("server_uri") = std::nullopt,
+    py::arg("max_delay") = rmf_traffic::time::from_seconds(10.0),
+    py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5));
+      /*
+  .def_property("fleet_name",
+    py::overload_cast<>(&agv::Configuration::fleet_name, py::const_),
+    py::overload_cast<std::string>(&agv::Configuration::fleet_name))
+  .def_property("traits",
+    py::overload_cast<>(&agv::Configuration::traits, py::const_),
+    py::overload_cast<rmf_traffic::agv::VechileTraits>(&agv::Configuration::vehicle_traits))
+  .def_property("graph",
+    py::overload_cast<>(&agv::Configuration::graph, py::const_),
+    py::overload_cast<rmf_traffic::Duration>(
+      &agv::Configuration::mandatory_delay))
+  .def_property("yield",
+    py::overload_cast<>(&agv::Configuration::yield, py::const_),
+    py::overload_cast<bool>(&agv::Configuration::yield));
+  .def_property("map_name",
+    py::overload_cast<>(&agv::Configuration::map_name, py::const_),
+    py::overload_cast<std::string>(&agv::Configuration::map_name))
+  .def_property("position",
+    py::overload_cast<>(&agv::Configuration::position, py::const_),
+    py::overload_cast<Eigen::Vector3d>(&agv::Configuration::position))
+  .def_property("mandatory_delay",
+    py::overload_cast<>(&agv::Configuration::mandatory_delay, py::const_),
+    py::overload_cast<rmf_traffic::Duration>(
+      &agv::Configuration::mandatory_delay))
+  .def_property("yield",
+    py::overload_cast<>(&agv::Configuration::yield, py::const_),
+    py::overload_cast<bool>(&agv::Configuration::yield));
+    */
+
+  // EASY FULL CONTROL RobotState ===============================================
+  py::class_<agv::EasyFullControl::RobotState>(m_easy_full_control, "RobotState")
+  .def(py::init<const std::string&,
+      const std::string&,
+      const std::string&,
+      Eigen::Vector3d,
+      double>(),
+    py::arg("name"),
+    py::arg("charger_name"),
+    py::arg("map_name"),
+    py::arg("location"),
+    py::arg("battery_soc"))
+  .def_property_readonly("name", &agv::EasyFullControl::RobotState::name)
+  .def_property_readonly("charger_name", &agv::EasyFullControl::RobotState::charger_name)
+  .def_property_readonly("map_name", &agv::EasyFullControl::RobotState::map_name)
+  .def_property_readonly("location", &agv::EasyFullControl::RobotState::location)
+  .def_property_readonly("battery_soc", &agv::EasyFullControl::RobotState::battery_soc);
 }
