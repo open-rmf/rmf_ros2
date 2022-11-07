@@ -783,7 +783,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("finishing_request") = "nothing",
     py::arg("server_uri") = std::nullopt,
     py::arg("max_delay") = rmf_traffic::time::from_seconds(10.0),
-    py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5));
+    py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5))
+  .def_static("make",
+    &agv::EasyFullControl::Configuration::make,
+    py::arg("config_file"),
+    py::arg("nav_graph_path"),
+    py::arg("server_uri"));
       /*
   .def_property("fleet_name",
     py::overload_cast<>(&agv::Configuration::fleet_name, py::const_),

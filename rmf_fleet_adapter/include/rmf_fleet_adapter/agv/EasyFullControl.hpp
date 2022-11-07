@@ -140,6 +140,31 @@ public:
       rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(0.5)
     );
 
+    /// Create a Configuration object using a set of configuration parameters
+    /// imported from YAML files that follow the defined schema. This is an
+    /// alternative to constructing the Configuration using the RMF objects if
+    /// users do not require specific tool systems for their fleets.
+    ///
+    /// \param[in] config_file
+    ///   The path to a configuration YAML file containing data about the fleet's
+    ///   vehicle traits and task capabilities. This file needs to follow the pre-defined
+    ///   config.yaml structure to successfully load the parameters into the Configuration
+    ///   object.
+    ///
+    /// \param[in] nav_graph_path
+    ///   The path to a navigation path file that includes map information necessary
+    ///   to create a rmf_traffic::agv::Graph object
+    ///
+    /// \param[in] server_uri
+    ///   The URI for the websocket server that receives updates on tasks and
+    ///   states. If nullopt, data will not be published.
+    ///
+    /// \return A Configuration object with the essential config parameters loaded.
+    static Configuration make(
+      const std::string& config_file,
+      const std::string& nav_graph_path,
+      std::optional<std::string> server_uri = std::nullopt);
+
     /// Get the fleet name.
     const std::string& fleet_name() const;
 

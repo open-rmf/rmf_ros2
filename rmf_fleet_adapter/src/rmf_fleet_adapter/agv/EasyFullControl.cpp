@@ -37,6 +37,7 @@
 #include <rmf_fleet_adapter/agv/parse_graph.hpp>
 
 #include <thread>
+#include <yaml-cpp/yaml.h>
 
 //==============================================================================
 namespace rmf_fleet_adapter {
@@ -985,6 +986,167 @@ EasyFullControl::Configuration::Configuration(
 }
 
 //==============================================================================
+EasyFullControl::Configuration EasyFullControl::Configuration::make(
+  const std::string& config_file,
+  const std::string& nav_graph_path,
+  std::optional<std::string> server_uri)
+{
+  // Load fleet config file
+  const auto fleet_config = YAML::LoadFile(config_file);
+  const std::string fleet_name = fleet_config["rmf_fleet"]["name"].as<std::string>();
+  const YAML::Node rmf_fleet = fleet_config["rmf_fleet"];
+
+  // Profile and traits
+  const YAML::Node profile = rmf_fleet["profile"];
+  const double footprint_rad = profile["footprint"].as<double>();
+  const double vicinity_rad = profile["vicinity"].as<double>();
+  const YAML::Node limits = rmf_fleet["limits"];
+  const YAML::Node linear = limits["linear"];
+  const double v_nom = linear[0].as<double>();
+  const double a_nom = linear[1].as<double>();
+  const YAML::Node angular = limits["angular"];
+  const double w_nom = angular[0].as<double>();
+  const double b_nom = angular[1].as<double>();
+  const bool reversible = rmf_fleet["reversible"].as<bool>();
+
+  if (!reversible)
+    std::cout << " ===== We have an irreversible robot" << std::endl;
+
+  auto traits = VehicleTraits{
+    {v_nom, a_nom},
+    {w_nom, b_nom},
+    rmf_traffic::Profile{
+      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
+        footprint_rad),
+      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
+        vicinity_rad)
+    }
+  };
+  traits.get_differential()->set_reversible(reversible);
+
+  // Graph
+  const auto graph = parse_graph(nav_graph_path, traits);
+
+  // Set up parameters required for task planner
+  // Battery system
+  const YAML::Node battery = rmf_fleet["battery_system"];
+  const double voltage = battery["voltage"].as<double>();
+  const double capacity = battery["capacity"].as<double>();
+  const double charging_current = battery["charging_current"].as<double>();
+
+  const auto battery_system_optional = rmf_battery::agv::BatterySystem::make(
+    voltage, capacity, charging_current);
+  if (!battery_system_optional.has_value())
+  {
+    throw std::runtime_error("Invalid battery parameters");
+  }
+  const auto battery_system = std::make_shared<rmf_battery::agv::BatterySystem>(
+    *battery_system_optional);
+
+  // Mechanical system
+  const YAML::Node mechanical = rmf_fleet["mechanical_system"];
+  const double mass = mechanical["mass"].as<double>();
+  const double moment_of_inertia = mechanical["moment_of_inertia"].as<double>();
+  const double friction = mechanical["friction_coefficient"].as<double>();
+
+  auto mechanical_system_optional = rmf_battery::agv::MechanicalSystem::make(
+    mass, moment_of_inertia, friction);
+  if (!mechanical_system_optional.has_value())
+  {
+    throw std::runtime_error("Invalid mechanical parameters");
+  }
+  rmf_battery::agv::MechanicalSystem& mechanical_system =
+    *mechanical_system_optional;
+
+  const auto motion_sink =
+    std::make_shared<rmf_battery::agv::SimpleMotionPowerSink>(
+    *battery_system, mechanical_system);
+
+  // Ambient power system
+  const YAML::Node ambient_system = rmf_fleet["ambient_system"];
+  const double ambient_power_drain = ambient_system["power"].as<double>();
+  auto ambient_power_system = rmf_battery::agv::PowerSystem::make(
+    ambient_power_drain);
+  if (!ambient_power_system)
+  {
+    throw std::runtime_error("Invalid values suppled for ambient power system");
+  }
+  const auto ambient_sink =
+    std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
+    *battery_system, *ambient_power_system);
+
+  // Tool power system
+  const YAML::Node tool_system = rmf_fleet["tool_system"];
+  const double tool_power_drain = ambient_system["power"].as<double>();
+  auto tool_power_system = rmf_battery::agv::PowerSystem::make(
+    tool_power_drain);
+  if (!tool_power_system)
+  {
+    throw std::runtime_error("Invalid values suppled for tool power system");
+  }
+  const auto tool_sink =
+    std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
+    *battery_system, *tool_power_system);
+
+  // Drain battery
+  const auto account_for_battery_drain = rmf_fleet["account_for_battery_drain"].as<bool>();
+  // Recharge threshold
+  const auto recharge_threshold =
+    rmf_fleet["recharge_threshold"].as<double>();
+  // Recharge state of charge
+  const auto recharge_soc = rmf_fleet["recharge_soc"].as<double>();
+
+  // Finishing tasks
+  const YAML::Node task_capabilities = rmf_fleet["task_capabilities"];
+  const std::string finishing_request_string =
+    task_capabilities["finishing_request"].as<std::string>();
+  rmf_task::ConstRequestFactoryPtr finishing_request;
+  if (finishing_request_string == "charge")
+  {
+    finishing_request =
+      std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+  }
+  else if (finishing_request_string == "park")
+  {
+    finishing_request =
+      std::make_shared<rmf_task::requests::ParkRobotFactory>();
+  }
+
+  // Action categories
+  std::vector<std::string> action_categories;
+  if (task_capabilities["action"])
+  {
+    action_categories =
+      task_capabilities["action"].as<std::vector<std::string>>();
+  }
+
+  // Set the fleet state topic publish period
+  const double fleet_state_frequency =
+    rmf_fleet["publish_fleet_state"].as<double>();
+  const double update_interval = 1.0/fleet_state_frequency;
+  // Set the maximum delay
+  const double max_delay =
+    rmf_fleet["max_delay"].as<double>();
+
+  return Configuration(
+    fleet_name,
+    std::move(traits),
+    std::move(graph),
+    battery_system,
+    motion_sink,
+    ambient_sink,
+    tool_sink,
+    recharge_threshold,
+    recharge_soc,
+    account_for_battery_drain,
+    action_categories,
+    finishing_request,
+    server_uri,
+    rmf_traffic::time::from_seconds(max_delay),
+    rmf_traffic::time::from_seconds(update_interval));
+}
+
+//==============================================================================
 const std::string& EasyFullControl::Configuration::fleet_name() const
 {
   return _pimpl->fleet_name;
@@ -1448,6 +1610,7 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
   }
 
   easy_adapter->_pimpl->fleet_handle->default_maximum_delay(config.max_delay());
+  easy_adapter->_pimpl->fleet_handle->fleet_state_topic_publish_period(config.update_interval());
 
   RCLCPP_INFO(
     node->get_logger(),
