@@ -137,7 +137,8 @@ public:
       rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
       std::optional<std::string> server_uri = std::nullopt,
       rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
-      rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(0.5)
+      rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(
+        0.5)
     );
 
     /// Create a Configuration object using a set of configuration parameters
@@ -448,8 +449,8 @@ struct Transformation
     double scale_,
     double translation_x_,
     double translation_y_)
-    : rotation(rotation_),
-      scale(scale_)
+  : rotation(rotation_),
+    scale(scale_)
   {
     translation = Eigen::Vector2d{translation_x_, translation_y_};
   }

@@ -668,7 +668,8 @@ void EasyCommandHandle::start_follow()
         _state = InternalRobotState::IDLE;
 
         std::lock_guard<std::mutex> lock(mutex);
-        if (target_waypoint.has_value() && target_waypoint->graph_index.has_value())
+        if (target_waypoint.has_value() &&
+          target_waypoint->graph_index.has_value())
         {
           on_waypoint = target_waypoint->graph_index;
           last_known_waypoint = on_waypoint;
@@ -726,13 +727,14 @@ void EasyCommandHandle::start_follow()
           const auto now = std::chrono::steady_clock::now();
           const rmf_traffic::Trajectory t =
             rmf_traffic::agv::Interpolate::positions(
-              *traits,
-              now,
-              {state.location(), target_waypoint->position}
-          );
+            *traits,
+            now,
+            {state.location(), target_waypoint->position}
+            );
           auto trajectory_time = t.finish_time();
-          rmf_traffic::Duration remaining_time  =
-            trajectory_time ? *trajectory_time - now : rmf_traffic::time::from_seconds(5.0);
+          rmf_traffic::Duration remaining_time =
+            trajectory_time ? *trajectory_time - now :
+            rmf_traffic::time::from_seconds(5.0);
 
           const auto finish_time =
             goal_status.remaining_time().has_value() ?
@@ -997,7 +999,8 @@ EasyFullControl::Configuration EasyFullControl::Configuration::make(
 {
   // Load fleet config file
   const auto fleet_config = YAML::LoadFile(config_file);
-  const std::string fleet_name = fleet_config["rmf_fleet"]["name"].as<std::string>();
+  const std::string fleet_name =
+    fleet_config["rmf_fleet"]["name"].as<std::string>();
   const YAML::Node rmf_fleet = fleet_config["rmf_fleet"];
 
   // Profile and traits
@@ -1093,7 +1096,8 @@ EasyFullControl::Configuration EasyFullControl::Configuration::make(
     *battery_system, *tool_power_system);
 
   // Drain battery
-  const auto account_for_battery_drain = rmf_fleet["account_for_battery_drain"].as<bool>();
+  const auto account_for_battery_drain =
+    rmf_fleet["account_for_battery_drain"].as<bool>();
   // Recharge threshold
   const auto recharge_threshold =
     rmf_fleet["recharge_threshold"].as<double>();
@@ -1336,7 +1340,8 @@ bool EasyFullControl::GoalStatus::success() const
 }
 
 //==============================================================================
-std::optional<rmf_traffic::Duration> EasyFullControl::GoalStatus::remaining_time() const
+std::optional<rmf_traffic::Duration> EasyFullControl::GoalStatus::remaining_time()
+const
 {
   return _pimpl->remaining_time;
 }
@@ -1587,9 +1592,9 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
     if (!config_from_params)
     {
       RCLCPP_ERROR(
-      node->get_logger(),
-      "Unable to configure fleet using provided configuration or ROS 2 "
-      "parameters"
+        node->get_logger(),
+        "Unable to configure fleet using provided configuration or ROS 2 "
+        "parameters"
       );
       return nullptr;
     }
@@ -1656,7 +1661,8 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
   }
 
   easy_adapter->_pimpl->fleet_handle->default_maximum_delay(config.max_delay());
-  easy_adapter->_pimpl->fleet_handle->fleet_state_topic_publish_period(config.update_interval());
+  easy_adapter->_pimpl->fleet_handle->fleet_state_topic_publish_period(
+    config.update_interval());
 
   RCLCPP_INFO(
     node->get_logger(),
