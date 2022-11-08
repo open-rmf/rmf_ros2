@@ -430,6 +430,38 @@ private:
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
 
+/// A Transformation object that stores the transformation data needed to
+/// perform transformation between robot and RMF cartesian frames.
+struct Transformation
+{
+  /// The 2D translation from one coordinate to another
+  Eigen::Vector2d translation;
+
+  /// The rotation angle (radians) between the two cartesian frames.
+  double rotation;
+
+  /// The scaling factor between the cartesian frames.
+  double scale;
+
+  Transformation(
+    double rotation_,
+    double scale_,
+    double translation_x_,
+    double translation_y_)
+    : rotation(rotation_),
+      scale(scale_)
+  {
+    translation = Eigen::Vector2d{translation_x_, translation_y_};
+  }
+};
+
+/// Helper function to transform between RMF and robot coordinate systems.
+/// Depending on the Transformation defined, this function can be used to
+/// transform robot coordinate system to RMF's coordinate system or vice versa.
+const Eigen::Vector3d transform(
+  const Transformation& transformation,
+  const Eigen::Vector3d& pose);
+
 } // namespace agv
 } // namespace rmf_fleet_adapter
 

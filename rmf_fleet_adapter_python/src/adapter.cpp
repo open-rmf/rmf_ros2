@@ -832,4 +832,20 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property_readonly("success", &agv::EasyFullControl::GoalStatus::success)
   .def_property_readonly("remaining_time", &agv::EasyFullControl::GoalStatus::remaining_time)
   .def_property_readonly("request_replan", &agv::EasyFullControl::GoalStatus::request_replan);
+
+  // Transformation =============================================================
+  py::class_<agv::Transformation>(m_easy_full_control, "Transformation")
+  .def(py::init<double,
+      double,
+      double,
+      double>(),
+    py::arg("rotation"),
+    py::arg("scale"),
+    py::arg("translation_x"),
+    py::arg("translation_y"));
+
+  m_easy_full_control.def("transform",
+    &agv::transform,
+    py::arg("transformation"),
+    py::arg("pose"));
 }
