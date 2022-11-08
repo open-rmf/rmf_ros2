@@ -270,21 +270,49 @@ public:
   /// \return RobotState
   using GetStateCallback = std::function<RobotState(void)>;
 
-  /// Signature for a function that is used to track the status of a goal.
+  ///   The GoalStatus class contains information about the robot's progress
+  ///   in completing a goal.
+  class GoalStatus
+  {
+  public:
+
+    /// Constructor
+    ///
+    /// \param[in] success
+    ///   A bool indicating whether the robot has completed the goal
+    ///
+    /// \param[in] remaining_time
+    ///   A duration object containing the time remaining for this goal. If not
+    ///   updated, the adapter will derive the time estimate by interpolating
+    ///   the robot's motion to the destination location.
+    ///
+    /// \param[in] request_replan
+    ///   A bool to request the fleet adapter to generate a new plan for this
+    ///   robot due to issues with completing the goal.
+    GoalStatus(
+      bool success = false,
+      std::optional<rmf_traffic::Duration> remaining_time = std::nullopt,
+      bool request_replan = false);
+
+    /// Get the success status
+    bool success() const;
+
+    /// Get the remaining time
+    std::optional<rmf_traffic::Duration> remaining_time() const;
+
+    /// Get the replan request
+    bool request_replan() const;
+
+    class Implementation;
+
+  private:
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
+  /// Signature for a callback that returns the latest GoalStatus of the robot.
   ///
-  /// \param[in] remaining_time
-  ///   A mutable reference to set the time remaining for this goal. If not
-  ///   updated, the adapter will derive the time estimate by interpolating
-  ///   the robot's motion to the destination location.
-  ///
-  /// \param[in]  request_replan
-  ///   A mutable reference to request the fleet adapter to generate a new plan
-  ///   for this robot due to issues with completing the goal.
-  ///
-  /// \return True if the robot has completed the goal.
-  using GoalCompletedCallback = std::function<bool(
-        rmf_traffic::Duration& remaining_time,
-        bool& request_replan)>;
+  /// \return GoalStatus
+  using GoalCompletedCallback = std::function<GoalStatus(void)>;
 
   /// Signature for a function to request the robot to navigate to a location.
   ///

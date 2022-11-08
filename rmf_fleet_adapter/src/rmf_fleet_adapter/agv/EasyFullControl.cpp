@@ -647,7 +647,7 @@ void EasyCommandHandle::start_follow()
       {
         RCLCPP_INFO(
           node->get_logger(),
-          "Did not receive a valid GoalCompletionCallback from calling "
+          "Did not receive a valid GoalCompletedCallback from calling "
           "handle_nav_request() for robot [%s]. Retrying navigation request in "
           "[%.2f] seconds.",
           robot_name.c_str(), update_interval.count()/1e9);
@@ -656,20 +656,9 @@ void EasyCommandHandle::start_follow()
     }
     else if (_state == InternalRobotState::MOVING)
     {
-      // Variables which the nav_completed_cb will overwrite.
-      const auto now = std::chrono::steady_clock::now();
-      const rmf_traffic::Trajectory t =
-        rmf_traffic::agv::Interpolate::positions(
-          *traits,
-          now,
-          {state.location(), target_waypoint->position}
-      );
-      auto trajectory_time = t.finish_time();
-      rmf_traffic::Duration remaining_time  =
-        trajectory_time ? *trajectory_time - now : rmf_traffic::time::from_seconds(5.0);
-      bool request_replan = false;
       std::this_thread::sleep_for(update_interval);
-      if (nav_completed_cb(remaining_time, request_replan))
+      const auto goal_status = nav_completed_cb();
+      if (goal_status.success())
       {
         RCLCPP_INFO(
           node->get_logger(),
@@ -688,7 +677,7 @@ void EasyCommandHandle::start_follow()
       else
       {
         // If the user requested a replan for this robot, trigger one.
-        if (request_replan)
+        if (goal_status.request_replan())
         {
           replan();
         }
@@ -734,9 +723,24 @@ void EasyCommandHandle::start_follow()
         // Update arrival estimate
         if (target_waypoint.has_value())
         {
+          const auto now = std::chrono::steady_clock::now();
+          const rmf_traffic::Trajectory t =
+            rmf_traffic::agv::Interpolate::positions(
+              *traits,
+              now,
+              {state.location(), target_waypoint->position}
+          );
+          auto trajectory_time = t.finish_time();
+          rmf_traffic::Duration remaining_time  =
+            trajectory_time ? *trajectory_time - now : rmf_traffic::time::from_seconds(5.0);
+
+          const auto finish_time =
+            goal_status.remaining_time().has_value() ?
+            goal_status.remaining_time().value() : remaining_time;
+
           next_arrival_estimator(
             target_waypoint->index,
-            remaining_time);
+            finish_time);
         }
       }
     }
@@ -759,7 +763,7 @@ void EasyCommandHandle::start_dock()
   auto docking_cb = handle_dock(dock_name, updater);
   rmf_traffic::Duration remaining_time;
   bool request_replan;
-  while (!docking_cb(remaining_time, request_replan) && !quit_dock_thread)
+  while (!docking_cb().success() && !quit_dock_thread)
   {
     RCLCPP_DEBUG(
       node->get_logger(),
@@ -1299,6 +1303,48 @@ const Eigen::Vector3d& EasyFullControl::RobotState::location() const
 double EasyFullControl::RobotState::battery_soc() const
 {
   return _pimpl->battery_soc;
+}
+
+//==============================================================================
+class EasyFullControl::GoalStatus::Implementation
+{
+public:
+  bool success;
+  std::optional<rmf_traffic::Duration> remaining_time;
+  bool request_replan;
+};
+
+//==============================================================================
+EasyFullControl::GoalStatus::GoalStatus(
+  bool success,
+  std::optional<rmf_traffic::Duration> remaining_time,
+  bool request_replan)
+: _pimpl(rmf_utils::make_impl<Implementation>(
+      Implementation{
+        std::move(success),
+        std::move(remaining_time),
+        std::move(request_replan)
+      }))
+{
+  // Do nothing
+}
+
+//==============================================================================
+bool EasyFullControl::GoalStatus::success() const
+{
+  return _pimpl->success;
+}
+
+//==============================================================================
+std::optional<rmf_traffic::Duration> EasyFullControl::GoalStatus::remaining_time() const
+{
+  return _pimpl->remaining_time;
+}
+
+//==============================================================================
+bool EasyFullControl::GoalStatus::request_replan() const
+{
+  return _pimpl->request_replan;
 }
 
 //==============================================================================

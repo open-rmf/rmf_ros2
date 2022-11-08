@@ -702,22 +702,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
   // EASY FULL CONTROL CONFIGURATION ===============================================
   auto m_easy_full_control = m.def_submodule("easy_full_control");
 
-  // Custom bindings since Python doesn't allow changing ref to primitive types
-  m_easy_full_control.def("goal_completed_callback",[](
-      std::function<std::tuple<
-        bool,
-        rmf_traffic::Duration,
-        bool>(rmf_traffic::Duration&, bool&)> &f) -> agv::EasyFullControl::GoalCompletedCallback
-      {
-        return [f](rmf_traffic::Duration& remaining_time, bool& request_replan) -> bool
-        {
-          auto [completed, _remaining_time, _request_replan] = f(remaining_time, request_replan);
-          remaining_time = _remaining_time;
-          request_replan = _request_replan;
-          return completed;
-        };
-      });
-
   py::class_<agv::EasyFullControl::Configuration>(m_easy_full_control, "Configuration")
   .def(py::init([]( // Lambda function to convert reference to shared ptr
         std::string& fleet_name,
@@ -835,4 +819,17 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property_readonly("map_name", &agv::EasyFullControl::RobotState::map_name)
   .def_property_readonly("location", &agv::EasyFullControl::RobotState::location)
   .def_property_readonly("battery_soc", &agv::EasyFullControl::RobotState::battery_soc);
+
+  // EASY FULL CONTROL GoalStatus ===============================================
+  py::class_<agv::EasyFullControl::GoalStatus>(m_easy_full_control, "GoalStatus")
+  .def(py::init<bool,
+      std::optional<rmf_traffic::Duration>,
+      bool>(),
+    py::arg("success"),
+    py::arg("remaining_time") = std::optional<rmf_traffic::Duration>(
+      std::nullopt),
+    py::arg("request_replan"))
+  .def_property_readonly("success", &agv::EasyFullControl::GoalStatus::success)
+  .def_property_readonly("remaining_time", &agv::EasyFullControl::GoalStatus::remaining_time)
+  .def_property_readonly("request_replan", &agv::EasyFullControl::GoalStatus::request_replan);
 }
