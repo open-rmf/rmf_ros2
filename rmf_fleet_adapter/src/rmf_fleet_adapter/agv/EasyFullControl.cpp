@@ -1820,8 +1820,9 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
   {
     RCLCPP_WARN(
       node->get_logger(),
-      "Failed to initialize task planner parameters. This fleet will not "
-      "respond to bid requests for tasks"
+      "Failed to initialize task planner parameters. Fleet [%s] will not "
+      "respond to bid requests for tasks",
+      config.fleet_name().c_str()
     );
   }
 
@@ -1842,7 +1843,8 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
         consider_all, consider_all);
       RCLCPP_INFO(
         node->get_logger(),
-        "Fleet is configured to perform Delivery tasks"
+        "Fleet [%s] is configured to perform Delivery tasks",
+        config.fleet_name().c_str()
       );
     }
     if (it->first == "patrol" && it->second)
@@ -1851,7 +1853,8 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
         consider_all);
       RCLCPP_INFO(
         node->get_logger(),
-        "Fleet is configured to perform Patrol tasks"
+        "Fleet [%s] is configured to perform Patrol tasks",
+        config.fleet_name().c_str()
       );
     }
     if (it->first == "clean" && it->second)
@@ -1860,7 +1863,8 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
         consider_all);
       RCLCPP_INFO(
         node->get_logger(),
-        "Fleet is configured to perform Clean tasks"
+        "Fleet [%s] is configured to perform Clean tasks",
+        config.fleet_name().c_str()
       );
     }
   }
