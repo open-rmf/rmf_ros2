@@ -946,6 +946,7 @@ public:
   double recharge_threshold;
   double recharge_soc;
   bool account_for_battery_drain;
+  std::unordered_map<std::string, bool> task_categories;
   std::vector<std::string> action_categories;
   rmf_task::ConstRequestFactoryPtr finishing_request;
   std::optional<std::string> server_uri;
@@ -965,6 +966,7 @@ EasyFullControl::Configuration::Configuration(
   double recharge_threshold,
   double recharge_soc,
   bool account_for_battery_drain,
+  std::unordered_map<std::string, bool> task_categories,
   std::vector<std::string> action_categories,
   rmf_task::ConstRequestFactoryPtr finishing_request,
   std::optional<std::string> server_uri,
@@ -982,6 +984,7 @@ EasyFullControl::Configuration::Configuration(
         std::move(recharge_threshold),
         std::move(recharge_soc),
         std::move(account_for_battery_drain),
+        std::move(task_categories),
         std::move(action_categories),
         std::move(finishing_request),
         std::move(server_uri),
@@ -1210,6 +1213,13 @@ EasyFullControl::Configuration::make(
     return nullptr;
   }
   const YAML::Node task_capabilities = rmf_fleet["task_capabilities"];
+  std::unordered_map<std::string, bool> task_categories;
+  const bool patrol_task = task_capabilities["loop"].as<bool>();
+  const bool delivery_task = task_capabilities["delivery"].as<bool>();
+  const bool clean_task = task_capabilities["clean"].as<bool>();
+  task_categories.insert({"patrol", patrol_task});
+  task_categories.insert({"delivery", delivery_task});
+  task_categories.insert({"clean", clean_task});
 
   // Action categories
   std::vector<std::string> action_categories;
@@ -1299,6 +1309,7 @@ EasyFullControl::Configuration::make(
     recharge_threshold,
     recharge_soc,
     account_for_battery_drain,
+    task_categories,
     action_categories,
     finishing_request,
     server_uri,
@@ -1392,6 +1403,13 @@ rmf_traffic::Duration EasyFullControl::Configuration::max_delay() const
 rmf_traffic::Duration EasyFullControl::Configuration::update_interval() const
 {
   return _pimpl->update_interval;
+}
+
+//==============================================================================
+const std::unordered_map<std::string, bool>&
+EasyFullControl::Configuration::task_categories() const
+{
+  return _pimpl->task_categories;
 }
 
 //==============================================================================
@@ -1661,6 +1679,18 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
       std::shared_ptr<rmf_battery::agv::SimpleDevicePowerSink> tool_sink =
         std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
         *battery_system, *tool_power_system);
+
+      std::unordered_map<std::string, bool> tasks;
+      bool patrol_task = true;
+      bool delivery_task = false;
+      bool clean_task = false;
+      patrol_task = node->declare_parameter("patrol_task", patrol_task);
+      delivery_task = node->declare_parameter("delivery_task", delivery_task);
+      clean_task = node->declare_parameter("clean_task", clean_task);
+      tasks.insert({"patrol", patrol_task});
+      tasks.insert({"delivery", delivery_task});
+      tasks.insert({"clean", clean_task});
+
       std::vector<std::string> actions = {"teleop"};
       actions = node->declare_parameter("actions", actions);
 
@@ -1728,6 +1758,7 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
         recharge_threshold,
         recharge_soc,
         drain_battery,
+        tasks,
         actions,
         finishing_request,
         server_uri,
@@ -1801,10 +1832,39 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
     {
       confirm.accept();
     };
-  easy_adapter->_pimpl->fleet_handle->consider_delivery_requests(
-    consider_all, consider_all);
-  easy_adapter->_pimpl->fleet_handle->consider_cleaning_requests(consider_all);
-  easy_adapter->_pimpl->fleet_handle->consider_patrol_requests(consider_all);
+
+  for (auto it = config.task_categories().begin();
+    it != config.task_categories().end(); ++it)
+  {
+    if (it->first == "delivery" && it->second)
+    {
+      easy_adapter->_pimpl->fleet_handle->consider_delivery_requests(
+        consider_all, consider_all);
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Fleet is configured to perform Delivery tasks"
+      );
+    }
+    if (it->first == "patrol" && it->second)
+    {
+      easy_adapter->_pimpl->fleet_handle->consider_patrol_requests(
+        consider_all);
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Fleet is configured to perform Patrol tasks"
+      );
+    }
+    if (it->first == "clean" && it->second)
+    {
+      easy_adapter->_pimpl->fleet_handle->consider_cleaning_requests(
+        consider_all);
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Fleet is configured to perform Clean tasks"
+      );
+    }
+  }
+
   easy_adapter->_pimpl->fleet_handle->consider_composed_requests(consider_all);
   for (const std::string& action : config.action_categories())
   {

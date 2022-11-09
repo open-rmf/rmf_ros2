@@ -103,6 +103,10 @@ public:
     ///   vehicles in this fleet when battery levels fall below the
     ///   recharge_threshold.
     ///
+    /// \param[in] task_categories
+    ///   A map of the tasks (patrol, delivery, clean) that can be performed by
+    ///   this fleet.
+    ///
     /// \param[in] action_categories
     ///   List of actions that this fleet can perform. Each item represents a
     ///   category in the PerformAction description.
@@ -133,6 +137,7 @@ public:
       double recharge_threshold,
       double recharge_soc,
       bool account_for_battery_drain,
+      std::unordered_map<std::string, bool> task_categories,
       std::vector<std::string> action_categories,
       rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
       std::optional<std::string> server_uri = std::nullopt,
@@ -195,6 +200,9 @@ public:
 
     /// Get whether or not to account for battery drain during task planning.
     bool account_for_battery_drain() const;
+
+    /// Get the task categories
+    const std::unordered_map<std::string, bool>& task_categories() const;
 
     /// Get the action categories
     const std::vector<std::string>& action_categories() const;
