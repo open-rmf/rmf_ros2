@@ -38,6 +38,7 @@
 
 #include <thread>
 #include <yaml-cpp/yaml.h>
+#include <iostream>
 
 //==============================================================================
 namespace rmf_fleet_adapter {
@@ -992,21 +993,50 @@ EasyFullControl::Configuration::Configuration(
 }
 
 //==============================================================================
-EasyFullControl::Configuration EasyFullControl::Configuration::make(
+std::shared_ptr<EasyFullControl::Configuration>
+EasyFullControl::Configuration::make(
   const std::string& config_file,
   const std::string& nav_graph_path,
   std::optional<std::string> server_uri)
 {
   // Load fleet config file
   const auto fleet_config = YAML::LoadFile(config_file);
-  const std::string fleet_name =
-    fleet_config["rmf_fleet"]["name"].as<std::string>();
+  // Check that config file is valid and contains all necessary nodes
+  if (!fleet_config["rmf_fleet"])
+  {
+    std::cout
+      << "RMF fleet configuration is not provided in the configuration file"
+      << std::endl;
+    return nullptr;
+  }
   const YAML::Node rmf_fleet = fleet_config["rmf_fleet"];
 
-  // Profile and traits
+  // Fleet name
+  if (!rmf_fleet["name"])
+  {
+    std::cout << "Fleet name is not provided" << std::endl;
+    return nullptr;
+  }
+  const std::string fleet_name = rmf_fleet["name"].as<std::string>();
+
+  // Profile
+  if (!rmf_fleet["profile"] || !rmf_fleet["profile"]["footprint"] ||
+    !rmf_fleet["profile"]["vicinity"])
+  {
+    std::cout << "Fleet profile is not provided" << std::endl;
+    return nullptr;
+  }
   const YAML::Node profile = rmf_fleet["profile"];
   const double footprint_rad = profile["footprint"].as<double>();
   const double vicinity_rad = profile["vicinity"].as<double>();
+
+  // Traits
+  if (!rmf_fleet["limits"] || !rmf_fleet["limits"]["linear"] ||
+    !rmf_fleet["limits"]["angular"])
+  {
+    std::cout << "Fleet traits are not provided" << std::endl;
+    return nullptr;
+  }
   const YAML::Node limits = rmf_fleet["limits"];
   const YAML::Node linear = limits["linear"];
   const double v_nom = linear[0].as<double>();
@@ -1014,8 +1044,18 @@ EasyFullControl::Configuration EasyFullControl::Configuration::make(
   const YAML::Node angular = limits["angular"];
   const double w_nom = angular[0].as<double>();
   const double b_nom = angular[1].as<double>();
-  const bool reversible = rmf_fleet["reversible"].as<bool>();
 
+  // Reversibility
+  bool reversible = false;
+  if (!rmf_fleet["reversible"])
+  {
+    std::cout << "Fleet reversibility is not provided, default to False"
+              << std::endl;
+  }
+  else
+  {
+    reversible = rmf_fleet["reversible"].as<bool>();
+  }
   if (!reversible)
     std::cout << " ===== We have an irreversible robot" << std::endl;
 
@@ -1036,6 +1076,13 @@ EasyFullControl::Configuration EasyFullControl::Configuration::make(
 
   // Set up parameters required for task planner
   // Battery system
+  if (!rmf_fleet["battery_system"] || !rmf_fleet["battery_system"]["voltage"] ||
+    !rmf_fleet["battery_system"]["capacity"] ||
+    !rmf_fleet["battery_system"]["charging_current"])
+  {
+    std::cout << "Fleet battery system is not provided" << std::endl;
+    return nullptr;
+  }
   const YAML::Node battery = rmf_fleet["battery_system"];
   const double voltage = battery["voltage"].as<double>();
   const double capacity = battery["capacity"].as<double>();
@@ -1045,12 +1092,21 @@ EasyFullControl::Configuration EasyFullControl::Configuration::make(
     voltage, capacity, charging_current);
   if (!battery_system_optional.has_value())
   {
-    throw std::runtime_error("Invalid battery parameters");
+    std::cout << "Invalid battery parameters" << std::endl;
+    return nullptr;
   }
   const auto battery_system = std::make_shared<rmf_battery::agv::BatterySystem>(
     *battery_system_optional);
 
   // Mechanical system
+  if (!rmf_fleet["mechanical_system"] ||
+    !rmf_fleet["mechanical_system"]["mass"] ||
+    !rmf_fleet["mechanical_system"]["moment_of_inertia"] ||
+    !rmf_fleet["mechanical_system"]["friction_coefficient"])
+  {
+    std::cout << "Fleet mechanical system is not provided" << std::endl;
+    return nullptr;
+  }
   const YAML::Node mechanical = rmf_fleet["mechanical_system"];
   const double mass = mechanical["mass"].as<double>();
   const double moment_of_inertia = mechanical["moment_of_inertia"].as<double>();
@@ -1060,7 +1116,8 @@ EasyFullControl::Configuration EasyFullControl::Configuration::make(
     mass, moment_of_inertia, friction);
   if (!mechanical_system_optional.has_value())
   {
-    throw std::runtime_error("Invalid mechanical parameters");
+    std::cout << "Invalid mechanical parameters" << std::endl;
+    return nullptr;
   }
   rmf_battery::agv::MechanicalSystem& mechanical_system =
     *mechanical_system_optional;
@@ -1070,55 +1127,89 @@ EasyFullControl::Configuration EasyFullControl::Configuration::make(
     *battery_system, mechanical_system);
 
   // Ambient power system
+  if (!rmf_fleet["ambient_system"] || !rmf_fleet["ambient_system"]["power"])
+  {
+    std::cout << "Fleet ambient system is not provided" << std::endl;
+    return nullptr;
+  }
   const YAML::Node ambient_system = rmf_fleet["ambient_system"];
   const double ambient_power_drain = ambient_system["power"].as<double>();
   auto ambient_power_system = rmf_battery::agv::PowerSystem::make(
     ambient_power_drain);
   if (!ambient_power_system)
   {
-    throw std::runtime_error("Invalid values suppled for ambient power system");
+    std::cout << "Invalid values supplied for ambient power system"
+              << std::endl;
+    return nullptr;
   }
   const auto ambient_sink =
     std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
     *battery_system, *ambient_power_system);
 
   // Tool power system
+  if (!rmf_fleet["tool_system"] || !rmf_fleet["tool_system"]["power"])
+  {
+    std::cout << "Fleet tool system is not provided" << std::endl;
+    return nullptr;
+  }
   const YAML::Node tool_system = rmf_fleet["tool_system"];
   const double tool_power_drain = ambient_system["power"].as<double>();
   auto tool_power_system = rmf_battery::agv::PowerSystem::make(
     tool_power_drain);
   if (!tool_power_system)
   {
-    throw std::runtime_error("Invalid values suppled for tool power system");
+    std::cout << "Invalid values supplied for tool power system" << std::endl;
+    return nullptr;
   }
   const auto tool_sink =
     std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
     *battery_system, *tool_power_system);
 
   // Drain battery
-  const auto account_for_battery_drain =
-    rmf_fleet["account_for_battery_drain"].as<bool>();
+  bool account_for_battery_drain = true;
+  if (!rmf_fleet["account_for_battery_drain"])
+  {
+    std::cout << "Account for battery drain is not provided, default to True"
+              << std::endl;
+  }
+  else
+  {
+    account_for_battery_drain =
+      rmf_fleet["account_for_battery_drain"].as<bool>();
+  }
   // Recharge threshold
-  const auto recharge_threshold =
-    rmf_fleet["recharge_threshold"].as<double>();
+  double recharge_threshold = 0.2;
+  if (!rmf_fleet["recharge_threshold"])
+  {
+    std::cout
+      << "Recharge threshold is not provided, default to 0.2" << std::endl;
+  }
+  else
+  {
+    recharge_threshold = rmf_fleet["recharge_threshold"].as<double>();
+  }
   // Recharge state of charge
-  const auto recharge_soc = rmf_fleet["recharge_soc"].as<double>();
+  double recharge_soc = 0.2;
+  if (!rmf_fleet["recharge_soc"])
+  {
+    std::cout << "Recharge state of charge is not provided, default to 1.0"
+              << std::endl;
+  }
+  else
+  {
+    recharge_soc = rmf_fleet["recharge_soc"].as<double>();
+  }
 
-  // Finishing tasks
+  // Task capabilities
+  if (!rmf_fleet["task_capabilities"] ||
+    !rmf_fleet["task_capabilities"]["loop"] ||
+    !rmf_fleet["task_capabilities"]["delivery"] ||
+    !rmf_fleet["task_capabilities"]["clean"])
+  {
+    std::cout << "Fleet task capabilities are not provided" << std::endl;
+    return nullptr;
+  }
   const YAML::Node task_capabilities = rmf_fleet["task_capabilities"];
-  const std::string finishing_request_string =
-    task_capabilities["finishing_request"].as<std::string>();
-  rmf_task::ConstRequestFactoryPtr finishing_request;
-  if (finishing_request_string == "charge")
-  {
-    finishing_request =
-      std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
-  }
-  else if (finishing_request_string == "park")
-  {
-    finishing_request =
-      std::make_shared<rmf_task::requests::ParkRobotFactory>();
-  }
 
   // Action categories
   std::vector<std::string> action_categories;
@@ -1128,15 +1219,76 @@ EasyFullControl::Configuration EasyFullControl::Configuration::make(
       task_capabilities["action"].as<std::vector<std::string>>();
   }
 
-  // Set the fleet state topic publish period
-  const double fleet_state_frequency =
-    rmf_fleet["publish_fleet_state"].as<double>();
-  const double update_interval = 1.0/fleet_state_frequency;
-  // Set the maximum delay
-  const double max_delay =
-    rmf_fleet["max_delay"].as<double>();
+  // Finishing tasks
+  std::string finishing_request_string;
+  if (!task_capabilities["finishing_request"])
+  {
+    std::cout
+      << "Finishing request is not provided. The valid finishing requests "
+      "are [charge, park, nothing]. The task planner will default to [nothing]."
+      << std::endl;
+  }
+  else
+  {
+    finishing_request_string =
+      task_capabilities["finishing_request"].as<std::string>();
+  }
+  rmf_task::ConstRequestFactoryPtr finishing_request;
+  if (finishing_request_string == "charge")
+  {
+    finishing_request =
+      std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+    std::cout
+      << "Fleet is configured to perform ChargeBattery as finishing request"
+      << std::endl;
+  }
+  else if (finishing_request_string == "park")
+  {
+    finishing_request =
+      std::make_shared<rmf_task::requests::ParkRobotFactory>();
+    std::cout
+      << "Fleet is configured to perform ParkRobot as finishing request"
+      << std::endl;
+  }
+  else if (finishing_request_string == "nothing")
+  {
+    std::cout << "Fleet is not configured to perform any finishing request"
+              << std::endl;
+  }
+  else
+  {
+    std::cout
+      << "Provided finishing request " << finishing_request_string
+      << "is unsupported. The valid finishing requests are"
+      "[charge, park, nothing]. The task planner will default to [nothing].";
+  }
 
-  return Configuration(
+  // Set the fleet state topic publish period
+  double fleet_state_frequency = 2.0;
+  if (!rmf_fleet["publish_fleet_state"])
+  {
+    std::cout
+      << "Fleet state publish frequency is not provided, default to 2.0"
+      << std::endl;
+  }
+  else
+  {
+    fleet_state_frequency = rmf_fleet["publish_fleet_state"].as<double>();
+  }
+  const double update_interval = 1.0/fleet_state_frequency;
+
+  // Set the maximum delay
+  double max_delay = 10.0;
+  if (!rmf_fleet["max_delay"])
+  {
+    std::cout << "Maximum delay is not provided, default to 10.0" << std::endl;
+  }
+  else
+  {
+    max_delay = rmf_fleet["max_delay"].as<double>();
+  }
+
+  return std::make_shared<Configuration>(
     fleet_name,
     std::move(traits),
     std::move(graph),

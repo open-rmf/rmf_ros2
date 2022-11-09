@@ -768,8 +768,15 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("server_uri") = std::nullopt,
     py::arg("max_delay") = rmf_traffic::time::from_seconds(10.0),
     py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5))
-  .def_static("make",
-    &agv::EasyFullControl::Configuration::make,
+  .def_static("make", [&](
+    const std::string& config_file,
+    const std::string& nav_graph_path,
+    std::optional<std::string> server_uri)
+    {
+      auto configuration = agv::EasyFullControl::Configuration::make(
+        config_file, nav_graph_path, server_uri);
+      return *configuration;
+    },
     py::arg("config_file"),
     py::arg("nav_graph_path"),
     py::arg("server_uri"));

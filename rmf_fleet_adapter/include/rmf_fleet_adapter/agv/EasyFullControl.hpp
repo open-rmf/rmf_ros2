@@ -105,7 +105,7 @@ public:
     ///
     /// \param[in] action_categories
     ///   List of actions that this fleet can perform. Each item represents a
-    ///   category in the PerfromAction description.
+    ///   category in the PerformAction description.
     ///
     /// \param[in] finishing_request
     ///   A factory for a request that should be performed by each robot in this
@@ -161,7 +161,7 @@ public:
     ///   states. If nullopt, data will not be published.
     ///
     /// \return A Configuration object with the essential config parameters loaded.
-    static Configuration make(
+    static std::shared_ptr<Configuration> make(
       const std::string& config_file,
       const std::string& nav_graph_path,
       std::optional<std::string> server_uri = std::nullopt);
