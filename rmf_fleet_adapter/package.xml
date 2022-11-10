@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>rmf_fleet_adapter</name>
-  <version>2.0.0</version>
+  <version>2.1.0</version>
   <description>Fleet Adapter package for RMF fleets.</description>
   <maintainer email="grey@openrobotics.org">Grey</maintainer>
   <maintainer email="aaron@openrobotics.org">Aaron</maintainer>
@@ -32,7 +32,7 @@
   <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies</depend>
   <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies_msgs</depend>
 
-  <depend>libwebsocketpp-dev</depend>
+  <depend>rmf_websocket</depend>
   <depend>nlohmann-json-dev</depend>
   <depend>nlohmann_json_schema_validator_vendor</depend>
 
