@@ -782,7 +782,23 @@ PYBIND11_MODULE(rmf_adapter, m) {
     },
     py::arg("config_file"),
     py::arg("nav_graph_path"),
-    py::arg("server_uri"));
+    py::arg("server_uri"))
+  .def("fleet_name", &agv::EasyFullControl::Configuration::fleet_name)
+  .def("vehicle_traits", &agv::EasyFullControl::Configuration::vehicle_traits)
+  .def("graph", &agv::EasyFullControl::Configuration::graph)
+  .def("battery_system", &agv::EasyFullControl::Configuration::battery_system)
+  .def("motion_sink", &agv::EasyFullControl::Configuration::motion_sink)
+  .def("ambient_sink", &agv::EasyFullControl::Configuration::ambient_sink)
+  .def("tool_sink", &agv::EasyFullControl::Configuration::tool_sink)
+  .def("recharge_threshold", &agv::EasyFullControl::Configuration::recharge_threshold)
+  .def("recharge_soc", &agv::EasyFullControl::Configuration::recharge_soc)
+  .def("account_for_battery_drain", &agv::EasyFullControl::Configuration::account_for_battery_drain)
+  .def("task_categories", &agv::EasyFullControl::Configuration::task_categories)
+  .def("action_categories", &agv::EasyFullControl::Configuration::action_categories)
+  .def("finishing_request", &agv::EasyFullControl::Configuration::finishing_request)
+  .def("server_uri", &agv::EasyFullControl::Configuration::server_uri)
+  .def("max_delay", &agv::EasyFullControl::Configuration::max_delay)
+  .def("update_interval", &agv::EasyFullControl::Configuration::update_interval);
       /*
   .def_property("fleet_name",
     py::overload_cast<>(&agv::Configuration::fleet_name, py::const_),
