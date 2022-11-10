@@ -834,17 +834,20 @@ PYBIND11_MODULE(rmf_adapter, m) {
       const std::string&,
       const std::string&,
       Eigen::Vector3d,
-      double>(),
+      double,
+      bool>(),
     py::arg("name"),
     py::arg("charger_name"),
     py::arg("map_name"),
     py::arg("location"),
-    py::arg("battery_soc"))
+    py::arg("battery_soc"),
+    py::arg("action"))
   .def_property_readonly("name", &agv::EasyFullControl::RobotState::name)
   .def_property_readonly("charger_name", &agv::EasyFullControl::RobotState::charger_name)
   .def_property_readonly("map_name", &agv::EasyFullControl::RobotState::map_name)
   .def_property_readonly("location", &agv::EasyFullControl::RobotState::location)
-  .def_property_readonly("battery_soc", &agv::EasyFullControl::RobotState::battery_soc);
+  .def_property_readonly("battery_soc", &agv::EasyFullControl::RobotState::battery_soc)
+  .def_property_readonly("action", &agv::EasyFullControl::RobotState::action);
 
   // EASY FULL CONTROL GoalStatus ===============================================
   py::class_<agv::EasyFullControl::GoalStatus>(m_easy_full_control, "GoalStatus")

@@ -302,8 +302,20 @@ void EasyCommandHandle::update()
   const auto& position = state.location();
   // Here we call the appropriate RobotUpdateHandle::update() method depending
   // on the state of the tracker variables.
+  // If the robot is performing an action.
+  if (state.action() && last_known_waypoint.has_value())
+  {
+    const auto& graph_index = last_known_waypoint.value();
+    RCLCPP_DEBUG(
+      node->get_logger(),
+      "[%s] Calling update with position [%.2f, %.2f, %.2f] and action waypoint "
+      "[%ld].",
+      robot_name.c_str(), position[0], position[1], position[2],
+      graph_index);
+    updater->update_position(position, graph_index);
+  }
   // If robot is on a waypoint.
-  if (on_waypoint.has_value())
+  else if (on_waypoint.has_value())
   {
     const std::size_t& wp = on_waypoint.value();
     const double& ori = position[2];
@@ -1428,6 +1440,7 @@ public:
   std::string map_name;
   Eigen::Vector3d location;
   double battery_soc;
+  bool action;
 };
 
 //==============================================================================
@@ -1436,14 +1449,16 @@ EasyFullControl::RobotState::RobotState(
   const std::string& charger_name,
   const std::string& map_name,
   Eigen::Vector3d location,
-  double battery_soc)
+  double battery_soc,
+  bool action)
 : _pimpl(rmf_utils::make_impl<Implementation>(
       Implementation{
         std::move(name),
         std::move(charger_name),
         std::move(map_name),
         std::move(location),
-        std::move(battery_soc)
+        std::move(battery_soc),
+        std::move(action)
       }))
 {
   // Do nothing
@@ -1477,6 +1492,12 @@ const Eigen::Vector3d& EasyFullControl::RobotState::location() const
 double EasyFullControl::RobotState::battery_soc() const
 {
   return _pimpl->battery_soc;
+}
+
+//==============================================================================
+bool EasyFullControl::RobotState::action() const
+{
+  return _pimpl->action;
 }
 
 //==============================================================================

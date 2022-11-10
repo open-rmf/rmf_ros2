@@ -246,12 +246,17 @@ public:
     /// \param[in] battery_soc
     ///   The state of charge of the battery of this robot.
     ///   This should be a value between 0.0 and 1.0.
+    ///
+    /// \param[in] action
+    ///   The state of action of this robot. True if robot is
+    ///   performing an action.
     RobotState(
       const std::string& name,
       const std::string& charger_name,
       const std::string& map_name,
       Eigen::Vector3d location,
-      double battery_soc);
+      double battery_soc,
+      bool action);
 
     /// Get the name.
     const std::string& name() const;
@@ -267,6 +272,9 @@ public:
 
     /// Get the battery_soc.
     double battery_soc() const;
+
+    /// Get the action status.
+    bool action() const;
 
     class Implementation;
 
