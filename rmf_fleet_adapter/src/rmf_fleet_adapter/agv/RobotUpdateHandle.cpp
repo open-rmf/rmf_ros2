@@ -18,6 +18,8 @@
 #include "internal_RobotUpdateHandle.hpp"
 #include "../TaskManager.hpp"
 
+#include <rmf_traffic/geometry/Circle.hpp>
+
 #include <rmf_traffic_ros2/Time.hpp>
 
 #include <iostream>
@@ -59,8 +61,7 @@ void RobotUpdateHandle::replan()
 {
   if (const auto context = _pimpl->get_context())
   {
-    context->_interrupt_publisher.get_subscriber().on_next(
-      RobotContext::Empty());
+    context->request_replan();
   }
 }
 
@@ -608,6 +609,20 @@ void RobotUpdateHandle::log_error(std::string text)
 }
 
 //==============================================================================
+void RobotUpdateHandle::enable_responsive_wait(bool value)
+{
+  const auto context = _pimpl->get_context();
+  if (!context)
+    return;
+
+  context->worker().schedule(
+    [mgr = context->task_manager(), value](const auto&)
+    {
+      mgr->enable_responsive_wait(value);
+    });
+}
+
+//==============================================================================
 RobotUpdateHandle::RobotUpdateHandle()
 {
   // Do nothing
@@ -626,6 +641,43 @@ const RobotUpdateHandle::Unstable& RobotUpdateHandle::unstable() const
 }
 
 //==============================================================================
+bool RobotUpdateHandle::Unstable::is_commissioned() const
+{
+  if (const auto context = _pimpl->get_context())
+    return context->is_commissioned();
+
+  return false;
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::decommission()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [w = context->weak_from_this()](const auto&)
+      {
+        if (const auto context = w.lock())
+          context->decommission();
+      });
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::recommission()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [w = context->weak_from_this()](const auto&)
+      {
+        if (const auto context = w.lock())
+          context->recommission();
+      });
+  }
+}
+
+//==============================================================================
 rmf_traffic::schedule::Participant*
 RobotUpdateHandle::Unstable::get_participant()
 {
@@ -635,6 +687,40 @@ RobotUpdateHandle::Unstable::get_participant()
     return &itinerary;
   }
   return nullptr;
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::change_participant_profile(
+  double footprint_radius,
+  double vicinity_radius)
+{
+  const auto vicinity = [&]() -> rmf_traffic::geometry::FinalConvexShapePtr
+    {
+      if (vicinity_radius <= footprint_radius)
+        return nullptr;
+
+      return rmf_traffic::geometry::make_final_convex(
+        rmf_traffic::geometry::Circle(vicinity_radius));
+    } ();
+
+  const auto footprint = rmf_traffic::geometry::make_final_convex(
+    rmf_traffic::geometry::Circle(footprint_radius));
+
+  rmf_traffic::Profile profile(footprint, vicinity);
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+        w = context->weak_from_this(),
+        profile = std::move(profile)
+      ](const auto&)
+      {
+        if (const auto context = w.lock())
+        {
+          context->itinerary().change_profile(profile);
+        }
+      });
+  }
 }
 
 //==============================================================================
@@ -667,6 +753,12 @@ void RobotUpdateHandle::Unstable::declare_holding(
         }
       });
   }
+}
+
+//==============================================================================
+rmf_traffic::PlanId RobotUpdateHandle::Unstable::current_plan_id() const
+{
+  return _pimpl->get_context()->itinerary().current_plan_id();
 }
 
 //==============================================================================

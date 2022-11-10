@@ -20,13 +20,30 @@
 
 #include <Eigen/Geometry>
 
-#include <rmf_obstacle_msgs/msg/bounding_box2_d.hpp>
+#include <geometry_msgs/msg/pose2_d.hpp>
 
 //==============================================================================
 // TODO(YV): Consider making this a loadable plugin via pluginlib
 namespace IntersectionChecker {
 
-using CollisionGeometry = rmf_obstacle_msgs::msg::BoundingBox2D;
+struct CollisionGeometry
+{
+  geometry_msgs::msg::Pose2D center;
+  double size_x;
+  double size_y;
+
+  CollisionGeometry()
+  {}
+
+  CollisionGeometry(
+    geometry_msgs::msg::Pose2D center_,
+    double size_x_,
+    double size_y_)
+  : center(std::move(center_)),
+    size_x(size_x_),
+    size_y(size_y_)
+  {}
+};
 
 // Return true if intersect.
 // If intersect, how_much represents the overlap in meters

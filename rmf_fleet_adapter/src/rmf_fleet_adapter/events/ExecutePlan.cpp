@@ -68,14 +68,15 @@ using Move = phases::MoveRobot::PendingPhase;
 //==============================================================================
 MakeStandby make_wait_for_traffic(
   const agv::RobotContextPtr& context,
+  const rmf_traffic::PlanId plan_id,
   const rmf_traffic::Dependencies& deps,
   const rmf_traffic::Time time,
   const rmf_task_sequence::Event::AssignIDPtr& id)
 {
-  return [context, deps, time, id](UpdateFn update)
+  return [context, plan_id, deps, time, id](UpdateFn update)
     {
       return WaitForTraffic::Standby::make(
-        context, deps, time, id, std::move(update));
+        context, plan_id, deps, time, id, std::move(update));
     };
 }
 
@@ -231,6 +232,7 @@ std::optional<EventGroupInfo> search_for_door_group(
   LegacyPhases::const_iterator head,
   LegacyPhases::const_iterator end,
   const agv::RobotContextPtr& context,
+  const rmf_traffic::PlanId plan_id,
   const rmf_task::Event::AssignIDPtr& id)
 {
   const auto* door_open = dynamic_cast<const phases::DoorOpen::PendingPhase*>(
@@ -276,7 +278,7 @@ std::optional<EventGroupInfo> search_for_door_group(
         if (!it->dependencies.empty())
         {
           door_group.push_back(make_wait_for_traffic(
-              context, it->dependencies, it->time, id));
+              context, plan_id, it->dependencies, it->time, id));
         }
       }
 
@@ -321,6 +323,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
   LegacyPhases::const_iterator head,
   LegacyPhases::const_iterator end,
   const agv::RobotContextPtr& context,
+  const rmf_traffic::PlanId plan_id,
   const rmf_task::Event::AssignIDPtr& event_id,
   const rmf_task::events::SimpleEventStatePtr& state)
 {
@@ -384,7 +387,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
         if (!it->dependencies.empty())
         {
           lift_group.push_back(make_wait_for_traffic(
-              context, it->dependencies, it->time, event_id));
+              context, plan_id, it->dependencies, it->time, event_id));
         }
       }
 
@@ -566,13 +569,14 @@ std::optional<ExecutePlan> ExecutePlan::make(
   const auto end = legacy_phases.cend();
   while (head != end)
   {
-    if (const auto door = search_for_door_group(head, end, context, event_id))
+    if (const auto door =
+      search_for_door_group(head, end, context, plan_id, event_id))
     {
       standbys.push_back(door->group);
       head = door->tail;
     }
     else if (const auto lift = search_for_lift_group(
-        head, end, context, event_id, state))
+        head, end, context, plan_id, event_id, state))
     {
       standbys.push_back(lift->group);
       head = lift->tail;
@@ -592,7 +596,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
       if (!head->dependencies.empty())
       {
         standbys.push_back(make_wait_for_traffic(
-            context, head->dependencies, head->time, event_id));
+            context, plan_id, head->dependencies, head->time, event_id));
       }
 
       ++head;
@@ -659,6 +663,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
   return ExecutePlan{
     std::move(plan),
+    plan_id,
     finish_time_estimate.value(),
     std::move(sequence)
   };

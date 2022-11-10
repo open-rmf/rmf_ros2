@@ -43,8 +43,6 @@ std::optional<rmf_traffic::agv::Graph> convert(
 /// Convert a valid rmf_traffic::agv::Graph object to an
 /// rmf_building_map_msgs::msg::Graph message.
 /// Returns nullptr if required fields are missing or fleet_name is empty.
-/// \note The returned graph may not be suitable for traffic planning & control
-///   as the lane events, properties and constraints will not be defined.
 std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
   const rmf_traffic::agv::Graph& from, const std::string& fleet_name);
 
