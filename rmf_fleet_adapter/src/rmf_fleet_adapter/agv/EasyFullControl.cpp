@@ -770,6 +770,7 @@ void EasyCommandHandle::start_follow()
     node->get_logger(),
     "Robot [%s] has successfully navigated along the requested path.",
     robot_name.c_str());
+  clear();
   path_finished_callback = nullptr;
   next_arrival_estimator = nullptr;
 }
@@ -787,6 +788,16 @@ void EasyCommandHandle::start_dock()
       "Waiting for docking to finish for robot [%s]",
       robot_name.c_str()
     );
+
+    // Check if we need to abort
+    if (quit_dock_thread)
+    {
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Aborting docking for robot [%s]",
+        robot_name.c_str()
+      );
+    }
     std::this_thread::sleep_for(update_interval);
   }
 
