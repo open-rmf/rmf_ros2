@@ -183,6 +183,8 @@ public:
   std::optional<std::size_t> get_current_lane();
   void start_follow();
   void start_dock();
+  void newly_closed_lanes(
+    const std::unordered_set<std::size_t>& closed_lanes);
 };
 
 //==============================================================================
@@ -941,6 +943,75 @@ std::optional<std::size_t> EasyCommandHandle::get_current_lane()
       return lane_index;
   }
   return std::nullopt;
+}
+
+//==============================================================================
+void EasyCommandHandle::newly_closed_lanes(
+  const std::unordered_set<std::size_t>& closed_lanes)
+{
+  bool need_to_replan = false;
+  const auto& current_lane = get_current_lane();
+
+  if (current_lane.has_value())
+  {
+    const auto& current_lanes = target_waypoint.value().approach_lanes;
+    for (const auto& l : current_lanes)
+    {
+      if (closed_lanes.count(l))
+      {
+        need_to_replan = true;
+        // The robot is currently on a lane that has been closed.
+        // We take this to mean that the robot needs to reverse.
+        if (l == current_lane)
+        {
+          const auto& lane = graph->get_lane(l);
+          const auto return_waypoint = lane.entry().waypoint_index();
+          const auto* reverse_lane =
+            graph->lane_from(lane.entry().waypoint_index(),
+              lane.exit().waypoint_index());
+
+          std::lock_guard<std::mutex> lock(mutex);
+          if (reverse_lane)
+          {
+            // Update current lane to reverse back to start of the lane
+            on_lane = reverse_lane->index();
+          }
+          else
+          {
+            // Update current position and waypoint index to return to
+            const auto& position = state.location();
+            updater->update_position(position, return_waypoint);
+          }
+        }
+      }
+    }
+  }
+
+  if (!need_to_replan &&
+    target_waypoint.has_value() &&
+    target_waypoint.value().graph_index.has_value())
+  {
+    // Check if the remainder of the current plan has been invalidated by the
+    // lane closure
+    // const auto next_index = target_waypoint.value().graph_index.value();
+    for (std::size_t i = 0; i < remaining_waypoints.size(); ++i)
+    {
+      for (const auto& lane : remaining_waypoints[i].approach_lanes)
+      {
+        if (closed_lanes.count(lane))
+        {
+          need_to_replan = true;
+          break;
+        }
+      }
+
+      if (need_to_replan)
+        break;
+    }
+  }
+
+  if (need_to_replan)
+    updater->replan();
 }
 } // namespace anonymous
 
@@ -1927,6 +1998,16 @@ EasyFullControl& EasyFullControl::wait()
 {
   _pimpl->adapter->wait();
   return *this;
+}
+
+//==============================================================================
+void EasyFullControl::newly_closed_lanes(
+  const std::unordered_set<std::size_t>& closed_lanes)
+{
+  for (const auto& robot : _pimpl->cmd_handles)
+  {
+    robot.second->newly_closed_lanes(closed_lanes);
+  }
 }
 
 //==============================================================================

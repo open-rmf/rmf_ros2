@@ -401,6 +401,10 @@ public:
   /// Wait till the adapter is finished spinning.
   EasyFullControl& wait();
 
+  /// Update the newly closed lanes for the robots to replan as necessary.
+  void newly_closed_lanes(
+    const std::unordered_set<std::size_t>& closed_lanes);
+
   /// Add a robot to the fleet once it is available.
   ///
   /// \param[in] start_state
