@@ -504,8 +504,6 @@ void LaneBlocker::process()
       lanes_with_changes.insert(lane_id);
     }
   }
-
-
   request_lane_modifications(std::move(lanes_with_changes));
 }
 

@@ -39,8 +39,6 @@ void fill_obstacle_data(const PointCloud& msg, Obstacle& obstacle);
 /// Convert an RMF Obstacle msg into a PointCloud2 msg
 PointCloud convert(
   const Obstacle& msg);
-
-
 } // namespace rmf_obstacle_ros2
 
 #endif // #indef RMF_OBSTACLE_ROS2__OBSTACLES__CONVERT_HPP

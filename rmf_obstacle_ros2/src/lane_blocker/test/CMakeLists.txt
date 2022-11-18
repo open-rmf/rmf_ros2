@@ -1,14 +1,9 @@
-
 file(GLOB_RECURSE unit_test_srcs "*.cpp" "../IntersectionChecker.cpp")
-# add_executable(test_intersection_checker ${unit_test_srcs})
 
 ament_add_catch2(
   test_intersection_checker ${unit_test_srcs}
-  TIMEOUT 300)
-# target_link_libraries(test_intersection_checker
-#     rmf_traffic
-#     ${FCL_LIBRARIES}
-#     Threads::Threads
+  TIMEOUT 300
+)
 
 target_link_libraries(test_intersection_checker
   PRIVATE

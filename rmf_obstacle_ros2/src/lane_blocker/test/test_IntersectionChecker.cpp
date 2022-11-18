@@ -28,7 +28,6 @@ using CollisionGeometry = IntersectionChecker::CollisionGeometry;
 
 SCENARIO("Test IntersectionChecker")
 {
-
   auto radians =
     [](double degree) -> double
     {

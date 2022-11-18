@@ -10,21 +10,20 @@ include(GNUInstallDirs)
 find_package(ament_cmake REQUIRED)
 
 set(dep_pkgs
+  geometry_msgs
   rclcpp
   rclcpp_components
   rmf_utils
-  pluginlib
   rmf_obstacle_msgs
   rmf_fleet_msgs
   rmf_building_map_msgs
   sensor_msgs
   OCTOMAP
   rmf_fleet_adapter
-  tf2_ros
-  geometry_msgs
-  tf2_geometry_msgs
   rmf_traffic
   rmf_traffic_ros2
+  tf2_ros
+  tf2_geometry_msgs
 )
 foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
@@ -133,7 +132,6 @@ if(BUILD_TESTING)
   )
 
   add_subdirectory(src/lane_blocker/test)
-
 endif()
 
 #===============================================================================
