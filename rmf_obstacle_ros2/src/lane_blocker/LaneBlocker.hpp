@@ -132,48 +132,57 @@ private:
   void request_lane_modifications(
     const std::unordered_set<std::string>& changes);
 
-  enum LaneState { Normal, Closed, SpeedLimited };
+  enum class LaneState : uint8_t
+  {
+    Normal = 0,
+    Closed,
+    SpeedLimited
+  };
 
   std::unordered_map<
     std::string,
     LaneState> _internal_lane_states = {};
 
+  // TODO(YV): Use member variables instead of passing unordered_maps by
+  // reference between these functions. Especially to the publsiher functions.
   void transition_lane_state(
-    LaneState old_state,
-    LaneState new_state,
-    std::string lane_key,
+    const LaneState& old_state,
+    const LaneState& new_state,
+    const std::string& lane_key,
     std::unordered_map<std::string,
     std::unique_ptr<LaneRequest>>& lane_req_msgs,
     std::unordered_map<std::string,
     std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
 
+  // TODO(YV): Combine close/open and limit/unlimit functions into two functions
+  // each by passing in a target LaneState.
   void add_lane_close_req(
-    std::string lane_key,
+    const std::string& lane_key,
     std::unordered_map<std::string,
     std::unique_ptr<LaneRequest>>& lane_req_msgs);
 
   void add_lane_open_req(
-    std::string lane_key,
+    const std::string& lane_key,
     std::unordered_map<std::string,
     std::unique_ptr<LaneRequest>>& lane_req_msgs);
 
   void add_speed_limit_req(
-    std::string lane_key,
+    const std::string& lane_key,
     std::unordered_map<std::string,
     std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
 
   void add_speed_unlimit_req(
-    std::string lane_key,
+    const std::string& lane_key,
     std::unordered_map<std::string,
     std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
 
   void publish_lane_req_msgs(
     std::unordered_map<std::string,
-    std::unique_ptr<LaneRequest>>& lane_req_msgs);
+    std::unique_ptr<LaneRequest>> lane_req_msgs);
 
   void publish_speed_limit_req_msgs(
     std::unordered_map<std::string,
-    std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
+    std::unique_ptr<SpeedLimitRequest>> speed_limit_req_msgs);
 
   void purge_obstacles(
     const std::unordered_set<std::string>& obstacle_keys,

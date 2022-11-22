@@ -241,7 +241,12 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
       _traffic_graphs[msg->name] = std::move(traffic_graph.value());
       for (std::size_t i = 0; i < _traffic_graphs[msg->name].num_lanes(); ++i)
       {
-        std::string lane_key = get_lane_key(msg->name, i);
+        const std::string lane_key = get_lane_key(msg->name, i);
+        // TODO(YV): This initializes all lane states to Normal which may not
+        // be always the case. Instead of always adding a Normal state, we
+        // should check the lane is speed limited or closed and then set the
+        // state accordingly. Eg to check if the lane is speed limited,
+        // check graph.get_lane(i).speed_limit().has_value().
         if (_internal_lane_states.find(lane_key) == _internal_lane_states.end())
         {
           _internal_lane_states.insert({lane_key, LaneState::Normal});
@@ -612,15 +617,15 @@ void LaneBlocker::request_lane_modifications(
     }
   }
 
-  publish_lane_req_msgs(lane_req_msgs);
-  publish_speed_limit_req_msgs(speed_limit_req_msgs);
+  publish_lane_req_msgs(std::move(lane_req_msgs));
+  publish_speed_limit_req_msgs(std::move(speed_limit_req_msgs));
 }
 
 //==============================================================================
 void LaneBlocker::transition_lane_state(
-  LaneState old_state,
-  LaneState new_state,
-  std::string lane_key,
+  const LaneState& old_state,
+  const LaneState& new_state,
+  const std::string& lane_key,
   std::unordered_map<std::string, std::unique_ptr<LaneRequest>>& lane_req_msgs,
   std::unordered_map<std::string,
   std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
@@ -670,7 +675,8 @@ void LaneBlocker::transition_lane_state(
 }
 
 //==============================================================================
-void LaneBlocker::add_lane_close_req(std::string lane_key,
+void LaneBlocker::add_lane_close_req(
+  const std::string& lane_key,
   std::unordered_map<std::string,
   std::unique_ptr<LaneRequest>>& lane_req_msgs)
 {
@@ -694,7 +700,8 @@ void LaneBlocker::add_lane_close_req(std::string lane_key,
 }
 
 //==============================================================================
-void LaneBlocker::add_lane_open_req(std::string lane_key,
+void LaneBlocker::add_lane_open_req(
+  const std::string& lane_key,
   std::unordered_map<std::string,
   std::unique_ptr<LaneRequest>>& lane_req_msgs)
 {
@@ -719,7 +726,7 @@ void LaneBlocker::add_lane_open_req(std::string lane_key,
 
 //==============================================================================
 void LaneBlocker::add_speed_limit_req(
-  std::string lane_key,
+  const std::string& lane_key,
   std::unordered_map<std::string,
   std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
 {
@@ -750,7 +757,7 @@ void LaneBlocker::add_speed_limit_req(
 
 //==============================================================================
 void LaneBlocker::add_speed_unlimit_req(
-  std::string lane_key,
+  const std::string& lane_key,
   std::unordered_map<std::string,
   std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
 {
@@ -775,7 +782,7 @@ void LaneBlocker::add_speed_unlimit_req(
 
 //==============================================================================
 void LaneBlocker::publish_lane_req_msgs(
-  std::unordered_map<std::string, std::unique_ptr<LaneRequest>>& lane_req_msgs)
+  std::unordered_map<std::string, std::unique_ptr<LaneRequest>> lane_req_msgs)
 {
   for (auto& [_, msg] : lane_req_msgs)
   {
@@ -805,7 +812,7 @@ void LaneBlocker::publish_lane_req_msgs(
 //==============================================================================
 void LaneBlocker::publish_speed_limit_req_msgs(
   std::unordered_map<std::string,
-  std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
+  std::unique_ptr<SpeedLimitRequest>> speed_limit_req_msgs)
 {
   for (auto& [_, msg] : speed_limit_req_msgs)
   {
@@ -954,8 +961,8 @@ void LaneBlocker::cull()
     }
   }
 
-  publish_lane_req_msgs(lane_req_msgs);
-  publish_speed_limit_req_msgs(speed_limit_req_msgs);
+  publish_lane_req_msgs(std::move(lane_req_msgs));
+  publish_speed_limit_req_msgs(std::move(speed_limit_req_msgs));
 }
 
 RCLCPP_COMPONENTS_REGISTER_NODE(LaneBlocker)
