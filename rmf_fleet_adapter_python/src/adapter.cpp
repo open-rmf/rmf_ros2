@@ -10,6 +10,7 @@
 #include "rmf_traffic_ros2/Time.hpp"
 #include "rmf_fleet_adapter/agv/Adapter.hpp"
 #include "rmf_fleet_adapter/agv/EasyFullControl.hpp"
+#include "rmf_fleet_adapter/agv/FleetUpdateHandle.hpp"
 #include "rmf_fleet_adapter/agv/test/MockAdapter.hpp"
 #include "rmf_fleet_adapter_python/PyRobotCommandHandle.hpp"
 #include <rmf_fleet_adapter/agv/Transformation.hpp>
@@ -391,6 +392,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("open_lanes",
     &agv::FleetUpdateHandle::open_lanes,
     py::arg("lane_indices"))
+  .def("limit_lane_speeds",
+    &agv::FleetUpdateHandle::limit_lane_speeds,
+    py::arg("requests"))
+  .def("remove_speed_limits",
+    &agv::FleetUpdateHandle::remove_speed_limits,
+    py::arg("requests"))
   .def("set_task_planner_params",
     [&](agv::FleetUpdateHandle& self,
     battery::BatterySystem& b_sys,
@@ -589,6 +596,14 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       return self.errors();
     });
+
+  // SPEED LIMIT REQUEST ===============================================
+  py::class_<agv::FleetUpdateHandle::SpeedLimitRequest>(
+    m_fleet_update_handle, "SpeedLimitRequest")
+  .def(py::init<std::size_t,
+    double>(),
+    py::arg("lane_index"),
+    py::arg("speed_limit"));
 
   // EASY TRAFFIC LIGHT HANDLE ===============================================
   py::class_<agv::Waypoint>(m, "Waypoint")
