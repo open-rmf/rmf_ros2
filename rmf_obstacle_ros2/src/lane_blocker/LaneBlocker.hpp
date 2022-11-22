@@ -142,30 +142,38 @@ private:
     LaneState old_state,
     LaneState new_state,
     std::string lane_key,
-    std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs,
-    std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs);
+    std::unordered_map<std::string,
+    std::unique_ptr<LaneRequest>>& lane_req_msgs,
+    std::unordered_map<std::string,
+    std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
 
   void add_lane_close_req(
     std::string lane_key,
-    std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs);
+    std::unordered_map<std::string,
+    std::unique_ptr<LaneRequest>>& lane_req_msgs);
 
   void add_lane_open_req(
     std::string lane_key,
-    std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs);
+    std::unordered_map<std::string,
+    std::unique_ptr<LaneRequest>>& lane_req_msgs);
 
   void add_speed_limit_req(
     std::string lane_key,
-    std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs);
+    std::unordered_map<std::string,
+    std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
 
   void add_speed_unlimit_req(
     std::string lane_key,
-    std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs);
+    std::unordered_map<std::string,
+    std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
 
   void publish_lane_req_msgs(
-    std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs);
+    std::unordered_map<std::string,
+    std::unique_ptr<LaneRequest>>& lane_req_msgs);
 
   void publish_speed_limit_req_msgs(
-    std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs);
+    std::unordered_map<std::string,
+    std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
 
   void purge_obstacles(
     const std::unordered_set<std::string>& obstacle_keys,

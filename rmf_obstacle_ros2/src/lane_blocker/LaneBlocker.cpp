@@ -564,7 +564,8 @@ void LaneBlocker::request_lane_modifications(
   // A map to collate lanes per fleet that need to be opened or closed
   std::unordered_map<std::string, std::unique_ptr<LaneRequest>> lane_req_msgs;
   // A map to collate lanes per fleet that need to be speed limited or unlimited
-  std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> speed_limit_req_msgs;
+  std::unordered_map<std::string,
+    std::unique_ptr<SpeedLimitRequest>> speed_limit_req_msgs;
   // For now we implement a simple heuristic to decide whether to close a lane
   // or not.
   for (const auto& lane_key : changes)
@@ -580,17 +581,23 @@ void LaneBlocker::request_lane_modifications(
     }
     const auto& obstacles = _lane_to_obstacles_map.at(lane_key);
     const auto& lane_state = _internal_lane_states.at(lane_key);
-    if (obstacles.size() >= _lane_closure_threshold && lane_state == LaneState::Normal)
+    if (obstacles.size() >= _lane_closure_threshold &&
+      lane_state == LaneState::Normal)
     {
-      transition_lane_state(lane_state, LaneState::Closed, lane_key, lane_req_msgs, speed_limit_req_msgs);
+      transition_lane_state(lane_state, LaneState::Closed, lane_key,
+        lane_req_msgs, speed_limit_req_msgs);
     }
-    else if (obstacles.size() >= _speed_limit_threshold && lane_state == LaneState::Normal)
+    else if (obstacles.size() >= _speed_limit_threshold &&
+      lane_state == LaneState::Normal)
     {
-      transition_lane_state(lane_state, LaneState::SpeedLimited, lane_key, lane_req_msgs, speed_limit_req_msgs);
+      transition_lane_state(lane_state, LaneState::SpeedLimited, lane_key,
+        lane_req_msgs, speed_limit_req_msgs);
     }
-    else if (obstacles.size() >= _lane_closure_threshold && lane_state == LaneState::SpeedLimited)
+    else if (obstacles.size() >= _lane_closure_threshold &&
+      lane_state == LaneState::SpeedLimited)
     {
-      transition_lane_state(lane_state, LaneState::Closed, lane_key, lane_req_msgs, speed_limit_req_msgs);
+      transition_lane_state(lane_state, LaneState::Closed, lane_key,
+        lane_req_msgs, speed_limit_req_msgs);
     }
     else
     {
@@ -598,7 +605,8 @@ void LaneBlocker::request_lane_modifications(
         this->get_logger(),
         "Lane %s has %ld obstacles in its vicinity but will not be closed or speed limited as "
         "the closure threshold is %ld and the speed limit threshold is %ld",
-        lane_key.c_str(), obstacles.size(), _lane_closure_threshold, _speed_limit_threshold
+        lane_key.c_str(),
+        obstacles.size(), _lane_closure_threshold, _speed_limit_threshold
       );
       continue;
     }
@@ -613,8 +621,9 @@ void LaneBlocker::transition_lane_state(
   LaneState old_state,
   LaneState new_state,
   std::string lane_key,
-  std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs,
-  std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs)
+  std::unordered_map<std::string, std::unique_ptr<LaneRequest>>& lane_req_msgs,
+  std::unordered_map<std::string,
+  std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
 {
   if (new_state == old_state)
   {
@@ -629,20 +638,24 @@ void LaneBlocker::transition_lane_state(
   {
     add_lane_open_req(lane_key, lane_req_msgs);
   }
-  else if (old_state == LaneState::Normal && new_state == LaneState::SpeedLimited)
+  else if (old_state == LaneState::Normal &&
+    new_state == LaneState::SpeedLimited)
   {
     add_speed_limit_req(lane_key, speed_limit_req_msgs);
   }
-  else if (old_state == LaneState::SpeedLimited && new_state == LaneState::Normal)
+  else if (old_state == LaneState::SpeedLimited &&
+    new_state == LaneState::Normal)
   {
     add_speed_unlimit_req(lane_key, speed_limit_req_msgs);
   }
-  else if (old_state == LaneState::SpeedLimited && new_state == LaneState::Closed)
+  else if (old_state == LaneState::SpeedLimited &&
+    new_state == LaneState::Closed)
   {
     add_lane_close_req(lane_key, lane_req_msgs);
     add_speed_unlimit_req(lane_key, speed_limit_req_msgs);
   }
-  else if (old_state == LaneState::Closed && new_state == LaneState::SpeedLimited)
+  else if (old_state == LaneState::Closed &&
+    new_state == LaneState::SpeedLimited)
   {
     add_lane_open_req(lane_key, lane_req_msgs);
     add_speed_limit_req(lane_key, speed_limit_req_msgs);
@@ -657,7 +670,9 @@ void LaneBlocker::transition_lane_state(
 }
 
 //==============================================================================
-void LaneBlocker::add_lane_close_req(std::string lane_key, std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs)
+void LaneBlocker::add_lane_close_req(std::string lane_key,
+  std::unordered_map<std::string,
+  std::unique_ptr<LaneRequest>>& lane_req_msgs)
 {
   auto [fleet_name, lane_id] = deserialize_key(lane_key);
   // construct Lane Closure msg
@@ -679,7 +694,9 @@ void LaneBlocker::add_lane_close_req(std::string lane_key, std::unordered_map<st
 }
 
 //==============================================================================
-void LaneBlocker::add_lane_open_req(std::string lane_key, std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs)
+void LaneBlocker::add_lane_open_req(std::string lane_key,
+  std::unordered_map<std::string,
+  std::unique_ptr<LaneRequest>>& lane_req_msgs)
 {
   auto [fleet_name, lane_id] = deserialize_key(lane_key);
   // construct Lane Open msg
@@ -703,15 +720,17 @@ void LaneBlocker::add_lane_open_req(std::string lane_key, std::unordered_map<std
 //==============================================================================
 void LaneBlocker::add_speed_limit_req(
   std::string lane_key,
-  std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs)
+  std::unordered_map<std::string,
+  std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
 {
   auto [fleet_name, lane_id] = deserialize_key(lane_key);
   // construct Speed Limit msg
   auto msg_it = speed_limit_req_msgs.insert({fleet_name, nullptr});
 
-  SpeedLimitedLane speed_limited_lane = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::SpeedLimitedLane>()
-  .lane_index(std::move(lane_id))
-  .speed_limit(_speed_limit);
+  SpeedLimitedLane speed_limited_lane =
+    rmf_fleet_msgs::build<rmf_fleet_msgs::msg::SpeedLimitedLane>()
+    .lane_index(std::move(lane_id))
+    .speed_limit(_speed_limit);
 
   if (msg_it.second)
   {
@@ -732,7 +751,8 @@ void LaneBlocker::add_speed_limit_req(
 //==============================================================================
 void LaneBlocker::add_speed_unlimit_req(
   std::string lane_key,
-  std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs)
+  std::unordered_map<std::string,
+  std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
 {
   auto [fleet_name, lane_id] = deserialize_key(lane_key);
   // construct Speed Unlimit msg
@@ -755,7 +775,7 @@ void LaneBlocker::add_speed_unlimit_req(
 
 //==============================================================================
 void LaneBlocker::publish_lane_req_msgs(
-  std::unordered_map<std::string, std::unique_ptr<LaneRequest>> &lane_req_msgs)
+  std::unordered_map<std::string, std::unique_ptr<LaneRequest>>& lane_req_msgs)
 {
   for (auto& [_, msg] : lane_req_msgs)
   {
@@ -784,7 +804,8 @@ void LaneBlocker::publish_lane_req_msgs(
 
 //==============================================================================
 void LaneBlocker::publish_speed_limit_req_msgs(
-  std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> &speed_limit_req_msgs)
+  std::unordered_map<std::string,
+  std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
 {
   for (auto& [_, msg] : speed_limit_req_msgs)
   {
@@ -901,7 +922,8 @@ void LaneBlocker::cull()
   // A map to collate lanes per fleet that need to be opened or closed
   std::unordered_map<std::string, std::unique_ptr<LaneRequest>> lane_req_msgs;
   // A map to collate lanes per fleet that need to be speed limited or unlimited
-  std::unordered_map<std::string, std::unique_ptr<SpeedLimitRequest>> speed_limit_req_msgs;
+  std::unordered_map<std::string,
+    std::unique_ptr<SpeedLimitRequest>> speed_limit_req_msgs;
 
   for (const auto& [lane_key, lane_state] : _internal_lane_states)
   {
@@ -912,17 +934,23 @@ void LaneBlocker::cull()
     }
 
     const auto& obstacles = _lane_to_obstacles_map.at(lane_key);
-    if (obstacles.size() < _speed_limit_threshold && lane_state == LaneState::Closed)
+    if (obstacles.size() < _speed_limit_threshold &&
+      lane_state == LaneState::Closed)
     {
-      transition_lane_state(lane_state, LaneState::Normal, lane_key, lane_req_msgs, speed_limit_req_msgs);
+      transition_lane_state(lane_state, LaneState::Normal, lane_key,
+        lane_req_msgs, speed_limit_req_msgs);
     }
-    else if (obstacles.size() < _lane_closure_threshold && lane_state == LaneState::Closed)
+    else if (obstacles.size() < _lane_closure_threshold &&
+      lane_state == LaneState::Closed)
     {
-      transition_lane_state(lane_state, LaneState::SpeedLimited, lane_key, lane_req_msgs, speed_limit_req_msgs);
+      transition_lane_state(lane_state, LaneState::SpeedLimited, lane_key,
+        lane_req_msgs, speed_limit_req_msgs);
     }
-    else if (obstacles.size() < _speed_limit_threshold && lane_state == LaneState::SpeedLimited)
+    else if (obstacles.size() < _speed_limit_threshold &&
+      lane_state == LaneState::SpeedLimited)
     {
-      transition_lane_state(lane_state, LaneState::Normal, lane_key, lane_req_msgs, speed_limit_req_msgs);
+      transition_lane_state(lane_state, LaneState::Normal, lane_key,
+        lane_req_msgs, speed_limit_req_msgs);
     }
   }
 
