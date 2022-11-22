@@ -3,14 +3,14 @@ on: [push, pull_request]
 jobs:
   asan:
     name: asan
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     container:
-      image: rostooling/setup-ros-docker:ubuntu-focal-latest
+      image: rostooling/setup-ros-docker:ubuntu-jammy-latest
     steps:
       - name: deps
         uses: ros-tooling/setup-ros@v0.3
         with:
-          required-ros-distributions: galactic
+          required-ros-distributions: humble
       - name: install_clang
         run: sudo apt update && sudo apt install -y clang clang-tools lld
       - name: build_and_test
@@ -18,9 +18,10 @@ jobs:
         env:
           CC: clang
           CXX: clang++
-          ASAN_OPTIONS: detect_leaks=0
+          # orensbruli: new_delete_type_mismatch=0 added because a problem Probably related to some problem in rcl or rclcpp in humble. Check from time to time.
+          ASAN_OPTIONS: 'detect_leaks=0:new_delete_type_mismatch=0'
         with:
-          target-ros2-distro: galactic
+          target-ros2-distro: humble
           # build all packages listed in the meta package
           package-name: |
             rmf_traffic_ros2
