@@ -79,6 +79,7 @@ PointCloud convert(
   sensor_msgs::PointCloud2Iterator<float> iter_y(cloud, "y");
   sensor_msgs::PointCloud2Iterator<float> iter_z(cloud, "z");
 
+  int number_of_points = 0;
   // Note that the non-trivial call to tree->end_leafs() should be done only once for efficiency
   for (auto leaf_it = tree.begin_leafs(),
     end = tree.end_leafs(); leaf_it != end;
@@ -91,12 +92,40 @@ PointCloud convert(
     ++iter_x;
     ++iter_y;
     ++iter_z;
+    ++number_of_points;
   }
 
-  // TODO(YV): Fill other fields
   cloud.is_bigendian = false;
-  // cloud.point_step = 6;
-  // cloud.row_step = 6;
+  // If the cloud is unordered, height is 1 and width is the length of
+  // the point cloud.
+  cloud.height = 1;
+  cloud.width = number_of_points;
+  // Length of a point in bytes, each point has 3 float coordinates
+  cloud.point_step = sizeof(float) * 3;
+  cloud.row_step = cloud.width * cloud.point_step;
+
+  sensor_msgs::msg::PointField point_field;
+  point_field.name = "x";
+  point_field.offset = 0;
+  point_field.datatype = sensor_msgs::msg::PointField::FLOAT32;
+  point_field.count = 1;
+
+  cloud.fields.push_back(point_field);
+  point_field.name = "y";
+  point_field.offset = 4;
+  point_field.datatype = sensor_msgs::msg::PointField::FLOAT32;
+  point_field.count = 1;
+
+  cloud.fields.push_back(point_field);
+
+  point_field.name = "z";
+  point_field.offset = 8;
+  point_field.datatype = sensor_msgs::msg::PointField::FLOAT32;
+  point_field.count = 1;
+
+  cloud.fields.push_back(point_field);
+
+  cloud.is_dense = true;
   return cloud;
 }
 
