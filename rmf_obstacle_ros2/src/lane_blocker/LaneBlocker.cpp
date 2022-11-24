@@ -26,7 +26,7 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/vector3_stamped.hpp>
 
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include <rclcpp_components/register_node_macro.hpp>
 
@@ -242,14 +242,16 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
       for (std::size_t i = 0; i < _traffic_graphs[msg->name].num_lanes(); ++i)
       {
         const std::string lane_key = get_lane_key(msg->name, i);
-        // TODO(YV): This initializes all lane states to Normal which may not
-        // be always the case. Instead of always adding a Normal state, we
-        // should check the lane is speed limited or closed and then set the
-        // state accordingly. Eg to check if the lane is speed limited,
-        // check graph.get_lane(i).speed_limit().has_value().
         if (_internal_lane_states.find(lane_key) == _internal_lane_states.end())
         {
-          _internal_lane_states.insert({lane_key, LaneState::Normal});
+          if(!traffic_graph->get_lane(i).properties().speed_limit().has_value())
+          {
+            _internal_lane_states.insert({lane_key, LaneState::Normal});
+          }
+          else
+          {
+            _internal_lane_states.insert({lane_key, LaneState::SpeedLimited});
+          }
         }
       }
     },
