@@ -24,6 +24,7 @@
 namespace rmf_obstacle_ros2 {
 
 //==============================================================================
+template<>
 void fill_obstacle_data(const PointCloud& msg, Obstacle& obstacle)
 {
   const double resolution = obstacle.data_resolution > 0 ?
@@ -58,6 +59,7 @@ void fill_obstacle_data(const PointCloud& msg, Obstacle& obstacle)
 }
 
 //==============================================================================
+template<>
 PointCloud convert(
   const Obstacle& msg)
 {
