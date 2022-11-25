@@ -140,7 +140,8 @@ private:
   {
     Normal = 0,
     Closed,
-    SpeedLimited
+    SpeedLimited,
+    SpeedUnlimited
   };
 
   std::unordered_map<
@@ -158,27 +159,17 @@ private:
     std::unordered_map<std::string,
     std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
 
-  // TODO(YV): Combine close/open and limit/unlimit functions into two functions
-  // each by passing in a target LaneState.
-  void add_lane_close_req(
+  void add_lane_open_close_req(
     const std::string& lane_key,
     std::unordered_map<std::string,
-    std::unique_ptr<LaneRequest>>& lane_req_msgs);
-
-  void add_lane_open_req(
-    const std::string& lane_key,
-    std::unordered_map<std::string,
-    std::unique_ptr<LaneRequest>>& lane_req_msgs);
+    std::unique_ptr<LaneRequest>>& lane_req_msgs,
+    const LaneState& desired_state);
 
   void add_speed_limit_req(
     const std::string& lane_key,
     std::unordered_map<std::string,
-    std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
-
-  void add_speed_unlimit_req(
-    const std::string& lane_key,
-    std::unordered_map<std::string,
-    std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
+    std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs,
+    const LaneState& desired_state);
 
   void publish_lane_req_msgs(
     std::unordered_map<std::string,

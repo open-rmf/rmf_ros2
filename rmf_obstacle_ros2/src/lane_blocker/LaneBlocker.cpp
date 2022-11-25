@@ -634,33 +634,37 @@ void LaneBlocker::transition_lane_state(
 
   if (old_state == LaneState::Normal && new_state == LaneState::Closed)
   {
-    add_lane_close_req(lane_key, lane_req_msgs);
+    add_lane_open_close_req(lane_key, lane_req_msgs, LaneState::Closed);
   }
   else if (old_state == LaneState::Closed && new_state == LaneState::Normal)
   {
-    add_lane_open_req(lane_key, lane_req_msgs);
+    add_lane_open_close_req(lane_key, lane_req_msgs, LaneState::Normal);
   }
   else if (old_state == LaneState::Normal &&
     new_state == LaneState::SpeedLimited)
   {
-    add_speed_limit_req(lane_key, speed_limit_req_msgs);
+    add_speed_limit_req(
+      lane_key, speed_limit_req_msgs, LaneState::SpeedLimited);
   }
   else if (old_state == LaneState::SpeedLimited &&
     new_state == LaneState::Normal)
   {
-    add_speed_unlimit_req(lane_key, speed_limit_req_msgs);
+    add_speed_limit_req(
+      lane_key, speed_limit_req_msgs, LaneState::SpeedUnlimited);
   }
   else if (old_state == LaneState::SpeedLimited &&
     new_state == LaneState::Closed)
   {
-    add_lane_close_req(lane_key, lane_req_msgs);
-    add_speed_unlimit_req(lane_key, speed_limit_req_msgs);
+    add_lane_open_close_req(lane_key, lane_req_msgs, new_state);
+    add_speed_limit_req(
+      lane_key, speed_limit_req_msgs, LaneState::SpeedUnlimited);
   }
   else if (old_state == LaneState::Closed &&
     new_state == LaneState::SpeedLimited)
   {
-    add_lane_open_req(lane_key, lane_req_msgs);
-    add_speed_limit_req(lane_key, speed_limit_req_msgs);
+    add_lane_open_close_req(lane_key, lane_req_msgs, LaneState::Normal);
+    add_speed_limit_req(
+      lane_key, speed_limit_req_msgs, LaneState::SpeedLimited);
   }
 
   // update lane state
@@ -672,16 +676,17 @@ void LaneBlocker::transition_lane_state(
 }
 
 //==============================================================================
-void LaneBlocker::add_lane_close_req(
+void LaneBlocker::add_lane_open_close_req(
   const std::string& lane_key,
   std::unordered_map<std::string,
-  std::unique_ptr<LaneRequest>>& lane_req_msgs)
+  std::unique_ptr<LaneRequest>>& lane_req_msgs,
+  const LaneState& desired_state)
 {
   auto deserialize_key_value = deserialize_key(lane_key);
   if (!deserialize_key_value.has_value())
   {
     RCLCPP_ERROR(this->get_logger(),
-      "[LaneBlocker::add_lane_close_req: Failure deserializing key");
+      "[LaneBlocker::add_lane_open_close_req: Failure deserializing key");
     return;
   }
   const auto fleet_name = deserialize_key_value.value().first;
@@ -692,7 +697,20 @@ void LaneBlocker::add_lane_close_req(
   {
     LaneRequest request;
     request.fleet_name = std::move(fleet_name);
-    request.close_lanes.push_back(std::move(lane_id));
+    if (desired_state == LaneState::Closed)
+    {
+      request.close_lanes.push_back(std::move(lane_id));
+    }
+    else if (desired_state == LaneState::Normal)
+    {
+      request.open_lanes.push_back(std::move(lane_id));
+    }
+    else
+    {
+      RCLCPP_ERROR(this->get_logger(),
+        "[LaneBlocker::add_lane_open_close_req: Invalid desired state");
+      return;
+    }
     msg_it.first->second = std::make_unique<LaneRequest>(
       std::move(request)
     );
@@ -700,40 +718,19 @@ void LaneBlocker::add_lane_close_req(
   else
   {
     // Msg was created before. We simply append the lane id
-    msg_it.first->second->close_lanes.push_back(std::move(lane_id));
-  }
-}
-
-//==============================================================================
-void LaneBlocker::add_lane_open_req(
-  const std::string& lane_key,
-  std::unordered_map<std::string,
-  std::unique_ptr<LaneRequest>>& lane_req_msgs)
-{
-  auto deserialize_key_value = deserialize_key(lane_key);
-  if (!deserialize_key_value.has_value())
-  {
-    RCLCPP_ERROR(this->get_logger(),
-      "[LaneBlocker::add_lane_open_req: Failure deserializing key");
-    return;
-  }
-  const auto fleet_name = deserialize_key_value.value().first;
-  const auto lane_id = deserialize_key_value.value().second;
-  // construct Lane Open msg
-  auto msg_it = lane_req_msgs.insert({fleet_name, nullptr});
-  if (msg_it.second)
-  {
-    LaneRequest request;
-    request.fleet_name = std::move(fleet_name);
-    request.open_lanes.push_back(std::move(lane_id));
-    msg_it.first->second = std::make_unique<LaneRequest>(
-      std::move(request)
-    );
-  }
-  else
-  {
-    // Msg was created before. We simply append the lane id
-    msg_it.first->second->open_lanes.push_back(std::move(lane_id));
+    if (desired_state == LaneState::Closed)
+    {
+      msg_it.first->second->close_lanes.push_back(std::move(lane_id));
+    }
+    else if (desired_state == LaneState::Normal)
+    {
+      msg_it.first->second->open_lanes.push_back(std::move(lane_id));
+    }
+    else
+    {
+      RCLCPP_ERROR(this->get_logger(),
+        "[LaneBlocker::add_lane_open_close_req: Invalid desired state");
+    }
   }
 }
 
@@ -741,7 +738,8 @@ void LaneBlocker::add_lane_open_req(
 void LaneBlocker::add_speed_limit_req(
   const std::string& lane_key,
   std::unordered_map<std::string,
-  std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
+  std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs,
+  const LaneState& desired_state)
 {
   auto deserialize_key_value = deserialize_key(lane_key);
   if (!deserialize_key_value.has_value())
@@ -764,48 +762,42 @@ void LaneBlocker::add_speed_limit_req(
   {
     SpeedLimitRequest request;
     request.fleet_name = std::move(fleet_name);
-    request.speed_limits.push_back(std::move(speed_limited_lane));
+    if (desired_state == LaneState::SpeedLimited)
+    {
+      request.speed_limits.push_back(std::move(speed_limited_lane));
+    }
+    else if (desired_state == LaneState::SpeedUnlimited)
+    {
+      request.remove_limits.push_back(std::move(lane_id));
+    }
+    else
+    {
+      RCLCPP_ERROR(this->get_logger(),
+        "[LaneBlocker::add_speed_limit_req: Invalid desired state");
+      return;
+    }
     msg_it.first->second = std::make_unique<SpeedLimitRequest>(
       std::move(request)
     );
   }
   else
   {
-    // Msg was created before. We simply append the new speed limited lane
-    msg_it.first->second->speed_limits.push_back(std::move(speed_limited_lane));
-  }
-}
-
-//==============================================================================
-void LaneBlocker::add_speed_unlimit_req(
-  const std::string& lane_key,
-  std::unordered_map<std::string,
-  std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
-{
-  auto deserialize_key_value = deserialize_key(lane_key);
-  if (!deserialize_key_value.has_value())
-  {
-    RCLCPP_ERROR(this->get_logger(),
-      "[LaneBlocker::add_speed_unlimit_req: Failure deserializing key");
-    return;
-  }
-  const auto fleet_name = deserialize_key_value.value().first;
-  const auto lane_id = deserialize_key_value.value().second;
-  // construct Speed Unlimit msg
-  auto msg_it = speed_limit_req_msgs.insert({fleet_name, nullptr});
-  if (msg_it.second)
-  {
-    SpeedLimitRequest request;
-    request.fleet_name = std::move(fleet_name);
-    request.remove_limits.push_back(std::move(lane_id));
-    msg_it.first->second = std::make_unique<SpeedLimitRequest>(
-      std::move(request)
-    );
-  }
-  else
-  {
-    // Msg was created before. We simply append the lane id
-    msg_it.first->second->remove_limits.push_back(std::move(lane_id));
+    if (desired_state == LaneState::SpeedLimited)
+    {
+      // Msg was created before. We simply append the new speed limited lane
+      msg_it.first->second->speed_limits.push_back(
+        std::move(speed_limited_lane));
+    }
+    else if (desired_state == LaneState::SpeedUnlimited)
+    {
+      msg_it.first->second->remove_limits.push_back(std::move(lane_id));
+    }
+    else
+    {
+      RCLCPP_ERROR(this->get_logger(),
+        "[LaneBlocker::add_speed_limit_req: Invalid desired state");
+      return;
+    }
   }
 }
 
