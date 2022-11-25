@@ -377,7 +377,11 @@ void LaneBlocker::process()
       // Check if obstacle is still in the vicinity of these lanes.
       for (const auto& lane_key : lanes_keys)
       {
-        const auto [fleet_name, lane_id] = deserialize_key(lane_key);
+        auto deserialize_key_value = deserialize_key(lane_key);
+        if (!deserialize_key_value.has_value())
+          continue;
+        const auto fleet_name = deserialize_key_value.value().first;
+        const auto lane_id = deserialize_key_value.value().second;
         if (_traffic_graphs.find(fleet_name) == _traffic_graphs.end())
         {
           RCLCPP_ERROR(
@@ -673,7 +677,15 @@ void LaneBlocker::add_lane_close_req(
   std::unordered_map<std::string,
   std::unique_ptr<LaneRequest>>& lane_req_msgs)
 {
-  auto [fleet_name, lane_id] = deserialize_key(lane_key);
+  auto deserialize_key_value = deserialize_key(lane_key);
+  if (!deserialize_key_value.has_value())
+  {
+    RCLCPP_ERROR(this->get_logger(),
+      "[LaneBlocker::add_lane_close_req: Failure deserializing key");
+    return;
+  }
+  const auto fleet_name = deserialize_key_value.value().first;
+  const auto lane_id = deserialize_key_value.value().second;
   // construct Lane Closure msg
   auto msg_it = lane_req_msgs.insert({fleet_name, nullptr});
   if (msg_it.second)
@@ -698,7 +710,15 @@ void LaneBlocker::add_lane_open_req(
   std::unordered_map<std::string,
   std::unique_ptr<LaneRequest>>& lane_req_msgs)
 {
-  auto [fleet_name, lane_id] = deserialize_key(lane_key);
+  auto deserialize_key_value = deserialize_key(lane_key);
+  if (!deserialize_key_value.has_value())
+  {
+    RCLCPP_ERROR(this->get_logger(),
+      "[LaneBlocker::add_lane_open_req: Failure deserializing key");
+    return;
+  }
+  const auto fleet_name = deserialize_key_value.value().first;
+  const auto lane_id = deserialize_key_value.value().second;
   // construct Lane Open msg
   auto msg_it = lane_req_msgs.insert({fleet_name, nullptr});
   if (msg_it.second)
@@ -723,7 +743,15 @@ void LaneBlocker::add_speed_limit_req(
   std::unordered_map<std::string,
   std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
 {
-  auto [fleet_name, lane_id] = deserialize_key(lane_key);
+  auto deserialize_key_value = deserialize_key(lane_key);
+  if (!deserialize_key_value.has_value())
+  {
+    RCLCPP_ERROR(this->get_logger(),
+      "[LaneBlocker::add_speed_limit_req: Failure deserializing key");
+    return;
+  }
+  const auto fleet_name = deserialize_key_value.value().first;
+  const auto lane_id = deserialize_key_value.value().second;
   // construct Speed Limit msg
   auto msg_it = speed_limit_req_msgs.insert({fleet_name, nullptr});
 
@@ -754,7 +782,15 @@ void LaneBlocker::add_speed_unlimit_req(
   std::unordered_map<std::string,
   std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs)
 {
-  auto [fleet_name, lane_id] = deserialize_key(lane_key);
+  auto deserialize_key_value = deserialize_key(lane_key);
+  if (!deserialize_key_value.has_value())
+  {
+    RCLCPP_ERROR(this->get_logger(),
+      "[LaneBlocker::add_speed_unlimit_req: Failure deserializing key");
+    return;
+  }
+  const auto fleet_name = deserialize_key_value.value().first;
+  const auto lane_id = deserialize_key_value.value().second;
   // construct Speed Unlimit msg
   auto msg_it = speed_limit_req_msgs.insert({fleet_name, nullptr});
   if (msg_it.second)
@@ -833,12 +869,10 @@ void LaneBlocker::publish_speed_limit_req_msgs(
 }
 
 //==============================================================================
-auto LaneBlocker::deserialize_key(
-  const std::string& key) const-> std::pair<std::string, std::size_t>
+std::optional<std::pair<std::string, std::size_t>> LaneBlocker::deserialize_key(
+  const std::string& key) const
 {
   const std::string delimiter = "_";
-  // This should not throw any errors if keys are constructed using get_key()
-  // TODO(YV): Consider returning an optional instead
   try
   {
     std::string name = key.substr(0, key.find(delimiter));
@@ -850,11 +884,11 @@ auto LaneBlocker::deserialize_key(
   }
   catch (const std::exception& e)
   {
-    // *INDENT-OFF*
-    throw std::runtime_error(
+    RCLCPP_INFO(
+      this->get_logger(),
       "[LaneBlocker::deserialize_key] Unable to parse key. This is a bug and "
-      "should be reported. Detailed error: " + std::string(e.what()));
-    // *INDENT-ON*
+      "should be reported. Detailed error: %s", e.what());
+    return std::nullopt;
   }
 }
 

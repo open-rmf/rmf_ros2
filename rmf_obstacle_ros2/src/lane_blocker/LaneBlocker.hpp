@@ -129,7 +129,7 @@ private:
     }
   };
 
-  std::pair<std::string, std::size_t>
+  std::optional<std::pair<std::string, std::size_t>>
   deserialize_key(const std::string& key) const;
 
   // Modify lanes with changes in number of vicinity obstacles
