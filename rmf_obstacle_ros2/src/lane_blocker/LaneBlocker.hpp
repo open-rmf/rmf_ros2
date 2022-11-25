@@ -32,7 +32,11 @@
 #include <rmf_obstacle_msgs/msg/bounding_box3_d.hpp>
 
 #include <tf2_ros/buffer.h>
+#include <tf2_ros/message_filter.h>
 #include <tf2_ros/transform_listener.h>
+#include <message_filters/subscriber.h>
+
+#include "geometry_msgs/msg/pose_stamped.hpp"
 
 #include <unordered_map>
 #include <unordered_set>
@@ -59,7 +63,7 @@ public:
     const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
 private:
-  void obstacle_cb(const Obstacles& msg);
+  void obstacle_cb(const message_filters::MessageEvent<Obstacles const>& evt);
   void process();
   void cull();
 
@@ -210,7 +214,6 @@ private:
     std::unordered_set<std::string>>
   _lane_to_obstacles_map = {};
 
-  rclcpp::Subscription<Obstacles>::SharedPtr _obstacle_sub;
   rclcpp::Subscription<NavGraph>::SharedPtr _graph_sub;
   rclcpp::Subscription<LaneStates>::SharedPtr _lane_states_sub;
   rclcpp::Publisher<LaneRequest>::SharedPtr _lane_closure_pub;
@@ -218,6 +221,8 @@ private:
   double _tf2_lookup_duration;
 
   std::string _rmf_frame;
+  std::shared_ptr<message_filters::Subscriber<Obstacles>> _obstacle_sub;
+  std::shared_ptr<tf2_ros::MessageFilter<Obstacles>> _tf2_filter_obstacles;
   std::unique_ptr<tf2_ros::Buffer> _tf2_buffer;
   std::shared_ptr<tf2_ros::TransformListener> _transform_listener;
 

@@ -28,6 +28,9 @@
 
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
+#include <tf2_ros/create_timer_ros.h>
+#include <tf2_ros/message_filter.h>
+
 #include <rclcpp_components/register_node_macro.hpp>
 
 #include <thread>
@@ -206,13 +209,20 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
     rmf_fleet_adapter::SpeedLimitRequestTopicName,
     rclcpp::SystemDefaultsQoS());
 
-  _obstacle_sub = this->create_subscription<Obstacles>(
-    "rmf_obstacles",
-    rclcpp::QoS(10).best_effort(),
-    [=](Obstacles::ConstSharedPtr msg)
-    {
-      obstacle_cb(*msg);
-    });
+  std::chrono::duration<int> buffer_timeout(1);
+
+  _obstacle_sub = std::make_shared<message_filters::Subscriber<Obstacles>>(
+    this, "rmf_obstacles", rclcpp::QoS(10).best_effort().get_rmw_qos_profile());
+  auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
+    this->get_node_base_interface(),
+    this->get_node_timers_interface());
+  _tf2_buffer->setCreateTimerInterface(timer_interface);
+
+  _tf2_filter_obstacles = std::make_shared<tf2_ros::MessageFilter<Obstacles>>(
+    *_tf2_buffer, _rmf_frame, 100, this->get_node_logging_interface(),
+    this->get_node_clock_interface(), buffer_timeout);
+  _tf2_filter_obstacles->connectInput(*_obstacle_sub);
+  _tf2_filter_obstacles->registerCallback(&LaneBlocker::obstacle_cb, this);
 
   // Selectively disable intra-process comms for non-volatile subscriptions
   // so that this node can be run in a container with intra-process comms.
@@ -244,7 +254,8 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
         const std::string lane_key = get_lane_key(msg->name, i);
         if (_internal_lane_states.find(lane_key) == _internal_lane_states.end())
         {
-          if(!traffic_graph->get_lane(i).properties().speed_limit().has_value())
+          if(!_traffic_graphs[msg->name].get_lane(i).
+              properties().speed_limit().has_value())
           {
             _internal_lane_states.insert({lane_key, LaneState::Normal});
           }
@@ -275,37 +286,19 @@ LaneBlocker::LaneBlocker(const rclcpp::NodeOptions& options)
 }
 
 //==============================================================================
-void LaneBlocker::obstacle_cb(const Obstacles& msg)
+void LaneBlocker::obstacle_cb(const message_filters::MessageEvent<Obstacles const>& evt)
 {
+  auto msg = evt.getMessage();
+
   using PoseStamped = geometry_msgs::msg::PoseStamped;
   using Vector3Stamped = geometry_msgs::msg::Vector3Stamped;
 
-  if (msg.obstacles.empty() || _transform_listener == nullptr)
+  if (msg->obstacles.empty() || _transform_listener == nullptr)
     return;
 
-  // TODO(YV): Consider using tf2_ros::MessageFilter instead of this callback
-  for (const auto& obstacle : msg.obstacles)
+  for (const auto& obstacle : msg->obstacles)
   {
     const auto& obstacle_frame = obstacle.header.frame_id;
-    std::string tf2_error;
-    const bool can_transform = _tf2_buffer->canTransform(
-      _rmf_frame,
-      obstacle_frame,
-      tf2::TimePointZero,
-      tf2::durationFromSec(_tf2_lookup_duration),
-      &tf2_error);
-
-    // TODO(YV): Cache these transforms since most of them would be static
-    if (!can_transform)
-    {
-      RCLCPP_WARN(
-        this->get_logger(),
-        "Unable to lookup transform between between obstacle frame %s and RMF "
-        "frame %s.", obstacle_frame.c_str(), _rmf_frame.c_str()
-      );
-      continue;
-    }
-
     const auto& transform = _tf2_buffer->lookupTransform(
       _rmf_frame,
       obstacle_frame,
