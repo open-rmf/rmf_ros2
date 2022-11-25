@@ -148,36 +148,22 @@ private:
     std::string,
     LaneState> _internal_lane_states = {};
 
-  // TODO(YV): Use member variables instead of passing unordered_maps by
-  // reference between these functions. Especially to the publsiher functions.
   void transition_lane_state(
     const LaneState& old_state,
     const LaneState& new_state,
-    const std::string& lane_key,
-    std::unordered_map<std::string,
-    std::unique_ptr<LaneRequest>>& lane_req_msgs,
-    std::unordered_map<std::string,
-    std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs);
+    const std::string& lane_key);
 
   void add_lane_open_close_req(
     const std::string& lane_key,
-    std::unordered_map<std::string,
-    std::unique_ptr<LaneRequest>>& lane_req_msgs,
     const LaneState& desired_state);
 
   void add_speed_limit_req(
     const std::string& lane_key,
-    std::unordered_map<std::string,
-    std::unique_ptr<SpeedLimitRequest>>& speed_limit_req_msgs,
     const LaneState& desired_state);
 
-  void publish_lane_req_msgs(
-    std::unordered_map<std::string,
-    std::unique_ptr<LaneRequest>> lane_req_msgs);
+  void publish_lane_req_msgs();
 
-  void publish_speed_limit_req_msgs(
-    std::unordered_map<std::string,
-    std::unique_ptr<SpeedLimitRequest>> speed_limit_req_msgs);
+  void publish_speed_limit_req_msgs();
 
   void purge_obstacles(
     const std::unordered_set<std::string>& obstacle_keys,
@@ -230,6 +216,13 @@ private:
 
   rclcpp::TimerBase::SharedPtr _process_timer;
   rclcpp::TimerBase::SharedPtr _cull_timer;
+
+  std::mutex _mutex_msgs;
+  // A map to collate lanes per fleet that need to be opened or closed
+  std::unordered_map<std::string, std::unique_ptr<LaneRequest>> _lane_req_msgs;
+  // A map to collate lanes per fleet that need to be speed limited or unlimited
+  std::unordered_map<std::string,
+    std::unique_ptr<SpeedLimitRequest>> _speed_limit_req_msgs;
 };
 
 #endif // SRC__LANE_BLOCKER__LANEBLOCKER_HPP
