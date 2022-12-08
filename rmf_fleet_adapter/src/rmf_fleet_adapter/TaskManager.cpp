@@ -1224,12 +1224,19 @@ void TaskManager::_begin_next_task()
   if (_active_task)
     return;
 
+  if (_emergency_active)
+    return;
+
   std::lock_guard<std::mutex> guard(_mutex);
 
   if (_queue.empty() && _direct_queue.empty())
   {
+    std::cout << "QUEUES ARE EMPTY -- BEGIN WAITING" << std::endl;
     if (!_waiting)
+    {
+      std::cout << "WE ARE NOT YET WAITING -- REALLY BEGIN WAITING" << std::endl;
       _begin_waiting();
+    }
 
     return;
   }
@@ -1469,8 +1476,12 @@ void TaskManager::_resume_from_emergency()
       if (!self)
         return;
 
-      if (self->_emergency_active)
+      if (self->_emergency_active) {
+        std::cout << "EMERGENCY IS STILL ACTIVE: WILL CONTINUE WAITING" << std::endl;
         return;
+      }
+
+      std::cout << "EMERGENCY IS NO LONGER ACTIVE" << std::endl;
 
       if (!self->_emergency_pullover_interrupt_token.has_value())
         return;
@@ -1486,6 +1497,7 @@ void TaskManager::_resume_from_emergency()
       }
       else
       {
+        std::cout << "BEGINNING NEXT TASK" << std::endl;
         self->_begin_next_task();
       }
     });
