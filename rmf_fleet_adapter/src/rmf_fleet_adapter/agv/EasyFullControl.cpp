@@ -779,8 +779,6 @@ void EasyCommandHandle::start_follow()
 void EasyCommandHandle::start_dock()
 {
   auto docking_cb = handle_dock(dock_name, updater);
-  rmf_traffic::Duration remaining_time;
-  bool request_replan;
   while (!docking_cb().success() && !quit_dock_thread)
   {
     RCLCPP_DEBUG(
@@ -1027,6 +1025,15 @@ void EasyCommandHandle::newly_closed_lanes(
 } // namespace anonymous
 
 //==============================================================================
+ConsiderTask consider_all()
+{
+  return [](const nlohmann::json&, FleetUpdateHandle::Confirmation& confirm)
+    {
+      confirm.accept();
+    };
+}
+
+//==============================================================================
 class EasyFullControl::Configuration::Implementation
 {
 public:
@@ -1040,7 +1047,7 @@ public:
   double recharge_threshold;
   double recharge_soc;
   bool account_for_battery_drain;
-  std::unordered_map<std::string, bool> task_categories;
+  std::unordered_map<std::string, ConsiderTask> task_consideration;
   std::vector<std::string> action_categories;
   rmf_task::ConstRequestFactoryPtr finishing_request;
   std::optional<std::string> server_uri;
@@ -1060,7 +1067,7 @@ EasyFullControl::Configuration::Configuration(
   double recharge_threshold,
   double recharge_soc,
   bool account_for_battery_drain,
-  std::unordered_map<std::string, bool> task_categories,
+  std::unordered_map<std::string, ConsiderTask> task_consideration,
   std::vector<std::string> action_categories,
   rmf_task::ConstRequestFactoryPtr finishing_request,
   std::optional<std::string> server_uri,
@@ -1078,7 +1085,7 @@ EasyFullControl::Configuration::Configuration(
         std::move(recharge_threshold),
         std::move(recharge_soc),
         std::move(account_for_battery_drain),
-        std::move(task_categories),
+        std::move(task_consideration),
         std::move(action_categories),
         std::move(finishing_request),
         std::move(server_uri),
@@ -1307,13 +1314,22 @@ EasyFullControl::Configuration::make(
     return nullptr;
   }
   const YAML::Node task_capabilities = rmf_fleet["task_capabilities"];
-  std::unordered_map<std::string, bool> task_categories;
-  const bool patrol_task = task_capabilities["loop"].as<bool>();
-  const bool delivery_task = task_capabilities["delivery"].as<bool>();
-  const bool clean_task = task_capabilities["clean"].as<bool>();
-  task_categories.insert({"patrol", patrol_task});
-  task_categories.insert({"delivery", delivery_task});
-  task_categories.insert({"clean", clean_task});
+  std::unordered_map<std::string, ConsiderTask> task_consideration;
+  const auto parse_consideration = [&](
+      const std::string& capability,
+      const std::string& task)
+    {
+      if (const auto c = task_capabilities[capability])
+      {
+        if (c.as<bool>())
+          task_consideration[task] = consider_all();
+      }
+    };
+
+  parse_consideration("loop", "patrol");
+  parse_consideration("patrol", "patrol");
+  parse_consideration("clean", "clean");
+  parse_consideration("delivery", "delivery");
 
   // Action categories
   std::vector<std::string> action_categories;
@@ -1403,7 +1419,7 @@ EasyFullControl::Configuration::make(
     recharge_threshold,
     recharge_soc,
     account_for_battery_drain,
-    task_categories,
+    task_consideration,
     action_categories,
     finishing_request,
     server_uri,
@@ -1500,10 +1516,10 @@ rmf_traffic::Duration EasyFullControl::Configuration::update_interval() const
 }
 
 //==============================================================================
-const std::unordered_map<std::string, bool>&
-EasyFullControl::Configuration::task_categories() const
+const std::unordered_map<std::string, ConsiderTask>&
+EasyFullControl::Configuration::task_consideration() const
 {
-  return _pimpl->task_categories;
+  return _pimpl->task_consideration;
 }
 
 //==============================================================================
@@ -1783,16 +1799,22 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
         std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
         *battery_system, *tool_power_system);
 
-      std::unordered_map<std::string, bool> tasks;
+      std::unordered_map<std::string, ConsiderTask> tasks;
       bool patrol_task = true;
       bool delivery_task = false;
       bool clean_task = false;
+
       patrol_task = node->declare_parameter("patrol_task", patrol_task);
+      if (patrol_task)
+        tasks["patrol"] = consider_all();
+
       delivery_task = node->declare_parameter("delivery_task", delivery_task);
+      if (delivery_task)
+        tasks["delivery"] = consider_all();
+
       clean_task = node->declare_parameter("clean_task", clean_task);
-      tasks.insert({"patrol", patrol_task});
-      tasks.insert({"delivery", delivery_task});
-      tasks.insert({"clean", clean_task});
+      if (clean_task)
+        tasks["clean"] = consider_all();
 
       std::vector<std::string> actions = {"teleop"};
       actions = node->declare_parameter("actions", actions);
@@ -1937,8 +1959,8 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
       confirm.accept();
     };
 
-  for (auto it = config.task_categories().begin();
-    it != config.task_categories().end(); ++it)
+  for (auto it = config.task_consideration().begin();
+    it != config.task_consideration().end(); ++it)
   {
     if (it->first == "delivery" && it->second)
     {

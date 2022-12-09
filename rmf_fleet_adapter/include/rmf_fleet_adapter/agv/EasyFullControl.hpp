@@ -43,6 +43,16 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
+//==============================================================================
+/// Signature for callbacks that can consider whether to accept a task.
+using ConsiderTask = std::function<void(
+  const nlohmann::json& task_description,
+  FleetUpdateHandle::Confirmation& confirm)>;
+
+//==============================================================================
+/// Get a callback that can be used to consider all tasks for a category.
+ConsiderTask consider_all();
+
 /// An easy to initialize full_control fleet adapter.
 /// By default the adapter will be configured to accept all tasks.
 /// To disable specific tasks, call the respective consider_*_requests() method
@@ -104,8 +114,8 @@ public:
     ///   recharge_threshold.
     ///
     /// \param[in] task_categories
-    ///   A map of the tasks (patrol, delivery, clean) that can be performed by
-    ///   this fleet.
+    ///   Provide callbacks for considering tasks belonging to each category.
+    ///
     ///
     /// \param[in] action_categories
     ///   List of actions that this fleet can perform. Each item represents a
@@ -137,7 +147,7 @@ public:
       double recharge_threshold,
       double recharge_soc,
       bool account_for_battery_drain,
-      std::unordered_map<std::string, bool> task_categories,
+      std::unordered_map<std::string, ConsiderTask> task_consideration,
       std::vector<std::string> action_categories,
       rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
       std::optional<std::string> server_uri = std::nullopt,
@@ -202,7 +212,7 @@ public:
     bool account_for_battery_drain() const;
 
     /// Get the task categories
-    const std::unordered_map<std::string, bool>& task_categories() const;
+    const std::unordered_map<std::string, ConsiderTask>& task_consideration() const;
 
     /// Get the action categories
     const std::vector<std::string>& action_categories() const;
@@ -329,7 +339,7 @@ public:
   /// Signature for a callback that returns the latest GoalStatus of the robot.
   ///
   /// \return GoalStatus
-  using GoalCompletedCallback = std::function<GoalStatus(void)>;
+  using GoalCompletedCallback = std::function<GoalStatus()>;
 
   /// Signature for a function to request the robot to navigate to a location.
   ///
