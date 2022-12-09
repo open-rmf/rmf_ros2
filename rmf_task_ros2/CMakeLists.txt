@@ -23,6 +23,7 @@ find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(nlohmann_json_schema_validator_vendor REQUIRED)
+find_package(nlohmann_json_schema_validator REQUIRED)
 
 file(GLOB_RECURSE core_lib_srcs "src/rmf_task_ros2/*.cpp")
 add_library(rmf_task_ros2 SHARED ${core_lib_srcs})
