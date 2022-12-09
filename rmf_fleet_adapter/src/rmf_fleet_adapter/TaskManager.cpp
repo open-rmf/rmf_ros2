@@ -128,6 +128,12 @@ TaskManagerPtr TaskManager::make(
         mgr->_emergency_active = msg->data;
         if (msg->data)
         {
+          if (mgr->_waiting)
+          {
+            // Cancel any waiting behavior that might be active.
+            mgr->_waiting.cancel({"emergency pullover"}, mgr->_context->now());
+          }
+
           if (mgr->_active_task)
           {
             mgr->_emergency_pullover_interrupt_token =
@@ -1222,6 +1228,9 @@ bool TaskManager::kill_task(
 void TaskManager::_begin_next_task()
 {
   if (_active_task)
+    return;
+
+  if (_emergency_active)
     return;
 
   std::lock_guard<std::mutex> guard(_mutex);
