@@ -36,8 +36,23 @@ using TimePoint = std::chrono::time_point<std::chrono::system_clock,
 ///       in FleetUpdateHandle. This is to replace the ref `confirm` arg with
 ///       a return value
 using Confirmation = agv::FleetUpdateHandle::Confirmation;
+using ConsiderRequest = agv::FleetUpdateHandle::ConsiderRequest;
 using ModifiedConsiderRequest =
   std::function<Confirmation(const nlohmann::json &description)>;
+
+std::unordered_map<std::string, ConsiderRequest> convert(
+  const std::unordered_map<std::string, ModifiedConsiderRequest>& consideration)
+{
+  std::unordered_map<std::string, ConsiderRequest> output;
+  for (const auto& element : consideration)
+  {
+    output[element.first] = [consider = element.second](
+      const nlohmann::json& description, Confirmation& confirm)
+    {
+      confirm = consider(description);
+    };
+  }
+}
 
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
@@ -74,6 +89,15 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("follow_new_path", &agv::RobotCommandHandle::follow_new_path)
   .def("stop", &agv::RobotCommandHandle::stop)
   .def("dock", &agv::RobotCommandHandle::dock);
+
+  m.def("consider_all", []() -> ModifiedConsiderRequest {
+    return [](const nlohmann::json&) -> Confirmation
+    {
+      Confirmation confirm;
+      confirm.accept();
+      return confirm;
+    };
+  });
 
   // ROBOTUPDATE HANDLE ======================================================
   py::class_<agv::RobotUpdateHandle,
@@ -715,8 +739,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
         double recharge_threshold,
         double recharge_soc,
         bool account_for_battery_drain,
-        std::unordered_map<std::string, bool> task_categories,
-        std::vector<std::string> action_categories,
+        std::unordered_map<std::string, ModifiedConsiderRequest> task_consideration,
+        std::unordered_map<std::string, ModifiedConsiderRequest> action_consideration,
         std::string& finishing_request_string,
         std::optional<std::string> server_uri,
         rmf_traffic::Duration max_delay,
@@ -748,8 +772,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
               recharge_threshold,
               recharge_soc,
               account_for_battery_drain,
-              task_categories,
-              action_categories,
+              convert(task_consideration),
+              convert(action_consideration),
               finishing_request,
               server_uri,
               max_delay,
@@ -794,8 +818,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("recharge_threshold", &agv::EasyFullControl::Configuration::recharge_threshold)
   .def("recharge_soc", &agv::EasyFullControl::Configuration::recharge_soc)
   .def("account_for_battery_drain", &agv::EasyFullControl::Configuration::account_for_battery_drain)
-  .def("task_categories", &agv::EasyFullControl::Configuration::task_categories)
-  .def("action_categories", &agv::EasyFullControl::Configuration::action_categories)
   .def("finishing_request", &agv::EasyFullControl::Configuration::finishing_request)
   .def("server_uri", &agv::EasyFullControl::Configuration::server_uri)
   .def("max_delay", &agv::EasyFullControl::Configuration::max_delay)

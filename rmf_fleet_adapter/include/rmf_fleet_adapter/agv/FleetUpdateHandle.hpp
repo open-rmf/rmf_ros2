@@ -380,6 +380,8 @@ private:
 using FleetUpdateHandlePtr = std::shared_ptr<FleetUpdateHandle>;
 using ConstFleetUpdateHandlePtr = std::shared_ptr<const FleetUpdateHandle>;
 
+FleetUpdateHandle::ConsiderRequest consider_all();
+
 } // namespace agv
 } // namespace rmf_fleet_adapter
 

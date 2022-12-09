@@ -44,6 +44,8 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
+using ConsiderRequest = EasyFullControl::ConsiderRequest;
+
 //==============================================================================
 namespace {
 /// Implements a state machine to send waypoints from follow_new_path() one
@@ -1025,7 +1027,7 @@ void EasyCommandHandle::newly_closed_lanes(
 } // namespace anonymous
 
 //==============================================================================
-ConsiderTask consider_all()
+ConsiderRequest consider_all()
 {
   return [](const nlohmann::json&, FleetUpdateHandle::Confirmation& confirm)
     {
@@ -1047,8 +1049,8 @@ public:
   double recharge_threshold;
   double recharge_soc;
   bool account_for_battery_drain;
-  std::unordered_map<std::string, ConsiderTask> task_consideration;
-  std::vector<std::string> action_categories;
+  std::unordered_map<std::string, ConsiderRequest> task_consideration;
+  std::unordered_map<std::string, ConsiderRequest> action_consideration;
   rmf_task::ConstRequestFactoryPtr finishing_request;
   std::optional<std::string> server_uri;
   rmf_traffic::Duration max_delay;
@@ -1067,8 +1069,8 @@ EasyFullControl::Configuration::Configuration(
   double recharge_threshold,
   double recharge_soc,
   bool account_for_battery_drain,
-  std::unordered_map<std::string, ConsiderTask> task_consideration,
-  std::vector<std::string> action_categories,
+  std::unordered_map<std::string, ConsiderRequest> task_consideration,
+  std::unordered_map<std::string, ConsiderRequest> action_consideration,
   rmf_task::ConstRequestFactoryPtr finishing_request,
   std::optional<std::string> server_uri,
   rmf_traffic::Duration max_delay,
@@ -1086,7 +1088,7 @@ EasyFullControl::Configuration::Configuration(
         std::move(recharge_soc),
         std::move(account_for_battery_drain),
         std::move(task_consideration),
-        std::move(action_categories),
+        std::move(action_consideration),
         std::move(finishing_request),
         std::move(server_uri),
         std::move(max_delay),
@@ -1314,7 +1316,7 @@ EasyFullControl::Configuration::make(
     return nullptr;
   }
   const YAML::Node task_capabilities = rmf_fleet["task_capabilities"];
-  std::unordered_map<std::string, ConsiderTask> task_consideration;
+  std::unordered_map<std::string, ConsiderRequest> task_consideration;
   const auto parse_consideration = [&](
       const std::string& capability,
       const std::string& task)
@@ -1331,12 +1333,16 @@ EasyFullControl::Configuration::make(
   parse_consideration("clean", "clean");
   parse_consideration("delivery", "delivery");
 
-  // Action categories
-  std::vector<std::string> action_categories;
+  // Action considerations
+  std::unordered_map<std::string, ConsiderRequest> action_consideration;
   if (task_capabilities["action"])
   {
-    action_categories =
+    const auto actions =
       task_capabilities["action"].as<std::vector<std::string>>();
+    for (const std::string& action : actions)
+    {
+      action_consideration[action] = consider_all();
+    }
   }
 
   // Finishing tasks
@@ -1420,7 +1426,7 @@ EasyFullControl::Configuration::make(
     recharge_soc,
     account_for_battery_drain,
     task_consideration,
-    action_categories,
+    action_consideration,
     finishing_request,
     server_uri,
     rmf_traffic::time::from_seconds(max_delay),
@@ -1516,17 +1522,17 @@ rmf_traffic::Duration EasyFullControl::Configuration::update_interval() const
 }
 
 //==============================================================================
-const std::unordered_map<std::string, ConsiderTask>&
+const std::unordered_map<std::string, ConsiderRequest>&
 EasyFullControl::Configuration::task_consideration() const
 {
   return _pimpl->task_consideration;
 }
 
 //==============================================================================
-const std::vector<std::string>&
-EasyFullControl::Configuration::action_categories() const
+const std::unordered_map<std::string, ConsiderRequest>&
+EasyFullControl::Configuration::action_consideration() const
 {
-  return _pimpl->action_categories;
+  return _pimpl->action_consideration;
 }
 
 //==============================================================================
@@ -1799,7 +1805,7 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
         std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
         *battery_system, *tool_power_system);
 
-      std::unordered_map<std::string, ConsiderTask> tasks;
+      std::unordered_map<std::string, ConsiderRequest> tasks;
       bool patrol_task = true;
       bool delivery_task = false;
       bool clean_task = false;
@@ -1816,8 +1822,15 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
       if (clean_task)
         tasks["clean"] = consider_all();
 
-      std::vector<std::string> actions = {"teleop"};
-      actions = node->declare_parameter("actions", actions);
+      std::unordered_map<std::string, ConsiderRequest> actions;
+      actions["teleop"] = consider_all();
+
+      std::vector<std::string> action_list;
+      action_list = node->declare_parameter("actions", action_list);
+      for (const auto& action : action_list)
+      {
+        actions[action] = consider_all();
+      }
 
       const std::string server_uri_string =
         node->declare_parameter("server_uri", std::string());
@@ -1995,10 +2008,10 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
   }
 
   easy_adapter->_pimpl->fleet_handle->consider_composed_requests(consider_all);
-  for (const std::string& action : config.action_categories())
+  for (const auto [action, consider] : config.action_consideration())
   {
-    easy_adapter->_pimpl->fleet_handle->add_performable_action(action,
-      consider_all);
+    easy_adapter->_pimpl->fleet_handle->add_performable_action(
+      action, consider);
   }
 
   easy_adapter->_pimpl->fleet_handle->default_maximum_delay(config.max_delay());

@@ -43,16 +43,6 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
-//==============================================================================
-/// Signature for callbacks that can consider whether to accept a task.
-using ConsiderTask = std::function<void(
-  const nlohmann::json& task_description,
-  FleetUpdateHandle::Confirmation& confirm)>;
-
-//==============================================================================
-/// Get a callback that can be used to consider all tasks for a category.
-ConsiderTask consider_all();
-
 /// An easy to initialize full_control fleet adapter.
 /// By default the adapter will be configured to accept all tasks.
 /// To disable specific tasks, call the respective consider_*_requests() method
@@ -66,6 +56,7 @@ public:
   using Graph = rmf_traffic::agv::Graph;
   using VehicleTraits = rmf_traffic::agv::VehicleTraits;
   using ActionExecutor = RobotUpdateHandle::ActionExecutor;
+  using ConsiderRequest = FleetUpdateHandle::ConsiderRequest;
 
   /// The Configuration class contains parameters necessary to initialize an
   /// EasyFullControl instance and add fleets to the adapter.
@@ -116,7 +107,6 @@ public:
     /// \param[in] task_categories
     ///   Provide callbacks for considering tasks belonging to each category.
     ///
-    ///
     /// \param[in] action_categories
     ///   List of actions that this fleet can perform. Each item represents a
     ///   category in the PerformAction description.
@@ -147,8 +137,8 @@ public:
       double recharge_threshold,
       double recharge_soc,
       bool account_for_battery_drain,
-      std::unordered_map<std::string, ConsiderTask> task_consideration,
-      std::vector<std::string> action_categories,
+      std::unordered_map<std::string, ConsiderRequest> task_consideration,
+      std::unordered_map<std::string, ConsiderRequest> action_consideration,
       rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
       std::optional<std::string> server_uri = std::nullopt,
       rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
@@ -212,10 +202,10 @@ public:
     bool account_for_battery_drain() const;
 
     /// Get the task categories
-    const std::unordered_map<std::string, ConsiderTask>& task_consideration() const;
+    const std::unordered_map<std::string, ConsiderRequest>& task_consideration() const;
 
     /// Get the action categories
-    const std::vector<std::string>& action_categories() const;
+    const std::unordered_map<std::string, ConsiderRequest>& action_consideration() const;
 
     /// Get the finishing request.
     rmf_task::ConstRequestFactoryPtr finishing_request() const;
