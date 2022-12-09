@@ -36,8 +36,23 @@ using TimePoint = std::chrono::time_point<std::chrono::system_clock,
 ///       in FleetUpdateHandle. This is to replace the ref `confirm` arg with
 ///       a return value
 using Confirmation = agv::FleetUpdateHandle::Confirmation;
+using ConsiderRequest = agv::FleetUpdateHandle::ConsiderRequest;
 using ModifiedConsiderRequest =
   std::function<Confirmation(const nlohmann::json &description)>;
+
+std::unordered_map<std::string, ConsiderRequest> convert(
+  const std::unordered_map<std::string, ModifiedConsiderRequest>& consideration)
+{
+  std::unordered_map<std::string, ConsiderRequest> output;
+  for (const auto& element : consideration)
+  {
+    output[element.first] = [consider = element.second](
+      const nlohmann::json& description, Confirmation& confirm)
+    {
+      confirm = consider(description);
+    };
+  }
+}
 
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
@@ -74,6 +89,15 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("follow_new_path", &agv::RobotCommandHandle::follow_new_path)
   .def("stop", &agv::RobotCommandHandle::stop)
   .def("dock", &agv::RobotCommandHandle::dock);
+
+  m.def("consider_all", []() -> ModifiedConsiderRequest {
+    return [](const nlohmann::json&) -> Confirmation
+    {
+      Confirmation confirm;
+      confirm.accept();
+      return confirm;
+    };
+  });
 
   // ROBOTUPDATE HANDLE ======================================================
   py::class_<agv::RobotUpdateHandle,
@@ -698,25 +722,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       return self.fleet_handle();
     })
-  .def("wait", &agv::EasyFullControl::wait);
+  .def("wait", &agv::EasyFullControl::wait)
+  .def("newly_closed_lanes", &agv::EasyFullControl::newly_closed_lanes);
   // EASY FULL CONTROL CONFIGURATION ===============================================
   auto m_easy_full_control = m.def_submodule("easy_full_control");
-
-  // Custom bindings since Python doesn't allow changing ref to primitive types
-  m_easy_full_control.def("goal_completed_callback",[](
-      std::function<std::tuple<
-        bool,
-        rmf_traffic::Duration,
-        bool>(rmf_traffic::Duration&, bool&)> &f) -> agv::EasyFullControl::GoalCompletedCallback
-      {
-        return [f](rmf_traffic::Duration& remaining_time, bool& request_replan) -> bool
-        {
-          auto [completed, _remaining_time, _request_replan] = f(remaining_time, request_replan);
-          remaining_time = _remaining_time;
-          request_replan = _request_replan;
-          return completed;
-        };
-      });
 
   py::class_<agv::EasyFullControl::Configuration>(m_easy_full_control, "Configuration")
   .def(py::init([]( // Lambda function to convert reference to shared ptr
@@ -730,7 +739,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
         double recharge_threshold,
         double recharge_soc,
         bool account_for_battery_drain,
-        std::vector<std::string> action_categories,
+        std::unordered_map<std::string, ModifiedConsiderRequest> task_consideration,
+        std::unordered_map<std::string, ModifiedConsiderRequest> action_consideration,
         std::string& finishing_request_string,
         std::optional<std::string> server_uri,
         rmf_traffic::Duration max_delay,
@@ -762,7 +772,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
               recharge_threshold,
               recharge_soc,
               account_for_battery_drain,
-              action_categories,
+              convert(task_consideration),
+              convert(action_consideration),
               finishing_request,
               server_uri,
               max_delay,
@@ -779,11 +790,38 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("recharge_threshold"),
     py::arg("recharge_soc"),
     py::arg("account_for_battery_drain"),
+    py::arg("task_categories"),
     py::arg("action_categories"),
     py::arg("finishing_request") = "nothing",
     py::arg("server_uri") = std::nullopt,
     py::arg("max_delay") = rmf_traffic::time::from_seconds(10.0),
-    py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5));
+    py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5))
+  .def_static("make", [&](
+    const std::string& config_file,
+    const std::string& nav_graph_path,
+    std::optional<std::string> server_uri)
+    {
+      auto configuration = agv::EasyFullControl::Configuration::make(
+        config_file, nav_graph_path, server_uri);
+      return *configuration;
+    },
+    py::arg("config_file"),
+    py::arg("nav_graph_path"),
+    py::arg("server_uri"))
+  .def("fleet_name", &agv::EasyFullControl::Configuration::fleet_name)
+  .def("vehicle_traits", &agv::EasyFullControl::Configuration::vehicle_traits)
+  .def("graph", &agv::EasyFullControl::Configuration::graph)
+  .def("battery_system", &agv::EasyFullControl::Configuration::battery_system)
+  .def("motion_sink", &agv::EasyFullControl::Configuration::motion_sink)
+  .def("ambient_sink", &agv::EasyFullControl::Configuration::ambient_sink)
+  .def("tool_sink", &agv::EasyFullControl::Configuration::tool_sink)
+  .def("recharge_threshold", &agv::EasyFullControl::Configuration::recharge_threshold)
+  .def("recharge_soc", &agv::EasyFullControl::Configuration::recharge_soc)
+  .def("account_for_battery_drain", &agv::EasyFullControl::Configuration::account_for_battery_drain)
+  .def("finishing_request", &agv::EasyFullControl::Configuration::finishing_request)
+  .def("server_uri", &agv::EasyFullControl::Configuration::server_uri)
+  .def("max_delay", &agv::EasyFullControl::Configuration::max_delay)
+  .def("update_interval", &agv::EasyFullControl::Configuration::update_interval);
       /*
   .def_property("fleet_name",
     py::overload_cast<>(&agv::Configuration::fleet_name, py::const_),
@@ -819,15 +857,47 @@ PYBIND11_MODULE(rmf_adapter, m) {
       const std::string&,
       const std::string&,
       Eigen::Vector3d,
-      double>(),
+      double,
+      bool>(),
     py::arg("name"),
     py::arg("charger_name"),
     py::arg("map_name"),
     py::arg("location"),
-    py::arg("battery_soc"))
+    py::arg("battery_soc"),
+    py::arg("action"))
   .def_property_readonly("name", &agv::EasyFullControl::RobotState::name)
   .def_property_readonly("charger_name", &agv::EasyFullControl::RobotState::charger_name)
   .def_property_readonly("map_name", &agv::EasyFullControl::RobotState::map_name)
   .def_property_readonly("location", &agv::EasyFullControl::RobotState::location)
-  .def_property_readonly("battery_soc", &agv::EasyFullControl::RobotState::battery_soc);
+  .def_property_readonly("battery_soc", &agv::EasyFullControl::RobotState::battery_soc)
+  .def_property_readonly("action", &agv::EasyFullControl::RobotState::action);
+
+  // EASY FULL CONTROL GoalStatus ===============================================
+  py::class_<agv::EasyFullControl::GoalStatus>(m_easy_full_control, "GoalStatus")
+  .def(py::init<bool,
+      std::optional<rmf_traffic::Duration>,
+      bool>(),
+    py::arg("success"),
+    py::arg("remaining_time") = std::optional<rmf_traffic::Duration>(
+      std::nullopt),
+    py::arg("request_replan"))
+  .def_property_readonly("success", &agv::EasyFullControl::GoalStatus::success)
+  .def_property_readonly("remaining_time", &agv::EasyFullControl::GoalStatus::remaining_time)
+  .def_property_readonly("request_replan", &agv::EasyFullControl::GoalStatus::request_replan);
+
+  // Transformation =============================================================
+  py::class_<agv::Transformation>(m_easy_full_control, "Transformation")
+  .def(py::init<double,
+      double,
+      double,
+      double>(),
+    py::arg("rotation"),
+    py::arg("scale"),
+    py::arg("translation_x"),
+    py::arg("translation_y"));
+
+  m_easy_full_control.def("transform",
+    &agv::transform,
+    py::arg("transformation"),
+    py::arg("pose"));
 }

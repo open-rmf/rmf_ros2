@@ -56,6 +56,7 @@ public:
   using Graph = rmf_traffic::agv::Graph;
   using VehicleTraits = rmf_traffic::agv::VehicleTraits;
   using ActionExecutor = RobotUpdateHandle::ActionExecutor;
+  using ConsiderRequest = FleetUpdateHandle::ConsiderRequest;
 
   /// The Configuration class contains parameters necessary to initialize an
   /// EasyFullControl instance and add fleets to the adapter.
@@ -103,9 +104,12 @@ public:
     ///   vehicles in this fleet when battery levels fall below the
     ///   recharge_threshold.
     ///
+    /// \param[in] task_categories
+    ///   Provide callbacks for considering tasks belonging to each category.
+    ///
     /// \param[in] action_categories
     ///   List of actions that this fleet can perform. Each item represents a
-    ///   category in the PerfromAction description.
+    ///   category in the PerformAction description.
     ///
     /// \param[in] finishing_request
     ///   A factory for a request that should be performed by each robot in this
@@ -133,12 +137,39 @@ public:
       double recharge_threshold,
       double recharge_soc,
       bool account_for_battery_drain,
-      std::vector<std::string> action_categories,
+      std::unordered_map<std::string, ConsiderRequest> task_consideration,
+      std::unordered_map<std::string, ConsiderRequest> action_consideration,
       rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
       std::optional<std::string> server_uri = std::nullopt,
       rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
-      rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(0.5)
+      rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(
+        0.5)
     );
+
+    /// Create a Configuration object using a set of configuration parameters
+    /// imported from YAML files that follow the defined schema. This is an
+    /// alternative to constructing the Configuration using the RMF objects if
+    /// users do not require specific tool systems for their fleets.
+    ///
+    /// \param[in] config_file
+    ///   The path to a configuration YAML file containing data about the fleet's
+    ///   vehicle traits and task capabilities. This file needs to follow the pre-defined
+    ///   config.yaml structure to successfully load the parameters into the Configuration
+    ///   object.
+    ///
+    /// \param[in] nav_graph_path
+    ///   The path to a navigation path file that includes map information necessary
+    ///   to create a rmf_traffic::agv::Graph object
+    ///
+    /// \param[in] server_uri
+    ///   The URI for the websocket server that receives updates on tasks and
+    ///   states. If nullopt, data will not be published.
+    ///
+    /// \return A Configuration object with the essential config parameters loaded.
+    static std::shared_ptr<Configuration> make(
+      const std::string& config_file,
+      const std::string& nav_graph_path,
+      std::optional<std::string> server_uri = std::nullopt);
 
     /// Get the fleet name.
     const std::string& fleet_name() const;
@@ -170,8 +201,11 @@ public:
     /// Get whether or not to account for battery drain during task planning.
     bool account_for_battery_drain() const;
 
+    /// Get the task categories
+    const std::unordered_map<std::string, ConsiderRequest>& task_consideration() const;
+
     /// Get the action categories
-    const std::vector<std::string>& action_categories() const;
+    const std::unordered_map<std::string, ConsiderRequest>& action_consideration() const;
 
     /// Get the finishing request.
     rmf_task::ConstRequestFactoryPtr finishing_request() const;
@@ -212,12 +246,17 @@ public:
     /// \param[in] battery_soc
     ///   The state of charge of the battery of this robot.
     ///   This should be a value between 0.0 and 1.0.
+    ///
+    /// \param[in] action
+    ///   The state of action of this robot. True if robot is
+    ///   performing an action.
     RobotState(
       const std::string& name,
       const std::string& charger_name,
       const std::string& map_name,
       Eigen::Vector3d location,
-      double battery_soc);
+      double battery_soc,
+      bool action);
 
     /// Get the name.
     const std::string& name() const;
@@ -234,6 +273,9 @@ public:
     /// Get the battery_soc.
     double battery_soc() const;
 
+    /// Get the action status.
+    bool action() const;
+
     class Implementation;
 
   private:
@@ -245,21 +287,49 @@ public:
   /// \return RobotState
   using GetStateCallback = std::function<RobotState(void)>;
 
-  /// Signature for a function that is used to track the status of a goal.
+  ///   The GoalStatus class contains information about the robot's progress
+  ///   in completing a goal.
+  class GoalStatus
+  {
+  public:
+
+    /// Constructor
+    ///
+    /// \param[in] success
+    ///   A bool indicating whether the robot has completed the goal
+    ///
+    /// \param[in] remaining_time
+    ///   A duration object containing the time remaining for this goal. If not
+    ///   updated, the adapter will derive the time estimate by interpolating
+    ///   the robot's motion to the destination location.
+    ///
+    /// \param[in] request_replan
+    ///   A bool to request the fleet adapter to generate a new plan for this
+    ///   robot due to issues with completing the goal.
+    GoalStatus(
+      bool success = false,
+      std::optional<rmf_traffic::Duration> remaining_time = std::nullopt,
+      bool request_replan = false);
+
+    /// Get the success status
+    bool success() const;
+
+    /// Get the remaining time
+    std::optional<rmf_traffic::Duration> remaining_time() const;
+
+    /// Get the replan request
+    bool request_replan() const;
+
+    class Implementation;
+
+  private:
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
+  /// Signature for a callback that returns the latest GoalStatus of the robot.
   ///
-  /// \param[in] remaining_time
-  ///   A mutable reference to set the time remaining for this goal. If not
-  ///   updated, the adapter will derive the time estimate by interpolating
-  ///   the robot's motion to the destination location.
-  ///
-  /// \param[in]  request_replan
-  ///   A mutable reference to request the fleet adapter to generate a new plan
-  ///   for this robot due to issues with completing the goal.
-  ///
-  /// \return True if the robot has completed the goal.
-  using GoalCompletedCallback = std::function<bool(
-        rmf_traffic::Duration& remaining_time,
-        bool& request_replan)>;
+  /// \return GoalStatus
+  using GoalCompletedCallback = std::function<GoalStatus()>;
 
   /// Signature for a function to request the robot to navigate to a location.
   ///
@@ -331,6 +401,10 @@ public:
   /// Wait till the adapter is finished spinning.
   EasyFullControl& wait();
 
+  /// Update the newly closed lanes for the robots to replan as necessary.
+  void newly_closed_lanes(
+    const std::unordered_set<std::size_t>& closed_lanes);
+
   /// Add a robot to the fleet once it is available.
   ///
   /// \param[in] start_state
@@ -376,6 +450,38 @@ private:
 };
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
+
+/// A Transformation object that stores the transformation data needed to
+/// perform transformation between robot and RMF cartesian frames.
+struct Transformation
+{
+  /// The 2D translation from one coordinate to another
+  Eigen::Vector2d translation;
+
+  /// The rotation angle (radians) between the two cartesian frames.
+  double rotation;
+
+  /// The scaling factor between the cartesian frames.
+  double scale;
+
+  Transformation(
+    double rotation_,
+    double scale_,
+    double translation_x_,
+    double translation_y_)
+  : rotation(rotation_),
+    scale(scale_)
+  {
+    translation = Eigen::Vector2d{translation_x_, translation_y_};
+  }
+};
+
+/// Helper function to transform between RMF and robot coordinate systems.
+/// Depending on the Transformation defined, this function can be used to
+/// transform robot coordinate system to RMF's coordinate system or vice versa.
+const Eigen::Vector3d transform(
+  const Transformation& transformation,
+  const Eigen::Vector3d& pose);
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

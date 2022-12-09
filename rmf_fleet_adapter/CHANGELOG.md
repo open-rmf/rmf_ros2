@@ -1,6 +1,9 @@
 ## Changelog for package rmf_fleet_adapter
 
-2.1.0 (2022-XX-YY)
+2.1.2 (2022-10-10)
+------------------
+
+2.1.0 (2022-10-03)
 ------------------
 * Add API to update speed limits for lanes: [#217](https://github.com/open-rmf/rmf_ros2/pull/217)
 * Make async behaviors more robust: [#228](https://github.com/open-rmf/rmf_ros2/pull/228)
