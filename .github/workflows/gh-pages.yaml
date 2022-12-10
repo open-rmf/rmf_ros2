@@ -1,12 +1,14 @@
 name: github pages
 on:
   push:
-    branches: [ master ]
+    branches:
+      - main
+  workflow_dispatch:
 jobs:
   deploy:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     container:
-      image: docker://ros:foxy-ros-base-focal
+      image: rostooling/setup-ros-docker:ubuntu-jammy-latest
     steps:
     - name: download-deps
       run: |
@@ -20,28 +22,15 @@ jobs:
       run: |
         mkdir -p rmf_ws/src
         cd rmf_ws/src
-        git clone https://github.com/osrf/rmf_core.git 
     - name: checkout
       uses: actions/checkout@v2
       with:
-        path: rmf_ws/src/rmf_fleet_adapter_python
-    - name: ros-deps
-      run: |
-        cd rmf_ws
-        rosdep update
-        rosdep install --from-paths src --ignore-src --rosdistro foxy -yr
-    - name: build
-      shell: bash
-      run: |
-        cd rmf_ws
-        source /opt/ros/foxy/setup.bash
-        colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
+        path: rmf_ws/src/
     - name: gen_docs
       shell: bash
       run: |
-        cd rmf_ws/
-        source install/setup.bash
-        cd src/rmf_fleet_adapter_python/docs
+        cd rmf_ws/src/rmf_fleet_adapter_python/docs
+        ls
         bash gen_docs.sh
     - name: deploy_page
       uses: peaceiris/actions-gh-pages@v3
