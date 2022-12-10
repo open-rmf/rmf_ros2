@@ -10,7 +10,7 @@ on:
 jobs:
   asan_test:
     name: rmf_ros2 asan
-    uses: open-rmf/rmf_ci_templates/.github/workflows/reusable_build.yaml@main
+    uses: open-rmf/rmf_ci_templates/.github/workflows/reusable_build.yaml@tsan
     with:
       dist-matrix: |
           [{"ros_distribution": "humble",
@@ -20,5 +20,5 @@ jobs:
         rmf_traffic_ros2
         rmf_task_ros2
         rmf_fleet_adapter
-      asan: true
+      mixin: asan
       
