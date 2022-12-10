@@ -24,7 +24,6 @@ jobs:
       run: |
         mkdir -p rmf_ws/src
         cd rmf_ws/src
-        git clone https://github.com/osrf/rmf_core.git 
     - name: checkout
       uses: actions/checkout@v2
       with:
