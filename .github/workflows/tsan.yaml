@@ -10,7 +10,7 @@ on:
 jobs:
   tsan_test:
     name: rmf_ros2 tsan
-    uses: open-rmf/rmf_ci_templates/.github/workflows/reusable_build.yaml@tsan
+    uses: open-rmf/rmf_ci_templates/.github/workflows/reusable_build.yaml@main
     with:
       dist-matrix: |
           [{"ros_distribution": "humble",
