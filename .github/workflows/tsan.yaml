@@ -1,4 +1,4 @@
-name: asan
+name: tsan
 
 on:
   pull_request:
@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  asan_test:
-    name: rmf_ros2 asan
+  tsan_test:
+    name: rmf_ros2 tsan
     uses: open-rmf/rmf_ci_templates/.github/workflows/reusable_build.yaml@main
     with:
       dist-matrix: |
@@ -20,5 +20,5 @@ jobs:
         rmf_traffic_ros2
         rmf_task_ros2
         rmf_fleet_adapter
-      mixin: asan
+      mixin: tsan
       
