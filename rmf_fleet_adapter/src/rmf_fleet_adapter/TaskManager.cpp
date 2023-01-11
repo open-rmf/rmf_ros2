@@ -153,9 +153,6 @@ TaskManagerPtr TaskManager::make(
           {
             if (mgr->_emergency_pullover.is_finished())
             {
-              // TODO this seems to help but seems a bit dirty?
-              mgr->_emergency_pullover.kill(
-                {"emergency notice topic"}, mgr->_context->now());
               mgr->_resume_from_emergency();
             }
             else
@@ -1484,10 +1481,11 @@ void TaskManager::_resume_from_emergency()
       if (self->_emergency_active)
         return;
 
+      self->_emergency_pullover = ActiveTask();
+
       if (!self->_emergency_pullover_interrupt_token.has_value())
         return;
 
-      self->_emergency_pullover = ActiveTask();
       if (self->_active_task)
       {
         self->_active_task.remove_interruption(
