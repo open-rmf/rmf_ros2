@@ -1,5 +1,10 @@
 ## Changelog for package rmf_fleet_adapter
 
+2.1.x (2023-xx-xx)
+------------------
+* Fix emergency response for waiting robots: [#253](https://github.com/open-rmf/rmf_ros2/pull/253)
+* Properly cleanup emergency pullover task: [#258](https://github.com/open-rmf/rmf_ros2/pull/258)
+
 2.1.2 (2022-10-10)
 ------------------
 
