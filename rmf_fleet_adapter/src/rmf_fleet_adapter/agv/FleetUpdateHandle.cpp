@@ -857,14 +857,17 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
     robots = std::unordered_map<std::string, nlohmann::json>();
     for (const auto& [context, mgr] : task_managers)
     {
+      int time_now = std::chrono::duration_cast<std::chrono::milliseconds>(
+        context->now().time_since_epoch()).count();
+
       const auto& name = context->name();
       nlohmann::json& json = robots[name];
       json["name"] = name;
-      json["status"] = mgr->robot_status();
+      // json["status"] = mgr->robot_status();
+      json["status"] =
+        (time_now / 1000) > 60 ? "error" : mgr->robot_status();
       json["task_id"] = mgr->current_task_id().value_or("");
-      json["unix_millis_time"] =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-        context->now().time_since_epoch()).count();
+      json["unix_millis_time"] = time_now;
       json["battery"] = context->current_battery_soc();
 
       nlohmann::json& location = json["location"];
@@ -881,13 +884,35 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
       const auto& issues = context->reporting().open_issues();
       auto& issues_msg = json["issues"];
       issues_msg = std::vector<nlohmann::json>();
-      for (const auto& issue : issues)
-      {
-        nlohmann::json issue_msg;
-        issue_msg["category"] = issue->category;
-        issue_msg["detail"] = issue->detail;
-        issues_msg.push_back(std::move(issue_msg));
-      }
+
+      nlohmann::json issue_msg1;
+      issue_msg1["category"] = "tmp_cat1";
+      issue_msg1["detail"] = "tmp_detail1";
+      issues_msg.push_back(std::move(issue_msg1));
+      nlohmann::json issue_msg2;
+      issue_msg2["category"] = "tmp_cat2";
+      issue_msg2["detail"] = "tmp_detail2";
+      issues_msg.push_back(std::move(issue_msg2));
+
+      // for (const auto& issue : issues)
+      // {
+      //   nlohmann::json issue_msg;
+      //   issue_msg["category"] = issue->category;
+      //   issue_msg["detail"] = issue->detail;
+      //   issues_msg.push_back(std::move(issue_msg));
+      // }
+
+      // if ((time_now / 1000) % 60 == 0)
+      // {
+      //   nlohmann::json issue_msg1;
+      //   issue_msg1["category"] = "tmp_cat1";
+      //   issue_msg1["detail"] = "tmp_detail1";
+      //   issues_msg.push_back(std::move(issue_msg1));
+      //   nlohmann::json issue_msg2;
+      //   issue_msg2["category"] = "tmp_cat2";
+      //   issue_msg2["detail"] = "tmp_detail2";
+      //   issues_msg.push_back(std::move(issue_msg2));
+      // }
     }
 
     try
