@@ -1481,10 +1481,11 @@ void TaskManager::_resume_from_emergency()
       if (self->_emergency_active)
         return;
 
+      self->_emergency_pullover = ActiveTask();
+
       if (!self->_emergency_pullover_interrupt_token.has_value())
         return;
 
-      self->_emergency_pullover = ActiveTask();
       if (self->_active_task)
       {
         self->_active_task.remove_interruption(
