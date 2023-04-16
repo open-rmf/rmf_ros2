@@ -421,6 +421,9 @@ void copy_booking_data(
   booking_json["id"] = booking.id();
   booking_json["unix_millis_earliest_start_time"] =
     to_millis(booking.earliest_start_time().time_since_epoch()).count();
+  booking_json["unix_millis_request_time"] =
+    to_millis(booking.request_time().time_since_epoch()).count();
+  booking_json["initiator"] = booking.initiator();
   // TODO(MXG): Add priority and labels
 }
 
