@@ -18,8 +18,10 @@
 #include <rmf_fleet_msgs/msg/robot_state.hpp>
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 #include <rmf_fleet_msgs/msg/location.hpp>
+#include <rmf_fleet_msgs/msg/speed_limited_lane.hpp>
 
 #include <rmf_traffic_ros2/Time.hpp>
+#include <rmf_traffic_ros2/agv/Graph.hpp>
 
 #include "internal_FleetUpdateHandle.hpp"
 #include "internal_RobotUpdateHandle.hpp"
@@ -136,6 +138,20 @@ TaskDeserialization::TaskDeserialization()
 
 
 //==============================================================================
+void FleetUpdateHandle::Implementation::publish_nav_graph() const
+{
+  if (nav_graph_pub == nullptr)
+    return;
+
+  auto msg = rmf_traffic_ros2::convert(
+    (*planner)->get_configuration().graph(),
+    name);
+
+  if (msg != nullptr)
+    nav_graph_pub->publish(std::move(msg));
+}
+
+//==============================================================================
 void FleetUpdateHandle::Implementation::dock_summary_cb(
   const DockSummary::SharedPtr& msg)
 {
@@ -219,13 +235,17 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
   if (t_it != request_msg.end())
   {
     earliest_start_time =
-      rmf_traffic::Time(std::chrono::milliseconds(t_it->get<uint64_t>()));
+      rmf_traffic::Time(std::chrono::milliseconds(t_it->get<int64_t>()));
   }
 
-  rmf_task::ConstPriorityPtr priority;
+  // Note: make_low_priority() actually returns a nullptr.
+  rmf_task::ConstPriorityPtr priority =
+    rmf_task::BinaryPriorityScheme::make_low_priority();
   const auto p_it = request_msg.find("priority");
   if (p_it != request_msg.end())
   {
+    // Assume the schema is not valid until we have successfully parsed it.
+    bool valid_schema = false;
     // TODO(YV): Validate with priority_description_Binary.json
     if (p_it->contains("type") && p_it->contains("value"))
     {
@@ -235,15 +255,21 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
         const auto& p_value = (*p_it)["value"];
         if (p_value.is_number_integer())
         {
-          if (p_value.is_number_integer() && p_value.get<uint64_t>() > 0)
-            priority = rmf_task::BinaryPriorityScheme::make_high_priority();
-        }
+          // The message matches the expected schema, so now we can mark it as
+          // valid.
+          valid_schema = true;
 
-        priority = rmf_task::BinaryPriorityScheme::make_low_priority();
+          // If we have an integer greater than 0, we assign a high priority.
+          // Else the priority will default to low.
+          if (p_value.get<uint64_t>() > 0)
+          {
+            priority = rmf_task::BinaryPriorityScheme::make_high_priority();
+          }
+        }
       }
     }
 
-    if (!priority)
+    if (!valid_schema)
     {
       errors.push_back(
         make_error_str(
@@ -252,9 +278,6 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
           + p_it->dump() + "\nDefaulting to low binary priority."));
     }
   }
-
-  if (!priority)
-    priority = rmf_task::BinaryPriorityScheme::make_low_priority();
 
   const auto new_request =
     std::make_shared<rmf_task::Request>(
@@ -741,13 +764,14 @@ get_nearest_charger(
 
 namespace {
 //==============================================================================
-rmf_fleet_msgs::msg::Location convert_location(const agv::RobotContext& context)
+std::optional<rmf_fleet_msgs::msg::Location> convert_location(
+  const agv::RobotContext& context)
 {
   if (context.location().empty())
   {
     // TODO(MXG): We should emit some kind of critical error if this ever
     // happens
-    return rmf_fleet_msgs::msg::Location();
+    return std::nullopt;
   }
 
   const auto& graph = context.planner()->get_configuration().graph();
@@ -769,9 +793,13 @@ rmf_fleet_msgs::msg::Location convert_location(const agv::RobotContext& context)
 }
 
 //==============================================================================
-rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
+std::optional<rmf_fleet_msgs::msg::RobotState> convert_state(
+  const TaskManager& mgr)
 {
   const RobotContext& context = *mgr.context();
+  const auto location = convert_location(context);
+  if (!location.has_value())
+    return std::nullopt;
 
   const auto mode = mgr.robot_mode();
 
@@ -786,7 +814,7 @@ rmf_fleet_msgs::msg::RobotState convert_state(const TaskManager& mgr)
     .mode(std::move(mode))
     // We multiply by 100 to convert from the [0.0, 1.0] range to percentage
     .battery_percent(context.current_battery_soc()*100.0)
-    .location(convert_location(context))
+    .location(*location)
     // NOTE(MXG): The path field is only used by the fleet drivers. For now,
     // we will just fill it with a zero. We could consider filling it in based
     // on the robot's plan, but that seems redundant with the traffic schedule
@@ -800,7 +828,13 @@ void FleetUpdateHandle::Implementation::publish_fleet_state_topic() const
 {
   std::vector<rmf_fleet_msgs::msg::RobotState> robot_states;
   for (const auto& [context, mgr] : task_managers)
-    robot_states.emplace_back(convert_state(*mgr));
+  {
+    auto state = convert_state(*mgr);
+    if (!state.has_value())
+      continue;
+
+    robot_states.emplace_back(std::move(*state));
+  }
 
   auto fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
     .name(name)
@@ -827,6 +861,7 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
     auto& fleet_state_msg = fleet_state_update_msg["data"];
     fleet_state_msg["name"] = name;
     auto& robots = fleet_state_msg["robots"];
+    robots = std::unordered_map<std::string, nlohmann::json>();
     for (const auto& [context, mgr] : task_managers)
     {
       const auto& name = context->name();
@@ -841,10 +876,13 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
 
       nlohmann::json& location = json["location"];
       const auto location_msg = convert_location(*context);
-      location["map"] = location_msg.level_name;
-      location["x"] = location_msg.x;
-      location["y"] = location_msg.y;
-      location["yaw"] = location_msg.yaw;
+      if (!location_msg.has_value())
+        continue;
+
+      location["map"] = location_msg->level_name;
+      location["x"] = location_msg->x;
+      location["y"] = location_msg->y;
+      location["yaw"] = location_msg->yaw;
 
       std::lock_guard<std::mutex> lock(context->reporting().mutex());
       const auto& issues = context->reporting().open_issues();
@@ -865,6 +903,10 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
         make_validator(rmf_api_msgs::schemas::fleet_state_update);
 
       validator.validate(fleet_state_update_msg);
+
+      std::unique_lock<std::mutex> lock(*update_callback_mutex);
+      if (update_callback)
+        update_callback(fleet_state_update_msg);
       broadcast_client->publish(fleet_state_update_msg);
     }
     catch (const std::exception& e)
@@ -889,6 +931,7 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
     fleet_log_msg["name"] = name;
     // TODO(MXG): fleet_log_msg["log"]
     auto& robots_msg = fleet_log_msg["robots"];
+    robots_msg = std::unordered_map<std::string, nlohmann::json>();
     for (const auto& [context, _] : task_managers)
     {
       auto robot_log_msg_array = std::vector<nlohmann::json>();
@@ -914,6 +957,10 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
         make_validator(rmf_api_msgs::schemas::fleet_log_update);
 
       validator.validate(fleet_log_update_msg);
+
+      std::unique_lock<std::mutex> lock(*update_callback_mutex);
+      if (update_callback)
+        update_callback(fleet_log_update_msg);
       broadcast_client->publish(fleet_log_update_msg);
     }
     catch (const std::exception& e)
@@ -1095,6 +1142,10 @@ auto FleetUpdateHandle::Implementation::aggregate_expectations() const
   Expectations expect;
   for (const auto& t : task_managers)
   {
+    // Ignore any robots that are not currently commissioned.
+    if (!t.first->is_commissioned())
+      continue;
+
     expect.states.push_back(t.second->expected_finish_state());
     const auto requests = t.second->requests();
     expect.pending_requests.insert(
@@ -1346,6 +1397,19 @@ void FleetUpdateHandle::add_robot(
             context->name().c_str(),
             context->itinerary().id());
 
+          std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>>
+          broadcast_client = std::nullopt;
+
+          if (fleet->_pimpl->broadcast_client)
+            broadcast_client = fleet->_pimpl->broadcast_client;
+
+          fleet->_pimpl->task_managers.insert({context,
+            TaskManager::make(
+              context,
+              broadcast_client,
+              std::weak_ptr<FleetUpdateHandle>(fleet))});
+
+          // -- Calling the handle_cb should always happen last --
           if (handle_cb)
           {
             handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
@@ -1358,20 +1422,7 @@ void FleetUpdateHandle::add_robot(
               "receive the RobotUpdateHandle of the new robot. This means you will "
               "not be able to update the state of the new robot. This is likely to "
               "be a fleet adapter development error.");
-            return;
           }
-
-          std::optional<std::weak_ptr<BroadcastClient>>
-          broadcast_client = std::nullopt;
-
-          if (fleet->_pimpl->broadcast_client)
-            broadcast_client = fleet->_pimpl->broadcast_client;
-
-          fleet->_pimpl->task_managers.insert({context,
-            TaskManager::make(
-              context,
-              broadcast_client,
-              std::weak_ptr<FleetUpdateHandle>(fleet))});
         });
     });
 }
@@ -1496,13 +1547,18 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
       auto new_config = (*self->_pimpl->planner)->get_configuration();
       auto& new_lane_closures = new_config.lane_closures();
       for (const auto& lane : lane_indices)
+      {
         new_lane_closures.close(lane);
+        // Bookkeeping
+        self->_pimpl->closed_lanes.insert(lane);
+      }
 
       *self->_pimpl->planner =
       std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
 
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
+      self->_pimpl->publish_lane_states();
     });
 }
 
@@ -1538,16 +1594,157 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
       auto new_config = (*self->_pimpl->planner)->get_configuration();
       auto& new_lane_closures = new_config.lane_closures();
       for (const auto& lane : lane_indices)
+      {
         new_lane_closures.open(lane);
+        // Bookkeeping
+        self->_pimpl->closed_lanes.erase(lane);
+      }
 
       *self->_pimpl->planner =
       std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
 
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
+      self->_pimpl->publish_lane_states();
     });
 }
 
+//==============================================================================
+class FleetUpdateHandle::SpeedLimitRequest::Implementation
+{
+public:
+  std::size_t lane_index;
+  double speed_limit;
+};
+
+//==============================================================================
+FleetUpdateHandle::SpeedLimitRequest::SpeedLimitRequest(
+  std::size_t lane_index,
+  double speed_limit)
+: _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
+      std::move(lane_index),
+      std::move(speed_limit)
+    }))
+{
+  // Do nothing
+}
+
+//==============================================================================
+std::size_t FleetUpdateHandle::SpeedLimitRequest::lane_index() const
+{
+  return _pimpl->lane_index;
+}
+
+//==============================================================================
+double FleetUpdateHandle::SpeedLimitRequest::speed_limit() const
+{
+  return _pimpl->speed_limit;
+}
+
+//==============================================================================
+auto FleetUpdateHandle::limit_lane_speeds(
+  std::vector<SpeedLimitRequest> requests) -> void
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this(), requests = std::move(requests)](const auto&)
+    {
+      if (requests.empty())
+        return;
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      auto new_config = (*self->_pimpl->planner)->get_configuration();
+      auto& new_graph = new_config.graph();
+      for (const auto& request : requests)
+      {
+        // TODO: Check if planner supports negative speed limits.
+        if (request.lane_index() >= new_graph.num_lanes() ||
+        request.speed_limit() <= 0.0)
+        {
+          RCLCPP_WARN(
+            self->_pimpl->node->get_logger(),
+            "Ignoring speed limit request %f for lane %d in fleet %s as it is "
+            "not greater than zero. If you would like to close the lane, use "
+            "the FleetUpdateHandle::close_lanes(~) API instead.",
+            request.speed_limit(),
+            request.lane_index(),
+            self->_pimpl->name.c_str()
+          );
+          continue;
+        }
+        auto& properties = new_graph.get_lane(
+          request.lane_index()).properties();
+        properties.speed_limit(request.speed_limit());
+        // Bookkeeping
+        self->_pimpl->speed_limited_lanes[request.lane_index()] =
+        request.speed_limit();
+      }
+
+      *self->_pimpl->planner =
+      std::make_shared<const rmf_traffic::agv::Planner>(
+        new_config, rmf_traffic::agv::Planner::Options(nullptr));
+
+      self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
+      self->_pimpl->publish_lane_states();
+    });
+}
+
+//==============================================================================
+void FleetUpdateHandle::remove_speed_limits(std::vector<std::size_t> requests)
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this(), requests = std::move(requests)](const auto&)
+    {
+      if (requests.empty())
+        return;
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      auto new_config = (*self->_pimpl->planner)->get_configuration();
+      auto& new_graph = new_config.graph();
+      for (const auto& request : requests)
+      {
+
+        if (auto it = self->_pimpl->speed_limited_lanes.find(request) ==
+        self->_pimpl->speed_limited_lanes.end())
+          continue;
+        auto& properties = new_graph.get_lane(
+          request).properties();
+        properties.speed_limit(std::nullopt);
+        // Bookkeeping
+        self->_pimpl->speed_limited_lanes.erase(request);
+      }
+
+      *self->_pimpl->planner =
+      std::make_shared<const rmf_traffic::agv::Planner>(
+        new_config, rmf_traffic::agv::Planner::Options(nullptr));
+
+      self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
+      self->_pimpl->publish_lane_states();
+    });
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::publish_lane_states() const
+{
+  if (lane_states_pub == nullptr)
+    return;
+  auto msg = std::make_unique<LaneStates>();
+  msg->fleet_name = name;
+  for (const auto& index : closed_lanes)
+    msg->closed_lanes.push_back(index);
+  for (const auto& [index, limit] : speed_limited_lanes)
+  {
+    // TODO(YV): Use type_adapter in Humble to avoid this copy
+    msg->speed_limits.push_back(
+      rmf_fleet_msgs::build<rmf_fleet_msgs::msg::SpeedLimitedLane>()
+      .lane_index(index)
+      .speed_limit(limit));
+  }
+  lane_states_pub->publish(std::move(msg));
+}
 //==============================================================================
 FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
   AcceptTaskRequest check)

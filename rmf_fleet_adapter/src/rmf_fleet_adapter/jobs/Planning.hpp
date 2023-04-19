@@ -58,8 +58,11 @@ public:
   const rmf_traffic::agv::Planner::Result& progress() const;
 
 private:
+  mutable std::mutex _resume_mutex;
   std::function<void()> _resume;
   rmf_utils::optional<rmf_traffic::agv::Planner::Result> _current_result;
+
+  std::unique_lock<std::mutex> _lock_resume() const;
 };
 
 } // namespace jobs

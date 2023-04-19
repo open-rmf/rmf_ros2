@@ -1,6 +1,5 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/functional.h>
-#include <pybind11/iostream.h>
 #include <pybind11/chrono.h>
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
@@ -69,9 +68,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     std::shared_ptr<agv::RobotCommandHandle>>(
     m, "RobotCommandHandle", py::dynamic_attr())
   .def(py::init<>())
-  .def("follow_new_path", &agv::RobotCommandHandle::follow_new_path,
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+  .def("follow_new_path", &agv::RobotCommandHandle::follow_new_path)
   .def("stop", &agv::RobotCommandHandle::stop)
   .def("dock", &agv::RobotCommandHandle::dock);
 
@@ -86,25 +83,19 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::overload_cast<std::size_t, double>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("waypoint"),
-    py::arg("orientation"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("orientation"))
   .def("update_current_lanes",
     py::overload_cast<const Eigen::Vector3d&,
     const std::vector<std::size_t>&>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("position"),
-    py::arg("lanes"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("lanes"))
   .def("update_off_grid_position",
     py::overload_cast<const Eigen::Vector3d&,
     std::size_t>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("position"),
-    py::arg("target_waypoint"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("target_waypoint"))
   .def("update_lost_position",
     py::overload_cast<const std::string&,
     const Eigen::Vector3d&,
@@ -116,19 +107,17 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("position"),
     py::arg("max_merge_waypoint_distance") = 0.1,
     py::arg("max_merge_lane_distance") = 1.0,
-    py::arg("min_lane_length") = 1e-8,
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("min_lane_length") = 1e-8)
+  .def("update_position",
+    py::overload_cast<rmf_traffic::agv::Plan::StartSet>(
+      &agv::RobotUpdateHandle::update_position),
+    py::arg("start_set"))
   .def("set_charger_waypoint", &agv::RobotUpdateHandle::set_charger_waypoint,
-    py::arg("charger_wp"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("charger_wp"))
   .def("update_battery_soc", &agv::RobotUpdateHandle::update_battery_soc,
-    py::arg("battery_soc"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
-  .def("override_status", &agv::RobotUpdateHandle::override_status,
     py::arg("battery_soc"))
+  .def("override_status", &agv::RobotUpdateHandle::override_status,
+    py::arg("new_status"))
   .def_property("maximum_delay",
     py::overload_cast<>(
       &agv::RobotUpdateHandle::maximum_delay, py::const_),
@@ -149,6 +138,25 @@ PYBIND11_MODULE(rmf_adapter, m) {
       self.maximum_delay(duration);
     },
     py::arg("seconds"))
+  .def("unstable_is_commissioned",
+    [&](const agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().is_commissioned();
+    },
+    "Check if the robot is currently allowed to accept any new tasks")
+  .def("unstable_decommission",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().decommission();
+    },
+    "Stop this robot from accepting any new tasks. Use recommission to resume")
+  .def("unstable_recommission",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().recommission();
+    },
+    "Allow this robot to resume accepting new tasks if it was ever "
+    "decommissioned in the past")
   .def("get_unstable_participant",
     [&](agv::RobotUpdateHandle& self)
     {
@@ -169,6 +177,16 @@ PYBIND11_MODULE(rmf_adapter, m) {
     },
     py::return_value_policy::reference_internal,
     "Experimental API to access the schedule participant")
+  .def("unstable_change_participant_profile",
+    [&](agv::RobotUpdateHandle& self,
+    double footprint_radius,
+    double vicinity_radius)
+    {
+      self.unstable().change_participant_profile(
+        footprint_radius, vicinity_radius);
+    },
+    py::arg("footprint_radius"),
+    py::arg("vicinity_radius"))
   .def("unstable_declare_holding",
     [&](agv::RobotUpdateHandle& self,
     std::string on_map,
@@ -183,6 +201,11 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("on_map"),
     py::arg("at_position"),
     py::arg("for_duration"))
+  .def("unstable_current_plan_id",
+    [&](const agv::RobotUpdateHandle& self)
+    {
+      return self.unstable().current_plan_id();
+    })
   .def("unstable_be_stubborn",
     [&](agv::RobotUpdateHandle& self)
     {
@@ -200,6 +223,16 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::RobotUpdateHandle::interrupt,
     py::arg("labels"),
     py::arg("robot_is_interrupted"))
+  .def("cancel_task",
+    &agv::RobotUpdateHandle::cancel_task,
+    py::arg("task_id"),
+    py::arg("labels"),
+    py::arg("on_cancellation"))
+  .def("kill_task",
+    &agv::RobotUpdateHandle::kill_task,
+    py::arg("task_id"),
+    py::arg("labels"),
+    py::arg("on_kill"))
   .def("create_issue",
     &agv::RobotUpdateHandle::create_issue,
     py::arg("tier"),
@@ -213,7 +246,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("text"))
   .def("log_error",
     &agv::RobotUpdateHandle::log_error,
-    py::arg("text"));
+    py::arg("text"))
+  .def("enable_responsive_wait",
+    &agv::RobotUpdateHandle::enable_responsive_wait,
+    py::arg("value"));
 
   // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");
@@ -499,9 +535,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("follow_new_path",
     py::overload_cast<const std::vector<agv::Waypoint>&>(
       &agv::EasyTrafficLight::follow_new_path),
-    py::arg("waypoint"),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("waypoint"))
   .def("moving_from",
     py::overload_cast<std::size_t, Eigen::Vector3d>(
       &agv::EasyTrafficLight::moving_from),
@@ -579,9 +613,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("node_name"),
     py::arg("node_options") = rclcpp::NodeOptions(),
     py::arg("wait_time") = rmf_utils::optional<rmf_traffic::Duration>(
-      rmf_utils::nullopt),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+      rmf_utils::nullopt))
   .def("add_fleet", &agv::Adapter::add_fleet,
     py::arg("fleet_name"),
     py::arg("traits"),
@@ -610,9 +642,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def(py::init<const std::string&,
     const rclcpp::NodeOptions&>(),
     py::arg("node_name"),
-    py::arg("node_options") = rclcpp::NodeOptions(),
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>())
+    py::arg("node_options") = rclcpp::NodeOptions())
   .def("add_fleet", &agv::test::MockAdapter::add_fleet,
     py::arg("fleet_name"),
     py::arg("traits"),

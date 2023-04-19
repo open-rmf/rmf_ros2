@@ -1,12 +1,16 @@
 name: github pages
 on:
+  pull_request:
   push:
-    branches: [ master ]
+    branches:
+      - main
+  workflow_dispatch:
+
 jobs:
   deploy:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     container:
-      image: docker://ros:foxy-ros-base-focal
+      image: rostooling/setup-ros-docker:ubuntu-jammy-latest
     steps:
     - name: download-deps
       run: |
@@ -29,12 +33,12 @@ jobs:
       run: |
         cd rmf_ws
         rosdep update
-        rosdep install --from-paths src --ignore-src --rosdistro foxy -yr
+        rosdep install --from-paths src --ignore-src --rosdistro humble -yr
     - name: build
       shell: bash
       run: |
         cd rmf_ws
-        source /opt/ros/foxy/setup.bash
+        source /opt/ros/humble/setup.bash
         colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release
     - name: gen_docs
       shell: bash

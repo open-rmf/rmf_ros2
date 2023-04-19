@@ -27,14 +27,24 @@ namespace jobs {
 template<typename Subscriber, typename Worker>
 void Planning::operator()(const Subscriber& s, const Worker& w)
 {
-  _resume = [a = weak_from_this(), s, w]()
-    {
-      w.schedule([a, s, w](const auto&)
+  {
+    // We need to lock read/write access to the _resume object so that we do not
+    // accidentally free the memory of its captured variables while they are
+    // still in use.
+    auto lock = _lock_resume();
+    _resume = [a = weak_from_this(), s, w]()
+      {
+        if (const auto self = a.lock())
         {
-          if (const auto action = a.lock())
-            (*action)(s, w);
-        });
-    };
+          auto lock = self->_lock_resume();
+          w.schedule([a, s, w](const auto&)
+            {
+              if (const auto action = a.lock())
+                (*action)(s, w);
+            });
+        }
+      };
+  }
 
   if (!_current_result)
     return;

@@ -11,18 +11,22 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
 endif()
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_LIST_DIR}/cmake)
+
 include(GNUInstallDirs)
 
 find_package(ament_cmake REQUIRED)
-find_package(rmf_traffic 2 REQUIRED)
+find_package(rmf_traffic 3 REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
 find_package(rmf_site_map_msgs REQUIRED)
+find_package(rmf_building_map_msgs REQUIRED)
 find_package(rmf_fleet_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(LibUUID REQUIRED)
 
 # NOTE(MXG): libproj-dev does not currently distribute its cmake config-files
 # in Debian, so we can't use find_package and need to rely on pkg-config.
@@ -170,10 +174,13 @@ target_link_libraries(rmf_traffic_ros2
     nlohmann_json::nlohmann_json
     ${rmf_traffic_msgs_LIBRARIES}
     ${rmf_site_map_msgs_LIBRARIES}
+    ${rmf_building_map_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     yaml-cpp
     ZLIB::ZLIB
     PkgConfig::PROJ
+  PRIVATE
+    LibUUID::LibUUID
 )
 
 target_include_directories(rmf_traffic_ros2
@@ -182,6 +189,7 @@ target_include_directories(rmf_traffic_ros2
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_msgs_INCLUDE_DIRS}
     ${rmf_site_map_msgs_INCLUDE_DIRS}
+    ${rmf_building_map_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
 )
 

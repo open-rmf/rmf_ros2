@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>rmf_websocket</name>
+  <version>2.1.2</version>
+  <description>A package managing the websocket api endpoints in RMF system.</description>
+  <maintainer email="youliang@openrobotics.org">youliang</maintainer>
+  <maintainer email="marco@openrobotics.org">Marco A. Gutiérrez</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rmf_utils</depend>
+  <depend>rclcpp</depend>
+
+  <depend>libwebsocketpp-dev</depend>
+  <depend>nlohmann-json-dev</depend>
+  <depend>nlohmann_json_schema_validator_vendor</depend>
+
+  <build_depend>eigen</build_depend>
+
+  <build_depend>boost</build_depend>
+  <exec_depend>boost</exec_depend>
+
+  <test_depend>ament_cmake_catch2</test_depend>
+  <test_depend>ament_cmake_uncrustify</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -18,6 +18,7 @@
 #include "ExecutePlan.hpp"
 #include "LegacyPhaseShim.hpp"
 #include "WaitForTraffic.hpp"
+#include "WaitUntil.hpp"
 
 #include "../phases/MoveRobot.hpp"
 #include "../phases/DoorOpen.hpp"
@@ -36,6 +37,7 @@ using StandbyPtr = rmf_task_sequence::Event::StandbyPtr;
 using UpdateFn = std::function<void()>;
 using MakeStandby = std::function<StandbyPtr(UpdateFn)>;
 
+//==============================================================================
 struct LegacyPhaseWrapper
 {
   LegacyPhaseWrapper(
@@ -66,14 +68,15 @@ using Move = phases::MoveRobot::PendingPhase;
 //==============================================================================
 MakeStandby make_wait_for_traffic(
   const agv::RobotContextPtr& context,
+  const rmf_traffic::PlanId plan_id,
   const rmf_traffic::Dependencies& deps,
   const rmf_traffic::Time time,
   const rmf_task_sequence::Event::AssignIDPtr& id)
 {
-  return [context, deps, time, id](UpdateFn update)
+  return [context, plan_id, deps, time, id](UpdateFn update)
     {
       return WaitForTraffic::Standby::make(
-        context, deps, time, id, std::move(update));
+        context, plan_id, deps, time, id, std::move(update));
     };
 }
 
@@ -229,6 +232,7 @@ std::optional<EventGroupInfo> search_for_door_group(
   LegacyPhases::const_iterator head,
   LegacyPhases::const_iterator end,
   const agv::RobotContextPtr& context,
+  const rmf_traffic::PlanId plan_id,
   const rmf_task::Event::AssignIDPtr& id)
 {
   const auto* door_open = dynamic_cast<const phases::DoorOpen::PendingPhase*>(
@@ -274,7 +278,7 @@ std::optional<EventGroupInfo> search_for_door_group(
         if (!it->dependencies.empty())
         {
           door_group.push_back(make_wait_for_traffic(
-              context, it->dependencies, it->time, id));
+              context, plan_id, it->dependencies, it->time, id));
         }
       }
 
@@ -319,6 +323,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
   LegacyPhases::const_iterator head,
   LegacyPhases::const_iterator end,
   const agv::RobotContextPtr& context,
+  const rmf_traffic::PlanId plan_id,
   const rmf_task::Event::AssignIDPtr& event_id,
   const rmf_task::events::SimpleEventStatePtr& state)
 {
@@ -382,7 +387,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
         if (!it->dependencies.empty())
         {
           lift_group.push_back(make_wait_for_traffic(
-              context, it->dependencies, it->time, event_id));
+              context, plan_id, it->dependencies, it->time, event_id));
         }
       }
 
@@ -419,8 +424,9 @@ std::optional<EventGroupInfo> search_for_lift_group(
 //==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
-  const rmf_traffic::PlanId plan_id,
+  rmf_traffic::PlanId plan_id,
   rmf_traffic::agv::Plan plan,
+  rmf_traffic::schedule::Itinerary full_itinerary,
   const rmf_task::Event::AssignIDPtr& event_id,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> update,
@@ -563,13 +569,14 @@ std::optional<ExecutePlan> ExecutePlan::make(
   const auto end = legacy_phases.cend();
   while (head != end)
   {
-    if (const auto door = search_for_door_group(head, end, context, event_id))
+    if (const auto door =
+      search_for_door_group(head, end, context, plan_id, event_id))
     {
       standbys.push_back(door->group);
       head = door->tail;
     }
     else if (const auto lift = search_for_lift_group(
-        head, end, context, event_id, state))
+        head, end, context, plan_id, event_id, state))
     {
       standbys.push_back(lift->group);
       head = lift->tail;
@@ -589,21 +596,74 @@ std::optional<ExecutePlan> ExecutePlan::make(
       if (!head->dependencies.empty())
       {
         standbys.push_back(make_wait_for_traffic(
-            context, head->dependencies, head->time, event_id));
+            context, plan_id, head->dependencies, head->time, event_id));
       }
 
       ++head;
     }
   }
 
+  if (tail_period.has_value() && !legacy_phases.empty())
+  {
+    // A tail period was requested, so this is actually a ResponsiveWait action.
+    // We will ensure that the task doesn't finish until the final time is
+    // reached, even if the robot arrives at the final destination early.
+    const auto wait_until_time = legacy_phases.back().time;
+    standbys.push_back(
+      [context, wait_until_time, event_id](UpdateFn update)
+      -> rmf_task_sequence::Event::StandbyPtr
+      {
+        return WaitUntil::Standby::make(
+          context, wait_until_time, event_id, std::move(update));
+      });
+  }
+
   auto sequence = rmf_task_sequence::events::Bundle::standby(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
-  context->itinerary().set(plan_id, plan.get_itinerary());
+  std::size_t attempts = 0;
+  while (!context->itinerary().set(plan_id, std::move(full_itinerary)))
+  {
+    // Some mysterious behavior has been happening where plan_ids are invalid.
+    // We will attempt to catch that here and try to learn more about what
+    // could be causing that, while allowing progress to continue.
+    std::string task_id = "<none>";
+    if (context->current_task_id())
+      task_id = *context->current_task_id();
+
+    RCLCPP_ERROR(
+      context->node()->get_logger(),
+      "Invalid plan_id [%lu] when current plan_id is [%lu] for [%s] in group "
+      "[%s] while performing task [%s]. Please notify an RMF developer.",
+      plan_id,
+      context->itinerary().current_plan_id(),
+      context->name().c_str(),
+      context->group().c_str(),
+      task_id.c_str());
+    state->update_log().error(
+      "Invalid plan_id [" + std::to_string(plan_id) + "] when current plan_id "
+      "is [" + std::to_string(context->itinerary().current_plan_id()) + "] "
+      "Please notify an RMF developer.");
+
+    plan_id = context->itinerary().assign_plan_id();
+
+    if (++attempts > 5)
+    {
+      RCLCPP_ERROR(
+        context->node()->get_logger(),
+        "Requesting replan for [%s] in group [%s] because plan is repeatedly "
+        "being rejected while performing task [%s]",
+        context->name().c_str(),
+        context->group().c_str(),
+        task_id.c_str());
+      return std::nullopt;
+    }
+  }
 
   return ExecutePlan{
     std::move(plan),
+    plan_id,
     finish_time_estimate.value(),
     std::move(sequence)
   };

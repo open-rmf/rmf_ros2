@@ -20,6 +20,7 @@
 
 #include <unordered_map>
 #include <memory>
+#include <optional>
 
 #include <rmf_traffic_ros2/Time.hpp>
 #include <rmf_task_msgs/msg/dispatch_state.hpp>
@@ -77,10 +78,16 @@ struct DispatchState
   /// Any errors that have occurred for this dispatching
   std::vector<nlohmann::json> errors;
 
+  /// task request form
+  nlohmann::json request;
+
   DispatchState(std::string task_id, rmf_traffic::Time submission_time);
 };
 
 using DispatchStatePtr = std::shared_ptr<DispatchState>;
+
+//==============================================================================
+std::string status_to_string(DispatchState::Status status);
 
 //==============================================================================
 rmf_task_msgs::msg::Assignment convert(
