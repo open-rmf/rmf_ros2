@@ -13,6 +13,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(Threads REQUIRED)
 if(DEFINED ENV{RMF_ENABLE_FAILOVER})
   if($ENV{RMF_ENABLE_FAILOVER} EQUAL 1)
     find_package(stubborn_buddies REQUIRED)
@@ -93,6 +94,7 @@ target_link_libraries(rmf_fleet_adapter
     ${rmf_ingestor_msgs_LIBRARIES}
     ${rmf_building_map_msgs_LIBRARIES}
     nlohmann_json_schema_validator
+    Threads::Threads
 )
 
 target_include_directories(rmf_fleet_adapter
