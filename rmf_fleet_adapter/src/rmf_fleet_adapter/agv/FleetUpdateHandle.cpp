@@ -871,8 +871,43 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
       nlohmann::json& json = robots[name];
       json["name"] = name;
       // json["status"] = mgr->robot_status();
-      json["status"] =
-        (time_now / 1000) > 60 ? "error" : mgr->robot_status();
+      // json["status"] =
+      //   (time_now / 1000) > 60 ? "error" : mgr->robot_status();
+      int ten_secs = (time_now / 1000) / 10;
+      if (ten_secs % 3 == 0)
+      {
+        json["status"] = mgr->robot_status();
+      }
+      else if (ten_secs % 2 == 0)
+      {
+        json["status"] = "error";
+
+        auto& issues_msg = json["issues"];
+        issues_msg = std::vector<nlohmann::json>();
+
+        nlohmann::json issue_msg1;
+        issue_msg1["category"] = "tmp_cat1";
+        issue_msg1["detail"] = "tmp_detail1";
+        issues_msg.push_back(std::move(issue_msg1));
+        nlohmann::json issue_msg2;
+        issue_msg2["category"] = "tmp_cat2";
+        issue_msg2["detail"] = "tmp_detail2";
+        issues_msg.push_back(std::move(issue_msg2));
+      }
+      else
+      {
+        json["status"] = "error";
+
+        auto& issues_msg = json["issues"];
+        issues_msg = std::vector<nlohmann::json>();
+
+        nlohmann::json issue_msg1;
+        issue_msg1["category"] = "tmp_cat1";
+        issue_msg1["detail"] = "tmp_detail1";
+        issues_msg.push_back(std::move(issue_msg1));
+      }
+      // json["status"] = ten_secs % 2 == 0 ? mgr->robot_status() : "error";
+
       json["task_id"] = mgr->current_task_id().value_or("");
       json["unix_millis_time"] = time_now;
       json["battery"] = context->current_battery_soc();
@@ -887,19 +922,19 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
       location["y"] = location_msg->y;
       location["yaw"] = location_msg->yaw;
 
-      std::lock_guard<std::mutex> lock(context->reporting().mutex());
-      const auto& issues = context->reporting().open_issues();
-      auto& issues_msg = json["issues"];
-      issues_msg = std::vector<nlohmann::json>();
+      // std::lock_guard<std::mutex> lock(context->reporting().mutex());
+      // const auto& issues = context->reporting().open_issues();
+      // auto& issues_msg = json["issues"];
+      // issues_msg = std::vector<nlohmann::json>();
 
-      nlohmann::json issue_msg1;
-      issue_msg1["category"] = "tmp_cat1";
-      issue_msg1["detail"] = "tmp_detail1";
-      issues_msg.push_back(std::move(issue_msg1));
-      nlohmann::json issue_msg2;
-      issue_msg2["category"] = "tmp_cat2";
-      issue_msg2["detail"] = "tmp_detail2";
-      issues_msg.push_back(std::move(issue_msg2));
+      // nlohmann::json issue_msg1;
+      // issue_msg1["category"] = "tmp_cat1";
+      // issue_msg1["detail"] = "tmp_detail1";
+      // issues_msg.push_back(std::move(issue_msg1));
+      // nlohmann::json issue_msg2;
+      // issue_msg2["category"] = "tmp_cat2";
+      // issue_msg2["detail"] = "tmp_detail2";
+      // issues_msg.push_back(std::move(issue_msg2));
 
       // for (const auto& issue : issues)
       // {
