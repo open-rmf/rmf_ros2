@@ -344,13 +344,6 @@ rclcpp_components_register_nodes(robot_state_aggregator_main
 set(node_plugins "${node_plugins}RobotStateAggregator;
     $<TARGET_FILE:robot_state_aggregator_main>\n")
 
-# since the package installs libraries without exporting them
-# it needs to make sure that the library path is being exported
-if(NOT WIN32)
-  ament_environment_hooks(
-    "${ament_cmake_package_templates_ENVIRONMENT_HOOK_LIBRARY_PATH}")
-endif()
-
 add_executable(robot_state_aggregator
   src/robot_state_aggregator/main.cpp
 )
