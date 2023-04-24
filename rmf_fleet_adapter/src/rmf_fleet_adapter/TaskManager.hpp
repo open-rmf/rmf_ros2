@@ -20,7 +20,7 @@
 
 #include "LegacyTask.hpp"
 #include "agv/RobotContext.hpp"
-#include "BroadcastClient.hpp"
+#include <rmf_websocket/BroadcastClient.hpp>
 
 #include <rmf_traffic/agv/Planner.hpp>
 
@@ -52,7 +52,7 @@ public:
 
   static std::shared_ptr<TaskManager> make(
     agv::RobotContextPtr context,
-    std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+    std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
     std::weak_ptr<agv::FleetUpdateHandle> fleet_handle);
 
   using Start = rmf_traffic::agv::Plan::Start;
@@ -106,7 +106,10 @@ public:
 
   agv::ConstRobotContextPtr context() const;
 
-  std::optional<std::weak_ptr<BroadcastClient>> broadcast_client() const;
+  std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client()
+  const;
+
+  void enable_responsive_wait(bool value);
 
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
@@ -192,11 +195,23 @@ public:
     std::vector<std::string> labels,
     std::function<void()> robot_is_interrupted);
 
+  /// Cancel a task for this robot. Returns true if the task was being managed
+  /// by this task manager, or false if it was not.
+  bool cancel_task(
+    const std::string& task_id,
+    std::vector<std::string> labels);
+
+  /// Kill a task for this robot. Returns true if the task was being managed by
+  /// this task manager, or false if it was not.
+  bool kill_task(
+    const std::string& task_id,
+    std::vector<std::string> labels);
+
 private:
 
   TaskManager(
     agv::RobotContextPtr context,
-    std::optional<std::weak_ptr<BroadcastClient>> broadcast_client,
+    std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
     std::weak_ptr<agv::FleetUpdateHandle>);
 
   class ActiveTask
@@ -289,10 +304,11 @@ private:
   friend class ActiveTask;
 
   agv::RobotContextPtr _context;
-  std::optional<std::weak_ptr<BroadcastClient>> _broadcast_client;
+  std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> _broadcast_client;
   std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
   rmf_task::ConstActivatorPtr _task_activator;
   ActiveTask _active_task;
+  bool _responsive_wait_enabled = true;
   bool _emergency_active = false;
   std::optional<std::string> _emergency_pullover_interrupt_token;
   ActiveTask _emergency_pullover;
@@ -398,8 +414,30 @@ private:
   /// Publish the current task state
   void _publish_task_state();
 
+  /// Publish one of the pending tasks
+  rmf_task::State _publish_pending_task(
+    const Assignment& assignment,
+    rmf_task::State expected_state,
+    const rmf_task::Parameters& parameters);
+
   /// Publish the current pending task list
   void _publish_task_queue();
+
+  void _publish_canceled_pending_task(
+    const Assignment& assignment,
+    std::vector<std::string> labels);
+
+  /// Cancel a task that is in the dispatch queue. Returns false if the task
+  /// was not present.
+  bool _cancel_task_from_dispatch_queue(
+    const std::string& task_id,
+    const std::vector<std::string>& labels);
+
+  /// Cancel a task that is in the direct queue. Returns false if the task was
+  /// not present.
+  bool _cancel_task_from_direct_queue(
+    const std::string& task_id,
+    const std::vector<std::string>& labels);
 
   /// Schema loader for validating jsons
   void _schema_loader(

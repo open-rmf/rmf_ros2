@@ -38,11 +38,18 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
 
   if (!_greedy_job)
   {
-    // This means the plan was infeasible from the start, so we will declare
-    // that the job is completed without returning any result.
     s.on_error(std::make_exception_ptr(
         std::runtime_error(
           "[SearchForPath] Impossible path requested")));
+    return;
+  }
+
+  if (_greedy_job->progress().disconnected())
+  {
+    // This means the plan was infeasible from the start, so we will immediately
+    // pass back the current greedy progress object
+    s.on_next(Result{_greedy_job, nullptr, Type::greedy});
+    s.on_completed();
     return;
   }
 
@@ -63,6 +70,13 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       const auto search = weak.lock();
       if (!search)
         return;
+
+      if (search->_deadline.has_value())
+      {
+        const auto now = std::chrono::steady_clock::now();
+        if (search->_deadline <= now)
+          search->interrupt();
+      }
 
       auto show_compliant = search->_compliant_finished ?
       search->_compliant_job : std::shared_ptr<Planning>(nullptr);
@@ -165,6 +179,13 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
       const auto search = weak.lock();
       if (!search)
         return;
+
+      if (search->_deadline.has_value())
+      {
+        const auto now = std::chrono::steady_clock::now();
+        if (search->_deadline <= now)
+          search->interrupt();
+      }
 
       auto show_greedy = search->_greedy_finished ?
       search->_greedy_job : std::shared_ptr<Planning>(nullptr);

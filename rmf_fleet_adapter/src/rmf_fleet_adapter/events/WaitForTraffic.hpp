@@ -38,6 +38,7 @@ public:
 
     static std::shared_ptr<Standby> make(
       agv::RobotContextPtr context,
+      rmf_traffic::PlanId plan_id,
       rmf_traffic::Dependencies dependencies,
       rmf_traffic::Time expected_time,
       const AssignIDPtr& id,
@@ -53,6 +54,7 @@ public:
 
   private:
     agv::RobotContextPtr _context;
+    rmf_traffic::PlanId _plan_id;
     rmf_traffic::Dependencies _dependencies;
     rmf_traffic::Time _expected_time;
     rmf_task::events::SimpleEventStatePtr _state;
@@ -67,6 +69,7 @@ public:
 
     static std::shared_ptr<Active> make(
       agv::RobotContextPtr context,
+      rmf_traffic::PlanId plan_id,
       const rmf_traffic::Dependencies& dependencies,
       rmf_traffic::Time expected_time,
       rmf_task::events::SimpleEventStatePtr state,
@@ -79,11 +82,11 @@ public:
 
     Backup backup() const final;
 
-    Resume interrupt(std::function<void()> task_is_interrupted);
+    Resume interrupt(std::function<void()> task_is_interrupted) final;
 
-    void cancel();
+    void cancel() final;
 
-    void kill();
+    void kill() final;
 
   private:
     void _consider_going();
@@ -93,13 +96,14 @@ public:
       rmf_traffic::schedule::ItineraryViewer::DependencySubscription;
 
     agv::RobotContextPtr _context;
+    rmf_traffic::PlanId _plan_id;
     std::vector<DependencySubscription> _dependencies;
     rmf_traffic::Time _expected_time;
     rmf_task::events::SimpleEventStatePtr _state;
     std::function<void()> _update;
     std::function<void()> _finished;
     rclcpp::TimerBase::SharedPtr _timer;
-    bool _decision_made = false;
+    std::optional<rmf_traffic::Time> _decision_made;
   };
 
 };

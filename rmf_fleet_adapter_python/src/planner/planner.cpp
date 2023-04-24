@@ -1,5 +1,4 @@
 #include <pybind11/pybind11.h>
-#include <pybind11/iostream.h>
 #include <pybind11/chrono.h>
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
@@ -116,9 +115,7 @@ void bind_plan(py::module& m)
     py::arg("start_time"),
     py::arg("max_merge_waypoint_distance") = 0.1,
     py::arg("max_merge_lane_distance") = 1.0,
-    py::arg("min_lane_length") = 1e-8,
-    py::call_guard<py::scoped_ostream_redirect,
-    py::scoped_estream_redirect>());
+    py::arg("min_lane_length") = 1e-8);
 
   // PLAN ======================================================================
   py::class_<Plan>(m_plan, "Plan")

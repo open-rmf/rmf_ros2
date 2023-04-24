@@ -1,5 +1,16 @@
 ## Changelog for package rmf_traffic_ros2
 
+2.1.2 (2022-10-10)
+------------------
+
+2.1.0 (2022-10-03)
+------------------
+* Make async behaviors more robust: [#228](https://github.com/open-rmf/rmf_ros2/pull/228)
+* Make schedule failover more robust: [#232](https://github.com/open-rmf/rmf_ros2/pull/232)
+* Ignore conflicts between any plans that have a dependency: [#205](https://github.com/open-rmf/rmf_ros2/pull/205)
+* Add support for docking in lanes with entry events: [#226](https://github.com/open-rmf/rmf_ros2/pull/226)
+* Add message conversion functions for the navigation graph: [#207](https://github.com/open-rmf/rmf_ros2/pull/207)
+
 2.0.0 (2022-03-18)
 ------------------
 * Update to the traffic dependency system: [#188](https://github.com/open-rmf/rmf_ros2/pull/188)

@@ -35,7 +35,10 @@
 #include <rmf_task_sequence/Event.hpp>
 #include <rmf_task_sequence/events/PerformAction.hpp>
 
+#include <rmf_building_map_msgs/msg/graph.hpp>
+
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
+#include <rmf_fleet_msgs/msg/lane_states.hpp>
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
@@ -43,8 +46,8 @@
 #include "Node.hpp"
 #include "RobotContext.hpp"
 #include "../TaskManager.hpp"
-#include "../BroadcastClient.hpp"
 #include "../DeserializeJSON.hpp"
+#include <rmf_websocket/BroadcastClient.hpp>
 
 #include <rmf_traffic/schedule/Mirror.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>
@@ -70,6 +73,7 @@
 #include <iostream>
 #include <unordered_set>
 #include <optional>
+#include <malloc.h>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -245,7 +249,7 @@ public:
 
   std::shared_ptr<std::mutex> update_callback_mutex =
     std::make_shared<std::mutex>();
-  std::function<void(const nlohmann::json&)> update_callback;
+  std::function<void(const nlohmann::json&)> update_callback = nullptr;
 
   TaskActivation activation = TaskActivation();
   TaskDeserialization deserialization = TaskDeserialization();
@@ -263,7 +267,7 @@ public:
   std::unordered_map<RobotContextPtr,
     std::shared_ptr<TaskManager>> task_managers = {};
 
-  std::shared_ptr<BroadcastClient> broadcast_client = nullptr;
+  std::shared_ptr<rmf_websocket::BroadcastClient> broadcast_client = nullptr;
   // Map uri to schema for validator loader function
   std::unordered_map<std::string, nlohmann::json> schema_dictionary = {};
 
@@ -271,6 +275,7 @@ public:
     fleet_state_pub = nullptr;
   rclcpp::TimerBase::SharedPtr fleet_state_topic_publish_timer = nullptr;
   rclcpp::TimerBase::SharedPtr fleet_state_update_timer = nullptr;
+  rclcpp::TimerBase::SharedPtr memory_trim_timer = nullptr;
 
   // Map task id to pair of <RequestPtr, Assignments>
   using Assignments = rmf_task::TaskPlanner::Assignments;
@@ -310,7 +315,15 @@ public:
   using DockSummarySub = rclcpp::Subscription<DockSummary>::SharedPtr;
   DockSummarySub dock_summary_sub = nullptr;
 
+  using GraphMsg = rmf_building_map_msgs::msg::Graph;
+  rclcpp::Publisher<GraphMsg>::SharedPtr nav_graph_pub = nullptr;
+
   mutable rmf_task::Log::Reader log_reader = {};
+
+  using LaneStates = rmf_fleet_msgs::msg::LaneStates;
+  rclcpp::Publisher<LaneStates>::SharedPtr lane_states_pub = nullptr;
+  std::unordered_map<std::size_t, double> speed_limited_lanes = {};
+  std::unordered_set<std::size_t> closed_lanes = {};
 
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&& ... args)
@@ -337,6 +350,17 @@ public:
     handle->_pimpl->fleet_state_pub = handle->_pimpl->node->fleet_state();
     handle->fleet_state_topic_publish_period(std::chrono::seconds(1));
     handle->fleet_state_update_period(std::chrono::seconds(1));
+
+    // Sometimes difficult negotiations end up seizing an exceedingly large
+    // amount of RAM. This function is used to allow the operating system
+    // to take that RAM back after it's no longer needed. This is mostly
+    // superficial, but it helps us know that the fleet adapter isn't leaking
+    // huge amounts of memory.
+    //
+    // TODO(MXG): Remove this when the planner has been made more
+    // memory-efficient.
+    handle->_pimpl->memory_trim_timer = handle->_pimpl->node->create_wall_timer(
+      std::chrono::minutes(5), []() { malloc_trim(0); });
 
     // Create subs and pubs for bidding
     auto transient_qos = rclcpp::QoS(10).transient_local();
@@ -369,6 +393,12 @@ public:
           self->_pimpl->bid_notice_cb(msg, std::move(respond));
       });
 
+    // Publisher for navigation graph
+    handle->_pimpl->nav_graph_pub =
+      handle->_pimpl->node->create_publisher<GraphMsg>(
+      NavGraphTopicName, transient_qos);
+    handle->_pimpl->publish_nav_graph();
+
     // Subscribe DockSummary
     handle->_pimpl->dock_summary_sub =
       handle->_pimpl->node->create_subscription<DockSummary>(
@@ -379,6 +409,13 @@ public:
         if (const auto self = w.lock())
           self->_pimpl->dock_summary_cb(msg);
       });
+
+    // Publish LaneStates
+    handle->_pimpl->lane_states_pub =
+      handle->_pimpl->node->create_publisher<LaneStates>(
+      LaneStatesTopicName,
+      transient_qos);
+    handle->_pimpl->publish_lane_states();
 
     // Populate charging waypoints
     const auto& graph = (*handle->_pimpl->planner)->get_configuration().graph();
@@ -407,9 +444,19 @@ public:
     // Start the BroadcastClient
     if (handle->_pimpl->server_uri.has_value())
     {
-      handle->_pimpl->broadcast_client = BroadcastClient::make(
+      handle->_pimpl->broadcast_client = rmf_websocket::BroadcastClient::make(
         handle->_pimpl->server_uri.value(),
-        handle->weak_from_this());
+        handle->_pimpl->node,
+        [handle]()
+        {
+          std::vector<nlohmann::json> task_logs;
+          for (const auto& [conext, mgr] : handle->_pimpl->task_managers)
+          {
+            // Publish all task logs to the server
+            task_logs.push_back(mgr->task_log_updates());
+          }
+          return task_logs;
+        });
     }
 
     // Add PerformAction event to deserialization
@@ -492,6 +539,8 @@ public:
     return handle;
   }
 
+  void publish_nav_graph() const;
+
   void dock_summary_cb(const DockSummary::SharedPtr& msg);
 
   void bid_notice_cb(
@@ -534,6 +583,8 @@ public:
   }
 
   void publish_fleet_state_topic() const;
+
+  void publish_lane_states() const;
 
   void update_fleet() const;
 

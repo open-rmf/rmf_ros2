@@ -19,6 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__SERVICES__DETAIL__IMPL_NEGOTIATE_HPP
 
 #include "../Negotiate.hpp"
+#include "../../project_itinerary.hpp"
 
 namespace rmf_fleet_adapter {
 namespace services {
@@ -89,8 +90,11 @@ void Negotiate::operator()(const Subscriber& s)
               self->shared_from_this(),
               [r = *self->_evaluator.best_result.progress,
               initial_itinerary = std::move(self->_initial_itinerary),
+              followed_by = self->_followed_by,
+              planner = self->_planner,
               approval = std::move(self->_approval),
               responder = self->_responder,
+              viewer = self->_viewer,
               plan_id = self->_plan_id]()
               {
                 std::vector<rmf_traffic::Route> final_itinerary;
@@ -106,14 +110,43 @@ void Negotiate::operator()(const Subscriber& s)
                   }
                 }
 
+                final_itinerary = project_itinerary(*r, followed_by, *planner);
+                for (const auto& parent : viewer->base_proposals())
+                {
+                  // Make sure all parent dependencies are accounted for
+                  // TODO(MXG): This is kind of a gross hack that we add to
+                  // force the lookahead to work for patrols. This approach
+                  // should be reworked in a future redesign of the traffic
+                  // system.
+                  for (auto& r : final_itinerary)
+                  {
+                    for (std::size_t i = 0; i < parent.itinerary.size(); ++i)
+                    {
+                      r.add_dependency(
+                        r.trajectory().size(),
+                        rmf_traffic::Dependency{
+                          parent.participant,
+                          parent.plan,
+                          i,
+                          parent.itinerary[i].trajectory().size()
+                        });
+                    }
+                  }
+                }
+
                 responder->submit(
                   plan_id,
-                  std::move(final_itinerary),
-                  [plan_id, plan = *r, approval = std::move(approval)]()
+                  final_itinerary,
+                  [
+                    plan_id,
+                    plan = *r,
+                    approval = std::move(approval),
+                    final_itinerary
+                  ]()
                   -> UpdateVersion
                   {
                     if (approval)
-                      return approval(plan_id, plan);
+                      return approval(plan_id, plan, final_itinerary);
 
                     return rmf_utils::nullopt;
                   });
@@ -212,7 +245,7 @@ void Negotiate::operator()(const Subscriber& s)
 
             n->_rollout_job = std::make_shared<jobs::Rollout>(
               std::move(rollout_source), parent_id,
-              std::chrono::seconds(15), 200);
+              std::chrono::seconds(15), 5);
 
             n->_rollout_sub =
             rmf_rxcpp::make_job<jobs::Rollout::Result>(n->_rollout_job)

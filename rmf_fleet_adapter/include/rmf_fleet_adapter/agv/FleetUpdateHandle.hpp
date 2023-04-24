@@ -206,6 +206,39 @@ public:
   /// Specify a set of lanes that should be open.
   void open_lanes(std::vector<std::size_t> lane_indices);
 
+  /// A class used to describe speed limit imposed on lanes.
+  class SpeedLimitRequest
+  {
+  public:
+    /// Constructor
+    ///
+    /// \param[in] lane_index
+    ///   The index of the lane to impose a speed limit upon.
+    ///
+    /// \param[in] speed_limit
+    ///   The speed limit to be imposed for this lane.
+    SpeedLimitRequest(
+      std::size_t lane_index,
+      double speed_limit);
+
+    /// Get the lane_index
+    std::size_t lane_index() const;
+
+    /// Get the speed_limit
+    double speed_limit() const;
+
+    class Implementation;
+
+  private:
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
+  /// Impose speed limits on specified lanes.
+  void limit_lane_speeds(std::vector<SpeedLimitRequest> requests);
+
+  /// Remove speed limits from specified lanes.
+  void remove_speed_limits(std::vector<std::size_t> requests);
+
   /// Set the parameters required for task planning. Without calling this
   /// function, this fleet will not bid for and accept tasks.
   ///

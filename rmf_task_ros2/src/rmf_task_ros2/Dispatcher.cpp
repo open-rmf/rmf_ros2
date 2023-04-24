@@ -18,6 +18,8 @@
 #include <rmf_task_ros2/Dispatcher.hpp>
 #include <rmf_task_ros2/StandardNames.hpp>
 
+#include <rmf_websocket/BroadcastClient.hpp>
+
 #include <rclcpp/node.hpp>
 #include <rclcpp/executors/single_threaded_executor.hpp>
 
@@ -97,6 +99,10 @@ public:
 
   std::shared_ptr<rclcpp::Node> node;
   std::shared_ptr<bidding::Auctioneer> auctioneer;
+  std::shared_ptr<rmf_websocket::BroadcastClient> broadcast_client;
+
+  const nlohmann::json _task_state_update_json =
+  {{"type", "task_state_update"}, {"data", {}}};
 
   using SubmitTaskSrv = rmf_task_msgs::srv::SubmitTask;
   using CancelTaskSrv = rmf_task_msgs::srv::CancelTask;
@@ -169,6 +175,7 @@ public:
   builtin_interfaces::msg::Duration bidding_time_window;
   std::size_t terminated_tasks_max_size;
   int publish_active_tasks_period;
+  bool use_timestamp_for_task_id;
 
   std::unordered_map<std::size_t, std::string> legacy_task_type_names =
   {
@@ -203,6 +210,22 @@ public:
     RCLCPP_INFO(node->get_logger(),
       " Declared publish_active_tasks_period as: %d secs",
       publish_active_tasks_period);
+    use_timestamp_for_task_id =
+      node->declare_parameter<bool>("use_timestamp_for_task_id", false);
+    RCLCPP_INFO(node->get_logger(),
+      " Use timestamp with task_id: %s",
+      (use_timestamp_for_task_id ? "true" : "false"));
+
+    std::optional<std::string> server_uri = std::nullopt;
+    const std::string uri =
+      node->declare_parameter("server_uri", std::string());
+    if (!uri.empty())
+    {
+      RCLCPP_INFO(
+        node->get_logger(),
+        "API server URI: [%s]", uri.c_str());
+      server_uri = uri;
+    }
 
     const auto qos = rclcpp::ServicesQoS().reliable();
     dispatch_states_pub = node->create_publisher<DispatchStatesMsg>(
@@ -245,6 +268,10 @@ public:
         this->handle_dispatch_ack(*msg);
       });
 
+    if (server_uri)
+      broadcast_client = rmf_websocket::BroadcastClient::make(
+        *server_uri, node);
+
     auctioneer = bidding::Auctioneer::make(
       node,
       [this](
@@ -254,7 +281,7 @@ public:
       {
         this->conclude_bid(task_id, std::move(winner), errors);
       },
-      std::make_shared<bidding::LeastFleetDiffCostEvaluator>());
+      std::make_shared<bidding::QuickestFinishEvaluator>());
 
     // Setup up stream srv interfaces
     submit_task_srv = node->create_service<SubmitTaskSrv>(
@@ -452,9 +479,19 @@ public:
       }
 
       const auto& task_request_json = msg_json["request"];
-      const std::string task_id =
+      std::string task_id =
         task_request_json["category"].get<std::string>()
-        + ".dispatch-" + std::to_string(task_counter++);
+        + ".dispatch-";
+
+      if (use_timestamp_for_task_id)
+      {
+        task_id += std::to_string(
+          static_cast<int>(node->get_clock()->now().nanoseconds()/1e6));
+      }
+      else
+      {
+        task_id += std::to_string(task_counter++);
+      }
 
       const auto task_state = push_bid_notice(
         rmf_task_msgs::build<bidding::BidNoticeMsg>()
@@ -530,35 +567,14 @@ public:
 
   nlohmann::json push_bid_notice(bidding::BidNoticeMsg bid_notice)
   {
-    nlohmann::json state;
-    auto& booking = state["booking"];
-    booking["id"] = bid_notice.task_id;
-
     const auto request = nlohmann::json::parse(bid_notice.request);
-    static const std::vector<std::string> copy_fields = {
-      "unix_millis_earliest_start_time",
-      "priority",
-      "labels"
-    };
-
-    for (const auto& field : copy_fields)
-    {
-      const auto f_it = request.find(field);
-      if (f_it != request.end())
-        booking[field] = f_it.value();
-    }
-
-    state["category"] = request["category"];
-    state["detail"] = request["description"];
-
-    auto& dispatch = state["dispatch"];
-    dispatch["status"] = "queued";
-
-    // TODO(MXG): Publish this initial task state message to the websocket!
-
     auto new_dispatch_state =
       std::make_shared<DispatchState>(
       bid_notice.task_id, std::chrono::steady_clock::now());
+    new_dispatch_state->request = request;
+
+    // Publish this initial task state message to the websocket
+    auto state = publish_task_state_ws(new_dispatch_state, "queued");
 
     active_dispatch_states[bid_notice.task_id] = new_dispatch_state;
 
@@ -740,6 +756,9 @@ public:
         ++error_count;
       }
 
+      /// Publish failed bid
+      publish_task_state_ws(dispatch_state, "failed");
+
       auctioneer->ready_for_next_bid();
       return;
     }
@@ -768,6 +787,55 @@ public:
 
     lingering_commands[award_command.dispatch_id] = award_command;
     dispatch_command_pub->publish(award_command);
+  }
+
+  //==============================================================================
+  nlohmann::json publish_task_state_ws(
+    const std::shared_ptr<DispatchState> state,
+    const std::string& status)
+  {
+    nlohmann::json task_state;
+    auto& booking = task_state["booking"];
+    booking["id"] = state->task_id;
+
+    static const std::vector<std::string> copy_fields = {
+      "unix_millis_earliest_start_time",
+      "priority",
+      "labels"
+    };
+
+    for (const auto& field : copy_fields)
+    {
+      const auto f_it = state->request.find(field);
+      if (f_it != state->request.end())
+        booking[field] = f_it.value();
+    }
+
+    task_state["category"] = state->request["category"];
+    task_state["detail"] = state->request["description"];
+    task_state["status"] = status;
+
+    /// NOTE: This should be null, but the reason of populating this for
+    /// now is to provide an estimated start_time to the dashboard, so
+    /// sort by start time will still work
+    task_state["unix_millis_start_time"] =
+      booking["unix_millis_earliest_start_time"];
+
+    /// TODO: populate assignment from state
+
+    nlohmann::json dispatch_json;
+    dispatch_json["status"] = status_to_string(state->status);
+    dispatch_json["errors"] = state->errors;
+    task_state["dispatch"] = dispatch_json;
+
+    auto task_state_update = _task_state_update_json;
+    task_state_update["data"] = task_state;
+
+    /// TODO: (YL) json validator for taskstateupdate
+
+    if (broadcast_client)
+      broadcast_client->publish(task_state_update);
+    return task_state;
   }
 
   void move_to_finished(const std::string& task_id)

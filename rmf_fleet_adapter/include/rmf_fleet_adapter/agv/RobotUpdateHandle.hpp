@@ -19,6 +19,7 @@
 #define RMF_FLEET_ADAPTER__AGV__ROBOTUPDATEHANDLE_HPP
 
 #include <rmf_traffic/Time.hpp>
+#include <rmf_traffic/agv/Planner.hpp>
 #include <rmf_utils/impl_ptr.hpp>
 #include <rmf_utils/optional.hpp>
 
@@ -91,6 +92,10 @@ public:
     const double max_merge_waypoint_distance = 0.1,
     const double max_merge_lane_distance = 1.0,
     const double min_lane_length = 1e-8);
+
+  /// Update the current position of the robot by specifying a plan start set
+  /// for it.
+  void update_position(rmf_traffic::agv::Plan::StartSet position);
 
   /// Set the waypoint where the charger for this robot is located.
   /// If not specified, the nearest waypoint in the graph with the is_charger()
@@ -218,6 +223,42 @@ public:
     std::vector<std::string> labels,
     std::function<void()> robot_is_interrupted);
 
+  /// Cancel a task, if it has been assigned to this robot
+  ///
+  /// \param[in] task_id
+  ///   The ID of the task to be canceled
+  ///
+  /// \param[in] labels
+  ///   Labels that will be assigned to this cancellation. It is recommended to
+  ///   include information about why the cancellation is happening.
+  ///
+  /// \param[in] on_cancellation
+  ///   Callback that will be triggered after the cancellation is issued.
+  ///   task_was_found will be true if the task was successfully found and
+  ///   issued the cancellation, false otherwise.
+  void cancel_task(
+    std::string task_id,
+    std::vector<std::string> labels,
+    std::function<void(bool task_was_found)> on_cancellation);
+
+  /// Kill a task, if it has been assigned to this robot
+  ///
+  /// \param[in] task_id
+  ///   The ID of the task to be canceled
+  ///
+  /// \param[in] labels
+  ///   Labels that will be assigned to this cancellation. It is recommended to
+  ///   include information about why the cancellation is happening.
+  ///
+  /// \param[in] on_kill
+  ///   Callback that will be triggered after the cancellation is issued.
+  ///   task_was_found will be true if the task was successfully found and
+  ///   issued the kill, false otherwise.
+  void kill_task(
+    std::string task_id,
+    std::vector<std::string> labels,
+    std::function<void(bool task_was_found)> on_kill);
+
   enum class Tier
   {
     /// General status information, does not require special attention
@@ -275,6 +316,18 @@ public:
   /// Add a log entry with Error severity
   void log_error(std::string text);
 
+  /// Toggle the responsive wait behavior for this robot. When responsive wait
+  /// is active, the robot will remain in the traffic schedule when it is idle
+  /// and will negotiate its position with other traffic participants to
+  /// potentially move out of their way.
+  ///
+  /// Disabling this behavior may be helpful to reduce CPU load or prevent
+  /// parked robots from moving or being seen as conflicts when they are not
+  /// actually at risk of creating traffic conflicts.
+  ///
+  /// By default this behavior is enabled.
+  void enable_responsive_wait(bool value);
+
   class Implementation;
 
   /// This API is experimental and will not be supported in the future. Users
@@ -282,8 +335,26 @@ public:
   class Unstable
   {
   public:
+    /// True if this robot is allowed to accept new tasks. False if the robot
+    /// will not accept any new tasks.
+    bool is_commissioned() const;
+
+    /// Stop this robot from accepting any new tasks. It will continue to
+    /// perform tasks that are already in its queue. To reassign those tasks,
+    /// you will need to use the task request API to cancel the tasks and
+    /// re-request them.
+    void decommission();
+
+    /// Allow this robot to resume accepting new tasks.
+    void recommission();
+
     /// Get the schedule participant of this robot
     rmf_traffic::schedule::Participant* get_participant();
+
+    /// Change the radius of the footprint and vicinity of this participant.
+    void change_participant_profile(
+      double footprint_radius,
+      double vicinity_radius);
 
     /// Override the schedule to say that the robot will be holding at a certain
     /// position. This should not be used while tasks with automatic schedule
@@ -293,6 +364,9 @@ public:
       std::string on_map,
       Eigen::Vector3d at_position,
       rmf_traffic::Duration for_duration = std::chrono::seconds(30));
+
+    /// Get the current Plan ID that this robot has sent to the traffic schedule
+    rmf_traffic::PlanId current_plan_id() const;
 
     /// Hold onto this class to tell the robot to behave as a "stubborn
     /// negotiator", meaning it will always refuse to accommodate the schedule

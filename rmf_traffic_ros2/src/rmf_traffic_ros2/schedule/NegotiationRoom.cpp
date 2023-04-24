@@ -17,8 +17,11 @@
 
 #include "NegotiationRoom.hpp"
 
+#include <rmf_traffic_ros2/Time.hpp>
 #include <rmf_traffic_ros2/Route.hpp>
 #include <rmf_traffic_ros2/schedule/Itinerary.hpp>
+
+#include <rmf_traffic_msgs/msg/negotiation_key.hpp>
 
 #include <iostream>
 
@@ -60,6 +63,73 @@ NegotiationRoom::NegotiationRoom(rmf_traffic::schedule::Negotiation negotiation_
 : negotiation(std::move(negotiation_))
 {
   // Do nothing
+}
+
+//==============================================================================
+void NegotiationRoom::update_state_msg(
+  const uint64_t conflict_version,
+  rmf_traffic::Time start_time,
+  rmf_traffic::Time last_active_time)
+{
+  state_msg.status.participants.clear();
+  state_msg.tree.clear();
+  state_msg.orphan_proposals.clear();
+  state_msg.orphan_rejections.clear();
+  state_msg.orphan_forfeits.clear();
+
+  state_msg.status.conflict_version = conflict_version;
+  state_msg.status.start_time = convert(start_time);
+  state_msg.status.last_response_time = convert(last_active_time);
+
+  using Negotiation = rmf_traffic::schedule::Negotiation;
+  std::vector<Negotiation::ConstTablePtr> queue;
+  std::unordered_map<Negotiation::ConstTablePtr, int64_t> table_index;
+
+  for (const auto p : negotiation.participants())
+  {
+    state_msg.status.participants.push_back(p);
+    const auto p_table = negotiation.table(p, {});
+    assert(p_table);
+    queue.push_back(p_table);
+  }
+
+  while (!queue.empty())
+  {
+    Negotiation::ConstTablePtr top = queue.back();
+    queue.pop_back();
+
+    table_index[top] = state_msg.tree.size();
+    rmf_traffic_msgs::msg::NegotiationTreeNode node;
+    if (const auto parent = top->parent())
+    {
+      node.parent = table_index.at(parent);
+    }
+    else
+    {
+      // Root nodes are given a parent value of -1
+      node.parent = -1;
+    }
+
+    using Key = rmf_traffic_msgs::msg::NegotiationKey;
+    node.key = rmf_traffic_msgs::build<Key>()
+      .participant(top->participant())
+      .version(top->version());
+
+    node.rejected = top->rejected();
+    if (const auto* submission = top->submission())
+      node.itinerary = convert(*submission);
+
+    state_msg.tree.push_back(std::move(node));
+  }
+
+  for (const auto& proposal : cached_proposals)
+    state_msg.orphan_proposals.push_back(proposal);
+
+  for (const auto& rejection : cached_rejections)
+    state_msg.orphan_rejections.push_back(rejection);
+
+  for (const auto& forfeit : cached_forfeits)
+    state_msg.orphan_forfeits.push_back(forfeit);
 }
 
 //==============================================================================
@@ -182,11 +252,14 @@ void print_negotiation_status(
 
   std::cout << "\n[" << conflict_version << "] Active negotiation:";
   for (const auto p : negotiation.participants())
+  {
     std::cout << " " << p;
+  }
   std::cout << std::endl;
 
   std::vector<Negotiation::ConstTablePtr> terminal;
   std::vector<Negotiation::ConstTablePtr> queue;
+  std::unordered_map<Negotiation::ConstTablePtr, int64_t> table_index;
   for (const auto p : negotiation.participants())
   {
     const auto p_table = negotiation.table(p, {});

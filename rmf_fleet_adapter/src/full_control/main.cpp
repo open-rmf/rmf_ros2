@@ -33,6 +33,7 @@
 #include <rmf_fleet_msgs/srv/lift_clearance.hpp>
 #include <rmf_fleet_msgs/msg/lane_request.hpp>
 #include <rmf_fleet_msgs/msg/closed_lanes.hpp>
+#include <rmf_fleet_msgs/msg/speed_limit_request.hpp>
 #include <rmf_fleet_msgs/msg/interrupt_request.hpp>
 
 // RMF Task messages
@@ -508,6 +509,12 @@ public:
   void set_updater(rmf_fleet_adapter::agv::RobotUpdateHandlePtr updater)
   {
     _travel_info.updater = std::move(updater);
+
+    bool enable_responsive_wait = true;
+    _node->get_parameter_or(
+      "enable_responsive_wait", enable_responsive_wait, true);
+    _travel_info.updater->enable_responsive_wait(enable_responsive_wait);
+
     // Set the action_executor for the robot
     const auto teleop_executioner =
       [w = weak_from_this()](
@@ -524,6 +531,11 @@ public:
         self->set_action_execution(execution);
       };
     _travel_info.updater->set_action_executor(teleop_executioner);
+  }
+
+  rmf_fleet_adapter::agv::RobotUpdateHandlePtr get_updater()
+  {
+    return _travel_info.updater;
   }
 
   void newly_closed_lanes(const std::unordered_set<std::size_t>& closed_lanes)
@@ -720,6 +732,10 @@ using FleetDriverRobotCommandHandlePtr =
 /// This is an RAII class that keeps the connections to the fleet driver alive.
 struct Connections : public std::enable_shared_from_this<Connections>
 {
+  /// Parameter change listener
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr
+    on_set_param;
+
   /// The API for adding new robots to the adapter
   rmf_fleet_adapter::agv::FleetUpdateHandlePtr fleet;
 
@@ -759,6 +775,10 @@ struct Connections : public std::enable_shared_from_this<Connections>
   /// The publisher for sending out closed lane statuses
   rclcpp::Publisher<rmf_fleet_msgs::msg::ClosedLanes>::SharedPtr
     closed_lanes_pub;
+
+  /// The topic subscription for listening for speed limit requests
+  rclcpp::Subscription<rmf_fleet_msgs::msg::SpeedLimitRequest>::SharedPtr
+    speed_limit_request_sub;
 
   /// Container for remembering which lanes are currently closed
   std::unordered_set<std::size_t> closed_lanes;
@@ -911,8 +931,37 @@ std::shared_ptr<Connections> make_fleet(
   const rmf_fleet_adapter::agv::AdapterPtr& adapter)
 {
   const auto& node = adapter->node();
+  node->declare_parameter("enable_responsive_wait", true);
+
   std::shared_ptr<Connections> connections = std::make_shared<Connections>();
   connections->adapter = adapter;
+  connections->on_set_param =
+    node->get_node_parameters_interface()->add_on_set_parameters_callback(
+    [w = connections->weak_from_this()](
+      const std::vector<rclcpp::Parameter>& params)
+    -> rcl_interfaces::msg::SetParametersResult
+    {
+      const auto self = w.lock();
+      if (!self)
+        return rcl_interfaces::msg::SetParametersResult();
+
+      for (const auto& p : params)
+      {
+        if (p.get_name() == "enable_responsive_wait")
+        {
+          const auto value = p.as_bool();
+          for (auto& [_, cmd] : self->robots)
+          {
+            if (const auto updater = cmd->get_updater())
+              updater->enable_responsive_wait(value);
+          }
+        }
+      }
+
+      rcl_interfaces::msg::SetParametersResult r;
+      r.successful = true;
+      return r;
+    });
 
   const std::string fleet_name_param_name = "fleet_name";
   const std::string fleet_name = node->declare_parameter(
@@ -986,8 +1035,8 @@ std::shared_ptr<Connections> make_fleet(
       if (!connections)
         return;
 
-      if (request_msg->fleet_name != fleet_name &&
-      !request_msg->fleet_name.empty())
+      if (request_msg->fleet_name != fleet_name ||
+      request_msg->fleet_name.empty())
         return;
 
       connections->fleet->open_lanes(request_msg->open_lanes);
@@ -1016,6 +1065,35 @@ std::shared_ptr<Connections> make_fleet(
         connections->closed_lanes.end());
 
       connections->closed_lanes_pub->publish(state_msg);
+    });
+
+  connections->speed_limit_request_sub =
+    adapter->node()->create_subscription<
+    rmf_fleet_msgs::msg::SpeedLimitRequest>(
+    rmf_fleet_adapter::SpeedLimitRequestTopicName,
+    rclcpp::SystemDefaultsQoS(),
+    [w = connections->weak_from_this(), fleet_name](
+      rmf_fleet_msgs::msg::SpeedLimitRequest::ConstSharedPtr request_msg)
+    {
+      const auto connections = w.lock();
+      if (!connections)
+        return;
+
+      if (request_msg->fleet_name != fleet_name ||
+      request_msg->fleet_name.empty())
+        return;
+
+      std::vector<rmf_fleet_adapter::agv::FleetUpdateHandle::SpeedLimitRequest>
+      requests;
+      for (const auto& limit : request_msg->speed_limits)
+      {
+        auto request =
+        rmf_fleet_adapter::agv::FleetUpdateHandle::SpeedLimitRequest(
+          limit.lane_index, limit.speed_limit);
+        requests.push_back(std::move(request));
+      }
+      connections->fleet->limit_lane_speeds(requests);
+      connections->fleet->remove_speed_limits(request_msg->remove_limits);
     });
 
   connections->interrupt_request_sub =

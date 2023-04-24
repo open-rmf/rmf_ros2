@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.5)
 project(rmf_task_ros2)
 
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   # we dont use add_compile_options with pedantic in message packages
@@ -18,10 +18,12 @@ find_package(rmf_api_msgs REQUIRED)
 find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_ros2 REQUIRED)
 find_package(rmf_task_msgs REQUIRED)
+find_package(rmf_websocket REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(nlohmann_json_schema_validator_vendor REQUIRED)
+find_package(nlohmann_json_schema_validator REQUIRED)
 
 file(GLOB_RECURSE core_lib_srcs "src/rmf_task_ros2/*.cpp")
 add_library(rmf_task_ros2 SHARED ${core_lib_srcs})
@@ -31,6 +33,7 @@ target_link_libraries(rmf_task_ros2
     rmf_api_msgs::rmf_api_msgs
     rmf_traffic::rmf_traffic
     rmf_traffic_ros2::rmf_traffic_ros2
+    rmf_websocket::rmf_websocket
     ${rmf_task_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     nlohmann_json::nlohmann_json
@@ -43,6 +46,7 @@ target_include_directories(rmf_task_ros2
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     ${rmf_traffic_ros2_INCLUDE_DIRS}
     ${rmf_task_msgs_INCLUDE_DIRS}
+    ${rmf_websocket_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
 )
 
@@ -73,6 +77,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_rmf_task_ros2
       rmf_task_ros2
       rmf_traffic::rmf_traffic
+      rmf_websocket::rmf_websocket
       rmf_traffic_ros2::rmf_traffic_ros2
       -pthread
   )

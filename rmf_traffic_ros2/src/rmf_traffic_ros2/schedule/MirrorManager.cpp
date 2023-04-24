@@ -27,14 +27,13 @@
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 #include <rmf_traffic_ros2/schedule/Patch.hpp>
 #include <rmf_traffic_ros2/schedule/Query.hpp>
+#include <rmf_traffic_ros2/schedule/ScheduleIdentity.hpp>
 
 #include <rmf_traffic_msgs/msg/mirror_update.hpp>
 #include <rmf_traffic_msgs/msg/participant.hpp>
 #include <rmf_traffic_msgs/msg/participants.hpp>
 #include <rmf_traffic_msgs/msg/schedule_query.hpp>
 #include <rmf_traffic_msgs/msg/schedule_queries.hpp>
-
-#include <rmf_traffic_msgs/msg/fail_over_event.hpp>
 
 #include <rmf_traffic_msgs/srv/register_query.hpp>
 #include <rmf_traffic_msgs/srv/request_changes.hpp>
@@ -62,15 +61,8 @@ using RegisterQueryFuture = rclcpp::Client<RegisterQuery>::SharedFuture;
 using ScheduleQuery = rmf_traffic_msgs::msg::ScheduleQuery;
 using ScheduleQueries = rmf_traffic_msgs::msg::ScheduleQueries;
 
-using FailOverEvent = rmf_traffic_msgs::msg::FailOverEvent;
-using FailOverEventSub = rclcpp::Subscription<FailOverEvent>::SharedPtr;
-
-namespace {
-bool is_new_version(const uint64_t expected_version, const uint64_t msg_version)
-{
-  return rmf_utils::modular(expected_version).less_than(msg_version);
-}
-}
+using ScheduleIdentity = rmf_traffic_msgs::msg::ScheduleIdentity;
+using ScheduleIdentitySub = rclcpp::Subscription<ScheduleIdentity>::SharedPtr;
 
 //==============================================================================
 class MirrorManager::Implementation
@@ -83,18 +75,19 @@ public:
 
   std::weak_ptr<rclcpp::Node> weak_node;
   rmf_traffic::schedule::Query query;
-  uint64_t query_id = 0;
+  uint64_t query_id;
+  rmf_traffic_msgs::msg::ScheduleIdentity schedule_node_id;
   bool require_query_validation = false;
-  uint64_t expected_node_version = 0;
   std::list<MirrorUpdate::SharedPtr> stashed_query_updates;
   Options options;
-  FailOverEventSub fail_over_event_sub;
+  ScheduleIdentitySub schedule_startup_sub;
   MirrorUpdateSub mirror_update_sub;
   ParticipantsInfoSub participants_info_sub;
   rclcpp::Subscription<ScheduleQueries>::SharedPtr queries_info_sub;
   RequestChangesClient request_changes_client;
   rclcpp::TimerBase::SharedPtr update_timer;
   rclcpp::TimerBase::SharedPtr redo_query_registration_timer;
+  rclcpp::TimerBase::SharedPtr reconnect_services_timer;
   RegisterQueryClient register_query_client;
 
   std::shared_ptr<rmf_traffic::schedule::Mirror> mirror;
@@ -107,10 +100,12 @@ public:
     const std::shared_ptr<rclcpp::Node>& node,
     rmf_traffic::schedule::Query _query,
     Options _options,
-    uint64_t _query_id)
+    uint64_t _query_id,
+    ScheduleIdentity _schedule_node_id)
   : weak_node(node),
     query(std::move(_query)),
     query_id(_query_id),
+    schedule_node_id(_schedule_node_id),
     options(std::move(_options)),
     mirror(std::make_shared<rmf_traffic::schedule::Mirror>())
   {
@@ -118,15 +113,62 @@ public:
     setup_queries_sub();
 
     request_changes_client = node->create_client<RequestChanges>(
-      rmf_traffic_ros2::RequestChangesServiceName);
+      RequestChangesServiceName);
 
-    fail_over_event_sub = node->create_subscription<FailOverEvent>(
-      rmf_traffic_ros2::FailOverEventTopicName,
+    schedule_startup_sub = node->create_subscription<ScheduleIdentity>(
+      rmf_traffic_ros2::ScheduleStartupTopicName,
       rclcpp::SystemDefaultsQoS(),
-      [&](const FailOverEvent::SharedPtr msg)
+      [&](const ScheduleIdentity::SharedPtr msg)
       {
-        handle_fail_over_event(msg->new_schedule_node_version);
+        handle_startup_event(*msg);
       });
+  }
+
+  bool reconnect_schedule(
+    const rmf_traffic_msgs::msg::ScheduleIdentity& node_id)
+  {
+    const bool need_reconnect =
+      schedule::reconnect_schedule(schedule_node_id, node_id);
+    if (need_reconnect)
+      reconnect_services();
+
+    return need_reconnect;
+  }
+
+  bool validate_service_response(
+    const rmf_traffic_msgs::msg::ScheduleIdentity& node_id)
+  {
+    if (schedule_node_id.node_uuid != node_id.node_uuid)
+    {
+      if (!reconnect_schedule(node_id))
+      {
+        // If we don't need to reconnect to this new schedule then we at
+        // least need to reconnect our services, because this service
+        // response came from an old schedule node.
+        reconnect_services();
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  bool validate_meta_update(
+    const rmf_traffic_msgs::msg::ScheduleIdentity& node_id)
+  {
+    // This function returns true if:
+    // 1. The node of the incoming msg is the same as the one we're expecting
+    // 2. The node of the incoming msg is supplanting the one we're expecting
+    const bool expected_node = schedule_node_id.node_uuid == node_id.node_uuid;
+    const bool new_node = reconnect_schedule(node_id);
+
+    if (new_node)
+    {
+      // If a new node has appeared, we should reconnect the services.
+      reconnect_services();
+    }
+
+    return expected_node || new_node;
   }
 
   void setup_queries_sub()
@@ -140,31 +182,21 @@ public:
       rclcpp::SystemDefaultsQoS().reliable().keep_last(100).transient_local(),
       [=](const ScheduleQueries::SharedPtr msg)
       {
-        const bool is_old_version = rmf_utils::modular(
-          msg->node_version).less_than(expected_node_version);
-
-        if (is_old_version)
-        {
-          // This is an outdated schedule node version, so we will ignore it
+        if (!validate_meta_update(msg->node_id))
           return;
-        }
-
-        // In case the new schedule node version is higher, make sure we update
-        // the node version that we're expecting.
-        expected_node_version = msg->node_version;
 
         RCLCPP_INFO(
           node->get_logger(),
           "Mirror handling new sync of %lu queries "
-          "from schedule node version [%lu]",
+          "from schedule node [%s]",
           msg->queries.size(),
-          msg->node_version);
+          msg->node_id.node_uuid.c_str());
 
         // Find what should be our query based on our query ID
         std::optional<uint64_t> our_query = std::nullopt;
         for (std::size_t ii = 0; ii < msg->queries.size(); ++ii)
         {
-          if (msg->ids[ii] == query_id)
+          if (msg->query_ids[ii] == query_id)
           {
             our_query = ii;
             break;
@@ -219,21 +251,22 @@ public:
         handle_participants_info(msg);
       });
 
-    RCLCPP_DEBUG(node->get_logger(), "Registering to query topic %s",
+    RCLCPP_INFO(node->get_logger(), "Registering to query topic %s",
       (QueryUpdateTopicNameBase + std::to_string(query_id)).c_str());
     mirror_update_sub = node->create_subscription<MirrorUpdate>(
       QueryUpdateTopicNameBase + std::to_string(query_id),
-      rclcpp::SystemDefaultsQoS(),
+      rclcpp::ServicesQoS().reliable().keep_last(5000),
       [this](const MirrorUpdate::SharedPtr msg)
       {
         handle_update(msg);
       });
+
     // At this point we know we have the correct ID for our query
     require_query_validation = false;
     process_stashed_queries();
 
     update_timer = node->create_wall_timer(
-      5s,
+      20s,
       [this]() -> void
       {
         handle_update_timeout();
@@ -242,6 +275,9 @@ public:
 
   void handle_participants_info(const ParticipantsInfo::SharedPtr msg)
   {
+    if (!validate_meta_update(msg->node_id))
+      return;
+
     try
     {
       std::mutex* update_mutex = options.update_mutex();
@@ -280,10 +316,6 @@ public:
         node->get_logger(),
         "  Processing stashed query for DB update %lu",
         msg->patch.latest_version);
-      // TODO(Geoff): If somehow require_query_validation gets set back to true
-      // while processing this loop, it will enter an infinite loop. Add a
-      // counter or use a counter-based loop to prevent that? Or is it
-      // impossible for require_query_validation to go true while in here?
       handle_update(std::move(msg));
     }
     stashed_query_updates.clear();
@@ -295,6 +327,30 @@ public:
     stashed_query_updates.clear();
   }
 
+  void apply_patch(
+    const std::shared_ptr<rclcpp::Node>& node,
+    const rmf_traffic_msgs::msg::SchedulePatch& msg,
+    const bool is_remedial)
+  {
+    const rmf_traffic::schedule::Patch patch = convert(msg);
+    if (!mirror->update(patch) && !is_remedial)
+    {
+      std::string patch_base = patch.base_version() ?
+        std::to_string(*patch.base_version()) : std::string("any");
+      std::string mirror_version = mirror->latest_version() ?
+        std::to_string(*mirror->latest_version()) : std::string("none");
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Failed to update using patch for DB version %lu "
+        "(mirror version: %s, patch base: %s); requesting new update",
+        patch.latest_version(),
+        mirror_version.c_str(),
+        patch_base.c_str());
+
+      request_update(mirror->latest_version());
+    }
+  }
+
   void handle_update(const MirrorUpdate::SharedPtr msg)
   {
     update_timer->reset();
@@ -303,39 +359,33 @@ public:
       return;
 
     // Verify that the expected schedule node version sent the update
-
-    if (rmf_utils::modular(expected_node_version).less_than(msg->node_version))
+    if (need_reconnection(schedule_node_id, msg->node_id))
     {
       RCLCPP_WARN(
         node->get_logger(),
-        "Received query update from unexpected schedule node version %lu "
-        "(<%lu); ignoring update",
-        msg->node_version,
-        expected_node_version);
-      return;
-    }
-    else if (msg->node_version > expected_node_version)
-    {
-      RCLCPP_WARN(
-        node->get_logger(),
-        "Received query update from unexpected schedule node version %lu "
-        "(>%lu); validating query registration",
-        msg->node_version,
-        expected_node_version);
+        "Received query update from unexpected newer schedule node [%s], "
+        "expected [%s]; validating query registration",
+        msg->node_id.node_uuid.c_str(),
+        schedule_node_id.node_uuid.c_str());
       require_query_validation = true;
-      expected_node_version = msg->node_version;
       stashed_query_updates.clear();
     }
-    else if (msg->node_version != expected_node_version)
+    else if (schedule_node_id.node_uuid != msg->node_id.node_uuid)
     {
       // Ignore this message because it's coming from an out-of-date version
+      RCLCPP_WARN(
+        node->get_logger(),
+        "Received query update from outdated schedule node [%s], "
+        "expected [%s]; ignoring",
+        msg->node_id.node_uuid.c_str(),
+        schedule_node_id.node_uuid.c_str());
       return;
     }
 
     if (require_query_validation)
     {
       // Stash this query update until the query has been verified as correct
-      RCLCPP_DEBUG(
+      RCLCPP_INFO(
         node->get_logger(),
         "Stashing suspect query for DB version %lu",
         msg->patch.latest_version);
@@ -351,27 +401,11 @@ public:
       if (update_mutex)
       {
         std::lock_guard<std::mutex> lock(*update_mutex);
-        if (!mirror->update(patch) && !msg->is_remedial_update)
-        {
-          RCLCPP_WARN(
-            node->get_logger(),
-            "Failed to update using patch for DB version %lu; "
-            "requesting new update",
-            patch.latest_version());
-          request_update(mirror->latest_version());
-        }
+        apply_patch(node, msg->patch, msg->is_remedial_update);
       }
       else
       {
-        if (!mirror->update(patch) && !msg->is_remedial_update)
-        {
-          RCLCPP_WARN(
-            node->get_logger(),
-            "Failed to update using patch for DB version %lu; "
-            "requesting new update",
-            patch.latest_version());
-          request_update(mirror->latest_version());
-        }
+        apply_patch(node, msg->patch, msg->is_remedial_update);
       }
     }
     catch (const std::exception& e)
@@ -392,7 +426,9 @@ public:
     if (!node)
       return;
 
-    RCLCPP_DEBUG(node->get_logger(), "Update timed out");
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Requesting new schedule update because update timed out");
     request_update(mirror->latest_version());
   }
 
@@ -408,6 +444,12 @@ public:
     {
       request.version = minimum_version.value();
       request.full_update = false;
+      RCLCPP_INFO(
+        node->get_logger(),
+        "[rmf_traffic_ros2::MirrorManager::request_update] Requesting changes "
+        "for query ID [%ld] since version [%lu]",
+        request.query_id,
+        request.version);
     }
     else
     {
@@ -420,46 +462,60 @@ public:
       request.full_update = true;
     }
 
-    request_changes_client->async_send_request(
-      std::make_shared<RequestChanges::Request>(request),
-      [this, minimum_version](const RequestChangesFuture response)
-      {
-        // Check how the schedule node handled the request. The actual queries
-        // update will come separately over the query update topic; this is
-        // just whether the request was handled successfully or not.
-        auto value = *response.get();
-        if (value.result == RequestChanges::Response::UNKNOWN_QUERY_ID)
+    if (request_changes_client && request_changes_client->service_is_ready())
+    {
+      request_changes_client->async_send_request(
+        std::make_shared<RequestChanges::Request>(request),
+        [this, minimum_version](const RequestChangesFuture response)
         {
-          redo_query_registration();
-        }
-        else if (value.result == RequestChanges::Response::ERROR)
-        {
-          const auto node = weak_node.lock();
-          if (node)
+          // Check how the schedule node handled the request. The actual queries
+          // update will come separately over the query update topic; this is
+          // just whether the request was handled successfully or not.
+          auto value = *response.get();
+          if (!validate_service_response(value.node_id))
+            return;
+
+          if (value.result == RequestChanges::Response::UNKNOWN_QUERY_ID)
           {
-            if (minimum_version.has_value())
+            redo_query_registration();
+          }
+          else if (value.result == RequestChanges::Response::ERROR)
+          {
+            const auto node = weak_node.lock();
+            if (node)
             {
-              RCLCPP_ERROR(
-                node->get_logger(),
-                "[MirrorManager::request_update] Failed to request an update "
-                "for query ID [%ld] up from version [%lu]. Error message: %s",
-                query_id,
-                minimum_version.value(),
-                value.error.c_str());
-            }
-            else
-            {
-              RCLCPP_ERROR(
-                node->get_logger(),
-                "[MirrorManager::request_updpate] Failed to request an update "
-                "for query ID [%ld] from the beginning of recorded history. "
-                "Error message: %s",
-                query_id,
-                value.error.c_str());
+              if (minimum_version.has_value())
+              {
+                RCLCPP_ERROR(
+                  node->get_logger(),
+                  "[MirrorManager::request_update] Failed to request an update "
+                  "for query ID [%ld] up from version [%lu]. Error message: %s",
+                  query_id,
+                  minimum_version.value(),
+                  value.error.c_str());
+              }
+              else
+              {
+                RCLCPP_ERROR(
+                  node->get_logger(),
+                  "[MirrorManager::request_update] Failed to request an "
+                  "update for query ID [%ld] from the beginning of recorded "
+                  "history. Error message: %s",
+                  query_id,
+                  value.error.c_str());
+              }
             }
           }
-        }
-      });
+        });
+    }
+    else
+    {
+      RCLCPP_WARN(
+        node->get_logger(),
+        "[MirrorManager::request_update] Waiting for change request service "
+        "to reconnect for [%s] before sending a change request.",
+        schedule_node_id.node_uuid.c_str());
+    }
   }
 
   void redo_query_registration()
@@ -479,7 +535,7 @@ public:
     register_query_client =
       node->create_client<RegisterQuery>(RegisterQueryServiceName);
     redo_query_registration_timer = node->create_wall_timer(
-      100ms,
+      1s,
       std::bind(
         &MirrorManager::Implementation::redo_query_registration_callback,
         this));
@@ -491,11 +547,11 @@ public:
     if (!node)
       return;
 
-    if (register_query_client->service_is_ready())
+    if (register_query_client && register_query_client->service_is_ready())
     {
-      RCLCPP_DEBUG(
+      RCLCPP_INFO(
         node->get_logger(),
-        "Redoing query registration: Calling service");
+        "[MirrorManager] Redoing query registration: Calling service");
       RegisterQuery::Request register_query_request;
       register_query_request.query = convert(query);
       register_query_client->async_send_request(
@@ -507,15 +563,13 @@ public:
             return;
 
           const auto msg = response.get();
-          if (is_new_version(this->expected_node_version, msg->node_version))
-          {
-            this->expected_node_version = msg->node_version;
-          }
+          if (!validate_service_response(msg->node_id))
+            return;
 
           this->query_id = msg->query_id;
-          RCLCPP_DEBUG(
+          RCLCPP_INFO(
             node->get_logger(),
-            "Redoing query registration: Got new ID %lu",
+            "[MirrorManager] Redoing query registration: Got new ID %lu",
             query_id);
           setup_update_topics();
           setup_queries_sub();
@@ -529,22 +583,55 @@ public:
     }
     else
     {
-      RCLCPP_ERROR(
+      RCLCPP_WARN(
         node->get_logger(),
-        "Failed to get query registry service");
+        "[MirrorManager::redo_query_registration] Waiting for schedule "
+        "services to connect to [%s] to register a query",
+        schedule_node_id.node_uuid.c_str());
     }
   }
 
-  void handle_fail_over_event(uint64_t new_schedule_node_version)
+  void reconnect_services()
+  {
+    register_query_client = nullptr;
+    request_changes_client = nullptr;
+    mirror->reset();
+
+    const auto node = weak_node.lock();
+    if (!node)
+      return;
+
+    // We will wait one second before attempting discovery. This should give
+    // enough time for the old traffic schedule to shut down and not be
+    // discovered by our client. This is probably not the most robust way to
+    // reconnect services, so we should reconsider this strategy when time
+    // permits.
+    reconnect_services_timer = node->create_wall_timer(
+      1s,
+      [this]()
+      {
+        const auto node = this->weak_node.lock();
+        if (!node)
+          return;
+
+        register_query_client =
+        node->create_client<RegisterQuery>(RegisterQueryServiceName);
+
+        request_changes_client = node->create_client<RequestChanges>(
+          RequestChangesServiceName);
+
+        reconnect_services_timer = nullptr;
+      });
+  }
+
+  void handle_startup_event(const ScheduleIdentity& node_id)
   {
     const auto node = weak_node.lock();
     if (!node)
       return;
 
-    RCLCPP_INFO(
-      node->get_logger(),
-      "Handling fail over event. New expected schedule node version [%ld].",
-      new_schedule_node_version);
+    if (!reconnect_schedule(node_id))
+      return;
 
     // We need to validate that the replacement schedule node has our query
     // correctly. This will be reset to false once we have received the query
@@ -553,12 +640,13 @@ public:
     //
     // While true, all query updates received will be stashed in a list, and
     // will be popped in FIFO order and processed when this is reset to false.
-    if (is_new_version(expected_node_version, new_schedule_node_version))
-    {
-      require_query_validation = true;
-      // The new schedule node will be one version higher
-      expected_node_version = new_schedule_node_version;
-    }
+    require_query_validation = true;
+
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Handling schedule startup event. "
+      "New expected schedule node [%s].",
+      node_id.node_uuid.c_str());
   }
 
   template<typename... Args>
@@ -774,7 +862,8 @@ public:
       node,
       std::move(query),
       std::move(options),
-      registration.query_id);
+      registration.query_id,
+      registration.node_id);
   }
 
   ~Implementation()

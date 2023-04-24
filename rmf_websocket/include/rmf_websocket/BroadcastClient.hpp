@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Open Source Robotics Foundation
+ * Copyright (C) 2022 Open Source Robotics Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,13 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__BROADCASTCLIENT_HPP
-#define SRC__RMF_FLEET_ADAPTER__BROADCASTCLIENT_HPP
-
-#include <websocketpp/config/asio_no_tls_client.hpp>
-#include <websocketpp/client.hpp>
+#ifndef RMF_WEBSOCKET__BROADCAST_CLIENT_HPP
+#define RMF_WEBSOCKET__BROADCAST_CLIENT_HPP
 
 #include <nlohmann/json.hpp>
 
-#include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
+#include <rclcpp/node.hpp>
+#include <rmf_utils/impl_ptr.hpp>
 
 #include <memory>
 #include <set>
@@ -32,7 +30,7 @@
 #include <thread>
 #include <atomic>
 
-namespace rmf_fleet_adapter {
+namespace rmf_websocket {
 //==============================================================================
 // A wrapper around a websocket client for broadcasting states and logs for
 // fleets, robots and tasks. A queue of json msgs is maintained and published
@@ -40,17 +38,20 @@ namespace rmf_fleet_adapter {
 class BroadcastClient : public std::enable_shared_from_this<BroadcastClient>
 {
 public:
-  using WebsocketClient =
-    websocketpp::client<websocketpp::config::asio_client>;
-  using WebsocketMessagePtr = WebsocketClient::message_ptr;
-  using ConnectionHDL = websocketpp::connection_hdl;
-  using Connections = std::set<ConnectionHDL, std::owner_less<ConnectionHDL>>;
+  using ProvideJsonUpdates = std::function<std::vector<nlohmann::json>()>;
 
   /// \param[in] uri
   ///   "ws://localhost:9000"
+  ///
+  /// \param[in] node
+  ///
+  /// \param[in] on_open_connection_fn
+  ///   Provided function callback will be called whenever the ws client
+  ///   is connected to the server
   static std::shared_ptr<BroadcastClient> make(
     const std::string& uri,
-    std::weak_ptr<agv::FleetUpdateHandle> fleet_handle);
+    const std::shared_ptr<rclcpp::Node>& node,
+    ProvideJsonUpdates on_open_connection_fn = nullptr);
 
   // Publish a single message
   void publish(const nlohmann::json& msg);
@@ -58,24 +59,16 @@ public:
   // Publish a vector of messages
   void publish(const std::vector<nlohmann::json>& msgs);
 
-  ~BroadcastClient();
+  /// Set a limit for how big the queue is allowed to get. Default is 1000.
+  void set_queue_limit(std::optional<std::size_t> limit);
+
+  class Implementation;
 
 private:
   BroadcastClient();
-  std::string _uri;
-  std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
-  WebsocketClient _client;
-  websocketpp::connection_hdl _hdl;
-  std::mutex _wait_mutex;
-  std::mutex _queue_mutex;
-  std::condition_variable _cv;
-  std::queue<nlohmann::json> _queue;
-  std::thread _processing_thread;
-  std::thread _client_thread;
-  std::atomic_bool _connected;
-  std::atomic_bool _shutdown;
+  rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
 
-} // namespace rmf_fleet_adapter
+} // namespace rmf_websocket
 
-#endif // SRC__RMF_FLEET_ADAPTER__BROADCASTCLIENT_HPP
+#endif // RMF_WEBSOCKET__BROADCAST_CLIENT_HPP

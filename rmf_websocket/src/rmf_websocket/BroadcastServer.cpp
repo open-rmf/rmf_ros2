@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Open Source Robotics Foundation
+ * Copyright (C) 2022 Open Source Robotics Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,57 +15,34 @@
  *
  */
 
-#ifndef RMF_FLEET_ADAPTER__TEST__MOCK__WEBSOCKETSERVER
-#define RMF_FLEET_ADAPTER__TEST__MOCK__WEBSOCKETSERVER
+#include <rmf_websocket/BroadcastServer.hpp>
 
 #include <websocketpp/config/asio_no_tls.hpp>
 #include <websocketpp/server.hpp>
 
 #include <nlohmann/json.hpp>
-
 #include <iostream>
 #include <exception>
 #include <functional>
 #include <thread>
 
+namespace rmf_websocket {
+
 using Server = websocketpp::server<websocketpp::config::asio>;
 
-namespace rmf_fleet_adapter_test {
-
 //==============================================================================
-/// This MockWebSocketServer is a wrapper of a websocket server. User need to
-/// specify the api_msg_type, and provide a callback function. The provided
-/// callback will be called when the specified msg_type is received. Note that
-/// this will spawn a seperate thread to host the web socket server
-class MockWebSocketServer
+class BroadcastServer::Implementation
 {
 public:
-  enum class ApiMsgType
-  {
-    TaskStateUpdate,
-    TaskLogUpdate,
-    FleetStateUpdate,
-    FleetLogUpdate,
-  };
-
+  using Server = websocketpp::server<websocketpp::config::asio>;
   using ApiMessageCallback = std::function<void(const nlohmann::json&)>;
 
-  /// Add a callback to convert from a Description into an active Task.
-  ///
-  /// \param[in] port
-  ///   server url port number
-  ///
-  /// \param[in] callback
-  ///   callback function when the message is received
-  ///
-  /// \param[in] msg_selection
-  ///   selected msg type to listen. Will listen to all msg if nullopt
-  ///
-  MockWebSocketServer(
+  Implementation(
     const int port,
     ApiMessageCallback callback,
-    std::optional<ApiMsgType> msg_selection = std::nullopt)
-  : _data(std::make_shared<Data>(std::move(callback), std::move(msg_selection)))
+    std::optional<ApiMsgType> msg_selection)
+  : _data(std::make_shared<Data>(std::move(callback),
+      std::move(msg_selection)))
   {
     std::cout << "Run websocket server with port " << port << std::endl;
     try
@@ -86,7 +63,6 @@ public:
             data->on_message(hdl, msg);
         });
 
-
       _data->echo_server.listen(port);
       _data->echo_server.start_accept();
     }
@@ -103,7 +79,7 @@ public:
   /// Start Server
   void start()
   {
-    std::cout << "Start Mock Server" << std::endl;
+    std::cout << "Start BroadcastServer" << std::endl;
     // Start the ASIO io_service run loop
     _server_thread = std::thread(
       [data = _data]() { data->echo_server.run(); });
@@ -112,7 +88,7 @@ public:
   /// Stop Server
   void stop()
   {
-    std::cout << "Stop Mock Server" << std::endl;
+    std::cout << "Stop BroadcastServer" << std::endl;
     if (_server_thread.joinable())
     {
       _data->echo_server.stop_listening();
@@ -122,7 +98,7 @@ public:
     }
   }
 
-  ~MockWebSocketServer()
+  ~Implementation()
   {
     stop();
   }
@@ -165,9 +141,12 @@ private:
         if (selection)
         {
           const auto target_msg_type = to_string(*selection);
-          const auto type = msg_json.at("type");
-          if (type == target_msg_type)
-            msg_callback(msg_json.at("data"));
+          const auto type_it = msg_json.find("type");
+          if (type_it != msg_json.end())
+          {
+            if (type_it.value() == target_msg_type)
+              msg_callback(msg_json.at("data"));
+          }
         }
         else
           msg_callback(msg_json);
@@ -178,7 +157,41 @@ private:
   std::thread _server_thread;
 };
 
+//==============================================================================
+std::shared_ptr<BroadcastServer> BroadcastServer::make(
+  const int port,
+  ApiMessageCallback callback,
+  std::optional<ApiMsgType> msg_selection)
+{
+  auto server = std::shared_ptr<BroadcastServer>(new BroadcastServer());
+  server->_pimpl =
+    rmf_utils::make_unique_impl<Implementation>(
+    port, callback, msg_selection);
+  return server;
+}
 
-} // namespace rmf_fleet_adapter_test
+//==============================================================================
+void BroadcastServer::start()
+{
+  _pimpl->start();
+}
 
-#endif // RMF_FLEET_ADAPTER__TEST__MOCK__WEBSOCKETSERVER
+//==============================================================================
+void BroadcastServer::stop()
+{
+  _pimpl->stop();
+}
+
+//==============================================================================
+const std::string BroadcastServer::to_string(const ApiMsgType& type)
+{
+  return BroadcastServer::Implementation::to_string(type);
+}
+
+//==============================================================================
+BroadcastServer::BroadcastServer()
+{
+  // Do nothing
+}
+
+} // namespace rmf_websocket

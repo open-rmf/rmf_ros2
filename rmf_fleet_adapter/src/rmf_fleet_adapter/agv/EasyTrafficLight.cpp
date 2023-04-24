@@ -379,7 +379,7 @@ void EasyTrafficLight::Implementation::Shared::make_plan(
   state.find_path_service = std::make_shared<services::FindPath>(
     state.planner, rmf_traffic::agv::Plan::StartSet{std::move(start)},
     std::move(goal), hooks.schedule->snapshot(), state.itinerary->id(),
-    hooks.profile);
+    hooks.profile, std::nullopt);
 
   state.find_path_subscription =
     rmf_rxcpp::make_job<services::FindPath::Result>(
@@ -517,7 +517,7 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
   // We update the last_reacheed and last_passed here because we need to make
   // sure they are set correctly before we call state.current_itinerary_slice()
 
-  std::optional<rmf_traffic::Duration> new_delay;
+  std::optional<rmf_traffic::Duration> new_cumulative_delay;
   if (location.has_value())
   {
     const auto slices = state.current_itinerary_slice();
@@ -530,7 +530,7 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
           rmf_traffic::agv::interpolate_time_along_quadratic_straight_line(
           slice.trajectory(), location->block<2, 1>(0, 0));
 
-        new_delay = hooks.node->rmf_now() - expected_time;
+        new_cumulative_delay = hooks.node->rmf_now() - expected_time;
         break;
       }
       catch (const std::exception& e)
@@ -553,29 +553,28 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
       {
         if (progress == checkpoint)
         {
-          new_delay = hooks.node->rmf_now() - time - state.itinerary->delay();
+          new_cumulative_delay = hooks.node->rmf_now() - time;
           break;
         }
       }
 
-      if (new_delay.has_value())
+      if (new_cumulative_delay.has_value())
         break;
 
       if (*wp.graph_index() != checkpoint)
         continue;
 
-      new_delay =
-        (hooks.node->rmf_now() - wp.time()) - state.itinerary->delay();
+      new_cumulative_delay = hooks.node->rmf_now() - wp.time();
     }
   }
 
-  if (new_delay.has_value())
+  if (new_cumulative_delay.has_value())
   {
-    if (std::chrono::abs(*new_delay) > std::chrono::seconds(1))
+    if (std::chrono::abs(*new_cumulative_delay) > std::chrono::seconds(1))
     {
-      if (std::chrono::abs(*new_delay) > std::chrono::hours(1))
+      if (std::chrono::abs(*new_cumulative_delay) > std::chrono::hours(1))
       {
-        const auto t = rmf_traffic::time::to_seconds(*new_delay);
+        const auto t = rmf_traffic::time::to_seconds(*new_cumulative_delay);
         // If this happens, there may be an edge case that
         // interpolate_time_along_quadratic_straight_line is not accounting for.
         // *INDENT-OFF*
@@ -587,7 +586,9 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
         // *INDENT-ON*
       }
 
-      state.itinerary->delay(*new_delay);
+      state.itinerary->cumulative_delay(
+        state.itinerary->current_plan_id(),
+        *new_cumulative_delay);
     }
   }
   else
@@ -964,7 +965,8 @@ void EasyTrafficLight::Implementation::Shared::respond(
   auto approval_cb =
     [w = weak_from_this(), request_path_version = path_version](
     const rmf_traffic::PlanId plan_id,
-    const rmf_traffic::agv::Plan& plan)
+    const rmf_traffic::agv::Plan& plan,
+    const auto&)
     -> std::optional<rmf_traffic::schedule::ItineraryVersion>
     {
       if (const auto self = w.lock())
@@ -986,7 +988,7 @@ void EasyTrafficLight::Implementation::Shared::respond(
 
   auto negotiate = services::Negotiate::path(
     state.itinerary->assign_plan_id(), state.planner,
-    {*state.last_known_location}, std::move(goal),
+    {*state.last_known_location}, std::move(goal), {},
     viewer, responder, std::move(approval_cb), evaluator);
 
   auto negotiate_sub =
