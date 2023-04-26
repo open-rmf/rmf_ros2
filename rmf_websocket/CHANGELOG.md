@@ -1,5 +1,8 @@
 ## Changelog for package rmf_websocket
 
+2.1.3 (2023-04-26)
+------------------
+
 2.1.2 (2022-10-10)
 ------------------
 * Add find_package for vendored project.
