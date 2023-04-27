@@ -1,5 +1,8 @@
 ## Changelog for package rmf_fleet_adapter
 
+2.1.4 (2023-04-27)
+------------------
+
 2.1.3 (2023-04-26)
 ------------------
 * Fix emergency response for waiting robots: [#253](https://github.com/open-rmf/rmf_ros2/pull/253)

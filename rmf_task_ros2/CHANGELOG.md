@@ -1,5 +1,8 @@
 ## Changelog for package rmf_task_ros2
 
+2.1.4 (2023-04-27)
+------------------
+
 2.1.3 (2023-04-26)
 ------------------
 * Link Threads to fix build errors on certain platforms: [#204](https://github.com/open-rmf/rmf_ros2/issues/204)
