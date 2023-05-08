@@ -238,6 +238,15 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
       rmf_traffic::Time(std::chrono::milliseconds(t_it->get<int64_t>()));
   }
 
+  rmf_traffic::Time request_time = rmf_traffic_ros2::convert(
+    node->get_clock()->now());
+  const auto r_it = request_msg.find("unix_millis_request_time");
+  if (r_it != request_msg.end())
+  {
+    request_time =
+      rmf_traffic::Time(std::chrono::milliseconds(r_it->get<int64_t>()));
+  }
+
   // Note: make_low_priority() actually returns a nullptr.
   rmf_task::ConstPriorityPtr priority =
     rmf_task::BinaryPriorityScheme::make_low_priority();
@@ -279,12 +288,24 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
     }
   }
 
-  const auto new_request =
-    std::make_shared<rmf_task::Request>(
+  std::string initiator;
+  const auto i_it = request_msg.find("initiator");
+  if (i_it != request_msg.end())
+  {
+    initiator = i_it->get<std::string>();
+  }
+
+  rmf_task::Task::ConstBookingPtr booking =
+    std::make_shared<const rmf_task::Task::Booking>(
     task_id,
     earliest_start_time,
+    request_time,
     priority,
-    deserialized_task.description);
+    initiator);
+  const auto new_request =
+    std::make_shared<rmf_task::Request>(
+      std::move(booking),
+      deserialized_task.description);
 
   return new_request;
 }
