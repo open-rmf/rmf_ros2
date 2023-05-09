@@ -803,7 +803,7 @@ public:
       "unix_millis_request_time",
       "priority",
       "labels",
-      "initiator",
+      "requester",
     };
 
     for (const auto& field : copy_fields)
