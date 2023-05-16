@@ -235,13 +235,17 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
   if (t_it != request_msg.end())
   {
     earliest_start_time =
-      rmf_traffic::Time(std::chrono::milliseconds(t_it->get<uint64_t>()));
+      rmf_traffic::Time(std::chrono::milliseconds(t_it->get<int64_t>()));
   }
 
-  rmf_task::ConstPriorityPtr priority;
+  // Note: make_low_priority() actually returns a nullptr.
+  rmf_task::ConstPriorityPtr priority =
+    rmf_task::BinaryPriorityScheme::make_low_priority();
   const auto p_it = request_msg.find("priority");
   if (p_it != request_msg.end())
   {
+    // Assume the schema is not valid until we have successfully parsed it.
+    bool valid_schema = false;
     // TODO(YV): Validate with priority_description_Binary.json
     if (p_it->contains("type") && p_it->contains("value"))
     {
@@ -251,15 +255,21 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
         const auto& p_value = (*p_it)["value"];
         if (p_value.is_number_integer())
         {
-          if (p_value.is_number_integer() && p_value.get<uint64_t>() > 0)
-            priority = rmf_task::BinaryPriorityScheme::make_high_priority();
-        }
+          // The message matches the expected schema, so now we can mark it as
+          // valid.
+          valid_schema = true;
 
-        priority = rmf_task::BinaryPriorityScheme::make_low_priority();
+          // If we have an integer greater than 0, we assign a high priority.
+          // Else the priority will default to low.
+          if (p_value.get<uint64_t>() > 0)
+          {
+            priority = rmf_task::BinaryPriorityScheme::make_high_priority();
+          }
+        }
       }
     }
 
-    if (!priority)
+    if (!valid_schema)
     {
       errors.push_back(
         make_error_str(
@@ -268,9 +278,6 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
           + p_it->dump() + "\nDefaulting to low binary priority."));
     }
   }
-
-  if (!priority)
-    priority = rmf_task::BinaryPriorityScheme::make_low_priority();
 
   const auto new_request =
     std::make_shared<rmf_task::Request>(

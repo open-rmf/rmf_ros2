@@ -1,5 +1,8 @@
 ## Changelog for package rmf_traffic_ros2
 
+2.1.3 (2023-04-26)
+------------------
+
 2.1.2 (2022-10-10)
 ------------------
 
@@ -10,6 +13,7 @@
 * Ignore conflicts between any plans that have a dependency: [#205](https://github.com/open-rmf/rmf_ros2/pull/205)
 * Add support for docking in lanes with entry events: [#226](https://github.com/open-rmf/rmf_ros2/pull/226)
 * Add message conversion functions for the navigation graph: [#207](https://github.com/open-rmf/rmf_ros2/pull/207)
+* Changes for humble compatibility: [#215](https://github.com/open-rmf/rmf_ros2/issues/215)
 
 2.0.0 (2022-03-18)
 ------------------

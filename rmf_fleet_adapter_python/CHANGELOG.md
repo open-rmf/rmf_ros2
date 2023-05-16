@@ -1,5 +1,8 @@
 ## Changelog for package rmf_fleet_adapter_python
 
+2.1.3 (2023-04-26)
+------------------
+
 2.1.2 (2022-10-10)
 ------------------
 
@@ -14,6 +17,7 @@
 * Allow `ResponsiveWait` to be enabled and disabled: [#209](https://github.com/open-rmf/rmf_ros2/pull/209)
 * Allow robot status to be overridden by the user: [#191](https://github.com/open-rmf/rmf_ros2/pull/191)
 * Add API to report status for `perform_action`: [#190](https://github.com/open-rmf/rmf_ros2/pull/190)
+* Changes for humble compatibility: [#215](https://github.com/open-rmf/rmf_ros2/issues/215)
 
 2.0.0 (2022-03-18)
 ------------------

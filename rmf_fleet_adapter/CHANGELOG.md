@@ -1,5 +1,13 @@
 ## Changelog for package rmf_fleet_adapter
 
+2.1.3 (2023-04-26)
+------------------
+* Fix emergency response for waiting robots: [#253](https://github.com/open-rmf/rmf_ros2/pull/253)
+* Properly cleanup emergency pullover task: [#258](https://github.com/open-rmf/rmf_ros2/pull/258)
+* Fix priority assignment when parsing tasks: [#265](https://github.com/open-rmf/rmf_ros2/issues/265)
+* Link Threads to fix build errors on certain platforms: [#204](https://github.com/open-rmf/rmf_ros2/issues/204)
+* Contributors: decada-robotics, Luca Della Vedova, Grey, Yadunund
+
 2.1.2 (2022-10-10)
 ------------------
 
