@@ -881,7 +881,8 @@ bool RobotUpdateHandle::ActionExecution::okay() const
 }
 
 //==============================================================================
-std::optional<std::shared_ptr<RobotUpdateHandle>> RobotUpdateHandle::ActionExecution::handle() const
+std::optional<std::shared_ptr<RobotUpdateHandle>>
+RobotUpdateHandle::ActionExecution::handle() const
 {
   return _pimpl->data->handle;
 }

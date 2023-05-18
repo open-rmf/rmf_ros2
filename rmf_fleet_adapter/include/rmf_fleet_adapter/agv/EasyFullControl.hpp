@@ -202,10 +202,12 @@ public:
     bool account_for_battery_drain() const;
 
     /// Get the task categories
-    const std::unordered_map<std::string, ConsiderRequest>& task_consideration() const;
+    const std::unordered_map<std::string,
+      ConsiderRequest>& task_consideration() const;
 
     /// Get the action categories
-    const std::unordered_map<std::string, ConsiderRequest>& action_consideration() const;
+    const std::unordered_map<std::string,
+      ConsiderRequest>& action_consideration() const;
 
     /// Get the finishing request.
     rmf_task::ConstRequestFactoryPtr finishing_request() const;

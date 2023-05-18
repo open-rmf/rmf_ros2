@@ -164,8 +164,8 @@ public:
   std::optional<rclcpp::Time> last_replan_time = std::nullopt;
   std::string dock_name;
   uint64_t execution_id = 0;
-  std::shared_ptr<agv::RobotUpdateHandle::ActionExecution::Implementation::Data> nav_data;
-  std::shared_ptr<agv::RobotUpdateHandle::ActionExecution::Implementation::Data> docking_data;
+  std::shared_ptr<ActionExecution::Implementation::Data> nav_data;
+  std::shared_ptr<ActionExecution::Implementation::Data> docking_data;
 
 
   std::optional<InternalPlanWaypoint> target_waypoint;
@@ -667,12 +667,9 @@ void EasyCommandHandle::start_follow()
         {
           state->update_status(Status::Completed);
         };
-      nav_data = std::make_shared<agv::RobotUpdateHandle::ActionExecution::Implementation::Data>(
-        std::move(nav_finished_callback),
-        nav_state,
-        std::nullopt,
-        updater);
-      auto nav_execution = agv::RobotUpdateHandle::ActionExecution::Implementation::make(nav_data);
+      nav_data = std::make_shared<ActionExecution::Implementation::Data>(
+        std::move(nav_finished_callback), nav_state, std::nullopt, updater);
+      auto nav_execution = ActionExecution::Implementation::make(nav_data);
       nav_state->update_status(Status::Underway);
       handle_nav_request(
         map_name,
@@ -806,15 +803,14 @@ void EasyCommandHandle::start_dock()
       state->update_status(Status::Completed);
     };
   docking_data = std::make_shared<ActionExecution::Implementation::Data>(
-    std::move(dock_action_finished_callback),
-    docking_state,
-    std::nullopt,
-    updater);
+    std::move(dock_action_finished_callback), docking_state,
+    std::nullopt, updater);
   auto docking_execution = ActionExecution::Implementation::make(docking_data);
   docking_state->update_status(Status::Underway);
 
   handle_dock(dock_name, docking_execution);
-  while (docking_data->state->status() != Status::Completed && !quit_dock_thread)
+  while (docking_data->state->status() != Status::Completed &&
+    !quit_dock_thread)
   {
     RCLCPP_DEBUG(
       node->get_logger(),
@@ -1351,8 +1347,8 @@ EasyFullControl::Configuration::make(
   const YAML::Node task_capabilities = rmf_fleet["task_capabilities"];
   std::unordered_map<std::string, ConsiderRequest> task_consideration;
   const auto parse_consideration = [&](
-      const std::string& capability,
-      const std::string& task)
+    const std::string& capability,
+    const std::string& task)
     {
       if (const auto c = task_capabilities[capability])
       {
