@@ -18,8 +18,11 @@
 #include <rmf_fleet_adapter/agv/Adapter.hpp>
 #include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
 #include <rmf_fleet_adapter/agv/RobotCommandHandle.hpp>
+#include "internal_RobotUpdateHandle.hpp"
 
 // Public rmf_task API headers
+#include <rmf_task/Event.hpp>
+#include <rmf_task/events/SimpleEventState.hpp>
 #include <rmf_task/requests/ChargeBatteryFactory.hpp>
 #include <rmf_task/requests/ParkRobotFactory.hpp>
 
@@ -57,13 +60,14 @@ public:
   using Planner = rmf_traffic::agv::Planner;
   using Graph = rmf_traffic::agv::Graph;
   using VehicleTraits = rmf_traffic::agv::VehicleTraits;
+  using ActionExecution = RobotUpdateHandle::ActionExecution;
   using ActionExecutor = RobotUpdateHandle::ActionExecutor;
   using RobotState = EasyFullControl::RobotState;
   using GetStateCallback = EasyFullControl::GetStateCallback;
-  using GoalCompletedCallback = EasyFullControl::GoalCompletedCallback;
   using NavigationRequest = EasyFullControl::NavigationRequest;
   using StopRequest = EasyFullControl::StopRequest;
   using DockRequest = EasyFullControl::DockRequest;
+  using Status = rmf_task::Event::Status;
 
   // State machine values.
   enum class InternalRobotState : uint8_t
@@ -159,6 +163,10 @@ public:
   std::optional<std::size_t> dock_waypoint_index = std::nullopt;
   std::optional<rclcpp::Time> last_replan_time = std::nullopt;
   std::string dock_name;
+  uint64_t execution_id = 0;
+  std::shared_ptr<agv::RobotUpdateHandle::ActionExecution::Implementation::Data> nav_data;
+  std::shared_ptr<agv::RobotUpdateHandle::ActionExecution::Implementation::Data> docking_data;
+
 
   std::optional<InternalPlanWaypoint> target_waypoint;
   std::vector<InternalPlanWaypoint> remaining_waypoints;
@@ -623,10 +631,6 @@ void EasyCommandHandle::dock(
 //==============================================================================
 void EasyCommandHandle::start_follow()
 {
-  // Function to be overwritten with GoalCompletedCallback returned from
-  // navigation handle.
-  GoalCompletedCallback nav_completed_cb;
-
   while ((!remaining_waypoints.empty() ||
     _state == InternalRobotState::MOVING) && !quit_follow_thread)
   {
@@ -649,33 +653,41 @@ void EasyCommandHandle::start_follow()
         target_pose[0], target_pose[1], target_pose[2],
         map_name.c_str()
       );
-      nav_completed_cb = handle_nav_request(
+
+      rmf_task::events::SimpleEventStatePtr nav_state;
+      nav_state = rmf_task::events::SimpleEventState::make(
+        execution_id,
+        "navigation", // category
+        "navigation", // detail
+        rmf_task::Event::Status::Standby,
+        {},
+        nullptr);
+      execution_id++;
+      auto nav_finished_callback = [state = nav_state]()
+        {
+          state->update_status(Status::Completed);
+        };
+      nav_data = std::make_shared<agv::RobotUpdateHandle::ActionExecution::Implementation::Data>(
+        std::move(nav_finished_callback),
+        nav_state,
+        std::nullopt,
+        updater);
+      auto nav_execution = agv::RobotUpdateHandle::ActionExecution::Implementation::make(nav_data);
+      nav_state->update_status(Status::Underway);
+      handle_nav_request(
         map_name,
         target_pose,
-        updater);
+        nav_execution);
 
-      if (nav_completed_cb != nullptr)
-      {
-        std::lock_guard<std::mutex> lock(mutex);
-        remaining_waypoints.erase(remaining_waypoints.begin());
-        _state = InternalRobotState::MOVING;
-      }
-      else
-      {
-        RCLCPP_INFO(
-          node->get_logger(),
-          "Did not receive a valid GoalCompletedCallback from calling "
-          "handle_nav_request() for robot [%s]. Retrying navigation request in "
-          "[%.2f] seconds.",
-          robot_name.c_str(), update_interval.count()/1e9);
-        std::this_thread::sleep_for(update_interval);
-      }
+      // Start executing navigation
+      std::lock_guard<std::mutex> lock(mutex);
+      remaining_waypoints.erase(remaining_waypoints.begin());
+      _state = InternalRobotState::MOVING;
     }
     else if (_state == InternalRobotState::MOVING)
     {
       std::this_thread::sleep_for(update_interval);
-      const auto goal_status = nav_completed_cb();
-      if (goal_status.success())
+      if (nav_data->state->status() == Status::Completed)
       {
         RCLCPP_INFO(
           node->get_logger(),
@@ -695,7 +707,7 @@ void EasyCommandHandle::start_follow()
       else
       {
         // If the user requested a replan for this robot, trigger one.
-        if (goal_status.request_replan())
+        if (nav_data->request_replan)
         {
           replan();
         }
@@ -754,8 +766,8 @@ void EasyCommandHandle::start_follow()
             rmf_traffic::time::from_seconds(5.0);
 
           const auto finish_time =
-            goal_status.remaining_time().has_value() ?
-            goal_status.remaining_time().value() : remaining_time;
+            nav_data->remaining_time.has_value() ?
+            nav_data->remaining_time.value() : remaining_time;
 
           next_arrival_estimator(
             target_waypoint->index,
@@ -780,8 +792,29 @@ void EasyCommandHandle::start_follow()
 //==============================================================================
 void EasyCommandHandle::start_dock()
 {
-  auto docking_cb = handle_dock(dock_name, updater);
-  while (!docking_cb().success() && !quit_dock_thread)
+  rmf_task::events::SimpleEventStatePtr docking_state;
+  docking_state = rmf_task::events::SimpleEventState::make(
+    execution_id,
+    "docking", // category
+    "docking", // detail
+    rmf_task::Event::Status::Standby,
+    {},
+    nullptr);
+  execution_id++;
+  auto dock_action_finished_callback = [state = docking_state]()
+    {
+      state->update_status(Status::Completed);
+    };
+  docking_data = std::make_shared<ActionExecution::Implementation::Data>(
+    std::move(dock_action_finished_callback),
+    docking_state,
+    std::nullopt,
+    updater);
+  auto docking_execution = ActionExecution::Implementation::make(docking_data);
+  docking_state->update_status(Status::Underway);
+
+  handle_dock(dock_name, docking_execution);
+  while (docking_data->state->status() != Status::Completed && !quit_dock_thread)
   {
     RCLCPP_DEBUG(
       node->get_logger(),
@@ -1602,49 +1635,6 @@ double EasyFullControl::RobotState::battery_soc() const
 bool EasyFullControl::RobotState::action() const
 {
   return _pimpl->action;
-}
-
-//==============================================================================
-class EasyFullControl::GoalStatus::Implementation
-{
-public:
-  bool success;
-  std::optional<rmf_traffic::Duration> remaining_time;
-  bool request_replan;
-};
-
-//==============================================================================
-EasyFullControl::GoalStatus::GoalStatus(
-  bool success,
-  std::optional<rmf_traffic::Duration> remaining_time,
-  bool request_replan)
-: _pimpl(rmf_utils::make_impl<Implementation>(
-      Implementation{
-        std::move(success),
-        std::move(remaining_time),
-        std::move(request_replan)
-      }))
-{
-  // Do nothing
-}
-
-//==============================================================================
-bool EasyFullControl::GoalStatus::success() const
-{
-  return _pimpl->success;
-}
-
-//==============================================================================
-std::optional<rmf_traffic::Duration> EasyFullControl::GoalStatus::remaining_time()
-const
-{
-  return _pimpl->remaining_time;
-}
-
-//==============================================================================
-bool EasyFullControl::GoalStatus::request_replan() const
-{
-  return _pimpl->request_replan;
 }
 
 //==============================================================================

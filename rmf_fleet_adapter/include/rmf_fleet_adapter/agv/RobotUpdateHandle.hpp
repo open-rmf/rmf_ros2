@@ -130,7 +130,11 @@ public:
   class ActionExecution
   {
   public:
-    /// Update the amount of time remaining for this action
+    /// Update navigation or docking replan requests and remaining time estimate.
+    void update_request(bool request_replan, std::optional<rmf_traffic::Duration> remaining_time);
+
+    /// Update the amount of time remaining for this action.
+    /// This does not need to be used for navigation requests.
     void update_remaining_time(rmf_traffic::Duration remaining_time_estimate);
 
     /// Set task status to underway and optionally log a message (info tier)
@@ -147,11 +151,16 @@ public:
     /// (warning tier)
     void blocked(std::optional<std::string> text);
 
-    /// Trigger this when the action is successfully finished
+    /// Trigger this when the action is successfully finished.
+    /// No other functions in this ActionExecution instance will
+    /// be usable after this.
     void finished();
 
     /// Returns false if the Action has been killed or cancelled
     bool okay() const;
+
+    /// Get the RobotUpdateHandle
+    std::optional<std::shared_ptr<RobotUpdateHandle>> handle() const;
 
     class Implementation;
   private:

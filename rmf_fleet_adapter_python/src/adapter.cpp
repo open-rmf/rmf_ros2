@@ -283,6 +283,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
 
   py::class_<ActionExecution>(
     m_robot_update_handle, "ActionExecution")
+  .def("update_request",
+    &ActionExecution::update_request,
+    py::arg("request_replan"), py::arg("remaining_time"))
   .def("update_remaining_time",
     &ActionExecution::update_remaining_time,
     py::arg("remaining_time_estimate"))
@@ -291,7 +294,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("delayed", &ActionExecution::delayed, py::arg("text"))
   .def("blocked", &ActionExecution::blocked, py::arg("text"))
   .def("finished", &ActionExecution::finished)
-  .def("okay", &ActionExecution::okay);
+  .def("okay", &ActionExecution::okay)
+  .def("handle", &ActionExecution::handle);
 
   // ROBOT INTERRUPTION   ====================================================
   py::class_<RobotInterruption>(
@@ -871,19 +875,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property_readonly("location", &agv::EasyFullControl::RobotState::location)
   .def_property_readonly("battery_soc", &agv::EasyFullControl::RobotState::battery_soc)
   .def_property_readonly("action", &agv::EasyFullControl::RobotState::action);
-
-  // EASY FULL CONTROL GoalStatus ===============================================
-  py::class_<agv::EasyFullControl::GoalStatus>(m_easy_full_control, "GoalStatus")
-  .def(py::init<bool,
-      std::optional<rmf_traffic::Duration>,
-      bool>(),
-    py::arg("success"),
-    py::arg("remaining_time") = std::optional<rmf_traffic::Duration>(
-      std::nullopt),
-    py::arg("request_replan"))
-  .def_property_readonly("success", &agv::EasyFullControl::GoalStatus::success)
-  .def_property_readonly("remaining_time", &agv::EasyFullControl::GoalStatus::remaining_time)
-  .def_property_readonly("request_replan", &agv::EasyFullControl::GoalStatus::request_replan);
 
   // Transformation =============================================================
   py::class_<agv::Transformation>(m_easy_full_control, "Transformation")

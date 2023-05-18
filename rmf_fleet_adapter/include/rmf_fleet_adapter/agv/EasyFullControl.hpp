@@ -287,50 +287,6 @@ public:
   /// \return RobotState
   using GetStateCallback = std::function<RobotState(void)>;
 
-  ///   The GoalStatus class contains information about the robot's progress
-  ///   in completing a goal.
-  class GoalStatus
-  {
-  public:
-
-    /// Constructor
-    ///
-    /// \param[in] success
-    ///   A bool indicating whether the robot has completed the goal
-    ///
-    /// \param[in] remaining_time
-    ///   A duration object containing the time remaining for this goal. If not
-    ///   updated, the adapter will derive the time estimate by interpolating
-    ///   the robot's motion to the destination location.
-    ///
-    /// \param[in] request_replan
-    ///   A bool to request the fleet adapter to generate a new plan for this
-    ///   robot due to issues with completing the goal.
-    GoalStatus(
-      bool success = false,
-      std::optional<rmf_traffic::Duration> remaining_time = std::nullopt,
-      bool request_replan = false);
-
-    /// Get the success status
-    bool success() const;
-
-    /// Get the remaining time
-    std::optional<rmf_traffic::Duration> remaining_time() const;
-
-    /// Get the replan request
-    bool request_replan() const;
-
-    class Implementation;
-
-  private:
-    rmf_utils::impl_ptr<Implementation> _pimpl;
-  };
-
-  /// Signature for a callback that returns the latest GoalStatus of the robot.
-  ///
-  /// \return GoalStatus
-  using GoalCompletedCallback = std::function<GoalStatus()>;
-
   /// Signature for a function to request the robot to navigate to a location.
   ///
   /// \param[in] map_name
@@ -339,16 +295,15 @@ public:
   /// \param[in] location
   ///   The XY position and orientation of the location.
   ///
-  /// \param[in] robot_handle
-  ///   The robot_handle may be used to submit issue tickets if the robot
-  ///   is having any challenges with reaching the location.
-  ///
-  /// \return A GoalCompletedCallback to query the status of this request.
+  /// \param[in] execution
+  ///   The action execution may be used to update navigation request items
+  ///   as well as to obtain the robot handle for the robot to submit any
+  ///   issue tickets regarding challenges with reaching the location.
   using NavigationRequest =
-    std::function<GoalCompletedCallback(
+    std::function<void(
         const std::string& map_name,
         const Eigen::Vector3d location,
-        RobotUpdateHandlePtr robot_handle)>;
+        RobotUpdateHandle::ActionExecution execution)>;
 
   /// Signature for a function to request the robot to stop.
   ///
@@ -360,15 +315,14 @@ public:
   /// \param[in] dock_name
   ///   The name of the dock.
   ///
-  /// \param[in] robot_handle
-  ///   The robot_handle may be used to submit issue tickets if the robot
-  ///   is having any challenges with reaching the location.
-  ///
-  /// \return A GoalCompletedCallback to query the status of this request.
+  /// \param[in] execution
+  ///   The action execution may be used to update docking request items
+  ///   as well as to obtain the robot handle for the robot to submit any
+  ///   issue tickets regarding challenges with reaching the location.
   using DockRequest =
-    std::function<GoalCompletedCallback(
+    std::function<void(
         const std::string& dock_name,
-        RobotUpdateHandlePtr robot_handle)>;
+        RobotUpdateHandle::ActionExecution execution)>;
 
   /// Make an EasyFullControl adapter instance.
   /// \param[in] config

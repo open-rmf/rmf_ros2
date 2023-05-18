@@ -814,6 +814,14 @@ void RobotUpdateHandle::Unstable::set_lift_entry_watchdog(
 }
 
 //==============================================================================
+void RobotUpdateHandle::ActionExecution::update_request(
+  bool request_replan, std::optional<rmf_traffic::Duration> remaining_time)
+{
+  _pimpl->data->request_replan = request_replan;
+  _pimpl->data->remaining_time = remaining_time;
+}
+
+//==============================================================================
 void RobotUpdateHandle::ActionExecution::update_remaining_time(
   rmf_traffic::Duration remaining_time_estimate)
 {
@@ -870,6 +878,12 @@ void RobotUpdateHandle::ActionExecution::finished()
 bool RobotUpdateHandle::ActionExecution::okay() const
 {
   return _pimpl->data->okay;
+}
+
+//==============================================================================
+std::optional<std::shared_ptr<RobotUpdateHandle>> RobotUpdateHandle::ActionExecution::handle() const
+{
+  return _pimpl->data->handle;
 }
 
 //==============================================================================

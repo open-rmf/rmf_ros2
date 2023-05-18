@@ -40,17 +40,22 @@ public:
     std::function<void()> finished;
     std::shared_ptr<rmf_task::events::SimpleEventState> state;
     std::optional<rmf_traffic::Duration> remaining_time;
+    bool request_replan;
+    std::optional<std::shared_ptr<RobotUpdateHandle>> handle;
     bool okay;
     // TODO: Consider adding a mutex to lock read/write
 
     Data(
       std::function<void()> finished_,
       std::shared_ptr<rmf_task::events::SimpleEventState> state_,
-      std::optional<rmf_traffic::Duration> remaining_time_ = std::nullopt)
+      std::optional<rmf_traffic::Duration> remaining_time_ = std::nullopt,
+      std::optional<std::shared_ptr<RobotUpdateHandle>> handle_ = std::nullopt)
     {
       finished = std::move(finished_);
       state = std::move(state_);
       remaining_time = remaining_time_;
+      request_replan = false;
+      handle = handle_;
       okay = true;
     }
 
