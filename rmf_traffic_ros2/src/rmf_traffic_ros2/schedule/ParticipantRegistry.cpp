@@ -42,7 +42,7 @@ struct UniqueIdHasher
 {
   std::size_t operator()(UniqueId id) const
   {
-    return std::hash<std::string>{} (id.name + id.owner);
+    return std::hash<std::string>{}(id.name + id.owner);
   }
 };
 

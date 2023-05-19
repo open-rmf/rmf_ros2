@@ -81,7 +81,7 @@ public:
 
     template<typename... Args>
     static std::shared_ptr<Responder> make(
-      Args&& ... args)
+      Args&&... args)
     {
       auto responder = std::make_shared<Responder>(std::forward<Args>(args)...);
       rclcpp::Node& node = responder->impl->node;
