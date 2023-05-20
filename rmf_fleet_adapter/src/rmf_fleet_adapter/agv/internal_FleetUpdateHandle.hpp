@@ -326,7 +326,7 @@ public:
   std::unordered_set<std::size_t> closed_lanes = {};
 
   template<typename... Args>
-  static std::shared_ptr<FleetUpdateHandle> make(Args&& ... args)
+  static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
   {
     auto handle = std::shared_ptr<FleetUpdateHandle>(new FleetUpdateHandle);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
