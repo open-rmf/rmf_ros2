@@ -57,6 +57,7 @@ if(BUILD_TESTING)
   ament_uncrustify(
     include src test rmf_rxcpp/include rmf_rxcpp/src rmf_rxcpp/test
     CONFIG_FILE ${uncrustify_config_file}
+    LANGUAGE C++
     MAX_LINE_LENGTH 80
   )
 endif()

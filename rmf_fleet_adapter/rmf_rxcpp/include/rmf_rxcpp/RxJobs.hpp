@@ -32,7 +32,7 @@ inline auto make_job(const std::shared_ptr<Action>& action)
 }
 
 template<typename Job0, typename... Jobs>
-inline auto merge_jobs(const Job0& o0, Jobs&& ... os)
+inline auto merge_jobs(const Job0& o0, Jobs&&... os)
 {
   return o0.merge(rxcpp::serialize_event_loop(), os...);
 }
