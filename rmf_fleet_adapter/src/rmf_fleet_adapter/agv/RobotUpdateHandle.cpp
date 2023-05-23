@@ -859,11 +859,18 @@ void RobotUpdateHandle::ActionExecution::blocked(
 //==============================================================================
 void RobotUpdateHandle::ActionExecution::finished()
 {
-  if (!_pimpl->data->finished)
-    return;
-
-  _pimpl->data->finished();
-  _pimpl->data->finished = nullptr;
+  if (_pimpl->data)
+  {
+    _pimpl->data->worker.schedule(
+      [data = _pimpl->data](const rxcpp::schedulers::schedulable&)
+      {
+        if (data->finished)
+        {
+          data->finished();
+          data->finished = nullptr;
+        }
+      });
+  }
 }
 
 //==============================================================================
