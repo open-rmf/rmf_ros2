@@ -1,4 +1,6 @@
-## Changelog for package rmf_websocket
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Changelog for package rmf_websocket
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 2.1.5 (2023-05-20)
 ------------------
