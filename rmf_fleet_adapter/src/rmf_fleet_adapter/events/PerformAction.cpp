@@ -260,7 +260,7 @@ void PerformAction::Active::_execute_action()
     };
 
   auto data = std::make_shared<ExecutionData>(
-    std::move(finished), _state, std::nullopt);
+    _context->worker(), std::move(finished), _state, std::nullopt);
   _execution_data = data;
 
   auto action_execution =

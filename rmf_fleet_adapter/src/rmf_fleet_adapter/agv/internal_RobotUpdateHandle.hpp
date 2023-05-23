@@ -37,6 +37,7 @@ public:
 
   struct Data
   {
+    rxcpp::schedulers::worker worker;
     std::function<void()> finished;
     std::shared_ptr<rmf_task::events::SimpleEventState> state;
     std::optional<rmf_traffic::Duration> remaining_time;
@@ -44,10 +45,12 @@ public:
     // TODO: Consider adding a mutex to lock read/write
 
     Data(
+      rxcpp::schedulers::worker worker_,
       std::function<void()> finished_,
       std::shared_ptr<rmf_task::events::SimpleEventState> state_,
       std::optional<rmf_traffic::Duration> remaining_time_ = std::nullopt)
     {
+      worker = std::move(worker_);
       finished = std::move(finished_);
       state = std::move(state_);
       remaining_time = remaining_time_;
