@@ -650,7 +650,7 @@ public:
   }
 
   template<typename... Args>
-  static MirrorManager make(Args&& ... args)
+  static MirrorManager make(Args&&... args)
   {
     MirrorManager mgr;
     mgr._pimpl = rmf_utils::make_unique_impl<Implementation>(
@@ -875,7 +875,7 @@ public:
   }
 
   template<typename... Args>
-  static MirrorManagerFuture make(Args&& ... args)
+  static MirrorManagerFuture make(Args&&... args)
   {
     MirrorManagerFuture mmf;
     mmf._pimpl = rmf_utils::make_unique_impl<Implementation>(

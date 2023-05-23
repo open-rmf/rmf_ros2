@@ -65,6 +65,7 @@ if(BUILD_TESTING)
   ament_uncrustify(
     ARGN include src test
     CONFIG_FILE ${uncrustify_config_file}
+    LANGUAGE C++
     MAX_LINE_LENGTH 80
   )
 

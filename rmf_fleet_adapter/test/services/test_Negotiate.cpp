@@ -578,7 +578,7 @@ public:
     }
 
     template<typename... Args>
-    static std::shared_ptr<Responder> make(Args&& ... args)
+    static std::shared_ptr<Responder> make(Args&&... args)
     {
       return std::make_shared<Responder>(std::forward<Args>(args)...);
     }

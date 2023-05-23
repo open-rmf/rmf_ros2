@@ -1,5 +1,10 @@
 ## Changelog for package rmf_fleet_adapter
 
+2.1.5 (2023-05-20)
+------------------
+* Reformat code to meet expectations of uncrustify-0.72.0: [#274](https://github.com/open-rmf/rmf_ros2/issues/274)
+* Contributors: Yadunund
+
 2.1.4 (2023-04-27)
 ------------------
 
