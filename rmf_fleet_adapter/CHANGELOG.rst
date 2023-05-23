@@ -4,7 +4,8 @@ Changelog for package rmf_fleet_adapter
 
 2.1.5 (2023-05-20)
 ------------------
-* Reformat code to meet expectations of uncrustify-0.72.0: (`#274 <https://github.com/open-rmf/rmf_ros2/issues/27>`_)
+* Reformat code to meet expectations of uncrustify-0.72.0: (`#274 <https://github.com/open-rmf/rmf_ros2/pull/27>`_)
+* Fix race condition related to the ``finished`` callback of ``perform_action`` events: (`#273 <https://github.com/open-rmf/rmf_ros2/pull/273>`_)
 * Contributors: Yadunund
 
 2.1.4 (2023-04-27)
@@ -14,7 +15,7 @@ Changelog for package rmf_fleet_adapter
 ------------------
 * Fix emergency response for waiting robots: (`#253 <https://github.com/open-rmf/rmf_ros2/pull/25>`_)
 * Properly cleanup emergency pullover task: (`#258 <https://github.com/open-rmf/rmf_ros2/pull/25>`_)
-* Fix priority assignment when parsing tasks: (`#265 <https://github.com/open-rmf/rmf_ros2/issues/26>`_)
+* Fix priority assignment when parsing tasks: (`#265 <https://github.com/open-rmf/rmf_ros2/pull/26>`_)
 * Link Threads to fix build errors on certain platforms: (`#204 <https://github.com/open-rmf/rmf_ros2/issues/20>`_)
 * Contributors: decada-robotics, Luca Della Vedova, Grey, Yadunund
 
