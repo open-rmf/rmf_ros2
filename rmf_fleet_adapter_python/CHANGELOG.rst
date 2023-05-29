@@ -1,4 +1,9 @@
-## Changelog for package rmf_fleet_adapter_python
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Changelog for package rmf_fleet_adapter_python
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+2.1.5 (2023-05-20)
+------------------
 
 2.1.4 (2023-04-27)
 ------------------
@@ -11,16 +16,16 @@
 
 2.1.0 (2022-10-03)
 ------------------
-* Make async behaviors more robust: [#228](https://github.com/open-rmf/rmf_ros2/pull/228)
-* Allow fleet adapters to change schedule participant profiles: [#229](https://github.com/open-rmf/rmf_ros2/pull/229)
-* Allow robots to be decommissioned from the task dispatch system: [#233](https://github.com/open-rmf/rmf_ros2/pull/233)
-* Allow manual toggling of stubborn negotiation: [#196](https://github.com/open-rmf/rmf_ros2/pull/196)
-* Allow users to specify a custom update listener: [#198](https://github.com/open-rmf/rmf_ros2/pull/198)
-* Fix various segfaults related to pybind: [#205](https://github.com/open-rmf/rmf_ros2/pull/205)
-* Allow `ResponsiveWait` to be enabled and disabled: [#209](https://github.com/open-rmf/rmf_ros2/pull/209)
-* Allow robot status to be overridden by the user: [#191](https://github.com/open-rmf/rmf_ros2/pull/191)
-* Add API to report status for `perform_action`: [#190](https://github.com/open-rmf/rmf_ros2/pull/190)
-* Changes for humble compatibility: [#215](https://github.com/open-rmf/rmf_ros2/issues/215)
+* Make async behaviors more robust: (`#228 <https://github.com/open-rmf/rmf_ros2/pull/22>`_)
+* Allow fleet adapters to change schedule participant profiles: (`#229 <https://github.com/open-rmf/rmf_ros2/pull/22>`_)
+* Allow robots to be decommissioned from the task dispatch system: (`#233 <https://github.com/open-rmf/rmf_ros2/pull/23>`_)
+* Allow manual toggling of stubborn negotiation: (`#196 <https://github.com/open-rmf/rmf_ros2/pull/19>`_)
+* Allow users to specify a custom update listener: (`#198 <https://github.com/open-rmf/rmf_ros2/pull/19>`_)
+* Fix various segfaults related to pybind: (`#205 <https://github.com/open-rmf/rmf_ros2/pull/20>`_)
+* Allow `ResponsiveWait` to be enabled and disabled: (`#209 <https://github.com/open-rmf/rmf_ros2/pull/20>`_)
+* Allow robot status to be overridden by the user: (`#191 <https://github.com/open-rmf/rmf_ros2/pull/19>`_)
+* Add API to report status for `perform_action`: (`#190 <https://github.com/open-rmf/rmf_ros2/pull/19>`_)
+* Changes for humble compatibility: (`#215 <https://github.com/open-rmf/rmf_ros2/issues/21>`_)
 
 2.0.0 (2022-03-18)
 ------------------
@@ -28,8 +33,8 @@ No changes yet
 
 1.5.0 (2022-02-14)
 ------------------
-* Support flexible task definitions [#168](https://github.com/open-rmf/rmf_ros2/pull/168)
-* Add lane speed limit to graph parsing function [#124](https://github.com/open-rmf/rmf_ros2/pull/124)
+* Support flexible task definitions (`#168 <https://github.com/open-rmf/rmf_ros2/pull/16>`_)
+* Add lane speed limit to graph parsing function (`#124 <https://github.com/open-rmf/rmf_ros2/pull/12>`_)
 
 1.3.0 (2021-06-07)
 ------------------

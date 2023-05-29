@@ -290,7 +290,9 @@ void add_clean(
       agv::FleetUpdateHandle::Confirmation confirm;
       (*consider)(msg, confirm);
       if (!confirm.is_accepted())
+      {
         return {nullptr, confirm.errors()};
+      }
 
       // TODO(MXG): Validate the type of cleaning (vacuum, mopping, etc)
       /* *INDENT-OFF* */
@@ -310,7 +312,9 @@ void add_clean(
     {
       auto clean_task = deserialize_clean(msg);
       if (!clean_task.description)
+      {
         return {nullptr, std::move(clean_task.errors)};
+      }
 
       /* *INDENT-OFF* */
       return {

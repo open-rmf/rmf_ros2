@@ -229,7 +229,9 @@ make_deserializer(
     ](const nlohmann::json& msg) -> agv::DeserializedEvent
     {
       if (!consider || !(*consider))
+      {
         return {nullptr, {"Not accepting delivery requests"}};
+      }
 
       auto place = place_deser(msg.at("place"));
       if (!place.description.has_value())
@@ -272,7 +274,9 @@ make_deserializer(
       agv::FleetUpdateHandle::Confirmation confirm;
       (*consider)(msg, confirm);
       if (!confirm.is_accepted())
+      {
         return {nullptr, confirm.errors()};
+      }
 
       // TODO(MXG): Add a way for system integrators to specify a duration
       // estimate for the payload transfer

@@ -38,11 +38,15 @@ ProgressEvaluator::ProgressEvaluator(
 bool ProgressEvaluator::initialize(const Result& setup)
 {
   if (!setup.cost_estimate())
+  {
     return false;
+  }
 
   const double cost = *setup.cost_estimate();
   if (cost < best_estimate.cost)
+  {
     best_estimate = Info{cost, &setup};
+  }
 
   return true;
 }
@@ -62,11 +66,15 @@ bool ProgressEvaluator::evaluate(Result& progress)
   if (progress.success())
   {
     if (cost < best_result.cost)
+    {
       best_result = Info{cost, &progress};
+    }
   }
 
   if (cost < second_best_estimate.cost)
+  {
     second_best_estimate = Info{cost, &progress};
+  }
 
   if (best_estimate.progress == &progress)
   {
@@ -126,7 +134,9 @@ void ProgressEvaluator::discard(Result& progress)
   const double cost = progress.cost_estimate() ?
     *progress.cost_estimate() : std::numeric_limits<double>::infinity();
   if (best_discarded.progress || cost < best_discarded.cost)
+  {
     best_discarded = Info{cost, &progress};
+  }
 
   ++finished_count;
 }
