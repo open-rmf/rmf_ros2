@@ -884,12 +884,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("rotation"),
     py::arg("scale"),
     py::arg("translation"))
-  .def_property_readonly("rotation", &agv::Transformation::rotation)
-  .def_property_readonly("scale", &agv::Transformation::scale)
-  .def_property_readonly("translation", &agv::Transformation::translation);
-
-  m_easy_full_control.def("transform",
-    &agv::transform,
-    py::arg("transformation"),
+  .def("rotation", &agv::Transformation::rotation)
+  .def("scale", &agv::Transformation::scale)
+  .def("translation", &agv::Transformation::translation)
+  .def("transform", &agv::Transformation::transform,
     py::arg("pose"));
 }

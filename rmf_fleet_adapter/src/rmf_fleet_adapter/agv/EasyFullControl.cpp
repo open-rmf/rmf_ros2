@@ -2157,20 +2157,6 @@ auto EasyFullControl::add_robot(
 }
 
 //==============================================================================
-const Eigen::Vector3d transform(
-  const Transformation& transformation,
-  const Eigen::Vector3d& pose)
-{
-  const auto& rotated =
-    Eigen::Rotation2D<double>(transformation.rotation()) *
-    (transformation.scale() * pose.block<2, 1>(0, 0));
-  const auto& translated = rotated + transformation.translation();
-
-  return Eigen::Vector3d{
-    translated[0], translated[1], pose[2] + transformation.rotation()};
-}
-
-//==============================================================================
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

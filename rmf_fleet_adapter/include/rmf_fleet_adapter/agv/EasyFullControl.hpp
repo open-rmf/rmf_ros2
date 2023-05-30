@@ -410,13 +410,6 @@ private:
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
 
-/// Helper function to transform between RMF and robot coordinate systems.
-/// Depending on the Transformation defined, this function can be used to
-/// transform robot coordinate system to RMF's coordinate system or vice versa.
-const Eigen::Vector3d transform(
-  const Transformation& transformation,
-  const Eigen::Vector3d& pose);
-
 } // namespace agv
 } // namespace rmf_fleet_adapter
 
