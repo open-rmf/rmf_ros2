@@ -11,6 +11,7 @@
 #include "rmf_fleet_adapter/agv/EasyFullControl.hpp"
 #include "rmf_fleet_adapter/agv/test/MockAdapter.hpp"
 #include "rmf_fleet_adapter_python/PyRobotCommandHandle.hpp"
+#include <rmf_fleet_adapter/agv/Transformation.hpp>
 #include <rmf_fleet_adapter/agv/Waypoint.hpp>
 #include <rclcpp/rclcpp.hpp>
 
@@ -283,9 +284,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
 
   py::class_<ActionExecution>(
     m_robot_update_handle, "ActionExecution")
-  .def("update_request",
-    &ActionExecution::update_request,
-    py::arg("request_replan"), py::arg("remaining_time"))
   .def("update_remaining_time",
     &ActionExecution::update_remaining_time,
     py::arg("remaining_time_estimate"))
@@ -293,9 +291,11 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("error", &ActionExecution::error, py::arg("text"))
   .def("delayed", &ActionExecution::delayed, py::arg("text"))
   .def("blocked", &ActionExecution::blocked, py::arg("text"))
+  .def("replan", &ActionExecution::replan, py::arg("request_replan"))
+  .def("override_schedule", &ActionExecution::override_schedule,
+    py::arg("map_name"), py::arg("trajectory"))
   .def("finished", &ActionExecution::finished)
-  .def("okay", &ActionExecution::okay)
-  .def("handle", &ActionExecution::handle);
+  .def("okay", &ActionExecution::okay);
 
   // ROBOT INTERRUPTION   ====================================================
   py::class_<RobotInterruption>(
@@ -800,12 +800,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("server_uri") = std::nullopt,
     py::arg("max_delay") = rmf_traffic::time::from_seconds(10.0),
     py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5))
-  .def_static("make", [&](
+  .def_static("make_simple", [&](
     const std::string& config_file,
     const std::string& nav_graph_path,
     std::optional<std::string> server_uri)
     {
-      auto configuration = agv::EasyFullControl::Configuration::make(
+      auto configuration = agv::EasyFullControl::Configuration::make_simple(
         config_file, nav_graph_path, server_uri);
       return *configuration;
     },
@@ -877,15 +877,16 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property_readonly("action", &agv::EasyFullControl::RobotState::action);
 
   // Transformation =============================================================
-  py::class_<agv::Transformation>(m_easy_full_control, "Transformation")
+  py::class_<agv::Transformation>(m, "Transformation")
   .def(py::init<double,
-      double,
-      double,
-      double>(),
+    double,
+    Eigen::Vector2d>(),
     py::arg("rotation"),
     py::arg("scale"),
-    py::arg("translation_x"),
-    py::arg("translation_y"));
+    py::arg("translation"))
+  .def_property_readonly("rotation", &agv::Transformation::rotation)
+  .def_property_readonly("scale", &agv::Transformation::scale)
+  .def_property_readonly("translation", &agv::Transformation::translation);
 
   m_easy_full_control.def("transform",
     &agv::transform,

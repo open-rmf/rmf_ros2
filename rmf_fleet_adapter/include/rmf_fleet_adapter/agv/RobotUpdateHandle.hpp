@@ -152,6 +152,16 @@ public:
     /// (warning tier)
     void blocked(std::optional<std::string> text);
 
+    /// Trigger this when you require a replan for your navigation or
+    /// docking request
+    void replan(bool request_replan);
+
+    /// Override the schedule to say that the robot will be following a certain
+    /// trajectory. This should not be used while tasks with automatic schedule
+    /// updating are running, or else the traffic schedule will have jumbled up
+    /// information, which can be disruptive to the overall traffic management.
+    void override_schedule(std::string map_name, rmf_traffic::Trajectory trajectory);
+
     /// Trigger this when the action is successfully finished.
     /// No other functions in this ActionExecution instance will
     /// be usable after this.
@@ -159,9 +169,6 @@ public:
 
     /// Returns false if the Action has been killed or cancelled
     bool okay() const;
-
-    /// Get the RobotUpdateHandle
-    std::optional<std::shared_ptr<RobotUpdateHandle>> handle() const;
 
     class Implementation;
   private:

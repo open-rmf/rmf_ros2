@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Open Source Robotics Foundation
+ * Copyright (C) 2023 Open Source Robotics Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include <rmf_fleet_adapter/agv/Adapter.hpp>
 #include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
 #include <rmf_fleet_adapter/agv/RobotCommandHandle.hpp>
+#include <rmf_fleet_adapter/agv/Transformation.hpp>
 #include "internal_RobotUpdateHandle.hpp"
 
 // Public rmf_task API headers
@@ -1135,7 +1136,7 @@ EasyFullControl::Configuration::Configuration(
 
 //==============================================================================
 std::shared_ptr<EasyFullControl::Configuration>
-EasyFullControl::Configuration::make(
+EasyFullControl::Configuration::make_simple(
   const std::string& config_file,
   const std::string& nav_graph_path,
   std::optional<std::string> server_uri)
@@ -2000,7 +2001,7 @@ std::shared_ptr<EasyFullControl> EasyFullControl::make(
   }
 
   easy_adapter->_pimpl->fleet_handle->consider_composed_requests(consider_all);
-  for (const auto [action, consider] : config.action_consideration())
+  for (const auto& [action, consider] : config.action_consideration())
   {
     easy_adapter->_pimpl->fleet_handle->add_performable_action(
       action, consider);
@@ -2161,12 +2162,12 @@ const Eigen::Vector3d transform(
   const Eigen::Vector3d& pose)
 {
   const auto& rotated =
-    Eigen::Rotation2D<double>(transformation.rotation) *
-    (transformation.scale * pose.block<2, 1>(0, 0));
-  const auto& translated = rotated + transformation.translation;
+    Eigen::Rotation2D<double>(transformation.rotation()) *
+    (transformation.scale() * pose.block<2, 1>(0, 0));
+  const auto& translated = rotated + transformation.translation();
 
   return Eigen::Vector3d{
-    translated[0], translated[1], pose[2] + transformation.rotation};
+    translated[0], translated[1], pose[2] + transformation.rotation()};
 }
 
 //==============================================================================

@@ -814,14 +814,6 @@ void RobotUpdateHandle::Unstable::set_lift_entry_watchdog(
 }
 
 //==============================================================================
-void RobotUpdateHandle::ActionExecution::update_request(
-  bool request_replan, std::optional<rmf_traffic::Duration> remaining_time)
-{
-  _pimpl->data->request_replan = request_replan;
-  _pimpl->data->remaining_time = remaining_time;
-}
-
-//==============================================================================
 void RobotUpdateHandle::ActionExecution::update_remaining_time(
   rmf_traffic::Duration remaining_time_estimate)
 {
@@ -865,6 +857,29 @@ void RobotUpdateHandle::ActionExecution::blocked(
 }
 
 //==============================================================================
+void RobotUpdateHandle::ActionExecution::replan(bool request_replan)
+{
+  _pimpl->data->request_replan = request_replan;
+}
+
+//==============================================================================
+void RobotUpdateHandle::ActionExecution::override_schedule(
+  std::string map_name, rmf_traffic::Trajectory trajectory)
+{
+  //
+  if (_pimpl->data->handle.has_value())
+  {
+    auto updater = _pimpl->data->handle.value();
+    if (auto participant = updater->unstable().get_participant())
+    {
+      participant->set(
+        participant->assign_plan_id(),
+        {rmf_traffic::Route(map_name, trajectory)});
+    }
+  }
+}
+
+//==============================================================================
 void RobotUpdateHandle::ActionExecution::finished()
 {
   if (_pimpl->data)
@@ -885,13 +900,6 @@ void RobotUpdateHandle::ActionExecution::finished()
 bool RobotUpdateHandle::ActionExecution::okay() const
 {
   return _pimpl->data->okay;
-}
-
-//==============================================================================
-std::optional<std::shared_ptr<RobotUpdateHandle>>
-RobotUpdateHandle::ActionExecution::handle() const
-{
-  return _pimpl->data->handle;
 }
 
 //==============================================================================

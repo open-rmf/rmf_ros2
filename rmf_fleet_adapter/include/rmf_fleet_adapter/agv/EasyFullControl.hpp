@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Open Source Robotics Foundation
+ * Copyright (C) 2023 Open Source Robotics Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 // rmf_fleet_adapter headers
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
+#include <rmf_fleet_adapter/agv/Transformation.hpp>
 
 // rmf_battery headers
 #include <rmf_battery/agv/BatterySystem.hpp>
@@ -149,7 +150,9 @@ public:
     /// Create a Configuration object using a set of configuration parameters
     /// imported from YAML files that follow the defined schema. This is an
     /// alternative to constructing the Configuration using the RMF objects if
-    /// users do not require specific tool systems for their fleets.
+    /// users do not require specific tool systems for their fleets. The
+    /// Configuration object will be instantiated with instances of
+    /// SimpleMotionPowerSink and SimpleDevicePowerSink.
     ///
     /// \param[in] config_file
     ///   The path to a configuration YAML file containing data about the fleet's
@@ -166,7 +169,7 @@ public:
     ///   states. If nullopt, data will not be published.
     ///
     /// \return A Configuration object with the essential config parameters loaded.
-    static std::shared_ptr<Configuration> make(
+    static std::shared_ptr<Configuration> make_simple(
       const std::string& config_file,
       const std::string& nav_graph_path,
       std::optional<std::string> server_uri = std::nullopt);
@@ -406,31 +409,6 @@ private:
 };
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
-
-/// A Transformation object that stores the transformation data needed to
-/// perform transformation between robot and RMF cartesian frames.
-struct Transformation
-{
-  /// The 2D translation from one coordinate to another
-  Eigen::Vector2d translation;
-
-  /// The rotation angle (radians) between the two cartesian frames.
-  double rotation;
-
-  /// The scaling factor between the cartesian frames.
-  double scale;
-
-  Transformation(
-    double rotation_,
-    double scale_,
-    double translation_x_,
-    double translation_y_)
-  : rotation(rotation_),
-    scale(scale_)
-  {
-    translation = Eigen::Vector2d{translation_x_, translation_y_};
-  }
-};
 
 /// Helper function to transform between RMF and robot coordinate systems.
 /// Depending on the Transformation defined, this function can be used to
