@@ -667,7 +667,10 @@ void EasyCommandHandle::start_follow()
         {
           state->update_status(Status::Completed);
         };
+      const auto context = RobotUpdateHandle::Implementation::get(
+        *updater).get_context();
       nav_data = std::make_shared<ActionExecution::Implementation::Data>(
+        context->worker(),
         std::move(nav_finished_callback), nav_state, std::nullopt, updater);
       auto nav_execution = ActionExecution::Implementation::make(nav_data);
       nav_state->update_status(Status::Underway);
@@ -802,7 +805,10 @@ void EasyCommandHandle::start_dock()
     {
       state->update_status(Status::Completed);
     };
+  const auto context = RobotUpdateHandle::Implementation::get(
+    *updater).get_context();
   docking_data = std::make_shared<ActionExecution::Implementation::Data>(
+    context->worker(),
     std::move(dock_action_finished_callback), docking_state,
     std::nullopt, updater);
   auto docking_execution = ActionExecution::Implementation::make(docking_data);
