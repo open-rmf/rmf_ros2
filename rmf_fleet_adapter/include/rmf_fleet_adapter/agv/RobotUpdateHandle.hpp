@@ -130,10 +130,6 @@ public:
   class ActionExecution
   {
   public:
-    /// Update navigation or docking replan requests and remaining time estimate.
-    void update_request(
-      bool request_replan, std::optional<rmf_traffic::Duration> remaining_time);
-
     /// Update the amount of time remaining for this action.
     /// This does not need to be used for navigation requests.
     void update_remaining_time(rmf_traffic::Duration remaining_time_estimate);
