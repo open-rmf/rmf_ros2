@@ -160,7 +160,8 @@ public:
     /// trajectory. This should not be used while tasks with automatic schedule
     /// updating are running, or else the traffic schedule will have jumbled up
     /// information, which can be disruptive to the overall traffic management.
-    void override_schedule(std::string map_name, rmf_traffic::Trajectory trajectory);
+    void override_schedule(std::string map_name,
+      rmf_traffic::Trajectory trajectory);
 
     /// Trigger this when the action is successfully finished.
     /// No other functions in this ActionExecution instance will
