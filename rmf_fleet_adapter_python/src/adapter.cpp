@@ -291,7 +291,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("error", &ActionExecution::error, py::arg("text"))
   .def("delayed", &ActionExecution::delayed, py::arg("text"))
   .def("blocked", &ActionExecution::blocked, py::arg("text"))
-  .def("replan", &ActionExecution::replan, py::arg("request_replan"))
+  .def("replan", &ActionExecution::replan)
   .def("override_schedule", &ActionExecution::override_schedule,
     py::arg("map_name"), py::arg("trajectory"))
   .def("finished", &ActionExecution::finished)

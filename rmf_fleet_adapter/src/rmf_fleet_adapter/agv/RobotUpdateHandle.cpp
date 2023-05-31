@@ -857,14 +857,14 @@ void RobotUpdateHandle::ActionExecution::blocked(
 }
 
 //==============================================================================
-void RobotUpdateHandle::ActionExecution::replan(bool request_replan)
+bool RobotUpdateHandle::ActionExecution::replan()
 {
-  _pimpl->data->request_replan = request_replan;
+  _pimpl->data->request_replan = true;
 }
 
 //==============================================================================
 void RobotUpdateHandle::ActionExecution::override_schedule(
-  std::string map_name, rmf_traffic::Trajectory trajectory)
+  const std::string& map_name, rmf_traffic::Trajectory trajectory)
 {
   //
   if (_pimpl->data->handle.has_value())
