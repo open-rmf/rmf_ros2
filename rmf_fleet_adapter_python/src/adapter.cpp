@@ -332,21 +332,26 @@ PYBIND11_MODULE(rmf_adapter, m) {
     double recharge_soc,
     bool account_for_battery_drain,
     const std::string& finishing_request_string = "nothing",
-    const std::string& finishing_request_requester = "")
+    const std::string& finishing_request_requester = std::string())
     {
       // Supported finishing_request_string: [charge, park, nothing]
       rmf_task::ConstRequestFactoryPtr finishing_request;
+      std::optional<std::string> requester = std::nullopt;
+      if (finishing_request_requester != std::string())
+      {
+        requester = finishing_request_requester;
+      }
       if (finishing_request_string == "charge")
       {
         finishing_request =
-          std::make_shared<rmf_task::requests::ChargeBatteryFactory>(
-            finishing_request_requester);
+          std::make_shared<rmf_task::requests::ChargeBatteryFactory>(requester);
       }
       else if (finishing_request_string == "park")
       {
         finishing_request =
           std::make_shared<rmf_task::requests::ParkRobotFactory>(
-            finishing_request_requester);
+            std::nullopt,
+            requester);
       }
       else
       {

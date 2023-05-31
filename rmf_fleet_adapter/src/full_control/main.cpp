@@ -1247,6 +1247,7 @@ std::shared_ptr<Connections> make_fleet(
   {
     finishing_request =
       std::make_shared<rmf_task::requests::ParkRobotFactory>(
+        std::nullopt,
         std::string(node->get_name()));
     RCLCPP_INFO(
       node->get_logger(),

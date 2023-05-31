@@ -288,7 +288,7 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
     }
   }
 
-  std::string requester;
+  std::optional<std::string> requester = std::nullopt;
   const auto i_it = request_msg.find("requester");
   if (i_it != request_msg.end())
   {
@@ -299,9 +299,10 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
     std::make_shared<const rmf_task::Task::Booking>(
     task_id,
     earliest_start_time,
-    request_time,
     priority,
-    requester);
+    false,
+    std::move(requester),
+    request_time);
   const auto new_request =
     std::make_shared<rmf_task::Request>(
       std::move(booking),

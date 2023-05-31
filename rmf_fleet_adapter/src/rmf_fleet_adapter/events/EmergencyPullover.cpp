@@ -59,10 +59,10 @@ rmf_task::Task::ActivePtr EmergencyPullover::start(
     std::make_shared<const rmf_task::Task::Booking>(
     task_id,
     time_now,
-    time_now,
     nullptr,
+    true,
     context->requester_id(),
-    true);
+    time_now);
   const rmf_task::Request request(std::move(booking), desc);
 
   return activator.activate(
