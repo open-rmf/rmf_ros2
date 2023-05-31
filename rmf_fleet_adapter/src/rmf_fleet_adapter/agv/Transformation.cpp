@@ -65,15 +65,17 @@ const Eigen::Vector2d& Transformation::translation() const
 }
 
 //==============================================================================
-const Eigen::Vector3d Transformation::transform(const Eigen::Vector3d& pose)
+const Eigen::Vector3d transform(
+  const Transformation& transformation,
+  const Eigen::Vector3d& pose)
 {
   const auto& rotated =
-    Eigen::Rotation2D<double>(_pimpl->rotation) *
-    (_pimpl->scale * pose.block<2, 1>(0, 0));
-  const auto& translated = rotated + _pimpl->translation;
+    Eigen::Rotation2D<double>(transformation.rotation()) *
+    (transformation.scale() * pose.block<2, 1>(0, 0));
+  const auto& translated = rotated + transformation.translation();
 
   return Eigen::Vector3d{
-    translated[0], translated[1], pose[2] + _pimpl->rotation};
+    translated[0], translated[1], pose[2] + transformation.rotation()};
 }
 
 } // namespace agv

@@ -886,7 +886,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("translation"))
   .def("rotation", &agv::Transformation::rotation)
   .def("scale", &agv::Transformation::scale)
-  .def("translation", &agv::Transformation::translation)
-  .def("transform", &agv::Transformation::transform,
-    py::arg("pose"));
+  .def("translation", &agv::Transformation::translation);
+
+  m.def("transform", [](
+    const agv::Transformation& transformation,
+    const Eigen::Vector3d& pose)
+  {
+    return agv::transform(transformation, pose);
+  });
 }
