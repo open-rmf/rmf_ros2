@@ -2,6 +2,11 @@
 Changelog for package rmf_websocket
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Switch to rst changelogs (`#276 <https://github.com/open-rmf/rmf_ros2/pull/276>`_)
+* Contributors: Yadunund
+
 2.1.5 (2023-05-20)
 ------------------
 
