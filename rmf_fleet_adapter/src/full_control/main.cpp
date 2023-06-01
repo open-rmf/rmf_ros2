@@ -1237,8 +1237,7 @@ std::shared_ptr<Connections> make_fleet(
   if (finishing_request_string == "charge")
   {
     finishing_request =
-      std::make_shared<rmf_task::requests::ChargeBatteryFactory>(
-        std::string(node->get_name()));
+      std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
     RCLCPP_INFO(
       node->get_logger(),
       "Fleet is configured to perform ChargeBattery as finishing request");
@@ -1246,9 +1245,7 @@ std::shared_ptr<Connections> make_fleet(
   else if (finishing_request_string == "park")
   {
     finishing_request =
-      std::make_shared<rmf_task::requests::ParkRobotFactory>(
-        std::nullopt,
-        std::string(node->get_name()));
+      std::make_shared<rmf_task::requests::ParkRobotFactory>();
     RCLCPP_INFO(
       node->get_logger(),
       "Fleet is configured to perform ParkRobot as finishing request");
