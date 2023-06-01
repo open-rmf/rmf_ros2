@@ -2066,7 +2066,7 @@ bool FleetUpdateHandle::set_task_planner_params(
         // automatic retreat. Hence, we also update them whenever the
         // task planner here is updated.
         self->_pimpl->task_planner = std::make_shared<rmf_task::TaskPlanner>(
-          std::move(task_config), std::move(options));
+          std::move(task_config), std::move(options), self->_pimpl->name);
 
         for (const auto& t : self->_pimpl->task_managers)
           t.first->task_planner(self->_pimpl->task_planner);
