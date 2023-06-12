@@ -1588,10 +1588,10 @@ void TaskManager::retreat_to_charger()
     // Add a new charging task to the task queue
     const auto charging_request = rmf_task::requests::ChargeBattery::make(
       current_state.time().value(),
-      nullptr,
-      true,
       _context->requester_id(),
-      rmf_traffic_ros2::convert(_context->node()->now()));
+      rmf_traffic_ros2::convert(_context->node()->now()),
+      nullptr,
+      true);
     const auto model = charging_request->description()->make_model(
       current_state.time().value(),
       parameters);

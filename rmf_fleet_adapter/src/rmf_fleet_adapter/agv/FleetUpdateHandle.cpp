@@ -295,14 +295,19 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
     requester = i_it->get<std::string>();
   }
 
-  rmf_task::Task::ConstBookingPtr booking =
+  rmf_task::Task::ConstBookingPtr booking = requester.has_value() ?
     std::make_shared<const rmf_task::Task::Booking>(
-    task_id,
-    earliest_start_time,
-    priority,
-    false,
-    std::move(requester),
-    request_time);
+      task_id,
+      earliest_start_time,
+      priority,
+      requester.value(),
+      request_time,
+      false) :
+    std::make_shared<const rmf_task::Task::Booking>(
+      task_id,
+      earliest_start_time,
+      priority,
+      false);
   const auto new_request =
     std::make_shared<rmf_task::Request>(
       std::move(booking),

@@ -331,19 +331,22 @@ PYBIND11_MODULE(rmf_adapter, m) {
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    const std::string& finishing_request_string = "nothing")
+    const std::string& finishing_request_string = "nothing",
+    const std::string& requester = std::string())
     {
       // Supported finishing_request_string: [charge, park, nothing]
       rmf_task::ConstRequestFactoryPtr finishing_request;
       if (finishing_request_string == "charge")
       {
-        finishing_request =
-          std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+        finishing_request = requester == std::string() ?
+          std::make_shared<rmf_task::requests::ChargeBatteryFactory>() :
+          std::make_shared<rmf_task::requests::ChargeBatteryFactory>(requester);
       }
       else if (finishing_request_string == "park")
       {
-        finishing_request =
-          std::make_shared<rmf_task::requests::ParkRobotFactory>();
+        finishing_request = requester == std::string() ?
+          std::make_shared<rmf_task::requests::ParkRobotFactory>() :
+          std::make_shared<rmf_task::requests::ParkRobotFactory>(requester);
       }
       else
       {
@@ -367,7 +370,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("recharge_threshold"),
     py::arg("recharge_soc"),
     py::arg("account_for_battery_drain"),
-    py::arg("finishing_request_string") = "nothing")
+    py::arg("finishing_request_string") = "nothing",
+    py::arg("requester") = "")
   .def("accept_delivery_requests",
     &agv::FleetUpdateHandle::accept_delivery_requests,
     "NOTE: deprecated, use consider_delivery_requests() instead")

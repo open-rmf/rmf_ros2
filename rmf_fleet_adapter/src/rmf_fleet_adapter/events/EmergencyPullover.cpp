@@ -60,9 +60,9 @@ rmf_task::Task::ActivePtr EmergencyPullover::start(
     task_id,
     time_now,
     nullptr,
-    true,
     context->requester_id(),
-    time_now);
+    time_now,
+    true);
   const rmf_task::Request request(std::move(booking), desc);
 
   return activator.activate(
