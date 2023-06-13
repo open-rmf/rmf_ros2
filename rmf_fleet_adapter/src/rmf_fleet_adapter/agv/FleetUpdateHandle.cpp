@@ -1256,6 +1256,12 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
 }
 
 //==============================================================================
+const std::string& FleetUpdateHandle::fleet_name() const
+{
+  return _pimpl->name;
+}
+
+//==============================================================================
 void FleetUpdateHandle::add_robot(
   std::shared_ptr<RobotCommandHandle> command,
   const std::string& name,
@@ -1997,10 +2003,10 @@ FleetUpdateHandle& FleetUpdateHandle::set_update_listener(
 
 //==============================================================================
 bool FleetUpdateHandle::set_task_planner_params(
-  std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
-  std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
-  std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
-  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+  rmf_battery::agv::ConstBatterySystemPtr battery_system,
+  rmf_battery::ConstMotionPowerSinkPtr motion_sink,
+  rmf_battery::ConstDevicePowerSinkPtr ambient_sink,
+  rmf_battery::ConstDevicePowerSinkPtr tool_sink,
   double recharge_threshold,
   double recharge_soc,
   bool account_for_battery_drain,

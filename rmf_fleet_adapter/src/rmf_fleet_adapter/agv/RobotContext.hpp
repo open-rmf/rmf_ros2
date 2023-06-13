@@ -77,7 +77,10 @@ public:
 
   /// This is the current "location" of the robot, which can be used to initiate
   /// a planning job
-  const std::vector<rmf_traffic::agv::Plan::Start>& location() const;
+  const rmf_traffic::agv::Plan::StartSet& location() const;
+
+  /// Set the current location for the robot in terms of a planner start set
+  void set_location(rmf_traffic::agv::Plan::StartSet location_);
 
   /// Get a mutable reference to the schedule of this robot
   rmf_traffic::schedule::Participant& itinerary();

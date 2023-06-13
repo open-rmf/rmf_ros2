@@ -125,6 +125,23 @@ public:
   /// value that was given to the setter.
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
 
+  /// Unique identifier for an activity that the robot is performing. Used by
+  /// the EasyFullControl API.
+  class ActivityIdentifier
+  {
+  public:
+
+    /// Compare whether two activity handles are referring to the same activity.
+    bool operator==(const ActivityIdentifier&) const;
+
+    class Implementation;
+  private:
+    ActivityIdentifier();
+    rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+  };
+  using ActivityIdentifierPtr = std::shared_ptr<ActivityIdentifier>;
+  using ConstActivityIdentifierPtr = std::shared_ptr<const ActivityIdentifier>;
+
   /// The ActionExecution class should be used to manage the execution of and
   /// provide updates on ongoing actions.
   class ActionExecution
@@ -148,17 +165,6 @@ public:
     /// (warning tier)
     void blocked(std::optional<std::string> text);
 
-    /// Trigger this when you require a replan for your navigation or
-    /// docking request
-    bool replan();
-
-    /// Override the schedule to say that the robot will be following a certain
-    /// trajectory. This should not be used while tasks with automatic schedule
-    /// updating are running, or else the traffic schedule will have jumbled up
-    /// information, which can be disruptive to the overall traffic management.
-    void override_schedule(const std::string& map_name,
-      rmf_traffic::Trajectory trajectory);
-
     /// Trigger this when the action is successfully finished.
     /// No other functions in this ActionExecution instance will
     /// be usable after this.
@@ -166,6 +172,9 @@ public:
 
     /// Returns false if the Action has been killed or cancelled
     bool okay() const;
+
+    /// Activity identifier for this action. Used by the EasyFullControl API.
+    ConstActivityIdentifierPtr identifier() const;
 
     class Implementation;
   private:

@@ -885,13 +885,9 @@ void RobotUpdateHandle::ActionExecution::finished()
   if (_pimpl->data)
   {
     _pimpl->data->worker.schedule(
-      [data = _pimpl->data](const rxcpp::schedulers::schedulable&)
+      [finished = _pimpl->data->finished](const rxcpp::schedulers::schedulable&)
       {
-        if (data->finished)
-        {
-          data->finished();
-          data->finished = nullptr;
-        }
+        finished.trigger();
       });
   }
 }

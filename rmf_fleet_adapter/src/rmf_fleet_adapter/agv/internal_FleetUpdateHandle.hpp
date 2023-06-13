@@ -539,6 +539,16 @@ public:
     return handle;
   }
 
+  static Implementation& get(FleetUpdateHandle& handle)
+  {
+    return *handle._pimpl;
+  }
+
+  static const Implementation& get(const FleetUpdateHandle& handle)
+  {
+    return *handle._pimpl;
+  }
+
   void publish_nav_graph() const;
 
   void dock_summary_cb(const DockSummary::SharedPtr& msg);

@@ -75,9 +75,15 @@ std::function<rmf_traffic::Time()> RobotContext::clock() const
 }
 
 //==============================================================================
-const std::vector<rmf_traffic::agv::Plan::Start>& RobotContext::location() const
+const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
 {
   return _location;
+}
+
+//==============================================================================
+void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
+{
+  _location = std::move(location_);
 }
 
 //==============================================================================
