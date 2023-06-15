@@ -2,9 +2,17 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.3.0 (2023-06-08)
+------------------
+
+2.2.0 (2023-06-06)
+------------------
+* Switch to rst changelogs (`#276 <https://github.com/open-rmf/rmf_ros2/pull/276>`_)
+* Contributors: Yadunund
+
 2.1.5 (2023-05-20)
 ------------------
-* Reformat code to meet expectations of uncrustify-0.72.0: (`#274 <https://github.com/open-rmf/rmf_ros2/issues/27>`_)
+* Reformat code to meet expectations of uncrustify-0.72.0: (`#274 <https://github.com/open-rmf/rmf_ros2/pull/274>`_)
 * Contributors: Yadunund
 
 2.1.4 (2023-04-27)
@@ -18,32 +26,32 @@ Changelog for package rmf_traffic_ros2
 
 2.1.0 (2022-10-03)
 ------------------
-* Make async behaviors more robust: (`#228 <https://github.com/open-rmf/rmf_ros2/pull/22>`_)
-* Make schedule failover more robust: (`#232 <https://github.com/open-rmf/rmf_ros2/pull/23>`_)
-* Ignore conflicts between any plans that have a dependency: (`#205 <https://github.com/open-rmf/rmf_ros2/pull/20>`_)
-* Add support for docking in lanes with entry events: (`#226 <https://github.com/open-rmf/rmf_ros2/pull/22>`_)
-* Add message conversion functions for the navigation graph: (`#207 <https://github.com/open-rmf/rmf_ros2/pull/20>`_)
-* Changes for humble compatibility: (`#215 <https://github.com/open-rmf/rmf_ros2/issues/21>`_)
+* Make async behaviors more robust: (`#228 <https://github.com/open-rmf/rmf_ros2/pull/228>`_)
+* Make schedule failover more robust: (`#232 <https://github.com/open-rmf/rmf_ros2/pull/232>`_)
+* Ignore conflicts between any plans that have a dependency: (`#205 <https://github.com/open-rmf/rmf_ros2/pull/205>`_)
+* Add support for docking in lanes with entry events: (`#226 <https://github.com/open-rmf/rmf_ros2/pull/226>`_)
+* Add message conversion functions for the navigation graph: (`#207 <https://github.com/open-rmf/rmf_ros2/pull/207>`_)
+* Changes for humble compatibility: (`#215 <https://github.com/open-rmf/rmf_ros2/pull/215>`_)
 
 2.0.0 (2022-03-18)
 ------------------
-* Update to the traffic dependency system: (`#188 <https://github.com/open-rmf/rmf_ros2/pull/18>`_)
+* Update to the traffic dependency system: (`#188 <https://github.com/open-rmf/rmf_ros2/pull/188>`_)
 
 1.5.0 (2022-02-14)
 ------------------
-* Allow participants to sync up with remote databases when discrepancies arise (`#145 <https://github.com/open-rmf/rmf_ros2/pull/14>`_)
-* Support for geojson graphs (`#142 <https://github.com/open-rmf/rmf_ros2/pull/14>`_)
+* Allow participants to sync up with remote databases when discrepancies arise (`#145 <https://github.com/open-rmf/rmf_ros2/pull/145>`_)
+* Support for geojson graphs (`#142 <https://github.com/open-rmf/rmf_ros2/pull/142>`_)
 
 1.4.0 (2021-09-01)
 ------------------
-* Make traffic schedule updates more efficient: (`#86 <https://github.com/open-rmf/rmf_ros2/pull/8>`_)
-* Add redundancy to the traffic schedule node: (`#61 <https://github.com/open-rmf/rmf_ros2/pull/6>`_)
+* Make traffic schedule updates more efficient: (`#86 <https://github.com/open-rmf/rmf_ros2/pull/86>`_)
+* Add redundancy to the traffic schedule node: (`#61 <https://github.com/open-rmf/rmf_ros2/pull/61>`_)
 
 1.3.0 (2021-06-07)
 ------------------
-* Use topics to update schedule mirrors: (`#17 <https://github.com/open-rmf/rmf_ros2/pull/1>`_)
-* Allow participant descriptions to update: (`#17 <https://github.com/open-rmf/rmf_ros2/pull/1>`_)
-* Add persistence to Traffic Schedule Participant IDs: (`#242 <https://github.com/osrf/rmf_core/pull/24>`_)
+* Use topics to update schedule mirrors: (`#17 <https://github.com/open-rmf/rmf_ros2/pull/17>`_)
+* Allow participant descriptions to update: (`#17 <https://github.com/open-rmf/rmf_ros2/pull/17>`_)
+* Add persistence to Traffic Schedule Participant IDs: (`#242 <https://github.com/osrf/rmf_core/pull/242>`_)
 
 1.2.0 (2021-01-05)
 ------------------
@@ -51,7 +59,7 @@ Changelog for package rmf_traffic_ros2
 
 1.1.0 (2020-09-24)
 ------------------
-* Add a schedule node factory to the public API: (`#147 <https://github.com/osrf/rmf_core/pull/14>`_)
+* Add a schedule node factory to the public API: (`#147 <https://github.com/osrf/rmf_core/pull/147>`_)
 * Allow the Negotiation class to accept callbacks for Table updates: (`#140 <https://github.com/osrf/rmf_core/pull/140>`_)
 * Allow the Negotiation class to provide views for existing Tables: (`#140 <https://github.com/osrf/rmf_core/pull/140>`_)
 * Allow the Negotiation class to store up to a certain number of completed negotiations: (`#140 <https://github.com/osrf/rmf_core/pull/140>`_)
@@ -60,7 +68,7 @@ Changelog for package rmf_traffic_ros2
 
 1.0.2 (2020-07-27)
 ------------------
-* Always respond to negotiations: (`#138 <https://github.com/osrf/rmf_core/pull/13>`_)
+* Always respond to negotiations: (`#138 <https://github.com/osrf/rmf_core/pull/138>`_)
 
 1.0.0 (2020-06-23)
 ------------------
