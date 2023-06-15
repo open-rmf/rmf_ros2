@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/task_description__charge_battery.json",
+  "title": "Charge Battery Task",
+  "description": "Charge a robot's battery",
+  "$ref": "event_description__charge_battery.json"
+}

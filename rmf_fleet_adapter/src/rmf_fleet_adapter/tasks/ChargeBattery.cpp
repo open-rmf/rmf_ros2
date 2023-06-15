@@ -26,8 +26,8 @@
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 #include <rmf_task_sequence/events/Placeholder.hpp>
 
-#include <rmf_fleet_adapter/schemas/task_description__charge.hpp>
-#include <rmf_fleet_adapter/schemas/event_description__charge.hpp>
+#include <rmf_fleet_adapter/schemas/task_description__charge_battery.hpp>
+#include <rmf_fleet_adapter/schemas/event_description__charge_battery.hpp>
 
 #include <rmf_task_sequence/Task.hpp>
 
@@ -185,22 +185,22 @@ void add_charge_battery(
   GoToChargerDescription::add(*private_initializer);
 
   // TODO(luca) Populate charge event with properties such as time, desired battery soc
-  deserialization.add_schema(schemas::event_description__charge);
+  deserialization.add_schema(schemas::event_description__charge_battery);
 
   auto validate_charge_task =
     deserialization.make_validator_shared(
-    schemas::task_description__charge);
-  deserialization.add_schema(schemas::task_description__charge);
+    schemas::task_description__charge_battery);
+  deserialization.add_schema(schemas::task_description__charge_battery);
 
   auto deserialize_charge =
-    [
-    ](const nlohmann::json&) -> agv::DeserializedTask
+    []
+      (const nlohmann::json&) -> agv::DeserializedTask
     {
       // Always accept
       agv::FleetUpdateHandle::Confirmation confirm;
       return {rmf_task::requests::ChargeBattery::Description::make(), {}};
     };
-  deserialization.task->add("charge", validate_charge_task, deserialize_charge);
+  deserialization.task->add("charge_battery", validate_charge_task, deserialize_charge);
 
   auto charge_battery_event_unfolder =
     [](const ChargeBatteryEventDescription&)
