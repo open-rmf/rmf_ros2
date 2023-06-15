@@ -1104,6 +1104,7 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     node->clock());
 
   tasks::add_charge_battery(
+    deserialization,
     *activation.task,
     activation.phase,
     *activation.event,
