@@ -253,6 +253,9 @@ public:
 
   TaskActivation activation = TaskActivation();
   TaskDeserialization deserialization = TaskDeserialization();
+  // Categories of tasks that the fleet adapter should not bid for but should
+  // still accept as direct tasks, such as battery charging
+  std::unordered_set<std::string> bid_ignored_categories = {};
 
   // LegacyTask planner params
   std::shared_ptr<rmf_task::CostCalculator> cost_calculator =

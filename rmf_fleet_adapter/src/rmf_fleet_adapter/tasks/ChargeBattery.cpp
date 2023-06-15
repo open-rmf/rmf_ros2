@@ -200,7 +200,8 @@ void add_charge_battery(
       agv::FleetUpdateHandle::Confirmation confirm;
       return {rmf_task::requests::ChargeBattery::Description::make(), {}};
     };
-  deserialization.task->add("charge_battery", validate_charge_task, deserialize_charge);
+  deserialization.task->add("charge_battery", validate_charge_task,
+    deserialize_charge);
 
   auto charge_battery_event_unfolder =
     [](const ChargeBatteryEventDescription&)
