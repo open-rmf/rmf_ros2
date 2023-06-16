@@ -4,6 +4,7 @@
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
 #include "pybind11_json/pybind11_json.hpp"
+#include <functional>
 #include <memory>
 
 #include "rmf_traffic_ros2/Time.hpp"
@@ -332,25 +333,37 @@ PYBIND11_MODULE(rmf_adapter, m) {
     double recharge_soc,
     bool account_for_battery_drain,
     const std::string& finishing_request_string = "nothing",
-    const std::string& requester = std::string())
+    std::shared_ptr<rclcpp::Node> node = nullptr)
     {
+      std::function<rmf_traffic::Time()> time_now = nullptr;
+      std::optional<std::string> planner_id = std::nullopt;
+      if (node)
+      {
+        time_now = [n = std::weak_ptr<rclcpp::Node>(node)]()
+        {
+          const auto node = n.lock();
+          if (!node)
+          {
+            return std::chrono::steady_clock::now();
+          }
+          return rmf_traffic_ros2::convert(node->now());
+        };
+        planner_id = node->get_name();
+      }
+
       // Supported finishing_request_string: [charge, park, nothing]
-      rmf_task::ConstRequestFactoryPtr finishing_request;
+      rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
       if (finishing_request_string == "charge")
       {
-        finishing_request = requester == std::string() ?
-          std::make_shared<rmf_task::requests::ChargeBatteryFactory>() :
-          std::make_shared<rmf_task::requests::ChargeBatteryFactory>(requester);
+        finishing_request = planner_id.has_value() && time_now ?
+          std::make_shared<rmf_task::requests::ChargeBatteryFactory>(planner_id.value(), std::move(time_now)) :
+          std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
       }
       else if (finishing_request_string == "park")
       {
-        finishing_request = requester == std::string() ?
-          std::make_shared<rmf_task::requests::ParkRobotFactory>() :
-          std::make_shared<rmf_task::requests::ParkRobotFactory>(requester);
-      }
-      else
-      {
-        finishing_request = nullptr;
+        finishing_request = planner_id.has_value() && time_now ?
+          std::make_shared<rmf_task::requests::ParkRobotFactory>(planner_id.value(), std::move(time_now)) :
+          std::make_shared<rmf_task::requests::ParkRobotFactory>();
       }
 
       return self.set_task_planner_params(
@@ -371,7 +384,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("recharge_soc"),
     py::arg("account_for_battery_drain"),
     py::arg("finishing_request_string") = "nothing",
-    py::arg("requester") = "")
+    py::arg("node") = nullptr)
   .def("accept_delivery_requests",
     &agv::FleetUpdateHandle::accept_delivery_requests,
     "NOTE: deprecated, use consider_delivery_requests() instead")
