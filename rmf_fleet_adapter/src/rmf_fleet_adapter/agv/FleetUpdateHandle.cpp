@@ -297,21 +297,20 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
 
   rmf_task::Task::ConstBookingPtr booking = requester.has_value() ?
     std::make_shared<const rmf_task::Task::Booking>(
-      task_id,
-      earliest_start_time,
-      priority,
-      requester.value(),
-      request_time,
-      false) :
+    task_id,
+    earliest_start_time,
+    priority,
+    requester.value(),
+    request_time,
+    false) :
     std::make_shared<const rmf_task::Task::Booking>(
-      task_id,
-      earliest_start_time,
-      priority,
-      false);
-  const auto new_request =
-    std::make_shared<rmf_task::Request>(
-      std::move(booking),
-      deserialized_task.description);
+    task_id,
+    earliest_start_time,
+    priority,
+    false);
+  const auto new_request = std::make_shared<rmf_task::Request>(
+    std::move(booking),
+    deserialized_task.description);
 
   return new_request;
 }
@@ -2071,7 +2070,7 @@ bool FleetUpdateHandle::set_task_planner_params(
         // automatic retreat. Hence, we also update them whenever the
         // task planner here is updated.
         self->_pimpl->task_planner = std::make_shared<rmf_task::TaskPlanner>(
-          std::move(task_config), std::move(options), self->_pimpl->name);
+          self->_pimpl->name, std::move(task_config), std::move(options));
 
         for (const auto& t : self->_pimpl->task_managers)
           t.first->task_planner(self->_pimpl->task_planner);

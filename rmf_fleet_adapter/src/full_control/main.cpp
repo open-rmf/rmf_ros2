@@ -1234,10 +1234,18 @@ std::shared_ptr<Connections> make_fleet(
   const std::string finishing_request_string =
     node->declare_parameter("finishing_request", "nothing");
   rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
+  auto get_time =
+    []()
+    {
+      return std::chrono::steady_clock::now();
+    };
+
   if (finishing_request_string == "charge")
   {
     finishing_request =
-      std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+      std::make_shared<rmf_task::requests::ChargeBatteryFactory>(
+      std::string(node->get_name()),
+      std::move(get_time));
     RCLCPP_INFO(
       node->get_logger(),
       "Fleet is configured to perform ChargeBattery as finishing request");
@@ -1245,7 +1253,9 @@ std::shared_ptr<Connections> make_fleet(
   else if (finishing_request_string == "park")
   {
     finishing_request =
-      std::make_shared<rmf_task::requests::ParkRobotFactory>();
+      std::make_shared<rmf_task::requests::ParkRobotFactory>(
+      std::string(node->get_name()),
+      std::move(get_time));
     RCLCPP_INFO(
       node->get_logger(),
       "Fleet is configured to perform ParkRobot as finishing request");
