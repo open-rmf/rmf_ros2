@@ -1234,10 +1234,17 @@ std::shared_ptr<Connections> make_fleet(
   const std::string finishing_request_string =
     node->declare_parameter("finishing_request", "nothing");
   rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
-  auto get_time =
-    []()
+  std::function<rmf_traffic::Time()> get_time =
+    [n = std::weak_ptr<rclcpp::Node>(node)]()
     {
-      return std::chrono::steady_clock::now();
+      const auto node = n.lock();
+      if (!node)
+      {
+        const auto time_since_epoch =
+          std::chrono::system_clock::now().time_since_epoch();
+        return rmf_traffic::Time(time_since_epoch);
+      }
+      return rmf_traffic_ros2::convert(node->now());
     };
 
   if (finishing_request_string == "charge")

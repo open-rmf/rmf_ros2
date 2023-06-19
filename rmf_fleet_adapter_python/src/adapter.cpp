@@ -344,7 +344,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
           const auto node = n.lock();
           if (!node)
           {
-            return std::chrono::steady_clock::now();
+            const auto time_since_epoch =
+              std::chrono::system_clock::now().time_since_epoch();
+            return rmf_traffic::Time(time_since_epoch);
           }
           return rmf_traffic_ros2::convert(node->now());
         };
