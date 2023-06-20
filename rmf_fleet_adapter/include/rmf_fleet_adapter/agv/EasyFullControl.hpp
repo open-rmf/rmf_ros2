@@ -57,6 +57,7 @@ public:
   using Graph = rmf_traffic::agv::Graph;
   using VehicleTraits = rmf_traffic::agv::VehicleTraits;
   using ActionExecutor = RobotUpdateHandle::ActionExecutor;
+  using ActivityIdentifier = RobotUpdateHandle::ActivityIdentifier;
   using ActivityIdentifierPtr = RobotUpdateHandle::ActivityIdentifierPtr;
   using ConstActivityIdentifierPtr = RobotUpdateHandle::ConstActivityIdentifierPtr;
   using Stubbornness = RobotUpdateHandle::Unstable::Stubbornness;
@@ -64,6 +65,7 @@ public:
 
   // Nested class declarations
   class EasyRobotUpdateHandle;
+  class Destination;
   class Configuration;
   class InitializeRobot;
   class CommandExecution;
@@ -71,19 +73,12 @@ public:
   /// Signature for a function that handles navigation requests. The request
   /// will specify an (x, y) location and yaw on a map.
   ///
-  /// \param[in] map_name
-  ///   The name of the map where the location exists.
-  ///
-  /// \param[in] location
-  ///   The (x, y) position and orientation of the location.
-  ///
   /// \param[in] execution
   ///   The command execution progress updater. Use this to keep the fleet
   ///   adapter updated on the progress of the command.
   using NavigationRequest =
     std::function<void(
-        const std::string& map_name,
-        const Eigen::Vector3d location,
+        Destination destination,
         CommandExecution execution)>;
 
   /// Signature for a function to handle stop requests.
@@ -141,12 +136,11 @@ public:
 
   /// Get the FleetUpdateHandle that this adapter will be using.
   /// This may be used to perform more specialized customizations using the
-  /// standard FleetUpdateHandle API.
-  std::shared_ptr<FleetUpdateHandle> fleet_handle();
+  /// base FleetUpdateHandle API.
+  std::shared_ptr<FleetUpdateHandle> more();
 
-  /// Update the newly closed lanes for the robots to replan as necessary.
-  void newly_closed_lanes(
-    const std::unordered_set<std::size_t>& closed_lanes);
+  /// Immutable reference to the base FleetUpdateHandle API.
+  std::shared_ptr<const FleetUpdateHandle> more() const;
 
   class Implementation;
 private:
@@ -174,6 +168,11 @@ public:
     const std::string& map_name,
     const Eigen::Vector3d& position,
     ConstActivityIdentifierPtr current_activity);
+
+  /// Update the current battery level of the robot by specifying its state of
+  /// charge as a fraction of its total charge capacity, i.e. a value from 0.0
+  /// to 1.0.
+  void update_battery_soc(const double battery_soc);
 
   /// Get more options for updating the robot's state
   RobotUpdateHandle& more();
@@ -216,20 +215,48 @@ public:
   ///   Name of the map where the trajectory will take place
   ///
   /// \param[in] trajectory
-  ///   The motion of the agent
+  ///   The path of the agent
   ///
-  /// \return a Stubbornness handle that tells the fleet adapter to
+  /// \return a Stubbornness handle that tells the fleet adapter to not let the
+  /// overridden path be negotiated. The returned handle will stop having an
+  /// effect after this command execution is finished.
   Stubbornness override_schedule(
     std::string map,
-    rmf_traffic::Trajectory trajectory);
+    std::vector<Eigen::Vector3d> path);
 
   /// Activity handle for this command. Pass this into
   /// EasyRobotUpdateHandle::update_position while executing this command.
-  ConstActivityIdentifierPtr handle() const;
+  ConstActivityIdentifierPtr identifier() const;
 
   class Implementation;
 private:
   CommandExecution();
+  rmf_utils::impl_ptr<Implementation> _pimpl;
+};
+
+class EasyFullControl::Destination
+{
+public:
+  /// The name of the map where the destination is located.
+  const std::string& map() const;
+
+  /// The (x, y, yaw) position of the destination.
+  Eigen::Vector3d position() const;
+
+  /// The (x, y) position of the destination.
+  Eigen::Vector2d xy() const;
+
+  /// The intended orientation of the robot at the destination, represented in
+  /// radians.
+  double yaw() const;
+
+  /// If the destination has an index in the navigation graph, you can get it
+  /// from this field.
+  std::optional<std::size_t> graph_index() const;
+
+  class Implementation;
+private:
+  Destination();
   rmf_utils::impl_ptr<Implementation> _pimpl;
 };
 
@@ -303,8 +330,8 @@ public:
   ///   the fleet adapter.
   Configuration(
     const std::string& fleet_name,
-    rmf_traffic::agv::VehicleTraits traits,
-    rmf_traffic::agv::Graph graph,
+    std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
+    std::shared_ptr<const rmf_traffic::agv::Graph> graph,
     rmf_battery::agv::ConstBatterySystemPtr battery_system,
     rmf_battery::ConstMotionPowerSinkPtr motion_sink,
     rmf_battery::ConstDevicePowerSinkPtr ambient_sink,

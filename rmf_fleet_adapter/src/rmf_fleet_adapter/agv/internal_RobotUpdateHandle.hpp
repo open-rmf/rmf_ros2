@@ -27,13 +27,21 @@
 #include <rmf_api_msgs/schemas/robot_state.hpp>
 #include <rmf_api_msgs/schemas/location_2D.hpp>
 
+#include <memory>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
 class TriggerOnce {
 public:
   TriggerOnce(std::function<void()> callback)
-    : _callback(std::make_shared(std::make_shared(std::move(callback))))
+    : _callback(std::make_shared<std::shared_ptr<std::function<void()>>>(
+      std::make_shared<std::function<void()>>(std::move(callback))))
+  {
+    // Do nothing
+  }
+
+  TriggerOnce()
   {
     // Do nothing
   }
@@ -68,7 +76,7 @@ using LocationUpdateFn = std::function<void(
   Eigen::Vector3d location)>;
 
 //==============================================================================
-class ActivityIdentifier::Implementation
+class RobotUpdateHandle::ActivityIdentifier::Implementation
 {
 public:
   /// A function that EasyFullControl will use to update the robot location info
@@ -81,6 +89,11 @@ public:
     identifier->_pimpl = rmf_utils::make_unique_impl<Implementation>(
       Implementation{update_fn_});
     return identifier;
+  }
+
+  static Implementation& get(ActivityIdentifier& self)
+  {
+    return *self._pimpl;
   }
 };
 
@@ -131,7 +144,7 @@ public:
     ActionExecution execution;
     execution._pimpl = rmf_utils::make_impl<Implementation>(
       Implementation{
-        std::move(data)},
+        std::move(data),
         ActivityIdentifier::Implementation::make(nullptr)
       });
 
@@ -191,6 +204,22 @@ public:
   std::shared_ptr<RobotContext> get_context();
 
   std::shared_ptr<const RobotContext> get_context() const;
+};
+
+//==============================================================================
+class RobotUpdateHandle::Unstable::Stubbornness::Implementation
+{
+public:
+  std::shared_ptr<void> stubbornness;
+
+  static Stubbornness make(std::shared_ptr<void> stubbornness)
+  {
+    Stubbornness output;
+    output._pimpl = rmf_utils::make_impl<Implementation>(
+      Implementation{stubbornness});
+
+    return output;
+  }
 };
 
 } // namespace agv

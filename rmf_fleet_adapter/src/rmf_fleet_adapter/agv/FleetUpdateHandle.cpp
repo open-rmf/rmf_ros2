@@ -1565,6 +1565,12 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
 
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
       self->_pimpl->publish_lane_states();
+
+      RobotContext::GraphChange changes{lane_indices};
+      for (auto& [ctx, _] : self->_pimpl->task_managers)
+      {
+        ctx->notify_graph_change(changes);
+      }
     });
 }
 
@@ -1670,7 +1676,7 @@ auto FleetUpdateHandle::limit_lane_speeds(
         {
           RCLCPP_WARN(
             self->_pimpl->node->get_logger(),
-            "Ignoring speed limit request %f for lane %d in fleet %s as it is "
+            "Ignoring speed limit request %f for lane %lu in fleet %s as it is "
             "not greater than zero. If you would like to close the lane, use "
             "the FleetUpdateHandle::close_lanes(~) API instead.",
             request.speed_limit(),

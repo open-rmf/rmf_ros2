@@ -82,6 +82,11 @@ public:
   /// Set the current location for the robot in terms of a planner start set
   void set_location(rmf_traffic::agv::Plan::StartSet location_);
 
+  /// Filter closed lanes out of the planner start set. At least one start will
+  /// be retained so that the planner can offer some solution, even if all
+  /// plan starts are using closed lanes.
+  void filter_closed_lanes();
+
   /// Get a mutable reference to the schedule of this robot
   rmf_traffic::schedule::Participant& itinerary();
 
@@ -132,7 +137,17 @@ public:
   struct Empty {};
   const rxcpp::observable<Empty>& observe_replan_request() const;
 
+  /// Request this robot to replan
   void request_replan();
+
+  struct GraphChange
+  {
+    std::vector<std::size_t> closed_lanes;
+  };
+  const rxcpp::observable<GraphChange>& observe_graph_change() const;
+
+  /// Notify this robot that the graph has changed.
+  void notify_graph_change(GraphChange changes);
 
   /// Get a reference to the rclcpp node
   const std::shared_ptr<Node>& node();
@@ -281,6 +296,9 @@ private:
 
   rxcpp::subjects::subject<Empty> _replan_publisher;
   rxcpp::observable<Empty> _replan_obs;
+
+  rxcpp::subjects::subject<GraphChange> _graph_change_publisher;
+  rxcpp::observable<GraphChange> _graph_change_obs;
 
   std::shared_ptr<Node> _node;
   rxcpp::schedulers::worker _worker;

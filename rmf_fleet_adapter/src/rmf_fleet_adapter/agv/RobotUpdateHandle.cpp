@@ -762,22 +762,6 @@ rmf_traffic::PlanId RobotUpdateHandle::Unstable::current_plan_id() const
 }
 
 //==============================================================================
-class RobotUpdateHandle::Unstable::Stubbornness::Implementation
-{
-public:
-  std::shared_ptr<void> stubbornness;
-
-  static Stubbornness make(std::shared_ptr<void> stubbornness)
-  {
-    Stubbornness output;
-    output._pimpl = rmf_utils::make_impl<Implementation>(
-      Implementation{stubbornness});
-
-    return output;
-  }
-};
-
-//==============================================================================
 void RobotUpdateHandle::Unstable::Stubbornness::release()
 {
   _pimpl->stubbornness = nullptr;
@@ -854,29 +838,6 @@ void RobotUpdateHandle::ActionExecution::blocked(
   _pimpl->data->state->update_status(rmf_task::Event::Status::Blocked);
   if (text.has_value())
     _pimpl->data->state->update_log().warn(*text);
-}
-
-//==============================================================================
-bool RobotUpdateHandle::ActionExecution::replan()
-{
-  _pimpl->data->request_replan = true;
-}
-
-//==============================================================================
-void RobotUpdateHandle::ActionExecution::override_schedule(
-  const std::string& map_name, rmf_traffic::Trajectory trajectory)
-{
-  //
-  if (_pimpl->data->handle.has_value())
-  {
-    auto updater = _pimpl->data->handle.value();
-    if (auto participant = updater->unstable().get_participant())
-    {
-      participant->set(
-        participant->assign_plan_id(),
-        {rmf_traffic::Route(map_name, trajectory)});
-    }
-  }
 }
 
 //==============================================================================

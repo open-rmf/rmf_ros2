@@ -210,8 +210,8 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
 {
   auto fleet_handle = this->add_fleet(
     config.fleet_name(),
-    config.vehicle_traits(),
-    config.graph(),
+    *config.vehicle_traits(),
+    *config.graph(),
     config.server_uri());
 
   auto planner_params_ok = fleet_handle->set_task_planner_params(
@@ -276,10 +276,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     "Finished configuring Easy Full Control adapter for fleet [%s]",
     config.fleet_name().c_str());
 
-  return EasyFullControl::Implementation::make(
-    config.vehicle_traits(),
-    config.graph(),
-    fleet_handle);
+  return EasyFullControl::Implementation::make(fleet_handle);
 }
 
 //==============================================================================

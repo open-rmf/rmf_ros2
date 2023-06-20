@@ -103,7 +103,8 @@ public:
   RobotUpdateHandle& set_charger_waypoint(const std::size_t charger_wp);
 
   /// Update the current battery level of the robot by specifying its state of
-  /// charge as a fraction of its total charge capacity
+  /// charge as a fraction of its total charge capacity, i.e. a value from 0.0
+  /// to 1.0.
   void update_battery_soc(const double battery_soc);
 
   /// Use this function to override the robot status. The string provided must

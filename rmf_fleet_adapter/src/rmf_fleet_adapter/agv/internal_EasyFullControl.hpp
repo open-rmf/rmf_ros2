@@ -37,22 +37,22 @@ struct NavParams
 class EasyFullControl::Implementation
 {
 public:
-  std::shared_ptr<const VehicleTraits> traits;
-  std::shared_ptr<const Graph> graph;
   std::shared_ptr<FleetUpdateHandle> fleet_handle;
   // Map robot name to its EasyCommandHandle
   std::unordered_map<std::string, EasyCommandHandlePtr> cmd_handles;
   // TODO(YV): Get these constants from EasyCommandHandle::Configuration
-  NavParams nav_params;
+  std::shared_ptr<NavParams> nav_params;
 
   static std::shared_ptr<EasyFullControl> make(
-    std::shared_ptr<const VehicleTraits> traits,
-    std::shared_ptr<const Graph> graph,
     std::shared_ptr<FleetUpdateHandle> fleet_handle)
   {
     auto handle = std::shared_ptr<EasyFullControl>(new EasyFullControl);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
-        Implementation{traits, graph, fleet_handle, {}});
+        Implementation{
+          fleet_handle,
+          {},
+          std::make_shared<NavParams>()
+        });
     return handle;
   }
 

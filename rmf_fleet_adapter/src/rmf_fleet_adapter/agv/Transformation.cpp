@@ -47,13 +47,13 @@ Transformation::Transformation(
 }
 
 //==============================================================================
-const double Transformation::rotation() const
+double Transformation::rotation() const
 {
   return _pimpl->rotation;
 }
 
 //==============================================================================
-const double Transformation::scale() const
+double Transformation::scale() const
 {
   return _pimpl->scale;
 }
@@ -65,7 +65,7 @@ const Eigen::Vector2d& Transformation::translation() const
 }
 
 //==============================================================================
-const Eigen::Vector3d transform(
+Eigen::Vector3d transform(
   const Transformation& transformation,
   const Eigen::Vector3d& pose)
 {

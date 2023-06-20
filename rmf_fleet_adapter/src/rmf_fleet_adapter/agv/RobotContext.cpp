@@ -84,6 +84,41 @@ const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
 void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
 {
   _location = std::move(location_);
+  filter_closed_lanes();
+}
+
+//==============================================================================
+void RobotContext::filter_closed_lanes()
+{
+  if (const auto planner = *_planner)
+  {
+    const auto& closures = planner->get_configuration().lane_closures();
+    for (std::size_t i = 0; i < _location.size();)
+    {
+      if (_location[i].lane().has_value())
+      {
+        if (closures.is_closed(*_location[i].lane()))
+        {
+          if (_location.size() > 1)
+          {
+            _location.erase(_location.begin() + i);
+            continue;
+          }
+          else
+          {
+            RCLCPP_WARN(
+              node()->get_logger(),
+              "Robot [%s] is being forced to use closed lane [%lu] because it "
+              "has not been provided any other feasible lanes to use.",
+              requester_id().c_str(),
+              *_location[i].lane());
+            return;
+          }
+        }
+      }
+      ++i;
+    }
+  }
 }
 
 //==============================================================================
@@ -211,6 +246,20 @@ RobotContext::observe_replan_request() const
 void RobotContext::request_replan()
 {
   _replan_publisher.get_subscriber().on_next(Empty{});
+}
+
+//==============================================================================
+const rxcpp::observable<RobotContext::GraphChange>&
+RobotContext::observe_graph_change() const
+{
+  return _graph_change_obs;
+}
+
+//==============================================================================
+void RobotContext::notify_graph_change(GraphChange changes)
+{
+  filter_closed_lanes();
+  _graph_change_publisher.get_subscriber().on_next(std::move(changes));
 }
 
 //==============================================================================
@@ -506,6 +555,7 @@ RobotContext::RobotContext(
     _itinerary.description().profile());
 
   _replan_obs = _replan_publisher.get_observable();
+  _graph_change_obs = _graph_change_publisher.get_observable();
 
   _battery_soc_obs = _battery_soc_publisher.get_observable();
 

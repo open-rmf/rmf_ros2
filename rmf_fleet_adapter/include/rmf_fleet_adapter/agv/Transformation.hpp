@@ -48,10 +48,10 @@ public:
     Eigen::Vector2d translation);
 
   /// Get the rotation of this Transformation
-  const double rotation() const;
+  double rotation() const;
 
   /// Get the scale of this Transformation
-  const double scale() const;
+  double scale() const;
 
   /// Get the translation of this Transformation
   const Eigen::Vector2d& translation() const;
@@ -64,7 +64,7 @@ private:
 /// Helper function to transform between RMF and robot coordinate systems.
 /// Depending on the Transformation defined, this function can be used to
 /// transform robot coordinate system to RMF's coordinate system or vice versa.
-const Eigen::Vector3d transform(
+Eigen::Vector3d transform(
   const Transformation& transformation,
   const Eigen::Vector3d& pose);
 

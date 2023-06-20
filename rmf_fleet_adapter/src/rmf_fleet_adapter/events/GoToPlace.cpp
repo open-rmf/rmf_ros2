@@ -178,6 +178,56 @@ auto GoToPlace::Active::make(
       }
     });
 
+  active->_graph_change_subscription =
+    active->_context->observe_graph_change()
+    .observe_on(rxcpp::identity_same_worker(active->_context->worker()))
+    .subscribe(
+    [w = active->weak_from_this()](const agv::RobotContext::GraphChange& changes)
+    {
+      const auto self = w.lock();
+      if (!self)
+      {
+        return;
+      }
+
+      if (self->_find_path_service)
+      {
+        // If we're currently replanning, we should restart the replanning
+        // because the upcoming solution might involve a closed lane
+        self->_context->request_replan();
+        return;
+      }
+
+      if (self->_execution.has_value())
+      {
+        // TODO(@mxgrey): Consider ignoring waypoints that have already been
+        // passed.
+        for (const auto& wp : self->_execution->plan.get_waypoints())
+        {
+          for (const std::size_t lane : wp.approach_lanes())
+          {
+            const auto closed = std::find(
+              changes.closed_lanes.begin(),
+              changes.closed_lanes.end(),
+              lane);
+            if (closed != changes.closed_lanes.end())
+            {
+              // The current plan is using (or did use) a lane which has closed,
+              // so let's replan.
+              self->_context->request_replan();
+              return;
+            }
+          }
+        }
+      }
+      else
+      {
+        // Strange that there isn't an execution and also isn't a
+        // _find_path_service, but let's just request a replan.
+        self->_context->request_replan();
+      }
+    });
+
   active->_find_plan();
   return active;
 }
