@@ -1345,7 +1345,7 @@ EasyFullControl::Configuration::Configuration(
 }
 
 //==============================================================================
-std::shared_ptr<EasyFullControl::Configuration>
+EasyFullControl::Configuration
 EasyFullControl::Configuration::from_config_files(
   const std::string& config_file,
   const std::string& nav_graph_path,

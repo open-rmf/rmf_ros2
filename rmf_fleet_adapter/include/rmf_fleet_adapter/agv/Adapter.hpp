@@ -85,7 +85,7 @@ public:
   ///
   /// \return The handle for adding new robots to the fleet.
   std::shared_ptr<EasyFullControl> add_easy_fleet(
-    EasyFullControl::Configuration config);
+    const EasyFullControl::Configuration& config);
 
   /// Add a fleet to be adapted.
   ///

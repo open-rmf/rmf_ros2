@@ -206,7 +206,7 @@ std::shared_ptr<Adapter> Adapter::make(
 
 //==============================================================================
 std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
-  EasyFullControl::Configuration config)
+  const EasyFullControl::Configuration& config)
 {
   auto fleet_handle = this->add_fleet(
     config.fleet_name(),

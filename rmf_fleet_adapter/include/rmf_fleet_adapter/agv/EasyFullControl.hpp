@@ -100,11 +100,6 @@ public:
 
   /// Add a robot to the fleet once it is available.
   ///
-  /// \note This will internally call Planner::compute_plan_starts() using the
-  ///    provieded start_state determine the StartSet of the robot. If you
-  ///    have a custom method to determine the StartSet of the robot, consider
-  ///    calling fleet_handle()->add_robot() instead.
-  ///
   /// \param[in] start_state
   ///   The initial state of the robot when it is added to the fleet.
   ///
@@ -380,7 +375,7 @@ public:
   ///   states. If nullopt, data will not be published.
   ///
   /// \return A Configuration object with the essential config parameters loaded.
-  static std::shared_ptr<Configuration> from_config_files(
+  static Configuration from_config_files(
     const std::string& config_file,
     const std::string& nav_graph_path,
     std::optional<std::string> server_uri = std::nullopt);
