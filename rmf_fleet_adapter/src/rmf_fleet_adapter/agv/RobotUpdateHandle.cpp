@@ -306,6 +306,19 @@ RobotUpdateHandle& RobotUpdateHandle::maximum_delay(
 }
 
 //==============================================================================
+bool RobotUpdateHandle::ActivityIdentifier::operator==(
+  const ActivityIdentifier& other) const
+{
+  return _pimpl == other._pimpl;
+}
+
+//==============================================================================
+RobotUpdateHandle::ActivityIdentifier::ActivityIdentifier()
+{
+  // Do nothing
+}
+
+//==============================================================================
 rmf_utils::optional<rmf_traffic::Duration>
 RobotUpdateHandle::maximum_delay() const
 {

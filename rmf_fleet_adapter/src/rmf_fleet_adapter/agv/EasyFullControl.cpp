@@ -510,6 +510,49 @@ public:
 };
 
 //==============================================================================
+void EasyFullControl::CommandExecution::finished()
+{
+  _pimpl->finish();
+}
+
+//==============================================================================
+bool EasyFullControl::CommandExecution::okay() const
+{
+  if (!_pimpl->identifier)
+  {
+    return false;
+  }
+
+  if (!ActivityIdentifier::Implementation::get(*_pimpl->identifier).update_fn)
+  {
+    return false;
+  }
+
+  return true;
+}
+
+//==============================================================================
+auto EasyFullControl::CommandExecution::override_schedule(
+  std::string map,
+  std::vector<Eigen::Vector3d> path) -> Stubbornness
+{
+  return _pimpl->override_schedule(std::move(map), std::move(path));
+}
+
+//==============================================================================
+auto EasyFullControl::CommandExecution::identifier() const
+-> ConstActivityIdentifierPtr
+{
+  return _pimpl->identifier;
+}
+
+//==============================================================================
+EasyFullControl::CommandExecution::CommandExecution()
+{
+  // Do nothing
+}
+
+//==============================================================================
 EasyFullControl::EasyFullControl()
 {
   // Do nothing
@@ -581,7 +624,7 @@ struct ProgressTracker : std::enable_shared_from_this<ProgressTracker>
   /// The queue of commands to execute while following this path, in reverse
   /// order so that the next command can always be popped off the back.
   std::vector<EasyFullControl::CommandExecution> reverse_queue;
-  EasyFullControl::ConstActivityIdentifierPtr current_identifier;
+  EasyFullControl::ActivityIdentifierPtr current_identifier;
   TriggerOnce finished;
 
   void next()
@@ -595,7 +638,8 @@ struct ProgressTracker : std::enable_shared_from_this<ProgressTracker>
 
     auto current_activity = reverse_queue.back();
     reverse_queue.pop_back();
-    current_identifier = current_activity.identifier();
+    current_identifier = EasyFullControl::CommandExecution::Implementation
+      ::get(current_activity).identifier;
     auto& current_activity_impl =
       EasyFullControl::CommandExecution::Implementation::get(current_activity);
     current_activity_impl.finisher = [w_progress = weak_from_this()]()
@@ -708,6 +752,10 @@ void EasyCommandHandle::stop()
   {
     return;
   }
+
+  /// Prevent any further specialized updates.
+  EasyFullControl::ActivityIdentifier::Implementation
+    ::get(*activity_identifier).update_fn = nullptr;
 
   this->current_progress = nullptr;
   this->handle_stop(activity_identifier);
@@ -957,7 +1005,7 @@ void EasyCommandHandle::dock(
           std::nullopt,
           std::nullopt,
           nav_params,
-          [](rmf_traffic::Duration dt) { }
+          [](rmf_traffic::Duration) { }
         };
       }
       else
@@ -1458,7 +1506,7 @@ EasyFullControl::Configuration::from_config_files(
   return std::make_shared<Configuration>(
     fleet_name,
     std::move(traits),
-    std::move(std::make_shared<rmf_traffic::agv::Graph>(graph)),
+    std::make_shared<rmf_traffic::agv::Graph>(std::move(graph)),
     battery_system,
     motion_sink,
     ambient_sink,
