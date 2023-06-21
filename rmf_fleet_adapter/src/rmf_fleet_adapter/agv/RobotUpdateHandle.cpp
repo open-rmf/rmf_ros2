@@ -211,7 +211,17 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
 void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 {
   if (battery_soc < 0.0 || battery_soc > 1.0)
+  {
+    if (const auto context = _pimpl->get_context())
+    {
+      RCLCPP_ERROR(
+        context->node()->get_logger(),
+        "Invalid battery state of charge given for [%s]: %0.3f",
+        context->requester_id().c_str(),
+        battery_soc);
+    }
     return;
+  }
 
   if (const auto context = _pimpl->get_context())
   {

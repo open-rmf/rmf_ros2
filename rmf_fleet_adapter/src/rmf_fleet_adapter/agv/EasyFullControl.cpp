@@ -720,9 +720,6 @@ public:
   NavigationRequest handle_nav_request;
   StopRequest handle_stop;
   DockRequest handle_dock;
-
-  void newly_closed_lanes(
-    const std::unordered_set<std::size_t>& closed_lanes);
 };
 
 //==============================================================================
@@ -826,9 +823,59 @@ void EasyCommandHandle::follow_new_path(
   std::string initial_map = *opt_initial_map;
 
   std::vector<EasyFullControl::CommandExecution> queue;
+  const auto& current_location = context->location();
 
+  bool found_connection = false;
   std::size_t i0 = 0;
-  std::size_t i1 = 1;
+  for (std::size_t i = 0; i < waypoints.size(); ++i)
+  {
+    const auto& wp = waypoints[i];
+    if (wp.graph_index().has_value())
+    {
+      for (const auto& l : current_location)
+      {
+        if (*wp.graph_index() == l.waypoint())
+        {
+          found_connection = true;
+          i0 = i;
+        }
+      }
+    }
+
+    if (i > 0)
+    {
+      for (const auto lane : wp.approach_lanes())
+      {
+        for (const auto& l : current_location)
+        {
+          if (l.lane().has_value())
+          {
+            if (lane == *l.lane())
+            {
+              found_connection = true;
+              i0 = i - 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (!found_connection)
+  {
+    // The robot has drifted away from the starting point since the plan started
+    // so we'll ask for a new plan.
+    context->request_replan();
+    return;
+  }
+
+  if (i0 >= waypoints.size() - 1)
+  {
+    // Always issue at least one command to approach the final waypoint.
+    i0 = waypoints.size() - 2;
+  }
+
+  std::size_t i1 = i0 + 1;
   for (; i1 < waypoints.size(); ++i0, ++i1)
   {
     // TODO(@mxgrey): Add an option to discard waypoints that are only doing a
@@ -871,9 +918,30 @@ void EasyCommandHandle::follow_new_path(
       initial_map = map;
     }
 
+    Eigen::Vector3d target_position = wp1.position();
+    std::size_t target_index = i1;
+    bool skip_next = false;
+    if (nav_params->skip_rotation_commands)
+    {
+      const std::size_t i2 = i1 + 1;
+      if (i2 < waypoints.size())
+      {
+        const auto& wp2 = waypoints[i2];
+        if (wp1.graph_index().has_value() && wp2.graph_index().has_value())
+        {
+          if (*wp1.graph_index() == *wp2.graph_index())
+          {
+            target_index = i2;
+            target_position = wp2.position();
+            skip_next = true;
+          }
+        }
+      }
+    }
+
     auto destination = EasyFullControl::Destination::Implementation::make(
       std::move(map),
-      wp1.position(),
+      target_position,
       wp1.graph_index());
 
     queue.push_back(
@@ -882,10 +950,10 @@ void EasyCommandHandle::follow_new_path(
         EasyFullControl::CommandExecution::Implementation::Data{
           cmd_wps,
           cmd_lanes,
-          waypoints.back().position()[2],
+          target_position[2],
           std::nullopt,
           nav_params,
-          [next_arrival_estimator_, target_index = i1](rmf_traffic::Duration dt)
+          [next_arrival_estimator_, target_index](rmf_traffic::Duration dt)
           {
             next_arrival_estimator_(target_index, dt);
           }
@@ -898,6 +966,12 @@ void EasyCommandHandle::follow_new_path(
           handle_nav_request(destination, execution);
         }
       ));
+
+    if (skip_next)
+    {
+      ++i0;
+      ++i1;
+    }
   }
 
   this->current_progress = ProgressTracker::make(
@@ -1119,6 +1193,86 @@ public:
 };
 
 //==============================================================================
+void EasyFullControl::EasyRobotUpdateHandle::update_position(
+  std::string map_name,
+  Eigen::Vector3d position,
+  ConstActivityIdentifierPtr current_activity)
+{
+  _pimpl->worker.schedule(
+    [
+      map_name = std::move(map_name),
+      position,
+      current_activity = std::move(current_activity),
+      updater = _pimpl->updater
+    ](const auto&)
+    {
+      if (current_activity)
+      {
+        ActivityIdentifier::Implementation::get(*current_activity).update_fn(
+          map_name, position);
+        return;
+      }
+
+      auto context = RobotUpdateHandle::Implementation
+        ::get(*updater->handle).get_context();
+      auto planner = context->planner();
+      if (!planner)
+      {
+        RCLCPP_ERROR(
+          context->node()->get_logger(),
+          "Planner unavailable for robot [%s], cannot update its location",
+          context->requester_id().c_str());
+        return;
+      }
+      const auto& graph = planner->get_configuration().graph();
+      const auto& nav_params = updater->params;
+      const auto now = context->now();
+
+      auto starts = rmf_traffic::agv::compute_plan_starts(
+        graph,
+        map_name,
+        position,
+        now,
+        nav_params->max_merge_waypoint_distance,
+        nav_params->max_merge_lane_distance,
+        nav_params->min_lane_length);
+    });
+}
+
+//==============================================================================
+void EasyFullControl::EasyRobotUpdateHandle::update_battery_soc(double soc)
+{
+  if (_pimpl->updater && _pimpl->updater->handle)
+  {
+    _pimpl->updater->handle->update_battery_soc(soc);
+  }
+}
+
+//==============================================================================
+std::shared_ptr<RobotUpdateHandle>
+EasyFullControl::EasyRobotUpdateHandle::more()
+{
+  if (_pimpl->updater)
+  {
+    return _pimpl->updater->handle;
+  }
+
+  return nullptr;
+}
+
+//==============================================================================
+std::shared_ptr<const RobotUpdateHandle>
+EasyFullControl::EasyRobotUpdateHandle::more() const
+{
+  if (_pimpl->updater)
+  {
+    return _pimpl->updater->handle;
+  }
+
+  return nullptr;
+}
+
+//==============================================================================
 EasyFullControl::EasyRobotUpdateHandle::EasyRobotUpdateHandle()
 {
   // Do nothing
@@ -1141,6 +1295,7 @@ public:
   std::unordered_map<std::string, ConsiderRequest> task_consideration;
   std::unordered_map<std::string, ConsiderRequest> action_consideration;
   rmf_task::ConstRequestFactoryPtr finishing_request;
+  bool skip_rotation_commands;
   std::optional<std::string> server_uri;
   rmf_traffic::Duration max_delay;
   rmf_traffic::Duration update_interval;
@@ -1161,6 +1316,7 @@ EasyFullControl::Configuration::Configuration(
   std::unordered_map<std::string, ConsiderRequest> task_consideration,
   std::unordered_map<std::string, ConsiderRequest> action_consideration,
   rmf_task::ConstRequestFactoryPtr finishing_request,
+  bool skip_rotation_commands,
   std::optional<std::string> server_uri,
   rmf_traffic::Duration max_delay,
   rmf_traffic::Duration update_interval)
@@ -1179,6 +1335,7 @@ EasyFullControl::Configuration::Configuration(
         std::move(task_consideration),
         std::move(action_consideration),
         std::move(finishing_request),
+        skip_rotation_commands,
         std::move(server_uri),
         std::move(max_delay),
         std::move(update_interval)
@@ -1478,6 +1635,13 @@ EasyFullControl::Configuration::from_config_files(
       "[charge, park, nothing]. The task planner will default to [nothing].";
   }
 
+  // Ignore rotations within path commands
+  bool skip_rotation_commands = true;
+  if (rmf_fleet["skip_rotation_commands"])
+  {
+    skip_rotation_commands = rmf_fleet["skip_rotation_commands"].as<bool>();
+  }
+
   // Set the fleet state topic publish period
   double fleet_state_frequency = 2.0;
   if (!rmf_fleet["publish_fleet_state"])
@@ -1517,6 +1681,7 @@ EasyFullControl::Configuration::from_config_files(
     task_consideration,
     action_consideration,
     finishing_request,
+    skip_rotation_commands,
     server_uri,
     rmf_traffic::time::from_seconds(max_delay),
     rmf_traffic::time::from_seconds(update_interval));
@@ -1694,6 +1859,18 @@ void EasyFullControl::Configuration::set_finishing_request(
   rmf_task::ConstRequestFactoryPtr value)
 {
   _pimpl->finishing_request = std::move(value);
+}
+
+//==============================================================================
+bool EasyFullControl::Configuration::skip_rotation_commands() const
+{
+  return _pimpl->skip_rotation_commands;
+}
+
+//==============================================================================
+void EasyFullControl::Configuration::set_skip_rotation_commands(bool value)
+{
+  _pimpl->skip_rotation_commands = value;
 }
 
 //==============================================================================

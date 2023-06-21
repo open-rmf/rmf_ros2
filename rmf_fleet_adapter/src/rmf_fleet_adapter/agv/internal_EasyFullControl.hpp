@@ -28,6 +28,7 @@ using EasyCommandHandlePtr = std::shared_ptr<EasyCommandHandle>;
 //==============================================================================
 struct NavParams
 {
+  bool skip_rotation_commands;
   double max_merge_waypoint_distance = 0.3;
   double max_merge_lane_distance = 0.1;
   double min_lane_length = 1e-8;
@@ -44,14 +45,15 @@ public:
   std::shared_ptr<NavParams> nav_params;
 
   static std::shared_ptr<EasyFullControl> make(
-    std::shared_ptr<FleetUpdateHandle> fleet_handle)
+    std::shared_ptr<FleetUpdateHandle> fleet_handle,
+    bool skip_rotation_commands)
   {
     auto handle = std::shared_ptr<EasyFullControl>(new EasyFullControl);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
         Implementation{
           fleet_handle,
           {},
-          std::make_shared<NavParams>()
+          std::make_shared<NavParams>(NavParams{skip_rotation_commands})
         });
     return handle;
   }

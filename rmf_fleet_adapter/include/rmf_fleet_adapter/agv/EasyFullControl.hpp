@@ -165,17 +165,20 @@ public:
   /// \param[in] current_action
   ///   The action that the robot is currently executing
   void update_position(
-    const std::string& map_name,
-    const Eigen::Vector3d& position,
+    std::string map_name,
+    Eigen::Vector3d position,
     ConstActivityIdentifierPtr current_activity);
 
   /// Update the current battery level of the robot by specifying its state of
   /// charge as a fraction of its total charge capacity, i.e. a value from 0.0
   /// to 1.0.
-  void update_battery_soc(const double battery_soc);
+  void update_battery_soc(double battery_soc);
 
   /// Get more options for updating the robot's state
-  RobotUpdateHandle& more();
+  std::shared_ptr<RobotUpdateHandle> more();
+
+  /// Immutable reference to the base robot update API
+  std::shared_ptr<const RobotUpdateHandle> more() const;
 
   class Implementation;
 private:
@@ -183,7 +186,8 @@ private:
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
 };
 
-///
+/// Used by system integrators to give feedback on the progress of executing a
+/// navigation or docking command.
 class EasyFullControl::CommandExecution
 {
 public:
@@ -317,6 +321,11 @@ public:
   ///   A factory for a request that should be performed by each robot in this
   ///   fleet at the end of its assignments.
   ///
+  /// \param[in] skip_rotation_commands
+  ///   If true, navigation requests which would only have the robot rotate in
+  ///   place will not be sent. Instead, navigation requests will always have
+  ///   the final orientation for the destination.
+  ///
   /// \param[in] server_uri
   ///   The URI for the websocket server that receives updates on tasks and
   ///   states. If nullopt, data will not be published.
@@ -342,6 +351,7 @@ public:
     std::unordered_map<std::string, ConsiderRequest> task_consideration,
     std::unordered_map<std::string, ConsiderRequest> action_consideration,
     rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
+    bool skip_rotation_commands = true,
     std::optional<std::string> server_uri = std::nullopt,
     rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
     rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(
@@ -455,6 +465,12 @@ public:
 
   /// Set the finishing request.
   void set_finishing_request(rmf_task::ConstRequestFactoryPtr value);
+
+  /// Check whether rotation commands will be skipped.
+  bool skip_rotation_commands() const;
+
+  /// Set whether rotation commands will be skipped.
+  void set_skip_rotation_commands(bool value);
 
   /// Get the server uri.
   std::optional<std::string> server_uri() const;

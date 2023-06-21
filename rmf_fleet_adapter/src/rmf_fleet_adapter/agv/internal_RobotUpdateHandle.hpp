@@ -95,6 +95,11 @@ public:
   {
     return *self._pimpl;
   }
+
+  static const Implementation& get(const ActivityIdentifier& self)
+  {
+    return *self._pimpl;
+  }
 };
 
 //==============================================================================

@@ -276,7 +276,9 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     "Finished configuring Easy Full Control adapter for fleet [%s]",
     config.fleet_name().c_str());
 
-  return EasyFullControl::Implementation::make(fleet_handle);
+  return EasyFullControl::Implementation::make(
+    fleet_handle,
+    config.skip_rotation_commands());
 }
 
 //==============================================================================
