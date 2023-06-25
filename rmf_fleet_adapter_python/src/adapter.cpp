@@ -291,11 +291,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("error", &ActionExecution::error, py::arg("text"))
   .def("delayed", &ActionExecution::delayed, py::arg("text"))
   .def("blocked", &ActionExecution::blocked, py::arg("text"))
-  .def("replan", &ActionExecution::replan)
-  .def("override_schedule", &ActionExecution::override_schedule,
-    py::arg("map_name"), py::arg("trajectory"))
   .def("finished", &ActionExecution::finished)
-  .def("okay", &ActionExecution::okay);
+  .def("okay", &ActionExecution::okay)
+  .def_property_readonly("identifier", &ActionExecution::identifier);
 
   // ROBOT INTERRUPTION   ====================================================
   py::class_<RobotInterruption>(
@@ -722,6 +720,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
   // EASY FULL CONTROL CONFIGURATION ===============================================
   auto m_easy_full_control = m.def_submodule("easy_full_control");
 
+  py::class_<agv::EasyFullControl::CommandExecution>(m_easy_full_control, "CommandExecution")
+  .def("finished", &agv::EasyFullControl::CommandExecution::finished)
+  .def("okay", &agv::EasyFullControl::CommandExecution::okay)
+  .def("override_schedule", &agv::EasyFullControl::CommandExecution::override_schedule)
+  .def_property_readonly("identifier", &agv::EasyFullControl::CommandExecution::identifier);
+
   py::class_<agv::EasyFullControl::Configuration>(m_easy_full_control, "Configuration")
   .def(py::init([]( // Lambda function to convert reference to shared ptr
         std::string& fleet_name,
@@ -759,8 +763,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
           }
           return agv::EasyFullControl::Configuration(
               fleet_name,
-              traits,
-              graph,
+              std::make_shared<rmf_traffic::agv::VehicleTraits>(traits),
+              std::make_shared<rmf_traffic::agv::Graph>(graph),
               std::make_shared<battery::BatterySystem>(battery_system),
               std::make_shared<battery::SimpleMotionPowerSink>(motion_sink),
               std::make_shared<battery::SimpleDevicePowerSink>(ambient_sink),
@@ -798,48 +802,66 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("config_file"),
     py::arg("nav_graph_path"),
     py::arg("server_uri"))
-  .def("fleet_name", &agv::EasyFullControl::Configuration::fleet_name)
-  .def("vehicle_traits", &agv::EasyFullControl::Configuration::vehicle_traits)
-  .def("graph", &agv::EasyFullControl::Configuration::graph)
-  .def("battery_system", &agv::EasyFullControl::Configuration::battery_system)
-  .def("motion_sink", &agv::EasyFullControl::Configuration::motion_sink)
-  .def("ambient_sink", &agv::EasyFullControl::Configuration::ambient_sink)
-  .def("tool_sink", &agv::EasyFullControl::Configuration::tool_sink)
-  .def("recharge_threshold", &agv::EasyFullControl::Configuration::recharge_threshold)
-  .def("recharge_soc", &agv::EasyFullControl::Configuration::recharge_soc)
-  .def("account_for_battery_drain", &agv::EasyFullControl::Configuration::account_for_battery_drain)
-  .def("finishing_request", &agv::EasyFullControl::Configuration::finishing_request)
-  .def("server_uri", &agv::EasyFullControl::Configuration::server_uri)
-  .def("max_delay", &agv::EasyFullControl::Configuration::max_delay)
-  .def("update_interval", &agv::EasyFullControl::Configuration::update_interval);
-      /*
-  .def_property("fleet_name",
-    py::overload_cast<>(&agv::Configuration::fleet_name, py::const_),
-    py::overload_cast<std::string>(&agv::Configuration::fleet_name))
-  .def_property("traits",
-    py::overload_cast<>(&agv::Configuration::traits, py::const_),
-    py::overload_cast<rmf_traffic::agv::VechileTraits>(&agv::Configuration::vehicle_traits))
-  .def_property("graph",
-    py::overload_cast<>(&agv::Configuration::graph, py::const_),
-    py::overload_cast<rmf_traffic::Duration>(
-      &agv::Configuration::mandatory_delay))
-  .def_property("yield",
-    py::overload_cast<>(&agv::Configuration::yield, py::const_),
-    py::overload_cast<bool>(&agv::Configuration::yield));
-  .def_property("map_name",
-    py::overload_cast<>(&agv::Configuration::map_name, py::const_),
-    py::overload_cast<std::string>(&agv::Configuration::map_name))
-  .def_property("position",
-    py::overload_cast<>(&agv::Configuration::position, py::const_),
-    py::overload_cast<Eigen::Vector3d>(&agv::Configuration::position))
-  .def_property("mandatory_delay",
-    py::overload_cast<>(&agv::Configuration::mandatory_delay, py::const_),
-    py::overload_cast<rmf_traffic::Duration>(
-      &agv::Configuration::mandatory_delay))
-  .def_property("yield",
-    py::overload_cast<>(&agv::Configuration::yield, py::const_),
-    py::overload_cast<bool>(&agv::Configuration::yield));
-    */
+  .def_property(
+    "fleet_name",
+    &agv::EasyFullControl::Configuration::fleet_name,
+    &agv::EasyFullControl::Configuration::set_fleet_name)
+  .def_property(
+    "vehicle_traits",
+    &agv::EasyFullControl::Configuration::vehicle_traits,
+    &agv::EasyFullControl::Configuration::set_vehicle_traits)
+  .def_property(
+    "graph",
+    &agv::EasyFullControl::Configuration::graph,
+    &agv::EasyFullControl::Configuration::set_graph)
+  .def_property(
+    "battery_system",
+    &agv::EasyFullControl::Configuration::battery_system,
+    &agv::EasyFullControl::Configuration::set_battery_system)
+  .def_property(
+    "motion_sink",
+    &agv::EasyFullControl::Configuration::motion_sink,
+    &agv::EasyFullControl::Configuration::set_motion_sink)
+  .def_property(
+    "ambient_sink",
+    &agv::EasyFullControl::Configuration::ambient_sink,
+    &agv::EasyFullControl::Configuration::set_ambient_sink)
+  .def_property(
+    "tool_sink",
+    &agv::EasyFullControl::Configuration::tool_sink,
+    &agv::EasyFullControl::Configuration::set_tool_sink)
+  .def_property(
+    "recharge_threshold",
+    &agv::EasyFullControl::Configuration::recharge_threshold,
+    &agv::EasyFullControl::Configuration::set_recharge_threshold)
+  .def_property(
+    "recharge_soc",
+    &agv::EasyFullControl::Configuration::recharge_soc,
+    &agv::EasyFullControl::Configuration::set_recharge_soc)
+  .def_property(
+    "account_for_battery_drain",
+    &agv::EasyFullControl::Configuration::account_for_battery_drain,
+    &agv::EasyFullControl::Configuration::set_account_for_battery_drain)
+  .def_property(
+    "finishing_request",
+    &agv::EasyFullControl::Configuration::finishing_request,
+    &agv::EasyFullControl::Configuration::set_finishing_request)
+  .def_property(
+    "skip_rotation_commands",
+    &agv::EasyFullControl::Configuration::skip_rotation_commands,
+    &agv::EasyFullControl::Configuration::set_skip_rotation_commands)
+  .def_property(
+    "server_uri",
+    &agv::EasyFullControl::Configuration::server_uri,
+    &agv::EasyFullControl::Configuration::set_server_uri)
+  .def_property(
+    "max_delay",
+    &agv::EasyFullControl::Configuration::max_delay,
+    &agv::EasyFullControl::Configuration::set_max_delay)
+  .def_property(
+    "update_interval",
+    &agv::EasyFullControl::Configuration::update_interval,
+    &agv::EasyFullControl::Configuration::set_update_interval);
 
   // EASY FULL CONTROL RobotState ===============================================
   py::class_<agv::EasyFullControl::InitializeRobot>(m_easy_full_control, "InitializeRobot")
