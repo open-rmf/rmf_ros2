@@ -16,6 +16,7 @@
 */
 
 #include <rmf_fleet_adapter/agv/Transformation.hpp>
+#include <rmf_utils/math.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -29,6 +30,29 @@ public:
   double scale;
   Eigen::Vector2d translation;
 
+  Eigen::Affine2d transform;
+  Eigen::Affine2d transform_inv;
+
+  Implementation(
+    double rotation_,
+    double scale_,
+    Eigen::Vector2d translation_)
+  : rotation(rotation_),
+    scale(scale_),
+    translation(translation_)
+  {
+    update_transform();
+  }
+
+  void update_transform()
+  {
+    transform = Eigen::Affine2d::Identity();
+    transform.translate(translation);
+    transform.rotate(Eigen::Rotation2D<double>(rotation));
+    transform.scale(scale);
+
+    transform_inv = transform.inverse();
+  }
 };
 
 //==============================================================================
@@ -37,11 +61,9 @@ Transformation::Transformation(
   double scale,
   Eigen::Vector2d translation)
 : _pimpl(rmf_utils::make_impl<Implementation>(
-      Implementation{
-        std::move(rotation),
-        std::move(scale),
-        std::move(translation)
-      }))
+      std::move(rotation),
+      std::move(scale),
+      std::move(translation)))
 {
   // Do nothing
 }
@@ -65,17 +87,21 @@ const Eigen::Vector2d& Transformation::translation() const
 }
 
 //==============================================================================
-Eigen::Vector3d transform(
-  const Transformation& transformation,
-  const Eigen::Vector3d& pose)
+Eigen::Vector3d Transformation::apply(
+  const Eigen::Vector3d& position) const
 {
-  const auto& rotated =
-    Eigen::Rotation2D<double>(transformation.rotation()) *
-    (transformation.scale() * pose.block<2, 1>(0, 0));
-  const auto& translated = rotated + transformation.translation();
+  Eigen::Vector2d p = _pimpl->transform * position.block<2, 1>(0, 0);
+  double angle = rmf_utils::wrap_to_pi(position[2] + _pimpl->rotation);
+  return Eigen::Vector3d(p[0], p[1], angle);
+}
 
-  return Eigen::Vector3d{
-    translated[0], translated[1], pose[2] + transformation.rotation()};
+//==============================================================================
+Eigen::Vector3d Transformation::apply_inverse(
+  const Eigen::Vector3d& position) const
+{
+  Eigen::Vector2d p = _pimpl->transform * position.block<2, 1>(0, 0);
+  double angle = rmf_utils::wrap_to_pi(position[2] - _pimpl->rotation);
+  return Eigen::Vector3d(p[0], p[1], angle);
 }
 
 } // namespace agv

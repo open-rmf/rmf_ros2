@@ -278,7 +278,8 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
 
   return EasyFullControl::Implementation::make(
     fleet_handle,
-    config.skip_rotation_commands());
+    config.skip_rotation_commands(),
+    config.transformations_to_robot_coordinates());
 }
 
 //==============================================================================

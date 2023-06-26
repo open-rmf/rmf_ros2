@@ -56,17 +56,16 @@ public:
   /// Get the translation of this Transformation
   const Eigen::Vector2d& translation() const;
 
+  /// Apply this transformation to an (x, y, yaw) position
+  Eigen::Vector3d apply(const Eigen::Vector3d& position) const;
+
+  /// Apply the inverse of this transformation to an (x, y, yaw) position
+  Eigen::Vector3d apply_inverse(const Eigen::Vector3d& position) const;
+
   class Implementation;
 private:
   rmf_utils::impl_ptr<Implementation> _pimpl;
 };
-
-/// Helper function to transform between RMF and robot coordinate systems.
-/// Depending on the Transformation defined, this function can be used to
-/// transform robot coordinate system to RMF's coordinate system or vice versa.
-Eigen::Vector3d transform(
-  const Transformation& transformation,
-  const Eigen::Vector3d& pose);
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

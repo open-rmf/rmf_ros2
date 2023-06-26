@@ -270,6 +270,13 @@ public:
   /// \param[in] fleet_name
   ///   The name of the fleet that is being added.
   ///
+  /// \param[in] transformations_to_robot_coordinates
+  ///   A dictionary of transformations from RMF canonical coordinates to the
+  ///   the coordinate system used by the robot. Each map should be assigned its
+  ///   own transformation. If this is not nullptr, then a warning will be
+  ///   logged whenever the dictionary is missing a transform for a map, and the
+  ///   canonical RMF coordinates will be used.
+  ///
   /// \param[in] traits
   ///   Specify the approximate traits of the vehicles in this fleet.
   ///
@@ -334,6 +341,7 @@ public:
   ///   the fleet adapter.
   Configuration(
     const std::string& fleet_name,
+    std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates,
     std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
     std::shared_ptr<const rmf_traffic::agv::Graph> graph,
     rmf_battery::agv::ConstBatterySystemPtr battery_system,
@@ -375,7 +383,7 @@ public:
   ///   states. If nullopt, data will not be published.
   ///
   /// \return A Configuration object with the essential config parameters loaded.
-  static Configuration from_config_files(
+  static std::optional<Configuration> from_config_files(
     const std::string& config_file,
     const std::string& nav_graph_path,
     std::optional<std::string> server_uri = std::nullopt);
@@ -385,6 +393,18 @@ public:
 
   /// Set the fleet name.
   void set_fleet_name(std::string value);
+
+  /// Get the transformations into robot coordinates for this fleet.
+  const std::optional<std::unordered_map<std::string, Transformation>>&
+  transformations_to_robot_coordinates() const;
+
+  /// Set the transformation into robot coordinates for a map. This will replace
+  /// any transformation previously set for the map. If the transformation
+  /// dictionary was previously nullopt, this will initialize it with an empty 
+  /// value before inserting this transformation.
+  void add_robot_coordinate_transformation(
+    std::string map,
+    Transformation transformation);
 
   /// Get the fleet vehicle traits.
   const std::shared_ptr<const VehicleTraits>& vehicle_traits() const;

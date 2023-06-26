@@ -712,6 +712,34 @@ public:
     const std::string& dock_name,
     RequestCompleted docking_finished_callback) final;
 
+  Eigen::Vector3d to_robot_coordinates(
+    const std::string& map,
+    Eigen::Vector3d position) const
+  {
+    if (!nav_params->transforms_to_robot_coords.has_value())
+    {
+      return position;
+    }
+
+    const auto tf_it = nav_params->transforms_to_robot_coords->find(map);
+    if (tf_it == nav_params->transforms_to_robot_coords->end())
+    {
+      const auto context = w_context.lock();
+      if (context)
+      {
+        RCLCPP_WARN(
+          context->node()->get_logger(),
+          "[EasyFullControl] Unable to find robot transform for map [%s] for "
+          "robot [%s]. We will not apply a transform.",
+          map.c_str(),
+          context->requester_id().c_str());
+      }
+      return position;
+    }
+
+    return tf_it->second.apply(position);
+  }
+
   std::weak_ptr<RobotContext> w_context;
   std::shared_ptr<NavParams> nav_params;
   std::shared_ptr<ProgressTracker> current_progress;
@@ -939,9 +967,10 @@ void EasyCommandHandle::follow_new_path(
       }
     }
 
+    const auto command_position = to_robot_coordinates(map, target_position);
     auto destination = EasyFullControl::Destination::Implementation::make(
       std::move(map),
-      target_position,
+      command_position,
       wp1.graph_index());
 
     queue.push_back(
@@ -1154,13 +1183,38 @@ public:
   struct Updater
   {
     std::shared_ptr<RobotUpdateHandle> handle;
-    std::shared_ptr<NavParams> params;
+    std::shared_ptr<NavParams> nav_params;
 
     Updater(std::shared_ptr<NavParams> params_)
     : handle(nullptr),
-      params(std::move(params_))
+      nav_params(std::move(params_))
     {
       // Do nothing
+    }
+
+    Eigen::Vector3d to_rmf_coordinates(
+      const std::string& map,
+      Eigen::Vector3d position,
+      const RobotContext& context) const
+    {
+      if (!nav_params->transforms_to_robot_coords.has_value())
+      {
+        return position;
+      }
+
+      const auto tf_it = nav_params->transforms_to_robot_coords->find(map);
+      if (tf_it == nav_params->transforms_to_robot_coords->end())
+      {
+        RCLCPP_WARN(
+          context.node()->get_logger(),
+          "[EasyFullControl] Unable to find robot transform for map [%s] for "
+          "robot [%s]. We will not apply a transform.",
+          map.c_str(),
+          context.requester_id().c_str());
+        return position;
+      }
+
+      return tf_it->second.apply_inverse(position);
     }
   };
 
@@ -1201,11 +1255,16 @@ void EasyFullControl::EasyRobotUpdateHandle::update_position(
   _pimpl->worker.schedule(
     [
       map_name = std::move(map_name),
-      position,
+      robot_coords_position = position,
       current_activity = std::move(current_activity),
       updater = _pimpl->updater
     ](const auto&)
     {
+      auto context = RobotUpdateHandle::Implementation
+        ::get(*updater->handle).get_context();
+      const auto position = updater->to_rmf_coordinates(
+        map_name, robot_coords_position, *context);
+
       if (current_activity)
       {
         ActivityIdentifier::Implementation::get(*current_activity).update_fn(
@@ -1213,8 +1272,6 @@ void EasyFullControl::EasyRobotUpdateHandle::update_position(
         return;
       }
 
-      auto context = RobotUpdateHandle::Implementation
-        ::get(*updater->handle).get_context();
       auto planner = context->planner();
       if (!planner)
       {
@@ -1225,7 +1282,7 @@ void EasyFullControl::EasyRobotUpdateHandle::update_position(
         return;
       }
       const auto& graph = planner->get_configuration().graph();
-      const auto& nav_params = updater->params;
+      const auto& nav_params = updater->nav_params;
       const auto now = context->now();
 
       auto starts = rmf_traffic::agv::compute_plan_starts(
@@ -1283,6 +1340,7 @@ class EasyFullControl::Configuration::Implementation
 {
 public:
   std::string fleet_name;
+  std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates;
   std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits;
   std::shared_ptr<const rmf_traffic::agv::Graph> graph;
   rmf_battery::agv::ConstBatterySystemPtr battery_system;
@@ -1304,6 +1362,7 @@ public:
 //==============================================================================
 EasyFullControl::Configuration::Configuration(
   const std::string& fleet_name,
+  std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates,
   std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
   std::shared_ptr<const rmf_traffic::agv::Graph> graph,
   rmf_battery::agv::ConstBatterySystemPtr battery_system,
@@ -1323,6 +1382,7 @@ EasyFullControl::Configuration::Configuration(
 : _pimpl(rmf_utils::make_impl<Implementation>(
       Implementation{
         std::move(fleet_name),
+        std::move(transformations_to_robot_coordinates),
         std::move(traits),
         std::move(graph),
         std::move(battery_system),
@@ -1345,7 +1405,7 @@ EasyFullControl::Configuration::Configuration(
 }
 
 //==============================================================================
-EasyFullControl::Configuration
+std::optional<EasyFullControl::Configuration>
 EasyFullControl::Configuration::from_config_files(
   const std::string& config_file,
   const std::string& nav_graph_path,
@@ -1359,7 +1419,7 @@ EasyFullControl::Configuration::from_config_files(
     std::cout
       << "RMF fleet configuration is not provided in the configuration file"
       << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const YAML::Node rmf_fleet = fleet_config["rmf_fleet"];
 
@@ -1367,7 +1427,7 @@ EasyFullControl::Configuration::from_config_files(
   if (!rmf_fleet["name"])
   {
     std::cout << "Fleet name is not provided" << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const std::string fleet_name = rmf_fleet["name"].as<std::string>();
 
@@ -1376,7 +1436,7 @@ EasyFullControl::Configuration::from_config_files(
     !rmf_fleet["profile"]["vicinity"])
   {
     std::cout << "Fleet profile is not provided" << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const YAML::Node profile = rmf_fleet["profile"];
   const double footprint_rad = profile["footprint"].as<double>();
@@ -1387,7 +1447,7 @@ EasyFullControl::Configuration::from_config_files(
     !rmf_fleet["limits"]["angular"])
   {
     std::cout << "Fleet traits are not provided" << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const YAML::Node limits = rmf_fleet["limits"];
   const YAML::Node linear = limits["linear"];
@@ -1433,7 +1493,7 @@ EasyFullControl::Configuration::from_config_files(
     !rmf_fleet["battery_system"]["charging_current"])
   {
     std::cout << "Fleet battery system is not provided" << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const YAML::Node battery = rmf_fleet["battery_system"];
   const double voltage = battery["voltage"].as<double>();
@@ -1445,7 +1505,7 @@ EasyFullControl::Configuration::from_config_files(
   if (!battery_system_optional.has_value())
   {
     std::cout << "Invalid battery parameters" << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const auto battery_system = std::make_shared<rmf_battery::agv::BatterySystem>(
     *battery_system_optional);
@@ -1457,7 +1517,7 @@ EasyFullControl::Configuration::from_config_files(
     !rmf_fleet["mechanical_system"]["friction_coefficient"])
   {
     std::cout << "Fleet mechanical system is not provided" << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const YAML::Node mechanical = rmf_fleet["mechanical_system"];
   const double mass = mechanical["mass"].as<double>();
@@ -1469,7 +1529,7 @@ EasyFullControl::Configuration::from_config_files(
   if (!mechanical_system_optional.has_value())
   {
     std::cout << "Invalid mechanical parameters" << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   rmf_battery::agv::MechanicalSystem& mechanical_system =
     *mechanical_system_optional;
@@ -1482,7 +1542,7 @@ EasyFullControl::Configuration::from_config_files(
   if (!rmf_fleet["ambient_system"] || !rmf_fleet["ambient_system"]["power"])
   {
     std::cout << "Fleet ambient system is not provided" << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const YAML::Node ambient_system = rmf_fleet["ambient_system"];
   const double ambient_power_drain = ambient_system["power"].as<double>();
@@ -1492,7 +1552,7 @@ EasyFullControl::Configuration::from_config_files(
   {
     std::cout << "Invalid values supplied for ambient power system"
               << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const auto ambient_sink =
     std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
@@ -1502,7 +1562,7 @@ EasyFullControl::Configuration::from_config_files(
   if (!rmf_fleet["tool_system"] || !rmf_fleet["tool_system"]["power"])
   {
     std::cout << "Fleet tool system is not provided" << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const YAML::Node tool_system = rmf_fleet["tool_system"];
   const double tool_power_drain = ambient_system["power"].as<double>();
@@ -1511,7 +1571,7 @@ EasyFullControl::Configuration::from_config_files(
   if (!tool_power_system)
   {
     std::cout << "Invalid values supplied for tool power system" << std::endl;
-    return nullptr;
+    return std::nullopt;
   }
   const auto tool_sink =
     std::make_shared<rmf_battery::agv::SimpleDevicePowerSink>(
@@ -1553,31 +1613,39 @@ EasyFullControl::Configuration::from_config_files(
   }
 
   // Task capabilities
-  if (!rmf_fleet["task_capabilities"] ||
-    !rmf_fleet["task_capabilities"]["loop"] ||
-    !rmf_fleet["task_capabilities"]["delivery"] ||
-    !rmf_fleet["task_capabilities"]["clean"])
-  {
-    std::cout << "Fleet task capabilities are not provided" << std::endl;
-    return nullptr;
-  }
-  const YAML::Node task_capabilities = rmf_fleet["task_capabilities"];
   std::unordered_map<std::string, ConsiderRequest> task_consideration;
-  const auto parse_consideration = [&](
-    const std::string& capability,
-    const std::string& task)
-    {
-      if (const auto c = task_capabilities[capability])
+  const YAML::Node task_capabilities = rmf_fleet["task_capabilities"];
+  if (!task_capabilities)
+  {
+    std::cout
+      << "[task_capabilities] dictionary was not provided in config file ["
+      << config_file << "]" << std::endl;
+  }
+  else
+  {
+    const auto parse_consideration = [&](
+      const std::string& capability,
+      const std::string& task)
       {
-        if (c.as<bool>())
-          task_consideration[task] = consider_all();
-      }
-    };
+        if (const auto c = task_capabilities[capability])
+        {
+          if (c.as<bool>())
+            task_consideration[task] = consider_all();
+        }
+      };
 
-  parse_consideration("loop", "patrol");
-  parse_consideration("patrol", "patrol");
-  parse_consideration("clean", "clean");
-  parse_consideration("delivery", "delivery");
+    parse_consideration("loop", "patrol");
+    parse_consideration("patrol", "patrol");
+    parse_consideration("clean", "clean");
+    parse_consideration("delivery", "delivery");
+
+    if (task_consideration.empty())
+    {
+      std::cout
+        << "No known task capabilities found in config file ["
+        << config_file << "]" << std::endl;
+    }
+  }
 
   // Action considerations
   std::unordered_map<std::string, ConsiderRequest> action_consideration;
@@ -1667,8 +1735,65 @@ EasyFullControl::Configuration::from_config_files(
     max_delay = rmf_fleet["max_delay"].as<double>();
   }
 
-  return std::make_shared<Configuration>(
+  std::optional<std::unordered_map<std::string, Transformation>> tf_dict;
+  const auto transforms = rmf_fleet["transforms"];
+  if (transforms)
+  {
+    if (!transforms.IsMap())
+    {
+      std::cerr
+        << "[transforms] entry should be a dictionary in config file ["
+        << config_file << "]" << std::endl;
+    }
+    else
+    {
+      tf_dict = std::unordered_map<std::string, Transformation>();
+      for (const auto& node : transforms)
+      {
+        const auto map = node.first.as<std::string>();
+        const auto& transform_yaml = node.second;
+        const auto translation_yaml = transform_yaml["translation"];
+        Eigen::Vector2d translation = Eigen::Vector2d(0.0, 0.0);
+        if (translation_yaml)
+        {
+          const auto xy_vec = translation_yaml.as<std::vector<double>>();
+          if (xy_vec.size() != 2)
+          {
+            std::cerr 
+              << "[traslation] element has invalid number of elements ["
+              << xy_vec.size() << "] (it should be exactly 2) in config file ["
+              << config_file << "]" << std::endl;
+          }
+
+          std::size_t N = std::min(xy_vec.size(), (std::size_t)2);
+          for (std::size_t i = 0; i < N; ++i)
+          {
+            translation[i] = xy_vec[i];
+          }
+        }
+
+        const auto rotation_yaml = transform_yaml["rotation"];
+        double rotation = 0.0;
+        if (rotation_yaml)
+        {
+          rotation = rotation_yaml.as<double>();
+        }
+
+        const auto scale_yaml = transform_yaml["scale"];
+        double scale = 1.0;
+        if (scale_yaml)
+        {
+          scale = scale_yaml.as<double>();
+        }
+
+        tf_dict->insert({map, Transformation(rotation, scale, translation)});
+      }
+    }
+  }
+
+  return Configuration(
     fleet_name,
+    std::move(tf_dict),
     std::move(traits),
     std::make_shared<rmf_traffic::agv::Graph>(std::move(graph)),
     battery_system,
@@ -1697,6 +1822,27 @@ const std::string& EasyFullControl::Configuration::fleet_name() const
 void EasyFullControl::Configuration::set_fleet_name(std::string value)
 {
   _pimpl->fleet_name = std::move(value);
+}
+
+//==============================================================================
+const std::optional<TransformDictionary>&
+EasyFullControl::Configuration::transformations_to_robot_coordinates() const
+{
+  return _pimpl->transformations_to_robot_coordinates;
+}
+
+//==============================================================================
+void EasyFullControl::Configuration::add_robot_coordinate_transformation(
+  std::string map,
+  Transformation transformation)
+{
+  if (!_pimpl->transformations_to_robot_coordinates.has_value())
+  {
+    _pimpl->transformations_to_robot_coordinates = TransformDictionary();
+  }
+
+  _pimpl->transformations_to_robot_coordinates
+    ->insert_or_assign(std::move(map), transformation);
 }
 
 //==============================================================================
