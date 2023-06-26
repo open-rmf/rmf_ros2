@@ -729,6 +729,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   py::class_<agv::EasyFullControl::Configuration>(m_easy_full_control, "Configuration")
   .def(py::init([]( // Lambda function to convert reference to shared ptr
         std::string& fleet_name,
+        std::optional<std::unordered_map<std::string, agv::Transformation>> transformations_to_robot_coordinates,
         rmf_traffic::agv::VehicleTraits& traits,
         rmf_traffic::agv::Graph& graph,
         battery::BatterySystem& battery_system,
@@ -763,6 +764,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           }
           return agv::EasyFullControl::Configuration(
               fleet_name,
+              std::move(transformations_to_robot_coordinates),
               std::make_shared<rmf_traffic::agv::VehicleTraits>(traits),
               std::make_shared<rmf_traffic::agv::Graph>(graph),
               std::make_shared<battery::BatterySystem>(battery_system),
@@ -782,6 +784,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
         }
         ),
     py::arg("fleet_name"),
+    py::arg("transformations_to_robot_coordinates"),
     py::arg("traits"),
     py::arg("graph"),
     py::arg("battery_system"),
@@ -810,6 +813,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     "vehicle_traits",
     &agv::EasyFullControl::Configuration::vehicle_traits,
     &agv::EasyFullControl::Configuration::set_vehicle_traits)
+  .def_property_readonly(
+    "transformations_to_robot_coordinates",
+    &agv::EasyFullControl::Configuration::transformations_to_robot_coordinates)
+  .def(
+    "add_robot_coordinates_transformation",
+    &agv::EasyFullControl::Configuration::add_robot_coordinate_transformation)
   .def_property(
     "graph",
     &agv::EasyFullControl::Configuration::graph,
@@ -890,14 +899,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("rotation"),
     py::arg("scale"),
     py::arg("translation"))
-  .def("rotation", &agv::Transformation::rotation)
-  .def("scale", &agv::Transformation::scale)
-  .def("translation", &agv::Transformation::translation);
-
-  m.def("transform", [](
-    const agv::Transformation& transformation,
-    const Eigen::Vector3d& pose)
-  {
-    return agv::transform(transformation, pose);
-  });
+  .def_property_readonly("rotation", &agv::Transformation::rotation)
+  .def_property_readonly("scale", &agv::Transformation::scale)
+  .def_property_readonly("translation", &agv::Transformation::translation)
+  .def("apply", &agv::Transformation::apply)
+  .def("apply_inverse", &agv::Transformation::apply_inverse);
 }
