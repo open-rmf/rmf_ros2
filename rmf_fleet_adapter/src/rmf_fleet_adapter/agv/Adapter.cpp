@@ -204,10 +204,94 @@ std::shared_ptr<Adapter> Adapter::make(
   return nullptr;
 }
 
+namespace {
+class DuplicateDockFinder : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+  DuplicateDockFinder()
+  {
+    // Do nothing
+  }
+
+  void execute(const DoorOpen&) override {}
+  void execute(const DoorClose&) override {}
+  void execute(const LiftSessionBegin&) override {}
+  void execute(const LiftDoorOpen&) override {}
+  void execute(const LiftSessionEnd&) override {}
+  void execute(const LiftMove&) override {}
+  void execute(const Wait&) override {}
+  void execute(const Dock& dock) override
+  {
+    if (!visited_docks.insert(dock.dock_name()).second)
+    {
+      duplicate_docks.insert(dock.dock_name());
+    }
+  }
+
+  std::unordered_set<std::string> visited_docks;
+  std::unordered_set<std::string> duplicate_docks;
+};
+} // anonymous namespace
+
 //==============================================================================
 std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
-  const EasyFullControl::Configuration& config)
+  const EasyFullControl::FleetConfiguration& config)
 {
+  if (!config.graph())
+  {
+    RCLCPP_ERROR(
+      this->node()->get_logger(),
+      "Graph missing in the configuration for fleet [%s]. The fleet will not "
+      "be added.",
+      config.fleet_name().c_str());
+    return nullptr;
+  }
+
+  if (!config.vehicle_traits())
+  {
+    RCLCPP_ERROR(
+      this->node()->get_logger(),
+      "Vehicle traits missing in the configuration for fleet [%s]. The fleet "
+      "will not be added.",
+      config.fleet_name().c_str());
+    return nullptr;
+  }
+
+  DuplicateDockFinder finder;
+  for (std::size_t i = 0; i < config.graph()->num_lanes(); ++i)
+  {
+    const auto* entry = config.graph()->get_lane(i).entry().event();
+    if (entry)
+      entry->execute(finder);
+
+    const auto* exit = config.graph()->get_lane(i).entry().event();
+    if (exit)
+      exit->execute(finder);
+  }
+
+  if (!finder.duplicate_docks.empty())
+  {
+    RCLCPP_ERROR(
+      this->node()->get_logger(),
+      "Graph provided for fleet [%s] has %lu duplicate lanes:",
+      config.fleet_name().c_str(),
+      finder.duplicate_docks.size());
+
+    for (const auto& dock : finder.duplicate_docks)
+    {
+      RCLCPP_ERROR(
+        this->node()->get_logger(),
+        "- [%s]",
+        dock.c_str());
+    }
+
+    RCLCPP_ERROR(
+      this->node()->get_logger(),
+      "Each dock name on a graph must be unique, so we cannot add fleet [%s]",
+      config.fleet_name().c_str());
+    return nullptr;
+  }
+
   auto fleet_handle = this->add_fleet(
     config.fleet_name(),
     *config.vehicle_traits(),

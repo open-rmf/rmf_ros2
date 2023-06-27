@@ -726,7 +726,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("override_schedule", &agv::EasyFullControl::CommandExecution::override_schedule)
   .def_property_readonly("identifier", &agv::EasyFullControl::CommandExecution::identifier);
 
-  py::class_<agv::EasyFullControl::Configuration>(m_easy_full_control, "Configuration")
+  py::class_<agv::EasyFullControl::FleetConfiguration>(m_easy_full_control, "FleetConfiguration")
   .def(py::init([]( // Lambda function to convert reference to shared ptr
         std::string& fleet_name,
         std::optional<std::unordered_map<std::string, agv::Transformation>> transformations_to_robot_coordinates,
@@ -762,7 +762,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           {
             finishing_request = nullptr;
           }
-          return agv::EasyFullControl::Configuration(
+          return agv::EasyFullControl::FleetConfiguration(
               fleet_name,
               std::move(transformations_to_robot_coordinates),
               std::make_shared<rmf_traffic::agv::VehicleTraits>(traits),
@@ -801,76 +801,76 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("server_uri") = std::nullopt,
     py::arg("max_delay") = rmf_traffic::time::from_seconds(10.0),
     py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5))
-  .def_static("from_config_files", &agv::EasyFullControl::Configuration::from_config_files,
+  .def_static("from_config_files", &agv::EasyFullControl::FleetConfiguration::from_config_files,
     py::arg("config_file"),
     py::arg("nav_graph_path"),
     py::arg("server_uri"))
   .def_property(
     "fleet_name",
-    &agv::EasyFullControl::Configuration::fleet_name,
-    &agv::EasyFullControl::Configuration::set_fleet_name)
+    &agv::EasyFullControl::FleetConfiguration::fleet_name,
+    &agv::EasyFullControl::FleetConfiguration::set_fleet_name)
   .def_property(
     "vehicle_traits",
-    &agv::EasyFullControl::Configuration::vehicle_traits,
-    &agv::EasyFullControl::Configuration::set_vehicle_traits)
+    &agv::EasyFullControl::FleetConfiguration::vehicle_traits,
+    &agv::EasyFullControl::FleetConfiguration::set_vehicle_traits)
   .def_property_readonly(
     "transformations_to_robot_coordinates",
-    &agv::EasyFullControl::Configuration::transformations_to_robot_coordinates)
+    &agv::EasyFullControl::FleetConfiguration::transformations_to_robot_coordinates)
   .def(
     "add_robot_coordinates_transformation",
-    &agv::EasyFullControl::Configuration::add_robot_coordinate_transformation)
+    &agv::EasyFullControl::FleetConfiguration::add_robot_coordinate_transformation)
   .def_property(
     "graph",
-    &agv::EasyFullControl::Configuration::graph,
-    &agv::EasyFullControl::Configuration::set_graph)
+    &agv::EasyFullControl::FleetConfiguration::graph,
+    &agv::EasyFullControl::FleetConfiguration::set_graph)
   .def_property(
     "battery_system",
-    &agv::EasyFullControl::Configuration::battery_system,
-    &agv::EasyFullControl::Configuration::set_battery_system)
+    &agv::EasyFullControl::FleetConfiguration::battery_system,
+    &agv::EasyFullControl::FleetConfiguration::set_battery_system)
   .def_property(
     "motion_sink",
-    &agv::EasyFullControl::Configuration::motion_sink,
-    &agv::EasyFullControl::Configuration::set_motion_sink)
+    &agv::EasyFullControl::FleetConfiguration::motion_sink,
+    &agv::EasyFullControl::FleetConfiguration::set_motion_sink)
   .def_property(
     "ambient_sink",
-    &agv::EasyFullControl::Configuration::ambient_sink,
-    &agv::EasyFullControl::Configuration::set_ambient_sink)
+    &agv::EasyFullControl::FleetConfiguration::ambient_sink,
+    &agv::EasyFullControl::FleetConfiguration::set_ambient_sink)
   .def_property(
     "tool_sink",
-    &agv::EasyFullControl::Configuration::tool_sink,
-    &agv::EasyFullControl::Configuration::set_tool_sink)
+    &agv::EasyFullControl::FleetConfiguration::tool_sink,
+    &agv::EasyFullControl::FleetConfiguration::set_tool_sink)
   .def_property(
     "recharge_threshold",
-    &agv::EasyFullControl::Configuration::recharge_threshold,
-    &agv::EasyFullControl::Configuration::set_recharge_threshold)
+    &agv::EasyFullControl::FleetConfiguration::recharge_threshold,
+    &agv::EasyFullControl::FleetConfiguration::set_recharge_threshold)
   .def_property(
     "recharge_soc",
-    &agv::EasyFullControl::Configuration::recharge_soc,
-    &agv::EasyFullControl::Configuration::set_recharge_soc)
+    &agv::EasyFullControl::FleetConfiguration::recharge_soc,
+    &agv::EasyFullControl::FleetConfiguration::set_recharge_soc)
   .def_property(
     "account_for_battery_drain",
-    &agv::EasyFullControl::Configuration::account_for_battery_drain,
-    &agv::EasyFullControl::Configuration::set_account_for_battery_drain)
+    &agv::EasyFullControl::FleetConfiguration::account_for_battery_drain,
+    &agv::EasyFullControl::FleetConfiguration::set_account_for_battery_drain)
   .def_property(
     "finishing_request",
-    &agv::EasyFullControl::Configuration::finishing_request,
-    &agv::EasyFullControl::Configuration::set_finishing_request)
+    &agv::EasyFullControl::FleetConfiguration::finishing_request,
+    &agv::EasyFullControl::FleetConfiguration::set_finishing_request)
   .def_property(
     "skip_rotation_commands",
-    &agv::EasyFullControl::Configuration::skip_rotation_commands,
-    &agv::EasyFullControl::Configuration::set_skip_rotation_commands)
+    &agv::EasyFullControl::FleetConfiguration::skip_rotation_commands,
+    &agv::EasyFullControl::FleetConfiguration::set_skip_rotation_commands)
   .def_property(
     "server_uri",
-    &agv::EasyFullControl::Configuration::server_uri,
-    &agv::EasyFullControl::Configuration::set_server_uri)
+    &agv::EasyFullControl::FleetConfiguration::server_uri,
+    &agv::EasyFullControl::FleetConfiguration::set_server_uri)
   .def_property(
     "max_delay",
-    &agv::EasyFullControl::Configuration::max_delay,
-    &agv::EasyFullControl::Configuration::set_max_delay)
+    &agv::EasyFullControl::FleetConfiguration::max_delay,
+    &agv::EasyFullControl::FleetConfiguration::set_max_delay)
   .def_property(
     "update_interval",
-    &agv::EasyFullControl::Configuration::update_interval,
-    &agv::EasyFullControl::Configuration::set_update_interval);
+    &agv::EasyFullControl::FleetConfiguration::update_interval,
+    &agv::EasyFullControl::FleetConfiguration::set_update_interval);
 
   // EASY FULL CONTROL RobotState ===============================================
   py::class_<agv::EasyFullControl::InitializeRobot>(m_easy_full_control, "InitializeRobot")

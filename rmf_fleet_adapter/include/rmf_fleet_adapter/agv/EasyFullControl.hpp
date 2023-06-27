@@ -65,9 +65,11 @@ public:
 
   // Nested class declarations
   class EasyRobotUpdateHandle;
+  class RobotState;
+  class RobotConfiguration;
+  class RobotCallbacks;
   class Destination;
-  class Configuration;
-  class InitializeRobot;
+  class FleetConfiguration;
   class CommandExecution;
 
   /// Signature for a function that handles navigation requests. The request
@@ -84,50 +86,27 @@ public:
   /// Signature for a function to handle stop requests.
   using StopRequest = std::function<void(ConstActivityIdentifierPtr)>;
 
-  /// Signature for a function to request the robot to dock at a location.
-  ///
-  /// \param[in] dock_name
-  ///   The name of the dock.
-  ///
-  /// \param[in] execution
-  ///   The action execution may be used to update docking request items
-  ///   as well as to obtain the robot handle for the robot to submit any
-  ///   issue tickets regarding challenges with reaching the location.
-  using DockRequest =
-    std::function<void(
-        const std::string& dock_name,
-        CommandExecution execution)>;
-
   /// Add a robot to the fleet once it is available.
   ///
-  /// \param[in] start_state
+  /// \param[in] name
+  ///   Name of the robot. This must be unique per fleet.
+  ///
+  /// \param[in] initial_state
   ///   The initial state of the robot when it is added to the fleet.
   ///
-  /// \param[in] get_state
-  ///   A function that returns the most recent state of the robot when called.
+  /// \param[in] configuration
+  ///   The configuration of the robot.
   ///
-  /// \param[in] navigate
-  ///   A function that can be used to request the robot to navigate to a location.
-  ///   The function returns a handle which can be used to track the progress of the navigation.
-  ///
-  /// \param[in] stop
-  ///   A function to stop the robot.
-  ///
-  /// \param[in] dock
-  ///   A function that can be used to request the robot to dock at a location.
-  ///   The function returns a handle which can be used to track the progress of the docking.
-  ///
-  /// \param[in] action_executor
-  ///   The ActionExecutor callback to request the robot to perform an action.
+  /// \param[in] callbacks
+  ///   The callbacks that will be used to issue commands for the robot.
   ///
   /// \return an easy robot update handle on success. A nullptr if an error
   /// occurred.
   std::shared_ptr<EasyRobotUpdateHandle> add_robot(
-    InitializeRobot initial_state,
-    NavigationRequest navigate,
-    StopRequest stop,
-    DockRequest dock,
-    ActionExecutor action_executor);
+    std::string name,
+    RobotState initial_state,
+    RobotConfiguration configuration,
+    RobotCallbacks callbacks);
 
   /// Get the FleetUpdateHandle that this adapter will be using.
   /// This may be used to perform more specialized customizations using the
@@ -145,29 +124,21 @@ private:
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
 
+/// Handle used to update information about one robot
 class EasyFullControl::EasyRobotUpdateHandle
 {
 public:
-  /// Recommended function for updating the position of a robot in an
+  /// Recommended function for updating information about a robot in an
   /// EasyFullControl fleet.
   ///
-  /// \param[in] map_name
-  ///   The name of the map the robot is currently on
-  ///
-  /// \param[in] position
-  ///   The current position of the robot
+  /// \param[in] state
+  ///   The current state of the robot
   ///
   /// \param[in] current_action
   ///   The action that the robot is currently executing
-  void update_position(
-    std::string map_name,
-    Eigen::Vector3d position,
+  void update(
+    RobotState state,
     ConstActivityIdentifierPtr current_activity);
-
-  /// Update the current battery level of the robot by specifying its state of
-  /// charge as a fraction of its total charge capacity, i.e. a value from 0.0
-  /// to 1.0.
-  void update_battery_soc(double battery_soc);
 
   /// Get more options for updating the robot's state
   std::shared_ptr<RobotUpdateHandle> more();
@@ -179,6 +150,113 @@ public:
 private:
   EasyRobotUpdateHandle();
   rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+};
+
+/// The current state of a robot, passed into EasyRobotUpdateHandle::update
+class EasyFullControl::RobotState
+{
+public:
+  /// Constructor
+  ///
+  /// \param[in] map_name
+  ///   The name of the map the robot is currently on
+  ///
+  /// \param[in] position
+  ///   The current position of the robot
+  ///
+  /// \param[in] battery_soc
+  ///   the current battery level of the robot, specified by its state of
+  ///   charge as a fraction of its total charge capacity, i.e. a value from 0.0
+  ///   to 1.0.
+  RobotState(
+    std::string map_name,
+    Eigen::Vector3d position,
+    double battery_soc);
+
+  /// Current map the robot is on
+  const std::string& map() const;
+
+  /// Set the current map the robot is on
+  void set_map(std::string value);
+
+  /// Current position of the robot
+  Eigen::Vector3d position() const;
+
+  /// Set the current position of the robot
+  void set_position(Eigen::Vector3d value);
+
+  /// Current state of charge of the battery, as a fraction from 0.0 to 1.0.
+  double battery_state_of_charge() const;
+
+  /// Set the state of charge of the battery, as a fraction from 0.0 to 1.0.
+  void set_battery_state_of_charge(double value);
+
+  class Implementation;
+private:
+  rmf_utils::impl_ptr<Implementation> _pimpl;
+};
+
+/// The configuration of a robot. These are parameters that typically do not
+/// change over time.
+class EasyFullControl::RobotConfiguration
+{
+public:
+
+  /// Constructor
+  ///
+  /// \param[in] compatible_chargers
+  ///   List of chargers that this robot is compatible with
+  ///
+  /// \warning This must contain a single string value until a later release of
+  /// RMF. We are using a vector for forward API compatibility. For now, make
+  /// sure each robot has only one unique compatible charger to avoid charging
+  /// conflicts.
+  RobotConfiguration(
+    std::vector<std::string> compatible_chargers);
+
+  /// List of chargers that this robot is compatible with
+  const std::vector<std::string>& compatible_chargers() const;
+
+  /// Set the list of chargers compatible with this robot.
+  void set_compatible_chargers(std::vector<std::string> chargers);
+
+  class Implementation;
+private:
+  rmf_utils::impl_ptr<Implementation> _pimpl;
+};
+
+class EasyFullControl::RobotCallbacks
+{
+public:
+
+  /// Constructor
+  ///
+  /// \param[in] navigate
+  ///   A function that can be used to request the robot to navigate to a location.
+  ///   The function returns a handle which can be used to track the progress of the navigation.
+  ///
+  /// \param[in] stop
+  ///   A function to stop the robot.
+  ///
+  /// \param[in] action_executor
+  ///   The ActionExecutor callback to request the robot to perform an action.
+  RobotCallbacks(
+    NavigationRequest navigate,
+    StopRequest stop,
+    ActionExecutor action_executor);
+
+  /// Get the callback for navigation
+  NavigationRequest navigate() const;
+
+  /// Get the callback for stopping
+  StopRequest stop() const;
+
+  /// Get the action executor.
+  ActionExecutor action_executor() const;
+
+  class Implementation;
+private:
+  rmf_utils::impl_ptr<Implementation> _pimpl;
 };
 
 /// Used by system integrators to give feedback on the progress of executing a
@@ -253,6 +331,10 @@ public:
   /// from this field.
   std::optional<std::size_t> graph_index() const;
 
+  /// If the destination should be reached by performing a dock maneuver, this
+  /// will contain the name of the dock.
+  std::optional<std::string> dock() const;
+
   class Implementation;
 private:
   Destination();
@@ -261,7 +343,7 @@ private:
 
 /// The Configuration class contains parameters necessary to initialize an
 /// EasyFullControl fleet instance and add fleets to the adapter.
-class EasyFullControl::Configuration
+class EasyFullControl::FleetConfiguration
 {
 public:
 
@@ -339,7 +421,7 @@ public:
   /// \param[in] update_interval
   ///   The duration between positional state updates that are sent to
   ///   the fleet adapter.
-  Configuration(
+  FleetConfiguration(
     const std::string& fleet_name,
     std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates,
     std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
@@ -361,17 +443,17 @@ public:
       0.5)
   );
 
-  /// Create a Configuration object using a set of configuration parameters
+  /// Create a FleetConfiguration object using a set of configuration parameters
   /// imported from YAML files that follow the defined schema. This is an
-  /// alternative to constructing the Configuration using the RMF objects if
+  /// alternative to constructing the FleetConfiguration using the RMF objects if
   /// users do not require specific tool systems for their fleets. The
-  /// Configuration object will be instantiated with instances of
+  /// FleetConfiguration object will be instantiated with instances of
   /// SimpleMotionPowerSink and SimpleDevicePowerSink.
   ///
   /// \param[in] config_file
   ///   The path to a configuration YAML file containing data about the fleet's
   ///   vehicle traits and task capabilities. This file needs to follow the pre-defined
-  ///   config.yaml structure to successfully load the parameters into the Configuration
+  ///   config.yaml structure to successfully load the parameters into the FleetConfiguration
   ///   object.
   ///
   /// \param[in] nav_graph_path
@@ -382,8 +464,8 @@ public:
   ///   The URI for the websocket server that receives updates on tasks and
   ///   states. If nullopt, data will not be published.
   ///
-  /// \return A Configuration object with the essential config parameters loaded.
-  static std::optional<Configuration> from_config_files(
+  /// \return A FleetConfiguration object with the essential config parameters loaded.
+  static std::optional<FleetConfiguration> from_config_files(
     const std::string& config_file,
     const std::string& nav_graph_path,
     std::optional<std::string> server_uri = std::nullopt);
@@ -400,7 +482,7 @@ public:
 
   /// Set the transformation into robot coordinates for a map. This will replace
   /// any transformation previously set for the map. If the transformation
-  /// dictionary was previously nullopt, this will initialize it with an empty 
+  /// dictionary was previously nullopt, this will initialize it with an empty
   /// value before inserting this transformation.
   void add_robot_coordinate_transformation(
     std::string map,
@@ -506,59 +588,6 @@ public:
   void set_update_interval(rmf_traffic::Duration value);
 
   class Implementation;
-private:
-  rmf_utils::impl_ptr<Implementation> _pimpl;
-};
-
-/// The InitializeRobot class encapsulates information about a robot in this fleet.
-class EasyFullControl::InitializeRobot
-{
-public:
-  /// Constructor
-  ///
-  /// \param[in] name
-  ///   The name of this robot.
-  ///
-  /// \param[in] charger_name
-  ///   The name of the charger waypoint of this robot.
-  ///
-  /// \param[in] map_name
-  ///   The name of the map this robot is currenly on.
-  ///
-  /// \param[in] location
-  ///   The XY position and orientation of this robot on current map.
-  ///
-  /// \param[in] battery_soc
-  ///   The state of charge of the battery of this robot.
-  ///   This should be a value between 0.0 and 1.0.
-  ///
-  /// \param[in] action
-  ///   The state of action of this robot. True if robot is
-  ///   performing an action.
-  InitializeRobot(
-    const std::string& name,
-    const std::string& charger_name,
-    const std::string& map_name,
-    Eigen::Vector3d location,
-    double battery_soc);
-
-  /// Get the name.
-  const std::string& name() const;
-
-  /// Get the charger name.
-  const std::string& charger_name() const;
-
-  /// Get the map name.
-  const std::string& map_name() const;
-
-  /// Get the location.
-  const Eigen::Vector3d& location() const;
-
-  /// Get the battery_soc.
-  double battery_soc() const;
-
-  class Implementation;
-
 private:
   rmf_utils::impl_ptr<Implementation> _pimpl;
 };
