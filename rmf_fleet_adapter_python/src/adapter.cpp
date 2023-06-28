@@ -695,30 +695,70 @@ PYBIND11_MODULE(rmf_adapter, m) {
       .time_since_epoch());
     });
 
-  // EASY FULL CONTROL HANDLE ===============================================
+  // EASY FULL CONTROL =========================================================
   py::class_<agv::EasyFullControl, std::shared_ptr<agv::EasyFullControl>>(
     m, "EasyFullControl")
-  .def("add_robot", [](agv::EasyFullControl& self,
-    agv::EasyFullControl::InitializeRobot initial_state,
-    agv::EasyFullControl::NavigationRequest handle_nav_request,
-    agv::EasyFullControl::StopRequest handle_stop,
-    agv::EasyFullControl::DockRequest handle_dock,
-    agv::EasyFullControl::ActionExecutor action_executor)
-    {
-      return self.add_robot(initial_state, handle_nav_request,
-        handle_stop, handle_dock, action_executor);
-    },
-    py::arg("initial_state"),
-    py::arg("handle_nav_request"),
-    py::arg("handle_stop"),
-    py::arg("handle_dock"),
-    py::arg("action_executor"))
+  .def("add_robot", &agv::EasyFullControl::add_robot)
   .def("more", [](agv::EasyFullControl& self)
     {
       return self.more();
     });
-  // EASY FULL CONTROL CONFIGURATION ===============================================
+
   auto m_easy_full_control = m.def_submodule("easy_full_control");
+
+  py::class_<agv::EasyFullControl::EasyRobotUpdateHandle>(m_easy_full_control, "EasyRobotUpdateHandle")
+  .def("update", &agv::EasyFullControl::EasyRobotUpdateHandle::update)
+  .def("more", [](agv::EasyFullControl::EasyRobotUpdateHandle& self)
+    {
+      return self.more();
+    });
+
+  py::class_<agv::EasyFullControl::RobotState>(m_easy_full_control, "RobotState")
+  .def(py::init<
+      const std::string&,
+      Eigen::Vector3d,
+      double>(),
+    py::arg("map"),
+    py::arg("position"),
+    py::arg("battery_soc"))
+  .def_property(
+    "map",
+    &agv::EasyFullControl::RobotState::map,
+    &agv::EasyFullControl::RobotState::set_map)
+  .def_property(
+    "position",
+    &agv::EasyFullControl::RobotState::position,
+    &agv::EasyFullControl::RobotState::set_position)
+  .def_property(
+    "battery_state_of_charge",
+    &agv::EasyFullControl::RobotState::battery_state_of_charge,
+    &agv::EasyFullControl::RobotState::set_battery_state_of_charge);
+
+  py::class_<agv::EasyFullControl::RobotConfiguration>(m_easy_full_control, "RobotConfiguration")
+  .def(py::init<std::vector<std::string>>(),
+    py::arg("comaptible_chargers"))
+  .def_property(
+    "compatible_chargers",
+    &agv::EasyFullControl::RobotConfiguration::compatible_chargers,
+    &agv::EasyFullControl::RobotConfiguration::set_compatible_chargers);
+
+  py::class_<agv::EasyFullControl::RobotCallbacks>(m_easy_full_control, "RobotCallbacks")
+  .def(py::init<
+      agv::EasyFullControl::NavigationRequest,
+      agv::EasyFullControl::StopRequest,
+      agv::EasyFullControl::ActionExecutor>(),
+    py::arg("navigate"),
+    py::arg("stop"),
+    py::arg("action_executor"))
+  .def_property_readonly(
+    "navigate",
+    &agv::EasyFullControl::RobotCallbacks::navigate)
+  .def_property_readonly(
+    "stop",
+    &agv::EasyFullControl::RobotCallbacks::stop)
+  .def_property_readonly(
+    "action_executor",
+    &agv::EasyFullControl::RobotCallbacks::action_executor);
 
   py::class_<agv::EasyFullControl::CommandExecution>(m_easy_full_control, "CommandExecution")
   .def("finished", &agv::EasyFullControl::CommandExecution::finished)
@@ -726,10 +766,19 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("override_schedule", &agv::EasyFullControl::CommandExecution::override_schedule)
   .def_property_readonly("identifier", &agv::EasyFullControl::CommandExecution::identifier);
 
+  py::class_<agv::EasyFullControl::Destination>(m_easy_full_control, "Destination")
+  .def_property_readonly("map", &agv::EasyFullControl::Destination::map)
+  .def_property_readonly("position", &agv::EasyFullControl::Destination::position)
+  .def_property_readonly("xy", &agv::EasyFullControl::Destination::xy)
+  .def_property_readonly("yaw", &agv::EasyFullControl::Destination::yaw)
+  .def_property_readonly("graph_index", &agv::EasyFullControl::Destination::graph_index)
+  .def_property_readonly("dock", &agv::EasyFullControl::Destination::dock);
+
   py::class_<agv::EasyFullControl::FleetConfiguration>(m_easy_full_control, "FleetConfiguration")
   .def(py::init([]( // Lambda function to convert reference to shared ptr
         std::string& fleet_name,
         std::optional<std::unordered_map<std::string, agv::Transformation>> transformations_to_robot_coordinates,
+        std::unordered_map<std::string, agv::EasyFullControl::RobotConfiguration> known_robot_configurations,
         rmf_traffic::agv::VehicleTraits& traits,
         rmf_traffic::agv::Graph& graph,
         battery::BatterySystem& battery_system,
@@ -765,6 +814,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
           return agv::EasyFullControl::FleetConfiguration(
               fleet_name,
               std::move(transformations_to_robot_coordinates),
+              std::move(known_robot_configurations),
               std::make_shared<rmf_traffic::agv::VehicleTraits>(traits),
               std::make_shared<rmf_traffic::agv::Graph>(graph),
               std::make_shared<battery::BatterySystem>(battery_system),
@@ -785,6 +835,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
         ),
     py::arg("fleet_name"),
     py::arg("transformations_to_robot_coordinates"),
+    py::arg("known_robot_configurations"),
     py::arg("traits"),
     py::arg("graph"),
     py::arg("battery_system"),
@@ -819,6 +870,15 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def(
     "add_robot_coordinates_transformation",
     &agv::EasyFullControl::FleetConfiguration::add_robot_coordinate_transformation)
+  .def_property_readonly(
+    "known_robot_configurations",
+    &agv::EasyFullControl::FleetConfiguration::known_robot_configurations)
+  .def(
+    "add_known_robot_configuration",
+    &agv::EasyFullControl::FleetConfiguration::add_known_robot_configuration)
+  .def(
+    "get_known_robot_configuration",
+    &agv::EasyFullControl::FleetConfiguration::get_known_robot_configuration)
   .def_property(
     "graph",
     &agv::EasyFullControl::FleetConfiguration::graph,
@@ -871,25 +931,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
     "update_interval",
     &agv::EasyFullControl::FleetConfiguration::update_interval,
     &agv::EasyFullControl::FleetConfiguration::set_update_interval);
-
-  // EASY FULL CONTROL RobotState ===============================================
-  py::class_<agv::EasyFullControl::InitializeRobot>(m_easy_full_control, "InitializeRobot")
-  .def(py::init<
-      const std::string&,
-      const std::string&,
-      const std::string&,
-      Eigen::Vector3d,
-      double>(),
-    py::arg("name"),
-    py::arg("charger_name"),
-    py::arg("map_name"),
-    py::arg("location"),
-    py::arg("battery_soc"))
-  .def_property_readonly("name", &agv::EasyFullControl::InitializeRobot::name)
-  .def_property_readonly("charger_name", &agv::EasyFullControl::InitializeRobot::charger_name)
-  .def_property_readonly("map_name", &agv::EasyFullControl::InitializeRobot::map_name)
-  .def_property_readonly("location", &agv::EasyFullControl::InitializeRobot::location)
-  .def_property_readonly("battery_soc", &agv::EasyFullControl::InitializeRobot::battery_soc);
 
   // Transformation =============================================================
   py::class_<agv::Transformation>(m, "Transformation")

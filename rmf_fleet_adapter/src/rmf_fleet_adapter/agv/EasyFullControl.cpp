@@ -1477,6 +1477,7 @@ class EasyFullControl::FleetConfiguration::Implementation
 public:
   std::string fleet_name;
   std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates;
+  std::unordered_map<std::string, RobotConfiguration> known_robot_configurations;
   std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits;
   std::shared_ptr<const rmf_traffic::agv::Graph> graph;
   rmf_battery::agv::ConstBatterySystemPtr battery_system;
@@ -1499,6 +1500,7 @@ public:
 EasyFullControl::FleetConfiguration::FleetConfiguration(
   const std::string& fleet_name,
   std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates,
+  std::unordered_map<std::string, RobotConfiguration> known_robot_configurations,
   std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
   std::shared_ptr<const rmf_traffic::agv::Graph> graph,
   rmf_battery::agv::ConstBatterySystemPtr battery_system,
@@ -1519,6 +1521,7 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
       Implementation{
         std::move(fleet_name),
         std::move(transformations_to_robot_coordinates),
+        std::move(known_robot_configurations),
         std::move(traits),
         std::move(graph),
         std::move(battery_system),
@@ -1550,14 +1553,15 @@ EasyFullControl::FleetConfiguration::from_config_files(
   // Load fleet config file
   const auto fleet_config = YAML::LoadFile(config_file);
   // Check that config file is valid and contains all necessary nodes
-  if (!fleet_config["rmf_fleet"])
+  const YAML::Node rmf_fleet = fleet_config["rmf_fleet"];
+  if (!rmf_fleet)
   {
     std::cout
-      << "RMF fleet configuration is not provided in the configuration file"
+      << "rmf_fleet dictionary is not provided in the configuration file ["
+      << config_file << "] so we cannot parse a fleet configuration."
       << std::endl;
     return std::nullopt;
   }
-  const YAML::Node rmf_fleet = fleet_config["rmf_fleet"];
 
   // Fleet name
   if (!rmf_fleet["name"])
@@ -1927,9 +1931,54 @@ EasyFullControl::FleetConfiguration::from_config_files(
     }
   }
 
+  std::unordered_map<std::string, RobotConfiguration> known_robot_configurations;
+  const YAML::Node& robots = rmf_fleet["robots"];
+  if (robots)
+  {
+    if (!robots.IsMap())
+    {
+      std::cerr
+        << "[robots] element is not a map in config file [" << config_file
+        << "] so we cannot parse any known robot configurations." << std::endl;
+    }
+    else
+    {
+      for (const auto& robot : robots)
+      {
+        const auto robot_name = robot.first.as<std::string>();
+        const YAML::Node& robot_config_yaml = robot.second;
+
+        if (!robot_config_yaml.IsMap())
+        {
+          std::cerr
+            << "Entry for [" << robot_name << "] in [robots] dictionary is not "
+            << "a dictionary, so it cannot be parsed." << std::endl;
+          return std::nullopt;
+        }
+
+        const YAML::Node& charger_yaml = robot_config_yaml["charger"];
+        if (charger_yaml)
+        {
+          std::string charger = charger_yaml.as<std::string>();
+          known_robot_configurations.insert_or_assign(
+            robot_name, RobotConfiguration({std::move(charger)}));
+        }
+        else
+        {
+          std::cerr
+            << "No [charger] listed for [" << robot_name << "] in the config "
+            << "file [" << config_file << "]. A robot configuration cannot be "
+            << "made for the robot." << std::endl;
+          return std::nullopt;
+        }
+      }
+    }
+  }
+
   return FleetConfiguration(
     fleet_name,
     std::move(tf_dict),
+    std::move(known_robot_configurations),
     std::move(traits),
     std::make_shared<rmf_traffic::agv::Graph>(std::move(graph)),
     battery_system,
@@ -1979,6 +2028,33 @@ void EasyFullControl::FleetConfiguration::add_robot_coordinate_transformation(
 
   _pimpl->transformations_to_robot_coordinates
     ->insert_or_assign(std::move(map), transformation);
+}
+
+//==============================================================================
+auto EasyFullControl::FleetConfiguration::known_robot_configurations() const
+-> const std::unordered_map<std::string, RobotConfiguration>&
+{
+  return _pimpl->known_robot_configurations;
+}
+
+//==============================================================================
+void EasyFullControl::FleetConfiguration::add_known_robot_configuration(
+  std::string robot_name,
+  RobotConfiguration configuration)
+{
+  _pimpl->known_robot_configurations.insert_or_assign(
+    std::move(robot_name), std::move(configuration));
+}
+
+//==============================================================================
+auto EasyFullControl::FleetConfiguration::get_known_robot_configuration(
+  const std::string& robot_name) const -> std::optional<RobotConfiguration>
+{
+  const auto r_it = _pimpl->known_robot_configurations.find(robot_name);
+  if (r_it == _pimpl->known_robot_configurations.end())
+    return std::nullopt;
+
+  return r_it->second;
 }
 
 //==============================================================================

@@ -424,6 +424,7 @@ public:
   FleetConfiguration(
     const std::string& fleet_name,
     std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates,
+    std::unordered_map<std::string, RobotConfiguration> known_robot_configurations,
     std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
     std::shared_ptr<const rmf_traffic::agv::Graph> graph,
     rmf_battery::agv::ConstBatterySystemPtr battery_system,
@@ -487,6 +488,27 @@ public:
   void add_robot_coordinate_transformation(
     std::string map,
     Transformation transformation);
+
+  /// Get a dictionary of known robot configurations. The key is the name of the
+  /// robot belonging to this fleet. These configurations are usually parsed
+  /// from a fleet configuration file.
+  const std::unordered_map<std::string, RobotConfiguration>&
+  known_robot_configurations() const;
+
+  /// Provide a known configuration for a named robot.
+  ///
+  /// \param[in] robot_name
+  ///   The unique name of the robot.
+  ///
+  /// \param[in] configuration
+  ///   The configuration for the robot.
+  void add_known_robot_configuration(
+    std::string robot_name,
+    RobotConfiguration configuration);
+
+  /// Get a known configuration for a robot based on its name.
+  std::optional<RobotConfiguration> get_known_robot_configuration(
+    const std::string& robot_name) const;
 
   /// Get the fleet vehicle traits.
   const std::shared_ptr<const VehicleTraits>& vehicle_traits() const;
