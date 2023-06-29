@@ -55,6 +55,7 @@ std::unordered_map<std::string, ConsiderRequest> convert(
   }
 }
 
+using ActivityIdentifier = agv::RobotUpdateHandle::ActivityIdentifier;
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
@@ -281,6 +282,13 @@ PYBIND11_MODULE(rmf_adapter, m) {
 
   // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");
+
+  py::class_<ActivityIdentifier>(
+    m_robot_update_handle, "ActivityIdentifier")
+  .def("is_same", [](ActivityIdentifier& lhs, ActivityIdentifier& rhs)
+    {
+      return lhs == rhs;
+    });
 
   py::class_<ActionExecution>(
     m_robot_update_handle, "ActionExecution")
@@ -772,7 +780,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property_readonly("xy", &agv::EasyFullControl::Destination::xy)
   .def_property_readonly("yaw", &agv::EasyFullControl::Destination::yaw)
   .def_property_readonly("graph_index", &agv::EasyFullControl::Destination::graph_index)
-  .def_property_readonly("dock", &agv::EasyFullControl::Destination::dock);
+  .def_property_readonly("dock", &agv::EasyFullControl::Destination::dock)
+  .def_property_readonly("speed_limit", &agv::EasyFullControl::Destination::speed_limit);
 
   py::class_<agv::EasyFullControl::FleetConfiguration>(m_easy_full_control, "FleetConfiguration")
   .def(py::init([]( // Lambda function to convert reference to shared ptr
@@ -873,6 +882,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property_readonly(
     "known_robot_configurations",
     &agv::EasyFullControl::FleetConfiguration::known_robot_configurations)
+  .def_property_readonly(
+    "known_robots",
+    &agv::EasyFullControl::FleetConfiguration::known_robots)
   .def(
     "add_known_robot_configuration",
     &agv::EasyFullControl::FleetConfiguration::add_known_robot_configuration)

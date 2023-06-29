@@ -331,6 +331,10 @@ public:
   /// from this field.
   std::optional<std::size_t> graph_index() const;
 
+  /// If there is a speed limit that should be respected while approaching the
+  /// destination, this will indicate it.
+  std::optional<double> speed_limit() const;
+
   /// If the destination should be reached by performing a dock maneuver, this
   /// will contain the name of the dock.
   std::optional<std::string> dock() const;
@@ -494,6 +498,9 @@ public:
   /// from a fleet configuration file.
   const std::unordered_map<std::string, RobotConfiguration>&
   known_robot_configurations() const;
+
+  /// Get the names of all robots with known robot configurations.
+  std::vector<std::string> known_robots() const;
 
   /// Provide a known configuration for a named robot.
   ///

@@ -697,22 +697,15 @@ public:
   std::string map;
   Eigen::Vector3d position;
   std::optional<std::size_t> graph_index;
-  std::optional<std::string> dock;
+  std::optional<double> speed_limit;
+  std::optional<std::string> dock = std::nullopt;
 
-  static Destination make(
-    std::string map,
-    Eigen::Vector3d position,
-    std::optional<std::size_t> graph_index,
-    std::optional<std::string> dock = std::nullopt)
+  template<typename... Args>
+  static Destination make(Args&&... args)
   {
     Destination output;
     output._pimpl = rmf_utils::make_impl<Implementation>(
-      Implementation{
-        std::move(map),
-        position,
-        graph_index,
-        dock
-      });
+      Implementation{std::forward<Args>(args)...});
     return output;
   }
 };
@@ -1081,6 +1074,13 @@ void EasyCommandHandle::follow_new_path(
       initial_map = map;
     }
 
+    std::optional<double> speed_limit;
+    if (!wp1.approach_lanes().empty())
+    {
+      const auto arrival_lane = wp1.approach_lanes().back();
+      speed_limit = graph.get_lane(arrival_lane).properties().speed_limit();
+    }
+
     Eigen::Vector3d target_position = wp1.position();
     std::size_t target_index = i1;
     bool skip_next = false;
@@ -1106,7 +1106,8 @@ void EasyCommandHandle::follow_new_path(
     auto destination = EasyFullControl::Destination::Implementation::make(
       std::move(map),
       command_position,
-      wp1.graph_index());
+      wp1.graph_index(),
+      speed_limit);
 
     queue.push_back(
       EasyFullControl::CommandExecution::Implementation::make(
@@ -1292,6 +1293,7 @@ void EasyCommandHandle::dock(
     wp1.get_map_name(),
     command_position,
     i1,
+    lane.properties().speed_limit(),
     dock_name_);
 
   auto cmd = EasyFullControl::CommandExecution::Implementation::make(
@@ -1763,21 +1765,20 @@ EasyFullControl::FleetConfiguration::from_config_files(
   }
   else
   {
-    const auto parse_consideration = [&](
-      const std::string& capability,
-      const std::string& task)
+    for (const auto& capability : task_capabilities)
+    {
+      std::string task = capability.first.as<std::string>();
+      if (task == "loop")
       {
-        if (const auto c = task_capabilities[capability])
-        {
-          if (c.as<bool>())
-            task_consideration[task] = consider_all();
-        }
-      };
+        // Always change loop to patrol to support legacy terminology
+        task = "patrol";
+      }
 
-    parse_consideration("loop", "patrol");
-    parse_consideration("patrol", "patrol");
-    parse_consideration("clean", "clean");
-    parse_consideration("delivery", "delivery");
+      if (capability.second.as<bool>())
+      {
+        task_consideration[task] = consider_all();
+      }
+    }
 
     if (task_consideration.empty())
     {
@@ -2035,6 +2036,18 @@ auto EasyFullControl::FleetConfiguration::known_robot_configurations() const
 -> const std::unordered_map<std::string, RobotConfiguration>&
 {
   return _pimpl->known_robot_configurations;
+}
+
+//==============================================================================
+std::vector<std::string>
+EasyFullControl::FleetConfiguration::known_robots() const
+{
+  std::vector<std::string> names;
+  for (const auto& [name, _] : _pimpl->known_robot_configurations)
+  {
+    names.push_back(name);
+  }
+  return names;
 }
 
 //==============================================================================
