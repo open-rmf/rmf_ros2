@@ -1790,10 +1790,10 @@ EasyFullControl::FleetConfiguration::from_config_files(
 
   // Action considerations
   std::unordered_map<std::string, ConsiderRequest> action_consideration;
-  if (task_capabilities["action"])
+  const auto& actions_yaml = rmf_fleet["actions"];
+  if (actions_yaml)
   {
-    const auto actions =
-      task_capabilities["action"].as<std::vector<std::string>>();
+    const auto actions = actions_yaml.as<std::vector<std::string>>();
     for (const std::string& action : actions)
     {
       action_consideration[action] = consider_all();
@@ -1802,7 +1802,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
 
   // Finishing tasks
   std::string finishing_request_string;
-  if (!task_capabilities["finishing_request"])
+  const auto& finishing_request_yaml = rmf_fleet["finishing_request"];
+  if (!finishing_request_yaml)
   {
     std::cout
       << "Finishing request is not provided. The valid finishing requests "
@@ -1811,8 +1812,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
   }
   else
   {
-    finishing_request_string =
-      task_capabilities["finishing_request"].as<std::string>();
+    finishing_request_string = finishing_request_yaml.as<std::string>();
   }
   rmf_task::ConstRequestFactoryPtr finishing_request;
   if (finishing_request_string == "charge")
