@@ -334,6 +334,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
   py::class_<agv::FleetUpdateHandle,
     std::shared_ptr<agv::FleetUpdateHandle>>(
     m, "FleetUpdateHandle")
+  .def_property_readonly(
+    "fleet_name",
+    &agv::FleetUpdateHandle::fleet_name)
   // NOTE(CH3): Might have to publicise this constructor if required
   // Otherwise, it's constructable via agv::TestScenario
   // .def(py::init<>())  // Private constructor!
