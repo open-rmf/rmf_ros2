@@ -35,6 +35,8 @@
 #include <rmf_task_sequence/Phase.hpp>
 #include <rmf_task_sequence/Event.hpp>
 
+#include <rclcpp/node.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -366,6 +368,13 @@ public:
   /// before the listener was set.
   FleetUpdateHandle& set_update_listener(
     std::function<void(const nlohmann::json&)> listener);
+
+  /// Get the rclcpp::Node that this fleet update handle will be using for
+  /// communication.
+  std::shared_ptr<rclcpp::Node> node();
+
+  /// const-qualified node()
+  std::shared_ptr<const rclcpp::Node> node() const;
 
   // Do not allow moving
   FleetUpdateHandle(FleetUpdateHandle&&) = delete;
