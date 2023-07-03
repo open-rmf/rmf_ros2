@@ -332,14 +332,14 @@ PYBIND11_MODULE(rmf_adapter, m) {
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    const std::string& finishing_request_string = "nothing",
-    std::shared_ptr<rclcpp::Node> node = nullptr)
+    const std::string& finishing_request_string = "nothing")
     {
       std::function<rmf_traffic::Time()> time_now = nullptr;
       std::optional<std::string> planner_id = std::nullopt;
+      const auto node = self.node();
       if (node)
       {
-        time_now = [n = std::weak_ptr<rclcpp::Node>(node)]()
+        time_now = [n = node->weak_from_this()]()
         {
           const auto node = n.lock();
           if (!node)
@@ -385,8 +385,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("recharge_threshold"),
     py::arg("recharge_soc"),
     py::arg("account_for_battery_drain"),
-    py::arg("finishing_request_string") = "nothing",
-    py::arg("node") = nullptr)
+    py::arg("finishing_request_string") = "nothing")
   .def("accept_delivery_requests",
     &agv::FleetUpdateHandle::accept_delivery_requests,
     "NOTE: deprecated, use consider_delivery_requests() instead")

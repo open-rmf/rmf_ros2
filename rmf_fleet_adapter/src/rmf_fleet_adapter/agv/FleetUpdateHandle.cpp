@@ -2022,6 +2022,18 @@ FleetUpdateHandle& FleetUpdateHandle::set_update_listener(
 }
 
 //==============================================================================
+std::shared_ptr<rclcpp::Node> FleetUpdateHandle::node()
+{
+  return _pimpl->node;
+}
+
+//==============================================================================
+std::shared_ptr<const rclcpp::Node> FleetUpdateHandle::node() const
+{
+  return _pimpl->node;
+}
+
+//==============================================================================
 bool FleetUpdateHandle::set_task_planner_params(
   std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
   std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
