@@ -4,6 +4,7 @@
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
 #include "pybind11_json/pybind11_json.hpp"
+#include <functional>
 #include <memory>
 
 #include "rmf_traffic_ros2/Time.hpp"
@@ -333,21 +334,38 @@ PYBIND11_MODULE(rmf_adapter, m) {
     bool account_for_battery_drain,
     const std::string& finishing_request_string = "nothing")
     {
+      std::function<rmf_traffic::Time()> time_now = nullptr;
+      std::optional<std::string> planner_id = std::nullopt;
+      const auto node = self.node();
+      if (node)
+      {
+        time_now = [n = node->weak_from_this()]()
+        {
+          const auto node = n.lock();
+          if (!node)
+          {
+            const auto time_since_epoch =
+              std::chrono::system_clock::now().time_since_epoch();
+            return rmf_traffic::Time(time_since_epoch);
+          }
+          return rmf_traffic_ros2::convert(node->now());
+        };
+        planner_id = node->get_name();
+      }
+
       // Supported finishing_request_string: [charge, park, nothing]
-      rmf_task::ConstRequestFactoryPtr finishing_request;
+      rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
       if (finishing_request_string == "charge")
       {
-        finishing_request =
-        std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+        finishing_request = planner_id.has_value() && time_now ?
+          std::make_shared<rmf_task::requests::ChargeBatteryFactory>(planner_id.value(), std::move(time_now)) :
+          std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
       }
       else if (finishing_request_string == "park")
       {
-        finishing_request =
-        std::make_shared<rmf_task::requests::ParkRobotFactory>();
-      }
-      else
-      {
-        finishing_request = nullptr;
+        finishing_request = planner_id.has_value() && time_now ?
+          std::make_shared<rmf_task::requests::ParkRobotFactory>(planner_id.value(), std::move(time_now)) :
+          std::make_shared<rmf_task::requests::ParkRobotFactory>();
       }
 
       return self.set_task_planner_params(
