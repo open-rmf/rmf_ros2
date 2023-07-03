@@ -800,8 +800,10 @@ public:
 
     static const std::vector<std::string> copy_fields = {
       "unix_millis_earliest_start_time",
+      "unix_millis_request_time",
       "priority",
-      "labels"
+      "labels",
+      "requester",
     };
 
     for (const auto& field : copy_fields)
