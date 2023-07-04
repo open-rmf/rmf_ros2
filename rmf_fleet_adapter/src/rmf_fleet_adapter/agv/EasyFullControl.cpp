@@ -36,6 +36,7 @@
 
 #include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
+#include <rmf_utils/math.hpp>
 
 #include <rmf_battery/agv/BatterySystem.hpp>
 #include <rmf_battery/agv/SimpleMotionPowerSink.hpp>
@@ -398,7 +399,19 @@ public:
         double rotation = 0.0;
         if (final_orientation.has_value())
         {
-          rotation = std::fabs(location[2] - *final_orientation);
+          rotation = std::fabs(rmf_utils::wrap_to_pi(location[2] - *final_orientation));
+          const auto reversible =
+            planner->get_configuration().vehicle_traits()
+            .get_differential()->is_reversible();
+          if (reversible)
+          {
+            const double alternate_orientation = rmf_utils::wrap_to_pi(
+              *final_orientation + M_PI);
+
+            const double alternate_rotation = std::fabs(
+              rmf_utils::wrap_to_pi(location[2] - alternate_orientation));
+            rotation = std::min(rotation, alternate_rotation);
+          }
         }
 
         const auto& traits = planner->get_configuration().vehicle_traits();
@@ -447,7 +460,8 @@ public:
       }
 
       const auto now = rmf_traffic_ros2::convert(context->node()->now());
-      const auto delay_thresh = std::chrono::seconds(1);
+      // const auto delay_thresh = std::chrono::seconds(1);
+      const auto delay_thresh = std::chrono::milliseconds(100);
       if (closest_lane.has_value())
       {
         const auto& wp0 = route.trajectory().at(closest_lane->first);
