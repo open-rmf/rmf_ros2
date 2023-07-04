@@ -741,6 +741,12 @@ std::optional<std::size_t> EasyFullControl::Destination::graph_index() const
 }
 
 //==============================================================================
+std::optional<double> EasyFullControl::Destination::speed_limit() const
+{
+  return _pimpl->speed_limit;
+}
+
+//==============================================================================
 std::optional<std::string> EasyFullControl::Destination::dock() const
 {
   return _pimpl->dock;
@@ -1393,12 +1399,6 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
   RobotState state,
   ConstActivityIdentifierPtr current_activity)
 {
-  if (_pimpl->updater && _pimpl->updater->handle)
-  {
-    _pimpl->updater->handle->update_battery_soc(
-      state.battery_state_of_charge());
-  }
-
   _pimpl->worker.schedule(
     [
       state = std::move(state),
@@ -1406,8 +1406,15 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
       updater = _pimpl->updater
     ](const auto&)
     {
+      if (!updater->handle)
+      {
+        return;
+      }
+
       auto context = RobotUpdateHandle::Implementation
         ::get(*updater->handle).get_context();
+
+      context->current_battery_soc(state.battery_state_of_charge());
 
       const auto position = updater->to_rmf_coordinates(
         state.map(), state.position(), *context);
@@ -1440,6 +1447,7 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
         nav_params->max_merge_waypoint_distance,
         nav_params->max_merge_lane_distance,
         nav_params->min_lane_length);
+      context->set_location(starts);
     });
 }
 

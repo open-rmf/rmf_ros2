@@ -283,7 +283,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");
 
-  py::class_<ActivityIdentifier>(
+  py::class_<ActivityIdentifier, std::shared_ptr<ActivityIdentifier>>(
     m_robot_update_handle, "ActivityIdentifier")
   .def("is_same", [](ActivityIdentifier& lhs, ActivityIdentifier& rhs)
     {
@@ -717,7 +717,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
 
   auto m_easy_full_control = m.def_submodule("easy_full_control");
 
-  py::class_<agv::EasyFullControl::EasyRobotUpdateHandle>(m_easy_full_control, "EasyRobotUpdateHandle")
+  py::class_<
+    agv::EasyFullControl::EasyRobotUpdateHandle,
+    std::shared_ptr<agv::EasyFullControl::EasyRobotUpdateHandle>
+  >(m_easy_full_control, "EasyRobotUpdateHandle")
   .def("update", &agv::EasyFullControl::EasyRobotUpdateHandle::update)
   .def("more", [](agv::EasyFullControl::EasyRobotUpdateHandle& self)
     {
@@ -867,7 +870,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_static("from_config_files", &agv::EasyFullControl::FleetConfiguration::from_config_files,
     py::arg("config_file"),
     py::arg("nav_graph_path"),
-    py::arg("server_uri"))
+    py::arg("server_uri") = std::nullopt)
   .def_property(
     "fleet_name",
     &agv::EasyFullControl::FleetConfiguration::fleet_name,

@@ -361,6 +361,16 @@ double RobotContext::current_battery_soc() const
 //==============================================================================
 RobotContext& RobotContext::current_battery_soc(const double battery_soc)
 {
+  if (battery_soc < 0.0 || battery_soc > 1.0)
+  {
+    RCLCPP_ERROR(
+      _node->get_logger(),
+      "Invalid battery state of charge given for [%s]: %0.3f",
+      requester_id().c_str(),
+      battery_soc);
+    return *this;
+  }
+
   _current_battery_soc = battery_soc;
   _battery_soc_publisher.get_subscriber().on_next(battery_soc);
 
