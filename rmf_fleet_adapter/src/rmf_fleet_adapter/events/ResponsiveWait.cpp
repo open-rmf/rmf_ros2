@@ -70,7 +70,17 @@ rmf_task::Task::ActivePtr ResponsiveWait::start(
       ResponsiveWait::Description::make_indefinite(waiting_point)), {});
 
   const auto desc = builder.build("Responsive Wait", "");
-  const rmf_task::Request request(task_id, context->now(), nullptr, desc, true);
+
+  const auto time_now = context->now();
+  rmf_task::Task::ConstBookingPtr booking =
+    std::make_shared<const rmf_task::Task::Booking>(
+    task_id,
+    time_now,
+    nullptr,
+    context->requester_id(),
+    time_now,
+    true);
+  const rmf_task::Request request(std::move(booking), desc);
 
   return context->task_activator()->activate(
     context->make_get_state(),
