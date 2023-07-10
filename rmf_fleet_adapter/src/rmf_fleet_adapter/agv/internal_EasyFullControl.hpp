@@ -24,35 +24,6 @@ namespace agv {
 
 class EasyCommandHandle;
 using EasyCommandHandlePtr = std::shared_ptr<EasyCommandHandle>;
-using TransformDictionary = std::unordered_map<std::string, Transformation>;
-
-//==============================================================================
-struct NavParams
-{
-  bool skip_rotation_commands;
-  std::optional<TransformDictionary> transforms_to_robot_coords;
-  double max_merge_waypoint_distance = 0.3;
-  double max_merge_lane_distance = 0.1;
-  double min_lane_length = 1e-8;
-
-  std::optional<Eigen::Vector3d> to_rmf_coordinates(
-    const std::string& map,
-    Eigen::Vector3d position)
-  {
-    if (!transforms_to_robot_coords.has_value())
-    {
-      return position;
-    }
-
-    const auto tf_it = transforms_to_robot_coords->find(map);
-    if (tf_it == transforms_to_robot_coords->end())
-    {
-      return std::nullopt;
-    }
-
-    return tf_it->second.apply_inverse(position);
-  }
-};
 
 //==============================================================================
 class EasyFullControl::Implementation

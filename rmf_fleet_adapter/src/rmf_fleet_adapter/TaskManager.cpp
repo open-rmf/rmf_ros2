@@ -1243,12 +1243,6 @@ void TaskManager::_begin_next_task()
     return;
   }
 
-  if (_waiting)
-  {
-    _waiting.cancel({"New task ready"}, _context->now());
-    return;
-  }
-
   // The next task should one in the direct assignment queue if present
   const bool is_next_task_direct = !_direct_queue.empty();
   const auto assignment = is_next_task_direct ?
@@ -1270,8 +1264,20 @@ void TaskManager::_begin_next_task()
 
   if (now >= deployment_time)
   {
+    if (_waiting)
+    {
+      _waiting.cancel({"New task ready"}, _context->now());
+      return;
+    }
+
     // Update state in RobotContext and Assign active task
     const auto& id = assignment.request()->booking()->id();
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Beginning next task [%s] for robot [%s]",
+      id.c_str(),
+      _context->requester_id().c_str());
+
     _context->current_task_end_state(assignment.finish_state());
     _context->current_task_id(id);
     _active_task = ActiveTask::start(
@@ -1422,6 +1428,16 @@ void TaskManager::_begin_waiting()
 {
   if (!_responsive_wait_enabled)
     return;
+
+  if (_context->location().empty())
+  {
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      "Unable to perform responsive wait for [%s] because its position on its "
+      "navigation graph is unknown. This may require operator intervention.",
+      _context->requester_id().c_str());
+    return;
+  }
 
   // Determine the waypoint closest to the robot
   std::size_t waiting_point = _context->location().front().waypoint();

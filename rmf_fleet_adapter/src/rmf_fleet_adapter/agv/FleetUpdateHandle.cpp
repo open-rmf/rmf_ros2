@@ -769,8 +769,25 @@ std::optional<rmf_fleet_msgs::msg::Location> convert_location(
 {
   if (context.location().empty())
   {
-    // TODO(MXG): We should emit some kind of critical error if this ever
-    // happens
+    const auto& lost = context.lost();
+    if (lost.has_value() && lost->location.has_value())
+    {
+      const auto& l = *lost->location;
+      return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
+        .t(rmf_traffic_ros2::convert(l.time))
+        .x(l.position[0])
+        .y(l.position[1])
+        .yaw(l.position[2])
+        .obey_approach_speed_limit(false)
+        .approach_speed_limit(0.0)
+        .level_name(l.map)
+        .index(0);
+    }
+
+    std::cout << "LOST && MISSING LOST INFO FOR " << context.requester_id() << std::endl;
+    // TODO(MXG): We should emit some kind of critical error if there is no
+    // location and also no lost information, because that means an issue ticket
+    // has not been created.
     return std::nullopt;
   }
 
@@ -874,15 +891,15 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
         context->now().time_since_epoch()).count();
       json["battery"] = context->current_battery_soc();
 
-      nlohmann::json& location = json["location"];
       const auto location_msg = convert_location(*context);
-      if (!location_msg.has_value())
-        continue;
-
-      location["map"] = location_msg->level_name;
-      location["x"] = location_msg->x;
-      location["y"] = location_msg->y;
-      location["yaw"] = location_msg->yaw;
+      if (location_msg.has_value())
+      {
+        nlohmann::json& location = json["location"];
+        location["map"] = location_msg->level_name;
+        location["x"] = location_msg->x;
+        location["y"] = location_msg->y;
+        location["yaw"] = location_msg->yaw;
+      }
 
       std::lock_guard<std::mutex> lock(context->reporting().mutex());
       const auto& issues = context->reporting().open_issues();
@@ -1392,6 +1409,10 @@ void FleetUpdateHandle::add_robot(
                   }
 
                   last_time = now;
+                  RCLCPP_INFO(
+                    c->node()->get_logger(),
+                    "Requesting replan for [%s] because it failed to negotiate",
+                    c->requester_id().c_str());
                   c->request_replan();
                 }
               });

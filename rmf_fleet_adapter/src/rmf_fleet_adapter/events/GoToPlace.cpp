@@ -111,6 +111,12 @@ auto GoToPlace::Standby::begin(
 {
   if (!_active)
   {
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Beginning a new go_to_place [%lu] for robot [%s]",
+      _goal.waypoint(),
+      _context->requester_id().c_str());
+
     _active = Active::make(
       _assign_id,
       _context,
@@ -194,6 +200,10 @@ auto GoToPlace::Active::make(
       {
         // If we're currently replanning, we should restart the replanning
         // because the upcoming solution might involve a closed lane
+        RCLCPP_INFO(
+          self->_context->node()->get_logger(),
+          "Requesting replan for [%s] to account for a newly closed lane",
+          self->_context->requester_id().c_str());
         self->_context->request_replan();
         return;
       }
@@ -214,6 +224,10 @@ auto GoToPlace::Active::make(
             {
               // The current plan is using (or did use) a lane which has closed,
               // so let's replan.
+              RCLCPP_INFO(
+                self->_context->node()->get_logger(),
+                "Requesting replan for [%s] to avoid a newly closed lane",
+                self->_context->requester_id().c_str());
               self->_context->request_replan();
               return;
             }
@@ -224,6 +238,10 @@ auto GoToPlace::Active::make(
       {
         // Strange that there isn't an execution and also isn't a
         // _find_path_service, but let's just request a replan.
+        RCLCPP_INFO(
+          self->_context->node()->get_logger(),
+          "Requesting replan for [%s] to account for a newly closed lane (v2)",
+          self->_context->requester_id().c_str());
         self->_context->request_replan();
       }
     });
@@ -302,6 +320,11 @@ auto GoToPlace::Active::interrupt(std::function<void()> task_is_interrupted)
 //==============================================================================
 void GoToPlace::Active::cancel()
 {
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Canceling go_to_place [%lu] for robot [%s]",
+    _goal.waypoint(),
+    _context->requester_id().c_str());
   _stop_and_clear();
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
@@ -476,6 +499,12 @@ void GoToPlace::Active::_execute_plan(
     _finished();
     return;
   }
+
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Executing go_to_place [%lu] for robot [%s]",
+    _goal.waypoint(),
+    _context->requester_id().c_str());
 
   _execution = ExecutePlan::make(
     _context, plan_id, std::move(plan), std::move(full_itinerary),

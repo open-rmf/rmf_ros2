@@ -299,6 +299,24 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("error", &ActionExecution::error, py::arg("text"))
   .def("delayed", &ActionExecution::delayed, py::arg("text"))
   .def("blocked", &ActionExecution::blocked, py::arg("text"))
+  .def(
+    "override_schedule",
+    [&](
+      ActionExecution& self,
+      std::string map,
+      std::vector<Eigen::Vector3d> path,
+      double hold)
+    {
+      std::cout << "CALLING OVERRIDE_SCHEDULE BINDING: "
+        << map << ": " << path.size() << " | " << hold << std::endl;
+      return self.override_schedule(
+        map,
+        path,
+        rmf_traffic::time::from_seconds(hold));
+    },
+    py::arg("map"),
+    py::arg("path"),
+    py::arg("hold") = 0.0)
   .def("finished", &ActionExecution::finished)
   .def("okay", &ActionExecution::okay)
   .def_property_readonly("identifier", &ActionExecution::identifier);
@@ -777,7 +795,22 @@ PYBIND11_MODULE(rmf_adapter, m) {
   py::class_<agv::EasyFullControl::CommandExecution>(m_easy_full_control, "CommandExecution")
   .def("finished", &agv::EasyFullControl::CommandExecution::finished)
   .def("okay", &agv::EasyFullControl::CommandExecution::okay)
-  .def("override_schedule", &agv::EasyFullControl::CommandExecution::override_schedule)
+  .def(
+    "override_schedule",
+    [](
+      ActionExecution& self,
+      std::string map,
+      std::vector<Eigen::Vector3d> path,
+      double hold)
+    {
+      return self.override_schedule(
+        std::move(map),
+        std::move(path),
+        rmf_traffic::time::from_seconds(hold));
+    },
+    py::arg("map"),
+    py::arg("path"),
+    py::arg("hold") = 0.0)
   .def_property_readonly("identifier", &agv::EasyFullControl::CommandExecution::identifier);
 
   py::class_<agv::EasyFullControl::Destination>(m_easy_full_control, "Destination")

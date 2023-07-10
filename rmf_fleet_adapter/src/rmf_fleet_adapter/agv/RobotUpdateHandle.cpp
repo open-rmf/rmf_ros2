@@ -163,6 +163,12 @@ void RobotUpdateHandle::update_position(
         "from its navigation graph, currently located at <%f, %f, %f> on "
         "map [%s]", context->requester_id().c_str(),
         position[0], position[1], position[2], map_name.c_str());
+
+      context->worker().schedule(
+        [context, map_name, position](const auto&)
+        {
+
+        });
       return;
     }
 
@@ -849,15 +855,57 @@ void RobotUpdateHandle::ActionExecution::blocked(
 }
 
 //==============================================================================
+auto RobotUpdateHandle::ActionExecution::override_schedule(
+  std::string map,
+  std::vector<Eigen::Vector3d> path,
+  rmf_traffic::Duration hold) -> Stubbornness
+{
+  auto stubborn = std::make_shared<StubbornOverride>();
+  if (const auto context = _pimpl->data->w_context.lock())
+  {
+    context->worker().schedule(
+      [
+        context,
+        stubborn,
+        data = _pimpl->data,
+        identifier = _pimpl->identifier,
+        map = std::move(map),
+        path = std::move(path),
+        hold
+      ](const auto&)
+      {
+        if (!ActivityIdentifier::Implementation::get(*identifier).update_fn)
+        {
+          // Don't do anything because this command is finished
+          return;
+        }
+
+        if (data->schedule_override.has_value())
+        {
+          data->schedule_override->release_stubbornness();
+        }
+        data->schedule_override = ScheduleOverride::make(
+          context, map, path, hold, stubborn);
+      }
+    );
+  }
+
+  return Stubbornness::Implementation::make(stubborn);
+}
+
+//==============================================================================
 void RobotUpdateHandle::ActionExecution::finished()
 {
   if (_pimpl->data)
   {
-    _pimpl->data->worker.schedule(
-      [finished = _pimpl->data->finished](const rxcpp::schedulers::schedulable&)
-      {
-        finished.trigger();
-      });
+    if (const auto context = _pimpl->data->w_context.lock())
+    {
+      context->worker().schedule(
+        [finished = _pimpl->data->finished](const auto&)
+        {
+          finished.trigger();
+        });
+    }
   }
 }
 
@@ -880,6 +928,171 @@ RobotUpdateHandle::ActionExecution::ActionExecution()
   // Do nothing
 }
 
+//==============================================================================
+void ScheduleOverride::overridden_update(
+  const std::shared_ptr<RobotContext>& context,
+  const std::string& map,
+  Eigen::Vector3d location)
+{
+  auto p = Eigen::Vector2d(location[0], location[1]);
+  std::optional<std::pair<std::size_t, double>> closest_lane;
+  std::size_t i0 = 0;
+  std::size_t i1 = 1;
+  for (; i1 < route.trajectory().size(); ++i0, ++i1)
+  {
+    // We approximate the trajectory as linear with constant velocity even
+    // though it could technically be a cubic spline. The linear
+    // approximation simplifies the math considerably, and we will be
+    // phasing out support for cubic splines in the future.
+    const Eigen::Vector2d p0 =
+      route.trajectory().at(i0).position().block<2, 1>(0, 0);
+    const Eigen::Vector2d p1 =
+      route.trajectory().at(i1).position().block<2, 1>(0, 0);
+    const auto lane_length = (p1 - p0).norm();
+    const auto lane_u = (p1 - p0)/lane_length;
+    const auto proj = (p - p0).dot(lane_u);
+    if (proj < 0.0 || lane_length < proj)
+    {
+      continue;
+    }
+
+    const auto dist_to_lane = (p - p0 - proj * lane_u).norm();
+    if (!closest_lane.has_value() || dist_to_lane < closest_lane->second)
+    {
+      closest_lane = std::make_pair(i0, dist_to_lane);
+    }
+  }
+
+  const auto now = rmf_traffic_ros2::convert(context->node()->now());
+  // const auto delay_thresh = std::chrono::seconds(1);
+  const auto delay_thresh = std::chrono::milliseconds(100);
+  if (closest_lane.has_value())
+  {
+    const auto& wp0 = route.trajectory().at(closest_lane->first);
+    const auto& wp1 = route.trajectory().at(closest_lane->first + 1);
+    const Eigen::Vector2d p0 = wp0.position().block<2, 1>(0, 0);
+    const Eigen::Vector2d p1 = wp1.position().block<2, 1>(0, 0);
+    rmf_traffic::Time t_expected = wp0.time();
+    const auto lane_length = (p1 - p0).norm();
+    if (lane_length > 1e-6)
+    {
+      const auto lane_u = (p1 - p0)/lane_length;
+      const auto proj = (p - p0).dot(lane_u);
+      const auto s = proj/lane_length;
+      const double dt = rmf_traffic::time::to_seconds(wp1.time() - wp0.time());
+      t_expected += rmf_traffic::time::from_seconds(s*dt);
+    }
+    const auto delay = now - t_expected;
+    context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
+  }
+  else
+  {
+    // Find the waypoint that the agent is closest to and estimate the delay
+    // based on the agent being at that waypoint. This is a very fallible
+    // estimation, but it's the best we can do with limited information.
+    std::optional<std::pair<rmf_traffic::Time, double>> closest_time;
+    for (std::size_t i=0; i < route.trajectory().size(); ++i)
+    {
+      const auto& wp = route.trajectory().at(i);
+      const Eigen::Vector2d p_wp = wp.position().block<2, 1>(0, 0);
+      const double dist = (p - p_wp).norm();
+      if (!closest_time.has_value() || dist < closest_time->second)
+      {
+        closest_time = std::make_pair(wp.time(), dist);
+      }
+    }
+
+    if (closest_time.has_value())
+    {
+      const auto delay = now - closest_time->first;
+      context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
+    }
+
+    // If no closest time was found then there are no waypoints in the
+    // route. There's no point updating the delay of an empty route.
+  }
+
+  auto planner = context->planner();
+  if (!planner)
+  {
+    RCLCPP_ERROR(
+      context->node()->get_logger(),
+      "Planner unavailable for robot [%s], cannot update its location",
+      context->requester_id().c_str());
+    return;
+  }
+
+  const auto& graph = planner->get_configuration().graph();
+
+  if (const auto nav_params = context->nav_params())
+  {
+    auto starts = nav_params->compute_plan_starts(graph, map, location, now);
+    // std::cout << context->requester_id() << " SETTING LOCATIONS FROM " << __LINE__ << std::endl;
+    if (!starts.empty())
+    {
+      context->set_location(std::move(starts));
+    }
+    else
+    {
+      std::cout << "Setting lost location for " << context->requester_id()
+        << ": " << location.transpose() << std::endl;
+      context->set_lost(Location { now, map, location });
+    }
+  }
+}
+
+//==============================================================================
+void ScheduleOverride::release_stubbornness()
+{
+  if (const auto stubborn = w_stubborn.lock())
+  {
+    // Clear out the previous stubborn handle
+    stubborn->stubbornness = nullptr;
+  }
+}
+
+//==============================================================================
+std::optional<ScheduleOverride> ScheduleOverride::make(
+  const std::shared_ptr<RobotContext>& context,
+  const std::string& map,
+  const std::vector<Eigen::Vector3d>& path,
+  rmf_traffic::Duration hold,
+  std::shared_ptr<StubbornOverride> stubborn)
+{
+  auto planner = context->planner();
+  if (!planner)
+  {
+    RCLCPP_WARN(
+      context->node()->get_logger(),
+      "Planner unavailable for robot [%s], cannot override its "
+      "schedule",
+      context->requester_id().c_str());
+    return std::nullopt;
+  }
+
+  const auto now = context->now();
+  const auto& traits = planner->get_configuration().vehicle_traits();
+  auto trajectory = rmf_traffic::agv::Interpolate::positions(
+    traits, now, path);
+  if (hold > rmf_traffic::Duration(0) && !trajectory.empty())
+  {
+    const auto& last_wp = trajectory.back();
+    trajectory.insert(
+      last_wp.time() + hold,
+      last_wp.position(),
+      Eigen::Vector3d(0.0, 0.0, 0.0));
+  }
+  auto route = rmf_traffic::Route(map, std::move(trajectory));
+  const auto plan_id = context->itinerary().assign_plan_id();
+  context->itinerary().set(plan_id, {route});
+  stubborn->stubbornness = context->be_stubborn();
+
+  return ScheduleOverride{
+    std::move(route),
+    plan_id,
+    stubborn
+  };
+}
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

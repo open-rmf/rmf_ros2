@@ -188,27 +188,6 @@ auto EasyFullControl::RobotCallbacks::action_executor() const -> ActionExecutor
 class EasyFullControl::CommandExecution::Implementation
 {
 public:
-
-  struct StubbornOverride
-  {
-    /// We use a convoluted multi-layered reference structure for schedule
-    /// override stubbornness so that we can release the stubbornness of the
-    /// schedule override after the command is finished, even if the user
-    /// forgets to release the override stubbornness.
-    ///
-    /// If we don't implement it like this, there's a risk that the agent will
-    /// remain stubborn after it resumes normal operation, which would cause
-    /// significant traffic management problems.
-    std::shared_ptr<void> stubbornness;
-  };
-
-  struct ScheduleOverride
-  {
-    rmf_traffic::Route route;
-    rmf_traffic::PlanId plan_id;
-    std::weak_ptr<StubbornOverride> stubborn;
-  };
-
   struct Data
   {
     std::vector<std::size_t> waypoints;
@@ -222,11 +201,7 @@ public:
     {
       if (schedule_override.has_value())
       {
-        if (const auto stubborn = schedule_override->stubborn.lock())
-        {
-          // Clear out the previous stubborn handle
-          stubborn->stubbornness = nullptr;
-        }
+        schedule_override->release_stubbornness();
       }
     }
 
@@ -237,11 +212,10 @@ public:
     {
       if (schedule_override.has_value())
       {
-        return overridden_update(
+        return schedule_override->overridden_update(
           context,
           map,
-          location,
-          *schedule_override);
+          location);
       }
 
       auto planner = context->planner();
@@ -290,6 +264,7 @@ public:
       if (on_waypoint.has_value())
       {
         const auto wp = on_waypoint->first;
+        // std::cout << "IMPL " << context->requester_id() << " " << __LINE__ << std::endl;
         starts.push_back(rmf_traffic::agv::Plan::Start(now, wp, yaw, p));
         for (std::size_t lane_id : graph.lanes_from(wp))
         {
@@ -314,6 +289,7 @@ public:
             continue;
           }
 
+          // std::cout << "IMPL " << context->requester_id() << " " << __LINE__ << std::endl;
           auto wp_exit = graph.get_lane(lane_id).exit().waypoint_index();
           starts.push_back(
             rmf_traffic::agv::Plan::Start(now, wp_exit, yaw, p, lane_id));
@@ -369,29 +345,34 @@ public:
           const auto& lane = graph.get_lane(lane_id);
           const auto wp0 = lane.entry().waypoint_index();
           const auto wp1 = lane.exit().waypoint_index();
+          // std::cout << "IMPL " << context->requester_id() << " " << __LINE__ << std::endl;
           starts.push_back(
             rmf_traffic::agv::Plan::Start(now, wp1, yaw, p, lane_id));
 
           if (const auto* reverse_lane = graph.lane_from(wp1, wp0))
           {
+            // std::cout << "IMPL " << context->requester_id() << " " << __LINE__ << std::endl;
             starts.push_back(rmf_traffic::agv::Plan::Start(
                 now, wp0, yaw, p, reverse_lane->index()));
           }
         }
         else
         {
-          starts = rmf_traffic::agv::compute_plan_starts(
-            graph,
-            map,
-            location,
-            now,
-            nav_params->max_merge_waypoint_distance,
-            nav_params->max_merge_lane_distance,
-            nav_params->min_lane_length);
+          // std::cout << "IMPL " << context->requester_id() << " " << __LINE__ << std::endl;
+          starts = nav_params->compute_plan_starts(graph, map, location, now);
         }
       }
 
-      context->set_location(starts);
+      // std::cout << context->requester_id() << " SETTING LOCATIONS FROM " << __LINE__ << std::endl;
+      if (!starts.empty())
+      {
+        context->set_location(starts);
+      }
+      else
+      {
+        context->set_lost(Location { now, map, location });
+      }
+
       if (!waypoints.empty())
       {
         const auto p_final = graph.get_waypoint(waypoints.back()).get_location();
@@ -420,111 +401,6 @@ public:
         const auto t = distance / v + rotation / w;
         arrival_estimator(rmf_traffic::time::from_seconds(t));
       }
-    }
-
-    void overridden_update(
-      const std::shared_ptr<RobotContext>& context,
-      const std::string& map,
-      Eigen::Vector3d location,
-      const ScheduleOverride& schedule_override)
-    {
-      auto p = Eigen::Vector2d(location[0], location[1]);
-      const auto& route = schedule_override.route;
-      const auto plan_id = schedule_override.plan_id;
-      std::optional<std::pair<std::size_t, double>> closest_lane;
-      std::size_t i0 = 0;
-      std::size_t i1 = 1;
-      for (; i1 < route.trajectory().size(); ++i0, ++i1)
-      {
-        // We approximate the trajectory as linear with constant velocity even
-        // though it could technically be a cubic spline. The linear
-        // approximation simplifies the math considerably, and we will be
-        // phasing out support for cubic splines in the future.
-        const Eigen::Vector2d p0 =
-          route.trajectory().at(i0).position().block<2, 1>(0, 0);
-        const Eigen::Vector2d p1 =
-          route.trajectory().at(i1).position().block<2, 1>(0, 0);
-        const auto lane_length = (p1 - p0).norm();
-        const auto lane_u = (p1 - p0)/lane_length;
-        const auto proj = (p - p0).dot(lane_u);
-        if (proj < 0.0 || lane_length < proj)
-        {
-          continue;
-        }
-
-        const auto dist_to_lane = (p - p0 - proj * lane_u).norm();
-        if (!closest_lane.has_value() || dist_to_lane < closest_lane->second)
-        {
-          closest_lane = std::make_pair(i0, dist_to_lane);
-        }
-      }
-
-      const auto now = rmf_traffic_ros2::convert(context->node()->now());
-      // const auto delay_thresh = std::chrono::seconds(1);
-      const auto delay_thresh = std::chrono::milliseconds(100);
-      if (closest_lane.has_value())
-      {
-        const auto& wp0 = route.trajectory().at(closest_lane->first);
-        const auto& wp1 = route.trajectory().at(closest_lane->first + 1);
-        const Eigen::Vector2d p0 = wp0.position().block<2, 1>(0, 0);
-        const Eigen::Vector2d p1 = wp1.position().block<2, 1>(0, 0);
-        const auto lane_length = (p1 - p0).norm();
-        const auto lane_u = (p1 - p0)/lane_length;
-        const auto proj = (p - p0).dot(lane_u);
-        const auto s = proj/lane_length;
-        const double dt = rmf_traffic::time::to_seconds(wp1.time() - wp0.time());
-        const rmf_traffic::Time t_expected =
-          wp0.time() + rmf_traffic::time::from_seconds(s*dt);
-        const auto delay = now - t_expected;
-        context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
-      }
-      else
-      {
-        // Find the waypoint that the agent is closest to and estimate the delay
-        // based on the agent being at that waypoint. This is a very fallible
-        // estimation, but it's the best we can do with limited information.
-        std::optional<std::pair<rmf_traffic::Time, double>> closest_time;
-        for (std::size_t i=0; i < route.trajectory().size(); ++i)
-        {
-          const auto& wp = route.trajectory().at(i);
-          const Eigen::Vector2d p_wp = wp.position().block<2, 1>(0, 0);
-          const double dist = (p - p_wp).norm();
-          if (!closest_time.has_value() || dist < closest_time->second)
-          {
-            closest_time = std::make_pair(wp.time(), dist);
-          }
-        }
-
-        if (closest_time.has_value())
-        {
-          const auto delay = now - closest_time->first;
-          context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
-        }
-
-        // If no closest time was found then there are no waypoints in the
-        // route. There's no point updating the delay of an empty route.
-      }
-
-      auto planner = context->planner();
-      if (!planner)
-      {
-        RCLCPP_ERROR(
-          context->node()->get_logger(),
-          "Planner unavailable for robot [%s], cannot update its location",
-          context->requester_id().c_str());
-        return;
-      }
-
-      const auto& graph = planner->get_configuration().graph();
-      auto starts = rmf_traffic::agv::compute_plan_starts(
-        graph,
-        map,
-        location,
-        now,
-        nav_params->max_merge_waypoint_distance,
-        nav_params->max_merge_lane_distance,
-        nav_params->min_lane_length);
-      context->set_location(std::move(starts));
     }
   };
   using DataPtr = std::shared_ptr<Data>;
@@ -558,6 +434,10 @@ public:
           if (data->schedule_override.has_value())
           {
             data->release_stubbornness();
+            RCLCPP_INFO(
+              context->node()->get_logger(),
+              "Requesting replan for [%s] after finishing a schedule override",
+              context->requester_id().c_str());
             context->request_replan();
           }
           else
@@ -571,7 +451,8 @@ public:
 
   Stubbornness override_schedule(
     std::string map,
-    std::vector<Eigen::Vector3d> path)
+    std::vector<Eigen::Vector3d> path,
+    rmf_traffic::Duration hold)
   {
     auto stubborn = std::make_shared<StubbornOverride>();
     if (const auto context = w_context.lock())
@@ -583,7 +464,8 @@ public:
           data = this->data,
           identifier = this->identifier,
           map = std::move(map),
-          path = std::move(path)
+          path = std::move(path),
+          hold
         ](const auto&)
         {
           if (!ActivityIdentifier::Implementation::get(*identifier).update_fn)
@@ -592,33 +474,9 @@ public:
             return;
           }
 
-          auto planner = context->planner();
-          if (!planner)
-          {
-            RCLCPP_WARN(
-              context->node()->get_logger(),
-              "Planner unavailable for robot [%s], cannot override its "
-              "schedule",
-              context->requester_id().c_str());
-            return;
-          }
-
           data->release_stubbornness();
-          const auto now = context->now();
-          const auto& traits = planner->get_configuration().vehicle_traits();
-          auto trajectory = rmf_traffic::agv::Interpolate::positions(
-            traits, now, path);
-          auto route = rmf_traffic::Route(map, std::move(trajectory));
-          const auto plan_id = context->itinerary().assign_plan_id();
-          context->itinerary().set(plan_id, {route});
-
-          data->schedule_override = ScheduleOverride{
-            std::move(route),
-            plan_id,
-            stubborn
-          };
-
-          stubborn->stubbornness = context->be_stubborn();
+          data->schedule_override = ScheduleOverride::make(
+            context, map, path, hold, stubborn);
         });
     }
 
@@ -626,19 +484,18 @@ public:
   }
 
   static CommandExecution make(
-    const std::shared_ptr<RobotContext>& context_,
+    const std::shared_ptr<RobotContext>& context,
     Data data_,
     std::function<void(CommandExecution)> begin)
   {
     auto data = std::make_shared<Data>(data_);
-    std::weak_ptr<RobotContext> context = context_;
-    auto update_fn = [context, data](
+    auto update_fn = [w_context = context->weak_from_this(), data](
         const std::string& map,
         Eigen::Vector3d location)
       {
-        if (auto locked_context = context.lock())
+        if (auto context = w_context.lock())
         {
-          data->update_location(locked_context, map, location);
+          data->update_location(context, map, location);
         }
       };
     auto identifier = ActivityIdentifier::Implementation::make(update_fn);
@@ -680,9 +537,10 @@ bool EasyFullControl::CommandExecution::okay() const
 //==============================================================================
 auto EasyFullControl::CommandExecution::override_schedule(
   std::string map,
-  std::vector<Eigen::Vector3d> path) -> Stubbornness
+  std::vector<Eigen::Vector3d> path,
+  rmf_traffic::Duration hold) -> Stubbornness
 {
-  return _pimpl->override_schedule(std::move(map), std::move(path));
+  return _pimpl->override_schedule(std::move(map), std::move(path), hold);
 }
 
 //==============================================================================
@@ -946,6 +804,19 @@ void EasyCommandHandle::follow_new_path(
     return;
   }
 
+  std::cout << "initial path for " << context->requester_id() << ":";
+  for (std::size_t i=0; i < waypoints.size(); ++i)
+  {
+    const auto& wp = waypoints[i];
+    std::cout << "\n -- " << i << ". (";
+    if (wp.graph_index().has_value())
+      std::cout << *wp.graph_index();
+    else
+      std::cout << "null";
+    std::cout << ") " << wp.position().transpose();
+  }
+  std::cout << std::endl;
+
   RCLCPP_DEBUG(
     context->node()->get_logger(),
     "follow_new_path for robot [%s] with PlanId [%ld]",
@@ -987,13 +858,22 @@ void EasyCommandHandle::follow_new_path(
 
   if (!opt_initial_map.has_value())
   {
+    for (const auto& l : context->location())
+    {
+      opt_initial_map = graph.get_waypoint(l.waypoint()).get_map_name();
+      break;
+    }
+  }
+
+  if (!opt_initial_map.has_value())
+  {
     RCLCPP_ERROR(
       context->node()->get_logger(),
       "Could not find an initial map in follow_new_path command for robot [%s]."
-      " This is an internal RMF error, please report it to the developers. "
-      "Path length is [%lu].",
-      context->requester_id().c_str(),
-      waypoints.size());
+      "This means the robot is lost and may need an operator to intervene.",
+      context->requester_id().c_str());
+    // Stop to prevent cascading problems.
+    stop();
     return;
   }
   std::string initial_map = *opt_initial_map;
@@ -1010,10 +890,60 @@ void EasyCommandHandle::follow_new_path(
     {
       for (const auto& l : current_location)
       {
-        if (*wp.graph_index() == l.waypoint())
+        if (*wp.graph_index() == l.waypoint() && !l.lane().has_value())
+        {
+          if (l.location().has_value())
+          {
+            if (i > 0)
+            {
+              found_connection = true;
+              i0 = i - 1;
+              std::cout << context->requester_id() << " SKIPPING IMPL " << __LINE__
+                << " | " << i0 << std::endl;
+            }
+            else
+            {
+              const double dist =
+                (*l.location() - wp.position().block<2, 1>(0, 0)).norm();
+              if (dist <= nav_params->max_merge_lane_distance)
+              {
+                found_connection = true;
+                i0 = 0;
+                std::cout << context->requester_id() << " SKIPPING IMPL " << __LINE__
+                  << " | " << i0 << std::endl;
+              }
+            }
+          }
+          else
+          {
+            found_connection = true;
+            i0 = i;
+            std::cout << context->requester_id() << " SKIPPING IMPL " << __LINE__
+              << " | " << i0 << std::endl;
+          }
+        }
+      }
+    }
+    else
+    {
+      for (const auto& l : current_location)
+      {
+        Eigen::Vector2d p_wp;
+        if (l.location().has_value())
+        {
+          p_wp = l.location()->block<2, 1>(0, 0);
+        }
+        else
+        {
+          p_wp = graph.get_waypoint(l.waypoint()).get_location();
+        }
+        const double dist = (*l.location() - p_wp).norm();
+        if (dist <= nav_params->max_merge_lane_distance)
         {
           found_connection = true;
           i0 = i;
+          std::cout << context->requester_id() << " SKIPPING IMPL " << __LINE__
+            << " | " << i0 << std::endl;
         }
       }
     }
@@ -1030,6 +960,8 @@ void EasyCommandHandle::follow_new_path(
             {
               found_connection = true;
               i0 = i - 1;
+              std::cout << context->requester_id() << " SKIPPING IMPL " << __LINE__
+                << " | " << i0 << std::endl;
             }
           }
         }
@@ -1041,6 +973,14 @@ void EasyCommandHandle::follow_new_path(
   {
     // The robot has drifted away from the starting point since the plan started
     // so we'll ask for a new plan.
+    RCLCPP_INFO(
+      context->node()->get_logger(),
+      "Requesting replan for [%s] because it is too far from its commanded path",
+      context->requester_id().c_str());
+
+    // Stop the robot to prevent it from diverging too far while a replan
+    // happens.
+    stop();
     context->request_replan();
     return;
   }
@@ -1117,6 +1057,8 @@ void EasyCommandHandle::follow_new_path(
             target_index = i2;
             target_position = wp2.position();
             skip_next = true;
+            // std::cout << "[" << context->requester_id() << "] skipping "
+            //   << *wp2.graph_index() << std::endl;
           }
         }
       }
@@ -1129,6 +1071,12 @@ void EasyCommandHandle::follow_new_path(
       wp1.graph_index(),
       speed_limit);
 
+    // std::cout << "[" << context->requester_id() << "] will pass through (";
+    // if (wp1.graph_index().has_value())
+    //   std::cout << *wp1.graph_index();
+    // else
+    //   std::cout << "null" ;
+    // std::cout << ") " << command_position.transpose() << std::endl;
     queue.push_back(
       EasyFullControl::CommandExecution::Implementation::make(
         context,
@@ -1435,9 +1383,13 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
 
       if (current_activity)
       {
-        ActivityIdentifier::Implementation::get(*current_activity).update_fn(
-          state.map(), position);
-        return;
+        const auto update_fn =
+          ActivityIdentifier::Implementation::get(*current_activity).update_fn;
+        if (update_fn)
+        {
+          update_fn(state.map(), position);
+          return;
+        }
       }
 
       auto planner = context->planner();
@@ -1452,16 +1404,16 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
       const auto& graph = planner->get_configuration().graph();
       const auto& nav_params = updater->nav_params;
       const auto now = context->now();
-
-      auto starts = rmf_traffic::agv::compute_plan_starts(
-        graph,
-        state.map(),
-        position,
-        now,
-        nav_params->max_merge_waypoint_distance,
-        nav_params->max_merge_lane_distance,
-        nav_params->min_lane_length);
-      context->set_location(starts);
+      auto starts = nav_params->compute_plan_starts(graph, state.map(), position, now);
+      // std::cout << context->requester_id() << " SETTING LOCATIONS FROM " << __LINE__ << std::endl;
+      if (!starts.empty())
+      {
+        context->set_location(std::move(starts));
+      }
+      else
+      {
+        context->set_lost(Location { now, state.map(), position });
+      }
     });
 }
 
@@ -1745,8 +1697,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
   bool account_for_battery_drain = true;
   if (!rmf_fleet["account_for_battery_drain"])
   {
-    std::cout << "Account for battery drain is not provided, default to True"
-              << std::endl;
+    std::cout << "[account_for_battery_drain] value is not provided, "
+      << "default to True" << std::endl;
   }
   else
   {
@@ -2406,16 +2358,8 @@ auto EasyFullControl::add_robot(
   }
 
   const Eigen::Vector3d position = *position_opt;
-
-  auto starts = rmf_traffic::agv::compute_plan_starts(
-    graph,
-    initial_state.map(),
-    position,
-    std::move(now),
-    _pimpl->nav_params->max_merge_waypoint_distance,
-    _pimpl->nav_params->max_merge_lane_distance,
-    _pimpl->nav_params->min_lane_length
-  );
+  auto starts = _pimpl->nav_params->compute_plan_starts(
+    graph, initial_state.map(), position, now);
 
   if (starts.empty())
   {
@@ -2471,23 +2415,29 @@ auto EasyFullControl::add_robot(
       robot_name = robot_name,
       fleet_name = fleet_name,
       charger_index,
-      action_executor = callbacks.action_executor()
+      action_executor = callbacks.action_executor(),
+      nav_params = _pimpl->nav_params
     ](const RobotUpdateHandlePtr& updater)
     {
-      cmd_handle->w_context =
-        RobotUpdateHandle::Implementation::get(*updater).get_context();
+      auto context = RobotUpdateHandle::Implementation::get(*updater)
+        .get_context();
 
-      EasyRobotUpdateHandle::Implementation::get(*easy_updater).worker.schedule(
+      context->worker().schedule(
         [
+          cmd_handle,
           easy_updater,
           node,
           handle = updater,
           robot_name,
           fleet_name,
           charger_index,
-          action_executor
+          action_executor,
+          context,
+          nav_params
         ](const auto&)
         {
+          cmd_handle->w_context = context;
+          context->set_nav_params(nav_params);
           EasyRobotUpdateHandle::Implementation::get(*easy_updater)
             .updater->handle = handle;
           handle->set_action_executor(action_executor);

@@ -85,6 +85,71 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
 {
   _location = std::move(location_);
   filter_closed_lanes();
+  // std::cout << requester_id() << " locations: " << _location.size() << std::endl;
+  // const auto& graph = planner()->get_configuration().graph();
+  // for (const auto& l : _location)
+  // {
+  //   std::cout << " -- wp (" << l.waypoint() << ") "
+  //     << graph.get_waypoint(l.waypoint()).get_location().transpose();
+  //   if (l.location().has_value())
+  //     std::cout << " | " << l.location()->transpose();
+  //   else
+  //     std::cout << " | no position";
+  //   if (l.lane().has_value())
+  //     std::cout << " | lane " << *l.lane();
+  //   else
+  //     std::cout << " | no lane";
+  //   std::cout << std::endl;
+  // }
+  if (_location.empty())
+  {
+    set_lost(std::nullopt);
+  }
+  else if (_lost)
+  {
+    nlohmann::json resolve;
+    resolve["robot"] = name();
+    resolve["group"] = group();
+    resolve["msg"] = "The robot [" + requester_id() + "] has found a "
+      "connection to the navigation graph.";
+    _lost->ticket->resolve(resolve);
+    _lost = std::nullopt;
+    // If the robot has switched from lost to found, we should go ahead and
+    // replan.
+    RCLCPP_INFO(
+      node()->get_logger(),
+      "Requesting a replan for [%s] because it has been found after being lost",
+      requester_id().c_str());
+    request_replan();
+  }
+}
+
+//==============================================================================
+const std::optional<Lost>& RobotContext::lost() const
+{
+  return _lost;
+}
+
+//==============================================================================
+void RobotContext::set_lost(std::optional<Location> location)
+{
+  _location.clear();
+  if (!_lost.has_value())
+  {
+    nlohmann::json detail;
+    detail["robot"] = name();
+    detail["group"] = group();
+    detail["msg"] = "The robot [" + requester_id() + "] is too far from the "
+      "navigation graph and may need an operator to help bring it back.";
+
+    auto ticket = _reporting.create_issue(
+      rmf_task::Log::Tier::Error, "lost", detail);
+    _lost = Lost { location, std::move(ticket) };
+  }
+  else
+  {
+    _lost->location = location;
+  }
 }
 
 //==============================================================================
@@ -181,6 +246,18 @@ const std::shared_ptr<const rmf_traffic::agv::Planner>&
 RobotContext::planner() const
 {
   return *_planner;
+}
+
+//==============================================================================
+std::shared_ptr<NavParams> RobotContext::nav_params() const
+{
+  return _nav_params;
+}
+
+//==============================================================================
+void RobotContext::set_nav_params(std::shared_ptr<NavParams> value)
+{
+  _nav_params = std::move(value);
 }
 
 //==============================================================================

@@ -21,6 +21,7 @@
 #include <rmf_fleet_adapter/agv/RobotCommandHandle.hpp>
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
+#include <rmf_fleet_adapter/agv/Transformation.hpp>
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
@@ -47,6 +48,83 @@ namespace rmf_fleet_adapter {
 class TaskManager;
 
 namespace agv {
+
+using TransformDictionary = std::unordered_map<std::string, Transformation>;
+
+//==============================================================================
+struct NavParams
+{
+  bool skip_rotation_commands;
+  std::optional<TransformDictionary> transforms_to_robot_coords;
+  double max_merge_waypoint_distance = 1e-3;
+  double max_merge_lane_distance = 0.3;
+  double min_lane_length = 1e-8;
+  /// We iterate over these multipliers, applying them to the
+  /// max_merge_lane_distance until at least one plan start is found.
+  std::vector<double> multipliers = {1.0, 2.0, 3.0, 5.0, 10.0};
+
+  std::optional<Eigen::Vector3d> to_rmf_coordinates(
+    const std::string& map,
+    Eigen::Vector3d position)
+  {
+    if (!transforms_to_robot_coords.has_value())
+    {
+      return position;
+    }
+
+    const auto tf_it = transforms_to_robot_coords->find(map);
+    if (tf_it == transforms_to_robot_coords->end())
+    {
+      return std::nullopt;
+    }
+
+    return tf_it->second.apply_inverse(position);
+  }
+
+  rmf_traffic::agv::Plan::StartSet compute_plan_starts(
+    const rmf_traffic::agv::Graph& graph,
+    const std::string& map_name,
+    const Eigen::Vector3d position,
+    const rmf_traffic::Time start_time) const
+  {
+    for (const double m : multipliers)
+    {
+      auto starts = rmf_traffic::agv::compute_plan_starts(
+        graph,
+        map_name,
+        position,
+        start_time,
+        max_merge_waypoint_distance,
+        m * max_merge_lane_distance,
+        min_lane_length);
+
+      if (!starts.empty())
+        return starts;
+    }
+
+    return {};
+  }
+};
+
+//==============================================================================
+struct Location
+{
+  rmf_traffic::Time time;
+  std::string map;
+  Eigen::Vector3d position;
+};
+
+/// Store position information when the robot is lost, i.e. it has diverged too
+/// far from its navigation graph.
+struct Lost
+{
+  /// We may have localization information for the robot, even if it's too far
+  /// from the navigation graph.
+  std::optional<Location> location;
+
+  /// An issue ticket to track when the robot is lost
+  std::unique_ptr<Reporting::Ticket> ticket;
+};
 
 //==============================================================================
 class RobotContext
@@ -81,6 +159,13 @@ public:
 
   /// Set the current location for the robot in terms of a planner start set
   void set_location(rmf_traffic::agv::Plan::StartSet location_);
+
+  /// If the robot is lost, this will let you view its localization and issue
+  /// ticket
+  const std::optional<Lost>& lost() const;
+
+  /// Set that the robot is currently lost
+  void set_lost(std::optional<Location> location);
 
   /// Filter closed lanes out of the planner start set. At least one start will
   /// be retained so that the planner can offer some solution, even if all
@@ -118,6 +203,14 @@ public:
 
   /// Get a mutable reference to the planner for this robot
   const std::shared_ptr<const rmf_traffic::agv::Planner>& planner() const;
+
+  /// Get the navigation params for this robot, if it has any. This will only be
+  /// available for EasyFullControl robots.
+  std::shared_ptr<NavParams> nav_params() const;
+
+  /// Set the navigation params for this robot. This is used by EasyFullControl
+  /// robots.
+  void set_nav_params(std::shared_ptr<NavParams> value);
 
   class NegotiatorLicense;
 
@@ -287,6 +380,7 @@ private:
   rmf_traffic::schedule::Participant _itinerary;
   std::shared_ptr<const Mirror> _schedule;
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> _planner;
+  std::shared_ptr<NavParams> _nav_params;
   rmf_task::ConstActivatorPtr _task_activator;
   rmf_task::ConstParametersPtr _task_parameters;
   std::shared_ptr<const rmf_traffic::Profile> _profile;
@@ -327,6 +421,8 @@ private:
 
   RobotUpdateHandle::ActionExecutor _action_executor;
   Reporting _reporting;
+  /// Keep track of a lost robot
+  std::optional<Lost> _lost;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

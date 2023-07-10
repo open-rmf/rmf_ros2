@@ -291,15 +291,19 @@ public:
   /// \param[in] map
   ///   Name of the map where the trajectory will take place
   ///
-  /// \param[in] trajectory
+  /// \param[in] path
   ///   The path of the agent
+  ///
+  /// \param[in] hold
+  ///   How long the agent will wait at the end of the path
   ///
   /// \return a Stubbornness handle that tells the fleet adapter to not let the
   /// overridden path be negotiated. The returned handle will stop having an
   /// effect after this command execution is finished.
   Stubbornness override_schedule(
     std::string map,
-    std::vector<Eigen::Vector3d> path);
+    std::vector<Eigen::Vector3d> path,
+    rmf_traffic::Duration hold = rmf_traffic::Duration(0));
 
   /// Activity handle for this command. Pass this into
   /// EasyRobotUpdateHandle::update_position while executing this command.

@@ -143,6 +143,25 @@ public:
   using ActivityIdentifierPtr = std::shared_ptr<ActivityIdentifier>;
   using ConstActivityIdentifierPtr = std::shared_ptr<const ActivityIdentifier>;
 
+  /// Hold onto this class to tell the robot to behave as a "stubborn
+  /// negotiator", meaning it will always refuse to accommodate the schedule
+  /// of any other agent. This could be used when teleoperating a robot, to
+  /// tell other robots that the agent is unable to negotiate.
+  ///
+  /// When the object is destroyed, the stubbornness will automatically be
+  /// released.
+  class Stubbornness
+  {
+  public:
+    /// Stop being stubborn
+    void release();
+
+    class Implementation;
+  private:
+    Stubbornness();
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
   /// The ActionExecution class should be used to manage the execution of and
   /// provide updates on ongoing actions.
   class ActionExecution
@@ -165,6 +184,39 @@ public:
     /// Set the task status to blocked and optionally log a message
     /// (warning tier)
     void blocked(std::optional<std::string> text);
+
+    /// Use this to override the traffic schedule for the agent while it performs
+    /// this command.
+    ///
+    /// If the given trajectory results in a traffic conflict then a negotiation
+    /// will be triggered. Hold onto the `Stubbornness` returned by this function
+    /// to ask other agents to plan around your trajectory, otherwise the
+    /// negotiation may result in a replan for this agent and a new command will
+    /// be issued.
+    ///
+    /// \note Using this will function always trigger a replan once the agent
+    /// finishes the command.
+    ///
+    /// \warning Too many overridden/stubborn agents can cause a deadlock. It's
+    ///   recommended to use this API sparingly and only over short distances or
+    ///   small deviations.
+    ///
+    /// \param[in] map
+    ///   Name of the map where the trajectory will take place
+    ///
+    /// \param[in] path
+    ///   The path of the agent
+    ///
+    /// \param[in] hold
+    ///   How long the agent will wait at the end of the path
+    ///
+    /// \return a Stubbornness handle that tells the fleet adapter to not let the
+    /// overridden path be negotiated. The returned handle will stop having an
+    /// effect after this command execution is finished.
+    Stubbornness override_schedule(
+      std::string map,
+      std::vector<Eigen::Vector3d> path,
+      rmf_traffic::Duration hold = rmf_traffic::Duration(0));
 
     /// Trigger this when the action is successfully finished.
     /// No other functions in this ActionExecution instance will
@@ -392,24 +444,7 @@ public:
     /// Get the current Plan ID that this robot has sent to the traffic schedule
     rmf_traffic::PlanId current_plan_id() const;
 
-    /// Hold onto this class to tell the robot to behave as a "stubborn
-    /// negotiator", meaning it will always refuse to accommodate the schedule
-    /// of any other agent. This could be used when teleoperating a robot, to
-    /// tell other robots that the agent is unable to negotiate.
-    ///
-    /// When the object is destroyed, the stubbornness will automatically be
-    /// released.
-    class Stubbornness
-    {
-    public:
-      /// Stop being stubborn
-      void release();
-
-      class Implementation;
-    private:
-      Stubbornness();
-      rmf_utils::impl_ptr<Implementation> _pimpl;
-    };
+    using Stubbornness = Stubbornness;
 
     /// Tell this robot to be a stubborn negotiator.
     Stubbornness be_stubborn();

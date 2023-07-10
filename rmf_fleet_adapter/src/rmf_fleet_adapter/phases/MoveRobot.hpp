@@ -157,6 +157,11 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       // The RobotCommandHandle seems to have frozen up. Perhaps a bug in the
       // user's code has caused the RobotCommandHandle to drop the command. We
       // will request a replan.
+      RCLCPP_WARN(
+        self->_context->node()->get_logger(),
+        "Requesting replan for [%s] because its command handle seems to be "
+        "unresponsive",
+        self->_context->requester_id().c_str());
       self->_context->request_replan();
     });
 
