@@ -838,10 +838,6 @@ std::string TaskManager::robot_status() const
 //==============================================================================
 auto TaskManager::expected_finish_state() const -> State
 {
-  rmf_task::State current_state =
-    _context->make_get_state()()
-    .time(rmf_traffic_ros2::convert(_context->node()->now()));
-
   std::lock_guard<std::mutex> lock(_mutex);
   if (!_direct_queue.empty())
   {
@@ -851,6 +847,9 @@ auto TaskManager::expected_finish_state() const -> State
   if (_active_task)
     return _context->current_task_end_state();
 
+  rmf_task::State current_state =
+    _context->make_get_state()()
+    .time(rmf_traffic_ros2::convert(_context->node()->now()));
   return current_state;
 }
 

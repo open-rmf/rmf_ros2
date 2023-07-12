@@ -352,10 +352,13 @@ public:
 
   const Reporting& reporting() const;
 
-private:
-  friend class FleetUpdateHandle;
-  friend class RobotUpdateHandle;
-  friend class rmf_fleet_adapter::TaskManager;
+  /// Set the task manager for this robot. This should only be called in the
+  /// TaskManager::make function.
+  void _set_task_manager(std::shared_ptr<TaskManager> mgr);
+
+  /// Set the negotiation license for this robot. This should only be called in
+  /// the FleetUpdateHandle::add_robot function.
+  void _set_negotiation_license(std::shared_ptr<void> license);
 
   RobotContext(
     std::shared_ptr<RobotCommandHandle> command_handle,
@@ -371,12 +374,11 @@ private:
     rmf_task::State state,
     std::shared_ptr<const rmf_task::TaskPlanner> task_planner);
 
-  /// Set the task manager for this robot. This should only be called in the
-  /// TaskManager::make function.
-  void _set_task_manager(std::shared_ptr<TaskManager> mgr);
+private:
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
+  std::vector<rmf_traffic::agv::Plan::Start> _most_recent_valid_location;
   rmf_traffic::schedule::Participant _itinerary;
   std::shared_ptr<const Mirror> _schedule;
   std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> _planner;

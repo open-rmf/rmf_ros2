@@ -104,6 +104,7 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
   if (_location.empty())
   {
     set_lost(std::nullopt);
+    return;
   }
   else if (_lost)
   {
@@ -122,6 +123,8 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
       requester_id().c_str());
     request_replan();
   }
+
+  _most_recent_valid_location = _location;
 }
 
 //==============================================================================
@@ -402,9 +405,17 @@ std::function<rmf_task::State()> RobotContext::make_get_state()
 {
   return [self = shared_from_this()]()
     {
+      if (self->_most_recent_valid_location.empty())
+      {
+        throw std::runtime_error(
+          "Missing a _most_recent_valid_location for robot ["
+          + self->requester_id() + "]. This is an internal RMF error, "
+          "please report it to the RMF developers.");
+      }
+
       rmf_task::State state;
       state.load_basic(
-        self->_location.front(),
+        self->_most_recent_valid_location.front(),
         self->_charger_wp,
         self->_current_battery_soc);
 
@@ -638,6 +649,7 @@ RobotContext::RobotContext(
   _task_planner(std::move(task_planner)),
   _reporting(_worker)
 {
+  _most_recent_valid_location = _location;
   _profile = std::make_shared<rmf_traffic::Profile>(
     _itinerary.description().profile());
 
@@ -656,6 +668,12 @@ RobotContext::RobotContext(
 void RobotContext::_set_task_manager(std::shared_ptr<TaskManager> mgr)
 {
   _task_manager = std::move(mgr);
+}
+
+//==============================================================================
+void RobotContext::_set_negotiation_license(std::shared_ptr<void> license)
+{
+  _negotiation_license = std::move(license);
 }
 
 } // namespace agv

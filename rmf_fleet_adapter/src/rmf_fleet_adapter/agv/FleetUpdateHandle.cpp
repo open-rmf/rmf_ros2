@@ -1374,7 +1374,7 @@ void FleetUpdateHandle::add_robot(
             using namespace std::chrono_literals;
             auto last_interrupt_time =
             std::make_shared<std::optional<rmf_traffic::Time>>(std::nullopt);
-            context->_negotiation_license =
+            auto negotiation_license =
             fleet->_pimpl->negotiation
             ->register_negotiator(
               context->itinerary().id(),
@@ -1416,6 +1416,7 @@ void FleetUpdateHandle::add_robot(
                   c->request_replan();
                 }
               });
+            context->_set_negotiation_license(std::move(negotiation_license));
           }
 
           RCLCPP_INFO(

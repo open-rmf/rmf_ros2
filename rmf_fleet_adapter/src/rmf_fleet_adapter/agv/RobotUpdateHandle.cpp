@@ -22,6 +22,8 @@
 
 #include <rmf_traffic_ros2/Time.hpp>
 
+#include <rmf_utils/math.hpp>
+
 #include <iostream>
 
 namespace rmf_fleet_adapter {
@@ -75,11 +77,11 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, waypoint, orientation](const auto&)
       {
-        context->_location = {
+        context->set_location({
           rmf_traffic::agv::Plan::Start(
             rmf_traffic_ros2::convert(context->node()->now()),
             waypoint, orientation)
-        };
+        });
       });
   }
 }
@@ -115,7 +117,7 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, starts = std::move(starts)](const auto&)
       {
-        context->_location = std::move(starts);
+        context->set_location(std::move(starts));
       });
   }
 }
@@ -130,11 +132,11 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, position, waypoint](const auto&)
       {
-        context->_location = {
+        context->set_location({
           rmf_traffic::agv::Plan::Start(
             rmf_traffic_ros2::convert(context->node()->now()),
             waypoint, position[2], Eigen::Vector2d(position.block<2, 1>(0, 0)))
-        };
+        });
       });
   }
 }
@@ -175,7 +177,7 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, starts = std::move(starts)](const auto&)
       {
-        context->_location = std::move(starts);
+        context->set_location(std::move(starts));
       });
   }
 }
@@ -189,7 +191,7 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, starts = std::move(position)](const auto&)
       {
-        context->_location = starts;
+        context->set_location(starts);
       });
   }
 }
@@ -934,10 +936,15 @@ void ScheduleOverride::overridden_update(
   const std::string& map,
   Eigen::Vector3d location)
 {
+  const auto nav_params = context->nav_params();
+  if (!nav_params)
+    return;
+
   auto p = Eigen::Vector2d(location[0], location[1]);
   std::optional<std::pair<std::size_t, double>> closest_lane;
   std::size_t i0 = 0;
   std::size_t i1 = 1;
+  const double proj_lower_bound = -nav_params->max_merge_lane_distance;
   for (; i1 < route.trajectory().size(); ++i0, ++i1)
   {
     // We approximate the trajectory as linear with constant velocity even
@@ -949,17 +956,54 @@ void ScheduleOverride::overridden_update(
     const Eigen::Vector2d p1 =
       route.trajectory().at(i1).position().block<2, 1>(0, 0);
     const auto lane_length = (p1 - p0).norm();
-    const auto lane_u = (p1 - p0)/lane_length;
-    const auto proj = (p - p0).dot(lane_u);
-    if (proj < 0.0 || lane_length < proj)
+    if (lane_length < 1e-6)
     {
-      continue;
-    }
+      const double dist_to_lane = (p - p0).norm();
+      if (dist_to_lane > nav_params->max_merge_lane_distance)
+      {
+        continue;
+      }
 
-    const auto dist_to_lane = (p - p0 - proj * lane_u).norm();
-    if (!closest_lane.has_value() || dist_to_lane < closest_lane->second)
+      std::cout << context->requester_id() << " consider lane " << i0
+        << ": " << dist_to_lane << " vs ";
+      if (closest_lane.has_value())
+        std::cout << closest_lane->second;
+      else
+        std::cout << "none";
+      if (!closest_lane.has_value() || dist_to_lane < closest_lane->second)
+      {
+        closest_lane = std::make_pair(i0, dist_to_lane);
+      }
+    }
+    else
     {
-      closest_lane = std::make_pair(i0, dist_to_lane);
+      const auto lane_u = (p1 - p0)/lane_length;
+      const auto proj = (p - p0).dot(lane_u);
+      const double proj_upper_bound =
+        lane_length + nav_params->max_merge_lane_distance;
+      if (proj < proj_lower_bound || proj_upper_bound < proj)
+      {
+        continue;
+      }
+
+      double dist_to_lane = (p - p0 - proj * lane_u).norm();
+      if (proj < 0.0)
+        dist_to_lane += std::abs(proj);
+      else if (lane_length < proj)
+        dist_to_lane += std::abs(proj - lane_length);
+
+      std::cout << context->requester_id() << " consider lane " << i0
+        << ": " << dist_to_lane << " vs ";
+      if (closest_lane.has_value())
+        std::cout << closest_lane->second;
+      else
+        std::cout << "none";
+      std::cout << std::endl;
+      if (!closest_lane.has_value() || dist_to_lane < closest_lane->second)
+      {
+        std::cout << context->requester_id() << " selected " << i0 << std::endl;
+        closest_lane = std::make_pair(i0, dist_to_lane);
+      }
     }
   }
 
@@ -974,6 +1018,8 @@ void ScheduleOverride::overridden_update(
     const Eigen::Vector2d p1 = wp1.position().block<2, 1>(0, 0);
     rmf_traffic::Time t_expected = wp0.time();
     const auto lane_length = (p1 - p0).norm();
+    std::cout << context->requester_id() << " final selection: "
+      << closest_lane->first << " | " << lane_length << ": " << lane_length << std::endl;
     if (lane_length > 1e-6)
     {
       const auto lane_u = (p1 - p0)/lane_length;
@@ -981,6 +1027,20 @@ void ScheduleOverride::overridden_update(
       const auto s = proj/lane_length;
       const double dt = rmf_traffic::time::to_seconds(wp1.time() - wp0.time());
       t_expected += rmf_traffic::time::from_seconds(s*dt);
+      std::cout << context->requester_id() << " proj: " << proj
+        << " | s: " << s << " | s*dt: " << s*dt << std::endl;
+    }
+    else
+    {
+      const double total_delta_yaw =
+        rmf_utils::wrap_to_pi(wp1.position()[2] - wp0.position()[2]);
+      const double remaining_delta_yaw =
+        rmf_utils::wrap_to_pi(wp1.position()[2] - location[2]);
+      const double s = remaining_delta_yaw / total_delta_yaw;
+      const double dt = rmf_traffic::time::to_seconds(wp1.time() - wp0.time());
+      t_expected += rmf_traffic::time::from_seconds(s*dt);
+      std::cout << context->requester_id() << " remaining_delta_yaw: " << remaining_delta_yaw
+        << " | s: " << s << " | s*dt: " << s*dt << std::endl;
     }
     const auto delay = now - t_expected;
     context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
@@ -998,6 +1058,8 @@ void ScheduleOverride::overridden_update(
       const double dist = (p - p_wp).norm();
       if (!closest_time.has_value() || dist < closest_time->second)
       {
+        std::cout << context->requester_id() << " new closest wp: " << i
+          << " | dist " << dist << std::endl;
         closest_time = std::make_pair(wp.time(), dist);
       }
     }
@@ -1023,21 +1085,15 @@ void ScheduleOverride::overridden_update(
   }
 
   const auto& graph = planner->get_configuration().graph();
-
-  if (const auto nav_params = context->nav_params())
+  auto starts = nav_params->compute_plan_starts(graph, map, location, now);
+  // std::cout << context->requester_id() << " SETTING LOCATIONS FROM " << __LINE__ << std::endl;
+  if (!starts.empty())
   {
-    auto starts = nav_params->compute_plan_starts(graph, map, location, now);
-    // std::cout << context->requester_id() << " SETTING LOCATIONS FROM " << __LINE__ << std::endl;
-    if (!starts.empty())
-    {
-      context->set_location(std::move(starts));
-    }
-    else
-    {
-      std::cout << "Setting lost location for " << context->requester_id()
-        << ": " << location.transpose() << std::endl;
-      context->set_lost(Location { now, map, location });
-    }
+    context->set_location(std::move(starts));
+  }
+  else
+  {
+    context->set_lost(Location { now, map, location });
   }
 }
 
