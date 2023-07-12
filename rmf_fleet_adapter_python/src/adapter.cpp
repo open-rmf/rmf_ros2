@@ -307,8 +307,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
       std::vector<Eigen::Vector3d> path,
       double hold)
     {
-      std::cout << "CALLING OVERRIDE_SCHEDULE BINDING: "
-        << map << ": " << path.size() << " | " << hold << std::endl;
       return self.override_schedule(
         map,
         path,

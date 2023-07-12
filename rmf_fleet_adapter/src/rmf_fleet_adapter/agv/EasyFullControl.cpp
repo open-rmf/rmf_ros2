@@ -264,7 +264,6 @@ public:
       if (on_waypoint.has_value())
       {
         const auto wp = on_waypoint->first;
-        // std::cout << "IMPL " << context->requester_id() << " " << __LINE__ << std::endl;
         starts.push_back(rmf_traffic::agv::Plan::Start(now, wp, yaw, p));
         for (std::size_t lane_id : graph.lanes_from(wp))
         {
@@ -289,7 +288,6 @@ public:
             continue;
           }
 
-          // std::cout << "IMPL " << context->requester_id() << " " << __LINE__ << std::endl;
           auto wp_exit = graph.get_lane(lane_id).exit().waypoint_index();
           starts.push_back(
             rmf_traffic::agv::Plan::Start(now, wp_exit, yaw, p, lane_id));
@@ -345,25 +343,21 @@ public:
           const auto& lane = graph.get_lane(lane_id);
           const auto wp0 = lane.entry().waypoint_index();
           const auto wp1 = lane.exit().waypoint_index();
-          // std::cout << "IMPL " << context->requester_id() << " " << __LINE__ << std::endl;
           starts.push_back(
             rmf_traffic::agv::Plan::Start(now, wp1, yaw, p, lane_id));
 
           if (const auto* reverse_lane = graph.lane_from(wp1, wp0))
           {
-            // std::cout << "IMPL " << context->requester_id() << " " << __LINE__ << std::endl;
             starts.push_back(rmf_traffic::agv::Plan::Start(
                 now, wp0, yaw, p, reverse_lane->index()));
           }
         }
         else
         {
-          // std::cout << "IMPL " << context->requester_id() << " " << __LINE__ << std::endl;
           starts = nav_params->compute_plan_starts(graph, map, location, now);
         }
       }
 
-      // std::cout << context->requester_id() << " SETTING LOCATIONS FROM " << __LINE__ << std::endl;
       if (!starts.empty())
       {
         context->set_location(starts);
@@ -804,19 +798,6 @@ void EasyCommandHandle::follow_new_path(
     return;
   }
 
-  std::cout << "initial path for " << context->requester_id() << ":";
-  for (std::size_t i=0; i < waypoints.size(); ++i)
-  {
-    const auto& wp = waypoints[i];
-    std::cout << "\n -- " << i << ". (";
-    if (wp.graph_index().has_value())
-      std::cout << *wp.graph_index();
-    else
-      std::cout << "null";
-    std::cout << ") " << wp.position().transpose();
-  }
-  std::cout << std::endl;
-
   RCLCPP_DEBUG(
     context->node()->get_logger(),
     "follow_new_path for robot [%s] with PlanId [%ld]",
@@ -898,8 +879,6 @@ void EasyCommandHandle::follow_new_path(
             {
               found_connection = true;
               i0 = i - 1;
-              std::cout << context->requester_id() << " SKIPPING IMPL " << __LINE__
-                << " | " << i0 << std::endl;
             }
             else
             {
@@ -909,8 +888,6 @@ void EasyCommandHandle::follow_new_path(
               {
                 found_connection = true;
                 i0 = 0;
-                std::cout << context->requester_id() << " SKIPPING IMPL " << __LINE__
-                  << " | " << i0 << std::endl;
               }
             }
           }
@@ -918,8 +895,6 @@ void EasyCommandHandle::follow_new_path(
           {
             found_connection = true;
             i0 = i;
-            std::cout << context->requester_id() << " SKIPPING IMPL " << __LINE__
-              << " | " << i0 << std::endl;
           }
         }
       }
@@ -942,8 +917,6 @@ void EasyCommandHandle::follow_new_path(
         {
           found_connection = true;
           i0 = i;
-          std::cout << context->requester_id() << " SKIPPING IMPL " << __LINE__
-            << " | " << i0 << std::endl;
         }
       }
     }
@@ -960,8 +933,6 @@ void EasyCommandHandle::follow_new_path(
             {
               found_connection = true;
               i0 = i - 1;
-              std::cout << context->requester_id() << " SKIPPING IMPL " << __LINE__
-                << " | " << i0 << std::endl;
             }
           }
         }
@@ -1057,8 +1028,6 @@ void EasyCommandHandle::follow_new_path(
             target_index = i2;
             target_position = wp2.position();
             skip_next = true;
-            // std::cout << "[" << context->requester_id() << "] skipping "
-            //   << *wp2.graph_index() << std::endl;
           }
         }
       }
@@ -1071,12 +1040,6 @@ void EasyCommandHandle::follow_new_path(
       wp1.graph_index(),
       speed_limit);
 
-    // std::cout << "[" << context->requester_id() << "] will pass through (";
-    // if (wp1.graph_index().has_value())
-    //   std::cout << *wp1.graph_index();
-    // else
-    //   std::cout << "null" ;
-    // std::cout << ") " << command_position.transpose() << std::endl;
     queue.push_back(
       EasyFullControl::CommandExecution::Implementation::make(
         context,
@@ -1405,7 +1368,6 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
       const auto& nav_params = updater->nav_params;
       const auto now = context->now();
       auto starts = nav_params->compute_plan_starts(graph, state.map(), position, now);
-      // std::cout << context->requester_id() << " SETTING LOCATIONS FROM " << __LINE__ << std::endl;
       if (!starts.empty())
       {
         context->set_location(std::move(starts));

@@ -784,7 +784,6 @@ std::optional<rmf_fleet_msgs::msg::Location> convert_location(
         .index(0);
     }
 
-    std::cout << "LOST && MISSING LOST INFO FOR " << context.requester_id() << std::endl;
     // TODO(MXG): We should emit some kind of critical error if there is no
     // location and also no lost information, because that means an issue ticket
     // has not been created.

@@ -167,9 +167,9 @@ void RobotUpdateHandle::update_position(
         position[0], position[1], position[2], map_name.c_str());
 
       context->worker().schedule(
-        [context, map_name, position](const auto&)
+        [context, now, map_name, position](const auto&)
         {
-
+          context->set_lost(Location { now, map_name, position });
         });
       return;
     }
@@ -964,12 +964,6 @@ void ScheduleOverride::overridden_update(
         continue;
       }
 
-      std::cout << context->requester_id() << " consider lane " << i0
-        << ": " << dist_to_lane << " vs ";
-      if (closest_lane.has_value())
-        std::cout << closest_lane->second;
-      else
-        std::cout << "none";
       if (!closest_lane.has_value() || dist_to_lane < closest_lane->second)
       {
         closest_lane = std::make_pair(i0, dist_to_lane);
@@ -992,16 +986,8 @@ void ScheduleOverride::overridden_update(
       else if (lane_length < proj)
         dist_to_lane += std::abs(proj - lane_length);
 
-      std::cout << context->requester_id() << " consider lane " << i0
-        << ": " << dist_to_lane << " vs ";
-      if (closest_lane.has_value())
-        std::cout << closest_lane->second;
-      else
-        std::cout << "none";
-      std::cout << std::endl;
       if (!closest_lane.has_value() || dist_to_lane < closest_lane->second)
       {
-        std::cout << context->requester_id() << " selected " << i0 << std::endl;
         closest_lane = std::make_pair(i0, dist_to_lane);
       }
     }
@@ -1018,8 +1004,6 @@ void ScheduleOverride::overridden_update(
     const Eigen::Vector2d p1 = wp1.position().block<2, 1>(0, 0);
     rmf_traffic::Time t_expected = wp0.time();
     const auto lane_length = (p1 - p0).norm();
-    std::cout << context->requester_id() << " final selection: "
-      << closest_lane->first << " | " << lane_length << ": " << lane_length << std::endl;
     if (lane_length > 1e-6)
     {
       const auto lane_u = (p1 - p0)/lane_length;
@@ -1027,8 +1011,6 @@ void ScheduleOverride::overridden_update(
       const auto s = proj/lane_length;
       const double dt = rmf_traffic::time::to_seconds(wp1.time() - wp0.time());
       t_expected += rmf_traffic::time::from_seconds(s*dt);
-      std::cout << context->requester_id() << " proj: " << proj
-        << " | s: " << s << " | s*dt: " << s*dt << std::endl;
     }
     else
     {
@@ -1039,8 +1021,6 @@ void ScheduleOverride::overridden_update(
       const double s = remaining_delta_yaw / total_delta_yaw;
       const double dt = rmf_traffic::time::to_seconds(wp1.time() - wp0.time());
       t_expected += rmf_traffic::time::from_seconds(s*dt);
-      std::cout << context->requester_id() << " remaining_delta_yaw: " << remaining_delta_yaw
-        << " | s: " << s << " | s*dt: " << s*dt << std::endl;
     }
     const auto delay = now - t_expected;
     context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
@@ -1058,8 +1038,6 @@ void ScheduleOverride::overridden_update(
       const double dist = (p - p_wp).norm();
       if (!closest_time.has_value() || dist < closest_time->second)
       {
-        std::cout << context->requester_id() << " new closest wp: " << i
-          << " | dist " << dist << std::endl;
         closest_time = std::make_pair(wp.time(), dist);
       }
     }
@@ -1086,7 +1064,6 @@ void ScheduleOverride::overridden_update(
 
   const auto& graph = planner->get_configuration().graph();
   auto starts = nav_params->compute_plan_starts(graph, map, location, now);
-  // std::cout << context->requester_id() << " SETTING LOCATIONS FROM " << __LINE__ << std::endl;
   if (!starts.empty())
   {
     context->set_location(std::move(starts));

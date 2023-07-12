@@ -85,22 +85,6 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
 {
   _location = std::move(location_);
   filter_closed_lanes();
-  // std::cout << requester_id() << " locations: " << _location.size() << std::endl;
-  // const auto& graph = planner()->get_configuration().graph();
-  // for (const auto& l : _location)
-  // {
-  //   std::cout << " -- wp (" << l.waypoint() << ") "
-  //     << graph.get_waypoint(l.waypoint()).get_location().transpose();
-  //   if (l.location().has_value())
-  //     std::cout << " | " << l.location()->transpose();
-  //   else
-  //     std::cout << " | no position";
-  //   if (l.lane().has_value())
-  //     std::cout << " | lane " << *l.lane();
-  //   else
-  //     std::cout << " | no lane";
-  //   std::cout << std::endl;
-  // }
   if (_location.empty())
   {
     set_lost(std::nullopt);

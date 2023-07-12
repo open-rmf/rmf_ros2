@@ -273,10 +273,8 @@ ResponsiveWait::Active::Active(Description description)
 //==============================================================================
 void ResponsiveWait::Active::_next_cycle()
 {
-  std::cout << "NEXT CYCLE " << _context->requester_id() << std::endl;
   if (_cancelled)
   {
-    std::cout << "FINISHED " << _context->requester_id() << std::endl;
     _finished();
     return;
   }
@@ -293,7 +291,7 @@ void ResponsiveWait::Active::_next_cycle()
     return;
   }
 
-  RCLCPP_INFO(
+  RCLCPP_DEBUG(
     _context->node()->get_logger(),
     "Beginning next responsive wait cycle for [%s] and waypoint %lu",
     _context->requester_id().c_str(),
