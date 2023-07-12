@@ -286,7 +286,7 @@ public:
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    rmf_task::ConstRequestFactoryPtr finishing_requst = nullptr);
+    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr);
 
   /// A callback function that evaluates whether a fleet will accept a task
   /// request

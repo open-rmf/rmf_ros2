@@ -994,7 +994,6 @@ void ScheduleOverride::overridden_update(
   }
 
   const auto now = rmf_traffic_ros2::convert(context->node()->now());
-  // const auto delay_thresh = std::chrono::seconds(1);
   const auto delay_thresh = std::chrono::milliseconds(100);
   if (closest_lane.has_value())
   {

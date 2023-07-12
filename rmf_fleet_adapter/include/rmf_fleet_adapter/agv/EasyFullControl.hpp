@@ -207,18 +207,35 @@ public:
   /// \param[in] compatible_chargers
   ///   List of chargers that this robot is compatible with
   ///
+  /// \param[in] responsive_wait
+  ///   Should this robot use the responsive wait behavior? true / false / fleet default.
+  ///
   /// \warning This must contain a single string value until a later release of
   /// RMF. We are using a vector for forward API compatibility. For now, make
   /// sure each robot has only one unique compatible charger to avoid charging
   /// conflicts.
   RobotConfiguration(
-    std::vector<std::string> compatible_chargers);
+    std::vector<std::string> compatible_chargers,
+    std::optional<bool> responsive_wait = std::nullopt);
 
   /// List of chargers that this robot is compatible with
   const std::vector<std::string>& compatible_chargers() const;
 
   /// Set the list of chargers compatible with this robot.
   void set_compatible_chargers(std::vector<std::string> chargers);
+
+  /// Should this robot use the responsive wait behavior? Responsive wait means
+  /// that when the robot is idle on a point, it will report to the traffic
+  /// schedule that it is waiting on that point, and it will negotiate with
+  /// other robots to let them pass while ultimately remaining on the point.
+  ///
+  /// If std::nullopt is used, then the fleet-wide responsive wait behavior will
+  /// be used.
+  std::optional<bool> responsive_wait() const;
+
+  /// Toggle responsive wait on (true), off (false), or use fleet default
+  /// (std::nullopt).
+  void set_responsive_wait(std::optional<bool> enable);
 
   class Implementation;
 private:
@@ -429,6 +446,10 @@ public:
   /// \param[in] update_interval
   ///   The duration between positional state updates that are sent to
   ///   the fleet adapter.
+  ///
+  /// \param[in] default_responsive_wait
+  ///   Should the robots in this fleet have responsive wait enabled (true) or
+  ///   disabled (false) by default?
   FleetConfiguration(
     const std::string& fleet_name,
     std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates,
@@ -449,7 +470,8 @@ public:
     std::optional<std::string> server_uri = std::nullopt,
     rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
     rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(
-      0.5)
+      0.5),
+    bool default_responsive_wait = false
   );
 
   /// Create a FleetConfiguration object using a set of configuration parameters
@@ -619,6 +641,13 @@ public:
 
   /// Set the update interval.
   void set_update_interval(rmf_traffic::Duration value);
+
+  /// Should robots in this fleet have responsive wait enabled by default?
+  bool default_responsive_wait() const;
+
+  /// Set whether robots in this fleet should have responsive wait enabled by
+  /// default.
+  void set_default_responsive_wait(bool enable);
 
   class Implementation;
 private:

@@ -840,7 +840,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
         bool skip_rotation_commands,
         std::optional<std::string> server_uri,
         rmf_traffic::Duration max_delay,
-        rmf_traffic::Duration update_interval)
+        rmf_traffic::Duration update_interval,
+        bool default_responsive_wait)
         {
           rmf_task::ConstRequestFactoryPtr finishing_request;
           if (finishing_request_string == "charge")
@@ -876,7 +877,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
               skip_rotation_commands,
               server_uri,
               max_delay,
-              update_interval);
+              update_interval,
+              default_responsive_wait);
         }
         ),
     py::arg("fleet_name"),
@@ -897,7 +899,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("skip_rotation_commands") = true,
     py::arg("server_uri") = std::nullopt,
     py::arg("max_delay") = rmf_traffic::time::from_seconds(10.0),
-    py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5))
+    py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5),
+    py::arg("default_responsive_wait") = false)
   .def_static("from_config_files", &agv::EasyFullControl::FleetConfiguration::from_config_files,
     py::arg("config_file"),
     py::arg("nav_graph_path"),
@@ -979,7 +982,11 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property(
     "update_interval",
     &agv::EasyFullControl::FleetConfiguration::update_interval,
-    &agv::EasyFullControl::FleetConfiguration::set_update_interval);
+    &agv::EasyFullControl::FleetConfiguration::set_update_interval)
+  .def_property(
+    "default_responsive_wait",
+    &agv::EasyFullControl::FleetConfiguration::default_responsive_wait,
+    &agv::EasyFullControl::FleetConfiguration::set_default_responsive_wait);
 
   // Transformation =============================================================
   py::class_<agv::Transformation>(m, "Transformation")

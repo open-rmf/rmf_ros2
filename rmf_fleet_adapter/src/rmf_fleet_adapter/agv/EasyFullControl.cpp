@@ -117,13 +117,16 @@ class EasyFullControl::RobotConfiguration::Implementation
 {
 public:
   std::vector<std::string> compatible_chargers;
+  std::optional<bool> responsive_wait;
 };
 
 //==============================================================================
 EasyFullControl::RobotConfiguration::RobotConfiguration(
-  std::vector<std::string> compatible_chargers)
+  std::vector<std::string> compatible_chargers,
+  std::optional<bool> responsive_wait)
 : _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
-    std::move(compatible_chargers)
+    std::move(compatible_chargers),
+    responsive_wait
   }))
 {
   // Do nothing
@@ -141,6 +144,19 @@ void EasyFullControl::RobotConfiguration::set_compatible_chargers(
   std::vector<std::string> chargers)
 {
   _pimpl->compatible_chargers = std::move(chargers);
+}
+
+//==============================================================================
+std::optional<bool> EasyFullControl::RobotConfiguration::responsive_wait() const
+{
+  return _pimpl->responsive_wait;
+}
+
+//==============================================================================
+void EasyFullControl::RobotConfiguration::set_responsive_wait(
+  std::optional<bool> enable)
+{
+  _pimpl->responsive_wait = enable;
 }
 
 //==============================================================================
@@ -1432,6 +1448,7 @@ public:
   std::optional<std::string> server_uri;
   rmf_traffic::Duration max_delay;
   rmf_traffic::Duration update_interval;
+  bool default_responsive_wait;
 };
 
 //==============================================================================
@@ -1454,7 +1471,8 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
   bool skip_rotation_commands,
   std::optional<std::string> server_uri,
   rmf_traffic::Duration max_delay,
-  rmf_traffic::Duration update_interval)
+  rmf_traffic::Duration update_interval,
+  bool default_responsive_wait)
 : _pimpl(rmf_utils::make_impl<Implementation>(
       Implementation{
         std::move(fleet_name),
@@ -1475,7 +1493,8 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         skip_rotation_commands,
         std::move(server_uri),
         std::move(max_delay),
-        std::move(update_interval)
+        std::move(update_interval),
+        default_responsive_wait
       }))
 {
   // Do nothing
@@ -1750,6 +1769,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
   {
     finishing_request_string = finishing_request_yaml.as<std::string>();
   }
+  std::cout << "Finishing request: " << finishing_request_string << std::endl;
   rmf_task::ConstRequestFactoryPtr finishing_request;
   if (finishing_request_string == "charge")
   {
@@ -1868,6 +1888,13 @@ EasyFullControl::FleetConfiguration::from_config_files(
     }
   }
 
+  bool default_responsive_wait = false;
+  const YAML::Node& default_responsive_wait_yaml = rmf_fleet["responsive_wait"];
+  if (default_responsive_wait_yaml)
+  {
+    default_responsive_wait = default_responsive_wait_yaml.as<bool>();
+  }
+
   std::unordered_map<std::string, RobotConfiguration> known_robot_configurations;
   const YAML::Node& robots = rmf_fleet["robots"];
   if (robots)
@@ -1877,6 +1904,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
       std::cerr
         << "[robots] element is not a map in config file [" << config_file
         << "] so we cannot parse any known robot configurations." << std::endl;
+      return std::nullopt;
     }
     else
     {
@@ -1893,12 +1921,11 @@ EasyFullControl::FleetConfiguration::from_config_files(
           return std::nullopt;
         }
 
+        std::string charger;
         const YAML::Node& charger_yaml = robot_config_yaml["charger"];
         if (charger_yaml)
         {
-          std::string charger = charger_yaml.as<std::string>();
-          known_robot_configurations.insert_or_assign(
-            robot_name, RobotConfiguration({std::move(charger)}));
+          charger = charger_yaml.as<std::string>();
         }
         else
         {
@@ -1908,6 +1935,17 @@ EasyFullControl::FleetConfiguration::from_config_files(
             << "made for the robot." << std::endl;
           return std::nullopt;
         }
+
+        const YAML::Node& responsive_wait_yaml =
+          robot_config_yaml["responsive_wait"];
+        std::optional<bool> responsive_wait = std::nullopt;
+        if (responsive_wait_yaml)
+        {
+          responsive_wait = responsive_wait_yaml.as<bool>();
+        }
+
+        auto config = RobotConfiguration({std::move(charger)}, responsive_wait);
+        known_robot_configurations.insert_or_assign(robot_name, config);
       }
     }
   }
@@ -1931,7 +1969,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
     skip_rotation_commands,
     server_uri,
     rmf_traffic::time::from_seconds(max_delay),
-    rmf_traffic::time::from_seconds(update_interval));
+    rmf_traffic::time::from_seconds(update_interval),
+    default_responsive_wait);
 }
 
 //==============================================================================
@@ -2219,6 +2258,19 @@ void EasyFullControl::FleetConfiguration::set_update_interval(
 }
 
 //==============================================================================
+bool EasyFullControl::FleetConfiguration::default_responsive_wait() const
+{
+  return _pimpl->default_responsive_wait;
+}
+
+//==============================================================================
+void EasyFullControl::FleetConfiguration::set_default_responsive_wait(
+  bool enable)
+{
+  _pimpl->default_responsive_wait = enable;
+}
+
+//==============================================================================
 using EasyCommandHandlePtr = std::shared_ptr<EasyCommandHandle>;
 
 //==============================================================================
@@ -2365,6 +2417,12 @@ auto EasyFullControl::add_robot(
     std::move(handle_stop));
   insertion.first->second = cmd_handle;
 
+  bool enable_responsive_wait = _pimpl->default_responsive_wait;
+  if (configuration.responsive_wait().has_value())
+  {
+    enable_responsive_wait = *configuration.responsive_wait();
+  }
+
   _pimpl->fleet_handle->add_robot(
     insertion.first->second,
     robot_name,
@@ -2378,7 +2436,8 @@ auto EasyFullControl::add_robot(
       fleet_name = fleet_name,
       charger_index,
       action_executor = callbacks.action_executor(),
-      nav_params = _pimpl->nav_params
+      nav_params = _pimpl->nav_params,
+      enable_responsive_wait
     ](const RobotUpdateHandlePtr& updater)
     {
       auto context = RobotUpdateHandle::Implementation::get(*updater)
@@ -2395,7 +2454,8 @@ auto EasyFullControl::add_robot(
           charger_index,
           action_executor,
           context,
-          nav_params
+          nav_params,
+          enable_responsive_wait
         ](const auto&)
         {
           cmd_handle->w_context = context;
@@ -2404,6 +2464,7 @@ auto EasyFullControl::add_robot(
             .updater->handle = handle;
           handle->set_action_executor(action_executor);
           handle->set_charger_waypoint(charger_index);
+          handle->enable_responsive_wait(enable_responsive_wait);
 
           RCLCPP_INFO(
             node->get_logger(),

@@ -34,11 +34,13 @@ public:
   std::unordered_map<std::string, EasyCommandHandlePtr> cmd_handles;
   // TODO(YV): Get these constants from EasyCommandHandle::Configuration
   std::shared_ptr<NavParams> nav_params;
+  bool default_responsive_wait;
 
   static std::shared_ptr<EasyFullControl> make(
     std::shared_ptr<FleetUpdateHandle> fleet_handle,
     bool skip_rotation_commands,
-    std::optional<TransformDictionary> transforms_to_robot_coords)
+    std::optional<TransformDictionary> transforms_to_robot_coords,
+    bool default_responsive_wait)
   {
     auto handle = std::shared_ptr<EasyFullControl>(new EasyFullControl);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
@@ -48,7 +50,8 @@ public:
           std::make_shared<NavParams>(NavParams{
             skip_rotation_commands,
             std::move(transforms_to_robot_coords)
-          })
+          }),
+          default_responsive_wait
         });
     return handle;
   }
