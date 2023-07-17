@@ -83,7 +83,7 @@ public:
   {
     bool operator()(const DirectAssignment& a, const DirectAssignment& b) const
     {
-      // Sort by start time and then sequence_number if tie
+      // Sort by ascending order of start time and then sequence_number if tie.
       const auto start_time_b =
         b.assignment.request()->booking()->earliest_start_time();
       const auto start_time_a =
@@ -91,10 +91,10 @@ public:
 
       if (start_time_b == start_time_a)
       {
-        return b.sequence_number < a.sequence_number;
+        return a.sequence_number < b.sequence_number;
       }
 
-      return start_time_b < start_time_a;
+      return start_time_a < start_time_b;
     }
   };
 
