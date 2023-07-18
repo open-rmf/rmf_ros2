@@ -1051,6 +1051,45 @@ void ScheduleOverride::overridden_update(
     // route. There's no point updating the delay of an empty route.
   }
 
+  const auto& itin = context->itinerary().itinerary();
+  for (std::size_t i=0; i < itin.size(); ++i)
+  {
+    const auto& traj = itin[i].trajectory();
+    const auto t_it = traj.find(now);
+    if (t_it != traj.end() && t_it != traj.begin())
+    {
+      uint64_t checkpoint = 0;
+      if (t_it->time() == now)
+      {
+        checkpoint = t_it->index();
+      }
+      else
+      {
+        checkpoint = t_it->index() - 1;
+      }
+
+      if (checkpoint < context->itinerary().reached().at(i))
+      {
+        // The robot has backtracked along its path.
+        // This can mess up traffic dependency relationships, so we need to
+        // resend the schedule.
+
+        // WARNING: We will have to change this implementation if it is ever
+        // possible for the ScheduleOverride class to contain multiple routes in
+        // its itinerary.
+        const auto cumulative_delay = context->itinerary()
+          .cumulative_delay(plan_id).value_or(rmf_traffic::Duration(0));
+
+        plan_id = context->itinerary().assign_plan_id();
+        context->itinerary().set(plan_id, {route});
+        context->itinerary().cumulative_delay(
+          plan_id, cumulative_delay, delay_thresh);
+      }
+
+      context->itinerary().reached(plan_id, i, checkpoint);
+    }
+  }
+
   auto planner = context->planner();
   if (!planner)
   {
@@ -1114,7 +1153,14 @@ std::optional<ScheduleOverride> ScheduleOverride::make(
       last_wp.position(),
       Eigen::Vector3d(0.0, 0.0, 0.0));
   }
+  std::set<uint64_t> checkpoints;
+  for (uint64_t i=1; i < trajectory.size(); ++i)
+  {
+    checkpoints.insert(i);
+  }
   auto route = rmf_traffic::Route(map, std::move(trajectory));
+  route.checkpoints(checkpoints);
+
   const auto plan_id = context->itinerary().assign_plan_id();
   context->itinerary().set(plan_id, {route});
   stubborn->stubbornness = context->be_stubborn();
