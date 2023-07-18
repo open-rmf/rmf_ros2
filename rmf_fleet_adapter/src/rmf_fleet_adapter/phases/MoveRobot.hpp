@@ -23,6 +23,8 @@
 
 #include <rmf_traffic_ros2/Time.hpp>
 
+#include <rmf_traffic/Motion.hpp>
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
@@ -224,41 +226,12 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           + std::to_string(action->_waypoints.size()-1) + "]";
         }
 
-        if (path_index > 0)
-        {
-          const auto& arrival =
-          action->_waypoints[path_index - 1].arrival_checkpoints();
-
-          for (const auto& c : arrival)
-          {
-            action->_context->itinerary()
-            .reached(action->_plan_id, c.route_id, c.checkpoint_id);
-          }
-        }
-
         s.on_next(msg);
       }
 
       if (action->_next_path_index > action->_waypoints.size())
       {
         return;
-      }
-
-      const auto& target_wp = action->_waypoints[path_index];
-      const auto& itinerary = action->_context->itinerary().itinerary();
-      for (const auto& progress : target_wp.progress_checkpoints())
-      {
-        for (const auto& c : progress.checkpoints)
-        {
-          const auto& c_wp =
-          itinerary[c.route_id].trajectory()[c.checkpoint_id];
-
-          if (estimate < target_wp.time() - c_wp.time())
-          {
-            action->_context->itinerary()
-            .reached(action->_plan_id, c.route_id, c.checkpoint_id);
-          }
-        }
       }
 
       if (action->_plan_id != action->_context->itinerary().current_plan_id())
@@ -268,6 +241,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         return;
       }
 
+      const auto& target_wp = action->_waypoints[path_index];
       using namespace std::chrono_literals;
       const rmf_traffic::Time now = action->_context->now();
       const auto planned_time = target_wp.time();
@@ -277,21 +251,43 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         [
           context = action->_context,
           plan_id = action->_plan_id,
+          now,
           new_cumulative_delay
         ](const auto&)
         {
           context->itinerary().cumulative_delay(
-            plan_id, new_cumulative_delay, 500ms);
+            plan_id, new_cumulative_delay, 100ms);
+
+          const auto& itin = context->itinerary().itinerary();
+          for (std::size_t i=0; i < itin.size(); ++i)
+          {
+            const auto& traj = itin[i].trajectory();
+            const auto t_it = traj.find(now);
+            if (t_it != traj.end() && t_it != traj.begin())
+            {
+              if (t_it->time() == now)
+              {
+                context->itinerary().reached(plan_id, i, t_it->index());
+              }
+              else
+              {
+                context->itinerary().reached(plan_id, i, t_it->index() - 1);
+              }
+            }
+          }
         });
     },
     [s, w = weak_from_this()]()
     {
       if (const auto self = w.lock())
       {
-        for (const auto& c : self->_waypoints.back().arrival_checkpoints())
+        if (!self->_waypoints.empty())
         {
-          self->_context->itinerary().reached(
-            self->_plan_id, c.route_id, c.checkpoint_id);
+          for (const auto& c : self->_waypoints.back().arrival_checkpoints())
+          {
+            self->_context->itinerary().reached(
+              self->_plan_id, c.route_id, c.checkpoint_id);
+          }
         }
 
         LegacyTask::StatusMsg msg;

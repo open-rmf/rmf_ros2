@@ -209,6 +209,7 @@ public:
     std::vector<std::size_t> waypoints;
     std::vector<std::size_t> lanes;
     std::optional<double> final_orientation;
+    rmf_traffic::Duration planned_wait_time;
     std::optional<ScheduleOverride> schedule_override;
     std::shared_ptr<NavParams> nav_params;
     std::function<void(rmf_traffic::Duration)> arrival_estimator;
@@ -409,7 +410,7 @@ public:
         const auto v = std::max(traits.linear().get_nominal_velocity(), 0.001);
         const auto w = std::max(traits.rotational().get_nominal_velocity(), 0.001);
         const auto t = distance / v + rotation / w;
-        arrival_estimator(rmf_traffic::time::from_seconds(t));
+        arrival_estimator(rmf_traffic::time::from_seconds(t) + planned_wait_time);
       }
     }
   };
@@ -979,10 +980,8 @@ void EasyCommandHandle::follow_new_path(
   }
 
   std::size_t i1 = i0 + 1;
-  for (; i1 < waypoints.size(); ++i0, ++i1)
+  while (i1 < waypoints.size())
   {
-    // TODO(@mxgrey): Add an option to discard waypoints that are only doing a
-    // rotation.
     std::vector<std::size_t> cmd_wps;
     std::vector<std::size_t> cmd_lanes;
     const auto& wp0 = waypoints[i0];
@@ -1030,11 +1029,11 @@ void EasyCommandHandle::follow_new_path(
 
     Eigen::Vector3d target_position = wp1.position();
     std::size_t target_index = i1;
-    bool skip_next = false;
+    rmf_traffic::Duration planned_wait_time = rmf_traffic::Duration(0);
     if (nav_params->skip_rotation_commands)
     {
-      const std::size_t i2 = i1 + 1;
-      if (i2 < waypoints.size())
+      std::size_t i2 = i1 + 1;
+      while (i2 < waypoints.size())
       {
         const auto& wp2 = waypoints[i2];
         if (wp1.graph_index().has_value() && wp2.graph_index().has_value())
@@ -1043,9 +1042,16 @@ void EasyCommandHandle::follow_new_path(
           {
             target_index = i2;
             target_position = wp2.position();
-            skip_next = true;
+            if (std::abs(wp1.position()[2] - wp2.position()[2])*180.0 / M_PI < 1e-2)
+            {
+              // The plan had a wait between these points.
+              planned_wait_time += wp2.time() - wp1.time();
+            }
+            ++i2;
+            continue;
           }
         }
+        break;
       }
     }
 
@@ -1063,6 +1069,7 @@ void EasyCommandHandle::follow_new_path(
           cmd_wps,
           cmd_lanes,
           target_position[2],
+          planned_wait_time,
           std::nullopt,
           nav_params,
           [next_arrival_estimator_, target_index](rmf_traffic::Duration dt)
@@ -1079,11 +1086,8 @@ void EasyCommandHandle::follow_new_path(
         }
       ));
 
-    if (skip_next)
-    {
-      ++i0;
-      ++i1;
-    }
+    i0 = target_index;
+    i1 = i0 + 1;
   }
 
   this->current_progress = ProgressTracker::make(
@@ -1205,6 +1209,7 @@ void EasyCommandHandle::dock(
     {i0, i1},
     {*found_lane},
     std::nullopt,
+    rmf_traffic::Duration(0),
     std::nullopt,
     nav_params,
     [w_context = context->weak_from_this(), expected_arrival, plan_id](
