@@ -738,6 +738,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
     std::shared_ptr<agv::EasyFullControl::EasyRobotUpdateHandle>
   >(m_easy_full_control, "EasyRobotUpdateHandle")
   .def("update", &agv::EasyFullControl::EasyRobotUpdateHandle::update)
+  .def("set_merge_distances", &agv::EasyFullControl::EasyRobotUpdateHandle::set_merge_distances)
+  // .def("set_max_merge_waypoint_distance", &agv::EasyFullControl::EasyRobotUpdateHandle::set_max_merge_waypoint_distance)
+  // .def("set_max_merge_lane_distance", &agv::EasyFullControl::EasyRobotUpdateHandle::set_max_merge_lane_distance)
+  // .def("set_min_lane_length", &agv::EasyFullControl::EasyRobotUpdateHandle::set_min_lane_length)
   .def("more", [](agv::EasyFullControl::EasyRobotUpdateHandle& self)
     {
       return self.more();
@@ -766,7 +770,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
 
   py::class_<agv::EasyFullControl::RobotConfiguration>(m_easy_full_control, "RobotConfiguration")
   .def(py::init<std::vector<std::string>>(),
-    py::arg("comaptible_chargers"))
+    py::arg("compatible_chargers"))
   .def_property(
     "compatible_chargers",
     &agv::EasyFullControl::RobotConfiguration::compatible_chargers,
@@ -841,7 +845,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
         std::optional<std::string> server_uri,
         rmf_traffic::Duration max_delay,
         rmf_traffic::Duration update_interval,
-        bool default_responsive_wait)
+        bool default_responsive_wait,
+        double default_max_merge_waypoint_distance,
+        double default_max_merge_lane_distance,
+        double default_min_lane_length)
         {
           rmf_task::ConstRequestFactoryPtr finishing_request;
           if (finishing_request_string == "charge")
@@ -878,7 +885,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
               server_uri,
               max_delay,
               update_interval,
-              default_responsive_wait);
+              default_responsive_wait,
+              default_max_merge_waypoint_distance,
+              default_max_merge_lane_distance,
+              default_min_lane_length);
         }
         ),
     py::arg("fleet_name"),
@@ -900,7 +910,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("server_uri") = std::nullopt,
     py::arg("max_delay") = rmf_traffic::time::from_seconds(10.0),
     py::arg("update_interval") = rmf_traffic::time::from_seconds(0.5),
-    py::arg("default_responsive_wait") = false)
+    py::arg("default_responsive_wait") = false,
+    py::arg("default_max_merge_waypoint_distance") = 1e-3,
+    py::arg("default_max_merge_lane_distance") = 0.3,
+    py::arg("default_min_lane_length") = 1e-8)
   .def_static("from_config_files", &agv::EasyFullControl::FleetConfiguration::from_config_files,
     py::arg("config_file"),
     py::arg("nav_graph_path"),
@@ -986,7 +999,19 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property(
     "default_responsive_wait",
     &agv::EasyFullControl::FleetConfiguration::default_responsive_wait,
-    &agv::EasyFullControl::FleetConfiguration::set_default_responsive_wait);
+    &agv::EasyFullControl::FleetConfiguration::set_default_responsive_wait)
+  .def_property(
+    "default_max_merge_waypoint_distance",
+    &agv::EasyFullControl::FleetConfiguration::default_max_merge_waypoint_distance,
+    &agv::EasyFullControl::FleetConfiguration::set_default_max_merge_waypoint_distance)
+  .def_property(
+    "default_max_merge_lane_distance",
+    &agv::EasyFullControl::FleetConfiguration::default_max_merge_lane_distance,
+    &agv::EasyFullControl::FleetConfiguration::set_default_max_merge_lane_distance)
+  .def_property(
+    "default_min_lane_length",
+    &agv::EasyFullControl::FleetConfiguration::default_min_lane_length,
+    &agv::EasyFullControl::FleetConfiguration::set_default_min_lane_length);
 
   // Transformation =============================================================
   py::class_<agv::Transformation>(m, "Transformation")

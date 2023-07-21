@@ -140,6 +140,23 @@ public:
     RobotState state,
     ConstActivityIdentifierPtr current_activity);
 
+  /// Modify selected RobotConfiguration parameters using these functions.
+  ///
+  /// \param[in] max_merge_waypoint_distance
+  ///   The maximum allowed merge distance between the robot and a waypoint.
+  void set_merge_distances(
+    std::optional<double> max_merge_waypoint_distance,
+    std::optional<double> max_merge_lane_distance,
+    std::optional<double> min_lane_length); 
+  ///
+  // /// \param[in] max_merge_lane_distance
+  // ///   The maximum allowed merge distance between the robot and a lane.
+  // void set_max_merge_lane_distance(double distance);
+  // ///
+  // /// \param[in] min_lane_length
+  // ///   The minimum length of a lane.
+  // void set_min_lane_length(double distance);
+
   /// Get more options for updating the robot's state
   std::shared_ptr<RobotUpdateHandle> more();
 
@@ -216,7 +233,10 @@ public:
   /// conflicts.
   RobotConfiguration(
     std::vector<std::string> compatible_chargers,
-    std::optional<bool> responsive_wait = std::nullopt);
+    std::optional<bool> responsive_wait = std::nullopt,
+    std::optional<double> max_merge_waypoint_distance = 1e-3,
+    std::optional<double> max_merge_lane_distance = 0.3,
+    std::optional<double> min_lane_length = 1e-8);
 
   /// List of chargers that this robot is compatible with
   const std::vector<std::string>& compatible_chargers() const;
@@ -236,6 +256,37 @@ public:
   /// Toggle responsive wait on (true), off (false), or use fleet default
   /// (std::nullopt).
   void set_responsive_wait(std::optional<bool> enable);
+
+  /// Get the maximum merge distance between a robot and a waypoint. This refers
+  /// to the maximum distance allowed to consider a robot to be on a particular
+  /// waypoint.
+  ///
+  /// If std::nullopt is used, then the fleet-wide default merge waypoint
+  /// distance will be used.
+  std::optional<double> max_merge_waypoint_distance() const;
+
+  /// Set the maximum merge distance between a robot and a waypoint.
+  void set_max_merge_waypoint_distance(std::optional<double> distance);
+
+  /// Get the maximum merge distance between a robot and a lane. This refers
+  /// to the maximum distance allowed to consider a robot to be on a particular
+  /// lane.
+  ///
+  /// If std::nullopt is used, then the fleet-wide default merge lane
+  /// distance will be used.
+  std::optional<double> max_merge_lane_distance() const;
+
+  /// Set the maximum merge distance between a robot and a lane.
+  void set_max_merge_lane_distance(std::optional<double> distance);
+
+  /// Get the minimum lane length.
+  ///
+  /// If std::nullopt is used, then the fleet-wide default minimum lane length
+  /// will be used.
+  std::optional<double> min_lane_length() const;
+
+  /// Set the minimum lane length.
+  void set_min_lane_length(std::optional<double> distance);
 
   class Implementation;
 private:
@@ -450,6 +501,15 @@ public:
   /// \param[in] default_responsive_wait
   ///   Should the robots in this fleet have responsive wait enabled (true) or
   ///   disabled (false) by default?
+  ///
+  /// \param[in] default_max_merge_waypoint_distance
+  ///   The maximum merge distance between a robot position and a waypoint.
+  ///
+  /// \param[in] default_max_merge_lane_distance
+  ///   The maximum merge distance between a robot position and a lane.
+  ///
+  /// \param[in] default_min_lane_length
+  ///   The minimum length that a lane should have.
   FleetConfiguration(
     const std::string& fleet_name,
     std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates,
@@ -471,7 +531,10 @@ public:
     rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
     rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(
       0.5),
-    bool default_responsive_wait = false
+    bool default_responsive_wait = false,
+    double default_max_merge_waypoint_distance = 1e-3,
+    double default_max_merge_lane_distance = 0.3,
+    double min_lane_length = 1e-8
   );
 
   /// Create a FleetConfiguration object using a set of configuration parameters
@@ -648,6 +711,24 @@ public:
   /// Set whether robots in this fleet should have responsive wait enabled by
   /// default.
   void set_default_responsive_wait(bool enable);
+
+  /// Get the maximum merge distance between a robot position and a waypoint.
+  double default_max_merge_waypoint_distance() const;
+
+  /// Set the maximum merge distance between a robot position and a waypoint.
+  void set_default_max_merge_waypoint_distance(double distance);
+
+  /// Get the maximum merge distance between a robot position and a lane.
+  double default_max_merge_lane_distance() const;
+
+  /// Set the maximum merge distance between a robot position and a lane.
+  void set_default_max_merge_lane_distance(double distance);
+
+  /// Get the minimum lane length allowed.
+  double default_min_lane_length() const;
+
+  /// Set the minimum lane length.
+  void set_default_min_lane_length(double distance);
 
   class Implementation;
 private:

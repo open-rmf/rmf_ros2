@@ -118,15 +118,24 @@ class EasyFullControl::RobotConfiguration::Implementation
 public:
   std::vector<std::string> compatible_chargers;
   std::optional<bool> responsive_wait;
+  std::optional<double> max_merge_waypoint_distance;
+  std::optional<double> max_merge_lane_distance;
+  std::optional<double> min_lane_length;
 };
 
 //==============================================================================
 EasyFullControl::RobotConfiguration::RobotConfiguration(
   std::vector<std::string> compatible_chargers,
-  std::optional<bool> responsive_wait)
+  std::optional<bool> responsive_wait,
+  std::optional<double> max_merge_waypoint_distance,
+  std::optional<double> max_merge_lane_distance,
+  std::optional<double> min_lane_length)
 : _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
     std::move(compatible_chargers),
-    responsive_wait
+    responsive_wait,
+    max_merge_waypoint_distance,
+    max_merge_lane_distance,
+    min_lane_length
   }))
 {
   // Do nothing
@@ -157,6 +166,45 @@ void EasyFullControl::RobotConfiguration::set_responsive_wait(
   std::optional<bool> enable)
 {
   _pimpl->responsive_wait = enable;
+}
+
+//==============================================================================
+std::optional<double> EasyFullControl::RobotConfiguration::max_merge_waypoint_distance() const
+{
+  return _pimpl->max_merge_waypoint_distance;
+}
+
+//==============================================================================
+void EasyFullControl::RobotConfiguration::set_max_merge_waypoint_distance(
+  std::optional<double> distance)
+{
+  _pimpl->max_merge_waypoint_distance = distance;
+}
+
+//==============================================================================
+std::optional<double> EasyFullControl::RobotConfiguration::max_merge_lane_distance() const
+{
+  return _pimpl->max_merge_lane_distance;
+}
+
+//==============================================================================
+void EasyFullControl::RobotConfiguration::set_max_merge_lane_distance(
+  std::optional<double> distance)
+{
+  _pimpl->max_merge_lane_distance = distance;
+}
+
+//==============================================================================
+std::optional<double> EasyFullControl::RobotConfiguration::min_lane_length() const
+{
+  return _pimpl->min_lane_length;
+}
+
+//==============================================================================
+void EasyFullControl::RobotConfiguration::set_min_lane_length(
+  std::optional<double> distance)
+{
+  _pimpl->min_lane_length = distance;
 }
 
 //==============================================================================
@@ -1401,6 +1449,23 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
 }
 
 //==============================================================================
+void EasyFullControl::EasyRobotUpdateHandle::set_merge_distances(
+  std::optional<double> max_merge_waypoint_distance,
+  std::optional<double> max_merge_lane_distance,
+  std::optional<double> min_lane_length)
+{
+  auto context = RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
+  auto nav_params = context->nav_params();
+
+  if (max_merge_waypoint_distance.has_value())
+    nav_params->max_merge_waypoint_distance = max_merge_waypoint_distance.value();
+  if (max_merge_lane_distance.has_value())
+    nav_params->max_merge_lane_distance = max_merge_lane_distance.value();
+  if (min_lane_length.has_value())
+    nav_params->min_lane_length = min_lane_length.value();
+}
+
+//==============================================================================
 std::shared_ptr<RobotUpdateHandle>
 EasyFullControl::EasyRobotUpdateHandle::more()
 {
@@ -1454,6 +1519,9 @@ public:
   rmf_traffic::Duration max_delay;
   rmf_traffic::Duration update_interval;
   bool default_responsive_wait;
+  double default_max_merge_waypoint_distance;
+  double default_max_merge_lane_distance;
+  double default_min_lane_length;
 };
 
 //==============================================================================
@@ -1477,7 +1545,10 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
   std::optional<std::string> server_uri,
   rmf_traffic::Duration max_delay,
   rmf_traffic::Duration update_interval,
-  bool default_responsive_wait)
+  bool default_responsive_wait,
+  double default_max_merge_waypoint_distance,
+  double default_max_merge_lane_distance,
+  double default_min_lane_length)
 : _pimpl(rmf_utils::make_impl<Implementation>(
       Implementation{
         std::move(fleet_name),
@@ -1499,7 +1570,10 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         std::move(server_uri),
         std::move(max_delay),
         std::move(update_interval),
-        default_responsive_wait
+        default_responsive_wait,
+        std::move(default_max_merge_waypoint_distance),
+        std::move(default_max_merge_lane_distance),
+        std::move(default_min_lane_length)
       }))
 {
   // Do nothing
@@ -1900,6 +1974,27 @@ EasyFullControl::FleetConfiguration::from_config_files(
     default_responsive_wait = default_responsive_wait_yaml.as<bool>();
   }
 
+  double default_max_merge_waypoint_distance = 1e-3;
+  const YAML::Node& default_max_merge_waypoint_distance_yaml = rmf_fleet["max_merge_waypoint_distance"];
+  if (default_max_merge_waypoint_distance_yaml)
+  {
+    default_max_merge_waypoint_distance = default_max_merge_waypoint_distance_yaml.as<double>();
+  }
+
+  double default_max_merge_lane_distance = 0.3;
+  const YAML::Node& default_max_merge_lane_distance_yaml = rmf_fleet["max_merge_lane_distance"];
+  if (default_max_merge_lane_distance_yaml)
+  {
+    default_max_merge_waypoint_distance = default_max_merge_waypoint_distance_yaml.as<double>();
+  }
+
+  double default_min_lane_length = 1e-8;
+  const YAML::Node& default_min_lane_length_yaml = rmf_fleet["min_lane_length"];
+  if (default_min_lane_length_yaml)
+  {
+    default_min_lane_length = default_min_lane_length_yaml.as<double>();
+  }
+
   std::unordered_map<std::string, RobotConfiguration> known_robot_configurations;
   const YAML::Node& robots = rmf_fleet["robots"];
   if (robots)
@@ -1949,7 +2044,32 @@ EasyFullControl::FleetConfiguration::from_config_files(
           responsive_wait = responsive_wait_yaml.as<bool>();
         }
 
-        auto config = RobotConfiguration({std::move(charger)}, responsive_wait);
+        const YAML::Node& max_merge_waypoint_distance_yaml =
+          robot_config_yaml["max_merge_waypoint_distance"];
+        std::optional<double> max_merge_waypoint_distance = std::nullopt;
+        if (max_merge_waypoint_distance_yaml)
+        {
+          max_merge_waypoint_distance = max_merge_waypoint_distance_yaml.as<double>();
+        }
+
+        const YAML::Node& max_merge_lane_distance_yaml =
+          robot_config_yaml["max_merge_lane_distance"];
+        std::optional<double> max_merge_lane_distance = std::nullopt;
+        if (max_merge_lane_distance_yaml)
+        {
+          max_merge_lane_distance = max_merge_lane_distance_yaml.as<double>();
+        }
+
+        const YAML::Node& min_lane_length_yaml =
+          robot_config_yaml["min_lane_length"];
+        std::optional<double> min_lane_length = std::nullopt;
+        if (min_lane_length_yaml)
+        {
+          min_lane_length = min_lane_length_yaml.as<double>();
+        }
+
+        auto config = RobotConfiguration({std::move(charger)}, responsive_wait,
+          max_merge_waypoint_distance, max_merge_lane_distance, min_lane_length);
         known_robot_configurations.insert_or_assign(robot_name, config);
       }
     }
@@ -1975,7 +2095,10 @@ EasyFullControl::FleetConfiguration::from_config_files(
     server_uri,
     rmf_traffic::time::from_seconds(max_delay),
     rmf_traffic::time::from_seconds(update_interval),
-    default_responsive_wait);
+    default_responsive_wait,
+    default_max_merge_waypoint_distance,
+    default_max_merge_lane_distance,
+    default_min_lane_length);
 }
 
 //==============================================================================
@@ -2276,6 +2399,45 @@ void EasyFullControl::FleetConfiguration::set_default_responsive_wait(
 }
 
 //==============================================================================
+double EasyFullControl::FleetConfiguration::default_max_merge_waypoint_distance() const
+{
+  return _pimpl->default_max_merge_waypoint_distance;
+}
+
+//==============================================================================
+void EasyFullControl::FleetConfiguration::set_default_max_merge_waypoint_distance(
+  double distance)
+{
+  _pimpl->default_max_merge_waypoint_distance = distance;
+}
+
+//==============================================================================
+double EasyFullControl::FleetConfiguration::default_max_merge_lane_distance() const
+{
+  return _pimpl->default_max_merge_lane_distance;
+}
+
+//==============================================================================
+void EasyFullControl::FleetConfiguration::set_default_max_merge_lane_distance(
+  double distance)
+{
+  _pimpl->default_max_merge_lane_distance = distance;
+}
+
+//==============================================================================
+double EasyFullControl::FleetConfiguration::default_min_lane_length() const
+{
+  return _pimpl->default_min_lane_length;
+}
+
+//==============================================================================
+void EasyFullControl::FleetConfiguration::set_default_min_lane_length(
+  double distance)
+{
+  _pimpl->default_min_lane_length = distance;
+}
+
+//==============================================================================
 using EasyCommandHandlePtr = std::shared_ptr<EasyCommandHandle>;
 
 //==============================================================================
@@ -2376,6 +2538,24 @@ auto EasyFullControl::add_robot(
     return nullptr;
   }
 
+  double max_merge_waypoint_distance = _pimpl->default_max_merge_waypoint_distance;
+  if (configuration.max_merge_waypoint_distance().has_value())
+  {
+    max_merge_waypoint_distance = *configuration.max_merge_waypoint_distance();
+  }
+
+  double max_merge_lane_distance = _pimpl->default_max_merge_lane_distance;
+  if (configuration.max_merge_lane_distance().has_value())
+  {
+    max_merge_lane_distance = *configuration.max_merge_lane_distance();
+  }
+
+  double min_lane_length = _pimpl->default_min_lane_length;
+  if (configuration.min_lane_length().has_value())
+  {
+    min_lane_length = *configuration.min_lane_length();
+  }
+
   const Eigen::Vector3d position = *position_opt;
   auto starts = _pimpl->nav_params->compute_plan_starts(
     graph, initial_state.map(), position, now);
@@ -2442,7 +2622,10 @@ auto EasyFullControl::add_robot(
       charger_index,
       action_executor = callbacks.action_executor(),
       nav_params = _pimpl->nav_params,
-      enable_responsive_wait
+      enable_responsive_wait,
+      max_merge_waypoint_distance,
+      max_merge_lane_distance,
+      min_lane_length
     ](const RobotUpdateHandlePtr& updater)
     {
       auto context = RobotUpdateHandle::Implementation::get(*updater)
@@ -2460,11 +2643,18 @@ auto EasyFullControl::add_robot(
           action_executor,
           context,
           nav_params,
-          enable_responsive_wait
+          enable_responsive_wait,
+          max_merge_waypoint_distance,
+          max_merge_lane_distance,
+          min_lane_length
         ](const auto&)
         {
           cmd_handle->w_context = context;
           context->set_nav_params(nav_params);
+          easy_updater->set_merge_distances(
+            max_merge_waypoint_distance,
+            max_merge_lane_distance,
+            min_lane_length);
           EasyRobotUpdateHandle::Implementation::get(*easy_updater)
             .updater->handle = handle;
           handle->set_action_executor(action_executor);

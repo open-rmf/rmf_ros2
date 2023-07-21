@@ -364,7 +364,10 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     fleet_handle,
     config.skip_rotation_commands(),
     config.transformations_to_robot_coordinates(),
-    config.default_responsive_wait());
+    config.default_responsive_wait(),
+    config.default_max_merge_waypoint_distance(),
+    config.default_max_merge_lane_distance(),
+    config.default_min_lane_length());
 }
 
 //==============================================================================
