@@ -140,22 +140,32 @@ public:
     RobotState state,
     ConstActivityIdentifierPtr current_activity);
 
-  /// Modify selected RobotConfiguration parameters using these functions.
+  /// Get the maximum allowed merge waypoint distance for this robot.
+  double max_merge_waypoint_distance() const;
+
+  /// Modify the maximum allowed merge distance between the robot and a waypoint.
   ///
   /// \param[in] max_merge_waypoint_distance
-  ///   The maximum allowed merge distance between the robot and a waypoint.
-  void set_merge_distances(
-    std::optional<double> max_merge_waypoint_distance,
-    std::optional<double> max_merge_lane_distance,
-    std::optional<double> min_lane_length); 
+  ///   The maximum merge waypoint distance for this robot.
+  void set_max_merge_waypoint_distance(double distance);
+
+  /// Get the maximum allowed merge lane distance for this robot.
+  double max_merge_lane_distance() const;
+
+  /// Modify the maximum allowed merge distance between the robot and a lane.
   ///
-  // /// \param[in] max_merge_lane_distance
-  // ///   The maximum allowed merge distance between the robot and a lane.
-  // void set_max_merge_lane_distance(double distance);
-  // ///
-  // /// \param[in] min_lane_length
-  // ///   The minimum length of a lane.
-  // void set_min_lane_length(double distance);
+  /// \param[in] max_merge_lane_distance
+  ///   The maximum merge lane distance for this robot.
+  void set_max_merge_lane_distance(double distance);
+
+  /// Get the minimum lane length for this robot.
+  double min_lane_length() const;
+
+  /// Modify the minimum lane length for this robot.
+  ///
+  /// \param[in] min_lane_length
+  ///   The minimum length of a lane.
+  void set_min_lane_length(double length);
 
   /// Get more options for updating the robot's state
   std::shared_ptr<RobotUpdateHandle> more();

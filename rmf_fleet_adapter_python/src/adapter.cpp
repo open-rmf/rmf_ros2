@@ -738,10 +738,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     std::shared_ptr<agv::EasyFullControl::EasyRobotUpdateHandle>
   >(m_easy_full_control, "EasyRobotUpdateHandle")
   .def("update", &agv::EasyFullControl::EasyRobotUpdateHandle::update)
-  .def("set_merge_distances", &agv::EasyFullControl::EasyRobotUpdateHandle::set_merge_distances)
-  // .def("set_max_merge_waypoint_distance", &agv::EasyFullControl::EasyRobotUpdateHandle::set_max_merge_waypoint_distance)
-  // .def("set_max_merge_lane_distance", &agv::EasyFullControl::EasyRobotUpdateHandle::set_max_merge_lane_distance)
-  // .def("set_min_lane_length", &agv::EasyFullControl::EasyRobotUpdateHandle::set_min_lane_length)
+  .def("max_merge_waypoint_distance", &agv::EasyFullControl::EasyRobotUpdateHandle::max_merge_waypoint_distance)
+  .def("set_max_merge_waypoint_distance", &agv::EasyFullControl::EasyRobotUpdateHandle::set_max_merge_waypoint_distance)
+  .def("max_merge_lane_distance", &agv::EasyFullControl::EasyRobotUpdateHandle::max_merge_lane_distance)
+  .def("set_max_merge_lane_distance", &agv::EasyFullControl::EasyRobotUpdateHandle::set_max_merge_lane_distance)
+  .def("min_lane_length", &agv::EasyFullControl::EasyRobotUpdateHandle::min_lane_length)
+  .def("set_min_lane_length", &agv::EasyFullControl::EasyRobotUpdateHandle::set_min_lane_length)
   .def("more", [](agv::EasyFullControl::EasyRobotUpdateHandle& self)
     {
       return self.more();
