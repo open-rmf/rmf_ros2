@@ -68,10 +68,10 @@ EasyFullControl::RobotState::RobotState(
   Eigen::Vector3d position,
   double battery_soc)
 : _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
-    std::move(map_name),
-    position,
-    battery_soc
-  }))
+      std::move(map_name),
+      position,
+      battery_soc
+    }))
 {
   // Do nothing
 }
@@ -131,12 +131,12 @@ EasyFullControl::RobotConfiguration::RobotConfiguration(
   std::optional<double> max_merge_lane_distance,
   std::optional<double> min_lane_length)
 : _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
-    std::move(compatible_chargers),
-    responsive_wait,
-    max_merge_waypoint_distance,
-    max_merge_lane_distance,
-    min_lane_length
-  }))
+      std::move(compatible_chargers),
+      responsive_wait,
+      max_merge_waypoint_distance,
+      max_merge_lane_distance,
+      min_lane_length
+    }))
 {
   // Do nothing
 }
@@ -169,7 +169,8 @@ void EasyFullControl::RobotConfiguration::set_responsive_wait(
 }
 
 //==============================================================================
-std::optional<double> EasyFullControl::RobotConfiguration::max_merge_waypoint_distance() const
+std::optional<double> EasyFullControl::RobotConfiguration::
+max_merge_waypoint_distance() const
 {
   return _pimpl->max_merge_waypoint_distance;
 }
@@ -182,7 +183,8 @@ void EasyFullControl::RobotConfiguration::set_max_merge_waypoint_distance(
 }
 
 //==============================================================================
-std::optional<double> EasyFullControl::RobotConfiguration::max_merge_lane_distance() const
+std::optional<double> EasyFullControl::RobotConfiguration::
+max_merge_lane_distance() const
 {
   return _pimpl->max_merge_lane_distance;
 }
@@ -195,7 +197,8 @@ void EasyFullControl::RobotConfiguration::set_max_merge_lane_distance(
 }
 
 //==============================================================================
-std::optional<double> EasyFullControl::RobotConfiguration::min_lane_length() const
+std::optional<double> EasyFullControl::RobotConfiguration::min_lane_length()
+const
 {
   return _pimpl->min_lane_length;
 }
@@ -222,10 +225,10 @@ EasyFullControl::RobotCallbacks::RobotCallbacks(
   StopRequest stop,
   ActionExecutor action_executor)
 : _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
-    std::move(navigate),
-    std::move(stop),
-    std::move(action_executor)
-  }))
+      std::move(navigate),
+      std::move(stop),
+      std::move(action_executor)
+    }))
 {
   // Do nothing
 }
@@ -382,8 +385,10 @@ public:
           }
 
           const auto& lane = graph.get_lane(lane_id);
-          const auto p0 = graph.get_waypoint(lane.entry().waypoint_index()).get_location();
-          const auto p1 = graph.get_waypoint(lane.exit().waypoint_index()).get_location();
+          const auto p0 =
+            graph.get_waypoint(lane.entry().waypoint_index()).get_location();
+          const auto p1 =
+            graph.get_waypoint(lane.exit().waypoint_index()).get_location();
           const auto lane_length = (p1 - p0).norm();
           const auto lane_u = (p1 - p0)/lane_length;
           const auto proj = (p - p0).dot(lane_u);
@@ -434,12 +439,14 @@ public:
 
       if (!waypoints.empty())
       {
-        const auto p_final = graph.get_waypoint(waypoints.back()).get_location();
+        const auto p_final =
+          graph.get_waypoint(waypoints.back()).get_location();
         const auto distance = (p_final - p).norm();
         double rotation = 0.0;
         if (final_orientation.has_value())
         {
-          rotation = std::fabs(rmf_utils::wrap_to_pi(location[2] - *final_orientation));
+          rotation =
+            std::fabs(rmf_utils::wrap_to_pi(location[2] - *final_orientation));
           const auto reversible =
             planner->get_configuration().vehicle_traits()
             .get_differential()->is_reversible();
@@ -456,9 +463,11 @@ public:
 
         const auto& traits = planner->get_configuration().vehicle_traits();
         const auto v = std::max(traits.linear().get_nominal_velocity(), 0.001);
-        const auto w = std::max(traits.rotational().get_nominal_velocity(), 0.001);
+        const auto w =
+          std::max(traits.rotational().get_nominal_velocity(), 0.001);
         const auto t = distance / v + rotation / w;
-        arrival_estimator(rmf_traffic::time::from_seconds(t) + planned_wait_time);
+        arrival_estimator(
+          rmf_traffic::time::from_seconds(t) + planned_wait_time);
       }
     }
   };
@@ -489,7 +498,8 @@ public:
           }
 
           // Prevent this activity from doing any further updates
-          ActivityIdentifier::Implementation::get(*identifier).update_fn = nullptr;
+          ActivityIdentifier::Implementation::get(
+            *identifier).update_fn = nullptr;
           if (data->schedule_override.has_value())
           {
             data->release_stubbornness();
@@ -549,8 +559,8 @@ public:
   {
     auto data = std::make_shared<Data>(data_);
     auto update_fn = [w_context = context->weak_from_this(), data](
-        const std::string& map,
-        Eigen::Vector3d location)
+      const std::string& map,
+      Eigen::Vector3d location)
       {
         if (auto context = w_context.lock())
         {
@@ -845,7 +855,7 @@ void EasyCommandHandle::stop()
 
   /// Prevent any further specialized updates.
   EasyFullControl::ActivityIdentifier::Implementation
-    ::get(*activity_identifier).update_fn = nullptr;
+  ::get(*activity_identifier).update_fn = nullptr;
 
   this->current_progress = nullptr;
   this->handle_stop(activity_identifier);
@@ -1090,7 +1100,8 @@ void EasyCommandHandle::follow_new_path(
           {
             target_index = i2;
             target_position = wp2.position();
-            if (std::abs(wp1.position()[2] - wp2.position()[2])*180.0 / M_PI < 1e-2)
+            if (std::abs(wp1.position()[2] -
+              wp2.position()[2])*180.0 / M_PI < 1e-2)
             {
               // The plan had a wait between these points.
               planned_wait_time += wp2.time() - wp1.time();
@@ -1132,7 +1143,7 @@ void EasyCommandHandle::follow_new_path(
         {
           handle_nav_request(destination, execution);
         }
-      ));
+    ));
 
     i0 = target_index;
     i1 = i0 + 1;
@@ -1381,7 +1392,8 @@ public:
     std::shared_ptr<NavParams> params_,
     rxcpp::schedulers::worker worker_)
   {
-    auto handle = std::shared_ptr<EasyRobotUpdateHandle>(new EasyRobotUpdateHandle);
+    auto handle = std::shared_ptr<EasyRobotUpdateHandle>(
+      new EasyRobotUpdateHandle);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
       std::move(params_), std::move(worker_));
     return handle;
@@ -1406,7 +1418,7 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
       }
 
       auto context = RobotUpdateHandle::Implementation
-        ::get(*updater->handle).get_context();
+      ::get(*updater->handle).get_context();
 
       context->current_battery_soc(state.battery_state_of_charge());
 
@@ -1416,7 +1428,7 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
       if (current_activity)
       {
         const auto update_fn =
-          ActivityIdentifier::Implementation::get(*current_activity).update_fn;
+        ActivityIdentifier::Implementation::get(*current_activity).update_fn;
         if (update_fn)
         {
           update_fn(state.map(), position);
@@ -1436,7 +1448,8 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
       const auto& graph = planner->get_configuration().graph();
       const auto& nav_params = updater->nav_params;
       const auto now = context->now();
-      auto starts = nav_params->compute_plan_starts(graph, state.map(), position, now);
+      auto starts =
+      nav_params->compute_plan_starts(graph, state.map(), position, now);
       if (!starts.empty())
       {
         context->set_location(std::move(starts));
@@ -1449,7 +1462,8 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
 }
 
 //==============================================================================
-double EasyFullControl::EasyRobotUpdateHandle::max_merge_waypoint_distance() const
+double EasyFullControl::EasyRobotUpdateHandle::max_merge_waypoint_distance()
+const
 {
   auto updater = _pimpl->updater;
   if (!updater->handle)
@@ -1458,7 +1472,8 @@ double EasyFullControl::EasyRobotUpdateHandle::max_merge_waypoint_distance() con
     return updater->nav_params->max_merge_waypoint_distance;
   }
 
-  auto context = RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
+  auto context =
+    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
   return context->nav_params()->max_merge_waypoint_distance;
 }
 
@@ -1471,7 +1486,8 @@ void EasyFullControl::EasyRobotUpdateHandle::set_max_merge_waypoint_distance(
   {
     return;
   }
-  auto context = RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
+  auto context =
+    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
   const auto nav_params = context->nav_params();
   auto new_nav_params = std::make_shared<NavParams>(*nav_params);
   new_nav_params->max_merge_waypoint_distance = distance;
@@ -1487,7 +1503,8 @@ double EasyFullControl::EasyRobotUpdateHandle::max_merge_lane_distance() const
     // If no handle is configured, return the default fleet value
     return updater->nav_params->max_merge_lane_distance;
   }
-  auto context = RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
+  auto context =
+    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
   return context->nav_params()->max_merge_lane_distance;
 }
 
@@ -1500,7 +1517,8 @@ void EasyFullControl::EasyRobotUpdateHandle::set_max_merge_lane_distance(
   {
     return;
   }
-  auto context = RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
+  auto context =
+    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
   const auto nav_params = context->nav_params();
   auto new_nav_params = std::make_shared<NavParams>(*nav_params);
   new_nav_params->max_merge_lane_distance = distance;
@@ -1516,7 +1534,8 @@ double EasyFullControl::EasyRobotUpdateHandle::min_lane_length() const
     // If no handle is configured, return the default fleet value
     return updater->nav_params->min_lane_length;
   }
-  auto context = RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
+  auto context =
+    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
   return context->nav_params()->min_lane_length;
 }
 
@@ -1529,7 +1548,8 @@ void EasyFullControl::EasyRobotUpdateHandle::set_min_lane_length(
   {
     return;
   }
-  auto context = RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
+  auto context =
+    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
   const auto nav_params = context->nav_params();
   auto new_nav_params = std::make_shared<NavParams>(*nav_params);
   new_nav_params->min_lane_length = length;
@@ -1570,8 +1590,10 @@ class EasyFullControl::FleetConfiguration::Implementation
 {
 public:
   std::string fleet_name;
-  std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates;
-  std::unordered_map<std::string, RobotConfiguration> known_robot_configurations;
+  std::optional<std::unordered_map<std::string,
+    Transformation>> transformations_to_robot_coordinates;
+  std::unordered_map<std::string,
+    RobotConfiguration> known_robot_configurations;
   std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits;
   std::shared_ptr<const rmf_traffic::agv::Graph> graph;
   rmf_battery::agv::ConstBatterySystemPtr battery_system;
@@ -1597,8 +1619,10 @@ public:
 //==============================================================================
 EasyFullControl::FleetConfiguration::FleetConfiguration(
   const std::string& fleet_name,
-  std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates,
-  std::unordered_map<std::string, RobotConfiguration> known_robot_configurations,
+  std::optional<std::unordered_map<std::string, Transformation>>
+  transformations_to_robot_coordinates,
+  std::unordered_map<std::string, RobotConfiguration>
+  known_robot_configurations,
   std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
   std::shared_ptr<const rmf_traffic::agv::Graph> graph,
   rmf_battery::agv::ConstBatterySystemPtr battery_system,
@@ -1711,15 +1735,15 @@ EasyFullControl::FleetConfiguration::from_config_files(
   }
 
   auto traits = std::make_shared<VehicleTraits>(VehicleTraits{
-    {v_nom, a_nom},
-    {w_nom, b_nom},
-    rmf_traffic::Profile{
-      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
-        footprint_rad),
-      rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
-        vicinity_rad)
-    }
-  });
+        {v_nom, a_nom},
+        {w_nom, b_nom},
+        rmf_traffic::Profile{
+          rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
+            footprint_rad),
+          rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
+            vicinity_rad)
+        }
+      });
   traits->get_differential()->set_reversible(reversible);
 
   // Graph
@@ -1752,16 +1776,18 @@ EasyFullControl::FleetConfiguration::from_config_files(
   // Mechanical system
   if (!rmf_fleet["mechanical_system"])
   {
-    std::cout << "Fleet [mechanical_system] information is not provided" << std::endl;
+    std::cout << "Fleet [mechanical_system] information is not provided"
+              << std::endl;
     return std::nullopt;
   }
 
-  if(
+  if (
     !rmf_fleet["mechanical_system"]["mass"] ||
     !rmf_fleet["mechanical_system"]["moment_of_inertia"] ||
     !rmf_fleet["mechanical_system"]["friction_coefficient"])
   {
-    std::cout << "Fleet [mechanical_system] information is not valid" << std::endl;
+    std::cout << "Fleet [mechanical_system] information is not valid"
+              << std::endl;
     return std::nullopt;
   }
 
@@ -1828,7 +1854,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
   if (!rmf_fleet["account_for_battery_drain"])
   {
     std::cout << "[account_for_battery_drain] value is not provided, "
-      << "default to True" << std::endl;
+              << "default to True" << std::endl;
   }
   else
   {
@@ -2045,27 +2071,33 @@ EasyFullControl::FleetConfiguration::from_config_files(
   }
 
   double default_max_merge_waypoint_distance = 1e-3;
-  const YAML::Node& default_max_merge_waypoint_distance_yaml = rmf_fleet["max_merge_waypoint_distance"];
+  const YAML::Node& default_max_merge_waypoint_distance_yaml =
+    rmf_fleet["max_merge_waypoint_distance"];
   if (default_max_merge_waypoint_distance_yaml)
   {
-    default_max_merge_waypoint_distance = default_max_merge_waypoint_distance_yaml.as<double>();
+    default_max_merge_waypoint_distance =
+      default_max_merge_waypoint_distance_yaml.as<double>();
   }
 
   double default_max_merge_lane_distance = 0.3;
-  const YAML::Node& default_max_merge_lane_distance_yaml = rmf_fleet["max_merge_lane_distance"];
+  const YAML::Node& default_max_merge_lane_distance_yaml =
+    rmf_fleet["max_merge_lane_distance"];
   if (default_max_merge_lane_distance_yaml)
   {
-    default_max_merge_waypoint_distance = default_max_merge_waypoint_distance_yaml.as<double>();
+    default_max_merge_waypoint_distance =
+      default_max_merge_waypoint_distance_yaml.as<double>();
   }
 
   double default_min_lane_length = 1e-8;
   const YAML::Node& default_min_lane_length_yaml = rmf_fleet["min_lane_length"];
   if (default_min_lane_length_yaml)
   {
-    default_min_lane_length = default_min_lane_length_yaml.as<double>();
+    default_min_lane_length =
+      default_min_lane_length_yaml.as<double>();
   }
 
-  std::unordered_map<std::string, RobotConfiguration> known_robot_configurations;
+  std::unordered_map<std::string,
+    RobotConfiguration> known_robot_configurations;
   const YAML::Node& robots = rmf_fleet["robots"];
   if (robots)
   {
@@ -2119,7 +2151,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
         std::optional<double> max_merge_waypoint_distance = std::nullopt;
         if (max_merge_waypoint_distance_yaml)
         {
-          max_merge_waypoint_distance = max_merge_waypoint_distance_yaml.as<double>();
+          max_merge_waypoint_distance =
+            max_merge_waypoint_distance_yaml.as<double>();
         }
 
         const YAML::Node& max_merge_lane_distance_yaml =
@@ -2138,8 +2171,11 @@ EasyFullControl::FleetConfiguration::from_config_files(
           min_lane_length = min_lane_length_yaml.as<double>();
         }
 
-        auto config = RobotConfiguration({std::move(charger)}, responsive_wait,
-          max_merge_waypoint_distance, max_merge_lane_distance, min_lane_length);
+        auto config = RobotConfiguration({std::move(charger)},
+            responsive_wait,
+            max_merge_waypoint_distance,
+            max_merge_lane_distance,
+            min_lane_length);
         known_robot_configurations.insert_or_assign(robot_name, config);
       }
     }
@@ -2185,7 +2221,8 @@ void EasyFullControl::FleetConfiguration::set_fleet_name(std::string value)
 
 //==============================================================================
 const std::optional<TransformDictionary>&
-EasyFullControl::FleetConfiguration::transformations_to_robot_coordinates() const
+EasyFullControl::FleetConfiguration::transformations_to_robot_coordinates()
+const
 {
   return _pimpl->transformations_to_robot_coordinates;
 }
@@ -2201,7 +2238,7 @@ void EasyFullControl::FleetConfiguration::add_robot_coordinate_transformation(
   }
 
   _pimpl->transformations_to_robot_coordinates
-    ->insert_or_assign(std::move(map), transformation);
+  ->insert_or_assign(std::move(map), transformation);
 }
 
 //==============================================================================
@@ -2358,7 +2395,8 @@ bool EasyFullControl::FleetConfiguration::account_for_battery_drain() const
 }
 
 //==============================================================================
-void EasyFullControl::FleetConfiguration::set_account_for_battery_drain(bool value)
+void EasyFullControl::FleetConfiguration::set_account_for_battery_drain(
+  bool value)
 {
   _pimpl->account_for_battery_drain = value;
 }
@@ -2418,7 +2456,8 @@ void EasyFullControl::FleetConfiguration::set_skip_rotation_commands(bool value)
 }
 
 //==============================================================================
-std::optional<std::string> EasyFullControl::FleetConfiguration::server_uri() const
+std::optional<std::string> EasyFullControl::FleetConfiguration::server_uri()
+const
 {
   return _pimpl->server_uri;
 }
@@ -2437,13 +2476,15 @@ rmf_traffic::Duration EasyFullControl::FleetConfiguration::max_delay() const
 }
 
 //==============================================================================
-void EasyFullControl::FleetConfiguration::set_max_delay(rmf_traffic::Duration value)
+void EasyFullControl::FleetConfiguration::set_max_delay(
+  rmf_traffic::Duration value)
 {
   _pimpl->max_delay = value;
 }
 
 //==============================================================================
-rmf_traffic::Duration EasyFullControl::FleetConfiguration::update_interval() const
+rmf_traffic::Duration EasyFullControl::FleetConfiguration::update_interval()
+const
 {
   return _pimpl->update_interval;
 }
@@ -2469,20 +2510,22 @@ void EasyFullControl::FleetConfiguration::set_default_responsive_wait(
 }
 
 //==============================================================================
-double EasyFullControl::FleetConfiguration::default_max_merge_waypoint_distance() const
+double EasyFullControl::FleetConfiguration::default_max_merge_waypoint_distance()
+const
 {
   return _pimpl->default_max_merge_waypoint_distance;
 }
 
 //==============================================================================
-void EasyFullControl::FleetConfiguration::set_default_max_merge_waypoint_distance(
-  double distance)
+void EasyFullControl::FleetConfiguration::
+set_default_max_merge_waypoint_distance(double distance)
 {
   _pimpl->default_max_merge_waypoint_distance = distance;
 }
 
 //==============================================================================
-double EasyFullControl::FleetConfiguration::default_max_merge_lane_distance() const
+double EasyFullControl::FleetConfiguration::default_max_merge_lane_distance()
+const
 {
   return _pimpl->default_max_merge_lane_distance;
 }
@@ -2531,7 +2574,8 @@ auto EasyFullControl::add_robot(
 {
   const auto node = _pimpl->node();
 
-  auto worker = FleetUpdateHandle::Implementation::get(*_pimpl->fleet_handle).worker;
+  auto worker =
+    FleetUpdateHandle::Implementation::get(*_pimpl->fleet_handle).worker;
   auto easy_updater = EasyRobotUpdateHandle::Implementation::make(
     _pimpl->nav_params, worker);
 
@@ -2611,11 +2655,13 @@ auto EasyFullControl::add_robot(
   auto robot_nav_params = std::make_shared<NavParams>(*_pimpl->nav_params);
   if (configuration.max_merge_waypoint_distance().has_value())
   {
-    robot_nav_params->max_merge_waypoint_distance = *configuration.max_merge_waypoint_distance();
+    robot_nav_params->max_merge_waypoint_distance =
+      *configuration.max_merge_waypoint_distance();
   }
   if (configuration.max_merge_lane_distance().has_value())
   {
-    robot_nav_params->max_merge_lane_distance = *configuration.max_merge_lane_distance();
+    robot_nav_params->max_merge_lane_distance =
+      *configuration.max_merge_lane_distance();
   }
 
   if (configuration.min_lane_length().has_value())
@@ -2693,7 +2739,7 @@ auto EasyFullControl::add_robot(
     ](const RobotUpdateHandlePtr& updater)
     {
       auto context = RobotUpdateHandle::Implementation::get(*updater)
-        .get_context();
+      .get_context();
 
       context->worker().schedule(
         [
@@ -2713,7 +2759,7 @@ auto EasyFullControl::add_robot(
           cmd_handle->w_context = context;
           context->set_nav_params(nav_params);
           EasyRobotUpdateHandle::Implementation::get(*easy_updater)
-            .updater->handle = handle;
+          .updater->handle = handle;
           handle->set_action_executor(action_executor);
           handle->set_charger_waypoint(charger_index);
           handle->enable_responsive_wait(enable_responsive_wait);

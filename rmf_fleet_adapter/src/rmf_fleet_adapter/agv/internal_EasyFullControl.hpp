@@ -50,18 +50,18 @@ public:
   {
     auto handle = std::shared_ptr<EasyFullControl>(new EasyFullControl);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
-        Implementation{
-          fleet_handle,
-          {},
-          std::make_shared<NavParams>(NavParams{
-            skip_rotation_commands,
-            std::move(transforms_to_robot_coords),
-            default_max_merge_waypoint_distance,
-            default_max_merge_lane_distance,
-            default_min_lane_length
-          }),
-          default_responsive_wait
-        });
+      Implementation{
+        fleet_handle,
+        {},
+        std::make_shared<NavParams>(NavParams{
+          skip_rotation_commands,
+          std::move(transforms_to_robot_coords),
+          default_max_merge_waypoint_distance,
+          default_max_merge_lane_distance,
+          default_min_lane_length
+        }),
+        default_responsive_wait
+      });
     return handle;
   }
 

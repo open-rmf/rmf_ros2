@@ -59,7 +59,8 @@ public:
   using ActionExecutor = RobotUpdateHandle::ActionExecutor;
   using ActivityIdentifier = RobotUpdateHandle::ActivityIdentifier;
   using ActivityIdentifierPtr = RobotUpdateHandle::ActivityIdentifierPtr;
-  using ConstActivityIdentifierPtr = RobotUpdateHandle::ConstActivityIdentifierPtr;
+  using ConstActivityIdentifierPtr =
+    RobotUpdateHandle::ConstActivityIdentifierPtr;
   using Stubbornness = RobotUpdateHandle::Unstable::Stubbornness;
   using ConsiderRequest = FleetUpdateHandle::ConsiderRequest;
 
@@ -522,8 +523,10 @@ public:
   ///   The minimum length that a lane should have.
   FleetConfiguration(
     const std::string& fleet_name,
-    std::optional<std::unordered_map<std::string, Transformation>> transformations_to_robot_coordinates,
-    std::unordered_map<std::string, RobotConfiguration> known_robot_configurations,
+    std::optional<std::unordered_map<std::string, Transformation>>
+    transformations_to_robot_coordinates,
+    std::unordered_map<std::string, RobotConfiguration>
+    known_robot_configurations,
     std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
     std::shared_ptr<const rmf_traffic::agv::Graph> graph,
     rmf_battery::agv::ConstBatterySystemPtr battery_system,

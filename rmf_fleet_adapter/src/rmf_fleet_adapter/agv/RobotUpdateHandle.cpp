@@ -1030,7 +1030,7 @@ void ScheduleOverride::overridden_update(
     // based on the agent being at that waypoint. This is a very fallible
     // estimation, but it's the best we can do with limited information.
     std::optional<std::pair<rmf_traffic::Time, double>> closest_time;
-    for (std::size_t i=0; i < route.trajectory().size(); ++i)
+    for (std::size_t i = 0; i < route.trajectory().size(); ++i)
     {
       const auto& wp = route.trajectory().at(i);
       const Eigen::Vector2d p_wp = wp.position().block<2, 1>(0, 0);
@@ -1052,7 +1052,7 @@ void ScheduleOverride::overridden_update(
   }
 
   const auto& itin = context->itinerary().itinerary();
-  for (std::size_t i=0; i < itin.size(); ++i)
+  for (std::size_t i = 0; i < itin.size(); ++i)
   {
     const auto& traj = itin[i].trajectory();
     const auto t_it = traj.find(now);
@@ -1154,7 +1154,7 @@ std::optional<ScheduleOverride> ScheduleOverride::make(
       Eigen::Vector3d(0.0, 0.0, 0.0));
   }
   std::set<uint64_t> checkpoints;
-  for (uint64_t i=1; i < trajectory.size(); ++i)
+  for (uint64_t i = 1; i < trajectory.size(); ++i)
   {
     checkpoints.insert(i);
   }
