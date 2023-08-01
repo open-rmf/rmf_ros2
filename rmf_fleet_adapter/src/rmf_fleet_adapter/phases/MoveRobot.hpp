@@ -125,7 +125,7 @@ struct MoveRobot
     rclcpp::TimerBase::SharedPtr _update_timeout_timer;
     rclcpp::Time _last_update_rostime;
     // TODO(MXG): Make this timeout configurable by users
-    rmf_traffic::Duration _update_timeout = std::chrono::seconds(10);
+    rmf_traffic::Duration _update_timeout = std::chrono::seconds(25);
   };
 };
 
