@@ -235,15 +235,13 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::rewind_task_response,
     rmf_api_msgs::schemas::robot_task_request,
     rmf_api_msgs::schemas::dispatch_task_response,
-    rmf_api_msgs::schemas::task_state,
     rmf_api_msgs::schemas::error,
     rmf_api_msgs::schemas::robot_task_response,
     rmf_api_msgs::schemas::skip_phase_request,
     rmf_api_msgs::schemas::skip_phase_response,
     rmf_api_msgs::schemas::task_request,
     rmf_api_msgs::schemas::undo_skip_phase_request,
-    rmf_api_msgs::schemas::undo_skip_phase_response,
-    rmf_api_msgs::schemas::error
+    rmf_api_msgs::schemas::undo_skip_phase_response
   };
 
   for (const auto& schema : schemas)
