@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.1 (2023-08-10)
+------------------
 * Fix comparator for direct assignment ordering (`#291 <https://github.com/open-rmf/rmf_ros2/pull/291>`_)
 * Adding initiator and request time to booking (`#285 <https://github.com/open-rmf/rmf_ros2/pull/285>`_)
 * Contributors: Aaron Chong, Yadunund
