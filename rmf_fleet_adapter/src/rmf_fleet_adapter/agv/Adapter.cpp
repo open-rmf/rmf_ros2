@@ -363,7 +363,8 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
   std::shared_ptr<TransformDictionary> tf_dict;
   if (config.transformations_to_robot_coordinates().has_value())
   {
-    tf_dict = std::make_shared<TransformDictionary>(*config.transformations_to_robot_coordinates());
+    tf_dict = std::make_shared<TransformDictionary>(
+      *config.transformations_to_robot_coordinates());
   }
 
   return EasyFullControl::Implementation::make(

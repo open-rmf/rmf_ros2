@@ -259,7 +259,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             plan_id, new_cumulative_delay, 100ms);
 
           const auto& itin = context->itinerary().itinerary();
-          for (std::size_t i=0; i < itin.size(); ++i)
+          for (std::size_t i = 0; i < itin.size(); ++i)
           {
             const auto& traj = itin[i].trajectory();
             const auto t_it = traj.find(now);

@@ -188,7 +188,8 @@ auto GoToPlace::Active::make(
     active->_context->observe_graph_change()
     .observe_on(rxcpp::identity_same_worker(active->_context->worker()))
     .subscribe(
-    [w = active->weak_from_this()](const agv::RobotContext::GraphChange& changes)
+    [w = active->weak_from_this()](
+      const agv::RobotContext::GraphChange& changes)
     {
       const auto self = w.lock();
       if (!self)
