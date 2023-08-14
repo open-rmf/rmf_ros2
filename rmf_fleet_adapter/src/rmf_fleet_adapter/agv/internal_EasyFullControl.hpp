@@ -33,11 +33,8 @@ public:
   // Map robot name to its EasyCommandHandle
   std::unordered_map<std::string, EasyCommandHandlePtr> cmd_handles;
   // TODO(YV): Get these constants from EasyCommandHandle::Configuration
-  std::shared_ptr<NavParams> nav_params;
+  NavParams nav_params;
   bool default_responsive_wait;
-  double default_max_merge_waypoint_distance;
-  double default_max_merge_lane_distance;
-  double default_min_lane_length;
 
   static std::shared_ptr<EasyFullControl> make(
     std::shared_ptr<FleetUpdateHandle> fleet_handle,
@@ -53,13 +50,13 @@ public:
       Implementation{
         fleet_handle,
         {},
-        std::make_shared<NavParams>(NavParams{
+        NavParams{
           skip_rotation_commands,
           std::move(transforms_to_robot_coords),
           default_max_merge_waypoint_distance,
           default_max_merge_lane_distance,
           default_min_lane_length
-        }),
+        },
         default_responsive_wait
       });
     return handle;

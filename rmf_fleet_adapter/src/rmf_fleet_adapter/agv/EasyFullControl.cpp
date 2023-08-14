@@ -1465,95 +1465,40 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
 double EasyFullControl::EasyRobotUpdateHandle::max_merge_waypoint_distance()
 const
 {
-  auto updater = _pimpl->updater;
-  if (!updater->handle)
-  {
-    // If no handle is configured, return the default fleet value
-    return updater->nav_params->max_merge_waypoint_distance;
-  }
-
-  auto context =
-    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
-  return context->nav_params()->max_merge_waypoint_distance;
+  return _pimpl->updater->nav_params->max_merge_waypoint_distance;
 }
 
 //==============================================================================
 void EasyFullControl::EasyRobotUpdateHandle::set_max_merge_waypoint_distance(
   double distance)
 {
-  auto updater = _pimpl->updater;
-  if (!updater->handle)
-  {
-    return;
-  }
-  auto context =
-    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
-  const auto nav_params = context->nav_params();
-  auto new_nav_params = std::make_shared<NavParams>(*nav_params);
-  new_nav_params->max_merge_waypoint_distance = distance;
-  context->set_nav_params(new_nav_params);
+  _pimpl->updater->nav_params->max_merge_waypoint_distance = distance;
 }
 
 //==============================================================================
 double EasyFullControl::EasyRobotUpdateHandle::max_merge_lane_distance() const
 {
-  auto updater = _pimpl->updater;
-  if (!updater->handle)
-  {
-    // If no handle is configured, return the default fleet value
-    return updater->nav_params->max_merge_lane_distance;
-  }
-  auto context =
-    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
-  return context->nav_params()->max_merge_lane_distance;
+  return _pimpl->updater->nav_params->max_merge_lane_distance;
 }
 
 //==============================================================================
 void EasyFullControl::EasyRobotUpdateHandle::set_max_merge_lane_distance(
   double distance)
 {
-  auto updater = _pimpl->updater;
-  if (!updater->handle)
-  {
-    return;
-  }
-  auto context =
-    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
-  const auto nav_params = context->nav_params();
-  auto new_nav_params = std::make_shared<NavParams>(*nav_params);
-  new_nav_params->max_merge_lane_distance = distance;
-  context->set_nav_params(new_nav_params);
+  _pimpl->updater->nav_params->max_merge_lane_distance = distance;
 }
 
 //==============================================================================
 double EasyFullControl::EasyRobotUpdateHandle::min_lane_length() const
 {
-  auto updater = _pimpl->updater;
-  if (!updater->handle)
-  {
-    // If no handle is configured, return the default fleet value
-    return updater->nav_params->min_lane_length;
-  }
-  auto context =
-    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
-  return context->nav_params()->min_lane_length;
+  return _pimpl->updater->nav_params->min_lane_length;
 }
 
 //==============================================================================
 void EasyFullControl::EasyRobotUpdateHandle::set_min_lane_length(
   double length)
 {
-  auto updater = _pimpl->updater;
-  if (!updater->handle)
-  {
-    return;
-  }
-  auto context =
-    RobotUpdateHandle::Implementation::get(*_pimpl->updater->handle).get_context();
-  const auto nav_params = context->nav_params();
-  auto new_nav_params = std::make_shared<NavParams>(*nav_params);
-  new_nav_params->min_lane_length = length;
-  context->set_nav_params(new_nav_params);
+  _pimpl->updater->nav_params->min_lane_length = length;
 }
 
 //==============================================================================
@@ -2576,8 +2521,9 @@ auto EasyFullControl::add_robot(
 
   auto worker =
     FleetUpdateHandle::Implementation::get(*_pimpl->fleet_handle).worker;
+  auto robot_nav_params = std::make_shared<NavParams>(_pimpl->nav_params);
   auto easy_updater = EasyRobotUpdateHandle::Implementation::make(
-    _pimpl->nav_params, worker);
+    robot_nav_params, worker);
 
   const auto& fleet_impl =
     FleetUpdateHandle::Implementation::get(*_pimpl->fleet_handle);
@@ -2637,7 +2583,7 @@ auto EasyFullControl::add_robot(
   rmf_traffic::Time now = std::chrono::steady_clock::time_point(
     std::chrono::nanoseconds(node->now().nanoseconds()));
 
-  const auto position_opt = _pimpl->nav_params->to_rmf_coordinates(
+  const auto position_opt = robot_nav_params->to_rmf_coordinates(
     initial_state.map(), initial_state.position());
   if (!position_opt.has_value())
   {
@@ -2652,7 +2598,6 @@ auto EasyFullControl::add_robot(
     return nullptr;
   }
 
-  auto robot_nav_params = std::make_shared<NavParams>(*_pimpl->nav_params);
   if (configuration.max_merge_waypoint_distance().has_value())
   {
     robot_nav_params->max_merge_waypoint_distance =
