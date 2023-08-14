@@ -145,7 +145,7 @@ void RobotContext::filter_closed_lanes()
   if (const auto planner = *_planner)
   {
     const auto& closures = planner->get_configuration().lane_closures();
-    for (std::size_t i = 0; i < _location.size();)
+    for (std::size_t i = 0; i < _location.size(); )
     {
       if (_location[i].lane().has_value())
       {
@@ -392,9 +392,9 @@ std::function<rmf_task::State()> RobotContext::make_get_state()
       if (self->_most_recent_valid_location.empty())
       {
         throw std::runtime_error(
-          "Missing a _most_recent_valid_location for robot ["
-          + self->requester_id() + "]. This is an internal RMF error, "
-          "please report it to the RMF developers.");
+                "Missing a _most_recent_valid_location for robot ["
+                + self->requester_id() + "]. This is an internal RMF error, "
+                "please report it to the RMF developers.");
       }
 
       rmf_task::State state;

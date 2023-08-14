@@ -32,11 +32,12 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
-class TriggerOnce {
+class TriggerOnce
+{
 public:
   TriggerOnce(std::function<void()> callback)
-    : _callback(std::make_shared<std::shared_ptr<std::function<void()>>>(
-      std::make_shared<std::function<void()>>(std::move(callback))))
+  : _callback(std::make_shared<std::shared_ptr<std::function<void()>>>(
+        std::make_shared<std::function<void()>>(std::move(callback))))
   {
     // Do nothing
   }
@@ -109,8 +110,8 @@ struct ScheduleOverride
 
 //==============================================================================
 using LocationUpdateFn = std::function<void(
-  const std::string& map,
-  Eigen::Vector3d location)>;
+      const std::string& map,
+      Eigen::Vector3d location)>;
 
 //==============================================================================
 class RobotUpdateHandle::ActivityIdentifier::Implementation
@@ -122,7 +123,8 @@ public:
 
   static std::shared_ptr<ActivityIdentifier> make(LocationUpdateFn update_fn_)
   {
-    auto identifier = std::shared_ptr<ActivityIdentifier>(new ActivityIdentifier);
+    auto identifier =
+      std::shared_ptr<ActivityIdentifier>(new ActivityIdentifier);
     identifier->_pimpl = rmf_utils::make_unique_impl<Implementation>(
       Implementation{update_fn_});
     return identifier;
@@ -214,12 +216,12 @@ public:
       std::function<void()> finished_,
       std::shared_ptr<rmf_task::events::SimpleEventState> state_,
       std::optional<rmf_traffic::Duration> remaining_time_ = std::nullopt)
-      : w_context(context_),
-        finished(std::move(finished_)),
-        state(std::move(state_)),
-        remaining_time(remaining_time_),
-        request_replan(false),
-        okay(true)
+    : w_context(context_),
+      finished(std::move(finished_)),
+      state(std::move(state_)),
+      remaining_time(remaining_time_),
+      request_replan(false),
+      okay(true)
     {
       // Do nothing
     }
@@ -242,9 +244,9 @@ public:
     auto update_fn = [data](
       const std::string& map,
       Eigen::Vector3d location)
-    {
-      data->update_location(map, location);
-    };
+      {
+        data->update_location(map, location);
+      };
 
     ActionExecution execution;
     execution._pimpl = rmf_utils::make_impl<Implementation>(
