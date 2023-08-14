@@ -22,6 +22,8 @@
 
 #include <rmf_traffic_ros2/Time.hpp>
 
+#include <rmf_utils/math.hpp>
+
 #include <iostream>
 
 namespace rmf_fleet_adapter {
@@ -75,11 +77,11 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, waypoint, orientation](const auto&)
       {
-        context->_location = {
+        context->set_location({
           rmf_traffic::agv::Plan::Start(
             rmf_traffic_ros2::convert(context->node()->now()),
             waypoint, orientation)
-        };
+        });
       });
   }
 }
@@ -115,7 +117,7 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, starts = std::move(starts)](const auto&)
       {
-        context->_location = std::move(starts);
+        context->set_location(std::move(starts));
       });
   }
 }
@@ -130,11 +132,11 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, position, waypoint](const auto&)
       {
-        context->_location = {
+        context->set_location({
           rmf_traffic::agv::Plan::Start(
             rmf_traffic_ros2::convert(context->node()->now()),
             waypoint, position[2], Eigen::Vector2d(position.block<2, 1>(0, 0)))
-        };
+        });
       });
   }
 }
@@ -163,13 +165,19 @@ void RobotUpdateHandle::update_position(
         "from its navigation graph, currently located at <%f, %f, %f> on "
         "map [%s]", context->requester_id().c_str(),
         position[0], position[1], position[2], map_name.c_str());
+
+      context->worker().schedule(
+        [context, now, map_name, position](const auto&)
+        {
+          context->set_lost(Location { now, map_name, position });
+        });
       return;
     }
 
     context->worker().schedule(
       [context, starts = std::move(starts)](const auto&)
       {
-        context->_location = std::move(starts);
+        context->set_location(std::move(starts));
       });
   }
 }
@@ -183,7 +191,7 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, starts = std::move(position)](const auto&)
       {
-        context->_location = starts;
+        context->set_location(starts);
       });
   }
 }
@@ -210,9 +218,6 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
 //==============================================================================
 void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 {
-  if (battery_soc < 0.0 || battery_soc > 1.0)
-    return;
-
   if (const auto context = _pimpl->get_context())
   {
     context->worker().schedule(
@@ -226,10 +231,8 @@ void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 //==============================================================================
 void RobotUpdateHandle::override_status(std::optional<std::string> status)
 {
-
   if (const auto context = _pimpl->get_context())
   {
-
     if (status.has_value())
     {
       // Here we capture [this] to avoid potential costly copy of
@@ -303,6 +306,19 @@ RobotUpdateHandle& RobotUpdateHandle::maximum_delay(
   }
 
   return *this;
+}
+
+//==============================================================================
+bool RobotUpdateHandle::ActivityIdentifier::operator==(
+  const ActivityIdentifier& other) const
+{
+  return _pimpl == other._pimpl;
+}
+
+//==============================================================================
+RobotUpdateHandle::ActivityIdentifier::ActivityIdentifier()
+{
+  // Do nothing
 }
 
 //==============================================================================
@@ -762,22 +778,6 @@ rmf_traffic::PlanId RobotUpdateHandle::Unstable::current_plan_id() const
 }
 
 //==============================================================================
-class RobotUpdateHandle::Unstable::Stubbornness::Implementation
-{
-public:
-  std::shared_ptr<void> stubbornness;
-
-  static Stubbornness make(std::shared_ptr<void> stubbornness)
-  {
-    Stubbornness output;
-    output._pimpl = rmf_utils::make_impl<Implementation>(
-      Implementation{stubbornness});
-
-    return output;
-  }
-};
-
-//==============================================================================
 void RobotUpdateHandle::Unstable::Stubbornness::release()
 {
   _pimpl->stubbornness = nullptr;
@@ -857,26 +857,42 @@ void RobotUpdateHandle::ActionExecution::blocked(
 }
 
 //==============================================================================
-bool RobotUpdateHandle::ActionExecution::replan()
+auto RobotUpdateHandle::ActionExecution::override_schedule(
+  std::string map,
+  std::vector<Eigen::Vector3d> path,
+  rmf_traffic::Duration hold) -> Stubbornness
 {
-  _pimpl->data->request_replan = true;
-}
-
-//==============================================================================
-void RobotUpdateHandle::ActionExecution::override_schedule(
-  const std::string& map_name, rmf_traffic::Trajectory trajectory)
-{
-  //
-  if (_pimpl->data->handle.has_value())
+  auto stubborn = std::make_shared<StubbornOverride>();
+  if (const auto context = _pimpl->data->w_context.lock())
   {
-    auto updater = _pimpl->data->handle.value();
-    if (auto participant = updater->unstable().get_participant())
-    {
-      participant->set(
-        participant->assign_plan_id(),
-        {rmf_traffic::Route(map_name, trajectory)});
-    }
+    context->worker().schedule(
+      [
+        context,
+        stubborn,
+        data = _pimpl->data,
+        identifier = _pimpl->identifier,
+        map = std::move(map),
+        path = std::move(path),
+        hold
+      ](const auto&)
+      {
+        if (!ActivityIdentifier::Implementation::get(*identifier).update_fn)
+        {
+          // Don't do anything because this command is finished
+          return;
+        }
+
+        if (data->schedule_override.has_value())
+        {
+          data->schedule_override->release_stubbornness();
+        }
+        data->schedule_override = ScheduleOverride::make(
+          context, map, path, hold, stubborn);
+      }
+    );
   }
+
+  return Stubbornness::Implementation::make(stubborn);
 }
 
 //==============================================================================
@@ -884,15 +900,14 @@ void RobotUpdateHandle::ActionExecution::finished()
 {
   if (_pimpl->data)
   {
-    _pimpl->data->worker.schedule(
-      [data = _pimpl->data](const rxcpp::schedulers::schedulable&)
-      {
-        if (data->finished)
+    if (const auto context = _pimpl->data->w_context.lock())
+    {
+      context->worker().schedule(
+        [finished = _pimpl->data->finished](const auto&)
         {
-          data->finished();
-          data->finished = nullptr;
-        }
-      });
+          finished.trigger();
+        });
+    }
   }
 }
 
@@ -903,11 +918,259 @@ bool RobotUpdateHandle::ActionExecution::okay() const
 }
 
 //==============================================================================
+auto RobotUpdateHandle::ActionExecution::identifier() const
+-> ConstActivityIdentifierPtr
+{
+  return _pimpl->identifier;
+}
+
+//==============================================================================
 RobotUpdateHandle::ActionExecution::ActionExecution()
 {
   // Do nothing
 }
 
+//==============================================================================
+void ScheduleOverride::overridden_update(
+  const std::shared_ptr<RobotContext>& context,
+  const std::string& map,
+  Eigen::Vector3d location)
+{
+  const auto nav_params = context->nav_params();
+  if (!nav_params)
+    return;
+
+  auto p = Eigen::Vector2d(location[0], location[1]);
+  std::optional<std::pair<std::size_t, double>> closest_lane;
+  std::size_t i0 = 0;
+  std::size_t i1 = 1;
+  const double proj_lower_bound = -nav_params->max_merge_lane_distance;
+  for (; i1 < route.trajectory().size(); ++i0, ++i1)
+  {
+    // We approximate the trajectory as linear with constant velocity even
+    // though it could technically be a cubic spline. The linear
+    // approximation simplifies the math considerably, and we will be
+    // phasing out support for cubic splines in the future.
+    const Eigen::Vector2d p0 =
+      route.trajectory().at(i0).position().block<2, 1>(0, 0);
+    const Eigen::Vector2d p1 =
+      route.trajectory().at(i1).position().block<2, 1>(0, 0);
+    const auto lane_length = (p1 - p0).norm();
+    if (lane_length < 1e-6)
+    {
+      const double dist_to_lane = (p - p0).norm();
+      if (dist_to_lane > nav_params->max_merge_lane_distance)
+      {
+        continue;
+      }
+
+      if (!closest_lane.has_value() || dist_to_lane < closest_lane->second)
+      {
+        closest_lane = std::make_pair(i0, dist_to_lane);
+      }
+    }
+    else
+    {
+      const auto lane_u = (p1 - p0)/lane_length;
+      const auto proj = (p - p0).dot(lane_u);
+      const double proj_upper_bound =
+        lane_length + nav_params->max_merge_lane_distance;
+      if (proj < proj_lower_bound || proj_upper_bound < proj)
+      {
+        continue;
+      }
+
+      double dist_to_lane = (p - p0 - proj * lane_u).norm();
+      if (proj < 0.0)
+        dist_to_lane += std::abs(proj);
+      else if (lane_length < proj)
+        dist_to_lane += std::abs(proj - lane_length);
+
+      if (!closest_lane.has_value() || dist_to_lane < closest_lane->second)
+      {
+        closest_lane = std::make_pair(i0, dist_to_lane);
+      }
+    }
+  }
+
+  const auto now = rmf_traffic_ros2::convert(context->node()->now());
+  const auto delay_thresh = std::chrono::milliseconds(100);
+  if (closest_lane.has_value())
+  {
+    const auto& wp0 = route.trajectory().at(closest_lane->first);
+    const auto& wp1 = route.trajectory().at(closest_lane->first + 1);
+    const Eigen::Vector2d p0 = wp0.position().block<2, 1>(0, 0);
+    const Eigen::Vector2d p1 = wp1.position().block<2, 1>(0, 0);
+    rmf_traffic::Time t_expected = wp0.time();
+    const auto lane_length = (p1 - p0).norm();
+    if (lane_length > 1e-6)
+    {
+      const auto lane_u = (p1 - p0)/lane_length;
+      const auto proj = (p - p0).dot(lane_u);
+      const auto s = proj/lane_length;
+      const double dt = rmf_traffic::time::to_seconds(wp1.time() - wp0.time());
+      t_expected += rmf_traffic::time::from_seconds(s*dt);
+    }
+    else
+    {
+      const double total_delta_yaw =
+        rmf_utils::wrap_to_pi(wp1.position()[2] - wp0.position()[2]);
+      const double remaining_delta_yaw =
+        rmf_utils::wrap_to_pi(wp1.position()[2] - location[2]);
+      const double s = remaining_delta_yaw / total_delta_yaw;
+      const double dt = rmf_traffic::time::to_seconds(wp1.time() - wp0.time());
+      t_expected += rmf_traffic::time::from_seconds(s*dt);
+    }
+    const auto delay = now - t_expected;
+    context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
+  }
+  else
+  {
+    // Find the waypoint that the agent is closest to and estimate the delay
+    // based on the agent being at that waypoint. This is a very fallible
+    // estimation, but it's the best we can do with limited information.
+    std::optional<std::pair<rmf_traffic::Time, double>> closest_time;
+    for (std::size_t i = 0; i < route.trajectory().size(); ++i)
+    {
+      const auto& wp = route.trajectory().at(i);
+      const Eigen::Vector2d p_wp = wp.position().block<2, 1>(0, 0);
+      const double dist = (p - p_wp).norm();
+      if (!closest_time.has_value() || dist < closest_time->second)
+      {
+        closest_time = std::make_pair(wp.time(), dist);
+      }
+    }
+
+    if (closest_time.has_value())
+    {
+      const auto delay = now - closest_time->first;
+      context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
+    }
+
+    // If no closest time was found then there are no waypoints in the
+    // route. There's no point updating the delay of an empty route.
+  }
+
+  const auto& itin = context->itinerary().itinerary();
+  for (std::size_t i = 0; i < itin.size(); ++i)
+  {
+    const auto& traj = itin[i].trajectory();
+    const auto t_it = traj.find(now);
+    if (t_it != traj.end() && t_it != traj.begin())
+    {
+      uint64_t checkpoint = 0;
+      if (t_it->time() == now)
+      {
+        checkpoint = t_it->index();
+      }
+      else
+      {
+        checkpoint = t_it->index() - 1;
+      }
+
+      if (checkpoint < context->itinerary().reached().at(i))
+      {
+        // The robot has backtracked along its path.
+        // This can mess up traffic dependency relationships, so we need to
+        // resend the schedule.
+
+        // WARNING: We will have to change this implementation if it is ever
+        // possible for the ScheduleOverride class to contain multiple routes in
+        // its itinerary.
+        const auto cumulative_delay = context->itinerary()
+          .cumulative_delay(plan_id).value_or(rmf_traffic::Duration(0));
+
+        plan_id = context->itinerary().assign_plan_id();
+        context->itinerary().set(plan_id, {route});
+        context->itinerary().cumulative_delay(
+          plan_id, cumulative_delay, delay_thresh);
+      }
+
+      context->itinerary().reached(plan_id, i, checkpoint);
+    }
+  }
+
+  auto planner = context->planner();
+  if (!planner)
+  {
+    RCLCPP_ERROR(
+      context->node()->get_logger(),
+      "Planner unavailable for robot [%s], cannot update its location",
+      context->requester_id().c_str());
+    return;
+  }
+
+  const auto& graph = planner->get_configuration().graph();
+  auto starts = nav_params->compute_plan_starts(graph, map, location, now);
+  if (!starts.empty())
+  {
+    context->set_location(std::move(starts));
+  }
+  else
+  {
+    context->set_lost(Location { now, map, location });
+  }
+}
+
+//==============================================================================
+void ScheduleOverride::release_stubbornness()
+{
+  if (const auto stubborn = w_stubborn.lock())
+  {
+    // Clear out the previous stubborn handle
+    stubborn->stubbornness = nullptr;
+  }
+}
+
+//==============================================================================
+std::optional<ScheduleOverride> ScheduleOverride::make(
+  const std::shared_ptr<RobotContext>& context,
+  const std::string& map,
+  const std::vector<Eigen::Vector3d>& path,
+  rmf_traffic::Duration hold,
+  std::shared_ptr<StubbornOverride> stubborn)
+{
+  auto planner = context->planner();
+  if (!planner)
+  {
+    RCLCPP_WARN(
+      context->node()->get_logger(),
+      "Planner unavailable for robot [%s], cannot override its "
+      "schedule",
+      context->requester_id().c_str());
+    return std::nullopt;
+  }
+
+  const auto now = context->now();
+  const auto& traits = planner->get_configuration().vehicle_traits();
+  auto trajectory = rmf_traffic::agv::Interpolate::positions(
+    traits, now, path);
+  if (hold > rmf_traffic::Duration(0) && !trajectory.empty())
+  {
+    const auto& last_wp = trajectory.back();
+    trajectory.insert(
+      last_wp.time() + hold,
+      last_wp.position(),
+      Eigen::Vector3d(0.0, 0.0, 0.0));
+  }
+  std::set<uint64_t> checkpoints;
+  for (uint64_t i = 1; i < trajectory.size(); ++i)
+  {
+    checkpoints.insert(i);
+  }
+  auto route = rmf_traffic::Route(map, std::move(trajectory));
+  route.checkpoints(checkpoints);
+
+  const auto plan_id = context->itinerary().assign_plan_id();
+  context->itinerary().set(plan_id, {route});
+  stubborn->stubbornness = context->be_stubborn();
+
+  return ScheduleOverride{
+    std::move(route),
+    plan_id,
+    stubborn
+  };
+}
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

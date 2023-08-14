@@ -27,8 +27,119 @@
 #include <rmf_api_msgs/schemas/robot_state.hpp>
 #include <rmf_api_msgs/schemas/location_2D.hpp>
 
+#include <memory>
+
 namespace rmf_fleet_adapter {
 namespace agv {
+
+class TriggerOnce
+{
+public:
+  TriggerOnce(std::function<void()> callback)
+  : _callback(std::make_shared<std::shared_ptr<std::function<void()>>>(
+        std::make_shared<std::function<void()>>(std::move(callback))))
+  {
+    // Do nothing
+  }
+
+  TriggerOnce()
+  {
+    // Do nothing
+  }
+
+  void trigger() const
+  {
+    if (!_callback)
+    {
+      return;
+    }
+
+    // We don't use a mutex because we assume this will always be triggered
+    // inside the shared worker.
+    std::shared_ptr<std::function<void()>> inner = *_callback;
+    if (inner)
+    {
+      if (*inner)
+      {
+        (*inner)();
+      }
+
+      *inner = nullptr;
+    }
+  }
+
+private:
+  std::shared_ptr<std::shared_ptr<std::function<void()>>> _callback;
+};
+
+//==============================================================================
+struct StubbornOverride
+{
+  /// We use a convoluted multi-layered reference structure for schedule
+  /// override stubbornness so that we can release the stubbornness of the
+  /// schedule override after the command is finished, even if the user
+  /// forgets to release the override stubbornness.
+  ///
+  /// If we don't implement it like this, there's a risk that the agent will
+  /// remain stubborn after it resumes normal operation, which would cause
+  /// significant traffic management problems.
+  std::shared_ptr<void> stubbornness;
+};
+
+//==============================================================================
+struct ScheduleOverride
+{
+  rmf_traffic::Route route;
+  rmf_traffic::PlanId plan_id;
+  std::weak_ptr<StubbornOverride> w_stubborn;
+
+  void overridden_update(
+    const std::shared_ptr<RobotContext>& context,
+    const std::string& map,
+    Eigen::Vector3d location);
+
+  void release_stubbornness();
+
+  static std::optional<ScheduleOverride> make(
+    const std::shared_ptr<RobotContext>& context,
+    const std::string& map,
+    const std::vector<Eigen::Vector3d>& path,
+    rmf_traffic::Duration hold,
+    std::shared_ptr<StubbornOverride> stubborn);
+};
+
+//==============================================================================
+using LocationUpdateFn = std::function<void(
+      const std::string& map,
+      Eigen::Vector3d location)>;
+
+//==============================================================================
+class RobotUpdateHandle::ActivityIdentifier::Implementation
+{
+public:
+  /// A function that EasyFullControl will use to update the robot location info
+  /// when this activity is being executed.
+  LocationUpdateFn update_fn;
+
+  static std::shared_ptr<ActivityIdentifier> make(LocationUpdateFn update_fn_)
+  {
+    auto identifier =
+      std::shared_ptr<ActivityIdentifier>(new ActivityIdentifier);
+    identifier->_pimpl = rmf_utils::make_unique_impl<Implementation>(
+      Implementation{update_fn_});
+    return identifier;
+  }
+
+  static Implementation& get(ActivityIdentifier& self)
+  {
+    return *self._pimpl;
+  }
+
+  static const Implementation& get(const ActivityIdentifier& self)
+  {
+    return *self._pimpl;
+  }
+};
 
 //==============================================================================
 class RobotUpdateHandle::ActionExecution::Implementation
@@ -37,48 +148,118 @@ public:
 
   struct Data
   {
-    rxcpp::schedulers::worker worker;
-    std::function<void()> finished;
+    std::weak_ptr<RobotContext> w_context;
+    TriggerOnce finished;
     std::shared_ptr<rmf_task::events::SimpleEventState> state;
     std::optional<rmf_traffic::Duration> remaining_time;
     bool request_replan;
-    std::optional<std::shared_ptr<RobotUpdateHandle>> handle;
     bool okay;
-    // TODO: Consider adding a mutex to lock read/write
+    std::optional<ScheduleOverride> schedule_override;
+
+    void update_location(
+      const std::string& map,
+      Eigen::Vector3d location)
+    {
+      const auto context = w_context.lock();
+      if (!context)
+        return;
+
+      const auto nav_params = context->nav_params();
+      if (nav_params)
+      {
+        if (const auto p = nav_params->to_rmf_coordinates(map, location))
+        {
+          location = *p;
+        }
+        else
+        {
+          RCLCPP_ERROR(
+            context->node()->get_logger(),
+            "[EasyFullControl] Unable to find a robot transform for map [%s] "
+            "while updating the location of robot [%s] performing an activity. "
+            "We cannot update the robot's location.",
+            map.c_str(),
+            context->requester_id().c_str());
+          return;
+        }
+      }
+
+      if (schedule_override.has_value())
+      {
+        return schedule_override->overridden_update(
+          context, map, location);
+      }
+
+      if (nav_params)
+      {
+        const auto& planner = context->planner();
+        if (!planner)
+          return;
+
+        const auto now = context->now();
+        const auto& graph = planner->get_configuration().graph();
+        auto starts = nav_params->compute_plan_starts(
+          graph, map, location, now);
+        if (!starts.empty())
+        {
+          context->set_location(starts);
+        }
+        else
+        {
+          context->set_lost(Location { now, map, location });
+        }
+      }
+    }
 
     Data(
-      rxcpp::schedulers::worker worker_,
+      const std::shared_ptr<RobotContext>& context_,
       std::function<void()> finished_,
       std::shared_ptr<rmf_task::events::SimpleEventState> state_,
-      std::optional<rmf_traffic::Duration> remaining_time_ = std::nullopt,
-      std::optional<std::shared_ptr<RobotUpdateHandle>> handle_ = std::nullopt)
+      std::optional<rmf_traffic::Duration> remaining_time_ = std::nullopt)
+    : w_context(context_),
+      finished(std::move(finished_)),
+      state(std::move(state_)),
+      remaining_time(remaining_time_),
+      request_replan(false),
+      okay(true)
     {
-      worker = std::move(worker_);
-      finished = std::move(finished_);
-      state = std::move(state_);
-      remaining_time = remaining_time_;
-      request_replan = false;
-      handle = handle_;
-      okay = true;
+      // Do nothing
     }
 
     ~Data()
     {
-      if (finished)
-        finished();
+      if (const auto context = w_context.lock())
+      {
+        context->worker().schedule(
+          [finished = std::move(this->finished)](const auto&)
+          {
+            finished.trigger();
+          });
+      }
     }
   };
 
   static ActionExecution make(std::shared_ptr<Data> data)
   {
+    auto update_fn = [data](
+      const std::string& map,
+      Eigen::Vector3d location)
+      {
+        data->update_location(map, location);
+      };
+
     ActionExecution execution;
     execution._pimpl = rmf_utils::make_impl<Implementation>(
-      Implementation{std::move(data)});
+      Implementation{
+        std::move(data),
+        ActivityIdentifier::Implementation::make(update_fn)
+      });
 
     return execution;
   }
 
   std::shared_ptr<Data> data;
+  std::shared_ptr<const ActivityIdentifier> identifier;
 };
 
 //==============================================================================
@@ -130,6 +311,22 @@ public:
   std::shared_ptr<RobotContext> get_context();
 
   std::shared_ptr<const RobotContext> get_context() const;
+};
+
+//==============================================================================
+class RobotUpdateHandle::Unstable::Stubbornness::Implementation
+{
+public:
+  std::shared_ptr<void> stubbornness;
+
+  static Stubbornness make(std::shared_ptr<void> stubbornness)
+  {
+    Stubbornness output;
+    output._pimpl = rmf_utils::make_impl<Implementation>(
+      Implementation{stubbornness});
+
+    return output;
+  }
 };
 
 } // namespace agv

@@ -539,6 +539,16 @@ public:
     return handle;
   }
 
+  static Implementation& get(FleetUpdateHandle& handle)
+  {
+    return *handle._pimpl;
+  }
+
+  static const Implementation& get(const FleetUpdateHandle& handle)
+  {
+    return *handle._pimpl;
+  }
+
   void publish_nav_graph() const;
 
   void dock_summary_cb(const DockSummary::SharedPtr& msg);
@@ -571,16 +581,6 @@ public:
   /// Helper function to check if assignments are valid. An assignment set is
   /// invalid if one of the assignments has already begun execution.
   bool is_valid_assignments(Assignments& assignments) const;
-
-  static Implementation& get(FleetUpdateHandle& fleet)
-  {
-    return *fleet._pimpl;
-  }
-
-  static const Implementation& get(const FleetUpdateHandle& fleet)
-  {
-    return *fleet._pimpl;
-  }
 
   void publish_fleet_state_topic() const;
 

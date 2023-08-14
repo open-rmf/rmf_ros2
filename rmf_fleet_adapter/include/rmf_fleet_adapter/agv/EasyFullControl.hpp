@@ -57,350 +57,65 @@ public:
   using Graph = rmf_traffic::agv::Graph;
   using VehicleTraits = rmf_traffic::agv::VehicleTraits;
   using ActionExecutor = RobotUpdateHandle::ActionExecutor;
+  using ActivityIdentifier = RobotUpdateHandle::ActivityIdentifier;
+  using ActivityIdentifierPtr = RobotUpdateHandle::ActivityIdentifierPtr;
+  using ConstActivityIdentifierPtr =
+    RobotUpdateHandle::ConstActivityIdentifierPtr;
+  using Stubbornness = RobotUpdateHandle::Unstable::Stubbornness;
   using ConsiderRequest = FleetUpdateHandle::ConsiderRequest;
 
-  /// The Configuration class contains parameters necessary to initialize an
-  /// EasyFullControl instance and add fleets to the adapter.
-  class Configuration
-  {
-  public:
+  // Nested class declarations
+  class EasyRobotUpdateHandle;
+  class RobotState;
+  class RobotConfiguration;
+  class RobotCallbacks;
+  class Destination;
+  class FleetConfiguration;
+  class CommandExecution;
 
-    /// Constructor
-    ///
-    /// \param[in] fleet_name
-    ///   The name of the fleet that is being added.
-    ///
-    /// \param[in] traits
-    ///   Specify the approximate traits of the vehicles in this fleet.
-    ///
-    /// \param[in] navigation_graph
-    ///   Specify the navigation graph used by the vehicles in this fleet.
-    ///
-    /// \param[in] battery_system
-    ///   Specify the battery system used by the vehicles in this fleet.
-    ///
-    /// \param[in] motion_sink
-    ///   Specify the motion sink that describes the vehicles in this fleet.
-    ///
-    /// \param[in] ambient_sink
-    ///   Specify the device sink for ambient sensors used by the vehicles in this fleet.
-    ///
-    /// \param[in] tool_sink
-    ///   Specify the device sink for special tools used by the vehicles in this fleet.
-    ///
-    /// \param[in] recharge_threshold
-    ///   The threshold for state of charge below which robots in this fleet
-    ///   will cease to operate and require recharging. A value between 0.0 and
-    ///   1.0 should be specified.
-    ///
-    /// \param[in] recharge_soc
-    ///   The state of charge to which robots in this fleet should be charged up
-    ///   to by automatic recharging tasks. A value between 0.0 and 1.0 should be
-    ///   specified.
-    ///
-    /// \param[in] account_for_battery_drain
-    ///   Specify whether battery drain is to be considered while allocating tasks.
-    ///   If false, battery drain will not be considered when planning for tasks.
-    ///   As a consequence, charging tasks will not be automatically assigned to
-    ///   vehicles in this fleet when battery levels fall below the
-    ///   recharge_threshold.
-    ///
-    /// \param[in] task_categories
-    ///   Provide callbacks for considering tasks belonging to each category.
-    ///
-    /// \param[in] action_categories
-    ///   List of actions that this fleet can perform. Each item represents a
-    ///   category in the PerformAction description.
-    ///
-    /// \param[in] finishing_request
-    ///   A factory for a request that should be performed by each robot in this
-    ///   fleet at the end of its assignments.
-    ///
-    /// \param[in] server_uri
-    ///   The URI for the websocket server that receives updates on tasks and
-    ///   states. If nullopt, data will not be published.
-    ///
-    /// \param[in] max_delay
-    ///   Specify the default value for how high the delay of the current itinerary
-    ///   can become before it gets interrupted and replanned.
-    ///
-    /// \param[in] update_interval
-    ///   The duration between positional state updates that are sent to
-    ///   the fleet adapter.
-    Configuration(
-      const std::string& fleet_name,
-      rmf_traffic::agv::VehicleTraits traits,
-      rmf_traffic::agv::Graph graph,
-      std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
-      std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
-      std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
-      std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
-      double recharge_threshold,
-      double recharge_soc,
-      bool account_for_battery_drain,
-      std::unordered_map<std::string, ConsiderRequest> task_consideration,
-      std::unordered_map<std::string, ConsiderRequest> action_consideration,
-      rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
-      std::optional<std::string> server_uri = std::nullopt,
-      rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
-      rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(
-        0.5)
-    );
-
-    /// Create a Configuration object using a set of configuration parameters
-    /// imported from YAML files that follow the defined schema. This is an
-    /// alternative to constructing the Configuration using the RMF objects if
-    /// users do not require specific tool systems for their fleets. The
-    /// Configuration object will be instantiated with instances of
-    /// SimpleMotionPowerSink and SimpleDevicePowerSink.
-    ///
-    /// \param[in] config_file
-    ///   The path to a configuration YAML file containing data about the fleet's
-    ///   vehicle traits and task capabilities. This file needs to follow the pre-defined
-    ///   config.yaml structure to successfully load the parameters into the Configuration
-    ///   object.
-    ///
-    /// \param[in] nav_graph_path
-    ///   The path to a navigation path file that includes map information necessary
-    ///   to create a rmf_traffic::agv::Graph object
-    ///
-    /// \param[in] server_uri
-    ///   The URI for the websocket server that receives updates on tasks and
-    ///   states. If nullopt, data will not be published.
-    ///
-    /// \return A Configuration object with the essential config parameters loaded.
-    static std::shared_ptr<Configuration> make_simple(
-      const std::string& config_file,
-      const std::string& nav_graph_path,
-      std::optional<std::string> server_uri = std::nullopt);
-
-    /// Get the fleet name.
-    const std::string& fleet_name() const;
-
-    /// Get the fleet vehicle traits.
-    const VehicleTraits& vehicle_traits() const;
-
-    /// Get the fleet navigation graph.
-    const Graph& graph() const;
-
-    /// Get the battery system.
-    std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system() const;
-
-    /// Get the motion sink.
-    std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink() const;
-
-    /// Get the ambient sink.
-    std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink() const;
-
-    /// Get the tool sink.
-    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink() const;
-
-    /// Get the recharge threshold.
-    double recharge_threshold() const;
-
-    /// Get the recharge soc.
-    double recharge_soc() const;
-
-    /// Get whether or not to account for battery drain during task planning.
-    bool account_for_battery_drain() const;
-
-    /// Get the task categories
-    const std::unordered_map<std::string,
-      ConsiderRequest>& task_consideration() const;
-
-    /// Get the action categories
-    const std::unordered_map<std::string,
-      ConsiderRequest>& action_consideration() const;
-
-    /// Get the finishing request.
-    rmf_task::ConstRequestFactoryPtr finishing_request() const;
-
-    /// Get the server uri.
-    std::optional<std::string> server_uri() const;
-
-    /// Get the max delay.
-    rmf_traffic::Duration max_delay() const;
-
-    /// Get the update interval.
-    rmf_traffic::Duration update_interval() const;
-
-    class Implementation;
-  private:
-    rmf_utils::impl_ptr<Implementation> _pimpl;
-  };
-
-  /// The RobotState class encapsulates information about a robot in this fleet.
-  class RobotState
-  {
-  public:
-
-    /// Constructor
-    ///
-    /// \param[in] name
-    ///   The name of this robot.
-    ///
-    /// \param[in] charger_name
-    ///   The name of the charger waypoint of this robot.
-    ///
-    /// \param[in] map_name
-    ///   The name of the map this robot is currenly on.
-    ///
-    /// \param[in] location
-    ///   The XY position and orientation of this robot on current map.
-    ///
-    /// \param[in] battery_soc
-    ///   The state of charge of the battery of this robot.
-    ///   This should be a value between 0.0 and 1.0.
-    ///
-    /// \param[in] action
-    ///   The state of action of this robot. True if robot is
-    ///   performing an action.
-    RobotState(
-      const std::string& name,
-      const std::string& charger_name,
-      const std::string& map_name,
-      Eigen::Vector3d location,
-      double battery_soc,
-      bool action);
-
-    /// Get the name.
-    const std::string& name() const;
-
-    /// Get the charger name.
-    const std::string& charger_name() const;
-
-    /// Get the map name.
-    const std::string& map_name() const;
-
-    /// Get the location.
-    const Eigen::Vector3d& location() const;
-
-    /// Get the battery_soc.
-    double battery_soc() const;
-
-    /// Get the action status.
-    bool action() const;
-
-    class Implementation;
-
-  private:
-    rmf_utils::impl_ptr<Implementation> _pimpl;
-  };
-
-  /// Signature for a callback that returns the current RobotState of the robot.
-  ///
-  /// \return RobotState
-  using GetStateCallback = std::function<RobotState(void)>;
-
-  /// Signature for a function to request the robot to navigate to a location.
-  ///
-  /// \param[in] map_name
-  ///   The name of the map where the location exists.
-  ///
-  /// \param[in] location
-  ///   The XY position and orientation of the location.
+  /// Signature for a function that handles navigation requests. The request
+  /// will specify an (x, y) location and yaw on a map.
   ///
   /// \param[in] execution
-  ///   The action execution may be used to update navigation request items
-  ///   as well as to obtain the robot handle for the robot to submit any
-  ///   issue tickets regarding challenges with reaching the location.
+  ///   The command execution progress updater. Use this to keep the fleet
+  ///   adapter updated on the progress of the command.
   using NavigationRequest =
     std::function<void(
-        const std::string& map_name,
-        const Eigen::Vector3d location,
-        RobotUpdateHandle::ActionExecution execution)>;
+        Destination destination,
+        CommandExecution execution)>;
 
-  /// Signature for a function to request the robot to stop.
-  ///
-  /// \return true if the robot has come to a stop.
-  using StopRequest = std::function<bool(void)>;
-
-  /// Signature for a function to request the robot to dock at a location.
-  ///
-  /// \param[in] dock_name
-  ///   The name of the dock.
-  ///
-  /// \param[in] execution
-  ///   The action execution may be used to update docking request items
-  ///   as well as to obtain the robot handle for the robot to submit any
-  ///   issue tickets regarding challenges with reaching the location.
-  using DockRequest =
-    std::function<void(
-        const std::string& dock_name,
-        RobotUpdateHandle::ActionExecution execution)>;
-
-  /// Make an EasyFullControl adapter instance.
-  /// \param[in] config
-  ///   The Configuration for the adapter that contains parameters used by the
-  ///   fleet robots.
-  ///   If nullopt, the adapter will attempt to read all required parameters
-  ///   via its ROS 2 parameter server.
-  ///
-  /// \param[in] node_options
-  ///   The options that the rclcpp::Node will be constructed with.
-  ///
-  /// \param[in] discovery_timeout
-  ///   How long we will wait to discover the Schedule Node before giving up. If
-  ///   rmf_utils::nullopt is given, then this will try to use the
-  ///   discovery_timeout node parameter, or it will wait 1 minute if the
-  ///   discovery_timeout node parameter was not defined.
-  static std::shared_ptr<EasyFullControl> make(
-    std::optional<Configuration> config = std::nullopt,
-    const rclcpp::NodeOptions& options = rclcpp::NodeOptions(),
-    std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt);
-
-  /// Get the rclcpp::Node that this adapter will be using for communication.
-  std::shared_ptr<rclcpp::Node> node();
-
-  /// Get the FleetUpdateHandle that this adapter will be using.
-  /// This may be used to perform more specialized customizations using the
-  /// standard FleetUpdateHandle API.
-  std::shared_ptr<FleetUpdateHandle> fleet_handle();
-
-  /// Wait till the adapter is finished spinning.
-  EasyFullControl& wait();
-
-  /// Update the newly closed lanes for the robots to replan as necessary.
-  void newly_closed_lanes(
-    const std::unordered_set<std::size_t>& closed_lanes);
+  /// Signature for a function to handle stop requests.
+  using StopRequest = std::function<void(ConstActivityIdentifierPtr)>;
 
   /// Add a robot to the fleet once it is available.
   ///
-  /// \param[in] start_state
+  /// \param[in] name
+  ///   Name of the robot. This must be unique per fleet.
+  ///
+  /// \param[in] initial_state
   ///   The initial state of the robot when it is added to the fleet.
   ///
-  /// \param[in] get_state
-  ///   A function that returns the most recent state of the robot when called.
+  /// \param[in] configuration
+  ///   The configuration of the robot.
   ///
-  /// \param[in] navigate
-  ///   A function that can be used to request the robot to navigate to a location.
-  ///   The function returns a handle which can be used to track the progress of the navigation.
+  /// \param[in] callbacks
+  ///   The callbacks that will be used to issue commands for the robot.
   ///
-  /// \param[in] stop
-  ///   A function to stop the robot.
-  ///
-  /// \param[in] dock
-  ///   A function that can be used to request the robot to dock at a location.
-  ///   The function returns a handle which can be used to track the progress of the docking.
-  ///
-  /// \param[in] action_executor
-  ///   The ActionExecutor callback to request the robot to perform an action.
-  ///
-  /// \return false if the robot was not added to the fleet.
-  /// \note This will internally call Planner::compute_plan_starts() using the
-  ///    provieded start_state determine the StartSet of the robot. If you
-  ///    have a custom method to determine the StartSet of the robot, consider
-  ///    calling fleet_handle()->add_robot() instead.
-  bool add_robot(
-    RobotState start_state,
-    GetStateCallback get_state,
-    NavigationRequest navigate,
-    StopRequest stop,
-    DockRequest dock,
-    ActionExecutor action_executor);
+  /// \return an easy robot update handle on success. A nullptr if an error
+  /// occurred.
+  std::shared_ptr<EasyRobotUpdateHandle> add_robot(
+    std::string name,
+    RobotState initial_state,
+    RobotConfiguration configuration,
+    RobotCallbacks callbacks);
 
-  // TODO(YV): Add an overloaded API for add_robot() where users can pass in a
-  // RobotCommandHandle instead of all the callbacks.
+  /// Get the FleetUpdateHandle that this adapter will be using.
+  /// This may be used to perform more specialized customizations using the
+  /// base FleetUpdateHandle API.
+  std::shared_ptr<FleetUpdateHandle> more();
+
+  /// Immutable reference to the base FleetUpdateHandle API.
+  std::shared_ptr<const FleetUpdateHandle> more() const;
 
   class Implementation;
 private:
@@ -409,6 +124,629 @@ private:
 };
 
 using EasyFullControlPtr = std::shared_ptr<EasyFullControl>;
+
+/// Handle used to update information about one robot
+class EasyFullControl::EasyRobotUpdateHandle
+{
+public:
+  /// Recommended function for updating information about a robot in an
+  /// EasyFullControl fleet.
+  ///
+  /// \param[in] state
+  ///   The current state of the robot
+  ///
+  /// \param[in] current_action
+  ///   The action that the robot is currently executing
+  void update(
+    RobotState state,
+    ConstActivityIdentifierPtr current_activity);
+
+  /// Get the maximum allowed merge waypoint distance for this robot.
+  double max_merge_waypoint_distance() const;
+
+  /// Modify the maximum allowed merge distance between the robot and a waypoint.
+  ///
+  /// \param[in] max_merge_waypoint_distance
+  ///   The maximum merge waypoint distance for this robot.
+  void set_max_merge_waypoint_distance(double distance);
+
+  /// Get the maximum allowed merge lane distance for this robot.
+  double max_merge_lane_distance() const;
+
+  /// Modify the maximum allowed merge distance between the robot and a lane.
+  ///
+  /// \param[in] max_merge_lane_distance
+  ///   The maximum merge lane distance for this robot.
+  void set_max_merge_lane_distance(double distance);
+
+  /// Get the minimum lane length for this robot.
+  double min_lane_length() const;
+
+  /// Modify the minimum lane length for this robot.
+  ///
+  /// \param[in] min_lane_length
+  ///   The minimum length of a lane.
+  void set_min_lane_length(double length);
+
+  /// Get more options for updating the robot's state
+  std::shared_ptr<RobotUpdateHandle> more();
+
+  /// Immutable reference to the base robot update API
+  std::shared_ptr<const RobotUpdateHandle> more() const;
+
+  class Implementation;
+private:
+  EasyRobotUpdateHandle();
+  rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+};
+
+/// The current state of a robot, passed into EasyRobotUpdateHandle::update
+class EasyFullControl::RobotState
+{
+public:
+  /// Constructor
+  ///
+  /// \param[in] map_name
+  ///   The name of the map the robot is currently on
+  ///
+  /// \param[in] position
+  ///   The current position of the robot
+  ///
+  /// \param[in] battery_soc
+  ///   the current battery level of the robot, specified by its state of
+  ///   charge as a fraction of its total charge capacity, i.e. a value from 0.0
+  ///   to 1.0.
+  RobotState(
+    std::string map_name,
+    Eigen::Vector3d position,
+    double battery_soc);
+
+  /// Current map the robot is on
+  const std::string& map() const;
+
+  /// Set the current map the robot is on
+  void set_map(std::string value);
+
+  /// Current position of the robot
+  Eigen::Vector3d position() const;
+
+  /// Set the current position of the robot
+  void set_position(Eigen::Vector3d value);
+
+  /// Current state of charge of the battery, as a fraction from 0.0 to 1.0.
+  double battery_state_of_charge() const;
+
+  /// Set the state of charge of the battery, as a fraction from 0.0 to 1.0.
+  void set_battery_state_of_charge(double value);
+
+  class Implementation;
+private:
+  rmf_utils::impl_ptr<Implementation> _pimpl;
+};
+
+/// The configuration of a robot. These are parameters that typically do not
+/// change over time.
+class EasyFullControl::RobotConfiguration
+{
+public:
+
+  /// Constructor
+  ///
+  /// \param[in] compatible_chargers
+  ///   List of chargers that this robot is compatible with
+  ///
+  /// \param[in] responsive_wait
+  ///   Should this robot use the responsive wait behavior? true / false / fleet default.
+  ///
+  /// \warning This must contain a single string value until a later release of
+  /// RMF. We are using a vector for forward API compatibility. For now, make
+  /// sure each robot has only one unique compatible charger to avoid charging
+  /// conflicts.
+  RobotConfiguration(
+    std::vector<std::string> compatible_chargers,
+    std::optional<bool> responsive_wait = std::nullopt,
+    std::optional<double> max_merge_waypoint_distance = 1e-3,
+    std::optional<double> max_merge_lane_distance = 0.3,
+    std::optional<double> min_lane_length = 1e-8);
+
+  /// List of chargers that this robot is compatible with
+  const std::vector<std::string>& compatible_chargers() const;
+
+  /// Set the list of chargers compatible with this robot.
+  void set_compatible_chargers(std::vector<std::string> chargers);
+
+  /// Should this robot use the responsive wait behavior? Responsive wait means
+  /// that when the robot is idle on a point, it will report to the traffic
+  /// schedule that it is waiting on that point, and it will negotiate with
+  /// other robots to let them pass while ultimately remaining on the point.
+  ///
+  /// If std::nullopt is used, then the fleet-wide responsive wait behavior will
+  /// be used.
+  std::optional<bool> responsive_wait() const;
+
+  /// Toggle responsive wait on (true), off (false), or use fleet default
+  /// (std::nullopt).
+  void set_responsive_wait(std::optional<bool> enable);
+
+  /// Get the maximum merge distance between a robot and a waypoint. This refers
+  /// to the maximum distance allowed to consider a robot to be on a particular
+  /// waypoint.
+  ///
+  /// If std::nullopt is used, then the fleet-wide default merge waypoint
+  /// distance will be used.
+  std::optional<double> max_merge_waypoint_distance() const;
+
+  /// Set the maximum merge distance between a robot and a waypoint.
+  void set_max_merge_waypoint_distance(std::optional<double> distance);
+
+  /// Get the maximum merge distance between a robot and a lane. This refers
+  /// to the maximum distance allowed to consider a robot to be on a particular
+  /// lane.
+  ///
+  /// If std::nullopt is used, then the fleet-wide default merge lane
+  /// distance will be used.
+  std::optional<double> max_merge_lane_distance() const;
+
+  /// Set the maximum merge distance between a robot and a lane.
+  void set_max_merge_lane_distance(std::optional<double> distance);
+
+  /// Get the minimum lane length.
+  ///
+  /// If std::nullopt is used, then the fleet-wide default minimum lane length
+  /// will be used.
+  std::optional<double> min_lane_length() const;
+
+  /// Set the minimum lane length.
+  void set_min_lane_length(std::optional<double> distance);
+
+  class Implementation;
+private:
+  rmf_utils::impl_ptr<Implementation> _pimpl;
+};
+
+class EasyFullControl::RobotCallbacks
+{
+public:
+
+  /// Constructor
+  ///
+  /// \param[in] navigate
+  ///   A function that can be used to request the robot to navigate to a location.
+  ///   The function returns a handle which can be used to track the progress of the navigation.
+  ///
+  /// \param[in] stop
+  ///   A function to stop the robot.
+  ///
+  /// \param[in] action_executor
+  ///   The ActionExecutor callback to request the robot to perform an action.
+  RobotCallbacks(
+    NavigationRequest navigate,
+    StopRequest stop,
+    ActionExecutor action_executor);
+
+  /// Get the callback for navigation
+  NavigationRequest navigate() const;
+
+  /// Get the callback for stopping
+  StopRequest stop() const;
+
+  /// Get the action executor.
+  ActionExecutor action_executor() const;
+
+  class Implementation;
+private:
+  rmf_utils::impl_ptr<Implementation> _pimpl;
+};
+
+/// Used by system integrators to give feedback on the progress of executing a
+/// navigation or docking command.
+class EasyFullControl::CommandExecution
+{
+public:
+
+  /// Trigger this when the command is successfully finished. No other function
+  /// in this CommandExecution instance will be usable after this.
+  void finished();
+
+  /// Returns false if the command has been stopped.
+  bool okay() const;
+
+  /// Use this to override the traffic schedule for the agent while it performs
+  /// this command.
+  ///
+  /// If the given trajectory results in a traffic conflict then a negotiation
+  /// will be triggered. Hold onto the `Stubbornness` returned by this function
+  /// to ask other agents to plan around your trajectory, otherwise the
+  /// negotiation may result in a replan for this agent and a new command will
+  /// be issued.
+  ///
+  /// \note Using this will function always trigger a replan once the agent
+  /// finishes the command.
+  ///
+  /// \warning Too many overridden/stubborn agents can cause a deadlock. It's
+  ///   recommended to use this API sparingly and only over short distances or
+  ///   small deviations.
+  ///
+  /// \param[in] map
+  ///   Name of the map where the trajectory will take place
+  ///
+  /// \param[in] path
+  ///   The path of the agent
+  ///
+  /// \param[in] hold
+  ///   How long the agent will wait at the end of the path
+  ///
+  /// \return a Stubbornness handle that tells the fleet adapter to not let the
+  /// overridden path be negotiated. The returned handle will stop having an
+  /// effect after this command execution is finished.
+  Stubbornness override_schedule(
+    std::string map,
+    std::vector<Eigen::Vector3d> path,
+    rmf_traffic::Duration hold = rmf_traffic::Duration(0));
+
+  /// Activity handle for this command. Pass this into
+  /// EasyRobotUpdateHandle::update_position while executing this command.
+  ConstActivityIdentifierPtr identifier() const;
+
+  class Implementation;
+private:
+  CommandExecution();
+  rmf_utils::impl_ptr<Implementation> _pimpl;
+};
+
+class EasyFullControl::Destination
+{
+public:
+  /// The name of the map where the destination is located.
+  const std::string& map() const;
+
+  /// The (x, y, yaw) position of the destination.
+  Eigen::Vector3d position() const;
+
+  /// The (x, y) position of the destination.
+  Eigen::Vector2d xy() const;
+
+  /// The intended orientation of the robot at the destination, represented in
+  /// radians.
+  double yaw() const;
+
+  /// If the destination has an index in the navigation graph, you can get it
+  /// from this field.
+  std::optional<std::size_t> graph_index() const;
+
+  /// If there is a speed limit that should be respected while approaching the
+  /// destination, this will indicate it.
+  std::optional<double> speed_limit() const;
+
+  /// If the destination should be reached by performing a dock maneuver, this
+  /// will contain the name of the dock.
+  std::optional<std::string> dock() const;
+
+  class Implementation;
+private:
+  Destination();
+  rmf_utils::impl_ptr<Implementation> _pimpl;
+};
+
+/// The Configuration class contains parameters necessary to initialize an
+/// EasyFullControl fleet instance and add fleets to the adapter.
+class EasyFullControl::FleetConfiguration
+{
+public:
+
+  /// Constructor
+  ///
+  /// \param[in] fleet_name
+  ///   The name of the fleet that is being added.
+  ///
+  /// \param[in] transformations_to_robot_coordinates
+  ///   A dictionary of transformations from RMF canonical coordinates to the
+  ///   the coordinate system used by the robot. Each map should be assigned its
+  ///   own transformation. If this is not nullptr, then a warning will be
+  ///   logged whenever the dictionary is missing a transform for a map, and the
+  ///   canonical RMF coordinates will be used.
+  ///
+  /// \param[in] traits
+  ///   Specify the approximate traits of the vehicles in this fleet.
+  ///
+  /// \param[in] navigation_graph
+  ///   Specify the navigation graph used by the vehicles in this fleet.
+  ///
+  /// \param[in] battery_system
+  ///   Specify the battery system used by the vehicles in this fleet.
+  ///
+  /// \param[in] motion_sink
+  ///   Specify the motion sink that describes the vehicles in this fleet.
+  ///
+  /// \param[in] ambient_sink
+  ///   Specify the device sink for ambient sensors used by the vehicles in this fleet.
+  ///
+  /// \param[in] tool_sink
+  ///   Specify the device sink for special tools used by the vehicles in this fleet.
+  ///
+  /// \param[in] recharge_threshold
+  ///   The threshold for state of charge below which robots in this fleet
+  ///   will cease to operate and require recharging. A value between 0.0 and
+  ///   1.0 should be specified.
+  ///
+  /// \param[in] recharge_soc
+  ///   The state of charge to which robots in this fleet should be charged up
+  ///   to by automatic recharging tasks. A value between 0.0 and 1.0 should be
+  ///   specified.
+  ///
+  /// \param[in] account_for_battery_drain
+  ///   Specify whether battery drain is to be considered while allocating tasks.
+  ///   If false, battery drain will not be considered when planning for tasks.
+  ///   As a consequence, charging tasks will not be automatically assigned to
+  ///   vehicles in this fleet when battery levels fall below the
+  ///   recharge_threshold.
+  ///
+  /// \param[in] task_categories
+  ///   Provide callbacks for considering tasks belonging to each category.
+  ///
+  /// \param[in] action_categories
+  ///   List of actions that this fleet can perform. Each item represents a
+  ///   category in the PerformAction description.
+  ///
+  /// \param[in] finishing_request
+  ///   A factory for a request that should be performed by each robot in this
+  ///   fleet at the end of its assignments.
+  ///
+  /// \param[in] skip_rotation_commands
+  ///   If true, navigation requests which would only have the robot rotate in
+  ///   place will not be sent. Instead, navigation requests will always have
+  ///   the final orientation for the destination.
+  ///
+  /// \param[in] server_uri
+  ///   The URI for the websocket server that receives updates on tasks and
+  ///   states. If nullopt, data will not be published.
+  ///
+  /// \param[in] max_delay
+  ///   Specify the default value for how high the delay of the current itinerary
+  ///   can become before it gets interrupted and replanned.
+  ///
+  /// \param[in] update_interval
+  ///   The duration between positional state updates that are sent to
+  ///   the fleet adapter.
+  ///
+  /// \param[in] default_responsive_wait
+  ///   Should the robots in this fleet have responsive wait enabled (true) or
+  ///   disabled (false) by default?
+  ///
+  /// \param[in] default_max_merge_waypoint_distance
+  ///   The maximum merge distance between a robot position and a waypoint.
+  ///
+  /// \param[in] default_max_merge_lane_distance
+  ///   The maximum merge distance between a robot position and a lane.
+  ///
+  /// \param[in] default_min_lane_length
+  ///   The minimum length that a lane should have.
+  FleetConfiguration(
+    const std::string& fleet_name,
+    std::optional<std::unordered_map<std::string, Transformation>>
+    transformations_to_robot_coordinates,
+    std::unordered_map<std::string, RobotConfiguration>
+    known_robot_configurations,
+    std::shared_ptr<const rmf_traffic::agv::VehicleTraits> traits,
+    std::shared_ptr<const rmf_traffic::agv::Graph> graph,
+    rmf_battery::agv::ConstBatterySystemPtr battery_system,
+    rmf_battery::ConstMotionPowerSinkPtr motion_sink,
+    rmf_battery::ConstDevicePowerSinkPtr ambient_sink,
+    rmf_battery::ConstDevicePowerSinkPtr tool_sink,
+    double recharge_threshold,
+    double recharge_soc,
+    bool account_for_battery_drain,
+    std::unordered_map<std::string, ConsiderRequest> task_consideration,
+    std::unordered_map<std::string, ConsiderRequest> action_consideration,
+    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
+    bool skip_rotation_commands = true,
+    std::optional<std::string> server_uri = std::nullopt,
+    rmf_traffic::Duration max_delay = rmf_traffic::time::from_seconds(10.0),
+    rmf_traffic::Duration update_interval = rmf_traffic::time::from_seconds(
+      0.5),
+    bool default_responsive_wait = false,
+    double default_max_merge_waypoint_distance = 1e-3,
+    double default_max_merge_lane_distance = 0.3,
+    double min_lane_length = 1e-8
+  );
+
+  /// Create a FleetConfiguration object using a set of configuration parameters
+  /// imported from YAML files that follow the defined schema. This is an
+  /// alternative to constructing the FleetConfiguration using the RMF objects if
+  /// users do not require specific tool systems for their fleets. The
+  /// FleetConfiguration object will be instantiated with instances of
+  /// SimpleMotionPowerSink and SimpleDevicePowerSink.
+  ///
+  /// \param[in] config_file
+  ///   The path to a configuration YAML file containing data about the fleet's
+  ///   vehicle traits and task capabilities. This file needs to follow the pre-defined
+  ///   config.yaml structure to successfully load the parameters into the FleetConfiguration
+  ///   object.
+  ///
+  /// \param[in] nav_graph_path
+  ///   The path to a navigation path file that includes map information necessary
+  ///   to create a rmf_traffic::agv::Graph object
+  ///
+  /// \param[in] server_uri
+  ///   The URI for the websocket server that receives updates on tasks and
+  ///   states. If nullopt, data will not be published.
+  ///
+  /// \return A FleetConfiguration object with the essential config parameters loaded.
+  static std::optional<FleetConfiguration> from_config_files(
+    const std::string& config_file,
+    const std::string& nav_graph_path,
+    std::optional<std::string> server_uri = std::nullopt);
+
+  /// Get the fleet name.
+  const std::string& fleet_name() const;
+
+  /// Set the fleet name.
+  void set_fleet_name(std::string value);
+
+  /// Get the transformations into robot coordinates for this fleet.
+  const std::optional<std::unordered_map<std::string, Transformation>>&
+  transformations_to_robot_coordinates() const;
+
+  /// Set the transformation into robot coordinates for a map. This will replace
+  /// any transformation previously set for the map. If the transformation
+  /// dictionary was previously nullopt, this will initialize it with an empty
+  /// value before inserting this transformation.
+  void add_robot_coordinate_transformation(
+    std::string map,
+    Transformation transformation);
+
+  /// Get a dictionary of known robot configurations. The key is the name of the
+  /// robot belonging to this fleet. These configurations are usually parsed
+  /// from a fleet configuration file.
+  const std::unordered_map<std::string, RobotConfiguration>&
+  known_robot_configurations() const;
+
+  /// Get the names of all robots with known robot configurations.
+  std::vector<std::string> known_robots() const;
+
+  /// Provide a known configuration for a named robot.
+  ///
+  /// \param[in] robot_name
+  ///   The unique name of the robot.
+  ///
+  /// \param[in] configuration
+  ///   The configuration for the robot.
+  void add_known_robot_configuration(
+    std::string robot_name,
+    RobotConfiguration configuration);
+
+  /// Get a known configuration for a robot based on its name.
+  std::optional<RobotConfiguration> get_known_robot_configuration(
+    const std::string& robot_name) const;
+
+  /// Get the fleet vehicle traits.
+  const std::shared_ptr<const VehicleTraits>& vehicle_traits() const;
+
+  /// Set the vehicle traits.
+  void set_vehicle_traits(std::shared_ptr<const VehicleTraits> value);
+
+  /// Get the fleet navigation graph.
+  const std::shared_ptr<const Graph>& graph() const;
+
+  /// Set the fleet navigation graph.
+  void set_graph(std::shared_ptr<const Graph> value);
+
+  /// Get the battery system.
+  rmf_battery::agv::ConstBatterySystemPtr battery_system() const;
+
+  /// Set the battery system.
+  void set_battery_system(rmf_battery::agv::ConstBatterySystemPtr value);
+
+  /// Get the motion sink.
+  rmf_battery::ConstMotionPowerSinkPtr motion_sink() const;
+
+  /// Set the motion sink.
+  void set_motion_sink(rmf_battery::ConstMotionPowerSinkPtr value);
+
+  /// Get the ambient sink.
+  rmf_battery::ConstDevicePowerSinkPtr ambient_sink() const;
+
+  /// Set the ambient sink.
+  void set_ambient_sink(rmf_battery::ConstDevicePowerSinkPtr value);
+
+  /// Get the tool sink.
+  rmf_battery::ConstDevicePowerSinkPtr tool_sink() const;
+
+  /// Set the tool sink.
+  void set_tool_sink(rmf_battery::ConstDevicePowerSinkPtr value);
+
+  /// Get the recharge threshold.
+  double recharge_threshold() const;
+
+  /// Set the recharge threshold.
+  void set_recharge_threshold(double value);
+
+  /// Get the recharge state of charge. If the robot's state of charge dips
+  /// below this value then its next task will be to recharge.
+  double recharge_soc() const;
+
+  /// Set the recharge state of charge.
+  void set_recharge_soc(double value);
+
+  /// Get whether or not to account for battery drain during task planning.
+  bool account_for_battery_drain() const;
+
+  /// Set whether or not to account for battery drain during task planning.
+  void set_account_for_battery_drain(bool value);
+
+  /// Get the task categories
+  const std::unordered_map<std::string, ConsiderRequest>&
+  task_consideration() const;
+
+  /// Mutable access to the task consideration map.
+  std::unordered_map<std::string, ConsiderRequest>& task_consideration();
+
+  /// Get the action categories
+  const std::unordered_map<std::string, ConsiderRequest>&
+  action_consideration() const;
+
+  /// Mutable access to the action consideration map.
+  std::unordered_map<std::string, ConsiderRequest>& action_consideration();
+
+  /// Get the finishing request.
+  rmf_task::ConstRequestFactoryPtr finishing_request() const;
+
+  /// Set the finishing request.
+  void set_finishing_request(rmf_task::ConstRequestFactoryPtr value);
+
+  /// Check whether rotation commands will be skipped.
+  bool skip_rotation_commands() const;
+
+  /// Set whether rotation commands will be skipped.
+  void set_skip_rotation_commands(bool value);
+
+  /// Get the server uri.
+  std::optional<std::string> server_uri() const;
+
+  /// Set the server uri.
+  void set_server_uri(std::optional<std::string> value);
+
+  /// Get the max delay.
+  rmf_traffic::Duration max_delay() const;
+
+  /// Set the max delay.
+  void set_max_delay(rmf_traffic::Duration value);
+
+  /// Get the update interval.
+  rmf_traffic::Duration update_interval() const;
+
+  /// Set the update interval.
+  void set_update_interval(rmf_traffic::Duration value);
+
+  /// Should robots in this fleet have responsive wait enabled by default?
+  bool default_responsive_wait() const;
+
+  /// Set whether robots in this fleet should have responsive wait enabled by
+  /// default.
+  void set_default_responsive_wait(bool enable);
+
+  /// Get the maximum merge distance between a robot position and a waypoint.
+  double default_max_merge_waypoint_distance() const;
+
+  /// Set the maximum merge distance between a robot position and a waypoint.
+  void set_default_max_merge_waypoint_distance(double distance);
+
+  /// Get the maximum merge distance between a robot position and a lane.
+  double default_max_merge_lane_distance() const;
+
+  /// Set the maximum merge distance between a robot position and a lane.
+  void set_default_max_merge_lane_distance(double distance);
+
+  /// Get the minimum lane length allowed.
+  double default_min_lane_length() const;
+
+  /// Set the minimum lane length.
+  void set_default_min_lane_length(double distance);
+
+  class Implementation;
+private:
+  rmf_utils::impl_ptr<Implementation> _pimpl;
+};
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

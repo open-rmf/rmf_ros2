@@ -212,27 +212,7 @@ void WaitForTraffic::Active::_consider_going()
   bool all_dependencies_reached = true;
   for (const auto& dep : _dependencies)
   {
-    if (dep.deprecated())
-    {
-      const auto other =
-        _context->schedule()->snapshot()
-        ->get_participant(dep.dependency().on_participant);
-      if (!other)
-      {
-        _state->update_log().info(
-          "Replanning because a traffic dependency was dropped from the "
-          "schedule");
-      }
-      else
-      {
-        _state->update_log().info(
-          "Replanning because [robot:" + other->name() + "] changed its plan");
-      }
-
-      return _replan();
-    }
-
-    if (!dep.reached())
+    if (!dep.reached() && !dep.deprecated())
       all_dependencies_reached = false;
   }
 

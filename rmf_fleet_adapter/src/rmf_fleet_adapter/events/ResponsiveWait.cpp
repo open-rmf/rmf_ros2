@@ -242,6 +242,10 @@ auto ResponsiveWait::Active::interrupt(
 //==============================================================================
 void ResponsiveWait::Active::cancel()
 {
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Canceling responsive wait for [%s]",
+    _context->requester_id().c_str());
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
   _cancelled = true;
@@ -287,6 +291,11 @@ void ResponsiveWait::Active::_next_cycle()
     return;
   }
 
+  RCLCPP_DEBUG(
+    _context->node()->get_logger(),
+    "Beginning next responsive wait cycle for [%s] and waypoint %lu",
+    _context->requester_id().c_str(),
+    _description.waiting_point);
   _begin_movement();
 }
 

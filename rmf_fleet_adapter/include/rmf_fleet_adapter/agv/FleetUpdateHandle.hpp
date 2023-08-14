@@ -42,6 +42,8 @@ namespace agv {
 class FleetUpdateHandle : public std::enable_shared_from_this<FleetUpdateHandle>
 {
 public:
+  /// Get the name of the fleet that his handle is managing.
+  const std::string& fleet_name() const;
 
   /// Add a robot to this fleet adapter.
   ///
@@ -277,14 +279,14 @@ public:
   ///
   /// \return true if task planner parameters were successfully updated.
   bool set_task_planner_params(
-    std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
-    std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
-    std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
-    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+    rmf_battery::agv::ConstBatterySystemPtr battery_system,
+    rmf_battery::ConstMotionPowerSinkPtr motion_sink,
+    rmf_battery::ConstDevicePowerSinkPtr ambient_sink,
+    rmf_battery::ConstDevicePowerSinkPtr tool_sink,
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    rmf_task::ConstRequestFactoryPtr finishing_requst = nullptr);
+    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr);
 
   /// A callback function that evaluates whether a fleet will accept a task
   /// request
