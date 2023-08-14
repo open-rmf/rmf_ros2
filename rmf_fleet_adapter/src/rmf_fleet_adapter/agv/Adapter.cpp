@@ -360,10 +360,16 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     "Finished configuring Easy Full Control adapter for fleet [%s]",
     config.fleet_name().c_str());
 
+  std::shared_ptr<TransformDictionary> tf_dict;
+  if (config.transformations_to_robot_coordinates().has_value())
+  {
+    tf_dict = std::make_shared<TransformDictionary>(*config.transformations_to_robot_coordinates());
+  }
+
   return EasyFullControl::Implementation::make(
     fleet_handle,
     config.skip_rotation_commands(),
-    config.transformations_to_robot_coordinates(),
+    tf_dict,
     config.default_responsive_wait(),
     config.default_max_merge_waypoint_distance(),
     config.default_max_merge_lane_distance(),

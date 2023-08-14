@@ -794,7 +794,7 @@ public:
     const std::string& map,
     Eigen::Vector3d position) const
   {
-    if (!nav_params->transforms_to_robot_coords.has_value())
+    if (!nav_params->transforms_to_robot_coords)
     {
       return position;
     }

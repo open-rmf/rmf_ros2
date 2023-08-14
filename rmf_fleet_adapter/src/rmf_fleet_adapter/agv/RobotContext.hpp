@@ -55,7 +55,7 @@ using TransformDictionary = std::unordered_map<std::string, Transformation>;
 struct NavParams
 {
   bool skip_rotation_commands;
-  std::optional<TransformDictionary> transforms_to_robot_coords;
+  std::shared_ptr<TransformDictionary> transforms_to_robot_coords;
   double max_merge_waypoint_distance = 1e-3;
   double max_merge_lane_distance = 0.3;
   double min_lane_length = 1e-8;
@@ -67,7 +67,7 @@ struct NavParams
     const std::string& map,
     Eigen::Vector3d position)
   {
-    if (!transforms_to_robot_coords.has_value())
+    if (!transforms_to_robot_coords)
     {
       return position;
     }
