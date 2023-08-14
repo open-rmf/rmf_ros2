@@ -238,6 +238,15 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
       rmf_traffic::Time(std::chrono::milliseconds(t_it->get<int64_t>()));
   }
 
+  rmf_traffic::Time request_time = rmf_traffic_ros2::convert(
+    node->get_clock()->now());
+  const auto r_it = request_msg.find("unix_millis_request_time");
+  if (r_it != request_msg.end())
+  {
+    request_time =
+      rmf_traffic::Time(std::chrono::milliseconds(r_it->get<int64_t>()));
+  }
+
   // Note: make_low_priority() actually returns a nullptr.
   rmf_task::ConstPriorityPtr priority =
     rmf_task::BinaryPriorityScheme::make_low_priority();
@@ -279,11 +288,28 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
     }
   }
 
-  const auto new_request =
-    std::make_shared<rmf_task::Request>(
+  std::optional<std::string> requester = std::nullopt;
+  const auto i_it = request_msg.find("requester");
+  if (i_it != request_msg.end())
+  {
+    requester = i_it->get<std::string>();
+  }
+
+  rmf_task::Task::ConstBookingPtr booking = requester.has_value() ?
+    std::make_shared<const rmf_task::Task::Booking>(
     task_id,
     earliest_start_time,
     priority,
+    requester.value(),
+    request_time,
+    false) :
+    std::make_shared<const rmf_task::Task::Booking>(
+    task_id,
+    earliest_start_time,
+    priority,
+    false);
+  const auto new_request = std::make_shared<rmf_task::Request>(
+    std::move(booking),
     deserialized_task.description);
 
   return new_request;
@@ -2029,6 +2055,18 @@ FleetUpdateHandle& FleetUpdateHandle::set_update_listener(
 }
 
 //==============================================================================
+std::shared_ptr<rclcpp::Node> FleetUpdateHandle::node()
+{
+  return _pimpl->node;
+}
+
+//==============================================================================
+std::shared_ptr<const rclcpp::Node> FleetUpdateHandle::node() const
+{
+  return _pimpl->node;
+}
+
+//==============================================================================
 bool FleetUpdateHandle::set_task_planner_params(
   rmf_battery::agv::ConstBatterySystemPtr battery_system,
   rmf_battery::ConstMotionPowerSinkPtr motion_sink,
@@ -2077,7 +2115,7 @@ bool FleetUpdateHandle::set_task_planner_params(
         // automatic retreat. Hence, we also update them whenever the
         // task planner here is updated.
         self->_pimpl->task_planner = std::make_shared<rmf_task::TaskPlanner>(
-          std::move(task_config), std::move(options));
+          self->_pimpl->name, std::move(task_config), std::move(options));
 
         for (const auto& t : self->_pimpl->task_managers)
           t.first->task_planner(self->_pimpl->task_planner);
