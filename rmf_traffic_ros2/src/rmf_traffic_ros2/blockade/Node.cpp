@@ -270,7 +270,7 @@ std::shared_ptr<rclcpp::Node> make_node(
     {
       if (const auto n = w.lock())
       {
-        RCLCPP_INFO(n->get_logger(), msg.c_str());
+        RCLCPP_INFO(n->get_logger(), "%s", msg.c_str());
       }
     });
 
@@ -279,7 +279,7 @@ std::shared_ptr<rclcpp::Node> make_node(
     {
       if (const auto n = w.lock())
       {
-        RCLCPP_DEBUG(n->get_logger(), msg.c_str());
+        RCLCPP_DEBUG(n->get_logger(), "%s", msg.c_str());
       }
     });
 
