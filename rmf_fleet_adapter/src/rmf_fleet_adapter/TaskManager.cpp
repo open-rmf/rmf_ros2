@@ -235,15 +235,13 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::rewind_task_response,
     rmf_api_msgs::schemas::robot_task_request,
     rmf_api_msgs::schemas::dispatch_task_response,
-    rmf_api_msgs::schemas::task_state,
     rmf_api_msgs::schemas::error,
     rmf_api_msgs::schemas::robot_task_response,
     rmf_api_msgs::schemas::skip_phase_request,
     rmf_api_msgs::schemas::skip_phase_response,
     rmf_api_msgs::schemas::task_request,
     rmf_api_msgs::schemas::undo_skip_phase_request,
-    rmf_api_msgs::schemas::undo_skip_phase_response,
-    rmf_api_msgs::schemas::error
+    rmf_api_msgs::schemas::undo_skip_phase_response
   };
 
   for (const auto& schema : schemas)
@@ -421,6 +419,17 @@ void copy_booking_data(
   booking_json["id"] = booking.id();
   booking_json["unix_millis_earliest_start_time"] =
     to_millis(booking.earliest_start_time().time_since_epoch()).count();
+  const auto requester = booking.requester();
+  if (requester.has_value())
+  {
+    booking_json["requester"] = requester.value();
+  }
+  const auto request_time = booking.request_time();
+  if (request_time.has_value())
+  {
+    booking_json["unix_millis_request_time"] =
+      to_millis(request_time.value().time_since_epoch()).count();
+  }
   // TODO(MXG): Add priority and labels
 }
 
@@ -1576,7 +1585,11 @@ void TaskManager::retreat_to_charger()
   {
     // Add a new charging task to the task queue
     const auto charging_request = rmf_task::requests::ChargeBattery::make(
-      current_state.time().value());
+      current_state.time().value(),
+      _context->requester_id(),
+      rmf_traffic_ros2::convert(_context->node()->now()),
+      nullptr,
+      true);
     const auto model = charging_request->description()->make_model(
       current_state.time().value(),
       parameters);
