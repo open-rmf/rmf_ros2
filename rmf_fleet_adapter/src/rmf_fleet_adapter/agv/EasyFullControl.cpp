@@ -2029,8 +2029,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
     rmf_fleet["max_merge_lane_distance"];
   if (default_max_merge_lane_distance_yaml)
   {
-    default_max_merge_waypoint_distance =
-      default_max_merge_waypoint_distance_yaml.as<double>();
+    default_max_merge_lane_distance =
+      default_max_merge_lane_distance_yaml.as<double>();
   }
 
   double default_min_lane_length = 1e-8;
