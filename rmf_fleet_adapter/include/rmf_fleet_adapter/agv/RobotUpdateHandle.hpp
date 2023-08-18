@@ -444,7 +444,7 @@ public:
     /// Get the current Plan ID that this robot has sent to the traffic schedule
     rmf_traffic::PlanId current_plan_id() const;
 
-    using Stubbornness = Stubbornness;
+    using Stubbornness = RobotUpdateHandle::Stubbornness;
 
     /// Tell this robot to be a stubborn negotiator.
     Stubbornness be_stubborn();
