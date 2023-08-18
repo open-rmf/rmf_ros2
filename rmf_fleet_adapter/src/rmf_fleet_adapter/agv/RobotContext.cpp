@@ -75,9 +75,102 @@ std::function<rmf_traffic::Time()> RobotContext::clock() const
 }
 
 //==============================================================================
-const std::vector<rmf_traffic::agv::Plan::Start>& RobotContext::location() const
+const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
 {
   return _location;
+}
+
+//==============================================================================
+void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
+{
+  _location = std::move(location_);
+  filter_closed_lanes();
+  if (_location.empty())
+  {
+    set_lost(std::nullopt);
+    return;
+  }
+  else if (_lost)
+  {
+    nlohmann::json resolve;
+    resolve["robot"] = name();
+    resolve["group"] = group();
+    resolve["msg"] = "The robot [" + requester_id() + "] has found a "
+      "connection to the navigation graph.";
+    _lost->ticket->resolve(resolve);
+    _lost = std::nullopt;
+    // If the robot has switched from lost to found, we should go ahead and
+    // replan.
+    RCLCPP_INFO(
+      node()->get_logger(),
+      "Requesting a replan for [%s] because it has been found after being lost",
+      requester_id().c_str());
+    request_replan();
+  }
+
+  _most_recent_valid_location = _location;
+}
+
+//==============================================================================
+const std::optional<Lost>& RobotContext::lost() const
+{
+  return _lost;
+}
+
+//==============================================================================
+void RobotContext::set_lost(std::optional<Location> location)
+{
+  _location.clear();
+  if (!_lost.has_value())
+  {
+    nlohmann::json detail;
+    detail["robot"] = name();
+    detail["group"] = group();
+    detail["msg"] = "The robot [" + requester_id() + "] is too far from the "
+      "navigation graph and may need an operator to help bring it back.";
+
+    auto ticket = _reporting.create_issue(
+      rmf_task::Log::Tier::Error, "lost", detail);
+    _lost = Lost { location, std::move(ticket) };
+  }
+  else
+  {
+    _lost->location = location;
+  }
+}
+
+//==============================================================================
+void RobotContext::filter_closed_lanes()
+{
+  if (const auto planner = *_planner)
+  {
+    const auto& closures = planner->get_configuration().lane_closures();
+    for (std::size_t i = 0; i < _location.size(); )
+    {
+      if (_location[i].lane().has_value())
+      {
+        if (closures.is_closed(*_location[i].lane()))
+        {
+          if (_location.size() > 1)
+          {
+            _location.erase(_location.begin() + i);
+            continue;
+          }
+          else
+          {
+            RCLCPP_WARN(
+              node()->get_logger(),
+              "Robot [%s] is being forced to use closed lane [%lu] because it "
+              "has not been provided any other feasible lanes to use.",
+              requester_id().c_str(),
+              *_location[i].lane());
+            return;
+          }
+        }
+      }
+      ++i;
+    }
+  }
 }
 
 //==============================================================================
@@ -140,6 +233,18 @@ const std::shared_ptr<const rmf_traffic::agv::Planner>&
 RobotContext::planner() const
 {
   return *_planner;
+}
+
+//==============================================================================
+std::shared_ptr<NavParams> RobotContext::nav_params() const
+{
+  return _nav_params;
+}
+
+//==============================================================================
+void RobotContext::set_nav_params(std::shared_ptr<NavParams> value)
+{
+  _nav_params = std::move(value);
 }
 
 //==============================================================================
@@ -208,6 +313,20 @@ void RobotContext::request_replan()
 }
 
 //==============================================================================
+const rxcpp::observable<RobotContext::GraphChange>&
+RobotContext::observe_graph_change() const
+{
+  return _graph_change_obs;
+}
+
+//==============================================================================
+void RobotContext::notify_graph_change(GraphChange changes)
+{
+  filter_closed_lanes();
+  _graph_change_publisher.get_subscriber().on_next(std::move(changes));
+}
+
+//==============================================================================
 const std::shared_ptr<rmf_fleet_adapter::agv::Node>& RobotContext::node()
 {
   return _node;
@@ -270,9 +389,17 @@ std::function<rmf_task::State()> RobotContext::make_get_state()
 {
   return [self = shared_from_this()]()
     {
+      if (self->_most_recent_valid_location.empty())
+      {
+        throw std::runtime_error(
+                "Missing a _most_recent_valid_location for robot ["
+                + self->requester_id() + "]. This is an internal RMF error, "
+                "please report it to the RMF developers.");
+      }
+
       rmf_task::State state;
       state.load_basic(
-        self->_location.front(),
+        self->_most_recent_valid_location.front(),
         self->_charger_wp,
         self->_current_battery_soc);
 
@@ -306,6 +433,16 @@ double RobotContext::current_battery_soc() const
 //==============================================================================
 RobotContext& RobotContext::current_battery_soc(const double battery_soc)
 {
+  if (battery_soc < 0.0 || battery_soc > 1.0)
+  {
+    RCLCPP_ERROR(
+      _node->get_logger(),
+      "Invalid battery state of charge given for [%s]: %0.3f",
+      requester_id().c_str(),
+      battery_soc);
+    return *this;
+  }
+
   _current_battery_soc = battery_soc;
   _battery_soc_publisher.get_subscriber().on_next(battery_soc);
 
@@ -496,10 +633,12 @@ RobotContext::RobotContext(
   _task_planner(std::move(task_planner)),
   _reporting(_worker)
 {
+  _most_recent_valid_location = _location;
   _profile = std::make_shared<rmf_traffic::Profile>(
     _itinerary.description().profile());
 
   _replan_obs = _replan_publisher.get_observable();
+  _graph_change_obs = _graph_change_publisher.get_observable();
 
   _battery_soc_obs = _battery_soc_publisher.get_observable();
 
@@ -513,6 +652,12 @@ RobotContext::RobotContext(
 void RobotContext::_set_task_manager(std::shared_ptr<TaskManager> mgr)
 {
   _task_manager = std::move(mgr);
+}
+
+//==============================================================================
+void RobotContext::_set_negotiation_license(std::shared_ptr<void> license)
+{
+  _negotiation_license = std::move(license);
 }
 
 } // namespace agv

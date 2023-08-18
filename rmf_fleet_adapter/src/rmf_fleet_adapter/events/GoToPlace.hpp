@@ -139,6 +139,7 @@ public:
     rclcpp::TimerBase::SharedPtr _retry_timer;
 
     rmf_rxcpp::subscription_guard _replan_request_subscription;
+    rmf_rxcpp::subscription_guard _graph_change_subscription;
 
     bool _is_interrupted = false;
   };
