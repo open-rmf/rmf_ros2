@@ -75,7 +75,6 @@ private:
         const ResponderPtr&)> callback;
   };
 
-  rclcpp::Node* _node;
   rmf_traffic::schedule::Participant _participant;
   Negotiator* _negotiator;
   std::shared_ptr<void> _negotiator_handle;
