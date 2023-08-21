@@ -20,6 +20,7 @@
 
 #include "Node.hpp"
 #include "internal_FleetUpdateHandle.hpp"
+#include "internal_EasyFullControl.hpp"
 
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 #include <rmf_traffic_ros2/schedule/Negotiation.hpp>
@@ -201,6 +202,179 @@ std::shared_ptr<Adapter> Adapter::make(
   }
 
   return nullptr;
+}
+
+namespace {
+class DuplicateDockFinder : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+  DuplicateDockFinder()
+  {
+    // Do nothing
+  }
+
+  void execute(const DoorOpen&) override {}
+  void execute(const DoorClose&) override {}
+  void execute(const LiftSessionBegin&) override {}
+  void execute(const LiftDoorOpen&) override {}
+  void execute(const LiftSessionEnd&) override {}
+  void execute(const LiftMove&) override {}
+  void execute(const Wait&) override {}
+  void execute(const Dock& dock) override
+  {
+    if (!visited_docks.insert(dock.dock_name()).second)
+    {
+      duplicate_docks.insert(dock.dock_name());
+    }
+  }
+
+  std::unordered_set<std::string> visited_docks;
+  std::unordered_set<std::string> duplicate_docks;
+};
+} // anonymous namespace
+
+//==============================================================================
+std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
+  const EasyFullControl::FleetConfiguration& config)
+{
+  if (!config.graph())
+  {
+    RCLCPP_ERROR(
+      this->node()->get_logger(),
+      "Graph missing in the configuration for fleet [%s]. The fleet will not "
+      "be added.",
+      config.fleet_name().c_str());
+    return nullptr;
+  }
+
+  if (!config.vehicle_traits())
+  {
+    RCLCPP_ERROR(
+      this->node()->get_logger(),
+      "Vehicle traits missing in the configuration for fleet [%s]. The fleet "
+      "will not be added.",
+      config.fleet_name().c_str());
+    return nullptr;
+  }
+
+  DuplicateDockFinder finder;
+  for (std::size_t i = 0; i < config.graph()->num_lanes(); ++i)
+  {
+    const auto* entry = config.graph()->get_lane(i).entry().event();
+    if (entry)
+      entry->execute(finder);
+
+    const auto* exit = config.graph()->get_lane(i).entry().event();
+    if (exit)
+      exit->execute(finder);
+  }
+
+  if (!finder.duplicate_docks.empty())
+  {
+    RCLCPP_ERROR(
+      this->node()->get_logger(),
+      "Graph provided for fleet [%s] has %lu duplicate lanes:",
+      config.fleet_name().c_str(),
+      finder.duplicate_docks.size());
+
+    for (const auto& dock : finder.duplicate_docks)
+    {
+      RCLCPP_ERROR(
+        this->node()->get_logger(),
+        "- [%s]",
+        dock.c_str());
+    }
+
+    RCLCPP_ERROR(
+      this->node()->get_logger(),
+      "Each dock name on a graph must be unique, so we cannot add fleet [%s]",
+      config.fleet_name().c_str());
+    return nullptr;
+  }
+
+  auto fleet_handle = this->add_fleet(
+    config.fleet_name(),
+    *config.vehicle_traits(),
+    *config.graph(),
+    config.server_uri());
+
+  auto planner_params_ok = fleet_handle->set_task_planner_params(
+    config.battery_system(),
+    config.motion_sink(),
+    config.ambient_sink(),
+    config.tool_sink(),
+    config.recharge_threshold(),
+    config.recharge_soc(),
+    config.account_for_battery_drain(),
+    config.finishing_request());
+
+  if (!planner_params_ok)
+  {
+    RCLCPP_WARN(
+      this->node()->get_logger(),
+      "Failed to initialize task planner parameters for fleet [%s]. "
+      "It will not respond to bid requests for tasks",
+      config.fleet_name().c_str());
+  }
+
+  for (const auto& [task, consider] : config.task_consideration())
+  {
+    if (task == "delivery" && consider)
+    {
+      fleet_handle->consider_delivery_requests(consider, consider);
+      RCLCPP_INFO(
+        this->node()->get_logger(),
+        "Fleet [%s] is configured to perform delivery tasks",
+        config.fleet_name().c_str());
+    }
+
+    if (task == "patrol" && consider)
+    {
+      fleet_handle->consider_patrol_requests(consider);
+      RCLCPP_INFO(
+        this->node()->get_logger(),
+        "Fleet [%s] is configured to perform patrol tasks",
+        config.fleet_name().c_str());
+    }
+
+    if (task == "clean" && consider)
+    {
+      fleet_handle->consider_cleaning_requests(consider);
+      RCLCPP_INFO(
+        this->node()->get_logger(),
+        "Fleet [%s] is configured to perform cleaning tasks",
+        config.fleet_name().c_str());
+    }
+  }
+
+  for (const auto& [action, consider] : config.action_consideration())
+  {
+    fleet_handle->add_performable_action(action, consider);
+  }
+
+  fleet_handle->default_maximum_delay(config.max_delay());
+  fleet_handle->fleet_state_topic_publish_period(config.update_interval());
+
+  RCLCPP_INFO(
+    this->node()->get_logger(),
+    "Finished configuring Easy Full Control adapter for fleet [%s]",
+    config.fleet_name().c_str());
+
+  std::shared_ptr<TransformDictionary> tf_dict;
+  if (config.transformations_to_robot_coordinates().has_value())
+  {
+    tf_dict = std::make_shared<TransformDictionary>(
+      *config.transformations_to_robot_coordinates());
+  }
+
+  return EasyFullControl::Implementation::make(
+    fleet_handle,
+    config.skip_rotation_commands(),
+    tf_dict,
+    config.default_responsive_wait(),
+    config.default_max_merge_waypoint_distance(),
+    config.default_max_merge_lane_distance(),
+    config.default_min_lane_length());
 }
 
 //==============================================================================

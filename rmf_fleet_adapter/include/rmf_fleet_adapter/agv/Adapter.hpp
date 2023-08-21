@@ -19,6 +19,7 @@
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/EasyTrafficLight.hpp>
+#include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
 
 #include <rmf_traffic/agv/VehicleTraits.hpp>
 #include <rmf_traffic/agv/Graph.hpp>
@@ -76,6 +77,15 @@ public:
     const std::string& node_name,
     const rclcpp::NodeOptions& node_options = rclcpp::NodeOptions(),
     std::optional<rmf_traffic::Duration> discovery_timeout = std::nullopt);
+
+  /// Add an Easy Full Control fleet to be adapted.
+  ///
+  /// \param[in] config
+  ///   Configuration for the new Easy Full Control fleet.
+  ///
+  /// \return The handle for adding new robots to the fleet.
+  std::shared_ptr<EasyFullControl> add_easy_fleet(
+    const EasyFullControl::FleetConfiguration& config);
 
   /// Add a fleet to be adapted.
   ///
