@@ -254,13 +254,20 @@ install(
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
+# Install executables
 install(
   TARGETS
-    rmf_traffic_ros2
     rmf_traffic_schedule
     rmf_traffic_schedule_monitor
     rmf_traffic_blockade
     update_participant
+  RUNTIME DESTINATION lib/rmf_traffic_ros2
+)
+
+# Install and export shared library
+install(
+  TARGETS
+    rmf_traffic_ros2
   EXPORT rmf_traffic_ros2
   RUNTIME DESTINATION lib/rmf_traffic_ros2
   LIBRARY DESTINATION lib
