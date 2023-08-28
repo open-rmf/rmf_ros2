@@ -2,8 +2,8 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.3.2 (2023-08-28)
+------------------
 * Improve linking time (`#297 <https://github.com/open-rmf/rmf_ros2/pull/297>`_)
 * EasyFullControl API (`#235 <https://github.com/open-rmf/rmf_ros2/pull/235>`_)
 * Remove a few warnings related to RCLCPP logger (`#296 <https://github.com/open-rmf/rmf_ros2/pull/296>`_)

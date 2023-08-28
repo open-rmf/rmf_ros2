@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.3.2 (2023-08-28)
+------------------
 * EasyFullControl API (`#235 <https://github.com/open-rmf/rmf_ros2/pull/235>`_)
 * Contributors: Grey, Luca Della Vedova, Xiyu, Yadunund
 
