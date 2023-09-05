@@ -1017,6 +1017,25 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
 }
 
 //==============================================================================
+void FleetUpdateHandle::Implementation::handle_emergency(const bool is_emergency)
+{
+  if (is_emergency == emergency_active)
+    return;
+
+  emergency_active = is_emergency;
+  if (is_emergency)
+  {
+
+  }
+  else
+  {
+
+  }
+
+  emergency_publisher.get_subscriber().on_next(is_emergency);
+}
+
+//==============================================================================
 nlohmann::json_schema::json_validator
 FleetUpdateHandle::Implementation::make_validator(
   const nlohmann::json& schema) const

@@ -277,6 +277,11 @@ public:
   rclcpp::TimerBase::SharedPtr fleet_state_update_timer = nullptr;
   rclcpp::TimerBase::SharedPtr memory_trim_timer = nullptr;
 
+  rxcpp::subscription emergency_sub;
+  rxcpp::subjects::subject<bool> emergency_publisher;
+  rxcpp::observable<bool> emergency_obs;
+  bool emergency_active = false;
+
   // Map task id to pair of <RequestPtr, Assignments>
   using Assignments = rmf_task::TaskPlanner::Assignments;
 
@@ -333,6 +338,17 @@ public:
       Implementation{handle, std::forward<Args>(args)...});
 
     handle->_pimpl->add_standard_tasks();
+
+    handle->_pimpl->emergency_sub = handle->_pimpl->node->emergency_notice()
+      .observe_on(rxcpp::identity_same_worker(handle->_pimpl->worker))
+      .subscribe(
+      [w = handle->weak_from_this()](const auto& msg)
+      {
+        if (const auto self = w.lock())
+        {
+          self->_pimpl->handle_emergency(msg->data);
+        }
+      });
 
     // TODO(MXG): This is a very crude implementation. We create a dummy set of
     // task planner parameters to stand in until the user sets the task planner
@@ -590,6 +606,7 @@ public:
 
   void update_fleet_state() const;
   void update_fleet_logs() const;
+  void handle_emergency(bool is_emergency);
 
   nlohmann::json_schema::json_validator make_validator(
     const nlohmann::json& schema) const;

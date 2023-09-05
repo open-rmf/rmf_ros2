@@ -73,6 +73,10 @@ TaskManagerPtr TaskManager::make(
   std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
   std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 {
+  auto fleet = fleet_handle.lock();
+  if (!fleet)
+    return nullptr;
+
   auto mgr = TaskManagerPtr(
     new TaskManager(
       std::move(context),
@@ -115,7 +119,8 @@ TaskManagerPtr TaskManager::make(
         });
     };
 
-  mgr->_emergency_sub = mgr->_context->node()->emergency_notice()
+  mgr->_emergency_sub = agv::FleetUpdateHandle::Implementation::get(*fleet)
+    .emergency_obs
     .observe_on(rxcpp::identity_same_worker(mgr->_context->worker()))
     .subscribe(
     [w = mgr->weak_from_this(), begin_pullover](const auto& msg)
