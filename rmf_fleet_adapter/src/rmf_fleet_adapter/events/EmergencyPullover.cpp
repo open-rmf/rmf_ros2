@@ -243,7 +243,8 @@ void EmergencyPullover::Active::_find_plan()
   _state->update_log().info("Searching for an emergency pullover");
 
   _find_pullover_service = std::make_shared<services::FindEmergencyPullover>(
-    _context->planner(), _context->location(), _context->schedule()->snapshot(),
+    _context->emergency_planner(), _context->location(),
+    _context->schedule()->snapshot(),
     _context->itinerary().id(), _context->profile());
 
   _pullover_subscription =
@@ -371,7 +372,7 @@ Negotiator::NegotiatePtr EmergencyPullover::Active::_respond(
 
   const auto evaluator = Negotiator::make_evaluator(table_view);
   return services::Negotiate::emergency_pullover(
-    _context->itinerary().assign_plan_id(), _context->planner(),
+    _context->itinerary().assign_plan_id(), _context->emergency_planner(),
     _context->location(), table_view,
     responder, std::move(approval_cb), std::move(evaluator));
 }

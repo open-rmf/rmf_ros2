@@ -236,6 +236,13 @@ RobotContext::planner() const
 }
 
 //==============================================================================
+const std::shared_ptr<const rmf_traffic::agv::Planner>&
+RobotContext::emergency_planner() const
+{
+  return *_emergency_planner;
+}
+
+//==============================================================================
 std::shared_ptr<NavParams> RobotContext::nav_params() const
 {
   return _nav_params;
@@ -606,7 +613,8 @@ RobotContext::RobotContext(
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
   rmf_traffic::schedule::Participant itinerary,
   std::shared_ptr<const Mirror> schedule,
-  std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
+  SharedPlanner planner,
+  SharedPlanner emergency_planner,
   rmf_task::ConstActivatorPtr activator,
   rmf_task::ConstParametersPtr parameters,
   std::shared_ptr<rmf_fleet_adapter::agv::Node> node,
@@ -619,6 +627,7 @@ RobotContext::RobotContext(
   _itinerary(std::move(itinerary)),
   _schedule(std::move(schedule)),
   _planner(std::move(planner)),
+  _emergency_planner(std::move(emergency_planner)),
   _task_activator(std::move(activator)),
   _task_parameters(std::move(parameters)),
   _stubbornness(std::make_shared<int>(0)),

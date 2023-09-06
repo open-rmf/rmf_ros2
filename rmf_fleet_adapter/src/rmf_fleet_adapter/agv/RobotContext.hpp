@@ -50,6 +50,8 @@ class TaskManager;
 namespace agv {
 
 using TransformDictionary = std::unordered_map<std::string, Transformation>;
+using SharedPlanner = std::shared_ptr<
+  std::shared_ptr<const rmf_traffic::agv::Planner>>;
 
 //==============================================================================
 struct NavParams
@@ -201,8 +203,13 @@ public:
   /// Get the navigation graph used by this robot
   const rmf_traffic::agv::Graph& navigation_graph() const;
 
-  /// Get a mutable reference to the planner for this robot
+  /// Get an immutable reference to the planner for this robot
   const std::shared_ptr<const rmf_traffic::agv::Planner>& planner() const;
+
+  /// Get an immutable reference to the planner to use for this robot during
+  /// emergencies (fire alarm).
+  const std::shared_ptr<const rmf_traffic::agv::Planner>& emergency_planner()
+  const;
 
   /// Get the navigation params for this robot, if it has any. This will only be
   /// available for EasyFullControl robots.
@@ -365,7 +372,8 @@ public:
     std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
     rmf_traffic::schedule::Participant itinerary,
     std::shared_ptr<const Mirror> schedule,
-    std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner,
+    SharedPlanner planner,
+    SharedPlanner emergency_planner,
     rmf_task::ConstActivatorPtr activator,
     rmf_task::ConstParametersPtr parameters,
     std::shared_ptr<Node> node,
@@ -381,7 +389,8 @@ private:
   std::vector<rmf_traffic::agv::Plan::Start> _most_recent_valid_location;
   rmf_traffic::schedule::Participant _itinerary;
   std::shared_ptr<const Mirror> _schedule;
-  std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> _planner;
+  SharedPlanner _planner;
+  SharedPlanner _emergency_planner;
   std::shared_ptr<NavParams> _nav_params;
   rmf_task::ConstActivatorPtr _task_activator;
   rmf_task::ConstParametersPtr _task_parameters;

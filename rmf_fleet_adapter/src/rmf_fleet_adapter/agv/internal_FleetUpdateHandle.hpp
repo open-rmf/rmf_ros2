@@ -239,7 +239,7 @@ public:
 
   std::weak_ptr<FleetUpdateHandle> weak_self;
   std::string name;
-  std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner;
+  SharedPlanner planner;
   std::shared_ptr<Node> node;
   rxcpp::schedulers::worker worker;
   std::shared_ptr<ParticipantFactory> writer;
@@ -281,6 +281,10 @@ public:
   rxcpp::subjects::subject<bool> emergency_publisher;
   rxcpp::observable<bool> emergency_obs;
   bool emergency_active = false;
+  // When an emergency (fire alarm) is active, this map says which level each
+  // lift will "home" to (if any).
+  std::unordered_map<std::string, std::string> emergency_level_for_lift;
+  SharedPlanner emergency_planner;
 
   // Map task id to pair of <RequestPtr, Assignments>
   using Assignments = rmf_task::TaskPlanner::Assignments;
@@ -349,6 +353,8 @@ public:
           self->_pimpl->handle_emergency(msg->data);
         }
       });
+    handle->_pimpl->emergency_planner =
+      std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(nullptr);
 
     // TODO(MXG): This is a very crude implementation. We create a dummy set of
     // task planner parameters to stand in until the user sets the task planner
@@ -607,6 +613,7 @@ public:
   void update_fleet_state() const;
   void update_fleet_logs() const;
   void handle_emergency(bool is_emergency);
+  void update_emergency_planner();
 
   nlohmann::json_schema::json_validator make_validator(
     const nlohmann::json& schema) const;

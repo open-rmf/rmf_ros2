@@ -1025,14 +1025,96 @@ void FleetUpdateHandle::Implementation::handle_emergency(const bool is_emergency
   emergency_active = is_emergency;
   if (is_emergency)
   {
-
-  }
-  else
-  {
-
+    update_emergency_planner();
   }
 
   emergency_publisher.get_subscriber().on_next(is_emergency);
+}
+
+//==============================================================================
+namespace {
+class EmergencyLaneCloser : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+  void execute(const DoorOpen&) override {}
+  void execute(const DoorClose&) override {}
+  void execute(const LiftSessionEnd&) override {}
+  void execute(const LiftMove&) override {}
+  void execute(const Wait&) override {}
+  void execute(const Dock& dock) override {}
+  void execute(const LiftSessionBegin& info) override
+  {
+    lift = info.lift_name();
+    enter = true;
+  }
+  void execute(const LiftDoorOpen& info) override
+  {
+    lift = info.lift_name();
+    exit = true;
+  }
+
+  std::string lift;
+  bool enter = false;
+  bool exit = false;
+};
+} // anonymous namespace
+
+//==============================================================================
+std::vector<std::size_t> find_emergency_lift_closures(
+  const rmf_traffic::agv::Graph& graph,
+  const std::unordered_map<std::string, std::string>& emergency_level_for_lift)
+{
+  std::vector<std::size_t> closures;
+  for (std::size_t i = 0; i < graph.num_lanes(); ++i)
+  {
+    EmergencyLaneCloser executor;
+    const auto& lane = graph.get_lane(i);
+    lane.entry().event()->execute(executor);
+    lane.exit().event()->execute(executor);
+    if (executor.enter)
+    {
+      if (emergency_level_for_lift.count(executor.lift) > 0)
+      {
+        closures.push_back(i);
+      }
+    }
+    else if (executor.exit)
+    {
+      const auto l_it = emergency_level_for_lift.find(executor.lift);
+      if (l_it != emergency_level_for_lift.end())
+      {
+        const auto& map = graph.get_waypoint(
+          lane.exit().waypoint_index()).get_map_name();
+        if (l_it->second != map)
+        {
+          closures.push_back(i);
+        }
+      }
+    }
+  }
+
+  return closures;
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::update_emergency_planner()
+{
+  const auto& config = (*planner)->get_configuration();
+  const auto lift_closures = find_emergency_lift_closures(
+    config.graph(),
+    emergency_level_for_lift);
+  const auto& normal_closures = config.lane_closures();
+  auto emergency_closures = normal_closures;
+  for (const std::size_t lane : lift_closures)
+  {
+    emergency_closures.close(lane);
+  }
+
+  auto emergency_config = config;
+  emergency_config.lane_closures(std::move(emergency_closures));
+
+  *emergency_planner = std::make_shared<const rmf_traffic::agv::Planner>(
+    emergency_config, rmf_traffic::agv::Planner::Options(nullptr));
 }
 
 //==============================================================================
@@ -1382,6 +1464,7 @@ void FleetUpdateHandle::add_robot(
           std::move(participant),
           fleet->_pimpl->mirror,
           fleet->_pimpl->planner,
+          fleet->_pimpl->emergency_planner,
           fleet->_pimpl->activation.task,
           fleet->_pimpl->task_parameters,
           fleet->_pimpl->node,
@@ -1597,16 +1680,12 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
       if (!self)
         return;
 
-      const auto& current_lane_closures =
-      (*self->_pimpl->planner)->get_configuration().lane_closures();
-
       bool any_changes = false;
       for (const auto& lane : lane_indices)
       {
-        if (current_lane_closures.is_open(lane))
+        if (self->_pimpl->closed_lanes.insert(lane).second)
         {
           any_changes = true;
-          break;
         }
       }
 
@@ -1616,18 +1695,24 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
         return;
       }
 
+      const auto& current_lane_closures =
+      (*self->_pimpl->planner)->get_configuration().lane_closures();
+
       auto new_config = (*self->_pimpl->planner)->get_configuration();
       auto& new_lane_closures = new_config.lane_closures();
       for (const auto& lane : lane_indices)
       {
         new_lane_closures.close(lane);
-        // Bookkeeping
-        self->_pimpl->closed_lanes.insert(lane);
       }
 
       *self->_pimpl->planner =
       std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
+
+      if (self->_pimpl->emergency_active)
+      {
+        self->_pimpl->update_emergency_planner();
+      }
 
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
       self->_pimpl->publish_lane_states();
@@ -1650,16 +1735,17 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
       if (!self)
         return;
 
-      const auto& current_lane_closures =
-      (*self->_pimpl->planner)->get_configuration().lane_closures();
-
+      // Note that this approach to tracking whether to open a lane will make
+      // it impossible for an external user to open a lane which has been closed
+      // by the emergency_level_for_lift behavior. For now this is intentional,
+      // but in future implementations we may want to allow users to decide if
+      // that is desirable behavior.
       bool any_changes = false;
       for (const auto& lane : lane_indices)
       {
-        if (current_lane_closures.is_closed(lane))
+        if (self->_pimpl->closed_lanes.erase(lane) > 0)
         {
           any_changes = true;
-          break;
         }
       }
 
@@ -1669,18 +1755,24 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
         return;
       }
 
+      const auto& current_lane_closures =
+      (*self->_pimpl->planner)->get_configuration().lane_closures();
+
       auto new_config = (*self->_pimpl->planner)->get_configuration();
       auto& new_lane_closures = new_config.lane_closures();
       for (const auto& lane : lane_indices)
       {
         new_lane_closures.open(lane);
-        // Bookkeeping
-        self->_pimpl->closed_lanes.erase(lane);
       }
 
       *self->_pimpl->planner =
       std::make_shared<const rmf_traffic::agv::Planner>(
         new_config, rmf_traffic::agv::Planner::Options(nullptr));
+
+      if (self->_pimpl->emergency_active)
+      {
+        self->_pimpl->update_emergency_planner();
+      }
 
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
       self->_pimpl->publish_lane_states();
