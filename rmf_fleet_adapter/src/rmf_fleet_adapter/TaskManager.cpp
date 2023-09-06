@@ -123,15 +123,15 @@ TaskManagerPtr TaskManager::make(
     .emergency_obs
     .observe_on(rxcpp::identity_same_worker(mgr->_context->worker()))
     .subscribe(
-    [w = mgr->weak_from_this(), begin_pullover](const auto& msg)
+    [w = mgr->weak_from_this(), begin_pullover](const bool is_emergency)
     {
       if (auto mgr = w.lock())
       {
-        if (mgr->_emergency_active == msg->data)
+        if (mgr->_emergency_active == is_emergency)
           return;
 
-        mgr->_emergency_active = msg->data;
-        if (msg->data)
+        mgr->_emergency_active = is_emergency;
+        if (is_emergency)
         {
           if (mgr->_waiting)
           {
