@@ -1780,6 +1780,15 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
 }
 
 //==============================================================================
+void FleetUpdateHandle::set_lift_emergency_level(
+  std::string lift_name,
+  std::string emergency_level_name)
+{
+  _pimpl->emergency_level_for_lift[std::move(lift_name)] =
+    std::move(emergency_level_name);
+}
+
+//==============================================================================
 class FleetUpdateHandle::SpeedLimitRequest::Implementation
 {
 public:

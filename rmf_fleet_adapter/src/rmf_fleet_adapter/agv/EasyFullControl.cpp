@@ -1559,6 +1559,7 @@ public:
   double default_max_merge_waypoint_distance;
   double default_max_merge_lane_distance;
   double default_min_lane_length;
+  std::unordered_map<std::string, std::string> lift_emergency_levels;
 };
 
 //==============================================================================
@@ -1612,7 +1613,8 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         default_responsive_wait,
         std::move(default_max_merge_waypoint_distance),
         std::move(default_max_merge_lane_distance),
-        std::move(default_min_lane_length)
+        std::move(default_min_lane_length),
+        {}
       }))
 {
   // Do nothing
@@ -2126,7 +2128,31 @@ EasyFullControl::FleetConfiguration::from_config_files(
     }
   }
 
-  return FleetConfiguration(
+  std::unordered_map<std::string, std::string> lift_emergency_levels;
+  const YAML::Node& lift_emergency_levels_yaml =
+    rmf_fleet["lift_emergency_levels"];
+  if (lift_emergency_levels_yaml)
+  {
+    if (!lift_emergency_levels_yaml.IsMap())
+    {
+      std::cerr
+        << "[lift_emergency_levels] element is not a map in the config file ["
+        << config_file << "] so we cannot parse what level each lift will go "
+        << "to in an emergency." << std::endl;
+      return std::nullopt;
+    }
+    else
+    {
+      for (const auto& lift : lift_emergency_levels_yaml)
+      {
+        auto lift_name = lift.first.as<std::string>();
+        auto level_name = lift.second.as<std::string>();
+        lift_emergency_levels[std::move(lift_name)] = std::move(level_name);
+      }
+    }
+  }
+
+  auto config = FleetConfiguration(
     fleet_name,
     std::move(tf_dict),
     std::move(known_robot_configurations),
@@ -2150,6 +2176,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
     default_max_merge_waypoint_distance,
     default_max_merge_lane_distance,
     default_min_lane_length);
+  config.change_lift_emergency_levels() = lift_emergency_levels;
+  return config;
 }
 
 //==============================================================================
@@ -2493,6 +2521,29 @@ void EasyFullControl::FleetConfiguration::set_default_min_lane_length(
   double distance)
 {
   _pimpl->default_min_lane_length = distance;
+}
+
+//==============================================================================
+void EasyFullControl::FleetConfiguration::set_lift_emergency_level(
+  std::string lift_name,
+  std::string emergency_level_name)
+{
+  _pimpl->lift_emergency_levels[std::move(lift_name)] =
+    std::move(emergency_level_name);
+}
+
+//==============================================================================
+std::unordered_map<std::string, std::string>&
+EasyFullControl::FleetConfiguration::change_lift_emergency_levels()
+{
+  return _pimpl->lift_emergency_levels;
+}
+
+//==============================================================================
+const std::unordered_map<std::string, std::string>&
+EasyFullControl::FleetConfiguration::lift_emergency_levels() const
+{
+  return _pimpl->lift_emergency_levels;
 }
 
 //==============================================================================

@@ -743,6 +743,38 @@ public:
   /// Set the minimum lane length.
   void set_default_min_lane_length(double distance);
 
+  /// During a fire emergency, real-life lifts might be required to move to a
+  /// specific level and refuse to stop or go to any other level. This function
+  /// lets you provide this information to the fleet adapter so that it can
+  /// produce reasonable emergency pullover plans for robots that happen to be
+  /// inside of a lift when the fire alarm goes off.
+  ///
+  /// Internally, this will close all lanes that go into the specified lift and
+  /// close all lanes exiting this lift (except on the designated level) when a
+  /// fire emergency begins. Lifts that were not specified in a call to this
+  /// function will not behave any differently during a fire emergency.
+  ///
+  /// \param[in] lift_name
+  ///   The name of the lift whose behavior is being specified
+  ///
+  /// \param[in] emergency_level_name
+  ///   The level that lift will go to when a fire emergency is happening
+  void set_lift_emergency_level(
+    std::string lift_name,
+    std::string emergency_level_name);
+
+  /// Get mutable access to the level that each specified lift will go to during
+  /// a fire emergency.
+  ///
+  /// \sa set_lift_emergency_level
+  std::unordered_map<std::string, std::string>& change_lift_emergency_levels();
+
+  /// Get the level that each specified lift will go to during a fire emergency.
+  ///
+  /// \sa set_lift_emergency_level
+  const std::unordered_map<std::string, std::string>&
+  lift_emergency_levels() const;
+
   class Implementation;
 private:
   rmf_utils::impl_ptr<Implementation> _pimpl;

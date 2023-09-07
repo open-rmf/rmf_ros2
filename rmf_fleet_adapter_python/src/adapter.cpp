@@ -1031,7 +1031,13 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property(
     "default_min_lane_length",
     &agv::EasyFullControl::FleetConfiguration::default_min_lane_length,
-    &agv::EasyFullControl::FleetConfiguration::set_default_min_lane_length);
+    &agv::EasyFullControl::FleetConfiguration::set_default_min_lane_length)
+  .def_property_readonly(
+    "lift_emergency_lanes",
+    &agv::EasyFullControl::FleetConfiguration::lift_emergency_levels)
+  .def(
+    "set_lift_emergency_level",
+    &agv::EasyFullControl::FleetConfiguration::set_lift_emergency_level);
 
   // Transformation =============================================================
   py::class_<agv::Transformation>(m, "Transformation")
