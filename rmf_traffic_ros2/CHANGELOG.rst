@@ -2,6 +2,11 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Improve linking time (`#300 <https://github.com/open-rmf/rmf_ros2/pull/300>`_)
+* Contributors: Grey, Luca Della Vedova, Yadunund
+
 2.2.1 (2023-08-10)
 ------------------
 
