@@ -367,6 +367,11 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
       *config.transformations_to_robot_coordinates());
   }
 
+  for (const auto& [lift, level] : config.lift_emergency_levels())
+  {
+    fleet_handle->set_lift_emergency_level(lift, level);
+  }
+
   return EasyFullControl::Implementation::make(
     fleet_handle,
     config.skip_rotation_commands(),

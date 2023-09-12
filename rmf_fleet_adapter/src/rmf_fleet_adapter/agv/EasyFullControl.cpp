@@ -297,7 +297,7 @@ public:
       }
 
       const auto& graph = planner->get_configuration().graph();
-      const auto& closed_lanes = planner->get_configuration().lane_closures();
+      const rmf_traffic::agv::LaneClosure* closures = context->get_lane_closures();
       std::optional<std::pair<std::size_t, double>> on_waypoint;
       auto p = Eigen::Vector2d(location[0], location[1]);
       const double yaw = location[2];
@@ -350,7 +350,7 @@ public:
             return;
           }
 
-          if (closed_lanes.is_closed(lane_id))
+          if (closures && closures->is_closed(lane_id))
           {
             // Don't use a lane that's closed
             continue;
@@ -379,7 +379,7 @@ public:
             return;
           }
 
-          if (closed_lanes.is_closed(lane_id))
+          if (closures && closures->is_closed(lane_id))
           {
             continue;
           }
@@ -390,14 +390,24 @@ public:
           const auto p1 =
             graph.get_waypoint(lane.exit().waypoint_index()).get_location();
           const auto lane_length = (p1 - p0).norm();
-          const auto lane_u = (p1 - p0)/lane_length;
-          const auto proj = (p - p0).dot(lane_u);
-          if (proj < 0.0 || lane_length < proj)
+          double dist_to_lane = 0.0;
+          if (lane_length < nav_params->min_lane_length)
           {
-            continue;
+            dist_to_lane = std::min(
+              (p - p0).norm(),
+              (p - p1).norm());
+          }
+          else
+          {
+            const auto lane_u = (p1 - p0)/lane_length;
+            const auto proj = (p - p0).dot(lane_u);
+            if (proj < 0.0 || lane_length < proj)
+            {
+              continue;
+            }
+            dist_to_lane = (p - p0 - proj * lane_u).norm();
           }
 
-          const auto dist_to_lane = (p - p0 - proj * lane_u).norm();
           if (dist_to_lane <= nav_params->max_merge_lane_distance)
           {
             if (!on_lane.has_value() || dist_to_lane < on_lane->second)
@@ -422,10 +432,11 @@ public:
                 now, wp0, yaw, p, reverse_lane->index()));
           }
         }
-        else
-        {
-          starts = nav_params->compute_plan_starts(graph, map, location, now);
-        }
+      }
+
+      if (starts.empty())
+      {
+        starts = nav_params->compute_plan_starts(graph, map, location, now);
       }
 
       if (!starts.empty())

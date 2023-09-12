@@ -142,35 +142,43 @@ void RobotContext::set_lost(std::optional<Location> location)
 //==============================================================================
 void RobotContext::filter_closed_lanes()
 {
-  if (const auto planner = *_planner)
+  const rmf_traffic::agv::LaneClosure* closures = get_lane_closures();
+  if (closures)
   {
-    const auto& closures = planner->get_configuration().lane_closures();
     for (std::size_t i = 0; i < _location.size(); )
     {
       if (_location[i].lane().has_value())
       {
-        if (closures.is_closed(*_location[i].lane()))
+        if (closures->is_closed(*_location[i].lane()))
         {
-          if (_location.size() > 1)
-          {
-            _location.erase(_location.begin() + i);
-            continue;
-          }
-          else
-          {
-            RCLCPP_WARN(
-              node()->get_logger(),
-              "Robot [%s] is being forced to use closed lane [%lu] because it "
-              "has not been provided any other feasible lanes to use.",
-              requester_id().c_str(),
-              *_location[i].lane());
-            return;
-          }
+          _location.erase(_location.begin() + i);
+          continue;
         }
       }
       ++i;
     }
   }
+}
+
+//==============================================================================
+const rmf_traffic::agv::LaneClosure* RobotContext::get_lane_closures() const
+{
+  if (_emergency)
+  {
+    if (const auto planner = *_emergency_planner)
+    {
+      return &planner->get_configuration().lane_closures();
+    }
+  }
+  else
+  {
+    if (const auto planner = *_planner)
+    {
+      return &planner->get_configuration().lane_closures();
+    }
+  }
+
+  return nullptr;
 }
 
 //==============================================================================
@@ -667,6 +675,16 @@ void RobotContext::_set_task_manager(std::shared_ptr<TaskManager> mgr)
 void RobotContext::_set_negotiation_license(std::shared_ptr<void> license)
 {
   _negotiation_license = std::move(license);
+}
+
+//==============================================================================
+void RobotContext::_set_emergency(bool value)
+{
+  _emergency = value;
+  if (_emergency)
+  {
+    filter_closed_lanes();
+  }
 }
 
 } // namespace agv

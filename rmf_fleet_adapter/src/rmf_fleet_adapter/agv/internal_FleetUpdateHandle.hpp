@@ -343,6 +343,7 @@ public:
 
     handle->_pimpl->add_standard_tasks();
 
+    handle->_pimpl->emergency_obs = handle->_pimpl->emergency_publisher.get_observable();
     handle->_pimpl->emergency_sub = handle->_pimpl->node->emergency_notice()
       .observe_on(rxcpp::identity_same_worker(handle->_pimpl->worker))
       .subscribe(

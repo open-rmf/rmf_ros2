@@ -1028,6 +1028,10 @@ void FleetUpdateHandle::Implementation::handle_emergency(const bool is_emergency
     update_emergency_planner();
   }
 
+  for (const auto& [context, _] : task_managers)
+  {
+    context->_set_emergency(is_emergency);
+  }
   emergency_publisher.get_subscriber().on_next(is_emergency);
 }
 
@@ -1069,8 +1073,14 @@ std::vector<std::size_t> find_emergency_lift_closures(
   {
     EmergencyLaneCloser executor;
     const auto& lane = graph.get_lane(i);
-    lane.entry().event()->execute(executor);
-    lane.exit().event()->execute(executor);
+    if (const auto* event = lane.entry().event())
+      event->execute(executor);
+
+    if (const auto* event = lane.exit().event())
+      event->execute(executor);
+
+    const auto wp0 = lane.entry().waypoint_index();
+    const auto wp1 = lane.exit().waypoint_index();
     if (executor.enter)
     {
       if (emergency_level_for_lift.count(executor.lift) > 0)
@@ -1491,6 +1501,10 @@ void FleetUpdateHandle::add_robot(
           if (!node)
             return;
 
+          if (fleet->_pimpl->emergency_active)
+          {
+            context->_set_emergency(true);
+          }
 
           // TODO(MXG): We need to perform this test because we do not currently
           // support the distributed negotiation in unit test environments. We
@@ -1695,9 +1709,6 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
         return;
       }
 
-      const auto& current_lane_closures =
-      (*self->_pimpl->planner)->get_configuration().lane_closures();
-
       auto new_config = (*self->_pimpl->planner)->get_configuration();
       auto& new_lane_closures = new_config.lane_closures();
       for (const auto& lane : lane_indices)
@@ -1754,9 +1765,6 @@ void FleetUpdateHandle::open_lanes(std::vector<std::size_t> lane_indices)
         // No changes are needed to the planner
         return;
       }
-
-      const auto& current_lane_closures =
-      (*self->_pimpl->planner)->get_configuration().lane_closures();
 
       auto new_config = (*self->_pimpl->planner)->get_configuration();
       auto& new_lane_closures = new_config.lane_closures();

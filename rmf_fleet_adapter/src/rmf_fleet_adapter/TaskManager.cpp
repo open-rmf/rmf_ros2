@@ -73,7 +73,7 @@ TaskManagerPtr TaskManager::make(
   std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
   std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 {
-  auto fleet = fleet_handle.lock();
+  std::shared_ptr<agv::FleetUpdateHandle> fleet = fleet_handle.lock();
   if (!fleet)
     return nullptr;
 

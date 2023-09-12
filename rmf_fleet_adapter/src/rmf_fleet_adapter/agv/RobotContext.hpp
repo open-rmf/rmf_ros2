@@ -174,6 +174,9 @@ public:
   /// plan starts are using closed lanes.
   void filter_closed_lanes();
 
+  /// Get the current lane closures for the robot
+  const rmf_traffic::agv::LaneClosure* get_lane_closures() const;
+
   /// Get a mutable reference to the schedule of this robot
   rmf_traffic::schedule::Participant& itinerary();
 
@@ -367,6 +370,10 @@ public:
   /// the FleetUpdateHandle::add_robot function.
   void _set_negotiation_license(std::shared_ptr<void> license);
 
+  /// Use this to trigger emergencies on/off. This should only be called in the
+  /// FleetUpdateHandle::handle_emergency function.
+  void _set_emergency(bool value);
+
   RobotContext(
     std::shared_ptr<RobotCommandHandle> command_handle,
     std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
@@ -425,6 +432,7 @@ private:
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);
   bool _commissioned = true;
+  bool _emergency = false;
 
   // Mode value for RobotMode message
   uint32_t _current_mode;
