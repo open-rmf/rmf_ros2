@@ -920,6 +920,31 @@ void TaskManager::set_queue(
     {
       return;
     }
+
+    // Cancel pending automatic tasks that will be removed from the new
+    // assignments.
+    std::vector<std::string> new_automatic_task_ids;
+    const std::vector<std::string> cancellation_labels =
+      {"New task assignments received."};
+    for (const auto& a : assignments)
+    {
+      if (a.request()->booking()->automatic())
+      {
+        new_automatic_task_ids.push_back(a.request()->booking()->id());
+      }
+    }
+    for (const auto& a : _queue)
+    {
+      if (a.request()->booking()->automatic() &&
+        std::find(
+          new_automatic_task_ids.begin(),
+          new_automatic_task_ids.end(),
+          a.request()->booking()->id()) == new_automatic_task_ids.end())
+      {
+        _publish_canceled_pending_task(a, cancellation_labels);
+      }
+    }
+
     _queue = assignments;
     _publish_task_queue();
   }
