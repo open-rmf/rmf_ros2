@@ -925,7 +925,7 @@ void TaskManager::set_queue(
     // assignments.
     std::vector<std::string> new_automatic_task_ids;
     const std::vector<std::string> cancellation_labels =
-      {"New task assignments received."};
+    {"New task assignments received."};
     for (const auto& a : assignments)
     {
       if (a.request()->booking()->automatic())
