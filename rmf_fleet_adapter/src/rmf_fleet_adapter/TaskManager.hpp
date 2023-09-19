@@ -308,7 +308,7 @@ private:
   std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
   rmf_task::ConstActivatorPtr _task_activator;
   ActiveTask _active_task;
-  bool _responsive_wait_enabled = true;
+  bool _responsive_wait_enabled = false;
   bool _emergency_active = false;
   std::optional<std::string> _emergency_pullover_interrupt_token;
   ActiveTask _emergency_pullover;

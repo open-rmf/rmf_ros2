@@ -795,8 +795,24 @@ std::optional<rmf_fleet_msgs::msg::Location> convert_location(
 {
   if (context.location().empty())
   {
-    // TODO(MXG): We should emit some kind of critical error if this ever
-    // happens
+    const auto& lost = context.lost();
+    if (lost.has_value() && lost->location.has_value())
+    {
+      const auto& l = *lost->location;
+      return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::Location>()
+        .t(rmf_traffic_ros2::convert(l.time))
+        .x(l.position[0])
+        .y(l.position[1])
+        .yaw(l.position[2])
+        .obey_approach_speed_limit(false)
+        .approach_speed_limit(0.0)
+        .level_name(l.map)
+        .index(0);
+    }
+
+    // TODO(MXG): We should emit some kind of critical error if there is no
+    // location and also no lost information, because that means an issue ticket
+    // has not been created.
     return std::nullopt;
   }
 
@@ -900,15 +916,15 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
         context->now().time_since_epoch()).count();
       json["battery"] = context->current_battery_soc();
 
-      nlohmann::json& location = json["location"];
       const auto location_msg = convert_location(*context);
-      if (!location_msg.has_value())
-        continue;
-
-      location["map"] = location_msg->level_name;
-      location["x"] = location_msg->x;
-      location["y"] = location_msg->y;
-      location["yaw"] = location_msg->yaw;
+      if (location_msg.has_value())
+      {
+        nlohmann::json& location = json["location"];
+        location["map"] = location_msg->level_name;
+        location["x"] = location_msg->x;
+        location["y"] = location_msg->y;
+        location["yaw"] = location_msg->yaw;
+      }
 
       std::lock_guard<std::mutex> lock(context->reporting().mutex());
       const auto& issues = context->reporting().open_issues();
@@ -1282,6 +1298,12 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
 }
 
 //==============================================================================
+const std::string& FleetUpdateHandle::fleet_name() const
+{
+  return _pimpl->name;
+}
+
+//==============================================================================
 void FleetUpdateHandle::add_robot(
   std::shared_ptr<RobotCommandHandle> command,
   const std::string& name,
@@ -1377,7 +1399,7 @@ void FleetUpdateHandle::add_robot(
             using namespace std::chrono_literals;
             auto last_interrupt_time =
             std::make_shared<std::optional<rmf_traffic::Time>>(std::nullopt);
-            context->_negotiation_license =
+            auto negotiation_license =
             fleet->_pimpl->negotiation
             ->register_negotiator(
               context->itinerary().id(),
@@ -1412,9 +1434,14 @@ void FleetUpdateHandle::add_robot(
                   }
 
                   last_time = now;
+                  RCLCPP_INFO(
+                    c->node()->get_logger(),
+                    "Requesting replan for [%s] because it failed to negotiate",
+                    c->requester_id().c_str());
                   c->request_replan();
                 }
               });
+            context->_set_negotiation_license(std::move(negotiation_license));
           }
 
           RCLCPP_INFO(
@@ -1585,6 +1612,12 @@ void FleetUpdateHandle::close_lanes(std::vector<std::size_t> lane_indices)
 
       self->_pimpl->task_parameters->planner(*self->_pimpl->planner);
       self->_pimpl->publish_lane_states();
+
+      RobotContext::GraphChange changes{lane_indices};
+      for (auto& [ctx, _] : self->_pimpl->task_managers)
+      {
+        ctx->notify_graph_change(changes);
+      }
     });
 }
 
@@ -1690,7 +1723,7 @@ auto FleetUpdateHandle::limit_lane_speeds(
         {
           RCLCPP_WARN(
             self->_pimpl->node->get_logger(),
-            "Ignoring speed limit request %f for lane %d in fleet %s as it is "
+            "Ignoring speed limit request %f for lane %lu in fleet %s as it is "
             "not greater than zero. If you would like to close the lane, use "
             "the FleetUpdateHandle::close_lanes(~) API instead.",
             request.speed_limit(),
@@ -2035,10 +2068,10 @@ std::shared_ptr<const rclcpp::Node> FleetUpdateHandle::node() const
 
 //==============================================================================
 bool FleetUpdateHandle::set_task_planner_params(
-  std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
-  std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
-  std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
-  std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+  rmf_battery::agv::ConstBatterySystemPtr battery_system,
+  rmf_battery::ConstMotionPowerSinkPtr motion_sink,
+  rmf_battery::ConstDevicePowerSinkPtr ambient_sink,
+  rmf_battery::ConstDevicePowerSinkPtr tool_sink,
   double recharge_threshold,
   double recharge_soc,
   bool account_for_battery_drain,
