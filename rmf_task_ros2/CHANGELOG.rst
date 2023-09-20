@@ -2,6 +2,9 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 2.2.2 (2023-09-11)
 ------------------
 * Improve linking time (`#300 <https://github.com/open-rmf/rmf_ros2/pull/300>`_)
