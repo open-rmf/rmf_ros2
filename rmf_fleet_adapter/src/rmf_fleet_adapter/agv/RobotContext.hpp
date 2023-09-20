@@ -22,6 +22,7 @@
 #include <rmf_fleet_adapter/agv/RobotUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/Transformation.hpp>
+#include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
@@ -52,6 +53,7 @@ namespace agv {
 using TransformDictionary = std::unordered_map<std::string, Transformation>;
 using SharedPlanner = std::shared_ptr<
   std::shared_ptr<const rmf_traffic::agv::Planner>>;
+using Destination = EasyFullControl::Destination;
 
 //==============================================================================
 struct NavParams
@@ -81,6 +83,22 @@ struct NavParams
     }
 
     return tf_it->second.apply_inverse(position);
+  }
+
+  std::optional<Eigen::Vector3d> to_robot_coordinates(
+    const std::string& map,
+    Eigen::Vector3d position)
+  {
+    if (!transforms_to_robot_coords)
+      return position;
+
+    const auto tf_it = transforms_to_robot_coords->find(map);
+    if (tf_it == transforms_to_robot_coords->end())
+    {
+      return std::nullopt;
+    }
+
+    return tf_it->second.apply(position);
   }
 
   rmf_traffic::agv::Plan::StartSet compute_plan_starts(
@@ -362,6 +380,12 @@ public:
 
   const Reporting& reporting() const;
 
+  /// Tell the robot to localize near here
+  void localize(EasyFullControl::Destination estimate) const;
+
+  /// Set the callback for localizing the robot
+  void set_localization(EasyFullControl::LocalizationRequest localization);
+
   /// Set the task manager for this robot. This should only be called in the
   /// TaskManager::make function.
   void _set_task_manager(std::shared_ptr<TaskManager> mgr);
@@ -433,6 +457,7 @@ private:
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);
   bool _commissioned = true;
   bool _emergency = false;
+  EasyFullControl::LocalizationRequest _localize;
 
   // Mode value for RobotMode message
   uint32_t _current_mode;

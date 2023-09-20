@@ -217,6 +217,7 @@ public:
   NavigationRequest navigate;
   StopRequest stop;
   ActionExecutor action_executor;
+  LocalizationRequest localize;
 };
 
 //==============================================================================
@@ -227,7 +228,8 @@ EasyFullControl::RobotCallbacks::RobotCallbacks(
 : _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
       std::move(navigate),
       std::move(stop),
-      std::move(action_executor)
+      std::move(action_executor),
+      nullptr
     }))
 {
   // Do nothing
@@ -249,6 +251,20 @@ auto EasyFullControl::RobotCallbacks::stop() const -> StopRequest
 auto EasyFullControl::RobotCallbacks::action_executor() const -> ActionExecutor
 {
   return _pimpl->action_executor;
+}
+
+//==============================================================================
+auto EasyFullControl::RobotCallbacks::with_localization(
+  LocalizationRequest localization) -> RobotCallbacks&
+{
+  _pimpl->localize = std::move(localization);
+  return *this;
+}
+
+//==============================================================================
+auto EasyFullControl::RobotCallbacks::localize() const -> LocalizationRequest
+{
+  return _pimpl->localize;
 }
 
 //==============================================================================
@@ -643,26 +659,6 @@ EasyFullControl::EasyFullControl()
 }
 
 //==============================================================================
-class EasyFullControl::Destination::Implementation
-{
-public:
-  std::string map;
-  Eigen::Vector3d position;
-  std::optional<std::size_t> graph_index;
-  std::optional<double> speed_limit;
-  std::optional<std::string> dock = std::nullopt;
-
-  template<typename... Args>
-  static Destination make(Args&&... args)
-  {
-    Destination output;
-    output._pimpl = rmf_utils::make_impl<Implementation>(
-      Implementation{std::forward<Args>(args)...});
-    return output;
-  }
-};
-
-//==============================================================================
 const std::string& EasyFullControl::Destination::map() const
 {
   return _pimpl->map;
@@ -805,28 +801,22 @@ public:
     const std::string& map,
     Eigen::Vector3d position) const
   {
-    if (!nav_params->transforms_to_robot_coords)
+    auto robot_position = nav_params->to_robot_coordinates(map, position);
+    if (robot_position.has_value())
     {
-      return position;
+      return *robot_position;
     }
 
-    const auto tf_it = nav_params->transforms_to_robot_coords->find(map);
-    if (tf_it == nav_params->transforms_to_robot_coords->end())
+    if (const auto context = w_context.lock())
     {
-      const auto context = w_context.lock();
-      if (context)
-      {
-        RCLCPP_WARN(
-          context->node()->get_logger(),
-          "[EasyFullControl] Unable to find robot transform for map [%s] for "
-          "robot [%s]. We will not apply a transform.",
-          map.c_str(),
-          context->requester_id().c_str());
-      }
-      return position;
+      RCLCPP_WARN(
+        context->node()->get_logger(),
+        "[EasyFullControl] Unable to find robot transform for map [%s] for "
+        "robot [%s]. We will not apply a transform.",
+        map.c_str(),
+        context->requester_id().c_str());
     }
-
-    return tf_it->second.apply(position);
+    return position;
   }
 
   std::weak_ptr<RobotContext> w_context;
@@ -2587,6 +2577,29 @@ auto EasyFullControl::add_robot(
   auto easy_updater = EasyRobotUpdateHandle::Implementation::make(
     robot_nav_params, worker);
 
+  LocalizationRequest localization = nullptr;
+  if (callbacks.localize())
+  {
+    localization = [
+      inner = callbacks.localize(),
+      nav_params = robot_nav_params,
+    ](Destination estimate)
+    {
+      auto robot_position = nav_params->to_robot_coordinates(
+        estimate.map(),
+        estimate.position());
+      if (robot_position.has_value())
+      {
+        auto robot_estimate = Destination::Implementation::make(
+          estimate.map(),
+          robot_position,
+          estimate.graph_index(),
+          estimate.speed_limit());
+        inner(robot_estimate);
+      }
+    };
+  }
+
   const auto& fleet_impl =
     FleetUpdateHandle::Implementation::get(*_pimpl->fleet_handle);
   const auto& planner = *fleet_impl.planner;
@@ -2741,6 +2754,7 @@ auto EasyFullControl::add_robot(
       fleet_name = fleet_name,
       charger_index,
       action_executor = callbacks.action_executor(),
+      localization = std::move(localization),
       nav_params = robot_nav_params,
       enable_responsive_wait
     ](const RobotUpdateHandlePtr& updater)
@@ -2758,6 +2772,7 @@ auto EasyFullControl::add_robot(
           fleet_name,
           charger_index,
           action_executor,
+          localization,
           context,
           nav_params,
           enable_responsive_wait
@@ -2768,6 +2783,7 @@ auto EasyFullControl::add_robot(
           EasyRobotUpdateHandle::Implementation::get(*easy_updater)
           .updater->handle = handle;
           handle->set_action_executor(action_executor);
+          context->set_localization(localization);
           handle->set_charger_waypoint(charger_index);
           handle->enable_responsive_wait(enable_responsive_wait);
 

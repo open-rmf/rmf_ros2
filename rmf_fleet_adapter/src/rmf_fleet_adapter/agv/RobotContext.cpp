@@ -23,6 +23,8 @@
 
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 
+#include <rmf_utils/math.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -83,6 +85,11 @@ const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
 //==============================================================================
 void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
 {
+  for (auto& location : location_)
+  {
+    location.orientation(rmf_utils::wrap_to_pi(location.orientation()));
+  }
+
   _location = std::move(location_);
   filter_closed_lanes();
   if (_location.empty())
@@ -613,6 +620,20 @@ Reporting& RobotContext::reporting()
 const Reporting& RobotContext::reporting() const
 {
   return _reporting;
+}
+
+//==============================================================================
+void RobotContext::localize(EasyFullControl::Destination estimate) const
+{
+  if (_localize)
+    _localize(std::move(estimate));
+}
+
+//==============================================================================
+void RobotContext::set_localization(
+  EasyFullControl::LocalizationRequest localization)
+{
+  _localize = std::move(localization);
 }
 
 //==============================================================================

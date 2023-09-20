@@ -26,6 +26,8 @@
 #include "../phases/RequestLift.hpp"
 #include "../phases/DockRobot.hpp"
 
+#include "../agv/internal_EasyFullControl.hpp"
+
 #include <rmf_task_sequence/events/Bundle.hpp>
 
 namespace rmf_fleet_adapter {
@@ -90,17 +92,18 @@ public:
   EventPhaseFactory(
     agv::RobotContextPtr context,
     LegacyPhases& phases,
-    rmf_traffic::Time event_start_time,
-    const rmf_traffic::Dependencies& dependencies,
+    const rmf_traffic::agv::Plan::Waypoint& waypoint_,
     bool& continuous)
-  : _context(std::move(context)),
+  : waypoint(waypoint_),
+    _context(std::move(context)),
     _phases(phases),
-    _event_start_time(event_start_time),
-    _dependencies(dependencies),
+    _event_start_time(waypoint_.time()),
     _continuous(continuous)
   {
     // Do nothing
   }
+
+  rmf_traffic::agv::Plan::Waypoint waypoint;
 
   void execute(const Dock& dock) final
   {
@@ -108,7 +111,7 @@ public:
     _phases.emplace_back(
       std::make_shared<phases::DockRobot::PendingPhase>(
         _context, dock.dock_name()),
-      _event_start_time, _dependencies);
+      _event_start_time, waypoint.dependencies());
     _continuous = false;
   }
 
@@ -122,7 +125,7 @@ public:
         open.name(),
         _context->requester_id(),
         _event_start_time + open.duration()),
-      _event_start_time, _dependencies);
+      _event_start_time, waypoint.dependencies());
     _continuous = true;
   }
 
@@ -137,7 +140,7 @@ public:
         _context,
         close.name(),
         _context->requester_id()),
-      _event_start_time, _dependencies);
+      _event_start_time, waypoint.dependencies());
     _continuous = true;
   }
 
@@ -152,7 +155,7 @@ public:
         open.floor_name(),
         _event_start_time,
         phases::RequestLift::Located::Outside),
-      _event_start_time, _dependencies);
+      _event_start_time, waypoint.dependencies());
 
     _continuous = true;
   }
@@ -170,6 +173,12 @@ public:
   void execute(const LiftDoorOpen& open) final
   {
     const auto node = _context->node();
+    auto localize = agv::Destination::Implementation::make(
+      open.floor_name(),
+      waypoint.position(),
+      waypoint.graph_index(),
+      std::nullopt,
+      std::nullopt);
 
     // TODO(MXG): The time calculation here should be considered more carefully.
     _phases.emplace_back(
@@ -178,8 +187,9 @@ public:
         open.lift_name(),
         open.floor_name(),
         _event_start_time + open.duration() + _lifting_duration,
-        phases::RequestLift::Located::Inside),
-      _event_start_time, _dependencies);
+        phases::RequestLift::Located::Inside,
+        localize),
+      _event_start_time, waypoint.dependencies());
     _moving_lift = false;
 
     _continuous = true;
@@ -194,7 +204,7 @@ public:
         _context,
         close.lift_name(),
         close.floor_name()),
-      _event_start_time, _dependencies);
+      _event_start_time, waypoint.dependencies());
 
     _continuous = true;
   }
@@ -213,7 +223,6 @@ private:
   agv::RobotContextPtr _context;
   LegacyPhases& _phases;
   rmf_traffic::Time _event_start_time;
-  const rmf_traffic::Dependencies& _dependencies;
   bool& _continuous;
   bool _moving_lift = false;
   rmf_traffic::Duration _lifting_duration = rmf_traffic::Duration(0);
@@ -474,8 +483,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
         move_through.clear();
         bool continuous = true;
-        EventPhaseFactory factory(
-          context, legacy_phases, it->time(), it->dependencies(), continuous);
+        EventPhaseFactory factory(context, legacy_phases, *it, continuous);
         it->event()->execute(factory);
         while (factory.moving_lift())
         {
@@ -499,6 +507,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
               "navigation graph. Please report this to the system integrator.");
           }
 
+          factory.waypoint = *it;
           it->event()->execute(factory);
         }
 

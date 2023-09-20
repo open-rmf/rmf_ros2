@@ -74,7 +74,11 @@ public:
   class CommandExecution;
 
   /// Signature for a function that handles navigation requests. The request
-  /// will specify an (x, y) location and yaw on a map.
+  /// will specify a destination for the robot to go to.
+  ///
+  /// \param[in] destination
+  ///   Where the robot should move to. Includings (x, y) coordinates, a target
+  ///   yaw, a map name, and may include a graph index when one is available.
   ///
   /// \param[in] execution
   ///   The command execution progress updater. Use this to keep the fleet
@@ -86,6 +90,14 @@ public:
 
   /// Signature for a function to handle stop requests.
   using StopRequest = std::function<void(ConstActivityIdentifierPtr)>;
+
+  /// Signature for a function that handles localization requests. The request
+  /// will specify an approximate location for the robot.
+  ///
+  /// \param[in] location_estimate
+  ///   An estimate for where the robot is currently located.
+  using LocalizationRequest = std::function<void(
+    Destination location_estimate)>;
 
   /// Add a robot to the fleet once it is available.
   ///
@@ -332,6 +344,13 @@ public:
 
   /// Get the action executor.
   ActionExecutor action_executor() const;
+
+  /// Give the robot a localization callback. Unlike the callbacks used by the
+  /// constructor, this callback is optional.
+  RobotCallbacks& with_localization(LocalizationRequest localization);
+
+  /// Get the callback for localizing if available.
+  LocalizationRequest localize() const;
 
   class Implementation;
 private:

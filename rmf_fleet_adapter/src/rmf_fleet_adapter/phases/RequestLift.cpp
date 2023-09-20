@@ -28,7 +28,8 @@ std::shared_ptr<RequestLift::ActivePhase> RequestLift::ActivePhase::make(
   std::string lift_name,
   std::string destination,
   rmf_traffic::Time expected_finish,
-  const Located located)
+  const Located located,
+  std::optional<agv::Destination> localize)
 {
   auto inst = std::shared_ptr<ActivePhase>(
     new ActivePhase(
@@ -36,7 +37,8 @@ std::shared_ptr<RequestLift::ActivePhase> RequestLift::ActivePhase::make(
       std::move(lift_name),
       std::move(destination),
       std::move(expected_finish),
-      located
+      located,
+      std::move(localize)
   ));
   inst->_init_obs();
   return inst;
@@ -80,12 +82,14 @@ RequestLift::ActivePhase::ActivePhase(
   std::string lift_name,
   std::string destination,
   rmf_traffic::Time expected_finish,
-  Located located)
+  Located located,
+  std::optional<agv::Destination> localize)
 : _context(std::move(context)),
   _lift_name(std::move(lift_name)),
   _destination(std::move(destination)),
   _expected_finish(std::move(expected_finish)),
-  _located(located)
+  _located(located),
+  _localize_after(std::move(localize))
 {
   std::ostringstream oss;
   oss << "Requesting lift [" << lift_name << "] to [" << destination << "]";
@@ -99,6 +103,7 @@ void RequestLift::ActivePhase::_init_obs()
   using rmf_lift_msgs::msg::LiftState;
 
   _obs = _context->node()->lift_state()
+    .observe_on(rxcpp::identity_same_worker(_context->worker()))
     .lift<LiftState::SharedPtr>(
     on_subscribe(
       [weak = weak_from_this()]()
@@ -166,7 +171,11 @@ void RequestLift::ActivePhase::_init_obs()
           if (!me)
             return;
 
-          // FIXME: is this thread-safe?
+          if (me->_localize_after.has_value())
+          {
+            me->_context->localize(*me->_localize_after);
+          }
+
           if (!me->_cancelled.get_value() || me->_located == Located::Inside)
           {
             s.on_completed();
@@ -320,12 +329,14 @@ RequestLift::PendingPhase::PendingPhase(
   std::string lift_name,
   std::string destination,
   rmf_traffic::Time expected_finish,
-  Located located)
+  Located located,
+  std::optional<agv::Destination> localize)
 : _context(std::move(context)),
   _lift_name(std::move(lift_name)),
   _destination(std::move(destination)),
   _expected_finish(std::move(expected_finish)),
-  _located(located)
+  _located(located),
+  _localize_after(std::move(localize))
 {
   std::ostringstream oss;
   oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
@@ -341,7 +352,8 @@ std::shared_ptr<LegacyTask::ActivePhase> RequestLift::PendingPhase::begin()
     _lift_name,
     _destination,
     _expected_finish,
-    _located);
+    _located,
+    _localize_after);
 }
 
 //==============================================================================

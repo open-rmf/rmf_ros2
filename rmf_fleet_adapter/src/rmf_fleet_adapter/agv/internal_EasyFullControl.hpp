@@ -67,5 +67,25 @@ public:
   }
 };
 
+//==============================================================================
+class EasyFullControl::Destination::Implementation
+{
+public:
+  std::string map;
+  Eigen::Vector3d position;
+  std::optional<std::size_t> graph_index;
+  std::optional<double> speed_limit;
+  std::optional<std::string> dock = std::nullopt;
+
+  template<typename... Args>
+  static Destination make(Args&&... args)
+  {
+    Destination output;
+    output._pimpl = rmf_utils::make_impl<Implementation>(
+      Implementation{std::forward<Args>(args)...});
+    return output;
+  }
+};
+
 } // namespace agv
 } // namespace rmf_fleet_adapter
