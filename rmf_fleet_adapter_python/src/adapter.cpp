@@ -812,7 +812,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::EasyFullControl::RobotCallbacks::stop)
   .def_property_readonly(
     "action_executor",
-    &agv::EasyFullControl::RobotCallbacks::action_executor);
+    &agv::EasyFullControl::RobotCallbacks::action_executor)
+  .def_property(
+    "localize",
+    &agv::EasyFullControl::RobotCallbacks::localize,
+    &agv::EasyFullControl::RobotCallbacks::with_localization
+  );
 
   py::class_<agv::EasyFullControl::CommandExecution>(m_easy_full_control, "CommandExecution")
   .def("finished", &agv::EasyFullControl::CommandExecution::finished)

@@ -2582,7 +2582,7 @@ auto EasyFullControl::add_robot(
   {
     localization = [
       inner = callbacks.localize(),
-      nav_params = robot_nav_params,
+      nav_params = robot_nav_params
     ](Destination estimate)
     {
       auto robot_position = nav_params->to_robot_coordinates(
@@ -2592,7 +2592,7 @@ auto EasyFullControl::add_robot(
       {
         auto robot_estimate = Destination::Implementation::make(
           estimate.map(),
-          robot_position,
+          *robot_position,
           estimate.graph_index(),
           estimate.speed_limit());
         inner(robot_estimate);
