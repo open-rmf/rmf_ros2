@@ -2,8 +2,8 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.3 (2023-09-20)
+------------------
 * EasyFullControl API (`#302 <https://github.com/open-rmf/rmf_ros2/pull/302>`_)
 * Contributors: Luca Della Vedova, Michael X. Grey, Xiyu, Yadunund
 
