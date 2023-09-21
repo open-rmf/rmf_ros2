@@ -50,6 +50,7 @@ class TaskManager;
 
 namespace agv {
 
+class RobotContext;
 using TransformDictionary = std::unordered_map<std::string, Transformation>;
 using SharedPlanner = std::shared_ptr<
   std::shared_ptr<const rmf_traffic::agv::Planner>>;
@@ -100,6 +101,11 @@ struct NavParams
 
     return tf_it->second.apply(position);
   }
+
+  void search_for_location(
+    const std::string& map,
+    Eigen::Vector3d position,
+    RobotContext& context);
 
   rmf_traffic::agv::Plan::StartSet compute_plan_starts(
     const rmf_traffic::agv::Graph& graph,
@@ -381,7 +387,9 @@ public:
   const Reporting& reporting() const;
 
   /// Tell the robot to localize near here
-  void localize(EasyFullControl::Destination estimate) const;
+  bool localize(
+    EasyFullControl::Destination estimate,
+    EasyFullControl::CommandExecution execution) const;
 
   /// Set the callback for localizing the robot
   void set_localization(EasyFullControl::LocalizationRequest localization);

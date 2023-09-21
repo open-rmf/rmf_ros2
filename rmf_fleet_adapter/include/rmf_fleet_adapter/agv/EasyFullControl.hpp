@@ -96,8 +96,13 @@ public:
   ///
   /// \param[in] location_estimate
   ///   An estimate for where the robot is currently located.
+  ///
+  /// \param[in] execution
+  ///   The command execution progress updater. Use this to keep the fleet
+  ///   adapter updated on the progress of localizing.
   using LocalizationRequest = std::function<void(
-    Destination location_estimate)>;
+    Destination location_estimate,
+    CommandExecution execution)>;
 
   /// Add a robot to the fleet once it is available.
   ///

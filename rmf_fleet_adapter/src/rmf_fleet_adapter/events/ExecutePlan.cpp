@@ -93,11 +93,13 @@ public:
     agv::RobotContextPtr context,
     LegacyPhases& phases,
     const rmf_traffic::agv::Plan::Waypoint& waypoint_,
+    rmf_traffic::PlanId plan_id,
     bool& continuous)
   : waypoint(waypoint_),
     _context(std::move(context)),
     _phases(phases),
     _event_start_time(waypoint_.time()),
+    _plan_id(plan_id),
     _continuous(continuous)
   {
     // Do nothing
@@ -154,7 +156,8 @@ public:
         open.lift_name(),
         open.floor_name(),
         _event_start_time,
-        phases::RequestLift::Located::Outside),
+        phases::RequestLift::Located::Outside,
+        _plan_id),
       _event_start_time, waypoint.dependencies());
 
     _continuous = true;
@@ -188,6 +191,7 @@ public:
         open.floor_name(),
         _event_start_time + open.duration() + _lifting_duration,
         phases::RequestLift::Located::Inside,
+        _plan_id,
         localize),
       _event_start_time, waypoint.dependencies());
     _moving_lift = false;
@@ -223,6 +227,7 @@ private:
   agv::RobotContextPtr _context;
   LegacyPhases& _phases;
   rmf_traffic::Time _event_start_time;
+  rmf_traffic::PlanId _plan_id;
   bool& _continuous;
   bool _moving_lift = false;
   rmf_traffic::Duration _lifting_duration = rmf_traffic::Duration(0);
@@ -483,7 +488,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
         move_through.clear();
         bool continuous = true;
-        EventPhaseFactory factory(context, legacy_phases, *it, continuous);
+        EventPhaseFactory factory(
+          context, legacy_phases, *it, plan_id, continuous);
         it->event()->execute(factory);
         while (factory.moving_lift())
         {

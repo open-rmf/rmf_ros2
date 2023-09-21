@@ -22,6 +22,8 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
+class RobotContext;
+
 class EasyCommandHandle;
 using EasyCommandHandlePtr = std::shared_ptr<EasyCommandHandle>;
 
@@ -84,6 +86,42 @@ public:
     output._pimpl = rmf_utils::make_impl<Implementation>(
       Implementation{std::forward<Args>(args)...});
     return output;
+  }
+};
+
+class EasyFullControl::CommandExecution::Implementation
+{
+public:
+  struct Data;
+  using DataPtr = std::shared_ptr<Data>;
+
+  std::weak_ptr<RobotContext> w_context;
+  std::shared_ptr<Data> data;
+  std::function<void(CommandExecution)> begin;
+  std::function<void()> finisher;
+  ActivityIdentifierPtr identifier;
+
+  void finish();
+
+  Stubbornness override_schedule(
+    std::string map,
+    std::vector<Eigen::Vector3d> path,
+    rmf_traffic::Duration hold);
+
+  static CommandExecution make(
+    const std::shared_ptr<RobotContext>& context,
+    Data data_,
+    std::function<void(CommandExecution)> begin);
+
+  static CommandExecution make_hold(
+    const std::shared_ptr<RobotContext>& context,
+    rmf_traffic::Time expected_time,
+    rmf_traffic::PlanId plan_id,
+    std::function<void()> finisher);
+
+  static Implementation& get(CommandExecution& cmd)
+  {
+    return *cmd._pimpl;
   }
 };
 

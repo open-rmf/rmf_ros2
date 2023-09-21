@@ -268,345 +268,363 @@ auto EasyFullControl::RobotCallbacks::localize() const -> LocalizationRequest
 }
 
 //==============================================================================
-class EasyFullControl::CommandExecution::Implementation
+class EasyFullControl::CommandExecution::Implementation::Data
 {
 public:
-  struct Data
-  {
-    std::vector<std::size_t> waypoints;
-    std::vector<std::size_t> lanes;
-    std::optional<double> final_orientation;
-    rmf_traffic::Duration planned_wait_time;
-    std::optional<ScheduleOverride> schedule_override;
-    std::shared_ptr<NavParams> nav_params;
-    std::function<void(rmf_traffic::Duration)> arrival_estimator;
+  std::vector<std::size_t> waypoints;
+  std::vector<std::size_t> lanes;
+  std::optional<double> final_orientation;
+  rmf_traffic::Duration planned_wait_time;
+  std::optional<ScheduleOverride> schedule_override;
+  std::shared_ptr<NavParams> nav_params;
+  std::function<void(rmf_traffic::Duration)> arrival_estimator;
 
-    void release_stubbornness()
+  void release_stubbornness()
+  {
+    if (schedule_override.has_value())
     {
-      if (schedule_override.has_value())
-      {
-        schedule_override->release_stubbornness();
-      }
+      schedule_override->release_stubbornness();
+    }
+  }
+
+  void update_location(
+    const std::shared_ptr<RobotContext>& context,
+    const std::string& map,
+    Eigen::Vector3d location)
+  {
+    if (schedule_override.has_value())
+    {
+      return schedule_override->overridden_update(
+        context,
+        map,
+        location);
     }
 
-    void update_location(
-      const std::shared_ptr<RobotContext>& context,
-      const std::string& map,
-      Eigen::Vector3d location)
+    auto planner = context->planner();
+    if (!planner)
     {
-      if (schedule_override.has_value())
-      {
-        return schedule_override->overridden_update(
-          context,
-          map,
-          location);
-      }
+      RCLCPP_ERROR(
+        context->node()->get_logger(),
+        "Planner unavailable for robot [%s], cannot update its location",
+        context->requester_id().c_str());
+      return;
+    }
 
-      auto planner = context->planner();
-      if (!planner)
+    const auto& graph = planner->get_configuration().graph();
+    const rmf_traffic::agv::LaneClosure* closures = context->get_lane_closures();
+    std::optional<std::pair<std::size_t, double>> on_waypoint;
+    auto p = Eigen::Vector2d(location[0], location[1]);
+    const double yaw = location[2];
+    for (std::size_t wp : waypoints)
+    {
+      if (wp >= graph.num_waypoints())
       {
         RCLCPP_ERROR(
           context->node()->get_logger(),
-          "Planner unavailable for robot [%s], cannot update its location",
-          context->requester_id().c_str());
+          "Robot [%s] has a command with a waypoint [%lu] that is outside "
+          "the range of the graph [%lu]. We will not do a location update.",
+          context->requester_id().c_str(),
+          wp,
+          graph.num_waypoints());
+        // Should we also issue a replan command?
         return;
       }
 
-      const auto& graph = planner->get_configuration().graph();
-      const rmf_traffic::agv::LaneClosure* closures = context->get_lane_closures();
-      std::optional<std::pair<std::size_t, double>> on_waypoint;
-      auto p = Eigen::Vector2d(location[0], location[1]);
-      const double yaw = location[2];
-      for (std::size_t wp : waypoints)
+      const auto p_wp = graph.get_waypoint(wp).get_location();
+      auto dist = (p - p_wp).norm();
+      if (dist <= nav_params->max_merge_waypoint_distance)
       {
-        if (wp >= graph.num_waypoints())
+        if (!on_waypoint.has_value() || dist < on_waypoint->second)
+        {
+          on_waypoint = std::make_pair(wp, dist);
+        }
+      }
+    }
+
+    rmf_traffic::agv::Plan::StartSet starts;
+    const auto now = rmf_traffic_ros2::convert(context->node()->now());
+    if (on_waypoint.has_value())
+    {
+      const auto wp = on_waypoint->first;
+      starts.push_back(rmf_traffic::agv::Plan::Start(now, wp, yaw, p));
+      for (std::size_t lane_id : graph.lanes_from(wp))
+      {
+        if (lane_id >= graph.num_lanes())
         {
           RCLCPP_ERROR(
             context->node()->get_logger(),
-            "Robot [%s] has a command with a waypoint [%lu] that is outside "
-            "the range of the graph [%lu]. We will not do a location update.",
+            "Nav graph for robot [%s] has an invalid lane ID [%lu] leaving "
+            "vertex [%lu], lane ID range is [%lu]. We will not do a location "
+            "update.",
             context->requester_id().c_str(),
+            lane_id,
             wp,
-            graph.num_waypoints());
+            graph.num_lanes());
           // Should we also issue a replan command?
           return;
         }
 
-        const auto p_wp = graph.get_waypoint(wp).get_location();
-        auto dist = (p - p_wp).norm();
-        if (dist <= nav_params->max_merge_waypoint_distance)
+        if (closures && closures->is_closed(lane_id))
         {
-          if (!on_waypoint.has_value() || dist < on_waypoint->second)
-          {
-            on_waypoint = std::make_pair(wp, dist);
-          }
+          // Don't use a lane that's closed
+          continue;
         }
+
+        auto wp_exit = graph.get_lane(lane_id).exit().waypoint_index();
+        starts.push_back(
+          rmf_traffic::agv::Plan::Start(now, wp_exit, yaw, p, lane_id));
       }
-
-      rmf_traffic::agv::Plan::StartSet starts;
-      const auto now = rmf_traffic_ros2::convert(context->node()->now());
-      if (on_waypoint.has_value())
+    }
+    else
+    {
+      std::optional<std::pair<std::size_t, double>> on_lane;
+      for (auto lane_id : lanes)
       {
-        const auto wp = on_waypoint->first;
-        starts.push_back(rmf_traffic::agv::Plan::Start(now, wp, yaw, p));
-        for (std::size_t lane_id : graph.lanes_from(wp))
+        if (lane_id >= graph.num_lanes())
         {
-          if (lane_id >= graph.num_lanes())
-          {
-            RCLCPP_ERROR(
-              context->node()->get_logger(),
-              "Nav graph for robot [%s] has an invalid lane ID [%lu] leaving "
-              "vertex [%lu], lane ID range is [%lu]. We will not do a location "
-              "update.",
-              context->requester_id().c_str(),
-              lane_id,
-              wp,
-              graph.num_lanes());
-            // Should we also issue a replan command?
-            return;
-          }
-
-          if (closures && closures->is_closed(lane_id))
-          {
-            // Don't use a lane that's closed
-            continue;
-          }
-
-          auto wp_exit = graph.get_lane(lane_id).exit().waypoint_index();
-          starts.push_back(
-            rmf_traffic::agv::Plan::Start(now, wp_exit, yaw, p, lane_id));
+          RCLCPP_ERROR(
+            context->node()->get_logger(),
+            "Robot [%s] has a command with a lane [%lu] that is outside the "
+            "range of the graph [%lu]. We will not do a location update.",
+            context->requester_id().c_str(),
+            lane_id,
+            graph.num_lanes());
+          // Should we also issue a replan command?
+          return;
         }
-      }
-      else
-      {
-        std::optional<std::pair<std::size_t, double>> on_lane;
-        for (auto lane_id : lanes)
-        {
-          if (lane_id >= graph.num_lanes())
-          {
-            RCLCPP_ERROR(
-              context->node()->get_logger(),
-              "Robot [%s] has a command with a lane [%lu] that is outside the "
-              "range of the graph [%lu]. We will not do a location update.",
-              context->requester_id().c_str(),
-              lane_id,
-              graph.num_lanes());
-            // Should we also issue a replan command?
-            return;
-          }
 
-          if (closures && closures->is_closed(lane_id))
+        if (closures && closures->is_closed(lane_id))
+        {
+          continue;
+        }
+
+        const auto& lane = graph.get_lane(lane_id);
+        const auto p0 =
+          graph.get_waypoint(lane.entry().waypoint_index()).get_location();
+        const auto p1 =
+          graph.get_waypoint(lane.exit().waypoint_index()).get_location();
+        const auto lane_length = (p1 - p0).norm();
+        double dist_to_lane = 0.0;
+        if (lane_length < nav_params->min_lane_length)
+        {
+          dist_to_lane = std::min(
+            (p - p0).norm(),
+            (p - p1).norm());
+        }
+        else
+        {
+          const auto lane_u = (p1 - p0)/lane_length;
+          const auto proj = (p - p0).dot(lane_u);
+          if (proj < 0.0 || lane_length < proj)
           {
             continue;
           }
-
-          const auto& lane = graph.get_lane(lane_id);
-          const auto p0 =
-            graph.get_waypoint(lane.entry().waypoint_index()).get_location();
-          const auto p1 =
-            graph.get_waypoint(lane.exit().waypoint_index()).get_location();
-          const auto lane_length = (p1 - p0).norm();
-          double dist_to_lane = 0.0;
-          if (lane_length < nav_params->min_lane_length)
-          {
-            dist_to_lane = std::min(
-              (p - p0).norm(),
-              (p - p1).norm());
-          }
-          else
-          {
-            const auto lane_u = (p1 - p0)/lane_length;
-            const auto proj = (p - p0).dot(lane_u);
-            if (proj < 0.0 || lane_length < proj)
-            {
-              continue;
-            }
-            dist_to_lane = (p - p0 - proj * lane_u).norm();
-          }
-
-          if (dist_to_lane <= nav_params->max_merge_lane_distance)
-          {
-            if (!on_lane.has_value() || dist_to_lane < on_lane->second)
-            {
-              on_lane = std::make_pair(lane_id, dist_to_lane);
-            }
-          }
+          dist_to_lane = (p - p0 - proj * lane_u).norm();
         }
 
-        if (on_lane.has_value())
+        if (dist_to_lane <= nav_params->max_merge_lane_distance)
         {
-          const auto lane_id = on_lane->first;
-          const auto& lane = graph.get_lane(lane_id);
-          const auto wp0 = lane.entry().waypoint_index();
-          const auto wp1 = lane.exit().waypoint_index();
-          starts.push_back(
-            rmf_traffic::agv::Plan::Start(now, wp1, yaw, p, lane_id));
-
-          if (const auto* reverse_lane = graph.lane_from(wp1, wp0))
+          if (!on_lane.has_value() || dist_to_lane < on_lane->second)
           {
-            starts.push_back(rmf_traffic::agv::Plan::Start(
-                now, wp0, yaw, p, reverse_lane->index()));
+            on_lane = std::make_pair(lane_id, dist_to_lane);
           }
         }
       }
 
-      if (starts.empty())
+      if (on_lane.has_value())
       {
-        starts = nav_params->compute_plan_starts(graph, map, location, now);
-      }
+        const auto lane_id = on_lane->first;
+        const auto& lane = graph.get_lane(lane_id);
+        const auto wp0 = lane.entry().waypoint_index();
+        const auto wp1 = lane.exit().waypoint_index();
+        starts.push_back(
+          rmf_traffic::agv::Plan::Start(now, wp1, yaw, p, lane_id));
 
-      if (!starts.empty())
-      {
-        context->set_location(starts);
-      }
-      else
-      {
-        context->set_lost(Location { now, map, location });
-      }
-
-      if (!waypoints.empty())
-      {
-        const auto p_final =
-          graph.get_waypoint(waypoints.back()).get_location();
-        const auto distance = (p_final - p).norm();
-        double rotation = 0.0;
-        if (final_orientation.has_value())
+        if (const auto* reverse_lane = graph.lane_from(wp1, wp0))
         {
-          rotation =
-            std::fabs(rmf_utils::wrap_to_pi(location[2] - *final_orientation));
-          const auto reversible =
-            planner->get_configuration().vehicle_traits()
-            .get_differential()->is_reversible();
-          if (reversible)
-          {
-            const double alternate_orientation = rmf_utils::wrap_to_pi(
-              *final_orientation + M_PI);
-
-            const double alternate_rotation = std::fabs(
-              rmf_utils::wrap_to_pi(location[2] - alternate_orientation));
-            rotation = std::min(rotation, alternate_rotation);
-          }
+          starts.push_back(rmf_traffic::agv::Plan::Start(
+              now, wp0, yaw, p, reverse_lane->index()));
         }
-
-        const auto& traits = planner->get_configuration().vehicle_traits();
-        const auto v = std::max(traits.linear().get_nominal_velocity(), 0.001);
-        const auto w =
-          std::max(traits.rotational().get_nominal_velocity(), 0.001);
-        const auto t = distance / v + rotation / w;
-        arrival_estimator(
-          rmf_traffic::time::from_seconds(t) + planned_wait_time);
       }
     }
-  };
-  using DataPtr = std::shared_ptr<Data>;
 
-  std::weak_ptr<RobotContext> w_context;
-  std::shared_ptr<Data> data;
-  std::function<void(CommandExecution)> begin;
-  std::function<void()> finisher;
-  ActivityIdentifierPtr identifier;
-
-  void finish()
-  {
-    if (auto context = w_context.lock())
+    if (starts.empty())
     {
-      context->worker().schedule(
-        [
-          context = context,
-          data = this->data,
-          identifier = this->identifier,
-          finisher = this->finisher
-        ](const auto&)
-        {
-          if (!ActivityIdentifier::Implementation::get(*identifier).update_fn)
-          {
-            // This activity has already finished
-            return;
-          }
-
-          // Prevent this activity from doing any further updates
-          ActivityIdentifier::Implementation::get(
-            *identifier).update_fn = nullptr;
-          if (data->schedule_override.has_value())
-          {
-            data->release_stubbornness();
-            RCLCPP_INFO(
-              context->node()->get_logger(),
-              "Requesting replan for [%s] after finishing a schedule override",
-              context->requester_id().c_str());
-            context->request_replan();
-          }
-          else
-          {
-            // Trigger the next step in the sequence
-            finisher();
-          }
-        });
+      starts = nav_params->compute_plan_starts(graph, map, location, now);
     }
-  }
 
-  Stubbornness override_schedule(
-    std::string map,
-    std::vector<Eigen::Vector3d> path,
-    rmf_traffic::Duration hold)
-  {
-    auto stubborn = std::make_shared<StubbornOverride>();
-    if (const auto context = w_context.lock())
+    if (!starts.empty())
     {
-      context->worker().schedule(
-        [
-          context,
-          stubborn,
-          data = this->data,
-          identifier = this->identifier,
-          map = std::move(map),
-          path = std::move(path),
-          hold
-        ](const auto&)
-        {
-          if (!ActivityIdentifier::Implementation::get(*identifier).update_fn)
-          {
-            // Don't do anything because this command is finished
-            return;
-          }
-
-          data->release_stubbornness();
-          data->schedule_override = ScheduleOverride::make(
-            context, map, path, hold, stubborn);
-        });
+      context->set_location(starts);
+    }
+    else
+    {
+      context->set_lost(Location { now, map, location });
     }
 
-    return Stubbornness::Implementation::make(stubborn);
-  }
-
-  static CommandExecution make(
-    const std::shared_ptr<RobotContext>& context,
-    Data data_,
-    std::function<void(CommandExecution)> begin)
-  {
-    auto data = std::make_shared<Data>(data_);
-    auto update_fn = [w_context = context->weak_from_this(), data](
-      const std::string& map,
-      Eigen::Vector3d location)
+    if (!waypoints.empty())
+    {
+      const auto p_final =
+        graph.get_waypoint(waypoints.back()).get_location();
+      const auto distance = (p_final - p).norm();
+      double rotation = 0.0;
+      if (final_orientation.has_value())
       {
-        if (auto context = w_context.lock())
+        rotation =
+          std::fabs(rmf_utils::wrap_to_pi(location[2] - *final_orientation));
+        const auto reversible =
+          planner->get_configuration().vehicle_traits()
+          .get_differential()->is_reversible();
+        if (reversible)
         {
-          data->update_location(context, map, location);
+          const double alternate_orientation = rmf_utils::wrap_to_pi(
+            *final_orientation + M_PI);
+
+          const double alternate_rotation = std::fabs(
+            rmf_utils::wrap_to_pi(location[2] - alternate_orientation));
+          rotation = std::min(rotation, alternate_rotation);
         }
-      };
-    auto identifier = ActivityIdentifier::Implementation::make(update_fn);
+      }
 
-    CommandExecution cmd;
-    cmd._pimpl = rmf_utils::make_impl<Implementation>(
-      Implementation{context, data, begin, nullptr, identifier});
-    return cmd;
-  }
-
-  static Implementation& get(CommandExecution& cmd)
-  {
-    return *cmd._pimpl;
+      const auto& traits = planner->get_configuration().vehicle_traits();
+      const auto v = std::max(traits.linear().get_nominal_velocity(), 0.001);
+      const auto w =
+        std::max(traits.rotational().get_nominal_velocity(), 0.001);
+      const auto t = distance / v + rotation / w;
+      arrival_estimator(
+        rmf_traffic::time::from_seconds(t) + planned_wait_time);
+    }
   }
 };
+
+void EasyFullControl::CommandExecution::Implementation::finish()
+{
+  if (auto context = w_context.lock())
+  {
+    context->worker().schedule(
+      [
+        context = context,
+        data = this->data,
+        identifier = this->identifier,
+        finisher = this->finisher
+      ](const auto&)
+      {
+        if (!ActivityIdentifier::Implementation::get(*identifier).update_fn)
+        {
+          // This activity has already finished
+          return;
+        }
+
+        // Prevent this activity from doing any further updates
+        ActivityIdentifier::Implementation::get(
+          *identifier).update_fn = nullptr;
+        if (data->schedule_override.has_value())
+        {
+          data->release_stubbornness();
+          RCLCPP_INFO(
+            context->node()->get_logger(),
+            "Requesting replan for [%s] after finishing a schedule override",
+            context->requester_id().c_str());
+          context->request_replan();
+        }
+        else
+        {
+          // Trigger the next step in the sequence
+          finisher();
+        }
+      });
+  }
+}
+
+auto EasyFullControl::CommandExecution::Implementation::override_schedule(
+  std::string map,
+  std::vector<Eigen::Vector3d> path,
+  rmf_traffic::Duration hold) -> Stubbornness
+{
+  auto stubborn = std::make_shared<StubbornOverride>();
+  if (const auto context = w_context.lock())
+  {
+    context->worker().schedule(
+      [
+        context,
+        stubborn,
+        data = this->data,
+        identifier = this->identifier,
+        map = std::move(map),
+        path = std::move(path),
+        hold
+      ](const auto&)
+      {
+        if (!ActivityIdentifier::Implementation::get(*identifier).update_fn)
+        {
+          // Don't do anything because this command is finished
+          return;
+        }
+
+        data->release_stubbornness();
+        data->schedule_override = ScheduleOverride::make(
+          context, map, path, hold, stubborn);
+      });
+  }
+
+  return Stubbornness::Implementation::make(stubborn);
+}
+
+auto EasyFullControl::CommandExecution::Implementation::make(
+  const std::shared_ptr<RobotContext>& context,
+  Data data_,
+  std::function<void(CommandExecution)> begin) -> CommandExecution
+{
+  auto data = std::make_shared<Data>(data_);
+  auto update_fn = [w_context = context->weak_from_this(), data](
+    const std::string& map,
+    Eigen::Vector3d location)
+    {
+      if (auto context = w_context.lock())
+      {
+        data->update_location(context, map, location);
+      }
+    };
+  auto identifier = ActivityIdentifier::Implementation::make(update_fn);
+
+  CommandExecution cmd;
+  cmd._pimpl = rmf_utils::make_impl<Implementation>(
+    Implementation{context, data, begin, nullptr, identifier});
+  return cmd;
+}
+
+auto EasyFullControl::CommandExecution::Implementation::make_hold(
+  const std::shared_ptr<RobotContext>& context,
+  rmf_traffic::Time expected_time,
+  rmf_traffic::PlanId plan_id,
+  std::function<void()> finisher) -> CommandExecution
+{
+  auto update_fn = [
+      w_context = context->weak_from_this(),
+      expected_time,
+      plan_id
+    ](
+      const std::string& map,
+      Eigen::Vector3d location)
+    {
+      const auto context = w_context.lock();
+      if (!context)
+        return;
+
+      const auto delay = context->now() - expected_time;
+      context->itinerary().cumulative_delay(plan_id, delay);
+      if (const auto nav_params = context->nav_params())
+      {
+        nav_params->search_for_location(map, location, *context);
+      }
+    };
+  auto identifier = ActivityIdentifier::Implementation::make(update_fn);
+
+  CommandExecution cmd;
+  cmd._pimpl = rmf_utils::make_impl<Implementation>(
+    Implementation{context, nullptr, nullptr, finisher, identifier});
+  return cmd;
+}
 
 //==============================================================================
 void EasyFullControl::CommandExecution::finished()
@@ -1437,28 +1455,7 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
         }
       }
 
-      auto planner = context->planner();
-      if (!planner)
-      {
-        RCLCPP_ERROR(
-          context->node()->get_logger(),
-          "Planner unavailable for robot [%s], cannot update its location",
-          context->requester_id().c_str());
-        return;
-      }
-      const auto& graph = planner->get_configuration().graph();
-      const auto& nav_params = updater->nav_params;
-      const auto now = context->now();
-      auto starts =
-      nav_params->compute_plan_starts(graph, state.map(), position, now);
-      if (!starts.empty())
-      {
-        context->set_location(std::move(starts));
-      }
-      else
-      {
-        context->set_lost(Location { now, state.map(), position });
-      }
+      updater->nav_params->search_for_location(state.map(), position, *context);
     });
 }
 
@@ -2583,7 +2580,7 @@ auto EasyFullControl::add_robot(
     localization = [
       inner = callbacks.localize(),
       nav_params = robot_nav_params
-    ](Destination estimate)
+    ](Destination estimate, CommandExecution execution)
     {
       auto robot_position = nav_params->to_robot_coordinates(
         estimate.map(),
@@ -2595,7 +2592,7 @@ auto EasyFullControl::add_robot(
           *robot_position,
           estimate.graph_index(),
           estimate.speed_limit());
-        inner(robot_estimate);
+        inner(robot_estimate, execution);
       }
     };
   }

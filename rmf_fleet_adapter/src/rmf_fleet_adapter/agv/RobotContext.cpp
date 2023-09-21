@@ -29,6 +29,34 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
+void NavParams::search_for_location(
+  const std::string& map,
+  Eigen::Vector3d position,
+  RobotContext& context)
+{
+  auto planner = context.planner();
+  if (!planner)
+  {
+    RCLCPP_ERROR(
+      context.node()->get_logger(),
+      "Planner unavailable for robot [%s], cannot update its location",
+      context.requester_id().c_str());
+    return;
+  }
+  const auto& graph = planner->get_configuration().graph();
+  const auto now = context.now();
+  auto starts = compute_plan_starts(graph, map, position, now);
+  if (!starts.empty())
+  {
+    context.set_location(std::move(starts));
+  }
+  else
+  {
+    context.set_lost(Location { now, map, position });
+  }
+}
+
+//==============================================================================
 std::shared_ptr<RobotCommandHandle> RobotContext::command()
 {
   return _command_handle.lock();
@@ -623,10 +651,17 @@ const Reporting& RobotContext::reporting() const
 }
 
 //==============================================================================
-void RobotContext::localize(EasyFullControl::Destination estimate) const
+bool RobotContext::localize(
+  EasyFullControl::Destination estimate,
+  EasyFullControl::CommandExecution execution) const
 {
   if (_localize)
-    _localize(std::move(estimate));
+  {
+    _localize(std::move(estimate), std::move(execution));
+    return true;
+  }
+
+  return false;
 }
 
 //==============================================================================

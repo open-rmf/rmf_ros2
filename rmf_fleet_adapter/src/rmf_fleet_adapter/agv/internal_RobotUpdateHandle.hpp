@@ -32,6 +32,7 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
+//==============================================================================
 class TriggerOnce
 {
 public:

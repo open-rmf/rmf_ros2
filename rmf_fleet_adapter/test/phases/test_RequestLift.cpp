@@ -71,7 +71,8 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
     lift_name,
     destination,
     context->now() + std::chrono::seconds(5),
-    RequestLift::Located::Outside
+    RequestLift::Located::Outside,
+    0
   );
   auto active_phase = pending_phase->begin();
 

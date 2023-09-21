@@ -18,6 +18,8 @@
 #include "RequestLift.hpp"
 #include "EndLiftSession.hpp"
 #include "RxOperators.hpp"
+#include "../agv/internal_RobotUpdateHandle.hpp"
+#include "../agv/internal_EasyFullControl.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -29,6 +31,7 @@ std::shared_ptr<RequestLift::ActivePhase> RequestLift::ActivePhase::make(
   std::string destination,
   rmf_traffic::Time expected_finish,
   const Located located,
+  rmf_traffic::PlanId plan_id,
   std::optional<agv::Destination> localize)
 {
   auto inst = std::shared_ptr<ActivePhase>(
@@ -38,6 +41,7 @@ std::shared_ptr<RequestLift::ActivePhase> RequestLift::ActivePhase::make(
       std::move(destination),
       std::move(expected_finish),
       located,
+      plan_id,
       std::move(localize)
   ));
   inst->_init_obs();
@@ -83,12 +87,14 @@ RequestLift::ActivePhase::ActivePhase(
   std::string destination,
   rmf_traffic::Time expected_finish,
   Located located,
+  rmf_traffic::PlanId plan_id,
   std::optional<agv::Destination> localize)
 : _context(std::move(context)),
   _lift_name(std::move(lift_name)),
   _destination(std::move(destination)),
   _expected_finish(std::move(expected_finish)),
   _located(located),
+  _plan_id(plan_id),
   _localize_after(std::move(localize))
 {
   std::ostringstream oss;
@@ -124,17 +130,17 @@ void RequestLift::ActivePhase::_init_obs()
             // TODO(MXG): We can stop publishing the door request once the
             // supervisor sees our request.
             me->_do_publish();
-
-            const auto current_expected_finish =
-            me->_expected_finish + me->_context->itinerary().delay();
-
-            const auto delay = me->_context->now() - current_expected_finish;
+            const auto delay = me->_context->now() - me->_expected_finish;
             if (delay > std::chrono::seconds(0))
             {
               me->_context->worker().schedule(
-                [context = me->_context, delay](const auto&)
+                [
+                  context = me->_context,
+                  plan_id = me->_plan_id,
+                  delay
+                ](const auto&)
                 {
-                  context->itinerary().delay(delay);
+                  context->itinerary().cumulative_delay(plan_id, delay);
                 });
             }
           });
@@ -173,7 +179,42 @@ void RequestLift::ActivePhase::_init_obs()
 
           if (me->_localize_after.has_value())
           {
-            me->_context->localize(*me->_localize_after);
+            auto finish = [s, worker = me->_context->worker()]()
+              {
+                worker.schedule([s](const auto&)
+                 {
+                   s.on_completed();
+                 });
+              };
+            auto cmd = agv::EasyFullControl
+              ::CommandExecution::Implementation::make_hold(
+                me->_context,
+                me->_expected_finish,
+                me->_plan_id,
+                std::move(finish));
+
+            if (me->_context->localize(*me->_localize_after, std::move(cmd)))
+            {
+              me->_rewait_timer = me->_context->node()->try_create_wall_timer(
+                std::chrono::seconds(30),
+                [w = me->weak_from_this(), s]
+                {
+                  const auto me = w.lock();
+                  if (!me)
+                    return;
+
+                  RCLCPP_ERROR(
+                    me->_context->node()->get_logger(),
+                    "Waiting for robot [%s] to localize timed out. Please "
+                    "ensure that your localization function triggers "
+                    "execution.finished() when the robot's localization "
+                    "process is finished.",
+                    me->_context->requester_id());
+
+                  s.on_completed();
+                });
+              return;
+            }
           }
 
           if (!me->_cancelled.get_value() || me->_located == Located::Inside)
@@ -330,12 +371,14 @@ RequestLift::PendingPhase::PendingPhase(
   std::string destination,
   rmf_traffic::Time expected_finish,
   Located located,
+  rmf_traffic::PlanId plan_id,
   std::optional<agv::Destination> localize)
 : _context(std::move(context)),
   _lift_name(std::move(lift_name)),
   _destination(std::move(destination)),
   _expected_finish(std::move(expected_finish)),
   _located(located),
+  _plan_id(plan_id),
   _localize_after(std::move(localize))
 {
   std::ostringstream oss;
@@ -353,6 +396,7 @@ std::shared_ptr<LegacyTask::ActivePhase> RequestLift::PendingPhase::begin()
     _destination,
     _expected_finish,
     _located,
+    _plan_id,
     _localize_after);
 }
 
