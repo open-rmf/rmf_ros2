@@ -475,6 +475,21 @@ RobotContext& RobotContext::current_task_id(std::optional<std::string> id)
 }
 
 //==============================================================================
+const std::string RobotContext::copy_current_task_id() const
+{
+  std::mutex _mutex;
+  std::unique_lock<std::mutex> lock();
+
+  {
+    std::unique_lock<std::mutex> lock(_mutex);
+    if (_current_task_id.has_value())
+      return _current_task_id.value();
+
+    return {};
+  }
+}
+
+//==============================================================================
 double RobotContext::current_battery_soc() const
 {
   return _current_battery_soc;

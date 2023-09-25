@@ -320,6 +320,10 @@ public:
   /// being performed.
   RobotContext& current_task_id(std::optional<std::string> id);
 
+  /// Get a string copy of the current task ID of the robot, or an empty string
+  /// if the robot is not performing any task
+  const std::string copy_current_task_id() const;
+
   /// Get the current battery state of charge
   double current_battery_soc() const;
 

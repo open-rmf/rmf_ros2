@@ -332,6 +332,15 @@ RobotUpdateHandle::maximum_delay() const
 }
 
 //==============================================================================
+const std::string RobotUpdateHandle::current_task_id() const
+{
+  if (const auto context = _pimpl->get_context())
+    return context->copy_current_task_id();
+
+  return {};
+}
+
+//==============================================================================
 void RobotUpdateHandle::set_action_executor(
   RobotUpdateHandle::ActionExecutor action_executor)
 {

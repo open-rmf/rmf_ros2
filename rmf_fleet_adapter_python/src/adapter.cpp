@@ -155,6 +155,11 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       return self.maximum_delay();
     })
+  .def("current_task_id",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.current_task_id();
+    })
   .def("set_infinite_delay",
     [&](agv::RobotUpdateHandle& self)
     {

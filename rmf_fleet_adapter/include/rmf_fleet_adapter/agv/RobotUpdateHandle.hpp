@@ -126,6 +126,10 @@ public:
   /// value that was given to the setter.
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
 
+  /// Get the current task ID of the robot, or an empty string if the robot
+  /// is not performing any task.
+  const std::string current_task_id() const;
+
   /// Unique identifier for an activity that the robot is performing. Used by
   /// the EasyFullControl API.
   class ActivityIdentifier
