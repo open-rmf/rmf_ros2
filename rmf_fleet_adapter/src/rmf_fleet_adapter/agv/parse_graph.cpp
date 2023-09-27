@@ -309,8 +309,9 @@ rmf_traffic::agv::Graph parse_graph(
 
   for (const auto& lift : wps_of_lift)
   {
+    double largest_dist = 0.0;
     const auto& wps = lift.second;
-    for (std::size_t i = 0; i < wps.size()-1; i++)
+    for (std::size_t i = 0; i < wps.size()-1; ++i)
     {
       rmf_utils::clone_ptr<Event> entry_event;
       rmf_utils::clone_ptr<Event> exit_event;
@@ -327,6 +328,39 @@ rmf_traffic::agv::Graph parse_graph(
       graph.add_lane(
         {wps[i+1], entry_event},
         {wps[i], exit_event});
+
+      const auto pi = graph.get_waypoint(wps[i]).get_location();
+      for (std::size_t j = i+1; j < wps.size(); ++j)
+      {
+        const auto pj = graph.get_waypoint(wps[j]).get_location();
+        const auto dist = (pj - pi).norm();
+        if (dist > largest_dist)
+          largest_dist = dist;
+      }
+    }
+
+    if (largest_dist > 0.1)
+    {
+      throw std::runtime_error(
+        "Bad vertical alignment for the waypoints in lift [" + lift.first
+        + "]. Largest variation is " + std::to_string(largest_dist));
+    }
+
+    Eigen::Vector2d lift_center = Eigen::Vector2d::Zero();
+    double weight = 0.0;
+    for (const auto wp : wps)
+    {
+      lift_center += graph.get_waypoint(wp).get_location();
+      weight += 1.0;
+    }
+
+    if (weight > 0.0)
+    {
+      lift_center /= weight;
+      for (const auto wp : wps)
+      {
+        graph.get_waypoint(wp).set_location(lift_center);
+      }
     }
   }
 
