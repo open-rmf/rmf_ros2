@@ -518,7 +518,7 @@ void EasyFullControl::CommandExecution::Implementation::finish()
         // Prevent this activity from doing any further updates
         ActivityIdentifier::Implementation::get(
           *identifier).update_fn = nullptr;
-        if (data->schedule_override.has_value())
+        if (data && data->schedule_override.has_value())
         {
           data->release_stubbornness();
           RCLCPP_INFO(
