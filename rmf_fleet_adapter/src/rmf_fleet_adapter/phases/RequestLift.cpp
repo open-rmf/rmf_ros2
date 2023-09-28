@@ -209,7 +209,7 @@ void RequestLift::ActivePhase::_init_obs()
                     "ensure that your localization function triggers "
                     "execution.finished() when the robot's localization "
                     "process is finished.",
-                    me->_context->requester_id());
+                    me->_context->requester_id().c_str());
 
                   s.on_completed();
                 });

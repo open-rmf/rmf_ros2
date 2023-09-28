@@ -264,7 +264,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     if (entry)
       entry->execute(finder);
 
-    const auto* exit = config.graph()->get_lane(i).entry().event();
+    const auto* exit = config.graph()->get_lane(i).exit().event();
     if (exit)
       exit->execute(finder);
   }
