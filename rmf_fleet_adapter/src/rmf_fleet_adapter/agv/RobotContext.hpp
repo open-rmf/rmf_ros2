@@ -43,6 +43,8 @@
 #include "Node.hpp"
 #include "../Reporting.hpp"
 
+#include <unordered_set>
+
 namespace rmf_fleet_adapter {
 
 // Forward declaration
@@ -55,6 +57,7 @@ using TransformDictionary = std::unordered_map<std::string, Transformation>;
 using SharedPlanner = std::shared_ptr<
   std::shared_ptr<const rmf_traffic::agv::Planner>>;
 using Destination = EasyFullControl::Destination;
+using VertexStack = std::shared_ptr<std::unordered_set<std::size_t>>;
 
 //==============================================================================
 struct NavParams
@@ -125,11 +128,19 @@ struct NavParams
         min_lane_length);
 
       if (!starts.empty())
-        return starts;
+        return descend_stacks(graph, starts);
     }
 
     return {};
   }
+
+  std::unordered_map<std::size_t, VertexStack> stacked_vertices;
+
+  void find_stacked_vertices(const rmf_traffic::agv::Graph& graph);
+
+  rmf_traffic::agv::Plan::StartSet descend_stacks(
+    const rmf_traffic::agv::Graph& graph,
+    rmf_traffic::agv::Plan::StartSet locations) const;
 };
 
 //==============================================================================

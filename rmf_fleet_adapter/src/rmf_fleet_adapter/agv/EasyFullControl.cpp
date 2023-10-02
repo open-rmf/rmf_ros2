@@ -2686,6 +2686,7 @@ auto EasyFullControl::add_robot(
     robot_nav_params->min_lane_length = *configuration.min_lane_length();
   }
 
+  robot_nav_params->find_stacked_vertices(graph);
   const Eigen::Vector3d position = *position_opt;
   auto starts = robot_nav_params->compute_plan_starts(
     graph, initial_state.map(), position, now);

@@ -57,6 +57,132 @@ void NavParams::search_for_location(
 }
 
 //==============================================================================
+void NavParams::find_stacked_vertices(const rmf_traffic::agv::Graph& graph)
+{
+  for (std::size_t i = 0; i < graph.num_waypoints() - 1; ++i)
+  {
+    const auto& wp_i = graph.get_waypoint(i);
+    const Eigen::Vector2d p_i = wp_i.get_location();
+    const std::string& map_i = wp_i.get_map_name();
+    for (std::size_t j = i+1; j < graph.num_waypoints(); ++j)
+    {
+      const auto& wp_j = graph.get_waypoint(j);
+      const Eigen::Vector2d p_j = wp_j.get_location();
+      const std::string& map_j = wp_j.get_map_name();
+      if (map_i != map_j)
+      {
+        continue;
+      }
+
+      const double dist = (p_i - p_j).norm();
+      if (dist > max_merge_waypoint_distance)
+      {
+        continue;
+      }
+
+      // stack these waypoints
+      auto stack_i = stacked_vertices[i];
+      auto stack_j = stacked_vertices[j];
+      if (!stack_i && !stack_j)
+      {
+        // create a new stack
+        stack_i = std::make_shared<std::unordered_set<std::size_t>>();
+        stack_j = stack_i;
+      }
+      else if (stack_i && stack_j)
+      {
+        if (stack_i != stack_j)
+        {
+          for (const std::size_t other : *stack_j)
+          {
+            stack_i->insert(other);
+            stacked_vertices[other] = stack_i;
+          }
+
+        }
+      }
+      else if (!stack_i)
+      {
+        stack_i = stack_j;
+      }
+
+      assert(stack_i);
+      stack_i->insert(i);
+      stack_i->insert(j);
+      stacked_vertices[i] = stack_i;
+      stacked_vertices[j] = stack_j;
+    }
+  }
+}
+
+//==============================================================================
+rmf_traffic::agv::Plan::StartSet NavParams::descend_stacks(
+  const rmf_traffic::agv::Graph& graph,
+  rmf_traffic::agv::Plan::StartSet locations) const
+{
+  for (rmf_traffic::agv::Plan::Start& location : locations)
+  {
+    std::optional<std::size_t> waypoint_opt;
+    if (location.lane().has_value())
+    {
+      const rmf_traffic::agv::Graph::Lane& lane =
+        graph.get_lane(*location.lane());
+      waypoint_opt = lane.entry().waypoint_index();
+    }
+    else
+    {
+      waypoint_opt = location.waypoint();
+    }
+
+    if (!waypoint_opt.has_value())
+      continue;
+
+    std::size_t waypoint = waypoint_opt.value();
+    const auto s_it = stacked_vertices.find(waypoint);
+    VertexStack stack;
+    if (s_it != stacked_vertices.end())
+      stack = s_it->second;
+    if (!stack)
+      continue;
+
+    std::unordered_set<std::size_t> visited;
+    bool can_descend = true;
+    bool has_loop = false;
+    while (can_descend)
+    {
+      can_descend = false;
+      if (!visited.insert(waypoint).second)
+      {
+        // These stacked vertices have a loop so there's no way to find a bottom
+        // for it. We need to just exit here.
+        has_loop = true;
+        break;
+      }
+
+      for (std::size_t v : *stack)
+      {
+        if (graph.lane_from(v, waypoint))
+        {
+          waypoint = v;
+          can_descend = true;
+          break;
+        }
+      }
+    }
+
+    if (has_loop)
+    {
+      continue;
+    }
+
+    // Transfer the location estimate over to the waypoint that's at the bottom
+    // of the vertex stack.
+    location.lane(std::nullopt);
+    location.waypoint(waypoint);
+  }
+}
+
+//==============================================================================
 std::shared_ptr<RobotCommandHandle> RobotContext::command()
 {
   return _command_handle.lock();
