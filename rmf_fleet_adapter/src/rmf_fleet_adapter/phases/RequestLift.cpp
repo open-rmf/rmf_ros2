@@ -193,6 +193,9 @@ void RequestLift::ActivePhase::_init_obs()
                 me->_plan_id,
                 std::move(finish));
 
+            agv::Destination::Implementation::get(*me->_localize_after)
+              .position = me->_context->position();
+
             if (me->_context->localize(*me->_localize_after, std::move(cmd)))
             {
               me->_rewait_timer = me->_context->node()->try_create_wall_timer(

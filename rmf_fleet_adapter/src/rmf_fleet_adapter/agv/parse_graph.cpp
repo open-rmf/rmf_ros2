@@ -19,6 +19,8 @@
 #include <unordered_map>
 #include <yaml-cpp/yaml.h>
 
+#include <iostream>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -59,6 +61,7 @@ rmf_traffic::agv::Graph parse_graph(
   rmf_traffic::agv::Graph graph;
   std::unordered_map<std::string, std::vector<std::size_t>> wps_of_lift;
   std::unordered_map<std::size_t, std::string> lift_of_wp;
+  std::unordered_map<std::size_t, std::size_t> stacked_vertex;
   std::size_t vnum = 0;  // To increment lane endpoint ids
 
   for (const auto& level : levels)
@@ -133,6 +136,7 @@ rmf_traffic::agv::Graph parse_graph(
         {
           wps_of_lift[lift_name].push_back(wp.index());
           lift_of_wp[wp.index()] = lift_name;
+          wp.set_in_lift(lift_name);
         }
       }
     }
@@ -140,7 +144,6 @@ rmf_traffic::agv::Graph parse_graph(
     const YAML::Node& lanes = level.second["lanes"];
     for (const auto& lane : lanes)
     {
-
       ConstraintPtr constraint = nullptr;
 
       const YAML::Node& options = lane[2];
@@ -284,6 +287,12 @@ rmf_traffic::agv::Graph parse_graph(
           graph.add_lane(
             {begin, entry_event},
             {dock_wp.index(), rmf_utils::clone_ptr<Event>()});
+          stacked_vertex.insert({begin, dock_wp.index()});
+
+          if (const auto* lift_name = graph.get_waypoint(begin).in_lift())
+          {
+            dock_wp.set_in_lift(*lift_name);
+          }
 
           // First lane from start -> dock, second lane from dock -> end
           begin = dock_wp.index();
@@ -360,6 +369,12 @@ rmf_traffic::agv::Graph parse_graph(
       for (const auto wp : wps)
       {
         graph.get_waypoint(wp).set_location(lift_center);
+        const auto s_it = stacked_vertex.find(wp);
+        if (s_it != stacked_vertex.end())
+        {
+          std::cout << "Also shifting stacked vertex " << s_it->first << ":" << s_it->second << std::endl;
+          graph.get_waypoint(s_it->second).set_location(lift_center);
+        }
       }
     }
   }

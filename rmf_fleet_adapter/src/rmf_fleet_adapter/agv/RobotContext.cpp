@@ -163,6 +163,7 @@ rmf_traffic::agv::Plan::StartSet NavParams::descend_stacks(
       {
         if (graph.lane_from(v, waypoint))
         {
+          std::cout << "descending " << v << " -> " << waypoint << std::endl;
           waypoint = v;
           can_descend = true;
           break;
@@ -177,9 +178,33 @@ rmf_traffic::agv::Plan::StartSet NavParams::descend_stacks(
 
     // Transfer the location estimate over to the waypoint that's at the bottom
     // of the vertex stack.
+    std::cout << "Descended vertex stack to " << waypoint << std::endl;
     location.lane(std::nullopt);
     location.waypoint(waypoint);
   }
+
+  return locations;
+}
+
+//==============================================================================
+bool NavParams::in_same_stack(
+  std::size_t wp0,
+  std::size_t wp1) const
+{
+  if (wp0 == wp1)
+  {
+    return true;
+  }
+
+  const auto s_it = stacked_vertices.find(wp0);
+  if (s_it == stacked_vertices.end())
+    return false;
+
+  const auto stack = s_it->second;
+  if (!stack)
+    return false;
+
+  return stack->count(wp1);
 }
 
 //==============================================================================
@@ -197,25 +222,43 @@ std::shared_ptr<RobotUpdateHandle> RobotContext::make_updater()
 //==============================================================================
 Eigen::Vector3d RobotContext::position() const
 {
-  assert(!_location.empty());
-  const auto& l = _location.front();
-  if (l.location().has_value())
+  if (!_location.empty())
   {
-    const Eigen::Vector2d& p = *l.location();
+    const auto& l = _location.front();
+    if (l.location().has_value())
+    {
+      const Eigen::Vector2d& p = *l.location();
+      return {p[0], p[1], l.orientation()};
+    }
+
+    const Eigen::Vector2d& p =
+      navigation_graph().get_waypoint(l.waypoint()).get_location();
     return {p[0], p[1], l.orientation()};
   }
+  else if (_lost.has_value() && _lost->location.has_value())
+  {
+    return _lost->location->position;
+  }
 
-  const Eigen::Vector2d& p =
-    navigation_graph().get_waypoint(l.waypoint()).get_location();
-  return {p[0], p[1], l.orientation()};
+  throw std::runtime_error(
+    "No location information is available for [" + requester_id() + "]");
 }
 
 //==============================================================================
 const std::string& RobotContext::map() const
 {
-  assert(!_location.empty());
-  return navigation_graph()
-    .get_waypoint(_location.front().waypoint()).get_map_name();
+  if (!_location.empty())
+  {
+    return navigation_graph()
+      .get_waypoint(_location.front().waypoint()).get_map_name();
+  }
+  else if (_lost.has_value() && _lost->location.has_value())
+  {
+    return _lost->location->map;
+  }
+
+  throw std::runtime_error(
+    "No location information is available for [" + requester_id() + "]");
 }
 
 //==============================================================================

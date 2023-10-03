@@ -446,6 +446,10 @@ public:
   /// will contain the name of the dock.
   std::optional<std::string> dock() const;
 
+  /// Get whether the destination is inside of a lift, and if so get the name of
+  /// the lift.
+  std::optional<std::string> inside_lift() const;
+
   class Implementation;
 private:
   Destination();

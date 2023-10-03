@@ -141,6 +141,8 @@ struct NavParams
   rmf_traffic::agv::Plan::StartSet descend_stacks(
     const rmf_traffic::agv::Graph& graph,
     rmf_traffic::agv::Plan::StartSet locations) const;
+
+  bool in_same_stack(std::size_t wp0, std::size_t wp1) const;
 };
 
 //==============================================================================

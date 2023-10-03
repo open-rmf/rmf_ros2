@@ -435,6 +435,24 @@ std::optional<EventGroupInfo> search_for_lift_group(
 
 } // anonymous namespace
 
+class Printer : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+  Printer()
+  {
+    // Do nothing
+  }
+
+  void execute(const DoorOpen&) override { std::cout << "event " << __LINE__ << std::endl;; }
+  void execute(const DoorClose&) override { std::cout << "event " << __LINE__ << std::endl;; }
+  void execute(const LiftSessionBegin&) override { std::cout << "event " << __LINE__ << std::endl;; }
+  void execute(const LiftDoorOpen&) override { std::cout << "event " << __LINE__ << std::endl;; }
+  void execute(const LiftSessionEnd&) override { std::cout << "event " << __LINE__ << std::endl;; }
+  void execute(const LiftMove&) override { std::cout << "event " << __LINE__ << std::endl;; }
+  void execute(const Wait&) override { std::cout << "event " << __LINE__ << std::endl;; }
+  void execute(const Dock& dock) override { std::cout << "event " << __LINE__ << std::endl;; }
+};
+
 //==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
@@ -447,6 +465,21 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::function<void()> finished,
   std::optional<rmf_traffic::Duration> tail_period)
 {
+  std::cout << " --- plan --- " << std::endl;
+  const auto t0 = plan.get_waypoints().front().time();
+  for (const rmf_traffic::agv::Plan::Waypoint& wp : plan.get_waypoints())
+  {
+    std::cout << " -- t=" << rmf_traffic::time::to_seconds(wp.time() - t0) << " ";
+    if (wp.graph_index().has_value())
+      std::cout << "index " << *wp.graph_index() << " ";
+    std::cout << "[" << wp.position().transpose() << "]" << std::endl;
+    if (wp.event())
+    {
+      Printer printer;
+      wp.event()->execute(printer);
+    }
+  }
+
   std::optional<rmf_traffic::Time> finish_time_estimate;
   for (const auto& r : plan.get_itinerary())
   {

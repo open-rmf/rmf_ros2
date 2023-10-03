@@ -77,6 +77,7 @@ public:
   Eigen::Vector3d position;
   std::optional<std::size_t> graph_index;
   std::optional<double> speed_limit;
+  std::optional<std::string> lift;
   std::optional<std::string> dock = std::nullopt;
 
   template<typename... Args>
@@ -86,6 +87,11 @@ public:
     output._pimpl = rmf_utils::make_impl<Implementation>(
       Implementation{std::forward<Args>(args)...});
     return output;
+  }
+
+  static Implementation& get(Destination& self)
+  {
+    return *self._pimpl;
   }
 };
 
