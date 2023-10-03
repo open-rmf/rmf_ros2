@@ -952,6 +952,7 @@ void EasyCommandHandle::follow_new_path(
     const auto& wp1 = waypoints[i_flatten];
     if (!wp0.graph_index().has_value() || !wp1.graph_index().has_value())
     {
+      ++i_flatten;
       continue;
     }
 
