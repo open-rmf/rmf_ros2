@@ -181,7 +181,7 @@ public:
       waypoint.position(),
       waypoint.graph_index(),
       std::nullopt,
-      std::nullopt);
+      nullptr);
 
     // TODO(MXG): The time calculation here should be considered more carefully.
     _phases.emplace_back(

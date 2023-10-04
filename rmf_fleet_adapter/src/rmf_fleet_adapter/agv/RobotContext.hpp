@@ -128,7 +128,7 @@ struct NavParams
         min_lane_length);
 
       if (!starts.empty())
-        return descend_stacks(graph, starts);
+        return process_locations(graph, starts);
     }
 
     return {};
@@ -138,7 +138,17 @@ struct NavParams
 
   void find_stacked_vertices(const rmf_traffic::agv::Graph& graph);
 
-  rmf_traffic::agv::Plan::StartSet descend_stacks(
+  rmf_traffic::agv::Plan::StartSet process_locations(
+    const rmf_traffic::agv::Graph& graph,
+    rmf_traffic::agv::Plan::StartSet locations) const;
+
+  rmf_traffic::agv::Plan::StartSet _descend_stacks(
+    const rmf_traffic::agv::Graph& graph,
+    rmf_traffic::agv::Plan::StartSet locations) const;
+
+  // If one of the locations is associated with a lift vertex, filter it out if
+  // the actual of the robot is outside the dimensions of the lift.
+  rmf_traffic::agv::Plan::StartSet _lift_boundary_filter(
     const rmf_traffic::agv::Graph& graph,
     rmf_traffic::agv::Plan::StartSet locations) const;
 

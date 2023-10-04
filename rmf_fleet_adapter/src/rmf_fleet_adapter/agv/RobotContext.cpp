@@ -116,7 +116,15 @@ void NavParams::find_stacked_vertices(const rmf_traffic::agv::Graph& graph)
 }
 
 //==============================================================================
-rmf_traffic::agv::Plan::StartSet NavParams::descend_stacks(
+rmf_traffic::agv::Plan::StartSet NavParams::process_locations(
+  const rmf_traffic::agv::Graph& graph,
+  rmf_traffic::agv::Plan::StartSet locations) const
+{
+  return _lift_boundary_filter(graph, _descend_stacks(graph, locations));
+}
+
+//==============================================================================
+rmf_traffic::agv::Plan::StartSet NavParams::_descend_stacks(
   const rmf_traffic::agv::Graph& graph,
   rmf_traffic::agv::Plan::StartSet locations) const
 {
@@ -187,6 +195,60 @@ rmf_traffic::agv::Plan::StartSet NavParams::descend_stacks(
     }
   }
 
+  return locations;
+}
+
+//==============================================================================
+rmf_traffic::agv::Plan::StartSet NavParams::_lift_boundary_filter(
+  const rmf_traffic::agv::Graph& graph,
+  rmf_traffic::agv::Plan::StartSet locations) const
+{
+  const auto r_it = std::remove_if(
+    locations.begin(),
+    locations.end(),
+    [&graph](const rmf_traffic::agv::Plan::Start& location)
+    {
+      if (location.lane().has_value())
+      {
+        // If the intention is to move along a lane, then it is okay to keep
+        // this. If the lane is entering or exiting the lift, then it should
+        // have the necessary events.
+        // TODO(@mxgrey): Should we check and make sure that the event is
+        // actually present?
+        return false;
+      }
+
+      if (!location.location().has_value())
+      {
+        // If the robot is perfectly on some waypoint then there is no need to
+        // filter.
+        return false;
+      }
+
+      const Eigen::Vector2d p = location.location().value();
+
+      const auto robot_inside_lift = [&]()
+        -> rmf_traffic::agv::Graph::LiftPropertiesPtr
+        {
+          for (const auto& lift : graph.known_lifts())
+          {
+            // We assume lifts never overlap so we will return the first
+            // positive hit.
+            if (lift->is_in_lift(p))
+              return lift;
+          }
+
+          return nullptr;
+        }();
+
+      const auto& wp = graph.get_waypoint(location.waypoint());
+      const auto lift = wp.in_lift();
+      // If the robot's lift status and the waypoint's lift status don't match
+      // then we should filter this waypoint out.
+      return wp.in_lift() != robot_inside_lift;
+    });
+
+  locations.erase(r_it, locations.end());
   return locations;
 }
 
@@ -332,11 +394,11 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
       const auto& i_wp1 = lane.exit().waypoint_index();
       const auto& wp1 = graph.get_waypoint(i_wp1);
       std::cout << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose() << "] ";
-      if (const auto* lift = wp0.in_lift())
-        std::cout << "{" << *lift << "} ";
+      if (const auto lift = wp0.in_lift())
+        std::cout << "{" << lift->name() << "} ";
       std::cout << "-> " << i_wp1 << " [" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
-      if (const auto* lift = wp1.in_lift())
-        std::cout << "{" << *lift << "} ";
+      if (const auto lift = wp1.in_lift())
+        std::cout << "{" << lift->name() << "} ";
 
       if (lane.exit().event())
       {
@@ -348,9 +410,9 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
     }
     std::cout << l.waypoint();
     const auto& wp = graph.get_waypoint(l.waypoint());
-    if (const auto* lift = wp.in_lift())
+    if (const auto lift = wp.in_lift())
     {
-      std::cout << " {" << *lift << "}";
+      std::cout << " {" << lift->name() << "}";
     }
     if (l.location().has_value())
     {

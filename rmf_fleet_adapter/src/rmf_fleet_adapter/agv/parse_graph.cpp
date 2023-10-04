@@ -24,6 +24,8 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
+using LiftPropertiesPtr = rmf_traffic::agv::Graph::LiftPropertiesPtr;
+
 //==============================================================================
 rmf_traffic::agv::Graph parse_graph(
   const std::string& graph_file,
@@ -33,6 +35,41 @@ rmf_traffic::agv::Graph parse_graph(
   if (!graph_config)
   {
     throw std::runtime_error("Failed to load graph file [" + graph_file + "]");
+  }
+
+  std::unordered_map<std::string, LiftPropertiesPtr> lifts;
+  bool has_lifts = false;
+  const YAML::Node lifts_yaml = graph_config["lifts"];
+  if (!lifts_yaml)
+  {
+    std::cout << "Your navigation graph does not provide lift information. "
+      << "This may cause problems with behaviors around lifts. Please consider "
+      << "regenerating your navigration graph with the latest version of "
+      << "rmf_building_map_tools (from the rmf_traffic_editor repo)."
+      << std::endl;
+  }
+  else
+  {
+    has_lifts = true;
+    for (const auto& lift : lifts_yaml)
+    {
+      const std::string& name = lift.first.as<std::string>();
+      const YAML::Node& properties_yaml = lift.second;
+
+      const YAML::Node& position_yaml = properties_yaml["position"];
+      const Eigen::Vector2d location(
+        position_yaml[0].as<double>(),
+        position_yaml[1].as<double>());
+      const double orientation = position_yaml[2].as<double>();
+
+      const YAML::Node& dims_yaml = properties_yaml["dims"];
+      const Eigen::Vector2d dimensions(
+        dims_yaml[0].as<double>(),
+        dims_yaml[1].as<double>());
+
+      lifts[name] = std::make_shared<rmf_traffic::agv::Graph::LiftProperties>(
+        name, location, orientation, dimensions);
+    }
   }
 
   const YAML::Node levels = graph_config["levels"];
@@ -136,7 +173,18 @@ rmf_traffic::agv::Graph parse_graph(
         {
           wps_of_lift[lift_name].push_back(wp.index());
           lift_of_wp[wp.index()] = lift_name;
-          wp.set_in_lift(lift_name);
+          if (has_lifts)
+          {
+            const auto l_it = lifts.find(lift_name);
+            if (l_it == lifts.end())
+            {
+              throw std::runtime_error(
+                "Lift properties for [" + lift_name + "] were not provided "
+                "even though it is used by a vertex. This suggests that your "
+                "nav graph was not generated correctly.");
+            }
+            wp.set_in_lift(l_it->second);
+          }
         }
       }
     }
@@ -289,9 +337,9 @@ rmf_traffic::agv::Graph parse_graph(
             {dock_wp.index(), rmf_utils::clone_ptr<Event>()});
           stacked_vertex.insert({begin, dock_wp.index()});
 
-          if (const auto* lift_name = graph.get_waypoint(begin).in_lift())
+          if (const auto lift = graph.get_waypoint(begin).in_lift())
           {
-            dock_wp.set_in_lift(*lift_name);
+            dock_wp.set_in_lift(lift);
           }
 
           // First lane from start -> dock, second lane from dock -> end

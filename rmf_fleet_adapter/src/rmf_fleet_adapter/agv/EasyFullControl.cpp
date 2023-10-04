@@ -719,7 +719,8 @@ std::optional<std::string> EasyFullControl::Destination::dock() const
 }
 
 //==============================================================================
-std::optional<std::string> EasyFullControl::Destination::inside_lift() const
+rmf_traffic::agv::Graph::LiftPropertiesPtr
+EasyFullControl::Destination::inside_lift() const
 {
   return _pimpl->lift;
 }
@@ -1247,11 +1248,10 @@ void EasyCommandHandle::follow_new_path(
       }
     }
 
-    std::optional<std::string> in_lift;
+    rmf_traffic::agv::Graph::LiftPropertiesPtr in_lift;
     if (wp1.graph_index().has_value())
     {
-      in_lift = rmf_utils::pointer_to_opt(
-        graph.get_waypoint(*wp1.graph_index()).in_lift());
+      in_lift = graph.get_waypoint(*wp1.graph_index()).in_lift();
     }
 
     const auto command_position = to_robot_coordinates(map, target_position);
@@ -1261,7 +1261,6 @@ void EasyCommandHandle::follow_new_path(
       wp1.graph_index(),
       speed_limit,
       in_lift);
-
 
     queue.push_back(
       EasyFullControl::CommandExecution::Implementation::make(
@@ -1447,7 +1446,7 @@ void EasyCommandHandle::dock(
     command_position,
     i1,
     lane.properties().speed_limit(),
-    rmf_utils::pointer_to_opt(wp1.in_lift()),
+    wp1.in_lift(),
     dock_name_);
 
   auto cmd = EasyFullControl::CommandExecution::Implementation::make(
