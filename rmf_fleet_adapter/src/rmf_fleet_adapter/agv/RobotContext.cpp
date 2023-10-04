@@ -137,7 +137,8 @@ rmf_traffic::agv::Plan::StartSet NavParams::descend_stacks(
     if (!waypoint_opt.has_value())
       continue;
 
-    std::size_t waypoint = waypoint_opt.value();
+    const std::size_t original_waypoint = waypoint_opt.value();
+    std::size_t waypoint = original_waypoint;
     const auto s_it = stacked_vertices.find(waypoint);
     VertexStack stack;
     if (s_it != stacked_vertices.end())
@@ -179,8 +180,11 @@ rmf_traffic::agv::Plan::StartSet NavParams::descend_stacks(
     // Transfer the location estimate over to the waypoint that's at the bottom
     // of the vertex stack.
     std::cout << "Descended vertex stack to " << waypoint << std::endl;
-    location.lane(std::nullopt);
-    location.waypoint(waypoint);
+    if (waypoint != original_waypoint)
+    {
+      location.lane(std::nullopt);
+      location.waypoint(waypoint);
+    }
   }
 
   return locations;
@@ -279,6 +283,24 @@ const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
   return _location;
 }
 
+class Printer : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+  Printer()
+  {
+    // Do nothing
+  }
+
+  void execute(const DoorOpen&) override { std::cout << __LINE__; }
+  void execute(const DoorClose&) override { std::cout << __LINE__; }
+  void execute(const LiftSessionBegin&) override { std::cout << __LINE__; }
+  void execute(const LiftDoorOpen&) override { std::cout << __LINE__; }
+  void execute(const LiftSessionEnd&) override { std::cout << __LINE__; }
+  void execute(const LiftMove&) override { std::cout << __LINE__; }
+  void execute(const Wait&) override { std::cout << __LINE__; }
+  void execute(const Dock& dock) override { std::cout << __LINE__; }
+};
+
 //==============================================================================
 void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
 {
@@ -289,6 +311,54 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
 
   _location = std::move(location_);
   filter_closed_lanes();
+
+  const auto& graph = navigation_graph();
+  for (const auto& l : _location)
+  {
+    std::cout << " -- ";
+    if (l.lane().has_value())
+    {
+      std::cout << "lane[" << *l.lane() << "] ";
+      Printer printer;
+      const auto& lane = graph.get_lane(*l.lane());
+      if (lane.entry().event())
+      {
+        std::cout << " [entry ";
+        lane.entry().event()->execute(printer);
+        std::cout << "] ";
+      }
+      const auto& i_wp0 = lane.entry().waypoint_index();
+      const auto& wp0 = graph.get_waypoint(i_wp0);
+      const auto& i_wp1 = lane.exit().waypoint_index();
+      const auto& wp1 = graph.get_waypoint(i_wp1);
+      std::cout << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose() << "] ";
+      if (const auto* lift = wp0.in_lift())
+        std::cout << "{" << *lift << "} ";
+      std::cout << "-> " << i_wp1 << " [" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
+      if (const auto* lift = wp1.in_lift())
+        std::cout << "{" << *lift << "} ";
+
+      if (lane.exit().event())
+      {
+        std::cout << "[exit ";
+        lane.exit().event()->execute(printer);
+        std::cout << "]";
+      }
+      std::cout << " | ";
+    }
+    std::cout << l.waypoint();
+    const auto& wp = graph.get_waypoint(l.waypoint());
+    if (const auto* lift = wp.in_lift())
+    {
+      std::cout << " {" << *lift << "}";
+    }
+    if (l.location().has_value())
+    {
+      std::cout << " | " << l.location()->transpose();
+    }
+    std::cout << std::endl;
+  }
+
   if (_location.empty())
   {
     set_lost(std::nullopt);
