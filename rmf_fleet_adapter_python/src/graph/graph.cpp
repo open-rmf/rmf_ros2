@@ -114,7 +114,7 @@ void bind_graph(py::module& m)
   bind_lane(m_graph);
 
   // GRAPH =====================================================================
-  py::class_<Graph>(m_graph, "Graph")
+  py::class_<Graph, std::shared_ptr<Graph>>(m_graph, "Graph")
   .def(py::init<>())
 
   // Waypoints
