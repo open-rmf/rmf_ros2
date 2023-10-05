@@ -465,20 +465,20 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::function<void()> finished,
   std::optional<rmf_traffic::Duration> tail_period)
 {
-  std::cout << " --- plan --- " << std::endl;
-  const auto t0 = plan.get_waypoints().front().time();
-  for (const rmf_traffic::agv::Plan::Waypoint& wp : plan.get_waypoints())
-  {
-    std::cout << " -- t=" << rmf_traffic::time::to_seconds(wp.time() - t0) << " ";
-    if (wp.graph_index().has_value())
-      std::cout << "index " << *wp.graph_index() << " ";
-    std::cout << "[" << wp.position().transpose() << "]" << std::endl;
-    if (wp.event())
-    {
-      Printer printer;
-      wp.event()->execute(printer);
-    }
-  }
+  // std::cout << " --- plan --- " << std::endl;
+  // const auto t0 = plan.get_waypoints().front().time();
+  // for (const rmf_traffic::agv::Plan::Waypoint& wp : plan.get_waypoints())
+  // {
+  //   std::cout << " -- t=" << rmf_traffic::time::to_seconds(wp.time() - t0) << " ";
+  //   if (wp.graph_index().has_value())
+  //     std::cout << "index " << *wp.graph_index() << " ";
+  //   std::cout << "[" << wp.position().transpose() << "]" << std::endl;
+  //   if (wp.event())
+  //   {
+  //     Printer printer;
+  //     wp.event()->execute(printer);
+  //   }
+  // }
 
   std::optional<rmf_traffic::Time> finish_time_estimate;
   for (const auto& r : plan.get_itinerary())

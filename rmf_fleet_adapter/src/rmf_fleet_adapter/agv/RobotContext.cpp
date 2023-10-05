@@ -172,7 +172,7 @@ rmf_traffic::agv::Plan::StartSet NavParams::_descend_stacks(
       {
         if (graph.lane_from(v, waypoint))
         {
-          std::cout << "descending " << v << " -> " << waypoint << std::endl;
+          // std::cout << "descending " << v << " -> " << waypoint << std::endl;
           waypoint = v;
           can_descend = true;
           break;
@@ -187,7 +187,7 @@ rmf_traffic::agv::Plan::StartSet NavParams::_descend_stacks(
 
     // Transfer the location estimate over to the waypoint that's at the bottom
     // of the vertex stack.
-    std::cout << "Descended vertex stack to " << waypoint << std::endl;
+    // std::cout << "Descended vertex stack to " << waypoint << std::endl;
     if (waypoint != original_waypoint)
     {
       location.lane(std::nullopt);
@@ -374,52 +374,52 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
   _location = std::move(location_);
   filter_closed_lanes();
 
-  const auto& graph = navigation_graph();
-  for (const auto& l : _location)
-  {
-    std::cout << " -- ";
-    if (l.lane().has_value())
-    {
-      std::cout << "lane[" << *l.lane() << "] ";
-      Printer printer;
-      const auto& lane = graph.get_lane(*l.lane());
-      if (lane.entry().event())
-      {
-        std::cout << " [entry ";
-        lane.entry().event()->execute(printer);
-        std::cout << "] ";
-      }
-      const auto& i_wp0 = lane.entry().waypoint_index();
-      const auto& wp0 = graph.get_waypoint(i_wp0);
-      const auto& i_wp1 = lane.exit().waypoint_index();
-      const auto& wp1 = graph.get_waypoint(i_wp1);
-      std::cout << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose() << "] ";
-      if (const auto lift = wp0.in_lift())
-        std::cout << "{" << lift->name() << "} ";
-      std::cout << "-> " << i_wp1 << " [" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
-      if (const auto lift = wp1.in_lift())
-        std::cout << "{" << lift->name() << "} ";
+  // const auto& graph = navigation_graph();
+  // for (const auto& l : _location)
+  // {
+  //   std::cout << " -- ";
+  //   if (l.lane().has_value())
+  //   {
+  //     std::cout << "lane[" << *l.lane() << "] ";
+  //     Printer printer;
+  //     const auto& lane = graph.get_lane(*l.lane());
+  //     if (lane.entry().event())
+  //     {
+  //       std::cout << " [entry ";
+  //       lane.entry().event()->execute(printer);
+  //       std::cout << "] ";
+  //     }
+  //     const auto& i_wp0 = lane.entry().waypoint_index();
+  //     const auto& wp0 = graph.get_waypoint(i_wp0);
+  //     const auto& i_wp1 = lane.exit().waypoint_index();
+  //     const auto& wp1 = graph.get_waypoint(i_wp1);
+  //     std::cout << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose() << "] ";
+  //     if (const auto lift = wp0.in_lift())
+  //       std::cout << "{" << lift->name() << "} ";
+  //     std::cout << "-> " << i_wp1 << " [" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
+  //     if (const auto lift = wp1.in_lift())
+  //       std::cout << "{" << lift->name() << "} ";
 
-      if (lane.exit().event())
-      {
-        std::cout << "[exit ";
-        lane.exit().event()->execute(printer);
-        std::cout << "]";
-      }
-      std::cout << " | ";
-    }
-    std::cout << l.waypoint();
-    const auto& wp = graph.get_waypoint(l.waypoint());
-    if (const auto lift = wp.in_lift())
-    {
-      std::cout << " {" << lift->name() << "}";
-    }
-    if (l.location().has_value())
-    {
-      std::cout << " | " << l.location()->transpose();
-    }
-    std::cout << std::endl;
-  }
+  //     if (lane.exit().event())
+  //     {
+  //       std::cout << "[exit ";
+  //       lane.exit().event()->execute(printer);
+  //       std::cout << "]";
+  //     }
+  //     std::cout << " | ";
+  //   }
+  //   std::cout << l.waypoint();
+  //   const auto& wp = graph.get_waypoint(l.waypoint());
+  //   if (const auto lift = wp.in_lift())
+  //   {
+  //     std::cout << " {" << lift->name() << "}";
+  //   }
+  //   if (l.location().has_value())
+  //   {
+  //     std::cout << " | " << l.location()->transpose();
+  //   }
+  //   std::cout << std::endl;
+  // }
 
   if (_location.empty())
   {
