@@ -273,6 +273,7 @@ class EasyFullControl::CommandExecution::Implementation::Data
 public:
   std::vector<std::size_t> waypoints;
   std::vector<std::size_t> lanes;
+  std::optional<Eigen::Vector2d> target_location;
   std::optional<double> final_orientation;
   rmf_traffic::Duration planned_wait_time;
   std::optional<ScheduleOverride> schedule_override;
@@ -462,10 +463,9 @@ public:
       context->set_lost(Location { now, map, location });
     }
 
-    if (!waypoints.empty())
+    if (target_location.has_value())
     {
-      const auto p_final =
-        graph.get_waypoint(waypoints.back()).get_location();
+      const auto p_final = *target_location;
       const auto distance = (p_final - p).norm();
       double rotation = 0.0;
       if (final_orientation.has_value())
@@ -1262,17 +1262,19 @@ void EasyCommandHandle::follow_new_path(
       speed_limit,
       in_lift);
 
+    const auto target_p = waypoints.at(target_index).position();
     queue.push_back(
       EasyFullControl::CommandExecution::Implementation::make(
         context,
         EasyFullControl::CommandExecution::Implementation::Data{
           cmd_wps,
           cmd_lanes,
+          target_position.block<2, 1>(0, 0),
           target_position[2],
           planned_wait_time,
           std::nullopt,
           nav_params,
-          [next_arrival_estimator_, target_index](rmf_traffic::Duration dt)
+          [next_arrival_estimator_, target_index, target_p](rmf_traffic::Duration dt)
           {
             next_arrival_estimator_(target_index, dt);
           }
@@ -1401,13 +1403,17 @@ void EasyCommandHandle::dock(
   const double dist = (p1 - p0).norm();
   const auto& traits = planner->get_configuration().vehicle_traits();
   const double v = std::max(traits.linear().get_nominal_velocity(), 0.001);
-  const double dt = dist / v;
-  const rmf_traffic::Time expected_arrival =
-    context->now() + rmf_traffic::time::from_seconds(dt);
+  const auto dt = rmf_traffic::time::from_seconds(dist / v);
+  const auto& itin = context->itinerary();
+  const auto now = context->now();
+  const auto initial_delay = itin.cumulative_delay(itin.current_plan_id())
+    .value_or(rmf_traffic::Duration(0));
+  const rmf_traffic::Time expected_arrival = now + dt - initial_delay;
 
   auto data = EasyFullControl::CommandExecution::Implementation::Data{
     {i0, i1},
     {*found_lane},
+    p1,
     std::nullopt,
     rmf_traffic::Duration(0),
     std::nullopt,
