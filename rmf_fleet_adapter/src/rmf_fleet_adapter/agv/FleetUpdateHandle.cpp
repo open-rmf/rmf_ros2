@@ -653,7 +653,7 @@ void FleetUpdateHandle::Implementation::dispatch_command_cb(
 
     RCLCPP_INFO(
       node->get_logger(),
-      "Assignments updated for robots in fleet [%s] to accommodate task_id [%s]",
+      "TaskAssignments updated for robots in fleet [%s] to accommodate task_id [%s]",
       name.c_str(), task_id.c_str());
   }
   else if (msg->type == DispatchCmdMsg::TYPE_REMOVE)
@@ -718,7 +718,7 @@ void FleetUpdateHandle::Implementation::dispatch_command_cb(
 
           RCLCPP_INFO(
             node->get_logger(),
-            "Task with task_id [%s] has successfully been cancelled. Assignments "
+            "Task with task_id [%s] has successfully been cancelled. TaskAssignments "
             "updated for robots in fleet [%s].",
             task_id.c_str(), name.c_str());
         }
@@ -741,7 +741,7 @@ void FleetUpdateHandle::Implementation::dispatch_command_cb(
 
 //==============================================================================
 auto FleetUpdateHandle::Implementation::is_valid_assignments(
-  Assignments& assignments) const -> bool
+  TaskAssignments& assignments) const -> bool
 {
   std::unordered_set<std::string> executed_tasks;
   for (const auto& [context, mgr] : task_managers)
@@ -1128,6 +1128,43 @@ void FleetUpdateHandle::Implementation::update_emergency_planner()
 }
 
 //==============================================================================
+void FleetUpdateHandle::Implementation::update_charging_assignments(
+  const ChargingAssignments& charging)
+{
+  if (charging.fleet_name != name)
+    return;
+
+  for (const ChargingAssignment& assignment : charging.assignments)
+  {
+    bool found_robot = false;
+    for (const auto& [context, _] : task_managers)
+    {
+      if (context->name() != assignment.robot_name)
+        continue;
+
+      const rmf_traffic::agv::Graph& graph = context->navigation_graph();
+      const auto wp = graph.find_waypoint(assignment.waypoint_name);
+      if (!wp)
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "Cannot change charging waypoint for [%s] to [%s] because it does "
+          "not exist in the graph",
+          context->requester_id().c_str(),
+          assignment.waypoint_name.c_str());
+      }
+      const bool wait_for_charger = assignment.mode == assignment.MODE_WAIT;
+      context->_set_charging(wp->index(), wait_for_charger);
+    }
+
+    if (!found_robot)
+    {
+      unregistered_charging_assignments[assignment.robot_name] = assignment;
+    }
+  }
+}
+
+//==============================================================================
 nlohmann::json_schema::json_validator
 FleetUpdateHandle::Implementation::make_validator(
   const nlohmann::json& schema) const
@@ -1312,7 +1349,7 @@ auto FleetUpdateHandle::Implementation::aggregate_expectations() const
 auto FleetUpdateHandle::Implementation::allocate_tasks(
   rmf_task::ConstRequestPtr new_request,
   std::vector<std::string>* errors,
-  std::optional<Expectations> expectations) const -> std::optional<Assignments>
+  std::optional<Expectations> expectations) const -> std::optional<TaskAssignments>
 {
   // Collate robot states, constraints and combine new requestptr with
   // requestptr of non-charging tasks in task manager queues
@@ -1339,7 +1376,7 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
     expect.pending_requests);
 
   auto assignments_ptr = std::get_if<
-    rmf_task::TaskPlanner::Assignments>(&result);
+    rmf_task::TaskPlanner::TaskAssignments>(&result);
 
   if (!assignments_ptr)
   {

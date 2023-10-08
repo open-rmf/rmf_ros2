@@ -658,6 +658,13 @@ RobotContext::observe_replan_request() const
 }
 
 //==============================================================================
+const rxcpp::observable<RobotContext::Empty>&
+RobotContext::observe_charging_change() const
+{
+  return _charging_change_obs;
+}
+
+//==============================================================================
 void RobotContext::request_replan()
 {
   _replan_publisher.get_subscriber().on_next(Empty{});
@@ -751,7 +758,7 @@ std::function<rmf_task::State()> RobotContext::make_get_state()
       rmf_task::State state;
       state.load_basic(
         self->_most_recent_valid_location.front(),
-        self->_charger_wp,
+        self->_charging_wp,
         self->_current_battery_soc);
 
       state.insert<GetContext>(GetContext{self->shared_from_this()});
@@ -816,9 +823,9 @@ RobotContext& RobotContext::current_battery_soc(const double battery_soc)
 }
 
 //==============================================================================
-std::size_t RobotContext::dedicated_charger_wp() const
+std::size_t RobotContext::dedicated_charging_wp() const
 {
-  return _charger_wp;
+  return _charging_wp;
 }
 
 //==============================================================================
@@ -1016,7 +1023,7 @@ RobotContext::RobotContext(
   _maximum_delay(maximum_delay),
   _requester_id(
     _itinerary.description().owner() + "/" + _itinerary.description().name()),
-  _charger_wp(state.dedicated_charging_waypoint().value()),
+  _charging_wp(state.dedicated_charging_waypoint().value()),
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner)),
@@ -1028,6 +1035,7 @@ RobotContext::RobotContext(
 
   _replan_obs = _replan_publisher.get_observable();
   _graph_change_obs = _graph_change_publisher.get_observable();
+  _charging_change_obs = _charging_change_publisher.get_observable();
 
   _battery_soc_obs = _battery_soc_publisher.get_observable();
 
@@ -1057,6 +1065,14 @@ void RobotContext::_set_emergency(bool value)
   {
     filter_closed_lanes();
   }
+}
+
+//==============================================================================
+void RobotContext::_set_charging(std::size_t wp, bool waiting_for_charger)
+{
+  _charging_wp = wp;
+  _waiting_for_charger = waiting_for_charger;
+  _charging_change_publisher.get_subscriber().on_next(Empty{});
 }
 
 } // namespace agv

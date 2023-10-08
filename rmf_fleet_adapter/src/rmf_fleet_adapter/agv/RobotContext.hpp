@@ -285,7 +285,11 @@ public:
   bool is_stubborn() const;
 
   struct Empty {};
+  /// Use this to get notified when
   const rxcpp::observable<Empty>& observe_replan_request() const;
+
+  /// Use this to get notified when the charging policy changes for this robot.
+  const rxcpp::observable<Empty>& observe_charging_change() const;
 
   /// Request this robot to replan
   void request_replan();
@@ -354,7 +358,16 @@ public:
   /// publishes the battery soc via _battery_soc_publisher.
   RobotContext& current_battery_soc(const double battery_soc);
 
-  std::size_t dedicated_charger_wp() const;
+  /// The waypoint dedicated to this robot that it should go to if it needs to
+  /// charge. This may be a waypoint that has a charger or it may be a parking
+  /// spot where the robot should wait until a charger becomes available. Use
+  /// waiting_for_charger() to determine which.
+  std::size_t dedicated_charging_wp() const;
+
+  /// When the robot reaches its dedicated_charging_wp, is it there to wait for
+  /// a charger to become available (true) or to actually perform the charging
+  /// (false)?
+  bool waiting_for_charger() const;
 
   // Get a reference to the battery soc observer of this robot.
   const rxcpp::observable<double>& observe_battery_soc() const;
@@ -433,6 +446,10 @@ public:
   /// FleetUpdateHandle::handle_emergency function.
   void _set_emergency(bool value);
 
+  /// Use this to change the charging settings for the robot and trigger a
+  /// charger change notification.
+  void _set_charging(std::size_t wp, bool waiting_for_charger);
+
   RobotContext(
     std::shared_ptr<RobotCommandHandle> command_handle,
     std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
@@ -468,6 +485,9 @@ private:
   rxcpp::subjects::subject<Empty> _replan_publisher;
   rxcpp::observable<Empty> _replan_obs;
 
+  rxcpp::subjects::subject<Empty> _charging_change_publisher;
+  rxcpp::observable<Empty> _charging_change_obs;
+
   rxcpp::subjects::subject<GraphChange> _graph_change_publisher;
   rxcpp::observable<GraphChange> _graph_change_obs;
 
@@ -480,7 +500,10 @@ private:
 
   /// Always call the current_battery_soc() setter to set a new value
   double _current_battery_soc = 1.0;
-  std::size_t _charger_wp;
+  std::size_t _charging_wp;
+  /// When the robot reaches its _charging_wp, is there to wait for a charger
+  /// (true) or to actually charge (false)?
+  bool _waiting_for_charger;
   rxcpp::subjects::subject<double> _battery_soc_publisher;
   rxcpp::observable<double> _battery_soc_obs;
   rmf_task::State _current_task_end_state;

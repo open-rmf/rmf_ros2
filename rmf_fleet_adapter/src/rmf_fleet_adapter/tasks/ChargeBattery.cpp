@@ -54,7 +54,7 @@ struct GoToChargerDescription
 
     return events::GoToPlace::Standby::make(
       id, get_state, parameters,
-      *GoToPlace::make(context->dedicated_charger_wp()),
+      *GoToPlace::make(context->dedicated_charging_wp()),
       std::move(update));
   }
 

@@ -39,6 +39,7 @@
 
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
 #include <rmf_fleet_msgs/msg/lane_states.hpp>
+#include <rmf_fleet_msgs/msg/charging_assignments.hpp>
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
@@ -286,8 +287,17 @@ public:
   std::unordered_map<std::string, std::string> emergency_level_for_lift;
   SharedPlanner emergency_planner;
 
-  // Map task id to pair of <RequestPtr, Assignments>
-  using Assignments = rmf_task::TaskPlanner::Assignments;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::ChargingAssignments>::SharedPtr
+    charging_assignments_sub = nullptr;
+  using ChargingAssignments = rmf_fleet_msgs::msg::ChargingAssignments;
+  using ChargingAssignment = rmf_fleet_msgs::msg::ChargingAssignment;
+  // Keep track of charging assignments for robots that have not been registered
+  // yet.
+  std::unordered_map<std::string, ChargingAssignment>
+    unregistered_charging_assignments;
+
+  // Map task id to pair of <RequestPtr, TaskAssignments>
+  using TaskAssignments = rmf_task::TaskPlanner::Assignments;
 
   using DockParamMap =
     std::unordered_map<
@@ -308,7 +318,7 @@ public:
 
   double current_assignment_cost = 0.0;
   // Map to store task id with assignments for BidNotice
-  std::unordered_map<std::string, Assignments> bid_notice_assignments = {};
+  std::unordered_map<std::string, TaskAssignments> bid_notice_assignments = {};
 
   using BidNoticeMsg = rmf_task_msgs::msg::BidNotice;
 
@@ -556,6 +566,17 @@ public:
         }
       };
 
+    handle->_pimpl->charging_assignments_sub =
+      handle->_pimpl->node->create_subscription<
+        rmf_fleet_msgs::msg::ChargingAssignments>(
+          "charging_assignments",
+          reliable_transient_qos,
+          [w = handle->weak_from_this()](const ChargingAssignments& assignments)
+          {
+            if (const auto self = w.lock())
+              self->_pimpl->update_charging_assignments(assignments)
+          });
+
     handle->_pimpl->deserialization.event->add(
       "perform_action", validator, deserializer);
 
@@ -596,14 +617,14 @@ public:
   /// Generate task assignments for a collection of task requests comprising of
   /// task requests currently in TaskManager queues while optionally including a
   /// new request and while optionally ignoring a specific request.
-  std::optional<Assignments> allocate_tasks(
+  std::optional<TaskAssignments> allocate_tasks(
     rmf_task::ConstRequestPtr new_request = nullptr,
     std::vector<std::string>* errors = nullptr,
     std::optional<Expectations> expectations = std::nullopt) const;
 
   /// Helper function to check if assignments are valid. An assignment set is
   /// invalid if one of the assignments has already begun execution.
-  bool is_valid_assignments(Assignments& assignments) const;
+  bool is_valid_assignments(TaskAssignments& assignments) const;
 
   void publish_fleet_state_topic() const;
 
@@ -615,6 +636,8 @@ public:
   void update_fleet_logs() const;
   void handle_emergency(bool is_emergency);
   void update_emergency_planner();
+
+  void update_charging_assignments(const ChargingAssignments& assignments);
 
   nlohmann::json_schema::json_validator make_validator(
     const nlohmann::json& schema) const;
