@@ -19,6 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__TASKS__CHARGEBATTERY_HPP
 
 #include "../LegacyTask.hpp"
+#include "../agv/internal_FleetUpdateHandle.hpp"
 #include "../agv/RobotContext.hpp"
 
 #include <rmf_traffic/agv/Planner.hpp>
@@ -43,6 +44,7 @@ std::shared_ptr<LegacyTask> make_charge_battery(
 
 //==============================================================================
 void add_charge_battery(
+  agv::TaskDeserialization& deserialization,
   rmf_task::Activator& task_activator,
   const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,
   rmf_task_sequence::Event::Initializer& event_initializer,

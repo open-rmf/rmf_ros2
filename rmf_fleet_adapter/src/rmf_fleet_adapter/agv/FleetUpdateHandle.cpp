@@ -379,6 +379,16 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       });
   }
 
+  const auto& category = request_msg["category"].get<std::string>();
+  if (bid_ignored_categories.find(category) != bid_ignored_categories.end())
+  {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Fleet [%s] received bid request for category [%s] that can only "
+      "be a direct task assignment", name.c_str(), category.c_str());
+    return;
+  }
+
   std::vector<std::string> errors = {};
   const auto new_request = convert(task_id, request_msg, errors);
   if (!new_request)
@@ -1146,6 +1156,7 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     node->clock());
 
   tasks::add_charge_battery(
+    deserialization,
     *activation.task,
     activation.phase,
     *activation.event,
@@ -1155,6 +1166,9 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     deserialization,
     activation,
     node->clock());
+
+  // TODO(luca) make this configurable to system integrators
+  bid_ignored_categories.insert("charge_battery");
 }
 
 //==============================================================================
