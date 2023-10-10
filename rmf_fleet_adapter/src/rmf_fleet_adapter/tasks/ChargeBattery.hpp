@@ -34,14 +34,6 @@ namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
-std::shared_ptr<LegacyTask> make_charge_battery(
-  const rmf_task::ConstRequestPtr request,
-  const agv::RobotContextPtr& context,
-  const rmf_traffic::agv::Plan::Start start,
-  const rmf_traffic::Time deployment_time,
-  const rmf_task::State finish_state);
-
-//==============================================================================
 void add_charge_battery(
   rmf_task::Activator& task_activator,
   const rmf_task_sequence::Phase::ConstActivatorPtr& phase_activator,

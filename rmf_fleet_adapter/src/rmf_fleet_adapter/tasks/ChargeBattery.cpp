@@ -32,6 +32,93 @@ namespace rmf_fleet_adapter {
 namespace tasks {
 
 //==============================================================================
+// TODO(MXG): Consider making the ChargeBatteryEvent public so it
+// can be incorporated into other task types
+class ChargeBatteryEvent : public rmf_task_sequence::Event
+{
+public:
+  class Description : public rmf_task_sequence::Activity::Description
+  {
+  public:
+    Description()
+    {
+      // Do nothing
+    }
+
+    rmf_task_sequence::Activity::ConstModelPtr make_model(
+      State invariant_initial_state,
+      const rmf_task::Parameters& parameters) const final
+    {
+
+    }
+
+    rmf_task::Header generate_header(
+      const State& initial_state,
+      const rmf_task::Parameters& parameters) const final
+    {
+
+    }
+  };
+
+  class Standby : public rmf_task_sequence::Event::Standby
+  {
+  public:
+    static std::shared_ptr<Standby> make(
+      const AssignIDPtr& id,
+      const std::function<rmf_task::State()>& get_state,
+      const rmf_task::ConstParametersPtr& parameters,
+      const ChargeBatteryEventDescription& description,
+      std::function<void()> update)
+    {
+      const auto state = get_state();
+      const auto context = state.get<agv::GetContext>()->value;
+      const auto header = description.generate_header(state, *parameters);
+
+      auto standby = std::make_shared<Standby>();
+      standby->_assign_id = id;
+      standby->_context = context;
+      standby->_time_estimate = header.original_duration_estimate();
+      standby->_update = std::move(update);
+      standby->_state = rmf_task::events::SimpleEventState::make(
+        id->assign(),
+        header.category(),
+        header.detail(),
+        rmf_task::Event::Status::Standby,
+        {},
+        context->clock());
+
+      return standby;
+    }
+
+    ConstStatePtr state() const final
+    {
+      return _state;
+    }
+
+    rmf_traffic::Duration duration_estimate() const final
+    {
+      return _time_estimate;
+    }
+
+    ActivePtr begin(
+      std::function<void()> checkpoint,
+      std::function<void()> finished) final
+    {
+
+    }
+
+  private:
+    Standby();
+    AssignIDPtr _assign_id;
+    agv::RobotContextPtr _context;
+    rmf_traffic::Duration _time_estimate;
+    std::function<void()> _update;
+    rmf_task::events::SimpleEventStatePtr _state;
+    ActivePtr _active = nullptr;
+  }
+}
+
+//==============================================================================
 struct GoToChargerDescription
   : public rmf_task_sequence::events::Placeholder::Description
 {
@@ -146,20 +233,6 @@ struct WaitForChargeDescription
           id, get_state, parameters, description, std::move(update))
         ->begin(std::move(checkpoint), std::move(finished));
       });
-  }
-};
-
-//==============================================================================
-// TODO(MXG): Consider making the ChargeBatteryEvent description public so it
-// can be incorporated into other task types
-struct ChargeBatteryEventDescription
-  : public rmf_task_sequence::events::Placeholder::Description
-{
-  ChargeBatteryEventDescription()
-  : rmf_task_sequence::events::Placeholder::Description(
-      "Charge Battery", "")
-  {
-    // Do nothing
   }
 };
 

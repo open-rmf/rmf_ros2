@@ -1376,7 +1376,7 @@ auto FleetUpdateHandle::Implementation::allocate_tasks(
     expect.pending_requests);
 
   auto assignments_ptr = std::get_if<
-    rmf_task::TaskPlanner::TaskAssignments>(&result);
+    rmf_task::TaskPlanner::Assignments>(&result);
 
   if (!assignments_ptr)
   {
@@ -1614,6 +1614,31 @@ void FleetUpdateHandle::add_robot(
               context,
               broadcast_client,
               std::weak_ptr<FleetUpdateHandle>(fleet))});
+
+          const auto c_it = fleet->_pimpl
+            ->unregistered_charging_assignments.find(context->name());
+          if (c_it != fleet->_pimpl->unregistered_charging_assignments.end())
+          {
+            const auto& charging = c_it->second;
+            const auto& graph = context->navigation_graph();
+            const auto* wp = graph.find_waypoint(charging.waypoint_name);
+            if (!wp)
+            {
+              RCLCPP_ERROR(
+                fleet->_pimpl->node->get_logger(),
+                "Cannot find a waypoing named [%s] for robot [%s], which was "
+                "requested as its charging point",
+                charging.waypoint_name.c_str(),
+                context->requester_id().c_str());
+            }
+            else
+            {
+              context->_set_charging(
+                wp->index(),
+                charging.mode == charging.MODE_WAIT);
+            }
+            fleet->_pimpl->unregistered_charging_assignments.erase(c_it);
+          }
 
           // -- Calling the handle_cb should always happen last --
           if (handle_cb)

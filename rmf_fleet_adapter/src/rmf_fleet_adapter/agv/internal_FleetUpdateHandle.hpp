@@ -574,7 +574,7 @@ public:
           [w = handle->weak_from_this()](const ChargingAssignments& assignments)
           {
             if (const auto self = w.lock())
-              self->_pimpl->update_charging_assignments(assignments)
+              self->_pimpl->update_charging_assignments(assignments);
           });
 
     handle->_pimpl->deserialization.event->add(
