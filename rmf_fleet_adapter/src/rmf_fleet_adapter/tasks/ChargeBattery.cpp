@@ -28,6 +28,8 @@
 
 #include <rmf_task_sequence/Task.hpp>
 
+#include <rmf_fleet_adapter/agv/ParkRobot.hpp>
+
 namespace rmf_fleet_adapter {
 namespace tasks {
 
@@ -147,10 +149,20 @@ public:
   class Description : public rmf_task_sequence::Activity::Description
   {
   public:
-    Description()
+    Description(
+      std::optional<std::size_t> specific_location_,
+      bool indefinite_,
+      bool park_)
+    : specific_location(specific_location),
+      indefinite(indefinite_),
+      park(park_)
     {
       // Do nothing
     }
+
+    std::optional<std::size_t> specific_location;
+    bool indefinite;
+    bool park;
 
     rmf_task_sequence::Activity::ConstModelPtr make_model(
       rmf_task::State invariant_initial_state,
@@ -184,7 +196,9 @@ public:
       duration_estimate += estimate_charge_time(
         initial_soc, recharged_soc, parameters.battery_system());
 
-      return rmf_task::Header("Charge Battery", "", duration_estimate);
+      std::string name = park ? "Park" : "Charge Battery";
+
+      return rmf_task::Header(name, "", duration_estimate);
     }
   };
 
@@ -203,6 +217,7 @@ public:
       const auto header = description.generate_header(state, *parameters);
 
       auto standby = std::shared_ptr<Standby>(new Standby);
+      standby->_indefinite = description.indefinite;
       standby->_assign_id = id;
       standby->_context = context;
       standby->_time_estimate = header.original_duration_estimate();
@@ -240,6 +255,7 @@ public:
           _context->requester_id().c_str());
 
         _active = Active::make(
+          _indefinite,
           _assign_id,
           _context,
           _state,
@@ -252,6 +268,7 @@ public:
 
   private:
     Standby() = default;
+    bool _indefinite;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
     rmf_traffic::Duration _time_estimate;
@@ -265,6 +282,7 @@ public:
   {
   public:
     static std::shared_ptr<Active> make(
+      bool indefinite,
       AssignIDPtr assign_id,
       agv::RobotContextPtr context,
       rmf_task::events::SimpleEventStatePtr state,
@@ -272,6 +290,7 @@ public:
       std::function<void()> finished)
     {
       auto active = std::shared_ptr<Active>(new Active);
+      active->_indefinite = indefinite;
       active->_assign_id = std::move(assign_id);
       active->_context = std::move(context);
       active->_state = std::move(state);
@@ -398,11 +417,16 @@ public:
         });
 
       standbys.push_back(
-        [assign_id = _assign_id, context = _context](
+        [assign_id = _assign_id, context = _context, indefinite = _indefinite](
           UpdateFn update) -> StandbyPtr
         {
-          const auto recharged_soc = context->task_planner()
-            ->configuration().constraints().recharge_soc();
+          std::optional<double> recharged_soc;
+          if (!indefinite)
+          {
+            recharged_soc = context->task_planner()
+              ->configuration().constraints().recharge_soc();
+          }
+
           auto legacy = phases::WaitForCharge::make(
             context,
             context->task_parameters()->battery_system(),
@@ -418,6 +442,9 @@ public:
         standbys, _state, _update)->begin([]() {}, _finished);
     }
 
+    std::optional<std::size_t> specific_location;
+    bool _indefinite;
+    bool _park;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
     rmf_task::events::SimpleEventStatePtr _state;
@@ -491,27 +518,37 @@ struct GoToChargerDescription
 struct WaitForChargeDescription
   : public rmf_task_sequence::events::Placeholder::Description
 {
-  WaitForChargeDescription()
+  WaitForChargeDescription(bool indefinite_)
   : rmf_task_sequence::events::Placeholder::Description(
-      "Wait for charging", "")
+      "Wait for charging", ""),
+    indefinite(indefinite_)
   {
     // Do nothing
   }
+
+  bool indefinite;
 
   static rmf_task_sequence::Event::StandbyPtr standby(
     const rmf_task_sequence::Event::AssignIDPtr& id,
     const std::function<rmf_task::State()>& get_state,
     const rmf_task::ConstParametersPtr& parameters,
-    const WaitForChargeDescription&,
+    const WaitForChargeDescription& desc,
     std::function<void()> update)
   {
     const auto state = get_state();
     const auto context = state.get<agv::GetContext>()->value;
 
+    std::optional<double> recharged_soc;
+    if (!desc.indefinite)
+    {
+      recharged_soc = context->task_planner()
+        ->configuration().constraints().recharge_soc();
+    }
+
     auto legacy = phases::WaitForCharge::make(
       context,
       parameters->battery_system(),
-      context->task_planner()->configuration().constraints().recharge_soc());
+      recharged_soc);
 
     return events::LegacyPhaseShim::Standby::make(
       std::move(legacy), context->worker(), context->clock(), id,
@@ -586,13 +623,14 @@ void add_charge_battery(
     });
 
   auto charge_battery_task_unfolder =
-    [](const rmf_task::requests::ChargeBattery::Description&)
+    [](const rmf_task::requests::ChargeBattery::Description& desc)
     {
       rmf_task_sequence::Task::Builder builder;
       builder
       .add_phase(
         Phase::Description::make(
-          std::make_shared<ChargeBatteryEvent::Description>(),
+          std::make_shared<ChargeBatteryEvent::Description>(
+            std::nullopt, desc.indefinite(), false),
           "Charge Battery", ""), {});
 
       return *builder.build("Charge Battery", "");

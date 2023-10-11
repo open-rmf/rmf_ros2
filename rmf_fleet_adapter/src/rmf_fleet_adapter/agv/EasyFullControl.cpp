@@ -2022,8 +2022,10 @@ EasyFullControl::FleetConfiguration::from_config_files(
   rmf_task::ConstRequestFactoryPtr finishing_request;
   if (finishing_request_string == "charge")
   {
-    finishing_request =
+    auto charge_factory =
       std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+    charge_factory->set_indefinite(true);
+    finishing_request = charge_factory;
     std::cout
       << "Fleet is configured to perform ChargeBattery as finishing request"
       << std::endl;

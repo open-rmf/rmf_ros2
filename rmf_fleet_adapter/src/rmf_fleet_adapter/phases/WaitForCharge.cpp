@@ -32,8 +32,9 @@ rmf_traffic::Duration WaitForCharge::Active::estimate_remaining_time() const
 {
   const double capacity = _battery_system.capacity();
   const double charging_current = _battery_system.charging_current();
+  const double charge_to_soc = _charge_to_soc.value_or(1.0);
   const double time_estimate =
-    3600.0 * capacity * (_charge_to_soc - _context->current_battery_soc()) /
+    3600.0 * capacity * (charge_to_soc - _context->current_battery_soc()) /
     charging_current;
 
   return rmf_traffic::time::from_seconds(time_estimate);
@@ -61,7 +62,7 @@ const std::string& WaitForCharge::Active::description() const
 WaitForCharge::Active::Active(
   agv::RobotContextPtr context,
   rmf_battery::agv::BatterySystem battery_system,
-  double charge_to_soc,
+  std::optional<double> charge_to_soc,
   rmf_traffic::Time start_time)
 : _context(std::move(context)),
   _battery_system(battery_system),
@@ -75,7 +76,7 @@ WaitForCharge::Active::Active(
       _battery_system.charging_current()));
 
   _description = "Charging [" + _context->requester_id() + "] to ["
-    + std::to_string(100.0 * _charge_to_soc) + "]";
+    + std::to_string(100.0 * _charge_to_soc.value_or(1.0)) + "]";
 
   StatusMsg initial_msg;
   initial_msg.status = _description;
@@ -105,7 +106,7 @@ std::shared_ptr<LegacyTask::ActivePhase> WaitForCharge::Pending::begin()
     "Robot [%s] has begun waiting for its battery to charge to %.1f%%. "
     "Please ensure that the robot is charging.",
     _context->name().c_str(),
-    _charge_to_soc * 100.0);
+    _charge_to_soc.value_or(1.0) * 100.0);
 
   active->_battery_soc_subscription = _context->observe_battery_soc()
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
@@ -117,9 +118,12 @@ std::shared_ptr<LegacyTask::ActivePhase> WaitForCharge::Pending::begin()
       if (!active)
         return;
 
-      if (active->_charge_to_soc <= battery_soc)
+      if (active->_charge_to_soc.has_value())
       {
-        active->_status_publisher.get_subscriber().on_completed();
+        if (*active->_charge_to_soc <= battery_soc)
+        {
+          active->_status_publisher.get_subscriber().on_completed();
+        }
       }
 
       const auto& now = std::chrono::steady_clock::now();
@@ -139,14 +143,13 @@ std::shared_ptr<LegacyTask::ActivePhase> WaitForCharge::Pending::begin()
           "is %.1f %%/hour. If the battery percentage has not been rising, "
           "please check that the robot is connected to its charger.",
           active->_context->name().c_str(),
-          active->_charge_to_soc * 100.0,
+          active->_charge_to_soc.value_or(1.0) * 100.0,
           battery_soc * 100,
           average_charging_rate,
           active->_expected_charging_rate);
 
         active->_last_update_time = now;
       }
-
     });
 
   return active;
@@ -168,7 +171,7 @@ const std::string& WaitForCharge::Pending::description() const
 WaitForCharge::Pending::Pending(
   agv::RobotContextPtr context,
   rmf_battery::agv::BatterySystem battery_system,
-  double charge_to_soc,
+  std::optional<double> charge_to_soc,
   double time_estimate)
 : _context(std::move(context)),
   _battery_system(battery_system),
@@ -176,20 +179,21 @@ WaitForCharge::Pending::Pending(
   _time_estimate(time_estimate)
 {
   _description =
-    "Charging robot to [" + std::to_string(100.0 * charge_to_soc) + "%]";
+    "Charging robot to [" + std::to_string(100.0 * charge_to_soc.value_or(1.0))
+    + "%]";
 }
 
 //==============================================================================
 auto WaitForCharge::make(
   agv::RobotContextPtr context,
   rmf_battery::agv::BatterySystem battery_system,
-  double charge_to_soc) -> std::unique_ptr<Pending>
+  std::optional<double> charge_to_soc) -> std::unique_ptr<Pending>
 {
-
   const double capacity = battery_system.capacity();
   const double charging_current = battery_system.charging_current();
   const double time_estimate =
-    3600.0 * capacity * (charge_to_soc - context->current_battery_soc()) /
+    3600.0 * capacity
+    * (charge_to_soc.value_or(1.0) - context->current_battery_soc()) /
     charging_current;
 
   return std::unique_ptr<Pending>(
