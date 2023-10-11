@@ -1609,11 +1609,12 @@ void FleetUpdateHandle::add_robot(
           if (fleet->_pimpl->broadcast_client)
             broadcast_client = fleet->_pimpl->broadcast_client;
 
-          fleet->_pimpl->task_managers.insert({context,
-            TaskManager::make(
+          const auto mgr = TaskManager::make(
               context,
               broadcast_client,
-              std::weak_ptr<FleetUpdateHandle>(fleet))});
+              std::weak_ptr<FleetUpdateHandle>(fleet));
+
+          fleet->_pimpl->task_managers.insert({context, mgr});
 
           const auto c_it = fleet->_pimpl
             ->unregistered_charging_assignments.find(context->name());
@@ -1639,6 +1640,8 @@ void FleetUpdateHandle::add_robot(
             }
             fleet->_pimpl->unregistered_charging_assignments.erase(c_it);
           }
+
+          mgr->set_idle_task(fleet->_pimpl->idle_task);
 
           // -- Calling the handle_cb should always happen last --
           if (handle_cb)
@@ -2265,7 +2268,7 @@ bool FleetUpdateHandle::set_task_planner_params(
   double recharge_threshold,
   double recharge_soc,
   bool account_for_battery_drain,
-  rmf_task::ConstRequestFactoryPtr finishing_request)
+  rmf_task::ConstRequestFactoryPtr idle_task)
 {
   if (battery_system &&
     motion_sink &&
@@ -2291,14 +2294,18 @@ bool FleetUpdateHandle::set_task_planner_params(
     const rmf_task::TaskPlanner::Options options{
       false,
       nullptr,
-      finishing_request};
+      // The finishing request is no longer handled by the planner, we handle
+      // it separately as a waiting behavior now.
+      nullptr};
 
     _pimpl->worker.schedule(
-      [w = weak_from_this(), task_config, options](const auto&)
+      [w = weak_from_this(), task_config, options, idle_task](const auto&)
       {
         const auto self = w.lock();
         if (!self)
           return;
+
+        self->_pimpl->idle_task = idle_task;
 
         // Here we update the task planner in all the RobotContexts.
         // The TaskManagers rely on the parameters in the task planner for
@@ -2308,7 +2315,10 @@ bool FleetUpdateHandle::set_task_planner_params(
           self->_pimpl->name, std::move(task_config), std::move(options));
 
         for (const auto& t : self->_pimpl->task_managers)
+        {
           t.first->task_planner(self->_pimpl->task_planner);
+          t.second->set_idle_task(idle_task);
+        }
       });
 
     return true;

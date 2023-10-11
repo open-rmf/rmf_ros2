@@ -111,6 +111,8 @@ public:
 
   void enable_responsive_wait(bool value);
 
+  void set_idle_task(rmf_task::ConstRequestFactoryPtr task);
+
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
   void set_queue(const std::vector<Assignment>& assignments);
@@ -308,6 +310,9 @@ private:
   std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
   rmf_task::ConstActivatorPtr _task_activator;
   ActiveTask _active_task;
+  /// The task that should be performed when the robot is idle. This takes
+  /// precedent over responsive waiting.
+  rmf_task::ConstRequestFactoryPtr _idle_task;
   bool _responsive_wait_enabled = false;
   bool _emergency_active = false;
   std::optional<std::string> _emergency_pullover_interrupt_token;

@@ -911,6 +911,20 @@ void TaskManager::enable_responsive_wait(bool value)
 }
 
 //==============================================================================
+void TaskManager::set_idle_task(rmf_task::ConstRequestFactoryPtr task)
+{
+  if (_idle_task == task)
+    return;
+
+  _idle_task = std::move(task);
+  std::lock_guard<std::mutex> guard(_mutex);
+  if (!_active_task && _queue.empty() && _direct_queue.empty())
+  {
+    _begin_waiting();
+  }
+}
+
+//==============================================================================
 void TaskManager::set_queue(
   const std::vector<TaskManager::Assignment>& assignments)
 {
@@ -1439,6 +1453,22 @@ std::function<void()> TaskManager::_robot_interruption_callback()
 //==============================================================================
 void TaskManager::_begin_waiting()
 {
+  if (_idle_task)
+  {
+    const auto request = _idle_task->make_request(_context->make_get_state()());
+    _waiting = ActiveTask::start(
+      _context->task_activator()->activate(
+        _context->make_get_state(),
+        _context->task_parameters(),
+        *request,
+        _update_cb(),
+        _checkpoint_cb(),
+        _phase_finished_cb(),
+        _task_finished(request->booking()->id())),
+      _context->now());
+    return;
+  }
+
   if (!_responsive_wait_enabled)
     return;
 

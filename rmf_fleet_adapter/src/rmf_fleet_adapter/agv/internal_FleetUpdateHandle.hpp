@@ -260,6 +260,7 @@ public:
     rmf_task::BinaryPriorityScheme::make_cost_calculator();
   std::shared_ptr<rmf_task::Parameters> task_parameters = nullptr;
   std::shared_ptr<rmf_task::TaskPlanner> task_planner = nullptr;
+  rmf_task::ConstRequestFactoryPtr idle_task = nullptr;
 
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay =
     std::chrono::nanoseconds(std::chrono::seconds(10));
