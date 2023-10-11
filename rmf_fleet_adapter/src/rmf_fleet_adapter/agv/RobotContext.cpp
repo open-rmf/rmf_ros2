@@ -829,6 +829,12 @@ std::size_t RobotContext::dedicated_charging_wp() const
 }
 
 //==============================================================================
+bool RobotContext::waiting_for_charger() const
+{
+  return _waiting_for_charger;
+}
+
+//==============================================================================
 const rxcpp::observable<double>& RobotContext::observe_battery_soc() const
 {
   return _battery_soc_obs;
