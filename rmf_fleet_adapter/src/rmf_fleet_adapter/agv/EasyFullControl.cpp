@@ -42,6 +42,7 @@
 #include <rmf_battery/agv/SimpleMotionPowerSink.hpp>
 #include <rmf_battery/agv/SimpleDevicePowerSink.hpp>
 #include <rmf_fleet_adapter/agv/parse_graph.hpp>
+#include <rmf_fleet_adapter/tasks/ParkRobotIndefinitely.hpp>
 
 #include <thread>
 #include <yaml-cpp/yaml.h>
@@ -2033,7 +2034,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
   else if (finishing_request_string == "park")
   {
     finishing_request =
-      std::make_shared<rmf_task::requests::ParkRobotFactory>();
+      std::make_shared<rmf_fleet_adapter::tasks::ParkRobotIndefinitely>(
+        "idle", nullptr);
     std::cout
       << "Fleet is configured to perform ParkRobot as finishing request"
       << std::endl;

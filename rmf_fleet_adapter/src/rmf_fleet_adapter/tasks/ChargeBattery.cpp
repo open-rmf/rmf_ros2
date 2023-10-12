@@ -154,7 +154,7 @@ public:
       std::optional<std::size_t> specific_location_,
       bool indefinite_,
       bool park_)
-    : specific_location(specific_location),
+    : specific_location(specific_location_),
       indefinite(indefinite_),
       park(park_)
     {
@@ -724,7 +724,7 @@ ParkRobotIndefinitely::ParkRobotIndefinitely(
 
 //==============================================================================
 rmf_task::ConstRequestPtr ParkRobotIndefinitely::make_request(
-  const rmf_task::State&) const
+  const rmf_task::State& state) const
 {
   std::string id = "ParkRobot-" + generate_uuid();
   auto phase_desc = std::make_shared<ChargeBatteryEvent::Description>(
@@ -735,7 +735,9 @@ rmf_task::ConstRequestPtr ParkRobotIndefinitely::make_request(
       phase_desc), {})
     .build("Park", "");
 
-  auto now = _pimpl->time_now_cb();
+  auto now = _pimpl->time_now_cb ?
+    _pimpl->time_now_cb() : state.time().value_or(
+        rmf_traffic::Time(std::chrono::system_clock::now().time_since_epoch()));
   rmf_task::Task::ConstBookingPtr booking =
     std::make_shared<rmf_task::Task::Booking>(
       std::move(id),
