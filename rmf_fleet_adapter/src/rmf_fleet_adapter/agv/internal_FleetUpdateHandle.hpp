@@ -570,7 +570,7 @@ public:
     handle->_pimpl->charging_assignments_sub =
       handle->_pimpl->node->create_subscription<
         rmf_fleet_msgs::msg::ChargingAssignments>(
-          "charging_assignments",
+          ChargingAssignmentsTopicName,
           reliable_transient_qos,
           [w = handle->weak_from_this()](const ChargingAssignments& assignments)
           {
