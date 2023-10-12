@@ -1264,7 +1264,7 @@ void TaskManager::_begin_next_task()
 
   if (_queue.empty() && _direct_queue.empty())
   {
-    if (!_waiting)
+    if (!_waiting && !_finished_waiting)
       _begin_waiting();
 
     return;
@@ -1305,6 +1305,7 @@ void TaskManager::_begin_next_task()
       id.c_str(),
       _context->requester_id().c_str());
 
+    _finished_waiting = false;
     _context->current_task_end_state(assignment.finish_state());
     _context->current_task_id(id);
     _active_task = ActiveTask::start(
@@ -1356,7 +1357,7 @@ void TaskManager::_begin_next_task()
   }
   else
   {
-    if (!_waiting)
+    if (!_waiting && !_finished_waiting)
       _begin_waiting();
   }
 
@@ -1464,7 +1465,7 @@ void TaskManager::_begin_waiting()
         _update_cb(),
         _checkpoint_cb(),
         _phase_finished_cb(),
-        _task_finished(request->booking()->id())),
+        _make_resume_from_waiting()),
       _context->now());
     return;
   }
@@ -1576,6 +1577,7 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
           if (!self)
             return;
 
+          self->_finished_waiting = true;
           self->_waiting = ActiveTask();
           self->_begin_next_task();
         });

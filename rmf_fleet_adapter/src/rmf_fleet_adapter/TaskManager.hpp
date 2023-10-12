@@ -332,6 +332,7 @@ private:
   /// will ensure that the agent continues to respond to traffic negotiations so
   /// it does not become a blocker for other traffic participants.
   ActiveTask _waiting;
+  bool _finished_waiting = false;
   uint16_t _count_waiting = 0;
 
   // TODO: Eliminate the need for a mutex by redesigning the use of the task

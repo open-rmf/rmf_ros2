@@ -16,7 +16,7 @@
 */
 
 #include "../phases/WaitForCharge.hpp"
-
+#include "../events/WaitForCancel.hpp"
 #include "../events/GoToPlace.hpp"
 #include "../events/LegacyPhaseShim.hpp"
 
@@ -28,8 +28,9 @@
 
 #include <rmf_task_sequence/Task.hpp>
 
-#include <rmf_fleet_adapter/agv/ParkRobot.hpp>
+#include <rmf_fleet_adapter/tasks/ParkRobotIndefinitely.hpp>
 
+#include <random>
 namespace rmf_fleet_adapter {
 namespace tasks {
 
@@ -216,8 +217,7 @@ public:
       const auto context = state.get<agv::GetContext>()->value;
       const auto header = description.generate_header(state, *parameters);
 
-      auto standby = std::shared_ptr<Standby>(new Standby);
-      standby->_indefinite = description.indefinite;
+      auto standby = std::shared_ptr<Standby>(new Standby(description));
       standby->_assign_id = id;
       standby->_context = context;
       standby->_time_estimate = header.original_duration_estimate();
@@ -249,13 +249,16 @@ public:
     {
       if (!_active)
       {
+        const std::string& task = _desc.park ? "parking" : "charging";
+
         RCLCPP_INFO(
           _context->node()->get_logger(),
-          "Beginning a new charging task for robot [%s]",
+          "Beginning a new %s task for robot [%s]",
+          task.c_str(),
           _context->requester_id().c_str());
 
         _active = Active::make(
-          _indefinite,
+          _desc,
           _assign_id,
           _context,
           _state,
@@ -267,8 +270,12 @@ public:
     }
 
   private:
-    Standby() = default;
-    bool _indefinite;
+    Standby(Description desc)
+    : _desc(desc)
+    {
+      // Do nothing
+    }
+    Description _desc;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
     rmf_traffic::Duration _time_estimate;
@@ -282,15 +289,14 @@ public:
   {
   public:
     static std::shared_ptr<Active> make(
-      bool indefinite,
+      Description desc,
       AssignIDPtr assign_id,
       agv::RobotContextPtr context,
       rmf_task::events::SimpleEventStatePtr state,
       std::function<void()> update,
       std::function<void()> finished)
     {
-      auto active = std::shared_ptr<Active>(new Active);
-      active->_indefinite = indefinite;
+      auto active = std::shared_ptr<Active>(new Active(desc));
       active->_assign_id = std::move(assign_id);
       active->_context = std::move(context);
       active->_state = std::move(state);
@@ -338,7 +344,7 @@ public:
       if (_sequence)
         _sequence->interrupt(std::move(task_is_interrupted));
 
-      _current_charging_wp = std::nullopt;
+      _current_target_wp = std::nullopt;
       _current_waiting_for_charger = std::nullopt;
       return Resume::make(
         [w = weak_from_this()]()
@@ -364,36 +370,50 @@ public:
 
   private:
 
-    Active() = default;
+    Active(Description desc)
+    : _desc(desc)
+    {
+      // Do nothing
+    }
     void _consider_restart()
     {
-      const auto charging_wp = _context->dedicated_charging_wp();
-      bool location_changed = true;
-      if (_current_charging_wp.has_value())
+      std::size_t target_wp = _context->dedicated_charging_wp();
+      if (!_desc.specific_location.has_value())
       {
-        if (charging_wp == *_current_charging_wp)
+        bool location_changed = true;
+        if (_current_target_wp.has_value())
         {
-          location_changed = false;
+          if (target_wp == *_current_target_wp)
+          {
+            location_changed = false;
+          }
+        }
+
+        bool waiting_changed = true;
+        if (_current_waiting_for_charger.has_value())
+        {
+          if (_context->waiting_for_charger() == *_current_waiting_for_charger)
+          {
+            waiting_changed = false;
+          }
+        }
+
+
+        if (!location_changed && !waiting_changed)
+        {
+          // No need to do anything, the charging location has not changed
+          // nor has the mode changed.
+          return;
         }
       }
-
-      bool waiting_changed = true;
-      if (_current_waiting_for_charger.has_value())
+      else
       {
-        if (_context->waiting_for_charger() == *_current_waiting_for_charger)
-        {
-          waiting_changed = false;
-        }
+        target_wp = _desc.specific_location.value();
+        if (_current_target_wp == target_wp)
+          return;
       }
 
-      if (!location_changed && !waiting_changed)
-      {
-        // No need to do anything, the charging location has not changed
-        // nor has the mode changed.
-        return;
-      }
-
-      _current_charging_wp = charging_wp;
+      _current_target_wp = target_wp;
       _current_waiting_for_charger = _context->waiting_for_charger();
 
       using UpdateFn = std::function<void()>;
@@ -403,7 +423,7 @@ public:
       using GoToPlaceDesc = rmf_task_sequence::events::GoToPlace::Description;
       standbys.push_back(
         [
-          charging_wp,
+          target_wp,
           assign_id = _assign_id,
           context = _context
         ](UpdateFn update) -> StandbyPtr
@@ -412,46 +432,61 @@ public:
             assign_id,
             context->make_get_state(),
             context->task_parameters(),
-            *GoToPlaceDesc::make(charging_wp),
+            *GoToPlaceDesc::make(target_wp),
             update);
         });
 
-      standbys.push_back(
-        [assign_id = _assign_id, context = _context, indefinite = _indefinite](
-          UpdateFn update) -> StandbyPtr
-        {
-          std::optional<double> recharged_soc;
-          if (!indefinite)
+      if (_desc.park)
+      {
+        standbys.push_back(
+          [
+            assign_id = _assign_id,
+            context = _context
+          ](UpdateFn update) -> StandbyPtr
           {
-            recharged_soc = context->task_planner()
-              ->configuration().constraints().recharge_soc();
-          }
+            return events::WaitForCancel::Standby::make(context, assign_id);
+          });
+      }
+      else
+      {
+        standbys.push_back(
+          [
+            assign_id = _assign_id,
+            context = _context,
+            indefinite = _desc.indefinite
+          ](UpdateFn update) -> StandbyPtr
+          {
+            std::optional<double> recharged_soc;
+            if (!indefinite)
+            {
+              recharged_soc = context->task_planner()
+                ->configuration().constraints().recharge_soc();
+            }
 
-          auto legacy = phases::WaitForCharge::make(
-            context,
-            context->task_parameters()->battery_system(),
-            recharged_soc);
+            auto legacy = phases::WaitForCharge::make(
+              context,
+              context->task_parameters()->battery_system(),
+              recharged_soc);
 
-          return events::LegacyPhaseShim::Standby::make(
-            std::move(legacy), context->worker(), context->clock(), assign_id,
-            std::move(update));
-        });
+            return events::LegacyPhaseShim::Standby::make(
+              std::move(legacy), context->worker(), context->clock(), assign_id,
+              std::move(update));
+          });
+      }
 
       _sequence = rmf_task_sequence::events::Bundle::standby(
         rmf_task_sequence::events::Bundle::Type::Sequence,
         standbys, _state, _update)->begin([]() {}, _finished);
     }
 
-    std::optional<std::size_t> specific_location;
-    bool _indefinite;
-    bool _park;
+    Description _desc;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
     rmf_task::events::SimpleEventStatePtr _state;
     std::function<void()> _update;
     std::function<void()> _finished;
     rmf_rxcpp::subscription_guard _charging_update_subscription;
-    std::optional<std::size_t> _current_charging_wp;
+    std::optional<std::size_t> _current_target_wp;
     std::optional<bool> _current_waiting_for_charger;
     rmf_task_sequence::Event::ActivePtr _sequence;
   };
@@ -462,7 +497,7 @@ struct GoToChargerDescription
   : public rmf_task_sequence::events::Placeholder::Description
 {
   GoToChargerDescription()
-  : rmf_task_sequence::events::Placeholder::Description("Go to charger", "")
+  : rmf_task_sequence::events::Placeholder::Description("Go to place", "")
   {
     // Do nothing
   }
@@ -641,6 +676,78 @@ void add_charge_battery(
     task_activator,
     phase_activator,
     std::move(clock));
+}
+
+//==============================================================================
+namespace {
+std::string generate_uuid(const std::size_t length = 3)
+{
+  std::stringstream ss;
+  for (std::size_t i = 0; i < length; ++i)
+  {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 255);
+    const auto random_char = dis(gen);
+    std::stringstream hexstream;
+    hexstream << std::hex << random_char;
+    auto hex = hexstream.str();
+    ss << (hex.length() < 2 ? '0' + hex : hex);
+  }
+  return ss.str();
+}
+
+} // anonymous namespace
+
+//==============================================================================
+class ParkRobotIndefinitely::Implementation
+{
+public:
+  std::string requester;
+  std::function<rmf_traffic::Time()> time_now_cb;
+  std::optional<std::size_t> parking_waypoint;
+};
+
+//==============================================================================
+ParkRobotIndefinitely::ParkRobotIndefinitely(
+  const std::string& requester,
+  std::function<rmf_traffic::Time()> time_now_cb,
+  std::optional<std::size_t> parking_waypoint)
+: _pimpl(rmf_utils::make_impl<Implementation>(Implementation {
+      requester,
+      time_now_cb,
+      parking_waypoint
+    }))
+{
+  // Do nothing
+}
+
+//==============================================================================
+rmf_task::ConstRequestPtr ParkRobotIndefinitely::make_request(
+  const rmf_task::State&) const
+{
+  std::string id = "ParkRobot-" + generate_uuid();
+  auto phase_desc = std::make_shared<ChargeBatteryEvent::Description>(
+    _pimpl->parking_waypoint, true, true);
+
+  auto desc = rmf_task_sequence::Task::Builder()
+    .add_phase(rmf_task_sequence::phases::SimplePhase::Description::make(
+      phase_desc), {})
+    .build("Park", "");
+
+  auto now = _pimpl->time_now_cb();
+  rmf_task::Task::ConstBookingPtr booking =
+    std::make_shared<rmf_task::Task::Booking>(
+      std::move(id),
+      now,
+      nullptr,
+      _pimpl->requester,
+      now,
+      true);
+
+  return std::make_shared<rmf_task::Request>(
+    std::move(booking),
+    std::move(desc));
 }
 
 } // namespace task

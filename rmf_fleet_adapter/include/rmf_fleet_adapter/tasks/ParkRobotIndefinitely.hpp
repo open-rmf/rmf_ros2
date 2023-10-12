@@ -15,13 +15,13 @@
  *
 */
 
-#ifndef RMF_FLEET_ADAPTER__AGV__PARKROBOT_HPP
-#define RMF_FLEET_ADAPTER__AGV__PARKROBOT_HPP
+#ifndef RMF_FLEET_ADAPTER__TASKS__PARKROBOT_HPP
+#define RMF_FLEET_ADAPTER__TASKS__PARKROBOT_HPP
 
 #include <rmf_task/RequestFactory.hpp>
 
 namespace rmf_fleet_adapter {
-namespace agv {
+namespace tasks {
 
 //==============================================================================
 /// Use this task factory to make finisher tasks (idle tasks) that will move the
@@ -56,7 +56,7 @@ private:
   rmf_utils::impl_ptr<Implementation> _pimpl;
 };
 
-} // namespace agv
+} // namespace tasks
 } // namespace rmf_fleet_adapter
 
 #endif // RMF_FLEET_ADAPTER__AGV__PARKROBOT_HPP
