@@ -1001,6 +1001,28 @@ void RobotContext::set_localization(
 }
 
 //==============================================================================
+std::shared_ptr<void> RobotContext::set_lift_destination(
+  std::string lift_name,
+  std::string destination_floor,
+  bool requested_from_inside)
+{
+  _lift_destination = std::make_shared<LiftDestination>(
+    LiftDestination{
+      std::move(lift_name),
+      std::move(destination_floor),
+      requested_from_inside
+    });
+
+  return _lift_destination;
+}
+
+//==============================================================================
+void RobotContext::release_lift()
+{
+  _lift_destination = nullptr;
+}
+
+//==============================================================================
 RobotContext::RobotContext(
   std::shared_ptr<RobotCommandHandle> command_handle,
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
@@ -1079,6 +1101,50 @@ void RobotContext::_set_charging(std::size_t wp, bool waiting_for_charger)
   _charging_wp = wp;
   _waiting_for_charger = waiting_for_charger;
   _charging_change_publisher.get_subscriber().on_next(Empty{});
+}
+
+//==============================================================================
+void RobotContext::_check_lift_state(
+  const rmf_lift_msgs::msg::LiftState& state)
+{
+  if (_lift_destination.use_count() < 2)
+  {
+    if (_lift_destination && !_lift_destination->requested_from_inside)
+    {
+      // The lift destination reference count dropping to one while the lift
+      // destination request is on the outside means the task that prompted the
+      // lift usage was cancelled while the robot was outside of the lift.
+      // Therefore we should release the usage of the lift.
+      _lift_destination = nullptr;
+    }
+  }
+
+  if (state.session_id == requester_id())
+  {
+    if (!_lift_destination || _lift_destination->lift_name != state.lift_name)
+    {
+      rmf_lift_msgs::msg::LiftRequest msg;
+      msg.lift_name = state.lift_name;
+      msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_END_SESSION;
+      msg.session_id = requester_id();
+      _node->lift_request()->publish(msg);
+    }
+  }
+
+  if (!_lift_destination)
+  {
+    return;
+  }
+
+  rmf_lift_msgs::msg::LiftRequest msg;
+  msg.lift_name = _lift_destination->lift_name;
+  msg.destination_floor = _lift_destination->destination_floor;
+  msg.session_id = requester_id();
+  msg.request_time = _node->now();
+  msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_AGV_MODE;
+  msg.door_state = rmf_lift_msgs::msg::LiftRequest::DOOR_OPEN;
+
+  _node->lift_request()->publish(msg);
 }
 
 } // namespace agv

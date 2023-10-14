@@ -74,6 +74,7 @@ struct RequestLift
     rmf_traffic::PlanId _plan_id;
     std::optional<agv::Destination> _localize_after;
     rmf_rxcpp::subscription_guard _reset_session_subscription;
+    std::shared_ptr<void> _destination_handle;
 
     struct WatchdogInfo
     {
@@ -100,6 +101,7 @@ struct RequestLift
       const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
 
     void _do_publish();
+    void _finish();
   };
 
   class PendingPhase : public LegacyTask::PendingPhase
