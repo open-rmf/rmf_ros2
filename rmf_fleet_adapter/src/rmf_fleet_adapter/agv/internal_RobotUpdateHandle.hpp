@@ -193,22 +193,11 @@ public:
 
       if (nav_params)
       {
-        const auto& planner = context->planner();
-        if (!planner)
-          return;
-
-        const auto now = context->now();
-        const auto& graph = planner->get_configuration().graph();
-        auto starts = nav_params->compute_plan_starts(
-          graph, map, location, now);
-        if (!starts.empty())
+        if (context->debug_positions)
         {
-          context->set_location(starts);
+          std::cout << "Searching for location from " << __FILE__ << "|" << __LINE__ << std::endl;
         }
-        else
-        {
-          context->set_lost(Location { now, map, location });
-        }
+        nav_params->search_for_location(map, location, *context);
       }
     }
 

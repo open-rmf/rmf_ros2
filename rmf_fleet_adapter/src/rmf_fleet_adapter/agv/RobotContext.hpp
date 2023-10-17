@@ -60,6 +60,110 @@ using Destination = EasyFullControl::Destination;
 using VertexStack = std::shared_ptr<std::unordered_set<std::size_t>>;
 
 //==============================================================================
+class EventPrinter : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+  EventPrinter()
+  {
+    // Do nothing
+  }
+
+  void execute(const DoorOpen&) override { text = "DoorOpen"; }
+  void execute(const DoorClose&) override { text = "DoorClose"; }
+  void execute(const LiftSessionBegin&) override { text = "LiftSessionBegin"; }
+  void execute(const LiftDoorOpen&) override { text = "LiftDoorOpen"; }
+  void execute(const LiftSessionEnd&) override { text = "LiftSessionEnd"; }
+  void execute(const LiftMove&) override { text = "LiftMove"; }
+  void execute(const Wait&) override { text = "Wait"; }
+  void execute(const Dock& dock) override { text = "Dock"; }
+
+  std::string text;
+};
+
+//==============================================================================
+inline std::string print_waypoint(
+  const std::size_t i_wp,
+  const rmf_traffic::agv::Graph& graph)
+{
+  std::stringstream ss;
+  const rmf_traffic::agv::Graph::Waypoint& wp = graph.get_waypoint(i_wp);
+
+  ss << wp.get_map_name() << " <" << wp.get_location().transpose() << "> ["
+    << wp.name_or_index() << "]";
+  return ss.str();
+}
+
+//==============================================================================
+inline std::string print_lane_node(
+  const rmf_traffic::agv::Graph::Lane::Node& node,
+  const rmf_traffic::agv::Graph& graph)
+{
+  std::stringstream ss;
+  EventPrinter event;
+  if (node.event())
+    node.event()->execute(event);
+
+  ss << "{ " << print_waypoint(node.waypoint_index(), graph);
+  if (!event.text.empty())
+    ss << " event " << event.text;
+  ss << " }";
+
+  return ss.str();
+}
+
+//==============================================================================
+inline std::string print_lane(
+  const std::size_t i_lane,
+  const rmf_traffic::agv::Graph& graph)
+{
+  std::stringstream ss;
+  const auto& lane = graph.get_lane(i_lane);
+  ss << "lane " << i_lane << ": " << print_lane_node(lane.entry(), graph)
+    << " -> " << print_lane_node(lane.exit(), graph);
+  return ss.str();
+}
+
+//==============================================================================
+inline std::string print_starts(
+  const rmf_traffic::agv::Plan::StartSet& starts,
+  const rmf_traffic::agv::Graph& graph)
+{
+  std::stringstream ss;
+  for (const rmf_traffic::agv::Plan::Start& l : starts)
+  {
+    ss << "\n -- ";
+    if (l.lane().has_value())
+    {
+      ss << print_lane(*l.lane(), graph);
+
+      const auto& lane = graph.get_lane(*l.lane());
+      if (l.waypoint() != lane.exit().waypoint_index())
+      {
+        ss << " !! MISMATCH BETWEEN KEY WAYPOINT AND LANE EXIT: key "
+          << l.waypoint() << " vs exit " << lane.exit().waypoint_index();
+      }
+    }
+    else
+    {
+      ss << print_waypoint(l.waypoint(), graph);
+    }
+
+    if (l.location().has_value())
+    {
+      ss << " | exact location <" << l.location()->transpose() << ">";
+    }
+    else
+    {
+      ss << " | exactly on waypoint";
+    }
+
+    ss << " | orientation " << l.orientation() * 180.0 / M_PI;
+  }
+
+  return ss.str();
+}
+
+//==============================================================================
 struct NavParams
 {
   bool skip_rotation_commands;
@@ -464,6 +568,8 @@ public:
     rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
     rmf_task::State state,
     std::shared_ptr<const rmf_task::TaskPlanner> task_planner);
+
+  bool debug_positions = false;
 
 private:
 

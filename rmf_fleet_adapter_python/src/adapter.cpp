@@ -246,6 +246,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       return self.unstable().be_stubborn();
     })
+  .def("unstable_debug_positions",
+    [&](agv::RobotUpdateHandle& self, bool on)
+    {
+      self.unstable().debug_positions(on);
+    },
+    py::arg("on"))
   .def("set_action_executor",
     &agv::RobotUpdateHandle::set_action_executor,
     py::arg("action_executor"))
