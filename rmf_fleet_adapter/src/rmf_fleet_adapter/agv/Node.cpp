@@ -36,6 +36,7 @@ std::shared_ptr<Node> Node::make(
 
   auto default_qos = rclcpp::SystemDefaultsQoS();
   default_qos.keep_last(100);
+  auto transient_qos = rclcpp::SystemDefaultsQoS().reliable().keep_last(10).transient_local();
 
   node->_door_state_obs =
     node->create_observable<DoorState>(
@@ -55,7 +56,7 @@ std::shared_ptr<Node> Node::make(
 
   node->_lift_request_pub =
     node->create_publisher<LiftRequest>(
-    AdapterLiftRequestTopicName, default_qos);
+    AdapterLiftRequestTopicName, transient_qos);
 
   node->_task_summary_pub =
     node->create_publisher<TaskSummary>(
