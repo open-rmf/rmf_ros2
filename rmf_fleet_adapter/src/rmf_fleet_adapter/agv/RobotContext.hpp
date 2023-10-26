@@ -593,6 +593,28 @@ public:
         self->_check_lift_state(*msg);
       });
 
+    context->_mutex_group_sanity_check = context->_node->mutex_group_states()
+      .observe_on(rxcpp::identity_same_worker(context->_worker))
+      .subscribe([w = context->weak_from_this()](const auto& msg)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        self->_check_mutex_groups();
+      });
+
+    context->_mutex_group_heartbeat = context->_node->try_create_wall_timer(
+      std::chrono::seconds(2),
+      [w = context->weak_from_this()]()
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        self->_publish_mutex_group_request();
+      });
+
     return context;
   }
 
@@ -678,7 +700,10 @@ private:
   std::shared_ptr<LiftDestination> _lift_destination;
   rmf_rxcpp::subscription_guard _lift_subscription;
 
+  void _check_mutex_groups(const rmf_fleet_msgs::msg::MutexGroupStates& states);
+  void _publish_mutex_group_request();
   std::string _mutex_group;
+  builtin_interfaces::msg::Time _mutex_group_claim_time;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
 };

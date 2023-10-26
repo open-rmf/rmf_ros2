@@ -1022,6 +1022,34 @@ void RobotContext::release_lift()
 }
 
 //==============================================================================
+void RobotContext::set_mutex_group(std::string group)
+{
+  if (group.is_empty())
+  {
+    release_mutex_group();
+    return;
+  }
+
+  _mutex_group_claim_time = _node->now();
+  _mutex_group = std::move(group);
+  _publish_mutex_group_request();
+}
+
+//==============================================================================
+void RobotContext::release_mutex_group()
+{
+  if (_mutex_group.empty())
+    return;
+
+  _node->mutex_group_request()->publish(
+    rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
+    .group(_mutex_group)
+    .claimer(requester_id())
+    .claim_time(_mutex_group_claim_time)
+    .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
+}
+
+//==============================================================================
 RobotContext::RobotContext(
   std::shared_ptr<RobotCommandHandle> command_handle,
   std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
@@ -1144,6 +1172,43 @@ void RobotContext::_check_lift_state(
   msg.door_state = rmf_lift_msgs::msg::LiftRequest::DOOR_OPEN;
 
   _node->lift_request()->publish(msg);
+}
+
+//==============================================================================
+void RobotContext::_check_mutex_groups(
+  const rmf_fleet_msgs::msg::MutexGroupStates& states)
+{
+  // Make sure to release any mutex groups that this robot is not trying to
+  // lock right now.
+  for (const auto& assignment : states.assignments)
+  {
+    if (assignment.claimed != requester_id())
+      return;
+
+    if (assignment.group == _mutex_group)
+      return;
+
+    _node->mutex_group_request()->publish(
+      rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
+      .group(assignment.group)
+      .claimer(requester_id())
+      .claim_time(_mutex_group_claim_time)
+      .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
+  }
+}
+
+//==============================================================================
+void RobotContext::_publish_mutex_group_request()
+{
+  if (!_mutex_group.empty())
+  {
+    _node->mutex_group_request()->publish(
+      rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
+      .group(_mutex_group)
+      .claimer(requester_id())
+      .claim_time(_mutex_group_claim_time)
+      .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_LOCK));
+  }
 }
 
 } // namespace agv
