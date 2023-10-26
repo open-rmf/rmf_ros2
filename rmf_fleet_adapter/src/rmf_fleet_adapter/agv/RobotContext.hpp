@@ -538,6 +538,9 @@ public:
   /// Set the callback for localizing the robot
   void set_localization(EasyFullControl::LocalizationRequest localization);
 
+  /// Set the mutex group that this robot needs to have locked.
+  void set_mutex_group(std::string group);
+
   /// Set the task manager for this robot. This should only be called in the
   /// TaskManager::make function.
   void _set_task_manager(std::shared_ptr<TaskManager> mgr);
@@ -631,6 +634,10 @@ private:
   Reporting _reporting;
   /// Keep track of a lost robot
   std::optional<Lost> _lost;
+
+  std::string _mutex_group;
+  rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
+  rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

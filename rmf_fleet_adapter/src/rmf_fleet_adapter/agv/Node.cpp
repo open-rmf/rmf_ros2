@@ -108,6 +108,14 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<ApiResponse>(
     TaskApiResponses, transient_local_qos);
 
+  node->_mutex_group_states_obs =
+    node->create_observable<MutexGroupStates>(
+    MutexGroupStatesTopicName, transient_local_qos);
+
+  node->_mutex_group_request_pub =
+    node->create_publisher<MutexGroupRequest>(
+    MutexGroupRequestTopicName, transient_local_qos);
+
   return node;
 }
 
@@ -229,6 +237,18 @@ auto Node::task_api_request() const -> const ApiRequestObs&
 auto Node::task_api_response() const -> const ApiResponsePub&
 {
   return _task_api_response_pub;
+}
+
+//==============================================================================
+auto Node::mutex_group_request() const -> const MutexGroupRequestPub&
+{
+  return _mutex_group_request_pub;
+}
+
+//==============================================================================
+auto Node::mutex_group_states() const -> const MutexGroupStatesObs&
+{
+  return _mutex_group_states_obs->observe();
 }
 
 } // namespace agv

@@ -81,7 +81,7 @@ public:
   };
 };
 
-}
-}
+} // namespace events
+} // namespace rmf_fleet_adapter
 
 #endif // SRC__RMF_FLEET_ADAPTER__EVENTS__WAITFORCANCEL_HPP
