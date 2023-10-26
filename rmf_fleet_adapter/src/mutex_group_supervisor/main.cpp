@@ -85,6 +85,7 @@ public:
           {
             g_it->second.erase(c_it);
             pick_next(request.group);
+            state_pub->publish(latest_states);
           }
         }
       }
@@ -108,6 +109,47 @@ public:
 
   void do_heartbeat()
   {
+    const auto now = std::chrono::steady_clock::now();
+    // TODO(MXG): Make this timeout configurable
+    const auto timeout = std::chrono::seconds(10);
+    for (auto& [group, claims] : mutex_groups)
+    {
+      std::vector<std::string> remove_claims;
+      for (const auto& [claimer, timestamp] : claims)
+      {
+        if (timestamp.heartbeat_time + timeout < now)
+        {
+          remove_claims.push_back(claimer);
+        }
+      }
+
+      std::string current_claimer;
+      for (const auto& assignment : latest_states.assignments)
+      {
+        if (assignment.group == group)
+        {
+          current_claimer = assignment.claimed;
+          break;
+        }
+      }
+
+      bool need_next_pick = false;
+      for (const auto& remove_claim : remove_claims)
+      {
+        if (current_claimer == remove_claim)
+        {
+          need_next_pick = true;
+        }
+
+        claims.erase(remove_claim);
+      }
+
+      if (need_next_pick)
+      {
+        pick_next(group);
+      }
+    }
+
     state_pub->publish(latest_states);
   }
 
@@ -146,8 +188,6 @@ public:
         .group(group)
         .claimed(claimer));
     }
-
-    state_pub->publish(latest_states);
   }
 
   std::unordered_map<std::string, ClaimMap> mutex_groups;
