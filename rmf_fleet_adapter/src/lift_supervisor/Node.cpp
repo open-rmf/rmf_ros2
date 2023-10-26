@@ -94,6 +94,17 @@ void Node::_lift_state_update(LiftState::UniquePtr msg)
       (lift_request->door_state != msg->door_state))
       _lift_request_pub->publish(*lift_request);
   }
+  else if (!msg->session_id.empty())
+  {
+    // The lift missed the publication of the session end request so we should
+    // republish it.
+    LiftRequest request;
+    request.lift_name = msg->lift_name;
+    request.destination_floor = msg->current_floor;
+    request.session_id = msg->session_id;
+    request.request_type = LiftRequest::REQUEST_END_SESSION;
+    _lift_request_pub->publish(request);
+  }
 
   // For now, we do not need to publish this.
 

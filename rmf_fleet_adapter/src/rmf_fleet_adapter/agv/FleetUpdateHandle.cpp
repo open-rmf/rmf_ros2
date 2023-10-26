@@ -1503,24 +1503,20 @@ void FleetUpdateHandle::add_robot(
       rmf_task::State state;
       state.load_basic(start[0], charger_wp.value(), 1.0);
 
-      auto context = std::make_shared<RobotContext>(
-        RobotContext
-        {
-          std::move(command),
-          std::move(start),
-          std::move(participant),
-          fleet->_pimpl->mirror,
-          fleet->_pimpl->planner,
-          fleet->_pimpl->emergency_planner,
-          fleet->_pimpl->activation.task,
-          fleet->_pimpl->task_parameters,
-          fleet->_pimpl->node,
-          fleet->_pimpl->worker,
-          fleet->_pimpl->default_maximum_delay,
-          state,
-          fleet->_pimpl->task_planner
-        }
-      );
+      auto context = RobotContext::make(
+        std::move(command),
+        std::move(start),
+        std::move(participant),
+        fleet->_pimpl->mirror,
+        fleet->_pimpl->planner,
+        fleet->_pimpl->emergency_planner,
+        fleet->_pimpl->activation.task,
+        fleet->_pimpl->task_parameters,
+        fleet->_pimpl->node,
+        fleet->_pimpl->worker,
+        fleet->_pimpl->default_maximum_delay,
+        state,
+        fleet->_pimpl->task_planner);
 
       // We schedule the following operations on the worker to make sure we do not
       // have a multiple read/write race condition on the FleetUpdateHandle.

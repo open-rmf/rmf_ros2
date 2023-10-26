@@ -71,7 +71,7 @@ void RequestLift::ActivePhase::emergency_alarm(bool /*on*/)
 //==============================================================================
 void RequestLift::ActivePhase::cancel()
 {
-  _cancelled.get_subscriber().on_next(true);
+  // GoToPlace / ExecutePlan don't call the cancel function anyway
 }
 
 //==============================================================================
@@ -179,12 +179,15 @@ void RequestLift::ActivePhase::_init_obs()
 
           if (me->_localize_after.has_value())
           {
-            auto finish = [s, worker = me->_context->worker()]()
+            auto finish = [s, worker = me->_context->worker(), weak]()
               {
-                worker.schedule([s](const auto&)
-                 {
-                   s.on_completed();
-                 });
+                worker.schedule([s, weak](const auto&)
+                  {
+                    if (const auto me = weak.lock())
+                      me->_finish();
+
+                    s.on_completed();
+                  });
               };
             auto cmd = agv::EasyFullControl
               ::CommandExecution::Implementation::make_hold(
@@ -200,9 +203,9 @@ void RequestLift::ActivePhase::_init_obs()
             {
               me->_rewait_timer = me->_context->node()->try_create_wall_timer(
                 std::chrono::seconds(300),
-                [w = me->weak_from_this(), s]
+                [weak, s]
                 {
-                  const auto me = w.lock();
+                  const auto me = weak.lock();
                   if (!me)
                     return;
 
@@ -214,26 +217,15 @@ void RequestLift::ActivePhase::_init_obs()
                     "process is finished.",
                     me->_context->requester_id().c_str());
 
+                  me->_finish();
                   s.on_completed();
                 });
               return;
             }
           }
 
-          if (!me->_cancelled.get_value() || me->_located == Located::Inside)
-          {
-            s.on_completed();
-          }
-          else if (me->_located == Located::Outside)
-          {
-            auto transport = me->_context->node();
-            me->_lift_end_phase = EndLiftSession::Active::make(
-              me->_context,
-              me->_lift_name,
-              me->_destination);
-
-            me->_lift_end_phase->observe().subscribe(s);
-          }
+          me->_finish();
+          s.on_completed();
         }));
 }
 
@@ -356,15 +348,22 @@ void RequestLift::ActivePhase::_do_publish()
   if (_rewaiting)
     return;
 
-  rmf_lift_msgs::msg::LiftRequest msg{};
-  msg.lift_name = _lift_name;
-  msg.destination_floor = _destination;
-  msg.session_id = _context->requester_id();
-  msg.request_time = _context->node()->now();
-  msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_AGV_MODE;
-  msg.door_state = rmf_lift_msgs::msg::LiftRequest::DOOR_OPEN;
+  if (!_destination_handle)
+  {
+    _destination_handle = _context->set_lift_destination(
+      _lift_name, _destination, _located == Located::Inside);
+  }
+}
 
-  _context->node()->lift_request()->publish(msg);
+//==============================================================================
+void RequestLift::ActivePhase::_finish()
+{
+  if (_located == Located::Outside)
+  {
+    // The robot is going to start moving into the lift now, so we should lock
+    // the destination in.
+    _context->set_lift_destination(_lift_name, _destination, true);
+  }
 }
 
 //==============================================================================

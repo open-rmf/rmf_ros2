@@ -37,6 +37,7 @@
 
 #include <rmf_rxcpp/Publisher.hpp>
 #include <rmf_rxcpp/Transport.hpp>
+#include <rmf_rxcpp/RxJobs.hpp>
 
 #include <rxcpp/rx-observable.hpp>
 
@@ -267,6 +268,7 @@ struct Location
   Eigen::Vector3d position;
 };
 
+//==============================================================================
 /// Store position information when the robot is lost, i.e. it has diverged too
 /// far from its navigation graph.
 struct Lost
@@ -277,6 +279,14 @@ struct Lost
 
   /// An issue ticket to track when the robot is lost
   std::unique_ptr<Reporting::Ticket> ticket;
+};
+
+//==============================================================================
+struct LiftDestination
+{
+  std::string lift_name;
+  std::string destination_floor;
+  bool requested_from_inside;
 };
 
 //==============================================================================
@@ -538,6 +548,15 @@ public:
   /// Set the callback for localizing the robot
   void set_localization(EasyFullControl::LocalizationRequest localization);
 
+  /// Ask for a certain lift to go to a certain destination and open the doors
+  std::shared_ptr<void> set_lift_destination(
+    std::string lift_name,
+    std::string destination_floor,
+    bool requested_from_inside);
+
+  /// Indicate that the lift is no longer needed
+  void release_lift();
+
   /// Set the mutex group that this robot needs to have locked.
   void set_mutex_group(std::string group);
 
@@ -557,6 +576,30 @@ public:
   /// charger change notification.
   void _set_charging(std::size_t wp, bool waiting_for_charger);
 
+  template<typename... Args>
+  static std::shared_ptr<RobotContext> make(Args&&... args)
+  {
+    auto context = std::shared_ptr<RobotContext>(
+      new RobotContext(std::forward<Args>(args)...));
+
+    context->_lift_subscription = context->_node->lift_state()
+      .observe_on(rxcpp::identity_same_worker(context->_worker))
+      .subscribe([w = context->weak_from_this()](const auto& msg)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        self->_check_lift_state(*msg);
+      });
+
+    return context;
+  }
+
+  bool debug_positions = false;
+
+private:
+
   RobotContext(
     std::shared_ptr<RobotCommandHandle> command_handle,
     std::vector<rmf_traffic::agv::Plan::Start> _initial_location,
@@ -571,10 +614,6 @@ public:
     rmf_utils::optional<rmf_traffic::Duration> maximum_delay,
     rmf_task::State state,
     std::shared_ptr<const rmf_task::TaskPlanner> task_planner);
-
-  bool debug_positions = false;
-
-private:
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
@@ -634,6 +673,10 @@ private:
   Reporting _reporting;
   /// Keep track of a lost robot
   std::optional<Lost> _lost;
+
+  void _check_lift_state(const rmf_lift_msgs::msg::LiftState& state);
+  std::shared_ptr<LiftDestination> _lift_destination;
+  rmf_rxcpp::subscription_guard _lift_subscription;
 
   std::string _mutex_group;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
