@@ -560,6 +560,9 @@ public:
   /// Set the mutex group that this robot needs to have locked.
   void set_mutex_group(std::string group);
 
+  /// If we are holding a mutex group, release it
+  void release_mutex_group();
+
   /// Set the task manager for this robot. This should only be called in the
   /// TaskManager::make function.
   void _set_task_manager(std::shared_ptr<TaskManager> mgr);
@@ -601,7 +604,7 @@ public:
         if (!self)
           return;
 
-        self->_check_mutex_groups();
+        self->_check_mutex_groups(*msg);
       });
 
     context->_mutex_group_heartbeat = context->_node->try_create_wall_timer(
@@ -706,6 +709,7 @@ private:
   builtin_interfaces::msg::Time _mutex_group_claim_time;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
+  std::chrono::steady_clock::time_point _last_active_task_time;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

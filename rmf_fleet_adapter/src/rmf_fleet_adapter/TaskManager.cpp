@@ -1467,6 +1467,7 @@ void TaskManager::_begin_waiting()
         _phase_finished_cb(),
         _make_resume_from_waiting()),
       _context->now());
+    _context->current_task_id(request->booking()->id());
     return;
   }
 
@@ -1513,6 +1514,7 @@ void TaskManager::_begin_waiting()
       _update_cb(),
       _make_resume_from_waiting()),
     _context->now());
+  _context->current_task_id(task_id);
 }
 
 //==============================================================================
@@ -2165,6 +2167,7 @@ std::function<void()> TaskManager::_task_finished(std::string id)
       // Publish the final state of the task before destructing it
       self->_publish_task_state();
       self->_active_task = ActiveTask();
+      self->_context->current_task_id(std::nullopt);
 
       self->_context->worker().schedule(
         [w = self->weak_from_this()](const auto&)

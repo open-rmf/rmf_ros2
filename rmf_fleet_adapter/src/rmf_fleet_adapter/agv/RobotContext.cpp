@@ -1024,9 +1024,14 @@ void RobotContext::release_lift()
 //==============================================================================
 void RobotContext::set_mutex_group(std::string group)
 {
-  if (group.is_empty())
+  if (group.empty())
   {
     release_mutex_group();
+    return;
+  }
+
+  if (group == _mutex_group)
+  {
     return;
   }
 
@@ -1200,6 +1205,30 @@ void RobotContext::_check_mutex_groups(
 //==============================================================================
 void RobotContext::_publish_mutex_group_request()
 {
+  const auto now = std::chrono::steady_clock::now();
+  if (_current_task_id.has_value())
+  {
+    _last_active_task_time = now;
+  }
+  else
+  {
+    if (_last_active_task_time + std::chrono::seconds(10) < now)
+    {
+      // The robot has been idle for 10 seconds. It should not be keeping a
+      // mutex locked; a task probably ended wrongly.
+      if (!_mutex_group.empty())
+      {
+        RCLCPP_ERROR(
+          _node->get_logger(),
+          "Forcibly releasing mutex group [%s] requested by robot [%s] "
+          "because the robot has been idle for an excessive amount of time.",
+          _mutex_group.c_str(),
+          requester_id().c_str());
+        _mutex_group.clear();
+      }
+    }
+  }
+
   if (!_mutex_group.empty())
   {
     _node->mutex_group_request()->publish(

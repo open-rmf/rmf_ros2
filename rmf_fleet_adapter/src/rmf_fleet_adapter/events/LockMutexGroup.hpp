@@ -61,7 +61,8 @@ public:
       static std::shared_ptr<Active> make(
         agv::RobotContextPtr context,
         rmf_task::events::SimpleEventStatePtr state,
-        std::function<void()> finished);
+        std::function<void()> finished,
+        std::string mutex_group);
 
       ConstStatePtr state() const final;
 
@@ -79,6 +80,8 @@ public:
       agv::RobotContextPtr _context;
       rmf_task::events::SimpleEventStatePtr _state;
       std::function<void()> _finished;
+      std::string _mutex_group;
+      rmf_rxcpp::subscription_guard _listener;
     };
 };
 
