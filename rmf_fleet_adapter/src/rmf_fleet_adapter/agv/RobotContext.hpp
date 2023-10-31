@@ -557,6 +557,9 @@ public:
   /// Indicate that the lift is no longer needed
   void release_lift();
 
+  /// What mutex group is currently being locked.
+  const std::string& current_mutex_group() const;
+
   /// Set the mutex group that this robot needs to have locked.
   void set_mutex_group(std::string group);
 

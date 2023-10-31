@@ -1022,6 +1022,12 @@ void RobotContext::release_lift()
 }
 
 //==============================================================================
+const std::string& RobotContext::current_mutex_group() const
+{
+  return _mutex_group;
+}
+
+//==============================================================================
 void RobotContext::set_mutex_group(std::string group)
 {
   if (group.empty())

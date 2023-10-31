@@ -19,6 +19,7 @@
 #include "LegacyPhaseShim.hpp"
 #include "WaitForTraffic.hpp"
 #include "WaitUntil.hpp"
+#include "LockMutexGroup.hpp"
 
 #include "../phases/MoveRobot.hpp"
 #include "../phases/DoorOpen.hpp"
@@ -45,10 +46,12 @@ struct LegacyPhaseWrapper
   LegacyPhaseWrapper(
     std::shared_ptr<LegacyTask::PendingPhase> phase_,
     rmf_traffic::Time time_,
-    rmf_traffic::Dependencies dependencies_)
+    rmf_traffic::Dependencies dependencies_,
+    std::string mutex_group_dependency_)
   : phase(std::move(phase_)),
     time(time_),
-    dependencies(std::move(dependencies_))
+    dependencies(std::move(dependencies_)),
+    mutex_group_dependency(std::move(mutex_group_dependency_))
   {
     // Do nothing
   }
@@ -56,6 +59,7 @@ struct LegacyPhaseWrapper
   std::shared_ptr<LegacyTask::PendingPhase> phase;
   rmf_traffic::Time time;
   rmf_traffic::Dependencies dependencies;
+  std::string mutex_group_dependency;
 };
 
 using LegacyPhases = std::vector<LegacyPhaseWrapper>;
@@ -113,7 +117,7 @@ public:
     _phases.emplace_back(
       std::make_shared<phases::DockRobot::PendingPhase>(
         _context, dock.dock_name()),
-      _event_start_time, waypoint.dependencies());
+      _event_start_time, waypoint.dependencies(), "");
     _continuous = false;
   }
 
@@ -127,7 +131,7 @@ public:
         open.name(),
         _context->requester_id(),
         _event_start_time + open.duration()),
-      _event_start_time, waypoint.dependencies());
+      _event_start_time, waypoint.dependencies(), "");
     _continuous = true;
   }
 
@@ -142,7 +146,7 @@ public:
         _context,
         close.name(),
         _context->requester_id()),
-      _event_start_time, waypoint.dependencies());
+      _event_start_time, waypoint.dependencies(), "");
     _continuous = true;
   }
 
@@ -158,7 +162,7 @@ public:
         _event_start_time,
         phases::RequestLift::Located::Outside,
         _plan_id),
-      _event_start_time, waypoint.dependencies());
+      _event_start_time, waypoint.dependencies(), "");
 
     _continuous = true;
   }
@@ -193,7 +197,7 @@ public:
         phases::RequestLift::Located::Inside,
         _plan_id,
         localize),
-      _event_start_time, waypoint.dependencies());
+      _event_start_time, waypoint.dependencies(), "");
     _moving_lift = false;
 
     _continuous = true;
@@ -208,7 +212,7 @@ public:
         _context,
         close.lift_name(),
         close.floor_name()),
-      _event_start_time, waypoint.dependencies());
+      _event_start_time, waypoint.dependencies(), "");
 
     _continuous = true;
   }
@@ -480,6 +484,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
   //   }
   // }
 
+  const auto& graph = context->navigation_graph();
+
   std::optional<rmf_traffic::Time> finish_time_estimate;
   for (const auto& r : plan.get_itinerary())
   {
@@ -499,6 +505,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     plan.get_waypoints();
 
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
+  std::string current_mutex_group;
 
   LegacyPhases legacy_phases;
   while (!waypoints.empty())
@@ -507,6 +514,55 @@ std::optional<ExecutePlan> ExecutePlan::make(
     bool event_occurred = false;
     for (; it != waypoints.end(); ++it)
     {
+      std::string new_mutex_group;
+      if (it->graph_index().has_value())
+      {
+        const auto& group =
+          graph.get_waypoint(*it->graph_index()).in_mutex_group();
+        if (!group.empty())
+        {
+          new_mutex_group = group;
+        }
+      }
+
+      for (const auto l : it->approach_lanes())
+      {
+        const auto& lane = graph.get_lane(l);
+        const auto& group = lane.properties().in_mutex_group();
+        if (!group.empty())
+        {
+          new_mutex_group = group;
+          break;
+        }
+      }
+
+      std::string mutex_group_dependency;
+      if (new_mutex_group != current_mutex_group)
+      {
+        if (!new_mutex_group.empty())
+        {
+          if (move_through.size() > 1)
+          {
+            legacy_phases.emplace_back(
+              std::make_shared<phases::MoveRobot::PendingPhase>(
+                context, move_through, plan_id, tail_period),
+              move_through.back().time(), move_through.back().dependencies(),
+              current_mutex_group);
+
+            move_through.clear();
+            waypoints.erase(waypoints.begin(), it);
+            current_mutex_group = std::move(new_mutex_group);
+
+            // We treat this the same as an event occurring to indicate that
+            // we should keep looping.
+            event_occurred = true;
+            break;
+          }
+        }
+
+        current_mutex_group = std::move(new_mutex_group);
+      }
+
       move_through.push_back(*it);
 
       if (it->event())
@@ -516,7 +572,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
           legacy_phases.emplace_back(
             std::make_shared<phases::MoveRobot::PendingPhase>(
               context, move_through, plan_id, tail_period),
-            it->time(), it->dependencies());
+            it->time(), it->dependencies(), mutex_group_dependency);
         }
 
         move_through.clear();
@@ -568,11 +624,12 @@ std::optional<ExecutePlan> ExecutePlan::make(
           legacy_phases.emplace_back(
             std::make_shared<phases::MoveRobot::PendingPhase>(
               context, move_through, plan_id, tail_period),
-            it->time(), it->dependencies());
+            it->time(), it->dependencies(), current_mutex_group);
         }
         else
         {
-          legacy_phases.emplace_back(nullptr, it->time(), it->dependencies());
+          legacy_phases.emplace_back(
+            nullptr, it->time(), it->dependencies(), current_mutex_group);
         }
 
         // Have the next sequence of waypoints begin with this one.
@@ -596,7 +653,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
       legacy_phases.emplace_back(
         std::make_shared<phases::MoveRobot::PendingPhase>(
           context, move_through, plan_id, tail_period),
-        finish_time_estimate.value(), rmf_traffic::Dependencies{});
+        finish_time_estimate.value(), rmf_traffic::Dependencies{},
+        current_mutex_group);
     }
 
     if (!event_occurred)
@@ -631,6 +689,20 @@ std::optional<ExecutePlan> ExecutePlan::make(
     }
     else
     {
+      if (!head->mutex_group_dependency.empty())
+      {
+        standbys.push_back(
+          [
+            context,
+            event_id,
+            mutex_group = head->mutex_group_dependency
+          ](UpdateFn update)
+          {
+            return LockMutexGroup::Standby::make(
+              context, event_id, mutex_group);
+          });
+      }
+
       if (head->phase)
       {
         standbys.push_back(

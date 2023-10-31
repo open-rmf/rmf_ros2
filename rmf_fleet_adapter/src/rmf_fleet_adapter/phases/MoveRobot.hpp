@@ -247,17 +247,24 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       const auto planned_time = target_wp.time();
       const auto newly_expected_arrival = now + estimate;
       const auto new_cumulative_delay = newly_expected_arrival - planned_time;
+
       action->_context->worker().schedule(
         [
-          context = action->_context,
-          plan_id = action->_plan_id,
+          w = action->weak_from_this(),
           now,
           new_cumulative_delay
         ](const auto&)
         {
+          const auto self = w.lock();
+          if (!self)
+            return;
+          const auto context = self->_context;
+          const auto plan_id = self->_plan_id;
           context->itinerary().cumulative_delay(
             plan_id, new_cumulative_delay, 100ms);
 
+          // This itinerary has been adjusted according to the latest delay
+          // information, so our position along the trajectory is given by `now`
           const auto& itin = context->itinerary().itinerary();
           for (std::size_t i = 0; i < itin.size(); ++i)
           {
@@ -265,13 +272,36 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             const auto t_it = traj.find(now);
             if (t_it != traj.end() && t_it != traj.begin())
             {
+              std::size_t index = t_it->index() - 1;
               if (t_it->time() == now)
               {
-                context->itinerary().reached(plan_id, i, t_it->index());
+                index = t_it->index();
               }
-              else
+
+              context->itinerary().reached(plan_id, i, index);
+            }
+          }
+
+          if (!context->current_mutex_group().empty())
+          {
+            const auto adjusted_now = now + new_cumulative_delay;
+            const auto& graph = context->navigation_graph();
+            for (const auto& wp : self->_waypoints)
+            {
+              if (wp.time() > adjusted_now)
               {
-                context->itinerary().reached(plan_id, i, t_it->index() - 1);
+                break;
+              }
+
+              if (wp.graph_index().has_value())
+              {
+                const auto& g = graph.get_waypoint(*wp.graph_index())
+                  .in_mutex_group();
+                if (g.empty())
+                {
+                  context->release_mutex_group();
+                  break;
+                }
               }
             }
           }
@@ -287,6 +317,16 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           {
             self->_context->itinerary().reached(
               self->_plan_id, c.route_id, c.checkpoint_id);
+          }
+
+          const auto last_index = self->_waypoints.back().graph_index();
+          if (last_index.has_value())
+          {
+            const auto& graph = self->_context->navigation_graph();
+            if (graph.get_waypoint(*last_index).in_mutex_group().empty())
+            {
+              self->_context->release_mutex_group();
+            }
           }
         }
 
