@@ -444,6 +444,9 @@ public:
   /// Set the callback for localizing the robot
   void set_localization(EasyFullControl::LocalizationRequest localization);
 
+  /// Get the current lift destination request for this robot
+  const LiftDestination* current_lift_destination() const;
+
   /// Ask for a certain lift to go to a certain destination and open the doors
   std::shared_ptr<void> set_lift_destination(
     std::string lift_name,
@@ -547,6 +550,7 @@ private:
   rxcpp::observable<double> _battery_soc_obs;
   rmf_task::State _current_task_end_state;
   std::optional<std::string> _current_task_id;
+  std::mutex _current_task_id_mutex;
   std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
   std::weak_ptr<TaskManager> _task_manager;
 

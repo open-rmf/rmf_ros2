@@ -1001,6 +1001,12 @@ void RobotContext::set_localization(
 }
 
 //==============================================================================
+const LiftDestination* RobotContext::current_lift_destination() const
+{
+  return _lift_destination.get();
+}
+
+//==============================================================================
 std::shared_ptr<void> RobotContext::set_lift_destination(
   std::string lift_name,
   std::string destination_floor,

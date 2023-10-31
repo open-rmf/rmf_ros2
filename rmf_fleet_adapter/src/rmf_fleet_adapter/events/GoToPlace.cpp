@@ -484,6 +484,45 @@ void GoToPlace::Active::_schedule_retry()
 }
 
 //==============================================================================
+class LiftFinder : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+  LiftFinder(std::string current_name_)
+  : current_name(std::move(current_name_)),
+    still_using(false)
+  {
+    // Do nothing
+  }
+  std::string current_name;
+  bool still_using;
+
+  void execute(const Dock& dock) final {}
+  void execute(const Wait&) final {}
+  void execute(const DoorOpen&) final {}
+  void execute(const DoorClose&) final {}
+  void execute(const LiftSessionBegin& e) final
+  {
+    if (e.lift_name() == current_name)
+      still_using = true;
+  }
+  void execute(const LiftMove& e) final
+  {
+    if (e.lift_name() == current_name)
+      still_using = true;
+  }
+  void execute(const LiftDoorOpen& e) final
+  {
+    if (e.lift_name() == current_name)
+      still_using = true;
+  }
+  void execute(const LiftSessionEnd& e) final
+  {
+    if (e.lift_name() == current_name)
+      still_using = true;
+  }
+};
+
+//==============================================================================
 void GoToPlace::Active::_execute_plan(
   const rmf_traffic::PlanId plan_id,
   rmf_traffic::agv::Plan plan,
@@ -506,6 +545,31 @@ void GoToPlace::Active::_execute_plan(
     "Executing go_to_place [%lu] for robot [%s]",
     _goal.waypoint(),
     _context->requester_id().c_str());
+
+  if (const auto* current_lift = _context->current_lift_destination())
+  {
+    LiftFinder finder(current_lift->lift_name);
+    for (const auto& wp : plan.get_waypoints())
+    {
+      if (wp.event())
+      {
+        wp.event()->execute(finder);
+        if (finder.still_using)
+          break;
+      }
+    }
+
+    if (!finder.still_using)
+    {
+      RCLCPP_INFO(
+        _context->node()->get_logger(),
+        "Robot [%s] is releasing lift [%s] after a replan because it is no "
+        "longer needed.",
+        _context->requester_id().c_str(),
+        current_lift->lift_name.c_str());
+      _context->release_lift();
+    }
+  }
 
   _execution = ExecutePlan::make(
     _context, plan_id, std::move(plan), std::move(full_itinerary),
