@@ -77,11 +77,19 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, waypoint, orientation](const auto&)
       {
-        context->set_location({
+        rmf_traffic::agv::Plan::StartSet starts = {
           rmf_traffic::agv::Plan::Start(
             rmf_traffic_ros2::convert(context->node()->now()),
             waypoint, orientation)
-        });
+        };
+        if (context->debug_positions)
+        {
+          std::stringstream ss;
+          ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
+            << " starts:" << print_starts(starts, context->navigation_graph());
+          std::cout << ss.str() << std::endl;
+        }
+        context->set_location(starts);
       });
   }
 }
@@ -117,6 +125,13 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, starts = std::move(starts)](const auto&)
       {
+        if (context->debug_positions)
+        {
+          std::stringstream ss;
+          ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
+            << " starts:" << print_starts(starts, context->navigation_graph());
+          std::cout << ss.str() << std::endl;
+        }
         context->set_location(std::move(starts));
       });
   }
@@ -132,11 +147,19 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, position, waypoint](const auto&)
       {
-        context->set_location({
+        rmf_traffic::agv::Plan::StartSet starts = {
           rmf_traffic::agv::Plan::Start(
             rmf_traffic_ros2::convert(context->node()->now()),
             waypoint, position[2], Eigen::Vector2d(position.block<2, 1>(0, 0)))
-        });
+        };
+        if (context->debug_positions)
+        {
+          std::stringstream ss;
+          ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
+            << " starts:" << print_starts(starts, context->navigation_graph());
+          std::cout << ss.str() << std::endl;
+        }
+        context->set_location(std::move(starts));
       });
   }
 }
@@ -169,6 +192,12 @@ void RobotUpdateHandle::update_position(
       context->worker().schedule(
         [context, now, map_name, position](const auto&)
         {
+          if (context->debug_positions)
+          {
+            std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
+              << map_name << " <" << position.block<2, 1>(0, 0).transpose()
+              << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
+          }
           context->set_lost(Location { now, map_name, position });
         });
       return;
@@ -177,6 +206,13 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, starts = std::move(starts)](const auto&)
       {
+        if (context->debug_positions)
+        {
+          std::stringstream ss;
+          ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
+            << " starts:" << print_starts(starts, context->navigation_graph());
+          std::cout << ss.str() << std::endl;
+        }
         context->set_location(std::move(starts));
       });
   }
@@ -191,6 +227,13 @@ void RobotUpdateHandle::update_position(
     context->worker().schedule(
       [context, starts = std::move(position)](const auto&)
       {
+        if (context->debug_positions)
+        {
+          std::stringstream ss;
+          ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
+            << " starts:" << print_starts(starts, context->navigation_graph());
+          std::cout << ss.str() << std::endl;
+        }
         context->set_location(starts);
       });
   }
@@ -823,6 +866,17 @@ void RobotUpdateHandle::Unstable::set_lift_entry_watchdog(
 }
 
 //==============================================================================
+void RobotUpdateHandle::Unstable::debug_positions(bool on)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    // No need to worry about race conditions or data races here because this is
+    // a mostly inconsequential bool
+    context->debug_positions = on;
+  }
+}
+
+//==============================================================================
 void RobotUpdateHandle::ActionExecution::update_remaining_time(
   rmf_traffic::Duration remaining_time_estimate)
 {
@@ -1099,26 +1153,11 @@ void ScheduleOverride::overridden_update(
     }
   }
 
-  auto planner = context->planner();
-  if (!planner)
+  if (context->debug_positions)
   {
-    RCLCPP_ERROR(
-      context->node()->get_logger(),
-      "Planner unavailable for robot [%s], cannot update its location",
-      context->requester_id().c_str());
-    return;
+    std::cout << "Search for location from " << __FILE__ << "|" << __LINE__ << std::endl;
   }
-
-  const auto& graph = planner->get_configuration().graph();
-  auto starts = nav_params->compute_plan_starts(graph, map, location, now);
-  if (!starts.empty())
-  {
-    context->set_location(std::move(starts));
-  }
-  else
-  {
-    context->set_lost(Location { now, map, location });
-  }
+  nav_params->search_for_location(map, location, *context);
 }
 
 //==============================================================================

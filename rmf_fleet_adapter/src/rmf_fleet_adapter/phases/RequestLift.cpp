@@ -202,7 +202,7 @@ void RequestLift::ActivePhase::_init_obs()
             if (me->_context->localize(*me->_localize_after, std::move(cmd)))
             {
               me->_rewait_timer = me->_context->node()->try_create_wall_timer(
-                std::chrono::seconds(30),
+                std::chrono::seconds(300),
                 [weak, s]
                 {
                   const auto me = weak.lock();

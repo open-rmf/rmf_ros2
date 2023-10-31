@@ -475,6 +475,9 @@ public:
       Watchdog watchdog,
       rmf_traffic::Duration wait_duration = std::chrono::seconds(10));
 
+    /// Turn on/off a debug dump of how position updates are being processed
+    void debug_positions(bool on);
+
   private:
     friend Implementation;
     Implementation* _pimpl;

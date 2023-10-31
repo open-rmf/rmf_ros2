@@ -457,10 +457,36 @@ public:
 
     if (!starts.empty())
     {
+      if (context->debug_positions)
+      {
+        std::stringstream ss;
+        ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
+          << " starts:" << print_starts(starts, graph);
+        std::cout << ss.str() << std::endl;
+      }
       context->set_location(starts);
     }
     else
     {
+      if (context->debug_positions)
+      {
+        std::stringstream ss;
+        ss << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
+          << map << " <" << location.block<2, 1>(0, 0).transpose()
+          << "> orientation " << location[2] * 180.0 / M_PI << "\n";
+        ss << waypoints.size() << " waypoints:";
+        for (std::size_t wp : waypoints)
+        {
+          ss << "\n -- " << print_waypoint(wp, graph);
+        }
+        ss << lanes.size() << " lanes:";
+        for (std::size_t lane : lanes)
+        {
+          ss << "\n -- " << print_lane(lane, graph);
+        }
+
+        std::cout << ss.str() << std::endl;
+      }
       context->set_lost(Location { now, map, location });
     }
 
@@ -616,6 +642,10 @@ auto EasyFullControl::CommandExecution::Implementation::make_hold(
       context->itinerary().cumulative_delay(plan_id, delay);
       if (const auto nav_params = context->nav_params())
       {
+        if (context->debug_positions)
+        {
+          std::cout << "Searching for location from " << __FILE__ << "|" << __LINE__ << std::endl;
+        }
         nav_params->search_for_location(map, location, *context);
       }
     };
@@ -1585,6 +1615,10 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
         }
       }
 
+      if (context->debug_positions)
+      {
+        std::cout << "Searching for location from " << __FILE__ << "|" << __LINE__ << std::endl;
+      }
       updater->nav_params->search_for_location(state.map(), position, *context);
     });
 }

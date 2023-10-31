@@ -48,10 +48,23 @@ void NavParams::search_for_location(
   auto starts = compute_plan_starts(graph, map, position, now);
   if (!starts.empty())
   {
+    if (context.debug_positions)
+    {
+      std::stringstream ss;
+      ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
+        << " starts:" << print_starts(starts, graph);
+      std::cout << ss.str() << std::endl;
+    }
     context.set_location(std::move(starts));
   }
   else
   {
+    if (context.debug_positions)
+    {
+      std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
+        << map << " <" << position.block<2, 1>(0, 0).transpose()
+        << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
+    }
     context.set_lost(Location { now, map, position });
   }
 }
@@ -345,24 +358,6 @@ const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
   return _location;
 }
 
-class Printer : public rmf_traffic::agv::Graph::Lane::Executor
-{
-public:
-  Printer()
-  {
-    // Do nothing
-  }
-
-  void execute(const DoorOpen&) override { std::cout << __LINE__; }
-  void execute(const DoorClose&) override { std::cout << __LINE__; }
-  void execute(const LiftSessionBegin&) override { std::cout << __LINE__; }
-  void execute(const LiftDoorOpen&) override { std::cout << __LINE__; }
-  void execute(const LiftSessionEnd&) override { std::cout << __LINE__; }
-  void execute(const LiftMove&) override { std::cout << __LINE__; }
-  void execute(const Wait&) override { std::cout << __LINE__; }
-  void execute(const Dock& dock) override { std::cout << __LINE__; }
-};
-
 //==============================================================================
 void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
 {
@@ -423,6 +418,10 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
 
   if (_location.empty())
   {
+    if (debug_positions)
+    {
+      std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST" << std::endl;
+    }
     set_lost(std::nullopt);
     return;
   }
@@ -778,23 +777,19 @@ const std::string* RobotContext::current_task_id() const
 //==============================================================================
 RobotContext& RobotContext::current_task_id(std::optional<std::string> id)
 {
+  std::unique_lock<std::mutex> lock(*_current_task_id_mutex);
   _current_task_id = std::move(id);
   return *this;
 }
 
 //==============================================================================
-const std::string RobotContext::copy_current_task_id() const
+std::string RobotContext::copy_current_task_id() const
 {
-  std::mutex _mutex;
-  std::unique_lock<std::mutex> lock();
+  std::unique_lock<std::mutex> lock(*_current_task_id_mutex);
+  if (_current_task_id.has_value())
+    return _current_task_id.value();
 
-  {
-    std::unique_lock<std::mutex> lock(_mutex);
-    if (_current_task_id.has_value())
-      return _current_task_id.value();
-
-    return {};
-  }
+  return {};
 }
 
 //==============================================================================
