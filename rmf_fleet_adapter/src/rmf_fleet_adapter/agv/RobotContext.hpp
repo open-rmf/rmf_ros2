@@ -453,7 +453,7 @@ public:
 
   /// Get a string copy of the current task ID of the robot, or an empty string
   /// if the robot is not performing any task
-  const std::string copy_current_task_id() const;
+  std::string copy_current_task_id() const;
 
   /// Get the current battery state of charge
   double current_battery_soc() const;
@@ -614,6 +614,8 @@ private:
   rxcpp::observable<double> _battery_soc_obs;
   rmf_task::State _current_task_end_state;
   std::optional<std::string> _current_task_id;
+  std::unique_ptr<std::mutex> _current_task_id_mutex =
+    std::make_unique<std::mutex>();
   std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
   std::weak_ptr<TaskManager> _task_manager;
 

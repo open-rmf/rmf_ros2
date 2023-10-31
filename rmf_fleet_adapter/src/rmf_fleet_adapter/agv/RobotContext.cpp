@@ -777,23 +777,19 @@ const std::string* RobotContext::current_task_id() const
 //==============================================================================
 RobotContext& RobotContext::current_task_id(std::optional<std::string> id)
 {
+  std::unique_lock<std::mutex> lock(*_current_task_id_mutex);
   _current_task_id = std::move(id);
   return *this;
 }
 
 //==============================================================================
-const std::string RobotContext::copy_current_task_id() const
+std::string RobotContext::copy_current_task_id() const
 {
-  std::mutex _mutex;
-  std::unique_lock<std::mutex> lock();
+  std::unique_lock<std::mutex> lock(*_current_task_id_mutex);
+  if (_current_task_id.has_value())
+    return _current_task_id.value();
 
-  {
-    std::unique_lock<std::mutex> lock(_mutex);
-    if (_current_task_id.has_value())
-      return _current_task_id.value();
-
-    return {};
-  }
+  return {};
 }
 
 //==============================================================================
