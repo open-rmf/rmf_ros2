@@ -1284,6 +1284,17 @@ void EasyCommandHandle::follow_new_path(
     {
       in_lift = graph.get_waypoint(*wp1.graph_index()).in_lift();
     }
+    else
+    {
+      for (const auto& lift : graph.known_lifts())
+      {
+        if (lift->is_in_lift(target_position.block<2, 1>(0, 0)))
+        {
+          in_lift = lift;
+          break;
+        }
+      }
+    }
 
     const auto command_position = to_robot_coordinates(map, target_position);
     auto destination = EasyFullControl::Destination::Implementation::make(
