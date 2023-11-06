@@ -679,6 +679,8 @@ private:
   void _check_lift_state(const rmf_lift_msgs::msg::LiftState& state);
   std::shared_ptr<LiftDestination> _lift_destination;
   rmf_rxcpp::subscription_guard _lift_subscription;
+  std::optional<std::chrono::steady_clock::time_point> _initial_time_idle_outside_lift;
+
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

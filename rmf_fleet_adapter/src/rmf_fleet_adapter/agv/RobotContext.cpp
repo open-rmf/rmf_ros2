@@ -779,6 +779,7 @@ RobotContext& RobotContext::current_task_id(std::optional<std::string> id)
 {
   std::unique_lock<std::mutex> lock(*_current_task_id_mutex);
   _current_task_id = std::move(id);
+  _initial_time_idle_outside_lift = std::nullopt;
   return *this;
 }
 
@@ -1013,6 +1014,7 @@ std::shared_ptr<void> RobotContext::set_lift_destination(
       std::move(destination_floor),
       requested_from_inside
     });
+  _initial_time_idle_outside_lift = std::nullopt;
 
   return _lift_destination;
 }
@@ -1117,6 +1119,54 @@ void RobotContext::_check_lift_state(
       // lift usage was cancelled while the robot was outside of the lift.
       // Therefore we should release the usage of the lift.
       _lift_destination = nullptr;
+      _initial_time_idle_outside_lift = std::nullopt;
+    }
+    else if (_lift_destination && !_current_task_id.has_value())
+    {
+      const Eigen::Vector2d p = position().block<2, 1>(0, 0);
+      const auto& graph = navigation_graph();
+      const auto& known_lifts = graph.known_lifts();
+      const auto l_it = std::find_if(
+        known_lifts.begin(),
+        known_lifts.end(),
+        [&](const auto& lift)
+        {
+          return lift->name() == _lift_destination->lift_name;
+        });
+
+      bool inside_lift = false;
+      if (l_it != graph.known_lifts().end())
+      {
+        inside_lift = (*l_it)->is_in_lift(p);
+      }
+
+      if (inside_lift)
+      {
+        _initial_time_idle_outside_lift = std::nullopt;
+      }
+      else
+      {
+        const auto now = std::chrono::steady_clock::now();
+        if (_initial_time_idle_outside_lift.has_value())
+        {
+          const auto lapse = now - *_initial_time_idle_outside_lift;
+          if (lapse > std::chrono::seconds(2))
+          {
+            RCLCPP_INFO(
+              _node->get_logger(),
+              "Releasing lift [%s] for robot [%s] because it has remained idle "
+              "outside of the lift.",
+              _lift_destination->lift_name.c_str(),
+              requester_id().c_str());
+          }
+          _lift_destination = nullptr;
+          _initial_time_idle_outside_lift = std::nullopt;
+        }
+        else
+        {
+          _initial_time_idle_outside_lift = now;
+        }
+      }
     }
   }
 
