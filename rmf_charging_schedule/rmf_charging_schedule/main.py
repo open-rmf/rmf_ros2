@@ -49,6 +49,8 @@ class ScheduleTimePoint:
     def __lt__(self, other):
         if self.hour < other.hour:
             return True
+        elif self.hour > other.hour:
+            return False
         return self.minute < other.minute
 
     def __hash__(self):

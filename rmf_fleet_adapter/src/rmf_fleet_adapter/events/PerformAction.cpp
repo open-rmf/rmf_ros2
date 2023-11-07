@@ -224,6 +224,7 @@ void PerformAction::Active::cancel()
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
   _finished();
+  auto self = shared_from_this();
   if (auto data = _execution_data.lock())
     data->okay = false;
 }
