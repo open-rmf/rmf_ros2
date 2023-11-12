@@ -114,7 +114,7 @@ struct RequestLift
       std::string destination,
       rmf_traffic::Time expected_finish,
       Located located,
-      rmf_traffic::PlanId plan_id,
+      PlanIdPtr plan_id,
       std::optional<agv::Destination> localize = std::nullopt);
 
     std::shared_ptr<LegacyTask::ActivePhase> begin() override;
@@ -134,7 +134,7 @@ struct RequestLift
     std::string _destination;
     rmf_traffic::Time _expected_finish;
     Located _located;
-    rmf_traffic::PlanId _plan_id;
+    PlanIdPtr _plan_id;
     std::optional<agv::Destination> _localize_after;
     std::string _description;
   };

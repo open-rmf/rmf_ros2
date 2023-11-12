@@ -266,8 +266,19 @@ rmf_traffic::Duration GoToPlace::Active::remaining_time_estimate() const
     const auto now = _context->now();
 
     const auto& itin = _context->itinerary();
-    if (const auto delay = itin.cumulative_delay(_execution->plan_id))
-      return finish - now + *delay;
+    if (_execution->plan_id)
+    {
+      if (const auto delay = itin.cumulative_delay(*_execution->plan_id))
+        return finish - now + *delay;
+    }
+    else
+    {
+      RCLCPP_ERROR(
+        _context->node()->get_logger(),
+        "Missing plan_id for go_to_place of robot [%s]. Please report this "
+        "critical bug to the maintainers of RMF.",
+        _context->requester_id().c_str());
+    }
   }
 
   const auto& estimate =

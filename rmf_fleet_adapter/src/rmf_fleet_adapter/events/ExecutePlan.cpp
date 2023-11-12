@@ -47,7 +47,7 @@ struct LegacyPhaseWrapper
     std::shared_ptr<LegacyTask::PendingPhase> phase_,
     rmf_traffic::Time time_,
     rmf_traffic::Dependencies dependencies_,
-    std::string mutex_group_dependency_)
+    std::optional<LockMutexGroup::Data> mutex_group_dependency_)
   : phase(std::move(phase_)),
     time(time_),
     dependencies(std::move(dependencies_)),
@@ -59,7 +59,7 @@ struct LegacyPhaseWrapper
   std::shared_ptr<LegacyTask::PendingPhase> phase;
   rmf_traffic::Time time;
   rmf_traffic::Dependencies dependencies;
-  std::string mutex_group_dependency;
+  std::optional<LockMutexGroup::Data> mutex_group_dependency;
 };
 
 using LegacyPhases = std::vector<LegacyPhaseWrapper>;
@@ -74,7 +74,7 @@ using Move = phases::MoveRobot::PendingPhase;
 //==============================================================================
 MakeStandby make_wait_for_traffic(
   const agv::RobotContextPtr& context,
-  const rmf_traffic::PlanId plan_id,
+  const PlanIdPtr plan_id,
   const rmf_traffic::Dependencies& deps,
   const rmf_traffic::Time time,
   const rmf_task_sequence::Event::AssignIDPtr& id)
@@ -97,7 +97,7 @@ public:
     agv::RobotContextPtr context,
     LegacyPhases& phases,
     const rmf_traffic::agv::Plan::Waypoint& waypoint_,
-    rmf_traffic::PlanId plan_id,
+    const PlanIdPtr plan_id,
     bool& continuous)
   : waypoint(waypoint_),
     _context(std::move(context)),
@@ -117,7 +117,7 @@ public:
     _phases.emplace_back(
       std::make_shared<phases::DockRobot::PendingPhase>(
         _context, dock.dock_name()),
-      _event_start_time, waypoint.dependencies(), "");
+      _event_start_time, waypoint.dependencies(), std::nullopt);
     _continuous = false;
   }
 
@@ -131,7 +131,7 @@ public:
         open.name(),
         _context->requester_id(),
         _event_start_time + open.duration()),
-      _event_start_time, waypoint.dependencies(), "");
+      _event_start_time, waypoint.dependencies(), std::nullopt);
     _continuous = true;
   }
 
@@ -146,7 +146,7 @@ public:
         _context,
         close.name(),
         _context->requester_id()),
-      _event_start_time, waypoint.dependencies(), "");
+      _event_start_time, waypoint.dependencies(), std::nullopt);
     _continuous = true;
   }
 
@@ -162,7 +162,7 @@ public:
         _event_start_time,
         phases::RequestLift::Located::Outside,
         _plan_id),
-      _event_start_time, waypoint.dependencies(), "");
+      _event_start_time, waypoint.dependencies(), std::nullopt);
 
     _continuous = true;
   }
@@ -197,7 +197,7 @@ public:
         phases::RequestLift::Located::Inside,
         _plan_id,
         localize),
-      _event_start_time, waypoint.dependencies(), "");
+      _event_start_time, waypoint.dependencies(), std::nullopt);
     _moving_lift = false;
 
     _continuous = true;
@@ -212,7 +212,7 @@ public:
         _context,
         close.lift_name(),
         close.floor_name()),
-      _event_start_time, waypoint.dependencies(), "");
+      _event_start_time, waypoint.dependencies(), std::nullopt);
 
     _continuous = true;
   }
@@ -231,7 +231,7 @@ private:
   agv::RobotContextPtr _context;
   LegacyPhases& _phases;
   rmf_traffic::Time _event_start_time;
-  rmf_traffic::PlanId _plan_id;
+  PlanIdPtr _plan_id;
   bool& _continuous;
   bool _moving_lift = false;
   rmf_traffic::Duration _lifting_duration = rmf_traffic::Duration(0);
@@ -250,7 +250,7 @@ std::optional<EventGroupInfo> search_for_door_group(
   LegacyPhases::const_iterator head,
   LegacyPhases::const_iterator end,
   const agv::RobotContextPtr& context,
-  const rmf_traffic::PlanId plan_id,
+  const PlanIdPtr plan_id,
   const rmf_task::Event::AssignIDPtr& id)
 {
   const auto* door_open = dynamic_cast<const phases::DoorOpen::PendingPhase*>(
@@ -341,7 +341,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
   LegacyPhases::const_iterator head,
   LegacyPhases::const_iterator end,
   const agv::RobotContextPtr& context,
-  const rmf_traffic::PlanId plan_id,
+  const PlanIdPtr plan_id,
   const rmf_task::Event::AssignIDPtr& event_id,
   const rmf_task::events::SimpleEventStatePtr& state)
 {
@@ -460,7 +460,7 @@ public:
 //==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
-  rmf_traffic::PlanId plan_id,
+  rmf_traffic::PlanId recommended_plan_id,
   rmf_traffic::agv::Plan plan,
   rmf_traffic::schedule::Itinerary full_itinerary,
   const rmf_task::Event::AssignIDPtr& event_id,
@@ -484,6 +484,11 @@ std::optional<ExecutePlan> ExecutePlan::make(
   //   }
   // }
 
+  auto plan_id = std::make_shared<rmf_traffic::PlanId>(recommended_plan_id);
+  auto initial_itinerary =
+    std::make_shared<rmf_traffic::schedule::Itinerary>(full_itinerary);
+  auto previous_itinerary = initial_itinerary;
+
   const auto& graph = context->navigation_graph();
 
   std::optional<rmf_traffic::Time> finish_time_estimate;
@@ -505,7 +510,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     plan.get_waypoints();
 
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
-  std::string current_mutex_group;
+  std::optional<LockMutexGroup::Data> current_mutex_group;
 
   LegacyPhases legacy_phases;
   while (!waypoints.empty())
@@ -536,13 +541,65 @@ std::optional<ExecutePlan> ExecutePlan::make(
         }
       }
 
-      std::string mutex_group_dependency;
-      if (new_mutex_group != current_mutex_group)
+      const bool mutex_group_change =
+        (!new_mutex_group.empty() && current_mutex_group.has_value())
+        || (
+          current_mutex_group.has_value()
+          && current_mutex_group->mutex_group != new_mutex_group
+        );
+
+      if (mutex_group_change)
       {
         if (!new_mutex_group.empty())
         {
           if (move_through.size() > 1)
           {
+            const auto& last_wp = move_through.back();
+
+            const rmf_traffic::Time hold_time = last_wp.time();
+            const Eigen::Vector3d hold_position = last_wp.position();
+            std::string hold_map;
+            if (last_wp.graph_index().has_value())
+            {
+              hold_map =
+                graph.get_waypoint(*last_wp.graph_index()).get_map_name();
+            }
+            else
+            {
+              // Find the map name of the first waypoint that is on the graph
+              for (const auto& wp : waypoints)
+              {
+                if (wp.graph_index().has_value())
+                {
+                  hold_map =
+                    graph.get_waypoint(*wp.graph_index()).get_map_name();
+                  break;
+                }
+              }
+
+              if (hold_map.empty())
+              {
+                RCLCPP_ERROR(
+                  context->node()->get_logger(),
+                  "Cannot find a map for a mutex group [%s] transition needed "
+                  "by robot [%s]. There are [%lu] remaining waypoints. Please "
+                  "report this situation to the maintainers of RMF.",
+                  new_mutex_group.c_str(),
+                  context->requester_id().c_str(),
+                  waypoints.size());
+              }
+            }
+
+            std::size_t excluded_route = 0;
+            for (const auto& c : last_wp.arrival_checkpoints())
+            {
+              excluded_route = std::max(excluded_route, c.route_id+1);
+              auto& r = previous_itinerary->at(c.route_id);
+              auto& t = r.trajectory();
+              t.erase(t.begin() + (int)c.checkpoint_id, t.end());
+            }
+            previous_itinerary->erase(previous_itinerary->begin()+excluded_route);
+
             legacy_phases.emplace_back(
               std::make_shared<phases::MoveRobot::PendingPhase>(
                 context, move_through, plan_id, tail_period),
@@ -551,7 +608,19 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
             move_through.clear();
             waypoints.erase(waypoints.begin(), it);
-            current_mutex_group = std::move(new_mutex_group);
+
+            auto next_itinerary = std::make_shared<
+              rmf_traffic::schedule::Itinerary>(full_itinerary);
+            current_mutex_group = LockMutexGroup::Data{
+              new_mutex_group,
+              hold_map,
+              hold_position,
+              hold_time,
+              plan_id,
+              next_itinerary
+            };
+
+            previous_itinerary = next_itinerary;
 
             // We treat this the same as an event occurring to indicate that
             // we should keep looping.
@@ -559,8 +628,10 @@ std::optional<ExecutePlan> ExecutePlan::make(
             break;
           }
         }
-
-        current_mutex_group = std::move(new_mutex_group);
+        else
+        {
+          current_mutex_group = std::nullopt;
+        }
       }
 
       move_through.push_back(*it);
@@ -572,7 +643,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
           legacy_phases.emplace_back(
             std::make_shared<phases::MoveRobot::PendingPhase>(
               context, move_through, plan_id, tail_period),
-            it->time(), it->dependencies(), mutex_group_dependency);
+            it->time(), it->dependencies(), current_mutex_group);
         }
 
         move_through.clear();
@@ -689,13 +760,13 @@ std::optional<ExecutePlan> ExecutePlan::make(
     }
     else
     {
-      if (!head->mutex_group_dependency.empty())
+      if (head->mutex_group_dependency.has_value())
       {
         standbys.push_back(
           [
             context,
             event_id,
-            mutex_group = head->mutex_group_dependency
+            mutex_group = head->mutex_group_dependency.value()
           ](UpdateFn update)
           {
             return LockMutexGroup::Standby::make(
@@ -743,7 +814,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
   std::size_t attempts = 0;
-  while (!context->itinerary().set(plan_id, std::move(full_itinerary)))
+  while (!context->itinerary().set(*plan_id, *initial_itinerary))
   {
     // Some mysterious behavior has been happening where plan_ids are invalid.
     // We will attempt to catch that here and try to learn more about what
@@ -756,17 +827,18 @@ std::optional<ExecutePlan> ExecutePlan::make(
       context->node()->get_logger(),
       "Invalid plan_id [%lu] when current plan_id is [%lu] for [%s] in group "
       "[%s] while performing task [%s]. Please notify an RMF developer.",
-      plan_id,
+      *plan_id,
       context->itinerary().current_plan_id(),
       context->name().c_str(),
       context->group().c_str(),
       task_id.c_str());
     state->update_log().error(
-      "Invalid plan_id [" + std::to_string(plan_id) + "] when current plan_id "
-      "is [" + std::to_string(context->itinerary().current_plan_id()) + "] "
-      "Please notify an RMF developer.");
+      "Invalid plan_id [" + std::to_string(*plan_id)
+      + "] when current plan_id is ["
+      + std::to_string(context->itinerary().current_plan_id())
+      + "] Please notify an RMF developer.");
 
-    plan_id = context->itinerary().assign_plan_id();
+    *plan_id = context->itinerary().assign_plan_id();
 
     if (++attempts > 5)
     {

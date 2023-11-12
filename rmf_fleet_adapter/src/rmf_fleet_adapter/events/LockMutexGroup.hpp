@@ -30,13 +30,23 @@ namespace events {
 class LockMutexGroup : public rmf_task_sequence::Event
 {
 public:
+    struct Data
+    {
+      std::string mutex_group;
+      std::string hold_map;
+      Eigen::Vector3d hold_position;
+      rmf_traffic::Time hold_time;
+      std::shared_ptr<rmf_traffic::PlanId> plan_id;
+      std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary;
+    };
+
     class Standby : public rmf_task_sequence::Event::Standby
     {
     public:
       static std::shared_ptr<Standby> make(
         agv::RobotContextPtr context,
         const AssignIDPtr& id,
-        std::string mutex_group);
+        Data data);
 
       ConstStatePtr state() const final;
 
@@ -50,7 +60,7 @@ public:
       Standby() = default;
       agv::RobotContextPtr _context;
       rmf_task::events::SimpleEventStatePtr _state;
-      std::string _mutex_group;
+      Data _data;
     };
 
     class Active
@@ -62,7 +72,7 @@ public:
         agv::RobotContextPtr context,
         rmf_task::events::SimpleEventStatePtr state,
         std::function<void()> finished,
-        std::string mutex_group);
+        Data data);
 
       ConstStatePtr state() const final;
 
@@ -77,11 +87,14 @@ public:
       void kill() final;
 
     private:
+      void _initialize();
+      void _schedule(rmf_traffic::schedule::Itinerary itinerary) const;
       agv::RobotContextPtr _context;
       rmf_task::events::SimpleEventStatePtr _state;
       std::function<void()> _finished;
-      std::string _mutex_group;
       rmf_rxcpp::subscription_guard _listener;
+      rclcpp::TimerBase::SharedPtr _delay_timer;
+      Data _data;
     };
 };
 

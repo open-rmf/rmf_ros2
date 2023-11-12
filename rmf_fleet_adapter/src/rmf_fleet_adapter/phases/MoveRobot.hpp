@@ -84,7 +84,7 @@ struct MoveRobot
     PendingPhase(
       agv::RobotContextPtr context,
       std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints,
-      rmf_traffic::PlanId plan_id,
+      PlanIdPtr plan_id,
       std::optional<rmf_traffic::Duration> tail_period);
 
     std::shared_ptr<LegacyTask::ActivePhase> begin() override;
@@ -97,7 +97,7 @@ struct MoveRobot
 
     agv::RobotContextPtr _context;
     std::vector<rmf_traffic::agv::Plan::Waypoint> _waypoints;
-    rmf_traffic::PlanId _plan_id;
+    PlanIdPtr _plan_id;
     std::optional<rmf_traffic::Duration> _tail_period;
     std::string _description;
   };

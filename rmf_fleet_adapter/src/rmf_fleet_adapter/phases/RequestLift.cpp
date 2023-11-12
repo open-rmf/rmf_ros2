@@ -373,7 +373,7 @@ RequestLift::PendingPhase::PendingPhase(
   std::string destination,
   rmf_traffic::Time expected_finish,
   Located located,
-  rmf_traffic::PlanId plan_id,
+  PlanIdPtr plan_id,
   std::optional<agv::Destination> localize)
 : _context(std::move(context)),
   _lift_name(std::move(lift_name)),
@@ -392,13 +392,28 @@ RequestLift::PendingPhase::PendingPhase(
 //==============================================================================
 std::shared_ptr<LegacyTask::ActivePhase> RequestLift::PendingPhase::begin()
 {
+  rmf_traffic::PlanId plan_id = 0;
+  if (_plan_id)
+  {
+    plan_id = *_plan_id;
+  }
+  else
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "No plan_id was provided for RequestLift action for robot [%s]. This is "
+      "a critical internal error, please report this bug to the RMF "
+      "maintainers.",
+      _context->requester_id().c_str());
+  }
+
   return ActivePhase::make(
     _context,
     _lift_name,
     _destination,
     _expected_finish,
     _located,
-    _plan_id,
+    plan_id,
     _localize_after);
 }
 

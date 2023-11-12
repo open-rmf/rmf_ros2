@@ -83,7 +83,7 @@ const std::string& MoveRobot::ActivePhase::description() const
 MoveRobot::PendingPhase::PendingPhase(
   agv::RobotContextPtr context,
   std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints,
-  rmf_traffic::PlanId plan_id,
+  PlanIdPtr plan_id,
   std::optional<rmf_traffic::Duration> tail_period)
 : _context{std::move(context)},
   _waypoints{std::move(waypoints)},
@@ -100,8 +100,21 @@ MoveRobot::PendingPhase::PendingPhase(
 //==============================================================================
 std::shared_ptr<LegacyTask::ActivePhase> MoveRobot::PendingPhase::begin()
 {
+  rmf_traffic::PlanId plan_id = 0;
+  if (_plan_id)
+  {
+    plan_id = *_plan_id;
+  }
+  else
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "No plan_id was provided for MoveRobot action for robot [%s]. This is a "
+      "critical internal error, please report this bug to the RMF maintainers.",
+      _context->requester_id().c_str());
+  }
   return std::make_shared<MoveRobot::ActivePhase>(
-    _context, _waypoints, _plan_id, _tail_period);
+    _context, _waypoints, plan_id, _tail_period);
 }
 
 //==============================================================================

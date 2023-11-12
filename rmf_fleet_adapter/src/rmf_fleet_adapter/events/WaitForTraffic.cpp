@@ -23,7 +23,7 @@ namespace events {
 //==============================================================================
 auto WaitForTraffic::Standby::make(
   agv::RobotContextPtr context,
-  rmf_traffic::PlanId plan_id,
+  PlanIdPtr plan_id,
   rmf_traffic::Dependencies dependencies,
   rmf_traffic::Time expected_time,
   const AssignIDPtr& id,
@@ -59,9 +59,24 @@ auto WaitForTraffic::Standby::begin(
   std::function<void()>,
   std::function<void()> finished) -> ActivePtr
 {
+  rmf_traffic::PlanId plan_id = 0;
+  if (_plan_id)
+  {
+    plan_id = *_plan_id;
+  }
+  else
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "No plan_id was provided for WaitForTraffic action for robot [%s]. This "
+      "is a critical internal error, please report this bug to the RMF "
+      "maintainers.",
+      _context->requester_id().c_str());
+  }
+
   return Active::make(
     _context,
-    _plan_id,
+    plan_id,
     _dependencies,
     _expected_time,
     _state,
