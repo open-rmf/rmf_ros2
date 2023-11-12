@@ -49,7 +49,7 @@ void WaitForCharge::Active::emergency_alarm(const bool)
 //==============================================================================
 void WaitForCharge::Active::cancel()
 {
-  // TODO
+  _status_publisher.get_subscriber().on_completed();
 }
 
 //==============================================================================
@@ -77,6 +77,11 @@ WaitForCharge::Active::Active(
 
   _description = "Charging [" + _context->requester_id() + "] to ["
     + std::to_string(100.0 * _charge_to_soc.value_or(1.0)) + "]";
+
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "%s",
+    _description.c_str());
 
   StatusMsg initial_msg;
   initial_msg.status = _description;

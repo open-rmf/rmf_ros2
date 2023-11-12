@@ -463,7 +463,7 @@ public:
 
   /// Get a string copy of the current task ID of the robot, or an empty string
   /// if the robot is not performing any task
-  const std::string copy_current_task_id() const;
+  std::string copy_current_task_id() const;
 
   /// Get the current battery state of charge
   double current_battery_soc() const;
@@ -547,6 +547,9 @@ public:
 
   /// Set the callback for localizing the robot
   void set_localization(EasyFullControl::LocalizationRequest localization);
+
+  /// Get the current lift destination request for this robot
+  const LiftDestination* current_lift_destination() const;
 
   /// Ask for a certain lift to go to a certain destination and open the doors
   std::shared_ptr<void> set_lift_destination(
@@ -684,6 +687,8 @@ private:
   rxcpp::observable<double> _battery_soc_obs;
   rmf_task::State _current_task_end_state;
   std::optional<std::string> _current_task_id;
+  std::unique_ptr<std::mutex> _current_task_id_mutex =
+    std::make_unique<std::mutex>();
   std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
   std::weak_ptr<TaskManager> _task_manager;
 
@@ -705,6 +710,7 @@ private:
   void _check_lift_state(const rmf_lift_msgs::msg::LiftState& state);
   std::shared_ptr<LiftDestination> _lift_destination;
   rmf_rxcpp::subscription_guard _lift_subscription;
+  std::optional<std::chrono::steady_clock::time_point> _initial_time_idle_outside_lift;
 
   void _check_mutex_groups(const rmf_fleet_msgs::msg::MutexGroupStates& states);
   void _publish_mutex_group_request();

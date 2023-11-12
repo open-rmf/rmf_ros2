@@ -55,6 +55,12 @@ Node::Node()
 //==============================================================================
 void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
 {
+
+  RCLCPP_INFO(
+    this->get_logger(),
+    "[%s] Received adapter lift request to [%s]",
+    msg->session_id.c_str(), msg->destination_floor.c_str()
+  );
   auto& curr_request = _active_sessions.insert(
     std::make_pair(msg->lift_name, nullptr)).first->second;
 
@@ -67,6 +73,11 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
       else
       {
         _lift_request_pub->publish(*msg);
+        RCLCPP_INFO(
+          this->get_logger(),
+          "[%s] Published end lift session from lift supervisor",
+          msg->session_id.c_str()
+        );
         curr_request = nullptr;
       }
     }
@@ -93,6 +104,11 @@ void Node::_lift_state_update(LiftState::UniquePtr msg)
     if ((lift_request->destination_floor != msg->current_floor) ||
       (lift_request->door_state != msg->door_state))
       _lift_request_pub->publish(*lift_request);
+      RCLCPP_INFO(
+        this->get_logger(),
+        "[%s] Published lift request to [%s] from lift supervisor",
+        msg->session_id.c_str(), lift_request->destination_floor.c_str()
+      );
   }
   else if (!msg->session_id.empty())
   {

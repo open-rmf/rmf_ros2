@@ -302,7 +302,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
       return lhs == rhs;
     });
 
-  py::class_<ActionExecution>(
+  py::class_<ActionExecution,
+    std::shared_ptr<ActionExecution>>(
     m_robot_update_handle, "ActionExecution")
   .def("update_remaining_time",
     &ActionExecution::update_remaining_time,

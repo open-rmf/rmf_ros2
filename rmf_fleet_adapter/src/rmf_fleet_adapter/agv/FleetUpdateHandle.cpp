@@ -1134,6 +1134,11 @@ void FleetUpdateHandle::Implementation::update_charging_assignments(
   if (charging.fleet_name != name)
     return;
 
+  RCLCPP_INFO(
+    node->get_logger(),
+    "Fleet [%s] received new charging assignments",
+    name.c_str());
+
   for (const ChargingAssignment& assignment : charging.assignments)
   {
     bool found_robot = false;
