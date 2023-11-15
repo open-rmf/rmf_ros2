@@ -1051,54 +1051,59 @@ void EasyCommandHandle::follow_new_path(
   std::vector<EasyFullControl::CommandExecution> queue;
   const auto& current_location = context->location();
 
-  // std::cout << "Locations: " << current_location.size() << std::endl;
-  // for (const auto& l : current_location)
-  // {
-  //   std::cout << " -- ";
-  //   if (l.lane().has_value())
-  //   {
-  //     std::cout << "lane[" << *l.lane() << "] ";
-  //     Printer printer;
-  //     const auto& lane = graph.get_lane(*l.lane());
-  //     if (lane.entry().event())
-  //     {
-  //       std::cout << " [entry ";
-  //       lane.entry().event()->execute(printer);
-  //       std::cout << "] ";
-  //     }
-  //     const auto& i_wp0 = lane.entry().waypoint_index();
-  //     const auto& wp0 = graph.get_waypoint(i_wp0);
-  //     const auto& i_wp1 = lane.exit().waypoint_index();
-  //     const auto& wp1 = graph.get_waypoint(i_wp1);
-  //     std::cout << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose()
-  //       << "] -> " << i_wp1 << "[" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
-  //     if (lane.exit().event())
-  //     {
-  //       std::cout << "[exit ";
-  //       lane.exit().event()->execute(printer);
-  //       std::cout << "]";
-  //     }
-  //     std::cout << " | ";
-  //   }
-  //   std::cout << l.waypoint();
-  //   if (l.location().has_value())
-  //   {
-  //     std::cout << " | " << l.location()->transpose();
-  //   }
-  //   std::cout << std::endl;
-  // }
-  // std::cout << "Num waypoints: " << waypoints.size() << std::endl;
-  // for (const rmf_traffic::agv::Plan::Waypoint& wp : waypoints)
-  // {
-  //   std::cout << " --";
-  //   if (wp.graph_index().has_value())
-  //   {
-  //     std::cout << " index " << *wp.graph_index();
-  //     const auto& gwp = graph.get_waypoint(*wp.graph_index());
-  //     std::cout << " [" << gwp.get_map_name() << "]";
-  //   }
-  //   std::cout << " " << wp.position().transpose() << std::endl;
-  // }
+  std::cout << context->requester_id() << " Locations: " << current_location.size() << std::endl;
+  for (const auto& l : current_location)
+  {
+    std::cout << " -- ";
+    if (l.lane().has_value())
+    {
+      std::cout << "lane[" << *l.lane() << "] ";
+      Printer printer;
+      const auto& lane = graph.get_lane(*l.lane());
+      if (lane.entry().event())
+      {
+        std::cout << " [entry ";
+        lane.entry().event()->execute(printer);
+        std::cout << "] ";
+      }
+      const auto& i_wp0 = lane.entry().waypoint_index();
+      const auto& wp0 = graph.get_waypoint(i_wp0);
+      const auto& i_wp1 = lane.exit().waypoint_index();
+      const auto& wp1 = graph.get_waypoint(i_wp1);
+      std::cout << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose()
+        << "] -> " << i_wp1 << "[" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
+      if (lane.exit().event())
+      {
+        std::cout << "[exit ";
+        lane.exit().event()->execute(printer);
+        std::cout << "]";
+      }
+      std::cout << " | ";
+    }
+    std::cout << l.waypoint();
+    if (l.location().has_value())
+    {
+      std::cout << " | " << l.location()->transpose();
+    }
+    std::cout << std::endl;
+  }
+  std::cout << "Num waypoints: " << waypoints.size() << std::endl;
+  for (const rmf_traffic::agv::Plan::Waypoint& wp : waypoints)
+  {
+    std::cout << " --";
+    if (wp.graph_index().has_value())
+    {
+      std::cout << " index " << *wp.graph_index();
+      const auto& gwp = graph.get_waypoint(*wp.graph_index());
+      if (!gwp.in_mutex_group().empty())
+      {
+        std::cout << " *" << gwp.in_mutex_group();
+      }
+
+      std::cout << " [" << gwp.get_map_name() << "]";
+    }
+    std::cout << " " << wp.position().transpose() << std::endl;
+  }
 
   bool found_connection = false;
   std::size_t i0 = 0;

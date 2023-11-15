@@ -59,6 +59,10 @@ auto WaitForTraffic::Standby::begin(
   std::function<void()>,
   std::function<void()> finished) -> ActivePtr
 {
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "[%s] waiting for traffic",
+    _context->requester_id().c_str());
   rmf_traffic::PlanId plan_id = 0;
   if (_plan_id)
   {
@@ -227,6 +231,11 @@ void WaitForTraffic::Active::_consider_going()
   bool all_dependencies_reached = true;
   for (const auto& dep : _dependencies)
   {
+    const auto current = _context->schedule()->get_current_plan_id(dep.dependency().on_participant);
+    std::cout << " -- " << dep.dependency().on_participant << ":" << dep.dependency().on_plan
+      << " vs current " << current.value_or((std::size_t)(-1))
+      << " | " << dep.reached() << " | " << dep.deprecated()
+      << std::endl;
     if (!dep.reached() && !dep.deprecated())
       all_dependencies_reached = false;
   }
@@ -236,6 +245,10 @@ void WaitForTraffic::Active::_consider_going()
     _decision_made = std::chrono::steady_clock::now();
     _state->update_status(Status::Completed);
     _state->update_log().info("All traffic dependencies satisfied");
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "[%s] done waiting for traffic",
+      _context->requester_id().c_str());
     return _finished();
   }
 
@@ -248,6 +261,10 @@ void WaitForTraffic::Active::_consider_going()
     _state->update_status(Status::Delayed);
     _state->update_log().info(
       "Replanning because a traffic dependency is excessively delayed");
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Replanning for [%s] because a traffic dependency is excessively delayed",
+      _context->requester_id().c_str());
     return _replan();
   }
 

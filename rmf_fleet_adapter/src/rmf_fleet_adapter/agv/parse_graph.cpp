@@ -165,6 +165,12 @@ rmf_traffic::agv::Graph parse_graph(
           wp.set_charger(true);
       }
 
+      const YAML::Node& mutex_yaml = options["mutex"];
+      if (mutex_yaml)
+      {
+        wp.set_in_mutex_group(mutex_yaml.as<std::string>());
+      }
+
       const YAML::Node& lift_option = options["lift"];
       if (lift_option)
       {
@@ -360,6 +366,12 @@ rmf_traffic::agv::Graph parse_graph(
         if (speed_limit > 0.0)
           graph_lane.properties().speed_limit(speed_limit);
       }
+
+      if (const YAML::Node mutex_yaml = options["mutex"])
+      {
+        graph_lane.properties()
+          .set_in_mutex_group(mutex_yaml.as<std::string>());
+      }
     }
     vnum += vnum_temp;
   }
@@ -424,6 +436,25 @@ rmf_traffic::agv::Graph parse_graph(
           graph.get_waypoint(s_it->second).set_location(lift_center);
         }
       }
+    }
+  }
+
+  std::cout << " ========= Mutex groups:" << std::endl;
+  for (std::size_t i=0; i < graph.num_waypoints(); ++i)
+  {
+    const auto& m = graph.get_waypoint(i).in_mutex_group();
+    if (!m.empty())
+    {
+      std::cout << " -- " << i << ": " << m << std::endl;
+    }
+  }
+
+  for (std::size_t i=0; i < graph.num_lanes(); ++i)
+  {
+    const auto& m = graph.get_lane(i).properties().in_mutex_group();
+    if (!m.empty())
+    {
+      std::cout << " -- " << i << ": " << m << std::endl;
     }
   }
 

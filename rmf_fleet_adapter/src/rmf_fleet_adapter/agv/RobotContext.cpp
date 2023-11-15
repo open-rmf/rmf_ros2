@@ -1032,6 +1032,12 @@ const std::string& RobotContext::current_mutex_group() const
 }
 
 //==============================================================================
+bool RobotContext::obtained_mutex_group() const
+{
+  return _obtained_mutex_group;
+}
+
+//==============================================================================
 void RobotContext::set_mutex_group(std::string group)
 {
   if (group.empty())
@@ -1045,6 +1051,7 @@ void RobotContext::set_mutex_group(std::string group)
     return;
   }
 
+  _obtained_mutex_group = false;
   _mutex_group_claim_time = _node->now();
   _mutex_group = std::move(group);
   _publish_mutex_group_request();
@@ -1053,6 +1060,7 @@ void RobotContext::set_mutex_group(std::string group)
 //==============================================================================
 void RobotContext::release_mutex_group()
 {
+  _obtained_mutex_group = false;
   if (_mutex_group.empty())
     return;
 
@@ -1062,6 +1070,7 @@ void RobotContext::release_mutex_group()
     .claimer(requester_id())
     .claim_time(_mutex_group_claim_time)
     .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
+  _mutex_group = "";
 }
 
 //==============================================================================
@@ -1249,8 +1258,12 @@ void RobotContext::_check_mutex_groups(
       return;
 
     if (assignment.group == _mutex_group)
+    {
+      _obtained_mutex_group = true;
       return;
+    }
 
+    _obtained_mutex_group = false;
     _node->mutex_group_request()->publish(
       rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
       .group(assignment.group)

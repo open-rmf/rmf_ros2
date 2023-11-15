@@ -70,7 +70,6 @@ auto LockMutexGroup::Active::make(
   active->_state = std::move(state);
   active->_finished = std::move(finished);
   active->_data = std::move(data);
-  active->_state->update_status(Status::Underway);
   active->_initialize();
 
   return active;
@@ -124,8 +123,37 @@ void LockMutexGroup::Active::kill()
 //==============================================================================
 void LockMutexGroup::Active::_initialize()
 {
+  _state->update_status(State::Status::Underway);
   using MutexGroupStatesPtr =
     std::shared_ptr<rmf_fleet_msgs::msg::MutexGroupStates>;
+
+  if (_context->current_mutex_group() == _data.mutex_group)
+  {
+    if (_context->obtained_mutex_group())
+    {
+      RCLCPP_INFO(
+        _context->node()->get_logger(),
+        "Mutex group [%s] was already locked for [%s]",
+        _data.mutex_group.c_str(),
+        _context->requester_id().c_str());
+      // We don't need to do anything further, we already got the mutex group
+      // previously.
+      _context->worker().schedule(
+        [finished = _finished](const auto&)
+        {
+          finished();
+        });
+      return;
+    }
+  }
+
+  _state->update_log().info(
+    "Waiting to lock mutex group [" + _data.mutex_group + "]");
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Waiting to lock mutex group [%s] for robot [%s]",
+    _data.mutex_group.c_str(),
+    _context->requester_id().c_str());
 
   const auto t_buffer = std::chrono::seconds(10);
   const auto zero = Eigen::Vector3d::Zero();
@@ -158,7 +186,14 @@ void LockMutexGroup::Active::_initialize()
               self->_finished = nullptr;
               if (finished)
               {
+                std::cout << " === FINISHED " << __LINE__ << std::endl;
                 self->_schedule(*self->_data.resume_itinerary);
+                self->_state->update_status(State::Status::Completed);
+                RCLCPP_INFO(
+                  self->_context->node()->get_logger(),
+                  "Finished locking mutex group [%s] for robot [%s]",
+                  self->_data.mutex_group.c_str(),
+                  self->_context->requester_id().c_str());
                 finished();
                 return;
               }
@@ -180,6 +215,8 @@ void LockMutexGroup::Active::_initialize()
       self->_context->itinerary().cumulative_delay(plan_id, cumulative_delay);
     });
 
+  std::cout << " ===== SETTING MUTEX GROUP FOR " << _context->requester_id().c_str()
+    << " TO " << _data.mutex_group << std::endl;
   _context->set_mutex_group(_data.mutex_group);
 }
 

@@ -284,10 +284,19 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 
           if (!context->current_mutex_group().empty())
           {
-            const auto adjusted_now = now + new_cumulative_delay;
+            const auto adjusted_now = now - new_cumulative_delay;
             const auto& graph = context->navigation_graph();
+            std::size_t count = 0;
             for (const auto& wp : self->_waypoints)
             {
+              if (count == 0)
+              {
+                // The first waypoint doesn't always have a mutex group
+                // associated.
+                ++count;
+                continue;
+              }
+
               if (wp.time() > adjusted_now)
               {
                 break;
@@ -299,10 +308,17 @@ void MoveRobot::Action::operator()(const Subscriber& s)
                   .in_mutex_group();
                 if (g.empty())
                 {
+                  std::cout << __LINE__ << ": Releasing mutex for " << *wp.graph_index()
+                    << " index " << count
+                    << " | " << rmf_traffic::time::to_seconds(wp.time().time_since_epoch())
+                    << " vs " << rmf_traffic::time::to_seconds(adjusted_now.time_since_epoch())
+                    << std::endl;
                   context->release_mutex_group();
                   break;
                 }
               }
+
+              ++count;
             }
           }
         });
@@ -325,6 +341,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             const auto& graph = self->_context->navigation_graph();
             if (graph.get_waypoint(*last_index).in_mutex_group().empty())
             {
+              std::cout << __LINE__ << ": Releasing mutex at end of path" << std::endl;
               self->_context->release_mutex_group();
             }
           }

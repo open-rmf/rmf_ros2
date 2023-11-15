@@ -39,7 +39,7 @@ using MutexGroupRequest = rmf_fleet_msgs::msg::MutexGroupRequest;
 using MutexGroupStates = rmf_fleet_msgs::msg::MutexGroupStates;
 using MutextGroupAssignment = rmf_fleet_msgs::msg::MutexGroupAssignment;
 
-class Node : rclcpp::Node
+class Node : public rclcpp::Node
 {
 public:
   Node()
@@ -199,5 +199,7 @@ public:
 
 int main(int argc, char* argv[])
 {
-
+  rclcpp::init(argc, argv);
+  rclcpp::spin(std::make_shared<Node>());
+  rclcpp::shutdown();
 }

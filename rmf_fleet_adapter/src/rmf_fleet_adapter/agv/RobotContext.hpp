@@ -563,6 +563,9 @@ public:
   /// What mutex group is currently being locked.
   const std::string& current_mutex_group() const;
 
+  /// Have we obtained the current mutex group yet?
+  bool obtained_mutex_group() const;
+
   /// Set the mutex group that this robot needs to have locked.
   void set_mutex_group(std::string group);
 
@@ -715,6 +718,7 @@ private:
   void _check_mutex_groups(const rmf_fleet_msgs::msg::MutexGroupStates& states);
   void _publish_mutex_group_request();
   std::string _mutex_group;
+  bool _obtained_mutex_group = false;
   builtin_interfaces::msg::Time _mutex_group_claim_time;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
