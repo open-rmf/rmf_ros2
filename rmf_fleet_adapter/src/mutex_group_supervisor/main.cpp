@@ -167,8 +167,10 @@ public:
     }
 
     std::string claimer;
+    builtin_interfaces::msg::Time claim_time;
     if (earliest.has_value())
     {
+      claim_time = earliest->first;
       claimer = earliest->second;
     }
     bool group_found = false;
@@ -177,6 +179,7 @@ public:
       if (a.group == group)
       {
         a.claimed = claimer;
+        a.claim_time = claim_time;
         group_found = true;
         break;
       }
@@ -186,7 +189,8 @@ public:
       latest_states.assignments.push_back(
         rmf_fleet_msgs::build<MutextGroupAssignment>()
         .group(group)
-        .claimed(claimer));
+        .claimed(claimer)
+        .claim_time(claim_time));
     }
   }
 

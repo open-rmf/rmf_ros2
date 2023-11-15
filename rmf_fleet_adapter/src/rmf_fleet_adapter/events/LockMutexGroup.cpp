@@ -127,24 +127,21 @@ void LockMutexGroup::Active::_initialize()
   using MutexGroupStatesPtr =
     std::shared_ptr<rmf_fleet_msgs::msg::MutexGroupStates>;
 
-  if (_context->current_mutex_group() == _data.mutex_group)
+  if (_context->locked_mutex_group() == _data.mutex_group)
   {
-    if (_context->obtained_mutex_group())
-    {
-      RCLCPP_INFO(
-        _context->node()->get_logger(),
-        "Mutex group [%s] was already locked for [%s]",
-        _data.mutex_group.c_str(),
-        _context->requester_id().c_str());
-      // We don't need to do anything further, we already got the mutex group
-      // previously.
-      _context->worker().schedule(
-        [finished = _finished](const auto&)
-        {
-          finished();
-        });
-      return;
-    }
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Mutex group [%s] was already locked for [%s]",
+      _data.mutex_group.c_str(),
+      _context->requester_id().c_str());
+    // We don't need to do anything further, we already got the mutex group
+    // previously.
+    _context->worker().schedule(
+      [finished = _finished](const auto&)
+      {
+        finished();
+      });
+    return;
   }
 
   _state->update_log().info(
@@ -155,6 +152,7 @@ void LockMutexGroup::Active::_initialize()
     _data.mutex_group.c_str(),
     _context->requester_id().c_str());
 
+  _stubborn = _context->be_stubborn();
   const auto t_buffer = std::chrono::seconds(10);
   const auto zero = Eigen::Vector3d::Zero();
   rmf_traffic::Trajectory hold_traj;
@@ -217,7 +215,7 @@ void LockMutexGroup::Active::_initialize()
 
   std::cout << " ===== SETTING MUTEX GROUP FOR " << _context->requester_id().c_str()
     << " TO " << _data.mutex_group << std::endl;
-  _context->set_mutex_group(_data.mutex_group);
+  _context->request_mutex_group(_data.mutex_group);
 }
 
 //==============================================================================

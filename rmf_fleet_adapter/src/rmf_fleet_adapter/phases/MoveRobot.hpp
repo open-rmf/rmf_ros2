@@ -282,7 +282,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             }
           }
 
-          if (!context->current_mutex_group().empty())
+          if (!context->locked_mutex_group().empty())
           {
             const auto adjusted_now = now - new_cumulative_delay;
             const auto& graph = context->navigation_graph();

@@ -94,6 +94,7 @@ public:
       std::function<void()> _finished;
       rmf_rxcpp::subscription_guard _listener;
       rclcpp::TimerBase::SharedPtr _delay_timer;
+      std::shared_ptr<void> _stubborn;
       Data _data;
     };
 };

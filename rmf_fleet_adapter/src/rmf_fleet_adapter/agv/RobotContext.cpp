@@ -1026,19 +1026,13 @@ void RobotContext::release_lift()
 }
 
 //==============================================================================
-const std::string& RobotContext::current_mutex_group() const
+const std::string& RobotContext::locked_mutex_group() const
 {
-  return _mutex_group;
+  return _locked_mutex_group.name;
 }
 
 //==============================================================================
-bool RobotContext::obtained_mutex_group() const
-{
-  return _obtained_mutex_group;
-}
-
-//==============================================================================
-void RobotContext::set_mutex_group(std::string group)
+void RobotContext::request_mutex_group(std::string group)
 {
   if (group.empty())
   {
@@ -1046,31 +1040,20 @@ void RobotContext::set_mutex_group(std::string group)
     return;
   }
 
-  if (group == _mutex_group)
+  if (group == _requesting_mutex_group.name)
   {
     return;
   }
 
-  _obtained_mutex_group = false;
-  _mutex_group_claim_time = _node->now();
-  _mutex_group = std::move(group);
+  _requesting_mutex_group = MutexGroupData{std::move(group), _node->now()};
   _publish_mutex_group_request();
 }
 
 //==============================================================================
 void RobotContext::release_mutex_group()
 {
-  _obtained_mutex_group = false;
-  if (_mutex_group.empty())
-    return;
-
-  _node->mutex_group_request()->publish(
-    rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
-    .group(_mutex_group)
-    .claimer(requester_id())
-    .claim_time(_mutex_group_claim_time)
-    .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
-  _mutex_group = "";
+  _release_mutex_group(_requesting_mutex_group);
+  _release_mutex_group(_locked_mutex_group);
 }
 
 //==============================================================================
@@ -1257,20 +1240,52 @@ void RobotContext::_check_mutex_groups(
     if (assignment.claimed != requester_id())
       return;
 
-    if (assignment.group == _mutex_group)
+    if (assignment.group == _requesting_mutex_group.name)
     {
-      _obtained_mutex_group = true;
+      if (_locked_mutex_group.name != _requesting_mutex_group.name)
+      {
+        _node->mutex_group_request()->publish(
+          rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
+            .group(_locked_mutex_group.name)
+            .claimer(requester_id())
+            .claim_time(_locked_mutex_group.claim_time)
+            .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
+
+        _locked_mutex_group = _requesting_mutex_group;
+      }
+
       return;
     }
 
-    _obtained_mutex_group = false;
-    _node->mutex_group_request()->publish(
-      rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
-      .group(assignment.group)
-      .claimer(requester_id())
-      .claim_time(_mutex_group_claim_time)
-      .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
+    if (assignment.group != _locked_mutex_group.name)
+    {
+      // This assignment does not match either the requested nor the currently
+      // locked mutex group. This is an error so let's release it.
+      _node->mutex_group_request()->publish(
+        rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
+        .group(assignment.group)
+        .claimer(requester_id())
+        .claim_time(assignment.claim_time)
+        .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
+    }
   }
+}
+
+//==============================================================================
+void RobotContext::_release_mutex_group(MutexGroupData& data)
+{
+  if (data.name.empty())
+  {
+    return;
+  }
+
+  _node->mutex_group_request()->publish(
+    rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
+    .group(data.name)
+    .claimer(requester_id())
+    .claim_time(data.claim_time)
+    .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
+  data.name = "";
 }
 
 //==============================================================================
@@ -1287,27 +1302,52 @@ void RobotContext::_publish_mutex_group_request()
     {
       // The robot has been idle for 10 seconds. It should not be keeping a
       // mutex locked; a task probably ended wrongly.
-      if (!_mutex_group.empty())
+      if (!_requesting_mutex_group.name.empty()
+          || !_locked_mutex_group.name.empty())
       {
-        RCLCPP_ERROR(
-          _node->get_logger(),
-          "Forcibly releasing mutex group [%s] requested by robot [%s] "
-          "because the robot has been idle for an excessive amount of time.",
-          _mutex_group.c_str(),
-          requester_id().c_str());
-        _mutex_group.clear();
+        auto warning = [&](const std::string& name)
+          {
+            RCLCPP_ERROR(
+              _node->get_logger(),
+              "Forcibly releasing mutex group [%s] requested by robot [%s] "
+              "because the robot has been idle for an excessive amount of time.",
+              name.c_str(),
+              requester_id().c_str());
+          };
+
+        if (!_requesting_mutex_group.name.empty())
+        {
+          warning(_requesting_mutex_group.name);
+        }
+
+        if (!_locked_mutex_group.name.empty())
+        {
+          warning(_locked_mutex_group.name);
+        }
+
+        release_mutex_group();
       }
     }
   }
 
-  if (!_mutex_group.empty())
+  auto publish = [&](const MutexGroupData& data)
+    {
+      _node->mutex_group_request()->publish(
+        rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
+        .group(data.name)
+        .claimer(requester_id())
+        .claim_time(data.claim_time)
+        .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_LOCK));
+    };
+
+  if (!_requesting_mutex_group.name.empty())
   {
-    _node->mutex_group_request()->publish(
-      rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
-      .group(_mutex_group)
-      .claimer(requester_id())
-      .claim_time(_mutex_group_claim_time)
-      .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_LOCK));
+    publish(_requesting_mutex_group);
+  }
+
+  if (!_locked_mutex_group.name.empty())
+  {
+    publish(_locked_mutex_group);
   }
 }
 
