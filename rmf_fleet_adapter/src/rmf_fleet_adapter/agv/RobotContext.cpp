@@ -1242,7 +1242,7 @@ void RobotContext::_check_mutex_groups(
 
     if (assignment.group == _requesting_mutex_group.name)
     {
-      if (_locked_mutex_group.name != _requesting_mutex_group.name)
+      if (_locked_mutex_group.name != assignment.group)
       {
         _node->mutex_group_request()->publish(
           rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
@@ -1250,14 +1250,11 @@ void RobotContext::_check_mutex_groups(
             .claimer(requester_id())
             .claim_time(_locked_mutex_group.claim_time)
             .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
-
-        _locked_mutex_group = _requesting_mutex_group;
       }
 
-      return;
+      _locked_mutex_group = _requesting_mutex_group;
     }
-
-    if (assignment.group != _locked_mutex_group.name)
+    else if (assignment.group != _locked_mutex_group.name)
     {
       // This assignment does not match either the requested nor the currently
       // locked mutex group. This is an error so let's release it.
