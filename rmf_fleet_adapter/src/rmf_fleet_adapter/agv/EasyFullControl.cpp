@@ -1070,7 +1070,7 @@ void EasyCommandHandle::follow_new_path(
         const auto& i_wp1 = lane.exit().waypoint_index();
         const auto& wp1 = graph.get_waypoint(i_wp1);
         ss << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose()
-          << "] -> " << i_wp1 << "[" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
+          << "] -> " << i_wp1 << " [" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
         if (lane.exit().event())
         {
           ss << "[exit ";
@@ -1090,7 +1090,7 @@ void EasyCommandHandle::follow_new_path(
   std::cout << context->requester_id() << " Locations: " << current_location.size() << std::endl;
   for (const auto& l : current_location)
   {
-    std::cout << " -- xyz " << print_location(l) << std::endl;
+    std::cout << " -- " << print_location(l) << std::endl;
   }
   std::cout << "Num waypoints: " << waypoints.size() << std::endl;
   for (const rmf_traffic::agv::Plan::Waypoint& wp : waypoints)

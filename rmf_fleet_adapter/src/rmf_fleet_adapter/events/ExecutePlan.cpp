@@ -533,6 +533,14 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints =
     plan.get_waypoints();
 
+  std::stringstream pss;
+  pss << "Plan waypoints";
+  for (const auto& wp : waypoints)
+  {
+    pss << "\n -- " << agv::print_plan_waypoint(wp, graph);
+  }
+  std::cout << pss.str() << std::endl;
+
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
   std::optional<LockMutexGroup::Data> current_mutex_group;
 
@@ -652,7 +660,11 @@ std::optional<ExecutePlan> ExecutePlan::make(
               move_through.back().time(), move_through.back().dependencies(),
               current_mutex_group);
 
+            auto last = move_through.back();
             move_through.clear();
+            // Repeat the last waypoint so that follow_new_path has continuity.
+            move_through.push_back(last);
+
             waypoints.erase(waypoints.begin(), it);
 
             current_mutex_group = next_mutex_group;

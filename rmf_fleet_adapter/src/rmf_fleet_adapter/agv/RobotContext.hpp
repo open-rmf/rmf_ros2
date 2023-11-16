@@ -95,6 +95,46 @@ inline std::string print_waypoint(
 }
 
 //==============================================================================
+inline std::string print_plan_waypoint(
+  const rmf_traffic::agv::Plan::Waypoint& wp,
+  const rmf_traffic::agv::Graph& graph)
+{
+  std::stringstream ss;
+  ss << "t=" << rmf_traffic::time::to_seconds(wp.time().time_since_epoch());
+  if (wp.graph_index().has_value())
+    ss << " #" << *wp.graph_index();
+  ss << " <" << wp.position().transpose()
+    << "> yaw=" << wp.position()[2] * 180.0 / M_PI;
+  if (wp.event())
+  {
+    EventPrinter event;
+    wp.event()->execute(event);
+    ss << " event [" << event.text << "]";
+  }
+
+  if (wp.graph_index().has_value())
+  {
+    const auto& m = graph.get_waypoint(*wp.graph_index()).in_mutex_group();
+    if (!m.empty())
+    {
+      ss << " initial mutex [" << m << "]";
+    }
+  }
+
+  for (const auto& l : wp.approach_lanes())
+  {
+    const auto& lane = graph.get_lane(l);
+    const auto& m = lane.properties().in_mutex_group();
+    if (!m.empty())
+    {
+      ss << " lane mutex [" << m << "]";
+    }
+  }
+
+  return ss.str();
+}
+
+//==============================================================================
 inline std::string print_lane_node(
   const rmf_traffic::agv::Graph::Lane::Node& node,
   const rmf_traffic::agv::Graph& graph)
