@@ -566,6 +566,12 @@ const std::string& RobotContext::requester_id() const
 }
 
 //==============================================================================
+rmf_traffic::ParticipantId RobotContext::participant_id() const
+{
+  return _itinerary.id();
+}
+
+//==============================================================================
 const rmf_traffic::agv::Graph& RobotContext::navigation_graph() const
 {
   return (*_planner)->get_configuration().graph();
@@ -1032,7 +1038,9 @@ const std::string& RobotContext::locked_mutex_group() const
 }
 
 //==============================================================================
-void RobotContext::request_mutex_group(std::string group)
+void RobotContext::request_mutex_group(
+  std::string group,
+  rmf_traffic::Time claim_time)
 {
   if (group.empty())
   {
@@ -1045,7 +1053,11 @@ void RobotContext::request_mutex_group(std::string group)
     return;
   }
 
-  _requesting_mutex_group = MutexGroupData{std::move(group), _node->now()};
+  _requesting_mutex_group = MutexGroupData{
+    std::move(group),
+    rmf_traffic_ros2::convert(claim_time)
+  };
+
   _publish_mutex_group_request();
 }
 
@@ -1237,7 +1249,7 @@ void RobotContext::_check_mutex_groups(
   // lock right now.
   for (const auto& assignment : states.assignments)
   {
-    if (assignment.claimed != requester_id())
+    if (assignment.claimant != participant_id())
       return;
 
     if (assignment.group == _requesting_mutex_group.name)
@@ -1247,7 +1259,7 @@ void RobotContext::_check_mutex_groups(
         _node->mutex_group_request()->publish(
           rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
             .group(_locked_mutex_group.name)
-            .claimer(requester_id())
+            .claimant(participant_id())
             .claim_time(_locked_mutex_group.claim_time)
             .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
       }
@@ -1261,7 +1273,7 @@ void RobotContext::_check_mutex_groups(
       _node->mutex_group_request()->publish(
         rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
         .group(assignment.group)
-        .claimer(requester_id())
+        .claimant(participant_id())
         .claim_time(assignment.claim_time)
         .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
     }
@@ -1279,7 +1291,7 @@ void RobotContext::_release_mutex_group(MutexGroupData& data)
   _node->mutex_group_request()->publish(
     rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
     .group(data.name)
-    .claimer(requester_id())
+    .claimant(participant_id())
     .claim_time(data.claim_time)
     .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
   data.name = "";
@@ -1332,7 +1344,7 @@ void RobotContext::_publish_mutex_group_request()
       _node->mutex_group_request()->publish(
         rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
         .group(data.name)
-        .claimer(requester_id())
+        .claimant(participant_id())
         .claim_time(data.claim_time)
         .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_LOCK));
     };

@@ -544,6 +544,8 @@ public:
   // description versions separately from itinerary versions.
   std::size_t last_known_participants_version = 0;
   std::size_t current_participants_version = 1;
+
+  rclcpp::TimerBase::SharedPtr debug_timer;
 };
 
 } // namespace schedule

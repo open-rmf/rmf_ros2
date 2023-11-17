@@ -108,13 +108,17 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<ApiResponse>(
     TaskApiResponses, transient_local_qos);
 
-  node->_mutex_group_states_obs =
-    node->create_observable<MutexGroupStates>(
-    MutexGroupStatesTopicName, transient_local_qos);
-
   node->_mutex_group_request_pub =
     node->create_publisher<MutexGroupRequest>(
     MutexGroupRequestTopicName, transient_local_qos);
+
+  node->_mutex_group_request_obs =
+    node->create_observable<MutexGroupRequest>(
+    MutexGroupRequestTopicName, transient_local_qos);
+
+  node->_mutex_group_states_obs =
+    node->create_observable<MutexGroupStates>(
+    MutexGroupStatesTopicName, transient_local_qos);
 
   return node;
 }
@@ -243,6 +247,12 @@ auto Node::task_api_response() const -> const ApiResponsePub&
 auto Node::mutex_group_request() const -> const MutexGroupRequestPub&
 {
   return _mutex_group_request_pub;
+}
+
+//==============================================================================
+auto Node::mutex_group_request_obs() const -> const MutexGroupRequestObs&
+{
+  return _mutex_group_request_obs->observe();
 }
 
 //==============================================================================

@@ -128,6 +128,9 @@ public:
   using MutexGroupRequestPub = rclcpp::Publisher<MutexGroupRequest>::SharedPtr;
   const MutexGroupRequestPub& mutex_group_request() const;
 
+  using MutexGroupRequestObs = rxcpp::observable<MutexGroupRequest::SharedPtr>;
+  const MutexGroupRequestObs& mutex_group_request_obs() const;
+
   using MutexGroupStates = rmf_fleet_msgs::msg::MutexGroupStates;
   using MutexGroupStatesObs = rxcpp::observable<MutexGroupStates::SharedPtr>;
   const MutexGroupStatesObs& mutex_group_states() const;
@@ -190,6 +193,7 @@ private:
   Bridge<ApiRequest> _task_api_request_obs;
   ApiResponsePub _task_api_response_pub;
   MutexGroupRequestPub _mutex_group_request_pub;
+  Bridge<MutexGroupRequest> _mutex_group_request_obs;
   Bridge<MutexGroupStates> _mutex_group_states_obs;
 };
 

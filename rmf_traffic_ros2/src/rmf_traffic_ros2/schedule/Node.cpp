@@ -287,6 +287,33 @@ void ScheduleNode::setup(const QueryMap& queries)
   setup_incosistency_pub();
   setup_conflict_topics_and_thread();
   setup_cull_timer();
+
+  debug_timer = create_wall_timer(
+    std::chrono::seconds(2),
+    [&]()
+    {
+      std::stringstream ss;
+      ss << " ==== PROGRESS";
+      for (const auto id : database->participant_ids())
+      {
+        ss << "\n -- #" << database->get_current_progress_version(id) << " " << id << " | plan "
+          << database->get_current_plan_id(id).value_or((std::size_t)(-1));
+        const auto* p = database->get_current_progress(id);
+        if (p)
+        {
+          for (std::size_t i=0; i < p->size(); ++i)
+          {
+            ss << " " << i << ":" << (*p)[i];
+          }
+        }
+        else
+        {
+          ss << "null";
+        }
+      }
+
+      std::cout << ss.str() << std::endl;
+    });
 }
 
 //==============================================================================

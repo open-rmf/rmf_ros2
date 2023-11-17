@@ -643,15 +643,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
           if (move_through.size() > 1)
           {
             auto next_mutex_group = make_current_mutex_group(move_through.back());
-            std::size_t excluded_route = 0;
-            for (const auto& c : move_through.back().arrival_checkpoints())
-            {
-              excluded_route = std::max(excluded_route, c.route_id+1);
-              auto& r = previous_itinerary->at(c.route_id);
-              auto& t = r.trajectory();
-              t.erase(t.begin() + (int)c.checkpoint_id, t.end());
-            }
-            previous_itinerary->erase(previous_itinerary->begin()+excluded_route);
 
             std::cout << " === " << __LINE__ << ": " << current_mutex_group->mutex_group << std::endl;
             legacy_phases.emplace_back(

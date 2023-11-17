@@ -34,10 +34,12 @@ struct TimeStamps
   std::chrono::steady_clock::time_point heartbeat_time;
 };
 
-using ClaimMap = std::unordered_map<std::string, TimeStamps>;
+using ClaimMap = std::unordered_map<uint64_t, TimeStamps>;
 using MutexGroupRequest = rmf_fleet_msgs::msg::MutexGroupRequest;
 using MutexGroupStates = rmf_fleet_msgs::msg::MutexGroupStates;
 using MutextGroupAssignment = rmf_fleet_msgs::msg::MutexGroupAssignment;
+
+const uint64_t Unclaimed = rmf_fleet_adapter::Unclaimed;
 
 class Node : public rclcpp::Node
 {
@@ -78,7 +80,7 @@ public:
       const auto g_it = mutex_groups.find(request.group);
       if (g_it != mutex_groups.end())
       {
-        const auto c_it = g_it->second.find(request.claimer);
+        const auto c_it = g_it->second.find(request.claimant);
         if (c_it != g_it->second.end())
         {
           if (c_it->second.claim_time <= request.claim_time)
@@ -95,10 +97,10 @@ public:
     auto now = std::chrono::steady_clock::now();
     auto claim_time = rclcpp::Time(request.claim_time);
     auto timestamps = TimeStamps { request.claim_time, now };
-    claims.insert_or_assign(request.claimer, timestamps);
+    claims.insert_or_assign(request.claimant, timestamps);
     for (const auto& s : latest_states.assignments)
     {
-      if (s.group == request.group && !s.claimed.empty())
+      if (s.group == request.group && s.claimant != Unclaimed)
       {
         // The group is already claimed, so nothing to be done here
         return;
@@ -114,21 +116,21 @@ public:
     const auto timeout = std::chrono::seconds(10);
     for (auto& [group, claims] : mutex_groups)
     {
-      std::vector<std::string> remove_claims;
-      for (const auto& [claimer, timestamp] : claims)
+      std::vector<uint64_t> remove_claims;
+      for (const auto& [claimant, timestamp] : claims)
       {
         if (timestamp.heartbeat_time + timeout < now)
         {
-          remove_claims.push_back(claimer);
+          remove_claims.push_back(claimant);
         }
       }
 
-      std::string current_claimer;
+      uint64_t current_claimer = Unclaimed;
       for (const auto& assignment : latest_states.assignments)
       {
         if (assignment.group == group)
         {
-          current_claimer = assignment.claimed;
+          current_claimer = assignment.claimant;
           break;
         }
       }
@@ -155,30 +157,30 @@ public:
 
   void pick_next(const std::string& group)
   {
-    const auto& claimers = mutex_groups[group];
-    std::optional<std::pair<builtin_interfaces::msg::Time, std::string>> earliest;
-    for (const auto& [claimer, timestamp] : claimers)
+    const auto& claimants = mutex_groups[group];
+    std::optional<std::pair<builtin_interfaces::msg::Time, uint64_t>> earliest;
+    for (const auto& [claimant, timestamp] : claimants)
     {
       const auto& t = timestamp.claim_time;
       if (!earliest.has_value() || t < earliest->first)
       {
-        earliest = std::make_pair(t, claimer);
+        earliest = std::make_pair(t, claimant);
       }
     }
 
-    std::string claimer;
+    uint64_t claimant = Unclaimed;
     builtin_interfaces::msg::Time claim_time;
     if (earliest.has_value())
     {
       claim_time = earliest->first;
-      claimer = earliest->second;
+      claimant = earliest->second;
     }
     bool group_found = false;
     for (auto& a : latest_states.assignments)
     {
       if (a.group == group)
       {
-        a.claimed = claimer;
+        a.claimant = claimant;
         a.claim_time = claim_time;
         group_found = true;
         break;
@@ -189,7 +191,7 @@ public:
       latest_states.assignments.push_back(
         rmf_fleet_msgs::build<MutextGroupAssignment>()
         .group(group)
-        .claimed(claimer)
+        .claimant(claimant)
         .claim_time(claim_time));
     }
   }

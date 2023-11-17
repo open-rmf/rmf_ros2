@@ -152,15 +152,6 @@ void LockMutexGroup::Active::_initialize()
     _data.mutex_group.c_str(),
     _context->requester_id().c_str());
 
-  _stubborn = _context->be_stubborn();
-  const auto t_buffer = std::chrono::seconds(10);
-  const auto zero = Eigen::Vector3d::Zero();
-  rmf_traffic::Trajectory hold_traj;
-  hold_traj.insert(_data.hold_time, _data.hold_position, zero);
-  hold_traj.insert(_data.hold_time + t_buffer, _data.hold_position, zero);
-  rmf_traffic::Route hold(_data.hold_map, std::move(hold_traj));
-  _schedule({hold});
-
   const auto cumulative_delay = _context->now() - _data.hold_time;
   _context->itinerary().cumulative_delay(*_data.plan_id, cumulative_delay);
 
@@ -178,14 +169,13 @@ void LockMutexGroup::Active::_initialize()
         {
           if (assignment.group == self->_data.mutex_group)
           {
-            if (assignment.claimed == self->_context->requester_id())
+            if (assignment.claimant == self->_context->participant_id())
             {
               const auto finished = self->_finished;
               self->_finished = nullptr;
               if (finished)
               {
                 std::cout << " === FINISHED " << __LINE__ << std::endl;
-                self->_schedule(*self->_data.resume_itinerary);
                 self->_state->update_status(State::Status::Completed);
                 RCLCPP_INFO(
                   self->_context->node()->get_logger(),
@@ -215,7 +205,7 @@ void LockMutexGroup::Active::_initialize()
 
   std::cout << " ===== SETTING MUTEX GROUP FOR " << _context->requester_id().c_str()
     << " TO " << _data.mutex_group << std::endl;
-  _context->request_mutex_group(_data.mutex_group);
+  _context->request_mutex_group(_data.mutex_group, _data.hold_time);
 }
 
 //==============================================================================

@@ -333,6 +333,11 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           {
             self->_context->itinerary().reached(
               self->_plan_id, c.route_id, c.checkpoint_id);
+
+            std::cout << "finish reached " << self->_context->participant_id()
+              << " | " << self->_context->itinerary().current_plan_id()
+              << ":" << c.route_id << ":" << c.checkpoint_id
+              << " #" << self->_context->itinerary().progress_version() << std::endl;
           }
 
           const auto last_index = self->_waypoints.back().graph_index();

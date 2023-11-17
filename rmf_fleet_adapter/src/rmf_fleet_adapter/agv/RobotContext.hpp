@@ -411,6 +411,9 @@ public:
   /// Get the requester ID to use for this robot when sending requests
   const std::string& requester_id() const;
 
+  /// Get the traffic participant ID for this robot
+  rmf_traffic::ParticipantId participant_id() const;
+
   /// Get the navigation graph used by this robot
   const rmf_traffic::agv::Graph& navigation_graph() const;
 
@@ -611,7 +614,9 @@ public:
   const std::string& locked_mutex_group() const;
 
   /// Set the mutex group that this robot needs to have locked.
-  void request_mutex_group(std::string group);
+  void request_mutex_group(
+    std::string group,
+    rmf_traffic::Time claim_time);
 
   /// If we are holding a mutex group, release it
   void release_mutex_group();

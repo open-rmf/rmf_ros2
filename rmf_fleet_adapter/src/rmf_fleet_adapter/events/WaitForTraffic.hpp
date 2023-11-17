@@ -105,6 +105,7 @@ public:
     std::function<void()> _finished;
     rclcpp::TimerBase::SharedPtr _timer;
     std::optional<rmf_traffic::Time> _decision_made;
+    rmf_rxcpp::subscription_guard _mutex_group_listener;
   };
 
 };

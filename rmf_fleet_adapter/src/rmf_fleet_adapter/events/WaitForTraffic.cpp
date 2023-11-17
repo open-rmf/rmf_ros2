@@ -98,6 +98,9 @@ auto WaitForTraffic::Active::make(
   std::function<void()> update,
   std::function<void()> finished) -> std::shared_ptr<Active>
 {
+  using MutexGroupRequestPtr =
+    std::shared_ptr<rmf_fleet_msgs::msg::MutexGroupRequest>;
+
   auto active = std::make_shared<Active>();
   active->_context = std::move(context);
   active->_plan_id = plan_id;
@@ -105,6 +108,37 @@ auto WaitForTraffic::Active::make(
   active->_state = std::move(state);
   active->_update = std::move(update);
   active->_finished = std::move(finished);
+
+  active->_mutex_group_listener = active->_context->node()
+    ->mutex_group_request_obs()
+    .observe_on(rxcpp::identity_same_worker(active->_context->worker()))
+    .subscribe([w = active->weak_from_this()](const MutexGroupRequestPtr& msg)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        if (msg->claimant == self->_context->participant_id())
+        {
+          // We can ignore our own mutex group requests
+          return;
+        }
+
+        if (msg->group == self->_context->locked_mutex_group())
+        {
+          // If another participant is waiting to lock a mutex that we have
+          // already locked, then we must delete any dependencies related to
+          // that participant.
+          auto r_it = std::remove_if(
+            self->_dependencies.begin(),
+            self->_dependencies.end(),
+            [&](const DependencySubscription& d)
+            {
+              return d.dependency().on_participant == msg->claimant;
+            });
+          self->_dependencies.erase(r_it, self->_dependencies.end());
+        }
+      });
 
   const auto consider_going = [w = active->weak_from_this()]()
     {
@@ -229,16 +263,32 @@ void WaitForTraffic::Active::_consider_going()
   }
 
   bool all_dependencies_reached = true;
+  std::stringstream ss;
   for (const auto& dep : _dependencies)
   {
-    const auto current = _context->schedule()->get_current_plan_id(dep.dependency().on_participant);
-    std::cout << " -- " << dep.dependency().on_participant << ":" << dep.dependency().on_plan
-      << " vs current " << current.value_or((std::size_t)(-1))
-      << " | " << dep.reached() << " | " << dep.deprecated()
-      << std::endl;
+    const auto& d = dep.dependency();
+    const auto current = _context->schedule()->get_current_plan_id(d.on_participant);
+    const auto* p = _context->schedule()->get_current_progress(d.on_participant);
+    ss << " -- " << d.on_participant << " | " << d.on_plan
+      << ":" << d.on_route << ":" << d.on_checkpoint
+      << " vs current " << current.value_or((std::size_t)(-1));
+    if (p)
+    {
+      for (std::size_t i=0; i < p->size(); ++i)
+      {
+        ss << ":[" << i << ":" << (*p)[i] << "]";
+      }
+    }
+    else
+    {
+      ss << "null";
+    }
+
+    ss << " | " << dep.reached() << " | " << dep.deprecated() << "\n";
     if (!dep.reached() && !dep.deprecated())
       all_dependencies_reached = false;
   }
+  std::cout << ss.str() << std::endl;
 
   if (all_dependencies_reached)
   {
