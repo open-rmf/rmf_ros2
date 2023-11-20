@@ -23,9 +23,13 @@ namespace phases {
 //==============================================================================
 DockRobot::ActivePhase::ActivePhase(
   agv::RobotContextPtr context,
-  std::string dock_name)
+  std::string dock_name,
+  rmf_traffic::agv::Plan::Waypoint waypoint,
+  rmf_traffic::PlanId plan_id)
 : _context{std::move(context)},
   _dock_name{std::move(dock_name)},
+  _waypoint(std::move(waypoint)),
+  _plan_id(plan_id),
   _be_stubborn(_context->be_stubborn())
 {
   std::ostringstream oss;
@@ -73,9 +77,13 @@ const std::string& DockRobot::ActivePhase::description() const
 //==============================================================================
 DockRobot::PendingPhase::PendingPhase(
   agv::RobotContextPtr context,
-  std::string dock_name)
+  std::string dock_name,
+  rmf_traffic::agv::Plan::Waypoint waypoint,
+  PlanIdPtr plan_id)
 : _context{std::move(context)},
-  _dock_name{std::move(dock_name)}
+  _dock_name{std::move(dock_name)},
+  _waypoint(std::move(waypoint)),
+  _plan_id(std::move(plan_id))
 {
   std::ostringstream oss;
   oss << "Dock robot to " << _dock_name;
@@ -85,7 +93,21 @@ DockRobot::PendingPhase::PendingPhase(
 //==============================================================================
 std::shared_ptr<LegacyTask::ActivePhase> DockRobot::PendingPhase::begin()
 {
-  return std::make_shared<DockRobot::ActivePhase>(_context, _dock_name);
+  rmf_traffic::PlanId plan_id = 0;
+  if (_plan_id)
+  {
+    plan_id = *_plan_id;
+  }
+  else
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "No plan_id was provided for MoveRobot action for robot [%s]. This is a "
+      "critical internal error, please report this bug to the RMF maintainers.",
+      _context->requester_id().c_str());
+  }
+  return std::make_shared<DockRobot::ActivePhase>(
+    _context, _dock_name, _waypoint, plan_id);
 }
 
 //==============================================================================

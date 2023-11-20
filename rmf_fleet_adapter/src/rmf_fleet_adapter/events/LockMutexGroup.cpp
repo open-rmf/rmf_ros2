@@ -221,6 +221,9 @@ void LockMutexGroup::Active::_initialize()
 void LockMutexGroup::Active::_schedule(
   rmf_traffic::schedule::Itinerary itinerary) const
 {
+  std::cout << " --- [" << _context->requester_id() << "] resuming with "
+    << itinerary.size() << " routes" << std::endl;
+
   bool scheduled = false;
   std::size_t attempts = 0;
   while (!scheduled)

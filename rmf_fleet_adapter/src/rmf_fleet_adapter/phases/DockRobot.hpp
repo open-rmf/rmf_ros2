@@ -35,7 +35,9 @@ struct DockRobot
 
     ActivePhase(
       agv::RobotContextPtr context,
-      std::string dock_name);
+      std::string dock_name,
+      rmf_traffic::agv::Plan::Waypoint waypoint,
+      rmf_traffic::PlanId plan_id);
 
     const rxcpp::observable<LegacyTask::StatusMsg>& observe() const override;
 
@@ -53,6 +55,8 @@ struct DockRobot
     agv::RobotContextPtr _context;
     std::string _dock_name;
     std::string _description;
+    rmf_traffic::agv::Plan::Waypoint _waypoint;
+    rmf_traffic::PlanId _plan_id;
     std::shared_ptr<Action> _action;
     rxcpp::observable<LegacyTask::StatusMsg> _obs;
     std::shared_ptr<void> _be_stubborn;
@@ -64,7 +68,9 @@ struct DockRobot
 
     PendingPhase(
       agv::RobotContextPtr context,
-      std::string dock_name);
+      std::string dock_name,
+      rmf_traffic::agv::Plan::Waypoint waypoint,
+      PlanIdPtr plan_id);
 
     std::shared_ptr<LegacyTask::ActivePhase> begin() override;
 
@@ -77,6 +83,8 @@ struct DockRobot
     agv::RobotContextPtr _context;
     std::string _dock_name;
     std::string _description;
+    rmf_traffic::agv::Plan::Waypoint _waypoint;
+    PlanIdPtr _plan_id;
   };
 
   class Action
@@ -106,12 +114,22 @@ void DockRobot::Action::operator()(const Subscriber& s)
   s.on_next(status);
   _phase->_context->command()->dock(
     _phase->_dock_name,
-    [s, dock_name = _phase->_dock_name, context = _phase->_context]()
+    [s, dock_name = _phase->_dock_name, context = _phase->_context,
+    wp = _phase->_waypoint, plan_id = _phase->_plan_id]()
     {
       LegacyTask::StatusMsg status;
       status.status = "Finished docking [" + context->requester_id()
       + "] into dock [" + dock_name + "]";
       status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
+      for (const auto& c : wp.arrival_checkpoints())
+      {
+        std::cout << "docking reached " << context->participant_id()
+          << " | " << context->itinerary().current_plan_id()
+          << ":" << c.route_id << ":" << c.checkpoint_id
+          << " #" << context->itinerary().progress_version() << std::endl;
+        context->itinerary().reached(plan_id, c.route_id, c.checkpoint_id);
+      }
+
       s.on_next(status);
       s.on_completed();
     });

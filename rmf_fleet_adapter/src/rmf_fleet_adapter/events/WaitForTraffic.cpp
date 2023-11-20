@@ -264,6 +264,7 @@ void WaitForTraffic::Active::_consider_going()
 
   bool all_dependencies_reached = true;
   std::stringstream ss;
+  ss << "consider going for [" << _context->requester_id() << "]\n";
   for (const auto& dep : _dependencies)
   {
     const auto& d = dep.dependency();

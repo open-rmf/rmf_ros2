@@ -110,12 +110,14 @@ public:
     LegacyPhases& phases,
     const rmf_traffic::agv::Plan::Waypoint& waypoint_,
     const PlanIdPtr plan_id,
+    std::optional<LockMutexGroup::Data> current_mutex_group,
     bool& continuous)
   : waypoint(waypoint_),
     _context(std::move(context)),
     _phases(phases),
     _event_start_time(waypoint_.time()),
     _plan_id(plan_id),
+    _current_mutex_group(std::move(current_mutex_group)),
     _continuous(continuous)
   {
     // Do nothing
@@ -128,8 +130,8 @@ public:
     assert(!_moving_lift);
     _phases.emplace_back(
       std::make_shared<phases::DockRobot::PendingPhase>(
-        _context, dock.dock_name()),
-      _event_start_time, waypoint.dependencies(), std::nullopt);
+        _context, dock.dock_name(), waypoint, _plan_id),
+      _event_start_time, waypoint.dependencies(), _current_mutex_group);
     _continuous = false;
   }
 
@@ -143,7 +145,7 @@ public:
         open.name(),
         _context->requester_id(),
         _event_start_time + open.duration()),
-      _event_start_time, waypoint.dependencies(), std::nullopt);
+      _event_start_time, waypoint.dependencies(), _current_mutex_group);
     _continuous = true;
   }
 
@@ -158,7 +160,7 @@ public:
         _context,
         close.name(),
         _context->requester_id()),
-      _event_start_time, waypoint.dependencies(), std::nullopt);
+      _event_start_time, waypoint.dependencies(), _current_mutex_group);
     _continuous = true;
   }
 
@@ -174,7 +176,7 @@ public:
         _event_start_time,
         phases::RequestLift::Located::Outside,
         _plan_id),
-      _event_start_time, waypoint.dependencies(), std::nullopt);
+      _event_start_time, waypoint.dependencies(), _current_mutex_group);
 
     _continuous = true;
   }
@@ -209,7 +211,7 @@ public:
         phases::RequestLift::Located::Inside,
         _plan_id,
         localize),
-      _event_start_time, waypoint.dependencies(), std::nullopt);
+      _event_start_time, waypoint.dependencies(), _current_mutex_group);
     _moving_lift = false;
 
     _continuous = true;
@@ -224,7 +226,7 @@ public:
         _context,
         close.lift_name(),
         close.floor_name()),
-      _event_start_time, waypoint.dependencies(), std::nullopt);
+      _event_start_time, waypoint.dependencies(), _current_mutex_group);
 
     _continuous = true;
   }
@@ -244,6 +246,7 @@ private:
   LegacyPhases& _phases;
   rmf_traffic::Time _event_start_time;
   PlanIdPtr _plan_id;
+  std::optional<LockMutexGroup::Data> _current_mutex_group;
   bool& _continuous;
   bool _moving_lift = false;
   rmf_traffic::Duration _lifting_duration = rmf_traffic::Duration(0);
@@ -629,18 +632,28 @@ std::optional<ExecutePlan> ExecutePlan::make(
             }
 
             std::size_t first_excluded_route = 0;
+            std::stringstream ss;
+            if (current_mutex_group.has_value())
+            {
+              ss << "truncating for switch from ["
+                << current_mutex_group->mutex_group
+                << "] to [" << new_mutex_group << "]";
+            }
+            else
+            {
+              ss << "truncating to lock [" << new_mutex_group << "]";
+            }
             for (const auto& c : wp.arrival_checkpoints())
             {
               first_excluded_route = std::max(first_excluded_route, c.route_id+1);
               auto& r = previous_itinerary->at(c.route_id);
               auto& t = r.trajectory();
-              std::stringstream ss;
-              ss << "erasing up to checkpoint " << c.checkpoint_id << "\n";
+              ss << "\n -- erasing up to checkpoint " << c.checkpoint_id << "\n";
               ss << "t.size() before: " << t.size();
               t.erase(t.begin() + (int)c.checkpoint_id, t.end());
               ss << " | after: " << t.size();
-              std::cout << ss.str() << std::endl;
             }
+            std::cout << ss.str() << std::endl;
 
             for (std::size_t i=0; i < previous_itinerary->size(); ++i)
             {
@@ -731,6 +744,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
       if (it->event())
       {
+        std::optional<LockMutexGroup::Data> event_mutex_group;
         if (move_through.size() > 1)
         {
           legacy_phases.emplace_back(
@@ -738,11 +752,16 @@ std::optional<ExecutePlan> ExecutePlan::make(
               context, move_through, plan_id, tail_period),
             it->time(), it->dependencies(), current_mutex_group);
         }
+        else if(mutex_group_change)
+        {
+          std::cout << " >>>> appending mutex group to event" << std::endl;
+          event_mutex_group = current_mutex_group;
+        }
 
         move_through.clear();
         bool continuous = true;
         EventPhaseFactory factory(
-          context, legacy_phases, *it, plan_id, continuous);
+          context, legacy_phases, *it, plan_id, event_mutex_group, continuous);
         it->event()->execute(factory);
         while (factory.moving_lift())
         {
@@ -857,7 +876,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     {
       if (head->mutex_group_dependency.has_value())
       {
-        ss << "\n -- Adding mutex group [" << head->mutex_group_dependency->mutex_group << "]";
+        ss << "\n -- Lock mutex group [" << head->mutex_group_dependency->mutex_group << "]";
         standbys.push_back(make_wait_for_mutex(
           context, event_id, head->mutex_group_dependency.value()));
       }
@@ -887,9 +906,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
       ++head;
     }
-
-    std::cout << ss.str() << std::endl;
   }
+  std::cout << ss.str() << std::endl;
 
   if (tail_period.has_value() && !legacy_phases.empty())
   {
