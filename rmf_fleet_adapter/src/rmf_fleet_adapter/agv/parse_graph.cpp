@@ -337,6 +337,7 @@ rmf_traffic::agv::Graph parse_graph(
           // to be done after the entry event
           const auto entry_wp = graph.get_waypoint(begin);
           auto& dock_wp = graph.add_waypoint(map_name, entry_wp.get_location());
+          dock_wp.set_in_mutex_group(entry_wp.in_mutex_group());
 
           graph.add_lane(
             {begin, entry_event},

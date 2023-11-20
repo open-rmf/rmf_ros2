@@ -1282,7 +1282,9 @@ void EasyCommandHandle::follow_new_path(
         const auto& wp2 = waypoints[i2];
         if (wp1.graph_index().has_value() && wp2.graph_index().has_value())
         {
-          if (*wp1.graph_index() == *wp2.graph_index())
+          const auto gi_1 = *wp1.graph_index();
+          const auto gi_2 = *wp2.graph_index();
+          if (nav_params->in_same_stack(gi_1, gi_2))
           {
             target_index = i2;
             target_position = wp2.position();
