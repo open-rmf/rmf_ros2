@@ -243,7 +243,7 @@ rmf_traffic::agv::Plan::StartSet NavParams::_lift_boundary_filter(
       const auto robot_inside_lift = [&]()
         -> rmf_traffic::agv::Graph::LiftPropertiesPtr
         {
-          for (const auto& lift : graph.known_lifts())
+          for (const auto& lift : graph.all_known_lifts())
           {
             // We assume lifts never overlap so we will return the first
             // positive hit.
@@ -1168,19 +1168,13 @@ void RobotContext::_check_lift_state(
     {
       const Eigen::Vector2d p = position().block<2, 1>(0, 0);
       const auto& graph = navigation_graph();
-      const auto& known_lifts = graph.known_lifts();
-      const auto l_it = std::find_if(
-        known_lifts.begin(),
-        known_lifts.end(),
-        [&](const auto& lift)
-        {
-          return lift->name() == _lift_destination->lift_name;
-        });
+      const auto found_lift =
+        graph.find_known_lift(_lift_destination->lift_name);
 
       bool inside_lift = false;
-      if (l_it != graph.known_lifts().end())
+      if (found_lift)
       {
-        inside_lift = (*l_it)->is_in_lift(p);
+        inside_lift = found_lift->is_in_lift(p);
       }
 
       if (inside_lift)

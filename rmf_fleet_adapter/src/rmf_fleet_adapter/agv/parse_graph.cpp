@@ -37,7 +37,7 @@ rmf_traffic::agv::Graph parse_graph(
     throw std::runtime_error("Failed to load graph file [" + graph_file + "]");
   }
 
-  std::unordered_map<std::string, LiftPropertiesPtr> lifts;
+  rmf_traffic::agv::Graph graph;
   bool has_lifts = false;
   const YAML::Node lifts_yaml = graph_config["lifts"];
   if (!lifts_yaml)
@@ -67,8 +67,8 @@ rmf_traffic::agv::Graph parse_graph(
         dims_yaml[0].as<double>(),
         dims_yaml[1].as<double>());
 
-      lifts[name] = std::make_shared<rmf_traffic::agv::Graph::LiftProperties>(
-        name, location, orientation, dimensions);
+      graph.set_known_lift(rmf_traffic::agv::Graph::LiftProperties(
+        name, location, orientation, dimensions));
     }
   }
 
@@ -95,7 +95,6 @@ rmf_traffic::agv::Graph parse_graph(
   using Lane = rmf_traffic::agv::Graph::Lane;
   using Event = Lane::Event;
 
-  rmf_traffic::agv::Graph graph;
   std::unordered_map<std::string, std::vector<std::size_t>> wps_of_lift;
   std::unordered_map<std::size_t, std::string> lift_of_wp;
   std::unordered_map<std::size_t, std::size_t> stacked_vertex;
@@ -181,15 +180,15 @@ rmf_traffic::agv::Graph parse_graph(
           lift_of_wp[wp.index()] = lift_name;
           if (has_lifts)
           {
-            const auto l_it = lifts.find(lift_name);
-            if (l_it == lifts.end())
+            const auto lift = graph.find_known_lift(lift_name);
+            if (!lift)
             {
               throw std::runtime_error(
                 "Lift properties for [" + lift_name + "] were not provided "
                 "even though it is used by a vertex. This suggests that your "
                 "nav graph was not generated correctly.");
             }
-            wp.set_in_lift(l_it->second);
+            wp.set_in_lift(lift);
           }
         }
       }
