@@ -134,6 +134,8 @@ void LockMutexGroup::Active::_initialize()
       "Mutex group [%s] was already locked for [%s]",
       _data.mutex_group.c_str(),
       _context->requester_id().c_str());
+
+    _schedule(*_data.resume_itinerary);
     // We don't need to do anything further, we already got the mutex group
     // previously.
     _context->worker().schedule(
@@ -152,7 +154,8 @@ void LockMutexGroup::Active::_initialize()
     _data.mutex_group.c_str(),
     _context->requester_id().c_str());
 
-  const auto cumulative_delay = _context->now() - _data.hold_time;
+  const auto cumulative_delay = _context->now() - _data.hold_time
+    - std::chrono::seconds(2);
   _context->itinerary().cumulative_delay(*_data.plan_id, cumulative_delay);
 
   _listener = _context->node()->mutex_group_states()
@@ -175,7 +178,13 @@ void LockMutexGroup::Active::_initialize()
               self->_finished = nullptr;
               if (finished)
               {
-                std::cout << " === FINISHED " << __LINE__ << std::endl;
+                if (!self->_data.resume_itinerary->empty())
+                {
+                  self->_schedule(*self->_data.resume_itinerary);
+                }
+                std::cout << " === LOCKED MUTEX " << __LINE__ << " new plan id for "
+                  << self->_context->requester_id() << ": "
+                  << *self->_data.plan_id << std::endl;
                 self->_state->update_status(State::Status::Completed);
                 RCLCPP_INFO(
                   self->_context->node()->get_logger(),

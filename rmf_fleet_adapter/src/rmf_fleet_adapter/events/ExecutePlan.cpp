@@ -628,9 +628,43 @@ std::optional<ExecutePlan> ExecutePlan::make(
               }
             }
 
+            std::size_t first_excluded_route = 0;
+            for (const auto& c : wp.arrival_checkpoints())
+            {
+              first_excluded_route = std::max(first_excluded_route, c.route_id+1);
+              auto& r = previous_itinerary->at(c.route_id);
+              auto& t = r.trajectory();
+              std::stringstream ss;
+              ss << "erasing up to checkpoint " << c.checkpoint_id << "\n";
+              ss << "t.size() before: " << t.size();
+              t.erase(t.begin() + (int)c.checkpoint_id, t.end());
+              ss << " | after: " << t.size();
+              std::cout << ss.str() << std::endl;
+            }
+
+            for (std::size_t i=0; i < previous_itinerary->size(); ++i)
+            {
+              const auto& t = previous_itinerary->at(i).trajectory();
+              if (t.size() < 2)
+              {
+                // If we've reduced this trajectory down to nothing, then erase
+                // it and all later routes. In the current version of RMF
+                // we assume that routes with higher indices will never have an
+                // earlier time value than the earliest of a lower index route.
+                // This is an assumption we should relax in the future, but it
+                // helps here for now.
+                first_excluded_route =
+                  std::min(first_excluded_route, i);
+              }
+            }
+
+            previous_itinerary->erase(
+              previous_itinerary->begin()+first_excluded_route,
+              previous_itinerary->end());
+
             auto next_itinerary = std::make_shared<
               rmf_traffic::schedule::Itinerary>(full_itinerary);
-            return LockMutexGroup::Data{
+            auto data = LockMutexGroup::Data{
               new_mutex_group,
               hold_map,
               hold_position,
@@ -638,6 +672,10 @@ std::optional<ExecutePlan> ExecutePlan::make(
               plan_id,
               next_itinerary
             };
+
+            previous_itinerary = data.resume_itinerary;
+
+            return data;
           };
 
           if (move_through.size() > 1)
@@ -660,8 +698,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
             current_mutex_group = next_mutex_group;
 
-            previous_itinerary = current_mutex_group->resume_itinerary;
-
             // We treat this the same as an event occurring to indicate that
             // we should keep looping.
             event_occurred = true;
@@ -674,7 +710,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
             if (move_through.empty())
             {
               current_mutex_group = make_current_mutex_group(*it);
-              previous_itinerary = current_mutex_group->resume_itinerary;
               std::cout << " === " << __LINE__ << ": " << current_mutex_group->mutex_group << std::endl;
             }
             else
@@ -682,7 +717,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
               assert(move_through.size() == 1);
               current_mutex_group = make_current_mutex_group(
                 move_through.back());
-              previous_itinerary = current_mutex_group->resume_itinerary;
               std::cout << " === " << __LINE__ << ": " << current_mutex_group->mutex_group << std::endl;
             }
           }
@@ -873,43 +907,46 @@ std::optional<ExecutePlan> ExecutePlan::make(
   }
 
   std::size_t attempts = 0;
-  while (!context->itinerary().set(*plan_id, *initial_itinerary))
+  if (!initial_itinerary->empty())
   {
-    // Some mysterious behavior has been happening where plan_ids are invalid.
-    // We will attempt to catch that here and try to learn more about what
-    // could be causing that, while allowing progress to continue.
-    std::string task_id = "<none>";
-    if (context->current_task_id())
-      task_id = *context->current_task_id();
-
-    RCLCPP_ERROR(
-      context->node()->get_logger(),
-      "Invalid plan_id [%lu] when current plan_id is [%lu] for [%s] in group "
-      "[%s] while executing plan for task [%s]. Please report this bug to the "
-      "RMF maintainers.",
-      *plan_id,
-      context->itinerary().current_plan_id(),
-      context->name().c_str(),
-      context->group().c_str(),
-      task_id.c_str());
-    state->update_log().error(
-      "Invalid plan_id [" + std::to_string(*plan_id)
-      + "] when current plan_id is ["
-      + std::to_string(context->itinerary().current_plan_id())
-      + "] Please notify an RMF developer.");
-
-    *plan_id = context->itinerary().assign_plan_id();
-
-    if (++attempts > 5)
+    while (!context->itinerary().set(*plan_id, *initial_itinerary))
     {
+      // Some mysterious behavior has been happening where plan_ids are invalid.
+      // We will attempt to catch that here and try to learn more about what
+      // could be causing that, while allowing progress to continue.
+      std::string task_id = "<none>";
+      if (context->current_task_id())
+        task_id = *context->current_task_id();
+
       RCLCPP_ERROR(
         context->node()->get_logger(),
-        "Requesting replan for [%s] in group [%s] because plan is repeatedly "
-        "being rejected while performing task [%s]",
+        "Invalid plan_id [%lu] when current plan_id is [%lu] for [%s] in group "
+        "[%s] while executing plan for task [%s]. Please report this bug to the "
+        "RMF maintainers.",
+        *plan_id,
+        context->itinerary().current_plan_id(),
         context->name().c_str(),
         context->group().c_str(),
         task_id.c_str());
-      return std::nullopt;
+      state->update_log().error(
+        "Invalid plan_id [" + std::to_string(*plan_id)
+        + "] when current plan_id is ["
+        + std::to_string(context->itinerary().current_plan_id())
+        + "] Please notify an RMF developer.");
+
+      *plan_id = context->itinerary().assign_plan_id();
+
+      if (++attempts > 5)
+      {
+        RCLCPP_ERROR(
+          context->node()->get_logger(),
+          "Requesting replan for [%s] in group [%s] because plan is repeatedly "
+          "being rejected while performing task [%s]",
+          context->name().c_str(),
+          context->group().c_str(),
+          task_id.c_str());
+        return std::nullopt;
+      }
     }
   }
 

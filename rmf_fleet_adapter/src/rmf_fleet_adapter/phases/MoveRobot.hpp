@@ -258,6 +258,9 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           const auto self = w.lock();
           if (!self)
             return;
+          std::cout << "delaying " << self->_context->requester_id() << " plan id "
+            << self->_plan_id << " by " << rmf_traffic::time::to_seconds(new_cumulative_delay)
+            << std::endl;
           const auto context = self->_context;
           const auto plan_id = self->_plan_id;
           context->itinerary().cumulative_delay(
