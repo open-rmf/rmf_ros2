@@ -50,7 +50,7 @@ void add_patrol(
     -> agv::DeserializedEvent
     {
       nlohmann::json place_msg;
-      const auto nearest_place = msg.find("nearest_of"); 
+      const auto nearest_place = msg.find("one_of"); 
       if (nearest_place != msg.end()) {
         std::vector<rmf_traffic::agv::Plan::Goal> goals;
         std::vector<std::string> errors;
