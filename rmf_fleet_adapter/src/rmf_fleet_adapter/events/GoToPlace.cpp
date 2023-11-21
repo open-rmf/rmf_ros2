@@ -135,7 +135,7 @@ auto GoToPlace::Standby::begin(
       auto current_location = _context->location();
       auto graph = _context->navigation_graph();
       if (current_location.size() ==0) {
-        //unable to get location
+        //unable to get location. We should return some form of error stste.
         RCLCPP_ERROR(_context->node()->get_logger(),
         "Robot [%s] can't get location",
         _context->requester_id().c_str());
