@@ -36,9 +36,6 @@ DockRobot::ActivePhase::ActivePhase(
   oss << "Docking robot to " << _dock_name;
   _description = oss.str();
 
-  _action = std::make_shared<Action>(this);
-  _obs = rmf_rxcpp::make_job<LegacyTask::StatusMsg>(_action);
-
   _context->current_mode(rmf_fleet_msgs::msg::RobotMode::MODE_DOCKING);
 }
 
@@ -46,7 +43,7 @@ DockRobot::ActivePhase::ActivePhase(
 const rxcpp::observable<LegacyTask::StatusMsg>&
 DockRobot::ActivePhase::observe() const
 {
-  return _obs;
+  return obs;
 }
 
 //==============================================================================
@@ -106,8 +103,11 @@ std::shared_ptr<LegacyTask::ActivePhase> DockRobot::PendingPhase::begin()
       "critical internal error, please report this bug to the RMF maintainers.",
       _context->requester_id().c_str());
   }
-  return std::make_shared<DockRobot::ActivePhase>(
+  auto active = std::make_shared<DockRobot::ActivePhase>(
     _context, _dock_name, _waypoint, plan_id);
+  active->action = std::make_shared<Action>(active->weak_from_this());
+  active->obs = rmf_rxcpp::make_job<LegacyTask::StatusMsg>(active->action);
+  return active;
 }
 
 //==============================================================================
@@ -124,7 +124,7 @@ const std::string& DockRobot::PendingPhase::description() const
 }
 
 //==============================================================================
-DockRobot::Action::Action(ActivePhase* phase)
+DockRobot::Action::Action(std::weak_ptr<ActivePhase> phase)
 : _phase(phase)
 {
   // Do nothing

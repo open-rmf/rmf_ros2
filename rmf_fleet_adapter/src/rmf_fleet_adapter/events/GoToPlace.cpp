@@ -547,6 +547,18 @@ void GoToPlace::Active::_execute_plan(
     _state->update_status(Status::Completed);
     _state->update_log().info(
       "The planner indicates that the robot is already at its goal.");
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Robot [%s] is already at its goal [%lu]",
+      _context->requester_id().c_str(),
+      _goal.waypoint());
+
+    const auto& graph = _context->navigation_graph();
+    if (graph.get_waypoint(_goal.waypoint()).in_mutex_group().empty())
+    {
+      _context->release_mutex_group();
+    }
+
     _finished();
     return;
   }

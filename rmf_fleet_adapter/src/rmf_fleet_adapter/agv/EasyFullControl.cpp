@@ -773,8 +773,10 @@ struct ProgressTracker : std::enable_shared_from_this<ProgressTracker>
 
   void next()
   {
+    std::cout << " >>> " << __LINE__ << " rq: " << reverse_queue.size() << std::endl;
     if (reverse_queue.empty())
     {
+      std::cout << " >>> " << __LINE__ << " trigger finish" << std::endl;
       current_identifier = nullptr;
       finished.trigger();
       return;
@@ -786,16 +788,23 @@ struct ProgressTracker : std::enable_shared_from_this<ProgressTracker>
       ::get(current_activity).identifier;
     auto& current_activity_impl =
       EasyFullControl::CommandExecution::Implementation::get(current_activity);
+    std::cout << " >>> " << __LINE__ << " make next finisher" << std::endl;
     current_activity_impl.finisher = [w_progress = weak_from_this()]()
       {
+        std::cout << " >>> " << __LINE__ << " lock progress" << std::endl;
         if (const auto progress = w_progress.lock())
         {
+          std::cout << " >>> " << __LINE__ << " trigger next" << std::endl;
           progress->next();
         }
       };
+
+
+    std::cout << " >>> " << __LINE__ << " prepare begin" << std::endl;
     const auto begin = current_activity_impl.begin;
     if (begin)
     {
+      std::cout << " >>> " << __LINE__ << " do begin" << std::endl;
       begin(std::move(current_activity));
     }
   }
@@ -1357,9 +1366,26 @@ void EasyCommandHandle::follow_new_path(
     i1 = i0 + 1;
   }
 
+  auto finisher = [path_finished_callback_]()
+    {
+      std::cout << "CALLING THE PATH FINISHER" << std::endl;
+      if (path_finished_callback_)
+      {
+        path_finished_callback_();
+        std::cout << "DONE CALLING THE PATH FINISHER" << std::endl;
+      }
+      else
+      {
+        std::cout << " ??? PATH FINISHED CALLBACK IS NULL" << std::endl;
+      }
+    };
+
+  std::cout << __LINE__ << ": SETTING CURRENT_PROGRESS FOR " << context->requester_id()
+    << " | " << waypoints.back().position().transpose() << std::endl;
   this->current_progress = ProgressTracker::make(
     queue,
-    path_finished_callback_);
+    // path_finished_callback_);
+    finisher);
   this->current_progress->next();
 }
 
@@ -1492,11 +1518,23 @@ void EasyCommandHandle::dock(
         return;
       }
 
-      const rmf_traffic::Time now = context->now();
-      const auto updated_arrival = now + dt;
-      const auto delay = updated_arrival - expected_arrival;
-      context->itinerary().cumulative_delay(
-        plan_id, delay, std::chrono::seconds(1));
+      context->worker().schedule([
+          w = context->weak_from_this(),
+          expected_arrival,
+          plan_id,
+          dt
+        ](const auto&)
+        {
+          const auto context = w.lock();
+          if (!context)
+            return;
+
+          const rmf_traffic::Time now = context->now();
+          const auto updated_arrival = now + dt;
+          const auto delay = updated_arrival - expected_arrival;
+          context->itinerary().cumulative_delay(
+            plan_id, delay, std::chrono::seconds(1));
+        });
     }
   };
 
@@ -1531,9 +1569,27 @@ void EasyCommandHandle::dock(
     {
       handle_nav_request(destination, execution);
     });
+
+  auto finisher = [docking_finished_callback_]()
+    {
+      std::cout << " CALLING THE DOCKING FINISHER" << std::endl;
+      if (docking_finished_callback_)
+      {
+        docking_finished_callback_();
+        std::cout << " DONE CALLING THE DOCKING FINISHER" << std::endl;
+      }
+      else
+      {
+        std::cout << " ??? DOCKING FINISHED CALLBACK IS NULL" << std::endl;
+      }
+    };
+
+  std::cout << __LINE__ << ": SETTING CURRENT_PROGRESS FOR " << context->requester_id()
+    << " | " << command_position.transpose() << std::endl;
   this->current_progress = ProgressTracker::make(
     {std::move(cmd)},
-    std::move(docking_finished_callback_));
+    // std::move(docking_finished_callback_));
+    finisher);
   this->current_progress->next();
 }
 

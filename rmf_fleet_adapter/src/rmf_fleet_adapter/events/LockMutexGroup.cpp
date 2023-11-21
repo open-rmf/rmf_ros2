@@ -108,7 +108,9 @@ auto LockMutexGroup::Active::interrupt(
 void LockMutexGroup::Active::cancel()
 {
   _state->update_status(Status::Canceled);
-  _context->worker().schedule([finished = _finished](const auto&)
+  const auto finished = _finished;
+  _finished = nullptr;
+  _context->worker().schedule([finished](const auto&)
     {
       finished();
     });
@@ -127,6 +129,9 @@ void LockMutexGroup::Active::_initialize()
   using MutexGroupStatesPtr =
     std::shared_ptr<rmf_fleet_msgs::msg::MutexGroupStates>;
 
+  std::cout << "Currently locked group for [" << _context->requester_id() << "]: "
+    << _context->locked_mutex_group()
+    << " vs " << _data.mutex_group << std::endl;
   if (_context->locked_mutex_group() == _data.mutex_group)
   {
     RCLCPP_INFO(
@@ -139,12 +144,22 @@ void LockMutexGroup::Active::_initialize()
     // We don't need to do anything further, we already got the mutex group
     // previously.
     _context->worker().schedule(
-      [finished = _finished](const auto&)
+      [state = _state, finished = _finished](const auto&)
       {
+        state->update_status(State::Status::Completed);
         finished();
       });
     return;
   }
+
+  *_data.plan_id += 1;
+  rmf_traffic::Trajectory hold;
+  const auto zero = Eigen::Vector3d::Zero();
+  const auto wait = std::chrono::seconds(5);
+  hold.insert(_data.hold_time, _data.hold_position, zero);
+  hold.insert(_data.hold_time + wait, _data.hold_position, zero);
+  _stubborn = _context->be_stubborn();
+  _schedule({rmf_traffic::Route(_data.hold_map, std::move(hold))});
 
   _state->update_log().info(
     "Waiting to lock mutex group [" + _data.mutex_group + "]");
@@ -154,50 +169,47 @@ void LockMutexGroup::Active::_initialize()
     _data.mutex_group.c_str(),
     _context->requester_id().c_str());
 
-  const auto cumulative_delay = _context->now() - _data.hold_time
-    - std::chrono::seconds(2);
+  const auto cumulative_delay = _context->now() - _data.hold_time;
   _context->itinerary().cumulative_delay(*_data.plan_id, cumulative_delay);
 
-  _listener = _context->node()->mutex_group_states()
-    .observe_on(rxcpp::identity_same_worker(_context->worker()))
-    .subscribe(
-      [weak = weak_from_this()](
-        const MutexGroupStatesPtr& mutex_group_states)
-      {
-        const auto self = weak.lock();
-        if (!self)
-          return;
+  // _listener = _context->node()->mutex_group_states()
+  //   .observe_on(rxcpp::identity_same_worker(_context->worker()))
+  //   .subscribe(
+  //     [weak = weak_from_this()](
+  //       const MutexGroupStatesPtr& mutex_group_states)
+  //     {
+  //       const auto self = weak.lock();
+  //       if (!self)
+  //         return;
 
-        for (const auto& assignment : mutex_group_states->assignments)
-        {
-          if (assignment.group == self->_data.mutex_group)
-          {
-            if (assignment.claimant == self->_context->participant_id())
-            {
-              const auto finished = self->_finished;
-              self->_finished = nullptr;
-              if (finished)
-              {
-                if (!self->_data.resume_itinerary->empty())
-                {
-                  self->_schedule(*self->_data.resume_itinerary);
-                }
-                std::cout << " === LOCKED MUTEX " << __LINE__ << " new plan id for "
-                  << self->_context->requester_id() << ": "
-                  << *self->_data.plan_id << std::endl;
-                self->_state->update_status(State::Status::Completed);
-                RCLCPP_INFO(
-                  self->_context->node()->get_logger(),
-                  "Finished locking mutex group [%s] for robot [%s]",
-                  self->_data.mutex_group.c_str(),
-                  self->_context->requester_id().c_str());
-                finished();
-                return;
-              }
-            }
-          }
-        }
-      });
+  //       for (const auto& assignment : mutex_group_states->assignments)
+  //       {
+  //         if (assignment.group == self->_data.mutex_group)
+  //         {
+  //           if (assignment.claimant == self->_context->participant_id())
+  //           {
+  //             const auto finished = self->_finished;
+  //             self->_finished = nullptr;
+  //             if (finished)
+  //             {
+  //               std::cout << " === LOCKED MUTEX " << __LINE__ << std::endl;
+  //               self->_state->update_status(State::Status::Completed);
+  //               RCLCPP_INFO(
+  //                 self->_context->node()->get_logger(),
+  //                 "Requesting replan for robot [%s] after locking mutex group "
+  //                 "[%s]",
+  //                 self->_context->requester_id().c_str(),
+  //                 self->_data.mutex_group.c_str());
+
+  //               // Things may have changed while waiting for the mutex to be
+  //               // locked, so we should replan.
+  //               self->_context->request_replan();
+  //               return;
+  //             }
+  //           }
+  //         }
+  //       }
+  //     });
 
   _delay_timer = _context->node()->try_create_wall_timer(
     std::chrono::seconds(1),
@@ -214,7 +226,50 @@ void LockMutexGroup::Active::_initialize()
 
   std::cout << " ===== SETTING MUTEX GROUP FOR " << _context->requester_id().c_str()
     << " TO " << _data.mutex_group << std::endl;
-  _context->request_mutex_group(_data.mutex_group, _data.hold_time);
+  _listener = _context->request_mutex_group(_data.mutex_group, _data.hold_time)
+    .observe_on(rxcpp::identity_same_worker(_context->worker()))
+    .subscribe([w = weak_from_this()](const agv::MutexGroupSwitch& consider)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        if (consider.to == self->_data.mutex_group)
+        {
+          const auto now = self->_context->now();
+          if (now - self->_data.hold_time > std::chrono::seconds(2))
+          {
+            RCLCPP_INFO(
+              self->_context->node()->get_logger(),
+              "Replanning for [%s] after a delay in locking mutex [%s]",
+              self->_context->requester_id().c_str(),
+              self->_data.mutex_group.c_str());
+            self->_context->request_replan();
+            self->_finished = nullptr;
+            return;
+          }
+
+          // We locked the mutex quickly enough that we should proceed.
+          if (consider.accept())
+          {
+            const auto finished = self->_finished;
+            self->_finished = nullptr;
+            if (finished)
+            {
+              RCLCPP_INFO(
+                self->_context->node()->get_logger(),
+                "Finished locking mutex [%s] for [%s]",
+                self->_data.mutex_group.c_str(),
+                self->_context->requester_id().c_str());
+
+              self->_schedule(*self->_data.resume_itinerary);
+              self->_state->update_status(Status::Completed);
+              finished();
+              return;
+            }
+          }
+        }
+      });
 }
 
 //==============================================================================
@@ -242,19 +297,22 @@ void LockMutexGroup::Active::_schedule(
         break;
     }
 
-    *_data.plan_id = _context->itinerary().assign_plan_id();
     scheduled = _context->itinerary().set(*_data.plan_id, itinerary);
 
     if (!scheduled)
     {
-      RCLCPP_ERROR(
-        _context->node()->get_logger(),
-        "Invalid plan_id [%lu] when current plan_id is [%lu] for robot [%s] "
-        "while performing a LockMutexGroup. Please report this bug to an RMF "
-        "developer.",
-        *_data.plan_id,
-        _context->itinerary().current_plan_id(),
-        _context->requester_id().c_str());
+      *_data.plan_id = _context->itinerary().assign_plan_id();
+      if (attempts > 1)
+      {
+        RCLCPP_ERROR(
+          _context->node()->get_logger(),
+          "Invalid plan_id [%lu] when current plan_id is [%lu] for robot [%s] "
+          "while performing a LockMutexGroup. Please report this bug to an RMF "
+          "developer.",
+          *_data.plan_id,
+          _context->itinerary().current_plan_id(),
+          _context->requester_id().c_str());
+      }
     }
   }
 }

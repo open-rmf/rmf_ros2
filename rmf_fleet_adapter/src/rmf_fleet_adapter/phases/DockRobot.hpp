@@ -29,7 +29,8 @@ struct DockRobot
 {
   class Action;
 
-  class ActivePhase : public LegacyTask::ActivePhase
+  class ActivePhase : public LegacyTask::ActivePhase,
+    public std::enable_shared_from_this<ActivePhase>
   {
   public:
 
@@ -49,6 +50,8 @@ struct DockRobot
 
     const std::string& description() const override;
 
+    std::shared_ptr<Action> action;
+    rxcpp::observable<LegacyTask::StatusMsg> obs;
   private:
     friend class Action;
 
@@ -57,8 +60,6 @@ struct DockRobot
     std::string _description;
     rmf_traffic::agv::Plan::Waypoint _waypoint;
     rmf_traffic::PlanId _plan_id;
-    std::shared_ptr<Action> _action;
-    rxcpp::observable<LegacyTask::StatusMsg> _obs;
     std::shared_ptr<void> _be_stubborn;
   };
 
@@ -91,13 +92,13 @@ struct DockRobot
   {
   public:
 
-    Action(ActivePhase* phase);
+    Action(std::weak_ptr<ActivePhase> phase);
 
     template<typename Subscriber>
     void operator()(const Subscriber& s);
 
   private:
-    ActivePhase* _phase;
+    std::weak_ptr<ActivePhase> _phase;
   };
 };
 
@@ -105,33 +106,65 @@ struct DockRobot
 template<typename Subscriber>
 void DockRobot::Action::operator()(const Subscriber& s)
 {
-  LegacyTask::StatusMsg status;
-  status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
-  status.status = "Docking [" + _phase->_context->requester_id() +
-    "] into dock ["
-    + _phase->_dock_name + "]";
+  const auto active = _phase.lock();
+  if (!active)
+    return;
 
-  s.on_next(status);
-  _phase->_context->command()->dock(
-    _phase->_dock_name,
-    [s, dock_name = _phase->_dock_name, context = _phase->_context,
-    wp = _phase->_waypoint, plan_id = _phase->_plan_id]()
+  active->_context->worker().schedule(
+    [s, w = active->weak_from_this()](const auto&)
     {
+      const auto active = w.lock();
+      if (!active)
+        return;
+
       LegacyTask::StatusMsg status;
-      status.status = "Finished docking [" + context->requester_id()
-      + "] into dock [" + dock_name + "]";
-      status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
-      for (const auto& c : wp.arrival_checkpoints())
-      {
-        std::cout << "docking reached " << context->participant_id()
-          << " | " << context->itinerary().current_plan_id()
-          << ":" << c.route_id << ":" << c.checkpoint_id
-          << " #" << context->itinerary().progress_version() << std::endl;
-        context->itinerary().reached(plan_id, c.route_id, c.checkpoint_id);
-      }
+      status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
+      status.status = "Docking [" + active->_context->requester_id() +
+        "] into dock ["
+        + active->_dock_name + "]";
 
       s.on_next(status);
-      s.on_completed();
+      active->_context->command()->dock(
+        active->_dock_name,
+        [s, dock_name = active->_dock_name, context = active->_context,
+        wp = active->_waypoint, plan_id = active->_plan_id]()
+        {
+          std::cout << "Docking finish callback triggered" << std::endl;
+          context->worker().schedule(
+            [s, dock_name, context, wp, plan_id](const auto&)
+            {
+              std::cout << "Finished docking [" + context->requester_id()
+              << "] into dock [" << dock_name << "]" << std::endl;
+              LegacyTask::StatusMsg status;
+              status.status = "Finished docking [" + context->requester_id()
+              + "] into dock [" + dock_name + "]";
+              status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
+              for (const auto& c : wp.arrival_checkpoints())
+              {
+                std::cout << "docking reached " << context->participant_id()
+                  << " | " << context->itinerary().current_plan_id()
+                  << ":" << c.route_id << ":" << c.checkpoint_id
+                  << " #" << context->itinerary().progress_version() << std::endl;
+                context->itinerary().reached(plan_id, c.route_id, c.checkpoint_id);
+              }
+
+              if (wp.graph_index().has_value())
+              {
+                const auto& graph = context->navigation_graph();
+                if (graph.get_waypoint(*wp.graph_index()).in_mutex_group().empty())
+                {
+                  std::cout << "Releasing mutex group ["
+                    << context->locked_mutex_group() << "] for ["
+                    << context->requester_id() << "] after docking finished"
+                    << std::endl;
+                  context->release_mutex_group();
+                }
+              }
+
+              s.on_next(status);
+              s.on_completed();
+            });
+        });
     });
 }
 

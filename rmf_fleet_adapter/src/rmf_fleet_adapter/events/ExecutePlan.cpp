@@ -153,6 +153,7 @@ public:
         }
         else
         {
+          std::cout << " === " << __LINE__ << " releasing mutex group after docking" << std::endl;
           _current_mutex_group = std::nullopt;
         }
       }
@@ -797,6 +798,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
         }
         else
         {
+          std::cout << " === " << __LINE__ << " releasing mutex group at waypoint "
+            << it->position().transpose() << ">" << std::endl;
           current_mutex_group = std::nullopt;
         }
       }

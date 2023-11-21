@@ -1038,19 +1038,23 @@ const std::string& RobotContext::locked_mutex_group() const
 }
 
 //==============================================================================
-void RobotContext::request_mutex_group(
+const rxcpp::observable<MutexGroupSwitch>& RobotContext::request_mutex_group(
   std::string group,
   rmf_traffic::Time claim_time)
 {
   if (group.empty())
   {
+    RCLCPP_ERROR(
+      node()->get_logger(),
+      "Releasing mutexes for [%s] after a request to lock an empty mutex",
+      requester_id().c_str());
     release_mutex_group();
-    return;
+    return _mutex_group_switch_obs;
   }
 
   if (group == _requesting_mutex_group.name)
   {
-    return;
+    return _mutex_group_switch_obs;
   }
 
   _requesting_mutex_group = MutexGroupData{
@@ -1059,12 +1063,15 @@ void RobotContext::request_mutex_group(
   };
 
   _publish_mutex_group_request();
+  return _mutex_group_switch_obs;
 }
 
 //==============================================================================
 void RobotContext::release_mutex_group()
 {
   _release_mutex_group(_requesting_mutex_group);
+  std::cout << " === " << __LINE__ << " | releasing locked mutex [" << _locked_mutex_group.name
+    << "] for robot [" << requester_id() << "]" << std::endl;
   _release_mutex_group(_locked_mutex_group);
 }
 
@@ -1110,8 +1117,8 @@ RobotContext::RobotContext(
   _replan_obs = _replan_publisher.get_observable();
   _graph_change_obs = _graph_change_publisher.get_observable();
   _charging_change_obs = _charging_change_publisher.get_observable();
-
   _battery_soc_obs = _battery_soc_publisher.get_observable();
+  _mutex_group_switch_obs = _mutex_group_switch.get_observable();
 
   _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
   _override_status = std::nullopt;
@@ -1247,13 +1254,17 @@ void RobotContext::_check_mutex_groups(
 {
   // Make sure to release any mutex groups that this robot is not trying to
   // lock right now.
+  std::cout << " ::: checking mutex groups for " << requester_id() << std::endl;
   for (const auto& assignment : states.assignments)
   {
+    std::cout << " ::: " << assignment.claimant << " != " << participant_id() << std::endl;
     if (assignment.claimant != participant_id())
-      return;
+      continue;
 
+    std::cout << " ::: " << __LINE__ << " | " << assignment.group << " == " << _requesting_mutex_group.name << std::endl;
     if (assignment.group == _requesting_mutex_group.name)
     {
+      std::cout << " ::: " << __LINE__ << " | " << _locked_mutex_group.name << " != " << assignment.group << std::endl;
       if (_locked_mutex_group.name != assignment.group)
       {
         _node->mutex_group_request()->publish(
@@ -1264,7 +1275,10 @@ void RobotContext::_check_mutex_groups(
             .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
       }
 
-      _locked_mutex_group = _requesting_mutex_group;
+      std::cout << " ::: offering switch from [" << _locked_mutex_group.name
+        << "] to [" << _requesting_mutex_group.name << "] for [" << requester_id()
+        << "]" << std::endl;
+      _mutex_group_switch.get_subscriber().on_next(_make_mutex_group_switch());
     }
     else if (assignment.group != _locked_mutex_group.name)
     {
@@ -1278,6 +1292,32 @@ void RobotContext::_check_mutex_groups(
         .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
     }
   }
+}
+
+//==============================================================================
+MutexGroupSwitch RobotContext::_make_mutex_group_switch()
+{
+  return MutexGroupSwitch{
+    _locked_mutex_group.name,
+    _requesting_mutex_group.name,
+    [w = weak_from_this(), request = _requesting_mutex_group]()
+    {
+      const auto self = w.lock();
+      if (!self)
+        return false;
+
+      if (self->_requesting_mutex_group.name == request.name
+        && self->_requesting_mutex_group.claim_time == request.claim_time)
+      {
+        std::cout << " ::: " << __LINE__ << " | Setting locked mutex for "
+          << self->requester_id() << ": " << self->_locked_mutex_group.name << std::endl;
+        self->_locked_mutex_group = request;
+        return true;
+      }
+
+      return false;
+    }
+  };
 }
 
 //==============================================================================

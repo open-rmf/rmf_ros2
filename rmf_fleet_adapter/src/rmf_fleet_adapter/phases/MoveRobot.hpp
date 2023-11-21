@@ -123,6 +123,7 @@ struct MoveRobot
     std::optional<rmf_traffic::Duration> _tail_period;
     std::optional<rmf_traffic::Time> _last_tail_bump;
     std::size_t _next_path_index = 0;
+    std::optional<std::size_t> _first_graph_index;
 
     rclcpp::TimerBase::SharedPtr _update_timeout_timer;
     rclcpp::Time _last_update_rostime;
@@ -167,9 +168,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
       self->_context->request_replan();
     });
 
-  _context->command()->follow_new_path(
-    _waypoints,
-    [s, w_action = weak_from_this(), r = _context->requester_id()](
+  const auto update = [s, w_action = weak_from_this(), r = _context->requester_id()](
       std::size_t path_index, rmf_traffic::Duration estimate)
     {
       const auto action = w_action.lock();
@@ -289,17 +288,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           {
             const auto adjusted_now = now - new_cumulative_delay;
             const auto& graph = context->navigation_graph();
-            std::size_t count = 0;
             for (const auto& wp : self->_waypoints)
             {
-              if (count == 0)
-              {
-                // The first waypoint doesn't always have a mutex group
-                // associated.
-                ++count;
-                continue;
-              }
-
               if (wp.time() > adjusted_now)
               {
                 break;
@@ -307,12 +297,29 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 
               if (wp.graph_index().has_value())
               {
+                if (self->_first_graph_index.has_value())
+                {
+                  const auto nav = self->_context->nav_params();
+                  const auto i_wp = *wp.graph_index();
+                  const auto i_first = *self->_first_graph_index;
+                  bool ignore =
+                    (nav && nav->in_same_stack(i_wp, i_first))
+                    || i_wp == i_first;
+
+                  if (ignore)
+                  {
+                    // The first waypoint doesn't always have a mutex group
+                    // associated.
+                    continue;
+                  }
+                }
+
                 const auto& g = graph.get_waypoint(*wp.graph_index())
                   .in_mutex_group();
                 if (g.empty())
                 {
-                  std::cout << __LINE__ << ": Releasing mutex for " << *wp.graph_index()
-                    << " index " << count
+                  std::cout << __LINE__ << ": Releasing mutex at " << *wp.graph_index()
+                    << " <" << wp.position().transpose() << ">"
                     << " | " << rmf_traffic::time::to_seconds(wp.time().time_since_epoch())
                     << " vs " << rmf_traffic::time::to_seconds(adjusted_now.time_since_epoch())
                     << std::endl;
@@ -320,14 +327,14 @@ void MoveRobot::Action::operator()(const Subscriber& s)
                   break;
                 }
               }
-
-              ++count;
             }
           }
         });
-    },
-    [s, w = weak_from_this()]()
+    };
+
+  const auto finish = [s, w = weak_from_this(), name = _context->requester_id()]()
     {
+      std::cout << "PATH FINISHER TRIGGERED" << std::endl;
       if (const auto self = w.lock())
       {
         if (!self->_waypoints.empty())
@@ -352,7 +359,16 @@ void MoveRobot::Action::operator()(const Subscriber& s)
               std::cout << __LINE__ << ": Releasing mutex at end of path" << std::endl;
               self->_context->release_mutex_group();
             }
+            else
+            {
+              std::cout << __LINE__ << ": Not releasing because last waypoint still has mutex: "
+                << graph.get_waypoint(*last_index).in_mutex_group() << std::endl;
+            }
           }
+        }
+        else
+        {
+          std::cout << __LINE__ << " EMPTY WAYPOINTS??? FOR " << self->_context->requester_id() << std::endl;
         }
 
         LegacyTask::StatusMsg msg;
@@ -361,6 +377,28 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         s.on_next(msg);
         s.on_completed();
       }
+      else
+      {
+        std::cout << " ###### MOVE ROBOT IS PREMATURELY DEAD FOR " << name << std::endl;
+      }
+    };
+
+  _context->command()->follow_new_path(
+    _waypoints,
+    [worker = _context->worker(), update](
+      std::size_t path_index, rmf_traffic::Duration estimate)
+    {
+      worker.schedule([path_index, estimate, update](const auto&)
+        {
+          update(path_index, estimate);
+        });
+    },
+    [worker = _context->worker(), finish]()
+    {
+      worker.schedule([finish](const auto&)
+        {
+          finish();
+        });
     });
 }
 

@@ -337,6 +337,14 @@ struct MutexGroupData
 };
 
 //==============================================================================
+struct MutexGroupSwitch
+{
+  std::string from;
+  std::string to;
+  std::function<bool()> accept;
+};
+
+//==============================================================================
 class RobotContext
   : public std::enable_shared_from_this<RobotContext>,
   public rmf_traffic::schedule::Negotiator
@@ -613,8 +621,8 @@ public:
   /// What mutex group is currently being locked.
   const std::string& locked_mutex_group() const;
 
-  /// Set the mutex group that this robot needs to have locked.
-  void request_mutex_group(
+  /// Set the mutex group that this robot needs to lock.
+  const rxcpp::observable<MutexGroupSwitch>& request_mutex_group(
     std::string group,
     rmf_traffic::Time claim_time);
 
@@ -765,10 +773,13 @@ private:
   std::optional<std::chrono::steady_clock::time_point> _initial_time_idle_outside_lift;
 
   void _check_mutex_groups(const rmf_fleet_msgs::msg::MutexGroupStates& states);
+  MutexGroupSwitch _make_mutex_group_switch();
   void _release_mutex_group(MutexGroupData& data);
   void _publish_mutex_group_request();
   MutexGroupData _requesting_mutex_group;
   MutexGroupData _locked_mutex_group;
+  rxcpp::subjects::subject<MutexGroupSwitch> _mutex_group_switch;
+  rxcpp::observable<MutexGroupSwitch> _mutex_group_switch_obs;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
   std::chrono::steady_clock::time_point _last_active_task_time;

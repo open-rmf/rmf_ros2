@@ -93,7 +93,8 @@ MoveRobot::PendingPhase::PendingPhase(
   std::ostringstream oss;
   const auto dest = destination(
     _waypoints.back(), _context->planner()->get_configuration().graph());
-  oss << "Move to " << dest;
+  oss << "Move to " << dest << " <" << _waypoints.back().position().transpose()
+    << "> through " << _waypoints.size() << " points";
   _description = oss.str();
 }
 
@@ -141,7 +142,16 @@ MoveRobot::Action::Action(
   _plan_id{plan_id},
   _tail_period{tail_period}
 {
-  // no op
+  _first_graph_index = [&]() -> std::optional<std::size_t>
+    {
+      for (const auto& wp : _waypoints)
+      {
+        if (wp.graph_index().has_value())
+          return wp.graph_index();
+      }
+
+      return std::nullopt;
+    }();
 }
 
 } // namespace phases

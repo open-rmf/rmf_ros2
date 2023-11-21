@@ -50,8 +50,10 @@ public:
 
   void trigger() const
   {
+    std::cout << " !!! " << __LINE__ << " triggering" << std::endl;
     if (!_callback)
     {
+      std::cout << " !!! " << __LINE__ << " no callback given" << std::endl;
       return;
     }
 
@@ -60,9 +62,16 @@ public:
     std::shared_ptr<std::function<void()>> inner = *_callback;
     if (inner)
     {
+      std::cout << " !!! " << __LINE__ << " have inner" << std::endl;
       if (*inner)
       {
+        std::cout << " !!! " << __LINE__ << " triggering inner" << std::endl;
         (*inner)();
+        std::cout << " !!! " << __LINE__ << " done triggering inner" << std::endl;
+      }
+      else
+      {
+        std::cout << " !!! " << __LINE__ << " inner was empty" << std::endl;
       }
 
       *inner = nullptr;
