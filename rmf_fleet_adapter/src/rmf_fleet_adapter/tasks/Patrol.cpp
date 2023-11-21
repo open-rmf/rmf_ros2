@@ -50,6 +50,26 @@ void add_patrol(
     -> agv::DeserializedEvent
     {
       nlohmann::json place_msg;
+      const auto nearest_place = msg.find("nearest_of"); 
+      if (nearest_place != msg.end()) {
+        std::vector<rmf_traffic::agv::Plan::Goal> goals;
+        std::vector<std::string> errors;
+        for (auto &place_msg: nearest_place.value()) {
+          auto place = place_deser(place_msg);
+          if (!place.description.has_value())
+          {
+            return {nullptr, std::move(place.errors)};
+          }
+
+          goals.push_back(*place.description);
+          errors.insert(
+            errors.end(),
+            std::make_move_iterator(place.errors.begin()),
+            std::make_move_iterator(place.errors.end()));
+        }
+        auto desc = GoToPlace::Description::make_with_multiple(goals);
+        return {desc, errors};
+      }
       const auto place_it = msg.find("place");
       if (place_it == msg.end())
         place_msg = msg;

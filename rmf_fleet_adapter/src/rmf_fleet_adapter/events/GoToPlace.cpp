@@ -19,6 +19,7 @@
 #include "../project_itinerary.hpp"
 
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
+#include <rmf_traffic/agv/Planner.hpp>
 
 namespace rmf_fleet_adapter {
 namespace events {
@@ -67,7 +68,7 @@ auto GoToPlace::Standby::make(
   const auto context = state.get<agv::GetContext>()->value;
   const auto header = description.generate_header(state, *parameters);
 
-  auto standby = std::make_shared<Standby>(Standby{description.destination()});
+  auto standby = std::make_shared<Standby>(Standby{description.destinations()});
   standby->_followed_by = description.expected_next_destinations();
   standby->_assign_id = id;
   standby->_context = context;
@@ -86,7 +87,7 @@ auto GoToPlace::Standby::make(
 }
 
 //==============================================================================
-GoToPlace::Standby::Standby(rmf_traffic::agv::Plan::Goal goal)
+GoToPlace::Standby::Standby(std::vector<rmf_traffic::agv::Plan::Goal> goal)
 : _goal(std::move(goal))
 {
   // Do nothin
@@ -111,21 +112,100 @@ auto GoToPlace::Standby::begin(
 {
   if (!_active)
   {
-    RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "Beginning a new go_to_place [%lu] for robot [%s]",
-      _goal.waypoint(),
-      _context->requester_id().c_str());
+    if (_goal.size() == 1) {
+      RCLCPP_INFO(
+        _context->node()->get_logger(),
+        "Beginning a new go_to_place [%lu] for robot [%s]",
+        _goal[0].waypoint(),
+        _context->requester_id().c_str());
 
-    _active = Active::make(
-      _assign_id,
-      _context,
-      _goal,
-      _followed_by,
-      _tail_period,
-      _state,
-      _update,
-      std::move(finished));
+      _active = Active::make(
+        _assign_id,
+        _context,
+        _goal[0],
+        _followed_by,
+        _tail_period,
+        _state,
+        _update,
+        std::move(finished));
+    }
+    else {
+      // Pick nearest parking spot based on distance 
+      // and being on same floor.
+      auto current_location = _context->location();
+      auto graph = _context->navigation_graph();
+      if (current_location.size() ==0) {
+        //unable to get location
+        RCLCPP_ERROR(_context->node()->get_logger(),
+        "Robot [%s] can't get location",
+        _context->requester_id().c_str());
+      }
+      RCLCPP_INFO(
+        _context->node()->get_logger(),
+        "Selecting a new go_to_place location from [%lu] choices for robot [%s]",
+        _goal.size(),
+        _context->requester_id().c_str());
+      auto lowest_cost = std::numeric_limits<double>::infinity();
+      std::size_t selected_idx = 0;
+      for (std::size_t i = 0; i < _goal.size(); i++) {
+        auto wp_idx = _goal[i].waypoint();
+        auto wp = graph.get_waypoint(wp_idx);
+
+        // Check if same map. If not don't consider location. This is to ensure the
+        // robot does not try to board a lift.
+        if (wp.get_map_name() != _context->map()) {
+           RCLCPP_INFO(
+            _context->node()->get_logger(),
+            "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+            wp_idx,
+            wp.get_map_name().c_str(),
+            _context->map().c_str()
+           );
+          continue;
+        }
+
+        // Find distance to said point
+        auto result = _context->planner()->quickest_path(
+          current_location, wp_idx);
+
+        if (result.has_value()) {
+          RCLCPP_INFO(
+            _context->node()->get_logger(),
+            "Got distance from [%lu] as %f",
+            wp_idx,
+            result->cost()
+          );
+          if (result->cost() < lowest_cost) {
+            selected_idx = i;
+            lowest_cost = result->cost();
+          }
+        }
+        else {
+           RCLCPP_ERROR(
+            _context->node()->get_logger(),
+            "No path found for robot [%s] to waypoint [%lu]",
+            wp_idx,
+            _context->requester_id().c_str()
+           );
+        }
+      }
+
+      RCLCPP_INFO(
+        _context->node()->get_logger(),
+        "Beginning a new go_to_place [%lu] for robot [%s]",
+        _goal[selected_idx].waypoint(),
+        _context->requester_id().c_str());
+
+      _active = Active::make(
+        _assign_id,
+        _context,
+        _goal[selected_idx],
+        _followed_by,
+        _tail_period,
+        _state,
+        _update,
+        std::move(finished));
+    }
   }
 
   return _active;

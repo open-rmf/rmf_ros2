@@ -63,9 +63,9 @@ public:
 
   private:
 
-    Standby(rmf_traffic::agv::Plan::Goal goal);
+    Standby(std::vector<rmf_traffic::agv::Plan::Goal> goal);
 
-    rmf_traffic::agv::Plan::Goal _goal;
+    std::vector<rmf_traffic::agv::Plan::Goal> _goal;
     std::vector<rmf_traffic::agv::Plan::Goal> _followed_by;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
