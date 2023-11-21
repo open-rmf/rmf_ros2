@@ -18,6 +18,16 @@
         }
       },
       "required": ["place"]
+    },
+    {
+      "type": "object",
+      "properties" : {
+        "nearest_of" : {
+          "type": "array",
+          "description": "A list of places to choose from. Will try to go to the nearest one.",
+          "items": { "$ref": "place.json" }
+        }
+      }
     }
   ]
 }
