@@ -22,12 +22,30 @@
     {
       "type": "object",
       "properties" : {
-        "nearest_of" : {
+        "one_of" : {
           "type": "array",
           "description": "A list of places to choose from. Will try to go to the nearest one.",
           "items": { "$ref": "place.json" }
+        },
+        "constraints" : {
+          "type": "array",
+          "description": "list of constraints to use",
+          "items": {"$ref": "#/$defs/constraint"}
         }
       }
     }
-  ]
+  ],
+  "$defs": {
+    "constraint": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    }
+  }
 }
