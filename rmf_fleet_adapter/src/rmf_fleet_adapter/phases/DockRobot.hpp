@@ -151,14 +151,8 @@ void DockRobot::Action::operator()(const Subscriber& s)
               if (wp.graph_index().has_value())
               {
                 const auto& graph = context->navigation_graph();
-                if (graph.get_waypoint(*wp.graph_index()).in_mutex_group().empty())
-                {
-                  std::cout << "Releasing mutex group ["
-                    << context->locked_mutex_group() << "] for ["
-                    << context->requester_id() << "] after docking finished"
-                    << std::endl;
-                  context->release_mutex_group();
-                }
+                context->retain_mutex_groups(
+                  {graph.get_waypoint(*wp.graph_index()).in_mutex_group()});
               }
 
               s.on_next(status);

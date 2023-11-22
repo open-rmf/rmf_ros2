@@ -284,50 +284,41 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             }
           }
 
-          if (!context->locked_mutex_group().empty())
+          if (!context->locked_mutex_groups().empty())
           {
             const auto adjusted_now = now - new_cumulative_delay;
             const auto& graph = context->navigation_graph();
+            std::unordered_set<std::string> retain_mutexes;
+            std::stringstream ss;
+            ss << " ############################# ";
             for (const auto& wp : self->_waypoints)
             {
-              if (wp.time() > adjusted_now)
+              const auto s_100 = (int)(rmf_traffic::time::to_seconds(adjusted_now - wp.time()) * 100);
+              const auto s = (double)(s_100)/100.0;
+              if (wp.time() < adjusted_now)
               {
-                break;
+                ss << "[skip:" << s << "] ";
+                continue;
               }
 
+              ss << "[" << s << "] ";
               if (wp.graph_index().has_value())
               {
-                if (self->_first_graph_index.has_value())
-                {
-                  const auto nav = self->_context->nav_params();
-                  const auto i_wp = *wp.graph_index();
-                  const auto i_first = *self->_first_graph_index;
-                  bool ignore =
-                    (nav && nav->in_same_stack(i_wp, i_first))
-                    || i_wp == i_first;
+                ss << graph.get_waypoint(*wp.graph_index()).in_mutex_group() << " ";
+                retain_mutexes.insert(
+                  graph.get_waypoint(*wp.graph_index()).in_mutex_group());
+              }
 
-                  if (ignore)
-                  {
-                    // The first waypoint doesn't always have a mutex group
-                    // associated.
-                    continue;
-                  }
-                }
-
-                const auto& g = graph.get_waypoint(*wp.graph_index())
-                  .in_mutex_group();
-                if (g.empty())
-                {
-                  std::cout << __LINE__ << ": Releasing mutex at " << *wp.graph_index()
-                    << " <" << wp.position().transpose() << ">"
-                    << " | " << rmf_traffic::time::to_seconds(wp.time().time_since_epoch())
-                    << " vs " << rmf_traffic::time::to_seconds(adjusted_now.time_since_epoch())
-                    << std::endl;
-                  context->release_mutex_group();
-                  break;
-                }
+              for (const auto& l : wp.approach_lanes())
+              {
+                ss << l << ":" << graph.get_lane(l).properties().in_mutex_group()
+                  << " ";
+                retain_mutexes.insert(
+                  graph.get_lane(l).properties().in_mutex_group());
               }
             }
+            std::cout << ss.str() << std::endl;
+            context->retain_mutex_groups(retain_mutexes);
           }
         });
     };
@@ -354,16 +345,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           if (last_index.has_value())
           {
             const auto& graph = self->_context->navigation_graph();
-            if (graph.get_waypoint(*last_index).in_mutex_group().empty())
-            {
-              std::cout << __LINE__ << ": Releasing mutex at end of path" << std::endl;
-              self->_context->release_mutex_group();
-            }
-            else
-            {
-              std::cout << __LINE__ << ": Not releasing because last waypoint still has mutex: "
-                << graph.get_waypoint(*last_index).in_mutex_group() << std::endl;
-            }
+            self->_context->retain_mutex_groups(
+              {graph.get_waypoint(*last_index).in_mutex_group()});
           }
         }
         else

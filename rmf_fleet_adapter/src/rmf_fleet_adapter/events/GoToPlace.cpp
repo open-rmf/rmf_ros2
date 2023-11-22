@@ -395,6 +395,9 @@ void GoToPlace::Active::_find_plan()
   _state->update_log().info(
     "Generating plan to move from [" + start_name + "] to [" + goal_name + "]");
 
+  const auto& graph = _context->navigation_graph();
+  std::cout << _context->requester_id() << " locations " << agv::print_starts(_context->location(), graph) << std::endl;
+
   // TODO(MXG): Make the planning time limit configurable
   _find_path_service = std::make_shared<services::FindPath>(
     _context->planner(), _context->location(), _goal,
@@ -554,10 +557,8 @@ void GoToPlace::Active::_execute_plan(
       _goal.waypoint());
 
     const auto& graph = _context->navigation_graph();
-    if (graph.get_waypoint(_goal.waypoint()).in_mutex_group().empty())
-    {
-      _context->release_mutex_group();
-    }
+    _context->retain_mutex_groups(
+      {graph.get_waypoint(_goal.waypoint()).in_mutex_group()});
 
     _finished();
     return;

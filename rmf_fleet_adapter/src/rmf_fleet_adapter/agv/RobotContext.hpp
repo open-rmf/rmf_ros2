@@ -59,6 +59,7 @@ using SharedPlanner = std::shared_ptr<
   std::shared_ptr<const rmf_traffic::agv::Planner>>;
 using Destination = EasyFullControl::Destination;
 using VertexStack = std::shared_ptr<std::unordered_set<std::size_t>>;
+using TimeMsg = builtin_interfaces::msg::Time;
 
 //==============================================================================
 class EventPrinter : public rmf_traffic::agv::Graph::Lane::Executor
@@ -191,11 +192,11 @@ inline std::string print_starts(
 
     if (l.location().has_value())
     {
-      ss << " | exact location <" << l.location()->transpose() << ">";
+      ss << " | location <" << l.location()->transpose() << ">";
     }
     else
     {
-      ss << " | exactly on waypoint";
+      ss << " | on waypoint";
     }
 
     ss << " | orientation " << l.orientation() * 180.0 / M_PI;
@@ -333,7 +334,7 @@ struct LiftDestination
 struct MutexGroupData
 {
   std::string name;
-  builtin_interfaces::msg::Time claim_time;
+  TimeMsg claim_time;
 };
 
 //==============================================================================
@@ -619,15 +620,15 @@ public:
   void release_lift();
 
   /// What mutex group is currently being locked.
-  const std::string& locked_mutex_group() const;
+  const std::unordered_map<std::string, TimeMsg>& locked_mutex_groups() const;
 
   /// Set the mutex group that this robot needs to lock.
-  const rxcpp::observable<MutexGroupSwitch>& request_mutex_group(
-    std::string group,
+  const rxcpp::observable<std::string>& request_mutex_groups(
+    std::unordered_set<std::string> groups,
     rmf_traffic::Time claim_time);
 
-  /// If we are holding a mutex group, release it
-  void release_mutex_group();
+  /// Retain only the mutex groups listed in the set. Release all others.
+  void retain_mutex_groups(const std::unordered_set<std::string>& groups);
 
   /// Set the task manager for this robot. This should only be called in the
   /// TaskManager::make function.
@@ -681,7 +682,7 @@ public:
         if (!self)
           return;
 
-        self->_publish_mutex_group_request();
+        self->_publish_mutex_group_requests();
       });
 
     return context;
@@ -773,13 +774,15 @@ private:
   std::optional<std::chrono::steady_clock::time_point> _initial_time_idle_outside_lift;
 
   void _check_mutex_groups(const rmf_fleet_msgs::msg::MutexGroupStates& states);
-  MutexGroupSwitch _make_mutex_group_switch();
-  void _release_mutex_group(MutexGroupData& data);
-  void _publish_mutex_group_request();
-  MutexGroupData _requesting_mutex_group;
-  MutexGroupData _locked_mutex_group;
-  rxcpp::subjects::subject<MutexGroupSwitch> _mutex_group_switch;
-  rxcpp::observable<MutexGroupSwitch> _mutex_group_switch_obs;
+  void _retain_mutex_groups(
+    const std::unordered_set<std::string>& retain,
+    std::unordered_map<std::string, TimeMsg>& _groups);
+  void _release_mutex_group(const MutexGroupData& data) const;
+  void _publish_mutex_group_requests();
+  std::unordered_map<std::string, TimeMsg> _requesting_mutex_groups;
+  std::unordered_map<std::string, TimeMsg> _locked_mutex_groups;
+  rxcpp::subjects::subject<std::string> _mutex_group_lock_subject;
+  rxcpp::observable<std::string> _mutex_group_lock_obs;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
   std::chrono::steady_clock::time_point _last_active_task_time;

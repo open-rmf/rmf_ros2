@@ -369,51 +369,51 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
   _location = std::move(location_);
   filter_closed_lanes();
 
-  // const auto& graph = navigation_graph();
+  // std::stringstream ss;
+  // ss << requester_id() << " locations";
   // for (const auto& l : _location)
   // {
-  //   std::cout << " -- ";
+  //   ss << " | ";
   //   if (l.lane().has_value())
   //   {
-  //     std::cout << "lane[" << *l.lane() << "] ";
-  //     Printer printer;
+  //     ss << "lane[" << *l.lane() << "] ";
+  //     EventPrinter printer;
   //     const auto& lane = graph.get_lane(*l.lane());
   //     if (lane.entry().event())
   //     {
-  //       std::cout << " [entry ";
+  //       ss << " [entry ";
   //       lane.entry().event()->execute(printer);
-  //       std::cout << "] ";
+  //       ss << "] ";
   //     }
   //     const auto& i_wp0 = lane.entry().waypoint_index();
   //     const auto& wp0 = graph.get_waypoint(i_wp0);
   //     const auto& i_wp1 = lane.exit().waypoint_index();
   //     const auto& wp1 = graph.get_waypoint(i_wp1);
-  //     std::cout << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose() << "] ";
+  //     ss << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose() << "] ";
   //     if (const auto lift = wp0.in_lift())
-  //       std::cout << "{" << lift->name() << "} ";
-  //     std::cout << "-> " << i_wp1 << " [" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
+  //       ss << "{" << lift->name() << "} ";
+  //     ss << "-> " << i_wp1 << " [" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
   //     if (const auto lift = wp1.in_lift())
-  //       std::cout << "{" << lift->name() << "} ";
+  //       ss << "{" << lift->name() << "} ";
 
   //     if (lane.exit().event())
   //     {
-  //       std::cout << "[exit ";
+  //       ss << "[exit ";
   //       lane.exit().event()->execute(printer);
-  //       std::cout << "]";
+  //       ss << "]";
   //     }
-  //     std::cout << " | ";
+  //     ss << " | ";
   //   }
-  //   std::cout << l.waypoint();
+  //   ss << l.waypoint();
   //   const auto& wp = graph.get_waypoint(l.waypoint());
   //   if (const auto lift = wp.in_lift())
   //   {
-  //     std::cout << " {" << lift->name() << "}";
+  //     ss << " {" << lift->name() << "}";
   //   }
   //   if (l.location().has_value())
   //   {
-  //     std::cout << " | " << l.location()->transpose();
+  //     ss << " | " << l.location()->transpose();
   //   }
-  //   std::cout << std::endl;
   // }
 
   if (_location.empty())
@@ -1032,47 +1032,38 @@ void RobotContext::release_lift()
 }
 
 //==============================================================================
-const std::string& RobotContext::locked_mutex_group() const
+const std::unordered_map<std::string, TimeMsg>&
+RobotContext::locked_mutex_groups() const
 {
-  return _locked_mutex_group.name;
+  return _locked_mutex_groups;
 }
 
 //==============================================================================
-const rxcpp::observable<MutexGroupSwitch>& RobotContext::request_mutex_group(
-  std::string group,
+const rxcpp::observable<std::string>& RobotContext::request_mutex_groups(
+  std::unordered_set<std::string> groups,
   rmf_traffic::Time claim_time)
 {
-  if (group.empty())
+  const auto t = rmf_traffic_ros2::convert(claim_time);
+  for (const auto& group : groups)
   {
-    RCLCPP_ERROR(
-      node()->get_logger(),
-      "Releasing mutexes for [%s] after a request to lock an empty mutex",
-      requester_id().c_str());
-    release_mutex_group();
-    return _mutex_group_switch_obs;
+    const auto [it, inserted] = _requesting_mutex_groups.insert({group, t});
+    if (!inserted)
+    {
+      if (t.nanosec < it->second.nanosec)
+        it->second = t;
+    }
   }
 
-  if (group == _requesting_mutex_group.name)
-  {
-    return _mutex_group_switch_obs;
-  }
-
-  _requesting_mutex_group = MutexGroupData{
-    std::move(group),
-    rmf_traffic_ros2::convert(claim_time)
-  };
-
-  _publish_mutex_group_request();
-  return _mutex_group_switch_obs;
+  _publish_mutex_group_requests();
+  return _mutex_group_lock_obs;
 }
 
 //==============================================================================
-void RobotContext::release_mutex_group()
+void RobotContext::retain_mutex_groups(
+  const std::unordered_set<std::string>& retain)
 {
-  _release_mutex_group(_requesting_mutex_group);
-  std::cout << " === " << __LINE__ << " | releasing locked mutex [" << _locked_mutex_group.name
-    << "] for robot [" << requester_id() << "]" << std::endl;
-  _release_mutex_group(_locked_mutex_group);
+  _retain_mutex_groups(retain, _requesting_mutex_groups);
+  _retain_mutex_groups(retain, _locked_mutex_groups);
 }
 
 //==============================================================================
@@ -1118,7 +1109,7 @@ RobotContext::RobotContext(
   _graph_change_obs = _graph_change_publisher.get_observable();
   _charging_change_obs = _charging_change_publisher.get_observable();
   _battery_soc_obs = _battery_soc_publisher.get_observable();
-  _mutex_group_switch_obs = _mutex_group_switch.get_observable();
+  _mutex_group_lock_obs = _mutex_group_lock_subject.get_observable();
 
   _current_mode = rmf_fleet_msgs::msg::RobotMode::MODE_IDLE;
   _override_status = std::nullopt;
@@ -1254,36 +1245,21 @@ void RobotContext::_check_mutex_groups(
 {
   // Make sure to release any mutex groups that this robot is not trying to
   // lock right now.
-  std::cout << " ::: checking mutex groups for " << requester_id() << std::endl;
   for (const auto& assignment : states.assignments)
   {
-    std::cout << " ::: " << assignment.claimant << " != " << participant_id() << std::endl;
     if (assignment.claimant != participant_id())
       continue;
 
-    std::cout << " ::: " << __LINE__ << " | " << assignment.group << " == " << _requesting_mutex_group.name << std::endl;
-    if (assignment.group == _requesting_mutex_group.name)
+    if (_requesting_mutex_groups.count(assignment.group) > 0)
     {
-      std::cout << " ::: " << __LINE__ << " | " << _locked_mutex_group.name << " != " << assignment.group << std::endl;
-      if (_locked_mutex_group.name != assignment.group)
-      {
-        _node->mutex_group_request()->publish(
-          rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
-            .group(_locked_mutex_group.name)
-            .claimant(participant_id())
-            .claim_time(_locked_mutex_group.claim_time)
-            .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
-      }
-
-      std::cout << " ::: offering switch from [" << _locked_mutex_group.name
-        << "] to [" << _requesting_mutex_group.name << "] for [" << requester_id()
-        << "]" << std::endl;
-      _mutex_group_switch.get_subscriber().on_next(_make_mutex_group_switch());
+      _requesting_mutex_groups.erase(assignment.group);
+      _locked_mutex_groups[assignment.group] = assignment.claim_time;
+      _mutex_group_lock_subject.get_subscriber().on_next(assignment.group);
     }
-    else if (assignment.group != _locked_mutex_group.name)
+    else if (_locked_mutex_groups.count(assignment.group) == 0)
     {
-      // This assignment does not match either the requested nor the currently
-      // locked mutex group. This is an error so let's release it.
+      // This assignment does not match either the requested nor any currently
+      // locked mutex groups. This is an error so let's release it.
       _node->mutex_group_request()->publish(
         rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
         .group(assignment.group)
@@ -1294,34 +1270,28 @@ void RobotContext::_check_mutex_groups(
   }
 }
 
-//==============================================================================
-MutexGroupSwitch RobotContext::_make_mutex_group_switch()
+void RobotContext::_retain_mutex_groups(
+  const std::unordered_set<std::string>& retain,
+  std::unordered_map<std::string, TimeMsg>& groups)
 {
-  return MutexGroupSwitch{
-    _locked_mutex_group.name,
-    _requesting_mutex_group.name,
-    [w = weak_from_this(), request = _requesting_mutex_group]()
+  std::vector<MutexGroupData> release;
+  for (const auto& [name, time] : groups)
+  {
+    if (retain.count(name) == 0)
     {
-      const auto self = w.lock();
-      if (!self)
-        return false;
-
-      if (self->_requesting_mutex_group.name == request.name
-        && self->_requesting_mutex_group.claim_time == request.claim_time)
-      {
-        std::cout << " ::: " << __LINE__ << " | Setting locked mutex for "
-          << self->requester_id() << ": " << self->_locked_mutex_group.name << std::endl;
-        self->_locked_mutex_group = request;
-        return true;
-      }
-
-      return false;
+      release.push_back(MutexGroupData{name, time});
     }
-  };
+  }
+
+  for (const auto& data : release)
+  {
+    _release_mutex_group(data);
+    _locked_mutex_groups.erase(data.name);
+  }
 }
 
 //==============================================================================
-void RobotContext::_release_mutex_group(MutexGroupData& data)
+void RobotContext::_release_mutex_group(const MutexGroupData& data) const
 {
   if (data.name.empty())
   {
@@ -1334,11 +1304,10 @@ void RobotContext::_release_mutex_group(MutexGroupData& data)
     .claimant(participant_id())
     .claim_time(data.claim_time)
     .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_RELEASE));
-  data.name = "";
 }
 
 //==============================================================================
-void RobotContext::_publish_mutex_group_request()
+void RobotContext::_publish_mutex_group_requests()
 {
   const auto now = std::chrono::steady_clock::now();
   if (_current_task_id.has_value())
@@ -1351,8 +1320,8 @@ void RobotContext::_publish_mutex_group_request()
     {
       // The robot has been idle for 10 seconds. It should not be keeping a
       // mutex locked; a task probably ended wrongly.
-      if (!_requesting_mutex_group.name.empty()
-          || !_locked_mutex_group.name.empty())
+      if (!_requesting_mutex_groups.empty()
+          || !_locked_mutex_groups.empty())
       {
         auto warning = [&](const std::string& name)
           {
@@ -1364,17 +1333,19 @@ void RobotContext::_publish_mutex_group_request()
               requester_id().c_str());
           };
 
-        if (!_requesting_mutex_group.name.empty())
+        for (const auto& [name, time] : _requesting_mutex_groups)
         {
-          warning(_requesting_mutex_group.name);
+          warning(name);
+          _release_mutex_group(MutexGroupData{name, time});
         }
+        _requesting_mutex_groups.clear();
 
-        if (!_locked_mutex_group.name.empty())
+        for (const auto& [name, time] : _locked_mutex_groups)
         {
-          warning(_locked_mutex_group.name);
+          warning(name);
+          _release_mutex_group(MutexGroupData{name, time});
         }
-
-        release_mutex_group();
+        _locked_mutex_groups.clear();
       }
     }
   }
@@ -1389,14 +1360,14 @@ void RobotContext::_publish_mutex_group_request()
         .mode(rmf_fleet_msgs::msg::MutexGroupRequest::MODE_LOCK));
     };
 
-  if (!_requesting_mutex_group.name.empty())
+  for (const auto& [name, time] : _requesting_mutex_groups)
   {
-    publish(_requesting_mutex_group);
+    publish(MutexGroupData{name, time});
   }
 
-  if (!_locked_mutex_group.name.empty())
+  for (const auto& [name, time] : _locked_mutex_groups)
   {
-    publish(_locked_mutex_group);
+    publish(MutexGroupData{name, time});
   }
 }
 

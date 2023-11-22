@@ -113,10 +113,10 @@ public:
     const PlanIdPtr plan_id,
     std::optional<LockMutexGroup::Data>& current_mutex_group,
     std::function<LockMutexGroup::Data(
-      const std::string&,
-      const rmf_traffic::agv::Plan::Waypoint&)> make_current_mutex_group,
-    std::function<std::pair<bool, std::string>(
-      const rmf_traffic::agv::Plan::Waypoint&)> get_new_mutex_group,
+      const std::unordered_set<std::string>&,
+      const rmf_traffic::agv::Plan::Waypoint&)> make_current_mutex_groups,
+    std::function<std::pair<bool, std::unordered_set<std::string>>(
+      const rmf_traffic::agv::Plan::Waypoint&)> get_new_mutex_groups,
     bool& continuous)
   : initial_waypoint(initial_waypoint_),
     next_waypoint(std::move(next_waypoint_)),
@@ -125,8 +125,8 @@ public:
     _event_start_time(initial_waypoint_.time()),
     _plan_id(plan_id),
     _current_mutex_group(current_mutex_group),
-    _make_current_mutex_group(std::move(make_current_mutex_group)),
-    _get_new_mutex_group(std::move(get_new_mutex_group)),
+    _make_current_mutex_groups(std::move(make_current_mutex_groups)),
+    _get_new_mutex_group(std::move(get_new_mutex_groups)),
     _continuous(continuous)
   {
     // Do nothing
@@ -140,22 +140,14 @@ public:
     std::optional<LockMutexGroup::Data> event_mutex_group;
     if (next_waypoint.has_value() && next_waypoint->graph_index().has_value())
     {
-      const auto [mutex_group_change, new_mutex_group] =
+      const auto [mutex_group_change, new_mutex_groups] =
         _get_new_mutex_group(*next_waypoint);
 
       if (mutex_group_change)
       {
-        if (!new_mutex_group.empty())
-        {
-          event_mutex_group = _make_current_mutex_group(
-            new_mutex_group, initial_waypoint);
-          _current_mutex_group = event_mutex_group;
-        }
-        else
-        {
-          std::cout << " === " << __LINE__ << " releasing mutex group after docking" << std::endl;
-          _current_mutex_group = std::nullopt;
-        }
+        event_mutex_group = _make_current_mutex_groups(
+          new_mutex_groups, initial_waypoint);
+        _current_mutex_group = event_mutex_group;
       }
     }
 
@@ -282,9 +274,9 @@ private:
   PlanIdPtr _plan_id;
   std::optional<LockMutexGroup::Data>& _current_mutex_group;
   std::function<LockMutexGroup::Data(
-    const std::string&,
-    const rmf_traffic::agv::Plan::Waypoint&)> _make_current_mutex_group;
-  std::function<std::pair<bool, std::string>(
+    const std::unordered_set<std::string>&,
+    const rmf_traffic::agv::Plan::Waypoint&)> _make_current_mutex_groups;
+  std::function<std::pair<bool, std::unordered_set<std::string>>(
     const rmf_traffic::agv::Plan::Waypoint&)> _get_new_mutex_group;
   bool& _continuous;
   bool _moving_lift = false;
@@ -584,10 +576,10 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::cout << pss.str() << std::endl;
 
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
-  std::optional<LockMutexGroup::Data> current_mutex_group;
+  std::optional<LockMutexGroup::Data> current_mutex_groups;
 
-  const auto make_current_mutex_group = [&](
-    const std::string& new_mutex_group,
+  const auto make_current_mutex_groups = [&](
+    const std::unordered_set<std::string>& new_mutex_groups,
     const rmf_traffic::agv::Plan::Waypoint& wp)
   {
     const rmf_traffic::Time hold_time = wp.time();
@@ -615,47 +607,46 @@ std::optional<ExecutePlan> ExecutePlan::make(
       {
         RCLCPP_ERROR(
           context->node()->get_logger(),
-          "Cannot find a map for a mutex group [%s] transition needed "
+          "Cannot find a map for a mutex group transition needed "
           "by robot [%s]. There are [%lu] remaining waypoints. Please "
           "report this situation to the maintainers of RMF.",
-          new_mutex_group.c_str(),
           context->requester_id().c_str(),
           waypoints.size());
       }
     }
 
     std::size_t first_excluded_route = 0;
-    std::stringstream ss;
-    if (current_mutex_group.has_value())
-    {
-      ss << "truncating for switch from ["
-        << current_mutex_group->mutex_group
-        << "] to [" << new_mutex_group << "] for ["
-        << context->requester_id() << "]";
-    }
-    else
-    {
-      ss << "truncating to lock [" << new_mutex_group << "] for ["
-        << context->requester_id() << "]";
-    }
+    // std::stringstream ss;
+    // if (current_mutex_groups.has_value())
+    // {
+    //   ss << "truncating for switch from ["
+    //     << current_mutex_groups->all_groups_str()
+    //     << "] to [" << new_mutex_groups << "] for ["
+    //     << context->requester_id() << "]";
+    // }
+    // else
+    // {
+    //   ss << "truncating to lock [" << new_mutex_groups << "] for ["
+    //     << context->requester_id() << "]";
+    // }
     for (const auto& c : wp.arrival_checkpoints())
     {
       first_excluded_route = std::max(first_excluded_route, c.route_id+1);
       auto& r = previous_itinerary->at(c.route_id);
       auto& t = r.trajectory();
-      ss << "\n -- erasing from checkpoint " << c.checkpoint_id
-        << " <" << t.at(c.checkpoint_id).position().transpose() << ">";
+      // ss << "\n -- erasing from checkpoint " << c.checkpoint_id
+      //   << " <" << t.at(c.checkpoint_id).position().transpose() << ">";
 
-      ss << " t.size() before: " << t.size();
+      // ss << " t.size() before: " << t.size();
       t.erase(t.begin() + (int)c.checkpoint_id, t.end());
-      ss << " vs after: " << t.size();
+      // ss << " vs after: " << t.size();
 
-      if (t.size() > 0)
-      {
-        ss << " ending at <" << t.back().position().transpose() << ">";
-      }
+      // if (t.size() > 0)
+      // {
+      //   ss << " ending at <" << t.back().position().transpose() << ">";
+      // }
     }
-    std::cout << ss.str() << std::endl;
+    // std::cout << ss.str() << std::endl;
 
     for (std::size_t i=0; i < previous_itinerary->size(); ++i)
     {
@@ -680,7 +671,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     auto next_itinerary = std::make_shared<
       rmf_traffic::schedule::Itinerary>(full_itinerary);
     auto data = LockMutexGroup::Data{
-      new_mutex_group,
+      new_mutex_groups,
       hold_map,
       hold_position,
       hold_time,
@@ -693,41 +684,78 @@ std::optional<ExecutePlan> ExecutePlan::make(
     return data;
   };
 
-  const auto get_new_mutex_group = [&](
+  const auto get_new_mutex_groups = [&](
       const rmf_traffic::agv::Plan::Waypoint& wp)
     {
-      std::string new_mutex_group;
+      std::stringstream ss;
+      std::unordered_set<std::string> new_mutex_groups;
+      ss << "<" << wp.position().transpose() << "> ";
       if (wp.graph_index().has_value())
       {
+        ss << "i_wp: " << *wp.graph_index() << " ";
+        if (const auto* name = graph.get_waypoint(*wp.graph_index()).name())
+        {
+          ss << "name_wp: " << *name << " ";
+        }
+
         const auto& group =
           graph.get_waypoint(*wp.graph_index()).in_mutex_group();
         if (!group.empty())
         {
-          std::cout << " === " << __LINE__ << ": " << group << std::endl;
-          new_mutex_group = group;
+          ss << " [" << group << "]";
+          new_mutex_groups.insert(group);
         }
       }
 
+      ss << " lanes: ";
       for (const auto l : wp.approach_lanes())
       {
+        ss << l << " ";
         const auto& lane = graph.get_lane(l);
         const auto& group = lane.properties().in_mutex_group();
         if (!group.empty())
         {
-          std::cout << " === " << __LINE__ << ": " << group << std::endl;
-          new_mutex_group = group;
+          ss << "[" << group << "] ";
+          new_mutex_groups.insert(group);
           break;
         }
       }
 
-      const bool mutex_group_change =
-        (!new_mutex_group.empty() && !current_mutex_group.has_value())
-        || (
-          current_mutex_group.has_value()
-          && current_mutex_group->mutex_group != new_mutex_group
-        );
+      std::cout << " === " << __LINE__ << " " << all_str(new_mutex_groups)
+        << " | " << ss.str() << std::endl;
 
-      return std::make_pair(mutex_group_change, new_mutex_group);
+      bool mutex_group_change =
+        (!new_mutex_groups.empty() && !current_mutex_groups.has_value());
+
+      if (!mutex_group_change && current_mutex_groups.has_value())
+      {
+        for (const auto& new_group : new_mutex_groups)
+        {
+          if (current_mutex_groups->mutex_groups.count(new_group) == 0)
+          {
+            mutex_group_change = true;
+            break;
+          }
+        }
+      }
+
+      if (!mutex_group_change && current_mutex_groups.has_value())
+      {
+        // We don't need to lock any new mutex groups, but we may be releasing
+        // some. We should reduce the current group set to whatever is in the
+        // new group set so that if we need to add more groups later then we are
+        // ready to do so.
+        if (new_mutex_groups.empty())
+        {
+          current_mutex_groups = std::nullopt;
+        }
+        else
+        {
+          current_mutex_groups->mutex_groups = new_mutex_groups;
+        }
+      }
+
+      return std::make_pair(mutex_group_change, new_mutex_groups);
     };
 
   LegacyPhases legacy_phases;
@@ -737,70 +765,60 @@ std::optional<ExecutePlan> ExecutePlan::make(
     bool event_occurred = false;
     for (; it != waypoints.end(); ++it)
     {
-      const auto [mutex_group_change, new_mutex_group] = get_new_mutex_group(*it);
-      std::cout << new_mutex_group << " | " << current_mutex_group.has_value();
-      if (current_mutex_group.has_value())
-        std::cout << " | " << current_mutex_group->mutex_group;
-      std::cout << std::endl;
+      const auto [mutex_group_change, new_mutex_groups] = get_new_mutex_groups(*it);
+      // std::cout << new_mutex_groups << " | " << current_mutex_groups.has_value();
+      // if (current_mutex_groups.has_value())
+      //   std::cout << " | " << current_mutex_groups->all_groups_str();
+      // std::cout << std::endl;
 
       if (mutex_group_change)
       {
-        std::cout << " === " << __LINE__ << ": " << new_mutex_group << std::endl;
-        if (!new_mutex_group.empty())
+        if (move_through.size() > 1)
         {
-          if (move_through.size() > 1)
-          {
-            auto next_mutex_group = make_current_mutex_group(
-              new_mutex_group, move_through.back());
+          auto next_mutex_group = make_current_mutex_groups(
+            new_mutex_groups, move_through.back());
 
-            if (current_mutex_group.has_value())
-              std::cout << " === " << __LINE__ << ": " << current_mutex_group->mutex_group << std::endl;
-            else
-              std::cout << " === " << __LINE__ << ": <no mutex group>"  << std::endl;
-            legacy_phases.emplace_back(
-              std::make_shared<phases::MoveRobot::PendingPhase>(
-                context, move_through, plan_id, tail_period),
-              move_through.back().time(), move_through.back().dependencies(),
-              current_mutex_group);
+          // if (current_mutex_groups.has_value())
+          //   std::cout << " === " << __LINE__ << ": " << current_mutex_groups->mutex_group << std::endl;
+          // else
+          //   std::cout << " === " << __LINE__ << ": <no mutex group>"  << std::endl;
+          legacy_phases.emplace_back(
+            std::make_shared<phases::MoveRobot::PendingPhase>(
+              context, move_through, plan_id, tail_period),
+            move_through.back().time(), move_through.back().dependencies(),
+            current_mutex_groups);
 
-            auto last = move_through.back();
-            move_through.clear();
-            // Repeat the last waypoint so that follow_new_path has continuity.
-            move_through.push_back(last);
+          auto last = move_through.back();
+          move_through.clear();
+          // Repeat the last waypoint so that follow_new_path has continuity.
+          move_through.push_back(last);
 
-            waypoints.erase(waypoints.begin(), it);
+          waypoints.erase(waypoints.begin(), it);
 
-            current_mutex_group = next_mutex_group;
+          current_mutex_groups = next_mutex_group;
 
-            // We treat this the same as an event occurring to indicate that
-            // we should keep looping.
-            event_occurred = true;
-            break;
-          }
-          else
-          {
-            // We don't need to put in a break because nothing has been moved
-            // through yet. Just set the current_mutex_group from this point.
-            if (move_through.empty())
-            {
-              current_mutex_group = make_current_mutex_group(
-                new_mutex_group, *it);
-              std::cout << " === " << __LINE__ << ": " << current_mutex_group->mutex_group << std::endl;
-            }
-            else
-            {
-              assert(move_through.size() == 1);
-              current_mutex_group = make_current_mutex_group(
-                new_mutex_group, move_through.back());
-              std::cout << " === " << __LINE__ << ": " << current_mutex_group->mutex_group << std::endl;
-            }
-          }
+          // We treat this the same as an event occurring to indicate that
+          // we should keep looping.
+          event_occurred = true;
+          break;
         }
         else
         {
-          std::cout << " === " << __LINE__ << " releasing mutex group at waypoint "
-            << it->position().transpose() << ">" << std::endl;
-          current_mutex_group = std::nullopt;
+          // We don't need to put in a break because nothing has been moved
+          // through yet. Just set the current_mutex_groups from this point.
+          if (move_through.empty())
+          {
+            current_mutex_groups = make_current_mutex_groups(
+              new_mutex_groups, *it);
+            std::cout << " === " << __LINE__ << ": " << current_mutex_groups->all_groups_str() << std::endl;
+          }
+          else
+          {
+            assert(move_through.size() == 1);
+            current_mutex_groups = make_current_mutex_groups(
+              new_mutex_groups, move_through.back());
+            std::cout << " === " << __LINE__ << ": " << current_mutex_groups->all_groups_str() << std::endl;
+          }
         }
       }
 
@@ -813,7 +831,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
           legacy_phases.emplace_back(
             std::make_shared<phases::MoveRobot::PendingPhase>(
               context, move_through, plan_id, tail_period),
-            it->time(), it->dependencies(), current_mutex_group);
+            it->time(), it->dependencies(), current_mutex_groups);
         }
 
         std::optional<rmf_traffic::agv::Plan::Waypoint> next_waypoint;
@@ -827,7 +845,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
         bool continuous = true;
         EventPhaseFactory factory(
           context, legacy_phases, *it, next_waypoint, plan_id,
-          current_mutex_group, make_current_mutex_group, get_new_mutex_group,
+          current_mutex_groups, make_current_mutex_groups, get_new_mutex_groups,
           continuous);
         it->event()->execute(factory);
         while (factory.moving_lift())
@@ -874,12 +892,12 @@ std::optional<ExecutePlan> ExecutePlan::make(
           legacy_phases.emplace_back(
             std::make_shared<phases::MoveRobot::PendingPhase>(
               context, move_through, plan_id, tail_period),
-            it->time(), it->dependencies(), current_mutex_group);
+            it->time(), it->dependencies(), current_mutex_groups);
         }
         else
         {
           legacy_phases.emplace_back(
-            nullptr, it->time(), it->dependencies(), current_mutex_group);
+            nullptr, it->time(), it->dependencies(), current_mutex_groups);
         }
 
         // Have the next sequence of waypoints begin with this one.
@@ -904,7 +922,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
         std::make_shared<phases::MoveRobot::PendingPhase>(
           context, move_through, plan_id, tail_period),
         finish_time_estimate.value(), rmf_traffic::Dependencies{},
-        current_mutex_group);
+        current_mutex_groups);
     }
 
     if (!event_occurred)
@@ -943,7 +961,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     {
       if (head->mutex_group_dependency.has_value())
       {
-        ss << "\n -- Lock mutex group [" << head->mutex_group_dependency->mutex_group << "]";
+        ss << "\n -- Lock mutex group [" << head->mutex_group_dependency->all_groups_str() << "] " << head->mutex_group_dependency->hold_position.transpose();
         standbys.push_back(make_wait_for_mutex(
           context, event_id, head->mutex_group_dependency.value()));
       }

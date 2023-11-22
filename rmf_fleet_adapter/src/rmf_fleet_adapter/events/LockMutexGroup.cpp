@@ -21,6 +21,23 @@ namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
+std::string all_str(const std::unordered_set<std::string>& all)
+{
+  std::stringstream ss;
+  for (const auto& item : all)
+  {
+    ss << "[" << item << "]";
+  }
+  return ss.str();
+}
+
+//==============================================================================
+std::string LockMutexGroup::Data::all_groups_str() const
+{
+  return all_str(mutex_groups);
+}
+
+//==============================================================================
 auto LockMutexGroup::Standby::make(
   agv::RobotContextPtr context,
   const AssignIDPtr& id,
@@ -31,8 +48,8 @@ auto LockMutexGroup::Standby::make(
   standby->_context = std::move(context);
   standby->_state = rmf_task::events::SimpleEventState::make(
     id->assign(),
-    "Lock mutex group [" + data.mutex_group + "]",
-    "Waiting for the mutex group to be locked",
+    "Lock mutex groups " + data.all_groups_str(),
+    "Waiting for the mutex groups to be locked",
     rmf_task::Event::Status::Standby, {}, standby->_context->clock());
   standby->_data = std::move(data);
   return standby;
@@ -129,15 +146,17 @@ void LockMutexGroup::Active::_initialize()
   using MutexGroupStatesPtr =
     std::shared_ptr<rmf_fleet_msgs::msg::MutexGroupStates>;
 
-  std::cout << "Currently locked group for [" << _context->requester_id() << "]: "
-    << _context->locked_mutex_group()
-    << " vs " << _data.mutex_group << std::endl;
-  if (_context->locked_mutex_group() == _data.mutex_group)
+  _remaining = _data.mutex_groups;
+  for (const auto& [locked, _] : _context->locked_mutex_groups())
+  {
+    _remaining.erase(locked);
+  }
+
+  if (_remaining.empty())
   {
     RCLCPP_INFO(
       _context->node()->get_logger(),
-      "Mutex group [%s] was already locked for [%s]",
-      _data.mutex_group.c_str(),
+      "All mutex groups were already locked for [%s]",
       _context->requester_id().c_str());
 
     _schedule(*_data.resume_itinerary);
@@ -162,54 +181,15 @@ void LockMutexGroup::Active::_initialize()
   _schedule({rmf_traffic::Route(_data.hold_map, std::move(hold))});
 
   _state->update_log().info(
-    "Waiting to lock mutex group [" + _data.mutex_group + "]");
+    "Waiting to lock mutex group " + _data.all_groups_str());
   RCLCPP_INFO(
     _context->node()->get_logger(),
-    "Waiting to lock mutex group [%s] for robot [%s]",
-    _data.mutex_group.c_str(),
+    "Waiting to lock mutex groups %s for robot [%s]",
+    _data.all_groups_str().c_str(),
     _context->requester_id().c_str());
 
   const auto cumulative_delay = _context->now() - _data.hold_time;
   _context->itinerary().cumulative_delay(*_data.plan_id, cumulative_delay);
-
-  // _listener = _context->node()->mutex_group_states()
-  //   .observe_on(rxcpp::identity_same_worker(_context->worker()))
-  //   .subscribe(
-  //     [weak = weak_from_this()](
-  //       const MutexGroupStatesPtr& mutex_group_states)
-  //     {
-  //       const auto self = weak.lock();
-  //       if (!self)
-  //         return;
-
-  //       for (const auto& assignment : mutex_group_states->assignments)
-  //       {
-  //         if (assignment.group == self->_data.mutex_group)
-  //         {
-  //           if (assignment.claimant == self->_context->participant_id())
-  //           {
-  //             const auto finished = self->_finished;
-  //             self->_finished = nullptr;
-  //             if (finished)
-  //             {
-  //               std::cout << " === LOCKED MUTEX " << __LINE__ << std::endl;
-  //               self->_state->update_status(State::Status::Completed);
-  //               RCLCPP_INFO(
-  //                 self->_context->node()->get_logger(),
-  //                 "Requesting replan for robot [%s] after locking mutex group "
-  //                 "[%s]",
-  //                 self->_context->requester_id().c_str(),
-  //                 self->_data.mutex_group.c_str());
-
-  //               // Things may have changed while waiting for the mutex to be
-  //               // locked, so we should replan.
-  //               self->_context->request_replan();
-  //               return;
-  //             }
-  //           }
-  //         }
-  //       }
-  //     });
 
   _delay_timer = _context->node()->try_create_wall_timer(
     std::chrono::seconds(1),
@@ -225,48 +205,48 @@ void LockMutexGroup::Active::_initialize()
     });
 
   std::cout << " ===== SETTING MUTEX GROUP FOR " << _context->requester_id().c_str()
-    << " TO " << _data.mutex_group << std::endl;
-  _listener = _context->request_mutex_group(_data.mutex_group, _data.hold_time)
+    << " TO " << _data.all_groups_str() << " AT " << _data.hold_position.transpose() << std::endl;
+
+  _listener = _context->request_mutex_groups(
+    _data.mutex_groups, _data.hold_time)
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
-    .subscribe([w = weak_from_this()](const agv::MutexGroupSwitch& consider)
+    .subscribe([w = weak_from_this()](const std::string& locked)
       {
         const auto self = w.lock();
         if (!self)
           return;
 
-        if (consider.to == self->_data.mutex_group)
+        self->_remaining.erase(locked);
+        if (self->_remaining.empty())
         {
           const auto now = self->_context->now();
           if (now - self->_data.hold_time > std::chrono::seconds(2))
           {
             RCLCPP_INFO(
               self->_context->node()->get_logger(),
-              "Replanning for [%s] after a delay in locking mutex [%s]",
+              "Replanning for [%s] after a delay in locking mutexes %s",
               self->_context->requester_id().c_str(),
-              self->_data.mutex_group.c_str());
+              self->_data.all_groups_str().c_str());
             self->_context->request_replan();
             self->_finished = nullptr;
             return;
           }
 
           // We locked the mutex quickly enough that we should proceed.
-          if (consider.accept())
+          const auto finished = self->_finished;
+          self->_finished = nullptr;
+          if (finished)
           {
-            const auto finished = self->_finished;
-            self->_finished = nullptr;
-            if (finished)
-            {
-              RCLCPP_INFO(
-                self->_context->node()->get_logger(),
-                "Finished locking mutex [%s] for [%s]",
-                self->_data.mutex_group.c_str(),
-                self->_context->requester_id().c_str());
+            RCLCPP_INFO(
+              self->_context->node()->get_logger(),
+              "Finished locking mutexes %s for [%s]",
+              self->_data.all_groups_str().c_str(),
+              self->_context->requester_id().c_str());
 
-              self->_schedule(*self->_data.resume_itinerary);
-              self->_state->update_status(Status::Completed);
-              finished();
-              return;
-            }
+            self->_schedule(*self->_data.resume_itinerary);
+            self->_state->update_status(Status::Completed);
+            finished();
+            return;
           }
         }
       });
@@ -288,7 +268,7 @@ void LockMutexGroup::Active::_schedule(
       RCLCPP_ERROR(
         _context->node()->get_logger(),
         "Repeatedly failled attempts to update schedule during LockMutexGroup "
-        "action for robot [%s]. Last attempted value was [%s]. We will "
+        "action for robot [%s]. Last attempted value was [%lu]. We will "
         "continue without updating the traffic schedule. This could lead to "
         "traffic management problems. Please report this bug to the "
         "maintainers of RMF.",

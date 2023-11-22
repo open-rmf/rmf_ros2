@@ -124,7 +124,7 @@ auto WaitForTraffic::Active::make(
           return;
         }
 
-        if (msg->group == self->_context->locked_mutex_group())
+        if (self->_context->locked_mutex_groups().count(msg->group) > 0)
         {
           // If another participant is waiting to lock a mutex that we have
           // already locked, then we must delete any dependencies related to

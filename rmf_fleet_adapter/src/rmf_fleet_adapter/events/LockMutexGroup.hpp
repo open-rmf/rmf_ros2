@@ -27,17 +27,22 @@ namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
+std::string all_str(const std::unordered_set<std::string>& all);
+
+//==============================================================================
 class LockMutexGroup : public rmf_task_sequence::Event
 {
 public:
     struct Data
     {
-      std::string mutex_group;
+      std::unordered_set<std::string> mutex_groups;
       std::string hold_map;
       Eigen::Vector3d hold_position;
       rmf_traffic::Time hold_time;
       std::shared_ptr<rmf_traffic::PlanId> plan_id;
       std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary;
+
+      std::string all_groups_str() const;
     };
 
     class Standby : public rmf_task_sequence::Event::Standby
@@ -96,6 +101,7 @@ public:
       rclcpp::TimerBase::SharedPtr _delay_timer;
       std::shared_ptr<void> _stubborn;
       Data _data;
+      std::unordered_set<std::string> _remaining;
     };
 };
 
