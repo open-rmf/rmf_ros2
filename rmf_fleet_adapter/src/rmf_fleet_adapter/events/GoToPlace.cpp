@@ -268,6 +268,7 @@ rmf_traffic::Duration GoToPlace::Active::remaining_time_estimate() const
     const auto& itin = _context->itinerary();
     if (_execution->plan_id)
     {
+      std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
       if (const auto delay = itin.cumulative_delay(*_execution->plan_id))
         return finish - now + *delay;
     }

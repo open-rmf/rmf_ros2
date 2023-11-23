@@ -98,10 +98,11 @@ inline std::string print_waypoint(
 //==============================================================================
 inline std::string print_plan_waypoint(
   const rmf_traffic::agv::Plan::Waypoint& wp,
-  const rmf_traffic::agv::Graph& graph)
+  const rmf_traffic::agv::Graph& graph,
+  const rmf_traffic::Time t0 = rmf_traffic::Time(rmf_traffic::Duration(0)))
 {
   std::stringstream ss;
-  ss << "t=" << rmf_traffic::time::to_seconds(wp.time().time_since_epoch());
+  ss << "t=" << rmf_traffic::time::to_seconds(wp.time() - t0);
   if (wp.graph_index().has_value())
     ss << " #" << *wp.graph_index();
   ss << " <" << wp.position().transpose()

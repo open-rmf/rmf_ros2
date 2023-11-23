@@ -571,7 +571,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
   pss << "Plan waypoints";
   for (const auto& wp : waypoints)
   {
-    pss << "\n -- " << agv::print_plan_waypoint(wp, graph);
+    pss << "\n -- " << agv::print_plan_waypoint(wp, graph, waypoints.front().time());
   }
   std::cout << pss.str() << std::endl;
 

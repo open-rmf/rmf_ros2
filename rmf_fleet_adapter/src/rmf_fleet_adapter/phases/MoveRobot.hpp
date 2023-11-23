@@ -195,8 +195,10 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             ](
               const auto&)
             {
+              std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
               if (const auto c = context->itinerary().cumulative_delay(plan_id))
               {
+                std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
                 context->itinerary().cumulative_delay(plan_id, *c + bump);
               }
             });
@@ -262,6 +264,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             << std::endl;
           const auto context = self->_context;
           const auto plan_id = self->_plan_id;
+          std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
           context->itinerary().cumulative_delay(
             plan_id, new_cumulative_delay, 100ms);
 
@@ -348,6 +351,11 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             self->_context->retain_mutex_groups(
               {graph.get_waypoint(*last_index).in_mutex_group()});
           }
+
+          const auto now = self->_context->now();
+          const auto cumulative_delay = now - self->_waypoints.back().time();
+          self->_context->itinerary().cumulative_delay(
+            self->_plan_id, cumulative_delay, std::chrono::seconds(1));
         }
         else
         {

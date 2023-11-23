@@ -319,9 +319,11 @@ void WaitForTraffic::Active::_consider_going()
     return _replan();
   }
 
+  std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
   const auto current_delay = _context->itinerary().cumulative_delay(_plan_id);
   if (current_delay.has_value() && *current_delay < cumulative_delay)
   {
+    std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
     _context->itinerary().cumulative_delay(_plan_id, cumulative_delay, 500ms);
   }
 }

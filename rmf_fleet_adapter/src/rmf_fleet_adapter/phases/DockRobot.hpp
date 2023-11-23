@@ -155,6 +155,10 @@ void DockRobot::Action::operator()(const Subscriber& s)
                   {graph.get_waypoint(*wp.graph_index()).in_mutex_group()});
               }
 
+              const auto now = context->now();
+              const auto cumulative_delay = now - wp.time();
+              context->itinerary().cumulative_delay(
+                plan_id, cumulative_delay, std::chrono::seconds(1));
               s.on_next(status);
               s.on_completed();
             });

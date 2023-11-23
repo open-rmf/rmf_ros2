@@ -1085,6 +1085,7 @@ void ScheduleOverride::overridden_update(
       t_expected += rmf_traffic::time::from_seconds(s*dt);
     }
     const auto delay = now - t_expected;
+    std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
     context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
   }
   else
@@ -1107,6 +1108,7 @@ void ScheduleOverride::overridden_update(
     if (closest_time.has_value())
     {
       const auto delay = now - closest_time->first;
+      std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
       context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
     }
 
@@ -1140,11 +1142,13 @@ void ScheduleOverride::overridden_update(
         // WARNING: We will have to change this implementation if it is ever
         // possible for the ScheduleOverride class to contain multiple routes in
         // its itinerary.
+        std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
         const auto cumulative_delay = context->itinerary()
           .cumulative_delay(plan_id).value_or(rmf_traffic::Duration(0));
 
         plan_id = context->itinerary().assign_plan_id();
         context->itinerary().set(plan_id, {route});
+        std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
         context->itinerary().cumulative_delay(
           plan_id, cumulative_delay, delay_thresh);
       }

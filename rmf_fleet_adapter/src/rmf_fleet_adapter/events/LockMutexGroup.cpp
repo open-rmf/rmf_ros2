@@ -16,6 +16,7 @@
 */
 
 #include "LockMutexGroup.hpp"
+#include <iostream>
 
 namespace rmf_fleet_adapter {
 namespace events {
@@ -189,6 +190,7 @@ void LockMutexGroup::Active::_initialize()
     _context->requester_id().c_str());
 
   const auto cumulative_delay = _context->now() - _data.hold_time;
+  std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
   _context->itinerary().cumulative_delay(*_data.plan_id, cumulative_delay);
 
   _delay_timer = _context->node()->try_create_wall_timer(
@@ -201,6 +203,7 @@ void LockMutexGroup::Active::_initialize()
 
       const auto cumulative_delay =
         self->_context->now() - self->_data.hold_time;
+      std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
       self->_context->itinerary().cumulative_delay(plan_id, cumulative_delay);
     });
 
@@ -220,12 +223,14 @@ void LockMutexGroup::Active::_initialize()
         if (self->_remaining.empty())
         {
           const auto now = self->_context->now();
-          if (now - self->_data.hold_time > std::chrono::seconds(2))
+          const auto delay = now - self->_data.hold_time;
+          if (delay > std::chrono::seconds(2))
           {
             RCLCPP_INFO(
               self->_context->node()->get_logger(),
-              "Replanning for [%s] after a delay in locking mutexes %s",
+              "Replanning for [%s] after a delay of %0.2fs in locking mutexes %s",
               self->_context->requester_id().c_str(),
+              rmf_traffic::time::to_seconds(delay),
               self->_data.all_groups_str().c_str());
             self->_context->request_replan();
             self->_finished = nullptr;
