@@ -19,9 +19,9 @@
 #define SRC__RMF_FLEET_ADAPTER__EVENTS__LOCKMUTEXGROUP_HPP
 
 #include "../agv/RobotContext.hpp"
+#include "../services/FindPath.hpp"
 
 #include <rmf_task/events/SimpleEventState.hpp>
-
 
 namespace rmf_fleet_adapter {
 namespace events {
@@ -41,6 +41,8 @@ public:
       rmf_traffic::Time hold_time;
       std::shared_ptr<rmf_traffic::PlanId> plan_id;
       std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary;
+      std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints;
+      rmf_traffic::agv::Plan::Goal goal;
 
       std::string all_groups_str() const;
     };
@@ -62,7 +64,7 @@ public:
         std::function<void()> finished) final;
 
     private:
-      Standby() = default;
+      Standby(Data data);
       agv::RobotContextPtr _context;
       rmf_task::events::SimpleEventStatePtr _state;
       Data _data;
@@ -92,8 +94,11 @@ public:
       void kill() final;
 
     private:
+      Active(Data data);
       void _initialize();
       void _schedule(rmf_traffic::schedule::Itinerary itinerary) const;
+      void _apply_cumulative_delay();
+      bool _consider_plan_result(services::FindPath::Result result);
       agv::RobotContextPtr _context;
       rmf_task::events::SimpleEventStatePtr _state;
       std::function<void()> _finished;
@@ -102,6 +107,9 @@ public:
       std::shared_ptr<void> _stubborn;
       Data _data;
       std::unordered_set<std::string> _remaining;
+      rmf_rxcpp::subscription_guard _plan_subscription;
+      std::shared_ptr<services::FindPath> _find_path_service;
+      rclcpp::TimerBase::SharedPtr _find_path_timeout;
     };
 };
 

@@ -520,6 +520,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
   rmf_traffic::PlanId recommended_plan_id,
   rmf_traffic::agv::Plan plan,
+  rmf_traffic::agv::Plan::Goal goal,
   rmf_traffic::schedule::Itinerary full_itinerary,
   const rmf_task::Event::AssignIDPtr& event_id,
   rmf_task::events::SimpleEventStatePtr state,
@@ -664,6 +665,9 @@ std::optional<ExecutePlan> ExecutePlan::make(
       }
     }
 
+    auto expected_waypoints = waypoints;
+    expected_waypoints.insert(expected_waypoints.begin(), wp);
+
     previous_itinerary->erase(
       previous_itinerary->begin()+first_excluded_route,
       previous_itinerary->end());
@@ -676,7 +680,9 @@ std::optional<ExecutePlan> ExecutePlan::make(
       hold_position,
       hold_time,
       plan_id,
-      next_itinerary
+      next_itinerary,
+      expected_waypoints,
+      goal
     };
 
     previous_itinerary = data.resume_itinerary;

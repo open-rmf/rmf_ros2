@@ -34,6 +34,7 @@ struct ExecutePlan
     agv::RobotContextPtr context,
     rmf_traffic::PlanId plan_id,
     rmf_traffic::agv::Plan plan,
+    rmf_traffic::agv::Plan::Goal goal,
     rmf_traffic::schedule::Itinerary full_itinerary,
     const rmf_task_sequence::Event::AssignIDPtr& event_id,
     rmf_task::events::SimpleEventStatePtr state,

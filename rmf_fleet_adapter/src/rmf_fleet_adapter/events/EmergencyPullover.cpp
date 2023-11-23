@@ -336,9 +336,38 @@ void EmergencyPullover::Active::_execute_plan(
   if (_is_interrupted)
     return;
 
+  if (plan.get_itinerary().empty() || plan.get_waypoints().empty())
+  {
+    _state->update_status(Status::Completed);
+    _state->update_log().info(
+      "The planner indicates that the robot is already in a pullover spot.");
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Robot [%s] is already in a pullover spot",
+      _context->requester_id().c_str());
+
+    _finished();
+    return;
+  }
+
+  if (!plan.get_waypoints().back().graph_index().has_value())
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Robot [%s] has no graph index for its final waypoint. This is a serious "
+      "bug and should be reported to the RMF maintainers.",
+      _context->requester_id().c_str());
+    _schedule_retry();
+    return;
+  }
+
+  auto goal = rmf_traffic::agv::Plan::Goal(
+    plan.get_waypoints().back().graph_index().value());
+
   _execution = ExecutePlan::make(
-    _context, plan_id, std::move(plan), std::move(full_itinerary), _assign_id,
-    _state, _update, _finished, std::nullopt);
+    _context, plan_id, std::move(plan), std::move(goal),
+    std::move(full_itinerary), _assign_id, _state, _update,
+    _finished, std::nullopt);
 
   if (!_execution.has_value())
   {

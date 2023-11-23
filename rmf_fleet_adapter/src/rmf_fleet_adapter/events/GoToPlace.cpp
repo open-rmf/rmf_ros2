@@ -597,7 +597,7 @@ void GoToPlace::Active::_execute_plan(
   }
 
   _execution = ExecutePlan::make(
-    _context, plan_id, std::move(plan), std::move(full_itinerary),
+    _context, plan_id, std::move(plan), _goal, std::move(full_itinerary),
     _assign_id, _state, _update, _finished, _tail_period);
 
   if (!_execution.has_value())

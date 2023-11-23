@@ -45,14 +45,13 @@ auto LockMutexGroup::Standby::make(
   Data data)
 -> std::shared_ptr<Standby>
 {
-  auto standby = std::shared_ptr<Standby>(new Standby);
+  auto standby = std::shared_ptr<Standby>(new Standby(std::move(data)));
   standby->_context = std::move(context);
   standby->_state = rmf_task::events::SimpleEventState::make(
     id->assign(),
     "Lock mutex groups " + data.all_groups_str(),
     "Waiting for the mutex groups to be locked",
     rmf_task::Event::Status::Standby, {}, standby->_context->clock());
-  standby->_data = std::move(data);
   return standby;
 }
 
@@ -77,17 +76,23 @@ auto LockMutexGroup::Standby::begin(
 }
 
 //==============================================================================
+LockMutexGroup::Standby::Standby(Data data)
+: _data(data)
+{
+  // Do nothing
+}
+
+//==============================================================================
 auto LockMutexGroup::Active::make(
   agv::RobotContextPtr context,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> finished,
   Data data) -> std::shared_ptr<Active>
 {
-  auto active = std::shared_ptr<Active>(new Active);
+  auto active = std::shared_ptr<Active>(new Active(std::move(data)));
   active->_context = std::move(context);
   active->_state = std::move(state);
   active->_finished = std::move(finished);
-  active->_data = std::move(data);
   active->_initialize();
 
   return active;
@@ -138,6 +143,13 @@ void LockMutexGroup::Active::cancel()
 void LockMutexGroup::Active::kill()
 {
   cancel();
+}
+
+//==============================================================================
+LockMutexGroup::Active::Active(Data data)
+: _data(std::move(data))
+{
+  // Do nothing
 }
 
 //==============================================================================
@@ -201,10 +213,7 @@ void LockMutexGroup::Active::_initialize()
       if (!self)
         return;
 
-      const auto cumulative_delay =
-        self->_context->now() - self->_data.hold_time;
-      std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
-      self->_context->itinerary().cumulative_delay(plan_id, cumulative_delay);
+      self->_apply_cumulative_delay();
     });
 
   std::cout << " ===== SETTING MUTEX GROUP FOR " << _context->requester_id().c_str()
@@ -222,37 +231,106 @@ void LockMutexGroup::Active::_initialize()
         self->_remaining.erase(locked);
         if (self->_remaining.empty())
         {
+          const auto finished = self->_finished;
+          self->_finished = nullptr;
+          if (!finished)
+            return;
+
           const auto now = self->_context->now();
           const auto delay = now - self->_data.hold_time;
           if (delay > std::chrono::seconds(2))
           {
-            RCLCPP_INFO(
-              self->_context->node()->get_logger(),
-              "Replanning for [%s] after a delay of %0.2fs in locking mutexes %s",
-              self->_context->requester_id().c_str(),
-              rmf_traffic::time::to_seconds(delay),
-              self->_data.all_groups_str().c_str());
-            self->_context->request_replan();
-            self->_finished = nullptr;
-            return;
+            const auto start = [&]()
+              -> std::optional<rmf_traffic::agv::Plan::Start>
+              {
+                for (const auto& wp : self->_data.waypoints)
+                {
+                  if (wp.graph_index().has_value())
+                  {
+                    return rmf_traffic::agv::Plan::Start(
+                      self->_context->now(),
+                      *wp.graph_index(),
+                      wp.position()[2]);
+                  }
+                }
+                return std::nullopt;
+              }();
+
+            if (start.has_value())
+            {
+              self->_find_path_service = std::make_shared<services::FindPath>(
+                self->_context->planner(),
+                std::vector<rmf_traffic::agv::Plan::Start>({*start}),
+                self->_data.goal,
+                self->_context->schedule()->snapshot(),
+                self->_context->itinerary().id(),
+                self->_context->profile(),
+                std::chrono::seconds(5));
+
+              self->_plan_subscription =
+                rmf_rxcpp::make_job<services::FindPath::Result>(
+                  self->_find_path_service)
+                .observe_on(
+                  rxcpp::identity_same_worker(self->_context->worker()))
+                .subscribe(
+                  [w = self->weak_from_this(), finished](
+                    const services::FindPath::Result& result)
+                  {
+                    const auto self = w.lock();
+                    if (!self)
+                      return;
+
+                    if (self->_consider_plan_result(result))
+                    {
+                      // We have a matching plan so proceed
+                      RCLCPP_INFO(
+                        self->_context->node()->get_logger(),
+                        "Finished locking mutexes %s for [%s] and plan is "
+                        "unchanged after waiting",
+                        self->_data.all_groups_str().c_str(),
+                        self->_context->requester_id().c_str());
+
+                      self->_schedule(*self->_data.resume_itinerary);
+                      self->_apply_cumulative_delay();
+                      self->_state->update_status(Status::Completed);
+                      finished();
+                      return;
+                    }
+
+                    // The new plan was not a match, so we should trigger a
+                    // proper replan.
+                    self->_state->update_status(Status::Completed);
+                    self->_context->request_replan();
+                  });
+
+              self->_find_path_timeout =
+                self->_context->node()->try_create_wall_timer(
+                  std::chrono::seconds(10),
+                  [
+                    weak_service = self->_find_path_service->weak_from_this()
+                  ]()
+                  {
+                    if (const auto service = weak_service.lock())
+                    {
+                      service->interrupt();
+                    }
+                  });
+              return;
+            }
           }
 
           // We locked the mutex quickly enough that we should proceed.
-          const auto finished = self->_finished;
-          self->_finished = nullptr;
-          if (finished)
-          {
-            RCLCPP_INFO(
-              self->_context->node()->get_logger(),
-              "Finished locking mutexes %s for [%s]",
-              self->_data.all_groups_str().c_str(),
-              self->_context->requester_id().c_str());
+          RCLCPP_INFO(
+            self->_context->node()->get_logger(),
+            "Finished locking mutexes %s for [%s]",
+            self->_data.all_groups_str().c_str(),
+            self->_context->requester_id().c_str());
 
-            self->_schedule(*self->_data.resume_itinerary);
-            self->_state->update_status(Status::Completed);
-            finished();
-            return;
-          }
+          self->_schedule(*self->_data.resume_itinerary);
+          self->_apply_cumulative_delay();
+          self->_state->update_status(Status::Completed);
+          finished();
+          return;
         }
       });
 }
@@ -300,6 +378,65 @@ void LockMutexGroup::Active::_schedule(
       }
     }
   }
+}
+
+//==============================================================================
+void LockMutexGroup::Active::_apply_cumulative_delay()
+{
+  const auto cumulative_delay = _context->now() - _data.hold_time;
+  _context->itinerary().cumulative_delay(*_data.plan_id, cumulative_delay);
+}
+
+//==============================================================================
+namespace {
+std::vector<std::size_t> filter_graph_indices(
+  const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints)
+{
+  std::vector<std::size_t> output;
+  output.reserve(waypoints.size());
+  for (const auto& wp : waypoints)
+  {
+    if (wp.graph_index().has_value())
+    {
+      if (*wp.graph_index() != output.back())
+      {
+        output.push_back(*wp.graph_index());
+      }
+    }
+  }
+  return output;
+}
+} // anonymous namespace
+
+//==============================================================================
+bool LockMutexGroup::Active::_consider_plan_result(
+  services::FindPath::Result result)
+{
+  if (!result.success())
+  {
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      "Replanning for [%s] after locking mutexes %s because the path to the "
+      "goal has become blocked.",
+      _context->requester_id().c_str(),
+      _data.all_groups_str().c_str());
+    return false;
+  }
+
+  const auto original_sequence = filter_graph_indices(_data.waypoints);
+  const auto new_sequence = filter_graph_indices(result->get_waypoints());
+  if (original_sequence != new_sequence)
+  {
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Replanning for [%s] after locking mutexes %s because the external "
+      "traffic has substantially changed.",
+      _context->requester_id().c_str(),
+      _data.all_groups_str().c_str());
+    return false;
+  }
+
+  return true;
 }
 
 } // namespace events
