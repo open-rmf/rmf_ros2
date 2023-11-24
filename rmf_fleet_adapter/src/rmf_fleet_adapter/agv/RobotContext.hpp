@@ -620,6 +620,9 @@ public:
   /// Indicate that the lift is no longer needed
   void release_lift();
 
+  /// Check if a door is being held
+  const std::optional<std::string>& holding_door() const;
+
   /// What mutex group is currently being locked.
   const std::unordered_map<std::string, TimeMsg>& locked_mutex_groups() const;
 
@@ -647,6 +650,12 @@ public:
   /// charger change notification.
   void _set_charging(std::size_t wp, bool waiting_for_charger);
 
+  /// Request a door to stay open. This should only be used by DoorOpen.
+  void _hold_door(std::string door_name);
+
+  /// Release a door. This should only be used by DoorClose
+  void _release_door(const std::string& door_name);
+
   template<typename... Args>
   static std::shared_ptr<RobotContext> make(Args&&... args)
   {
@@ -662,6 +671,17 @@ public:
           return;
 
         self->_check_lift_state(*msg);
+      });
+
+    context->_door_subscription = context->_node->door_supervisor()
+      .observe_on(rxcpp::identity_same_worker(context->_worker))
+      .subscribe([w = context->weak_from_this()](const auto& msg)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        self->_check_door_supervisor(*msg);
       });
 
     context->_mutex_group_sanity_check = context->_node->mutex_group_states()
@@ -773,6 +793,11 @@ private:
   std::shared_ptr<LiftDestination> _lift_destination;
   rmf_rxcpp::subscription_guard _lift_subscription;
   std::optional<std::chrono::steady_clock::time_point> _initial_time_idle_outside_lift;
+
+  void _check_door_supervisor(
+    const rmf_door_msgs::msg::SupervisorHeartbeat& hb);
+  std::optional<std::string> _holding_door;
+  rmf_rxcpp::subscription_guard _door_subscription;
 
   void _check_mutex_groups(const rmf_fleet_msgs::msg::MutexGroupStates& states);
   void _retain_mutex_groups(

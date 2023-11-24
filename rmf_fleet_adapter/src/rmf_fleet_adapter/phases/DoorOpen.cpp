@@ -54,7 +54,13 @@ DoorOpen::ActivePhase::ActivePhase(
   _request_id(std::move(request_id)),
   _expected_finish(std::move(expected_finish))
 {
+  _context->_hold_door(_door_name);
   _description = "Opening [door:" + _door_name + "]";
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Opening door [%s] for [%s]",
+    _door_name.c_str(),
+    _context->requester_id().c_str());
 }
 
 //==============================================================================

@@ -458,11 +458,6 @@ rmf_traffic::agv::Graph parse_graph(
     }
   }
 
-  for (const auto& [_, lift] : lifts)
-  {
-    graph.known_lifts().insert(lift);
-  }
-
   return graph;
 }
 

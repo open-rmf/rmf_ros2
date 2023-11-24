@@ -29,6 +29,12 @@ std::shared_ptr<DoorClose::ActivePhase> DoorClose::ActivePhase::make(
   std::string door_name,
   std::string request_id)
 {
+  RCLCPP_INFO(
+    context->node()->get_logger(),
+    "Releasing door [%s] for [%s]",
+    door_name.c_str(),
+    context->requester_id().c_str());
+  context->_release_door(door_name);
   auto inst = std::shared_ptr<ActivePhase>(new ActivePhase(
         std::move(context),
         std::move(door_name),

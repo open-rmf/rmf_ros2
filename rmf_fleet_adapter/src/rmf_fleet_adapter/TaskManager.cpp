@@ -100,6 +100,7 @@ TaskManagerPtr TaskManager::make(
           auto task_id = "emergency_pullover." + self->_context->name() + "."
           + self->_context->group() + "-"
           + std::to_string(self->_count_emergency_pullover++);
+          self->_context->current_task_id(task_id);
 
           // TODO(MXG): Consider subscribing to the emergency pullover update
           self->_emergency_pullover = ActiveTask::start(

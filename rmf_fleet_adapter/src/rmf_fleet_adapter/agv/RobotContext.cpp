@@ -22,6 +22,7 @@
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
+#include <rmf_door_msgs/msg/door_mode.hpp>
 
 #include <rmf_utils/math.hpp>
 
@@ -1029,6 +1030,13 @@ std::shared_ptr<void> RobotContext::set_lift_destination(
 void RobotContext::release_lift()
 {
   _lift_destination = nullptr;
+  _initial_time_idle_outside_lift = std::nullopt;
+}
+
+//==============================================================================
+const std::optional<std::string>& RobotContext::holding_door() const
+{
+  return _holding_door;
 }
 
 //==============================================================================
@@ -1148,6 +1156,19 @@ void RobotContext::_set_charging(std::size_t wp, bool waiting_for_charger)
 }
 
 //==============================================================================
+void RobotContext::_hold_door(std::string door_name)
+{
+  _holding_door = std::move(door_name);
+}
+
+//==============================================================================
+void RobotContext::_release_door(const std::string& door_name)
+{
+  if (_holding_door.has_value() && *_holding_door == door_name)
+    _holding_door = std::nullopt;
+}
+
+//==============================================================================
 void RobotContext::_check_lift_state(
   const rmf_lift_msgs::msg::LiftState& state)
 {
@@ -1159,8 +1180,7 @@ void RobotContext::_check_lift_state(
       // destination request is on the outside means the task that prompted the
       // lift usage was cancelled while the robot was outside of the lift.
       // Therefore we should release the usage of the lift.
-      _lift_destination = nullptr;
-      _initial_time_idle_outside_lift = std::nullopt;
+      release_lift();
     }
     else if (_lift_destination && !_current_task_id.has_value())
     {
@@ -1194,8 +1214,7 @@ void RobotContext::_check_lift_state(
               _lift_destination->lift_name.c_str(),
               requester_id().c_str());
           }
-          _lift_destination = nullptr;
-          _initial_time_idle_outside_lift = std::nullopt;
+          release_lift();
         }
         else
         {
@@ -1231,6 +1250,41 @@ void RobotContext::_check_lift_state(
   msg.door_state = rmf_lift_msgs::msg::LiftRequest::DOOR_OPEN;
 
   _node->lift_request()->publish(msg);
+}
+
+//==============================================================================
+void RobotContext::_check_door_supervisor(
+  const rmf_door_msgs::msg::SupervisorHeartbeat& state)
+{
+  const auto now = std::chrono::steady_clock::now();
+  const auto dt = std::chrono::seconds(10);
+  if (_last_active_task_time + dt < now)
+  {
+    // Do not hold a door if a robot is idle for more than 10 seconds
+    _holding_door = std::nullopt;
+  }
+
+  for (const auto& door : state.all_sessions)
+  {
+    for (const auto& session : door.sessions)
+    {
+      if (session.requester_id == _requester_id)
+      {
+        if (!_holding_door.has_value() || *_holding_door != door.door_name)
+        {
+          // We should not be holding this door open
+          _node->door_request()->publish(
+            rmf_door_msgs::build<rmf_door_msgs::msg::DoorRequest>()
+            .request_time(_node->now())
+            .requester_id(_requester_id)
+            .door_name(door.door_name)
+            .requested_mode(
+              rmf_door_msgs::build<rmf_door_msgs::msg::DoorMode>()
+              .value(rmf_door_msgs::msg::DoorMode::MODE_CLOSED)));
+        }
+      }
+    }
+  }
 }
 
 //==============================================================================

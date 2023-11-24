@@ -555,6 +555,37 @@ public:
 };
 
 //==============================================================================
+class DoorFinder : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+  DoorFinder(std::string current_name_)
+  : current_name(std::move(current_name_)),
+    still_using(false)
+  {
+    // Do nothing
+  }
+  std::string current_name;
+  bool still_using;
+
+  void execute(const Dock& dock) final {}
+  void execute(const Wait&) final {}
+  void execute(const DoorOpen& open) final
+  {
+    if (open.name() == current_name)
+      still_using = true;
+  }
+  void execute(const DoorClose& close) final
+  {
+    if (close.name() == current_name)
+      still_using = true;
+  }
+  void execute(const LiftSessionBegin& e) final {}
+  void execute(const LiftMove& e) final {}
+  void execute(const LiftDoorOpen& e) final {}
+  void execute(const LiftSessionEnd& e) final {}
+};
+
+//==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
   rmf_traffic::PlanId recommended_plan_id,
@@ -567,6 +598,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::function<void()> finished,
   std::optional<rmf_traffic::Duration> tail_period)
 {
+  if (plan.get_waypoints().empty())
+    return std::nullopt;
   // std::cout << " --- plan --- " << std::endl;
   // const auto t0 = plan.get_waypoints().front().time();
   // for (const rmf_traffic::agv::Plan::Waypoint& wp : plan.get_waypoints())
@@ -583,6 +616,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
   // }
 
   const auto& graph = context->navigation_graph();
+  LegacyPhases legacy_phases;
+
   rmf_traffic::agv::Graph::LiftPropertiesPtr release_lift;
   const auto envelope = context->profile()->footprint()
     ->get_characteristic_length()/2.0;
@@ -602,18 +637,22 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
     if (!finder.still_using)
     {
-      const auto l_it = std::find_if(
-        graph.known_lifts().begin(),
-        graph.known_lifts().end(),
-        [&](const auto& lift)
-        {
-          return current_lift->lift_name == lift->name();
-        });
+      const auto found_lift = graph.find_known_lift(current_lift->lift_name);
+      if (found_lift)
+      {
+        RCLCPP_INFO(
+          context->node()->get_logger(),
+          "Robot [%s] will release lift [%s] after a replan because it is no "
+          "longer needed.",
+          context->requester_id().c_str(),
+          current_lift->lift_name.c_str());
 
-      if (l_it == graph.known_lifts().end())
+        release_lift = found_lift;
+      }
+      else
       {
         std::cout << "KNOWN LIFTS:";
-        for (const auto& l : graph.known_lifts())
+        for (const auto& l : graph.all_known_lifts())
         {
           std::cout << "\n -- " << l->name();
         }
@@ -625,21 +664,74 @@ std::optional<ExecutePlan> ExecutePlan::make(
           context->requester_id().c_str(),
           current_lift->lift_name.c_str());
       }
-      else
-      {
-        RCLCPP_INFO(
-          context->node()->get_logger(),
-          "Robot [%s] will release lift [%s] after a replan because it is no "
-          "longer needed.",
-          context->requester_id().c_str(),
-          current_lift->lift_name.c_str());
-
-        release_lift = *l_it;
-      }
     }
     else
     {
       std::cout << " ::::::::::::: " << context->requester_id() << " STILL USING THE LIFT: " << current_lift->lift_name << std::endl;
+    }
+  }
+
+  if (!plan.get_waypoints().front().graph_index().has_value())
+  {
+    const Eigen::Vector2d p0 =
+      plan.get_waypoints().front().position().block<2, 1>(0, 0);
+    const auto first_graph_wp = [&]() -> std::optional<std::size_t>
+      {
+        for (const auto& wp : plan.get_waypoints())
+        {
+          if (wp.graph_index().has_value())
+            return *wp.graph_index();
+        }
+
+        return std::nullopt;
+      }();
+
+    if (first_graph_wp.has_value())
+    {
+      const Eigen::Vector2d p1 =
+        graph.get_waypoint(*first_graph_wp).get_location();
+
+      // Check if the line from the start of the plan to this waypoint crosses
+      // through a door, and add a DoorOpen phase if it does
+      for (const auto& door : graph.all_known_doors())
+      {
+        if (door->intersects(p0, p1, envelope))
+        {
+          legacy_phases.emplace_back(
+            std::make_shared<phases::DoorOpen::PendingPhase>(
+              context,
+              door->name(),
+              context->requester_id(),
+              plan.get_waypoints().front().time()),
+            plan.get_waypoints().front().time(),
+            rmf_traffic::Dependencies(), std::nullopt);
+        }
+      }
+    }
+  }
+
+  std::optional<std::string> release_door;
+  if (context->holding_door().has_value())
+  {
+    const auto& current_door = *context->holding_door();
+    DoorFinder finder(current_door);
+    for (const auto& wp : plan.get_waypoints())
+    {
+      if (wp.event())
+      {
+        wp.event()->execute(finder);
+        if (finder.still_using)
+          break;
+      }
+    }
+
+    if (!finder.still_using)
+    {
+      RCLCPP_INFO(
+        context->node()->get_logger(),
+        "Robot [%s] will release door [%s] after a replan because it is no "
+        "longer needed.");
+      release_door = current_door;
     }
   }
 
@@ -863,7 +955,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
       return std::make_pair(mutex_group_change, new_mutex_groups);
     };
 
-  LegacyPhases legacy_phases;
   while (!waypoints.empty())
   {
     auto it = waypoints.begin();
@@ -933,7 +1024,10 @@ std::optional<ExecutePlan> ExecutePlan::make(
         it->graph_index().has_value() &&
         !release_lift->is_in_lift(it->position().block<2, 1>(0, 0), envelope);
 
-      if (it->event() || release_lift_here)
+      const bool release_door_here = release_door.has_value()
+        && it->graph_index().has_value();
+
+      if (it->event() || release_lift_here || release_door_here)
       {
         if (move_through.size() > 1)
         {
@@ -953,6 +1047,18 @@ std::optional<ExecutePlan> ExecutePlan::make(
             it->time(), rmf_traffic::Dependencies(), std::nullopt);
 
           release_lift = nullptr;
+        }
+
+        if (release_door_here)
+        {
+          legacy_phases.emplace_back(
+            std::make_shared<phases::DoorClose::PendingPhase>(
+              context,
+              *release_door,
+              context->requester_id()),
+            it->time(), rmf_traffic::Dependencies(), std::nullopt);
+
+          release_door = std::nullopt;
         }
 
         std::optional<rmf_traffic::agv::Plan::Waypoint> next_waypoint;
@@ -1072,12 +1178,14 @@ std::optional<ExecutePlan> ExecutePlan::make(
     if (const auto door =
       search_for_door_group(head, end, context, plan_id, event_id))
     {
+      ss << "\n -- Move through door";
       standbys.push_back(door->group);
       head = door->tail;
     }
     else if (const auto lift = search_for_lift_group(
         head, end, context, plan_id, event_id, state))
     {
+      ss << "\n -- Move through lift";
       standbys.push_back(lift->group);
       head = lift->tail;
     }
