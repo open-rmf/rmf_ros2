@@ -516,6 +516,45 @@ public:
 };
 
 //==============================================================================
+class LiftFinder : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+  LiftFinder(std::string current_name_)
+  : current_name(std::move(current_name_)),
+    still_using(false)
+  {
+    // Do nothing
+  }
+  std::string current_name;
+  bool still_using;
+
+  void execute(const Dock& dock) final {}
+  void execute(const Wait&) final {}
+  void execute(const DoorOpen&) final {}
+  void execute(const DoorClose&) final {}
+  void execute(const LiftSessionBegin& e) final
+  {
+    if (e.lift_name() == current_name)
+      still_using = true;
+  }
+  void execute(const LiftMove& e) final
+  {
+    if (e.lift_name() == current_name)
+      still_using = true;
+  }
+  void execute(const LiftDoorOpen& e) final
+  {
+    if (e.lift_name() == current_name)
+      still_using = true;
+  }
+  void execute(const LiftSessionEnd& e) final
+  {
+    if (e.lift_name() == current_name)
+      still_using = true;
+  }
+};
+
+//==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
   rmf_traffic::PlanId recommended_plan_id,
@@ -543,12 +582,72 @@ std::optional<ExecutePlan> ExecutePlan::make(
   //   }
   // }
 
+  const auto& graph = context->navigation_graph();
+  rmf_traffic::agv::Graph::LiftPropertiesPtr release_lift;
+  const auto envelope = context->profile()->footprint()
+    ->get_characteristic_length()/2.0;
+  if (const auto* current_lift = context->current_lift_destination())
+  {
+    std::cout << " :::::::::: " << context->requester_id() << " STILL HAVE LIFT LOCKED: " << current_lift->lift_name << std::endl;
+    LiftFinder finder(current_lift->lift_name);
+    for (const auto& wp : plan.get_waypoints())
+    {
+      if (wp.event())
+      {
+        wp.event()->execute(finder);
+        if (finder.still_using)
+          break;
+      }
+    }
+
+    if (!finder.still_using)
+    {
+      const auto l_it = std::find_if(
+        graph.known_lifts().begin(),
+        graph.known_lifts().end(),
+        [&](const auto& lift)
+        {
+          return current_lift->lift_name == lift->name();
+        });
+
+      if (l_it == graph.known_lifts().end())
+      {
+        std::cout << "KNOWN LIFTS:";
+        for (const auto& l : graph.known_lifts())
+        {
+          std::cout << "\n -- " << l->name();
+        }
+        std::cout << std::endl;
+
+        RCLCPP_ERROR(
+          context->node()->get_logger(),
+          "Robot [%s] might be stuck with locking an unknown lift named [%s]",
+          context->requester_id().c_str(),
+          current_lift->lift_name.c_str());
+      }
+      else
+      {
+        RCLCPP_INFO(
+          context->node()->get_logger(),
+          "Robot [%s] will release lift [%s] after a replan because it is no "
+          "longer needed.",
+          context->requester_id().c_str(),
+          current_lift->lift_name.c_str());
+
+        release_lift = *l_it;
+      }
+    }
+    else
+    {
+      std::cout << " ::::::::::::: " << context->requester_id() << " STILL USING THE LIFT: " << current_lift->lift_name << std::endl;
+    }
+  }
+
   auto plan_id = std::make_shared<rmf_traffic::PlanId>(recommended_plan_id);
   auto initial_itinerary =
     std::make_shared<rmf_traffic::schedule::Itinerary>(full_itinerary);
   auto previous_itinerary = initial_itinerary;
 
-  const auto& graph = context->navigation_graph();
 
   std::optional<rmf_traffic::Time> finish_time_estimate;
   for (const auto& r : plan.get_itinerary())
@@ -830,7 +929,11 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
       move_through.push_back(*it);
 
-      if (it->event())
+      const bool release_lift_here = release_lift &&
+        it->graph_index().has_value() &&
+        !release_lift->is_in_lift(it->position().block<2, 1>(0, 0), envelope);
+
+      if (it->event() || release_lift_here)
       {
         if (move_through.size() > 1)
         {
@@ -838,6 +941,18 @@ std::optional<ExecutePlan> ExecutePlan::make(
             std::make_shared<phases::MoveRobot::PendingPhase>(
               context, move_through, plan_id, tail_period),
             it->time(), it->dependencies(), current_mutex_groups);
+        }
+
+        if (release_lift_here)
+        {
+          legacy_phases.emplace_back(
+            std::make_shared<phases::EndLiftSession::Pending>(
+              context,
+              release_lift->name(),
+              ""),
+            it->time(), rmf_traffic::Dependencies(), std::nullopt);
+
+          release_lift = nullptr;
         }
 
         std::optional<rmf_traffic::agv::Plan::Waypoint> next_waypoint;
@@ -849,35 +964,38 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
         move_through.clear();
         bool continuous = true;
-        EventPhaseFactory factory(
-          context, legacy_phases, *it, next_waypoint, plan_id,
-          current_mutex_groups, make_current_mutex_groups, get_new_mutex_groups,
-          continuous);
-        it->event()->execute(factory);
-        while (factory.moving_lift())
+        if (it->event())
         {
-          const auto last_it = it;
-          ++it;
-          if (!it->event())
+          EventPhaseFactory factory(
+            context, legacy_phases, *it, next_waypoint, plan_id,
+            current_mutex_groups, make_current_mutex_groups, get_new_mutex_groups,
+            continuous);
+          it->event()->execute(factory);
+          while (factory.moving_lift())
           {
-            const double dist =
-              (it->position().block<2, 1>(0, 0)
-              - last_it->position().block<2, 1>(0, 0)).norm();
-
-            if (dist < 0.5)
+            const auto last_it = it;
+            ++it;
+            if (!it->event())
             {
-              // We'll assume that this is just a misalignment in the maps
-              continue;
+              const double dist =
+                (it->position().block<2, 1>(0, 0)
+                - last_it->position().block<2, 1>(0, 0)).norm();
+
+              if (dist < 0.5)
+              {
+                // We'll assume that this is just a misalignment in the maps
+                continue;
+              }
+
+              state->update_log().warn(
+                "Plan involves a translation of [" + std::to_string(dist)
+                + "m] while inside a lift. This may indicate an error in the "
+                "navigation graph. Please report this to the system integrator.");
             }
 
-            state->update_log().warn(
-              "Plan involves a translation of [" + std::to_string(dist)
-              + "m] while inside a lift. This may indicate an error in the "
-              "navigation graph. Please report this to the system integrator.");
+            factory.initial_waypoint = *it;
+            it->event()->execute(factory);
           }
-
-          factory.initial_waypoint = *it;
-          it->event()->execute(factory);
         }
 
         if (continuous)

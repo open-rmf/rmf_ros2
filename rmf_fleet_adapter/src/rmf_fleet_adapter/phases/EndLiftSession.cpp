@@ -45,7 +45,12 @@ EndLiftSession::Active::Active(
   _lift_name(std::move(lift_name)),
   _destination(std::move(destination))
 {
-  _description = "Ending session with lift [" + lift_name + "]";
+  _description = "Ending session with lift [" + _lift_name + "]";
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Ending lift [%s] session for [%s]",
+    _lift_name.c_str(),
+    _context->requester_id().c_str());
   _context->release_lift();
 }
 
@@ -119,7 +124,7 @@ EndLiftSession::Pending::Pending(
   _lift_name(std::move(lift_name)),
   _destination(std::move(destination))
 {
-  _description = "End session with lift [" + lift_name + "]";
+  _description = "End session with lift [" + _lift_name + "]";
 }
 
 //==============================================================================
