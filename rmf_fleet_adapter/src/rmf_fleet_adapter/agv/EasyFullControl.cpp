@@ -1319,7 +1319,7 @@ void EasyCommandHandle::follow_new_path(
     }
     else
     {
-      for (const auto& lift : graph.known_lifts())
+      for (const auto& lift : graph.all_known_lifts())
       {
         if (lift->is_in_lift(target_position.block<2, 1>(0, 0)))
         {
