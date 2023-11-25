@@ -223,6 +223,12 @@ rmf_traffic::agv::Graph parse_graph(
           }
         }
       }
+
+      const YAML::Node& merge_radius_option = options["merge_radius"];
+      if (merge_radius_option)
+      {
+        wp.set_merge_radius(merge_radius_option.as<double>());
+      }
     }
 
     const YAML::Node& lanes = level.second["lanes"];
@@ -368,6 +374,7 @@ rmf_traffic::agv::Graph parse_graph(
           const auto entry_wp = graph.get_waypoint(begin);
           auto& dock_wp = graph.add_waypoint(map_name, entry_wp.get_location());
           dock_wp.set_in_mutex_group(entry_wp.in_mutex_group());
+          dock_wp.set_merge_radius(0.0);
 
           graph.add_lane(
             {begin, entry_event},

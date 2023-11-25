@@ -142,8 +142,10 @@ rmf_traffic::agv::Plan::StartSet NavParams::_descend_stacks(
   const rmf_traffic::agv::Graph& graph,
   rmf_traffic::agv::Plan::StartSet locations) const
 {
-  for (rmf_traffic::agv::Plan::Start& location : locations)
+  std::vector<std::size_t> remove;
+  for (std::size_t i=0; i < locations.size(); ++i)
   {
+    rmf_traffic::agv::Plan::Start& location = locations[i];
     std::optional<std::size_t> waypoint_opt;
     if (location.lane().has_value())
     {
@@ -204,9 +206,32 @@ rmf_traffic::agv::Plan::StartSet NavParams::_descend_stacks(
     // std::cout << "Descended vertex stack to " << waypoint << std::endl;
     if (waypoint != original_waypoint)
     {
-      location.lane(std::nullopt);
-      location.waypoint(waypoint);
+      bool can_merge = true;
+      if (const auto r_merge = graph.get_waypoint(waypoint).merge_radius())
+      {
+        if (const auto p_opt = location.location())
+        {
+          const auto p = p_opt.value();
+          const auto p_wp = graph.get_waypoint(waypoint).get_location();
+          if ((p - p_wp).norm() > r_merge)
+          {
+            can_merge = false;
+            remove.push_back(i);
+          }
+        }
+      }
+
+      if (can_merge)
+      {
+        location.lane(std::nullopt);
+        location.waypoint(waypoint);
+      }
     }
+  }
+
+  for (auto r_it = remove.rbegin(); r_it != remove.rend(); ++r_it)
+  {
+    locations.erase(locations.begin() + *r_it);
   }
 
   return locations;
