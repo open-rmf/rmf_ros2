@@ -804,11 +804,13 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
   std::optional<LockMutexGroup::Data> current_mutex_groups;
+  std::unordered_set<std::string> remaining_mutex_groups;
 
   const auto make_current_mutex_groups = [&](
     const std::unordered_set<std::string>& new_mutex_groups,
     const rmf_traffic::agv::Plan::Waypoint& wp)
   {
+    remaining_mutex_groups = new_mutex_groups;
     const rmf_traffic::Time hold_time = wp.time();
     const Eigen::Vector3d hold_position = wp.position();
     std::string hold_map;
@@ -843,37 +845,37 @@ std::optional<ExecutePlan> ExecutePlan::make(
     }
 
     std::size_t first_excluded_route = 0;
-    // std::stringstream ss;
-    // if (current_mutex_groups.has_value())
-    // {
-    //   ss << "truncating for switch from ["
-    //     << current_mutex_groups->all_groups_str()
-    //     << "] to [" << new_mutex_groups << "] for ["
-    //     << context->requester_id() << "]";
-    // }
-    // else
-    // {
-    //   ss << "truncating to lock [" << new_mutex_groups << "] for ["
-    //     << context->requester_id() << "]";
-    // }
+    std::stringstream ss;
+    if (current_mutex_groups.has_value())
+    {
+      ss << "truncating for switch from ["
+        << current_mutex_groups->all_groups_str()
+        << "] to [" << all_str(new_mutex_groups) << "] for ["
+        << context->requester_id() << "]";
+    }
+    else
+    {
+      ss << "truncating to lock " << all_str(new_mutex_groups) << " for ["
+        << context->requester_id() << "]";
+    }
     for (const auto& c : wp.arrival_checkpoints())
     {
       first_excluded_route = std::max(first_excluded_route, c.route_id+1);
       auto& r = previous_itinerary->at(c.route_id);
       auto& t = r.trajectory();
-      // ss << "\n -- erasing from checkpoint " << c.checkpoint_id
-      //   << " <" << t.at(c.checkpoint_id).position().transpose() << ">";
+      ss << "\n -- erasing from checkpoint " << c.checkpoint_id
+        << " <" << t.at(c.checkpoint_id).position().transpose() << ">";
 
-      // ss << " t.size() before: " << t.size();
+      ss << " t.size() before: " << t.size();
       t.erase(t.begin() + (int)c.checkpoint_id, t.end());
-      // ss << " vs after: " << t.size();
+      ss << " vs after: " << t.size();
 
-      // if (t.size() > 0)
-      // {
-      //   ss << " ending at <" << t.back().position().transpose() << ">";
-      // }
+      if (t.size() > 0)
+      {
+        ss << " ending at <" << t.back().position().transpose() << ">";
+      }
     }
-    // std::cout << ss.str() << std::endl;
+    std::cout << ss.str() << std::endl;
 
     for (std::size_t i=0; i < previous_itinerary->size(); ++i)
     {
@@ -957,36 +959,39 @@ std::optional<ExecutePlan> ExecutePlan::make(
         << " | " << ss.str() << std::endl;
 
       bool mutex_group_change =
-        (!new_mutex_groups.empty() && !current_mutex_groups.has_value());
+        (!new_mutex_groups.empty() && remaining_mutex_groups.empty());
 
-      if (!mutex_group_change && current_mutex_groups.has_value())
+      std::cout << __LINE__ << " | " << !new_mutex_groups.empty()
+        << " " << !current_mutex_groups.has_value() << std::endl;
+
+      if (!mutex_group_change && !remaining_mutex_groups.empty())
       {
         for (const auto& new_group : new_mutex_groups)
         {
-          if (current_mutex_groups->mutex_groups.count(new_group) == 0)
+          if (remaining_mutex_groups.count(new_group) == 0)
           {
+            std::cout << " === " << __LINE__ << " new group: " << new_group << std::endl;
             mutex_group_change = true;
             break;
+          }
+          else
+          {
+            std::cout << " === " << __LINE__ << " old group: " << new_group << std::endl;
           }
         }
       }
 
-      if (!mutex_group_change && current_mutex_groups.has_value())
+      if (!mutex_group_change)
       {
         // We don't need to lock any new mutex groups, but we may be releasing
-        // some. We should reduce the current group set to whatever is in the
-        // new group set so that if we need to add more groups later then we are
-        // ready to do so.
-        if (new_mutex_groups.empty())
-        {
-          current_mutex_groups = std::nullopt;
-        }
-        else
-        {
-          current_mutex_groups->mutex_groups = new_mutex_groups;
-        }
+        // some. We should reduce the remaining group set to whatever is in the
+        // new group set so that if we need to add some groups back later then
+        // we recognize it.
+        remaining_mutex_groups = new_mutex_groups;
       }
 
+      std::cout << " === " << __LINE__ << " | mutex_group_changed: "
+        << mutex_group_change << std::endl;
       return std::make_pair(mutex_group_change, new_mutex_groups);
     };
 
@@ -1006,6 +1011,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
       {
         if (move_through.size() > 1)
         {
+          std::cout << " >>> " << __LINE__ << std::endl;
           auto next_mutex_group = make_current_mutex_groups(
             new_mutex_groups, move_through.back());
 
@@ -1039,12 +1045,14 @@ std::optional<ExecutePlan> ExecutePlan::make(
           // through yet. Just set the current_mutex_groups from this point.
           if (move_through.empty())
           {
+            std::cout << " >>> " << __LINE__ << std::endl;
             current_mutex_groups = make_current_mutex_groups(
               new_mutex_groups, *it);
             std::cout << " === " << __LINE__ << ": " << current_mutex_groups->all_groups_str() << std::endl;
           }
           else
           {
+            std::cout << " >>> " << __LINE__ << std::endl;
             assert(move_through.size() == 1);
             current_mutex_groups = make_current_mutex_groups(
               new_mutex_groups, move_through.back());
