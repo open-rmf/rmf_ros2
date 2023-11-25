@@ -615,6 +615,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
   //   }
   // }
 
+  auto plan_id = std::make_shared<rmf_traffic::PlanId>(recommended_plan_id);
   const auto& graph = context->navigation_graph();
   LegacyPhases legacy_phases;
 
@@ -675,6 +676,9 @@ std::optional<ExecutePlan> ExecutePlan::make(
   {
     const Eigen::Vector2d p0 =
       plan.get_waypoints().front().position().block<2, 1>(0, 0);
+      const auto t0 = plan.get_waypoints().front().time();
+
+    std::cout << " === " << __LINE__ << " broken start" << std::endl;
     const auto first_graph_wp = [&]() -> std::optional<std::size_t>
       {
         for (const auto& wp : plan.get_waypoints())
@@ -688,6 +692,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
     if (first_graph_wp.has_value())
     {
+      std::cout << " === " << __LINE__ << " merging onto " << *first_graph_wp << std::endl;
       const Eigen::Vector2d p1 =
         graph.get_waypoint(*first_graph_wp).get_location();
 
@@ -695,16 +700,45 @@ std::optional<ExecutePlan> ExecutePlan::make(
       // through a door, and add a DoorOpen phase if it does
       for (const auto& door : graph.all_known_doors())
       {
+
         if (door->intersects(p0, p1, envelope))
         {
+          RCLCPP_INFO(
+            context->node()->get_logger(),
+            "Ensuring door [%s] is open for [%s] after a replan",
+            door->name().c_str(),
+            context->requester_id().c_str());
+
           legacy_phases.emplace_back(
             std::make_shared<phases::DoorOpen::PendingPhase>(
-              context,
-              door->name(),
-              context->requester_id(),
-              plan.get_waypoints().front().time()),
-            plan.get_waypoints().front().time(),
-            rmf_traffic::Dependencies(), std::nullopt);
+              context, door->name(), context->requester_id(), t0),
+            t0, rmf_traffic::Dependencies(), std::nullopt);
+        }
+      }
+
+      const auto& map = graph.get_waypoint(*first_graph_wp).get_map_name();
+      // Check if the robot is going into a lift and summon the lift
+      for (const auto& lift : graph.all_known_lifts())
+      {
+        if (lift->is_in_lift(p1, envelope))
+        {
+          auto side = phases::RequestLift::Located::Outside;
+          if (lift->is_in_lift(p0, envelope))
+          {
+            side = phases::RequestLift::Located::Inside;
+          }
+
+          RCLCPP_INFO(
+            context->node()->get_logger(),
+            "Robot [%s] will summon lift [%s] to floor [%s] after a replan",
+            context->requester_id().c_str(),
+            lift->name().c_str(),
+            map.c_str());
+
+          legacy_phases.emplace_back(
+            std::make_shared<phases::RequestLift::PendingPhase>(
+              context, lift->name(), map, t0, side, plan_id),
+            t0, rmf_traffic::Dependencies(), std::nullopt);
         }
       }
     }
@@ -730,12 +764,13 @@ std::optional<ExecutePlan> ExecutePlan::make(
       RCLCPP_INFO(
         context->node()->get_logger(),
         "Robot [%s] will release door [%s] after a replan because it is no "
-        "longer needed.");
+        "longer needed.",
+        context->requester_id().c_str(),
+        current_door.c_str());
       release_door = current_door;
     }
   }
 
-  auto plan_id = std::make_shared<rmf_traffic::PlanId>(recommended_plan_id);
   auto initial_itinerary =
     std::make_shared<rmf_traffic::schedule::Itinerary>(full_itinerary);
   auto previous_itinerary = initial_itinerary;

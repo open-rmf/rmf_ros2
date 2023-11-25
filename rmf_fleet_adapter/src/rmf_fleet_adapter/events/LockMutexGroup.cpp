@@ -202,7 +202,6 @@ void LockMutexGroup::Active::_initialize()
     _context->requester_id().c_str());
 
   const auto cumulative_delay = _context->now() - _data.hold_time;
-  std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
   _context->itinerary().cumulative_delay(*_data.plan_id, cumulative_delay);
 
   _delay_timer = _context->node()->try_create_wall_timer(

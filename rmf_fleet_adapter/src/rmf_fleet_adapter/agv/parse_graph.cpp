@@ -72,6 +72,37 @@ rmf_traffic::agv::Graph parse_graph(
     }
   }
 
+  const YAML::Node doors_yaml = graph_config["doors"];
+  if (!doors_yaml)
+  {
+    std::cout << "Your navigation graph does not provide door information. "
+      << "This may cause problems with behaviors around doors. Please consider "
+      << "regenerating your navigration graph with the latest version of "
+      << "rmf_building_map_tools (from the rmf_traffic_editor repo)."
+      << std::endl;
+  }
+  else
+  {
+    for (const auto& door : doors_yaml)
+    {
+      const std::string& name = door.first.as<std::string>();
+      const YAML::Node properties_yaml = door.second;
+      const YAML::Node& endpoints_yaml = properties_yaml["endpoints"];
+      std::string map = properties_yaml["map"].as<std::string>();
+
+      const YAML::Node& p0_yaml = endpoints_yaml[0];
+      const auto p0 = Eigen::Vector2d(
+        p0_yaml[0].as<double>(), p0_yaml[1].as<double>());
+
+      const YAML::Node& p1_yaml = endpoints_yaml[1];
+      const auto p1 = Eigen::Vector2d(
+        p1_yaml[0].as<double>(), p1_yaml[1].as<double>());
+
+      graph.set_known_door(
+        rmf_traffic::agv::Graph::DoorProperties(name, p0, p1, std::move(map)));
+    }
+  }
+
   const YAML::Node levels = graph_config["levels"];
   if (!levels)
   {

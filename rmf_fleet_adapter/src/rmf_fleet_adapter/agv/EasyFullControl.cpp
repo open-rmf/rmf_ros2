@@ -639,7 +639,6 @@ auto EasyFullControl::CommandExecution::Implementation::make_hold(
         return;
 
       const auto delay = context->now() - expected_time;
-      std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
       context->itinerary().cumulative_delay(plan_id, delay);
       if (const auto nav_params = context->nav_params())
       {
@@ -1498,7 +1497,6 @@ void EasyCommandHandle::dock(
   const auto dt = rmf_traffic::time::from_seconds(dist / v);
   const auto& itin = context->itinerary();
   const auto now = context->now();
-  std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
   const auto initial_delay = itin.cumulative_delay(itin.current_plan_id())
     .value_or(rmf_traffic::Duration(0));
   const rmf_traffic::Time expected_arrival = now + dt - initial_delay;
@@ -1534,7 +1532,6 @@ void EasyCommandHandle::dock(
           const rmf_traffic::Time now = context->now();
           const auto updated_arrival = now + dt;
           const auto delay = updated_arrival - expected_arrival;
-          std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
           context->itinerary().cumulative_delay(
             plan_id, delay, std::chrono::seconds(1));
         });

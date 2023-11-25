@@ -245,14 +245,20 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
 {
   if (const auto context = _pimpl->get_context())
   {
-    auto end_state = context->current_task_end_state();
-    end_state.dedicated_charging_waypoint(charger_wp);
-    context->current_task_end_state(end_state);
-    RCLCPP_INFO(
-      context->node()->get_logger(),
-      "Charger waypoint for robot [%s] set to index [%ld]",
-      context->name().c_str(),
-      charger_wp);
+    context->worker().schedule([charger_wp, w = context->weak_from_this()](
+      const auto&)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        self->_set_charging(charger_wp, true);
+        RCLCPP_INFO(
+          self->node()->get_logger(),
+          "Charger waypoint for robot [%s] set to index [%ld]",
+          self->requester_id().c_str(),
+          charger_wp);
+      });
   }
 
   return *this;
@@ -1085,7 +1091,6 @@ void ScheduleOverride::overridden_update(
       t_expected += rmf_traffic::time::from_seconds(s*dt);
     }
     const auto delay = now - t_expected;
-    std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
     context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
   }
   else
@@ -1108,7 +1113,6 @@ void ScheduleOverride::overridden_update(
     if (closest_time.has_value())
     {
       const auto delay = now - closest_time->first;
-      std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
       context->itinerary().cumulative_delay(plan_id, delay, delay_thresh);
     }
 
@@ -1142,13 +1146,11 @@ void ScheduleOverride::overridden_update(
         // WARNING: We will have to change this implementation if it is ever
         // possible for the ScheduleOverride class to contain multiple routes in
         // its itinerary.
-        std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
         const auto cumulative_delay = context->itinerary()
           .cumulative_delay(plan_id).value_or(rmf_traffic::Duration(0));
 
         plan_id = context->itinerary().assign_plan_id();
         context->itinerary().set(plan_id, {route});
-        std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
         context->itinerary().cumulative_delay(
           plan_id, cumulative_delay, delay_thresh);
       }

@@ -195,10 +195,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             ](
               const auto&)
             {
-              std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
               if (const auto c = context->itinerary().cumulative_delay(plan_id))
               {
-                std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
                 context->itinerary().cumulative_delay(plan_id, *c + bump);
               }
             });
@@ -264,7 +262,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             << std::endl;
           const auto context = self->_context;
           const auto plan_id = self->_plan_id;
-          std::cout << __FILE__ << ": " << __LINE__ << "!!!!!" << std::endl;
           context->itinerary().cumulative_delay(
             plan_id, new_cumulative_delay, 100ms);
 
