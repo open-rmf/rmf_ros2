@@ -794,28 +794,22 @@ public:
     const std::string& map,
     Eigen::Vector3d position) const
   {
-    if (!nav_params->transforms_to_robot_coords)
+    auto robot_position = nav_params->to_robot_coordinates(map, position);
+    if (robot_position.has_value())
     {
-      return position;
+      return *robot_position;
     }
 
-    const auto tf_it = nav_params->transforms_to_robot_coords->find(map);
-    if (tf_it == nav_params->transforms_to_robot_coords->end())
+    if (const auto context = w_context.lock())
     {
-      const auto context = w_context.lock();
-      if (context)
-      {
-        RCLCPP_WARN(
-          context->node()->get_logger(),
-          "[EasyFullControl] Unable to find robot transform for map [%s] for "
-          "robot [%s]. We will not apply a transform.",
-          map.c_str(),
-          context->requester_id().c_str());
-      }
-      return position;
+      RCLCPP_WARN(
+        context->node()->get_logger(),
+        "[EasyFullControl] Unable to find robot transform for map [%s] for "
+        "robot [%s]. We will not apply a transform.",
+        map.c_str(),
+        context->requester_id().c_str());
     }
-
-    return tf_it->second.apply(position);
+    return position;
   }
 
   std::weak_ptr<RobotContext> w_context;

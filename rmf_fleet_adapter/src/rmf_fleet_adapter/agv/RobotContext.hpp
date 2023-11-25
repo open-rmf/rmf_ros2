@@ -81,6 +81,22 @@ struct NavParams
     return tf_it->second.apply_inverse(position);
   }
 
+  std::optional<Eigen::Vector3d> to_robot_coordinates(
+    const std::string& map,
+    Eigen::Vector3d position)
+  {
+    if (!transforms_to_robot_coords)
+      return position;
+
+    const auto tf_it = transforms_to_robot_coords->find(map);
+    if (tf_it == transforms_to_robot_coords->end())
+    {
+      return std::nullopt;
+    }
+
+    return tf_it->second.apply(position);
+  }
+
   rmf_traffic::agv::Plan::StartSet compute_plan_starts(
     const rmf_traffic::agv::Graph& graph,
     const std::string& map_name,
