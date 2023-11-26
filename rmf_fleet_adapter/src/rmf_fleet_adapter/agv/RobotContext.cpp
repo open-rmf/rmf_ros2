@@ -1056,6 +1056,7 @@ void RobotContext::release_lift()
 {
   _lift_destination = nullptr;
   _initial_time_idle_outside_lift = std::nullopt;
+  _lift_stubbornness = nullptr;
 }
 
 //==============================================================================
@@ -1258,6 +1259,15 @@ void RobotContext::_check_lift_state(
       msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_END_SESSION;
       msg.session_id = requester_id();
       _node->lift_request()->publish(msg);
+    }
+
+    if (_lift_destination && _lift_destination->lift_name == state.lift_name)
+    {
+      if (!_lift_stubbornness)
+      {
+        // Be a stubborn negotiator while using the lift
+        _lift_stubbornness = be_stubborn();
+      }
     }
   }
 

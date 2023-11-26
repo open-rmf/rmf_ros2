@@ -795,6 +795,7 @@ private:
   std::shared_ptr<LiftDestination> _lift_destination;
   rmf_rxcpp::subscription_guard _lift_subscription;
   std::optional<std::chrono::steady_clock::time_point> _initial_time_idle_outside_lift;
+  std::shared_ptr<void> _lift_stubbornness;
 
   void _check_door_supervisor(
     const rmf_door_msgs::msg::SupervisorHeartbeat& hb);
