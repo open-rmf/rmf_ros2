@@ -102,7 +102,7 @@ public:
     {
       if (s.group == request.group && s.claimant != Unclaimed)
       {
-        // The group is already claimed, so nothing to be done here
+        check_for_conflicts();
         return;
       }
     }
@@ -153,6 +153,81 @@ public:
     }
 
     state_pub->publish(latest_states);
+  }
+
+  struct ClaimList
+  {
+    std::unordered_set<std::string> groups;
+    std::optional<rclcpp::Time> earliest_time;
+
+    void insert(std::string group, rclcpp::Time time)
+    {
+      groups.insert(std::move(group));
+      if (!earliest_time.has_value() || time < *earliest_time)
+      {
+        earliest_time = time;
+      }
+    }
+
+    void normalize(
+      uint64_t claimant,
+      std::unordered_map<std::string, ClaimMap>& mutex_groups) const
+    {
+      if (!earliest_time.has_value())
+        return;
+
+      for (const auto& group : groups)
+      {
+        mutex_groups[group][claimant].claim_time = *earliest_time;
+      }
+    }
+  };
+
+  void check_for_conflicts()
+  {
+    std::unordered_map<uint64_t, ClaimList> claims;
+    for (const auto& [group, group_claims] : mutex_groups)
+    {
+      for (const auto& [claimant, timestamps] : group_claims)
+      {
+        claims[claimant].insert(group, timestamps.claim_time);
+      }
+    }
+
+    std::unordered_set<std::string> normalized_groups;
+    for (auto i=claims.begin(); i != claims.end(); ++i)
+    {
+      auto j = i;
+      ++j;
+      for (; j != claims.end(); ++j)
+      {
+        const auto& claim_i = i->second;
+        const auto& claim_j = j->second;
+        if (claim_i.groups == claim_j.groups && claim_i.groups.size() > 1)
+        {
+          claim_i.normalize(i->first, mutex_groups);
+          claim_j.normalize(j->first, mutex_groups);
+
+          std::stringstream ss;
+          for (const auto& group : claim_i.groups)
+          {
+            normalized_groups.insert(group);
+            ss << "[" << group << "]";
+          }
+
+          RCLCPP_INFO(
+            get_logger(),
+            "Resolving mutex conflict between claimants [%lu] and [%lu] which both "
+            "want the mutex combination %s",
+            i->first,
+            j->first,
+            ss.str().c_str());
+        }
+      }
+    }
+
+    for (const auto& group : normalized_groups)
+      pick_next(group);
   }
 
   void pick_next(const std::string& group)
