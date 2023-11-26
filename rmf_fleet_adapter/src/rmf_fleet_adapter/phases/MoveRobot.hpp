@@ -139,245 +139,260 @@ void MoveRobot::Action::operator()(const Subscriber& s)
   if (!command)
     return;
 
-  _last_update_rostime = _context->node()->now();
-  _update_timeout_timer = _context->node()->try_create_wall_timer(
-    _update_timeout, [w = weak_from_this()]()
-    {
-      const auto self = w.lock();
-      if (!self)
-        return;
+  _context->worker().schedule([w = weak_from_this(), s](const auto&)
+  {
+    const auto self = w.lock();
+    if (!self)
+      return;
 
-      const auto now = self->_context->node()->now();
-      if (now < self->_last_update_rostime + self->_update_timeout)
+    self->_last_update_rostime = self->_context->node()->now();
+    self->_update_timeout_timer = self->_context->node()->try_create_wall_timer(
+      self->_update_timeout, [w = self->weak_from_this()]()
       {
-        // The simulation is paused or running slowly, so we should allow more
-        // patience before assuming that there's been a timeout.
-        return;
-      }
+        const auto self = w.lock();
+        if (!self)
+          return;
 
-      self->_last_update_rostime = now;
-
-      // The RobotCommandHandle seems to have frozen up. Perhaps a bug in the
-      // user's code has caused the RobotCommandHandle to drop the command. We
-      // will request a replan.
-      RCLCPP_WARN(
-        self->_context->node()->get_logger(),
-        "Requesting replan for [%s] because its command handle seems to be "
-        "unresponsive",
-        self->_context->requester_id().c_str());
-      self->_context->request_replan();
-    });
-
-  const auto update = [s, w_action = weak_from_this(), r = _context->requester_id()](
-      std::size_t path_index, rmf_traffic::Duration estimate)
-    {
-      const auto action = w_action.lock();
-      if (!action)
-        return;
-
-      action->_last_update_rostime = action->_context->node()->now();
-      action->_update_timeout_timer->reset();
-
-      if (path_index == action->_waypoints.size()-1
-      && estimate < std::chrono::seconds(1)
-      && action->_tail_period.has_value())
-      {
-        const auto now = action->_context->now();
-        if (!action->_last_tail_bump.has_value()
-        || *action->_last_tail_bump + *action->_tail_period < now)
+        const auto now = self->_context->node()->now();
+        if (now < self->_last_update_rostime + self->_update_timeout)
         {
-          action->_last_tail_bump = now;
-          action->_context->worker().schedule(
-            [
-              context = action->_context,
-              bump = *action->_tail_period,
-              plan_id = action->_plan_id
-            ](
-              const auto&)
-            {
-              if (const auto c = context->itinerary().cumulative_delay(plan_id))
-              {
-                context->itinerary().cumulative_delay(plan_id, *c + bump);
-              }
-            });
-        }
-      }
-
-      if (path_index != action->_next_path_index)
-      {
-        action->_next_path_index = path_index;
-        LegacyTask::StatusMsg msg;
-        msg.state = LegacyTask::StatusMsg::STATE_ACTIVE;
-
-        if (path_index < action->_waypoints.size())
-        {
-          msg.status = "Heading towards "
-          + destination(
-            action->_waypoints[path_index],
-            action->_context->planner()->get_configuration().graph());
-        }
-        else
-        {
-          // TODO(MXG): This should really be a warning, but the legacy phase shim
-          // does not have a way for us to specify a warning.
-          msg.status = "[Bug] [MoveRobot] Current path index was specified as ["
-          + std::to_string(path_index) + "] but that exceeds the limit of ["
-          + std::to_string(action->_waypoints.size()-1) + "]";
+          // The simulation is paused or running slowly, so we should allow more
+          // patience before assuming that there's been a timeout.
+          return;
         }
 
-        s.on_next(msg);
-      }
+        self->_last_update_rostime = now;
 
-      if (action->_next_path_index > action->_waypoints.size())
+        // The RobotCommandHandle seems to have frozen up. Perhaps a bug in the
+        // user's code has caused the RobotCommandHandle to drop the command. We
+        // will request a replan.
+        RCLCPP_WARN(
+          self->_context->node()->get_logger(),
+          "Requesting replan for [%s] because its command handle seems to be "
+          "unresponsive",
+          self->_context->requester_id().c_str());
+        self->_context->request_replan();
+      });
+
+    const auto update = [
+        s,
+        w_action = self->weak_from_this(),
+        r = self->_context->requester_id()
+      ](
+        std::size_t path_index, rmf_traffic::Duration estimate)
       {
-        return;
-      }
+        const auto action = w_action.lock();
+        if (!action)
+          return;
 
-      if (action->_plan_id != action->_context->itinerary().current_plan_id())
-      {
-        // If the current Plan ID of the itinerary does not match the Plan ID
-        // of this action, then we should not modify the delay here.
-        return;
-      }
+        action->_last_update_rostime = action->_context->node()->now();
+        action->_update_timeout_timer->reset();
 
-      const auto& target_wp = action->_waypoints[path_index];
-      using namespace std::chrono_literals;
-      const rmf_traffic::Time now = action->_context->now();
-      const auto planned_time = target_wp.time();
-      const auto newly_expected_arrival = now + estimate;
-      const auto new_cumulative_delay = newly_expected_arrival - planned_time;
-
-      action->_context->worker().schedule(
-        [
-          w = action->weak_from_this(),
-          now,
-          new_cumulative_delay
-        ](const auto&)
+        if (path_index == action->_waypoints.size()-1
+        && estimate < std::chrono::seconds(1)
+        && action->_tail_period.has_value())
         {
-          const auto self = w.lock();
-          if (!self)
-            return;
-
-          const auto context = self->_context;
-          const auto plan_id = self->_plan_id;
-          context->itinerary().cumulative_delay(
-            plan_id, new_cumulative_delay, 100ms);
-
-          // This itinerary has been adjusted according to the latest delay
-          // information, so our position along the trajectory is given by `now`
-          const auto& itin = context->itinerary().itinerary();
-          for (std::size_t i = 0; i < itin.size(); ++i)
+          const auto now = action->_context->now();
+          if (!action->_last_tail_bump.has_value()
+          || *action->_last_tail_bump + *action->_tail_period < now)
           {
-            const auto& traj = itin[i].trajectory();
-            const auto t_it = traj.find(now);
-            if (t_it != traj.end() && t_it != traj.begin())
-            {
-              std::size_t index = t_it->index() - 1;
-              if (t_it->time() == now)
+            action->_last_tail_bump = now;
+            action->_context->worker().schedule(
+              [
+                context = action->_context,
+                bump = *action->_tail_period,
+                plan_id = action->_plan_id
+              ](
+                const auto&)
               {
-                index = t_it->index();
-              }
+                if (const auto c = context->itinerary().cumulative_delay(plan_id))
+                {
+                  context->itinerary().cumulative_delay(plan_id, *c + bump);
+                }
+              });
+          }
+        }
 
-              context->itinerary().reached(plan_id, i, index);
-            }
+        if (path_index != action->_next_path_index)
+        {
+          action->_next_path_index = path_index;
+          LegacyTask::StatusMsg msg;
+          msg.state = LegacyTask::StatusMsg::STATE_ACTIVE;
+
+          if (path_index < action->_waypoints.size())
+          {
+            msg.status = "Heading towards "
+            + destination(
+              action->_waypoints[path_index],
+              action->_context->planner()->get_configuration().graph());
+          }
+          else
+          {
+            // TODO(MXG): This should really be a warning, but the legacy phase shim
+            // does not have a way for us to specify a warning.
+            msg.status = "[Bug] [MoveRobot] Current path index was specified as ["
+            + std::to_string(path_index) + "] but that exceeds the limit of ["
+            + std::to_string(action->_waypoints.size()-1) + "]";
           }
 
-          if (!context->locked_mutex_groups().empty())
+          s.on_next(msg);
+        }
+
+        if (action->_next_path_index > action->_waypoints.size())
+        {
+          return;
+        }
+
+        if (action->_plan_id != action->_context->itinerary().current_plan_id())
+        {
+          // If the current Plan ID of the itinerary does not match the Plan ID
+          // of this action, then we should not modify the delay here.
+          return;
+        }
+
+        const auto& target_wp = action->_waypoints[path_index];
+        using namespace std::chrono_literals;
+        const rmf_traffic::Time now = action->_context->now();
+        const auto planned_time = target_wp.time();
+        const auto newly_expected_arrival = now + estimate;
+        const auto new_cumulative_delay = newly_expected_arrival - planned_time;
+
+        action->_context->worker().schedule(
+          [
+            w = action->weak_from_this(),
+            now,
+            new_cumulative_delay
+          ](const auto&)
           {
-            // std::stringstream ss;
-            // ss << context->requester_id() << " retaining:";
-            const auto adjusted_now = now - new_cumulative_delay;
-            const auto& graph = context->navigation_graph();
-            std::unordered_set<std::string> retain_mutexes;
-            for (const auto& wp : self->_waypoints)
+            const auto self = w.lock();
+            if (!self)
+              return;
+
+            const auto context = self->_context;
+            const auto plan_id = self->_plan_id;
+            context->itinerary().cumulative_delay(
+              plan_id, new_cumulative_delay, 100ms);
+
+            // This itinerary has been adjusted according to the latest delay
+            // information, so our position along the trajectory is given by `now`
+            const auto& itin = context->itinerary().itinerary();
+            for (std::size_t i = 0; i < itin.size(); ++i)
             {
-              const auto s_100 = (int)(rmf_traffic::time::to_seconds(adjusted_now - wp.time()) * 100);
-              const auto s = (double)(s_100)/100.0;
-              if (wp.time() < adjusted_now)
+              const auto& traj = itin[i].trajectory();
+              const auto t_it = traj.find(now);
+              if (t_it != traj.end() && t_it != traj.begin())
               {
-                continue;
-              }
+                std::size_t index = t_it->index() - 1;
+                if (t_it->time() == now)
+                {
+                  index = t_it->index();
+                }
 
-              if (wp.graph_index().has_value())
-              {
-                // if (!graph.get_waypoint(*wp.graph_index()).in_mutex_group().empty())
-                // {
-                //   ss << " [wp:" << graph.get_waypoint(*wp.graph_index()).name_or_index()
-                //     << " | " << graph.get_waypoint(*wp.graph_index()).in_mutex_group() << "]";
-                // }
-                retain_mutexes.insert(
-                  graph.get_waypoint(*wp.graph_index()).in_mutex_group());
-              }
-
-              for (const auto& l : wp.approach_lanes())
-              {
-                // if (!graph.get_lane(l).properties().in_mutex_group().empty())
-                // {
-                //   ss << " [lane:" << l << " | " <<  << "]";
-                // }
-
-                retain_mutexes.insert(
-                  graph.get_lane(l).properties().in_mutex_group());
+                context->itinerary().reached(plan_id, i, index);
               }
             }
 
-            // std::cout << ss.str() << std::endl;
-            context->retain_mutex_groups(retain_mutexes);
-          }
-        });
-    };
+            if (!context->locked_mutex_groups().empty())
+            {
+              // std::stringstream ss;
+              // ss << context->requester_id() << " retaining:";
+              const auto adjusted_now = now - new_cumulative_delay;
+              const auto& graph = context->navigation_graph();
+              std::unordered_set<std::string> retain_mutexes;
+              for (const auto& wp : self->_waypoints)
+              {
+                const auto s_100 = (int)(rmf_traffic::time::to_seconds(adjusted_now - wp.time()) * 100);
+                const auto s = (double)(s_100)/100.0;
+                if (wp.time() < adjusted_now)
+                {
+                  continue;
+                }
 
-  const auto finish = [s, w = weak_from_this(), name = _context->requester_id()]()
-    {
-      if (const auto self = w.lock())
+                if (wp.graph_index().has_value())
+                {
+                  // if (!graph.get_waypoint(*wp.graph_index()).in_mutex_group().empty())
+                  // {
+                  //   ss << " [wp:" << graph.get_waypoint(*wp.graph_index()).name_or_index()
+                  //     << " | " << graph.get_waypoint(*wp.graph_index()).in_mutex_group() << "]";
+                  // }
+                  retain_mutexes.insert(
+                    graph.get_waypoint(*wp.graph_index()).in_mutex_group());
+                }
+
+                for (const auto& l : wp.approach_lanes())
+                {
+                  // if (!graph.get_lane(l).properties().in_mutex_group().empty())
+                  // {
+                  //   ss << " [lane:" << l << " | " <<  << "]";
+                  // }
+
+                  retain_mutexes.insert(
+                    graph.get_lane(l).properties().in_mutex_group());
+                }
+              }
+
+              // std::cout << ss.str() << std::endl;
+              context->retain_mutex_groups(retain_mutexes);
+            }
+          });
+      };
+
+    const auto finish = [
+        s,
+        w = self->weak_from_this(),
+        name = self->_context->requester_id()
+      ]()
       {
-        if (!self->_waypoints.empty())
+        if (const auto self = w.lock())
         {
-          for (const auto& c : self->_waypoints.back().arrival_checkpoints())
+          if (!self->_waypoints.empty())
           {
-            self->_context->itinerary().reached(
-              self->_plan_id, c.route_id, c.checkpoint_id);
+            for (const auto& c : self->_waypoints.back().arrival_checkpoints())
+            {
+              self->_context->itinerary().reached(
+                self->_plan_id, c.route_id, c.checkpoint_id);
+            }
+
+            const auto last_index = self->_waypoints.back().graph_index();
+            if (last_index.has_value())
+            {
+              const auto& graph = self->_context->navigation_graph();
+              self->_context->retain_mutex_groups(
+                {graph.get_waypoint(*last_index).in_mutex_group()});
+            }
+
+            const auto now = self->_context->now();
+            const auto cumulative_delay = now - self->_waypoints.back().time();
+            self->_context->itinerary().cumulative_delay(
+              self->_plan_id, cumulative_delay, std::chrono::seconds(1));
           }
 
-          const auto last_index = self->_waypoints.back().graph_index();
-          if (last_index.has_value())
-          {
-            const auto& graph = self->_context->navigation_graph();
-            self->_context->retain_mutex_groups(
-              {graph.get_waypoint(*last_index).in_mutex_group()});
-          }
-
-          const auto now = self->_context->now();
-          const auto cumulative_delay = now - self->_waypoints.back().time();
-          self->_context->itinerary().cumulative_delay(
-            self->_plan_id, cumulative_delay, std::chrono::seconds(1));
+          LegacyTask::StatusMsg msg;
+          msg.state = LegacyTask::StatusMsg::STATE_COMPLETED;
+          msg.status = "move robot success";
+          s.on_next(msg);
+          s.on_completed();
         }
+      };
 
-        LegacyTask::StatusMsg msg;
-        msg.state = LegacyTask::StatusMsg::STATE_COMPLETED;
-        msg.status = "move robot success";
-        s.on_next(msg);
-        s.on_completed();
-      }
-    };
-
-  _context->command()->follow_new_path(
-    _waypoints,
-    [worker = _context->worker(), update](
-      std::size_t path_index, rmf_traffic::Duration estimate)
-    {
-      worker.schedule([path_index, estimate, update](const auto&)
-        {
-          update(path_index, estimate);
-        });
-    },
-    [worker = _context->worker(), finish]()
-    {
-      worker.schedule([finish](const auto&)
-        {
-          finish();
-        });
-    });
+    self->_context->command()->follow_new_path(
+      self->_waypoints,
+      [worker = self->_context->worker(), update](
+        std::size_t path_index, rmf_traffic::Duration estimate)
+      {
+        worker.schedule([path_index, estimate, update](const auto&)
+          {
+            update(path_index, estimate);
+          });
+      },
+      [worker = self->_context->worker(), finish]()
+      {
+        worker.schedule([finish](const auto&)
+          {
+            finish();
+          });
+      });
+  });
 }
 
 } // namespace phases
