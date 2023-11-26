@@ -257,9 +257,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           const auto self = w.lock();
           if (!self)
             return;
-          std::cout << "delaying " << self->_context->requester_id() << " plan id "
-            << self->_plan_id << " by " << rmf_traffic::time::to_seconds(new_cumulative_delay)
-            << std::endl;
+
           const auto context = self->_context;
           const auto plan_id = self->_plan_id;
           context->itinerary().cumulative_delay(
@@ -286,38 +284,44 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 
           if (!context->locked_mutex_groups().empty())
           {
+            // std::stringstream ss;
+            // ss << context->requester_id() << " retaining:";
             const auto adjusted_now = now - new_cumulative_delay;
             const auto& graph = context->navigation_graph();
             std::unordered_set<std::string> retain_mutexes;
-            std::stringstream ss;
-            ss << " ############################# ";
             for (const auto& wp : self->_waypoints)
             {
               const auto s_100 = (int)(rmf_traffic::time::to_seconds(adjusted_now - wp.time()) * 100);
               const auto s = (double)(s_100)/100.0;
               if (wp.time() < adjusted_now)
               {
-                ss << "[skip:" << s << "] ";
                 continue;
               }
 
-              ss << "[" << s << "] ";
               if (wp.graph_index().has_value())
               {
-                ss << graph.get_waypoint(*wp.graph_index()).in_mutex_group() << " ";
+                // if (!graph.get_waypoint(*wp.graph_index()).in_mutex_group().empty())
+                // {
+                //   ss << " [wp:" << graph.get_waypoint(*wp.graph_index()).name_or_index()
+                //     << " | " << graph.get_waypoint(*wp.graph_index()).in_mutex_group() << "]";
+                // }
                 retain_mutexes.insert(
                   graph.get_waypoint(*wp.graph_index()).in_mutex_group());
               }
 
               for (const auto& l : wp.approach_lanes())
               {
-                ss << l << ":" << graph.get_lane(l).properties().in_mutex_group()
-                  << " ";
+                // if (!graph.get_lane(l).properties().in_mutex_group().empty())
+                // {
+                //   ss << " [lane:" << l << " | " <<  << "]";
+                // }
+
                 retain_mutexes.insert(
                   graph.get_lane(l).properties().in_mutex_group());
               }
             }
-            std::cout << ss.str() << std::endl;
+
+            // std::cout << ss.str() << std::endl;
             context->retain_mutex_groups(retain_mutexes);
           }
         });
@@ -325,7 +329,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 
   const auto finish = [s, w = weak_from_this(), name = _context->requester_id()]()
     {
-      std::cout << "PATH FINISHER TRIGGERED" << std::endl;
       if (const auto self = w.lock())
       {
         if (!self->_waypoints.empty())
@@ -334,11 +337,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           {
             self->_context->itinerary().reached(
               self->_plan_id, c.route_id, c.checkpoint_id);
-
-            std::cout << "finish reached " << self->_context->participant_id()
-              << " | " << self->_context->itinerary().current_plan_id()
-              << ":" << c.route_id << ":" << c.checkpoint_id
-              << " #" << self->_context->itinerary().progress_version() << std::endl;
           }
 
           const auto last_index = self->_waypoints.back().graph_index();
@@ -354,20 +352,12 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           self->_context->itinerary().cumulative_delay(
             self->_plan_id, cumulative_delay, std::chrono::seconds(1));
         }
-        else
-        {
-          std::cout << __LINE__ << " EMPTY WAYPOINTS??? FOR " << self->_context->requester_id() << std::endl;
-        }
 
         LegacyTask::StatusMsg msg;
         msg.state = LegacyTask::StatusMsg::STATE_COMPLETED;
         msg.status = "move robot success";
         s.on_next(msg);
         s.on_completed();
-      }
-      else
-      {
-        std::cout << " ###### MOVE ROBOT IS PREMATURELY DEAD FOR " << name << std::endl;
       }
     };
 

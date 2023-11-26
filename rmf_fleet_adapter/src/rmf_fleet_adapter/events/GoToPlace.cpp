@@ -438,8 +438,16 @@ void GoToPlace::Active::_find_plan()
         "Found a plan to move from ["
         + start_name + "] to [" + goal_name + "]");
 
+      std::stringstream ss;
+      ss << self->_context->requester_id() << " initial itinerary: ";
+      for (const auto& r : result->get_itinerary())
+        ss << "[" << r.map() << ":" << r.trajectory().size() << "]";
+
+      ss << " + ";
       auto full_itinerary = project_itinerary(
-        *result, self->_followed_by, *self->_context->planner());
+        *result, self->_followed_by, *self->_context->planner(), &ss);
+
+      std::cout << ss.str() << std::endl;
 
       self->_execute_plan(
         self->_context->itinerary().assign_plan_id(),

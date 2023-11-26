@@ -347,13 +347,22 @@ void LockMutexGroup::Active::_schedule(
   {
     if (++attempts > 5)
     {
+      std::stringstream ss_sizes;
+      for (const auto& r : itinerary)
+      {
+        ss_sizes << "[" << r.map() << ":" << r.trajectory().size() << "]";
+      }
+
       RCLCPP_ERROR(
         _context->node()->get_logger(),
-        "Repeatedly failled attempts to update schedule during LockMutexGroup "
+        "Repeatedly failled attempts to update schedule with an itinerary "
+        "containing [%lu] routes with sizes %s during LockMutexGroup "
         "action for robot [%s]. Last attempted value was [%lu]. We will "
         "continue without updating the traffic schedule. This could lead to "
         "traffic management problems. Please report this bug to the "
         "maintainers of RMF.",
+        itinerary.size(),
+        ss_sizes.str().c_str(),
         _context->requester_id().c_str(),
         *_data.plan_id);
         break;

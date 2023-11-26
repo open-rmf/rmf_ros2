@@ -452,6 +452,7 @@ public:
 
     if (starts.empty())
     {
+      std::cout << __LINE__ << " " << context->requester_id() << " compute_plan_starts" << std::endl;
       starts = nav_params->compute_plan_starts(graph, map, location, now);
     }
 
@@ -1233,6 +1234,8 @@ void EasyCommandHandle::follow_new_path(
     i0 = waypoints.size() - 2;
   }
 
+  std::stringstream wss;
+  wss << " ----------- " << context->requester_id() << " Moving through:";
   std::size_t i1 = i0 + 1;
   while (i1 < waypoints.size())
   {
@@ -1340,6 +1343,7 @@ void EasyCommandHandle::follow_new_path(
       in_lift);
 
     const auto target_p = waypoints.at(target_index).position();
+    wss << "\n -- " << target_p.transpose();
     queue.push_back(
       EasyFullControl::CommandExecution::Implementation::make(
         context,
@@ -1369,26 +1373,11 @@ void EasyCommandHandle::follow_new_path(
     i1 = i0 + 1;
   }
 
-  auto finisher = [path_finished_callback_]()
-    {
-      std::cout << "CALLING THE PATH FINISHER" << std::endl;
-      if (path_finished_callback_)
-      {
-        path_finished_callback_();
-        std::cout << "DONE CALLING THE PATH FINISHER" << std::endl;
-      }
-      else
-      {
-        std::cout << " ??? PATH FINISHED CALLBACK IS NULL" << std::endl;
-      }
-    };
+  std::cout << wss.str() << std::endl;
 
-  std::cout << __LINE__ << ": SETTING CURRENT_PROGRESS FOR " << context->requester_id()
-    << " | " << waypoints.back().position().transpose() << std::endl;
   this->current_progress = ProgressTracker::make(
     queue,
-    // path_finished_callback_);
-    finisher);
+    path_finished_callback_);
   this->current_progress->next();
 }
 
@@ -1573,26 +1562,9 @@ void EasyCommandHandle::dock(
       handle_nav_request(destination, execution);
     });
 
-  auto finisher = [docking_finished_callback_]()
-    {
-      std::cout << " CALLING THE DOCKING FINISHER" << std::endl;
-      if (docking_finished_callback_)
-      {
-        docking_finished_callback_();
-        std::cout << " DONE CALLING THE DOCKING FINISHER" << std::endl;
-      }
-      else
-      {
-        std::cout << " ??? DOCKING FINISHED CALLBACK IS NULL" << std::endl;
-      }
-    };
-
-  std::cout << __LINE__ << ": SETTING CURRENT_PROGRESS FOR " << context->requester_id()
-    << " | " << command_position.transpose() << std::endl;
   this->current_progress = ProgressTracker::make(
     {std::move(cmd)},
-    // std::move(docking_finished_callback_));
-    finisher);
+    std::move(docking_finished_callback_));
   this->current_progress->next();
 }
 

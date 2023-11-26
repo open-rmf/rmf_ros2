@@ -27,7 +27,8 @@ namespace rmf_fleet_adapter {
 rmf_traffic::schedule::Itinerary project_itinerary(
   const rmf_traffic::agv::Plan& starting_from,
   const std::vector<rmf_traffic::agv::Plan::Goal>& through_destinations,
-  const rmf_traffic::agv::Planner& with_planner);
+  const rmf_traffic::agv::Planner& with_planner,
+  std::stringstream* ss = nullptr);
 
 } // namespace rmf_fleet_adapter
 

@@ -344,12 +344,15 @@ std::optional<EventGroupInfo> search_for_door_group(
             context, id, it->mutex_group_dependency.value()));
         }
 
-        door_group.push_back(
-          [legacy = it->phase, context, id](UpdateFn update)
-          {
-            return LegacyPhaseShim::Standby::make(
-              legacy, context->worker(), context->clock(), id, update);
-          });
+        if (it->phase)
+        {
+          door_group.push_back(
+            [legacy = it->phase, context, id](UpdateFn update)
+            {
+              return LegacyPhaseShim::Standby::make(
+                legacy, context->worker(), context->clock(), id, update);
+            });
+        }
 
         if (!it->dependencies.empty())
         {
@@ -459,12 +462,15 @@ std::optional<EventGroupInfo> search_for_lift_group(
             context, event_id, it->mutex_group_dependency.value()));
         }
 
-        lift_group.push_back(
-          [legacy = it->phase, context, event_id](UpdateFn update)
-          {
-            return LegacyPhaseShim::Standby::make(
-              legacy, context->worker(), context->clock(), event_id, update);
-          });
+        if (it->phase)
+        {
+          lift_group.push_back(
+            [legacy = it->phase, context, event_id](UpdateFn update)
+            {
+              return LegacyPhaseShim::Standby::make(
+                legacy, context->worker(), context->clock(), event_id, update);
+            });
+        }
 
         if (!it->dependencies.empty())
         {
@@ -806,6 +812,11 @@ std::optional<ExecutePlan> ExecutePlan::make(
   {
     pss << "\n -- " << agv::print_plan_waypoint(wp, graph, waypoints.front().time());
   }
+  pss << "\nItineraries:";
+  for (const auto& r : full_itinerary)
+  {
+    pss << "\n -- " << r.map() << ":" << r.trajectory().size();
+  }
   std::cout << pss.str() << std::endl;
 
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
@@ -881,13 +892,13 @@ std::optional<ExecutePlan> ExecutePlan::make(
         ss << " ending at <" << t.back().position().transpose() << ">";
       }
     }
-    std::cout << ss.str() << std::endl;
 
     for (std::size_t i=0; i < previous_itinerary->size(); ++i)
     {
       const auto& t = previous_itinerary->at(i).trajectory();
       if (t.size() < 2)
       {
+        ss << "\n -- excluding from " << i;
         // If we've reduced this trajectory down to nothing, then erase
         // it and all later routes. In the current version of RMF
         // we assume that routes with higher indices will never have an
@@ -905,6 +916,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
     previous_itinerary->erase(
       previous_itinerary->begin()+first_excluded_route,
       previous_itinerary->end());
+
+    std::cout << ss.str() << std::endl;
 
     auto next_itinerary = std::make_shared<
       rmf_traffic::schedule::Itinerary>(full_itinerary);
@@ -1315,9 +1328,9 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
       RCLCPP_ERROR(
         context->node()->get_logger(),
-        "Invalid plan_id [%lu] when current plan_id is [%lu] for [%s] in group "
-        "[%s] while executing plan for task [%s]. Please report this bug to the "
-        "RMF maintainers.",
+        "Failed to set plan_id [%lu] when current plan_id is [%lu] for [%s] in "
+        "group [%s] while executing plan for task [%s]. Please report this bug "
+        "to the RMF maintainers.",
         *plan_id,
         context->itinerary().current_plan_id(),
         context->name().c_str(),
@@ -1333,13 +1346,22 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
       if (++attempts > 5)
       {
+        std::stringstream ss_sizes;
+        for (const auto& r : *initial_itinerary)
+        {
+          ss_sizes << "[" << r.map() << ":" << r.trajectory().size() << "]";
+        }
+
         RCLCPP_ERROR(
           context->node()->get_logger(),
           "Requesting replan for [%s] in group [%s] because plan is repeatedly "
-          "being rejected while performing task [%s]",
+          "being rejected while performing task [%s]. Itinerary has [%lu] "
+          "with sizes of %s.",
           context->name().c_str(),
           context->group().c_str(),
-          task_id.c_str());
+          task_id.c_str(),
+          initial_itinerary->size(),
+          ss_sizes.str().c_str());
         return std::nullopt;
       }
     }
