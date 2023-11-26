@@ -123,13 +123,15 @@ inline std::string print_plan_waypoint(
     }
   }
 
+  ss << " approach lanes:";
   for (const auto& l : wp.approach_lanes())
   {
+    ss << " " << l;
     const auto& lane = graph.get_lane(l);
     const auto& m = lane.properties().in_mutex_group();
     if (!m.empty())
     {
-      ss << " lane mutex [" << m << "]";
+      ss << " [" << m << "]";
     }
   }
 

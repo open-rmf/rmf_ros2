@@ -40,6 +40,16 @@ using StandbyPtr = rmf_task_sequence::Event::StandbyPtr;
 using UpdateFn = std::function<void()>;
 using MakeStandby = std::function<StandbyPtr(UpdateFn)>;
 
+std::string print_plan_waypoints(
+  const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
+  const rmf_traffic::agv::Graph& graph)
+{
+  std::stringstream ss;
+  for (const auto& wp : waypoints)
+    ss << "\n -- " << agv::print_plan_waypoint(wp, graph, waypoints.front().time());
+  return ss.str();
+}
+
 //==============================================================================
 struct LegacyPhaseWrapper
 {
@@ -111,7 +121,6 @@ public:
     const rmf_traffic::agv::Plan::Waypoint& initial_waypoint_,
     std::optional<rmf_traffic::agv::Plan::Waypoint> next_waypoint_,
     const PlanIdPtr plan_id,
-    std::optional<LockMutexGroup::Data>& current_mutex_group,
     std::function<LockMutexGroup::Data(
       const std::unordered_set<std::string>&,
       const rmf_traffic::agv::Plan::Waypoint&)> make_current_mutex_groups,
@@ -124,7 +133,6 @@ public:
     _phases(phases),
     _event_start_time(initial_waypoint_.time()),
     _plan_id(plan_id),
-    _current_mutex_group(current_mutex_group),
     _make_current_mutex_groups(std::move(make_current_mutex_groups)),
     _get_new_mutex_group(std::move(get_new_mutex_groups)),
     _continuous(continuous)
@@ -147,7 +155,6 @@ public:
       {
         event_mutex_group = _make_current_mutex_groups(
           new_mutex_groups, initial_waypoint);
-        _current_mutex_group = event_mutex_group;
       }
     }
 
@@ -272,7 +279,6 @@ private:
   LegacyPhases& _phases;
   rmf_traffic::Time _event_start_time;
   PlanIdPtr _plan_id;
-  std::optional<LockMutexGroup::Data>& _current_mutex_group;
   std::function<LockMutexGroup::Data(
     const std::unordered_set<std::string>&,
     const rmf_traffic::agv::Plan::Waypoint&)> _make_current_mutex_groups;
@@ -955,7 +961,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
         }
       }
 
-      std::cout << " === " << __LINE__ << " " << all_str(new_mutex_groups)
+      std::cout << " ===>>> " << __LINE__ << " " << all_str(new_mutex_groups)
         << " | " << ss.str() << std::endl;
 
       bool mutex_group_change =
@@ -1029,6 +1035,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
           move_through.clear();
           // Repeat the last waypoint so that follow_new_path has continuity.
           move_through.push_back(last);
+          std::cout << " >> push " << __LINE__ << ": " << print_plan_waypoints(move_through, graph);
 
           waypoints.erase(waypoints.begin(), it);
 
@@ -1062,6 +1069,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
       }
 
       move_through.push_back(*it);
+      std::cout << " >> push " << __LINE__ << ": " << print_plan_waypoints(move_through, graph) << std::endl;
 
       const bool release_lift_here = release_lift &&
         it->graph_index().has_value() &&
@@ -1079,6 +1087,13 @@ std::optional<ExecutePlan> ExecutePlan::make(
               context, move_through, plan_id, tail_period),
             it->time(), it->dependencies(), current_mutex_groups);
         }
+        else if (current_mutex_groups.has_value())
+        {
+          legacy_phases.emplace_back(
+            nullptr, it->time(),
+            rmf_traffic::Dependencies(), current_mutex_groups);
+        }
+        current_mutex_groups = std::nullopt;
 
         if (release_lift_here)
         {
@@ -1117,7 +1132,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
         {
           EventPhaseFactory factory(
             context, legacy_phases, *it, next_waypoint, plan_id,
-            current_mutex_groups, make_current_mutex_groups, get_new_mutex_groups,
+            make_current_mutex_groups, get_new_mutex_groups,
             continuous);
           it->event()->execute(factory);
           while (factory.moving_lift())
@@ -1152,6 +1167,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
           // Have the next sequence of waypoints begin with the event waypoint
           // of this sequence.
           move_through.push_back(*it);
+          std::cout << " >> push " << __LINE__ << ": " << print_plan_waypoints(move_through, graph) << std::endl;
         }
 
         waypoints.erase(waypoints.begin(), it+1);
@@ -1176,6 +1192,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
         // Have the next sequence of waypoints begin with this one.
         move_through.clear();
         move_through.push_back(*it);
+        std::cout << " >> push " << __LINE__ << ": " << print_plan_waypoints(move_through, graph) << std::endl;
 
         waypoints.erase(waypoints.begin(), it+1);
         event_occurred = true;
