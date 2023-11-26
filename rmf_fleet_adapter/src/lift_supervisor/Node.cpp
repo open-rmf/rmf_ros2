@@ -110,10 +110,10 @@ void Node::_lift_state_update(LiftState::UniquePtr msg)
         msg->session_id.c_str(), lift_request->destination_floor.c_str()
       );
   }
-  else if (!msg->session_id.empty())
+  else
   {
-    // The lift missed the publication of the session end request so we should
-    // republish it.
+    // If there are no active sessions going on, we keep publishing session
+    // end requests to ensure that the lift is released
     LiftRequest request;
     request.lift_name = msg->lift_name;
     request.destination_floor = msg->current_floor;
