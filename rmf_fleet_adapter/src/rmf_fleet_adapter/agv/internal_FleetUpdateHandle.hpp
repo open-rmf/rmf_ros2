@@ -234,6 +234,18 @@ private:
 };
 
 //==============================================================================
+struct Expectations
+{
+  std::vector<rmf_task::State> states;
+  std::vector<rmf_task::ConstRequestPtr> pending_requests;
+};
+
+//==============================================================================
+// Map task id to pair of <RequestPtr, TaskAssignments>
+using TaskAssignments = rmf_task::TaskPlanner::Assignments;
+class AllocateTasks;
+
+//==============================================================================
 class FleetUpdateHandle::Implementation
 {
 public:
@@ -297,9 +309,6 @@ public:
   std::unordered_map<std::string, ChargingAssignment>
     unregistered_charging_assignments;
 
-  // Map task id to pair of <RequestPtr, TaskAssignments>
-  using TaskAssignments = rmf_task::TaskPlanner::Assignments;
-
   using DockParamMap =
     std::unordered_map<
     std::string,
@@ -344,6 +353,11 @@ public:
   rclcpp::Publisher<LaneStates>::SharedPtr lane_states_pub = nullptr;
   std::unordered_map<std::size_t, double> speed_limited_lanes = {};
   std::unordered_set<std::size_t> closed_lanes = {};
+
+  std::shared_ptr<AllocateTasks> calculate_bid;
+  rmf_rxcpp::subscription_guard calculate_bid_subscription;
+
+
 
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
@@ -607,21 +621,7 @@ public:
   std::optional<std::size_t> get_nearest_charger(
     const rmf_traffic::agv::Planner::Start& start);
 
-  struct Expectations
-  {
-    std::vector<rmf_task::State> states;
-    std::vector<rmf_task::ConstRequestPtr> pending_requests;
-  };
-
   Expectations aggregate_expectations() const;
-
-  /// Generate task assignments for a collection of task requests comprising of
-  /// task requests currently in TaskManager queues while optionally including a
-  /// new request and while optionally ignoring a specific request.
-  std::optional<TaskAssignments> allocate_tasks(
-    rmf_task::ConstRequestPtr new_request = nullptr,
-    std::vector<std::string>* errors = nullptr,
-    std::optional<Expectations> expectations = std::nullopt) const;
 
   /// Helper function to check if assignments are valid. An assignment set is
   /// invalid if one of the assignments has already begun execution.
@@ -645,14 +645,23 @@ public:
 
   void add_standard_tasks();
 
-  std::string make_error_str(
-    uint64_t code, std::string category, std::string detail) const;
-
   std::shared_ptr<rmf_task::Request> convert(
     const std::string& task_id,
     const nlohmann::json& request_msg,
     std::vector<std::string>& errors) const;
 };
+
+//==============================================================================
+inline std::string make_error_str(
+  uint64_t code, std::string category, std::string detail)
+{
+  nlohmann::json error;
+  error["code"] = code;
+  error["category"] = std::move(category);
+  error["detail"] = std::move(detail);
+
+  return error.dump();
+}
 
 } // namespace agv
 } // namespace rmf_fleet_adapter
