@@ -408,6 +408,9 @@ public:
   /// By default this behavior is enabled.
   void enable_responsive_wait(bool value);
 
+  /// If the robot is holding onto a session with a lift, release that session.
+  void release_lift();
+
   class Implementation;
 
   /// This API is experimental and will not be supported in the future. Users

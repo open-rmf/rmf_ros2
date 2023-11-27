@@ -1054,6 +1054,14 @@ std::shared_ptr<void> RobotContext::set_lift_destination(
 //==============================================================================
 void RobotContext::release_lift()
 {
+  if (_lift_destination)
+  {
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "Releasing lift [%s] for [%s]",
+      _lift_destination->lift_name.c_str(),
+      requester_id().c_str());
+  }
   _lift_destination = nullptr;
   _initial_time_idle_outside_lift = std::nullopt;
   _lift_stubbornness = nullptr;

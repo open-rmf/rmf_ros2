@@ -697,6 +697,28 @@ void RobotUpdateHandle::enable_responsive_wait(bool value)
 }
 
 //==============================================================================
+void RobotUpdateHandle::release_lift()
+{
+  const auto context = _pimpl->get_context();
+  if (!context)
+    return;
+
+  context->worker().schedule(
+    [context](const auto&)
+    {
+      if (const auto* lift = context->current_lift_destination())
+      {
+        RCLCPP_INFO(
+          context->node()->get_logger(),
+          "Releasing lift [%s] for [%s] because of a user request",
+          lift->lift_name.c_str(),
+          context->requester_id().c_str());
+      }
+      context->release_lift();
+    });
+}
+
+//==============================================================================
 RobotUpdateHandle::RobotUpdateHandle()
 {
   // Do nothing

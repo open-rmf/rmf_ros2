@@ -216,12 +216,14 @@ public:
 
   void execute(const LiftMove& move) final
   {
+    std::cout << "moving through " << move.lift_name() << std::endl;
     // TODO(MXG): We should probably keep track of what lift is being moved to
     // make sure we weren't given a broken nav graph
     _lifting_duration += move.duration();
     _moving_lift = true;
 
     _continuous = true;
+    std::cout << " ^ executing move" << std::endl;
   }
 
   void execute(const LiftDoorOpen& open) final
@@ -538,7 +540,7 @@ public:
     // Do nothing
   }
   std::string current_name;
-  bool still_using;
+  bool still_using = false;
 
   void execute(const Dock& dock) final {}
   void execute(const Wait&) final {}
@@ -546,6 +548,8 @@ public:
   void execute(const DoorClose&) final {}
   void execute(const LiftSessionBegin& e) final
   {
+    // If we're going to re-begin using a lift, then we don't need to keep this
+    // one locked. The new LiftSessionBegin event will re-lock the session.
     if (e.lift_name() == current_name)
       still_using = true;
   }
@@ -1014,6 +1018,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
       return std::make_pair(mutex_group_change, new_mutex_groups);
     };
 
+  const auto t0 = waypoints.front().time();
   while (!waypoints.empty())
   {
     auto it = waypoints.begin();
@@ -1143,31 +1148,49 @@ std::optional<ExecutePlan> ExecutePlan::make(
         bool continuous = true;
         if (it->event())
         {
+          std::cout << __LINE__ << ": t=" << rmf_traffic::time::to_seconds(it->time() - t0) << std::endl;
+          agv::EventPrinter printer;
+          it->event()->execute(printer);
+          std::cout << " ^ " << printer.text << " | " << it->event() << std::endl;
+
           EventPhaseFactory factory(
             context, legacy_phases, *it, next_waypoint, plan_id,
             make_current_mutex_groups, get_new_mutex_groups,
             continuous);
+
+          std::cout << __LINE__ << ": t=" << rmf_traffic::time::to_seconds(it->time() - t0) << std::endl;
+          it->event()->execute(printer);
+          std::cout << " ^ " << printer.text << " | " << it->event() << std::endl;
+
           it->event()->execute(factory);
+          std::cout << __LINE__ << " finished executing" << std::endl;
           while (factory.moving_lift())
           {
             const auto last_it = it;
             ++it;
+            if (it == waypoints.end())
+            {
+              // This should not happen... this would imply that the goal was
+              // inside of a lift
+              return std::nullopt;
+            }
+
             if (!it->event())
             {
               const double dist =
                 (it->position().block<2, 1>(0, 0)
                 - last_it->position().block<2, 1>(0, 0)).norm();
 
-              if (dist < 0.5)
+              if (dist > 0.5)
               {
                 // We'll assume that this is just a misalignment in the maps
-                continue;
+                state->update_log().warn(
+                  "Plan involves a translation of [" + std::to_string(dist)
+                  + "m] while inside a lift. This may indicate an error in the "
+                  "navigation graph. Please report this to the system integrator.");
               }
 
-              state->update_log().warn(
-                "Plan involves a translation of [" + std::to_string(dist)
-                + "m] while inside a lift. This may indicate an error in the "
-                "navigation graph. Please report this to the system integrator.");
+              continue;
             }
 
             factory.initial_waypoint = *it;

@@ -243,6 +243,11 @@ LegacyTask::StatusMsg RequestLift::ActivePhase::_get_status(
     lift_state->door_state == LiftState::DOOR_OPEN &&
     lift_state->session_id == _context->requester_id())
   {
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Lift has arrived on floor [%s] and opened its doors for robot [%s]",
+      lift_state->current_floor.c_str(),
+      lift_state->session_id.c_str());
     bool completed = false;
     const auto& watchdog = _context->get_lift_watchdog();
 

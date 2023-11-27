@@ -75,7 +75,7 @@ public:
   void execute(const LiftSessionBegin&) override { text = "LiftSessionBegin"; }
   void execute(const LiftDoorOpen&) override { text = "LiftDoorOpen"; }
   void execute(const LiftSessionEnd&) override { text = "LiftSessionEnd"; }
-  void execute(const LiftMove&) override { text = "LiftMove"; }
+  void execute(const LiftMove& e) override { text = "LiftMove " + e.lift_name(); }
   void execute(const Wait&) override { text = "Wait"; }
   void execute(const Dock& dock) override { text = "Dock"; }
 
