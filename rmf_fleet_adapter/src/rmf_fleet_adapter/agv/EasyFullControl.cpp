@@ -2346,7 +2346,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
         const auto robot_name = robot.first.as<std::string>();
         const YAML::Node& robot_config_yaml = robot.second;
 
-        if (!robot_config_yaml.IsMap())
+        if (!robot_config_yaml.IsMap() && !robot_config_yaml.IsNull())
         {
           std::cerr
             << "Entry for [" << robot_name << "] in [robots] dictionary is not "
@@ -2354,60 +2354,60 @@ EasyFullControl::FleetConfiguration::from_config_files(
           return std::nullopt;
         }
 
-        std::string charger;
-        const YAML::Node& charger_yaml = robot_config_yaml["charger"];
-        if (charger_yaml)
+        if (robot_config_yaml.IsMap())
         {
-          charger = charger_yaml.as<std::string>();
+          std::string charger;
+          const YAML::Node& charger_yaml = robot_config_yaml["charger"];
+          if (charger_yaml)
+          {
+            charger = charger_yaml.as<std::string>();
+          }
+
+          const YAML::Node& responsive_wait_yaml =
+            robot_config_yaml["responsive_wait"];
+          std::optional<bool> responsive_wait = std::nullopt;
+          if (responsive_wait_yaml)
+          {
+            responsive_wait = responsive_wait_yaml.as<bool>();
+          }
+
+          const YAML::Node& max_merge_waypoint_distance_yaml =
+            robot_config_yaml["max_merge_waypoint_distance"];
+          std::optional<double> max_merge_waypoint_distance = std::nullopt;
+          if (max_merge_waypoint_distance_yaml)
+          {
+            max_merge_waypoint_distance =
+              max_merge_waypoint_distance_yaml.as<double>();
+          }
+
+          const YAML::Node& max_merge_lane_distance_yaml =
+            robot_config_yaml["max_merge_lane_distance"];
+          std::optional<double> max_merge_lane_distance = std::nullopt;
+          if (max_merge_lane_distance_yaml)
+          {
+            max_merge_lane_distance = max_merge_lane_distance_yaml.as<double>();
+          }
+
+          const YAML::Node& min_lane_length_yaml =
+            robot_config_yaml["min_lane_length"];
+          std::optional<double> min_lane_length = std::nullopt;
+          if (min_lane_length_yaml)
+          {
+            min_lane_length = min_lane_length_yaml.as<double>();
+          }
+
+          auto config = RobotConfiguration({std::move(charger)},
+              responsive_wait,
+              max_merge_waypoint_distance,
+              max_merge_lane_distance,
+              min_lane_length);
+          known_robot_configurations.insert_or_assign(robot_name, config);
         }
         else
         {
-          std::cerr
-            << "No [charger] listed for [" << robot_name << "] in the config "
-            << "file [" << config_file << "]. A robot configuration cannot be "
-            << "made for the robot." << std::endl;
-          return std::nullopt;
+          auto config = RobotConfiguration({});
+          known_robot_configurations.insert_or_assign(robot_name, config);
         }
-
-        const YAML::Node& responsive_wait_yaml =
-          robot_config_yaml["responsive_wait"];
-        std::optional<bool> responsive_wait = std::nullopt;
-        if (responsive_wait_yaml)
-        {
-          responsive_wait = responsive_wait_yaml.as<bool>();
-        }
-
-        const YAML::Node& max_merge_waypoint_distance_yaml =
-          robot_config_yaml["max_merge_waypoint_distance"];
-        std::optional<double> max_merge_waypoint_distance = std::nullopt;
-        if (max_merge_waypoint_distance_yaml)
-        {
-          max_merge_waypoint_distance =
-            max_merge_waypoint_distance_yaml.as<double>();
-        }
-
-        const YAML::Node& max_merge_lane_distance_yaml =
-          robot_config_yaml["max_merge_lane_distance"];
-        std::optional<double> max_merge_lane_distance = std::nullopt;
-        if (max_merge_lane_distance_yaml)
-        {
-          max_merge_lane_distance = max_merge_lane_distance_yaml.as<double>();
-        }
-
-        const YAML::Node& min_lane_length_yaml =
-          robot_config_yaml["min_lane_length"];
-        std::optional<double> min_lane_length = std::nullopt;
-        if (min_lane_length_yaml)
-        {
-          min_lane_length = min_lane_length_yaml.as<double>();
-        }
-
-        auto config = RobotConfiguration({std::move(charger)},
-            responsive_wait,
-            max_merge_waypoint_distance,
-            max_merge_lane_distance,
-            min_lane_length);
-        known_robot_configurations.insert_or_assign(robot_name, config);
       }
     }
   }
@@ -2906,36 +2906,39 @@ auto EasyFullControl::add_robot(
     return nullptr;
   }
 
-  if (configuration.compatible_chargers().size() != 1)
+  if (configuration.compatible_chargers().size() > 1)
   {
-    RCLCPP_ERROR(
+    RCLCPP_WARN(
       node->get_logger(),
-      "Robot [%s] is configured to have %lu chargers, but we require it to "
-      "have exactly 1. It will not be added to the fleet.",
+      "Robot [%s] is configured to have %lu chargers, but we will only make "
+      "use of the first one. Making use of multiple chargers will be added in "
+      "a future version of RMF.",
       robot_name.c_str(),
       configuration.compatible_chargers().size());
-
-    _pimpl->cmd_handles.erase(robot_name);
-    return nullptr;
   }
 
-  const auto& charger_name = configuration.compatible_chargers().front();
-  const auto* charger_wp = graph.find_waypoint(charger_name);
-  if (!charger_wp)
+  std::optional<std::size_t> charger_index;
+  if (!configuration.compatible_chargers().empty())
   {
-    RCLCPP_ERROR(
-      node->get_logger(),
-      "Cannot find a waypoint named [%s] in the navigation graph of fleet [%s] "
-      "needed for the charging point of robot [%s]. We will not add the robot "
-      "to the fleet.",
-      charger_name.c_str(),
-      fleet_name.c_str(),
-      robot_name.c_str());
+    const auto& charger_name = configuration.compatible_chargers().front();
+    const auto* charger_wp = graph.find_waypoint(charger_name);
+    if (!charger_wp)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Cannot find a waypoint named [%s] in the navigation graph of fleet "
+        "[%s] needed for the charging point of robot [%s]. We will not add the "
+        "robot to the fleet.",
+        charger_name.c_str(),
+        fleet_name.c_str(),
+        robot_name.c_str());
 
-    _pimpl->cmd_handles.erase(robot_name);
-    return nullptr;
+      _pimpl->cmd_handles.erase(robot_name);
+      return nullptr;
+    }
+
+    charger_index = charger_wp->index();
   }
-  const std::size_t charger_index = charger_wp->index();
 
   rmf_traffic::Time now = std::chrono::steady_clock::time_point(
     std::chrono::nanoseconds(node->now().nanoseconds()));
@@ -3067,7 +3070,10 @@ auto EasyFullControl::add_robot(
           .updater->handle = handle;
           handle->set_action_executor(action_executor);
           context->set_localization(localization);
-          handle->set_charger_waypoint(charger_index);
+          if (charger_index.has_value())
+          {
+            handle->set_charger_waypoint(*charger_index);
+          }
           handle->enable_responsive_wait(enable_responsive_wait);
 
           RCLCPP_INFO(
