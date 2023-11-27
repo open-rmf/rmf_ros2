@@ -438,6 +438,10 @@ public:
   /// from this field.
   std::optional<std::size_t> graph_index() const;
 
+  /// The name of this destination, if it has one. Nameless destinations will
+  /// give an empty string.
+  std::string name() const;
+
   /// If there is a speed limit that should be respected while approaching the
   /// destination, this will indicate it.
   std::optional<double> speed_limit() const;

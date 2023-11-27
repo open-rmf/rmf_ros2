@@ -76,6 +76,7 @@ public:
   std::string map;
   Eigen::Vector3d position;
   std::optional<std::size_t> graph_index;
+  std::string name;
   std::optional<double> speed_limit;
   rmf_traffic::agv::Graph::LiftPropertiesPtr lift;
   std::optional<std::string> dock = std::nullopt;

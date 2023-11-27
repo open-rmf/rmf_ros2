@@ -739,6 +739,12 @@ std::optional<std::size_t> EasyFullControl::Destination::graph_index() const
 }
 
 //==============================================================================
+std::string EasyFullControl::Destination::name() const
+{
+  return _pimpl->name;
+}
+
+//==============================================================================
 std::optional<double> EasyFullControl::Destination::speed_limit() const
 {
   return _pimpl->speed_limit;
@@ -1334,11 +1340,37 @@ void EasyCommandHandle::follow_new_path(
       }
     }
 
+    std::string name;
+    if (wp1.graph_index().has_value())
+    {
+      const auto i1 = *wp1.graph_index();
+      if (const auto* n = graph.get_waypoint(i1).name())
+      {
+        name = *n;
+      }
+      else
+      {
+        const auto& stack_it = nav_params->stacked_vertices.find(i1);
+        if (stack_it != nav_params->stacked_vertices.end())
+        {
+          for (const auto& v : *stack_it->second)
+          {
+            if (const auto* n = graph.get_waypoint(v).name())
+            {
+              name = *n;
+              break;
+            }
+          }
+        }
+      }
+    }
+
     const auto command_position = to_robot_coordinates(map, target_position);
     auto destination = EasyFullControl::Destination::Implementation::make(
       std::move(map),
       command_position,
       wp1.graph_index(),
+      name,
       speed_limit,
       in_lift);
 
@@ -1542,10 +1574,32 @@ void EasyCommandHandle::dock(
   const auto command_position = to_robot_coordinates(
     wp1.get_map_name(), position);
 
+  std::string name;
+  if (const auto* n = wp1.name())
+  {
+    name = *n;
+  }
+  else
+  {
+    const auto& stack_it = nav_params->stacked_vertices.find(i1);
+    if (stack_it != nav_params->stacked_vertices.end())
+    {
+      for (const auto& v : *stack_it->second)
+      {
+        if (const auto* n = graph.get_waypoint(v).name())
+        {
+          name = *n;
+          break;
+        }
+      }
+    }
+  }
+
   auto destination = EasyFullControl::Destination::Implementation::make(
     wp1.get_map_name(),
     command_position,
     i1,
+    name,
     lane.properties().speed_limit(),
     wp1.in_lift(),
     dock_name_);

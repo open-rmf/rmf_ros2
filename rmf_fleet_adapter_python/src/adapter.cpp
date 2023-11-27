@@ -858,6 +858,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property_readonly("xy", &agv::EasyFullControl::Destination::xy)
   .def_property_readonly("yaw", &agv::EasyFullControl::Destination::yaw)
   .def_property_readonly("graph_index", &agv::EasyFullControl::Destination::graph_index)
+  .def_property_readonly("name", &agv::EasyFullControl::Destination::name)
   .def_property_readonly("dock", &agv::EasyFullControl::Destination::dock)
   .def_property_readonly("speed_limit", &agv::EasyFullControl::Destination::speed_limit)
   .def_property_readonly("inside_lift", &agv::EasyFullControl::Destination::inside_lift);
