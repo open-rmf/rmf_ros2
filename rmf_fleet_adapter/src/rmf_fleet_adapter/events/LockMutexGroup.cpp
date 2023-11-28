@@ -185,13 +185,13 @@ void LockMutexGroup::Active::_initialize()
   }
 
   *_data.plan_id += 1;
-  rmf_traffic::Trajectory hold;
-  const auto zero = Eigen::Vector3d::Zero();
-  const auto wait = std::chrono::seconds(5);
-  hold.insert(_data.hold_time, _data.hold_position, zero);
-  hold.insert(_data.hold_time + wait, _data.hold_position, zero);
+  _context->schedule_hold(
+    _data.plan_id,
+    _data.hold_time,
+    std::chrono::seconds(5),
+    _data.hold_position,
+    _data.hold_map);
   _stubborn = _context->be_stubborn();
-  _schedule({rmf_traffic::Route(_data.hold_map, std::move(hold))});
 
   _state->update_log().info(
     "Waiting to lock mutex group " + _data.all_groups_str());
@@ -340,52 +340,7 @@ void LockMutexGroup::Active::_schedule(
 {
   std::cout << " --- [" << _context->requester_id() << "] resuming with "
     << itinerary.size() << " routes" << std::endl;
-
-  bool scheduled = false;
-  std::size_t attempts = 0;
-  while (!scheduled)
-  {
-    if (++attempts > 5)
-    {
-      std::stringstream ss_sizes;
-      for (const auto& r : itinerary)
-      {
-        ss_sizes << "[" << r.map() << ":" << r.trajectory().size() << "]";
-      }
-
-      RCLCPP_ERROR(
-        _context->node()->get_logger(),
-        "Repeatedly failled attempts to update schedule with an itinerary "
-        "containing [%lu] routes with sizes %s during LockMutexGroup "
-        "action for robot [%s]. Last attempted value was [%lu]. We will "
-        "continue without updating the traffic schedule. This could lead to "
-        "traffic management problems. Please report this bug to the "
-        "maintainers of RMF.",
-        itinerary.size(),
-        ss_sizes.str().c_str(),
-        _context->requester_id().c_str(),
-        *_data.plan_id);
-        break;
-    }
-
-    scheduled = _context->itinerary().set(*_data.plan_id, itinerary);
-
-    if (!scheduled)
-    {
-      *_data.plan_id = _context->itinerary().assign_plan_id();
-      if (attempts > 1)
-      {
-        RCLCPP_ERROR(
-          _context->node()->get_logger(),
-          "Invalid plan_id [%lu] when current plan_id is [%lu] for robot [%s] "
-          "while performing a LockMutexGroup. Please report this bug to an RMF "
-          "developer.",
-          *_data.plan_id,
-          _context->itinerary().current_plan_id(),
-          _context->requester_id().c_str());
-      }
-    }
-  }
+  _context->schedule_itinerary(_data.plan_id, std::move(itinerary));
 }
 
 //==============================================================================

@@ -335,6 +335,13 @@ struct LiftDestination
   std::string lift_name;
   std::string destination_floor;
   bool requested_from_inside;
+
+  inline bool matches(
+    const std::string& desired_lift_name,
+    const std::string& desired_floor) const
+  {
+    return desired_lift_name == lift_name && desired_floor == destination_floor;
+  }
 };
 
 //==============================================================================
@@ -640,6 +647,17 @@ public:
   /// Retain only the mutex groups listed in the set. Release all others.
   void retain_mutex_groups(const std::unordered_set<std::string>& groups);
 
+  void schedule_itinerary(
+    std::shared_ptr<rmf_traffic::PlanId> plan_id,
+    rmf_traffic::schedule::Itinerary itinerary);
+
+  void schedule_hold(
+    std::shared_ptr<rmf_traffic::PlanId> plan_id,
+    rmf_traffic::Time time,
+    rmf_traffic::Duration wait,
+    Eigen::Vector3d position,
+    const std::string& map);
+
   /// Set the task manager for this robot. This should only be called in the
   /// TaskManager::make function.
   void _set_task_manager(std::shared_ptr<TaskManager> mgr);
@@ -800,6 +818,7 @@ private:
   rmf_rxcpp::subscription_guard _lift_subscription;
   std::optional<std::chrono::steady_clock::time_point> _initial_time_idle_outside_lift;
   std::shared_ptr<void> _lift_stubbornness;
+  bool _lift_arrived = false;
 
   void _check_door_supervisor(
     const rmf_door_msgs::msg::SupervisorHeartbeat& hb);

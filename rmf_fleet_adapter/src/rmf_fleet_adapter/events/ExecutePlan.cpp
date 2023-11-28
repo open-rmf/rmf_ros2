@@ -109,6 +109,53 @@ MakeStandby make_wait_for_traffic(
 }
 
 //==============================================================================
+void truncate_arrival(
+  rmf_traffic::schedule::Itinerary& previous_itinerary,
+  const rmf_traffic::agv::Plan::Waypoint& wp,
+  std::stringstream& ss)
+{
+  std::size_t first_excluded_route = 0;
+  for (const auto& c : wp.arrival_checkpoints())
+  {
+    first_excluded_route = std::max(first_excluded_route, c.route_id+1);
+    auto& r = previous_itinerary.at(c.route_id);
+    auto& t = r.trajectory();
+    ss << "\n -- erasing from checkpoint " << c.checkpoint_id
+      << " <" << t.at(c.checkpoint_id).position().transpose() << ">";
+
+    ss << " t.size() before: " << t.size();
+    t.erase(t.begin() + (int)c.checkpoint_id, t.end());
+    ss << " vs after: " << t.size();
+
+    if (t.size() > 0)
+    {
+      ss << " ending at <" << t.back().position().transpose() << ">";
+    }
+  }
+
+  for (std::size_t i=0; i < previous_itinerary.size(); ++i)
+  {
+    const auto& t = previous_itinerary.at(i).trajectory();
+    if (t.size() < 2)
+    {
+      ss << "\n -- excluding from " << i;
+      // If we've reduced this trajectory down to nothing, then erase
+      // it and all later routes. In the current version of RMF
+      // we assume that routes with higher indices will never have an
+      // earlier time value than the earliest of a lower index route.
+      // This is an assumption we should relax in the future, but it
+      // helps here for now.
+      first_excluded_route =
+        std::min(first_excluded_route, i);
+    }
+  }
+
+  previous_itinerary.erase(
+    previous_itinerary.begin()+first_excluded_route,
+    previous_itinerary.end());
+}
+
+//==============================================================================
 class EventPhaseFactory : public rmf_traffic::agv::Graph::Lane::Executor
 {
 public:
@@ -126,6 +173,8 @@ public:
       const rmf_traffic::agv::Plan::Waypoint&)> make_current_mutex_groups,
     std::function<std::pair<bool, std::unordered_set<std::string>>(
       const rmf_traffic::agv::Plan::Waypoint&)> get_new_mutex_groups,
+    std::shared_ptr<rmf_traffic::schedule::Itinerary>& previous_itinerary,
+    const rmf_traffic::schedule::Itinerary& full_itinerary,
     bool& continuous)
   : initial_waypoint(initial_waypoint_),
     next_waypoint(std::move(next_waypoint_)),
@@ -135,6 +184,8 @@ public:
     _plan_id(plan_id),
     _make_current_mutex_groups(std::move(make_current_mutex_groups)),
     _get_new_mutex_group(std::move(get_new_mutex_groups)),
+    _previous_itinerary(previous_itinerary),
+    _full_itinerary(full_itinerary),
     _continuous(continuous)
   {
     // Do nothing
@@ -199,6 +250,16 @@ public:
 
   void execute(const LiftSessionBegin& open) final
   {
+    std::stringstream ss;
+    ss << "truncating for LiftSessionBegin at [" << open.lift_name() << "] for ["
+      << _context->requester_id() << "]";
+    truncate_arrival(*_previous_itinerary, initial_waypoint, ss);
+
+    std::cout << ss.str() << std::endl;
+
+    _previous_itinerary =
+      std::make_shared<rmf_traffic::schedule::Itinerary>(_full_itinerary);
+
     assert(!_moving_lift);
     const auto node = _context->node();
     _phases.emplace_back(
@@ -206,9 +267,14 @@ public:
         _context,
         open.lift_name(),
         open.floor_name(),
-        _event_start_time,
-        phases::RequestLift::Located::Outside,
-        _plan_id),
+        phases::RequestLift::Data{
+          initial_waypoint.time(),
+          phases::RequestLift::Located::Outside,
+          _plan_id,
+          std::nullopt,
+          _previous_itinerary,
+          initial_waypoint
+        }),
       _event_start_time, initial_waypoint.dependencies(), std::nullopt);
 
     _continuous = true;
@@ -258,10 +324,12 @@ public:
         _context,
         open.lift_name(),
         open.floor_name(),
-        _event_start_time + open.duration() + _lifting_duration,
-        phases::RequestLift::Located::Inside,
-        _plan_id,
-        localize),
+        phases::RequestLift::Data{
+          _event_start_time + open.duration() + _lifting_duration,
+          phases::RequestLift::Located::Inside,
+          _plan_id,
+          localize
+        }),
       _event_start_time, initial_waypoint.dependencies(), std::nullopt);
     _moving_lift = false;
 
@@ -302,11 +370,12 @@ private:
     const rmf_traffic::agv::Plan::Waypoint&)> _make_current_mutex_groups;
   std::function<std::pair<bool, std::unordered_set<std::string>>(
     const rmf_traffic::agv::Plan::Waypoint&)> _get_new_mutex_group;
+  std::shared_ptr<rmf_traffic::schedule::Itinerary>& _previous_itinerary;
+  const rmf_traffic::schedule::Itinerary& _full_itinerary;
   bool& _continuous;
   bool _moving_lift = false;
   rmf_traffic::Duration _lifting_duration = rmf_traffic::Duration(0);
 };
-
 
 //==============================================================================
 struct EventGroupInfo
@@ -769,7 +838,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
           legacy_phases.emplace_back(
             std::make_shared<phases::RequestLift::PendingPhase>(
-              context, lift->name(), map, t0, side, plan_id),
+              context, lift->name(), map,
+              phases::RequestLift::Data{t0, side, plan_id}),
             t0, rmf_traffic::Dependencies(), std::nullopt);
         }
       }
@@ -880,8 +950,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
           waypoints.size());
       }
     }
-
-    std::size_t first_excluded_route = 0;
     std::stringstream ss;
     if (current_mutex_groups.has_value())
     {
@@ -895,47 +963,11 @@ std::optional<ExecutePlan> ExecutePlan::make(
       ss << "truncating to lock " << all_str(new_mutex_groups) << " for ["
         << context->requester_id() << "]";
     }
-    for (const auto& c : wp.arrival_checkpoints())
-    {
-      first_excluded_route = std::max(first_excluded_route, c.route_id+1);
-      auto& r = previous_itinerary->at(c.route_id);
-      auto& t = r.trajectory();
-      ss << "\n -- erasing from checkpoint " << c.checkpoint_id
-        << " <" << t.at(c.checkpoint_id).position().transpose() << ">";
 
-      ss << " t.size() before: " << t.size();
-      t.erase(t.begin() + (int)c.checkpoint_id, t.end());
-      ss << " vs after: " << t.size();
-
-      if (t.size() > 0)
-      {
-        ss << " ending at <" << t.back().position().transpose() << ">";
-      }
-    }
-
-    for (std::size_t i=0; i < previous_itinerary->size(); ++i)
-    {
-      const auto& t = previous_itinerary->at(i).trajectory();
-      if (t.size() < 2)
-      {
-        ss << "\n -- excluding from " << i;
-        // If we've reduced this trajectory down to nothing, then erase
-        // it and all later routes. In the current version of RMF
-        // we assume that routes with higher indices will never have an
-        // earlier time value than the earliest of a lower index route.
-        // This is an assumption we should relax in the future, but it
-        // helps here for now.
-        first_excluded_route =
-          std::min(first_excluded_route, i);
-      }
-    }
+    truncate_arrival(*previous_itinerary, wp, ss);
 
     auto expected_waypoints = waypoints;
     expected_waypoints.insert(expected_waypoints.begin(), wp);
-
-    previous_itinerary->erase(
-      previous_itinerary->begin()+first_excluded_route,
-      previous_itinerary->end());
 
     std::cout << ss.str() << std::endl;
 
@@ -1172,6 +1204,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
           EventPhaseFactory factory(
             context, legacy_phases, *it, next_waypoint, plan_id,
             make_current_mutex_groups, get_new_mutex_groups,
+            previous_itinerary, full_itinerary,
             continuous);
 
           std::cout << __LINE__ << ": t=" << rmf_traffic::time::to_seconds(it->time() - t0) << std::endl;

@@ -1071,6 +1071,7 @@ std::shared_ptr<void> RobotContext::set_lift_destination(
   std::string destination_floor,
   bool requested_from_inside)
 {
+  _lift_arrived = false;
   _lift_destination = std::make_shared<LiftDestination>(
     LiftDestination{
       std::move(lift_name),
@@ -1096,6 +1097,7 @@ void RobotContext::release_lift()
   _lift_destination = nullptr;
   _initial_time_idle_outside_lift = std::nullopt;
   _lift_stubbornness = nullptr;
+  _lift_arrived = false;
 }
 
 //==============================================================================
@@ -1188,6 +1190,96 @@ RobotContext::RobotContext(
   _override_status = std::nullopt;
 
   _action_executor = nullptr;
+}
+
+//==============================================================================
+void RobotContext::schedule_itinerary(
+  std::shared_ptr<rmf_traffic::PlanId> plan_id,
+  rmf_traffic::schedule::Itinerary new_itinerary)
+{
+  bool scheduled = false;
+  std::size_t attempts = 0;
+  while (!scheduled)
+  {
+    if (++attempts > 5)
+    {
+      std::stringstream ss_sizes;
+      for (const auto& r : new_itinerary)
+      {
+        ss_sizes << "[" << r.map() << ":" << r.trajectory().size() << "]";
+      }
+
+      RCLCPP_ERROR(
+        node()->get_logger(),
+        "Repeatedly failled attempts to update schedule with an itinerary "
+        "containing [%lu] routes with sizes %s during LockMutexGroup "
+        "action for robot [%s]. Last attempted value was [%lu]. We will "
+        "continue without updating the traffic schedule. This could lead to "
+        "traffic management problems. Please report this bug to the "
+        "maintainers of RMF.",
+        new_itinerary.size(),
+        ss_sizes.str().c_str(),
+        requester_id().c_str(),
+        *plan_id);
+        break;
+    }
+
+    scheduled = itinerary().set(*plan_id, new_itinerary);
+
+    if (!scheduled)
+    {
+      for (const auto& r : new_itinerary)
+      {
+        if (r.trajectory().size() < 2)
+        {
+          std::stringstream ss_sizes;
+          for (const auto& r : new_itinerary)
+          {
+            ss_sizes << "[" << r.map() << ":" << r.trajectory().size() << "]";
+          }
+
+          RCLCPP_ERROR(
+            node()->get_logger(),
+            "Attempting to schedule an itinerary for robot [%s] containing a "
+            "route that has fewer than 2 waypoints. Routes sizes are %s. "
+            "We will continue without updating the traffic schedule. This "
+            "could lead to traffic management problems. Please report this "
+            "bug to the maintainers of RMF.",
+            requester_id().c_str(),
+            ss_sizes.str().c_str());
+          return;
+        }
+      }
+
+      *plan_id = itinerary().assign_plan_id();
+      if (attempts > 1)
+      {
+        RCLCPP_ERROR(
+          node()->get_logger(),
+          "Invalid plan_id [%lu] when current plan_id is [%lu] for robot [%s] "
+          "while performing a LockMutexGroup. Please report this bug to an RMF "
+          "developer.",
+          *plan_id,
+          itinerary().current_plan_id(),
+          requester_id().c_str());
+      }
+    }
+  }
+}
+
+//==============================================================================
+void RobotContext::schedule_hold(
+  std::shared_ptr<rmf_traffic::PlanId> plan_id,
+  rmf_traffic::Time time,
+  rmf_traffic::Duration wait,
+  Eigen::Vector3d position,
+  const std::string& map)
+{
+  rmf_traffic::Trajectory hold;
+  const auto zero = Eigen::Vector3d::Zero();
+  hold.insert(time, position, zero);
+  hold.insert(time + wait, position, zero);
+  schedule_itinerary(plan_id, {rmf_traffic::Route(map, std::move(hold))});
 }
 
 //==============================================================================
@@ -1307,6 +1399,9 @@ void RobotContext::_check_lift_state(
         // Be a stubborn negotiator while using the lift
         _lift_stubbornness = be_stubborn();
       }
+
+      _lift_arrived =
+        _lift_destination->destination_floor == state.current_floor;
     }
   }
 

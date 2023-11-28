@@ -70,10 +70,11 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
     context,
     lift_name,
     destination,
-    context->now() + std::chrono::seconds(5),
-    RequestLift::Located::Outside,
-    std::make_shared<rmf_traffic::PlanId>(0)
-  );
+    RequestLift::Data{
+      context->now() + std::chrono::seconds(5),
+      RequestLift::Located::Outside,
+      std::make_shared<rmf_traffic::PlanId>(0)
+    });
   auto active_phase = pending_phase->begin();
 
   WHEN("it is cancelled before its started")
