@@ -130,6 +130,37 @@ void NavParams::find_stacked_vertices(const rmf_traffic::agv::Graph& graph)
 }
 
 //==============================================================================
+std::string NavParams::get_vertex_name(
+  const rmf_traffic::agv::Graph& graph,
+  const std::optional<std::size_t> v_opt) const
+{
+  if (!v_opt.has_value())
+    return "";
+
+  const std::size_t v = v_opt.value();
+  if (const std::string* n = graph.get_waypoint(v).name())
+  {
+    return *n;
+  }
+  else
+  {
+    const auto& stack_it = stacked_vertices.find(v);
+    if (stack_it != stacked_vertices.end() && stack_it->second)
+    {
+      for (const auto& v : *stack_it->second)
+      {
+        if (const auto* n = graph.get_waypoint(v).name())
+        {
+          return *n;
+        }
+      }
+    }
+  }
+
+  return "";
+}
+
+//==============================================================================
 rmf_traffic::agv::Plan::StartSet NavParams::process_locations(
   const rmf_traffic::agv::Graph& graph,
   rmf_traffic::agv::Plan::StartSet locations) const

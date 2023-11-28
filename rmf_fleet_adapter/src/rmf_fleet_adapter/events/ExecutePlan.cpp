@@ -230,30 +230,16 @@ public:
   {
     std::string name;
     const auto& graph = _context->navigation_graph();
-    const auto i1= initial_waypoint.graph_index();
-    if (i1.has_value())
+    const auto i1 = initial_waypoint.graph_index();
+    if (const auto nav_params = _context->nav_params())
     {
-      if (const auto* n = graph.get_waypoint(*i1).name())
+      name = nav_params->get_vertex_name(graph, i1);
+    }
+    else if (i1.has_value())
+    {
+      if (const std::string* n = graph.get_waypoint(i1.value()).name())
       {
         name = *n;
-      }
-      else
-      {
-        if (const auto nav_params = _context->nav_params())
-        {
-          const auto& stack_it = nav_params->stacked_vertices.find(*i1);
-          if (stack_it != nav_params->stacked_vertices.end())
-          {
-            for (const auto& v : *stack_it->second)
-            {
-              if (const auto* n = graph.get_waypoint(v).name())
-              {
-                name = *n;
-                break;
-              }
-            }
-          }
-        }
       }
     }
 

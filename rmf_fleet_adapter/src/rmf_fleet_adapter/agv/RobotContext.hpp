@@ -287,6 +287,10 @@ struct NavParams
 
   void find_stacked_vertices(const rmf_traffic::agv::Graph& graph);
 
+  std::string get_vertex_name(
+    const rmf_traffic::agv::Graph& graph,
+    std::optional<std::size_t> v) const;
+
   rmf_traffic::agv::Plan::StartSet process_locations(
     const rmf_traffic::agv::Graph& graph,
     rmf_traffic::agv::Plan::StartSet locations) const;
