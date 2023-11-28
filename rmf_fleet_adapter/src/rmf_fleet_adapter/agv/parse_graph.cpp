@@ -366,32 +366,35 @@ rmf_traffic::agv::Graph parse_graph(
       if (const YAML::Node docking_option = options["dock_name"])
       {
         const std::string dock_name = docking_option.as<std::string>();
-        const rmf_traffic::Duration duration = std::chrono::seconds(5);
-        if (entry_event)
+        if (!dock_name.empty())
         {
-          // Add a waypoint and a lane leading to it for the dock maneuver
-          // to be done after the entry event
-          const auto entry_wp = graph.get_waypoint(begin);
-          auto& dock_wp = graph.add_waypoint(map_name, entry_wp.get_location());
-          dock_wp.set_in_mutex_group(entry_wp.in_mutex_group());
-          dock_wp.set_merge_radius(0.0);
-
-          graph.add_lane(
-            {begin, entry_event},
-            {dock_wp.index(), rmf_utils::clone_ptr<Event>()});
-          stacked_vertex.insert({begin, dock_wp.index()});
-
-          if (const auto lift = graph.get_waypoint(begin).in_lift())
+          const rmf_traffic::Duration duration = std::chrono::seconds(5);
+          if (entry_event)
           {
-            dock_wp.set_in_lift(lift);
+            // Add a waypoint and a lane leading to it for the dock maneuver
+            // to be done after the entry event
+            const auto entry_wp = graph.get_waypoint(begin);
+            auto& dock_wp = graph.add_waypoint(map_name, entry_wp.get_location());
+            dock_wp.set_in_mutex_group(entry_wp.in_mutex_group());
+            dock_wp.set_merge_radius(0.0);
+
+            graph.add_lane(
+              {begin, entry_event},
+              {dock_wp.index(), rmf_utils::clone_ptr<Event>()});
+            stacked_vertex.insert({begin, dock_wp.index()});
+
+            if (const auto lift = graph.get_waypoint(begin).in_lift())
+            {
+              dock_wp.set_in_lift(lift);
+            }
+
+            // First lane from start -> dock, second lane from dock -> end
+            begin = dock_wp.index();
+
+            vnum_temp++;
           }
-
-          // First lane from start -> dock, second lane from dock -> end
-          begin = dock_wp.index();
-
-          vnum_temp++;
+          entry_event = Event::make(Lane::Dock(dock_name, duration));
         }
-        entry_event = Event::make(Lane::Dock(dock_name, duration));
       }
 
       auto& graph_lane = graph.add_lane(
