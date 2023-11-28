@@ -2310,11 +2310,11 @@ EasyFullControl::FleetConfiguration::from_config_files(
 
         if (robot_config_yaml.IsMap())
         {
-          std::string charger;
+          std::vector<std::string> chargers;
           const YAML::Node& charger_yaml = robot_config_yaml["charger"];
           if (charger_yaml)
           {
-            charger = charger_yaml.as<std::string>();
+            chargers.push_back(charger_yaml.as<std::string>());
           }
 
           const YAML::Node& responsive_wait_yaml =
@@ -2350,7 +2350,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
             min_lane_length = min_lane_length_yaml.as<double>();
           }
 
-          auto config = RobotConfiguration({std::move(charger)},
+          auto config = RobotConfiguration(
+              std::move(chargers),
               responsive_wait,
               max_merge_waypoint_distance,
               max_merge_lane_distance,
