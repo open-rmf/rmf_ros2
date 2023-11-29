@@ -58,8 +58,8 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
 
   RCLCPP_INFO(
     this->get_logger(),
-    "[%s] Received adapter lift request to [%s]",
-    msg->session_id.c_str(), msg->destination_floor.c_str()
+    "[%s] Received adapter lift request to [%s] with request type [%d]",
+    msg->session_id.c_str(), msg->destination_floor.c_str(), msg->request_type
   );
   auto& curr_request = _active_sessions.insert(
     std::make_pair(msg->lift_name, nullptr)).first->second;
@@ -72,6 +72,7 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
         curr_request = std::move(msg);
       else
       {
+        msg->request_time = this->now();
         _lift_request_pub->publish(*msg);
         RCLCPP_INFO(
           this->get_logger(),
@@ -103,6 +104,7 @@ void Node::_lift_state_update(LiftState::UniquePtr msg)
   {
     if ((lift_request->destination_floor != msg->current_floor) ||
       (lift_request->door_state != msg->door_state))
+      lift_request->request_time = this->now();
       _lift_request_pub->publish(*lift_request);
       RCLCPP_INFO(
         this->get_logger(),
@@ -118,6 +120,7 @@ void Node::_lift_state_update(LiftState::UniquePtr msg)
     request.lift_name = msg->lift_name;
     request.destination_floor = msg->current_floor;
     request.session_id = msg->session_id;
+    request.request_time = this->now();
     request.request_type = LiftRequest::REQUEST_END_SESSION;
     _lift_request_pub->publish(request);
   }
