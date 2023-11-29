@@ -111,8 +111,7 @@ MakeStandby make_wait_for_traffic(
 //==============================================================================
 void truncate_arrival(
   rmf_traffic::schedule::Itinerary& previous_itinerary,
-  const rmf_traffic::agv::Plan::Waypoint& wp,
-  std::stringstream& ss)
+  const rmf_traffic::agv::Plan::Waypoint& wp)
 {
   std::size_t first_excluded_route = 0;
   for (const auto& c : wp.arrival_checkpoints())
@@ -120,17 +119,8 @@ void truncate_arrival(
     first_excluded_route = std::max(first_excluded_route, c.route_id+1);
     auto& r = previous_itinerary.at(c.route_id);
     auto& t = r.trajectory();
-    ss << "\n -- erasing from checkpoint " << c.checkpoint_id
-      << " <" << t.at(c.checkpoint_id).position().transpose() << ">";
 
-    ss << " t.size() before: " << t.size();
     t.erase(t.begin() + (int)c.checkpoint_id, t.end());
-    ss << " vs after: " << t.size();
-
-    if (t.size() > 0)
-    {
-      ss << " ending at <" << t.back().position().transpose() << ">";
-    }
   }
 
   for (std::size_t i=0; i < previous_itinerary.size(); ++i)
@@ -138,7 +128,6 @@ void truncate_arrival(
     const auto& t = previous_itinerary.at(i).trajectory();
     if (t.size() < 2)
     {
-      ss << "\n -- excluding from " << i;
       // If we've reduced this trajectory down to nothing, then erase
       // it and all later routes. In the current version of RMF
       // we assume that routes with higher indices will never have an
@@ -250,12 +239,7 @@ public:
 
   void execute(const LiftSessionBegin& open) final
   {
-    std::stringstream ss;
-    ss << "truncating for LiftSessionBegin at [" << open.lift_name() << "] for ["
-      << _context->requester_id() << "]";
-    truncate_arrival(*_previous_itinerary, initial_waypoint, ss);
-
-    std::cout << ss.str() << std::endl;
+    truncate_arrival(*_previous_itinerary, initial_waypoint);
 
     _previous_itinerary =
       std::make_shared<rmf_traffic::schedule::Itinerary>(_full_itinerary);
@@ -282,14 +266,12 @@ public:
 
   void execute(const LiftMove& move) final
   {
-    std::cout << "moving through " << move.lift_name() << std::endl;
     // TODO(MXG): We should probably keep track of what lift is being moved to
     // make sure we weren't given a broken nav graph
     _lifting_duration += move.duration();
     _moving_lift = true;
 
     _continuous = true;
-    std::cout << " ^ executing move" << std::endl;
   }
 
   void execute(const LiftDoorOpen& open) final
@@ -596,24 +578,6 @@ std::optional<EventGroupInfo> search_for_lift_group(
 
 } // anonymous namespace
 
-class Printer : public rmf_traffic::agv::Graph::Lane::Executor
-{
-public:
-  Printer()
-  {
-    // Do nothing
-  }
-
-  void execute(const DoorOpen&) override { std::cout << "event " << __LINE__ << std::endl;; }
-  void execute(const DoorClose&) override { std::cout << "event " << __LINE__ << std::endl;; }
-  void execute(const LiftSessionBegin&) override { std::cout << "event " << __LINE__ << std::endl;; }
-  void execute(const LiftDoorOpen&) override { std::cout << "event " << __LINE__ << std::endl;; }
-  void execute(const LiftSessionEnd&) override { std::cout << "event " << __LINE__ << std::endl;; }
-  void execute(const LiftMove&) override { std::cout << "event " << __LINE__ << std::endl;; }
-  void execute(const Wait&) override { std::cout << "event " << __LINE__ << std::endl;; }
-  void execute(const Dock& dock) override { std::cout << "event " << __LINE__ << std::endl;; }
-};
-
 //==============================================================================
 class LiftFinder : public rmf_traffic::agv::Graph::Lane::Executor
 {
@@ -701,20 +665,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
 {
   if (plan.get_waypoints().empty())
     return std::nullopt;
-  // std::cout << " --- plan --- " << std::endl;
-  // const auto t0 = plan.get_waypoints().front().time();
-  // for (const rmf_traffic::agv::Plan::Waypoint& wp : plan.get_waypoints())
-  // {
-  //   std::cout << " -- t=" << rmf_traffic::time::to_seconds(wp.time() - t0) << " ";
-  //   if (wp.graph_index().has_value())
-  //     std::cout << "index " << *wp.graph_index() << " ";
-  //   std::cout << "[" << wp.position().transpose() << "]" << std::endl;
-  //   if (wp.event())
-  //   {
-  //     Printer printer;
-  //     wp.event()->execute(printer);
-  //   }
-  // }
 
   auto plan_id = std::make_shared<rmf_traffic::PlanId>(recommended_plan_id);
   const auto& graph = context->navigation_graph();
@@ -725,7 +675,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
     ->get_characteristic_length()/2.0;
   if (const auto* current_lift = context->current_lift_destination())
   {
-    std::cout << " :::::::::: " << context->requester_id() << " STILL HAVE LIFT LOCKED: " << current_lift->lift_name << std::endl;
     LiftFinder finder(current_lift->lift_name);
     for (const auto& wp : plan.get_waypoints())
     {
@@ -753,23 +702,20 @@ std::optional<ExecutePlan> ExecutePlan::make(
       }
       else
       {
-        std::cout << "KNOWN LIFTS:";
+        std::stringstream ss;
         for (const auto& l : graph.all_known_lifts())
         {
-          std::cout << "\n -- " << l->name();
+          ss << "[" << l->name() << "]";
         }
-        std::cout << std::endl;
 
         RCLCPP_ERROR(
           context->node()->get_logger(),
-          "Robot [%s] might be stuck with locking an unknown lift named [%s]",
+          "Robot [%s] might be stuck with locking an unknown lift named [%s]. "
+          "Known lifts include %s",
           context->requester_id().c_str(),
-          current_lift->lift_name.c_str());
+          current_lift->lift_name.c_str(),
+          ss.str().c_str());
       }
-    }
-    else
-    {
-      std::cout << " ::::::::::::: " << context->requester_id() << " STILL USING THE LIFT: " << current_lift->lift_name << std::endl;
     }
   }
 
@@ -779,7 +725,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
       plan.get_waypoints().front().position().block<2, 1>(0, 0);
       const auto t0 = plan.get_waypoints().front().time();
 
-    std::cout << " === " << __LINE__ << " broken start" << std::endl;
     const auto first_graph_wp = [&]() -> std::optional<std::size_t>
       {
         for (const auto& wp : plan.get_waypoints())
@@ -793,7 +738,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
     if (first_graph_wp.has_value())
     {
-      std::cout << " === " << __LINE__ << " merging onto " << *first_graph_wp << std::endl;
       const Eigen::Vector2d p1 =
         graph.get_waypoint(*first_graph_wp).get_location();
 
@@ -896,19 +840,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints =
     plan.get_waypoints();
 
-  std::stringstream pss;
-  pss << "Plan waypoints";
-  for (const auto& wp : waypoints)
-  {
-    pss << "\n -- " << agv::print_plan_waypoint(wp, graph, waypoints.front().time());
-  }
-  pss << "\nItineraries:";
-  for (const auto& r : full_itinerary)
-  {
-    pss << "\n -- " << r.map() << ":" << r.trajectory().size();
-  }
-  std::cout << pss.str() << std::endl;
-
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
   std::optional<LockMutexGroup::Data> current_mutex_groups;
   std::unordered_set<std::string> remaining_mutex_groups;
@@ -950,26 +881,11 @@ std::optional<ExecutePlan> ExecutePlan::make(
           waypoints.size());
       }
     }
-    std::stringstream ss;
-    if (current_mutex_groups.has_value())
-    {
-      ss << "truncating for switch from ["
-        << current_mutex_groups->all_groups_str()
-        << "] to [" << all_str(new_mutex_groups) << "] for ["
-        << context->requester_id() << "]";
-    }
-    else
-    {
-      ss << "truncating to lock " << all_str(new_mutex_groups) << " for ["
-        << context->requester_id() << "]";
-    }
 
-    truncate_arrival(*previous_itinerary, wp, ss);
+    truncate_arrival(*previous_itinerary, wp);
 
     auto expected_waypoints = waypoints;
     expected_waypoints.insert(expected_waypoints.begin(), wp);
-
-    std::cout << ss.str() << std::endl;
 
     auto next_itinerary = std::make_shared<
       rmf_traffic::schedule::Itinerary>(full_itinerary);
@@ -992,48 +908,30 @@ std::optional<ExecutePlan> ExecutePlan::make(
   const auto get_new_mutex_groups = [&](
       const rmf_traffic::agv::Plan::Waypoint& wp)
     {
-      std::stringstream ss;
       std::unordered_set<std::string> new_mutex_groups;
-      ss << "<" << wp.position().transpose() << "> ";
       if (wp.graph_index().has_value())
       {
-        ss << "i_wp: " << *wp.graph_index() << " ";
-        if (const auto* name = graph.get_waypoint(*wp.graph_index()).name())
-        {
-          ss << "name_wp: " << *name << " ";
-        }
-
         const auto& group =
           graph.get_waypoint(*wp.graph_index()).in_mutex_group();
         if (!group.empty())
         {
-          ss << " [" << group << "]";
           new_mutex_groups.insert(group);
         }
       }
 
-      ss << " lanes: ";
       for (const auto l : wp.approach_lanes())
       {
-        ss << l << " ";
         const auto& lane = graph.get_lane(l);
         const auto& group = lane.properties().in_mutex_group();
         if (!group.empty())
         {
-          ss << "[" << group << "] ";
           new_mutex_groups.insert(group);
           break;
         }
       }
 
-      std::cout << " ===>>> " << __LINE__ << " " << all_str(new_mutex_groups)
-        << " | " << ss.str() << std::endl;
-
       bool mutex_group_change =
         (!new_mutex_groups.empty() && remaining_mutex_groups.empty());
-
-      std::cout << __LINE__ << " | " << !new_mutex_groups.empty()
-        << " " << !current_mutex_groups.has_value() << std::endl;
 
       if (!mutex_group_change && !remaining_mutex_groups.empty())
       {
@@ -1041,13 +939,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
         {
           if (remaining_mutex_groups.count(new_group) == 0)
           {
-            std::cout << " === " << __LINE__ << " new group: " << new_group << std::endl;
             mutex_group_change = true;
             break;
-          }
-          else
-          {
-            std::cout << " === " << __LINE__ << " old group: " << new_group << std::endl;
           }
         }
       }
@@ -1061,8 +954,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
         remaining_mutex_groups = new_mutex_groups;
       }
 
-      std::cout << " === " << __LINE__ << " | mutex_group_changed: "
-        << mutex_group_change << std::endl;
       return std::make_pair(mutex_group_change, new_mutex_groups);
     };
 
@@ -1074,23 +965,13 @@ std::optional<ExecutePlan> ExecutePlan::make(
     for (; it != waypoints.end(); ++it)
     {
       const auto [mutex_group_change, new_mutex_groups] = get_new_mutex_groups(*it);
-      // std::cout << new_mutex_groups << " | " << current_mutex_groups.has_value();
-      // if (current_mutex_groups.has_value())
-      //   std::cout << " | " << current_mutex_groups->all_groups_str();
-      // std::cout << std::endl;
-
       if (mutex_group_change)
       {
         if (move_through.size() > 1)
         {
-          std::cout << " >>> " << __LINE__ << std::endl;
           auto next_mutex_group = make_current_mutex_groups(
             new_mutex_groups, move_through.back());
 
-          // if (current_mutex_groups.has_value())
-          //   std::cout << " === " << __LINE__ << ": " << current_mutex_groups->mutex_group << std::endl;
-          // else
-          //   std::cout << " === " << __LINE__ << ": <no mutex group>"  << std::endl;
           legacy_phases.emplace_back(
             std::make_shared<phases::MoveRobot::PendingPhase>(
               context, move_through, plan_id, tail_period),
@@ -1101,8 +982,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
           move_through.clear();
           // Repeat the last waypoint so that follow_new_path has continuity.
           move_through.push_back(last);
-          std::cout << " >> push " << __LINE__ << ": " << print_plan_waypoints(move_through, graph);
-
           waypoints.erase(waypoints.begin(), it);
 
           current_mutex_groups = next_mutex_group;
@@ -1118,25 +997,19 @@ std::optional<ExecutePlan> ExecutePlan::make(
           // through yet. Just set the current_mutex_groups from this point.
           if (move_through.empty())
           {
-            std::cout << " >>> " << __LINE__ << std::endl;
             current_mutex_groups = make_current_mutex_groups(
               new_mutex_groups, *it);
-            std::cout << " === " << __LINE__ << ": " << current_mutex_groups->all_groups_str() << std::endl;
           }
           else
           {
-            std::cout << " >>> " << __LINE__ << std::endl;
             assert(move_through.size() == 1);
             current_mutex_groups = make_current_mutex_groups(
               new_mutex_groups, move_through.back());
-            std::cout << " === " << __LINE__ << ": " << current_mutex_groups->all_groups_str() << std::endl;
           }
         }
       }
 
       move_through.push_back(*it);
-      std::cout << " >> push " << __LINE__ << ": " << print_plan_waypoints(move_through, graph) << std::endl;
-
       const bool release_lift_here = release_lift &&
         it->graph_index().has_value() &&
         !release_lift->is_in_lift(it->position().block<2, 1>(0, 0), envelope);
@@ -1196,23 +1069,13 @@ std::optional<ExecutePlan> ExecutePlan::make(
         bool continuous = true;
         if (it->event())
         {
-          std::cout << __LINE__ << ": t=" << rmf_traffic::time::to_seconds(it->time() - t0) << std::endl;
-          agv::EventPrinter printer;
-          it->event()->execute(printer);
-          std::cout << " ^ " << printer.text << " | " << it->event() << std::endl;
-
           EventPhaseFactory factory(
             context, legacy_phases, *it, next_waypoint, plan_id,
             make_current_mutex_groups, get_new_mutex_groups,
             previous_itinerary, full_itinerary,
             continuous);
 
-          std::cout << __LINE__ << ": t=" << rmf_traffic::time::to_seconds(it->time() - t0) << std::endl;
-          it->event()->execute(printer);
-          std::cout << " ^ " << printer.text << " | " << it->event() << std::endl;
-
           it->event()->execute(factory);
-          std::cout << __LINE__ << " finished executing" << std::endl;
           while (factory.moving_lift())
           {
             const auto last_it = it;
@@ -1252,7 +1115,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
           // Have the next sequence of waypoints begin with the event waypoint
           // of this sequence.
           move_through.push_back(*it);
-          std::cout << " >> push " << __LINE__ << ": " << print_plan_waypoints(move_through, graph) << std::endl;
         }
 
         waypoints.erase(waypoints.begin(), it+1);
@@ -1277,7 +1139,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
         // Have the next sequence of waypoints begin with this one.
         move_through.clear();
         move_through.push_back(*it);
-        std::cout << " >> push " << __LINE__ << ": " << print_plan_waypoints(move_through, graph) << std::endl;
 
         waypoints.erase(waypoints.begin(), it+1);
         event_occurred = true;
@@ -1316,21 +1177,17 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::vector<MakeStandby> standbys;
   auto head = legacy_phases.cbegin();
   const auto end = legacy_phases.cend();
-  std::stringstream ss;
-  ss << " ===== Execution plan for " << context->requester_id() << ":";
   while (head != end)
   {
     if (const auto door =
       search_for_door_group(head, end, context, plan_id, event_id))
     {
-      ss << "\n -- Move through door";
       standbys.push_back(door->group);
       head = door->tail;
     }
     else if (const auto lift = search_for_lift_group(
         head, end, context, plan_id, event_id, state))
     {
-      ss << "\n -- Move through lift";
       standbys.push_back(lift->group);
       head = lift->tail;
     }
@@ -1338,14 +1195,12 @@ std::optional<ExecutePlan> ExecutePlan::make(
     {
       if (head->mutex_group_dependency.has_value())
       {
-        ss << "\n -- Lock mutex group [" << head->mutex_group_dependency->all_groups_str() << "] " << head->mutex_group_dependency->hold_position.transpose();
         standbys.push_back(make_wait_for_mutex(
           context, event_id, head->mutex_group_dependency.value()));
       }
 
       if (head->phase)
       {
-        ss << "\n -- " << head->phase->description();
         standbys.push_back(
           [legacy = head->phase, context, event_id](UpdateFn update)
           {
@@ -1356,12 +1211,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
       if (!head->dependencies.empty())
       {
-        ss << "\n -- wait for:";
-        for (const auto& d : head->dependencies)
-        {
-          ss << " " << d.on_participant;
-        }
-
         standbys.push_back(make_wait_for_traffic(
             context, plan_id, head->dependencies, head->time, event_id));
       }
@@ -1369,7 +1218,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
       ++head;
     }
   }
-  std::cout << ss.str() << std::endl;
 
   if (tail_period.has_value() && !legacy_phases.empty())
   {

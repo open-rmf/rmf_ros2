@@ -480,25 +480,6 @@ rmf_traffic::agv::Graph parse_graph(
     }
   }
 
-  std::cout << " ========= Mutex groups:" << std::endl;
-  for (std::size_t i=0; i < graph.num_waypoints(); ++i)
-  {
-    const auto& m = graph.get_waypoint(i).in_mutex_group();
-    if (!m.empty())
-    {
-      std::cout << " -- " << i << ": " << m << std::endl;
-    }
-  }
-
-  for (std::size_t i=0; i < graph.num_lanes(); ++i)
-  {
-    const auto& m = graph.get_lane(i).properties().in_mutex_group();
-    if (!m.empty())
-    {
-      std::cout << " -- " << i << ": " << m << std::endl;
-    }
-  }
-
   return graph;
 }
 

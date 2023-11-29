@@ -294,8 +294,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 
             if (!context->locked_mutex_groups().empty())
             {
-              // std::stringstream ss;
-              // ss << context->requester_id() << " retaining:";
               const auto adjusted_now = now - new_cumulative_delay;
               const auto& graph = context->navigation_graph();
               std::unordered_set<std::string> retain_mutexes;
@@ -310,28 +308,17 @@ void MoveRobot::Action::operator()(const Subscriber& s)
 
                 if (wp.graph_index().has_value())
                 {
-                  // if (!graph.get_waypoint(*wp.graph_index()).in_mutex_group().empty())
-                  // {
-                  //   ss << " [wp:" << graph.get_waypoint(*wp.graph_index()).name_or_index()
-                  //     << " | " << graph.get_waypoint(*wp.graph_index()).in_mutex_group() << "]";
-                  // }
                   retain_mutexes.insert(
                     graph.get_waypoint(*wp.graph_index()).in_mutex_group());
                 }
 
                 for (const auto& l : wp.approach_lanes())
                 {
-                  // if (!graph.get_lane(l).properties().in_mutex_group().empty())
-                  // {
-                  //   ss << " [lane:" << l << " | " <<  << "]";
-                  // }
-
                   retain_mutexes.insert(
                     graph.get_lane(l).properties().in_mutex_group());
                 }
               }
 
-              // std::cout << ss.str() << std::endl;
               context->retain_mutex_groups(retain_mutexes);
             }
           });

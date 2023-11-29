@@ -66,7 +66,7 @@ void RequestLift::ActivePhase::emergency_alarm(bool /*on*/)
 //==============================================================================
 void RequestLift::ActivePhase::cancel()
 {
-  // GoToPlace / ExecutePlan don't call the cancel function anyway
+  // GoToPlace and ExecutePlan don't call the cancel function anyway
 }
 
 //==============================================================================

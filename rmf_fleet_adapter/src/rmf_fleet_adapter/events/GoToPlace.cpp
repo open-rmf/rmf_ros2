@@ -396,7 +396,15 @@ void GoToPlace::Active::_find_plan()
     "Generating plan to move from [" + start_name + "] to [" + goal_name + "]");
 
   const auto& graph = _context->navigation_graph();
-  std::cout << _context->requester_id() << " locations " << agv::print_starts(_context->location(), graph) << std::endl;
+  std::stringstream ss;
+  ss << "Planning for [" << _context->requester_id()
+    << "] to [" << goal_name << "] from one of these locations:"
+    << agv::print_starts(_context->location(), graph);
+
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "%s",
+    ss.str().c_str());
 
   // TODO(MXG): Make the planning time limit configurable
   _find_path_service = std::make_shared<services::FindPath>(
@@ -438,16 +446,8 @@ void GoToPlace::Active::_find_plan()
         "Found a plan to move from ["
         + start_name + "] to [" + goal_name + "]");
 
-      std::stringstream ss;
-      ss << self->_context->requester_id() << " initial itinerary: ";
-      for (const auto& r : result->get_itinerary())
-        ss << "[" << r.map() << ":" << r.trajectory().size() << "]";
-
-      ss << " + ";
       auto full_itinerary = project_itinerary(
-        *result, self->_followed_by, *self->_context->planner(), &ss);
-
-      std::cout << ss.str() << std::endl;
+        *result, self->_followed_by, *self->_context->planner());
 
       self->_execute_plan(
         self->_context->itinerary().assign_plan_id(),

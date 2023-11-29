@@ -23,8 +23,7 @@ namespace rmf_fleet_adapter {
 rmf_traffic::schedule::Itinerary project_itinerary(
   const rmf_traffic::agv::Plan& starting_from,
   const std::vector<rmf_traffic::agv::Plan::Goal>& through_destinations,
-  const rmf_traffic::agv::Planner& with_planner,
-  std::stringstream* ss)
+  const rmf_traffic::agv::Planner& with_planner)
 {
   auto itinerary = starting_from.get_itinerary();
   auto last_plan = starting_from;
@@ -50,11 +49,6 @@ rmf_traffic::schedule::Itinerary project_itinerary(
     const auto& new_itinerary = last_plan.get_itinerary();
     if (new_itinerary.front().map() == itinerary.back().map())
     {
-      if (ss)
-      {
-        *ss << "[" << new_itinerary.front().map() << ":" << new_itinerary.front().trajectory().size()
-          << "]";
-      }
       // We only look at the first route because we're not going to include
       // any map switches for now.
       for (const auto& wp : new_itinerary.front().trajectory())
@@ -62,10 +56,6 @@ rmf_traffic::schedule::Itinerary project_itinerary(
     }
     else
     {
-      if (ss)
-      {
-        *ss << "[" << new_itinerary.front().map() << "rejected]";
-      }
       // If the map has switched, let's break out of this loop.
       break;
     }

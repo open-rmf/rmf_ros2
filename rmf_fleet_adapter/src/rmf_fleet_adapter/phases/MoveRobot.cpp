@@ -30,14 +30,6 @@ MoveRobot::ActivePhase::ActivePhase(
 : _context{std::move(context)},
   _tail_period(tail_period)
 {
-  std::stringstream ss;
-  ss << "Activating MoveRobot:";
-  for (const auto& wp : waypoints)
-  {
-    ss << "\n -- " << agv::print_plan_waypoint(wp, _context->navigation_graph(), waypoints.front().time());
-  }
-  std::cout << ss.str() << std::endl;
-
   std::ostringstream oss;
   const auto dest = destination(
     waypoints.back(), _context->planner()->get_configuration().graph());

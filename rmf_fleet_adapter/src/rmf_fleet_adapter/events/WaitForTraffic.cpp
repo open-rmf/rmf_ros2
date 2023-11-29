@@ -263,33 +263,11 @@ void WaitForTraffic::Active::_consider_going()
   }
 
   bool all_dependencies_reached = true;
-  std::stringstream ss;
-  ss << "consider going for [" << _context->requester_id() << "]\n";
   for (const auto& dep : _dependencies)
   {
-    const auto& d = dep.dependency();
-    const auto current = _context->schedule()->get_current_plan_id(d.on_participant);
-    const auto* p = _context->schedule()->get_current_progress(d.on_participant);
-    ss << " -- " << d.on_participant << " | " << d.on_plan
-      << ":" << d.on_route << ":" << d.on_checkpoint
-      << " vs current " << current.value_or((std::size_t)(-1));
-    if (p)
-    {
-      for (std::size_t i=0; i < p->size(); ++i)
-      {
-        ss << ":[" << i << ":" << (*p)[i] << "]";
-      }
-    }
-    else
-    {
-      ss << "null";
-    }
-
-    ss << " | " << dep.reached() << " | " << dep.deprecated() << "\n";
     if (!dep.reached() && !dep.deprecated())
       all_dependencies_reached = false;
   }
-  std::cout << ss.str() << std::endl;
 
   if (all_dependencies_reached)
   {

@@ -357,8 +357,6 @@ public:
   std::shared_ptr<AllocateTasks> calculate_bid;
   rmf_rxcpp::subscription_guard calculate_bid_subscription;
 
-
-
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
   {

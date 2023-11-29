@@ -219,7 +219,6 @@ rmf_traffic::agv::Plan::StartSet NavParams::_descend_stacks(
       {
         if (graph.lane_from(v, waypoint))
         {
-          // std::cout << "descending " << v << " -> " << waypoint << std::endl;
           waypoint = v;
           can_descend = true;
           break;
@@ -234,7 +233,6 @@ rmf_traffic::agv::Plan::StartSet NavParams::_descend_stacks(
 
     // Transfer the location estimate over to the waypoint that's at the bottom
     // of the vertex stack.
-    // std::cout << "Descended vertex stack to " << waypoint << std::endl;
     if (waypoint != original_waypoint)
     {
       bool can_merge = true;
@@ -425,53 +423,6 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
 
   _location = std::move(location_);
   filter_closed_lanes();
-
-  // std::stringstream ss;
-  // ss << requester_id() << " locations";
-  // for (const auto& l : _location)
-  // {
-  //   ss << " | ";
-  //   if (l.lane().has_value())
-  //   {
-  //     ss << "lane[" << *l.lane() << "] ";
-  //     EventPrinter printer;
-  //     const auto& lane = graph.get_lane(*l.lane());
-  //     if (lane.entry().event())
-  //     {
-  //       ss << " [entry ";
-  //       lane.entry().event()->execute(printer);
-  //       ss << "] ";
-  //     }
-  //     const auto& i_wp0 = lane.entry().waypoint_index();
-  //     const auto& wp0 = graph.get_waypoint(i_wp0);
-  //     const auto& i_wp1 = lane.exit().waypoint_index();
-  //     const auto& wp1 = graph.get_waypoint(i_wp1);
-  //     ss << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose() << "] ";
-  //     if (const auto lift = wp0.in_lift())
-  //       ss << "{" << lift->name() << "} ";
-  //     ss << "-> " << i_wp1 << " [" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
-  //     if (const auto lift = wp1.in_lift())
-  //       ss << "{" << lift->name() << "} ";
-
-  //     if (lane.exit().event())
-  //     {
-  //       ss << "[exit ";
-  //       lane.exit().event()->execute(printer);
-  //       ss << "]";
-  //     }
-  //     ss << " | ";
-  //   }
-  //   ss << l.waypoint();
-  //   const auto& wp = graph.get_waypoint(l.waypoint());
-  //   if (const auto lift = wp.in_lift())
-  //   {
-  //     ss << " {" << lift->name() << "}";
-  //   }
-  //   if (l.location().has_value())
-  //   {
-  //     ss << " | " << l.location()->transpose();
-  //   }
-  // }
 
   if (_location.empty())
   {

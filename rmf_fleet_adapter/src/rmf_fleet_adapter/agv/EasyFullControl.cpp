@@ -452,7 +452,6 @@ public:
 
     if (starts.empty())
     {
-      std::cout << __LINE__ << " " << context->requester_id() << " compute_plan_starts" << std::endl;
       starts = nav_params->compute_plan_starts(graph, map, location, now);
     }
 
@@ -780,10 +779,8 @@ struct ProgressTracker : std::enable_shared_from_this<ProgressTracker>
 
   void next()
   {
-    std::cout << " >>> " << __LINE__ << " rq: " << reverse_queue.size() << std::endl;
     if (reverse_queue.empty())
     {
-      std::cout << " >>> " << __LINE__ << " trigger finish" << std::endl;
       current_identifier = nullptr;
       finished.trigger();
       return;
@@ -795,23 +792,18 @@ struct ProgressTracker : std::enable_shared_from_this<ProgressTracker>
       ::get(current_activity).identifier;
     auto& current_activity_impl =
       EasyFullControl::CommandExecution::Implementation::get(current_activity);
-    std::cout << " >>> " << __LINE__ << " make next finisher" << std::endl;
     current_activity_impl.finisher = [w_progress = weak_from_this()]()
       {
-        std::cout << " >>> " << __LINE__ << " lock progress" << std::endl;
         if (const auto progress = w_progress.lock())
         {
-          std::cout << " >>> " << __LINE__ << " trigger next" << std::endl;
           progress->next();
         }
       };
 
 
-    std::cout << " >>> " << __LINE__ << " prepare begin" << std::endl;
     const auto begin = current_activity_impl.begin;
     if (begin)
     {
-      std::cout << " >>> " << __LINE__ << " do begin" << std::endl;
       begin(std::move(current_activity));
     }
   }
@@ -975,39 +967,6 @@ void EasyCommandHandle::follow_new_path(
   }
   const auto& graph = planner->get_configuration().graph();
   std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints = cmd_waypoints;
-  // std::size_t i_flatten = 1;
-  // while (i_flatten < waypoints.size())
-  // {
-  //   const auto& wp0 = waypoints[i_flatten-1];
-  //   const auto& wp1 = waypoints[i_flatten];
-  //   if (!wp0.graph_index().has_value() && !wp1.graph_index().has_value())
-  //   {
-  //     waypoints.erase(waypoints.begin() + i_flatten);
-  //     continue;
-  //   }
-
-    // if (!wp0.graph_index().has_value() || !wp1.graph_index().has_value())
-    // {
-    //   ++i_flatten;
-    //   continue;
-    // }
-
-    // const auto i0 = *wp0.graph_index();
-    // const auto i1 = *wp1.graph_index();
-    // if (nav_params->in_same_stack(i0, i1))
-    // {
-    //   const auto yaw_diff = rmf_utils::wrap_to_pi(
-    //     wp0.position()[2] - wp1.position()[2]);
-    //   if (std::abs(yaw_diff) < 5*M_PI/180.0)
-    //   {
-    //     // These waypoints are redundant for moving so let's filter one out
-    //     waypoints.erase(waypoints.begin() + i_flatten);
-    //     continue;
-    //   }
-    // }
-
-  //   ++i_flatten;
-  // }
 
   if (waypoints.size() < 2)
   {
@@ -1055,86 +1014,15 @@ void EasyCommandHandle::follow_new_path(
   std::vector<EasyFullControl::CommandExecution> queue;
   const auto& current_location = context->location();
 
-  auto print_location = [&](const rmf_traffic::agv::Plan::Start& l)
-    {
-      std::stringstream ss;
-      if (l.lane().has_value())
-      {
-        ss << "lane[" << *l.lane() << "] ";
-        EventPrinter printer;
-        const auto& lane = graph.get_lane(*l.lane());
-        if (lane.entry().event())
-        {
-          ss << " [entry ";
-          lane.entry().event()->execute(printer);
-          ss << printer.text << "] ";
-        }
-        const auto& i_wp0 = lane.entry().waypoint_index();
-        const auto& wp0 = graph.get_waypoint(i_wp0);
-        const auto& i_wp1 = lane.exit().waypoint_index();
-        const auto& wp1 = graph.get_waypoint(i_wp1);
-        ss << i_wp0 << " [" << wp0.get_map_name() << ":" << wp0.get_location().transpose()
-          << "] -> " << i_wp1 << " [" << wp1.get_map_name() << ":" << wp1.get_location().transpose() << "] ";
-        if (lane.exit().event())
-        {
-          ss << "[exit ";
-          lane.exit().event()->execute(printer);
-          ss << printer.text << "]";
-        }
-        ss << " | ";
-      }
-      ss << l.waypoint();
-      if (l.location().has_value())
-      {
-        ss << " | " << l.location()->transpose();
-      }
-      return ss.str();
-    };
-
-  std::stringstream ss;
-  ss << context->requester_id() << " Locations: " << current_location.size();
-  for (const auto& l : current_location)
-  {
-    ss << "\n -- " << print_location(l);
-  }
-  ss << "\nNum waypoints: " << waypoints.size();
-  for (const rmf_traffic::agv::Plan::Waypoint& wp : waypoints)
-  {
-    ss << "\n -- " << print_plan_waypoint(wp, graph, waypoints.front().time());
-    // if (wp.graph_index().has_value())
-    // {
-    //   ss << " index " << *wp.graph_index();
-    //   const auto& gwp = graph.get_waypoint(*wp.graph_index());
-    //   if (!gwp.in_mutex_group().empty())
-    //   {
-    //     ss << " *" << gwp.in_mutex_group();
-    //   }
-
-    //   ss << " [" << gwp.get_map_name() << "]";
-    // }
-    // ss << " " << wp.position().transpose();
-
-    // ss << " approach lanes:";
-    // for (const auto& l : wp.approach_lanes())
-    // {
-    //   ss << " " << l;
-    // }
-  }
-  std::cout << ss.str() << std::endl;
-
   bool found_connection = false;
   std::size_t i0 = 0;
-  ss = std::stringstream();
-  ss << "Finding connection for " << context->requester_id();
   for (std::size_t i = 0; i < waypoints.size(); ++i)
   {
     const auto& wp = waypoints[i];
     if (wp.graph_index().has_value())
     {
-      ss << " \n -- " << wp.graph_index().value() << "\n";
       for (const auto& l : current_location)
       {
-        ss << "location: " << l.waypoint() << "\n";
         if (nav_params->in_same_stack(*wp.graph_index(), l.waypoint()) && !l.lane().has_value())
         {
           if (l.location().has_value())
@@ -1148,7 +1036,6 @@ void EasyCommandHandle::follow_new_path(
             {
               const double dist =
                 (*l.location() - wp.position().block<2, 1>(0, 0)).norm();
-              ss << dist << " vs " << nav_params->max_merge_lane_distance << "\n";
               if (dist <= nav_params->max_merge_lane_distance)
               {
                 found_connection = true;
@@ -1162,15 +1049,10 @@ void EasyCommandHandle::follow_new_path(
             i0 = i;
           }
         }
-        else
-        {
-          ss << "not the same stack: " << l.waypoint() << " vs " << wp.graph_index().value() << "\n";
-        }
       }
     }
     else
     {
-      ss << "\n -- " << wp.position().transpose() << "\n";
       for (const auto& l : current_location)
       {
         Eigen::Vector2d p_l;
@@ -1183,7 +1065,6 @@ void EasyCommandHandle::follow_new_path(
           p_l = graph.get_waypoint(l.waypoint()).get_location();
         }
         const double dist = (wp.position().block<2, 1>(0, 0) - p_l).norm();
-        ss << dist << " vs " << nav_params->max_merge_lane_distance << "\n";
         if (dist <= nav_params->max_merge_lane_distance)
         {
           found_connection = true;
@@ -1194,16 +1075,12 @@ void EasyCommandHandle::follow_new_path(
 
     if (i > 0)
     {
-      std::stringstream ss;
-      ss << "approach lanes:";
       for (const auto lane : wp.approach_lanes())
       {
-        ss << " " << lane;
         for (const auto& l : current_location)
         {
           if (l.lane().has_value())
           {
-            ss << " [vs " << *l.lane() << "]";
             if (lane == *l.lane())
             {
               found_connection = true;
@@ -1212,11 +1089,8 @@ void EasyCommandHandle::follow_new_path(
           }
         }
       }
-      std::cout << ss.str() << std::endl;
     }
   }
-
-  std::cout << ss.str() << std::endl;
 
   if (!found_connection)
   {
@@ -1240,8 +1114,6 @@ void EasyCommandHandle::follow_new_path(
     i0 = waypoints.size() - 2;
   }
 
-  std::stringstream wss;
-  wss << " ----------- " << context->requester_id() << " Moving through:";
   std::size_t i1 = i0 + 1;
   while (i1 < waypoints.size())
   {
@@ -1350,7 +1222,6 @@ void EasyCommandHandle::follow_new_path(
       in_lift);
 
     const auto target_p = waypoints.at(target_index).position();
-    wss << "\n -- " << target_p.transpose();
     queue.push_back(
       EasyFullControl::CommandExecution::Implementation::make(
         context,
@@ -1379,8 +1250,6 @@ void EasyCommandHandle::follow_new_path(
     i0 = target_index;
     i1 = i0 + 1;
   }
-
-  std::cout << wss.str() << std::endl;
 
   this->current_progress = ProgressTracker::make(
     queue,

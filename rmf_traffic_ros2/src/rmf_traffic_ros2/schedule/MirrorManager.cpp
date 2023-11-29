@@ -396,26 +396,6 @@ public:
     try
     {
       const rmf_traffic::schedule::Patch patch = convert(msg->patch);
-      std::stringstream ss;
-      bool new_progress = false;
-      for (const auto& c : patch)
-      {
-        if (c.progress().has_value())
-        {
-          new_progress = true;
-          const auto& progress = c.progress()->checkpoints();
-          ss << "\n -- #" << c.progress()->version() << " " << c.participant_id() << " |";
-          for (std::size_t i=0; i < progress.size(); ++i)
-          {
-            ss << " " << i << ":" << progress[i];
-          }
-        }
-      }
-      if (new_progress)
-      {
-        ss << "\n >>>>>> NEW PROGRESS";
-        std::cout << ss.str() << std::endl;
-      }
 
       std::mutex* update_mutex = options.update_mutex();
       if (update_mutex)

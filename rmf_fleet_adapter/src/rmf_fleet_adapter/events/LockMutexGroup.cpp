@@ -215,9 +215,6 @@ void LockMutexGroup::Active::_initialize()
       self->_apply_cumulative_delay();
     });
 
-  std::cout << " ===== SETTING MUTEX GROUP FOR " << _context->requester_id().c_str()
-    << " TO " << _data.all_groups_str() << " AT " << _data.hold_position.transpose() << std::endl;
-
   _listener = _context->request_mutex_groups(
     _data.mutex_groups, _data.hold_time)
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
@@ -338,8 +335,6 @@ void LockMutexGroup::Active::_initialize()
 void LockMutexGroup::Active::_schedule(
   rmf_traffic::schedule::Itinerary itinerary) const
 {
-  std::cout << " --- [" << _context->requester_id() << "] resuming with "
-    << itinerary.size() << " routes" << std::endl;
   _context->schedule_itinerary(_data.plan_id, std::move(itinerary));
 }
 

@@ -129,22 +129,15 @@ void DockRobot::Action::operator()(const Subscriber& s)
         [s, dock_name = active->_dock_name, context = active->_context,
         wp = active->_waypoint, plan_id = active->_plan_id]()
         {
-          std::cout << "Docking finish callback triggered" << std::endl;
           context->worker().schedule(
             [s, dock_name, context, wp, plan_id](const auto&)
             {
-              std::cout << "Finished docking [" + context->requester_id()
-              << "] into dock [" << dock_name << "]" << std::endl;
               LegacyTask::StatusMsg status;
               status.status = "Finished docking [" + context->requester_id()
               + "] into dock [" + dock_name + "]";
               status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
               for (const auto& c : wp.arrival_checkpoints())
               {
-                std::cout << "docking reached " << context->participant_id()
-                  << " | " << context->itinerary().current_plan_id()
-                  << ":" << c.route_id << ":" << c.checkpoint_id
-                  << " #" << context->itinerary().progress_version() << std::endl;
                 context->itinerary().reached(plan_id, c.route_id, c.checkpoint_id);
               }
 
