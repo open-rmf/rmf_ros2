@@ -1599,21 +1599,11 @@ void FleetUpdateHandle::add_robot(
               {
                 if (const auto c = w.lock())
                 {
+                  const auto& graph = c->navigation_graph();
                   std::stringstream ss;
                   ss << "Failed negotiation for [" << c->requester_id()
-                     << "] with these starts:";
-                  for (const auto& l : c->location())
-                  {
-                    ss << "\n -- t:" << l.time().time_since_epoch().count()
-                       << " | wp:" << l.waypoint() << " | ori:"
-                       << l.orientation();
-                    if (l.location().has_value())
-                    {
-                      const auto& p = *l.location();
-                      ss << " | pos:(" << p.x() << ", " << p.y() << ")";
-                    }
-                  }
-                  ss << "\n -- Fin --";
+                     << "] with these starts:"
+                     << print_starts(c->location(), graph);
                   std::cout << ss.str() << std::endl;
 
                   auto& last_time = *last_interrupt_time;
@@ -1625,11 +1615,14 @@ void FleetUpdateHandle::add_robot(
                   }
 
                   last_time = now;
-                  RCLCPP_INFO(
-                    c->node()->get_logger(),
-                    "Requesting replan for [%s] because it failed to negotiate",
-                    c->requester_id().c_str());
-                  c->request_replan();
+                  if (!c->is_stubborn())
+                  {
+                    RCLCPP_INFO(
+                      c->node()->get_logger(),
+                      "Requesting replan for [%s] because it failed to negotiate",
+                      c->requester_id().c_str());
+                    c->request_replan();
+                  }
                 }
               });
             context->_set_negotiation_license(std::move(negotiation_license));
