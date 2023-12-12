@@ -351,7 +351,8 @@ public:
       {
         std::string error_str =
           "[TaskPlanner] Failed to compute assignments for task_id [" + id
-          + "] due to insufficient initial battery charge for all robots in this "
+          +
+          "] due to insufficient initial battery charge for all robots in this "
           "fleet.";
 
         RCLCPP_ERROR(node->get_logger(), "%s", error_str.c_str());
@@ -375,7 +376,8 @@ public:
       else
       {
         std::string error_str =
-          "[TaskPlanner] Failed to compute assignments for task_id [" + id + "]";
+          "[TaskPlanner] Failed to compute assignments for task_id [" + id +
+          "]";
 
         RCLCPP_ERROR(node->get_logger(), "%s", error_str.c_str());
         errors.push_back(
@@ -470,7 +472,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
   const auto request_msg = nlohmann::json::parse(bid_notice.request);
   static const auto request_validator =
     nlohmann::json_schema::json_validator(
-      rmf_api_msgs::schemas::task_request);
+    rmf_api_msgs::schemas::task_request);
 
   try
   {
@@ -510,108 +512,111 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
   auto receive_allocation = [w = weak_self, respond, task_id](
     AllocateTasks::Result result)
-  {
-    const auto self = w.lock();
-    if (!self)
-      return;
-
-    auto allocation_result = result.assignments;
-    if (!allocation_result.has_value())
-      return respond({std::nullopt, std::move(result.errors)});
-
-    const auto& assignments = allocation_result.value();
-
-    const double cost = self->_pimpl->task_planner->compute_cost(assignments);
-
-    // Display computed assignments for debugging
-    std::stringstream debug_stream;
-    debug_stream << "Cost: " << cost << std::endl;
-    for (std::size_t i = 0; i < assignments.size(); ++i)
     {
-      debug_stream << "--Agent: " << i << std::endl;
-      for (const auto& a : assignments[i])
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      auto allocation_result = result.assignments;
+      if (!allocation_result.has_value())
+        return respond({std::nullopt, std::move(result.errors)});
+
+      const auto& assignments = allocation_result.value();
+
+      const double cost = self->_pimpl->task_planner->compute_cost(assignments);
+
+      // Display computed assignments for debugging
+      std::stringstream debug_stream;
+      debug_stream << "Cost: " << cost << std::endl;
+      for (std::size_t i = 0; i < assignments.size(); ++i)
       {
-        const auto& s = a.finish_state();
-        const double request_seconds =
-          a.request()->booking()->earliest_start_time().time_since_epoch().count()
-          /1e9;
-        const double start_seconds =
-          a.deployment_time().time_since_epoch().count()/1e9;
-        const rmf_traffic::Time finish_time = s.time().value();
-        const double finish_seconds = finish_time.time_since_epoch().count()/1e9;
-        debug_stream << "    <" << a.request()->booking()->id() << ": " <<
-          request_seconds
-                    << ", " << start_seconds
-                    << ", "<< finish_seconds << ", " << s.battery_soc().value()
-                    << "%>" << std::endl;
-      }
-    }
-    debug_stream << " ----------------------" << std::endl;
-
-    RCLCPP_DEBUG(
-      self->_pimpl->node->get_logger(),
-      "%s",
-      debug_stream.str().c_str());
-
-    // Map robot index to name to populate robot_name in BidProposal
-    std::unordered_map<std::size_t, std::string> robot_name_map;
-    std::size_t index = 0;
-    for (const auto& t : self->_pimpl->task_managers)
-    {
-      robot_name_map.insert({index, t.first->name()});
-      ++index;
-    }
-
-    std::optional<std::string> robot_name;
-    std::optional<rmf_traffic::Time> finish_time;
-    index = 0;
-    for (const auto& agent : assignments)
-    {
-      for (const auto& assignment : agent)
-      {
-        if (assignment.request()->booking()->id() == task_id)
+        debug_stream << "--Agent: " << i << std::endl;
+        for (const auto& a : assignments[i])
         {
-          finish_time = assignment.finish_state().time().value();
-          if (robot_name_map.find(index) != robot_name_map.end())
-            robot_name = robot_name_map[index];
-          break;
+          const auto& s = a.finish_state();
+          const double request_seconds =
+            a.request()->booking()->earliest_start_time().time_since_epoch().
+            count()
+            /1e9;
+          const double start_seconds =
+            a.deployment_time().time_since_epoch().count()/1e9;
+          const rmf_traffic::Time finish_time = s.time().value();
+          const double finish_seconds = finish_time.time_since_epoch().count()/
+            1e9;
+          debug_stream << "    <" << a.request()->booking()->id() << ": " <<
+            request_seconds
+                       << ", " << start_seconds
+                       << ", "<< finish_seconds << ", " <<
+            s.battery_soc().value()
+                       << "%>" << std::endl;
         }
       }
-      ++index;
-    }
+      debug_stream << " ----------------------" << std::endl;
 
-    if (!robot_name.has_value() || !finish_time.has_value())
-    {
-      result.errors.push_back(
-        make_error_str(
-          13, "Internal bug",
-          "Failed to find robot_name or finish_time after allocating task. "
-          "Please report this bug to the RMF developers."));
+      RCLCPP_DEBUG(
+        self->_pimpl->node->get_logger(),
+        "%s",
+        debug_stream.str().c_str());
 
-      return respond({std::nullopt, std::move(result.errors)});
-    }
-
-    // Publish BidProposal
-    respond(
+      // Map robot index to name to populate robot_name in BidProposal
+      std::unordered_map<std::size_t, std::string> robot_name_map;
+      std::size_t index = 0;
+      for (const auto& t : self->_pimpl->task_managers)
       {
-        rmf_task_ros2::bidding::Response::Proposal{
-          self->_pimpl->name,
-          *robot_name,
-          self->_pimpl->current_assignment_cost,
-          cost,
-          *finish_time
-        },
-        std::move(result.errors)
-      });
+        robot_name_map.insert({index, t.first->name()});
+        ++index;
+      }
 
-    RCLCPP_INFO(
-      self->_pimpl->node->get_logger(),
-      "Submitted BidProposal to accommodate task [%s] by robot [%s] with new cost [%f]",
-      task_id.c_str(), robot_name->c_str(), cost);
+      std::optional<std::string> robot_name;
+      std::optional<rmf_traffic::Time> finish_time;
+      index = 0;
+      for (const auto& agent : assignments)
+      {
+        for (const auto& assignment : agent)
+        {
+          if (assignment.request()->booking()->id() == task_id)
+          {
+            finish_time = assignment.finish_state().time().value();
+            if (robot_name_map.find(index) != robot_name_map.end())
+              robot_name = robot_name_map[index];
+            break;
+          }
+        }
+        ++index;
+      }
 
-    // Store assignments in internal map
-    self->_pimpl->bid_notice_assignments.insert({task_id, assignments});
-  };
+      if (!robot_name.has_value() || !finish_time.has_value())
+      {
+        result.errors.push_back(
+          make_error_str(
+            13, "Internal bug",
+            "Failed to find robot_name or finish_time after allocating task. "
+            "Please report this bug to the RMF developers."));
+
+        return respond({std::nullopt, std::move(result.errors)});
+      }
+
+      // Publish BidProposal
+      respond(
+        {
+          rmf_task_ros2::bidding::Response::Proposal{
+            self->_pimpl->name,
+            *robot_name,
+            self->_pimpl->current_assignment_cost,
+            cost,
+            *finish_time
+          },
+          std::move(result.errors)
+        });
+
+      RCLCPP_INFO(
+        self->_pimpl->node->get_logger(),
+        "Submitted BidProposal to accommodate task [%s] by robot [%s] with new cost [%f]",
+        task_id.c_str(), robot_name->c_str(), cost);
+
+      // Store assignments in internal map
+      self->_pimpl->bid_notice_assignments.insert({task_id, assignments});
+    };
 
   calculate_bid_subscription = rmf_rxcpp::make_job<AllocateTasks::Result>(
     calculate_bid)
@@ -749,8 +754,8 @@ void FleetUpdateHandle::Implementation::dispatch_command_cb(
       // replanning should run on a separate worker and then deliver the
       // result back to the main worker.
       const auto replan_results = AllocateTasks(
-          nullptr, aggregate_expectations(), *task_planner, node)
-          .run(dispatch_ack.errors);
+        nullptr, aggregate_expectations(), *task_planner, node)
+        .run(dispatch_ack.errors);
 
       if (!replan_results)
       {
@@ -1154,7 +1159,8 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
 }
 
 //==============================================================================
-void FleetUpdateHandle::Implementation::handle_emergency(const bool is_emergency)
+void FleetUpdateHandle::Implementation::handle_emergency(
+  const bool is_emergency)
 {
   if (is_emergency == emergency_active)
     return;
@@ -1641,14 +1647,14 @@ void FleetUpdateHandle::add_robot(
             broadcast_client = fleet->_pimpl->broadcast_client;
 
           const auto mgr = TaskManager::make(
-              context,
-              broadcast_client,
-              std::weak_ptr<FleetUpdateHandle>(fleet));
+            context,
+            broadcast_client,
+            std::weak_ptr<FleetUpdateHandle>(fleet));
 
           fleet->_pimpl->task_managers.insert({context, mgr});
 
           const auto c_it = fleet->_pimpl
-            ->unregistered_charging_assignments.find(context->name());
+          ->unregistered_charging_assignments.find(context->name());
           if (c_it != fleet->_pimpl->unregistered_charging_assignments.end())
           {
             const auto& charging = c_it->second;

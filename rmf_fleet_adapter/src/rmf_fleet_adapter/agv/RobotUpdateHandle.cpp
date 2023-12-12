@@ -86,7 +86,7 @@ void RobotUpdateHandle::update_position(
         {
           std::stringstream ss;
           ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
-            << " starts:" << print_starts(starts, context->navigation_graph());
+             << " starts:" << print_starts(starts, context->navigation_graph());
           std::cout << ss.str() << std::endl;
         }
         context->set_location(starts);
@@ -129,7 +129,7 @@ void RobotUpdateHandle::update_position(
         {
           std::stringstream ss;
           ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
-            << " starts:" << print_starts(starts, context->navigation_graph());
+             << " starts:" << print_starts(starts, context->navigation_graph());
           std::cout << ss.str() << std::endl;
         }
         context->set_location(std::move(starts));
@@ -156,7 +156,7 @@ void RobotUpdateHandle::update_position(
         {
           std::stringstream ss;
           ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
-            << " starts:" << print_starts(starts, context->navigation_graph());
+             << " starts:" << print_starts(starts, context->navigation_graph());
           std::cout << ss.str() << std::endl;
         }
         context->set_location(std::move(starts));
@@ -190,13 +190,15 @@ void RobotUpdateHandle::update_position(
         position[0], position[1], position[2], map_name.c_str());
 
       context->worker().schedule(
-        [context, now, map_name, position](const auto&)
+        [context, now, map_name, position](
+          const auto&)
         {
           if (context->debug_positions)
           {
             std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
-              << map_name << " <" << position.block<2, 1>(0, 0).transpose()
-              << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
+                      << map_name << " <" << position.block<2, 1>(0,
+            0).transpose()
+                      << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
           }
           context->set_lost(Location { now, map_name, position });
         });
@@ -210,7 +212,7 @@ void RobotUpdateHandle::update_position(
         {
           std::stringstream ss;
           ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
-            << " starts:" << print_starts(starts, context->navigation_graph());
+             << " starts:" << print_starts(starts, context->navigation_graph());
           std::cout << ss.str() << std::endl;
         }
         context->set_location(std::move(starts));
@@ -231,7 +233,7 @@ void RobotUpdateHandle::update_position(
         {
           std::stringstream ss;
           ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
-            << " starts:" << print_starts(starts, context->navigation_graph());
+             << " starts:" << print_starts(starts, context->navigation_graph());
           std::cout << ss.str() << std::endl;
         }
         context->set_location(starts);
@@ -246,7 +248,7 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
   if (const auto context = _pimpl->get_context())
   {
     context->worker().schedule([charger_wp, w = context->weak_from_this()](
-      const auto&)
+        const auto&)
       {
         const auto self = w.lock();
         if (!self)
@@ -1183,7 +1185,8 @@ void ScheduleOverride::overridden_update(
 
   if (context->debug_positions)
   {
-    std::cout << "Search for location from " << __FILE__ << "|" << __LINE__ << std::endl;
+    std::cout << "Search for location from " << __FILE__ << "|" << __LINE__ <<
+      std::endl;
   }
   nav_params->search_for_location(map, location, *context);
 }

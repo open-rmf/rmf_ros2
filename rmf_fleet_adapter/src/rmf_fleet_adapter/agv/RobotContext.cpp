@@ -53,7 +53,7 @@ void NavParams::search_for_location(
     {
       std::stringstream ss;
       ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
-        << " starts:" << print_starts(starts, graph);
+         << " starts:" << print_starts(starts, graph);
       std::cout << ss.str() << std::endl;
     }
     context.set_location(std::move(starts));
@@ -63,8 +63,8 @@ void NavParams::search_for_location(
     if (context.debug_positions)
     {
       std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
-        << map << " <" << position.block<2, 1>(0, 0).transpose()
-        << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
+                << map << " <" << position.block<2, 1>(0, 0).transpose()
+                << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
     }
     context.set_lost(Location { now, map, position });
   }
@@ -174,7 +174,7 @@ rmf_traffic::agv::Plan::StartSet NavParams::_descend_stacks(
   rmf_traffic::agv::Plan::StartSet locations) const
 {
   std::vector<std::size_t> remove;
-  for (std::size_t i=0; i < locations.size(); ++i)
+  for (std::size_t i = 0; i < locations.size(); ++i)
   {
     rmf_traffic::agv::Plan::Start& location = locations[i];
     std::optional<std::size_t> waypoint_opt;
@@ -296,18 +296,18 @@ rmf_traffic::agv::Plan::StartSet NavParams::_lift_boundary_filter(
       const Eigen::Vector2d p = location.location().value();
 
       const auto robot_inside_lift = [&]()
-        -> rmf_traffic::agv::Graph::LiftPropertiesPtr
+      -> rmf_traffic::agv::Graph::LiftPropertiesPtr
+      {
+        for (const auto& lift : graph.all_known_lifts())
         {
-          for (const auto& lift : graph.all_known_lifts())
-          {
-            // We assume lifts never overlap so we will return the first
-            // positive hit.
-            if (lift->is_in_lift(p))
-              return lift;
-          }
+          // We assume lifts never overlap so we will return the first
+          // positive hit.
+          if (lift->is_in_lift(p))
+            return lift;
+        }
 
-          return nullptr;
-        }();
+        return nullptr;
+      }();
 
       const auto& wp = graph.get_waypoint(location.waypoint());
       const auto lift = wp.in_lift();
@@ -375,7 +375,7 @@ Eigen::Vector3d RobotContext::position() const
   }
 
   throw std::runtime_error(
-    "No location information is available for [" + requester_id() + "]");
+          "No location information is available for [" + requester_id() + "]");
 }
 
 //==============================================================================
@@ -392,7 +392,7 @@ const std::string& RobotContext::map() const
   }
 
   throw std::runtime_error(
-    "No location information is available for [" + requester_id() + "]");
+          "No location information is available for [" + requester_id() + "]");
 }
 
 //==============================================================================
@@ -428,7 +428,8 @@ void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
   {
     if (debug_positions)
     {
-      std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST" << std::endl;
+      std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST" <<
+        std::endl;
     }
     set_lost(std::nullopt);
     return;
@@ -1031,6 +1032,7 @@ std::shared_ptr<void> RobotContext::set_lift_destination(
     });
   _initial_time_idle_outside_lift = std::nullopt;
 
+  _publish_lift_destination();
   return _lift_destination;
 }
 
@@ -1172,7 +1174,7 @@ void RobotContext::schedule_itinerary(
         ss_sizes.str().c_str(),
         requester_id().c_str(),
         *plan_id);
-        break;
+      break;
     }
 
     scheduled = itinerary().set(*plan_id, new_itinerary);
@@ -1361,6 +1363,12 @@ void RobotContext::_check_lift_state(
     return;
   }
 
+  _publish_lift_destination();
+}
+
+//==============================================================================
+void RobotContext::_publish_lift_destination()
+{
   rmf_lift_msgs::msg::LiftRequest msg;
   msg.lift_name = _lift_destination->lift_name;
   msg.destination_floor = _lift_destination->destination_floor;
@@ -1489,7 +1497,7 @@ void RobotContext::_publish_mutex_group_requests()
       // The robot has been idle for 10 seconds. It should not be keeping a
       // mutex locked; a task probably ended wrongly.
       if (!_requesting_mutex_groups.empty()
-          || !_locked_mutex_groups.empty())
+        || !_locked_mutex_groups.empty())
       {
         auto warning = [&](const std::string& name)
           {

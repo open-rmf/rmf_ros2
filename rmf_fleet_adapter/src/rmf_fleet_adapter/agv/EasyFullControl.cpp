@@ -313,7 +313,8 @@ public:
     }
 
     const auto& graph = planner->get_configuration().graph();
-    const rmf_traffic::agv::LaneClosure* closures = context->get_lane_closures();
+    const rmf_traffic::agv::LaneClosure* closures =
+      context->get_lane_closures();
     std::optional<std::pair<std::size_t, double>> on_waypoint;
     auto p = Eigen::Vector2d(location[0], location[1]);
     const double yaw = location[2];
@@ -461,7 +462,7 @@ public:
       {
         std::stringstream ss;
         ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
-          << " starts:" << print_starts(starts, graph);
+           << " starts:" << print_starts(starts, graph);
         std::cout << ss.str() << std::endl;
       }
       context->set_location(starts);
@@ -472,8 +473,8 @@ public:
       {
         std::stringstream ss;
         ss << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
-          << map << " <" << location.block<2, 1>(0, 0).transpose()
-          << "> orientation " << location[2] * 180.0 / M_PI << "\n";
+           << map << " <" << location.block<2, 1>(0, 0).transpose()
+           << "> orientation " << location[2] * 180.0 / M_PI << "\n";
         ss << waypoints.size() << " waypoints:";
         for (std::size_t wp : waypoints)
         {
@@ -627,12 +628,12 @@ auto EasyFullControl::CommandExecution::Implementation::make_hold(
   std::function<void()> finisher) -> CommandExecution
 {
   auto update_fn = [
-      w_context = context->weak_from_this(),
-      expected_time,
-      plan_id
+    w_context = context->weak_from_this(),
+    expected_time,
+    plan_id
     ](
-      const std::string& map,
-      Eigen::Vector3d location)
+    const std::string& map,
+    Eigen::Vector3d location)
     {
       const auto context = w_context.lock();
       if (!context)
@@ -644,7 +645,8 @@ auto EasyFullControl::CommandExecution::Implementation::make_hold(
       {
         if (context->debug_positions)
         {
-          std::cout << "Searching for location from " << __FILE__ << "|" << __LINE__ << std::endl;
+          std::cout << "Searching for location from " << __FILE__ << "|" <<
+            __LINE__ << std::endl;
         }
         nav_params->search_for_location(map, location, *context);
       }
@@ -1023,7 +1025,8 @@ void EasyCommandHandle::follow_new_path(
     {
       for (const auto& l : current_location)
       {
-        if (nav_params->in_same_stack(*wp.graph_index(), l.waypoint()) && !l.lane().has_value())
+        if (nav_params->in_same_stack(*wp.graph_index(),
+          l.waypoint()) && !l.lane().has_value())
         {
           if (l.location().has_value())
           {
@@ -1233,7 +1236,8 @@ void EasyCommandHandle::follow_new_path(
           planned_wait_time,
           std::nullopt,
           nav_params,
-          [next_arrival_estimator_, target_index, target_p](rmf_traffic::Duration dt)
+          [next_arrival_estimator_, target_index,
+          target_p](rmf_traffic::Duration dt)
           {
             next_arrival_estimator_(target_index, dt);
           }
@@ -1552,7 +1556,8 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
         ActivityIdentifier::Implementation::get(*current_activity).update_fn;
         if (update_fn)
         {
-          update_fn(state.map(), position);
+          update_fn(
+            state.map(), position);
           return;
         }
       }
@@ -2011,7 +2016,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
   {
     finishing_request =
       std::make_shared<rmf_fleet_adapter::tasks::ParkRobotIndefinitely>(
-        "idle", nullptr);
+      "idle", nullptr);
     std::cout
       << "Fleet is configured to perform ParkRobot as finishing request"
       << std::endl;
@@ -2220,11 +2225,11 @@ EasyFullControl::FleetConfiguration::from_config_files(
           }
 
           auto config = RobotConfiguration(
-              std::move(chargers),
-              responsive_wait,
-              max_merge_waypoint_distance,
-              max_merge_lane_distance,
-              min_lane_length);
+            std::move(chargers),
+            responsive_wait,
+            max_merge_waypoint_distance,
+            max_merge_lane_distance,
+            min_lane_length);
           known_robot_configurations.insert_or_assign(robot_name, config);
         }
         else
@@ -2690,20 +2695,20 @@ auto EasyFullControl::add_robot(
     localization = [
       inner = callbacks.localize(),
       nav_params = robot_nav_params
-    ](Destination estimate, CommandExecution execution)
-    {
-      auto robot_position = nav_params->to_robot_coordinates(
-        estimate.map(),
-        estimate.position());
-      if (robot_position.has_value())
+      ](Destination estimate, CommandExecution execution)
       {
-        auto transformed_estimate = estimate;
-        Destination::Implementation::get(transformed_estimate)
+        auto robot_position = nav_params->to_robot_coordinates(
+          estimate.map(),
+          estimate.position());
+        if (robot_position.has_value())
+        {
+          auto transformed_estimate = estimate;
+          Destination::Implementation::get(transformed_estimate)
           .position = *robot_position;
 
-        inner(transformed_estimate, execution);
-      }
-    };
+          inner(transformed_estimate, execution);
+        }
+      };
   }
 
   const auto& fleet_impl =

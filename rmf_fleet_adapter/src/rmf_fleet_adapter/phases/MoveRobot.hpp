@@ -140,41 +140,42 @@ void MoveRobot::Action::operator()(const Subscriber& s)
     return;
 
   _context->worker().schedule([w = weak_from_this(), s](const auto&)
-  {
-    const auto self = w.lock();
-    if (!self)
-      return;
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
 
-    self->_last_update_rostime = self->_context->node()->now();
-    self->_update_timeout_timer = self->_context->node()->try_create_wall_timer(
-      self->_update_timeout, [w = self->weak_from_this()]()
-      {
-        const auto self = w.lock();
-        if (!self)
-          return;
-
-        const auto now = self->_context->node()->now();
-        if (now < self->_last_update_rostime + self->_update_timeout)
+      self->_last_update_rostime = self->_context->node()->now();
+      self->_update_timeout_timer = self->_context->node()->try_create_wall_timer(
+        self->_update_timeout,
+        [w = self->weak_from_this()]()
         {
-          // The simulation is paused or running slowly, so we should allow more
-          // patience before assuming that there's been a timeout.
-          return;
-        }
+          const auto self = w.lock();
+          if (!self)
+            return;
 
-        self->_last_update_rostime = now;
+          const auto now = self->_context->node()->now();
+          if (now < self->_last_update_rostime + self->_update_timeout)
+          {
+            // The simulation is paused or running slowly, so we should allow more
+            // patience before assuming that there's been a timeout.
+            return;
+          }
 
-        // The RobotCommandHandle seems to have frozen up. Perhaps a bug in the
-        // user's code has caused the RobotCommandHandle to drop the command. We
-        // will request a replan.
-        RCLCPP_WARN(
-          self->_context->node()->get_logger(),
-          "Requesting replan for [%s] because its command handle seems to be "
-          "unresponsive",
-          self->_context->requester_id().c_str());
-        self->_context->request_replan();
-      });
+          self->_last_update_rostime = now;
 
-    const auto update = [
+          // The RobotCommandHandle seems to have frozen up. Perhaps a bug in the
+          // user's code has caused the RobotCommandHandle to drop the command. We
+          // will request a replan.
+          RCLCPP_WARN(
+            self->_context->node()->get_logger(),
+            "Requesting replan for [%s] because its command handle seems to be "
+            "unresponsive",
+            self->_context->requester_id().c_str());
+          self->_context->request_replan();
+        });
+
+      const auto update = [
         s,
         w_action = self->weak_from_this(),
         r = self->_context->requester_id()
@@ -205,7 +206,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
               ](
                 const auto&)
               {
-                if (const auto c = context->itinerary().cumulative_delay(plan_id))
+                if (const auto c =
+                context->itinerary().cumulative_delay(plan_id))
                 {
                   context->itinerary().cumulative_delay(plan_id, *c + bump);
                 }
@@ -299,7 +301,9 @@ void MoveRobot::Action::operator()(const Subscriber& s)
               std::unordered_set<std::string> retain_mutexes;
               for (const auto& wp : self->_waypoints)
               {
-                const auto s_100 = (int)(rmf_traffic::time::to_seconds(adjusted_now - wp.time()) * 100);
+                const auto s_100 =
+                (int)(rmf_traffic::time::to_seconds(adjusted_now -
+                wp.time()) * 100);
                 const auto s = (double)(s_100)/100.0;
                 if (wp.time() < adjusted_now)
                 {
@@ -324,7 +328,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           });
       };
 
-    const auto finish = [
+      const auto finish = [
         s,
         w = self->weak_from_this(),
         name = self->_context->requester_id()
@@ -362,24 +366,24 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         }
       };
 
-    self->_context->command()->follow_new_path(
-      self->_waypoints,
-      [worker = self->_context->worker(), update](
-        std::size_t path_index, rmf_traffic::Duration estimate)
-      {
-        worker.schedule([path_index, estimate, update](const auto&)
+      self->_context->command()->follow_new_path(
+        self->_waypoints,
+        [worker = self->_context->worker(), update](
+          std::size_t path_index, rmf_traffic::Duration estimate)
+        {
+          worker.schedule([path_index, estimate, update](const auto&)
           {
             update(path_index, estimate);
           });
-      },
-      [worker = self->_context->worker(), finish]()
-      {
-        worker.schedule([finish](const auto&)
+        },
+        [worker = self->_context->worker(), finish]()
+        {
+          worker.schedule([finish](const auto&)
           {
             finish();
           });
-      });
-  });
+        });
+    });
 }
 
 } // namespace phases

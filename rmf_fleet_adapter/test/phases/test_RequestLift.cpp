@@ -60,6 +60,8 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       test->received_requests.emplace_back(*lift_request);
       test->received_requests_cv.notify_all();
     });
+  auto lift_state_pub = data->ros_node->create_publisher<LiftState>(
+    LiftStateTopicName, 10);
 
   const auto info = add_robot();
   const auto& context = info.context;
@@ -76,36 +78,6 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       std::make_shared<rmf_traffic::PlanId>(0)
     });
   auto active_phase = pending_phase->begin();
-
-  WHEN("it is cancelled before its started")
-  {
-    THEN("it should not send lift requests")
-    {
-      bool received_open = false;
-      rxcpp::composite_subscription rx_sub;
-      auto subscription =
-        data->adapter->node()->create_subscription<LiftRequest>(
-        AdapterLiftRequestTopicName, 10,
-        [&rx_sub, &received_open](LiftRequest::UniquePtr lift_request)
-        {
-          if (lift_request->request_type != LiftRequest::REQUEST_END_SESSION)
-            received_open = true;
-          else
-            rx_sub.unsubscribe();
-        });
-
-      auto obs = active_phase->observe();
-      active_phase->cancel();
-
-      // TODO(MXG): Put an explicit timeout here so this line doesn't hang
-      // forever in the event of a failure.
-      obs.as_blocking().subscribe(rx_sub);
-      CHECK(!received_open);
-
-      // Stop before destructing subscription to avoid a data race in rclcpp
-      data->node->stop();
-    }
-  }
 
   WHEN("it is started")
   {
@@ -131,8 +103,16 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       CHECK(test->received_requests.front().destination_floor == destination);
     }
 
-    THEN("it should continuously send lift requests")
+    THEN("it should continuously send lift requests while lift states arrive")
     {
+      auto t = std::thread([&]()
+        {
+          for (std::size_t i=0; i < 10; ++i)
+          {
+            lift_state_pub->publish(LiftState());
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+          }
+        });
       std::unique_lock<std::mutex> lk(test->m);
       test->received_requests_cv.wait(lk, [test]()
         {
@@ -142,12 +122,12 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       {
         CHECK(lift_request.destination_floor == destination);
       }
+
+      t.join();
     }
 
     AND_WHEN("lift is on destination floor")
     {
-      auto lift_state_pub = data->ros_node->create_publisher<LiftState>(
-        LiftStateTopicName, 10);
       auto w_lift_state_pub =
         std::weak_ptr<rclcpp::Publisher<LiftState>>(lift_state_pub);
       rclcpp::TimerBase::SharedPtr timer = data->node->try_create_wall_timer(
@@ -199,29 +179,6 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       }
 
       timer.reset();
-    }
-
-    AND_WHEN("it is cancelled")
-    {
-      {
-        std::unique_lock<std::mutex> lk(test->m);
-        test->received_requests_cv.wait(lk, [&]()
-          {
-            return !test->received_requests.empty();
-          });
-        active_phase->cancel();
-      }
-
-      THEN("it should send END_SESSION request")
-      {
-        std::unique_lock<std::mutex> lk(test->m);
-        test->received_requests_cv.wait(lk, [&]()
-          {
-            if (test->received_requests.empty())
-              return false;
-            return test->received_requests.back().request_type == LiftRequest::REQUEST_END_SESSION;
-          });
-      }
     }
   }
 

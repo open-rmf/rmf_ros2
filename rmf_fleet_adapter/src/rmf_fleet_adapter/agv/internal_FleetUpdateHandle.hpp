@@ -307,7 +307,7 @@ public:
   // Keep track of charging assignments for robots that have not been registered
   // yet.
   std::unordered_map<std::string, ChargingAssignment>
-    unregistered_charging_assignments;
+  unregistered_charging_assignments;
 
   using DockParamMap =
     std::unordered_map<
@@ -366,7 +366,8 @@ public:
 
     handle->_pimpl->add_standard_tasks();
 
-    handle->_pimpl->emergency_obs = handle->_pimpl->emergency_publisher.get_observable();
+    handle->_pimpl->emergency_obs =
+      handle->_pimpl->emergency_publisher.get_observable();
     handle->_pimpl->emergency_sub = handle->_pimpl->node->emergency_notice()
       .observe_on(rxcpp::identity_same_worker(handle->_pimpl->worker))
       .subscribe(
@@ -581,14 +582,14 @@ public:
 
     handle->_pimpl->charging_assignments_sub =
       handle->_pimpl->node->create_subscription<
-        rmf_fleet_msgs::msg::ChargingAssignments>(
-          ChargingAssignmentsTopicName,
-          reliable_transient_qos,
-          [w = handle->weak_from_this()](const ChargingAssignments& assignments)
-          {
-            if (const auto self = w.lock())
-              self->_pimpl->update_charging_assignments(assignments);
-          });
+      rmf_fleet_msgs::msg::ChargingAssignments>(
+      ChargingAssignmentsTopicName,
+      reliable_transient_qos,
+      [w = handle->weak_from_this()](const ChargingAssignments& assignments)
+      {
+        if (const auto self = w.lock())
+          self->_pimpl->update_charging_assignments(assignments);
+      });
 
     handle->_pimpl->deserialization.event->add(
       "perform_action", validator, deserializer);

@@ -237,20 +237,20 @@ void LockMutexGroup::Active::_initialize()
           if (delay > std::chrono::seconds(2))
           {
             const auto start = [&]()
-              -> std::optional<rmf_traffic::agv::Plan::Start>
+            -> std::optional<rmf_traffic::agv::Plan::Start>
+            {
+              for (const auto& wp : self->_data.waypoints)
               {
-                for (const auto& wp : self->_data.waypoints)
+                if (wp.graph_index().has_value())
                 {
-                  if (wp.graph_index().has_value())
-                  {
-                    return rmf_traffic::agv::Plan::Start(
-                      self->_context->now(),
-                      *wp.graph_index(),
-                      wp.position()[2]);
-                  }
+                  return rmf_traffic::agv::Plan::Start(
+                    self->_context->now(),
+                    *wp.graph_index(),
+                    wp.position()[2]);
                 }
-                return std::nullopt;
-              }();
+              }
+              return std::nullopt;
+            }();
 
             if (start.has_value())
             {
@@ -264,53 +264,53 @@ void LockMutexGroup::Active::_initialize()
                 std::chrono::seconds(5));
 
               self->_plan_subscription =
-                rmf_rxcpp::make_job<services::FindPath::Result>(
-                  self->_find_path_service)
-                .observe_on(
-                  rxcpp::identity_same_worker(self->_context->worker()))
-                .subscribe(
-                  [w = self->weak_from_this(), finished](
-                    const services::FindPath::Result& result)
+              rmf_rxcpp::make_job<services::FindPath::Result>(
+                self->_find_path_service)
+              .observe_on(
+                rxcpp::identity_same_worker(self->_context->worker()))
+              .subscribe(
+                [w = self->weak_from_this(), finished](
+                  const services::FindPath::Result& result)
+                {
+                  const auto self = w.lock();
+                  if (!self)
+                    return;
+
+                  if (self->_consider_plan_result(result))
                   {
-                    const auto self = w.lock();
-                    if (!self)
-                      return;
+                    // We have a matching plan so proceed
+                    RCLCPP_INFO(
+                      self->_context->node()->get_logger(),
+                      "Finished locking mutexes %s for [%s] and plan is "
+                      "unchanged after waiting",
+                      self->_data.all_groups_str().c_str(),
+                      self->_context->requester_id().c_str());
 
-                    if (self->_consider_plan_result(result))
-                    {
-                      // We have a matching plan so proceed
-                      RCLCPP_INFO(
-                        self->_context->node()->get_logger(),
-                        "Finished locking mutexes %s for [%s] and plan is "
-                        "unchanged after waiting",
-                        self->_data.all_groups_str().c_str(),
-                        self->_context->requester_id().c_str());
-
-                      self->_schedule(*self->_data.resume_itinerary);
-                      self->_apply_cumulative_delay();
-                      self->_state->update_status(Status::Completed);
-                      finished();
-                      return;
-                    }
-
-                    // The new plan was not a match, so we should trigger a
-                    // proper replan.
+                    self->_schedule(*self->_data.resume_itinerary);
+                    self->_apply_cumulative_delay();
                     self->_state->update_status(Status::Completed);
-                    self->_context->request_replan();
-                  });
+                    finished();
+                    return;
+                  }
+
+                  // The new plan was not a match, so we should trigger a
+                  // proper replan.
+                  self->_state->update_status(Status::Completed);
+                  self->_context->request_replan();
+                });
 
               self->_find_path_timeout =
-                self->_context->node()->try_create_wall_timer(
-                  std::chrono::seconds(10),
-                  [
-                    weak_service = self->_find_path_service->weak_from_this()
-                  ]()
+              self->_context->node()->try_create_wall_timer(
+                std::chrono::seconds(10),
+                [
+                  weak_service = self->_find_path_service->weak_from_this()
+                ]()
+                {
+                  if (const auto service = weak_service.lock())
                   {
-                    if (const auto service = weak_service.lock())
-                    {
-                      service->interrupt();
-                    }
-                  });
+                    service->interrupt();
+                  }
+                });
               return;
             }
           }

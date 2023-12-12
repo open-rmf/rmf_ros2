@@ -94,7 +94,7 @@ MoveRobot::PendingPhase::PendingPhase(
   const auto dest = destination(
     _waypoints.back(), _context->planner()->get_configuration().graph());
   oss << "Move to " << dest << " <" << _waypoints.back().position().transpose()
-    << "> through " << _waypoints.size() << " points";
+      << "> through " << _waypoints.size() << " points";
   _description = oss.str();
 }
 

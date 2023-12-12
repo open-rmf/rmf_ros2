@@ -195,7 +195,8 @@ public:
       {
         if (context->debug_positions)
         {
-          std::cout << "Searching for location from " << __FILE__ << "|" << __LINE__ << std::endl;
+          std::cout << "Searching for location from " << __FILE__ << "|" <<
+            __LINE__ << std::endl;
         }
         nav_params->search_for_location(map, location, *context);
       }

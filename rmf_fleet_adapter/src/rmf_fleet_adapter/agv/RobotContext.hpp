@@ -122,7 +122,7 @@ inline std::string print_waypoint(
   const rmf_traffic::agv::Graph::Waypoint& wp = graph.get_waypoint(i_wp);
 
   ss << wp.get_map_name() << " <" << wp.get_location().transpose() << "> ["
-    << wp.name_or_index() << "]";
+     << wp.name_or_index() << "]";
   return ss.str();
 }
 
@@ -137,7 +137,7 @@ inline std::string print_plan_waypoint(
   if (wp.graph_index().has_value())
     ss << " #" << *wp.graph_index();
   ss << " <" << wp.position().transpose()
-    << "> yaw=" << wp.position()[2] * 180.0 / M_PI;
+     << "> yaw=" << wp.position()[2] * 180.0 / M_PI;
   if (wp.event())
   {
     EventPrinter event;
@@ -195,7 +195,7 @@ inline std::string print_lane(
   std::stringstream ss;
   const auto& lane = graph.get_lane(i_lane);
   ss << "lane " << i_lane << ": " << print_lane_node(lane.entry(), graph)
-    << " -> " << print_lane_node(lane.exit(), graph);
+     << " -> " << print_lane_node(lane.exit(), graph);
   return ss.str();
 }
 
@@ -216,7 +216,7 @@ inline std::string print_starts(
       if (l.waypoint() != lane.exit().waypoint_index())
       {
         ss << " !! MISMATCH BETWEEN KEY WAYPOINT AND LANE EXIT: key "
-          << l.waypoint() << " vs exit " << lane.exit().waypoint_index();
+           << l.waypoint() << " vs exit " << lane.exit().waypoint_index();
       }
     }
     else
@@ -720,35 +720,35 @@ public:
     context->_lift_subscription = context->_node->lift_state()
       .observe_on(rxcpp::identity_same_worker(context->_worker))
       .subscribe([w = context->weak_from_this()](const auto& msg)
-      {
-        const auto self = w.lock();
-        if (!self)
-          return;
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
 
-        self->_check_lift_state(*msg);
-      });
+          self->_check_lift_state(*msg);
+        });
 
     context->_door_subscription = context->_node->door_supervisor()
       .observe_on(rxcpp::identity_same_worker(context->_worker))
       .subscribe([w = context->weak_from_this()](const auto& msg)
-      {
-        const auto self = w.lock();
-        if (!self)
-          return;
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
 
-        self->_check_door_supervisor(*msg);
-      });
+          self->_check_door_supervisor(*msg);
+        });
 
     context->_mutex_group_sanity_check = context->_node->mutex_group_states()
       .observe_on(rxcpp::identity_same_worker(context->_worker))
       .subscribe([w = context->weak_from_this()](const auto& msg)
-      {
-        const auto self = w.lock();
-        if (!self)
-          return;
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
 
-        self->_check_mutex_groups(*msg);
-      });
+          self->_check_mutex_groups(*msg);
+        });
 
     context->_mutex_group_heartbeat = context->_node->try_create_wall_timer(
       std::chrono::seconds(2),
@@ -845,9 +845,11 @@ private:
   std::optional<Lost> _lost;
 
   void _check_lift_state(const rmf_lift_msgs::msg::LiftState& state);
+  void _publish_lift_destination();
   std::shared_ptr<LiftDestination> _lift_destination;
   rmf_rxcpp::subscription_guard _lift_subscription;
-  std::optional<std::chrono::steady_clock::time_point> _initial_time_idle_outside_lift;
+  std::optional<std::chrono::steady_clock::time_point>
+  _initial_time_idle_outside_lift;
   std::shared_ptr<void> _lift_stubbornness;
   bool _lift_arrived = false;
 

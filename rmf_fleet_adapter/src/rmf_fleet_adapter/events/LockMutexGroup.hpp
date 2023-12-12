@@ -33,84 +33,84 @@ std::string all_str(const std::unordered_set<std::string>& all);
 class LockMutexGroup : public rmf_task_sequence::Event
 {
 public:
-    struct Data
-    {
-      std::unordered_set<std::string> mutex_groups;
-      std::string hold_map;
-      Eigen::Vector3d hold_position;
-      rmf_traffic::Time hold_time;
-      std::shared_ptr<rmf_traffic::PlanId> plan_id;
-      std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary;
-      std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints;
-      rmf_traffic::agv::Plan::Goal goal;
+  struct Data
+  {
+    std::unordered_set<std::string> mutex_groups;
+    std::string hold_map;
+    Eigen::Vector3d hold_position;
+    rmf_traffic::Time hold_time;
+    std::shared_ptr<rmf_traffic::PlanId> plan_id;
+    std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary;
+    std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints;
+    rmf_traffic::agv::Plan::Goal goal;
 
-      std::string all_groups_str() const;
-    };
+    std::string all_groups_str() const;
+  };
 
-    class Standby : public rmf_task_sequence::Event::Standby
-    {
-    public:
-      static std::shared_ptr<Standby> make(
-        agv::RobotContextPtr context,
-        const AssignIDPtr& id,
-        Data data);
+  class Standby : public rmf_task_sequence::Event::Standby
+  {
+  public:
+    static std::shared_ptr<Standby> make(
+      agv::RobotContextPtr context,
+      const AssignIDPtr& id,
+      Data data);
 
-      ConstStatePtr state() const final;
+    ConstStatePtr state() const final;
 
-      rmf_traffic::Duration duration_estimate() const final;
+    rmf_traffic::Duration duration_estimate() const final;
 
-      ActivePtr begin(
-        std::function<void()> checkpoint,
-        std::function<void()> finished) final;
+    ActivePtr begin(
+      std::function<void()> checkpoint,
+      std::function<void()> finished) final;
 
-    private:
-      Standby(Data data);
-      agv::RobotContextPtr _context;
-      rmf_task::events::SimpleEventStatePtr _state;
-      Data _data;
-    };
+  private:
+    Standby(Data data);
+    agv::RobotContextPtr _context;
+    rmf_task::events::SimpleEventStatePtr _state;
+    Data _data;
+  };
 
-    class Active
-      : public rmf_task_sequence::Event::Active,
-      public std::enable_shared_from_this<Active>
-    {
-    public:
-      static std::shared_ptr<Active> make(
-        agv::RobotContextPtr context,
-        rmf_task::events::SimpleEventStatePtr state,
-        std::function<void()> finished,
-        Data data);
+  class Active
+    : public rmf_task_sequence::Event::Active,
+    public std::enable_shared_from_this<Active>
+  {
+  public:
+    static std::shared_ptr<Active> make(
+      agv::RobotContextPtr context,
+      rmf_task::events::SimpleEventStatePtr state,
+      std::function<void()> finished,
+      Data data);
 
-      ConstStatePtr state() const final;
+    ConstStatePtr state() const final;
 
-      rmf_traffic::Duration remaining_time_estimate() const final;
+    rmf_traffic::Duration remaining_time_estimate() const final;
 
-      Backup backup() const final;
+    Backup backup() const final;
 
-      Resume interrupt(std::function<void()> task_is_interrupted) final;
+    Resume interrupt(std::function<void()> task_is_interrupted) final;
 
-      void cancel() final;
+    void cancel() final;
 
-      void kill() final;
+    void kill() final;
 
-    private:
-      Active(Data data);
-      void _initialize();
-      void _schedule(rmf_traffic::schedule::Itinerary itinerary) const;
-      void _apply_cumulative_delay();
-      bool _consider_plan_result(services::FindPath::Result result);
-      agv::RobotContextPtr _context;
-      rmf_task::events::SimpleEventStatePtr _state;
-      std::function<void()> _finished;
-      rmf_rxcpp::subscription_guard _listener;
-      rclcpp::TimerBase::SharedPtr _delay_timer;
-      std::shared_ptr<void> _stubborn;
-      Data _data;
-      std::unordered_set<std::string> _remaining;
-      rmf_rxcpp::subscription_guard _plan_subscription;
-      std::shared_ptr<services::FindPath> _find_path_service;
-      rclcpp::TimerBase::SharedPtr _find_path_timeout;
-    };
+  private:
+    Active(Data data);
+    void _initialize();
+    void _schedule(rmf_traffic::schedule::Itinerary itinerary) const;
+    void _apply_cumulative_delay();
+    bool _consider_plan_result(services::FindPath::Result result);
+    agv::RobotContextPtr _context;
+    rmf_task::events::SimpleEventStatePtr _state;
+    std::function<void()> _finished;
+    rmf_rxcpp::subscription_guard _listener;
+    rclcpp::TimerBase::SharedPtr _delay_timer;
+    std::shared_ptr<void> _stubborn;
+    Data _data;
+    std::unordered_set<std::string> _remaining;
+    rmf_rxcpp::subscription_guard _plan_subscription;
+    std::shared_ptr<services::FindPath> _find_path_service;
+    rclcpp::TimerBase::SharedPtr _find_path_timeout;
+  };
 };
 
 } // namespace events

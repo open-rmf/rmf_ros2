@@ -43,10 +43,12 @@ rmf_traffic::agv::Graph parse_graph(
   if (!lifts_yaml)
   {
     std::cout << "Your navigation graph does not provide lift information. "
-      << "This may cause problems with behaviors around lifts. Please consider "
-      << "regenerating your navigration graph with the latest version of "
-      << "rmf_building_map_tools (from the rmf_traffic_editor repo)."
-      << std::endl;
+              <<
+      "This may cause problems with behaviors around lifts. Please consider "
+              <<
+      "regenerating your navigration graph with the latest version of "
+              << "rmf_building_map_tools (from the rmf_traffic_editor repo)."
+              << std::endl;
   }
   else
   {
@@ -68,7 +70,7 @@ rmf_traffic::agv::Graph parse_graph(
         dims_yaml[1].as<double>());
 
       graph.set_known_lift(rmf_traffic::agv::Graph::LiftProperties(
-        name, location, orientation, dimensions));
+          name, location, orientation, dimensions));
     }
   }
 
@@ -76,10 +78,12 @@ rmf_traffic::agv::Graph parse_graph(
   if (!doors_yaml)
   {
     std::cout << "Your navigation graph does not provide door information. "
-      << "This may cause problems with behaviors around doors. Please consider "
-      << "regenerating your navigration graph with the latest version of "
-      << "rmf_building_map_tools (from the rmf_traffic_editor repo)."
-      << std::endl;
+              <<
+      "This may cause problems with behaviors around doors. Please consider "
+              <<
+      "regenerating your navigration graph with the latest version of "
+              << "rmf_building_map_tools (from the rmf_traffic_editor repo)."
+              << std::endl;
   }
   else
   {
@@ -215,9 +219,9 @@ rmf_traffic::agv::Graph parse_graph(
             if (!lift)
             {
               throw std::runtime_error(
-                "Lift properties for [" + lift_name + "] were not provided "
-                "even though it is used by a vertex. This suggests that your "
-                "nav graph was not generated correctly.");
+                      "Lift properties for [" + lift_name + "] were not provided "
+                      "even though it is used by a vertex. This suggests that your "
+                      "nav graph was not generated correctly.");
             }
             wp.set_in_lift(lift);
           }
@@ -374,7 +378,8 @@ rmf_traffic::agv::Graph parse_graph(
             // Add a waypoint and a lane leading to it for the dock maneuver
             // to be done after the entry event
             const auto entry_wp = graph.get_waypoint(begin);
-            auto& dock_wp = graph.add_waypoint(map_name, entry_wp.get_location());
+            auto& dock_wp =
+              graph.add_waypoint(map_name, entry_wp.get_location());
             dock_wp.set_in_mutex_group(entry_wp.in_mutex_group());
             dock_wp.set_merge_radius(0.0);
 
@@ -411,7 +416,7 @@ rmf_traffic::agv::Graph parse_graph(
       if (const YAML::Node mutex_yaml = options["mutex"])
       {
         graph_lane.properties()
-          .set_in_mutex_group(mutex_yaml.as<std::string>());
+        .set_in_mutex_group(mutex_yaml.as<std::string>());
       }
     }
     vnum += vnum_temp;
@@ -452,8 +457,8 @@ rmf_traffic::agv::Graph parse_graph(
     if (largest_dist > 0.1)
     {
       throw std::runtime_error(
-        "Bad vertical alignment for the waypoints in lift [" + lift.first
-        + "]. Largest variation is " + std::to_string(largest_dist));
+              "Bad vertical alignment for the waypoints in lift [" + lift.first
+              + "]. Largest variation is " + std::to_string(largest_dist));
     }
 
     Eigen::Vector2d lift_center = Eigen::Vector2d::Zero();
@@ -473,7 +478,8 @@ rmf_traffic::agv::Graph parse_graph(
         const auto s_it = stacked_vertex.find(wp);
         if (s_it != stacked_vertex.end())
         {
-          std::cout << "Also shifting stacked vertex " << s_it->first << ":" << s_it->second << std::endl;
+          std::cout << "Also shifting stacked vertex " << s_it->first << ":" <<
+            s_it->second << std::endl;
           graph.get_waypoint(s_it->second).set_location(lift_center);
         }
       }

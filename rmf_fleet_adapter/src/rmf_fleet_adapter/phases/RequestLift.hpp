@@ -40,7 +40,8 @@ struct RequestLift
     Located located;
     PlanIdPtr plan_id;
     std::optional<agv::Destination> localize_after = std::nullopt;
-    std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary = nullptr;
+    std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary =
+      nullptr;
     std::optional<rmf_traffic::agv::Plan::Waypoint> hold_point = std::nullopt;
   };
 

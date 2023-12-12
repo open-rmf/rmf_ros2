@@ -195,7 +195,7 @@ public:
     }
 
     std::unordered_set<std::string> normalized_groups;
-    for (auto i=claims.begin(); i != claims.end(); ++i)
+    for (auto i = claims.begin(); i != claims.end(); ++i)
     {
       auto j = i;
       ++j;

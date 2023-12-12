@@ -44,7 +44,7 @@ rmf_traffic::Duration estimate_charge_time(
   {
     const double delta_soc = recharged_soc - initial_soc;
     const double dt = (3600 * delta_soc * battery_system.capacity()) /
-            battery_system.charging_current();
+      battery_system.charging_current();
     return rmf_traffic::time::from_seconds(dt);
   }
 
@@ -187,8 +187,8 @@ public:
 
           const auto header_go_to =
             rmf_task_sequence::events::GoToPlace::Description::make(
-              context->dedicated_charging_wp())->generate_header(
-                initial_state, parameters);
+            context->dedicated_charging_wp())->generate_header(
+            initial_state, parameters);
           duration_estimate += header_go_to.original_duration_estimate();
         }
       }
@@ -460,7 +460,7 @@ public:
             if (!indefinite)
             {
               recharged_soc = context->task_planner()
-                ->configuration().constraints().recharge_soc();
+              ->configuration().constraints().recharge_soc();
             }
 
             auto legacy = phases::WaitForCharge::make(
@@ -732,20 +732,20 @@ rmf_task::ConstRequestPtr ParkRobotIndefinitely::make_request(
 
   auto desc = rmf_task_sequence::Task::Builder()
     .add_phase(rmf_task_sequence::phases::SimplePhase::Description::make(
-      phase_desc), {})
+        phase_desc), {})
     .build("Park", "");
 
   auto now = _pimpl->time_now_cb ?
     _pimpl->time_now_cb() : state.time().value_or(
-        rmf_traffic::Time(std::chrono::system_clock::now().time_since_epoch()));
+    rmf_traffic::Time(std::chrono::system_clock::now().time_since_epoch()));
   rmf_task::Task::ConstBookingPtr booking =
     std::make_shared<rmf_task::Task::Booking>(
-      std::move(id),
-      now,
-      nullptr,
-      _pimpl->requester,
-      now,
-      true);
+    std::move(id),
+    now,
+    nullptr,
+    _pimpl->requester,
+    now,
+    true);
 
   return std::make_shared<rmf_task::Request>(
     std::move(booking),

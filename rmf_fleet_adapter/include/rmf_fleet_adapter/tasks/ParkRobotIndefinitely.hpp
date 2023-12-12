@@ -44,12 +44,12 @@ public:
   ///   there. It will not wait for its battery to charge up before undertaking
   ///   new tasks.
   ParkRobotIndefinitely(
-      const std::string& requester,
-      std::function<rmf_traffic::Time()> time_now_cb,
-      std::optional<std::size_t> parking_waypoint = std::nullopt);
+    const std::string& requester,
+    std::function<rmf_traffic::Time()> time_now_cb,
+    std::optional<std::size_t> parking_waypoint = std::nullopt);
 
   rmf_task::ConstRequestPtr make_request(
-      const rmf_task::State& state) const final;
+    const rmf_task::State& state) const final;
 
   class Implementation;
 private:

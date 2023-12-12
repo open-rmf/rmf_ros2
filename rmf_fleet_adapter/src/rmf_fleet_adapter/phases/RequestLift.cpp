@@ -116,7 +116,7 @@ void RequestLift::ActivePhase::_init_obs()
             self->_context->schedule_itinerary(
               self->_data.plan_id, *self->_data.resume_itinerary);
             const auto delay =
-              self->_context->now() - self->_data.expected_finish;
+            self->_context->now() - self->_data.expected_finish;
             self->_context->itinerary().cumulative_delay(
               *self->_data.plan_id, delay);
           }
@@ -210,32 +210,33 @@ void RequestLift::ActivePhase::_init_obs()
           if (me->_data.localize_after.has_value())
           {
             auto finish = [s, worker = me->_context->worker(), weak]()
+            {
+              worker.schedule([s, weak](const auto&)
               {
-                worker.schedule([s, weak](const auto&)
+                if (const auto me = weak.lock())
+                {
+                  if (!me->_finish())
                   {
-                    if (const auto me = weak.lock())
-                    {
-                      if (!me->_finish())
-                      {
-                        return;
-                      }
-                    }
+                    return;
+                  }
+                }
 
-                    s.on_completed();
-                  });
-              };
+                s.on_completed();
+              });
+            };
 
             auto cmd = agv::EasyFullControl
-              ::CommandExecution::Implementation::make_hold(
-                me->_context,
-                me->_data.expected_finish,
-                *me->_data.plan_id,
-                std::move(finish));
+            ::CommandExecution::Implementation::make_hold(
+              me->_context,
+              me->_data.expected_finish,
+              *me->_data.plan_id,
+              std::move(finish));
 
             agv::Destination::Implementation::get(*me->_data.localize_after)
-              .position = me->_context->position();
+            .position = me->_context->position();
 
-            if (me->_context->localize(*me->_data.localize_after, std::move(cmd)))
+            if (me->_context->localize(*me->_data.localize_after,
+            std::move(cmd)))
             {
               me->_rewait_timer = me->_context->node()->try_create_wall_timer(
                 std::chrono::seconds(300),

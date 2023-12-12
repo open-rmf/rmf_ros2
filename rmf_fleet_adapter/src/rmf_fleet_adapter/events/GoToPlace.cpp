@@ -398,8 +398,8 @@ void GoToPlace::Active::_find_plan()
   const auto& graph = _context->navigation_graph();
   std::stringstream ss;
   ss << "Planning for [" << _context->requester_id()
-    << "] to [" << goal_name << "] from one of these locations:"
-    << agv::print_starts(_context->location(), graph);
+     << "] to [" << goal_name << "] from one of these locations:"
+     << agv::print_starts(_context->location(), graph);
 
   RCLCPP_INFO(
     _context->node()->get_logger(),

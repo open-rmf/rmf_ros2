@@ -120,8 +120,8 @@ void DockRobot::Action::operator()(const Subscriber& s)
       LegacyTask::StatusMsg status;
       status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
       status.status = "Docking [" + active->_context->requester_id() +
-        "] into dock ["
-        + active->_dock_name + "]";
+      "] into dock ["
+      + active->_dock_name + "]";
 
       s.on_next(status);
       active->_context->command()->dock(
@@ -138,7 +138,8 @@ void DockRobot::Action::operator()(const Subscriber& s)
               status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
               for (const auto& c : wp.arrival_checkpoints())
               {
-                context->itinerary().reached(plan_id, c.route_id, c.checkpoint_id);
+                context->itinerary().reached(plan_id, c.route_id,
+                c.checkpoint_id);
               }
 
               if (wp.graph_index().has_value())

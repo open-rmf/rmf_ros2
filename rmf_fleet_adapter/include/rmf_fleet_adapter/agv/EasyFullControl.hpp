@@ -101,8 +101,8 @@ public:
   ///   The command execution progress updater. Use this to keep the fleet
   ///   adapter updated on the progress of localizing.
   using LocalizationRequest = std::function<void(
-    Destination location_estimate,
-    CommandExecution execution)>;
+        Destination location_estimate,
+        CommandExecution execution)>;
 
   /// Add a robot to the fleet once it is available.
   ///

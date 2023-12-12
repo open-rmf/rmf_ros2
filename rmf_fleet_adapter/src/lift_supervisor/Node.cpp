@@ -105,12 +105,12 @@ void Node::_lift_state_update(LiftState::UniquePtr msg)
     if ((lift_request->destination_floor != msg->current_floor) ||
       (lift_request->door_state != msg->door_state))
       lift_request->request_time = this->now();
-      _lift_request_pub->publish(*lift_request);
-      RCLCPP_INFO(
-        this->get_logger(),
-        "[%s] Published lift request to [%s] from lift supervisor",
-        msg->session_id.c_str(), lift_request->destination_floor.c_str()
-      );
+    _lift_request_pub->publish(*lift_request);
+    RCLCPP_INFO(
+      this->get_logger(),
+      "[%s] Published lift request to [%s] from lift supervisor",
+      msg->session_id.c_str(), lift_request->destination_floor.c_str()
+    );
   }
   else
   {
