@@ -352,25 +352,28 @@ void MockAdapter::dispatch_task(
 
         fimpl.bid_notice_cb(
           bid,
-          [fimpl = &fimpl, task_id](const rmf_task_ros2::bidding::Response& response)
+          [fimpl = &fimpl,
+          task_id](const rmf_task_ros2::bidding::Response& response)
           {
             if (response.proposal.has_value())
             {
               fimpl->worker.schedule([fimpl, task_id](const auto&)
-                {
-                  rmf_task_msgs::msg::DispatchCommand req;
-                  req.task_id = task_id;
-                  req.fleet_name = fimpl->name;
-                  req.type = req.TYPE_AWARD;
-                  fimpl->dispatch_command_cb(
-                    std::make_shared<rmf_task_msgs::msg::DispatchCommand>(req));
-                  std::cout << "Fleet [" << fimpl->name << "] accepted the task request"
-                            << std::endl;
-                });
+              {
+                rmf_task_msgs::msg::DispatchCommand req;
+                req.task_id = task_id;
+                req.fleet_name = fimpl->name;
+                req.type = req.TYPE_AWARD;
+                fimpl->dispatch_command_cb(
+                  std::make_shared<rmf_task_msgs::msg::DispatchCommand>(req));
+                std::cout << "Fleet [" << fimpl->name <<
+                  "] accepted the task request"
+                          << std::endl;
+              });
             }
             else
             {
-              std::cout << "Fleet [" << fimpl->name << "] rejected the task request"
+              std::cout << "Fleet [" << fimpl->name <<
+                "] rejected the task request"
                         << std::endl;
             }
           });

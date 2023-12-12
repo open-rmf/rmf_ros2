@@ -106,13 +106,13 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
     THEN("it should continuously send lift requests while lift states arrive")
     {
       auto t = std::thread([&]()
-        {
-          for (std::size_t i=0; i < 10; ++i)
           {
-            lift_state_pub->publish(LiftState());
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-          }
-        });
+            for (std::size_t i = 0; i < 10; ++i)
+            {
+              lift_state_pub->publish(LiftState());
+              std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+          });
       std::unique_lock<std::mutex> lk(test->m);
       test->received_requests_cv.wait(lk, [test]()
         {
