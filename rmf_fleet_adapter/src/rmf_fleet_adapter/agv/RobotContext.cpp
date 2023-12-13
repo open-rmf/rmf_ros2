@@ -1357,10 +1357,15 @@ void RobotContext::_check_lift_state(
         _lift_destination->destination_floor == state.current_floor;
     }
   }
-
-  if (!_lift_destination)
+  else if (_lift_destination && _lift_destination->lift_name == state.lift_name)
   {
-    return;
+    RCLCPP_INFO(
+      _node->get_logger(),
+      "[%s] is waiting to begin a session with lift [%s] but the lift is "
+      "currently held by [%s]",
+      _requester_id.c_str(),
+      _lift_destination->lift_name.c_str(),
+      state.session_id.c_str());
   }
 
   _publish_lift_destination();
@@ -1369,6 +1374,11 @@ void RobotContext::_check_lift_state(
 //==============================================================================
 void RobotContext::_publish_lift_destination()
 {
+  if (!_lift_destination)
+  {
+    return;
+  }
+
   rmf_lift_msgs::msg::LiftRequest msg;
   msg.lift_name = _lift_destination->lift_name;
   msg.destination_floor = _lift_destination->destination_floor;
@@ -1424,7 +1434,43 @@ void RobotContext::_check_mutex_groups(
   for (const auto& assignment : states.assignments)
   {
     if (assignment.claimant != participant_id())
+    {
+      if (_requesting_mutex_groups.count(assignment.group) > 0)
+      {
+        if (assignment.claimant == (uint64_t)(-1))
+        {
+          RCLCPP_INFO(
+            _node->get_logger(),
+            "[%s] is waiting for the mutex superviser to receive its request "
+            "for mutex group [%s]",
+            _requester_id.c_str(),
+            assignment.group.c_str());
+        }
+        else
+        {
+          std::string holder;
+          if (const auto p = _schedule->get_participant(assignment.claimant))
+          {
+            holder = p->owner() + "/" + p->name();
+          }
+          else
+          {
+            holder = "unknown participant #"
+              + std::to_string(assignment.claimant);
+          }
+
+          RCLCPP_INFO(
+            _node->get_logger(),
+            "[%s] is waiting to lock mutex group [%s] but that mutex is "
+            "currently held by [%s]",
+            _requester_id.c_str(),
+            assignment.group.c_str(),
+            holder.c_str());
+        }
+      }
+
       continue;
+    }
 
     if (_requesting_mutex_groups.count(assignment.group) > 0)
     {
