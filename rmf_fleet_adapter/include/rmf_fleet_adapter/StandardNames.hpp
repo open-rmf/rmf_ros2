@@ -68,6 +68,13 @@ const std::string InterruptRequestTopicName = "robot_interrupt_request";
 const std::string TaskApiRequests = "task_api_requests";
 const std::string TaskApiResponses = "task_api_responses";
 
+const std::string ChargingAssignmentsTopicName = "charging_assignments";
+
+const std::string MutexGroupRequestTopicName = "mutex_group_request";
+const std::string MutexGroupStatesTopicName = "mutex_group_states";
+
+const uint64_t Unclaimed = (uint64_t)(-1);
+
 } // namespace rmf_fleet_adapter
 
 #endif // RMF_FLEET_ADAPTER__STANDARDNAMES_HPP

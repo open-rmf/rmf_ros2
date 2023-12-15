@@ -345,7 +345,6 @@ void MockAdapter::dispatch_task(
 
         // NOTE: although the current adapter supports multiple fleets. The test
         // here assumses using a single fleet for each adapter
-        bool accepted = false;
         auto bid = rmf_task_msgs::build<rmf_task_msgs::msg::BidNotice>()
         .request(request.dump())
         .task_id(task_id)
@@ -353,27 +352,31 @@ void MockAdapter::dispatch_task(
 
         fimpl.bid_notice_cb(
           bid,
-          [&accepted](const rmf_task_ros2::bidding::Response& response)
+          [fimpl = &fimpl,
+          task_id](const rmf_task_ros2::bidding::Response& response)
           {
-            accepted = response.proposal.has_value();
+            if (response.proposal.has_value())
+            {
+              fimpl->worker.schedule([fimpl, task_id](const auto&)
+              {
+                rmf_task_msgs::msg::DispatchCommand req;
+                req.task_id = task_id;
+                req.fleet_name = fimpl->name;
+                req.type = req.TYPE_AWARD;
+                fimpl->dispatch_command_cb(
+                  std::make_shared<rmf_task_msgs::msg::DispatchCommand>(req));
+                std::cout << "Fleet [" << fimpl->name <<
+                  "] accepted the task request"
+                          << std::endl;
+              });
+            }
+            else
+            {
+              std::cout << "Fleet [" << fimpl->name <<
+                "] rejected the task request"
+                        << std::endl;
+            }
           });
-
-        if (accepted)
-        {
-          rmf_task_msgs::msg::DispatchCommand req;
-          req.task_id = task_id;
-          req.fleet_name = fimpl.name;
-          req.type = req.TYPE_AWARD;
-          fimpl.dispatch_command_cb(
-            std::make_shared<rmf_task_msgs::msg::DispatchCommand>(req));
-          std::cout << "Fleet [" << fimpl.name << "] accepted the task request"
-                    << std::endl;
-        }
-        else
-        {
-          std::cout << "Fleet [" << fimpl.name << "] rejected the task request"
-                    << std::endl;
-        }
       }
     });
 }
