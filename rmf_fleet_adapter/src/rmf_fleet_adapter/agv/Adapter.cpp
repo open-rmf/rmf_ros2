@@ -264,7 +264,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     if (entry)
       entry->execute(finder);
 
-    const auto* exit = config.graph()->get_lane(i).entry().event();
+    const auto* exit = config.graph()->get_lane(i).exit().event();
     if (exit)
       exit->execute(finder);
   }
@@ -365,6 +365,11 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
   {
     tf_dict = std::make_shared<TransformDictionary>(
       *config.transformations_to_robot_coordinates());
+  }
+
+  for (const auto& [lift, level] : config.lift_emergency_levels())
+  {
+    fleet_handle->set_lift_emergency_level(lift, level);
   }
 
   return EasyFullControl::Implementation::make(

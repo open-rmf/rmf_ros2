@@ -126,6 +126,10 @@ public:
   /// value that was given to the setter.
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
 
+  /// Get the current task ID of the robot, or an empty string if the robot
+  /// is not performing any task.
+  const std::string current_task_id() const;
+
   /// Unique identifier for an activity that the robot is performing. Used by
   /// the EasyFullControl API.
   class ActivityIdentifier
@@ -404,6 +408,9 @@ public:
   /// By default this behavior is enabled.
   void enable_responsive_wait(bool value);
 
+  /// If the robot is holding onto a session with a lift, release that session.
+  void release_lift();
+
   class Implementation;
 
   /// This API is experimental and will not be supported in the future. Users
@@ -470,6 +477,9 @@ public:
     void set_lift_entry_watchdog(
       Watchdog watchdog,
       rmf_traffic::Duration wait_duration = std::chrono::seconds(10));
+
+    /// Turn on/off a debug dump of how position updates are being processed
+    void debug_positions(bool on);
 
   private:
     friend Implementation;
