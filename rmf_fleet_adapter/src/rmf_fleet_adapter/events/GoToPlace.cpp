@@ -266,8 +266,19 @@ rmf_traffic::Duration GoToPlace::Active::remaining_time_estimate() const
     const auto now = _context->now();
 
     const auto& itin = _context->itinerary();
-    if (const auto delay = itin.cumulative_delay(_execution->plan_id))
-      return finish - now + *delay;
+    if (_execution->plan_id)
+    {
+      if (const auto delay = itin.cumulative_delay(*_execution->plan_id))
+        return finish - now + *delay;
+    }
+    else
+    {
+      RCLCPP_ERROR(
+        _context->node()->get_logger(),
+        "Missing plan_id for go_to_place of robot [%s]. Please report this "
+        "critical bug to the maintainers of RMF.",
+        _context->requester_id().c_str());
+    }
   }
 
   const auto& estimate =
@@ -384,6 +395,17 @@ void GoToPlace::Active::_find_plan()
   _state->update_log().info(
     "Generating plan to move from [" + start_name + "] to [" + goal_name + "]");
 
+  const auto& graph = _context->navigation_graph();
+  std::stringstream ss;
+  ss << "Planning for [" << _context->requester_id()
+     << "] to [" << goal_name << "] from one of these locations:"
+     << agv::print_starts(_context->location(), graph);
+
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "%s",
+    ss.str().c_str());
+
   // TODO(MXG): Make the planning time limit configurable
   _find_path_service = std::make_shared<services::FindPath>(
     _context->planner(), _context->location(), _goal,
@@ -497,6 +519,16 @@ void GoToPlace::Active::_execute_plan(
     _state->update_status(Status::Completed);
     _state->update_log().info(
       "The planner indicates that the robot is already at its goal.");
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Robot [%s] is already at its goal [%lu]",
+      _context->requester_id().c_str(),
+      _goal.waypoint());
+
+    const auto& graph = _context->navigation_graph();
+    _context->retain_mutex_groups(
+      {graph.get_waypoint(_goal.waypoint()).in_mutex_group()});
+
     _finished();
     return;
   }
@@ -508,7 +540,7 @@ void GoToPlace::Active::_execute_plan(
     _context->requester_id().c_str());
 
   _execution = ExecutePlan::make(
-    _context, plan_id, std::move(plan), std::move(full_itinerary),
+    _context, plan_id, std::move(plan), _goal, std::move(full_itinerary),
     _assign_id, _state, _update, _finished, _tail_period);
 
   if (!_execution.has_value())
