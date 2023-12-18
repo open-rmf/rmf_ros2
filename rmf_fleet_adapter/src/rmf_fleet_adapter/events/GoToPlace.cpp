@@ -540,7 +540,7 @@ void GoToPlace::Active::_find_plan()
     _find_path_service)
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
     .subscribe(
-    [w = weak_from_this(), start_name, goal_name](
+    [w = weak_from_this(), start_name, goal_name, goal = *_chosen_goal](
       const services::FindPath::Result& result)
     {
       const auto self = w.lock();
@@ -555,6 +555,9 @@ void GoToPlace::Active::_find_plan()
           "Failed to find a plan to move from ["
           + start_name + "] to [" + goal_name + "]. Will retry soon.");
 
+        // Reset the chosen goal in case this goal has become impossible to
+        // reach
+        self->_chosen_goal = std::nullopt;
         self->_execution = std::nullopt;
         self->_schedule_retry();
 
@@ -576,7 +579,8 @@ void GoToPlace::Active::_find_plan()
       self->_execute_plan(
         self->_context->itinerary().assign_plan_id(),
         *std::move(result),
-        std::move(full_itinerary));
+        std::move(full_itinerary),
+        goal);
 
       self->_find_path_service = nullptr;
       self->_retry_timer = nullptr;
@@ -633,7 +637,8 @@ void GoToPlace::Active::_schedule_retry()
 void GoToPlace::Active::_execute_plan(
   const rmf_traffic::PlanId plan_id,
   rmf_traffic::agv::Plan plan,
-  rmf_traffic::schedule::Itinerary full_itinerary)
+  rmf_traffic::schedule::Itinerary full_itinerary,
+  rmf_traffic::agv::Plan::Goal goal)
 {
   if (_is_interrupted)
     return;
@@ -647,11 +652,11 @@ void GoToPlace::Active::_execute_plan(
       _context->node()->get_logger(),
       "Robot [%s] is already at its goal [%lu]",
       _context->requester_id().c_str(),
-      _goal.waypoint());
+      goal.waypoint());
 
     const auto& graph = _context->navigation_graph();
     _context->retain_mutex_groups(
-      {graph.get_waypoint(_goal.waypoint()).in_mutex_group()});
+      {graph.get_waypoint(goal.waypoint()).in_mutex_group()});
 
     _finished();
     return;
@@ -667,7 +672,8 @@ void GoToPlace::Active::_execute_plan(
     _context->requester_id().c_str());
 
   _execution = ExecutePlan::make(
-    _context, plan_id, std::move(plan), _goal, std::move(full_itinerary),
+    _context, plan_id, std::move(plan), std::move(goal),
+    std::move(full_itinerary),
     _assign_id, _state, _update, _finished, _tail_period);
 
   if (!_execution.has_value())
@@ -701,7 +707,7 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
     return nullptr;
   }
 
-  auto approval_cb = [w = weak_from_this()](
+  auto approval_cb = [w = weak_from_this(), goal = *_chosen_goal](
     const rmf_traffic::PlanId plan_id,
     const rmf_traffic::agv::Plan& plan,
     rmf_traffic::schedule::Itinerary itinerary)
@@ -709,7 +715,7 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
     {
       if (auto self = w.lock())
       {
-        self->_execute_plan(plan_id, plan, std::move(itinerary));
+        self->_execute_plan(plan_id, plan, std::move(itinerary), goal);
         return self->_context->itinerary().version();
       }
 
