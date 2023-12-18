@@ -25,14 +25,16 @@
         "one_of" : {
           "type": "array",
           "description": "A list of places to choose from. Will try to go to the nearest one.",
-          "items": { "$ref": "place.json" }
+          "items": { "$ref": "place.json" },
+          "minItems": 1
         },
         "constraints" : {
           "type": "array",
           "description": "list of constraints to use",
           "items": {"$ref": "#/$defs/constraint"}
         }
-      }
+      },
+      "required": ["one_of"]
     }
   ],
   "$defs": {
@@ -40,12 +42,14 @@
       "type": "object",
       "properties": {
         "category": {
-          "type": "string"
+          "type": "string",
+          "description": "The type of constraint, e.g. on_same_map"
         },
         "description": {
-          "type": "string"
+          "description": "A complete description of the constraint"
         }
-      }
+      },
+      "required": ["category"]
     }
   }
 }

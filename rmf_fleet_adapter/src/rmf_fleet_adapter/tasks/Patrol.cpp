@@ -50,11 +50,13 @@ void add_patrol(
     -> agv::DeserializedEvent
     {
       nlohmann::json place_msg;
-      const auto nearest_place = msg.find("one_of"); 
-      if (nearest_place != msg.end()) {
+      const auto one_of = msg.find("one_of");
+      if (one_of != msg.end())
+      {
         std::vector<rmf_traffic::agv::Plan::Goal> goals;
         std::vector<std::string> errors;
-        for (auto &place_msg: nearest_place.value()) {
+        for (const auto& place_msg : one_of.value())
+        {
           auto place = place_deser(place_msg);
           if (!place.description.has_value())
           {
@@ -67,8 +69,20 @@ void add_patrol(
             std::make_move_iterator(place.errors.begin()),
             std::make_move_iterator(place.errors.end()));
         }
-        auto desc = GoToPlace::Description::make_with_multiple(goals);
+        auto desc = GoToPlace::Description::make_for_one_of(goals);
         return {desc, errors};
+
+        const auto constraints = msg.find("constraints");
+        if (constraints != msg.end())
+        {
+          for (const auto& constraint : constraints.value())
+          {
+            if (constraint["type"].get<std::string>() == "prefer_same_map")
+            {
+              desc->prefer_same_map(true);
+            }
+          }
+        }
       }
       const auto place_it = msg.find("place");
       if (place_it == msg.end())
