@@ -34,6 +34,8 @@
 
 namespace rmf_fleet_adapter {
 
+using PlanIdPtr = std::shared_ptr<rmf_traffic::PlanId>;
+
 //==============================================================================
 class LegacyTask : public std::enable_shared_from_this<LegacyTask>
 {

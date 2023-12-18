@@ -155,6 +155,11 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       return self.maximum_delay();
     })
+  .def("current_task_id",
+    [&](agv::RobotUpdateHandle& self)
+    {
+      return self.current_task_id();
+    })
   .def("set_infinite_delay",
     [&](agv::RobotUpdateHandle& self)
     {
@@ -241,6 +246,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       return self.unstable().be_stubborn();
     })
+  .def("unstable_debug_positions",
+    [&](agv::RobotUpdateHandle& self, bool on)
+    {
+      self.unstable().debug_positions(on);
+    },
+    py::arg("on"))
   .def("set_action_executor",
     &agv::RobotUpdateHandle::set_action_executor,
     py::arg("action_executor"))
@@ -291,7 +302,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
       return lhs == rhs;
     });
 
-  py::class_<ActionExecution>(
+  py::class_<ActionExecution,
+    std::shared_ptr<ActionExecution>>(
     m_robot_update_handle, "ActionExecution")
   .def("update_remaining_time",
     &ActionExecution::update_remaining_time,
@@ -812,7 +824,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::EasyFullControl::RobotCallbacks::stop)
   .def_property_readonly(
     "action_executor",
-    &agv::EasyFullControl::RobotCallbacks::action_executor);
+    &agv::EasyFullControl::RobotCallbacks::action_executor)
+  .def_property(
+    "localize",
+    &agv::EasyFullControl::RobotCallbacks::localize,
+    &agv::EasyFullControl::RobotCallbacks::with_localization
+  );
 
   py::class_<agv::EasyFullControl::CommandExecution>(m_easy_full_control, "CommandExecution")
   .def("finished", &agv::EasyFullControl::CommandExecution::finished)
@@ -820,7 +837,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def(
     "override_schedule",
     [](
-      ActionExecution& self,
+      agv::EasyFullControl::CommandExecution& self,
       std::string map,
       std::vector<Eigen::Vector3d> path,
       double hold)
@@ -841,8 +858,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property_readonly("xy", &agv::EasyFullControl::Destination::xy)
   .def_property_readonly("yaw", &agv::EasyFullControl::Destination::yaw)
   .def_property_readonly("graph_index", &agv::EasyFullControl::Destination::graph_index)
+  .def_property_readonly("name", &agv::EasyFullControl::Destination::name)
   .def_property_readonly("dock", &agv::EasyFullControl::Destination::dock)
-  .def_property_readonly("speed_limit", &agv::EasyFullControl::Destination::speed_limit);
+  .def_property_readonly("speed_limit", &agv::EasyFullControl::Destination::speed_limit)
+  .def_property_readonly("inside_lift", &agv::EasyFullControl::Destination::inside_lift);
 
   py::class_<agv::EasyFullControl::FleetConfiguration>(m_easy_full_control, "FleetConfiguration")
   .def(py::init([]( // Lambda function to convert reference to shared ptr
@@ -1031,7 +1050,13 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property(
     "default_min_lane_length",
     &agv::EasyFullControl::FleetConfiguration::default_min_lane_length,
-    &agv::EasyFullControl::FleetConfiguration::set_default_min_lane_length);
+    &agv::EasyFullControl::FleetConfiguration::set_default_min_lane_length)
+  .def_property_readonly(
+    "lift_emergency_lanes",
+    &agv::EasyFullControl::FleetConfiguration::lift_emergency_levels)
+  .def(
+    "set_lift_emergency_level",
+    &agv::EasyFullControl::FleetConfiguration::set_lift_emergency_level);
 
   // Transformation =============================================================
   py::class_<agv::Transformation>(m, "Transformation")

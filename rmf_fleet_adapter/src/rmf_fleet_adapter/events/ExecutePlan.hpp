@@ -19,6 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__EVENTS__EXECUTEPLAN_HPP
 
 #include "../agv/RobotContext.hpp"
+#include "../LegacyTask.hpp"
 
 #include <rmf_task/events/SimpleEventState.hpp>
 #include <rmf_task_sequence/Event.hpp>
@@ -33,6 +34,7 @@ struct ExecutePlan
     agv::RobotContextPtr context,
     rmf_traffic::PlanId plan_id,
     rmf_traffic::agv::Plan plan,
+    rmf_traffic::agv::Plan::Goal goal,
     rmf_traffic::schedule::Itinerary full_itinerary,
     const rmf_task_sequence::Event::AssignIDPtr& event_id,
     rmf_task::events::SimpleEventStatePtr state,
@@ -41,7 +43,7 @@ struct ExecutePlan
     std::optional<rmf_traffic::Duration> tail_period);
 
   rmf_traffic::agv::Plan plan;
-  rmf_traffic::PlanId plan_id;
+  PlanIdPtr plan_id;
   rmf_traffic::Time finish_time_estimate;
   rmf_task_sequence::Event::ActivePtr sequence;
 };

@@ -2,6 +2,10 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.4.0 (2023-12-15)
+------------------
+* Mutex Groups, localization hook, dynamic charging, and new graph elements (`#310 <https://github.com/open-rmf/rmf_ros2/pull/310>`_)
+
 2.3.2 (2023-08-28)
 ------------------
 * Improve linking time (`#297 <https://github.com/open-rmf/rmf_ros2/pull/297>`_)
