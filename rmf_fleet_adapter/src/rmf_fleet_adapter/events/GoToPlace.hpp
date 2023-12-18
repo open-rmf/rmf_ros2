@@ -49,7 +49,7 @@ public:
       const AssignIDPtr& id,
       const std::function<rmf_task::State()>& get_state,
       const rmf_task::ConstParametersPtr& parameters,
-      const rmf_task_sequence::events::GoToPlace::Description& description,
+      const Description& description,
       std::function<void()> update,
       std::optional<rmf_traffic::Duration> tail_period = std::nullopt);
 
@@ -63,10 +63,9 @@ public:
 
   private:
 
-    Standby(std::vector<rmf_traffic::agv::Plan::Goal> goal);
+    Standby(Description description);
 
-    std::vector<rmf_traffic::agv::Plan::Goal> _goal;
-    std::vector<rmf_traffic::agv::Plan::Goal> _followed_by;
+    Description _description;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
     rmf_traffic::Duration _time_estimate;
@@ -85,8 +84,7 @@ public:
     static std::shared_ptr<Active> make(
       const AssignIDPtr& id,
       agv::RobotContextPtr context,
-      rmf_traffic::agv::Plan::Goal goal,
-      std::vector<rmf_traffic::agv::Plan::Goal> followed_by,
+      Description description,
       std::optional<rmf_traffic::Duration> tail_period,
       rmf_task::events::SimpleEventStatePtr state,
       std::function<void()> update,
@@ -106,9 +104,12 @@ public:
 
   private:
 
-    Active(rmf_traffic::agv::Plan::Goal goal);
+    Active(Description description);
 
     void _schedule_retry();
+
+    std::optional<rmf_traffic::agv::Plan::Goal> _choose_goal(
+      bool only_same_map) const;
 
     void _find_plan();
 
@@ -123,8 +124,8 @@ public:
       const Negotiator::TableViewerPtr& table_view,
       const Negotiator::ResponderPtr& responder);
 
-    rmf_traffic::agv::Plan::Goal _goal;
-    std::vector<rmf_traffic::agv::Plan::Goal> _followed_by;
+    Description _description;
+    std::optional<rmf_traffic::agv::Plan::Goal> _chosen_goal;
     AssignIDPtr _assign_id;
     agv::RobotContextPtr _context;
     std::optional<rmf_traffic::Duration> _tail_period;

@@ -319,8 +319,7 @@ void ResponsiveWait::Active::_begin_movement()
   _go_to_place = GoToPlace::Active::make(
     _assign_id,
     _context,
-    std::move(goal),
-    {},
+    *GoToPlace::Description::make(goal),
     _description.period,
     _state,
     _update,
