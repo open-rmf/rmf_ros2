@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.1.8 (2023-12-19)
+------------------
 * Cancel automatic pending tasks that are removed during new assignments (`#301 <https://github.com/open-rmf/rmf_ros2/pull/303>`_)
 * Contributors: Aaron Chong
 
