@@ -69,21 +69,23 @@ void add_patrol(
             std::make_move_iterator(place.errors.begin()),
             std::make_move_iterator(place.errors.end()));
         }
-        auto desc = GoToPlace::Description::make_for_one_of(goals);
-        return {desc, errors};
 
+        auto desc = GoToPlace::Description::make_for_one_of(goals);
         const auto constraints = msg.find("constraints");
         if (constraints != msg.end())
         {
           for (const auto& constraint : constraints.value())
           {
-            if (constraint["type"].get<std::string>() == "prefer_same_map")
+            if (constraint["category"].get<std::string>() == "prefer_same_map")
             {
               desc->prefer_same_map(true);
             }
           }
         }
+
+        return {desc, errors};
       }
+
       const auto place_it = msg.find("place");
       if (place_it == msg.end())
         place_msg = msg;

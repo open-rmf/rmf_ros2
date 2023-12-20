@@ -43,7 +43,7 @@
       "properties": {
         "category": {
           "type": "string",
-          "description": "The type of constraint, e.g. on_same_map"
+          "description": "The type of constraint, e.g. prefer_same_map"
         },
         "description": {
           "description": "A complete description of the constraint"
