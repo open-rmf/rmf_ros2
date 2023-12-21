@@ -1052,6 +1052,27 @@ void EasyCommandHandle::follow_new_path(
             i0 = i;
           }
         }
+
+        if (l.lane().has_value())
+        {
+          Eigen::Vector2d p_l;
+          if (l.location().has_value())
+          {
+            p_l = *l.location();
+          }
+          else
+          {
+            p_l = graph.get_waypoint(l.waypoint()).get_location();
+          }
+          const double dist = (wp.position().block<2, 1>(0, 0) - p_l).norm();
+          const double merge_dist = graph.get_waypoint(*wp.graph_index())
+            .merge_radius().value_or(nav_params->max_merge_lane_distance);
+          if (dist <= merge_dist)
+          {
+            found_connection = true;
+            i0 = i;
+          }
+        }
       }
     }
     else
@@ -1099,10 +1120,21 @@ void EasyCommandHandle::follow_new_path(
   {
     // The robot has drifted away from the starting point since the plan started
     // so we'll ask for a new plan.
+    std::stringstream ss;
+    ss << "Current location" << print_starts(current_location, graph);
+    ss << "\nCommanded path:";
+    const auto t0 = waypoints.front().time();
+    for (const auto& wp : waypoints)
+    {
+      ss << "\n -- " << print_plan_waypoint(wp, graph, t0);
+    }
+
     RCLCPP_INFO(
       context->node()->get_logger(),
-      "Requesting replan for [%s] because it is too far from its commanded path",
-      context->requester_id().c_str());
+      "Requesting replan for [%s] because it is too far from its commanded "
+      "path. Details:\n%s",
+      context->requester_id().c_str(),
+      ss.str().c_str());
 
     // Stop the robot to prevent it from diverging too far while a replan
     // happens.
