@@ -1052,6 +1052,27 @@ void EasyCommandHandle::follow_new_path(
             i0 = i;
           }
         }
+
+        if (l.lane().has_value())
+        {
+          Eigen::Vector2d p_l;
+          if (l.location().has_value())
+          {
+            p_l = *l.location();
+          }
+          else
+          {
+            p_l = graph.get_waypoint(l.waypoint()).get_location();
+          }
+          const double dist = (wp.position().block<2, 1>(0, 0) - p_l).norm();
+          const double merge_dist = graph.get_waypoint(*wp.graph_index())
+            .merge_radius().value_or(nav_params->max_merge_lane_distance);
+          if (dist <= merge_dist)
+          {
+            found_connection = true;
+            i0 = i;
+          }
+        }
       }
     }
     else
