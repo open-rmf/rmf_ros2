@@ -1099,10 +1099,21 @@ void EasyCommandHandle::follow_new_path(
   {
     // The robot has drifted away from the starting point since the plan started
     // so we'll ask for a new plan.
+    std::stringstream ss;
+    ss << "Current location" << print_starts(current_location, graph);
+    ss << "\nCommanded path:";
+    const auto t0 = waypoints.front().time();
+    for (const auto& wp : waypoints)
+    {
+      ss << "\n -- " << print_plan_waypoint(wp, graph, t0);
+    }
+
     RCLCPP_INFO(
       context->node()->get_logger(),
-      "Requesting replan for [%s] because it is too far from its commanded path",
-      context->requester_id().c_str());
+      "Requesting replan for [%s] because it is too far from its commanded "
+      "path. Details:\n%s",
+      context->requester_id().c_str(),
+      ss.str().c_str());
 
     // Stop the robot to prevent it from diverging too far while a replan
     // happens.
