@@ -314,7 +314,7 @@ struct NavParams
     return {};
   }
 
-  std::unordered_map<std::size_t, VertexStack> stacked_vertices;
+  std::unordered_map<std::size_t, VertexStack> stacked_vertices = {};
 
   void find_stacked_vertices(const rmf_traffic::agv::Graph& graph);
 

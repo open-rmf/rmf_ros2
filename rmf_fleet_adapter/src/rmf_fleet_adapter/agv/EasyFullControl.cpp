@@ -847,6 +847,7 @@ public:
   };
 
   EasyCommandHandle(
+    std::shared_ptr<Location> reported_location,
     std::shared_ptr<NavParams> nav_params,
     NavigationRequest handle_nav_request,
     StopRequest handle_stop);
@@ -888,6 +889,8 @@ public:
   std::weak_ptr<RobotContext> w_context;
   std::shared_ptr<NavParams> nav_params;
   std::shared_ptr<ProgressTracker> current_progress;
+  std::shared_ptr<Location> reported_location;
+  rclcpp::TimerBase::SharedPtr localize_timer;
 
   // Callbacks from user
   NavigationRequest handle_nav_request;
@@ -896,10 +899,12 @@ public:
 
 //==============================================================================
 EasyCommandHandle::EasyCommandHandle(
+  std::shared_ptr<Location> reported_location_,
   std::shared_ptr<NavParams> nav_params_,
   NavigationRequest handle_nav_request_,
   StopRequest handle_stop_)
 : nav_params(std::move(nav_params_)),
+  reported_location(std::move(reported_location_)),
   handle_nav_request(std::move(handle_nav_request_)),
   handle_stop(std::move(handle_stop_))
 {
@@ -1290,6 +1295,117 @@ void EasyCommandHandle::follow_new_path(
   this->current_progress = ProgressTracker::make(
     queue,
     path_finished_callback_);
+
+  if (initial_map != reported_location->map)
+  {
+    // The robot has not localized to the current map yet. This should only
+    // happen when a replan happens while the robot is inside of a lift.
+    RCLCPP_WARN(
+      context->node()->get_logger(),
+      "Relocalizing robot [%s] from map [%s] to [%s] because of a mismatch "
+      "while starting to follow a new path",
+      context->requester_id().c_str(),
+      initial_map.c_str(),
+      reported_location->map.c_str());
+
+    auto localize = EasyFullControl::Destination::Implementation::make(
+      initial_map,
+      reported_location->position,
+      std::nullopt,
+      "",
+      std::nullopt,
+      nullptr);
+
+    // Create a shared reference to the current progress. We will swap this
+    // out for a nullptr after the first time we trigger the current_progress
+    // to make sure it's impossible for the user to do anything that would
+    // double-trigger it.
+    auto progress_ref =
+      std::make_shared<std::shared_ptr<ProgressTracker>>(current_progress);
+
+    auto begin_following_path =
+      [w = weak_from_this(), progress_ref]()
+      {
+        if (!progress_ref)
+        {
+          throw std::runtime_error(
+            "[rmf_fleet_adapter::agv::EasyFullControl::follow_new_path] "
+            "progress_ref was not initialized. This should never happen. "
+            "please report this bug to the RMF maintainers.");
+        }
+
+        if (!*progress_ref)
+        {
+          // This was already triggered
+          return;
+        }
+
+        const auto self = w.lock();
+        if (!self)
+        {
+          // The adapter is deconstructing
+          return;
+        }
+
+        if (self->current_progress != *progress_ref)
+        {
+          // The robot is following a new path
+          return;
+        }
+
+        self->localize_timer = nullptr;
+        self->current_progress->next();
+        *progress_ref = nullptr;
+      };
+
+    auto localize_cmd = EasyFullControl::CommandExecution::Implementation
+    ::make_hold(
+      context,
+      waypoints.front().time(),
+      context->itinerary().current_plan_id(),
+      [worker = context->worker(), begin_following_path]()
+      {
+        worker.schedule([begin_following_path](const auto&)
+          {
+            begin_following_path();
+          });
+      });
+
+    if (context->localize(std::move(localize), std::move(localize_cmd)))
+    {
+      localize_timer = context->node()->try_create_wall_timer(
+        std::chrono::seconds(300),
+        [begin_following_path, w = weak_from_this()]()
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
+
+          const auto context = self->w_context.lock();
+          if (!context)
+            return;
+
+          RCLCPP_ERROR(
+            context->node()->get_logger(),
+            "Waiting for robot [%s] to localize timed out. Please ensure that "
+            "your localization function triggers execution.finished() when the "
+            "robot's localization process is finished.",
+            context->requester_id().c_str());
+
+          begin_following_path();
+        });
+
+      // Return here to avoid triggering current_progress->next() at the end of
+      // this function so that it can be triggered when the downstream
+      // integrator triggers the finished callback.
+      return;
+    }
+
+    // If context->localize(...) returned false then that means the downstream
+    // integrator isn't handling localization commands and therefore will never
+    // trigger the finish callback, so we should proceed to call
+    // current_progress->next() below.
+  }
   this->current_progress->next();
 }
 
@@ -1497,11 +1613,15 @@ public:
 
   struct Updater
   {
+    std::shared_ptr<Location> reported_location;
     std::shared_ptr<RobotUpdateHandle> handle;
     std::shared_ptr<NavParams> nav_params;
 
-    Updater(std::shared_ptr<NavParams> params_)
-    : handle(nullptr),
+    Updater(
+      std::shared_ptr<Location> reported_location_,
+      std::shared_ptr<NavParams> params_)
+    : reported_location(std::move(reported_location_)),
+      handle(nullptr),
       nav_params(std::move(params_))
     {
       // Do nothing
@@ -1537,22 +1657,24 @@ public:
   }
 
   Implementation(
+    std::shared_ptr<Location> reported_location_,
     std::shared_ptr<NavParams> params_,
     rxcpp::schedulers::worker worker_)
-  : updater(std::make_shared<Updater>(params_)),
+  : updater(std::make_shared<Updater>(std::move(reported_location_), params_)),
     worker(worker_)
   {
     // Do nothing
   }
 
   static std::shared_ptr<EasyRobotUpdateHandle> make(
+    std::shared_ptr<Location> reported_location_,
     std::shared_ptr<NavParams> params_,
     rxcpp::schedulers::worker worker_)
   {
     auto handle = std::shared_ptr<EasyRobotUpdateHandle>(
       new EasyRobotUpdateHandle);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
-      std::move(params_), std::move(worker_));
+      std::move(reported_location_), std::move(params_), std::move(worker_));
     return handle;
   }
 };
@@ -1582,14 +1704,19 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
       const auto position = updater->to_rmf_coordinates(
         state.map(), state.position(), *context);
 
+      *updater->reported_location = Location {
+        context->now(),
+        state.map(),
+        position
+      };
+
       if (current_activity)
       {
         const auto update_fn =
         ActivityIdentifier::Implementation::get(*current_activity).update_fn;
         if (update_fn)
         {
-          update_fn(
-            state.map(), position);
+          update_fn(state.map(), position);
           return;
         }
       }
@@ -2715,11 +2842,19 @@ auto EasyFullControl::add_robot(
 {
   const auto node = _pimpl->node();
 
+  rmf_traffic::Time now = std::chrono::steady_clock::time_point(
+    std::chrono::nanoseconds(node->now().nanoseconds()));
+
+  auto reported_location = std::make_shared<Location>(Location {
+      now,
+      initial_state.map(),
+      initial_state.position()
+    });
   auto worker =
     FleetUpdateHandle::Implementation::get(*_pimpl->fleet_handle).worker;
   auto robot_nav_params = std::make_shared<NavParams>(_pimpl->nav_params);
   auto easy_updater = EasyRobotUpdateHandle::Implementation::make(
-    robot_nav_params, worker);
+    reported_location, robot_nav_params, worker);
 
   LocalizationRequest localization = nullptr;
   if (callbacks.localize())
@@ -2801,9 +2936,6 @@ auto EasyFullControl::add_robot(
     charger_index = charger_wp->index();
   }
 
-  rmf_traffic::Time now = std::chrono::steady_clock::time_point(
-    std::chrono::nanoseconds(node->now().nanoseconds()));
-
   const auto position_opt = robot_nav_params->to_rmf_coordinates(
     initial_state.map(), initial_state.position());
   if (!position_opt.has_value())
@@ -2877,6 +3009,7 @@ auto EasyFullControl::add_robot(
   }
 
   const auto cmd_handle = std::make_shared<EasyCommandHandle>(
+    reported_location,
     robot_nav_params,
     std::move(handle_nav_request),
     std::move(handle_stop));
