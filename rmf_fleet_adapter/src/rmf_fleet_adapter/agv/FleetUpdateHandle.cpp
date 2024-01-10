@@ -492,7 +492,18 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         {make_error_str(5, "Invalid request format", e.what())}
       });
   }
+  
+  std::optional<std::string> fleet_name = std::nullopt;
+  const auto fleet_name_it = request_msg.find("fleet_name");
+  if (fleet_name_it != request_msg.end())
+  {
+    fleet_name = fleet_name_it->get<std::string>();
+  }
 
+  if (fleet_name.has_value()  && fleet_name.value() != name ){
+    return;
+  }
+  
   std::vector<std::string> errors = {};
   const auto new_request = convert(task_id, request_msg, errors);
   if (!new_request)
@@ -503,6 +514,9 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         errors
       });
   }
+
+  
+
 
   calculate_bid = std::make_shared<AllocateTasks>(
     new_request,
