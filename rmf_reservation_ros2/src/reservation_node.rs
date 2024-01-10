@@ -1,110 +1,171 @@
 use std::env;
 
+use chrono::Utc;
 use anyhow::{Error, Result};
-use rmf_chope_msgs::{srv::{ClaimReservation_Response, ClaimReservation_Request}, msg::FixedTimeReservationAlt};
-use rmf_reservations::{database::{FixedTimeReservationSystem, Ticket}, ReservationParameters, ReservationRequest, cost_function::static_cost::StaticCost, StartTimeRange};
+use rmf_chope_msgs::msg::{FlexibleTimeRequest, DelayRequest, Ticket as RmfTicket, ClaimRequest, ReservationAllocation};
+use rmf_reservations::{database::{FlexibleTimeReservationSystem, Ticket, ClockSource, }, ReservationParameters, ReservationRequest, cost_function::static_cost::StaticCost, StartTimeRange, };
+use rmf_reservations::database::ClaimSpot;
 
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
-struct ReservationService {
-    res_sys: FixedTimeReservationSystem
+struct ReservationSystem {
+    system: FlexibleTimeReservationSystem<RosClockSourceProvider>,
 }
 
-fn reservation_req_service(service: Arc<Mutex<ReservationService>>) -> impl Fn(
-    &rclrs::rmw_request_id_t,
-    rmf_chope_msgs::srv::FixedTimeRequest_Request) -> rmf_chope_msgs::srv::FixedTimeRequest_Response {
-    
-    let service = service.clone();
-    move |_req_id, requested_alternatives| {
-        let mut service = service.lock().unwrap();
-        let mut alternatives: Vec<_> = requested_alternatives.alternatives.iter().map(|requested_alternatives| {
-            let start_time = chrono::DateTime::<chrono::Utc>::from_timestamp(requested_alternatives.start_time.sec.into(), requested_alternatives.start_time.nanosec.into());
-
-            ReservationRequest {
-                parameters: ReservationParameters {
-                    resource_name: requested_alternatives.resource_name.clone(),
-                    duration: if requested_alternatives.has_end {
-                        Some(chrono::Duration::nanoseconds(requested_alternatives.duration.nanosec.into()) + chrono::Duration::seconds(requested_alternatives.duration.sec.into()))
-                    } else {
-                        None
-                    },
-                    start_time: StartTimeRange::exactly_at(&start_time.unwrap())
-                },
-                cost_function: Arc::new(StaticCost::new(requested_alternatives.cost))
-            }
-        }).collect();
-
-        if alternatives.len() == 0 {
-            return rmf_chope_msgs::srv::FixedTimeRequest_Response {
-                ticket: 0,
-                ok: false
-            };
-        }
-        
-        if let Ok(req) = service.res_sys.request_resources(alternatives) {
-            rmf_chope_msgs::srv::FixedTimeRequest_Response {
-                ticket: req.get_id() as u64,
-                ok: true
-            }
-        }
-        else {
-            rmf_chope_msgs::srv::FixedTimeRequest_Response {
-                ticket: 0,
-                ok: false
-            }
+impl ReservationSystem {
+    pub fn create_with_clock(clock_source: RosClockSourceProvider) -> Self {
+        Self {
+            system: FlexibleTimeReservationSystem::create_with_clock(clock_source)
         }
     }
 }
 
+struct RosClockSourceProvider {
+    node: Arc<rclrs::Node>
+}
 
-fn reservation_claim_service(service: Arc<Mutex<ReservationService>>) -> impl Fn(
-    &rclrs::rmw_request_id_t,
-    rmf_chope_msgs::srv::ClaimReservation_Request) -> rmf_chope_msgs::srv::ClaimReservation_Response {
-    
-    let service = service.clone();
-    move |_req_id, claim| {
-        let mut service = service.lock().unwrap();
-
-        if let Some(result)= service.res_sys.claim_request(Ticket::from_id(claim.ticket as usize)) {
-            rmf_chope_msgs::srv::ClaimReservation_Response {
-                alternative: result as u64,
-                ok: true
-            }
-        }
-        else {
-            rmf_chope_msgs::srv::ClaimReservation_Response {
-                alternative: 0,
-                ok: false
-            }
-        }
-
+impl ClockSource for RosClockSourceProvider {
+    fn now(&self) -> chrono::DateTime<Utc> {
+        return from_ros_time(&to_ros_msg(&self.node.get_clock().now()));
     }
 }
 
+fn to_ros_msg(time: &rclrs::Time) -> builtin_interfaces::msg::Time {
+    let nanosec = time.nsec % 1_000_000_000;
+    let sec = time.nsec /  1_000_000_000;
+
+    builtin_interfaces::msg::Time {
+        nanosec: nanosec.try_into().unwrap(),
+        sec: sec.try_into().unwrap()
+    }
+}
+
+fn to_ros_time(time: &chrono::DateTime<Utc>) -> builtin_interfaces::msg::Time {
+    builtin_interfaces::msg::Time {
+        nanosec: (time.timestamp_nanos() - time.timestamp() * 1_000_000_000).try_into().unwrap(),
+        sec: time.timestamp().try_into().unwrap()
+    }
+}
+
+fn from_ros_time(time: &builtin_interfaces::msg::Time) -> chrono::DateTime<Utc> {
+    chrono::DateTime::<chrono::Utc>::from_timestamp(time.sec.into(), time.nanosec.into()).unwrap()
+}
+
+fn from_ros_duration(duration: &builtin_interfaces::msg::Duration) -> chrono::Duration {
+    chrono::Duration::nanoseconds(duration.nanosec.into()) + chrono::Duration::seconds(duration.sec.into())
+}
 
 fn main() -> Result<(), Error> {
     let context = rclrs::Context::new(env::args())?;
 
-    let node = rclrs::create_node(&context, "rmf_reservation_service")?; 
+    let node = rclrs::create_node(&context, "rmf_reservation_service")?;
 
-    let res_sys = ReservationService {
-        res_sys: FixedTimeReservationSystem::create_with_resources(
-            vec!["pantry", "tinyRobot1_charger", "lounge", "supplies"].iter().map(|x| x.to_string()).collect()
-        )
+    let clock_source= RosClockSourceProvider {
+        node: node.clone()
     };
+    let reservation_system = Arc::new(Mutex::new(ReservationSystem::create_with_clock(clock_source)));
 
-    let res_sys = Arc::new(Mutex::new(res_sys));
+    let res_sys_handle = reservation_system.clone();
+    let publisher =
+        node.create_publisher::<RmfTicket>("rmf/reservations/tickets", rclrs::QOS_PROFILE_DEFAULT)?;
+
+    let _request_sub = node.create_subscription::<FlexibleTimeRequest, _>(
+        "rmf/reservations/request",
+        rclrs::QOS_PROFILE_DEFAULT,
+        move |msg: FlexibleTimeRequest| {
+            let alternative = msg.alternatives.iter().map(|alt| {
+                ReservationRequest {
+                    parameters: ReservationParameters {
+                        resource_name: alt.resource_name.clone(),
+                        duration: if alt.has_end {
+                            Some(from_ros_duration(&alt.duration))
+                        } else {
+                            None
+                        },
+                        start_time: StartTimeRange {
+                            earliest_start: if alt.start_time.has_earliest_start_time {
+                                Some(from_ros_time(&alt.start_time.earliest_start_time))
+                            } else {
+                                None
+                            },
+                            latest_start: if alt.start_time.has_latest_start_time {
+                                Some(from_ros_time(&alt.start_time.latest_start_time))
+                            } else {
+                                None
+                            }
+                        },
+                    },
+                    cost_function: Arc::new(StaticCost::new(alt.cost))
+                }
+            });
+
+            //println!("I heard: '{}'", msg.data);
+            let mut res_sys = res_sys_handle.lock().unwrap();
+            let Ok(ticket) = res_sys.system.request_resources(alternative.collect()) else {
+                println!("Could not claim ticket. It was likely already claimed");
+                return;
+            };
+            //res_sys.mapping.insert(req_header, ticket.clone());
+            let ticket = RmfTicket {
+                header: msg.header,
+                ticket_id: ticket.get_id() as u64
+            };
+            publisher.publish(ticket);
+        },
+    )?;
+
+    let res_sys_handle = reservation_system.clone();
+    let publisher =
+        node.create_publisher::<ReservationAllocation>("rmf/reservations/allocation", rclrs::QOS_PROFILE_DEFAULT)?;
+    let _claim_sub = node.create_subscription::<ClaimRequest, _>(
+        "rmf/reservations/request",
+        rclrs::QOS_PROFILE_DEFAULT,
+        move |msg: ClaimRequest| {
+            let mut res_sys = res_sys_handle.lock().unwrap();
+            let resp = res_sys.system.claim_request(Ticket::from_id(msg.ticket.ticket_id as usize), &msg.wait_points);
+            let Ok(result) = resp  else {
+                println!("Got error message while trying to claim: {}", resp.unwrap_err());
+                return;
+            };
+
+            let allocation = match result {
+                ClaimSpot::GoImmediately(goal) => {
+                    ReservationAllocation {
+                        ticket: msg.ticket.clone(),
+                        instruction_type: ReservationAllocation::IMMEDIATELY_PROCEED,
+                        satisfies_alternative: goal.satisfies_alt as u64,
+                        resource: goal.resource.clone(),
+                        time_to_reach: to_ros_time(&goal.time),
+                        alternate_waitpoint: Default::default()
+                    }
+                },
+                ClaimSpot::WaitAtThenGo(id, goal) => {
+                    ReservationAllocation {
+                        ticket: msg.ticket.clone(),
+                        instruction_type: ReservationAllocation::WAIT_AT_SPOT_AND_THEN_GO,
+                        satisfies_alternative: goal.satisfies_alt as u64,
+                        resource: goal.resource.clone(),
+                        time_to_reach: to_ros_time(&goal.time),
+                        alternate_waitpoint: msg.wait_points[id].clone()
+                    }
+                }, 
+                ClaimSpot::WaitPermanently(id) => {
+                    ReservationAllocation {
+                        ticket: msg.ticket.clone(),
+                        instruction_type: ReservationAllocation::WAIT_PERMANENTLY,
+                        satisfies_alternative: Default::default(),
+                        resource: Default::default(),
+                        time_to_reach: Default::default(),
+                        alternate_waitpoint: msg.wait_points[id].clone()
+                    }
+                }
+            };
+
+            publisher.publish(allocation);
+        }
+    );
     
-    let reservation_req_cb = reservation_req_service(res_sys.clone());
 
-    let claim_cb = reservation_claim_service(res_sys.clone());
-
-    let _res_server = node
-       .create_service::<rmf_chope_msgs::srv::FixedTimeRequest, _>("/rmf/reservation_node/request", reservation_req_cb)?;
-
-    let _claim_server = node
-       .create_service::<rmf_chope_msgs::srv::ClaimReservation, _>("/rmf/reservation_node/claim", claim_cb)?;
-
-    println!("Starting server");
     rclrs::spin(node).map_err(|err| err.into())
 }

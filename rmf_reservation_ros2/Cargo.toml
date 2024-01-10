@@ -10,15 +10,18 @@ path = "src/reservation_node.rs"
 
 [dependencies]
 anyhow = {version = "1", features = ["backtrace"]}
-rmf_reservations = {git = "https://github.com/open-rmf/rmf_reservation", branch = "devel"}
+rmf_reservations = {git = "https://github.com/open-rmf/rmf_reservation", rev = "41f01f8"}
 # TODO(arjo): Remove chrono as un upstream dependency
 chrono = "*"
 
 [dependencies.rclrs]
-version = "0.3"
+version = "0.4.1"
 
 [dependencies.rosidl_runtime_rs]
-version = "0.3"
+version = "0.4.1"
 
 [dependencies.rmf_chope_msgs]
+version = "*"
+
+[dependencies.builtin_interfaces]
 version = "*"
