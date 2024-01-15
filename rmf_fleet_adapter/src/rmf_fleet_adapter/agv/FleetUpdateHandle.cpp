@@ -427,7 +427,6 @@ public:
   std::shared_ptr<Node> node;
 };
 
-
 //==============================================================================
 void FleetUpdateHandle::Implementation::bid_notice_cb(
   const BidNoticeMsg& bid_notice,
@@ -515,9 +514,6 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         errors
       });
   }
-
-  
-
 
   calculate_bid = std::make_shared<AllocateTasks>(
     new_request,
