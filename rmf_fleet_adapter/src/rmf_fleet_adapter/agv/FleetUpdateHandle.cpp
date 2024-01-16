@@ -503,7 +503,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       request_msg["fleet_name"].template get<std::string>().c_str());
     return;
   }
-  
+
   std::vector<std::string> errors = {};
   const auto new_request = convert(task_id, request_msg, errors);
   if (!new_request)
