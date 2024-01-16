@@ -100,6 +100,8 @@ fn main() -> Result<(), Error> {
                 }
             });
 
+            println!("Recieved request.");
+
             //println!("I heard: '{}'", msg.data);
             let mut res_sys = res_sys_handle.lock().unwrap();
             let Ok(ticket) = res_sys.system.request_resources(alternative.collect()) else {
@@ -119,7 +121,7 @@ fn main() -> Result<(), Error> {
     let publisher =
         node.create_publisher::<ReservationAllocation>("rmf/reservations/allocation", rclrs::QOS_PROFILE_DEFAULT)?;
     let _claim_sub = node.create_subscription::<ClaimRequest, _>(
-        "rmf/reservations/request",
+        "rmf/reservations/claim",
         rclrs::QOS_PROFILE_DEFAULT,
         move |msg: ClaimRequest| {
             let mut res_sys = res_sys_handle.lock().unwrap();
@@ -164,8 +166,7 @@ fn main() -> Result<(), Error> {
 
             publisher.publish(allocation);
         }
-    );
-    
+    );    
 
     rclrs::spin(node).map_err(|err| err.into())
 }

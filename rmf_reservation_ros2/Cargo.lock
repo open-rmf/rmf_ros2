@@ -694,6 +694,7 @@ name = "rclrs"
 version = "0.4.1"
 dependencies = [
  "bindgen",
+ "builtin_interfaces",
  "cfg-if",
  "futures",
  "rosidl_runtime_rs",
