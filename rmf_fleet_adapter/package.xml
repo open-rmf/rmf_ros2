@@ -30,6 +30,7 @@
   <depend>std_msgs</depend>
   <depend>rmf_api_msgs</depend>
   <depend>rmf_building_map_msgs</depend>
+  <depend>rmf_chope_msgs</depend>
   <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies</depend>
   <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies_msgs</depend>
 

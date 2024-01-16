@@ -1397,6 +1397,10 @@ PlaceDeserializer make_place_deserializer(
         const auto& ori_it = msg.find("orientation");
         if (ori_it != msg.end())
           place->orientation(ori_it->get<double>());
+
+        const auto& hold_it = msg.find("hold_for");
+        if (hold_it != msg.end())
+          place->holding_time(hold_it->get<double>());
       }
 
       return {place, {}};

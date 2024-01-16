@@ -25,6 +25,8 @@
 
 #include "ExecutePlan.hpp"
 
+#include <cstdint>
+#include <optional>
 #include <rmf_task_sequence/Event.hpp>
 #include <rmf_task_sequence/events/GoToPlace.hpp>
 #include <rmf_task/events/SimpleEventState.hpp>
@@ -142,6 +144,13 @@ public:
 
     rmf_rxcpp::subscription_guard _replan_request_subscription;
     rmf_rxcpp::subscription_guard _graph_change_subscription;
+
+    rmf_rxcpp::subscription_guard _reservation_ticket;
+    rmf_rxcpp::subscription_guard _reservation_allocation;
+
+    uint64_t _reservation_id = 0;
+    std::optional<std::shared_ptr<rmf_chope_msgs::msg::Ticket>> _ticket{std::nullopt};
+    std::optional<std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>> _final_allocated_destination{std::nullopt};
 
     bool _is_interrupted = false;
   };

@@ -17,7 +17,10 @@
 
 #include "GoToPlace.hpp"
 #include "../project_itinerary.hpp"
+#include "PerformAction.hpp"
 
+#include <cstddef>
+#include <memory>
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 #include <rmf_traffic/agv/Planner.hpp>
 
@@ -162,6 +165,88 @@ auto GoToPlace::Active::make(
       });
     return active;
   }
+
+  active->_reservation_id = active->_context->last_reservation_request_id();
+  active->_reservation_ticket = active->_context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(active->_context->worker()))
+    .subscribe([w = active->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::Ticket>& msg)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        if (msg->header.request_id != self->_reservation_id
+          || msg->header.robot_name != self->_context->name()
+          || msg->header.fleet_name != self->_context->group())
+        {
+          return;
+        }
+
+        self->_ticket = msg;
+
+
+        // Pick the nearest location to wait
+        auto current_location = _context->location();
+        if (current_location.size() == 0)
+        {
+          return; 
+        }
+
+        // Order wait points by the number of 
+        std::map<double, std::string> waitpoints_order;
+        for (std::size_t i = 0; i < self->_context->navigation_graph()->num_waypoints(); i++) {
+          const auto wp = self->_context->navigation_graph()->get_waypoint(i);
+
+          // Wait at parking spot and check its on same floor.
+          if (!wp.is_parking_spot() || wp.get_map_name() != self->_context->map) {
+            continue;
+          }
+
+         
+          auto result = self->_context->planner()->quickest_path(current_location, wp_idx);
+          if (!result.has_value()) {
+            continue;
+          }
+
+          
+          stringstream json_stream;
+          json_stream << i << std::endl;
+          string json;
+          json_stream >> json;
+          waitpoints_order.insert(result, json);
+        }
+
+        std::vector<std::string> waitpoints;
+        for (auto &[_, name]: waitpoints_order) {
+          waitpoints.push_back(name);
+        }
+
+        // Immediately make claim cause we don't yet support flexible reservations.
+        rmf_chope_msgs::msg::ClaimRequest claim_request;
+        claim_request->ticket = *msg;
+        claim_request->wait_points = waitpoints;  
+        self->_context->node()->claim_location_ticket()->publish(claim_request);
+      });
+
+  active->_reservation_allocation = active->_context->node()->allocated_claims_obs().observe_on(rxcpp::identity_same_worker(active->_context->worker()))
+    .subscribe([w = active->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>& msg)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        if (!self->_ticket.has_value())
+        {
+          return;
+        }
+
+        if (msg->ticket.ticket_id != self->_ticket.value()->ticket_id)
+        {
+          return;
+        }
+
+        self->_final_allocated_destination = msg;
+      });
+  
 
   active->_negotiator =
     Negotiator::make(
@@ -422,6 +507,12 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
     _description.one_of().size(),
     _context->requester_id().c_str());
 
+  // Select node
+  rmf_chope_msgs::msg::FlexibleTimeRequest ftr;
+  ftr.header.robot_name = _context->name();
+  ftr.header.fleet_name = _context->group();
+  ftr.header.request_id = _reservation_id;
+
   auto lowest_cost = std::numeric_limits<double>::infinity();
   std::optional<std::size_t> selected_idx;
   for (std::size_t i = 0; i < _description.one_of().size(); ++i)
@@ -469,7 +560,9 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
         wp_idx,
         _context->requester_id().c_str());
     }
-  }
+  } 
+  _context->node()->location_requester()->publish(ftr);
+  
 
   if (selected_idx.has_value())
   {

@@ -15,6 +15,7 @@
  *
 */
 
+#include "RobotContext.hpp"
 #include "internal_RobotUpdateHandle.hpp"
 
 #include <rmf_traffic_ros2/Time.hpp>
@@ -890,6 +891,11 @@ rmf_traffic::Duration RobotContext::get_lift_rewait_duration() const
 }
 
 //==============================================================================
+uint64_t RobotContext::last_reservation_request_id() {
+  return _last_reservation_request_id++;
+}
+
+//==============================================================================
 void RobotContext::respond(
   const TableViewerPtr& table_viewer,
   const ResponderPtr& responder)
@@ -1127,7 +1133,8 @@ RobotContext::RobotContext(
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner)),
-  _reporting(_worker)
+  _reporting(_worker),
+  _last_reservation_request_id(0)
 {
   _most_recent_valid_location = _location;
   _profile = std::make_shared<rmf_traffic::Profile>(

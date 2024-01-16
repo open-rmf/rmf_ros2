@@ -397,6 +397,9 @@ class RobotContext
 {
 public:
 
+
+  uint64_t last_reservation_request_id();
+
   /// Get a handle to the command interface of the robot. This may return a
   /// nullptr if the robot has disconnected and/or its command API is no longer
   /// available.
@@ -871,6 +874,7 @@ private:
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
   std::chrono::steady_clock::time_point _last_active_task_time;
+  uint64_t _last_reservation_request_id;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;
