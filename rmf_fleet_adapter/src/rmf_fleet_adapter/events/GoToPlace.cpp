@@ -466,8 +466,8 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
       RCLCPP_ERROR(
         _context->node()->get_logger(),
         "No path found for robot [%s] to waypoint [%lu]",
-        wp_idx,
-        _context->requester_id().c_str());
+        _context->requester_id().c_str(),
+        wp_idx);
     }
   }
 
