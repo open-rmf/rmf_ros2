@@ -491,9 +491,9 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         {make_error_str(5, "Invalid request format", e.what())}
       });
   }
-  
+
   // If a fleet_name was specified in the request, only proceed if the value matches
-  // the name of this fleet. 
+  // the name of this fleet.
   if (request_msg.contains("fleet_name") &&
     request_msg["fleet_name"].template get<std::string>() != name)
   {
@@ -502,7 +502,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       "Ignoring BidNotice request as it is for fleet [%s].",
       request_msg["fleet_name"].template get<std::string>().c_str());
     return;
-  } 
+  }
   
   std::vector<std::string> errors = {};
   const auto new_request = convert(task_id, request_msg, errors);
