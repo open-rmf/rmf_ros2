@@ -523,7 +523,7 @@ public:
       else if (use_timestamp_for_task_id)
       {
         task_id += std::to_string(
-          (int)(std::round(node->get_clock()->now().seconds() * 1e3)));
+          static_cast<int>(std::round(node->get_clock()->now().seconds() * 1e3)));
       }
       else
       {
