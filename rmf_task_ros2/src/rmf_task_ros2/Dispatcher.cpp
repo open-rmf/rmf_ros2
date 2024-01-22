@@ -236,7 +236,8 @@ public:
       " Use timestamp with task_id: %s",
       (use_timestamp_for_task_id ? "true" : "false"));
     use_unique_hex_string_with_task_id =
-      node->declare_parameter<bool>("use_unique_hex_string_with_task_id", false);
+      node->declare_parameter<bool>("use_unique_hex_string_with_task_id",
+        false);
     RCLCPP_INFO(node->get_logger(),
       " Use unique hex string with task_id: %s",
       (use_unique_hex_string_with_task_id ? "true" : "false"));
@@ -523,7 +524,8 @@ public:
       else if (use_timestamp_for_task_id)
       {
         task_id += std::to_string(
-          static_cast<int>(std::round(node->get_clock()->now().seconds() * 1e3)));
+          static_cast<int>(std::round(node->get_clock()->now().seconds() *
+          1e3)));
       }
       else
       {
