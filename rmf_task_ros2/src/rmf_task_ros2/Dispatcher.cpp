@@ -46,6 +46,7 @@
 #include <rmf_api_msgs/schemas/task_state.hpp>
 #include <rmf_api_msgs/schemas/error.hpp>
 
+#include <random>
 #include <unordered_set>
 
 namespace rmf_task_ros2 {
@@ -89,6 +90,24 @@ nlohmann::json_schema::json_validator make_validator(nlohmann::json schema)
 {
   return nlohmann::json_schema::json_validator(
     std::move(schema), schema_loader);
+}
+
+//==============================================================================
+std::string generate_random_hex_string(const std::size_t length = 3)
+{
+  std::stringstream ss;
+  for (std::size_t i = 0; i < length; ++i)
+  {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(0, 255);
+    const auto random_char = dis(gen);
+    std::stringstream hexstream;
+    hexstream << std::hex << random_char;
+    auto hex = hexstream.str();
+    ss << (hex.length() < 2 ? '0' + hex : hex);
+  }
+  return ss.str();
 }
 } // anonymous namespace
 
@@ -176,6 +195,7 @@ public:
   std::size_t terminated_tasks_max_size;
   int publish_active_tasks_period;
   bool use_timestamp_for_task_id;
+  bool use_unique_hex_string_with_task_id;
 
   std::unordered_map<std::size_t, std::string> legacy_task_type_names =
   {
@@ -215,6 +235,11 @@ public:
     RCLCPP_INFO(node->get_logger(),
       " Use timestamp with task_id: %s",
       (use_timestamp_for_task_id ? "true" : "false"));
+    use_unique_hex_string_with_task_id =
+      node->declare_parameter<bool>("use_unique_hex_string_with_task_id", false);
+    RCLCPP_INFO(node->get_logger(),
+      " Use unique hex string with task_id: %s",
+      (use_unique_hex_string_with_task_id ? "true" : "false"));
 
     std::optional<std::string> server_uri = std::nullopt;
     const std::string uri =
@@ -483,10 +508,22 @@ public:
         task_request_json["category"].get<std::string>()
         + ".dispatch-";
 
-      if (use_timestamp_for_task_id)
+      if (use_unique_hex_string_with_task_id)
+      {
+        if (use_timestamp_for_task_id)
+        {
+          RCLCPP_WARN(
+            node->get_logger(),
+            "Overwriting use_timestamp_for_task_id option with "
+            "use_unique_hex_string_with_task_id"
+          );
+        }
+        task_id += generate_random_hex_string(5);
+      }
+      else if (use_timestamp_for_task_id)
       {
         task_id += std::to_string(
-          static_cast<int>(node->get_clock()->now().nanoseconds()/1e6));
+          (int)(std::round(node->get_clock()->now().seconds() * 1e3)));
       }
       else
       {
