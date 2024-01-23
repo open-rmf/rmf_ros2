@@ -28,7 +28,7 @@ const std::string DoorSupervisorRequesterID = "door_supervisor";
 Node::Node()
 : rclcpp::Node("door_supervisor")
 {
-  const auto default_qos = rclcpp::SystemDefaultsQoS();
+  const auto default_qos = rclcpp::SystemDefaultsQoS().keep_last(100).reliable();
 
   _door_request_pub = create_publisher<DoorRequest>(
     FinalDoorRequestTopicName, default_qos);
