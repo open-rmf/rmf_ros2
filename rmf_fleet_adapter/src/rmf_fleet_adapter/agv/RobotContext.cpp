@@ -318,7 +318,8 @@ rmf_traffic::agv::Plan::StartSet NavParams::_lift_boundary_filter(
   const auto r_it = std::remove_if(
     locations.begin(),
     locations.end(),
-    [&graph, valid_waypoint, valid_lane](const rmf_traffic::agv::Plan::Start& location)
+    [&graph, valid_waypoint,
+    valid_lane](const rmf_traffic::agv::Plan::Start& location)
     {
       if (location.lane().has_value())
       {

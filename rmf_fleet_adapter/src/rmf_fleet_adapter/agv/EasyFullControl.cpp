@@ -1329,9 +1329,9 @@ void EasyCommandHandle::follow_new_path(
         if (!progress_ref)
         {
           throw std::runtime_error(
-            "[rmf_fleet_adapter::agv::EasyFullControl::follow_new_path] "
-            "progress_ref was not initialized. This should never happen. "
-            "please report this bug to the RMF maintainers.");
+                  "[rmf_fleet_adapter::agv::EasyFullControl::follow_new_path] "
+                  "progress_ref was not initialized. This should never happen. "
+                  "please report this bug to the RMF maintainers.");
         }
 
         if (!*progress_ref)
@@ -1359,16 +1359,16 @@ void EasyCommandHandle::follow_new_path(
       };
 
     auto localize_cmd = EasyFullControl::CommandExecution::Implementation
-    ::make_hold(
+      ::make_hold(
       context,
       waypoints.front().time(),
       context->itinerary().current_plan_id(),
       [worker = context->worker(), begin_following_path]()
       {
         worker.schedule([begin_following_path](const auto&)
-          {
-            begin_following_path();
-          });
+        {
+          begin_following_path();
+        });
       });
 
     if (context->localize(std::move(localize), std::move(localize_cmd)))
@@ -1716,7 +1716,8 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
         ActivityIdentifier::Implementation::get(*current_activity).update_fn;
         if (update_fn)
         {
-          update_fn(state.map(), position);
+          update_fn(
+            state.map(), position);
           return;
         }
       }
@@ -2846,10 +2847,10 @@ auto EasyFullControl::add_robot(
     std::chrono::nanoseconds(node->now().nanoseconds()));
 
   auto reported_location = std::make_shared<Location>(Location {
-      now,
-      initial_state.map(),
-      initial_state.position()
-    });
+        now,
+        initial_state.map(),
+        initial_state.position()
+      });
   auto worker =
     FleetUpdateHandle::Implementation::get(*_pimpl->fleet_handle).worker;
   auto robot_nav_params = std::make_shared<NavParams>(_pimpl->nav_params);
