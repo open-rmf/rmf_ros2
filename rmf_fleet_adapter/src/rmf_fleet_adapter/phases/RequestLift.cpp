@@ -97,6 +97,14 @@ void RequestLift::ActivePhase::_init_obs()
 {
   using rmf_lift_msgs::msg::LiftState;
 
+  if (_data.located == Located::Inside)
+  {
+    // If the robot is requesting from the inside, then we should update the
+    // current_boarded_lift_level value for the context
+    _current_boarded_lift_level = std::make_shared<std::string>(_destination);
+    _context->_set_current_boarded_lift_level(_current_boarded_lift_level);
+  }
+
   if (_data.located == Located::Outside && _context->current_lift_destination())
   {
     // Check if the current destination is the one we want and also has arrived.

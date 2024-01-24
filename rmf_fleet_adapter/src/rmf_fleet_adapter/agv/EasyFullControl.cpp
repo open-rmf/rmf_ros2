@@ -453,7 +453,7 @@ public:
 
     if (starts.empty())
     {
-      starts = nav_params->compute_plan_starts(graph, map, location, now);
+      starts = nav_params->compute_plan_starts(*context, map, location, now);
     }
 
     if (!starts.empty())
@@ -2969,7 +2969,7 @@ auto EasyFullControl::add_robot(
 
   robot_nav_params->find_stacked_vertices(graph);
   const Eigen::Vector3d position = *position_opt;
-  auto starts = robot_nav_params->compute_plan_starts(
+  auto starts = robot_nav_params->unfiltered_compute_plan_starts(
     graph, initial_state.map(), position, now);
 
   if (starts.empty())
@@ -3059,6 +3059,7 @@ auto EasyFullControl::add_robot(
         ](const auto&)
         {
           cmd_handle->w_context = context;
+          context->_set_reported_location(cmd_handle->reported_location);
           context->set_nav_params(nav_params);
           EasyRobotUpdateHandle::Implementation::get(*easy_updater)
           .updater->handle = handle;
