@@ -427,7 +427,6 @@ public:
   std::shared_ptr<Node> node;
 };
 
-
 //==============================================================================
 void FleetUpdateHandle::Implementation::bid_notice_cb(
   const BidNoticeMsg& bid_notice,
@@ -491,6 +490,18 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         std::nullopt,
         {make_error_str(5, "Invalid request format", e.what())}
       });
+  }
+
+  // If a fleet_name was specified in the request, only proceed if the value matches
+  // the name of this fleet.
+  if (request_msg.contains("fleet_name") &&
+    request_msg["fleet_name"].template get<std::string>() != name)
+  {
+    RCLCPP_INFO(
+      node->get_logger(),
+      "Ignoring BidNotice request as it is for fleet [%s].",
+      request_msg["fleet_name"].template get<std::string>().c_str());
+    return;
   }
 
   std::vector<std::string> errors = {};
