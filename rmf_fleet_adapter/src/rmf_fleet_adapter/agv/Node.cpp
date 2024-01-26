@@ -135,6 +135,10 @@ std::shared_ptr<Node> Node::make(
   node->_reservation_alloc_obs =
     node->create_observable<ReservationAllocation>(
     ReservationAllocationTopicName, transient_local_qos);
+
+  node->_reservation_release_pub =
+    node->create_publisher<ReservationRelease>(
+      ReservationReleaseTopicName, transient_local_qos);
   return node;
 }
 
@@ -298,6 +302,12 @@ auto Node::location_ticket_obs() const -> const ReservationTicketObs&
 auto Node::allocated_claims_obs() const -> const ReservationAllocationObs&
 {
   return _reservation_alloc_obs->observe();
+}
+
+//==============================================================================
+auto Node::release_location() const -> const ReservationReleasePub&
+{
+  return _reservation_release_pub;
 }
 
 } // namespace agv

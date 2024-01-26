@@ -43,7 +43,7 @@
 
 #include "Node.hpp"
 #include "../Reporting.hpp"
-
+#include "ReservationManager.hpp"
 #include <unordered_set>
 
 namespace rmf_fleet_adapter {
@@ -714,6 +714,12 @@ public:
   /// Release a door. This should only be used by DoorClose
   void _release_door(const std::string& door_name);
 
+
+  void _set_allocated_destination(
+    const rmf_chope_msgs::msg::ReservationAllocation&);
+
+  std::optional<rmf_chope_msgs::msg::ReservationAllocation> _release_resource();
+
   template<typename... Args>
   static std::shared_ptr<RobotContext> make(Args&&... args)
   {
@@ -875,6 +881,7 @@ private:
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
   std::chrono::steady_clock::time_point _last_active_task_time;
   uint64_t _last_reservation_request_id;
+  ReservationManager _reservation_mgr;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

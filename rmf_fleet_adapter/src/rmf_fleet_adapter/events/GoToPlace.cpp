@@ -23,6 +23,7 @@
 #include <memory>
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 #include <rmf_traffic/agv/Planner.hpp>
+#include <string>
 
 namespace rmf_fleet_adapter {
 namespace events {
@@ -170,9 +171,14 @@ auto GoToPlace::Active::make(
   active->_reservation_ticket = active->_context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(active->_context->worker()))
     .subscribe([w = active->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::Ticket>& msg)
       {
+          
         const auto self = w.lock();
         if (!self)
           return;
+
+        RCLCPP_ERROR(
+          self->_context->node()->get_logger(),
+          "Got ticket issueing claim");
 
         if (msg->header.request_id != self->_reservation_id
           || msg->header.robot_name != self->_context->name()
@@ -185,46 +191,49 @@ auto GoToPlace::Active::make(
 
 
         // Pick the nearest location to wait
-        auto current_location = _context->location();
+        auto current_location = self->_context->location();
         if (current_location.size() == 0)
         {
           return; 
         }
 
-        // Order wait points by the number of 
-        std::map<double, std::string> waitpoints_order;
-        for (std::size_t i = 0; i < self->_context->navigation_graph()->num_waypoints(); i++) {
-          const auto wp = self->_context->navigation_graph()->get_waypoint(i);
+        // Order wait points by the distance from the destination. 
+        std::vector<std::pair<double, std::string>> waitpoints_order;
+        for (std::size_t wp_idx = 0; wp_idx < self->_context->navigation_graph().num_waypoints(); wp_idx++) {
+          const auto wp = self->_context->navigation_graph().get_waypoint(wp_idx);
 
           // Wait at parking spot and check its on same floor.
-          if (!wp.is_parking_spot() || wp.get_map_name() != self->_context->map) {
+          if (!wp.is_parking_spot() || wp.get_map_name() != self->_context->map()) {
             continue;
           }
-
          
           auto result = self->_context->planner()->quickest_path(current_location, wp_idx);
           if (!result.has_value()) {
             continue;
           }
-
           
-          stringstream json_stream;
-          json_stream << i << std::endl;
-          string json;
+          std::stringstream json_stream;
+          json_stream << wp_idx << std::endl;
+          std::string json;
           json_stream >> json;
-          waitpoints_order.insert(result, json);
+          waitpoints_order.emplace_back(result->cost(), json);
         }
 
-        std::vector<std::string> waitpoints;
-        for (auto &[_, name]: waitpoints_order) {
-          waitpoints.push_back(name);
-        }
+        std::sort(waitpoints_order.begin(), waitpoints_order.end(), [](const std::pair<double, std::string>& a, const std::pair<double, std::string>& b) {
+          return a.first < b.first;
+        });
 
         // Immediately make claim cause we don't yet support flexible reservations.
         rmf_chope_msgs::msg::ClaimRequest claim_request;
-        claim_request->ticket = *msg;
-        claim_request->wait_points = waitpoints;  
+        claim_request.ticket = *msg;
+        std::vector<std::string> waitpoints;
+        for (auto &[_, waitpoint]: waitpoints_order) {
+           claim_request.wait_points.push_back(waitpoint);
+        } 
         self->_context->node()->claim_location_ticket()->publish(claim_request);
+        RCLCPP_ERROR(
+      self->_context->node()->get_logger(),
+          "Claim issued");
       });
 
   active->_reservation_allocation = active->_context->node()->allocated_claims_obs().observe_on(rxcpp::identity_same_worker(active->_context->worker()))
@@ -243,7 +252,9 @@ auto GoToPlace::Active::make(
         {
           return;
         }
-
+           RCLCPP_ERROR(
+      self->_context->node()->get_logger(),
+          "Got result ");
         self->_final_allocated_destination = msg;
       });
   
@@ -551,6 +562,25 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
         selected_idx = i;
         lowest_cost = result->cost();
       }
+
+      std::stringstream json_stream;
+      json_stream << wp_idx << std::endl;
+      std::string json;
+      json_stream >> json;
+      
+      rmf_chope_msgs::msg::FlexibleTimeReservationAlt alternative;
+      alternative.resource_name = json;
+      alternative.cost = result->cost();
+      alternative.has_end = false;
+
+      rmf_chope_msgs::msg::StartTimeRange start;
+      start.earliest_start_time = _context->node()->get_clock()->now();
+      start.latest_start_time = start.earliest_start_time;
+      start.has_earliest_start_time = true;
+      start.has_latest_start_time = true;
+      alternative.start_time = start;
+
+      ftr.alternatives.push_back(alternative);
     }
     else
     {

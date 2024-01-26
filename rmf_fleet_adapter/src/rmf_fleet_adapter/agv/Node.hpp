@@ -38,6 +38,7 @@
 #include <rmf_chope_msgs/msg/claim_request.hpp>
 #include <rmf_chope_msgs/msg/ticket.hpp>
 #include <rmf_chope_msgs/msg/reservation_allocation.hpp>
+#include <rmf_chope_msgs/msg/release_request.hpp>
 
 #include <std_msgs/msg/bool.hpp>
 
@@ -158,6 +159,10 @@ public:
   using ReservationAllocationObs = rxcpp::observable<ReservationAllocation::SharedPtr>; 
   const ReservationAllocationObs& allocated_claims_obs() const;
 
+  using ReservationRelease = rmf_chope_msgs::msg::ReleaseRequest;
+  using ReservationReleasePub = rclcpp::Publisher<ReservationRelease>::SharedPtr; 
+  const ReservationReleasePub& release_location() const;
+
   template<typename DurationRepT, typename DurationT, typename CallbackT>
   rclcpp::TimerBase::SharedPtr try_create_wall_timer(
     std::chrono::duration<DurationRepT, DurationT> period,
@@ -222,6 +227,7 @@ private:
   Bridge<ReservationTicket> _reservation_ticket_obs;
   ReservationClaimPub _reservation_claim_pub;
   Bridge<ReservationAllocation> _reservation_alloc_obs;
+  ReservationReleasePub _reservation_release_pub;
 };
 
 } // namespace agv

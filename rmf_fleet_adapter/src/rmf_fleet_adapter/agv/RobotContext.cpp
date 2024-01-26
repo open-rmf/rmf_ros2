@@ -1600,5 +1600,19 @@ void RobotContext::_publish_mutex_group_requests()
   }
 }
 
+//==============================================================================
+void RobotContext::_set_allocated_destination(
+  const rmf_chope_msgs::msg::ReservationAllocation& ticket)
+{
+  _reservation_mgr.add_ticket(ticket);
+}
+
+//==============================================================================
+std::optional<rmf_chope_msgs::msg::ReservationAllocation>
+  RobotContext::_release_resource()
+{
+  return _reservation_mgr.release_ticket();
+}
+
 } // namespace agv
 } // namespace rmf_fleet_adapter
