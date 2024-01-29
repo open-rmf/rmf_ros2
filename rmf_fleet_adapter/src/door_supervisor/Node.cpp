@@ -29,7 +29,7 @@ Node::Node()
 : rclcpp::Node("door_supervisor")
 {
   const auto default_qos =
-    rclcpp::SystemDefaultsQoS().keep_last(100).reliable();
+    rclcpp::SystemDefaultsQoS().durability_volatile().keep_last(100).reliable();
 
   _door_request_pub = create_publisher<DoorRequest>(
     FinalDoorRequestTopicName, default_qos);
