@@ -63,7 +63,8 @@ public:
     // subscription to receive String messages which control execution of
     // this node
     _cmd_sub = create_subscription<String>(
-      "test_adapter_" + _fleet_name+"/cmd", rclcpp::SystemDefaultsQoS().keep_last(10),
+      "test_adapter_" + _fleet_name+"/cmd",
+      rclcpp::SystemDefaultsQoS().keep_last(10),
       [&](String::UniquePtr msg)
       {
         // receive commands through ros2 msg
