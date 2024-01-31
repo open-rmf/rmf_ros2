@@ -309,7 +309,7 @@ public:
       auto transport = std::shared_ptr<Transport>(new Transport(node));
 
       const auto itinerary_qos =
-        rclcpp::SystemDefaultsQoS().keep_last(10)
+        rclcpp::SystemDefaultsQoS()
         .reliable()
         .keep_last(100);
 
@@ -343,7 +343,7 @@ public:
 
       transport->schedule_startup_sub = node->create_subscription<ScheduleId>(
         rmf_traffic_ros2::ScheduleStartupTopicName,
-        rclcpp::SystemDefaultsQoS().keep_last(10),
+        rclcpp::SystemDefaultsQoS(),
         [w = transport->weak_from_this()](const ScheduleId::SharedPtr msg)
         {
           if (const auto self = w.lock())
