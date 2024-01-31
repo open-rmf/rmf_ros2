@@ -261,7 +261,7 @@ public:
     // names
     api_request = node->create_subscription<ApiRequestMsg>(
       "task_api_requests",
-      rclcpp::SystemDefaultsQoS().reliable().transient_local(),
+      rclcpp::SystemDefaultsQoS().keep_last(10).reliable().transient_local(),
       [this](const ApiRequestMsg::UniquePtr msg)
       {
         this->handle_api_request(*msg);
@@ -269,7 +269,7 @@ public:
 
     api_response = node->create_publisher<ApiResponseMsg>(
       "task_api_responses",
-      rclcpp::SystemDefaultsQoS().reliable().transient_local());
+      rclcpp::SystemDefaultsQoS().keep_last(10).reliable().transient_local());
 
     // TODO(MXG): The smallest resolution this supports is 1 second. That
     // doesn't seem great.

@@ -343,7 +343,7 @@ public:
 
       transport->schedule_startup_sub = node->create_subscription<ScheduleId>(
         rmf_traffic_ros2::ScheduleStartupTopicName,
-        rclcpp::SystemDefaultsQoS(),
+        rclcpp::SystemDefaultsQoS().keep_last(10),
         [w = transport->weak_from_this()](const ScheduleId::SharedPtr msg)
         {
           if (const auto self = w.lock())
