@@ -43,7 +43,7 @@ public:
   : rclcpp::Node("robot_state_aggregator", options)
   {
     RCLCPP_DEBUG(get_logger(), "RobotStateAggregator called");
-    const auto default_qos = rclcpp::SystemDefaultsQoS().keep_last(10);
+    const auto default_qos = rclcpp::SystemDefaultsQoS();
     const auto state_qos = rclcpp::SystemDefaultsQoS().keep_last(100);
 
 #ifdef FAILOVER_MODE

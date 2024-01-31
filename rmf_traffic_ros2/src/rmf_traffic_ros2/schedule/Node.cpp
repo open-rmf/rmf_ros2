@@ -344,7 +344,7 @@ void ScheduleNode::setup_changes_services()
 void ScheduleNode::setup_itinerary_topics()
 {
   const auto itinerary_qos =
-    rclcpp::SystemDefaultsQoS().keep_last(10)
+    rclcpp::SystemDefaultsQoS()
     .reliable()
     .keep_last(100);
 
@@ -400,7 +400,7 @@ void ScheduleNode::setup_incosistency_pub()
   inconsistency_pub =
     create_publisher<InconsistencyMsg>(
     rmf_traffic_ros2::ScheduleInconsistencyTopicName,
-    rclcpp::SystemDefaultsQoS().keep_last(10).reliable());
+    rclcpp::SystemDefaultsQoS().reliable());
 }
 
 //==============================================================================
@@ -452,7 +452,7 @@ void ScheduleNode::setup_conflict_topics_and_thread()
     rmf_traffic_ros2::NegotiationConclusionTopicName, negotiation_qos);
 
   const auto single_reliable_transient_local =
-    rclcpp::SystemDefaultsQoS().keep_last(10)
+    rclcpp::SystemDefaultsQoS()
     .keep_last(1)
     .reliable()
     .transient_local();
@@ -634,7 +634,7 @@ void ScheduleNode::setup_redundancy()
   start_heartbeat();
 
   const auto permanent_reliable_single_transient_local =
-    rclcpp::SystemDefaultsQoS().keep_last(10)
+    rclcpp::SystemDefaultsQoS()
     .reliable()
     .keep_last(1)
     .transient_local();
@@ -656,7 +656,7 @@ void ScheduleNode::setup_redundancy()
   startup_pub->publish(node_id);
 
   const auto reliable_10_transient_local =
-    rclcpp::SystemDefaultsQoS().keep_last(10)
+    rclcpp::SystemDefaultsQoS()
     .reliable()
     .keep_last(10)
     .transient_local();
