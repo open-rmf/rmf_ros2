@@ -1358,11 +1358,13 @@ std::shared_ptr<Connections> make_fleet(
 
   connections->path_request_pub = node->create_publisher<
     rmf_fleet_msgs::msg::PathRequest>(
-    rmf_fleet_adapter::PathRequestTopicName, rclcpp::SystemDefaultsQoS().keep_last(10));
+    rmf_fleet_adapter::PathRequestTopicName,
+    rclcpp::SystemDefaultsQoS().keep_last(10));
 
   connections->mode_request_pub = node->create_publisher<
     rmf_fleet_msgs::msg::ModeRequest>(
-    rmf_fleet_adapter::ModeRequestTopicName, rclcpp::SystemDefaultsQoS().keep_last(10));
+    rmf_fleet_adapter::ModeRequestTopicName,
+    rclcpp::SystemDefaultsQoS().keep_last(10));
 
   connections->fleet_state_sub = node->create_subscription<
     rmf_fleet_msgs::msg::FleetState>(
