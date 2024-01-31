@@ -47,7 +47,7 @@ public:
   Node()
   : rclcpp::Node("mutex_group_supervisor")
   {
-    const auto qos = rclcpp::SystemDefaultsQoS()
+    const auto qos = rclcpp::SystemDefaultsQoS().keep_last(10)
       .reliable()
       .transient_local()
       .keep_last(100);

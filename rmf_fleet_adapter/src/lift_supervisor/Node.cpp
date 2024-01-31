@@ -27,8 +27,8 @@ namespace lift_supervisor {
 Node::Node()
 : rclcpp::Node("rmf_lift_supervisor")
 {
-  const auto default_qos = rclcpp::SystemDefaultsQoS();
-  const auto transient_qos = rclcpp::SystemDefaultsQoS()
+  const auto default_qos = rclcpp::SystemDefaultsQoS().keep_last(10);
+  const auto transient_qos = rclcpp::SystemDefaultsQoS().keep_last(10)
     .reliable().keep_last(100).transient_local();
 
   _lift_request_pub = create_publisher<LiftRequest>(
