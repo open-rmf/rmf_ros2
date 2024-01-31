@@ -34,9 +34,9 @@ std::shared_ptr<Node> Node::make(
   auto node = std::shared_ptr<Node>(
     new Node(std::move(worker), node_name, options));
 
-  auto default_qos = rclcpp::SystemDefaultsQoS();
+  auto default_qos = rclcpp::SystemDefaultsQoS().keep_last(10);
   default_qos.keep_last(100);
-  auto transient_qos = rclcpp::SystemDefaultsQoS()
+  auto transient_qos = rclcpp::SystemDefaultsQoS().keep_last(10)
     .reliable().keep_last(100).transient_local();
 
   node->_door_state_obs =
@@ -95,7 +95,7 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<FleetState>(
     FleetStateTopicName, default_qos);
 
-  auto transient_local_qos = rclcpp::SystemDefaultsQoS()
+  auto transient_local_qos = rclcpp::SystemDefaultsQoS().keep_last(10)
     .reliable()
     .transient_local()
     .keep_last(100);

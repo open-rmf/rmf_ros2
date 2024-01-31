@@ -54,16 +54,16 @@ public:
     // publisher to send FleetState messages to fleet adapter
     _fleet_state_pub = create_publisher<FleetState>(
       rmf_fleet_adapter::FleetStateTopicName,
-      rclcpp::SystemDefaultsQoS());
+      rclcpp::SystemDefaultsQoS().keep_last(10));
 
     // publisher to send String messages to rmf_schedule_visualizer node
     _viz_pub = create_publisher<String>(
-      _viz_name + "/debug", rclcpp::SystemDefaultsQoS());
+      _viz_name + "/debug", rclcpp::SystemDefaultsQoS().keep_last(10));
 
     // subscription to receive String messages which control execution of
     // this node
     _cmd_sub = create_subscription<String>(
-      "test_adapter_" + _fleet_name+"/cmd", rclcpp::SystemDefaultsQoS(),
+      "test_adapter_" + _fleet_name+"/cmd", rclcpp::SystemDefaultsQoS().keep_last(10),
       [&](String::UniquePtr msg)
       {
         // receive commands through ros2 msg
