@@ -106,12 +106,20 @@ public:
 
   private:
 
+    enum class ReservationState {
+      Pending=0,
+      Requested=1,
+      RecievedResponse=2
+    };
+
+    ReservationState _current_reservation_state = ReservationState::Pending;
+
     Active(Description description);
 
     void _schedule_retry();
 
     std::optional<rmf_traffic::agv::Plan::Goal> _choose_goal(
-      bool only_same_map) const;
+      bool only_same_map);
 
     void _find_plan();
 

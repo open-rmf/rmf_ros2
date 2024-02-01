@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 #include <rmf_traffic/agv/Planner.hpp>
 #include <string>
@@ -252,10 +253,9 @@ auto GoToPlace::Active::make(
         {
           return;
         }
-           RCLCPP_ERROR(
-      self->_context->node()->get_logger(),
-          "Got result ");
+
         self->_final_allocated_destination = msg;
+        self->_current_reservation_state = ReservationState::RecievedResponse;
       });
   
 
@@ -498,7 +498,7 @@ std::string wp_name(const agv::RobotContext& context)
 
 //==============================================================================
 std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
-  bool only_same_map) const
+  bool only_same_map)
 {
   auto current_location = _context->location();
   auto graph = _context->navigation_graph();
@@ -518,85 +518,110 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
     _description.one_of().size(),
     _context->requester_id().c_str());
 
-  // Select node
-  rmf_chope_msgs::msg::FlexibleTimeRequest ftr;
-  ftr.header.robot_name = _context->name();
-  ftr.header.fleet_name = _context->group();
-  ftr.header.request_id = _reservation_id;
 
-  auto lowest_cost = std::numeric_limits<double>::infinity();
-  std::optional<std::size_t> selected_idx;
-  for (std::size_t i = 0; i < _description.one_of().size(); ++i)
+  // No need to use reservation system if we are already there.
+  if (_description.one_of().size() == 1
+  && _description.one_of()[0].waypoint() == current_location[0].waypoint())
   {
-    const auto wp_idx = _description.one_of()[i].waypoint();
-    if (only_same_map)
-    {
-      const auto& wp = graph.get_waypoint(wp_idx);
+    return _description.one_of()[0];
+  }
 
-      // Check if same map. If not don't consider location. This is to ensure
-      // the robot does not try to board a lift.
-      if (wp.get_map_name() != _context->map())
+
+  if (_current_reservation_state == ReservationState::Pending)
+  {
+    // Select node
+    rmf_chope_msgs::msg::FlexibleTimeRequest ftr;
+    ftr.header.robot_name = _context->name();
+    ftr.header.fleet_name = _context->group();
+    ftr.header.request_id = _reservation_id;
+
+    auto lowest_cost = std::numeric_limits<double>::infinity();
+    std::optional<std::size_t> selected_idx;
+    for (std::size_t i = 0; i < _description.one_of().size(); ++i)
+    {
+      const auto wp_idx = _description.one_of()[i].waypoint();
+      if (only_same_map)
+      {
+        const auto& wp = graph.get_waypoint(wp_idx);
+
+        // Check if same map. If not don't consider location. This is to ensure
+        // the robot does not try to board a lift.
+        if (wp.get_map_name() != _context->map())
+        {
+          RCLCPP_INFO(
+            _context->node()->get_logger(),
+            "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+            wp_idx,
+            wp.get_map_name().c_str(),
+            _context->map().c_str());
+          continue;
+        }
+      }
+
+      // Find distance to said point
+      auto result = _context->planner()->quickest_path(current_location, wp_idx);
+      if (result.has_value())
       {
         RCLCPP_INFO(
           _context->node()->get_logger(),
-          "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+          "Got distance from [%lu] as %f",
           wp_idx,
-          wp.get_map_name().c_str(),
-          _context->map().c_str());
-        continue;
+          result->cost());
+
+        if (result->cost() < lowest_cost)
+        {
+          selected_idx = i;
+          lowest_cost = result->cost();
+        }
+
+        std::stringstream json_stream;
+        json_stream << wp_idx << std::endl;
+        std::string json;
+        json_stream >> json;
+        
+        rmf_chope_msgs::msg::FlexibleTimeReservationAlt alternative;
+        alternative.resource_name = json;
+        alternative.cost = result->cost();
+        alternative.has_end = false;
+
+        rmf_chope_msgs::msg::StartTimeRange start;
+        start.earliest_start_time = _context->node()->get_clock()->now();
+        start.latest_start_time = start.earliest_start_time;
+        start.has_earliest_start_time = true;
+        start.has_latest_start_time = true;
+        alternative.start_time = start;
+
+        ftr.alternatives.push_back(alternative);
       }
-    }
-
-    // Find distance to said point
-    auto result = _context->planner()->quickest_path(current_location, wp_idx);
-    if (result.has_value())
-    {
-      RCLCPP_INFO(
-        _context->node()->get_logger(),
-        "Got distance from [%lu] as %f",
-        wp_idx,
-        result->cost());
-
-      if (result->cost() < lowest_cost)
+      else
       {
-        selected_idx = i;
-        lowest_cost = result->cost();
+        RCLCPP_ERROR(
+          _context->node()->get_logger(),
+          "No path found for robot [%s] to waypoint [%lu]",
+          wp_idx,
+          _context->requester_id().c_str());
       }
-
-      std::stringstream json_stream;
-      json_stream << wp_idx << std::endl;
-      std::string json;
-      json_stream >> json;
-      
-      rmf_chope_msgs::msg::FlexibleTimeReservationAlt alternative;
-      alternative.resource_name = json;
-      alternative.cost = result->cost();
-      alternative.has_end = false;
-
-      rmf_chope_msgs::msg::StartTimeRange start;
-      start.earliest_start_time = _context->node()->get_clock()->now();
-      start.latest_start_time = start.earliest_start_time;
-      start.has_earliest_start_time = true;
-      start.has_latest_start_time = true;
-      alternative.start_time = start;
-
-      ftr.alternatives.push_back(alternative);
     }
-    else
-    {
-      RCLCPP_ERROR(
-        _context->node()->get_logger(),
-        "No path found for robot [%s] to waypoint [%lu]",
-        wp_idx,
-        _context->requester_id().c_str());
-    }
-  } 
-  _context->node()->location_requester()->publish(ftr);
-  
-
-  if (selected_idx.has_value())
+    _context->node()->location_requester()->publish(ftr);
+    _current_reservation_state = ReservationState::Requested;
+  }
+  else if (_current_reservation_state == ReservationState::RecievedResponse)
   {
-    return _description.one_of()[*selected_idx];
+    // Go to recommended destination
+    if (_final_allocated_destination.value()->instruction_type == rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED) {
+      _context->_set_allocated_destination(*_final_allocated_destination.value().get());
+      return _description.one_of()[_final_allocated_destination.value()->satisfies_alternative];
+    }
+    // For queueing system in future
+    //return rmf_traffic::agv::Plan::Goal(std::stoul(_final_allocated_destination.value()->resource), std::nullopt);
+
+    // For now just keep retrying until your turn. 
+    // Probably not needed since, the node does not publish an allocation till its available?
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Unable to immediately service call, awaiting more."
+    );
+    return std::nullopt;
   }
 
   return std::nullopt;

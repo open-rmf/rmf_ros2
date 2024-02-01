@@ -1299,20 +1299,22 @@ std::optional<ExecutePlan> ExecutePlan::make(
   if (waypoint_copy.size() > 0 && context->location().size()) {
     if (waypoint_copy.back().graph_index() != context->location()[0].waypoint())
     { 
-      rmf_chope_msgs::msg::ReleaseRequest msg;
-      std::stringstream ss;
-      ss << "Robot ";
-      ss << context->name();
-      ss << "Waypoints ";
-      ss <<  waypoint_copy.size();
-      std::string topic = ss.str();
-      msg.location = topic;
-      context->node()->release_location()->publish(msg);
-      RCLCPP_ERROR(
-          context->node()->get_logger(),
-          "Releasing waypoint number of waypoints: %lu",
-          waypoint_copy.size()
-      );
+      auto allocation = context->_release_resource();
+      if (allocation.has_value())
+      {
+        rmf_chope_msgs::msg::ReleaseRequest msg;
+        std::stringstream str;
+        str << context->location()[0].waypoint();
+        str >> msg.location;
+        msg.ticket = allocation->ticket;
+        context->node()->release_location()->publish(msg);
+        RCLCPP_ERROR(
+            context->node()->get_logger(),
+            "Releasing waypoint",
+            waypoint_copy.size()
+        );
+      }
+      
     }
   }
   return ExecutePlan{
