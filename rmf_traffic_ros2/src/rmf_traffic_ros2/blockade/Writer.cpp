@@ -101,7 +101,7 @@ public:
   {
     heartbeat_sub = node.create_subscription<HeartbeatMsg>(
       BlockadeHeartbeatTopicName,
-      rclcpp::SystemDefaultsQoS().reliable(),
+      rclcpp::SystemDefaultsQoS().keep_last(10).reliable(),
       [&](const HeartbeatMsg::UniquePtr msg)
       {
         check_status(*msg);
@@ -271,23 +271,23 @@ public:
     {
       set_pub = node.create_publisher<Set>(
         BlockadeSetTopicName,
-        rclcpp::SystemDefaultsQoS().best_effort());
+        rclcpp::SystemDefaultsQoS().keep_last(10).best_effort());
 
       ready_pub = node.create_publisher<Ready>(
         BlockadeReadyTopicName,
-        rclcpp::SystemDefaultsQoS().best_effort());
+        rclcpp::SystemDefaultsQoS().keep_last(10).best_effort());
 
       reached_pub = node.create_publisher<Reached>(
         BlockadeReachedTopicName,
-        rclcpp::SystemDefaultsQoS().best_effort());
+        rclcpp::SystemDefaultsQoS().keep_last(10).best_effort());
 
       release_pub = node.create_publisher<Release>(
         BlockadeReleaseTopicName,
-        rclcpp::SystemDefaultsQoS().best_effort());
+        rclcpp::SystemDefaultsQoS().keep_last(10).best_effort());
 
       cancel_pub = node.create_publisher<Cancel>(
         BlockadeCancelTopicName,
-        rclcpp::SystemDefaultsQoS().best_effort());
+        rclcpp::SystemDefaultsQoS().keep_last(10).best_effort());
     }
 
     using ParticipantId = rmf_traffic::blockade::ParticipantId;
