@@ -18,8 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__AGV__NODE_HPP
 #define SRC__RMF_FLEET_ADAPTER__AGV__NODE_HPP
 
-#include <rmf_chope_msgs/msg/detail/claim_request__struct.hpp>
-#include <rmf_chope_msgs/msg/detail/flexible_time_request__struct.hpp>
+
 #include <rmf_rxcpp/Transport.hpp>
 
 #include <rmf_dispenser_msgs/msg/dispenser_request.hpp>
@@ -39,6 +38,7 @@
 #include <rmf_chope_msgs/msg/ticket.hpp>
 #include <rmf_chope_msgs/msg/reservation_allocation.hpp>
 #include <rmf_chope_msgs/msg/release_request.hpp>
+#include <rmf_chope_msgs/msg/free_parking_spots.hpp>
 
 #include <std_msgs/msg/bool.hpp>
 
@@ -163,6 +163,10 @@ public:
   using ReservationReleasePub = rclcpp::Publisher<ReservationRelease>::SharedPtr; 
   const ReservationReleasePub& release_location() const;
 
+  using ReservationFreeSpotStatus = rmf_chope_msgs::msg::FreeParkingSpots;
+  using ReservationFreeSpotObs =  rxcpp::observable<ReservationFreeSpotStatus::SharedPtr>;
+  const ReservationFreeSpotObs& freespots_obs() const; 
+
   template<typename DurationRepT, typename DurationT, typename CallbackT>
   rclcpp::TimerBase::SharedPtr try_create_wall_timer(
     std::chrono::duration<DurationRepT, DurationT> period,
@@ -228,6 +232,7 @@ private:
   ReservationClaimPub _reservation_claim_pub;
   Bridge<ReservationAllocation> _reservation_alloc_obs;
   ReservationReleasePub _reservation_release_pub;
+  Bridge<ReservationFreeSpotStatus> _reservation_free_spot_obs;
 };
 
 } // namespace agv

@@ -3,17 +3,17 @@
 #include "rclcpp/rclcpp.hpp"
 #include <cstddef>
 #include <cstdint>
-#include <openssl/x509v3.h>
+#include <mutex>
 #include <optional>
-#include <random>
 #include <rclcpp/logging.hpp>
-#include <rmf_chope_msgs/msg/detail/request_header__struct.hpp>
-#include <rmf_chope_msgs/msg/detail/reservation_allocation__struct.hpp>
-#include <rmf_chope_msgs/msg/detail/ticket__struct.hpp>
+
+#include <rmf_building_map_msgs/msg/graph.hpp>
+#include <rmf_chope_msgs/msg/detail/free_parking_spots__struct.hpp>
 #include <rmf_chope_msgs/msg/request_header.hpp>
 #include <rmf_chope_msgs/msg/release_request.hpp>
 #include <rmf_chope_msgs/msg/reservation_allocation.hpp>
 #include <rmf_chope_msgs/msg/ticket.hpp>
+#include <rmf_chope_msgs/msg/free_parking_spots.hpp>
 #include <unordered_map>
 #include <vector>
 
@@ -122,13 +122,13 @@ struct LocationReq {
   }
 };
 
-
 /// Implements a simple Mutex. Only one robot can claim a location at a time.
 /// The current implementation is relatively simplistic and basically checks if a location is occupied or not.
 /// A queuing system is in the works. Note: It is possible for the current system to get deadlocked.
 class CurrentState {
 public:  
   std::vector<std::string> free_locations() {
+    std::lock_guard<std::mutex> lock(_mtx);
     std::vector<std::string> locations;
     for (auto &[loc, state] : _current_location_reservations) {
       if (!state.ticket.has_value()) {
@@ -137,20 +137,35 @@ public:
     }
     return locations;
   }
+
+  void add_location(std::string location) {
+    std::lock_guard<std::mutex> lock(_mtx);
+    if (_current_location_reservations.count(location) == 0)
+    {
+      _current_location_reservations.emplace(location, LocationState {std::nullopt});
+    }
+  }
   
   std::optional<std::string> allocate_lowest_cost_free_spot(const std::vector<LocationReq>& incoming_requests, const std::size_t ticket_id)
   {
+    if (_ticket_to_location.count(ticket_id) != 0)
+    {
+      // Ticket has been allocated. Probably some DDS-ism causing the issue
+      return std::nullopt;
+    }
+
     auto requests = incoming_requests;
     std::sort(requests.begin(), requests.end());
+    std::lock_guard<std::mutex> lock(_mtx);
     for (std::size_t i = 0; i < requests.size(); i++) {
       auto parking = _current_location_reservations.find(requests[i].location);
       if (parking == _current_location_reservations.end()) {
-        _current_location_reservations.emplace(requests[i].location, LocationState {ticket_id});
+        _current_location_reservations[requests[i].location] = LocationState {ticket_id};
         _ticket_to_location.emplace(ticket_id, requests[i].location);
         return requests[i].location;
       }
-      else if (!parking->second.ticket.has_value()){
-        _current_location_reservations.emplace(parking->first, LocationState {ticket_id});
+      else if (!parking->second.ticket.has_value()) {
+        _current_location_reservations[requests[i].location].ticket = ticket_id;
         _ticket_to_location.emplace(ticket_id, requests[i].location);
         return parking->first;
       }
@@ -161,6 +176,7 @@ public:
 
   bool release(const std::size_t ticket_id)
   {
+    std::lock_guard<std::mutex> lock(_mtx);
     auto _ticket = _ticket_to_location.find(ticket_id);
     if (_ticket == _ticket_to_location.end())
     {
@@ -172,9 +188,12 @@ public:
   }
 
 private:
+  std::mutex _mtx;
   std::unordered_map<std::string, LocationState> _current_location_reservations;
   std::unordered_map<std::size_t, std::string> _ticket_to_location;
 };
+
+using namespace std::chrono_literals;
 
 class SimpleQueueSystemNode : public rclcpp::Node {
 public:
@@ -191,12 +210,34 @@ public:
       ReservationClaimTopicName, qos, std::bind(&SimpleQueueSystemNode::claim_request, this, std::placeholders::_1));
     release_subscription_ = this->create_subscription<rmf_chope_msgs::msg::ReleaseRequest>(
       ReservationReleaseTopicName, qos, std::bind(&SimpleQueueSystemNode::release, this, std::placeholders::_1));
+    graph_subscription_ = this->create_subscription<rmf_building_map_msgs::msg::Graph>("/nav_graphs", qos, std::bind(&SimpleQueueSystemNode::recieved_graph, this, std::placeholders::_1));
 
     ticket_pub_ = this->create_publisher<rmf_chope_msgs::msg::Ticket>(ReservationResponseTopicName, qos);
     allocation_pub_ = this->create_publisher<rmf_chope_msgs::msg::ReservationAllocation>(ReservationAllocationTopicName, qos);
+    free_spot_pub_ = this->create_publisher<rmf_chope_msgs::msg::FreeParkingSpots>("/rmf/reservations/free_parking_spot", qos);
+
+    timer_ = this->create_wall_timer(500ms, std::bind(&SimpleQueueSystemNode::publish_free_spots, this));
   }
 
 private:
+  void recieved_graph(const rmf_building_map_msgs::msg::Graph::ConstSharedPtr &graph_msg) {
+    RCLCPP_INFO(this->get_logger(), "Got graph");
+    for (std::size_t i = 0; i < graph_msg->vertices.size(); i++)
+    {
+      for(auto &param: graph_msg->vertices[i].params) {
+        
+        //TODO(arjo) make this configure-able
+        if (param.name == "is_parking_spot" && param.value_bool)
+        {
+          std::stringstream name;
+          name << i;
+          std::string topic;
+          name >> topic;
+          current_state_.add_location(topic);
+        }
+      }
+    }
+  }
   void on_request(const rmf_chope_msgs::msg::FlexibleTimeRequest::ConstSharedPtr &request) {
     
     std::vector<LocationReq> requests;
@@ -249,12 +290,12 @@ private:
           allocation.satisfies_alternative = i;          
         }
       }
-
+      RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu", result.value().c_str(), request->ticket.ticket_id);
       allocation_pub_->publish(allocation);
     }
     else
     {
-       RCLCPP_ERROR(this->get_logger(), "Could not allocate resource for ticket %lu.", request->ticket.ticket_id);
+      RCLCPP_INFO(this->get_logger(), "Could not allocate resource for ticket %lu.", request->ticket.ticket_id);
     }
   }
 
@@ -267,16 +308,28 @@ private:
     }
   }
 
+
+  void publish_free_spots() {
+    rmf_chope_msgs::msg::FreeParkingSpots spots;
+    spots.spots = current_state_.free_locations();
+
+    free_spot_pub_->publish(spots);
+  }
+
   rclcpp::Subscription<rmf_chope_msgs::msg::FlexibleTimeRequest>::SharedPtr request_subscription_;
   rclcpp::Subscription<rmf_chope_msgs::msg::ClaimRequest>::SharedPtr claim_subscription_;
   rclcpp::Subscription<rmf_chope_msgs::msg::ReleaseRequest>::SharedPtr release_subscription_;
+  rclcpp::Subscription<rmf_building_map_msgs::msg::Graph>::SharedPtr graph_subscription_;
 
   rclcpp::Publisher<rmf_chope_msgs::msg::Ticket>::SharedPtr ticket_pub_;
   rclcpp::Publisher<rmf_chope_msgs::msg::ReservationAllocation>::SharedPtr allocation_pub_;
+  rclcpp::Publisher<rmf_chope_msgs::msg::FreeParkingSpots>::SharedPtr free_spot_pub_;
 
   std::unordered_map<std::size_t, std::vector<LocationReq>> requests_;
   TicketStore ticket_store_;
   CurrentState current_state_;
+
+  rclcpp::TimerBase::SharedPtr timer_;
 };
 
 int main (int argc, const char** argv) {

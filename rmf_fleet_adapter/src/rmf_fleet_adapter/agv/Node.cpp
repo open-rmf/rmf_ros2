@@ -139,6 +139,10 @@ std::shared_ptr<Node> Node::make(
   node->_reservation_release_pub =
     node->create_publisher<ReservationRelease>(
       ReservationReleaseTopicName, transient_local_qos);
+  
+  node->_reservation_free_spot_obs =
+    node->create_observable<ReservationFreeSpotStatus>(
+    ReservationFreeSpotsTopicName, transient_local_qos);
   return node;
 }
 
@@ -310,5 +314,10 @@ auto Node::release_location() const -> const ReservationReleasePub&
   return _reservation_release_pub;
 }
 
+//==============================================================================
+auto Node::freespots_obs() const -> const ReservationFreeSpotObs&
+{
+  return _reservation_free_spot_obs->observe();
+}
 } // namespace agv
 } // namespace rmf_fleet_adapter

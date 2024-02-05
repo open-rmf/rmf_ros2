@@ -9,13 +9,13 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rmf_chope_msgs REQUIRED)
-find_package(rmf_fleet_adapter REQUIRED)
+find_package(rmf_building_map_msgs REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
 add_executable(queue_manager src/main.cpp)
-ament_target_dependencies(queue_manager rclcpp rmf_chope_msgs)
+ament_target_dependencies(queue_manager rclcpp rmf_chope_msgs rmf_building_map_msgs)
 
 install(TARGETS
   queue_manager

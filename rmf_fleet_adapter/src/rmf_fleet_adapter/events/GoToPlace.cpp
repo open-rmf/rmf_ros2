@@ -521,7 +521,8 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
 
   // No need to use reservation system if we are already there.
   if (_description.one_of().size() == 1
-  && _description.one_of()[0].waypoint() == current_location[0].waypoint())
+  && _description.one_of()[0].waypoint() == current_location[0].waypoint()
+  && _context->_has_ticket())
   {
     return _description.one_of()[0];
   }

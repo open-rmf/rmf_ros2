@@ -38,12 +38,18 @@ public:
     }
 
     std::optional<rmf_chope_msgs::msg::ReservationAllocation> release_ticket() {
-        if (allocations.size() == 0) {
+        if (allocations.size() <= 1) {
+            // For safety every robot must have at least one reservation at any point in time.
             return std::nullopt;
         }
         auto temp = allocations.back();
         allocations.pop_back();
         return temp;
+    }
+
+    bool has_ticket() const
+    {
+        return allocations.size() != 0;
     }
 
     std::deque<rmf_chope_msgs::msg::ReservationAllocation> allocations;

@@ -1614,5 +1614,10 @@ std::optional<rmf_chope_msgs::msg::ReservationAllocation>
   return _reservation_mgr.release_ticket();
 }
 
+//==============================================================================
+bool RobotContext::_has_ticket() const
+{
+  return _reservation_mgr.has_ticket();
+}
 } // namespace agv
 } // namespace rmf_fleet_adapter

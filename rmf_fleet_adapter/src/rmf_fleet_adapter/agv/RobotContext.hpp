@@ -720,6 +720,9 @@ public:
 
   std::optional<rmf_chope_msgs::msg::ReservationAllocation> _release_resource();
 
+  /// Has ticket now
+  bool _has_ticket() const;
+
   template<typename... Args>
   static std::shared_ptr<RobotContext> make(Args&&... args)
   {
@@ -769,6 +772,8 @@ public:
 
         self->_publish_mutex_group_requests();
       });
+
+    //context->
 
     return context;
   }
