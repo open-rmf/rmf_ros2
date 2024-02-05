@@ -400,7 +400,7 @@ void ScheduleNode::setup_incosistency_pub()
   inconsistency_pub =
     create_publisher<InconsistencyMsg>(
     rmf_traffic_ros2::ScheduleInconsistencyTopicName,
-    rclcpp::SystemDefaultsQoS().reliable());
+    rclcpp::SystemDefaultsQoS().keep_last(10).reliable());
 }
 
 //==============================================================================

@@ -62,7 +62,7 @@ public:
     dispenser->_request_sub =
       dispenser->_node->create_subscription<DispenserRequest>(
       rmf_fleet_adapter::DispenserRequestTopicName,
-      rclcpp::SystemDefaultsQoS(),
+      rclcpp::SystemDefaultsQoS().keep_last(10),
       [me = dispenser->weak_from_this()](DispenserRequest::SharedPtr msg)
       {
         if (const auto self = me.lock())
@@ -72,7 +72,7 @@ public:
     dispenser->_result_pub =
       dispenser->_node->create_publisher<DispenserResult>(
       rmf_fleet_adapter::DispenserResultTopicName,
-      rclcpp::SystemDefaultsQoS());
+      rclcpp::SystemDefaultsQoS().keep_last(10));
 
     return dispenser;
   }
@@ -171,7 +171,7 @@ public:
     ingestor->_request_sub =
       ingestor->_node->create_subscription<IngestorRequest>(
       rmf_fleet_adapter::IngestorRequestTopicName,
-      rclcpp::SystemDefaultsQoS(),
+      rclcpp::SystemDefaultsQoS().keep_last(10),
       [me = ingestor->weak_from_this()](IngestorRequest::SharedPtr msg)
       {
         if (const auto self = me.lock())
@@ -180,7 +180,7 @@ public:
 
     ingestor->_state_pub = ingestor->_node->create_publisher<IngestorState>(
       rmf_fleet_adapter::IngestorStateTopicName,
-      rclcpp::SystemDefaultsQoS());
+      rclcpp::SystemDefaultsQoS().keep_last(10));
 
     using namespace std::chrono_literals;
     ingestor->_timer = ingestor->_node->create_wall_timer(

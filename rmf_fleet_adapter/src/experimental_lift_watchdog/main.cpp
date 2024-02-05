@@ -43,7 +43,7 @@ public:
       });
 
     permission_subscription = create_subscription<std_msgs::msg::Bool>(
-      "experimental_lift_permission", rclcpp::SystemDefaultsQoS(),
+      "experimental_lift_permission", rclcpp::SystemDefaultsQoS().keep_last(10),
       [=](std::shared_ptr<std_msgs::msg::Bool> msg)
       {
         permission_callback(msg);
