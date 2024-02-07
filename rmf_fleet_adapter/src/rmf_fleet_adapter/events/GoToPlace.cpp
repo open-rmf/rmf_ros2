@@ -169,10 +169,15 @@ auto GoToPlace::Active::make(
   }
 
   active->_reservation_id = active->_context->last_reservation_request_id();
-  active->_reservation_ticket = active->_context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(active->_context->worker()))
-    .subscribe([w = active->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::Ticket>& msg)
+  active->_reservation_ticket =
+    active->_context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(
+        active->_context->worker()))
+    .subscribe([w =
+      active->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::Ticket>
+      &
+      msg)
       {
-          
+
         const auto self = w.lock();
         if (!self)
           return;
@@ -182,8 +187,8 @@ auto GoToPlace::Active::make(
           "Got ticket issueing claim");
 
         if (msg->header.request_id != self->_reservation_id
-          || msg->header.robot_name != self->_context->name()
-          || msg->header.fleet_name != self->_context->group())
+        || msg->header.robot_name != self->_context->name()
+        || msg->header.fleet_name != self->_context->group())
         {
           return;
         }
@@ -195,24 +200,31 @@ auto GoToPlace::Active::make(
         auto current_location = self->_context->location();
         if (current_location.size() == 0)
         {
-          return; 
+          return;
         }
 
-        // Order wait points by the distance from the destination. 
+        // Order wait points by the distance from the destination.
         std::vector<std::pair<double, std::string>> waitpoints_order;
-        for (std::size_t wp_idx = 0; wp_idx < self->_context->navigation_graph().num_waypoints(); wp_idx++) {
-          const auto wp = self->_context->navigation_graph().get_waypoint(wp_idx);
+        for (std::size_t wp_idx = 0;
+        wp_idx < self->_context->navigation_graph().num_waypoints(); wp_idx++)
+        {
+          const auto wp = self->_context->navigation_graph().get_waypoint(
+            wp_idx);
 
           // Wait at parking spot and check its on same floor.
-          if (!wp.is_parking_spot() || wp.get_map_name() != self->_context->map()) {
+          if (!wp.is_parking_spot() ||
+          wp.get_map_name() != self->_context->map())
+          {
             continue;
           }
-         
-          auto result = self->_context->planner()->quickest_path(current_location, wp_idx);
-          if (!result.has_value()) {
+
+          auto result =
+          self->_context->planner()->quickest_path(current_location, wp_idx);
+          if (!result.has_value())
+          {
             continue;
           }
-          
+
           std::stringstream json_stream;
           json_stream << wp_idx << std::endl;
           std::string json;
@@ -220,7 +232,10 @@ auto GoToPlace::Active::make(
           waitpoints_order.emplace_back(result->cost(), json);
         }
 
-        std::sort(waitpoints_order.begin(), waitpoints_order.end(), [](const std::pair<double, std::string>& a, const std::pair<double, std::string>& b) {
+        std::sort(waitpoints_order.begin(), waitpoints_order.end(),
+        [](const std::pair<double, std::string>& a, const std::pair<double,
+        std::string>& b)
+        {
           return a.first < b.first;
         });
 
@@ -228,17 +243,23 @@ auto GoToPlace::Active::make(
         rmf_chope_msgs::msg::ClaimRequest claim_request;
         claim_request.ticket = *msg;
         std::vector<std::string> waitpoints;
-        for (auto &[_, waitpoint]: waitpoints_order) {
-           claim_request.wait_points.push_back(waitpoint);
-        } 
+        for (auto&[_, waitpoint]: waitpoints_order)
+        {
+          claim_request.wait_points.push_back(waitpoint);
+        }
         self->_context->node()->claim_location_ticket()->publish(claim_request);
         RCLCPP_ERROR(
-      self->_context->node()->get_logger(),
+          self->_context->node()->get_logger(),
           "Claim issued");
       });
 
-  active->_reservation_allocation = active->_context->node()->allocated_claims_obs().observe_on(rxcpp::identity_same_worker(active->_context->worker()))
-    .subscribe([w = active->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>& msg)
+  active->_reservation_allocation =
+    active->_context->node()->allocated_claims_obs().observe_on(rxcpp::identity_same_worker(
+        active->_context->worker()))
+    .subscribe([w =
+      active->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>
+      &
+      msg)
       {
         const auto self = w.lock();
         if (!self)
@@ -257,7 +278,7 @@ auto GoToPlace::Active::make(
         self->_final_allocated_destination = msg;
         self->_current_reservation_state = ReservationState::RecievedResponse;
       });
-  
+
 
   active->_negotiator =
     Negotiator::make(
@@ -521,8 +542,8 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
 
   // No need to use reservation system if we are already there.
   if (_description.one_of().size() == 1
-  && _description.one_of()[0].waypoint() == current_location[0].waypoint()
-  && _context->_has_ticket())
+    && _description.one_of()[0].waypoint() == current_location[0].waypoint()
+    && _context->_has_ticket())
   {
     return _description.one_of()[0];
   }
@@ -560,7 +581,8 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
       }
 
       // Find distance to said point
-      auto result = _context->planner()->quickest_path(current_location, wp_idx);
+      auto result =
+        _context->planner()->quickest_path(current_location, wp_idx);
       if (result.has_value())
       {
         RCLCPP_INFO(
@@ -579,7 +601,7 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
         json_stream << wp_idx << std::endl;
         std::string json;
         json_stream >> json;
-        
+
         rmf_chope_msgs::msg::FlexibleTimeReservationAlt alternative;
         alternative.resource_name = json;
         alternative.cost = result->cost();
@@ -609,14 +631,18 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
   else if (_current_reservation_state == ReservationState::RecievedResponse)
   {
     // Go to recommended destination
-    if (_final_allocated_destination.value()->instruction_type == rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED) {
-      _context->_set_allocated_destination(*_final_allocated_destination.value().get());
-      return _description.one_of()[_final_allocated_destination.value()->satisfies_alternative];
+    if (_final_allocated_destination.value()->instruction_type ==
+      rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
+    {
+      _context->_set_allocated_destination(
+        *_final_allocated_destination.value().get());
+      return _description.one_of()[_final_allocated_destination.value()->
+          satisfies_alternative];
     }
     // For queueing system in future
     //return rmf_traffic::agv::Plan::Goal(std::stoul(_final_allocated_destination.value()->resource), std::nullopt);
 
-    // For now just keep retrying until your turn. 
+    // For now just keep retrying until your turn.
     // Probably not needed since, the node does not publish an allocation till its available?
     RCLCPP_ERROR(
       _context->node()->get_logger(),

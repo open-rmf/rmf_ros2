@@ -128,7 +128,7 @@ std::shared_ptr<Node> Node::make(
     ReservationResponseTopicName, transient_local_qos);
 
   node->_reservation_claim_pub =
-     node->create_publisher<ReservationClaim>(
+    node->create_publisher<ReservationClaim>(
     ReservationClaimTopicName, transient_local_qos);
 
   node->_reservation_alloc_obs =
@@ -137,8 +137,8 @@ std::shared_ptr<Node> Node::make(
 
   node->_reservation_release_pub =
     node->create_publisher<ReservationRelease>(
-      ReservationReleaseTopicName, transient_local_qos);
-  
+    ReservationReleaseTopicName, transient_local_qos);
+
   node->_reservation_free_spot_obs =
     node->create_observable<ReservationFreeSpotStatus>(
     ReservationFreeSpotsTopicName, transient_local_qos);

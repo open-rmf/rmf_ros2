@@ -106,7 +106,8 @@ public:
 
   private:
 
-    enum class ReservationState {
+    enum class ReservationState
+    {
       Pending=0,
       Requested=1,
       RecievedResponse=2
@@ -157,8 +158,10 @@ public:
     rmf_rxcpp::subscription_guard _reservation_allocation;
 
     uint64_t _reservation_id = 0;
-    std::optional<std::shared_ptr<rmf_chope_msgs::msg::Ticket>> _ticket{std::nullopt};
-    std::optional<std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>> _final_allocated_destination{std::nullopt};
+    std::optional<std::shared_ptr<rmf_chope_msgs::msg::Ticket>> _ticket{std::
+      nullopt};
+    std::optional<std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>>
+    _final_allocated_destination{std::nullopt};
 
     bool _is_interrupted = false;
   };

@@ -144,7 +144,8 @@ public:
   const MutexGroupStatesObs& mutex_group_states() const;
 
   using ReservationRequest = rmf_chope_msgs::msg::FlexibleTimeRequest;
-  using ReservationRequestPub = rclcpp::Publisher<ReservationRequest>::SharedPtr; 
+  using ReservationRequestPub =
+    rclcpp::Publisher<ReservationRequest>::SharedPtr;
   const ReservationRequestPub& location_requester() const;
 
   using ReservationTicket = rmf_chope_msgs::msg::Ticket;
@@ -152,20 +153,23 @@ public:
   const ReservationTicketObs& location_ticket_obs() const;
 
   using ReservationClaim = rmf_chope_msgs::msg::ClaimRequest;
-  using ReservationClaimPub = rclcpp::Publisher<ReservationClaim>::SharedPtr; 
+  using ReservationClaimPub = rclcpp::Publisher<ReservationClaim>::SharedPtr;
   const ReservationClaimPub& claim_location_ticket() const;
 
   using ReservationAllocation = rmf_chope_msgs::msg::ReservationAllocation;
-  using ReservationAllocationObs = rxcpp::observable<ReservationAllocation::SharedPtr>; 
+  using ReservationAllocationObs =
+    rxcpp::observable<ReservationAllocation::SharedPtr>;
   const ReservationAllocationObs& allocated_claims_obs() const;
 
   using ReservationRelease = rmf_chope_msgs::msg::ReleaseRequest;
-  using ReservationReleasePub = rclcpp::Publisher<ReservationRelease>::SharedPtr; 
+  using ReservationReleasePub =
+    rclcpp::Publisher<ReservationRelease>::SharedPtr;
   const ReservationReleasePub& release_location() const;
 
   using ReservationFreeSpotStatus = rmf_chope_msgs::msg::FreeParkingSpots;
-  using ReservationFreeSpotObs =  rxcpp::observable<ReservationFreeSpotStatus::SharedPtr>;
-  const ReservationFreeSpotObs& freespots_obs() const; 
+  using ReservationFreeSpotObs =
+    rxcpp::observable<ReservationFreeSpotStatus::SharedPtr>;
+  const ReservationFreeSpotObs& freespots_obs() const;
 
   template<typename DurationRepT, typename DurationT, typename CallbackT>
   rclcpp::TimerBase::SharedPtr try_create_wall_timer(

@@ -723,7 +723,7 @@ public:
   std::optional<rmf_chope_msgs::msg::ReservationAllocation> _release_resource();
 
   std::unordered_set<std::size_t> _get_free_spots() const;
-  
+
   /// Has ticket now
   bool _has_ticket() const;
 

@@ -52,7 +52,8 @@ ReleaseResource::ActivePhase::observe() const
 }
 
 //==============================================================================
-rmf_traffic::Duration ReleaseResource::ActivePhase::estimate_remaining_time() const
+rmf_traffic::Duration ReleaseResource::ActivePhase::estimate_remaining_time()
+const
 {
   // TODO: implement
   return rmf_traffic::Duration{0};
@@ -79,7 +80,7 @@ const std::string& ReleaseResource::ActivePhase::description() const
 //==============================================================================
 void ReleaseResource::ActivePhase::_init_obs()
 {
- 
+
 }
 
 //==============================================================================
@@ -117,7 +118,8 @@ std::shared_ptr<LegacyTask::ActivePhase> ReleaseResource::PendingPhase::begin()
 }
 
 //==============================================================================
-rmf_traffic::Duration ReleaseResource::PendingPhase::estimate_phase_duration() const
+rmf_traffic::Duration ReleaseResource::PendingPhase::estimate_phase_duration()
+const
 {
   // TODO: implement
   return rmf_traffic::Duration{0};

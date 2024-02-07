@@ -24,35 +24,40 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
-enum class ReservationState {
-    AWAITING_REQUEST,
-    AWAITING_ALLOCATION,
-    AWAITING_TURN
+enum class ReservationState
+{
+  AWAITING_REQUEST,
+  AWAITING_ALLOCATION,
+  AWAITING_TURN
 };
 
 
-class ReservationManager {
+class ReservationManager
+{
 public:
-    void add_ticket(const rmf_chope_msgs::msg::ReservationAllocation alloc) {
-        allocations.push_front(alloc);
-    }
+  void add_ticket(const rmf_chope_msgs::msg::ReservationAllocation alloc)
+  {
+    allocations.push_front(alloc);
+  }
 
-    std::optional<rmf_chope_msgs::msg::ReservationAllocation> release_ticket() {
-        if (allocations.size() <= 1) {
-            // For safety every robot must have at least one reservation at any point in time.
-            return std::nullopt;
-        }
-        auto temp = allocations.back();
-        allocations.pop_back();
-        return temp;
-    }
-
-    bool has_ticket() const
+  std::optional<rmf_chope_msgs::msg::ReservationAllocation> release_ticket()
+  {
+    if (allocations.size() <= 1)
     {
-        return allocations.size() != 0;
+      // For safety every robot must have at least one reservation at any point in time.
+      return std::nullopt;
     }
+    auto temp = allocations.back();
+    allocations.pop_back();
+    return temp;
+  }
 
-    std::deque<rmf_chope_msgs::msg::ReservationAllocation> allocations;
+  bool has_ticket() const
+  {
+    return allocations.size() != 0;
+  }
+
+  std::deque<rmf_chope_msgs::msg::ReservationAllocation> allocations;
 };
 }
 }

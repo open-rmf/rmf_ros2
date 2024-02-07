@@ -894,7 +894,8 @@ rmf_traffic::Duration RobotContext::get_lift_rewait_duration() const
 }
 
 //==============================================================================
-uint64_t RobotContext::last_reservation_request_id() {
+uint64_t RobotContext::last_reservation_request_id()
+{
   return _last_reservation_request_id++;
 }
 
@@ -1612,7 +1613,7 @@ void RobotContext::_set_allocated_destination(
 
 //==============================================================================
 std::optional<rmf_chope_msgs::msg::ReservationAllocation>
-  RobotContext::_release_resource()
+RobotContext::_release_resource()
 {
   return _reservation_mgr.release_ticket();
 }
@@ -1624,11 +1625,12 @@ bool RobotContext::_has_ticket() const
 }
 
 //==============================================================================
-std::unordered_set<std::size_t> RobotContext::_get_free_spots() const {
+std::unordered_set<std::size_t> RobotContext::_get_free_spots() const
+{
   // TODO(arjo129) Poor efficiency of messages. Change messages to use
   // graph/vertex pair.
   std::unordered_set<std::size_t> set;
-  for(auto spot: _free_spots.spots)
+  for (auto spot: _free_spots.spots)
   {
     set.insert(std::stoul(spot));
   }
