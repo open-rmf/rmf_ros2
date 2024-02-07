@@ -18,6 +18,7 @@
 #include "RobotContext.hpp"
 #include "internal_RobotUpdateHandle.hpp"
 
+#include <cstddef>
 #include <rmf_traffic_ros2/Time.hpp>
 
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
@@ -26,6 +27,8 @@
 #include <rmf_door_msgs/msg/door_mode.hpp>
 
 #include <rmf_utils/math.hpp>
+#include <string>
+#include <unordered_set>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -1618,6 +1621,18 @@ std::optional<rmf_chope_msgs::msg::ReservationAllocation>
 bool RobotContext::_has_ticket() const
 {
   return _reservation_mgr.has_ticket();
+}
+
+//==============================================================================
+std::unordered_set<std::size_t> RobotContext::_get_free_spots() const {
+  // TODO(arjo129) Poor efficiency of messages. Change messages to use
+  // graph/vertex pair.
+  std::unordered_set<std::size_t> set;
+  for(auto spot: _free_spots.spots)
+  {
+    set.insert(std::stoul(spot));
+  }
+  return set;
 }
 } // namespace agv
 } // namespace rmf_fleet_adapter

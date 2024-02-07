@@ -15,6 +15,7 @@
  *
 */
 
+#include <cstddef>
 #include <services/FindEmergencyPullover.hpp>
 #include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic/schedule/Database.hpp>
@@ -117,6 +118,12 @@ SCENARIO("Emergency Pullover")
     rmf_traffic::agv::Planner::Options{nullptr}
   );
 
+  std::unordered_set<std::size_t> all_waypoints;
+  for (std::size_t i = 0; i < graph.num_waypoints(); i++)
+  {
+    all_waypoints.insert(i);
+  }
+
   const auto now = std::chrono::steady_clock::now();
   using namespace std::chrono_literals;
 
@@ -127,7 +134,8 @@ SCENARIO("Emergency Pullover")
 
     auto pullover_service = std::make_shared<
       rmf_fleet_adapter::services::FindEmergencyPullover>(
-      planner, rmf_traffic::agv::Plan::StartSet({start_0}),
+      planner, all_waypoints,
+      rmf_traffic::agv::Plan::StartSet({start_0}),
       database->snapshot(), p0.id(),
       std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
 
@@ -164,7 +172,8 @@ SCENARIO("Emergency Pullover")
     // want to park at waypoint 7 in the absence of any other conflicts.
     pullover_service = std::make_shared<
       rmf_fleet_adapter::services::FindEmergencyPullover>(
-      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      planner, all_waypoints,
+      rmf_traffic::agv::Plan::StartSet({start_1}),
       database->snapshot(), p1.id(),
       std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
@@ -205,7 +214,8 @@ SCENARIO("Emergency Pullover")
 
     pullover_service = std::make_shared<
       rmf_fleet_adapter::services::FindEmergencyPullover>(
-      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      planner, all_waypoints,
+      rmf_traffic::agv::Plan::StartSet({start_1}),
       database->snapshot(), p1.id(),
       std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
@@ -261,7 +271,8 @@ SCENARIO("Emergency Pullover")
 
     auto pullover_service = std::make_shared<
       rmf_fleet_adapter::services::FindEmergencyPullover>(
-      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      planner, all_waypoints,
+      rmf_traffic::agv::Plan::StartSet({start_1}),
       database->snapshot(), p1.id(),
       std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
