@@ -22,6 +22,7 @@
   <depend>nlohmann-json-dev</depend>
   <depend>proj</depend>
   <depend>zlib</depend>
+  <depend>backward_ros</depend>
 
   <build_depend>uuid</build_depend>
   <exec_depend>uuid</exec_depend>

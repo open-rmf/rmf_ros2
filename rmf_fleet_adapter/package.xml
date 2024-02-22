@@ -36,6 +36,7 @@
   <depend>rmf_websocket</depend>
   <depend>nlohmann-json-dev</depend>
   <depend>nlohmann_json_schema_validator_vendor</depend>
+  <depend>backward_ros</depend>
 
   <build_depend>eigen</build_depend>
   <build_depend>yaml-cpp</build_depend>
