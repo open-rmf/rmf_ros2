@@ -27,6 +27,8 @@ find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(LibUUID REQUIRED)
+find_package(rmf_chope_msgs REQUIRED)
+
 
 # NOTE(MXG): libproj-dev does not currently distribute its cmake config-files
 # in Debian, so we can't use find_package and need to rely on pkg-config.
@@ -176,6 +178,7 @@ target_link_libraries(rmf_traffic_ros2
     ${rmf_traffic_msgs_LIBRARIES}
     ${rmf_site_map_msgs_LIBRARIES}
     ${rmf_building_map_msgs_LIBRARIES}
+    ${rmf_chope_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     yaml-cpp
     ZLIB::ZLIB
@@ -191,6 +194,7 @@ target_include_directories(rmf_traffic_ros2
     ${rmf_traffic_msgs_INCLUDE_DIRS}
     ${rmf_site_map_msgs_INCLUDE_DIRS}
     ${rmf_building_map_msgs_INCLUDE_DIRS}
+    ${rmf_chope_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
 )
 

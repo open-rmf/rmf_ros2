@@ -20,6 +20,8 @@
 
 #include "../jobs/SearchForPath.hpp"
 #include "ProgressEvaluator.hpp"
+#include <cstddef>
+#include <unordered_set>
 
 namespace rmf_fleet_adapter {
 namespace services {
@@ -32,6 +34,7 @@ public:
 
   FindEmergencyPullover(
     std::shared_ptr<const rmf_traffic::agv::Planner> planner,
+    std::unordered_set<std::size_t> free_spots,
     rmf_traffic::agv::Plan::StartSet starts,
     std::shared_ptr<const rmf_traffic::schedule::Snapshot> schedule,
     rmf_traffic::schedule::ParticipantId participant_id,
@@ -53,6 +56,7 @@ private:
   std::shared_ptr<const rmf_traffic::schedule::Snapshot> _schedule;
   rmf_traffic::schedule::ParticipantId _participant_id;
   std::shared_ptr<const rmf_traffic::Profile> _profile;
+  std::unordered_set<std::size_t> _parking_spots;
 
   std::vector<std::shared_ptr<jobs::SearchForPath>> _search_jobs;
   rmf_rxcpp::subscription_guard _search_sub;

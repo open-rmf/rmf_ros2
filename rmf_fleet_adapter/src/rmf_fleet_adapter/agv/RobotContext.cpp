@@ -15,8 +15,10 @@
  *
 */
 
+#include "RobotContext.hpp"
 #include "internal_RobotUpdateHandle.hpp"
 
+#include <cstddef>
 #include <rmf_traffic_ros2/Time.hpp>
 
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
@@ -25,6 +27,8 @@
 #include <rmf_door_msgs/msg/door_mode.hpp>
 
 #include <rmf_utils/math.hpp>
+#include <string>
+#include <unordered_set>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -890,6 +894,12 @@ rmf_traffic::Duration RobotContext::get_lift_rewait_duration() const
 }
 
 //==============================================================================
+uint64_t RobotContext::last_reservation_request_id()
+{
+  return _last_reservation_request_id++;
+}
+
+//==============================================================================
 void RobotContext::respond(
   const TableViewerPtr& table_viewer,
   const ResponderPtr& responder)
@@ -1127,7 +1137,8 @@ RobotContext::RobotContext(
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner)),
-  _reporting(_worker)
+  _reporting(_worker),
+  _last_reservation_request_id(0)
 {
   _most_recent_valid_location = _location;
   _profile = std::make_shared<rmf_traffic::Profile>(
@@ -1593,5 +1604,37 @@ void RobotContext::_publish_mutex_group_requests()
   }
 }
 
+//==============================================================================
+void RobotContext::_set_allocated_destination(
+  const rmf_chope_msgs::msg::ReservationAllocation& ticket)
+{
+  _reservation_mgr.add_ticket(ticket);
+}
+
+//==============================================================================
+std::optional<rmf_chope_msgs::msg::ReservationAllocation>
+RobotContext::_release_resource()
+{
+  return _reservation_mgr.release_ticket();
+}
+
+//==============================================================================
+bool RobotContext::_has_ticket() const
+{
+  return _reservation_mgr.has_ticket();
+}
+
+//==============================================================================
+std::unordered_set<std::size_t> RobotContext::_get_free_spots() const
+{
+  // TODO(arjo129) Poor efficiency of messages. Change messages to use
+  // graph/vertex pair.
+  std::unordered_set<std::size_t> set;
+  for (auto spot: _free_spots.spots)
+  {
+    set.insert(std::stoul(spot));
+  }
+  return set;
+}
 } // namespace agv
 } // namespace rmf_fleet_adapter

@@ -43,8 +43,9 @@
 
 #include "Node.hpp"
 #include "../Reporting.hpp"
-
+#include "ReservationManager.hpp"
 #include <unordered_set>
+#include <vector>
 
 namespace rmf_fleet_adapter {
 
@@ -397,6 +398,9 @@ class RobotContext
 {
 public:
 
+
+  uint64_t last_reservation_request_id();
+
   /// Get a handle to the command interface of the robot. This may return a
   /// nullptr if the robot has disconnected and/or its command API is no longer
   /// available.
@@ -711,6 +715,18 @@ public:
   /// Release a door. This should only be used by DoorClose
   void _release_door(const std::string& door_name);
 
+  /// Set an allocated destination.
+  void _set_allocated_destination(
+    const rmf_chope_msgs::msg::ReservationAllocation&);
+
+  /// Release last resource that was acquired.
+  std::optional<rmf_chope_msgs::msg::ReservationAllocation> _release_resource();
+
+  std::unordered_set<std::size_t> _get_free_spots() const;
+
+  /// Has ticket now
+  bool _has_ticket() const;
+
   template<typename... Args>
   static std::shared_ptr<RobotContext> make(Args&&... args)
   {
@@ -760,6 +776,17 @@ public:
 
         self->_publish_mutex_group_requests();
       });
+
+    context->_free_space_sub = context->_node->freespots_obs()
+      .observe_on(rxcpp::identity_same_worker(context->_worker))
+      .subscribe([w = context->weak_from_this()](const auto& msg)
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
+
+          self->_free_spots = *msg;
+        });
 
     return context;
   }
@@ -866,11 +893,17 @@ private:
   void _publish_mutex_group_requests();
   std::unordered_map<std::string, TimeMsg> _requesting_mutex_groups;
   std::unordered_map<std::string, TimeMsg> _locked_mutex_groups;
+
+  rmf_chope_msgs::msg::FreeParkingSpots _free_spots;
+
   rxcpp::subjects::subject<std::string> _mutex_group_lock_subject;
   rxcpp::observable<std::string> _mutex_group_lock_obs;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
+  rmf_rxcpp::subscription_guard _free_space_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
+  uint64_t _last_reservation_request_id;
+  ReservationManager _reservation_mgr;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;
