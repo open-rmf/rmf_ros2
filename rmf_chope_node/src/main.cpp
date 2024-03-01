@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <iostream>
 
 const std::string ReservationRequestTopicName = "/rmf/reservations/request";
 const std::string ReservationResponseTopicName = "/rmf/reservations/tickets";
@@ -171,6 +172,7 @@ public:
     if (_ticket_to_location.count(ticket_id) != 0)
     {
       // Ticket has been allocated. Probably some DDS-ism causing the issue
+      std::cerr << "Ticket already allocated" << std::endl;
       return std::nullopt;
     }
 
@@ -194,6 +196,12 @@ public:
         return parking->first;
       }
     }
+
+    std::cerr << "Could not find route to any of: ";
+    for (auto c: requests) {
+      std::cerr << "" << c.location <<", ";
+    }
+    std::cerr << "\n";
 
     return std::nullopt;
   }
@@ -275,7 +283,7 @@ private:
       for (auto& param: graph_msg->vertices[i].params)
       {
 
-        //TODO(arjo) make this configure-able
+        //TODO(arjoc) make this configure-able
         if (param.name == "is_parking_spot" && param.value_bool)
         {
           std::stringstream name;
