@@ -277,6 +277,8 @@ auto GoToPlace::Active::make(
 
         self->_final_allocated_destination = msg;
         self->_current_reservation_state = ReservationState::RecievedResponse;
+        self->_retry_timer->cancel();
+        self->_find_plan();
       });
 
 
