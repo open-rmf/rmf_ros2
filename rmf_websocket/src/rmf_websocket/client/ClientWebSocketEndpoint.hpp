@@ -21,6 +21,7 @@ namespace rmf_websocket {
 
 typedef websocketpp::client<websocketpp::config::asio_client> WsClient;
 
+typedef std::function<void(const std::string&)> Logger;
 
 /// Helper class with event handlers for managing connection state.
 class ConnectionMetadata
@@ -42,6 +43,9 @@ public:
 
   /// Get status
   std::string get_status();
+
+  /// Get debug string
+  std::string debug_data();
 
   /// Get connection handle
   websocketpp::connection_hdl get_hdl() const;
@@ -71,7 +75,9 @@ class ClientWebSocketEndpoint
 {
 public:
   /// Constructor
-  ClientWebSocketEndpoint(std::string const& uri);
+  ClientWebSocketEndpoint(
+    std::string const& uri,
+    Logger _my_logger);
 
   /// Initiates a connection returns 0 if everything goes ok.
   /// Note: This is non blocking and does not gaurantee a connection
@@ -105,6 +111,8 @@ private:
 
   /// prevents the destructor from running
   std::mutex _mtx;
+
+  Logger _logger;
 };
 }
 #endif

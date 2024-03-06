@@ -1,6 +1,7 @@
 #include "ClientWebSocketEndpoint.hpp"
 #include <chrono>
 #include <mutex>
+#include <sstream>
 
 using namespace std::chrono_literals;
 using namespace rmf_websocket;
@@ -55,6 +56,19 @@ void ConnectionMetadata::on_close(WsClient* c, websocketpp::connection_hdl hdl)
   _error_reason = s.str();
 }
 
+//=============================================================================
+std::string ConnectionMetadata::debug_data()
+{
+  std::stringstream out;
+  out << "> URI: " << _uri << "\n"
+      << "> Status: " << _status << "\n"
+      << "> Remote Server: "
+      << (_server.empty() ? "None Specified" : _server) << "\n"
+      << "> Error/close reason: "
+      << (_error_reason.empty() ? "N/A" : _error_reason) << "\n";
+
+  return out.str();
+}
 
 //=============================================================================
 std::string ConnectionMetadata::get_status()
@@ -78,14 +92,14 @@ bool ConnectionMetadata::wait_for_ready(const long dur)
       return _status != "Connecting";
     }))
     return _status == "Open";
-  else
-    std::cerr << " timed out trying to connect " << '\n';
+
   return false;
 }
 
 //=============================================================================
-ClientWebSocketEndpoint::ClientWebSocketEndpoint(std::string const& uri)
-: _uri(uri), _stop(false)
+ClientWebSocketEndpoint::ClientWebSocketEndpoint(
+  std::string const& uri, Logger logger)
+: _uri(uri), _stop(false), _logger(logger)
 {
   _endpoint.clear_access_channels(websocketpp::log::alevel::all);
   _endpoint.clear_error_channels(websocketpp::log::elevel::all);
@@ -105,8 +119,9 @@ int ClientWebSocketEndpoint::connect()
 
   if (ec)
   {
-    std::cout << "> Connect initialization error: " << ec.message() <<
-      std::endl;
+    std::stringstream err;
+    err << "> Connect initialization error: " << ec.message();
+    _logger(err.str());
     return -1;
   }
 
@@ -156,7 +171,9 @@ void ClientWebSocketEndpoint::send(std::string message)
     ec);
   if (ec)
   {
-    std::cout << "> Error sending message: " << ec.message() << std::endl;
+    std::stringstream out;
+    out << "> Error sending message: " << ec.message();
+    _logger(out.str());
     return;
   }
 
@@ -181,8 +198,9 @@ ClientWebSocketEndpoint::~ClientWebSocketEndpoint()
     ec);
   if (ec)
   {
-    std::cout << "> Error closing connection : "
-              << ec.message() << std::endl;
+    std::stringstream err;
+    err << "> Error closing connection : " << ec.message();
+    _logger(err.str());
   }
 
   _thread->join();

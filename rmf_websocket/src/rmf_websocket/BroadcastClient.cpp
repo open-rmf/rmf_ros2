@@ -16,6 +16,7 @@
 */
 
 #include <atomic>
+#include <functional>
 #include <optional>
 #include <rmf_websocket/BroadcastClient.hpp>
 #include <thread>
@@ -36,16 +37,27 @@ public:
     const std::string& uri,
     const std::shared_ptr<rclcpp::Node>& node,
     ProvideJsonUpdates get_json_updates_cb)
-  : _uri{std::move(uri)},
+  : _endpoint(_uri,
+      std::bind(&BroadcastClient::Implementation::log, this,
+      std::placeholders::_1)),
+    _uri{std::move(uri)},
     _node{std::move(node)},
     _get_json_updates_cb{std::move(get_json_updates_cb)},
-    _endpoint(_uri),
     _queue(1000)
   {
     _consumer_thread = std::thread([this]()
         {
           this->_processing_thread();
         });
+  }
+
+  void log(const std::string& str)
+  {
+    RCLCPP_ERROR(
+      this->_node->get_logger(),
+      "%s",
+      str.c_str()
+    );
   }
 
   //============================================================================
@@ -108,10 +120,21 @@ private:
     ConnectionMetadata::ptr metadata = _endpoint.get_metadata();
     if (metadata->get_status() != "Open")
     {
-      std::cout << "Connection had issue" <<std::endl;
-      std::cout << "Status was " << metadata->get_status() <<std::endl;
+      RCLCPP_ERROR(
+        _node->get_logger(),
+        "Connection was lost.\n %s",
+        metadata->debug_data().c_str());
+
+      RCLCPP_INFO(
+        _node->get_logger(),
+        "Attempting reconnection");
+
       _endpoint.connect();
       _endpoint.wait_for_ready();
+
+      RCLCPP_INFO(
+        _node->get_logger(),
+        "Connection Ready");
 
       /// Resend every time we reconnect. Useful for long term messages
       if (_get_json_updates_cb)
