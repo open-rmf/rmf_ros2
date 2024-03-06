@@ -12,31 +12,34 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>rclcpp</depend>
+
+  <depend>backward_ros</depend>
+  <depend>nlohmann_json_schema_validator_vendor</depend>
+  <depend>nlohmann-json-dev</depend>
   <depend>rclcpp_components</depend>
-  <depend>rmf_utils</depend>
-  <depend>rmf_door_msgs</depend>
-  <depend>rmf_ingestor_msgs</depend>
-  <depend>rmf_dispenser_msgs</depend>
-  <depend>rmf_fleet_msgs</depend>
-  <depend>rmf_lift_msgs</depend>
-  <depend>rmf_task_msgs</depend>
-  <depend>rmf_traffic</depend>
-  <depend>rmf_traffic_ros2</depend>
-  <depend>rmf_task_ros2</depend>
-  <depend>rmf_battery</depend>
-  <depend>rmf_task</depend>
-  <depend>rmf_task_sequence</depend>
-  <depend>std_msgs</depend>
+  <depend>rclcpp</depend>
   <depend>rmf_api_msgs</depend>
+  <depend>rmf_battery</depend>
   <depend>rmf_building_map_msgs</depend>
   <depend>rmf_chope_msgs</depend>
-  <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies</depend>
-  <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies_msgs</depend>
-
+  <depend>rmf_dispenser_msgs</depend>
+  <depend>rmf_door_msgs</depend>
+  <depend>rmf_fleet_msgs</depend>
+  <depend>rmf_ingestor_msgs</depend>
+  <depend>rmf_lift_msgs</depend>
+  <depend>rmf_task_msgs</depend>
+  <depend>rmf_task_ros2</depend>
+  <depend>rmf_task_sequence</depend>
+  <depend>rmf_task</depend>
+  <depend>rmf_traffic_ros2</depend>
+  <depend>rmf_traffic</depend>
+  <depend>rmf_utils</depend>
   <depend>rmf_websocket</depend>
-  <depend>nlohmann-json-dev</depend>
-  <depend>nlohmann_json_schema_validator_vendor</depend>
+  <depend>std_msgs</depend>
+
+  <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies_msgs</depend>
+  <depend condition="$RMF_ENABLE_FAILOVER == 1">stubborn_buddies</depend>
+
 
   <build_depend>eigen</build_depend>
   <build_depend>yaml-cpp</build_depend>
