@@ -11,18 +11,18 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>rmf_utils</depend>
-  <depend>rmf_traffic</depend>
-  <depend>rmf_traffic_msgs</depend>
-  <depend>rmf_fleet_msgs</depend>
-  <depend>rmf_site_map_msgs</depend>
-  <depend>rmf_building_map_msgs</depend>
-  <depend>rclcpp</depend>
-  <depend>yaml-cpp</depend>
+  <depend>backward_ros</depend>
   <depend>nlohmann-json-dev</depend>
   <depend>proj</depend>
+  <depend>rclcpp</depend>
+  <depend>rmf_building_map_msgs</depend>
+  <depend>rmf_fleet_msgs</depend>
+  <depend>rmf_site_map_msgs</depend>
+  <depend>rmf_traffic_msgs</depend>
+  <depend>rmf_traffic</depend>
+  <depend>rmf_utils</depend>
+  <depend>yaml-cpp</depend>
   <depend>zlib</depend>
-  <depend>backward_ros</depend>
 
   <build_depend>uuid</build_depend>
   <exec_depend>uuid</exec_depend>
