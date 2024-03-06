@@ -62,12 +62,12 @@ public:
     Active(
       agv::RobotContextPtr context,
       rmf_battery::agv::BatterySystem battery_system,
-      double charge_to_soc,
+      std::optional<double> charge_to_soc,
       rmf_traffic::Time start_time);
 
     agv::RobotContextPtr _context;
     rmf_battery::agv::BatterySystem _battery_system;
-    double _charge_to_soc;
+    std::optional<double> _charge_to_soc;
     std::string _description;
     rxcpp::observable<StatusMsg> _status_obs;
     rxcpp::subjects::subject<StatusMsg> _status_publisher;
@@ -96,12 +96,12 @@ public:
     Pending(
       agv::RobotContextPtr context,
       rmf_battery::agv::BatterySystem battery_system,
-      double charge_to_soc,
+      std::optional<double> charge_to_soc,
       double time_estimate);
 
     agv::RobotContextPtr _context;
     rmf_battery::agv::BatterySystem _battery_system;
-    double _charge_to_soc;
+    std::optional<double> _charge_to_soc;
     std::string _description;
     double _time_estimate;
   };
@@ -109,7 +109,7 @@ public:
   static std::unique_ptr<Pending> make(
     agv::RobotContextPtr context,
     rmf_battery::agv::BatterySystem battery_system,
-    double charge_to_soc);
+    std::optional<double> charge_to_soc);
 
 };
 

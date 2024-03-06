@@ -35,6 +35,8 @@
 #include <std_msgs/msg/bool.hpp>
 
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
+#include <rmf_fleet_msgs/msg/mutex_group_request.hpp>
+#include <rmf_fleet_msgs/msg/mutex_group_states.hpp>
 
 #include <rmf_task_msgs/msg/api_request.hpp>
 #include <rmf_task_msgs/msg/api_response.hpp>
@@ -122,6 +124,17 @@ public:
   using ApiResponsePub = rclcpp::Publisher<ApiResponse>::SharedPtr;
   const ApiResponsePub& task_api_response() const;
 
+  using MutexGroupRequest = rmf_fleet_msgs::msg::MutexGroupRequest;
+  using MutexGroupRequestPub = rclcpp::Publisher<MutexGroupRequest>::SharedPtr;
+  const MutexGroupRequestPub& mutex_group_request() const;
+
+  using MutexGroupRequestObs = rxcpp::observable<MutexGroupRequest::SharedPtr>;
+  const MutexGroupRequestObs& mutex_group_request_obs() const;
+
+  using MutexGroupStates = rmf_fleet_msgs::msg::MutexGroupStates;
+  using MutexGroupStatesObs = rxcpp::observable<MutexGroupStates::SharedPtr>;
+  const MutexGroupStatesObs& mutex_group_states() const;
+
   template<typename DurationRepT, typename DurationT, typename CallbackT>
   rclcpp::TimerBase::SharedPtr try_create_wall_timer(
     std::chrono::duration<DurationRepT, DurationT> period,
@@ -179,6 +192,9 @@ private:
   FleetStatePub _fleet_state_pub;
   Bridge<ApiRequest> _task_api_request_obs;
   ApiResponsePub _task_api_response_pub;
+  MutexGroupRequestPub _mutex_group_request_pub;
+  Bridge<MutexGroupRequest> _mutex_group_request_obs;
+  Bridge<MutexGroupStates> _mutex_group_states_obs;
 };
 
 } // namespace agv

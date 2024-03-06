@@ -25,6 +25,17 @@ using OrientationConstraint = Graph::OrientationConstraint;
 void bind_graph(py::module& m)
 {
   auto m_graph = m.def_submodule("graph");
+  py::class_<Graph::LiftProperties,
+    std::shared_ptr<Graph::LiftProperties>>(m_graph, "LiftProperties")
+  .def_property_readonly("name",
+    &Graph::LiftProperties::name)
+  .def_property_readonly("location",
+    &Graph::LiftProperties::location)
+  .def_property_readonly("orientation",
+    &Graph::LiftProperties::orientation)
+  .def_property_readonly("dimensions",
+    &Graph::LiftProperties::dimensions)
+  .def("is_in_lift", &Graph::LiftProperties::is_in_lift);
 
   // WAYPOINT ==================================================================
   py::class_<Graph::Waypoint>(m_graph, "Waypoint")
@@ -59,7 +70,8 @@ void bind_graph(py::module& m)
     &Graph::Waypoint::set_charger)
   .def("set_charger", &Graph::Waypoint::set_charger)
   .def_property_readonly("index", &Graph::Waypoint::index)
-  .def_property_readonly("waypoint_name", &Graph::Waypoint::name);
+  .def_property_readonly("waypoint_name", &Graph::Waypoint::name)
+  .def_property_readonly("in_lift", &Graph::Waypoint::in_lift);
 
   // ORIENTATION_CONSTRAINT ====================================================
   py::class_<OrientationConstraint,
@@ -103,7 +115,7 @@ void bind_graph(py::module& m)
   bind_lane(m_graph);
 
   // GRAPH =====================================================================
-  py::class_<Graph>(m_graph, "Graph")
+  py::class_<Graph, std::shared_ptr<Graph>>(m_graph, "Graph")
   .def(py::init<>())
 
   // Waypoints

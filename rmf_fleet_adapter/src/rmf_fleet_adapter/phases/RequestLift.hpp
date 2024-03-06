@@ -34,6 +34,17 @@ struct RequestLift
     Outside
   };
 
+  struct Data
+  {
+    rmf_traffic::Time expected_finish;
+    Located located;
+    PlanIdPtr plan_id;
+    std::optional<agv::Destination> localize_after = std::nullopt;
+    std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary =
+      nullptr;
+    std::optional<rmf_traffic::agv::Plan::Waypoint> hold_point = std::nullopt;
+  };
+
   class ActivePhase : public LegacyTask::ActivePhase,
     public std::enable_shared_from_this<ActivePhase>
   {
@@ -43,8 +54,7 @@ struct RequestLift
       agv::RobotContextPtr context,
       std::string lift_name,
       std::string destination,
-      rmf_traffic::Time expected_finish,
-      Located located);
+      Data data);
 
     const rxcpp::observable<LegacyTask::StatusMsg>& observe() const override;
 
@@ -61,15 +71,16 @@ struct RequestLift
     agv::RobotContextPtr _context;
     std::string _lift_name;
     std::string _destination;
-    rmf_traffic::Time _expected_finish;
+    Data _data;
     rxcpp::subjects::behavior<bool> _cancelled =
       rxcpp::subjects::behavior<bool>(false);
     std::string _description;
     rxcpp::observable<LegacyTask::StatusMsg> _obs;
     rclcpp::TimerBase::SharedPtr _timer;
     std::shared_ptr<EndLiftSession::Active> _lift_end_phase;
-    Located _located;
     rmf_rxcpp::subscription_guard _reset_session_subscription;
+    std::shared_ptr<void> _destination_handle;
+    bool _finished = false;
 
     struct WatchdogInfo
     {
@@ -85,8 +96,7 @@ struct RequestLift
       agv::RobotContextPtr context,
       std::string lift_name,
       std::string destination,
-      rmf_traffic::Time expected_finish,
-      Located located);
+      Data data);
 
     void _init_obs();
 
@@ -94,6 +104,7 @@ struct RequestLift
       const rmf_lift_msgs::msg::LiftState::SharedPtr& lift_state);
 
     void _do_publish();
+    bool _finish();
   };
 
   class PendingPhase : public LegacyTask::PendingPhase
@@ -104,8 +115,7 @@ struct RequestLift
       agv::RobotContextPtr context,
       std::string lift_name,
       std::string destination,
-      rmf_traffic::Time expected_finish,
-      Located located);
+      Data data);
 
     std::shared_ptr<LegacyTask::ActivePhase> begin() override;
 
@@ -123,8 +133,8 @@ struct RequestLift
     std::string _lift_name;
     std::string _destination;
     rmf_traffic::Time _expected_finish;
-    Located _located;
     std::string _description;
+    Data _data;
   };
 };
 

@@ -99,7 +99,7 @@ Eigen::Vector3d Transformation::apply(
 Eigen::Vector3d Transformation::apply_inverse(
   const Eigen::Vector3d& position) const
 {
-  Eigen::Vector2d p = _pimpl->transform * position.block<2, 1>(0, 0);
+  Eigen::Vector2d p = _pimpl->transform_inv * position.block<2, 1>(0, 0);
   double angle = rmf_utils::wrap_to_pi(position[2] - _pimpl->rotation);
   return Eigen::Vector3d(p[0], p[1], angle);
 }

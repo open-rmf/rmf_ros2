@@ -73,6 +73,10 @@ TaskManagerPtr TaskManager::make(
   std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
   std::weak_ptr<agv::FleetUpdateHandle> fleet_handle)
 {
+  std::shared_ptr<agv::FleetUpdateHandle> fleet = fleet_handle.lock();
+  if (!fleet)
+    return nullptr;
+
   auto mgr = TaskManagerPtr(
     new TaskManager(
       std::move(context),
@@ -96,6 +100,7 @@ TaskManagerPtr TaskManager::make(
           auto task_id = "emergency_pullover." + self->_context->name() + "."
           + self->_context->group() + "-"
           + std::to_string(self->_count_emergency_pullover++);
+          self->_context->current_task_id(task_id);
 
           // TODO(MXG): Consider subscribing to the emergency pullover update
           self->_emergency_pullover = ActiveTask::start(
@@ -115,18 +120,19 @@ TaskManagerPtr TaskManager::make(
         });
     };
 
-  mgr->_emergency_sub = mgr->_context->node()->emergency_notice()
+  mgr->_emergency_sub = agv::FleetUpdateHandle::Implementation::get(*fleet)
+    .emergency_obs
     .observe_on(rxcpp::identity_same_worker(mgr->_context->worker()))
     .subscribe(
-    [w = mgr->weak_from_this(), begin_pullover](const auto& msg)
+    [w = mgr->weak_from_this(), begin_pullover](const bool is_emergency)
     {
       if (auto mgr = w.lock())
       {
-        if (mgr->_emergency_active == msg->data)
+        if (mgr->_emergency_active == is_emergency)
           return;
 
-        mgr->_emergency_active = msg->data;
-        if (msg->data)
+        mgr->_emergency_active = is_emergency;
+        if (is_emergency)
         {
           if (mgr->_waiting)
           {
@@ -906,6 +912,20 @@ void TaskManager::enable_responsive_wait(bool value)
 }
 
 //==============================================================================
+void TaskManager::set_idle_task(rmf_task::ConstRequestFactoryPtr task)
+{
+  if (_idle_task == task)
+    return;
+
+  _idle_task = std::move(task);
+  std::lock_guard<std::mutex> guard(_mutex);
+  if (!_active_task && _queue.empty() && _direct_queue.empty())
+  {
+    _begin_waiting();
+  }
+}
+
+//==============================================================================
 void TaskManager::set_queue(
   const std::vector<TaskManager::Assignment>& assignments)
 {
@@ -1268,7 +1288,7 @@ void TaskManager::_begin_next_task()
 
   if (_queue.empty() && _direct_queue.empty())
   {
-    if (!_waiting)
+    if (!_waiting && !_finished_waiting)
       _begin_waiting();
 
     return;
@@ -1309,6 +1329,7 @@ void TaskManager::_begin_next_task()
       id.c_str(),
       _context->requester_id().c_str());
 
+    _finished_waiting = false;
     _context->current_task_end_state(assignment.finish_state());
     _context->current_task_id(id);
     _active_task = ActiveTask::start(
@@ -1360,7 +1381,7 @@ void TaskManager::_begin_next_task()
   }
   else
   {
-    if (!_waiting)
+    if (!_waiting && !_finished_waiting)
       _begin_waiting();
   }
 
@@ -1457,6 +1478,23 @@ std::function<void()> TaskManager::_robot_interruption_callback()
 //==============================================================================
 void TaskManager::_begin_waiting()
 {
+  if (_idle_task)
+  {
+    const auto request = _idle_task->make_request(_context->make_get_state()());
+    _waiting = ActiveTask::start(
+      _context->task_activator()->activate(
+        _context->make_get_state(),
+        _context->task_parameters(),
+        *request,
+        _update_cb(),
+        _checkpoint_cb(),
+        _phase_finished_cb(),
+        _make_resume_from_waiting()),
+      _context->now());
+    _context->current_task_id(request->booking()->id());
+    return;
+  }
+
   if (!_responsive_wait_enabled)
     return;
 
@@ -1500,6 +1538,7 @@ void TaskManager::_begin_waiting()
       _update_cb(),
       _make_resume_from_waiting()),
     _context->now());
+  _context->current_task_id(task_id);
 }
 
 //==============================================================================
@@ -1564,6 +1603,7 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
           if (!self)
             return;
 
+          self->_finished_waiting = true;
           self->_waiting = ActiveTask();
           self->_begin_next_task();
         });
@@ -2151,6 +2191,7 @@ std::function<void()> TaskManager::_task_finished(std::string id)
       // Publish the final state of the task before destructing it
       self->_publish_task_state();
       self->_active_task = ActiveTask();
+      self->_context->current_task_id(std::nullopt);
 
       self->_context->worker().schedule(
         [w = self->weak_from_this()](const auto&)

@@ -117,7 +117,7 @@ public:
 
     schedule_startup_sub = node->create_subscription<ScheduleIdentity>(
       rmf_traffic_ros2::ScheduleStartupTopicName,
-      rclcpp::SystemDefaultsQoS(),
+      rclcpp::SystemDefaultsQoS().keep_last(10),
       [&](const ScheduleIdentity::SharedPtr msg)
       {
         handle_startup_event(*msg);

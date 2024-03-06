@@ -2,6 +2,16 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.5.0 (2023-12-22)
+------------------
+* Fix edge case when starting on a lane (`#312 <https://github.com/open-rmf/rmf_ros2/pull/312>`_)
+* Update `GoToPlace` to allow finding nearest spot (`#308 <https://github.com/open-rmf/rmf_ros2/pull/308>`_)
+* Contributors: Arjo Chakravarty, Grey
+
+2.4.0 (2023-12-15)
+------------------
+* Mutex Groups, localization hook, dynamic charging, and new graph elements (`#310 <https://github.com/open-rmf/rmf_ros2/pull/310>`_)
+
 2.3.2 (2023-08-28)
 ------------------
 * Improve linking time (`#297 <https://github.com/open-rmf/rmf_ros2/pull/297>`_)
