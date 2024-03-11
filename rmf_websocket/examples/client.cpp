@@ -1,5 +1,4 @@
 #include <rmf_websocket/BroadcastClient.hpp>
-#include <thread>
 #include <rclcpp/rclcpp.hpp>
 
 using namespace rmf_websocket;
