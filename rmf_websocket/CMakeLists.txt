@@ -60,8 +60,6 @@ target_link_libraries(example_client
   rmf_websocket
     ${websocketpp_LIBRARIES}
   PRIVATE
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
     Threads::Threads
 )
 
