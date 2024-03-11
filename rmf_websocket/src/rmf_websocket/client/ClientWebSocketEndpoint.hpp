@@ -101,7 +101,7 @@ public:
   ConnectionMetadata::ptr get_metadata() const;
 
   /// Send a message.
-  void send(std::string message);
+  void send(const std::string& message);
 
   /// Destructor
   ~ClientWebSocketEndpoint();

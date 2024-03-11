@@ -183,7 +183,7 @@ ConnectionMetadata::ptr ClientWebSocketEndpoint::get_metadata() const
 }
 
 //=============================================================================
-void ClientWebSocketEndpoint::send(std::string message)
+void ClientWebSocketEndpoint::send(const std::string& message)
 {
   websocketpp::lib::error_code ec;
 
