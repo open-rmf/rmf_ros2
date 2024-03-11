@@ -1,5 +1,5 @@
-#ifndef RMF_WEBSOCKET__CLIENT_CLIENTWEBSOCKET_HPP
-#define RMF_WEBSOCKET__CLIENT_CLIENTWEBSOCKET_HPP
+#ifndef RMF_WEBSOCKET__CLIENT_CLIENTWEBSOCKETENDPOINT_HPP
+#define RMF_WEBSOCKET__CLIENT_CLIENTWEBSOCKETENDPOINT_HPP
 
 #include <condition_variable>
 #include <mutex>
@@ -19,8 +19,11 @@
 
 namespace rmf_websocket {
 
+
+/// Client
 typedef websocketpp::client<websocketpp::config::asio_client> WsClient;
 
+/// Logger
 typedef std::function<void(const std::string&)> Logger;
 
 /// Helper class with event handlers for managing connection state.
@@ -60,6 +63,7 @@ public:
     ConnectionMetadata const& data);
 private:
   websocketpp::connection_hdl _hdl;
+  WsClient::connection_ptr _con;
   std::string _status;
   std::string _uri;
   std::string _server;
