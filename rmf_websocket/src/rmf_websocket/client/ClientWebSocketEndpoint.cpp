@@ -11,7 +11,7 @@ using namespace rmf_websocket;
 ConnectionMetadata::ConnectionMetadata(
   websocketpp::connection_hdl hdl, std::string uri)
 : _hdl(hdl)
-  , _status("Connecting")
+  , _status(ConnectionStatus::CONNECTING)
   , _uri(uri)
   , _server("N/A")
 {
@@ -22,7 +22,7 @@ void ConnectionMetadata::on_open(WsClient* c, websocketpp::connection_hdl hdl)
 {
   {
     std::lock_guard<std::mutex> lock(_status_mtx);
-    _status = "Open";
+    _status = ConnectionStatus::OPEN;
     WsClient::connection_ptr con = c->get_con_from_hdl(hdl);
     _server = con->get_response_header("Server");
   }
@@ -34,7 +34,7 @@ void ConnectionMetadata::on_fail(WsClient* c, websocketpp::connection_hdl hdl)
 {
   {
     std::lock_guard<std::mutex> lock(_status_mtx);
-    _status = "Failed";
+    _status = ConnectionStatus::FAILED;
 
     WsClient::connection_ptr con = c->get_con_from_hdl(hdl);
     _server = con->get_response_header("Server");
@@ -47,22 +47,42 @@ void ConnectionMetadata::on_fail(WsClient* c, websocketpp::connection_hdl hdl)
 void ConnectionMetadata::on_close(WsClient* c, websocketpp::connection_hdl hdl)
 {
   std::lock_guard<std::mutex> lock(_status_mtx);
-  _status = "Closed";
+  _status = ConnectionStatus::CLOSED;
   WsClient::connection_ptr con = c->get_con_from_hdl(hdl);
   std::stringstream s;
   s << "close code: " << con->get_remote_close_code() << " ("
     << websocketpp::close::status::get_string(con->get_remote_close_code())
     << "), close reason: " << con->get_remote_close_reason();
   _error_reason = s.str();
+  _cv.notify_all();
 }
 
 //=============================================================================
 std::string ConnectionMetadata::debug_data()
 {
-  std::lock_guard<std::mutex> lock(_status_mtx);
   std::stringstream out;
+  std::string status_string;
+  {
+    std::lock_guard<std::mutex> lock(_status_mtx);
+    switch (_status) 
+    {
+      case ConnectionStatus::CONNECTING:
+        status_string = "Connecting";
+        break;
+      case ConnectionStatus::OPEN:
+        status_string = "Open";
+        break;
+      case ConnectionStatus::CLOSED:
+        status_string = "Closed";
+        break;
+      case ConnectionStatus::FAILED:
+        status_string = "Closed";
+        break;
+    }
+  }
+
   out << "> URI: " << _uri << "\n"
-      << "> Status: " << _status << "\n"
+      << "> Status: " << status_string << "\n"
       << "> Remote Server: "
       << (_server.empty() ? "None Specified" : _server) << "\n"
       << "> Error/close reason: "
@@ -72,7 +92,7 @@ std::string ConnectionMetadata::debug_data()
 }
 
 //=============================================================================
-std::string ConnectionMetadata::get_status()
+ConnectionMetadata::ConnectionStatus ConnectionMetadata::get_status()
 {
   std::lock_guard<std::mutex> lock(_status_mtx);
   return _status;
@@ -90,9 +110,9 @@ bool ConnectionMetadata::wait_for_ready(const long dur)
   std::unique_lock<std::mutex> lk(_status_mtx);
   if (_cv.wait_for(lk, dur * 1ms, [&]
     {
-      return _status != "Connecting";
+      return _status != ConnectionStatus::CONNECTING;
     }))
-    return _status == "Open";
+    return _status == ConnectionStatus::OPEN;
 
   return false;
 }
@@ -186,7 +206,8 @@ ClientWebSocketEndpoint::~ClientWebSocketEndpoint()
   _endpoint.stop_perpetual();
 
 
-  if (_current_connection->get_status() != "Open")
+  if (_current_connection->get_status() !=
+    ConnectionMetadata::ConnectionStatus::OPEN)
   {
     // Only close open connections
     return;
@@ -207,15 +228,11 @@ ClientWebSocketEndpoint::~ClientWebSocketEndpoint()
   _thread->join();
 
   /// Wait for consumer thread to finish
-  std::lock_guard<std::mutex> lock(_mtx);
 }
 
 //=============================================================================
 void ClientWebSocketEndpoint::wait_for_ready()
 {
-  // Makes sure only one thread does this.
-  std::lock_guard<std::mutex> lock(_mtx);
-
   while (!_current_connection->wait_for_ready(1000))
   {
     //std::cout << "Could not connect... Trying again later" <<std::endl;

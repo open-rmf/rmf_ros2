@@ -118,7 +118,7 @@ private:
   void _check_conn_status_and_send(const std::optional<nlohmann::json>& item)
   {
     ConnectionMetadata::ptr metadata = _endpoint.get_metadata();
-    if (metadata->get_status() != "Open")
+    if (metadata->get_status() != ConnectionMetadata::ConnectionStatus::OPEN)
     {
       RCLCPP_ERROR(
         _node->get_logger(),

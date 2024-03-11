@@ -19,7 +19,6 @@
 
 namespace rmf_websocket {
 
-
 /// Client
 typedef websocketpp::client<websocketpp::config::asio_client> WsClient;
 
@@ -30,6 +29,15 @@ typedef std::function<void(const std::string&)> Logger;
 class ConnectionMetadata
 {
 public:
+  /// Connection Status
+  enum class ConnectionStatus
+  {
+    CONNECTING,
+    OPEN,
+    FAILED,
+    CLOSED
+  };
+
   typedef websocketpp::lib::shared_ptr<ConnectionMetadata> ptr;
 
   /// Constuctor
@@ -45,7 +53,7 @@ public:
   void on_close(WsClient* c, websocketpp::connection_hdl hdl);
 
   /// Get status
-  std::string get_status();
+  ConnectionStatus get_status();
 
   /// Get debug string
   std::string debug_data();
@@ -64,7 +72,7 @@ public:
 private:
   websocketpp::connection_hdl _hdl;
   WsClient::connection_ptr _con;
-  std::string _status;
+  ConnectionStatus _status;
   std::string _uri;
   std::string _server;
   std::string _error_reason;
