@@ -59,6 +59,7 @@ void ConnectionMetadata::on_close(WsClient* c, websocketpp::connection_hdl hdl)
 //=============================================================================
 std::string ConnectionMetadata::debug_data()
 {
+  std::lock_guard<std::mutex> lock(_status_mtx);
   std::stringstream out;
   out << "> URI: " << _uri << "\n"
       << "> Status: " << _status << "\n"
