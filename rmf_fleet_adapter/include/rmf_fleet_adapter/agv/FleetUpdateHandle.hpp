@@ -299,6 +299,11 @@ public:
   ///   A factory for a request that should be performed by each robot in this
   ///   fleet at the end of its assignments.
   ///
+  /// \param[in] retreat_to_charger
+  ///   Specify whether to allow automatic retreat to charger if the robot's
+  ///   battery is estimated to fall below its recharge_threshold before it is
+  ///   able to complete its current task.
+  ///
   /// \return true if task planner parameters were successfully updated.
   bool set_task_planner_params(
     rmf_battery::agv::ConstBatterySystemPtr battery_system,
@@ -308,7 +313,8 @@ public:
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr);
+    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
+    bool retreat_to_charger = true);
 
   /// A callback function that evaluates whether a fleet will accept a task
   /// request

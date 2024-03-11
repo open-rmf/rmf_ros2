@@ -1628,6 +1628,8 @@ void TaskManager::retreat_to_charger()
 
   if (!task_planner->configuration().constraints().drain_battery())
     return;
+  if (!task_planner->configuration().constraints().retreat_to_charger())
+    return;
 
   const auto current_state = expected_finish_state();
   const auto charging_waypoint =

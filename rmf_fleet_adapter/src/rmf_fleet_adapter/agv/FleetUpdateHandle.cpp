@@ -2316,7 +2316,8 @@ bool FleetUpdateHandle::set_task_planner_params(
   double recharge_threshold,
   double recharge_soc,
   bool account_for_battery_drain,
-  rmf_task::ConstRequestFactoryPtr idle_task)
+  rmf_task::ConstRequestFactoryPtr idle_task,
+  bool retreat_to_charger)
 {
   if (battery_system &&
     motion_sink &&
@@ -2334,7 +2335,8 @@ bool FleetUpdateHandle::set_task_planner_params(
     const rmf_task::Constraints constraints{
       recharge_threshold,
       recharge_soc,
-      account_for_battery_drain};
+      account_for_battery_drain,
+      retreat_to_charger};
     const rmf_task::TaskPlanner::Configuration task_config{
       parameters,
       constraints,

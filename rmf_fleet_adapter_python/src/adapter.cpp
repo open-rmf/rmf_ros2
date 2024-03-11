@@ -400,7 +400,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    const std::string& finishing_request_string = "nothing")
+    const std::string& finishing_request_string = "nothing",
+    bool retreat_to_charger = true)
     {
       std::function<rmf_traffic::Time()> time_now = nullptr;
       std::optional<std::string> planner_id = std::nullopt;
@@ -444,7 +445,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
         recharge_threshold,
         recharge_soc,
         account_for_battery_drain,
-        finishing_request);
+        finishing_request,
+        retreat_to_charger);
     },
     py::arg("battery_system"),
     py::arg("motion_sink"),
@@ -453,6 +455,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("recharge_threshold"),
     py::arg("recharge_soc"),
     py::arg("account_for_battery_drain"),
+    py::arg("retreat_to_charger"),
     py::arg("finishing_request_string") = "nothing")
   .def("accept_delivery_requests",
     &agv::FleetUpdateHandle::accept_delivery_requests,
@@ -877,6 +880,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
         double recharge_threshold,
         double recharge_soc,
         bool account_for_battery_drain,
+        bool retreat_to_charger,
         std::unordered_map<std::string, ModifiedConsiderRequest> task_consideration,
         std::unordered_map<std::string, ModifiedConsiderRequest> action_consideration,
         std::string& finishing_request_string,
@@ -917,6 +921,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
               recharge_threshold,
               recharge_soc,
               account_for_battery_drain,
+              retreat_to_charger,
               convert(task_consideration),
               convert(action_consideration),
               finishing_request,
@@ -942,6 +947,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("recharge_threshold"),
     py::arg("recharge_soc"),
     py::arg("account_for_battery_drain"),
+    py::arg("retreat_to_charger"),
     py::arg("task_categories"),
     py::arg("action_categories"),
     py::arg("finishing_request") = "nothing",
@@ -1015,6 +1021,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
     "account_for_battery_drain",
     &agv::EasyFullControl::FleetConfiguration::account_for_battery_drain,
     &agv::EasyFullControl::FleetConfiguration::set_account_for_battery_drain)
+  .def_property(
+    "retreat_to_charger",
+    &agv::EasyFullControl::FleetConfiguration::retreat_to_charger,
+    &agv::EasyFullControl::FleetConfiguration::set_retreat_to_charger)
   .def_property(
     "finishing_request",
     &agv::EasyFullControl::FleetConfiguration::finishing_request,
