@@ -51,6 +51,8 @@ public:
   rmf_task::ConstRequestPtr make_request(
     const rmf_task::State& state) const final;
 
+  const std::string& request_type() const final;
+
   class Implementation;
 private:
   rmf_utils::impl_ptr<Implementation> _pimpl;

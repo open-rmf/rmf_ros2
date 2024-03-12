@@ -1630,6 +1630,8 @@ void TaskManager::retreat_to_charger()
     return;
   if (!task_planner->configuration().constraints().retreat_to_charger())
     return;
+  if (_idle_task && _idle_task->request_type() == "Charge")
+    return;
 
   const auto current_state = expected_finish_state();
   const auto charging_waypoint =
