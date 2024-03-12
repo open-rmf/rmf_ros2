@@ -3,9 +3,7 @@
 
 #include <condition_variable>
 #include <cstddef>
-#include <iostream>
 #include <optional>
-#include <queue>
 #include <boost/circular_buffer.hpp>
 #include <mutex>
 
@@ -38,7 +36,7 @@ public: void push(T item)
   {
     {
       std::lock_guard<std::mutex> lock(_mtx);
-      _vec.push_back(item);
+      _vec.push_back(std::move(item));
     }
 
     _cv.notify_all();
