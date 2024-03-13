@@ -2,8 +2,8 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.6.0 (2024-03-13)
+------------------
 * Add Backward-ROS for improved logging in event of segfaults (`#327 <https://github.com/open-rmf/rmf_ros2/pull/327>`_)
 * Explicitly specify all qos depth (`#323 <https://github.com/open-rmf/rmf_ros2/pull/323>`_)
 * Adds an option to generate unique hex strings for new task ids, fix time stamp logic (`#319 <https://github.com/open-rmf/rmf_ros2/pull/319>`_)

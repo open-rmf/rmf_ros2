@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.6.0 (2024-03-13)
+------------------
 * Removes a line of dead code (`#322 <https://github.com/open-rmf/rmf_ros2/pull/322>`_)
 * include cstdint header (`#331 <https://github.com/open-rmf/rmf_ros2/pull/331>`_)
 * Add Backward-ROS for improved logging in event of segfaults (`#327 <https://github.com/open-rmf/rmf_ros2/pull/327>`_)
