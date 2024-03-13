@@ -2,6 +2,16 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Removes a line of dead code (`#322 <https://github.com/open-rmf/rmf_ros2/pull/322>`_)
+* include cstdint header (`#331 <https://github.com/open-rmf/rmf_ros2/pull/331>`_)
+* Add Backward-ROS for improved logging in event of segfaults (`#327 <https://github.com/open-rmf/rmf_ros2/pull/327>`_)
+* Explicitly specify all qos depth (`#323 <https://github.com/open-rmf/rmf_ros2/pull/323>`_)
+* Add support of fleet-level task (`#317 <https://github.com/open-rmf/rmf_ros2/pull/317>`_)
+* Fix minor logging error (`#318 <https://github.com/open-rmf/rmf_ros2/pull/318>`_)
+* Contributors: Arjo Chakravarty, Teo Koon Peng, Yadunund, cwrx777
+
 2.5.0 (2023-12-22)
 ------------------
 * Fix edge case when starting on a lane (`#312 <https://github.com/open-rmf/rmf_ros2/pull/312>`_)
