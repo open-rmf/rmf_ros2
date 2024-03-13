@@ -37,18 +37,25 @@ public:
     const std::string& uri,
     const std::shared_ptr<rclcpp::Node>& node,
     ProvideJsonUpdates get_json_updates_cb)
-  : _endpoint(_uri,
-      std::bind(&BroadcastClient::Implementation::log, this,
-      std::placeholders::_1)),
-    _uri{std::move(uri)},
+  : _uri{std::move(uri)},
     _node{std::move(node)},
     _get_json_updates_cb{std::move(get_json_updates_cb)},
-    _queue(1000)
+    _queue(1000),
+    _io_service{},
+    _endpoint(_uri,
+      std::bind(&BroadcastClient::Implementation::log, this,
+      std::placeholders::_1),
+      &_io_service)
   {
     _consumer_thread = std::thread([this]()
         {
-          this->_processing_thread();
+          _io_service.run();
         });
+
+    _io_service.dispatch([this]()
+      {
+        _endpoint.connect();
+      });
   }
 
   void log(const std::string& str)
@@ -65,6 +72,10 @@ public:
   {
     /// _queue is thread safe. No need to lock.
     _queue.push(msg);
+    _io_service.dispatch([this]()
+      {
+        _flush_queue_if_connected();
+      });
   }
 
   //============================================================================
@@ -72,9 +83,12 @@ public:
   {
     for (auto msg: msgs)
     {
-      /// _queue is thread safe. No need to lock.
       _queue.push(msg);
     }
+    _io_service.dispatch([this]()
+      {
+        _flush_queue_if_connected();
+      });
   }
 
   //============================================================================
@@ -95,70 +109,43 @@ public:
 
 private:
   //============================================================================
-  /// Background consumer thread
-  void _processing_thread()
+  void _flush_queue_if_connected()
   {
-    _endpoint.connect();
-    _check_conn_status_and_send(std::nullopt);
-    while (!_stop)
+    while (auto queue_item = _queue.pop_item())
     {
-
-      auto item = _queue.pop_item();
-      if (!item.has_value())
+      auto status = _endpoint.get_status();
+      if (!status.has_value())
       {
-        _queue.wait_for_message();
-        continue;
+        return;
       }
-      _check_conn_status_and_send(item);
-    }
-  }
-
-  //============================================================================
-  /// Checks the connection status before sending the message
-  void _check_conn_status_and_send(const std::optional<nlohmann::json>& item)
-  {
-    ConnectionMetadata::ptr metadata = _endpoint.get_metadata();
-    if (metadata->get_status() != ConnectionMetadata::ConnectionStatus::OPEN)
-    {
-      RCLCPP_ERROR(
-        _node->get_logger(),
-        "Connection was lost.\n %s",
-        metadata->debug_data().c_str());
-
-      RCLCPP_INFO(
-        _node->get_logger(),
-        "Attempting reconnection");
-
-      _endpoint.connect();
-      _endpoint.wait_for_ready();
-
-      RCLCPP_INFO(
-        _node->get_logger(),
-        "Connection Ready");
-
-      /// Resend every time we reconnect. Useful for long term messages
-      if (_get_json_updates_cb)
+      if (status != ConnectionMetadata::ConnectionStatus::OPEN &&
+        status != ConnectionMetadata::ConnectionStatus::CONNECTING)
       {
-        auto msgs = _get_json_updates_cb();
-        for (auto msg: msgs)
+        // Attempt reconnect
+        _endpoint.connect();
+        return;
+      }
+      // Send
+      auto ec = _endpoint.send(queue_item->dump());
+      if (ec)
+      {
+        if (status != ConnectionMetadata::ConnectionStatus::CONNECTING)
         {
-          _endpoint.send(msg.dump());
+          _endpoint.connect();
         }
+        return;
       }
     }
-    if (item.has_value())
-    {
-      _endpoint.send(item->dump());
-    }
   }
-
   // create pimpl
   std::string _uri;
+  boost::asio::io_service _io_service;
   std::shared_ptr<rclcpp::Node> _node;
   RingBuffer<nlohmann::json> _queue;
   ProvideJsonUpdates _get_json_updates_cb;
-  ClientWebSocketEndpoint _endpoint;
   std::atomic<bool> _stop;
+  ClientWebSocketEndpoint _endpoint;
+
   std::thread _consumer_thread;
 };
 

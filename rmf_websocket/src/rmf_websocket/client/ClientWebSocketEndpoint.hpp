@@ -3,6 +3,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <websocketpp/config/asio_no_tls_client.hpp>
 #include <websocketpp/client.hpp>
@@ -53,19 +54,16 @@ public:
   void on_close(WsClient* c, websocketpp::connection_hdl hdl);
 
   /// Get status
-  ConnectionStatus get_status();
+  ConnectionStatus get_status() const;
 
   /// Get debug string
-  std::string debug_data();
+  std::string debug_data() const;
 
   /// Get connection handle
   websocketpp::connection_hdl get_hdl() const;
 
-  /// Check if the connection is ready to be used.
-  /// \param[in] timeout - milliseconds to waitn
-  /// \return True if connection was successfully established.
-  /// False otherwise.
-  bool wait_for_ready(const long timeout);
+  /// reset
+  void reset();
 
   friend std::ostream& operator<<(std::ostream& out,
     ConnectionMetadata const& data);
@@ -76,9 +74,6 @@ private:
   std::string _uri;
   std::string _server;
   std::string _error_reason;
-  std::mutex _status_mtx;
-  std::condition_variable _cv;
-
 };
 
 
@@ -87,44 +82,40 @@ class ClientWebSocketEndpoint
 {
 public:
   /// Constructor
+  /// Pass io service so that multiple endpoints
+  /// can run on the same thread
   ClientWebSocketEndpoint(
     std::string const& uri,
-    Logger _my_logger);
+    Logger my_logger,
+    boost::asio::io_service* io_service);
 
   /// Initiates a connection returns 0 if everything goes ok.
   /// Note: This is non blocking and does not gaurantee a connection
   /// has been established.
-  int connect();
+  websocketpp::lib::error_code connect();
 
   /// Gets the current connection metadata. This includes the current
   /// link state.
-  ConnectionMetadata::ptr get_metadata() const;
+  std::optional<ConnectionMetadata::ConnectionStatus> get_status() const;
 
   /// Send a message.
-  void send(const std::string& message);
+  websocketpp::lib::error_code send(const std::string& message);
 
   /// Destructor
   ~ClientWebSocketEndpoint();
-
-  /// Waits till a connection is successfully established.
-  /// Note: only one thread can call this function.
-  void wait_for_ready();
 
   /// Interrupt any wait.
   void interrupt_waits();
 
 private:
   WsClient _endpoint;
-  websocketpp::lib::shared_ptr<websocketpp::lib::thread> _thread;
   std::atomic<bool> _stop;
 
   ConnectionMetadata::ptr _current_connection;
   std::string _uri;
-
-  /// prevents the destructor from running
-  std::mutex _mtx;
-
   Logger _logger;
+  WsClient::connection_ptr _con;
+  bool _init, _enqueued_conn;
 };
 }
 #endif
