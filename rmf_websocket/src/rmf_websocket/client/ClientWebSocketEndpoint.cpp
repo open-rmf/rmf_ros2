@@ -29,7 +29,6 @@ void ConnectionMetadata::on_open(WsClient* c, websocketpp::connection_hdl hdl)
   _status = ConnectionStatus::OPEN;
   WsClient::connection_ptr con = c->get_con_from_hdl(hdl);
   _server = con->get_response_header("Server");
-  std::cout << "Hooray!\n";
 }
 
 //=============================================================================
@@ -89,9 +88,6 @@ std::string ConnectionMetadata::debug_data() const
 }
 
 //=============================================================================
-
-
-//=============================================================================
 ConnectionMetadata::ConnectionStatus ConnectionMetadata::get_status() const
 {
   return _status;
@@ -119,9 +115,8 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
 {
   websocketpp::lib::error_code ec;
 
-
+  _init = true;
   _con = _endpoint.get_connection(_uri, ec);
-
 
   if (ec)
   {
@@ -159,7 +154,6 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
 
 
   _endpoint.connect(_con);
-
 
   return ec;
 }
@@ -219,10 +213,4 @@ ClientWebSocketEndpoint::~ClientWebSocketEndpoint()
     _logger(err.str());
   }
 
-}
-
-//=============================================================================
-void ClientWebSocketEndpoint::interrupt_waits()
-{
-  _stop = true;
 }

@@ -48,14 +48,14 @@ public:
       &_io_service)
   {
     _consumer_thread = std::thread([this]()
-        {
-          _io_service.run();
-        });
+    {
+      _io_service.run();
+    });
 
     _io_service.dispatch([this]()
-      {
-        _endpoint.connect();
-      });
+    {
+      _endpoint.connect();
+    });
   }
 
   void log(const std::string& str)
@@ -102,8 +102,7 @@ public:
   //============================================================================
   ~Implementation()
   {
-    _stop = true;
-    _endpoint.interrupt_waits();
+    //_io_service.stop();
     _consumer_thread.join();
   }
 
@@ -111,13 +110,14 @@ private:
   //============================================================================
   void _flush_queue_if_connected()
   {
-    while (auto queue_item = _queue.pop_item())
+    auto status = _endpoint.get_status();
+    if (auto queue_item = _queue.pop_item())
     {
-      auto status = _endpoint.get_status();
       if (!status.has_value())
       {
         return;
       }
+      
       if (status != ConnectionMetadata::ConnectionStatus::OPEN &&
         status != ConnectionMetadata::ConnectionStatus::CONNECTING)
       {
@@ -125,6 +125,7 @@ private:
         _endpoint.connect();
         return;
       }
+
       // Send
       auto ec = _endpoint.send(queue_item->dump());
       if (ec)
