@@ -12,11 +12,11 @@
 #include <websocketpp/common/memory.hpp>
 
 #include <cstdlib>
-#include <iostream>
+#include <functional>
 #include <map>
 #include <string>
 #include <sstream>
-
+#include <vector>
 
 namespace rmf_websocket {
 
@@ -30,6 +30,12 @@ typedef std::function<void(const std::string&)> Logger;
 class ConnectionMetadata
 {
 public:
+  /// Connection callback
+  typedef std::function<void()> ConnectionCallback;
+
+  /// Connection callback
+  typedef std::function<void()> ReconnectionCallback;
+
   /// Connection Status
   enum class ConnectionStatus
   {
@@ -42,7 +48,11 @@ public:
   typedef websocketpp::lib::shared_ptr<ConnectionMetadata> ptr;
 
   /// Constuctor
-  ConnectionMetadata(websocketpp::connection_hdl hdl, std::string uri);
+  ConnectionMetadata(
+    websocketpp::connection_hdl hdl,
+    std::string uri,
+    ConnectionCallback cb,
+    ReconnectionCallback rcb);
 
   /// On open event handler
   void on_open(WsClient* c, websocketpp::connection_hdl hdl);
@@ -74,6 +84,8 @@ private:
   std::string _uri;
   std::string _server;
   std::string _error_reason;
+  ConnectionCallback _connection_cb;
+  ReconnectionCallback _reconnection_cb;
 };
 
 
@@ -81,13 +93,15 @@ private:
 class ClientWebSocketEndpoint
 {
 public:
+  typedef std::function<void()> ConnectionCallback;
   /// Constructor
   /// Pass io service so that multiple endpoints
   /// can run on the same thread
   ClientWebSocketEndpoint(
     std::string const& uri,
     Logger my_logger,
-    boost::asio::io_service* io_service);
+    boost::asio::io_service* io_service,
+    ConnectionCallback cb);
 
   /// Initiates a connection returns 0 if everything goes ok.
   /// Note: This is non blocking and does not gaurantee a connection
@@ -116,6 +130,7 @@ private:
   Logger _logger;
   WsClient::connection_ptr _con;
   bool _init, _enqueued_conn;
+  ConnectionCallback _connection_cb;
 };
 }
 #endif

@@ -2,6 +2,7 @@
 #include <chrono>
 #include <mutex>
 #include <sstream>
+#include <thread>
 
 using namespace std::chrono_literals;
 using namespace rmf_websocket;
@@ -9,11 +10,14 @@ using namespace boost;
 
 //=============================================================================
 ConnectionMetadata::ConnectionMetadata(
-  websocketpp::connection_hdl hdl, std::string uri)
+  websocketpp::connection_hdl hdl, std::string uri, ConnectionCallback cb,
+  ReconnectionCallback rcb)
 : _hdl(hdl)
   , _status(ConnectionStatus::CONNECTING)
   , _uri(uri)
   , _server("N/A")
+  , _connection_cb(cb)
+  , _reconnection_cb(std::move(rcb))
 {
 }
 
@@ -29,6 +33,7 @@ void ConnectionMetadata::on_open(WsClient* c, websocketpp::connection_hdl hdl)
   _status = ConnectionStatus::OPEN;
   WsClient::connection_ptr con = c->get_con_from_hdl(hdl);
   _server = con->get_response_header("Server");
+  _connection_cb();
 }
 
 //=============================================================================
@@ -39,7 +44,7 @@ void ConnectionMetadata::on_fail(WsClient* c, websocketpp::connection_hdl hdl)
   WsClient::connection_ptr con = c->get_con_from_hdl(hdl);
   _server = con->get_response_header("Server");
   _error_reason = con->get_ec().message();
-
+  _reconnection_cb();
 }
 
 //=============================================================================
@@ -52,6 +57,7 @@ void ConnectionMetadata::on_close(WsClient* c, websocketpp::connection_hdl hdl)
     << websocketpp::close::status::get_string(con->get_remote_close_code())
     << "), close reason: " << con->get_remote_close_reason();
   _error_reason = s.str();
+  _reconnection_cb();
 }
 
 //=============================================================================
@@ -101,8 +107,10 @@ websocketpp::connection_hdl ConnectionMetadata::get_hdl() const
 
 //=============================================================================
 ClientWebSocketEndpoint::ClientWebSocketEndpoint(
-  std::string const& uri, Logger logger, asio::io_service* io_service)
-: _uri(uri), _stop(false), _logger(logger), _init{false}
+  std::string const& uri, Logger logger, asio::io_service* io_service,
+  ConnectionCallback cb)
+: _uri(uri), _stop(false), _logger(logger), _init{false},
+  _connection_cb(std::move(cb))
 {
   _endpoint.clear_access_channels(websocketpp::log::alevel::all);
   _endpoint.clear_error_channels(websocketpp::log::elevel::all);
@@ -126,11 +134,20 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
     return ec;
   }
 
+  auto reconnect_socket = [this]()
+  {
+    using namespace std::chrono_literals;
+    _logger("Attempting reconnection in 10s.");
+    std::this_thread::sleep_for(10s);
+    connect();
+  };
+
   // Not sure why but seems like I have to re-initallize this everytime in order
-  // to actually make a clean connection
+  // to actually make a clean connection. My guess is the shared pointer is being
+  // leaked somewhere.
   _current_connection = std::make_shared<ConnectionMetadata>(
     _con->get_handle(),
-    _uri);
+    _uri, _connection_cb, reconnect_socket);
 
   _con->set_open_handler(websocketpp::lib::bind(
       &ConnectionMetadata::on_open,

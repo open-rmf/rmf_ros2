@@ -45,7 +45,8 @@ public:
     _endpoint(_uri,
       std::bind(&BroadcastClient::Implementation::log, this,
       std::placeholders::_1),
-      &_io_service)
+      &_io_service,
+      std::bind(&BroadcastClient::Implementation::on_connect, this))
   {
     _consumer_thread = std::thread([this]()
     {
@@ -58,6 +59,50 @@ public:
     });
   }
 
+  //============================================================================
+  void on_connect()
+  {
+    RCLCPP_INFO(
+      this->_node->get_logger(),
+      "Connected to server");
+
+    auto messages = _get_json_updates_cb();
+
+    for (auto queue_item : messages)
+    {
+       auto status = _endpoint.get_status();
+      if (!status.has_value())
+      {
+        return;
+      }
+      
+      if (status != ConnectionMetadata::ConnectionStatus::OPEN &&
+        status != ConnectionMetadata::ConnectionStatus::CONNECTING)
+      {
+        // Attempt reconnect
+        log("Disconnected during init.");
+        return;
+      }
+
+      // Send
+      auto ec = _endpoint.send(queue_item.dump());
+      if (ec)
+      {
+        if (status != ConnectionMetadata::ConnectionStatus::CONNECTING)
+        {
+          log("Send failed. Attempting_reconnection.");
+        }
+        return;
+      }
+    }
+    RCLCPP_INFO(
+      this->_node->get_logger(),
+      "Sent all updates");
+
+    _flush_queue_if_connected();
+  }
+
+  //============================================================================
   void log(const std::string& str)
   {
     RCLCPP_ERROR(
@@ -102,7 +147,7 @@ public:
   //============================================================================
   ~Implementation()
   {
-    //_io_service.stop();
+    _io_service.stop();
     _consumer_thread.join();
   }
 
@@ -110,9 +155,10 @@ private:
   //============================================================================
   void _flush_queue_if_connected()
   {
-    auto status = _endpoint.get_status();
-    if (auto queue_item = _queue.pop_item())
+   
+    while (auto queue_item = _queue.pop_item())
     {
+      auto status = _endpoint.get_status();
       if (!status.has_value())
       {
         return;
@@ -122,7 +168,8 @@ private:
         status != ConnectionMetadata::ConnectionStatus::CONNECTING)
       {
         // Attempt reconnect
-        _endpoint.connect();
+        log("Disconected. Attempting reconnection.");
+        //_endpoint.connect();
         return;
       }
 
@@ -130,10 +177,6 @@ private:
       auto ec = _endpoint.send(queue_item->dump());
       if (ec)
       {
-        if (status != ConnectionMetadata::ConnectionStatus::CONNECTING)
-        {
-          _endpoint.connect();
-        }
         return;
       }
     }
