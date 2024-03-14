@@ -109,7 +109,7 @@ websocketpp::connection_hdl ConnectionMetadata::get_hdl() const
 ClientWebSocketEndpoint::ClientWebSocketEndpoint(
   std::string const& uri, Logger logger, asio::io_service* io_service,
   ConnectionCallback cb)
-: _uri(uri), _stop(false), _logger(logger), _init{false},
+: _uri(uri), _logger(logger), _init{false},
   _connection_cb(std::move(cb))
 {
   _endpoint.clear_access_channels(websocketpp::log::alevel::all);
@@ -135,12 +135,13 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
   }
 
   auto reconnect_socket = [this]()
-  {
-    using namespace std::chrono_literals;
-    _logger("Attempting reconnection in 10s.");
-    std::this_thread::sleep_for(10s);
-    connect();
-  };
+    {
+      // TODO(arjo) Parametrize the timeout.
+      using namespace std::chrono_literals;
+      _logger("Attempting reconnection in 1s.");
+      std::this_thread::sleep_for(1s);
+      connect();
+    };
 
   // Not sure why but seems like I have to re-initallize this everytime in order
   // to actually make a clean connection. My guess is the shared pointer is being
@@ -197,9 +198,6 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::send(
     ec);
   if (ec)
   {
-    std::stringstream out;
-    out << "> Error sending message: " << ec.message();
-    _logger(out.str());
     return ec;
   }
   return ec;

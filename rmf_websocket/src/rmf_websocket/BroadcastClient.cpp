@@ -49,15 +49,27 @@ public:
       std::bind(&BroadcastClient::Implementation::on_connect, this))
   {
     _consumer_thread = std::thread([this]()
-    {
-      _io_service.run();
-    });
+        {
+          _io_service.run();
+        });
 
     _io_service.dispatch([this]()
-    {
-      _endpoint.connect();
-    });
+      {
+        _endpoint.connect();
+      });
   }
+
+  //============================================================================
+  Implementation(Implementation&& other) = delete;
+
+  //============================================================================
+  Implementation& operator=(Implementation&& other) = delete;
+
+  //============================================================================
+  Implementation(const Implementation& other) = delete;
+
+  //============================================================================
+  Implementation operator=(const Implementation& other) = delete;
 
   //============================================================================
   void on_connect()
@@ -70,12 +82,12 @@ public:
 
     for (auto queue_item : messages)
     {
-       auto status = _endpoint.get_status();
+      auto status = _endpoint.get_status();
       if (!status.has_value())
       {
         return;
       }
-      
+
       if (status != ConnectionMetadata::ConnectionStatus::OPEN &&
         status != ConnectionMetadata::ConnectionStatus::CONNECTING)
       {
@@ -155,7 +167,7 @@ private:
   //============================================================================
   void _flush_queue_if_connected()
   {
-   
+
     while (auto queue_item = _queue.pop_item())
     {
       auto status = _endpoint.get_status();
@@ -163,7 +175,7 @@ private:
       {
         return;
       }
-      
+
       if (status != ConnectionMetadata::ConnectionStatus::OPEN &&
         status != ConnectionMetadata::ConnectionStatus::CONNECTING)
       {

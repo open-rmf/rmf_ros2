@@ -103,6 +103,22 @@ public:
     boost::asio::io_service* io_service,
     ConnectionCallback cb);
 
+  /// Delete move constructor
+  ClientWebSocketEndpoint(
+    ClientWebSocketEndpoint&& other) = delete;
+
+  /// Delete move assignment
+  ClientWebSocketEndpoint& operator=(
+    ClientWebSocketEndpoint&& other) = delete;
+
+  /// Delete copy constructor
+  ClientWebSocketEndpoint(
+    const ClientWebSocketEndpoint& other) = delete;
+
+  /// Delete copy
+  ClientWebSocketEndpoint operator=(
+    const ClientWebSocketEndpoint& other) = delete;
+
   /// Initiates a connection returns 0 if everything goes ok.
   /// Note: This is non blocking and does not gaurantee a connection
   /// has been established.
