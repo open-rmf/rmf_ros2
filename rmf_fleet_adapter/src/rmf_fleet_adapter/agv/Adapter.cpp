@@ -307,7 +307,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     config.recharge_soc(),
     config.account_for_battery_drain(),
     config.finishing_request(),
-    config.retreat_to_charger());
+    config.retreat_to_charger_interval());
 
   if (!planner_params_ok)
   {

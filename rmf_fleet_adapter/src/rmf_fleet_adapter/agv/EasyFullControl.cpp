@@ -1689,7 +1689,7 @@ public:
   double recharge_threshold;
   double recharge_soc;
   bool account_for_battery_drain;
-  bool retreat_to_charger;
+  std::optional<rmf_traffic::Duration> retreat_to_charger_interval;
   std::unordered_map<std::string, ConsiderRequest> task_consideration;
   std::unordered_map<std::string, ConsiderRequest> action_consideration;
   rmf_task::ConstRequestFactoryPtr finishing_request;
@@ -1720,7 +1720,7 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
   double recharge_threshold,
   double recharge_soc,
   bool account_for_battery_drain,
-  bool retreat_to_charger,
+  std::optional<rmf_traffic::Duration> retreat_to_charger_interval,
   std::unordered_map<std::string, ConsiderRequest> task_consideration,
   std::unordered_map<std::string, ConsiderRequest> action_consideration,
   rmf_task::ConstRequestFactoryPtr finishing_request,
@@ -1746,7 +1746,7 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         std::move(recharge_threshold),
         std::move(recharge_soc),
         std::move(account_for_battery_drain),
-        std::move(retreat_to_charger),
+        std::move(retreat_to_charger_interval),
         std::move(task_consideration),
         std::move(action_consideration),
         std::move(finishing_request),
@@ -1975,16 +1975,27 @@ EasyFullControl::FleetConfiguration::from_config_files(
     recharge_soc = rmf_fleet["recharge_soc"].as<double>();
   }
   // Retreat to charger
-  bool retreat_to_charger = true;
-  if (!rmf_fleet["retreat_to_charger"])
+  std::optional<rmf_traffic::Duration> retreat_to_charger_interval =
+    rmf_traffic::time::from_seconds(10);
+  if (!rmf_fleet["retreat_to_charger_interval"])
   {
-    std::cout << "[retreat_to_charger] value is not provided, "
+    // TODO(XY) check if 0 or None provide, set as nullopt
+    std::cout << "[retreat_to_charger_interval] value is not provided, "
               << "default to True" << std::endl;
   }
   else
   {
-    retreat_to_charger =
-      rmf_fleet["retreat_to_charger"].as<bool>();
+    const auto retreat_to_charger_interval_sec =
+      rmf_fleet["retreat_to_charger_interval"].as<double>();
+    if (!retreat_to_charger_interval_sec)
+    {
+      retreat_to_charger_interval = std::nullopt;
+    }
+    else
+    {
+      retreat_to_charger_interval =
+        rmf_traffic::time::from_seconds(retreat_to_charger_interval_sec);
+    }
   }
 
   // Task capabilities
@@ -2325,7 +2336,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
     recharge_threshold,
     recharge_soc,
     account_for_battery_drain,
-    retreat_to_charger,
+    retreat_to_charger_interval,
     task_consideration,
     action_consideration,
     finishing_request,
@@ -2536,16 +2547,19 @@ void EasyFullControl::FleetConfiguration::set_account_for_battery_drain(
 }
 
 //==============================================================================
-bool EasyFullControl::FleetConfiguration::retreat_to_charger() const
+std::optional<rmf_traffic::Duration> EasyFullControl::FleetConfiguration::retreat_to_charger_interval() const
 {
-  return _pimpl->retreat_to_charger;
+  return _pimpl->retreat_to_charger_interval;
 }
 
 //==============================================================================
-void EasyFullControl::FleetConfiguration::set_retreat_to_charger(
-  bool value)
+void EasyFullControl::FleetConfiguration::set_retreat_to_charger_interval(
+  std::optional<rmf_traffic::Duration> duration)
 {
-  _pimpl->retreat_to_charger = value;
+  if (duration.has_value())
+    _pimpl->retreat_to_charger_interval = duration;
+  else
+    _pimpl->retreat_to_charger_interval = std::nullopt;
 }
 
 //==============================================================================

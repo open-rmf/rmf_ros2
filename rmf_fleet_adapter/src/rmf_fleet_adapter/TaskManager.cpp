@@ -1628,10 +1628,22 @@ void TaskManager::retreat_to_charger()
 
   if (!task_planner->configuration().constraints().drain_battery())
     return;
-  if (!task_planner->configuration().constraints().retreat_to_charger())
+  if (!task_planner->configuration().constraints().retreat_to_charger_interval())
+  {
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      " -- -- -- Robot [%s] retreat to charger is disabled!",
+      _context->name().c_str());
     return;
+  }
   if (_idle_task && _idle_task->request_type() == "Charge")
+  {
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      " -- -- -- Robot [%s] request type is already CHARGE!",
+      _context->name().c_str());
     return;
+  }
 
   const auto current_state = expected_finish_state();
   const auto charging_waypoint =

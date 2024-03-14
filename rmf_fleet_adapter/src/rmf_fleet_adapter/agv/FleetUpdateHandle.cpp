@@ -2317,7 +2317,7 @@ bool FleetUpdateHandle::set_task_planner_params(
   double recharge_soc,
   bool account_for_battery_drain,
   rmf_task::ConstRequestFactoryPtr idle_task,
-  bool retreat_to_charger)
+  std::optional<rmf_traffic::Duration> retreat_to_charger_interval)
 {
   if (battery_system &&
     motion_sink &&
@@ -2336,7 +2336,7 @@ bool FleetUpdateHandle::set_task_planner_params(
       recharge_threshold,
       recharge_soc,
       account_for_battery_drain,
-      retreat_to_charger};
+      retreat_to_charger_interval};
     const rmf_task::TaskPlanner::Configuration task_config{
       parameters,
       constraints,
