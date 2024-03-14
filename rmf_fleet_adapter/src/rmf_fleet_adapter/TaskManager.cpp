@@ -93,30 +93,8 @@ TaskManagerPtr TaskManager::make(
         [w = self->weak_from_this()](const auto&)
         {
           const auto self = w.lock();
-
-          if (!self->_emergency_active)
-            return;
-
-          auto task_id = "emergency_pullover." + self->_context->name() + "."
-          + self->_context->group() + "-"
-          + std::to_string(self->_count_emergency_pullover++);
-          self->_context->current_task_id(task_id);
-
-          // TODO(MXG): Consider subscribing to the emergency pullover update
-          self->_emergency_pullover = ActiveTask::start(
-            events::EmergencyPullover::start(
-              task_id,
-              self->_context,
-              self->_update_cb(),
-              self->_make_resume_from_emergency()),
-            self->_context->now());
-
-          self->_context->worker().schedule(
-            [w = self->weak_from_this()](const auto&)
-            {
-              if (const auto self = w.lock())
-                self->_process_robot_interrupts();
-            });
+          if (self && self->_emergency_active)
+            self->_begin_pullover();
         });
     };
 
@@ -1279,17 +1257,24 @@ bool TaskManager::kill_task(
 void TaskManager::_begin_next_task()
 {
   if (_active_task)
+  {
     return;
+  }
 
   if (_emergency_active)
+  {
     return;
+  }
 
   std::lock_guard<std::mutex> guard(_mutex);
 
   if (_queue.empty() && _direct_queue.empty())
   {
+
     if (!_waiting && !_finished_waiting)
+    {
       _begin_waiting();
+    }
 
     return;
   }
@@ -1391,6 +1376,33 @@ void TaskManager::_begin_next_task()
       if (const auto self = w.lock())
         self->_process_robot_interrupts();
     });
+}
+
+//==============================================================================
+void TaskManager::_begin_pullover()
+{
+  _finished_waiting = false;
+  auto task_id = "emergency_pullover." + _context->name() + "."
+  + _context->group() + "-"
+  + std::to_string(_count_emergency_pullover++);
+  _context->current_task_id(task_id);
+
+  // TODO(MXG): Consider subscribing to the emergency pullover update
+  _emergency_pullover = ActiveTask::start(
+    events::EmergencyPullover::start(
+      task_id,
+      _context,
+      _update_cb(),
+      _make_resume_from_emergency()),
+    _context->now());
+
+  _context->worker().schedule(
+    [w = weak_from_this()](const auto&)
+    {
+      if (const auto self = w.lock())
+        self->_process_robot_interrupts();
+    });
+
 }
 
 //==============================================================================
@@ -1565,12 +1577,17 @@ void TaskManager::_resume_from_emergency()
         return;
 
       if (self->_emergency_active)
+      {
         return;
+      }
 
       self->_emergency_pullover = ActiveTask();
 
       if (!self->_emergency_pullover_interrupt_token.has_value())
+      {
+        self->_begin_next_task();
         return;
+      }
 
       if (self->_active_task)
       {
@@ -1606,6 +1623,11 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
           self->_finished_waiting = true;
           self->_waiting = ActiveTask();
           self->_begin_next_task();
+
+          if (self->_emergency_active)
+          {
+            self->_begin_pullover();
+          }
         });
     };
 }
