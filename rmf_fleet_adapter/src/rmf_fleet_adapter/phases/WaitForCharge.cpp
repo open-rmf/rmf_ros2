@@ -94,6 +94,19 @@ WaitForCharge::Active::Active(
     .get_observable()
     .start_with(initial_msg);
 
+  // If the charging waypoint has a mutex group, release all other mutexes
+  std::unordered_set<std::string> retain_mutexes;
+  const auto charging_waypoint = _context->dedicated_charging_wp();
+  const auto& graph = _context->navigation_graph();
+  retain_mutexes.insert(
+    graph.get_waypoint(charging_waypoint).in_mutex_group());
+  _context->retain_mutex_groups(retain_mutexes);
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Robot [%s] has begun charging, releasing all other mutexes. If there is "
+    "a mutex group on the dedicated charging waypoint, it will be retained.",
+    _context->name().c_str());
+
   _context->current_mode(rmf_fleet_msgs::msg::RobotMode::MODE_CHARGING);
 }
 
