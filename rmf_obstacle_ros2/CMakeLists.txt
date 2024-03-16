@@ -29,14 +29,6 @@ foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
 endforeach()
 
-if ($ENV{ROS_DISTRO} MATCHES humble)
-  set(tf2_geometry_msgs_include_dirs "")
-  set(tf2_geometry_msgs_link_libraries tf2_geometry_msgs::tf2_geometry_msgs)
-else()
-  set(tf2_geometry_msgs_include_dir ${tf2_geometry_msgs_INCLUDE_DIRS})
-  set(tf2_geometry_msgs_link_libraries ${tf2_geometry_msgs_LIBRARIES})
-endif()
-
 #===============================================================================
 file(GLOB_RECURSE core_lib_srcs "src/rmf_obstacle_ros2/*.cpp")
 add_library(rmf_obstacle_ros2 SHARED ${core_lib_srcs})
@@ -44,11 +36,11 @@ add_library(rmf_obstacle_ros2 SHARED ${core_lib_srcs})
 target_link_libraries(rmf_obstacle_ros2
   PUBLIC
     rmf_utils::rmf_utils
-    ${rclcpp_LIBRARIES}
-    ${sensor_msgs_LIBRARIES}
-    ${rmf_obstacle_msgs_LIBRARIES}
+    ${rclcpp_TARGETS}
+    ${sensor_msgs_TARGETS}
+    ${rmf_obstacle_msgs_TARGETS}
   PRIVATE
-    ${OCTOMAP_LIBRARIES}
+    ${OCTOMAP_TARGETS}
 )
 
 target_include_directories(rmf_obstacle_ros2
@@ -81,16 +73,16 @@ add_library(lane_blocker SHARED ${lane_blocker_srcs})
 target_link_libraries(lane_blocker
   PRIVATE
     rclcpp::rclcpp
-    ${rclcpp_components_LIBRARIES}
-    ${rmf_obstacle_msgs_LIBRARIES}
-    ${rmf_fleet_msgs_LIBRARIES}
-    ${rmf_building_map_msgs_LIBRARIES}
+    ${rclcpp_components_TARGETS}
+    ${rmf_obstacle_msgs_TARGETS}
+    ${rmf_fleet_msgs_TARGETS}
+    ${rmf_building_map_msgs_TARGETS}
     rmf_fleet_adapter::rmf_fleet_adapter
     rmf_traffic::rmf_traffic
-    ${rmf_traffic_ros2_LIBRARIES}
-    ${tf2_ros_LIBRARIES}
-    ${geometry_msgs_LIBRARIES}
-    ${tf2_geometry_msgs_link_libraries}
+    ${rmf_traffic_ros2_TARGETS}
+    ${tf2_ros_TARGETS}
+    ${geometry_msgs_TARGETS}
+    tf2_geometry_msgs::tf2_geometry_msgs
 )
 
 target_include_directories(lane_blocker
