@@ -1,45 +1,24 @@
 name: asan
-on: [push, pull_request]
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
 jobs:
-  asan:
-    name: asan
-    runs-on: ubuntu-20.04
-    container:
-      image: rostooling/setup-ros-docker:ubuntu-focal-latest
-    steps:
-      - name: deps
-        uses: ros-tooling/setup-ros@v0.3
-        with:
-          required-ros-distributions: galactic
-      - name: install_clang
-        run: sudo apt update && sudo apt install -y clang clang-tools lld
-      - name: build_and_test
-        uses: ros-tooling/action-ros-ci@v0.2
-        env:
-          CC: clang
-          CXX: clang++
-          ASAN_OPTIONS: detect_leaks=0
-        with:
-          target-ros2-distro: galactic
-          # build all packages listed in the meta package
-          package-name: |
-            rmf_traffic_ros2
-            rmf_task_ros2
-            rmf_fleet_adapter
-          vcs-repo-file-url: |
-            https://raw.githubusercontent.com/open-rmf/rmf/main/rmf.repos
-          colcon-defaults: |
-            {
-              "build": {
-                "mixin": ["asan-gcc", "lld"],
-                "cmake-args": ["-DCMAKE_BUILD_TYPE=Debug"],
-                "executor": "sequential"
-              }
-            }
-          colcon-mixin-repository: https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml
-      - name: upload_test_stream
-        uses: actions/upload-artifact@v2
-        with:
-          name: colcon-test-logs
-          path: ${{ steps.build_and_test.outputs.ros-workspace-directory-name }}/log/latest_test/rmf_traffic/streams.log
-        if: always()
+  asan_test:
+    name: rmf_ros2 asan
+    uses: open-rmf/rmf_ci_templates/.github/workflows/reusable_build.yaml@main
+    with:
+      dist-matrix: |
+          [{"ros_distribution": "humble",
+            "ubuntu_distribution": "jammy"}]
+      # NOTE: Avoid adding comments in the package lines, this can break some of the called scripts in github actions
+      packages: |
+        rmf_traffic_ros2
+        rmf_task_ros2
+        rmf_fleet_adapter
+      mixin: asan
+      

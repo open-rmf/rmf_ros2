@@ -58,7 +58,9 @@ void add_compose(
         // deserialize and use that.
         auto phase = p_it->second.deserializer(description_json);
         if (!phase.description)
+        {
           return {nullptr, std::move(phase.errors)};
+        }
 
         return phase;
       }
@@ -75,7 +77,9 @@ void add_compose(
 
       auto event = e_it->second.deserializer(description_json);
       if (!event.description)
+      {
         return {nullptr, std::move(event.errors)};
+      }
 
       using rmf_task_sequence::phases::SimplePhase;
       /* *INDENT-OFF* */
@@ -103,7 +107,9 @@ void add_compose(
     -> agv::DeserializedTask
     {
       if (!(*consider))
+      {
         return {nullptr, {"Not accepting composed requests"}};
+      }
 
       rmf_task_sequence::Task::Builder builder;
       std::string category = "Composed Task";
@@ -122,7 +128,9 @@ void add_compose(
       {
         auto phase_activity = deser_activity(phase_json.at("activity"));
         if (!phase_activity.description)
+        {
           return {nullptr, std::move(phase_activity.errors)};
+        }
 
         errors.insert(
           errors.end(),
@@ -142,7 +150,9 @@ void add_compose(
                 deser_activity(cancellation_activity_json);
 
               if (!cancellation_activity.description)
+              {
                 return {nullptr, std::move(cancellation_activity.errors)};
+              }
 
               cancel.push_back(cancellation_activity.description);
               errors.insert(
@@ -164,7 +174,9 @@ void add_compose(
       agv::FleetUpdateHandle::Confirmation confirm;
       (*consider)(msg, confirm);
       if (!confirm.is_accepted())
+      {
         return {nullptr, confirm.errors()};
+      }
 
       /* *INDENT-OFF* */
       return {
@@ -210,7 +222,9 @@ void add_compose(
         auto event = e_it->second.deserializer(description_json);
         errors.insert(errors.end(), event.errors.begin(), event.errors.end());
         if (!event.description)
+        {
           return {std::nullopt, std::move(errors)};
+        }
 
         deps.push_back(event.description);
       }
@@ -243,7 +257,9 @@ void add_compose(
       }
 
       if (!dependencies.description.has_value())
+      {
         return {nullptr, std::move(dependencies.errors)};
+      }
 
       /* *INDENT-OFF* */
       return {

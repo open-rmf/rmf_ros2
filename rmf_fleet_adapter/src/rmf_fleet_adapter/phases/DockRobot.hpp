@@ -29,13 +29,16 @@ struct DockRobot
 {
   class Action;
 
-  class ActivePhase : public LegacyTask::ActivePhase
+  class ActivePhase : public LegacyTask::ActivePhase,
+    public std::enable_shared_from_this<ActivePhase>
   {
   public:
 
     ActivePhase(
       agv::RobotContextPtr context,
-      std::string dock_name);
+      std::string dock_name,
+      rmf_traffic::agv::Plan::Waypoint waypoint,
+      rmf_traffic::PlanId plan_id);
 
     const rxcpp::observable<LegacyTask::StatusMsg>& observe() const override;
 
@@ -47,14 +50,16 @@ struct DockRobot
 
     const std::string& description() const override;
 
+    std::shared_ptr<Action> action;
+    rxcpp::observable<LegacyTask::StatusMsg> obs;
   private:
     friend class Action;
 
     agv::RobotContextPtr _context;
     std::string _dock_name;
     std::string _description;
-    std::shared_ptr<Action> _action;
-    rxcpp::observable<LegacyTask::StatusMsg> _obs;
+    rmf_traffic::agv::Plan::Waypoint _waypoint;
+    rmf_traffic::PlanId _plan_id;
     std::shared_ptr<void> _be_stubborn;
   };
 
@@ -64,7 +69,9 @@ struct DockRobot
 
     PendingPhase(
       agv::RobotContextPtr context,
-      std::string dock_name);
+      std::string dock_name,
+      rmf_traffic::agv::Plan::Waypoint waypoint,
+      PlanIdPtr plan_id);
 
     std::shared_ptr<LegacyTask::ActivePhase> begin() override;
 
@@ -77,19 +84,21 @@ struct DockRobot
     agv::RobotContextPtr _context;
     std::string _dock_name;
     std::string _description;
+    rmf_traffic::agv::Plan::Waypoint _waypoint;
+    PlanIdPtr _plan_id;
   };
 
   class Action
   {
   public:
 
-    Action(ActivePhase* phase);
+    Action(std::weak_ptr<ActivePhase> phase);
 
     template<typename Subscriber>
     void operator()(const Subscriber& s);
 
   private:
-    ActivePhase* _phase;
+    std::weak_ptr<ActivePhase> _phase;
   };
 };
 
@@ -97,23 +106,57 @@ struct DockRobot
 template<typename Subscriber>
 void DockRobot::Action::operator()(const Subscriber& s)
 {
-  LegacyTask::StatusMsg status;
-  status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
-  status.status = "Docking [" + _phase->_context->requester_id() +
-    "] into dock ["
-    + _phase->_dock_name + "]";
+  const auto active = _phase.lock();
+  if (!active)
+    return;
 
-  s.on_next(status);
-  _phase->_context->command()->dock(
-    _phase->_dock_name,
-    [s, dock_name = _phase->_dock_name, context = _phase->_context]()
+  active->_context->worker().schedule(
+    [s, w = active->weak_from_this()](const auto&)
     {
+      const auto active = w.lock();
+      if (!active)
+        return;
+
       LegacyTask::StatusMsg status;
-      status.status = "Finished docking [" + context->requester_id()
-      + "] into dock [" + dock_name + "]";
-      status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
+      status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
+      status.status = "Docking [" + active->_context->requester_id() +
+      "] into dock ["
+      + active->_dock_name + "]";
+
       s.on_next(status);
-      s.on_completed();
+      active->_context->command()->dock(
+        active->_dock_name,
+        [s, dock_name = active->_dock_name, context = active->_context,
+        wp = active->_waypoint, plan_id = active->_plan_id]()
+        {
+          context->worker().schedule(
+            [s, dock_name, context, wp, plan_id](const auto&)
+            {
+              LegacyTask::StatusMsg status;
+              status.status = "Finished docking [" + context->requester_id()
+              + "] into dock [" + dock_name + "]";
+              status.state = LegacyTask::StatusMsg::STATE_COMPLETED;
+              for (const auto& c : wp.arrival_checkpoints())
+              {
+                context->itinerary().reached(plan_id, c.route_id,
+                c.checkpoint_id);
+              }
+
+              if (wp.graph_index().has_value())
+              {
+                const auto& graph = context->navigation_graph();
+                context->retain_mutex_groups(
+                  {graph.get_waypoint(*wp.graph_index()).in_mutex_group()});
+              }
+
+              const auto now = context->now();
+              const auto cumulative_delay = now - wp.time();
+              context->itinerary().cumulative_delay(
+                plan_id, cumulative_delay, std::chrono::seconds(1));
+              s.on_next(status);
+              s.on_completed();
+            });
+        });
     });
 }
 

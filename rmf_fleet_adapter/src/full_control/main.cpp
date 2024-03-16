@@ -1027,7 +1027,7 @@ std::shared_ptr<Connections> make_fleet(
   connections->lane_closure_request_sub =
     adapter->node()->create_subscription<rmf_fleet_msgs::msg::LaneRequest>(
     rmf_fleet_adapter::LaneClosureRequestTopicName,
-    rclcpp::SystemDefaultsQoS(),
+    rclcpp::SystemDefaultsQoS().keep_last(10),
     [w = connections->weak_from_this(), fleet_name](
       rmf_fleet_msgs::msg::LaneRequest::UniquePtr request_msg)
     {
@@ -1071,7 +1071,7 @@ std::shared_ptr<Connections> make_fleet(
     adapter->node()->create_subscription<
     rmf_fleet_msgs::msg::SpeedLimitRequest>(
     rmf_fleet_adapter::SpeedLimitRequestTopicName,
-    rclcpp::SystemDefaultsQoS(),
+    rclcpp::SystemDefaultsQoS().keep_last(10),
     [w = connections->weak_from_this(), fleet_name](
       rmf_fleet_msgs::msg::SpeedLimitRequest::ConstSharedPtr request_msg)
     {
@@ -1099,7 +1099,7 @@ std::shared_ptr<Connections> make_fleet(
   connections->interrupt_request_sub =
     adapter->node()->create_subscription<rmf_fleet_msgs::msg::InterruptRequest>(
     rmf_fleet_adapter::InterruptRequestTopicName,
-    rclcpp::SystemDefaultsQoS(),
+    rclcpp::SystemDefaultsQoS().keep_last(10),
     [w = connections->weak_from_this(), fleet_name](
       rmf_fleet_msgs::msg::InterruptRequest::UniquePtr request_msg)
     {
@@ -1128,7 +1128,7 @@ std::shared_ptr<Connections> make_fleet(
   connections->mode_request_sub =
     adapter->node()->create_subscription<rmf_fleet_msgs::msg::ModeRequest>(
     "/action_execution_notice",
-    rclcpp::SystemDefaultsQoS(),
+    rclcpp::SystemDefaultsQoS().keep_last(10),
     [w = connections->weak_from_this(), fleet_name](
       rmf_fleet_msgs::msg::ModeRequest::UniquePtr msg)
     {
@@ -1234,10 +1234,27 @@ std::shared_ptr<Connections> make_fleet(
   const std::string finishing_request_string =
     node->declare_parameter("finishing_request", "nothing");
   rmf_task::ConstRequestFactoryPtr finishing_request = nullptr;
+  std::function<rmf_traffic::Time()> get_time =
+    [n = std::weak_ptr<rclcpp::Node>(node)]()
+    {
+      const auto node = n.lock();
+      if (!node)
+      {
+        const auto time_since_epoch =
+          std::chrono::system_clock::now().time_since_epoch();
+        return rmf_traffic::Time(time_since_epoch);
+      }
+      return rmf_traffic_ros2::convert(node->now());
+    };
+
   if (finishing_request_string == "charge")
   {
-    finishing_request =
-      std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+    auto charge_factory =
+      std::make_shared<rmf_task::requests::ChargeBatteryFactory>(
+      std::string(node->get_name()),
+      std::move(get_time));
+    charge_factory->set_indefinite(true);
+    finishing_request = charge_factory;
     RCLCPP_INFO(
       node->get_logger(),
       "Fleet is configured to perform ChargeBattery as finishing request");
@@ -1245,7 +1262,9 @@ std::shared_ptr<Connections> make_fleet(
   else if (finishing_request_string == "park")
   {
     finishing_request =
-      std::make_shared<rmf_task::requests::ParkRobotFactory>();
+      std::make_shared<rmf_task::requests::ParkRobotFactory>(
+      std::string(node->get_name()),
+      std::move(get_time));
     RCLCPP_INFO(
       node->get_logger(),
       "Fleet is configured to perform ParkRobot as finishing request");
@@ -1339,16 +1358,18 @@ std::shared_ptr<Connections> make_fleet(
 
   connections->path_request_pub = node->create_publisher<
     rmf_fleet_msgs::msg::PathRequest>(
-    rmf_fleet_adapter::PathRequestTopicName, rclcpp::SystemDefaultsQoS());
+    rmf_fleet_adapter::PathRequestTopicName,
+    rclcpp::SystemDefaultsQoS().keep_last(10));
 
   connections->mode_request_pub = node->create_publisher<
     rmf_fleet_msgs::msg::ModeRequest>(
-    rmf_fleet_adapter::ModeRequestTopicName, rclcpp::SystemDefaultsQoS());
+    rmf_fleet_adapter::ModeRequestTopicName,
+    rclcpp::SystemDefaultsQoS().keep_last(10));
 
   connections->fleet_state_sub = node->create_subscription<
     rmf_fleet_msgs::msg::FleetState>(
     rmf_fleet_adapter::FleetStateTopicName,
-    rclcpp::SystemDefaultsQoS(),
+    rclcpp::SystemDefaultsQoS().keep_last(10),
     [c = std::weak_ptr<Connections>(connections), fleet_name](
       const rmf_fleet_msgs::msg::FleetState::SharedPtr msg)
     {

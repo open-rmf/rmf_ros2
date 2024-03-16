@@ -103,7 +103,8 @@ public:
   RobotUpdateHandle& set_charger_waypoint(const std::size_t charger_wp);
 
   /// Update the current battery level of the robot by specifying its state of
-  /// charge as a fraction of its total charge capacity
+  /// charge as a fraction of its total charge capacity, i.e. a value from 0.0
+  /// to 1.0.
   void update_battery_soc(const double battery_soc);
 
   /// Use this function to override the robot status. The string provided must
@@ -125,12 +126,53 @@ public:
   /// value that was given to the setter.
   rmf_utils::optional<rmf_traffic::Duration> maximum_delay() const;
 
+  /// Get the current task ID of the robot, or an empty string if the robot
+  /// is not performing any task.
+  const std::string current_task_id() const;
+
+  /// Unique identifier for an activity that the robot is performing. Used by
+  /// the EasyFullControl API.
+  class ActivityIdentifier
+  {
+  public:
+
+    /// Compare whether two activity handles are referring to the same activity.
+    bool operator==(const ActivityIdentifier&) const;
+
+    class Implementation;
+  private:
+    ActivityIdentifier();
+    rmf_utils::unique_impl_ptr<Implementation> _pimpl;
+  };
+  using ActivityIdentifierPtr = std::shared_ptr<ActivityIdentifier>;
+  using ConstActivityIdentifierPtr = std::shared_ptr<const ActivityIdentifier>;
+
+  /// Hold onto this class to tell the robot to behave as a "stubborn
+  /// negotiator", meaning it will always refuse to accommodate the schedule
+  /// of any other agent. This could be used when teleoperating a robot, to
+  /// tell other robots that the agent is unable to negotiate.
+  ///
+  /// When the object is destroyed, the stubbornness will automatically be
+  /// released.
+  class Stubbornness
+  {
+  public:
+    /// Stop being stubborn
+    void release();
+
+    class Implementation;
+  private:
+    Stubbornness();
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
   /// The ActionExecution class should be used to manage the execution of and
   /// provide updates on ongoing actions.
   class ActionExecution
   {
   public:
-    /// Update the amount of time remaining for this action
+    /// Update the amount of time remaining for this action.
+    /// This does not need to be used for navigation requests.
     void update_remaining_time(rmf_traffic::Duration remaining_time_estimate);
 
     /// Set task status to underway and optionally log a message (info tier)
@@ -147,11 +189,49 @@ public:
     /// (warning tier)
     void blocked(std::optional<std::string> text);
 
-    /// Trigger this when the action is successfully finished
+    /// Use this to override the traffic schedule for the agent while it performs
+    /// this command.
+    ///
+    /// If the given trajectory results in a traffic conflict then a negotiation
+    /// will be triggered. Hold onto the `Stubbornness` returned by this function
+    /// to ask other agents to plan around your trajectory, otherwise the
+    /// negotiation may result in a replan for this agent and a new command will
+    /// be issued.
+    ///
+    /// \note Using this will function always trigger a replan once the agent
+    /// finishes the command.
+    ///
+    /// \warning Too many overridden/stubborn agents can cause a deadlock. It's
+    ///   recommended to use this API sparingly and only over short distances or
+    ///   small deviations.
+    ///
+    /// \param[in] map
+    ///   Name of the map where the trajectory will take place
+    ///
+    /// \param[in] path
+    ///   The path of the agent
+    ///
+    /// \param[in] hold
+    ///   How long the agent will wait at the end of the path
+    ///
+    /// \return a Stubbornness handle that tells the fleet adapter to not let the
+    /// overridden path be negotiated. The returned handle will stop having an
+    /// effect after this command execution is finished.
+    Stubbornness override_schedule(
+      std::string map,
+      std::vector<Eigen::Vector3d> path,
+      rmf_traffic::Duration hold = rmf_traffic::Duration(0));
+
+    /// Trigger this when the action is successfully finished.
+    /// No other functions in this ActionExecution instance will
+    /// be usable after this.
     void finished();
 
     /// Returns false if the Action has been killed or cancelled
     bool okay() const;
+
+    /// Activity identifier for this action. Used by the EasyFullControl API.
+    ConstActivityIdentifierPtr identifier() const;
 
     class Implementation;
   private:
@@ -328,6 +408,9 @@ public:
   /// By default this behavior is enabled.
   void enable_responsive_wait(bool value);
 
+  /// If the robot is holding onto a session with a lift, release that session.
+  void release_lift();
+
   class Implementation;
 
   /// This API is experimental and will not be supported in the future. Users
@@ -368,24 +451,7 @@ public:
     /// Get the current Plan ID that this robot has sent to the traffic schedule
     rmf_traffic::PlanId current_plan_id() const;
 
-    /// Hold onto this class to tell the robot to behave as a "stubborn
-    /// negotiator", meaning it will always refuse to accommodate the schedule
-    /// of any other agent. This could be used when teleoperating a robot, to
-    /// tell other robots that the agent is unable to negotiate.
-    ///
-    /// When the object is destroyed, the stubbornness will automatically be
-    /// released.
-    class Stubbornness
-    {
-    public:
-      /// Stop being stubborn
-      void release();
-
-      class Implementation;
-    private:
-      Stubbornness();
-      rmf_utils::impl_ptr<Implementation> _pimpl;
-    };
+    using Stubbornness = RobotUpdateHandle::Stubbornness;
 
     /// Tell this robot to be a stubborn negotiator.
     Stubbornness be_stubborn();
@@ -411,6 +477,9 @@ public:
     void set_lift_entry_watchdog(
       Watchdog watchdog,
       rmf_traffic::Duration wait_duration = std::chrono::seconds(10));
+
+    /// Turn on/off a debug dump of how position updates are being processed
+    void debug_positions(bool on);
 
   private:
     friend Implementation;

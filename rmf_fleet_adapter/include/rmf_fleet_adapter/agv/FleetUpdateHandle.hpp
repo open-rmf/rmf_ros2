@@ -35,6 +35,8 @@
 #include <rmf_task_sequence/Phase.hpp>
 #include <rmf_task_sequence/Event.hpp>
 
+#include <rclcpp/node.hpp>
+
 namespace rmf_fleet_adapter {
 namespace agv {
 
@@ -42,6 +44,8 @@ namespace agv {
 class FleetUpdateHandle : public std::enable_shared_from_this<FleetUpdateHandle>
 {
 public:
+  /// Get the name of the fleet that his handle is managing.
+  const std::string& fleet_name() const;
 
   /// Add a robot to this fleet adapter.
   ///
@@ -206,6 +210,26 @@ public:
   /// Specify a set of lanes that should be open.
   void open_lanes(std::vector<std::size_t> lane_indices);
 
+  /// During a fire emergency, real-life lifts might be required to move to a
+  /// specific level and refuse to stop or go to any other level. This function
+  /// lets you provide this information to the fleet adapter so that it can
+  /// produce reasonable emergency pullover plans for robots that happen to be
+  /// inside of a lift when the fire alarm goes off.
+  ///
+  /// Internally, this will close all lanes that go into the specified lift and
+  /// close all lanes exiting this lift (except on the designated level) when a
+  /// fire emergency begins. Lifts that were not specified in a call to this
+  /// function will not behave any differently during a fire emergency.
+  ///
+  /// \param[in] lift_name
+  ///   The name of the lift whose behavior is being specified
+  ///
+  /// \param[in] emergency_level_name
+  ///   The level that lift will go to when a fire emergency is happening
+  void set_lift_emergency_level(
+    std::string lift_name,
+    std::string emergency_level_name);
+
   /// A class used to describe speed limit imposed on lanes.
   class SpeedLimitRequest
   {
@@ -277,14 +301,14 @@ public:
   ///
   /// \return true if task planner parameters were successfully updated.
   bool set_task_planner_params(
-    std::shared_ptr<rmf_battery::agv::BatterySystem> battery_system,
-    std::shared_ptr<rmf_battery::MotionPowerSink> motion_sink,
-    std::shared_ptr<rmf_battery::DevicePowerSink> ambient_sink,
-    std::shared_ptr<rmf_battery::DevicePowerSink> tool_sink,
+    rmf_battery::agv::ConstBatterySystemPtr battery_system,
+    rmf_battery::ConstMotionPowerSinkPtr motion_sink,
+    rmf_battery::ConstDevicePowerSinkPtr ambient_sink,
+    rmf_battery::ConstDevicePowerSinkPtr tool_sink,
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    rmf_task::ConstRequestFactoryPtr finishing_requst = nullptr);
+    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr);
 
   /// A callback function that evaluates whether a fleet will accept a task
   /// request
@@ -367,6 +391,13 @@ public:
   FleetUpdateHandle& set_update_listener(
     std::function<void(const nlohmann::json&)> listener);
 
+  /// Get the rclcpp::Node that this fleet update handle will be using for
+  /// communication.
+  std::shared_ptr<rclcpp::Node> node();
+
+  /// const-qualified node()
+  std::shared_ptr<const rclcpp::Node> node() const;
+
   // Do not allow moving
   FleetUpdateHandle(FleetUpdateHandle&&) = delete;
   FleetUpdateHandle& operator=(FleetUpdateHandle&&) = delete;
@@ -379,6 +410,8 @@ private:
 
 using FleetUpdateHandlePtr = std::shared_ptr<FleetUpdateHandle>;
 using ConstFleetUpdateHandlePtr = std::shared_ptr<const FleetUpdateHandle>;
+
+FleetUpdateHandle::ConsiderRequest consider_all();
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

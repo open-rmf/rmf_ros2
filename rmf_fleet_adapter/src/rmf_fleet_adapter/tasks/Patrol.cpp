@@ -50,6 +50,42 @@ void add_patrol(
     -> agv::DeserializedEvent
     {
       nlohmann::json place_msg;
+      const auto one_of = msg.find("one_of");
+      if (one_of != msg.end())
+      {
+        std::vector<rmf_traffic::agv::Plan::Goal> goals;
+        std::vector<std::string> errors;
+        for (const auto& place_msg : one_of.value())
+        {
+          auto place = place_deser(place_msg);
+          if (!place.description.has_value())
+          {
+            return {nullptr, std::move(place.errors)};
+          }
+
+          goals.push_back(*place.description);
+          errors.insert(
+            errors.end(),
+            std::make_move_iterator(place.errors.begin()),
+            std::make_move_iterator(place.errors.end()));
+        }
+
+        auto desc = GoToPlace::Description::make_for_one_of(goals);
+        const auto constraints = msg.find("constraints");
+        if (constraints != msg.end())
+        {
+          for (const auto& constraint : constraints.value())
+          {
+            if (constraint["category"].get<std::string>() == "prefer_same_map")
+            {
+              desc->prefer_same_map(true);
+            }
+          }
+        }
+
+        return {desc, errors};
+      }
+
       const auto place_it = msg.find("place");
       if (place_it == msg.end())
         place_msg = msg;
@@ -58,7 +94,9 @@ void add_patrol(
 
       auto place = place_deser(place_msg);
       if (!place.description.has_value())
+      {
         return {nullptr, std::move(place.errors)};
+      }
 
       const auto desc =
         GoToPlace::Description::make(std::move(*place.description));
@@ -74,16 +112,16 @@ void add_patrol(
             place.errors.end(), f.errors.begin(), f.errors.end());
 
           if (!f.description.has_value())
+          {
             return {nullptr, place.errors};
+          }
 
           followed_by.push_back(*f.description);
         }
         desc->expected_next_destinations(std::move(followed_by));
       }
 
-      /* *INDENT-OFF* */
       return {desc, std::move(place.errors)};
-      /* *INDENT-ON* */
     };
 
   deserialization.event->add(
@@ -108,7 +146,9 @@ void add_patrol(
     ](const nlohmann::json& msg) -> agv::DeserializedTask
     {
       if (!(*consider))
+      {
         return {nullptr, {"Not accepting patrol requests"}};
+      }
 
       const auto& places_json = msg.at("places");
       std::vector<rmf_traffic::agv::Plan::Goal> places;
@@ -126,7 +166,9 @@ void add_patrol(
       }
 
       if (any_failure)
+      {
         return {nullptr, std::move(errors)};
+      }
 
       agv::FleetUpdateHandle::Confirmation confirm;
       (*consider)(msg, confirm);
@@ -134,7 +176,9 @@ void add_patrol(
         errors.end(), confirm.errors().begin(), confirm.errors().end());
 
       if (!confirm.is_accepted())
+      {
         return {nullptr, errors};
+      }
 
       std::size_t rounds = 1;
       const auto& rounds_json_it = msg.find("rounds");

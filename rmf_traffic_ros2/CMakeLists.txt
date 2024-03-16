@@ -16,6 +16,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_LIST_DIR}/cmake)
 include(GNUInstallDirs)
 
 find_package(ament_cmake REQUIRED)
+find_package(backward_ros REQUIRED)
 find_package(rmf_traffic 3 REQUIRED)
 find_package(rmf_traffic_msgs REQUIRED)
 find_package(rmf_site_map_msgs REQUIRED)
@@ -50,6 +51,7 @@ if(BUILD_TESTING)
   ament_uncrustify(
     ARGN include src examples
     CONFIG_FILE ${uncrustify_config_file}
+    LANGUAGE C++
     MAX_LINE_LENGTH 80
   )
 
@@ -253,13 +255,20 @@ install(
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
+# Install executables
 install(
   TARGETS
-    rmf_traffic_ros2
     rmf_traffic_schedule
     rmf_traffic_schedule_monitor
     rmf_traffic_blockade
     update_participant
+  RUNTIME DESTINATION lib/rmf_traffic_ros2
+)
+
+# Install and export shared library
+install(
+  TARGETS
+    rmf_traffic_ros2
   EXPORT rmf_traffic_ros2
   RUNTIME DESTINATION lib/rmf_traffic_ros2
   LIBRARY DESTINATION lib

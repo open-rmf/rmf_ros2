@@ -14,6 +14,7 @@ endif()
 include(GNUInstallDirs)
 
 find_package(ament_cmake REQUIRED)
+find_package(backward_ros REQUIRED)
 find_package(rmf_api_msgs REQUIRED)
 find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_ros2 REQUIRED)
@@ -65,6 +66,7 @@ if(BUILD_TESTING)
   ament_uncrustify(
     ARGN include src test
     CONFIG_FILE ${uncrustify_config_file}
+    LANGUAGE C++
     MAX_LINE_LENGTH 80
   )
 
@@ -109,8 +111,15 @@ install(
 )
 
 install(
-  TARGETS rmf_task_ros2 rmf_task_dispatcher rmf_bidder_node
+  TARGETS rmf_task_ros2
   EXPORT rmf_task_ros2
+  RUNTIME DESTINATION lib/rmf_task_ros2
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+)
+
+install(
+  TARGETS rmf_task_dispatcher rmf_bidder_node
   RUNTIME DESTINATION lib/rmf_task_ros2
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib

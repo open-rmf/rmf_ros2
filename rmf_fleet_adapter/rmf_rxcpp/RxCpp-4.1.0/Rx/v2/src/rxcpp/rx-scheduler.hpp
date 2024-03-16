@@ -917,8 +917,8 @@ private:
     int64_t ordinal;
 public:
 
-    schedulable_queue() 
-        : ordinal(0) 
+    schedulable_queue()
+        : ordinal(0)
     {
     }
 

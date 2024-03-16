@@ -39,6 +39,7 @@
 
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
 #include <rmf_fleet_msgs/msg/lane_states.hpp>
+#include <rmf_fleet_msgs/msg/charging_assignments.hpp>
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
@@ -233,13 +234,25 @@ private:
 };
 
 //==============================================================================
+struct Expectations
+{
+  std::vector<rmf_task::State> states;
+  std::vector<rmf_task::ConstRequestPtr> pending_requests;
+};
+
+//==============================================================================
+// Map task id to pair of <RequestPtr, TaskAssignments>
+using TaskAssignments = rmf_task::TaskPlanner::Assignments;
+class AllocateTasks;
+
+//==============================================================================
 class FleetUpdateHandle::Implementation
 {
 public:
 
   std::weak_ptr<FleetUpdateHandle> weak_self;
   std::string name;
-  std::shared_ptr<std::shared_ptr<const rmf_traffic::agv::Planner>> planner;
+  SharedPlanner planner;
   std::shared_ptr<Node> node;
   rxcpp::schedulers::worker worker;
   std::shared_ptr<ParticipantFactory> writer;
@@ -259,6 +272,7 @@ public:
     rmf_task::BinaryPriorityScheme::make_cost_calculator();
   std::shared_ptr<rmf_task::Parameters> task_parameters = nullptr;
   std::shared_ptr<rmf_task::TaskPlanner> task_planner = nullptr;
+  rmf_task::ConstRequestFactoryPtr idle_task = nullptr;
 
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay =
     std::chrono::nanoseconds(std::chrono::seconds(10));
@@ -277,8 +291,23 @@ public:
   rclcpp::TimerBase::SharedPtr fleet_state_update_timer = nullptr;
   rclcpp::TimerBase::SharedPtr memory_trim_timer = nullptr;
 
-  // Map task id to pair of <RequestPtr, Assignments>
-  using Assignments = rmf_task::TaskPlanner::Assignments;
+  rxcpp::subscription emergency_sub;
+  rxcpp::subjects::subject<bool> emergency_publisher;
+  rxcpp::observable<bool> emergency_obs;
+  bool emergency_active = false;
+  // When an emergency (fire alarm) is active, this map says which level each
+  // lift will "home" to (if any).
+  std::unordered_map<std::string, std::string> emergency_level_for_lift;
+  SharedPlanner emergency_planner;
+
+  rclcpp::Subscription<rmf_fleet_msgs::msg::ChargingAssignments>::SharedPtr
+    charging_assignments_sub = nullptr;
+  using ChargingAssignments = rmf_fleet_msgs::msg::ChargingAssignments;
+  using ChargingAssignment = rmf_fleet_msgs::msg::ChargingAssignment;
+  // Keep track of charging assignments for robots that have not been registered
+  // yet.
+  std::unordered_map<std::string, ChargingAssignment>
+  unregistered_charging_assignments;
 
   using DockParamMap =
     std::unordered_map<
@@ -299,7 +328,7 @@ public:
 
   double current_assignment_cost = 0.0;
   // Map to store task id with assignments for BidNotice
-  std::unordered_map<std::string, Assignments> bid_notice_assignments = {};
+  std::unordered_map<std::string, TaskAssignments> bid_notice_assignments = {};
 
   using BidNoticeMsg = rmf_task_msgs::msg::BidNotice;
 
@@ -325,14 +354,32 @@ public:
   std::unordered_map<std::size_t, double> speed_limited_lanes = {};
   std::unordered_set<std::size_t> closed_lanes = {};
 
+  std::shared_ptr<AllocateTasks> calculate_bid;
+  rmf_rxcpp::subscription_guard calculate_bid_subscription;
+
   template<typename... Args>
-  static std::shared_ptr<FleetUpdateHandle> make(Args&& ... args)
+  static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
   {
     auto handle = std::shared_ptr<FleetUpdateHandle>(new FleetUpdateHandle);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
       Implementation{handle, std::forward<Args>(args)...});
 
     handle->_pimpl->add_standard_tasks();
+
+    handle->_pimpl->emergency_obs =
+      handle->_pimpl->emergency_publisher.get_observable();
+    handle->_pimpl->emergency_sub = handle->_pimpl->node->emergency_notice()
+      .observe_on(rxcpp::identity_same_worker(handle->_pimpl->worker))
+      .subscribe(
+      [w = handle->weak_from_this()](const auto& msg)
+      {
+        if (const auto self = w.lock())
+        {
+          self->_pimpl->handle_emergency(msg->data);
+        }
+      });
+    handle->_pimpl->emergency_planner =
+      std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(nullptr);
 
     // TODO(MXG): This is a very crude implementation. We create a dummy set of
     // task planner parameters to stand in until the user sets the task planner
@@ -533,10 +580,31 @@ public:
         }
       };
 
+    handle->_pimpl->charging_assignments_sub =
+      handle->_pimpl->node->create_subscription<
+      rmf_fleet_msgs::msg::ChargingAssignments>(
+      ChargingAssignmentsTopicName,
+      reliable_transient_qos,
+      [w = handle->weak_from_this()](const ChargingAssignments& assignments)
+      {
+        if (const auto self = w.lock())
+          self->_pimpl->update_charging_assignments(assignments);
+      });
+
     handle->_pimpl->deserialization.event->add(
       "perform_action", validator, deserializer);
 
     return handle;
+  }
+
+  static Implementation& get(FleetUpdateHandle& handle)
+  {
+    return *handle._pimpl;
+  }
+
+  static const Implementation& get(const FleetUpdateHandle& handle)
+  {
+    return *handle._pimpl;
   }
 
   void publish_nav_graph() const;
@@ -552,35 +620,11 @@ public:
   std::optional<std::size_t> get_nearest_charger(
     const rmf_traffic::agv::Planner::Start& start);
 
-  struct Expectations
-  {
-    std::vector<rmf_task::State> states;
-    std::vector<rmf_task::ConstRequestPtr> pending_requests;
-  };
-
   Expectations aggregate_expectations() const;
-
-  /// Generate task assignments for a collection of task requests comprising of
-  /// task requests currently in TaskManager queues while optionally including a
-  /// new request and while optionally ignoring a specific request.
-  std::optional<Assignments> allocate_tasks(
-    rmf_task::ConstRequestPtr new_request = nullptr,
-    std::vector<std::string>* errors = nullptr,
-    std::optional<Expectations> expectations = std::nullopt) const;
 
   /// Helper function to check if assignments are valid. An assignment set is
   /// invalid if one of the assignments has already begun execution.
-  bool is_valid_assignments(Assignments& assignments) const;
-
-  static Implementation& get(FleetUpdateHandle& fleet)
-  {
-    return *fleet._pimpl;
-  }
-
-  static const Implementation& get(const FleetUpdateHandle& fleet)
-  {
-    return *fleet._pimpl;
-  }
+  bool is_valid_assignments(TaskAssignments& assignments) const;
 
   void publish_fleet_state_topic() const;
 
@@ -590,20 +634,33 @@ public:
 
   void update_fleet_state() const;
   void update_fleet_logs() const;
+  void handle_emergency(bool is_emergency);
+  void update_emergency_planner();
+
+  void update_charging_assignments(const ChargingAssignments& assignments);
 
   nlohmann::json_schema::json_validator make_validator(
     const nlohmann::json& schema) const;
 
   void add_standard_tasks();
 
-  std::string make_error_str(
-    uint64_t code, std::string category, std::string detail) const;
-
   std::shared_ptr<rmf_task::Request> convert(
     const std::string& task_id,
     const nlohmann::json& request_msg,
     std::vector<std::string>& errors) const;
 };
+
+//==============================================================================
+inline std::string make_error_str(
+  uint64_t code, std::string category, std::string detail)
+{
+  nlohmann::json error;
+  error["code"] = code;
+  error["category"] = std::move(category);
+  error["detail"] = std::move(detail);
+
+  return error.dump();
+}
 
 } // namespace agv
 } // namespace rmf_fleet_adapter

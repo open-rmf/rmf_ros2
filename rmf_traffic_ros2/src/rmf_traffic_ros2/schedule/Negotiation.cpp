@@ -81,7 +81,7 @@ public:
 
     template<typename... Args>
     static std::shared_ptr<Responder> make(
-      Args&& ... args)
+      Args&&... args)
     {
       auto responder = std::make_shared<Responder>(std::forward<Args>(args)...);
       rclcpp::Node& node = responder->impl->node;
@@ -934,14 +934,13 @@ public:
     const Version conflict_version,
     const Negotiation::Table& table)
   {
-    Proposal msg;
-    msg.conflict_version = conflict_version;
-    msg.proposal_version = table.version();
-
-    assert(table.submission());
-    msg.itinerary = convert(*table.submission());
-    msg.for_participant = table.participant();
-    msg.to_accommodate = convert(table.sequence());
+    Proposal msg = rmf_traffic_msgs::build<Proposal>()
+      .conflict_version(conflict_version)
+      .proposal_version(table.version())
+      .for_participant(table.participant())
+      .to_accommodate(convert(table.sequence()))
+      .plan_id(table.proposal().back().plan)
+      .itinerary(convert(*table.submission()));
 
     // Make sure to pop the back off of msg.to_accommodate, because we don't
     // want to include this table's final sequence key. That final key is

@@ -223,6 +223,7 @@ void PerformAction::Active::cancel()
 {
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
+  auto self = shared_from_this();
   _finished();
   if (auto data = _execution_data.lock())
     data->okay = false;
@@ -260,7 +261,7 @@ void PerformAction::Active::_execute_action()
     };
 
   auto data = std::make_shared<ExecutionData>(
-    std::move(finished), _state, std::nullopt);
+    _context, std::move(finished), _state, std::nullopt);
   _execution_data = data;
 
   auto action_execution =

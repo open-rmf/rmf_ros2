@@ -18,6 +18,38 @@
         }
       },
       "required": ["place"]
+    },
+    {
+      "type": "object",
+      "properties" : {
+        "one_of" : {
+          "type": "array",
+          "description": "A list of places to choose from. Will try to go to the nearest one.",
+          "items": { "$ref": "place.json" },
+          "minItems": 1
+        },
+        "constraints" : {
+          "type": "array",
+          "description": "list of constraints to use",
+          "items": {"$ref": "#/$defs/constraint"}
+        }
+      },
+      "required": ["one_of"]
     }
-  ]
+  ],
+  "$defs": {
+    "constraint": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "description": "The type of constraint, e.g. prefer_same_map"
+        },
+        "description": {
+          "description": "A complete description of the constraint"
+        }
+      },
+      "required": ["category"]
+    }
+  }
 }

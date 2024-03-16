@@ -19,8 +19,12 @@
 #include <unordered_map>
 #include <yaml-cpp/yaml.h>
 
+#include <iostream>
+
 namespace rmf_fleet_adapter {
 namespace agv {
+
+using LiftPropertiesPtr = rmf_traffic::agv::Graph::LiftPropertiesPtr;
 
 //==============================================================================
 rmf_traffic::agv::Graph parse_graph(
@@ -31,6 +35,76 @@ rmf_traffic::agv::Graph parse_graph(
   if (!graph_config)
   {
     throw std::runtime_error("Failed to load graph file [" + graph_file + "]");
+  }
+
+  rmf_traffic::agv::Graph graph;
+  bool has_lifts = false;
+  const YAML::Node lifts_yaml = graph_config["lifts"];
+  if (!lifts_yaml)
+  {
+    std::cout << "Your navigation graph does not provide lift information. "
+              <<
+      "This may cause problems with behaviors around lifts. Please consider "
+              <<
+      "regenerating your navigration graph with the latest version of "
+              << "rmf_building_map_tools (from the rmf_traffic_editor repo)."
+              << std::endl;
+  }
+  else
+  {
+    has_lifts = true;
+    for (const auto& lift : lifts_yaml)
+    {
+      const std::string& name = lift.first.as<std::string>();
+      const YAML::Node& properties_yaml = lift.second;
+
+      const YAML::Node& position_yaml = properties_yaml["position"];
+      const Eigen::Vector2d location(
+        position_yaml[0].as<double>(),
+        position_yaml[1].as<double>());
+      const double orientation = position_yaml[2].as<double>();
+
+      const YAML::Node& dims_yaml = properties_yaml["dims"];
+      const Eigen::Vector2d dimensions(
+        dims_yaml[0].as<double>(),
+        dims_yaml[1].as<double>());
+
+      graph.set_known_lift(rmf_traffic::agv::Graph::LiftProperties(
+          name, location, orientation, dimensions));
+    }
+  }
+
+  const YAML::Node doors_yaml = graph_config["doors"];
+  if (!doors_yaml)
+  {
+    std::cout << "Your navigation graph does not provide door information. "
+              <<
+      "This may cause problems with behaviors around doors. Please consider "
+              <<
+      "regenerating your navigration graph with the latest version of "
+              << "rmf_building_map_tools (from the rmf_traffic_editor repo)."
+              << std::endl;
+  }
+  else
+  {
+    for (const auto& door : doors_yaml)
+    {
+      const std::string& name = door.first.as<std::string>();
+      const YAML::Node properties_yaml = door.second;
+      const YAML::Node& endpoints_yaml = properties_yaml["endpoints"];
+      std::string map = properties_yaml["map"].as<std::string>();
+
+      const YAML::Node& p0_yaml = endpoints_yaml[0];
+      const auto p0 = Eigen::Vector2d(
+        p0_yaml[0].as<double>(), p0_yaml[1].as<double>());
+
+      const YAML::Node& p1_yaml = endpoints_yaml[1];
+      const auto p1 = Eigen::Vector2d(
+        p1_yaml[0].as<double>(), p1_yaml[1].as<double>());
+
+      graph.set_known_door(
+        rmf_traffic::agv::Graph::DoorProperties(name, p0, p1, std::move(map)));
+    }
   }
 
   const YAML::Node levels = graph_config["levels"];
@@ -56,9 +130,9 @@ rmf_traffic::agv::Graph parse_graph(
   using Lane = rmf_traffic::agv::Graph::Lane;
   using Event = Lane::Event;
 
-  rmf_traffic::agv::Graph graph;
   std::unordered_map<std::string, std::vector<std::size_t>> wps_of_lift;
   std::unordered_map<std::size_t, std::string> lift_of_wp;
+  std::unordered_map<std::size_t, std::size_t> stacked_vertex;
   std::size_t vnum = 0;  // To increment lane endpoint ids
 
   for (const auto& level : levels)
@@ -125,6 +199,12 @@ rmf_traffic::agv::Graph parse_graph(
           wp.set_charger(true);
       }
 
+      const YAML::Node& mutex_yaml = options["mutex"];
+      if (mutex_yaml)
+      {
+        wp.set_in_mutex_group(mutex_yaml.as<std::string>());
+      }
+
       const YAML::Node& lift_option = options["lift"];
       if (lift_option)
       {
@@ -133,14 +213,31 @@ rmf_traffic::agv::Graph parse_graph(
         {
           wps_of_lift[lift_name].push_back(wp.index());
           lift_of_wp[wp.index()] = lift_name;
+          if (has_lifts)
+          {
+            const auto lift = graph.find_known_lift(lift_name);
+            if (!lift)
+            {
+              throw std::runtime_error(
+                      "Lift properties for [" + lift_name + "] were not provided "
+                      "even though it is used by a vertex. This suggests that your "
+                      "nav graph was not generated correctly.");
+            }
+            wp.set_in_lift(lift);
+          }
         }
+      }
+
+      const YAML::Node& merge_radius_option = options["merge_radius"];
+      if (merge_radius_option)
+      {
+        wp.set_merge_radius(merge_radius_option.as<double>());
       }
     }
 
     const YAML::Node& lanes = level.second["lanes"];
     for (const auto& lane : lanes)
     {
-
       ConstraintPtr constraint = nullptr;
 
       const YAML::Node& options = lane[2];
@@ -273,24 +370,36 @@ rmf_traffic::agv::Graph parse_graph(
       if (const YAML::Node docking_option = options["dock_name"])
       {
         const std::string dock_name = docking_option.as<std::string>();
-        const rmf_traffic::Duration duration = std::chrono::seconds(5);
-        if (entry_event)
+        if (!dock_name.empty())
         {
-          // Add a waypoint and a lane leading to it for the dock maneuver
-          // to be done after the entry event
-          const auto entry_wp = graph.get_waypoint(begin);
-          auto& dock_wp = graph.add_waypoint(map_name, entry_wp.get_location());
+          const rmf_traffic::Duration duration = std::chrono::seconds(5);
+          if (entry_event)
+          {
+            // Add a waypoint and a lane leading to it for the dock maneuver
+            // to be done after the entry event
+            const auto entry_wp = graph.get_waypoint(begin);
+            auto& dock_wp =
+              graph.add_waypoint(map_name, entry_wp.get_location());
+            dock_wp.set_in_mutex_group(entry_wp.in_mutex_group());
+            dock_wp.set_merge_radius(0.0);
 
-          graph.add_lane(
-            {begin, entry_event},
-            {dock_wp.index(), rmf_utils::clone_ptr<Event>()});
+            graph.add_lane(
+              {begin, entry_event},
+              {dock_wp.index(), rmf_utils::clone_ptr<Event>()});
+            stacked_vertex.insert({begin, dock_wp.index()});
 
-          // First lane from start -> dock, second lane from dock -> end
-          begin = dock_wp.index();
+            if (const auto lift = graph.get_waypoint(begin).in_lift())
+            {
+              dock_wp.set_in_lift(lift);
+            }
 
-          vnum_temp++;
+            // First lane from start -> dock, second lane from dock -> end
+            begin = dock_wp.index();
+
+            vnum_temp++;
+          }
+          entry_event = Event::make(Lane::Dock(dock_name, duration));
         }
-        entry_event = Event::make(Lane::Dock(dock_name, duration));
       }
 
       auto& graph_lane = graph.add_lane(
@@ -303,14 +412,21 @@ rmf_traffic::agv::Graph parse_graph(
         if (speed_limit > 0.0)
           graph_lane.properties().speed_limit(speed_limit);
       }
+
+      if (const YAML::Node mutex_yaml = options["mutex"])
+      {
+        graph_lane.properties()
+        .set_in_mutex_group(mutex_yaml.as<std::string>());
+      }
     }
     vnum += vnum_temp;
   }
 
   for (const auto& lift : wps_of_lift)
   {
+    double largest_dist = 0.0;
     const auto& wps = lift.second;
-    for (std::size_t i = 0; i < wps.size()-1; i++)
+    for (std::size_t i = 0; i < wps.size()-1; ++i)
     {
       rmf_utils::clone_ptr<Event> entry_event;
       rmf_utils::clone_ptr<Event> exit_event;
@@ -327,6 +443,46 @@ rmf_traffic::agv::Graph parse_graph(
       graph.add_lane(
         {wps[i+1], entry_event},
         {wps[i], exit_event});
+
+      const auto pi = graph.get_waypoint(wps[i]).get_location();
+      for (std::size_t j = i+1; j < wps.size(); ++j)
+      {
+        const auto pj = graph.get_waypoint(wps[j]).get_location();
+        const auto dist = (pj - pi).norm();
+        if (dist > largest_dist)
+          largest_dist = dist;
+      }
+    }
+
+    if (largest_dist > 0.1)
+    {
+      throw std::runtime_error(
+              "Bad vertical alignment for the waypoints in lift [" + lift.first
+              + "]. Largest variation is " + std::to_string(largest_dist));
+    }
+
+    Eigen::Vector2d lift_center = Eigen::Vector2d::Zero();
+    double weight = 0.0;
+    for (const auto wp : wps)
+    {
+      lift_center += graph.get_waypoint(wp).get_location();
+      weight += 1.0;
+    }
+
+    if (weight > 0.0)
+    {
+      lift_center /= weight;
+      for (const auto wp : wps)
+      {
+        graph.get_waypoint(wp).set_location(lift_center);
+        const auto s_it = stacked_vertex.find(wp);
+        if (s_it != stacked_vertex.end())
+        {
+          std::cout << "Also shifting stacked vertex " << s_it->first << ":" <<
+            s_it->second << std::endl;
+          graph.get_waypoint(s_it->second).set_location(lift_center);
+        }
+      }
     }
   }
 

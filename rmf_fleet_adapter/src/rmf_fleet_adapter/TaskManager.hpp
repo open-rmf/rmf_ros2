@@ -83,7 +83,7 @@ public:
   {
     bool operator()(const DirectAssignment& a, const DirectAssignment& b) const
     {
-      // Sort by start time and then sequence_number if tie
+      // Sort by ascending order of start time and then sequence_number if tie.
       const auto start_time_b =
         b.assignment.request()->booking()->earliest_start_time();
       const auto start_time_a =
@@ -91,10 +91,10 @@ public:
 
       if (start_time_b == start_time_a)
       {
-        return b.sequence_number < a.sequence_number;
+        return a.sequence_number < b.sequence_number;
       }
 
-      return start_time_b < start_time_a;
+      return start_time_a < start_time_b;
     }
   };
 
@@ -110,6 +110,8 @@ public:
   const;
 
   void enable_responsive_wait(bool value);
+
+  void set_idle_task(rmf_task::ConstRequestFactoryPtr task);
 
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
@@ -308,7 +310,10 @@ private:
   std::weak_ptr<agv::FleetUpdateHandle> _fleet_handle;
   rmf_task::ConstActivatorPtr _task_activator;
   ActiveTask _active_task;
-  bool _responsive_wait_enabled = true;
+  /// The task that should be performed when the robot is idle. This takes
+  /// precedent over responsive waiting.
+  rmf_task::ConstRequestFactoryPtr _idle_task;
+  bool _responsive_wait_enabled = false;
   bool _emergency_active = false;
   std::optional<std::string> _emergency_pullover_interrupt_token;
   ActiveTask _emergency_pullover;
@@ -327,6 +332,7 @@ private:
   /// will ensure that the agent continues to respond to traffic negotiations so
   /// it does not become a blocker for other traffic participants.
   ActiveTask _waiting;
+  bool _finished_waiting = false;
   uint16_t _count_waiting = 0;
 
   // TODO: Eliminate the need for a mutex by redesigning the use of the task

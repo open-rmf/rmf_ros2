@@ -23,7 +23,7 @@ namespace events {
 //==============================================================================
 auto WaitForTraffic::Standby::make(
   agv::RobotContextPtr context,
-  rmf_traffic::PlanId plan_id,
+  PlanIdPtr plan_id,
   rmf_traffic::Dependencies dependencies,
   rmf_traffic::Time expected_time,
   const AssignIDPtr& id,
@@ -59,9 +59,28 @@ auto WaitForTraffic::Standby::begin(
   std::function<void()>,
   std::function<void()> finished) -> ActivePtr
 {
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "[%s] waiting for traffic",
+    _context->requester_id().c_str());
+  rmf_traffic::PlanId plan_id = 0;
+  if (_plan_id)
+  {
+    plan_id = *_plan_id;
+  }
+  else
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "No plan_id was provided for WaitForTraffic action for robot [%s]. This "
+      "is a critical internal error, please report this bug to the RMF "
+      "maintainers.",
+      _context->requester_id().c_str());
+  }
+
   return Active::make(
     _context,
-    _plan_id,
+    plan_id,
     _dependencies,
     _expected_time,
     _state,
@@ -79,6 +98,9 @@ auto WaitForTraffic::Active::make(
   std::function<void()> update,
   std::function<void()> finished) -> std::shared_ptr<Active>
 {
+  using MutexGroupRequestPtr =
+    std::shared_ptr<rmf_fleet_msgs::msg::MutexGroupRequest>;
+
   auto active = std::make_shared<Active>();
   active->_context = std::move(context);
   active->_plan_id = plan_id;
@@ -86,6 +108,37 @@ auto WaitForTraffic::Active::make(
   active->_state = std::move(state);
   active->_update = std::move(update);
   active->_finished = std::move(finished);
+
+  active->_mutex_group_listener = active->_context->node()
+    ->mutex_group_request_obs()
+    .observe_on(rxcpp::identity_same_worker(active->_context->worker()))
+    .subscribe([w = active->weak_from_this()](const MutexGroupRequestPtr& msg)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        if (msg->claimant == self->_context->participant_id())
+        {
+          // We can ignore our own mutex group requests
+          return;
+        }
+
+        if (self->_context->locked_mutex_groups().count(msg->group) > 0)
+        {
+          // If another participant is waiting to lock a mutex that we have
+          // already locked, then we must delete any dependencies related to
+          // that participant.
+          auto r_it = std::remove_if(
+            self->_dependencies.begin(),
+            self->_dependencies.end(),
+            [&](const DependencySubscription& d)
+            {
+              return d.dependency().on_participant == msg->claimant;
+            });
+          self->_dependencies.erase(r_it, self->_dependencies.end());
+        }
+      });
 
   const auto consider_going = [w = active->weak_from_this()]()
     {
@@ -212,27 +265,7 @@ void WaitForTraffic::Active::_consider_going()
   bool all_dependencies_reached = true;
   for (const auto& dep : _dependencies)
   {
-    if (dep.deprecated())
-    {
-      const auto other =
-        _context->schedule()->snapshot()
-        ->get_participant(dep.dependency().on_participant);
-      if (!other)
-      {
-        _state->update_log().info(
-          "Replanning because a traffic dependency was dropped from the "
-          "schedule");
-      }
-      else
-      {
-        _state->update_log().info(
-          "Replanning because [robot:" + other->name() + "] changed its plan");
-      }
-
-      return _replan();
-    }
-
-    if (!dep.reached())
+    if (!dep.reached() && !dep.deprecated())
       all_dependencies_reached = false;
   }
 
@@ -241,6 +274,10 @@ void WaitForTraffic::Active::_consider_going()
     _decision_made = std::chrono::steady_clock::now();
     _state->update_status(Status::Completed);
     _state->update_log().info("All traffic dependencies satisfied");
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "[%s] done waiting for traffic",
+      _context->requester_id().c_str());
     return _finished();
   }
 
@@ -253,6 +290,10 @@ void WaitForTraffic::Active::_consider_going()
     _state->update_status(Status::Delayed);
     _state->update_log().info(
       "Replanning because a traffic dependency is excessively delayed");
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Replanning for [%s] because a traffic dependency is excessively delayed",
+      _context->requester_id().c_str());
     return _replan();
   }
 

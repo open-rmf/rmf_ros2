@@ -53,7 +53,17 @@ rmf_task::Task::ActivePtr EmergencyPullover::start(
       std::make_shared<EmergencyPulloverDescription>()), {});
 
   const auto desc = builder.build("Emergency Pullover", "");
-  const rmf_task::Request request(task_id, context->now(), nullptr, desc, true);
+
+  const auto time_now = context->now();
+  rmf_task::Task::ConstBookingPtr booking =
+    std::make_shared<const rmf_task::Task::Booking>(
+    task_id,
+    time_now,
+    nullptr,
+    context->requester_id(),
+    time_now,
+    true);
+  const rmf_task::Request request(std::move(booking), desc);
 
   return activator.activate(
     context->make_get_state(),
@@ -233,7 +243,8 @@ void EmergencyPullover::Active::_find_plan()
   _state->update_log().info("Searching for an emergency pullover");
 
   _find_pullover_service = std::make_shared<services::FindEmergencyPullover>(
-    _context->planner(), _context->location(), _context->schedule()->snapshot(),
+    _context->emergency_planner(), _context->location(),
+    _context->schedule()->snapshot(),
     _context->itinerary().id(), _context->profile());
 
   _pullover_subscription =
@@ -325,9 +336,38 @@ void EmergencyPullover::Active::_execute_plan(
   if (_is_interrupted)
     return;
 
+  if (plan.get_itinerary().empty() || plan.get_waypoints().empty())
+  {
+    _state->update_status(Status::Completed);
+    _state->update_log().info(
+      "The planner indicates that the robot is already in a pullover spot.");
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Robot [%s] is already in a pullover spot",
+      _context->requester_id().c_str());
+
+    _finished();
+    return;
+  }
+
+  if (!plan.get_waypoints().back().graph_index().has_value())
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Robot [%s] has no graph index for its final waypoint. This is a serious "
+      "bug and should be reported to the RMF maintainers.",
+      _context->requester_id().c_str());
+    _schedule_retry();
+    return;
+  }
+
+  auto goal = rmf_traffic::agv::Plan::Goal(
+    plan.get_waypoints().back().graph_index().value());
+
   _execution = ExecutePlan::make(
-    _context, plan_id, std::move(plan), std::move(full_itinerary), _assign_id,
-    _state, _update, _finished, std::nullopt);
+    _context, plan_id, std::move(plan), std::move(goal),
+    std::move(full_itinerary), _assign_id, _state, _update,
+    _finished, std::nullopt);
 
   if (!_execution.has_value())
   {
@@ -361,7 +401,7 @@ Negotiator::NegotiatePtr EmergencyPullover::Active::_respond(
 
   const auto evaluator = Negotiator::make_evaluator(table_view);
   return services::Negotiate::emergency_pullover(
-    _context->itinerary().assign_plan_id(), _context->planner(),
+    _context->itinerary().assign_plan_id(), _context->emergency_planner(),
     _context->location(), table_view,
     responder, std::move(approval_cb), std::move(evaluator));
 }

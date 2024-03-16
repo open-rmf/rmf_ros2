@@ -48,7 +48,7 @@ public:
     blockade_set_sub =
       create_subscription<SetMsg>(
       BlockadeSetTopicName,
-      rclcpp::SystemDefaultsQoS().best_effort(),
+      rclcpp::SystemDefaultsQoS().keep_last(10).best_effort(),
       [=](const SetMsg::UniquePtr msg)
       {
         this->blockade_set(*msg);
@@ -57,7 +57,7 @@ public:
     blockade_ready_sub =
       create_subscription<ReadyMsg>(
       BlockadeReadyTopicName,
-      rclcpp::SystemDefaultsQoS().best_effort(),
+      rclcpp::SystemDefaultsQoS().keep_last(10).best_effort(),
       [=](const ReadyMsg::UniquePtr msg)
       {
         this->blockade_ready(*msg);
@@ -66,7 +66,7 @@ public:
     blockade_reached_sub =
       create_subscription<ReachedMsg>(
       BlockadeReachedTopicName,
-      rclcpp::SystemDefaultsQoS().best_effort(),
+      rclcpp::SystemDefaultsQoS().keep_last(10).best_effort(),
       [=](const ReachedMsg::UniquePtr msg)
       {
         this->blockade_reached(*msg);
@@ -75,7 +75,7 @@ public:
     blockade_release_sub =
       create_subscription<ReleaseMsg>(
       BlockadeReleaseTopicName,
-      rclcpp::SystemDefaultsQoS().best_effort(),
+      rclcpp::SystemDefaultsQoS().keep_last(10).best_effort(),
       [=](const ReleaseMsg::UniquePtr msg)
       {
         this->blockade_release(*msg);
@@ -84,7 +84,7 @@ public:
     blockade_cancel_sub =
       create_subscription<CancelMsg>(
       BlockadeCancelTopicName,
-      rclcpp::SystemDefaultsQoS().best_effort(),
+      rclcpp::SystemDefaultsQoS().keep_last(10).best_effort(),
       [=](const CancelMsg::UniquePtr msg)
       {
         this->blockade_cancel(*msg);
@@ -92,7 +92,7 @@ public:
 
     heartbeat_pub = create_publisher<HeartbeatMsg>(
       BlockadeHeartbeatTopicName,
-      rclcpp::SystemDefaultsQoS().reliable());
+      rclcpp::SystemDefaultsQoS().keep_last(10).reliable());
 
     heartbeat_timer = create_wall_timer(
       std::chrono::seconds(1),
@@ -270,7 +270,7 @@ std::shared_ptr<rclcpp::Node> make_node(
     {
       if (const auto n = w.lock())
       {
-        RCLCPP_INFO(n->get_logger(), msg.c_str());
+        RCLCPP_INFO(n->get_logger(), "%s", msg.c_str());
       }
     });
 
@@ -279,7 +279,7 @@ std::shared_ptr<rclcpp::Node> make_node(
     {
       if (const auto n = w.lock())
       {
-        RCLCPP_DEBUG(n->get_logger(), msg.c_str());
+        RCLCPP_DEBUG(n->get_logger(), "%s", msg.c_str());
       }
     });
 

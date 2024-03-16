@@ -70,7 +70,17 @@ rmf_task::Task::ActivePtr ResponsiveWait::start(
       ResponsiveWait::Description::make_indefinite(waiting_point)), {});
 
   const auto desc = builder.build("Responsive Wait", "");
-  const rmf_task::Request request(task_id, context->now(), nullptr, desc, true);
+
+  const auto time_now = context->now();
+  rmf_task::Task::ConstBookingPtr booking =
+    std::make_shared<const rmf_task::Task::Booking>(
+    task_id,
+    time_now,
+    nullptr,
+    context->requester_id(),
+    time_now,
+    true);
+  const rmf_task::Request request(std::move(booking), desc);
 
   return context->task_activator()->activate(
     context->make_get_state(),
@@ -242,6 +252,10 @@ auto ResponsiveWait::Active::interrupt(
 //==============================================================================
 void ResponsiveWait::Active::cancel()
 {
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Canceling responsive wait for [%s]",
+    _context->requester_id().c_str());
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
   _cancelled = true;
@@ -287,6 +301,11 @@ void ResponsiveWait::Active::_next_cycle()
     return;
   }
 
+  RCLCPP_DEBUG(
+    _context->node()->get_logger(),
+    "Beginning next responsive wait cycle for [%s] and waypoint %lu",
+    _context->requester_id().c_str(),
+    _description.waiting_point);
   _begin_movement();
 }
 
@@ -300,8 +319,7 @@ void ResponsiveWait::Active::_begin_movement()
   _go_to_place = GoToPlace::Active::make(
     _assign_id,
     _context,
-    std::move(goal),
-    {},
+    *GoToPlace::Description::make(goal),
     _description.period,
     _state,
     _update,

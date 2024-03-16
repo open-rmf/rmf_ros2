@@ -18,6 +18,8 @@
 #include "RequestLift.hpp"
 #include "EndLiftSession.hpp"
 #include "RxOperators.hpp"
+#include "../agv/internal_RobotUpdateHandle.hpp"
+#include "../agv/internal_EasyFullControl.hpp"
 
 namespace rmf_fleet_adapter {
 namespace phases {
@@ -27,17 +29,16 @@ std::shared_ptr<RequestLift::ActivePhase> RequestLift::ActivePhase::make(
   agv::RobotContextPtr context,
   std::string lift_name,
   std::string destination,
-  rmf_traffic::Time expected_finish,
-  const Located located)
+  Data data)
 {
   auto inst = std::shared_ptr<ActivePhase>(
     new ActivePhase(
       std::move(context),
       std::move(lift_name),
       std::move(destination),
-      std::move(expected_finish),
-      located
+      std::move(data)
   ));
+
   inst->_init_obs();
   return inst;
 }
@@ -65,7 +66,7 @@ void RequestLift::ActivePhase::emergency_alarm(bool /*on*/)
 //==============================================================================
 void RequestLift::ActivePhase::cancel()
 {
-  _cancelled.get_subscriber().on_next(true);
+  // GoToPlace and ExecutePlan don't call the cancel function anyway
 }
 
 //==============================================================================
@@ -79,13 +80,11 @@ RequestLift::ActivePhase::ActivePhase(
   agv::RobotContextPtr context,
   std::string lift_name,
   std::string destination,
-  rmf_traffic::Time expected_finish,
-  Located located)
+  Data data)
 : _context(std::move(context)),
   _lift_name(std::move(lift_name)),
   _destination(std::move(destination)),
-  _expected_finish(std::move(expected_finish)),
-  _located(located)
+  _data(std::move(data))
 {
   std::ostringstream oss;
   oss << "Requesting lift [" << lift_name << "] to [" << destination << "]";
@@ -98,7 +97,49 @@ void RequestLift::ActivePhase::_init_obs()
 {
   using rmf_lift_msgs::msg::LiftState;
 
+  if (_data.located == Located::Outside && _context->current_lift_destination())
+  {
+    // Check if the current destination is the one we want and also has arrived.
+    // If so, we can skip the rest of this process and just make an observable
+    // that says it's completed right away.
+    if (_context->current_lift_destination()->matches(_lift_name, _destination))
+    {
+      _obs = rxcpp::observable<>::create<LegacyTask::StatusMsg>(
+        [w = weak_from_this()](rxcpp::subscriber<LegacyTask::StatusMsg> s)
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
+
+          if (self->_data.resume_itinerary)
+          {
+            self->_context->schedule_itinerary(
+              self->_data.plan_id, *self->_data.resume_itinerary);
+            const auto delay =
+            self->_context->now() - self->_data.expected_finish;
+            self->_context->itinerary().cumulative_delay(
+              *self->_data.plan_id, delay);
+          }
+
+          s.on_completed();
+        });
+      return;
+    }
+  }
+
+  if (_data.hold_point.has_value())
+  {
+    *_data.plan_id = _context->itinerary().assign_plan_id();
+    _context->schedule_hold(
+      _data.plan_id,
+      _data.hold_point->time(),
+      std::chrono::seconds(10),
+      _data.hold_point->position(),
+      _destination);
+  }
+
   _obs = _context->node()->lift_state()
+    .observe_on(rxcpp::identity_same_worker(_context->worker()))
     .lift<LiftState::SharedPtr>(
     on_subscribe(
       [weak = weak_from_this()]()
@@ -119,17 +160,17 @@ void RequestLift::ActivePhase::_init_obs()
             // TODO(MXG): We can stop publishing the door request once the
             // supervisor sees our request.
             me->_do_publish();
-
-            const auto current_expected_finish =
-            me->_expected_finish + me->_context->itinerary().delay();
-
-            const auto delay = me->_context->now() - current_expected_finish;
+            const auto delay = me->_context->now() - me->_data.expected_finish;
             if (delay > std::chrono::seconds(0))
             {
               me->_context->worker().schedule(
-                [context = me->_context, delay](const auto&)
+                [
+                  context = me->_context,
+                  plan_id = *me->_data.plan_id,
+                  delay
+                ](const auto&)
                 {
-                  context->itinerary().delay(delay);
+                  context->itinerary().cumulative_delay(plan_id, delay);
                 });
             }
           });
@@ -166,21 +207,62 @@ void RequestLift::ActivePhase::_init_obs()
           if (!me)
             return;
 
-          // FIXME: is this thread-safe?
-          if (!me->_cancelled.get_value() || me->_located == Located::Inside)
+          if (me->_data.localize_after.has_value())
           {
-            s.on_completed();
-          }
-          else if (me->_located == Located::Outside)
-          {
-            auto transport = me->_context->node();
-            me->_lift_end_phase = EndLiftSession::Active::make(
-              me->_context,
-              me->_lift_name,
-              me->_destination);
+            auto finish = [s, worker = me->_context->worker(), weak]()
+            {
+              worker.schedule([s, weak](const auto&)
+              {
+                if (const auto me = weak.lock())
+                {
+                  if (!me->_finish())
+                  {
+                    return;
+                  }
+                }
 
-            me->_lift_end_phase->observe().subscribe(s);
+                s.on_completed();
+              });
+            };
+
+            auto cmd = agv::EasyFullControl
+            ::CommandExecution::Implementation::make_hold(
+              me->_context,
+              me->_data.expected_finish,
+              *me->_data.plan_id,
+              std::move(finish));
+
+            agv::Destination::Implementation::get(*me->_data.localize_after)
+            .position = me->_context->position();
+
+            if (me->_context->localize(*me->_data.localize_after,
+            std::move(cmd)))
+            {
+              me->_rewait_timer = me->_context->node()->try_create_wall_timer(
+                std::chrono::seconds(300),
+                [weak, s]
+                {
+                  const auto me = weak.lock();
+                  if (!me)
+                    return;
+
+                  RCLCPP_ERROR(
+                    me->_context->node()->get_logger(),
+                    "Waiting for robot [%s] to localize timed out. Please "
+                    "ensure that your localization function triggers "
+                    "execution.finished() when the robot's localization "
+                    "process is finished.",
+                    me->_context->requester_id().c_str());
+
+                  if (me->_finish())
+                    s.on_completed();
+                });
+              return;
+            }
           }
+
+          if (me->_finish())
+            s.on_completed();
         }));
 }
 
@@ -198,6 +280,11 @@ LegacyTask::StatusMsg RequestLift::ActivePhase::_get_status(
     lift_state->door_state == LiftState::DOOR_OPEN &&
     lift_state->session_id == _context->requester_id())
   {
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Lift has arrived on floor [%s] and opened its doors for robot [%s]",
+      lift_state->current_floor.c_str(),
+      lift_state->session_id.c_str());
     bool completed = false;
     const auto& watchdog = _context->get_lift_watchdog();
 
@@ -254,7 +341,7 @@ LegacyTask::StatusMsg RequestLift::ActivePhase::_get_status(
         _watchdog_info.reset();
       }
     }
-    else if (_located == Located::Outside && watchdog)
+    else if (_data.located == Located::Outside && watchdog)
     {
       _watchdog_info = std::make_shared<WatchdogInfo>();
       watchdog(
@@ -303,15 +390,57 @@ void RequestLift::ActivePhase::_do_publish()
   if (_rewaiting)
     return;
 
-  rmf_lift_msgs::msg::LiftRequest msg{};
-  msg.lift_name = _lift_name;
-  msg.destination_floor = _destination;
-  msg.session_id = _context->requester_id();
-  msg.request_time = _context->node()->now();
-  msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_AGV_MODE;
-  msg.door_state = rmf_lift_msgs::msg::LiftRequest::DOOR_OPEN;
+  if (!_destination_handle)
+  {
+    _destination_handle = _context->set_lift_destination(
+      _lift_name, _destination, _data.located == Located::Inside);
+  }
+}
 
-  _context->node()->lift_request()->publish(msg);
+//==============================================================================
+bool RequestLift::ActivePhase::_finish()
+{
+  // The return value of _finish tells us whether we should have the observable
+  // proceed to trigger on_completed(). If we have already finished before then
+  // _finished will be true, so we should return false to indicate that the
+  // observable should not proceed to trigger on_completed().
+  if (_finished)
+    return false;
+
+  _finished = true;
+
+  if (_data.located == Located::Outside)
+  {
+    // The robot is going to start moving into the lift now, so we should lock
+    // the destination in.
+    _context->set_lift_destination(_lift_name, _destination, true);
+
+    // We should replan to make sure there are no traffic issues that came up
+    // in the time that we were waiting for the lift.
+    if (_data.hold_point.has_value())
+    {
+      if (_data.hold_point->graph_index().has_value())
+      {
+        auto start = rmf_traffic::agv::Plan::Start(
+          _context->now(),
+          _data.hold_point->graph_index().value(),
+          _data.hold_point->position()[2]);
+        _context->set_location({std::move(start)});
+      }
+    }
+
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Requesting replan for [%s] because it has finished waiting lift [%s] "
+      "to arrive at [%s]",
+      _context->requester_id().c_str(),
+      _lift_name.c_str(),
+      _destination.c_str());
+    _context->request_replan();
+    return false;
+  }
+
+  return true;
 }
 
 //==============================================================================
@@ -319,13 +448,11 @@ RequestLift::PendingPhase::PendingPhase(
   agv::RobotContextPtr context,
   std::string lift_name,
   std::string destination,
-  rmf_traffic::Time expected_finish,
-  Located located)
+  Data data)
 : _context(std::move(context)),
   _lift_name(std::move(lift_name)),
   _destination(std::move(destination)),
-  _expected_finish(std::move(expected_finish)),
-  _located(located)
+  _data(std::move(data))
 {
   std::ostringstream oss;
   oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
@@ -340,8 +467,7 @@ std::shared_ptr<LegacyTask::ActivePhase> RequestLift::PendingPhase::begin()
     _context,
     _lift_name,
     _destination,
-    _expected_finish,
-    _located);
+    _data);
 }
 
 //==============================================================================
