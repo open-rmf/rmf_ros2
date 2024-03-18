@@ -727,7 +727,7 @@ ParkRobotIndefinitely::ParkRobotIndefinitely(
 rmf_task::ConstRequestPtr ParkRobotIndefinitely::make_request(
   const rmf_task::State& state) const
 {
-  std::string id = _pimpl->request_type + generate_uuid();
+  std::string id = "ParkRobot-" + generate_uuid();
   auto phase_desc = std::make_shared<ChargeBatteryEvent::Description>(
     _pimpl->parking_waypoint, true, true);
 
@@ -751,12 +751,6 @@ rmf_task::ConstRequestPtr ParkRobotIndefinitely::make_request(
   return std::make_shared<rmf_task::Request>(
     std::move(booking),
     std::move(desc));
-}
-
-//==============================================================================
-const std::string& ParkRobotIndefinitely::request_type() const
-{
-  return _pimpl->request_type;
 }
 
 } // namespace task
