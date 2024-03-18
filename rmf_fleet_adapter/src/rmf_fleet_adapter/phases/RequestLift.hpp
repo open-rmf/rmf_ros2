@@ -80,6 +80,7 @@ struct RequestLift
     std::shared_ptr<EndLiftSession::Active> _lift_end_phase;
     rmf_rxcpp::subscription_guard _reset_session_subscription;
     std::shared_ptr<void> _destination_handle;
+    std::shared_ptr<std::string> _current_boarded_lift_level;
     bool _finished = false;
 
     struct WatchdogInfo
