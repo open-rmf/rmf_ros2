@@ -7,8 +7,8 @@ ament_add_catch2(
 
 target_link_libraries(test_intersection_checker
   PRIVATE
-    ${rmf_obstacle_msgs_LIBRARIES}
-    ${geometry_msgs_LIBRARIES}
+    ${rmf_obstacle_msgs_TARGETS}
+    ${geometry_msgs_TARGETS}
     rmf_utils::rmf_utils
 )
 
