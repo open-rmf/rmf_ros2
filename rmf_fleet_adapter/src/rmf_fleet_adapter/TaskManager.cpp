@@ -65,6 +65,8 @@
 #include <rmf_api_msgs/schemas/undo_skip_phase_response.hpp>
 #include <rmf_api_msgs/schemas/error.hpp>
 
+#include <iostream>
+
 namespace rmf_fleet_adapter {
 
 //==============================================================================
@@ -700,7 +702,18 @@ void TaskManager::ActiveTask::cancel(
   rmf_traffic::Time time)
 {
   if (_cancellation.has_value())
-    return;
+  {
+    if (!_task)
+    {
+      /* *INDENT-OFF* */
+      throw std::runtime_error(
+        "[TaskManager::ActiveTask::id] Called when there is no active task. "
+        "This is a serious bug, please report this to the developers of RMF ");
+      /* *INDENT-ON* */
+    }
+      std::cout << " -- -- Cancellation already has value for task [" << _task->tag()->booking()->id() <<"], returning..." << std::endl;
+      return;
+  }
 
   nlohmann::json cancellation;
   cancellation["unix_millis_request_time"] =
@@ -708,6 +721,7 @@ void TaskManager::ActiveTask::cancel(
 
   cancellation["labels"] = std::move(labels);
 
+  std::cout << " -- -- Moving task to cancellation" << std::endl;
   _cancellation = std::move(cancellation);
   _task->cancel();
 }
@@ -1237,6 +1251,10 @@ bool TaskManager::cancel_task(
   if (_active_task && _active_task.id() == task_id)
   {
     _task_state_update_available = true;
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Cancelling active task with task id %s for robot [%s]",
+      task_id.c_str(), _context->name().c_str());
     _active_task.cancel(std::move(labels), _context->now());
     return true;
   }
