@@ -1038,8 +1038,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::EasyFullControl::FleetConfiguration::set_account_for_battery_drain)
   .def_property(
     "retreat_to_charger_interval",
-    &agv::EasyFullControl::FleetConfiguration::retreat_to_charger_interval,
-    &agv::EasyFullControl::FleetConfiguration::set_retreat_to_charger_interval)
+    &agv::EasyFullControl::FleetConfiguration::retreat_to_charger_interval)
   .def_property(
     "finishing_request",
     &agv::EasyFullControl::FleetConfiguration::finishing_request,

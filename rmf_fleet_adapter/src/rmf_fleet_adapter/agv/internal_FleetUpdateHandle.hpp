@@ -276,6 +276,7 @@ public:
 
   rmf_utils::optional<rmf_traffic::Duration> default_maximum_delay =
     std::chrono::nanoseconds(std::chrono::seconds(10));
+  std::optional<rmf_traffic::Duration> retreat_to_charger_interval = std::nullopt;
 
   AcceptDeliveryRequest accept_delivery = nullptr;
   std::unordered_map<RobotContextPtr,

@@ -2553,16 +2553,6 @@ std::optional<rmf_traffic::Duration> EasyFullControl::FleetConfiguration::retrea
 }
 
 //==============================================================================
-void EasyFullControl::FleetConfiguration::set_retreat_to_charger_interval(
-  std::optional<rmf_traffic::Duration> duration)
-{
-  if (duration.has_value())
-    _pimpl->retreat_to_charger_interval = duration;
-  else
-    _pimpl->retreat_to_charger_interval = std::nullopt;
-}
-
-//==============================================================================
 const std::unordered_map<std::string, ConsiderRequest>&
 EasyFullControl::FleetConfiguration::task_consideration() const
 {

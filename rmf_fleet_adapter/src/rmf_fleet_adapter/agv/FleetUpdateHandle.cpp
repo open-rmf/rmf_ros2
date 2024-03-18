@@ -2296,6 +2296,13 @@ FleetUpdateHandle& FleetUpdateHandle::set_update_listener(
 }
 
 //==============================================================================
+std::optional<rmf_traffic::Duration>
+FleetUpdateHandle::retreat_to_charger_interval() const
+{
+  return _pimpl->retreat_to_charger_interval;
+}
+
+//==============================================================================
 std::shared_ptr<rclcpp::Node> FleetUpdateHandle::node()
 {
   return _pimpl->node;
@@ -2347,6 +2354,7 @@ bool FleetUpdateHandle::set_task_planner_params(
       // The finishing request is no longer handled by the planner, we handle
       // it separately as a waiting behavior now.
       nullptr};
+    _pimpl->retreat_to_charger_interval(retreat_to_charger_interval);
 
     _pimpl->worker.schedule(
       [w = weak_from_this(), task_config, options, idle_task](const auto&)

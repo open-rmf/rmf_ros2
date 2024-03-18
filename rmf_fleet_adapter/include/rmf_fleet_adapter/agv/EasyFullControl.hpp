@@ -716,10 +716,6 @@ public:
   /// Get the duration between retreat to charger checks.
   std::optional<rmf_traffic::Duration> retreat_to_charger_interval() const;
 
-  /// Set whether or not to trigger automatic retreat to charger with a
-  /// duration between checks for automatic retreat.
-  void set_retreat_to_charger_interval(std::optional<rmf_traffic::Duration> duration);
-
   /// Get the task categories
   const std::unordered_map<std::string, ConsiderRequest>&
   task_consideration() const;

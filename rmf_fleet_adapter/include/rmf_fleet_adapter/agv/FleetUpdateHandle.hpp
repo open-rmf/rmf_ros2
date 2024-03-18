@@ -398,6 +398,13 @@ public:
   FleetUpdateHandle& set_update_listener(
     std::function<void(const nlohmann::json&)> listener);
 
+  /// Get the duration between retreat to charger checks.
+  std::optional<rmf_traffic::Duration> retreat_to_charger_interval() const;
+
+  /// Set whether or not to trigger automatic retreat to charger with a
+  /// duration between checks for automatic retreat.
+  void set_retreat_to_charger_interval(std::optional<rmf_traffic::Duration> duration);
+
   /// Get the rclcpp::Node that this fleet update handle will be using for
   /// communication.
   std::shared_ptr<rclcpp::Node> node();
