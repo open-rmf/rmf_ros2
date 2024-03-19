@@ -403,7 +403,8 @@ public:
 
   /// Set whether or not to trigger automatic retreat to charger with a
   /// duration between checks for automatic retreat.
-  void set_retreat_to_charger_interval(std::optional<rmf_traffic::Duration> duration);
+  FleetUpdateHandle& retreat_to_charger_interval(
+    std::optional<rmf_traffic::Duration> duration);
 
   /// Get the rclcpp::Node that this fleet update handle will be using for
   /// communication.

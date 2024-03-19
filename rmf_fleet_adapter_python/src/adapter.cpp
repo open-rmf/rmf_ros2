@@ -498,6 +498,13 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::FleetUpdateHandle::set_update_listener,
     py::arg("listener"),
     "Provide a callback that will receive fleet state and task updates.")
+  .def_property("retreat_to_charger_interval",
+    py::overload_cast<>(
+      &agv::FleetUpdateHandle::retreat_to_charger_interval, py::const_),
+    [&](agv::FleetUpdateHandle& self)
+    {
+      return self.retreat_to_charger_interval();
+    })
   .def("consider_delivery_requests",
      [&](agv::FleetUpdateHandle& self,
          ModifiedConsiderRequest consider_pickup,
@@ -1004,6 +1011,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def(
     "get_known_robot_configuration",
     &agv::EasyFullControl::FleetConfiguration::get_known_robot_configuration)
+  .def(
+    "retreat_to_charger_interval",
+    &agv::EasyFullControl::FleetConfiguration::retreat_to_charger_interval)
   .def_property(
     "graph",
     &agv::EasyFullControl::FleetConfiguration::graph,
@@ -1036,9 +1046,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
     "account_for_battery_drain",
     &agv::EasyFullControl::FleetConfiguration::account_for_battery_drain,
     &agv::EasyFullControl::FleetConfiguration::set_account_for_battery_drain)
-  .def_property(
-    "retreat_to_charger_interval",
-    &agv::EasyFullControl::FleetConfiguration::retreat_to_charger_interval)
   .def_property(
     "finishing_request",
     &agv::EasyFullControl::FleetConfiguration::finishing_request,

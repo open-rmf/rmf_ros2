@@ -181,16 +181,6 @@ TaskManagerPtr TaskManager::make(
       }
     });
 
-  mgr->_retreat_timer = mgr->context()->node()->try_create_wall_timer(
-    std::chrono::seconds(10),
-    [w = mgr->weak_from_this()]()
-    {
-      if (auto mgr = w.lock())
-      {
-        mgr->retreat_to_charger();
-      }
-    });
-
   mgr->_begin_waiting();
 
   // TODO(MXG): The tests allow a task manager to be created before a task
@@ -1611,7 +1601,32 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
 }
 
 //==============================================================================
-void TaskManager::retreat_to_charger()
+void TaskManager::retreat_to_charger(std::optional<rmf_traffic::Duration> duration)
+{
+  if (!duration.has_value())
+  {
+    if (_retreat_timer && !_retreat_timer->is_canceled())
+    {
+      _retreat_timer->cancel();
+    }
+    return;
+  }
+
+  if (_retreat_timer)
+    _retreat_timer->reset();
+  _retreat_timer = _context->node()->try_create_wall_timer(
+    duration.value(),
+    [w = weak_from_this()]()
+    {
+      if (auto mgr = w.lock())
+      {
+        mgr->retreat_to_charger_cb();
+      }
+    });
+}
+
+//==============================================================================
+void TaskManager::retreat_to_charger_cb()
 {
   if (!_travel_estimator)
     return;
@@ -1628,22 +1643,6 @@ void TaskManager::retreat_to_charger()
 
   if (!task_planner->configuration().constraints().drain_battery())
     return;
-  if (!task_planner->configuration().constraints().retreat_to_charger_interval())
-  {
-    RCLCPP_WARN(
-      _context->node()->get_logger(),
-      " -- -- -- Robot [%s] retreat to charger is disabled!",
-      _context->name().c_str());
-    return;
-  }
-  if (_idle_task && _idle_task->request_type() == "Charge")
-  {
-    RCLCPP_WARN(
-      _context->node()->get_logger(),
-      " -- -- -- Robot [%s] request type is already CHARGE!",
-      _context->name().c_str());
-    return;
-  }
 
   const auto current_state = expected_finish_state();
   const auto charging_waypoint =

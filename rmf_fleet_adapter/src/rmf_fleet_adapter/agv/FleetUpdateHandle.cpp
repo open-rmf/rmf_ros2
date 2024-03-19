@@ -45,6 +45,7 @@
 
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 
+#include <iostream>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -1690,6 +1691,7 @@ void FleetUpdateHandle::add_robot(
           }
 
           mgr->set_idle_task(fleet->_pimpl->idle_task);
+          mgr->retreat_to_charger(fleet->retreat_to_charger_interval());
 
           // -- Calling the handle_cb should always happen last --
           if (handle_cb)
@@ -2296,6 +2298,20 @@ FleetUpdateHandle& FleetUpdateHandle::set_update_listener(
 }
 
 //==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::retreat_to_charger_interval(
+  std::optional<rmf_traffic::Duration> duration)
+{
+  _pimpl->retreat_to_charger_interval = duration;
+
+  // Start retreat timer
+  for (const auto& t : _pimpl->task_managers)
+  {
+    t.second->retreat_to_charger(duration);
+  }
+  return *this;
+}
+
+//==============================================================================
 std::optional<rmf_traffic::Duration>
 FleetUpdateHandle::retreat_to_charger_interval() const
 {
@@ -2324,7 +2340,7 @@ bool FleetUpdateHandle::set_task_planner_params(
   double recharge_soc,
   bool account_for_battery_drain,
   rmf_task::ConstRequestFactoryPtr idle_task,
-  std::optional<rmf_traffic::Duration> retreat_to_charger_interval)
+  std::optional<rmf_traffic::Duration> retreat_to_charger_gap)
 {
   if (battery_system &&
     motion_sink &&
@@ -2342,8 +2358,7 @@ bool FleetUpdateHandle::set_task_planner_params(
     const rmf_task::Constraints constraints{
       recharge_threshold,
       recharge_soc,
-      account_for_battery_drain,
-      retreat_to_charger_interval};
+      account_for_battery_drain};
     const rmf_task::TaskPlanner::Configuration task_config{
       parameters,
       constraints,
@@ -2354,16 +2369,17 @@ bool FleetUpdateHandle::set_task_planner_params(
       // The finishing request is no longer handled by the planner, we handle
       // it separately as a waiting behavior now.
       nullptr};
-    _pimpl->retreat_to_charger_interval(retreat_to_charger_interval);
 
     _pimpl->worker.schedule(
-      [w = weak_from_this(), task_config, options, idle_task](const auto&)
+      [w = weak_from_this(), task_config, options, idle_task,
+      retreat_to_charger_gap](const auto&)
       {
         const auto self = w.lock();
         if (!self)
           return;
 
         self->_pimpl->idle_task = idle_task;
+        self->retreat_to_charger_interval(retreat_to_charger_gap);
 
         // Here we update the task planner in all the RobotContexts.
         // The TaskManagers rely on the parameters in the task planner for

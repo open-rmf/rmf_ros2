@@ -1979,9 +1979,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
     rmf_traffic::time::from_seconds(10);
   if (!rmf_fleet["retreat_to_charger_interval"])
   {
-    // TODO(XY) check if 0 or None provide, set as nullopt
     std::cout << "[retreat_to_charger_interval] value is not provided, "
-              << "default to True" << std::endl;
+              << "default to 10 seconds" << std::endl;
   }
   else
   {
