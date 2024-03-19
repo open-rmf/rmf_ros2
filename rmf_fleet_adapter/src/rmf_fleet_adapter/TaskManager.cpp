@@ -1383,8 +1383,8 @@ void TaskManager::_begin_pullover()
 {
   _finished_waiting = false;
   auto task_id = "emergency_pullover." + _context->name() + "."
-  + _context->group() + "-"
-  + std::to_string(_count_emergency_pullover++);
+    + _context->group() + "-"
+    + std::to_string(_count_emergency_pullover++);
   _context->current_task_id(task_id);
 
   // TODO(MXG): Consider subscribing to the emergency pullover update
