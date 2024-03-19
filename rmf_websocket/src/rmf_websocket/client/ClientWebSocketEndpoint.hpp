@@ -134,9 +134,6 @@ public:
   /// Destructor
   ~ClientWebSocketEndpoint();
 
-  /// Interrupt any wait.
-  void interrupt_waits();
-
 private:
   WsClient _endpoint;
   std::atomic<bool> _stop;
