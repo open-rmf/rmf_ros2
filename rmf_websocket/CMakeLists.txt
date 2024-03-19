@@ -21,7 +21,7 @@ find_package(nlohmann_json REQUIRED)
 find_package(nlohmann_json_schema_validator_vendor REQUIRED)
 find_package(nlohmann_json_schema_validator REQUIRED)
 find_package(websocketpp REQUIRED)
-find_package(Boost COMPONENTS system filesystem REQUIRED)
+find_package(Boost COMPONENTS system REQUIRED)
 find_package(Threads)
 
 
@@ -39,8 +39,7 @@ target_link_libraries(rmf_websocket
     nlohmann_json::nlohmann_json
     nlohmann_json_schema_validator
   PRIVATE
-    ${Boost_FILESYSTEM_LIBRARY}
-    ${Boost_SYSTEM_LIBRARY}
+    Boost::system
     Threads::Threads
 )
 
@@ -109,6 +108,7 @@ if(BUILD_TESTING)
   target_link_libraries(test_ring_buffer
     PRIVATE
       rmf_utils::rmf_utils
+      Boost::system
     )
 endif()
 

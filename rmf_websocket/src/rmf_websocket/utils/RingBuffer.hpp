@@ -34,12 +34,8 @@ public: void resize(std::size_t buffer)
 /// Push an item onto the queue
 public: void push(T item)
   {
-    {
-      std::lock_guard<std::mutex> lock(_mtx);
-      _vec.push_back(std::move(item));
-    }
-
-    _cv.notify_all();
+    std::lock_guard<std::mutex> lock(_mtx);
+    _vec.push_back(std::move(item));
   }
 
 //==============================================================================
@@ -63,17 +59,9 @@ public: std::optional<T> pop_item()
     return item;
   }
 
-//==============================================================================
-public: void wait_for_message()
-  {
-    std::unique_lock lk(_mtx);
-    _cv.wait(lk, [&] { return !_vec.empty(); });
-  }
-
 private:
   boost::circular_buffer<T> _vec;
   std::mutex _mtx;
-  std::condition_variable _cv;
 };
 
 }

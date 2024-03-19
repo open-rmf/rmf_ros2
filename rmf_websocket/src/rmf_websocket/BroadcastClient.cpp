@@ -167,7 +167,6 @@ private:
   //============================================================================
   void _flush_queue_if_connected()
   {
-
     while (auto queue_item = _queue.pop_item())
     {
       auto status = _endpoint.get_status();
@@ -179,13 +178,9 @@ private:
       if (status != ConnectionMetadata::ConnectionStatus::OPEN &&
         status != ConnectionMetadata::ConnectionStatus::CONNECTING)
       {
-        // Attempt reconnect
-        log("Disconected. Attempting reconnection.");
-        //_endpoint.connect();
         return;
       }
 
-      // Send
       auto ec = _endpoint.send(queue_item->dump());
       if (ec)
       {
