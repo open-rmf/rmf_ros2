@@ -198,7 +198,7 @@ void bind_graph(py::module& m)
     py::arg("wp_index"))
 
   //Lifts
-  .def("all_known_lifts", &Graph::all_known_lifts);
+  .def_property_readonly("all_known_lifts", &Graph::all_known_lifts);
 
   // PARSE GRAPH ==============================================================
   // Helper function to parse a graph from a yaml file
