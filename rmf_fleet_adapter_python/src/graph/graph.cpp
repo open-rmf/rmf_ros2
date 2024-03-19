@@ -195,7 +195,10 @@ void bind_graph(py::module& m)
   .def_property_readonly("num_lanes", &Graph::num_lanes)
   .def("lanes_from_waypoint",
     py::overload_cast<std::size_t>(&Graph::lanes_from, py::const_),
-    py::arg("wp_index"));
+    py::arg("wp_index"))
+
+  //Lifts
+  .def("all_known_lifts", &Graph::all_known_lifts);
 
   // PARSE GRAPH ==============================================================
   // Helper function to parse a graph from a yaml file
