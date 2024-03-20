@@ -101,11 +101,22 @@ WaitForCharge::Active::Active(
   retain_mutexes.insert(
     graph.get_waypoint(charging_waypoint).in_mutex_group());
   _context->retain_mutex_groups(retain_mutexes);
-  RCLCPP_INFO(
-    _context->node()->get_logger(),
-    "Robot [%s] has begun charging, releasing all other mutexes. If there is "
-    "a mutex group on the dedicated charging waypoint, it will be retained.",
-    _context->name().c_str());
+
+  if (retain_mutexes.begin()->empty())
+  {
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Robot [%s] is waiting to charge. All its mutex groups will be released.",
+      _context->name().c_str());
+  }
+  else
+  {
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Robot [%s] is waiting to charge. It will retain only the mutex group [%s].",
+      _context->name().c_str(),
+      retain_mutexes.begin()->c_str());
+  }
 
   _context->current_mode(rmf_fleet_msgs::msg::RobotMode::MODE_CHARGING);
 }
