@@ -387,6 +387,10 @@ private:
   /// Callback for task timer which begins next task if its deployment time has passed
   void _begin_next_task();
 
+  /// Begin performing an emergency pullover. This should only be called when an
+  /// emergency is active.
+  void _begin_pullover();
+
   // Interrupts that were issued when there was no active task. They will be
   // applied when a task becomes active.
   //
