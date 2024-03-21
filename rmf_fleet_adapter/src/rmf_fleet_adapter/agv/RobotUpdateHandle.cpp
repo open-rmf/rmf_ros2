@@ -721,6 +721,69 @@ void RobotUpdateHandle::release_lift()
 }
 
 //==============================================================================
+class RobotUpdateHandle::Commission::Implementation
+{
+public:
+  bool is_accepting_dispatched_tasks = true;
+  bool is_accepting_direct_tasks = true;
+};
+
+//==============================================================================
+RobotUpdateHandle::Commission::Commission()
+  : _pimpl(rmf_utils::make_impl<Implementation>())
+{
+  // Do nothing
+}
+
+//==============================================================================
+auto RobotUpdateHandle::Commission::decommission() -> Commission
+{
+  return Commission()
+    .accept_dispatched_tasks(false)
+    .accept_direct_tasks(false);
+}
+
+//==============================================================================
+auto RobotUpdateHandle::Commission::accept_dispatched_tasks(bool decision)
+-> Commission&
+{
+  _pimpl->is_accepting_dispatched_tasks = decision;
+  return *this;
+}
+
+//==============================================================================
+bool RobotUpdateHandle::Commission::is_accepting_dispatched_tasks() const
+{
+  return _pimpl->is_accepting_dispatched_tasks;
+}
+
+//==============================================================================
+auto RobotUpdateHandle::Commission::accept_direct_tasks(bool decision)
+-> Commission&
+{
+  _pimpl->is_accepting_direct_tasks = decision;
+  return *this;
+}
+
+//==============================================================================
+bool RobotUpdateHandle::Commission::is_accepting_direct_tasks() const
+{
+  return _pimpl->is_accepting_direct_tasks;
+}
+
+//==============================================================================
+void RobotUpdateHandle::set_commission(Commission commission)
+{
+  _pimpl->set_commission(std::move(commission));
+}
+
+//==============================================================================
+auto RobotUpdateHandle::commission() const -> Commission
+{
+  return _pimpl->commission();
+}
+
+//==============================================================================
 RobotUpdateHandle::RobotUpdateHandle()
 {
   // Do nothing
@@ -742,7 +805,7 @@ const RobotUpdateHandle::Unstable& RobotUpdateHandle::unstable() const
 bool RobotUpdateHandle::Unstable::is_commissioned() const
 {
   if (const auto context = _pimpl->get_context())
-    return context->is_commissioned();
+    return context->copy_commission().is_accepting_dispatched_tasks();
 
   return false;
 }
@@ -750,29 +813,17 @@ bool RobotUpdateHandle::Unstable::is_commissioned() const
 //==============================================================================
 void RobotUpdateHandle::Unstable::decommission()
 {
-  if (const auto context = _pimpl->get_context())
-  {
-    context->worker().schedule(
-      [w = context->weak_from_this()](const auto&)
-      {
-        if (const auto context = w.lock())
-          context->decommission();
-      });
-  }
+  _pimpl->set_commission(
+    _pimpl->commission()
+    .accept_dispatched_tasks(false));
 }
 
 //==============================================================================
 void RobotUpdateHandle::Unstable::recommission()
 {
-  if (const auto context = _pimpl->get_context())
-  {
-    context->worker().schedule(
-      [w = context->weak_from_this()](const auto&)
-      {
-        if (const auto context = w.lock())
-          context->recommission();
-      });
-  }
+  _pimpl->set_commission(
+    _pimpl->commission()
+    .accept_dispatched_tasks(true));
 }
 
 //==============================================================================

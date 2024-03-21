@@ -1492,7 +1492,7 @@ auto FleetUpdateHandle::Implementation::aggregate_expectations() const
   for (const auto& t : task_managers)
   {
     // Ignore any robots that are not currently commissioned.
-    if (!t.first->is_commissioned())
+    if (!t.first->commission().is_accepting_dispatched_tasks())
       continue;
 
     expect.states.push_back(t.second->expected_finish_state());
