@@ -208,6 +208,10 @@ ClientWebSocketEndpoint::~ClientWebSocketEndpoint()
 {
   _endpoint.stop_perpetual();
 
+  if (!_current_connection)
+  {
+    return;
+  }
 
   if (_current_connection->get_status() !=
     ConnectionMetadata::ConnectionStatus::OPEN)

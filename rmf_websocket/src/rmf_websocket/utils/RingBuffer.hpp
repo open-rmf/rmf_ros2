@@ -41,9 +41,19 @@ public: void push(T item)
 //==============================================================================
 public: bool empty()
   {
+    std::lock_guard<std::mutex> lock(_mtx);
     return _vec.empty();
   }
-
+//==============================================================================
+public: std::optional<T> front()
+  {
+    std::lock_guard<std::mutex> lock(_mtx);
+    if (_vec.empty())
+    {
+      return std::nullopt;
+    }
+    return _vec.front();
+  }
 //==============================================================================
 public: std::optional<T> pop_item()
   {

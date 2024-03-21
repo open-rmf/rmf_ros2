@@ -101,6 +101,7 @@ if(BUILD_TESTING)
     MAX_LINE_LENGTH 80
   )
 
+  # unit test
   find_package(ament_cmake_catch2 REQUIRED)
   ament_add_catch2(test_ring_buffer
     src/rmf_websocket/utils/RingBuffer_TEST.cpp
@@ -110,6 +111,75 @@ if(BUILD_TESTING)
       rmf_utils::rmf_utils
       Boost::system
     )
+
+#integration test
+  find_package(OpenSSL REQUIRED)
+  ament_add_catch2(test_client
+    test/test_client.cpp
+    TIMEOUT 300)
+  target_link_libraries(test_client
+    PUBLIC
+    ${websocketpp_LIBRARIES}
+      ${rclcpp_LIBRARIES}
+      rmf_utils::rmf_utils
+      Boost::system
+      rmf_websocket
+      PRIVATE
+      Threads::Threads
+      OpenSSL::Crypto
+    )
+  target_include_directories(test_client
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+      ${rclcpp_INCLUDE_DIRS}
+      ${WEBSOCKETPP_INCLUDE_DIR}
+  )
+
+
+  ament_add_catch2(test_client_no_server
+    test/test_client_no_server.cpp
+    TIMEOUT 300)
+  target_link_libraries(test_client_no_server
+    PUBLIC
+      ${websocketpp_LIBRARIES}
+      ${rclcpp_LIBRARIES}
+      rmf_utils::rmf_utils
+      Boost::system
+      rmf_websocket
+      PRIVATE
+      Threads::Threads
+      OpenSSL::Crypto
+  )
+  target_include_directories(test_client_no_server
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+      ${rclcpp_INCLUDE_DIRS}
+      ${WEBSOCKETPP_INCLUDE_DIR}
+  )
+
+  ament_add_catch2(test_client_with_update_cb
+    test/test_client_with_update_cb.cpp
+    TIMEOUT 300)
+  target_link_libraries(test_client_with_update_cb
+    PUBLIC
+      ${websocketpp_LIBRARIES}
+      ${rclcpp_LIBRARIES}
+      rmf_utils::rmf_utils
+      Boost::system
+      rmf_websocket
+      PRIVATE
+      Threads::Threads
+      OpenSSL::Crypto
+  )
+  target_include_directories(test_client_with_update_cb
+    PUBLIC
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+      $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+      ${rclcpp_INCLUDE_DIRS}
+      ${WEBSOCKETPP_INCLUDE_DIR}
+  )
 endif()
 
 ament_package()

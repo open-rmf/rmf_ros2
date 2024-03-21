@@ -78,39 +78,44 @@ public:
       this->_node->get_logger(),
       "Connected to server");
 
-    auto messages = _get_json_updates_cb();
-
-    for (auto queue_item : messages)
+    if (_get_json_updates_cb)
     {
-      auto status = _endpoint.get_status();
-      if (!status.has_value())
-      {
-        return;
-      }
+      auto messages = _get_json_updates_cb();
 
-      if (status != ConnectionMetadata::ConnectionStatus::OPEN &&
-        status != ConnectionMetadata::ConnectionStatus::CONNECTING)
+      for (auto queue_item : messages)
       {
-        // Attempt reconnect
-        log("Disconnected during init.");
-        return;
-      }
-
-      // Send
-      auto ec = _endpoint.send(queue_item.dump());
-      if (ec)
-      {
-        if (status != ConnectionMetadata::ConnectionStatus::CONNECTING)
+        auto status = _endpoint.get_status();
+        if (!status.has_value())
         {
-          log("Send failed. Attempting_reconnection.");
+          return;
         }
-        return;
+
+        if (status != ConnectionMetadata::ConnectionStatus::OPEN &&
+          status != ConnectionMetadata::ConnectionStatus::CONNECTING)
+        {
+          // Attempt reconnect
+          log("Disconnected during init.");
+          return;
+        }
+
+        // Send
+        auto ec = _endpoint.send(queue_item.dump());
+        if (ec)
+        {
+          if (status != ConnectionMetadata::ConnectionStatus::CONNECTING)
+          {
+            log("Send failed. Attempting_reconnection.");
+          }
+          return;
+        }
       }
+      RCLCPP_INFO(
+        this->_node->get_logger(),
+        "Sent all updates");
     }
     RCLCPP_INFO(
       this->_node->get_logger(),
-      "Sent all updates");
-
+      "Attempting queue flush if connected");
     _flush_queue_if_connected();
   }
 
@@ -167,7 +172,7 @@ private:
   //============================================================================
   void _flush_queue_if_connected()
   {
-    while (auto queue_item = _queue.pop_item())
+    while (!_queue.empty())
     {
       auto status = _endpoint.get_status();
       if (!status.has_value())
@@ -180,12 +185,20 @@ private:
       {
         return;
       }
-
+      auto queue_item = _queue.front();
+      if (!queue_item.has_value())
+      {
+        // Technically this should be unreachable as long as the client is
+        // single threaded
+        log("The queue was modified when it shouldnt have been");
+        return;
+      }
       auto ec = _endpoint.send(queue_item->dump());
       if (ec)
       {
         return;
       }
+      _queue.pop_item();
     }
   }
   // create pimpl
