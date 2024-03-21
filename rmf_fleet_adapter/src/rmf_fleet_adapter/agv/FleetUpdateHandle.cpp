@@ -283,6 +283,11 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
     requester = i_it->get<std::string>();
   }
 
+  std::vector<std::string> labels = {};
+  const auto labels_it = request_msg.find("labels");
+  if (labels_it != request_msg.end())
+    labels = labels_it->get<std::vector<std::string>>();
+
   rmf_task::Task::ConstBookingPtr booking = requester.has_value() ?
     std::make_shared<const rmf_task::Task::Booking>(
     task_id,
@@ -290,12 +295,14 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
     priority,
     requester.value(),
     request_time,
-    false) :
+    false,
+    labels) :
     std::make_shared<const rmf_task::Task::Booking>(
     task_id,
     earliest_start_time,
     priority,
-    false);
+    false,
+    labels);
   const auto new_request = std::make_shared<rmf_task::Request>(
     std::move(booking),
     deserialized_task.description);
