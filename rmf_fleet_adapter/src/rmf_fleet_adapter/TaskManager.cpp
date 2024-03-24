@@ -1018,6 +1018,13 @@ nlohmann::json TaskManager::submit_direct_request(
   const auto& fleet = _context->group();
   const auto& robot = _context->name();
 
+  if (!_context->commission().is_accepting_direct_tasks())
+  {
+    return _make_error_response(
+      20, "Uncommissioned", "The robot [" + robot + "] in fleet ["
+      + fleet + "] is not commissioned to perform direct tasks.");
+  }
+
   const auto& impl =
     agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
   std::vector<std::string> errors;
@@ -1490,6 +1497,13 @@ std::function<void()> TaskManager::_robot_interruption_callback()
 //==============================================================================
 void TaskManager::_begin_waiting()
 {
+  if (!_context->commission().is_performing_idle_behavior())
+  {
+    // This robot is not supposed to perform its idle behavior, so we
+    // immediately from here.
+    return;
+  }
+
   if (_idle_task)
   {
     const auto request = _idle_task->make_request(_context->make_get_state()());

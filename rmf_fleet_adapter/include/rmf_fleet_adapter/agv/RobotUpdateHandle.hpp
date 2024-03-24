@@ -419,11 +419,13 @@ public:
     /// Construct a Commission description with all default values.
     /// - accept_dispatched_tasks: true
     /// - accept_direct_tasks: true
+    /// - is_performing_idle_behavior: true
     Commission();
 
     /// Construct a Commission description that accepts no tasks at all.
     /// - accept_dispatch_tasks: false
     /// - accept_direct_tasks: false
+    /// - is_performing_idle_behavior: false
     static Commission decommission();
 
     /// Set whether this commission should accept dispatched tasks.
@@ -437,6 +439,14 @@ public:
 
     /// Check whether this commission is accepting direct tasks.
     bool is_accepting_direct_tasks() const;
+
+    /// Set whether this commission should perform idle behaviors (formerly
+    /// referred to as "finishing tasks").
+    Commission& perform_idle_behavior(bool decision=true);
+
+    /// Check whether this commission is performing idle behaviors (formerly
+    /// referred to as "finishing tasks").
+    bool is_performing_idle_behavior() const;
 
     class Implementation;
   private:

@@ -726,6 +726,7 @@ class RobotUpdateHandle::Commission::Implementation
 public:
   bool is_accepting_dispatched_tasks = true;
   bool is_accepting_direct_tasks = true;
+  bool is_performing_idle_behavior = true;
 };
 
 //==============================================================================
@@ -740,7 +741,8 @@ auto RobotUpdateHandle::Commission::decommission() -> Commission
 {
   return Commission()
     .accept_dispatched_tasks(false)
-    .accept_direct_tasks(false);
+    .accept_direct_tasks(false)
+    .perform_idle_behavior(false);
 }
 
 //==============================================================================
@@ -769,6 +771,19 @@ auto RobotUpdateHandle::Commission::accept_direct_tasks(bool decision)
 bool RobotUpdateHandle::Commission::is_accepting_direct_tasks() const
 {
   return _pimpl->is_accepting_direct_tasks;
+}
+
+//==============================================================================
+auto RobotUpdateHandle::Commission::perform_idle_behavior(bool decision)
+{
+  _pimpl->is_performing_idle_behavior = decision;
+  return *this;
+}
+
+//==============================================================================
+bool RobotUpdateHandle::Commission::is_performing_idle_behavior() const
+{
+  return _pimpl->is_performing_idle_behavior;
 }
 
 //==============================================================================
