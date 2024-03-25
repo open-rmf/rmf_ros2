@@ -104,7 +104,7 @@ public:
         {
           if (status != ConnectionMetadata::ConnectionStatus::CONNECTING)
           {
-            log("Send failed. Attempting_reconnection.");
+            log("Send failed. Attempting reconnection.");
           }
           return;
         }
