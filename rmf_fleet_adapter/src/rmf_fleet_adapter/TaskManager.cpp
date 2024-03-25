@@ -802,17 +802,7 @@ bool TaskManager::cancel_task_if_present(const std::string& task_id)
     return true;
   }
 
-  std::lock_guard<std::mutex> lock(_mutex);
-  for (auto it = _queue.begin(); it != _queue.end(); ++it)
-  {
-    if (it->request()->booking()->id() == task_id)
-    {
-      _queue.erase(it);
-      return true;
-    }
-  }
-
-  return false;
+  return _cancel_task_from_dispatch_queue(task_id, {"DispatchRequest"});
 }
 
 //==============================================================================
@@ -1997,12 +1987,16 @@ bool TaskManager::_cancel_task_from_dispatch_queue(
   const std::string& task_id,
   const std::vector<std::string>& labels)
 {
+  std::lock_guard<std::mutex> lock(_mutex);
   for (auto it = _queue.begin(); it != _queue.end(); ++it)
   {
     if (it->request()->booking()->id() == task_id)
     {
       _publish_canceled_pending_task(*it, labels);
       _queue.erase(it);
+
+      // Count this as an executed task so we don't lose track of its existence
+      _register_executed_task(task_id);
       return true;
     }
   }

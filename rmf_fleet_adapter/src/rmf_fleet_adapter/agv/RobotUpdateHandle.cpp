@@ -775,6 +775,7 @@ bool RobotUpdateHandle::Commission::is_accepting_direct_tasks() const
 
 //==============================================================================
 auto RobotUpdateHandle::Commission::perform_idle_behavior(bool decision)
+-> Commission&
 {
   _pimpl->is_performing_idle_behavior = decision;
   return *this;

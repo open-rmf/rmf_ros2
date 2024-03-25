@@ -234,15 +234,26 @@ private:
 };
 
 //==============================================================================
+struct ExpectedState
+{
+  RobotContextPtr context;
+  rmf_task::State state;
+};
+
+//==============================================================================
 struct Expectations
 {
-  std::vector<rmf_task::State> states;
+  std::vector<ExpectedState> states;
   std::vector<rmf_task::ConstRequestPtr> pending_requests;
 };
 
 //==============================================================================
-// Map task id to pair of <RequestPtr, TaskAssignments>
-using TaskAssignments = rmf_task::TaskPlanner::Assignments;
+// Map from the robot instance to its proposed assignment of tasks
+using TaskAssignments = std::unordered_map<
+  RobotContextPtr,
+  std::vector<rmf_task::TaskPlanner::Assignment>>;
+
+// Forward declaration of a task allocation job
 class AllocateTasks;
 
 //==============================================================================
@@ -329,6 +340,13 @@ public:
   double current_assignment_cost = 0.0;
   // Map to store task id with assignments for BidNotice
   std::unordered_map<std::string, TaskAssignments> bid_notice_assignments = {};
+
+  // This is checked before and after the task reassignment procedure to ensure
+  // that no new task came in from the dispatcher while the reassignment was
+  // being calculated.
+  std::string last_bid_assignment;
+  std::vector<rmf_task::ConstRequestPtr> unassigned_requests;
+  rxcpp::schedulers::worker reassignment_worker;
 
   using BidNoticeMsg = rmf_task_msgs::msg::BidNotice;
 
@@ -617,6 +635,8 @@ public:
 
   void dispatch_command_cb(const DispatchCmdMsg::SharedPtr msg);
 
+  double compute_cost(const TaskAssignments& assignments) const;
+
   std::optional<std::size_t> get_nearest_charger(
     const rmf_traffic::agv::Planner::Start& start);
 
@@ -624,7 +644,14 @@ public:
 
   /// Helper function to check if assignments are valid. An assignment set is
   /// invalid if one of the assignments has already begun execution.
-  bool is_valid_assignments(TaskAssignments& assignments) const;
+  bool is_valid_assignments(
+    TaskAssignments& assignments,
+    std::string* report_error = nullptr) const;
+
+  void reassign_dispatched_tasks(
+    std::function<void()> on_success,
+    // argument is a vector of error messages from the planner
+    std::function<void(std::vector<std::string>)> on_failure);
 
   void publish_fleet_state_topic() const;
 
