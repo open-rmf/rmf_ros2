@@ -80,6 +80,9 @@ std::string ConnectionMetadata::debug_data() const
     case ConnectionStatus::FAILED:
       status_string = "Closed";
       break;
+    default:
+      status_string = "Unknown";
+      break;
   }
 
 
@@ -129,7 +132,8 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
   if (ec)
   {
     std::stringstream err;
-    err << "> Connect initialization error: " << ec.message();
+    err << "> Connect initialization error: " << ec.message() << std::endl
+        << "> Host: " << _uri << std::endl;
     _logger(err.str());
     return ec;
   }
@@ -138,7 +142,10 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
     {
       // TODO(arjo) Parametrize the timeout.
       using namespace std::chrono_literals;
-      _logger("Attempting reconnection in 1s.");
+      std::stringstream err;
+      err << "> Reconnecting in 1s" << std::endl
+          << "> Host: " << _uri << std::endl;
+      _logger(err.str());
       std::this_thread::sleep_for(1s);
       connect();
     };
@@ -228,7 +235,8 @@ ClientWebSocketEndpoint::~ClientWebSocketEndpoint()
   if (ec)
   {
     std::stringstream err;
-    err << "> Error closing connection : " << ec.message();
+    err << "> Error closing connection : " << ec.message() << std::endl
+        << "> Host: " << _uri << std::endl;
     _logger(err.str());
   }
 
