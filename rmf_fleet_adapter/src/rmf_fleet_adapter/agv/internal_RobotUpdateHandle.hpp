@@ -308,7 +308,9 @@ public:
           const auto&)
         {
           if (const auto context = w.lock())
+          {
             context->set_commission(commission);
+          }
         });
     }
   }

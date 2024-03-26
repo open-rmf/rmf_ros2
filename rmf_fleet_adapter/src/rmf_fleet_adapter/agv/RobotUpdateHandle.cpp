@@ -800,6 +800,21 @@ auto RobotUpdateHandle::commission() const -> Commission
 }
 
 //==============================================================================
+void RobotUpdateHandle::reassign_dispatched_tasks()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [context](const auto&)
+      {
+        const auto mgr = context->task_manager();
+        if (mgr)
+          mgr->reassign_dispatched_requests();
+      });
+  }
+}
+
+//==============================================================================
 RobotUpdateHandle::RobotUpdateHandle()
 {
   // Do nothing

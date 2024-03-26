@@ -53,6 +53,7 @@ class TaskManager;
 
 namespace agv {
 
+class FleetUpdateHandle;
 class RobotContext;
 using TransformDictionary = std::unordered_map<std::string, Transformation>;
 using SharedPlanner = std::shared_ptr<
@@ -641,6 +642,9 @@ public:
   /// Lock the commission_mutex and return a copy of the robot's current
   /// commission.
   RobotUpdateHandle::Commission copy_commission() const;
+
+  /// Reassign the tasks that have been dispatched for this robot
+  void reassign_dispatched_tasks();
 
   Reporting& reporting();
 

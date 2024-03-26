@@ -939,12 +939,12 @@ void TaskManager::set_queue(
 }
 
 //==============================================================================
-const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
+std::vector<rmf_task::ConstRequestPtr> TaskManager::dispatched_requests() const
 {
   using namespace rmf_task::requests;
   std::vector<rmf_task::ConstRequestPtr> requests;
-  requests.reserve(_queue.size());
   std::lock_guard<std::mutex> lock(_mutex);
+  requests.reserve(_queue.size());
   for (const auto& task : _queue)
   {
     if (task.request()->booking()->automatic())
@@ -955,6 +955,115 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
     requests.push_back(task.request());
   }
   return requests;
+}
+
+//==============================================================================
+void TaskManager::reassign_dispatched_requests()
+{
+  std::vector<Assignment> assignments;
+  {
+    std::lock_guard<std::mutex> lock(_mutex);
+    for (const auto& a : _queue)
+    {
+      if (a.request()->booking()->automatic())
+      {
+        continue;
+      }
+
+      assignments.push_back(a);
+    }
+    _queue.clear();
+  }
+
+  const auto fleet = _fleet_handle.lock();
+  if (!fleet)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Attempting to reassign tasks for [%s] but its fleet is shutting down",
+      _context->requester_id().c_str());
+    return;
+  }
+
+  auto& fleet_impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
+  auto& unassigned = fleet_impl.unassigned_requests;
+  for (const auto& a : assignments)
+  {
+    unassigned.push_back(a.request());
+  }
+
+  fleet_impl.reassign_dispatched_tasks(
+    [name = _context->requester_id(), node = _context->node()]()
+    {
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Successfully reassigned tasks for [%s]",
+        name.c_str());
+    },
+    [
+      name = _context->requester_id(),
+      node = _context->node(),
+      assignments,
+      fleet,
+      self = shared_from_this()
+    ](std::vector<std::string> errors)
+    {
+      std::stringstream ss_errors;
+      if (errors.empty())
+      {
+        ss_errors << " no reason given";
+      }
+      else
+      {
+        for (auto&& e : errors)
+        {
+          ss_errors << "\n -- " << e;
+        }
+      }
+
+      std::stringstream ss_requests;
+      if (assignments.empty())
+      {
+        ss_requests << "No tasks were assigned to the robot.";
+      }
+      else
+      {
+        ss_requests << "The following tasks will be canceled:";
+        for (const auto& a : assignments)
+        {
+          ss_requests << "\n -- " << a.request()->booking()->id();
+        }
+      }
+
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Failed to reassign tasks for [%s]. %s\nReasons for failure:%s",
+        ss_requests.str().c_str(),
+        ss_errors.str().c_str());
+
+      auto& fleet_impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
+      auto& unassigned = fleet_impl.unassigned_requests;
+      const auto r_it = std::remove_if(
+        unassigned.begin(),
+        unassigned.end(),
+        [&assignments](const auto& r)
+        {
+          return std::find_if(
+            assignments.begin(),
+            assignments.end(),
+            [r](const auto& a)
+            {
+              return a.request() == r;
+            }) != assignments.end();
+        });
+      unassigned.erase(r_it, unassigned.end());
+
+      for (const auto& a : assignments)
+      {
+        self->_publish_canceled_pending_task(a, {"Failure to reassign"});
+      }
+    }
+  );
 }
 
 //==============================================================================

@@ -118,7 +118,11 @@ public:
   void set_queue(const std::vector<Assignment>& assignments);
 
   /// Get the non-charging requests among pending tasks
-  const std::vector<rmf_task::ConstRequestPtr> requests() const;
+  std::vector<rmf_task::ConstRequestPtr> dispatched_requests() const;
+
+  /// Send all dispatched requests that are still in the queue back to the fleet
+  /// handle for reassignment.
+  void reassign_dispatched_requests();
 
   std::optional<std::string> current_task_id() const;
 
