@@ -64,6 +64,8 @@
 #include <rmf_api_msgs/schemas/undo_skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/undo_skip_phase_response.hpp>
 #include <rmf_api_msgs/schemas/error.hpp>
+#include <rmf_api_msgs/schemas/robot_commission_request.hpp>
+#include <rmf_api_msgs/schemas/robot_commission_response.hpp>
 
 namespace rmf_fleet_adapter {
 
@@ -958,7 +960,9 @@ std::vector<rmf_task::ConstRequestPtr> TaskManager::dispatched_requests() const
 }
 
 //==============================================================================
-void TaskManager::reassign_dispatched_requests()
+void TaskManager::reassign_dispatched_requests(
+  std::function<void()> on_success,
+  std::function<void(std::vector<std::string>)> on_failure)
 {
   std::vector<Assignment> assignments;
   {
@@ -993,18 +997,20 @@ void TaskManager::reassign_dispatched_requests()
   }
 
   fleet_impl.reassign_dispatched_tasks(
-    [name = _context->requester_id(), node = _context->node()]()
+    [name = _context->requester_id(), node = _context->node(), on_success]()
     {
       RCLCPP_INFO(
         node->get_logger(),
         "Successfully reassigned tasks for [%s]",
         name.c_str());
+      on_success();
     },
     [
       name = _context->requester_id(),
       node = _context->node(),
       assignments,
       fleet,
+      on_failure,
       self = shared_from_this()
     ](std::vector<std::string> errors)
     {
@@ -1062,8 +1068,9 @@ void TaskManager::reassign_dispatched_requests()
       {
         self->_publish_canceled_pending_task(a, {"Failure to reassign"});
       }
-    }
-  );
+
+      on_failure(errors);
+    });
 }
 
 //==============================================================================
@@ -1149,7 +1156,11 @@ nlohmann::json TaskManager::submit_direct_request(
       }
       catch (const std::exception&)
       {
-        json_errors.push_back(e);
+        nlohmann::json error;
+        error["code"] = 42;
+        error["category"] = "unknown";
+        error["detail"] = e;
+        json_errors.push_back(error);
       }
     }
     response_json["errors"] = std::move(json_errors);
@@ -2387,6 +2398,8 @@ void TaskManager::_handle_request(
       _handle_undo_skip_phase_request(request_json, request_id);
     else if (type_str == "robot_task_request")
       _handle_direct_request(request_json, request_id);
+    else if (type_str == "robot_commission_request")
+      _handle_commission_request(request_json, request_id);
     else
       return;
   }
@@ -2423,6 +2436,87 @@ void TaskManager::_handle_direct_request(
   const nlohmann::json& request = request_json["request"];
   const auto response = submit_direct_request(request, request_id);
   _validate_and_publish_api_response(response, response_validator, request_id);
+}
+
+//==============================================================================
+void TaskManager::_handle_commission_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    std::make_shared<nlohmann::json_schema::json_validator>(
+      _make_validator(rmf_api_msgs::schemas::robot_commission_request));
+
+  static const auto response_validator =
+    std::make_shared<nlohmann::json_schema::json_validator>(
+      _make_validator(rmf_api_msgs::schemas::robot_commission_response));
+
+  agv::RobotUpdateHandle::Commission commission = _context->commission();
+  const nlohmann::json& commission_json = request_json["commission"];
+  const auto dispatch_it = commission_json.find("dispatch_tasks");
+  if (dispatch_it != commission_json.end())
+  {
+    commission.accept_dispatched_tasks(dispatch_it->get<bool>());
+  }
+
+  const auto direct_it = commission_json.find("direct_tasks");
+  if (direct_it != commission_json.end())
+  {
+    commission.accept_direct_tasks(direct_it->get<bool>());
+  }
+
+  const auto idle_it = commission_json.find("idle_behavior");
+  if (idle_it != commission_json.end())
+  {
+    commission.perform_idle_behavior(idle_it->get<bool>());
+  }
+
+  const auto reassign_it = request_json.find("reassign_tasks");
+  if (reassign_it == request_json.end() || reassign_it->get<bool>())
+  {
+    reassign_dispatched_requests(
+      [
+        request_id,
+        response_validator = response_validator,
+        self = shared_from_this()
+      ]()
+      {
+        nlohmann::json response_json;
+        response_json["success"] = true;
+        self->_validate_and_publish_api_response(
+          response_json, *response_validator, request_id);
+      },
+      [
+        request_id,
+        response_validator = response_validator,
+        self = shared_from_this()
+      ](std::vector<std::string> errors)
+      {
+        nlohmann::json response_json;
+        response_json["success"] = false;
+        std::vector<nlohmann::json> errors_json;
+        for (const auto& e : errors)
+        {
+          nlohmann::json error;
+          error["code"] = 21;
+          error["category"] = "planner";
+          error["detail"] = e;
+          errors_json.push_back(error);
+        }
+        response_json["errors"] = errors_json;
+        self->_validate_and_publish_api_response(
+          response_json, *response_validator, request_id);
+      });
+  }
+  else
+  {
+    // No task reassignment is needed, so we can simply return success right
+    // away.
+    nlohmann::json response_json;
+    response_json["success"] = true;
+    _validate_and_publish_api_response(
+      response_json, *response_validator, request_id);
+  }
 }
 
 //==============================================================================

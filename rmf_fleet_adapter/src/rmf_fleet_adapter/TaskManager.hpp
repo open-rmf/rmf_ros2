@@ -122,7 +122,9 @@ public:
 
   /// Send all dispatched requests that are still in the queue back to the fleet
   /// handle for reassignment.
-  void reassign_dispatched_requests();
+  void reassign_dispatched_requests(
+    std::function<void()> on_success,
+    std::function<void(std::vector<std::string>)> on_failure);
 
   std::optional<std::string> current_task_id() const;
 
@@ -540,6 +542,10 @@ private:
     const std::string& request_id);
 
   void _handle_direct_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_commission_request(
     const nlohmann::json& request_json,
     const std::string& request_id);
 

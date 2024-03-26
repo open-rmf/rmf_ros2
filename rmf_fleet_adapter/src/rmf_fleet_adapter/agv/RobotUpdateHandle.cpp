@@ -809,7 +809,7 @@ void RobotUpdateHandle::reassign_dispatched_tasks()
       {
         const auto mgr = context->task_manager();
         if (mgr)
-          mgr->reassign_dispatched_requests();
+          mgr->reassign_dispatched_requests([](){}, [](auto){});
       });
   }
 }
