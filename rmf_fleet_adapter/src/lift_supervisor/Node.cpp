@@ -27,7 +27,8 @@ namespace lift_supervisor {
 Node::Node()
 : rclcpp::Node("rmf_lift_supervisor")
 {
-  const auto default_qos = rclcpp::SystemDefaultsQoS().keep_last(10);
+  const auto default_qos =
+    rclcpp::SystemDefaultsQoS().durability_volatile().keep_last(100).reliable();
   const auto transient_qos = rclcpp::SystemDefaultsQoS()
     .reliable().keep_last(100).transient_local();
 
@@ -68,12 +69,14 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
   {
     if (curr_request->session_id == msg->session_id)
     {
+      msg->request_time = this->now();
+      _lift_request_pub->publish(*msg);
       if (msg->request_type != LiftRequest::REQUEST_END_SESSION)
+      {
         curr_request = std::move(msg);
+      }
       else
       {
-        msg->request_time = this->now();
-        _lift_request_pub->publish(*msg);
         RCLCPP_INFO(
           this->get_logger(),
           "[%s] Published end lift session from lift supervisor",
@@ -85,6 +88,7 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
   }
   else
   {
+    _lift_request_pub->publish(*msg);
     if (msg->request_type != LiftRequest::REQUEST_END_SESSION)
     {
       curr_request = std::move(msg);
