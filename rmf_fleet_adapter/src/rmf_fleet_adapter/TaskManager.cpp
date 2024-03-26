@@ -159,16 +159,6 @@ TaskManagerPtr TaskManager::make(
       }
     });
 
-  mgr->_retreat_timer = mgr->context()->node()->try_create_wall_timer(
-    std::chrono::seconds(10),
-    [w = mgr->weak_from_this()]()
-    {
-      if (auto mgr = w.lock())
-      {
-        mgr->retreat_to_charger();
-      }
-    });
-
   mgr->_begin_waiting();
 
   // TODO(MXG): The tests allow a task manager to be created before a task
@@ -1638,7 +1628,32 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
 }
 
 //==============================================================================
-void TaskManager::retreat_to_charger()
+void TaskManager::retreat_to_charger(std::optional<rmf_traffic::Duration> duration)
+{
+  if (!duration.has_value())
+  {
+    if (_retreat_timer && !_retreat_timer->is_canceled())
+    {
+      _retreat_timer->cancel();
+    }
+    return;
+  }
+
+  if (_retreat_timer)
+    _retreat_timer->reset();
+  _retreat_timer = _context->node()->try_create_wall_timer(
+    duration.value(),
+    [w = weak_from_this()]()
+    {
+      if (auto mgr = w.lock())
+      {
+        mgr->retreat_to_charger_cb();
+      }
+    });
+}
+
+//==============================================================================
+void TaskManager::retreat_to_charger_cb()
 {
   if (!_travel_estimator)
     return;

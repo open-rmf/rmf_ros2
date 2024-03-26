@@ -513,6 +513,12 @@ public:
   ///   vehicles in this fleet when battery levels fall below the
   ///   recharge_threshold.
   ///
+  /// \param[in] retreat_to_charger_interval
+  ///   Specify whether to allow automatic retreat to charger if the robot's
+  ///   battery is estimated to fall below its recharge_threshold before it is
+  ///   able to complete its current task. Provide a duration between checks in
+  ///   seconds. If nullopt, retreat to charger would be disabled.
+  ///
   /// \param[in] task_categories
   ///   Provide callbacks for considering tasks belonging to each category.
   ///
@@ -568,6 +574,7 @@ public:
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
+    std::optional<rmf_traffic::Duration> retreat_to_charger_interval,
     std::unordered_map<std::string, ConsiderRequest> task_consideration,
     std::unordered_map<std::string, ConsiderRequest> action_consideration,
     rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
@@ -705,6 +712,9 @@ public:
 
   /// Set whether or not to account for battery drain during task planning.
   void set_account_for_battery_drain(bool value);
+
+  /// Get the duration between retreat to charger checks.
+  std::optional<rmf_traffic::Duration> retreat_to_charger_interval() const;
 
   /// Get the task categories
   const std::unordered_map<std::string, ConsiderRequest>&

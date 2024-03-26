@@ -706,6 +706,7 @@ public:
   std::string requester;
   std::function<rmf_traffic::Time()> time_now_cb;
   std::optional<std::size_t> parking_waypoint;
+  std::string request_type = "ParkRobot";
 };
 
 //==============================================================================

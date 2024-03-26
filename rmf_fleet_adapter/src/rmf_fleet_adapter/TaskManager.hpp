@@ -136,7 +136,12 @@ public:
 
   /// Callback for the retreat timer. Appends a charging task to the task queue
   /// when robot is idle and battery level drops below a retreat threshold.
-  void retreat_to_charger();
+  void retreat_to_charger_cb();
+
+  /// Start the retreat timer that periodically checks whether the robot
+  /// should retreat to charger if its battery state of charge is close to
+  /// the recharge threshold.
+  void retreat_to_charger(std::optional<rmf_traffic::Duration> duration);
 
   /// Get the list of task ids for tasks that have started execution.
   /// The list will contain upto 100 latest task ids only.
