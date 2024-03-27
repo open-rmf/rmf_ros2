@@ -443,6 +443,12 @@ private:
     const Assignment& assignment,
     std::vector<std::string> labels);
 
+  /// Take all dispatched assignments out of the queue, leaving the queue empty.
+  std::vector<Assignment> _drain_dispatched_assignments();
+
+  /// Take all direct assignments out of the queue, leaving the queue empty.
+  std::vector<Assignment> _drain_direct_assignments();
+
   /// Cancel a task that is in the dispatch queue. Returns false if the task
   /// was not present.
   bool _cancel_task_from_dispatch_queue(

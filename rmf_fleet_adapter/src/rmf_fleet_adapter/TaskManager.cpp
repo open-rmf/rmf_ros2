@@ -968,21 +968,7 @@ void TaskManager::reassign_dispatched_requests(
   std::function<void()> on_success,
   std::function<void(std::vector<std::string>)> on_failure)
 {
-  std::vector<Assignment> assignments;
-  {
-    std::lock_guard<std::mutex> lock(_mutex);
-    for (const auto& a : _queue)
-    {
-      if (a.request()->booking()->automatic())
-      {
-        continue;
-      }
-
-      assignments.push_back(a);
-    }
-    _queue.clear();
-  }
-
+  std::vector<Assignment> assignments = _drain_dispatched_assignments();
   const auto fleet = _fleet_handle.lock();
   if (!fleet)
   {
@@ -1071,6 +1057,7 @@ void TaskManager::reassign_dispatched_requests(
       for (const auto& a : assignments)
       {
         self->_publish_canceled_pending_task(a, {"Failure to reassign"});
+        self->_register_executed_task(a.request()->booking()->id());
       }
 
       on_failure(errors);
@@ -2107,6 +2094,42 @@ void TaskManager::_publish_canceled_pending_task(
 }
 
 //==============================================================================
+auto TaskManager::_drain_dispatched_assignments() -> std::vector<Assignment>
+{
+  std::vector<Assignment> assignments;
+  std::lock_guard<std::mutex> lock(_mutex);
+  for (const auto& a : _queue)
+  {
+    if (a.request()->booking()->automatic())
+    {
+      continue;
+    }
+
+    assignments.push_back(a);
+  }
+  _queue.clear();
+
+  return assignments;
+}
+
+//==============================================================================
+auto TaskManager::_drain_direct_assignments() -> std::vector<Assignment>
+{
+  std::vector<Assignment> assignments;
+  std::lock_guard<std::mutex> lock(_mutex);
+  for (const auto& a : _direct_queue)
+  {
+    if (a.assignment.request()->booking()->automatic())
+    {
+      continue;
+    }
+
+    assignments.push_back(a.assignment);
+  }
+  _direct_queue.clear();
+}
+
+//==============================================================================
 bool TaskManager::_cancel_task_from_dispatch_queue(
   const std::string& task_id,
   const std::vector<std::string>& labels)
@@ -2429,12 +2452,12 @@ void TaskManager::_handle_direct_request(
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
-  const auto& robot = request_json["robot"].get<std::string>();
-  if (robot.empty() || robot != _context->name())
+  const auto& fleet = request_json["fleet"].get<std::string>();
+  if (fleet != _context->group())
     return;
 
-  const auto& fleet = request_json["fleet"].get<std::string>();
-  if (fleet.empty() || fleet != _context->group())
+  const auto& robot = request_json["robot"].get<std::string>();
+  if (robot != _context->name())
     return;
 
   const nlohmann::json& request = request_json["request"];
@@ -2443,17 +2466,37 @@ void TaskManager::_handle_direct_request(
 }
 
 //==============================================================================
+namespace {
+nlohmann::json simple_success_json()
+{
+  nlohmann::json successful_result;
+  successful_result["success"] = true;
+  return successful_result;
+}
+} // anonymous namespace
+
+//==============================================================================
 void TaskManager::_handle_commission_request(
   const nlohmann::json& request_json,
   const std::string& request_id)
 {
   static const auto request_validator =
-    std::make_shared<nlohmann::json_schema::json_validator>(
-      _make_validator(rmf_api_msgs::schemas::robot_commission_request));
+    _make_validator(rmf_api_msgs::schemas::robot_commission_request);
 
   static const auto response_validator =
     std::make_shared<nlohmann::json_schema::json_validator>(
       _make_validator(rmf_api_msgs::schemas::robot_commission_response));
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& fleet = request_json["fleet"].get<std::string>();
+  if (fleet != _context->group())
+    return;
+
+  const auto& robot = request_json["robot"].get<std::string>();
+  if (robot != _context->name())
+    return;
 
   agv::RobotUpdateHandle::Commission commission = _context->commission();
   const nlohmann::json& commission_json = request_json["commission"];
@@ -2475,29 +2518,53 @@ void TaskManager::_handle_commission_request(
     commission.perform_idle_behavior(idle_it->get<bool>());
   }
 
-  const auto reassign_it = request_json.find("reassign_tasks");
-  if (reassign_it == request_json.end() || reassign_it->get<bool>())
+  nlohmann::json response_json;
+  response_json["commission"] = simple_success_json();
+
+  const auto direct_policy_it =
+    request_json.find("pending_direct_tasks_policy");
+  if (direct_policy_it != request_json.end()
+    && direct_policy_it->get<std::string>() == "cancel")
+  {
+    const auto assignments = _drain_direct_assignments();
+    for (const auto& a : assignments)
+    {
+      _publish_canceled_pending_task(
+        a, {"Canceled by robot commission request [" + request_id + "]"});
+      _register_executed_task(a.request()->booking()->id());
+    }
+  }
+
+  response_json["pending_direct_tasks_policy"] = simple_success_json();
+
+  const auto dispatch_policy_it =
+    request_json.find("pending_dispatch_tasks_policy");
+  if (dispatch_policy_it == request_json.end()
+    || dispatch_policy_it->get<std::string>() == "reassign")
   {
     reassign_dispatched_requests(
       [
         request_id,
         response_validator = response_validator,
+        base_response_json = response_json,
         self = shared_from_this()
       ]()
       {
-        nlohmann::json response_json;
-        response_json["success"] = true;
+        nlohmann::json response_json = base_response_json;
+        response_json["pending_dispatch_tasks_policy"] = simple_success_json();
         self->_validate_and_publish_api_response(
           response_json, *response_validator, request_id);
       },
       [
         request_id,
         response_validator = response_validator,
+        base_response_json = response_json,
         self = shared_from_this()
       ](std::vector<std::string> errors)
       {
-        nlohmann::json response_json;
-        response_json["success"] = false;
+        nlohmann::json response_json = base_response_json;
+        nlohmann::json dispatch_json;
+        dispatch_json["success"] = false;
         std::vector<nlohmann::json> errors_json;
         for (const auto& e : errors)
         {
@@ -2507,17 +2574,26 @@ void TaskManager::_handle_commission_request(
           error["detail"] = e;
           errors_json.push_back(error);
         }
-        response_json["errors"] = errors_json;
+        dispatch_json["errors"] = errors_json;
+        response_json["pending_dispatch_tasks_policy"] = dispatch_json;
         self->_validate_and_publish_api_response(
           response_json, *response_validator, request_id);
       });
   }
   else
   {
-    // No task reassignment is needed, so we can simply return success right
-    // away.
-    nlohmann::json response_json;
-    response_json["success"] = true;
+    if (dispatch_policy_it->get<std::string>() == "cancel")
+    {
+      std::vector<Assignment> assignments = _drain_dispatched_assignments();
+      for (const auto& a : assignments)
+      {
+        _publish_canceled_pending_task(
+          a, {"Canceled by robot commission request [" + request_id + "]"});
+        _register_executed_task(a.request()->booking()->id());
+      }
+    }
+
+    response_json["pending_dispatch_tasks_policy"] = simple_success_json();
     _validate_and_publish_api_response(
       response_json, *response_validator, request_id);
   }
