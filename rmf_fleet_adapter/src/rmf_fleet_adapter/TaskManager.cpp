@@ -2518,6 +2518,8 @@ void TaskManager::_handle_commission_request(
     commission.perform_idle_behavior(idle_it->get<bool>());
   }
 
+  _context->set_commission(commission);
+
   nlohmann::json response_json;
   response_json["commission"] = simple_success_json();
 
