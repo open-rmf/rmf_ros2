@@ -1268,6 +1268,16 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
         issue_msg["detail"] = issue->detail;
         issues_msg.push_back(std::move(issue_msg));
       }
+
+      const auto& commission = context->commission();
+      nlohmann::json commission_json;
+      commission_json["dispatch_tasks"] =
+        commission.is_accepting_dispatched_tasks();
+      commission_json["direct_tasks"] = commission.is_accepting_direct_tasks();
+      commission_json["idle_behavior"] =
+        commission.is_performing_idle_behavior();
+
+      json["commission"] = commission_json;
     }
 
     try

@@ -64,6 +64,7 @@
 #include <rmf_api_msgs/schemas/undo_skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/undo_skip_phase_response.hpp>
 #include <rmf_api_msgs/schemas/error.hpp>
+#include <rmf_api_msgs/schemas/commission.hpp>
 #include <rmf_api_msgs/schemas/robot_commission_request.hpp>
 #include <rmf_api_msgs/schemas/robot_commission_response.hpp>
 
@@ -227,7 +228,10 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::skip_phase_response,
     rmf_api_msgs::schemas::task_request,
     rmf_api_msgs::schemas::undo_skip_phase_request,
-    rmf_api_msgs::schemas::undo_skip_phase_response
+    rmf_api_msgs::schemas::undo_skip_phase_response,
+    rmf_api_msgs::schemas::commission,
+    rmf_api_msgs::schemas::robot_commission_request,
+    rmf_api_msgs::schemas::robot_commission_response,
   };
 
   for (const auto& schema : schemas)
