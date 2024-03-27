@@ -383,6 +383,9 @@ public:
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
       Implementation{handle, std::forward<Args>(args)...});
 
+    handle->_pimpl->reassignment_worker =
+      rxcpp::schedulers::make_event_loop().create_worker();
+
     handle->_pimpl->add_standard_tasks();
 
     handle->_pimpl->emergency_obs =
