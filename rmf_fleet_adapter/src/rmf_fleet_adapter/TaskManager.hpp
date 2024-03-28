@@ -40,6 +40,18 @@
 
 namespace rmf_fleet_adapter {
 
+struct PendingTimeInfo
+{
+  int64_t unix_millis_finish_time;
+  int64_t original_estimate_millis;
+};
+
+struct PendingInfo
+{
+  rmf_task::Task::Description::Info info;
+  std::optional<PendingTimeInfo> time;
+};
+
 //==============================================================================
 /// This task manager is a first attempt at managing multiple tasks per fleet.
 /// This is a simple implementation that only makes a modest attempt at being
@@ -326,6 +338,11 @@ private:
   uint16_t _count_emergency_pullover = 0;
   // Queue for dispatched tasks
   std::vector<Assignment> _queue;
+  std::unordered_map<
+    rmf_task::ConstRequestPtr,
+    PendingInfo
+  > _pending_task_info;
+
   // An ID to keep track of the FIFO order of direct tasks
   std::size_t _next_sequence_number;
   // Queue for directly assigned tasks

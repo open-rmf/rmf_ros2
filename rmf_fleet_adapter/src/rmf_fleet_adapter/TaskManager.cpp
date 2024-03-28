@@ -2009,6 +2009,8 @@ rmf_task::State TaskManager::_publish_pending_task(
 {
   const auto info = pending.request()->description()->generate_info(
     std::move(expected_state), parameters);
+  PendingInfo cache;
+  cache.info = info;
 
   nlohmann::json pending_json;
   const auto& booking = *pending.request()->booking();
@@ -2022,13 +2024,18 @@ rmf_task::State TaskManager::_publish_pending_task(
 
   if (pending.finish_state().time())
   {
-    pending_json["unix_millis_finish_time"] =
+    PendingTimeInfo t;
+    t.unix_millis_finish_time =
       to_millis(pending.finish_state().time()->time_since_epoch()).count();
 
     const auto estimate =
       pending.finish_state().time().value() - pending.deployment_time();
-    pending_json["original_estimate_millis"] =
-      std::max(0l, to_millis(estimate).count());
+    t.original_estimate_millis = std::max(0l, to_millis(estimate).count());
+
+    pending_json["unix_millis_finish_time"] = t.unix_millis_finish_time;
+    pending_json["original_estimate_millis"] = t.original_estimate_millis;
+
+    cache.time = t;
   }
   copy_assignment(pending_json["assigned_to"], *_context);
   pending_json["status"] = "queued";
@@ -2041,6 +2048,7 @@ rmf_task::State TaskManager::_publish_pending_task(
 
   _validate_and_publish_websocket(task_state_update, validator);
 
+  _pending_task_info[pending.request()] = cache;
   return pending.finish_state();
 }
 
@@ -2049,6 +2057,7 @@ void TaskManager::_publish_task_queue()
 {
   rmf_task::State expected_state = _context->current_task_end_state();
   const auto& parameters = *_context->task_parameters();
+  _pending_task_info.clear();
 
   for (const auto& pending : _direct_queue)
   {
@@ -2071,6 +2080,20 @@ void TaskManager::_publish_canceled_pending_task(
   nlohmann::json pending_json;
   const auto& booking = *pending.request()->booking();
   copy_booking_data(pending_json["booking"], booking);
+
+  const auto info_it = _pending_task_info.find(pending.request());
+  if (info_it != _pending_task_info.end())
+  {
+    const auto& cache = info_it->second;
+    pending_json["category"] = cache.info.category;
+    pending_json["detail"] = cache.info.detail;
+    if (cache.time.has_value())
+    {
+      const auto& t = *cache.time;
+      pending_json["unix_millis_finish_time"] = t.unix_millis_finish_time;
+      pending_json["original_estimate_millis"] = t.original_estimate_millis;
+    }
+  }
 
   pending_json["unix_millis_start_time"] =
     to_millis(pending.deployment_time().time_since_epoch()).count();
@@ -2127,6 +2150,8 @@ auto TaskManager::_drain_direct_assignments() -> std::vector<Assignment>
     assignments.push_back(a.assignment);
   }
   _direct_queue.clear();
+
+  return assignments;
 }
 
 //==============================================================================
