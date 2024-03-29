@@ -827,7 +827,7 @@ std::string TaskManager::robot_status() const
 //==============================================================================
 auto TaskManager::expected_finish_state() const -> State
 {
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   if (!_direct_queue.empty())
   {
     return _direct_queue.rbegin()->assignment.finish_state();
@@ -877,7 +877,7 @@ void TaskManager::enable_responsive_wait(bool value)
 
   if (_responsive_wait_enabled)
   {
-    std::lock_guard<std::mutex> guard(_mutex);
+    std::lock_guard<std::recursive_mutex> guard(_mutex);
     if (!_active_task && _queue.empty() && _direct_queue.empty() && !_waiting)
     {
       _begin_waiting();
@@ -892,7 +892,7 @@ void TaskManager::set_idle_task(rmf_task::ConstRequestFactoryPtr task)
     return;
 
   _idle_task = std::move(task);
-  std::lock_guard<std::mutex> guard(_mutex);
+  std::lock_guard<std::recursive_mutex> guard(_mutex);
   if (!_active_task && _queue.empty() && _direct_queue.empty())
   {
     _begin_waiting();
@@ -906,7 +906,7 @@ void TaskManager::set_queue(
   // We indent this block as _mutex is also locked in the _begin_next_task()
   // function that is called at the end of this function.
   {
-    std::lock_guard<std::mutex> guard(_mutex);
+    std::lock_guard<std::recursive_mutex> guard(_mutex);
     // Do not remove automatic task if assignments is empty. See Issue #138
     if (assignments.empty() &&
       _queue.size() == 1 &&
@@ -949,7 +949,7 @@ std::vector<rmf_task::ConstRequestPtr> TaskManager::dispatched_requests() const
 {
   using namespace rmf_task::requests;
   std::vector<rmf_task::ConstRequestPtr> requests;
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   requests.reserve(_queue.size());
   for (const auto& task : _queue)
   {
@@ -1213,7 +1213,7 @@ nlohmann::json TaskManager::submit_direct_request(
   };
   ++_next_sequence_number;
   {
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<std::recursive_mutex> lock(_mutex);
     _direct_queue.insert(assignment);
   }
 
@@ -1329,7 +1329,7 @@ bool TaskManager::cancel_task(
 
   // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
   // unordered_sets and perform a lookup to see which function to call.
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   if (_cancel_task_from_dispatch_queue(task_id, labels))
     return true;
 
@@ -1351,7 +1351,7 @@ bool TaskManager::kill_task(
     return true;
   }
 
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   if (_cancel_task_from_dispatch_queue(task_id, labels))
     return true;
 
@@ -1374,7 +1374,7 @@ void TaskManager::_begin_next_task()
     return;
   }
 
-  std::lock_guard<std::mutex> guard(_mutex);
+  std::lock_guard<std::recursive_mutex> guard(_mutex);
 
   if (_queue.empty() && _direct_queue.empty())
   {
@@ -1754,7 +1754,7 @@ void TaskManager::retreat_to_charger()
     return;
 
   {
-    std::lock_guard<std::mutex> guard(_mutex);
+    std::lock_guard<std::recursive_mutex> guard(_mutex);
     if (_active_task || !_queue.empty())
       return;
   }
@@ -1827,7 +1827,7 @@ void TaskManager::retreat_to_charger()
       charging_assignment};
     ++_next_sequence_number;
     {
-      std::lock_guard<std::mutex> lock(_mutex);
+      std::lock_guard<std::recursive_mutex> lock(_mutex);
       _direct_queue.insert(assignment);
     }
 
@@ -2120,7 +2120,7 @@ void TaskManager::_publish_canceled_pending_task(
 auto TaskManager::_drain_dispatched_assignments() -> std::vector<Assignment>
 {
   std::vector<Assignment> assignments;
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   for (const auto& a : _queue)
   {
     if (a.request()->booking()->automatic())
@@ -2139,7 +2139,7 @@ auto TaskManager::_drain_dispatched_assignments() -> std::vector<Assignment>
 auto TaskManager::_drain_direct_assignments() -> std::vector<Assignment>
 {
   std::vector<Assignment> assignments;
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   for (const auto& a : _direct_queue)
   {
     if (a.assignment.request()->booking()->automatic())
@@ -2159,7 +2159,7 @@ bool TaskManager::_cancel_task_from_dispatch_queue(
   const std::string& task_id,
   const std::vector<std::string>& labels)
 {
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   for (auto it = _queue.begin(); it != _queue.end(); ++it)
   {
     if (it->request()->booking()->id() == task_id)
@@ -2294,7 +2294,7 @@ void TaskManager::_send_simple_error_if_queued(
 {
   // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
   // unordered_sets and perform a lookup to see which queue to iterate.
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   for (const auto& a : _queue)
   {
     if (a.request()->booking()->id() == task_id)
