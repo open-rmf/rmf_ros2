@@ -115,6 +115,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("start_set"))
   .def("set_charger_waypoint", &agv::RobotUpdateHandle::set_charger_waypoint,
     py::arg("charger_wp"))
+  .def("set_parking_waypoint", &agv::RobotUpdateHandle::set_parking_waypoint,
+    py::arg("parking_wp"))
   .def("update_battery_soc", &agv::RobotUpdateHandle::update_battery_soc,
     py::arg("battery_soc"))
   .def("override_status", &agv::RobotUpdateHandle::override_status,

@@ -294,6 +294,7 @@ public:
 
   // TODO Support for various charging configurations
   std::unordered_set<std::size_t> charging_waypoints = {};
+  std::unordered_set<std::size_t> parking_waypoints = {};
 
   std::shared_ptr<rmf_task_ros2::bidding::AsyncBidder> bidder = nullptr;
 
@@ -425,6 +426,13 @@ public:
         handle->_pimpl->charging_waypoints.insert(i);
     }
 
+    // Populate parking waypoints
+    for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
+    {
+      if (graph.get_waypoint(i).is_parking_spot())
+        handle->_pimpl->parking_waypoints.insert(i);
+    }
+
     // Initialize schema dictionary
     const std::vector<nlohmann::json> schemas = {
       rmf_api_msgs::schemas::fleet_state_update,
@@ -550,6 +558,9 @@ public:
   void dispatch_command_cb(const DispatchCmdMsg::SharedPtr msg);
 
   std::optional<std::size_t> get_nearest_charger(
+    const rmf_traffic::agv::Planner::Start& start);
+
+  std::optional<std::size_t> get_nearest_parking_wp(
     const rmf_traffic::agv::Planner::Start& start);
 
   struct Expectations

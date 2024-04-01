@@ -102,6 +102,11 @@ public:
   /// property will be assumed as the charger for this robot.
   RobotUpdateHandle& set_charger_waypoint(const std::size_t charger_wp);
 
+  /// Set the waypoint where the parking spot for this robot is located.
+  /// If not specified, the nearest waypoint in the graph with the is_parking_spot()
+  /// property will be assumed as the parking spot for this robot.
+  RobotUpdateHandle& set_parking_waypoint(const std::size_t parking_wp);
+
   /// Update the current battery level of the robot by specifying its state of
   /// charge as a fraction of its total charge capacity
   void update_battery_soc(const double battery_soc);
