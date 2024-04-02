@@ -61,6 +61,7 @@ using ActivityIdentifier = agv::RobotUpdateHandle::ActivityIdentifier;
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
+using Commission = agv::RobotUpdateHandle::Commission;
 using Stubbornness = agv::RobotUpdateHandle::Unstable::Stubbornness;
 
 void bind_types(py::module&);
@@ -291,7 +292,14 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("text"))
   .def("enable_responsive_wait",
     &agv::RobotUpdateHandle::enable_responsive_wait,
-    py::arg("value"));
+    py::arg("value"))
+  .def("set_commission",
+    &agv::RobotUpdateHandle::set_commission,
+    py::arg("commission"))
+  .def("commission",
+    &agv::RobotUpdateHandle::commission)
+  .def("reassign_dispatched_tasks",
+    &agv::RobotUpdateHandle::reassign_dispatched_tasks);
 
   // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");
@@ -353,6 +361,22 @@ PYBIND11_MODULE(rmf_adapter, m) {
     .value("Info", agv::RobotUpdateHandle::Tier::Info)
     .value("Warning", agv::RobotUpdateHandle::Tier::Warning)
     .value("Error", agv::RobotUpdateHandle::Tier::Error);
+
+  // Commission ======================================================
+  py::class_<Commission>(
+    m_robot_update_handle, "Commission")
+  .def_property(
+    "accept_dispatched_tasks",
+    &Commission::is_accepting_dispatched_tasks,
+    &Commission::accept_dispatched_tasks)
+  .def_property(
+    "accept_direct_tasks",
+    &Commission::is_accepting_direct_tasks,
+    &Commission::accept_direct_tasks)
+  .def_property(
+    "perform_idle_behavior",
+    &Commission::is_performing_idle_behavior,
+    &Commission::perform_idle_behavior);
 
   // Stubbornness ============================================================
   py::class_<Stubbornness>(
