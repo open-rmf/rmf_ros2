@@ -28,10 +28,11 @@ void on_message(server* s, websocketpp::connection_hdl hdl, message_ptr msg)
   auto json = nlohmann::json::parse(msg->get_payload());
   if (json["test"] == "init")
   {
+    std::cout << "init message" <<"\n";
     num_init_msgs++;
     return;
   }
-
+  std::cout << "normal_message" <<"\n";
   num_msgs++;
   msgs.push_back(json);
   terminate_server = true;
@@ -56,6 +57,12 @@ void run_server()
 
   // Start the server asynchronously
   echo_server.start_accept();
+
+  // Hack to prevent test deadlock
+  echo_server.set_timer(20.0, [](auto /*?*/)
+  {
+    terminate_server = true;
+  });
 
   // Run the server loop
   while (!terminate_server)

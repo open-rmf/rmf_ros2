@@ -16,6 +16,7 @@
 */
 
 #include <atomic>
+#include <exception>
 #include <functional>
 #include <optional>
 #include <rmf_websocket/BroadcastClient.hpp>
@@ -84,6 +85,8 @@ public:
 
       for (auto queue_item : messages)
       {
+        RCLCPP_INFO(
+          this->_node->get_logger(),"Sending initial message");
         auto status = _endpoint.get_status();
         if (!status.has_value())
         {
@@ -91,8 +94,7 @@ public:
           return;
         }
 
-        if (status != ConnectionMetadata::ConnectionStatus::OPEN &&
-          status != ConnectionMetadata::ConnectionStatus::CONNECTING)
+        if (status != ConnectionMetadata::ConnectionStatus::OPEN)
         {
           // Attempt reconnect
           log("Disconnected during init.");
@@ -103,10 +105,7 @@ public:
         auto ec = _endpoint.send(queue_item.dump());
         if (ec)
         {
-          if (status != ConnectionMetadata::ConnectionStatus::CONNECTING)
-          {
-            log("Send failed. Attempting reconnection.");
-          }
+          log("Send failed. Attempting reconnection.");
           return;
         }
       }
@@ -117,7 +116,10 @@ public:
     RCLCPP_INFO(
       this->_node->get_logger(),
       "Attempting queue flush if connected");
-    _flush_queue_if_connected();
+    _io_service.dispatch([this]()
+      {
+        _flush_queue_if_connected();
+      });
   }
 
   //============================================================================
@@ -146,7 +148,11 @@ public:
   {
     for (auto msg: msgs)
     {
-      _queue.push(msg);
+      bool full = _queue.push(msg);
+      if (full)
+      {
+        log("Buffer full dropping oldest message");
+      }
     }
     _io_service.dispatch([this]()
       {
@@ -182,9 +188,9 @@ private:
         return;
       }
 
-      if (status != ConnectionMetadata::ConnectionStatus::OPEN &&
-        status != ConnectionMetadata::ConnectionStatus::CONNECTING)
+      if (status != ConnectionMetadata::ConnectionStatus::OPEN)
       {
+        log("Connection not yet established");
         return;
       }
       auto queue_item = _queue.front();
@@ -192,7 +198,8 @@ private:
       {
         // Technically this should be unreachable as long as the client is
         // single threaded
-        log("The queue was modified when it shouldnt have been");
+        throw std::runtime_error(
+                "The queue was modified when it shouldnt have been");
         return;
       }
       auto ec = _endpoint.send(queue_item->dump());
@@ -201,8 +208,15 @@ private:
         log("Sending message failed. Maybe due to intermediate disconnection");
         return;
       }
+      else
+      {
+        RCLCPP_INFO(
+          this->_node->get_logger(),"Sent successfully");
+      }
       _queue.pop_item();
     }
+    RCLCPP_INFO(
+      this->_node->get_logger(),"Emptied queue");
   }
   // create pimpl
   std::string _uri;

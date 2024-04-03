@@ -49,6 +49,13 @@ void run_server()
   // Start the server asynchronously
   echo_server.start_accept();
 
+
+  // Hack to prevent test deadlock
+  echo_server.set_timer(20.0, [](auto /*?*/)
+  {
+    terminate_server = true;
+  });
+
   // Run the server loop
   while (!terminate_server)
   {
@@ -56,6 +63,8 @@ void run_server()
   }
 
   echo_server.stop_listening();
+  std::cout << "Server temnated\n";
+
 }
 
 
@@ -75,19 +84,26 @@ TEST_CASE("Client", "Reconnecting server") {
   broadcaster->publish(jsonString);
   t1.join();
 
+  std::cout << "First server torn down\n";
+
   REQUIRE(num_msgs == 1);
 
   terminate_server = false;
-  jsonString["test"] = "2";
-  broadcaster->publish(jsonString);
-
   auto t2 = std::thread([]()
       {
         run_server();
       });
+
+
+  jsonString["test"] = "2";
+  broadcaster->publish(jsonString);
+
+  std::cout << "Awaiting server 2 tear down\n";
   t2.join();
+
   REQUIRE(num_msgs == 2);
 
   REQUIRE(msgs[0]["test"] == "1");
   REQUIRE(msgs[1]["test"] == "2");
+
 }

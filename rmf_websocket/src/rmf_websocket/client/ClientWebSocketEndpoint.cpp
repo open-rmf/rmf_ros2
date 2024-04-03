@@ -44,7 +44,7 @@ void ConnectionMetadata::on_fail(WsClient* c, websocketpp::connection_hdl hdl)
   WsClient::connection_ptr con = c->get_con_from_hdl(hdl);
   _server = con->get_response_header("Server");
   _error_reason = con->get_ec().message();
-  _reconnection_cb();
+  c->get_io_service().dispatch(_reconnection_cb);
 }
 
 //=============================================================================
@@ -146,8 +146,8 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
       err << "> Reconnecting in 1s" << std::endl
           << "> Host: " << _uri << std::endl;
       _logger(err.str());
-      std::this_thread::sleep_for(1s);
-      connect();
+      _endpoint.set_timer(1.0, std::bind(&ClientWebSocketEndpoint::connect,
+        this));
     };
 
   // Not sure why but seems like I have to re-initallize this everytime in order
