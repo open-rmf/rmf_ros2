@@ -87,6 +87,7 @@ public:
         auto status = _endpoint.get_status();
         if (!status.has_value())
         {
+          log("Endpoint has not yet been initiallized.");
           return;
         }
 
@@ -177,6 +178,7 @@ private:
       auto status = _endpoint.get_status();
       if (!status.has_value())
       {
+        log("Endpoint has not yet been initiallized.");
         return;
       }
 
@@ -196,6 +198,7 @@ private:
       auto ec = _endpoint.send(queue_item->dump());
       if (ec)
       {
+        log("Sending message failed. Maybe due to intermediate disconnection");
         return;
       }
       _queue.pop_item();
