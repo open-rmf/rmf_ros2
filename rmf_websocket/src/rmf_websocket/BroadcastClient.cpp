@@ -86,7 +86,7 @@ public:
       for (auto queue_item : messages)
       {
         RCLCPP_INFO(
-          this->_node->get_logger(),"Sending initial message");
+          this->_node->get_logger(), "Sending initial message");
         auto status = _endpoint.get_status();
         if (!status.has_value())
         {
@@ -211,12 +211,12 @@ private:
       else
       {
         RCLCPP_INFO(
-          this->_node->get_logger(),"Sent successfully");
+          this->_node->get_logger(), "Sent successfully");
       }
       _queue.pop_item();
     }
     RCLCPP_INFO(
-      this->_node->get_logger(),"Emptied queue");
+      this->_node->get_logger(), "Emptied queue");
   }
   // create pimpl
   std::string _uri;

@@ -52,9 +52,9 @@ void run_server()
 
   // Hack to prevent test deadlock
   echo_server.set_timer(20.0, [](auto /*?*/)
-  {
-    terminate_server = true;
-  });
+    {
+      terminate_server = true;
+    });
 
   // Run the server loop
   while (!terminate_server)
