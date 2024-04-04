@@ -57,7 +57,7 @@ void ConnectionMetadata::on_close(WsClient* c, websocketpp::connection_hdl hdl)
     << websocketpp::close::status::get_string(con->get_remote_close_code())
     << "), close reason: " << con->get_remote_close_reason();
   _error_reason = s.str();
-  _reconnection_cb();
+  c->get_io_service().dispatch(_reconnection_cb);
 }
 
 //=============================================================================
