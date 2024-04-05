@@ -4,11 +4,14 @@
 
 #include <atomic>
 #include <thread>
+#include <string>
+
+#include <rclcpp/node.hpp>
+
+#include <rmf_websocket/BroadcastClient.hpp>
+
 #include <websocketpp/config/asio.hpp>
 #include <websocketpp/server.hpp>
-#include <rmf_websocket/BroadcastClient.hpp>
-#include <string>
-#include <rclcpp/node.hpp>
 
 typedef websocketpp::server<websocketpp::config::asio> server;
 typedef server::message_ptr message_ptr;
@@ -94,22 +97,27 @@ TEST_CASE("Client", "Reconnecting server") {
 
 
   jsonString["test"] = "2";
-  broadcaster->publish(jsonString);
+  auto tries = 0;
+
+  using namespace std::chrono_literals;
+  while (tries < 10 && !terminate_server)
+  {
+    /// TODO(arjoc): Make timeout reconfigureable, that
+    /// way we dont need to wait so long.
+    broadcaster->publish(jsonString);
+    std::this_thread::sleep_for(1000ms);
+    ++tries;
+  }
   t2.join();
 
-  // This is a horrible piece of code and defeats
-  // the purpose of the tests. But unfortunately websocketpp
-  // does not correctly return if a send was successful or not.
-  // Thus packets may be lost.
-  if (!timed_out)
-  {
-    REQUIRE(num_msgs == 2);
+// This is a horrible piece of code and defeats
+// the purpose of the tests. But unfortunately websocketpp
+// does not correctly return if a send was successful or not.
+// Thus packets may be lost.
 
-    REQUIRE(msgs[0]["test"] == "1");
-    REQUIRE(msgs[1]["test"] == "2");
-  }
-  else
-  {
-    std::cerr << "Test timed out" << std::endl;
-  }
+  REQUIRE(num_msgs == 2);
+
+  REQUIRE(msgs[0]["test"] == "1");
+  REQUIRE(msgs[1]["test"] == "2");
+
 }

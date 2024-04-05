@@ -35,8 +35,9 @@ public: void resize(std::size_t buffer)
 public: bool push(T item)
   {
     std::lock_guard<std::mutex> lock(_mtx);
+    auto full = _vec.full();
     _vec.push_back(std::move(item));
-    return !_vec.full();
+    return !full;
   }
 
 //==============================================================================

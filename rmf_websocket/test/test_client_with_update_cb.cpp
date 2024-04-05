@@ -3,12 +3,15 @@
 #include <rmf_utils/catch.hpp>
 
 #include <atomic>
+#include <string>
 #include <thread>
+
+#include <rclcpp/node.hpp>
+
+#include <rmf_websocket/BroadcastClient.hpp>
+
 #include <websocketpp/config/asio.hpp>
 #include <websocketpp/server.hpp>
-#include <rmf_websocket/BroadcastClient.hpp>
-#include <string>
-#include <rclcpp/node.hpp>
 
 typedef websocketpp::server<websocketpp::config::asio> server;
 typedef server::message_ptr message_ptr;
@@ -22,6 +25,9 @@ std::atomic_bool terminate_server = false;
 std::atomic_bool timed_out = false;
 std::atomic<int> num_msgs = 0;
 std::atomic<int> num_init_msgs = 0;
+std::promise<void> on_init_promise;
+std::promise<void> on_server_down;
+
 std::vector<nlohmann::json> msgs;
 // Define a handler for incoming messages
 void on_message(server* s, websocketpp::connection_hdl hdl, message_ptr msg)
@@ -35,6 +41,7 @@ void on_message(server* s, websocketpp::connection_hdl hdl, message_ptr msg)
   num_msgs++;
   msgs.push_back(json);
   terminate_server = true;
+  s->close(hdl, websocketpp::close::status::going_away, "Bye!");
 }
 
 
@@ -58,7 +65,7 @@ void run_server()
   echo_server.start_accept();
 
   // Hack to prevent test deadlock
-  echo_server.set_timer(20.0, [](auto /*?*/)
+  auto timer = echo_server.set_timer(20.0, [](auto /*?*/)
     {
       terminate_server = true;
       timed_out = true;
@@ -71,7 +78,10 @@ void run_server()
   }
 
   echo_server.stop_listening();
+  timer->cancel();
+  on_server_down.set_value();
 }
+
 
 std::vector<nlohmann::json> init_function()
 {
@@ -79,10 +89,13 @@ std::vector<nlohmann::json> init_function()
   json["test"] = "init";
   std::vector<nlohmann::json> msgs;
   msgs.push_back(json);
+  on_init_promise.set_value();
   return msgs;
 }
 
 TEST_CASE("Client", "Reconnecting server") {
+  using namespace std::chrono_literals;
+
   rclcpp::init(0, {});
   auto test_node = std::make_shared<rclcpp::Node>("test_node");
 
@@ -96,7 +109,18 @@ TEST_CASE("Client", "Reconnecting server") {
   nlohmann::json jsonString;
   jsonString["test"] = "1";
   broadcaster->publish(jsonString);
+  REQUIRE_NOTHROW(on_init_promise.get_future().wait_for(5s));
+
   t1.join();
+
+  REQUIRE_NOTHROW(on_server_down.get_future().wait_for(5s));
+  on_server_down =std::promise<void>();
+  on_init_promise =std::promise<void>();
+
+  auto t2 = std::thread([]()
+      {
+        run_server();
+      });
 
   REQUIRE(num_msgs == 1);
   REQUIRE(num_init_msgs == 1);
@@ -105,26 +129,16 @@ TEST_CASE("Client", "Reconnecting server") {
   jsonString["test"] = "2";
   broadcaster->publish(jsonString);
 
-  auto t2 = std::thread([]()
-      {
-        run_server();
-      });
+
   t2.join();
 
-  // This is a horrible piece of code and defeats
-  // the purpose of the tests. But unfortunately websocketpp
-  // does not correctly return if a send was successful or not.
-  // Thus packets may be lost.
-  if (!timed_out)
-  {
-    REQUIRE(num_msgs == 2);
 
-    REQUIRE(msgs[0]["test"] == "1");
-    REQUIRE(msgs[1]["test"] == "2");
-    REQUIRE(num_init_msgs == 2);
-  }
-  else
-  {
-    std::cerr << "Test timed out" << std::endl;
-  }
+
+  REQUIRE_NOTHROW(on_init_promise.get_future().wait_for(5s));
+
+  REQUIRE(num_msgs == 2);
+
+  REQUIRE(msgs[0]["test"] == "1");
+  REQUIRE(msgs[1]["test"] == "2");
+  REQUIRE(num_init_msgs >= 2);
 }

@@ -142,7 +142,7 @@ private:
   std::string _uri;
   Logger _logger;
   WsClient::connection_ptr _con;
-  bool _init, _enqueued_conn;
+  bool _init, _enqueued_conn, _reconnect_enqueued;
   ConnectionCallback _connection_cb;
 };
 }

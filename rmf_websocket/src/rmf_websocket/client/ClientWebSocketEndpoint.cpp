@@ -44,7 +44,7 @@ void ConnectionMetadata::on_fail(WsClient* c, websocketpp::connection_hdl hdl)
   WsClient::connection_ptr con = c->get_con_from_hdl(hdl);
   _server = con->get_response_header("Server");
   _error_reason = con->get_ec().message();
-  c->get_io_service().dispatch(_reconnection_cb);
+  c->get_io_service().post(_reconnection_cb);
 }
 
 //=============================================================================
@@ -57,7 +57,7 @@ void ConnectionMetadata::on_close(WsClient* c, websocketpp::connection_hdl hdl)
     << websocketpp::close::status::get_string(con->get_remote_close_code())
     << "), close reason: " << con->get_remote_close_reason();
   _error_reason = s.str();
-  c->get_io_service().dispatch(_reconnection_cb);
+  c->get_io_service().post(_reconnection_cb);
 }
 
 //=============================================================================
@@ -112,7 +112,7 @@ websocketpp::connection_hdl ConnectionMetadata::get_hdl() const
 ClientWebSocketEndpoint::ClientWebSocketEndpoint(
   std::string const& uri, Logger logger, asio::io_service* io_service,
   ConnectionCallback cb)
-: _uri(uri), _logger(logger), _init{false},
+: _uri(uri), _logger(logger), _init{false}, _reconnect_enqueued(false),
   _connection_cb(std::move(cb))
 {
   _endpoint.clear_access_channels(websocketpp::log::alevel::all);
@@ -125,6 +125,7 @@ ClientWebSocketEndpoint::ClientWebSocketEndpoint(
 websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
 {
   websocketpp::lib::error_code ec;
+
 
   _init = true;
   _con = _endpoint.get_connection(_uri, ec);
@@ -143,11 +144,20 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
       // TODO(arjo) Parametrize the timeout.
       using namespace std::chrono_literals;
       std::stringstream err;
-      err << "> Reconnecting in 1s" << std::endl
-          << "> Host: " << _uri << std::endl;
-      _logger(err.str());
-      _endpoint.set_timer(1.0, std::bind(&ClientWebSocketEndpoint::connect,
-        this));
+      if (!_reconnect_enqueued)
+      {
+        err << "> Reconnecting in 1s" << std::endl
+            << "> Host: " << _uri << std::endl;
+        _logger(err.str());
+        _endpoint.set_timer(1.0, std::bind(&ClientWebSocketEndpoint::connect,
+          this));
+        _reconnect_enqueued = true;
+      }
+    };
+  auto connected_cb = [this]()
+    {
+      _reconnect_enqueued = false;
+      _connection_cb();
     };
 
   // Not sure why but seems like I have to re-initallize this everytime in order
@@ -155,7 +165,7 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
   // leaked somewhere.
   _current_connection = std::make_shared<ConnectionMetadata>(
     _con->get_handle(),
-    _uri, _connection_cb, reconnect_socket);
+    _uri, connected_cb, reconnect_socket);
 
   _con->set_open_handler(websocketpp::lib::bind(
       &ConnectionMetadata::on_open,
