@@ -66,10 +66,10 @@ void run_server()
 
   // Hack to prevent test deadlock
   auto timer = echo_server.set_timer(20.0, [](auto /*?*/)
-    {
-      terminate_server = true;
-      timed_out = true;
-    });
+      {
+        terminate_server = true;
+        timed_out = true;
+      });
 
   // Run the server loop
   while (!terminate_server)
@@ -114,8 +114,8 @@ TEST_CASE("Client", "Reconnecting server") {
   t1.join();
 
   REQUIRE_NOTHROW(on_server_down.get_future().wait_for(5s));
-  on_server_down =std::promise<void>();
-  on_init_promise =std::promise<void>();
+  on_server_down = std::promise<void>();
+  on_init_promise = std::promise<void>();
 
   auto t2 = std::thread([]()
       {
@@ -131,7 +131,6 @@ TEST_CASE("Client", "Reconnecting server") {
 
 
   t2.join();
-
 
 
   REQUIRE_NOTHROW(on_init_promise.get_future().wait_for(5s));
