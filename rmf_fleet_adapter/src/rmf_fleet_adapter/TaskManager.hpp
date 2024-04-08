@@ -40,6 +40,18 @@
 
 namespace rmf_fleet_adapter {
 
+struct PendingTimeInfo
+{
+  int64_t unix_millis_finish_time;
+  int64_t original_estimate_millis;
+};
+
+struct PendingInfo
+{
+  rmf_task::Task::Description::Info info;
+  std::optional<PendingTimeInfo> time;
+};
+
 //==============================================================================
 /// This task manager is a first attempt at managing multiple tasks per fleet.
 /// This is a simple implementation that only makes a modest attempt at being
@@ -118,7 +130,13 @@ public:
   void set_queue(const std::vector<Assignment>& assignments);
 
   /// Get the non-charging requests among pending tasks
-  const std::vector<rmf_task::ConstRequestPtr> requests() const;
+  std::vector<rmf_task::ConstRequestPtr> dispatched_requests() const;
+
+  /// Send all dispatched requests that are still in the queue back to the fleet
+  /// handle for reassignment.
+  void reassign_dispatched_requests(
+    std::function<void()> on_success,
+    std::function<void(std::vector<std::string>)> on_failure);
 
   std::optional<std::string> current_task_id() const;
 
@@ -320,6 +338,11 @@ private:
   uint16_t _count_emergency_pullover = 0;
   // Queue for dispatched tasks
   std::vector<Assignment> _queue;
+  std::unordered_map<
+    rmf_task::ConstRequestPtr,
+    PendingInfo
+  > _pending_task_info;
+
   // An ID to keep track of the FIFO order of direct tasks
   std::size_t _next_sequence_number;
   // Queue for directly assigned tasks
@@ -338,7 +361,7 @@ private:
   // TODO: Eliminate the need for a mutex by redesigning the use of the task
   // manager so that modifications of shared data only happen on designated
   // rxcpp worker
-  mutable std::mutex _mutex;
+  mutable std::recursive_mutex _mutex;
   rclcpp::TimerBase::SharedPtr _task_timer;
   rclcpp::TimerBase::SharedPtr _retreat_timer;
   rclcpp::TimerBase::SharedPtr _update_timer;
@@ -436,6 +459,12 @@ private:
   void _publish_canceled_pending_task(
     const Assignment& assignment,
     std::vector<std::string> labels);
+
+  /// Take all dispatched assignments out of the queue, leaving the queue empty.
+  std::vector<Assignment> _drain_dispatched_assignments();
+
+  /// Take all direct assignments out of the queue, leaving the queue empty.
+  std::vector<Assignment> _drain_direct_assignments();
 
   /// Cancel a task that is in the dispatch queue. Returns false if the task
   /// was not present.
@@ -536,6 +565,10 @@ private:
     const std::string& request_id);
 
   void _handle_direct_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_commission_request(
     const nlohmann::json& request_json,
     const std::string& request_id);
 
