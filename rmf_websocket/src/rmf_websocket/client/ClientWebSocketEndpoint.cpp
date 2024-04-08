@@ -133,7 +133,7 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
   if (ec)
   {
     RCLCPP_ERROR(_node->get_logger(), "> Connect initialization error: %s\n"
-        "> Host: %s\n", ec.message().c_str(), _uri.c_str());
+      "> Host: %s\n", ec.message().c_str(), _uri.c_str());
     return ec;
   }
 
@@ -174,21 +174,25 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
     _con->get_handle(),
     _uri, connected_cb, reconnect_socket);
 
-  _con->set_open_handler([this](websocketpp::connection_hdl hdl) {
-    RCLCPP_INFO(_node->get_logger(), "Succesfully connected to %s", _uri.c_str());
-    _current_connection->on_open(_endpoint.get(), hdl);
-  });
-  _con->set_fail_handler([this](websocketpp::connection_hdl hdl) {
-    _current_connection->on_fail(_endpoint.get(), hdl);
-    RCLCPP_ERROR(_node->get_logger(), "Connection to %s failed. Reason:\n %s",
+  _con->set_open_handler([this](websocketpp::connection_hdl hdl)
+    {
+      RCLCPP_INFO(_node->get_logger(), "Succesfully connected to %s",
+      _uri.c_str());
+      _current_connection->on_open(_endpoint.get(), hdl);
+    });
+  _con->set_fail_handler([this](websocketpp::connection_hdl hdl)
+    {
+      _current_connection->on_fail(_endpoint.get(), hdl);
+      RCLCPP_ERROR(_node->get_logger(), "Connection to %s failed. Reason:\n %s",
       _uri.c_str(), _current_connection->debug_data().c_str());
-  });
+    });
 
-  _con->set_close_handler([this](websocketpp::connection_hdl hdl) {
-    _current_connection->on_close(_endpoint.get(), hdl);
-    RCLCPP_INFO(_node->get_logger(), "Connection to %s closed. Reason:\n %s",
+  _con->set_close_handler([this](websocketpp::connection_hdl hdl)
+    {
+      _current_connection->on_close(_endpoint.get(), hdl);
+      RCLCPP_INFO(_node->get_logger(), "Connection to %s closed. Reason:\n %s",
       _uri.c_str(), _current_connection->debug_data().c_str());
-  });
+    });
 
 
   _endpoint->connect(_con);
@@ -247,7 +251,8 @@ ClientWebSocketEndpoint::~ClientWebSocketEndpoint()
     ec);
   if (ec)
   {
-    RCLCPP_ERROR(_node->get_logger(), "Error closing connection: %s\n. Host: %s",
+    RCLCPP_ERROR(
+      _node->get_logger(), "Error closing connection: %s\n. Host: %s",
       ec.message().c_str(), _uri.c_str());
   }
 
