@@ -53,6 +53,7 @@ class TaskManager;
 
 namespace agv {
 
+class FleetUpdateHandle;
 class RobotContext;
 using TransformDictionary = std::unordered_map<std::string, Transformation>;
 using SharedPlanner = std::shared_ptr<
@@ -632,13 +633,18 @@ public:
   /// Get the task manager for this robot, if it exists.
   std::shared_ptr<TaskManager> task_manager();
 
-  /// Return true if this robot is currently commissioned (available to accept
-  /// new tasks).
-  bool is_commissioned() const;
+  /// Set the commission for this robot
+  void set_commission(RobotUpdateHandle::Commission value);
 
-  void decommission();
+  /// Get a reference to the robot's commission.
+  const RobotUpdateHandle::Commission& commission() const;
 
-  void recommission();
+  /// Lock the commission_mutex and return a copy of the robot's current
+  /// commission.
+  RobotUpdateHandle::Commission copy_commission() const;
+
+  /// Reassign the tasks that have been dispatched for this robot
+  void reassign_dispatched_tasks();
 
   Reporting& reporting();
 
@@ -831,7 +837,9 @@ private:
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);
-  bool _commissioned = true;
+  std::unique_ptr<std::mutex> _commission_mutex =
+    std::make_unique<std::mutex>();
+  RobotUpdateHandle::Commission _commission;
   bool _emergency = false;
   EasyFullControl::LocalizationRequest _localize;
 
