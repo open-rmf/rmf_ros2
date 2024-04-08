@@ -135,7 +135,7 @@ public:
   ~ClientWebSocketEndpoint();
 
 private:
-  WsClient _endpoint;
+  std::unique_ptr<WsClient> _endpoint;
   std::atomic<bool> _stop;
 
   ConnectionMetadata::ptr _current_connection;

@@ -1,5 +1,6 @@
 #include "ClientWebSocketEndpoint.hpp"
 #include <chrono>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <thread>
@@ -40,7 +41,6 @@ void ConnectionMetadata::on_open(WsClient* c, websocketpp::connection_hdl hdl)
 void ConnectionMetadata::on_fail(WsClient* c, websocketpp::connection_hdl hdl)
 {
   _status = ConnectionStatus::FAILED;
-
   WsClient::connection_ptr con = c->get_con_from_hdl(hdl);
   _server = con->get_response_header("Server");
   _error_reason = con->get_ec().message();
@@ -115,10 +115,11 @@ ClientWebSocketEndpoint::ClientWebSocketEndpoint(
 : _uri(uri), _logger(logger), _init{false}, _reconnect_enqueued(false),
   _connection_cb(std::move(cb))
 {
-  _endpoint.clear_access_channels(websocketpp::log::alevel::all);
-  _endpoint.clear_error_channels(websocketpp::log::elevel::all);
-  _endpoint.init_asio(io_service);
-  _endpoint.start_perpetual();
+  _endpoint = std::make_unique<WsClient>();
+  _endpoint->clear_access_channels(websocketpp::log::alevel::all);
+  _endpoint->clear_error_channels(websocketpp::log::elevel::all);
+  _endpoint->init_asio(io_service);
+  _endpoint->start_perpetual();
 }
 
 //=============================================================================
@@ -128,7 +129,8 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
 
 
   _init = true;
-  _con = _endpoint.get_connection(_uri, ec);
+  _con = _endpoint->get_connection(_uri, ec);
+  _logger("Attempting reconnection");
 
   if (ec)
   {
@@ -149,7 +151,16 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
         err << "> Reconnecting in 1s" << std::endl
             << "> Host: " << _uri << std::endl;
         _logger(err.str());
-        _endpoint.set_timer(1.0, std::bind(&ClientWebSocketEndpoint::connect,
+        _endpoint->stop_perpetual();
+        auto io_service = &_endpoint->get_io_service();
+        _endpoint = std::make_unique<WsClient>();
+        _endpoint->clear_access_channels(websocketpp::log::alevel::all);
+        _endpoint->clear_error_channels(websocketpp::log::elevel::all);
+        _endpoint->init_asio(io_service);
+        _endpoint->start_perpetual();
+        websocketpp::lib::error_code ec;
+
+        _endpoint->set_timer(1000, std::bind(&ClientWebSocketEndpoint::connect,
           this));
         _reconnect_enqueued = true;
       }
@@ -170,25 +181,25 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
   _con->set_open_handler(websocketpp::lib::bind(
       &ConnectionMetadata::on_open,
       _current_connection,
-      &_endpoint,
+      _endpoint.get(),
       websocketpp::lib::placeholders::_1
   ));
   _con->set_fail_handler(websocketpp::lib::bind(
       &ConnectionMetadata::on_fail,
       _current_connection,
-      &_endpoint,
+      _endpoint.get(),
       websocketpp::lib::placeholders::_1
   ));
 
   _con->set_close_handler(websocketpp::lib::bind(
       &ConnectionMetadata::on_close,
       _current_connection,
-      &_endpoint,
+      _endpoint.get(),
       websocketpp::lib::placeholders::_1
   ));
 
 
-  _endpoint.connect(_con);
+  _endpoint->connect(_con);
 
   return ec;
 }
@@ -210,7 +221,7 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::send(
 {
   websocketpp::lib::error_code ec;
 
-  _endpoint.send(
+  _endpoint->send(
     _current_connection->get_hdl(), message, websocketpp::frame::opcode::text,
     ec);
   if (ec)
@@ -223,7 +234,7 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::send(
 //=============================================================================
 ClientWebSocketEndpoint::~ClientWebSocketEndpoint()
 {
-  _endpoint.stop_perpetual();
+  _endpoint->stop_perpetual();
 
   if (!_current_connection)
   {
@@ -239,7 +250,7 @@ ClientWebSocketEndpoint::~ClientWebSocketEndpoint()
 
 
   websocketpp::lib::error_code ec;
-  _endpoint.close(
+  _endpoint->close(
     _current_connection->get_hdl(), websocketpp::close::status::going_away, "",
     ec);
   if (ec)

@@ -31,6 +31,8 @@ void on_message(server* s, websocketpp::connection_hdl hdl, message_ptr msg)
   terminate_server = true;
   num_msgs++;
   msgs.push_back(nlohmann::json::parse(msg->get_payload()));
+  server::connection_ptr con = s->get_con_from_hdl(hdl);
+  con->close(websocketpp::close::status::normal, "");
 }
 
 
@@ -53,14 +55,6 @@ void run_server()
   // Start the server asynchronously
   echo_server.start_accept();
 
-
-  // Hack to prevent test deadlock
-  echo_server.set_timer(20.0, [](auto /*?*/)
-    {
-      terminate_server = true;
-      timed_out = true;
-    });
-
   // Run the server loop
   while (!terminate_server)
   {
@@ -68,6 +62,7 @@ void run_server()
   }
 
   echo_server.stop_listening();
+  echo_server.run();
 }
 
 
@@ -86,6 +81,8 @@ TEST_CASE("Client", "Reconnecting server") {
   jsonString["test"] = "1";
   broadcaster->publish(jsonString);
   t1.join();
+
+  std::cout << "Restart server\n";
 
   REQUIRE(num_msgs == 1);
 
@@ -109,11 +106,6 @@ TEST_CASE("Client", "Reconnecting server") {
     ++tries;
   }
   t2.join();
-
-// This is a horrible piece of code and defeats
-// the purpose of the tests. But unfortunately websocketpp
-// does not correctly return if a send was successful or not.
-// Thus packets may be lost.
 
   REQUIRE(num_msgs == 2);
 
