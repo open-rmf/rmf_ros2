@@ -420,7 +420,12 @@ void copy_booking_data(
     booking_json["unix_millis_request_time"] =
       to_millis(request_time.value().time_since_epoch()).count();
   }
-  // TODO(MXG): Add priority and labels
+  const auto labels = booking.labels();
+  if (labels.size() != 0)
+  {
+    booking_json["labels"] = booking.labels();
+  }
+  // TODO(MXG): Add priority
 }
 
 //==============================================================================
