@@ -1,9 +1,6 @@
 #include "ClientWebSocketEndpoint.hpp"
-#include <chrono>
 #include <memory>
-#include <mutex>
 #include <sstream>
-#include <thread>
 
 using namespace std::chrono_literals;
 using namespace rmf_websocket;
@@ -110,9 +107,10 @@ websocketpp::connection_hdl ConnectionMetadata::get_hdl() const
 
 //=============================================================================
 ClientWebSocketEndpoint::ClientWebSocketEndpoint(
-  std::string const& uri, Logger logger, asio::io_service* io_service,
+  std::string const& uri, std::shared_ptr<rclcpp::Node> node,
+  asio::io_service* io_service,
   ConnectionCallback cb)
-: _uri(uri), _logger(logger), _init{false}, _reconnect_enqueued(false),
+: _uri(uri), _node(node), _init{false}, _reconnect_enqueued(false),
   _connection_cb(std::move(cb))
 {
   _endpoint = std::make_unique<WsClient>();
@@ -130,14 +128,12 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
 
   _init = true;
   _con = _endpoint->get_connection(_uri, ec);
-  _logger("Attempting reconnection");
+  RCLCPP_INFO(_node->get_logger(), "Attempting to connect to %s", _uri.c_str());
 
   if (ec)
   {
-    std::stringstream err;
-    err << "> Connect initialization error: " << ec.message() << std::endl
-        << "> Host: " << _uri << std::endl;
-    _logger(err.str());
+    RCLCPP_ERROR(_node->get_logger(), "> Connect initialization error: %s\n"
+        "> Host: %s\n", ec.message().c_str(), _uri.c_str());
     return ec;
   }
 
@@ -145,12 +141,12 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
     {
       // TODO(arjo) Parametrize the timeout.
       using namespace std::chrono_literals;
-      std::stringstream err;
       if (!_reconnect_enqueued)
       {
-        err << "> Reconnecting in 1s" << std::endl
-            << "> Host: " << _uri << std::endl;
-        _logger(err.str());
+        RCLCPP_ERROR(_node->get_logger(),
+          "Connection lost\n"
+          "> Reconnecting in 1s\n"
+          "> Host: %s", _uri.c_str());
         _endpoint->stop_perpetual();
         auto io_service = &_endpoint->get_io_service();
         _endpoint = std::make_unique<WsClient>();
@@ -178,25 +174,21 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
     _con->get_handle(),
     _uri, connected_cb, reconnect_socket);
 
-  _con->set_open_handler(websocketpp::lib::bind(
-      &ConnectionMetadata::on_open,
-      _current_connection,
-      _endpoint.get(),
-      websocketpp::lib::placeholders::_1
-  ));
-  _con->set_fail_handler(websocketpp::lib::bind(
-      &ConnectionMetadata::on_fail,
-      _current_connection,
-      _endpoint.get(),
-      websocketpp::lib::placeholders::_1
-  ));
+  _con->set_open_handler([this](websocketpp::connection_hdl hdl) {
+    RCLCPP_INFO(_node->get_logger(), "Succesfully connected to %s", _uri.c_str());
+    _current_connection->on_open(_endpoint.get(), hdl);
+  });
+  _con->set_fail_handler([this](websocketpp::connection_hdl hdl) {
+    _current_connection->on_fail(_endpoint.get(), hdl);
+    RCLCPP_ERROR(_node->get_logger(), "Connection to %s failed. Reason:\n %s",
+      _uri.c_str(), _current_connection->debug_data().c_str());
+  });
 
-  _con->set_close_handler(websocketpp::lib::bind(
-      &ConnectionMetadata::on_close,
-      _current_connection,
-      _endpoint.get(),
-      websocketpp::lib::placeholders::_1
-  ));
+  _con->set_close_handler([this](websocketpp::connection_hdl hdl) {
+    _current_connection->on_close(_endpoint.get(), hdl);
+    RCLCPP_INFO(_node->get_logger(), "Connection to %s closed. Reason:\n %s",
+      _uri.c_str(), _current_connection->debug_data().c_str());
+  });
 
 
   _endpoint->connect(_con);
@@ -255,10 +247,8 @@ ClientWebSocketEndpoint::~ClientWebSocketEndpoint()
     ec);
   if (ec)
   {
-    std::stringstream err;
-    err << "> Error closing connection : " << ec.message() << std::endl
-        << "> Host: " << _uri << std::endl;
-    _logger(err.str());
+    RCLCPP_ERROR(_node->get_logger(), "Error closing connection: %s\n. Host: %s",
+      ec.message().c_str(), _uri.c_str());
   }
 
 }

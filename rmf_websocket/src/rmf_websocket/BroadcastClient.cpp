@@ -44,8 +44,7 @@ public:
     _queue(1000),
     _io_service{},
     _endpoint(_uri,
-      std::bind(&BroadcastClient::Implementation::log, this,
-      std::placeholders::_1),
+      _node,
       &_io_service,
       std::bind(&BroadcastClient::Implementation::on_connect, this))
   {
@@ -75,9 +74,7 @@ public:
   //============================================================================
   void on_connect()
   {
-    RCLCPP_INFO(
-      this->_node->get_logger(),
-      "Connected to server");
+    RCLCPP_INFO(_node->get_logger(), "Connected to server");
 
     if (_get_json_updates_cb)
     {

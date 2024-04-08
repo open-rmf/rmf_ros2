@@ -2,6 +2,7 @@
 #define RMF_WEBSOCKET__CLIENT_CLIENTWEBSOCKETENDPOINT_HPP
 
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -18,13 +19,13 @@
 #include <sstream>
 #include <vector>
 
+#include <rclcpp/node.hpp>
+
 namespace rmf_websocket {
 
 /// Client
 typedef websocketpp::client<websocketpp::config::asio_client> WsClient;
 
-/// Logger
-typedef std::function<void(const std::string&)> Logger;
 
 /// Helper class with event handlers for managing connection state.
 class ConnectionMetadata
@@ -99,7 +100,7 @@ public:
   /// can run on the same thread
   ClientWebSocketEndpoint(
     std::string const& uri,
-    Logger my_logger,
+    std::shared_ptr<rclcpp::Node> node,
     boost::asio::io_service* io_service,
     ConnectionCallback cb);
 
@@ -140,7 +141,7 @@ private:
 
   ConnectionMetadata::ptr _current_connection;
   std::string _uri;
-  Logger _logger;
+  std::shared_ptr<rclcpp::Node> _node;
   WsClient::connection_ptr _con;
   bool _init, _enqueued_conn, _reconnect_enqueued;
   ConnectionCallback _connection_cb;

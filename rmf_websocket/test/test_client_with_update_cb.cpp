@@ -72,21 +72,15 @@ void run_server()
   // Start the server asynchronously
   echo_server->start_accept();
 
-  std::cout << "Listening\n";
-
 
   // Run the server loop
   while (!terminate_server)
   {
-    std::cout << "OPOP\n";
-
     echo_server->run_one();
   }
 
   echo_server->stop_listening();
-  std::cout << "Cleaning up\n";
   echo_server->run();
-  std::cout << "Shutdown\n";
 }
 
 
@@ -119,7 +113,6 @@ TEST_CASE("Client", "Reconnecting server") {
   t1.join();
 
 
-  std::cout << "Restart server\n";
   terminate_server = false;
 
 
@@ -132,7 +125,6 @@ TEST_CASE("Client", "Reconnecting server") {
       {
         run_server();
       });
-  std::cout << "Publshng\n";
   jsonString["test"] = "2";
   broadcaster->publish(jsonString);
 
