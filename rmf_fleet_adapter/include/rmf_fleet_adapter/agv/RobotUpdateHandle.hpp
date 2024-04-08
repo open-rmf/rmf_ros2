@@ -429,20 +429,20 @@ public:
     static Commission decommission();
 
     /// Set whether this commission should accept dispatched tasks.
-    Commission& accept_dispatched_tasks(bool decision=true);
+    Commission& accept_dispatched_tasks(bool decision = true);
 
     /// Check whether this commission is accepting dispatched tasks.
     bool is_accepting_dispatched_tasks() const;
 
     /// Set whether this commission should accept direct tasks
-    Commission& accept_direct_tasks(bool decision=true);
+    Commission& accept_direct_tasks(bool decision = true);
 
     /// Check whether this commission is accepting direct tasks.
     bool is_accepting_direct_tasks() const;
 
     /// Set whether this commission should perform idle behaviors (formerly
     /// referred to as "finishing tasks").
-    Commission& perform_idle_behavior(bool decision=true);
+    Commission& perform_idle_behavior(bool decision = true);
 
     /// Check whether this commission is performing idle behaviors (formerly
     /// referred to as "finishing tasks").

@@ -731,7 +731,7 @@ public:
 
 //==============================================================================
 RobotUpdateHandle::Commission::Commission()
-  : _pimpl(rmf_utils::make_impl<Implementation>())
+: _pimpl(rmf_utils::make_impl<Implementation>())
 {
   // Do nothing
 }
@@ -809,7 +809,7 @@ void RobotUpdateHandle::reassign_dispatched_tasks()
       {
         const auto mgr = context->task_manager();
         if (mgr)
-          mgr->reassign_dispatched_requests([](){}, [](auto){});
+          mgr->reassign_dispatched_requests([]() {}, [](auto) {});
       });
   }
 }

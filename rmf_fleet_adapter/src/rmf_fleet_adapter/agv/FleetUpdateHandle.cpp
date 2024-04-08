@@ -403,7 +403,7 @@ public:
     }
 
     TaskAssignments assignments;
-    for (std::size_t i=0; i < assignments_ptr->size(); ++i)
+    for (std::size_t i = 0; i < assignments_ptr->size(); ++i)
     {
       const auto r_it = robot_indexes.find(i);
       if (r_it == robot_indexes.end())
@@ -789,8 +789,8 @@ void FleetUpdateHandle::Implementation::dispatch_command_cb(
             r_it, self->_pimpl->unassigned_requests.end());
 
           std::string error_str =
-            "Unable to replan assignments when accommodating task_id ["
-            + request->booking()->id() + "]. Reasons:";
+          "Unable to replan assignments when accommodating task_id ["
+          + request->booking()->id() + "]. Reasons:";
           if (errors.empty())
           {
             error_str += " No reason given by planner.";
@@ -875,7 +875,7 @@ void FleetUpdateHandle::Implementation::dispatch_command_cb(
           {
             std::stringstream ss;
             ss << "Unabled to replan assignments when cancelling task ["
-              << task_id << "] for fleet [" << name << "]. ";
+               << task_id << "] for fleet [" << name << "]. ";
             if (errors.empty())
             {
               ss << "No planner error messages were provided.";
@@ -1002,10 +1002,10 @@ void FleetUpdateHandle::Implementation::reassign_dispatched_tasks(
   }
 
   auto on_plan_received = [
-      on_success,
-      on_failure,
-      w = weak_self,
-      initial_last_bid_assignment = last_bid_assignment
+    on_success,
+    on_failure,
+    w = weak_self,
+    initial_last_bid_assignment = last_bid_assignment
     ](TaskAssignments assignments)
     {
       const auto self = w.lock();
@@ -1077,7 +1077,7 @@ void FleetUpdateHandle::Implementation::reassign_dispatched_tasks(
       std::vector<std::string> errors;
       const auto replan_results = AllocateTasks(
         nullptr, expectations, task_planner, node)
-        .run(errors);
+      .run(errors);
 
       if (replan_results.has_value())
       {

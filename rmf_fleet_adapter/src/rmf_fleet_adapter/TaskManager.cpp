@@ -2515,7 +2515,7 @@ void TaskManager::_handle_commission_request(
 
   static const auto response_validator =
     std::make_shared<nlohmann::json_schema::json_validator>(
-      _make_validator(rmf_api_msgs::schemas::robot_commission_response));
+    _make_validator(rmf_api_msgs::schemas::robot_commission_response));
 
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
