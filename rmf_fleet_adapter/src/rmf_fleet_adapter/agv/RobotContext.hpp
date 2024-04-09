@@ -676,8 +676,13 @@ public:
   /// Check if a door is being held
   const std::optional<std::string>& holding_door() const;
 
-  /// What mutex group is currently being locked.
+  /// What mutex groups are currently locked by this robot.
   const std::unordered_map<std::string, TimeMsg>& locked_mutex_groups() const;
+
+  /// What mutex groups are currently being requested (but have not yet been
+  /// locked) by this robot.
+  const std::unordered_map<std::string, TimeMsg>&
+  requesting_mutex_groups() const;
 
   /// Set the mutex group that this robot needs to lock.
   const rxcpp::observable<std::string>& request_mutex_groups(
