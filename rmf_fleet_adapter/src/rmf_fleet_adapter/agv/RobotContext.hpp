@@ -23,6 +23,9 @@
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/Transformation.hpp>
 #include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
+#include <rmf_fleet_adapter/StandardNames.hpp>
+
+#include <rmf_fleet_msgs/msg/mutex_group_manual_release.hpp>
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
@@ -767,6 +770,20 @@ public:
         self->_publish_mutex_group_requests();
       });
 
+    context->_mutex_group_manual_release_sub =
+      context->_node->create_subscription<
+        rmf_fleet_msgs::msg::MutexGroupManualRelease>(
+        MutexGroupManualReleaseTopicName,
+        rclcpp::SystemDefaultsQoS()
+          .reliable()
+          .keep_last(10),
+        [w = context->weak_from_this()](
+          rmf_fleet_msgs::msg::MutexGroupManualRelease::SharedPtr msg)
+        {
+          if (const auto self = w.lock())
+            self->_handle_mutex_group_manual_release(*msg);
+        });
+
     return context;
   }
 
@@ -872,12 +889,16 @@ private:
     std::unordered_map<std::string, TimeMsg>& _groups);
   void _release_mutex_group(const MutexGroupData& data) const;
   void _publish_mutex_group_requests();
+  void _handle_mutex_group_manual_release(
+    const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg);
   std::unordered_map<std::string, TimeMsg> _requesting_mutex_groups;
   std::unordered_map<std::string, TimeMsg> _locked_mutex_groups;
   rxcpp::subjects::subject<std::string> _mutex_group_lock_subject;
   rxcpp::observable<std::string> _mutex_group_lock_obs;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::MutexGroupManualRelease>::SharedPtr
+    _mutex_group_manual_release_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
 };
 

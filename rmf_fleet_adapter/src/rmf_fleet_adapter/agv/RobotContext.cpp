@@ -1495,6 +1495,7 @@ void RobotContext::_check_mutex_groups(
   }
 }
 
+//==============================================================================
 void RobotContext::_retain_mutex_groups(
   const std::unordered_set<std::string>& retain,
   std::unordered_map<std::string, TimeMsg>& groups)
@@ -1594,6 +1595,30 @@ void RobotContext::_publish_mutex_group_requests()
   {
     publish(MutexGroupData{name, time});
   }
+}
+
+//==============================================================================
+void RobotContext::_handle_mutex_group_manual_release(
+  const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg)
+{
+  if (msg.fleet != group())
+    return;
+
+  if (msg.robot != name())
+    return;
+
+  std::unordered_set<std::string> retain;
+  for (const auto& g : _locked_mutex_groups)
+  {
+    retain.insert(g.first);
+  }
+
+  for (const auto& g : msg.release_mutex_groups)
+  {
+    retain.erase(g);
+  }
+
+  retain_mutex_groups(retain);
 }
 
 } // namespace agv
