@@ -1007,21 +1007,24 @@ std::shared_ptr<TaskManager> RobotContext::task_manager()
 }
 
 //==============================================================================
-bool RobotContext::is_commissioned() const
+void RobotContext::set_commission(RobotUpdateHandle::Commission value)
 {
-  return _commissioned;
+  std::lock_guard<std::mutex> lock(*_commission_mutex);
+  _commission = std::move(value);
 }
 
 //==============================================================================
-void RobotContext::decommission()
+const RobotUpdateHandle::Commission& RobotContext::commission() const
 {
-  _commissioned = false;
+  return _commission;
 }
 
 //==============================================================================
-void RobotContext::recommission()
+RobotUpdateHandle::Commission RobotContext::copy_commission() const
 {
-  _commissioned = true;
+  std::lock_guard<std::mutex> lock(*_commission_mutex);
+  RobotUpdateHandle::Commission copy = _commission;
+  return copy;
 }
 
 //==============================================================================

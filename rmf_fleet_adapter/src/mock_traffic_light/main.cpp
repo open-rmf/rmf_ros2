@@ -797,20 +797,23 @@ std::shared_ptr<Connections> make_fleet(
 
   connections->path_request_pub = node->create_publisher<
     rmf_fleet_msgs::msg::PathRequest>(
-    rmf_fleet_adapter::PathRequestTopicName, rclcpp::SystemDefaultsQoS());
+    rmf_fleet_adapter::PathRequestTopicName,
+    rclcpp::SystemDefaultsQoS().keep_last(10));
 
   connections->pause_request_pub = node->create_publisher<
     rmf_fleet_msgs::msg::PauseRequest>(
-    rmf_fleet_adapter::PauseRequestTopicName, rclcpp::SystemDefaultsQoS());
+    rmf_fleet_adapter::PauseRequestTopicName,
+    rclcpp::SystemDefaultsQoS().keep_last(10));
 
   connections->mode_request_pub = node->create_publisher<
     rmf_fleet_msgs::msg::ModeRequest>(
-    rmf_fleet_adapter::ModeRequestTopicName, rclcpp::SystemDefaultsQoS());
+    rmf_fleet_adapter::ModeRequestTopicName,
+    rclcpp::SystemDefaultsQoS().keep_last(10));
 
   connections->fleet_state_sub = node->create_subscription<
     rmf_fleet_msgs::msg::FleetState>(
     rmf_fleet_adapter::FleetStateTopicName,
-    rclcpp::SystemDefaultsQoS(),
+    rclcpp::SystemDefaultsQoS().keep_last(10),
     [c = std::weak_ptr<Connections>(connections), fleet_name](
       const rmf_fleet_msgs::msg::FleetState::SharedPtr msg)
     {
@@ -850,7 +853,7 @@ std::shared_ptr<Connections> make_fleet(
   connections->loop_sub = node->create_subscription<
     rmf_task_msgs::msg::Loop>(
     rmf_fleet_adapter::LoopRequestTopicName,
-    rclcpp::SystemDefaultsQoS(),
+    rclcpp::SystemDefaultsQoS().keep_last(10),
     [c = std::weak_ptr<Connections>(connections), fleet_name](
       const rmf_task_msgs::msg::Loop::SharedPtr msg)
     {

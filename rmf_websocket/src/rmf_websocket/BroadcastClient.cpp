@@ -15,9 +15,18 @@
  *
 */
 
+#include <atomic>
+#include <exception>
+#include <functional>
+#include <optional>
 #include <rmf_websocket/BroadcastClient.hpp>
+#include <thread>
 #include <websocketpp/config/asio_no_tls_client.hpp>
 #include <websocketpp/client.hpp>
+
+#include "utils/RingBuffer.hpp"
+#include "client/ClientWebSocketEndpoint.hpp"
+#include <vector>
 
 namespace rmf_websocket {
 
@@ -25,206 +34,197 @@ namespace rmf_websocket {
 class BroadcastClient::Implementation
 {
 public:
-  using WebsocketClient =
-    websocketpp::client<websocketpp::config::asio_client>;
-  using WebsocketMessagePtr = WebsocketClient::message_ptr;
-  using ConnectionHDL = websocketpp::connection_hdl;
-  using Connections = std::set<ConnectionHDL, std::owner_less<ConnectionHDL>>;
-
   Implementation(
     const std::string& uri,
     const std::shared_ptr<rclcpp::Node>& node,
     ProvideJsonUpdates get_json_updates_cb)
   : _uri{std::move(uri)},
     _node{std::move(node)},
-    _queue_limit(1000),
-    _get_json_updates_cb{std::move(get_json_updates_cb)}
+    _get_json_updates_cb{std::move(get_json_updates_cb)},
+    _queue(1000),
+    _io_service{},
+    _endpoint(_uri,
+      _node,
+      &_io_service,
+      std::bind(&BroadcastClient::Implementation::on_connect, this))
   {
-    _shutdown = false;
-    _connected = false;
-
-    // Initialize the Asio transport policy
-    _client.clear_access_channels(websocketpp::log::alevel::all);
-    _client.clear_error_channels(websocketpp::log::elevel::all);
-    _client.init_asio();
-    _client.start_perpetual();
-    _client_thread = std::thread(
-      [c = this]()
-      {
-        c->_client.run();
-      });
-
-    _client.set_open_handler(
-      [c = this](websocketpp::connection_hdl)
-      {
-        c->_connected = true;
-
-        if (c->_get_json_updates_cb)
-          c->publish(c->_get_json_updates_cb());
-
-        RCLCPP_INFO(
-          c->_node->get_logger(),
-          "BroadcastClient successfully connected to uri: [%s]",
-          c->_uri.c_str());
-      });
-
-    _client.set_close_handler(
-      [c = this](websocketpp::connection_hdl)
-      {
-        c->_connected = false;
-      });
-
-    _client.set_fail_handler(
-      [c = this](websocketpp::connection_hdl)
-      {
-        c->_connected = false;
-      });
-
-    _processing_thread = std::thread(
-      [c = this]()
-      {
-        while (!c->_shutdown)
+    _consumer_thread = std::thread([this]()
         {
-          // Try to connect to the server if we are not connected yet
-          if (!c->_connected)
-          {
-            websocketpp::lib::error_code ec;
-            WebsocketClient::connection_ptr con = c->_client.get_connection(
-              c->_uri, ec);
+          _io_service.run();
+        });
 
-            if (con)
-            {
-              c->_hdl = con->get_handle();
-              c->_client.connect(con);
-              // TOD(YV): Without sending a test payload, ec seems to be 0 even
-              // when the client has not connected. Avoid sending this message.
-              c->_client.send(c->_hdl, "Hello",
-              websocketpp::frame::opcode::text,
-              ec);
-            }
-
-            if (!con || ec)
-            {
-              RCLCPP_WARN(
-                c->_node->get_logger(),
-                "BroadcastClient unable to connect to [%s]. Please make sure "
-                "server is running. Error msg: %s",
-                c->_uri.c_str(),
-                ec.message().c_str());
-              c->_connected = false;
-
-              {
-                std::lock_guard<std::mutex> lock(c->_queue_mutex);
-                if (c->_queue_limit.has_value())
-                {
-                  if (c->_queue.size() > *c->_queue_limit)
-                  {
-                    RCLCPP_WARN(
-                      c->_node->get_logger(),
-                      "Reducing size of broadcast queue from [%lu] down to "
-                      "its limit of [%lu]",
-                      c->_queue.size(),
-                      *c->_queue_limit);
-
-                    while (c->_queue.size() > *c->_queue_limit)
-                      c->_queue.pop();
-                  }
-                }
-              }
-
-              std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-              continue;
-            }
-
-            RCLCPP_INFO(
-              c->_node->get_logger(),
-              "BroadcastClient successfully connected to [%s]",
-              c->_uri.c_str());
-            c->_connected = true;
-          }
-
-          std::unique_lock<std::mutex> lock(c->_wait_mutex);
-          c->_cv.wait(lock,
-          [c]()
-          {
-            return !c->_queue.empty();
-          });
-
-          while (!c->_queue.empty())
-          {
-            std::lock_guard<std::mutex> lock(c->_queue_mutex);
-            websocketpp::lib::error_code ec;
-            const std::string& msg = c->_queue.front().dump();
-            c->_client.send(c->_hdl, msg, websocketpp::frame::opcode::text, ec);
-            if (ec)
-            {
-              RCLCPP_ERROR(
-                c->_node->get_logger(),
-                "BroadcastClient unable to publish message: %s",
-                ec.message().c_str());
-              // TODO(YV): Check if we should re-connect to server
-              break;
-            }
-            c->_queue.pop();
-          }
-        }
+    _io_service.dispatch([this]()
+      {
+        _endpoint.connect();
       });
   }
 
-  // Publish a single message
+  //============================================================================
+  Implementation(Implementation&& other) = delete;
+
+  //============================================================================
+  Implementation& operator=(Implementation&& other) = delete;
+
+  //============================================================================
+  Implementation(const Implementation& other) = delete;
+
+  //============================================================================
+  Implementation operator=(const Implementation& other) = delete;
+
+  //============================================================================
+  void on_connect()
+  {
+    RCLCPP_INFO(_node->get_logger(), "Connected to server");
+
+    if (_get_json_updates_cb)
+    {
+      auto messages = _get_json_updates_cb();
+
+      for (auto queue_item : messages)
+      {
+        RCLCPP_INFO(
+          this->_node->get_logger(), "Sending initial message");
+        auto status = _endpoint.get_status();
+        if (!status.has_value())
+        {
+          log("Endpoint has not yet been initiallized.");
+          return;
+        }
+
+        if (status != ConnectionMetadata::ConnectionStatus::OPEN)
+        {
+          // Attempt reconnect
+          log("Disconnected during init.");
+          return;
+        }
+
+        // Send
+        auto ec = _endpoint.send(queue_item.dump());
+        if (ec)
+        {
+          log("Send failed. Attempting reconnection.");
+          return;
+        }
+      }
+      RCLCPP_INFO(
+        this->_node->get_logger(),
+        "Sent all updates");
+    }
+    RCLCPP_INFO(
+      this->_node->get_logger(),
+      "Attempting queue flush if connected");
+    _io_service.dispatch([this]()
+      {
+        _flush_queue_if_connected();
+      });
+  }
+
+  //============================================================================
+  void log(const std::string& str)
+  {
+    RCLCPP_ERROR(
+      this->_node->get_logger(),
+      "%s",
+      str.c_str()
+    );
+  }
+
+  //============================================================================
   void publish(const nlohmann::json& msg)
   {
-    std::lock_guard<std::mutex> lock(_queue_mutex);
+    /// _queue is thread safe. No need to lock.
     _queue.push(msg);
-    _cv.notify_all();
+    _io_service.dispatch([this]()
+      {
+        _flush_queue_if_connected();
+      });
   }
 
-  // Publish a vector of messages
+  //============================================================================
   void publish(const std::vector<nlohmann::json>& msgs)
   {
-    std::lock_guard<std::mutex> lock(_queue_mutex);
-    for (const auto& msg : msgs)
-      _queue.push(msg);
-    _cv.notify_all();
+    for (auto msg: msgs)
+    {
+      bool full = _queue.push(msg);
+      if (full)
+      {
+        log("Buffer full dropping oldest message");
+      }
+    }
+    _io_service.dispatch([this]()
+      {
+        _flush_queue_if_connected();
+      });
   }
 
+  //============================================================================
   void set_queue_limit(std::optional<std::size_t> limit)
   {
-    std::lock_guard<std::mutex> lock(_queue_mutex);
-    _queue_limit = limit;
+    /// _queue is thread safe. No need to lock.
+    if (limit.has_value())
+      _queue.resize(limit.value());
   }
 
+  //============================================================================
   ~Implementation()
   {
-    _shutdown = true;
-    if (_processing_thread.joinable())
-    {
-      _processing_thread.join();
-    }
-    if (_client_thread.joinable())
-    {
-      _client_thread.join();
-    }
-    _client.stop_perpetual();
+    _io_service.stop();
+    _consumer_thread.join();
   }
 
 private:
+  //============================================================================
+  void _flush_queue_if_connected()
+  {
+    while (!_queue.empty())
+    {
+      auto status = _endpoint.get_status();
+      if (!status.has_value())
+      {
+        log("Endpoint has not yet been initiallized.");
+        return;
+      }
 
+      if (status != ConnectionMetadata::ConnectionStatus::OPEN)
+      {
+        log("Connection not yet established");
+        return;
+      }
+      auto queue_item = _queue.front();
+      if (!queue_item.has_value())
+      {
+        // Technically this should be unreachable as long as the client is
+        // single threaded
+        throw std::runtime_error(
+                "The queue was modified when it shouldnt have been");
+        return;
+      }
+      auto ec = _endpoint.send(queue_item->dump());
+      if (ec)
+      {
+        log("Sending message failed. Maybe due to intermediate disconnection");
+        return;
+      }
+      else
+      {
+        RCLCPP_INFO(
+          this->_node->get_logger(), "Sent successfully");
+      }
+      _queue.pop_item();
+    }
+    RCLCPP_INFO(
+      this->_node->get_logger(), "Emptied queue");
+  }
   // create pimpl
   std::string _uri;
+  boost::asio::io_service _io_service;
   std::shared_ptr<rclcpp::Node> _node;
-  std::optional<std::size_t> _queue_limit;
-  WebsocketClient _client;
-  websocketpp::connection_hdl _hdl;
-  std::mutex _wait_mutex;
-  std::mutex _queue_mutex;
-  std::condition_variable _cv;
-  std::queue<nlohmann::json> _queue;
-  std::thread _processing_thread;
-  std::thread _client_thread;
-  std::atomic_bool _connected;
-  std::atomic_bool _shutdown;
+  RingBuffer<nlohmann::json> _queue;
   ProvideJsonUpdates _get_json_updates_cb;
+  std::atomic<bool> _stop;
+  ClientWebSocketEndpoint _endpoint;
+
+  std::thread _consumer_thread;
 };
 
 //==============================================================================

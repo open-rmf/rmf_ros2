@@ -96,7 +96,7 @@ int main(int argc, char* argv[])
   const auto publisher =
     node->create_publisher<rmf_fleet_msgs::msg::LaneRequest>(
     rmf_fleet_adapter::LaneClosureRequestTopicName,
-    rclcpp::SystemDefaultsQoS().transient_local());
+    rclcpp::SystemDefaultsQoS().keep_last(10).transient_local());
 
   publisher->publish(request);
 
@@ -111,7 +111,7 @@ int main(int argc, char* argv[])
   const auto listener =
     node->create_subscription<rmf_fleet_msgs::msg::ClosedLanes>(
     rmf_fleet_adapter::ClosedLaneTopicName,
-    rclcpp::SystemDefaultsQoS().transient_local(),
+    rclcpp::SystemDefaultsQoS().keep_last(10).transient_local(),
     [&request_complete, fleet_name, close_lanes = std::move(close_lanes)](
       std::unique_ptr<rmf_fleet_msgs::msg::ClosedLanes> msg)
     {

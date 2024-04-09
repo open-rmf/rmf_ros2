@@ -958,7 +958,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
       return std::make_pair(mutex_group_change, new_mutex_groups);
     };
 
-  const auto t0 = waypoints.front().time();
   while (!waypoints.empty())
   {
     auto it = waypoints.begin();

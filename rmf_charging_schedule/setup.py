@@ -4,7 +4,7 @@ package_name = 'rmf_charging_schedule'
 
 setup(
     name=package_name,
-    version='2.5.0',
+    version='2.6.0',
     packages=find_packages(),
     data_files=[
         ('share/ament_index/resource_index/packages',

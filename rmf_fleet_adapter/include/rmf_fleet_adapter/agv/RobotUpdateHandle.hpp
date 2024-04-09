@@ -411,6 +411,64 @@ public:
   /// If the robot is holding onto a session with a lift, release that session.
   void release_lift();
 
+  /// A description of whether the robot should accept dispatched and/or direct
+  /// tasks.
+  class Commission
+  {
+  public:
+    /// Construct a Commission description with all default values.
+    /// - accept_dispatched_tasks: true
+    /// - accept_direct_tasks: true
+    /// - is_performing_idle_behavior: true
+    Commission();
+
+    /// Construct a Commission description that accepts no tasks at all.
+    /// - accept_dispatch_tasks: false
+    /// - accept_direct_tasks: false
+    /// - is_performing_idle_behavior: false
+    static Commission decommission();
+
+    /// Set whether this commission should accept dispatched tasks.
+    Commission& accept_dispatched_tasks(bool decision = true);
+
+    /// Check whether this commission is accepting dispatched tasks.
+    bool is_accepting_dispatched_tasks() const;
+
+    /// Set whether this commission should accept direct tasks
+    Commission& accept_direct_tasks(bool decision = true);
+
+    /// Check whether this commission is accepting direct tasks.
+    bool is_accepting_direct_tasks() const;
+
+    /// Set whether this commission should perform idle behaviors (formerly
+    /// referred to as "finishing tasks").
+    Commission& perform_idle_behavior(bool decision = true);
+
+    /// Check whether this commission is performing idle behaviors (formerly
+    /// referred to as "finishing tasks").
+    bool is_performing_idle_behavior() const;
+
+    class Implementation;
+  private:
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
+  /// Set the current commission for the robot.
+  void set_commission(Commission commission);
+
+  /// Get the current commission for the robot. If the robot has been dropped
+  /// from the fleet, this will return Commission::decommission().
+  Commission commission() const;
+
+  /// Tell the fleet adapter to reassign all the tasks that have been dispatched
+  /// to this robot. To prevent the tasks from being reassigned back to this
+  /// robot use .set_commission(Commission::decommission())
+  ///
+  /// In the current implementation, tasks will only be reassigned to robots
+  /// in the same fleet that the task was originally assigned to. This behavior
+  /// could change in the future.
+  void reassign_dispatched_tasks();
+
   class Implementation;
 
   /// This API is experimental and will not be supported in the future. Users
@@ -420,15 +478,18 @@ public:
   public:
     /// True if this robot is allowed to accept new tasks. False if the robot
     /// will not accept any new tasks.
+    [[deprecated("Use commission instead")]]
     bool is_commissioned() const;
 
     /// Stop this robot from accepting any new tasks. It will continue to
     /// perform tasks that are already in its queue. To reassign those tasks,
     /// you will need to use the task request API to cancel the tasks and
     /// re-request them.
+    [[deprecated("Use set_commission instead")]]
     void decommission();
 
     /// Allow this robot to resume accepting new tasks.
+    [[deprecated("Use set_commission instead")]]
     void recommission();
 
     /// Get the schedule participant of this robot
