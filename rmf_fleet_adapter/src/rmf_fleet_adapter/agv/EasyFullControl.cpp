@@ -2546,7 +2546,8 @@ void EasyFullControl::FleetConfiguration::set_account_for_battery_drain(
 }
 
 //==============================================================================
-std::optional<rmf_traffic::Duration> EasyFullControl::FleetConfiguration::retreat_to_charger_interval() const
+std::optional<rmf_traffic::Duration>
+EasyFullControl::FleetConfiguration::retreat_to_charger_interval() const
 {
   return _pimpl->retreat_to_charger_interval;
 }

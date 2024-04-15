@@ -1743,7 +1743,8 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
 }
 
 //==============================================================================
-void TaskManager::retreat_to_charger(std::optional<rmf_traffic::Duration> duration)
+void TaskManager::retreat_to_charger(
+  std::optional<rmf_traffic::Duration> duration)
 {
   if (!duration.has_value())
   {
