@@ -2008,8 +2008,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
   {
     const auto mark = retreat_to_charger_yaml.Mark();
     std::cout << "[retreat_to_charger_interval] Unsupported value type "
-      << "provided: line " << mark.line << ", column " << mark.column
-      << std::endl;
+              << "provided: line " << mark.line << ", column " << mark.column
+              << std::endl;
     return std::nullopt;
   }
 
