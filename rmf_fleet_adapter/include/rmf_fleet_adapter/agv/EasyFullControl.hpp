@@ -574,7 +574,6 @@ public:
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    std::optional<rmf_traffic::Duration> retreat_to_charger_interval,
     std::unordered_map<std::string, ConsiderRequest> task_consideration,
     std::unordered_map<std::string, ConsiderRequest> action_consideration,
     rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
@@ -715,6 +714,11 @@ public:
 
   /// Get the duration between retreat to charger checks.
   std::optional<rmf_traffic::Duration> retreat_to_charger_interval() const;
+
+  /// Set the duration between retreat to charger checks. Passing in a nullopt
+  /// will turn off these checks entirely.
+  void set_retreat_to_charger_interval(
+    std::optional<rmf_traffic::Duration> value);
 
   /// Get the task categories
   const std::unordered_map<std::string, ConsiderRequest>&

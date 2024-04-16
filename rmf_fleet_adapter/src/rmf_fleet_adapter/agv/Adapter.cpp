@@ -306,8 +306,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     config.recharge_threshold(),
     config.recharge_soc(),
     config.account_for_battery_drain(),
-    config.finishing_request(),
-    config.retreat_to_charger_interval());
+    config.finishing_request());
 
   if (!planner_params_ok)
   {
@@ -317,6 +316,9 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
       "It will not respond to bid requests for tasks",
       config.fleet_name().c_str());
   }
+
+  fleet_handle->set_retreat_to_charger_interval(
+    config.retreat_to_charger_interval());
 
   for (const auto& [task, consider] : config.task_consideration())
   {

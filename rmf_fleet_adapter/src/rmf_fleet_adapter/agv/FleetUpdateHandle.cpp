@@ -45,7 +45,6 @@
 
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 
-#include <iostream>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -1895,7 +1894,7 @@ void FleetUpdateHandle::add_robot(
           }
 
           mgr->set_idle_task(fleet->_pimpl->idle_task);
-          mgr->retreat_to_charger(fleet->retreat_to_charger_interval());
+          mgr->configure_retreat_to_charger(fleet->retreat_to_charger_interval());
 
           // -- Calling the handle_cb should always happen last --
           if (handle_cb)
@@ -2502,7 +2501,14 @@ FleetUpdateHandle& FleetUpdateHandle::set_update_listener(
 }
 
 //==============================================================================
-FleetUpdateHandle& FleetUpdateHandle::retreat_to_charger_interval(
+std::optional<rmf_traffic::Duration>
+FleetUpdateHandle::retreat_to_charger_interval() const
+{
+  return _pimpl->retreat_to_charger_interval;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::set_retreat_to_charger_interval(
   std::optional<rmf_traffic::Duration> duration)
 {
   _pimpl->retreat_to_charger_interval = duration;
@@ -2510,16 +2516,9 @@ FleetUpdateHandle& FleetUpdateHandle::retreat_to_charger_interval(
   // Start retreat timer
   for (const auto& t : _pimpl->task_managers)
   {
-    t.second->retreat_to_charger(duration);
+    t.second->configure_retreat_to_charger(duration);
   }
   return *this;
-}
-
-//==============================================================================
-std::optional<rmf_traffic::Duration>
-FleetUpdateHandle::retreat_to_charger_interval() const
-{
-  return _pimpl->retreat_to_charger_interval;
 }
 
 //==============================================================================
@@ -2543,8 +2542,7 @@ bool FleetUpdateHandle::set_task_planner_params(
   double recharge_threshold,
   double recharge_soc,
   bool account_for_battery_drain,
-  rmf_task::ConstRequestFactoryPtr idle_task,
-  std::optional<rmf_traffic::Duration> retreat_to_charger_gap)
+  rmf_task::ConstRequestFactoryPtr idle_task)
 {
   if (battery_system &&
     motion_sink &&
@@ -2575,15 +2573,13 @@ bool FleetUpdateHandle::set_task_planner_params(
       nullptr};
 
     _pimpl->worker.schedule(
-      [w = weak_from_this(), task_config, options, idle_task,
-      retreat_to_charger_gap](const auto&)
+      [w = weak_from_this(), task_config, options, idle_task](const auto&)
       {
         const auto self = w.lock();
         if (!self)
           return;
 
         self->_pimpl->idle_task = idle_task;
-        self->retreat_to_charger_interval(retreat_to_charger_gap);
 
         // Here we update the task planner in all the RobotContexts.
         // The TaskManagers rely on the parameters in the task planner for

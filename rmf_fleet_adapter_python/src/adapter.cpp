@@ -431,8 +431,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    const std::string& finishing_request_string = "nothing",
-    std::optional<rmf_traffic::Duration> retreat_to_charger_interval = rmf_traffic::time::from_seconds(10))
+    const std::string& finishing_request_string = "nothing")
     {
       std::function<rmf_traffic::Time()> time_now = nullptr;
       std::optional<std::string> planner_id = std::nullopt;
@@ -476,8 +475,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
         recharge_threshold,
         recharge_soc,
         account_for_battery_drain,
-        finishing_request,
-        retreat_to_charger_interval);
+        finishing_request);
     },
     py::arg("battery_system"),
     py::arg("motion_sink"),
@@ -486,7 +484,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("recharge_threshold"),
     py::arg("recharge_soc"),
     py::arg("account_for_battery_drain"),
-    py::arg("retreat_to_charger_interval"),
     py::arg("finishing_request_string") = "nothing")
   .def("accept_delivery_requests",
     &agv::FleetUpdateHandle::accept_delivery_requests,
@@ -523,12 +520,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("listener"),
     "Provide a callback that will receive fleet state and task updates.")
   .def_property("retreat_to_charger_interval",
-    py::overload_cast<>(
-      &agv::FleetUpdateHandle::retreat_to_charger_interval, py::const_),
-    [&](agv::FleetUpdateHandle& self)
-    {
-      return self.retreat_to_charger_interval();
-    })
+    &agv::FleetUpdateHandle::retreat_to_charger_interval,
+    &agv::FleetUpdateHandle::set_retreat_to_charger_interval)
   .def("consider_delivery_requests",
      [&](agv::FleetUpdateHandle& self,
          ModifiedConsiderRequest consider_pickup,
@@ -926,7 +919,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
         double recharge_threshold,
         double recharge_soc,
         bool account_for_battery_drain,
-        std::optional<rmf_traffic::Duration> retreat_to_charger_interval,
         std::unordered_map<std::string, ModifiedConsiderRequest> task_consideration,
         std::unordered_map<std::string, ModifiedConsiderRequest> action_consideration,
         std::string& finishing_request_string,
@@ -967,7 +959,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
               recharge_threshold,
               recharge_soc,
               account_for_battery_drain,
-              retreat_to_charger_interval,
               convert(task_consideration),
               convert(action_consideration),
               finishing_request,
@@ -993,7 +984,6 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("recharge_threshold"),
     py::arg("recharge_soc"),
     py::arg("account_for_battery_drain"),
-    py::arg("retreat_to_charger_interval"),
     py::arg("task_categories"),
     py::arg("action_categories"),
     py::arg("finishing_request") = "nothing",
@@ -1035,9 +1025,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def(
     "get_known_robot_configuration",
     &agv::EasyFullControl::FleetConfiguration::get_known_robot_configuration)
-  .def(
+  .def_property(
     "retreat_to_charger_interval",
-    &agv::EasyFullControl::FleetConfiguration::retreat_to_charger_interval)
+    &agv::EasyFullControl::FleetConfiguration::retreat_to_charger_interval,
+    &agv::EasyFullControl::FleetConfiguration::set_retreat_to_charger_interval)
   .def_property(
     "graph",
     &agv::EasyFullControl::FleetConfiguration::graph,

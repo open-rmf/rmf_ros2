@@ -1743,10 +1743,19 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
 }
 
 //==============================================================================
-void TaskManager::retreat_to_charger(
+void TaskManager::configure_retreat_to_charger(
   std::optional<rmf_traffic::Duration> duration)
 {
-  if (!duration.has_value())
+  if (duration.has_value() && *duration <= rmf_traffic::Duration(0))
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "[TaskManager::configure_retreat_to_charger] "
+      "Invalid value for duration: %f",
+      rmf_traffic::time::to_seconds(*duration));
+  }
+
+  if (!duration.has_value() || *duration <= rmf_traffic::Duration(0))
   {
     if (_retreat_timer && !_retreat_timer->is_canceled())
     {
@@ -1763,13 +1772,13 @@ void TaskManager::retreat_to_charger(
     {
       if (auto mgr = w.lock())
       {
-        mgr->retreat_to_charger_cb();
+        mgr->retreat_to_charger();
       }
     });
 }
 
 //==============================================================================
-void TaskManager::retreat_to_charger_cb()
+void TaskManager::retreat_to_charger()
 {
   if (!_travel_estimator)
     return;
