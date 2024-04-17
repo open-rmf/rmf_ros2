@@ -1080,6 +1080,13 @@ RobotContext::locked_mutex_groups() const
 }
 
 //==============================================================================
+const std::unordered_map<std::string, TimeMsg>&
+RobotContext::requesting_mutex_groups() const
+{
+  return _requesting_mutex_groups;
+}
+
+//==============================================================================
 const rxcpp::observable<std::string>& RobotContext::request_mutex_groups(
   std::unordered_set<std::string> groups,
   rmf_traffic::Time claim_time)
@@ -1506,6 +1513,7 @@ void RobotContext::_check_mutex_groups(
   }
 }
 
+//==============================================================================
 void RobotContext::_retain_mutex_groups(
   const std::unordered_set<std::string>& retain,
   std::unordered_map<std::string, TimeMsg>& groups)
@@ -1639,5 +1647,30 @@ std::unordered_set<std::size_t> RobotContext::_get_free_spots() const
   }
   return set;
 }
+
+//==============================================================================
+void RobotContext::_handle_mutex_group_manual_release(
+  const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg)
+{
+  if (msg.fleet != group())
+    return;
+
+  if (msg.robot != name())
+    return;
+
+  std::unordered_set<std::string> retain;
+  for (const auto& g : _locked_mutex_groups)
+  {
+    retain.insert(g.first);
+  }
+
+  for (const auto& g : msg.release_mutex_groups)
+  {
+    retain.erase(g);
+  }
+
+  retain_mutex_groups(retain);
+}
+
 } // namespace agv
 } // namespace rmf_fleet_adapter
