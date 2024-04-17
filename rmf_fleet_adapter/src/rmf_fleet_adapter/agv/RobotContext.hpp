@@ -777,17 +777,17 @@ public:
 
     context->_mutex_group_manual_release_sub =
       context->_node->create_subscription<
-        rmf_fleet_msgs::msg::MutexGroupManualRelease>(
-        MutexGroupManualReleaseTopicName,
-        rclcpp::SystemDefaultsQoS()
-          .reliable()
-          .keep_last(10),
-        [w = context->weak_from_this()](
-          rmf_fleet_msgs::msg::MutexGroupManualRelease::SharedPtr msg)
-        {
-          if (const auto self = w.lock())
-            self->_handle_mutex_group_manual_release(*msg);
-        });
+      rmf_fleet_msgs::msg::MutexGroupManualRelease>(
+      MutexGroupManualReleaseTopicName,
+      rclcpp::SystemDefaultsQoS()
+      .reliable()
+      .keep_last(10),
+      [w = context->weak_from_this()](
+        rmf_fleet_msgs::msg::MutexGroupManualRelease::SharedPtr msg)
+      {
+        if (const auto self = w.lock())
+          self->_handle_mutex_group_manual_release(*msg);
+      });
 
     return context;
   }
