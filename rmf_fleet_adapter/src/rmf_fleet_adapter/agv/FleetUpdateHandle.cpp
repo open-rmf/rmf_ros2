@@ -1911,6 +1911,7 @@ void FleetUpdateHandle::add_robot(
           }
 
           mgr->set_idle_task(fleet->_pimpl->idle_task);
+          mgr->configure_retreat_to_charger(fleet->retreat_to_charger_interval());
 
           // -- Calling the handle_cb should always happen last --
           if (handle_cb)
@@ -2513,6 +2514,27 @@ FleetUpdateHandle& FleetUpdateHandle::set_update_listener(
 {
   std::unique_lock<std::mutex> lock(*_pimpl->update_callback_mutex);
   _pimpl->update_callback = std::move(listener);
+  return *this;
+}
+
+//==============================================================================
+std::optional<rmf_traffic::Duration>
+FleetUpdateHandle::retreat_to_charger_interval() const
+{
+  return _pimpl->retreat_to_charger_interval;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::set_retreat_to_charger_interval(
+  std::optional<rmf_traffic::Duration> duration)
+{
+  _pimpl->retreat_to_charger_interval = duration;
+
+  // Start retreat timer
+  for (const auto& t : _pimpl->task_managers)
+  {
+    t.second->configure_retreat_to_charger(duration);
+  }
   return *this;
 }
 

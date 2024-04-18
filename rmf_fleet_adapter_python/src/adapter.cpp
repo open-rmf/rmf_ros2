@@ -519,6 +519,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::FleetUpdateHandle::set_update_listener,
     py::arg("listener"),
     "Provide a callback that will receive fleet state and task updates.")
+  .def_property("retreat_to_charger_interval",
+    &agv::FleetUpdateHandle::retreat_to_charger_interval,
+    &agv::FleetUpdateHandle::set_retreat_to_charger_interval)
   .def("consider_delivery_requests",
      [&](agv::FleetUpdateHandle& self,
          ModifiedConsiderRequest consider_pickup,
@@ -1022,6 +1025,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def(
     "get_known_robot_configuration",
     &agv::EasyFullControl::FleetConfiguration::get_known_robot_configuration)
+  .def_property(
+    "retreat_to_charger_interval",
+    &agv::EasyFullControl::FleetConfiguration::retreat_to_charger_interval,
+    &agv::EasyFullControl::FleetConfiguration::set_retreat_to_charger_interval)
   .def_property(
     "graph",
     &agv::EasyFullControl::FleetConfiguration::graph,
