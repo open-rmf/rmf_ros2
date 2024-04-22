@@ -64,6 +64,7 @@
 #include <rmf_api_msgs/schemas/undo_skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/undo_skip_phase_response.hpp>
 #include <rmf_api_msgs/schemas/error.hpp>
+#include <rmf_api_msgs/schemas/commission.hpp>
 
 namespace rmf_fleet_adapter {
 
@@ -243,7 +244,8 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::task_request,
     rmf_api_msgs::schemas::undo_skip_phase_request,
     rmf_api_msgs::schemas::undo_skip_phase_response,
-    rmf_api_msgs::schemas::error
+    rmf_api_msgs::schemas::error,
+    rmf_api_msgs::schemas::commission
   };
 
   for (const auto& schema : schemas)
