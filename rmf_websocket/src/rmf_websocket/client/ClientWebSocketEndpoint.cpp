@@ -125,7 +125,6 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
 {
   websocketpp::lib::error_code ec;
 
-
   _init = true;
   _con = _endpoint->get_connection(_uri, ec);
   RCLCPP_INFO(_node->get_logger(), "Attempting to connect to %s", _uri.c_str());
@@ -140,30 +139,25 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
   auto reconnect_socket = [this]()
     {
       // TODO(arjo) Parametrize the timeout.
-      using namespace std::chrono_literals;
-      if (!_reconnect_enqueued)
-      {
-        RCLCPP_ERROR(_node->get_logger(),
-          "Connection lost\n"
-          "> Reconnecting in 1s\n"
-          "> Host: %s", _uri.c_str());
-        _endpoint->stop_perpetual();
-        auto io_service = &_endpoint->get_io_service();
-        _endpoint = std::make_unique<WsClient>();
-        _endpoint->clear_access_channels(websocketpp::log::alevel::all);
-        _endpoint->clear_error_channels(websocketpp::log::elevel::all);
-        _endpoint->init_asio(io_service);
-        _endpoint->start_perpetual();
-        websocketpp::lib::error_code ec;
+      RCLCPP_ERROR(_node->get_logger(),
+        "Connection lost\n"
+        "> Reconnecting in 1s\n"
+        "> Host: %s", _uri.c_str());
+      _endpoint->stop_perpetual();
+      auto io_service = &_endpoint->get_io_service();
+      _endpoint = std::make_unique<WsClient>();
+      _endpoint->clear_access_channels(websocketpp::log::alevel::all);
+      _endpoint->clear_error_channels(websocketpp::log::elevel::all);
+      _endpoint->init_asio(io_service);
+      _endpoint->start_perpetual();
+      websocketpp::lib::error_code ec;
 
-        _endpoint->set_timer(1000, std::bind(&ClientWebSocketEndpoint::connect,
-          this));
-        _reconnect_enqueued = true;
-      }
+      _endpoint->set_timer(1000, std::bind(&ClientWebSocketEndpoint::connect,
+        this));
+
     };
   auto connected_cb = [this]()
     {
-      _reconnect_enqueued = false;
       _connection_cb();
     };
 
