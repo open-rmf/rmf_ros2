@@ -317,6 +317,9 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
       config.fleet_name().c_str());
   }
 
+  fleet_handle->set_retreat_to_charger_interval(
+    config.retreat_to_charger_interval());
+
   for (const auto& [task, consider] : config.task_consideration())
   {
     if (task == "delivery" && consider)
