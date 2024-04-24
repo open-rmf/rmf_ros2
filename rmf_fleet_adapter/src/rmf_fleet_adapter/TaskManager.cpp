@@ -1066,7 +1066,8 @@ TaskManager::RobotModeMsg TaskManager::robot_mode() const
     .mode(_active_task.is_finished() ?
       RobotModeMsg::MODE_IDLE :
       _context->current_mode())
-    .mode_request_id(0);
+    .mode_request_id(0)
+    .performing_action("");
 
   return mode;
 }
