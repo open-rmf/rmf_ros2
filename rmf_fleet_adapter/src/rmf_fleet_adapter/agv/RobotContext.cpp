@@ -847,6 +847,18 @@ bool RobotContext::waiting_for_charger() const
 }
 
 //==============================================================================
+std::shared_ptr<void> RobotContext::be_charging()
+{
+  return _lock_charging;
+}
+
+//==============================================================================
+bool RobotContext::is_charging() const
+{
+  return _lock_charging.use_count() > 1;
+}
+
+//==============================================================================
 const rxcpp::observable<double>& RobotContext::observe_battery_soc() const
 {
   return _battery_soc_obs;
@@ -1152,6 +1164,7 @@ RobotContext::RobotContext(
   _requester_id(
     _itinerary.description().owner() + "/" + _itinerary.description().name()),
   _charging_wp(state.dedicated_charging_waypoint().value()),
+  _lock_charging(std::make_shared<int>(0)),
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner)),
