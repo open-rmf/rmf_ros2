@@ -17,6 +17,7 @@
 
 #include "RobotContext.hpp"
 #include "internal_RobotUpdateHandle.hpp"
+#include "../TaskManager.hpp"
 
 #include <cstddef>
 #include <rmf_traffic_ros2/Time.hpp>
@@ -973,8 +974,25 @@ std::shared_ptr<TaskManager> RobotContext::task_manager()
 //==============================================================================
 void RobotContext::set_commission(RobotUpdateHandle::Commission value)
 {
-  std::lock_guard<std::mutex> lock(*_commission_mutex);
-  _commission = std::move(value);
+  {
+    std::lock_guard<std::mutex> lock(*_commission_mutex);
+    _commission = std::move(value);
+  }
+
+  if (const auto mgr = _task_manager.lock())
+  {
+    if (!_commission.is_performing_idle_behavior())
+    {
+      mgr->_cancel_idle_behavior({"decommissioned"});
+    }
+    else
+    {
+      // We trigger this in case the robot needs to begin its idle behavior.
+      // If it shouldn't perform idle behavior for any reason (e.g. already
+      // performing a task), then this will have no effect.
+      mgr->_begin_next_task();
+    }
+  }
 }
 
 //==============================================================================
