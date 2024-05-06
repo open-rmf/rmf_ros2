@@ -1358,6 +1358,15 @@ bool TaskManager::kill_task(
 }
 
 //==============================================================================
+void TaskManager::_cancel_idle_behavior(std::vector<std::string> labels)
+{
+  if (_waiting)
+  {
+    _waiting.cancel(std::move(labels), _context->now());
+  }
+}
+
+//==============================================================================
 void TaskManager::_begin_next_task()
 {
   if (_active_task)
@@ -1374,7 +1383,6 @@ void TaskManager::_begin_next_task()
 
   if (_queue.empty() && _direct_queue.empty())
   {
-
     if (!_waiting && !_finished_waiting)
     {
       _begin_waiting();
@@ -1471,7 +1479,9 @@ void TaskManager::_begin_next_task()
   else
   {
     if (!_waiting && !_finished_waiting)
+    {
       _begin_waiting();
+    }
   }
 
   _context->worker().schedule(
@@ -1731,7 +1741,16 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
           if (!self)
             return;
 
-          self->_finished_waiting = true;
+          // This condition deals with an awkward edge case where idle behavior
+          // would not restart when toggling the idle behavior commission back
+          // on. We fix this by keeping the _finished_waiting flag clean if
+          // idle behavior commissioning is off, so there's nothing to block
+          // idle behavior from beginning again if it gets toggled back on.
+          if (self->_context->commission().is_performing_idle_behavior())
+          {
+            self->_finished_waiting = true;
+          }
+
           self->_waiting = ActiveTask();
           self->_begin_next_task();
 

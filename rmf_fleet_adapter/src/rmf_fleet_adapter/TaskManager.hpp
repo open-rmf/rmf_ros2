@@ -233,6 +233,16 @@ public:
     const std::string& task_id,
     std::vector<std::string> labels);
 
+  /// This should only be triggered by RobotContext::set_commission(~), and only
+  /// in scenarios where the idle behavior commission has been toggled off.
+  void _cancel_idle_behavior(std::vector<std::string> labels);
+
+  /// Begin the next task for this robot if there is a new task ready to perform
+  /// and the robot is not already performing a task or caught in an emergency or
+  /// interruption. If no task is being performed and no new task is ready, the
+  /// idle behavior will be triggered.
+  void _begin_next_task();
+
 private:
 
   TaskManager(
@@ -407,9 +417,6 @@ private:
 
   // Map task_id to task_log.json for all tasks managed by this TaskManager
   std::unordered_map<std::string, nlohmann::json> _task_logs = {};
-
-  /// Callback for task timer which begins next task if its deployment time has passed
-  void _begin_next_task();
 
   /// Begin performing an emergency pullover. This should only be called when an
   /// emergency is active.
