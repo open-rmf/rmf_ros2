@@ -2539,6 +2539,13 @@ FleetUpdateHandle& FleetUpdateHandle::set_retreat_to_charger_interval(
 }
 
 //==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::reassign_dispatched_tasks()
+{
+  _pimpl->reassign_dispatched_tasks([]() {}, [](auto) {});
+  return *this;
+}
+
+//==============================================================================
 std::shared_ptr<rclcpp::Node> FleetUpdateHandle::node()
 {
   return _pimpl->node;
