@@ -402,7 +402,7 @@ public:
     std::optional<rmf_traffic::Duration> duration);
 
   /// Trigger a replan for task allocation for robots in this fleet.
-  FleetUpdateHandle& reassign_dispatched_tasks();
+  void reassign_dispatched_tasks();
 
   /// Get the rclcpp::Node that this fleet update handle will be using for
   /// communication.

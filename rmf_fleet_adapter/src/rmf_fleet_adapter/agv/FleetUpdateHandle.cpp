@@ -2539,10 +2539,17 @@ FleetUpdateHandle& FleetUpdateHandle::set_retreat_to_charger_interval(
 }
 
 //==============================================================================
-FleetUpdateHandle& FleetUpdateHandle::reassign_dispatched_tasks()
+void FleetUpdateHandle::reassign_dispatched_tasks()
 {
-  _pimpl->reassign_dispatched_tasks([]() {}, [](auto) {});
-  return *this;
+  _pimpl->worker.schedule(
+    [w = weak_from_this()](const auto&)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+      self->_pimpl->reassign_dispatched_tasks([]() {}, [](auto) {});
+    }
+  );
 }
 
 //==============================================================================
