@@ -301,20 +301,20 @@ make_schema_loader(const rclcpp::Node::SharedPtr& node)
   return [schema_dictionary = std::move(schema_dictionary), node](
     const nlohmann::json_uri& id,
     nlohmann::json& value)
-  {
-    const auto it = schema_dictionary.find(id.url());
-    if (it == schema_dictionary.end())
     {
-      RCLCPP_ERROR(
-        node->get_logger(),
-        "url: %s not found in schema dictionary. "
-        "Status for robot will not be overwritten.",
-        id.url().c_str());
-      return;
-    }
+      const auto it = schema_dictionary.find(id.url());
+      if (it == schema_dictionary.end())
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "url: %s not found in schema dictionary. "
+          "Status for robot will not be overwritten.",
+          id.url().c_str());
+        return;
+      }
 
-    value = it->second;
-  };
+      value = it->second;
+    };
 }
 
 //==============================================================================
