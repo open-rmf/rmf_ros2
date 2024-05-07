@@ -280,46 +280,60 @@ void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 }
 
 //==============================================================================
+std::function<void(const nlohmann::json_uri& id, nlohmann::json& value)>
+make_schema_loader(const rclcpp::Node::SharedPtr& node)
+{
+  // Initialize schema dictionary
+  const std::vector<nlohmann::json> schemas = {
+    rmf_api_msgs::schemas::robot_state,
+    rmf_api_msgs::schemas::location_2D,
+    rmf_api_msgs::schemas::commission,
+  };
+
+  std::unordered_map<std::string, nlohmann::json> schema_dictionary;
+
+  for (const auto& schema : schemas)
+  {
+    const auto json_uri = nlohmann::json_uri{schema["$id"]};
+    schema_dictionary.insert({json_uri.url(), schema});
+  }
+
+  return [schema_dictionary = std::move(schema_dictionary), node](
+    const nlohmann::json_uri& id,
+    nlohmann::json& value)
+    {
+      const auto it = schema_dictionary.find(id.url());
+      if (it == schema_dictionary.end())
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "url: %s not found in schema dictionary. "
+          "Status for robot will not be overwritten.",
+          id.url().c_str());
+        return;
+      }
+
+      value = it->second;
+    };
+}
+
+//==============================================================================
 void RobotUpdateHandle::override_status(std::optional<std::string> status)
 {
   if (const auto context = _pimpl->get_context())
   {
     if (status.has_value())
     {
-      // Here we capture [this] to avoid potential costly copy of
-      // schema_dictionary when more enties are inserted in the future.
-      // It is permissible here since the lambda will only be used within the
-      // scope of this function.
-      const auto loader =
-        [context, this](
-        const nlohmann::json_uri& id,
-        nlohmann::json& value)
-        {
-          const auto it = _pimpl->schema_dictionary.find(id.url());
-          if (it == _pimpl->schema_dictionary.end())
-          {
-            RCLCPP_ERROR(
-              context->node()->get_logger(),
-              "url: %s not found in schema dictionary. "
-              "Status for robot [%s] will not be overwritten.",
-              id.url().c_str(),
-              context->name().c_str());
-            return;
-          }
-
-          value = it->second;
-        };
-
       try
       {
         static const auto validator =
           nlohmann::json_schema::json_validator(
-          rmf_api_msgs::schemas::robot_state, loader);
+          rmf_api_msgs::schemas::robot_state,
+          make_schema_loader(context->node()));
 
         nlohmann::json dummy_msg;
         dummy_msg["status"] = status.value();
         validator.validate(dummy_msg);
-
       }
       catch (const std::exception& e)
       {
