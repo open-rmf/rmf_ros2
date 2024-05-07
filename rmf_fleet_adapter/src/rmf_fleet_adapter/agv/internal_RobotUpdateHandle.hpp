@@ -26,6 +26,7 @@
 #include <nlohmann/json-schema.hpp>
 #include <rmf_api_msgs/schemas/robot_state.hpp>
 #include <rmf_api_msgs/schemas/location_2D.hpp>
+#include <rmf_api_msgs/schemas/commission.hpp>
 
 #include <memory>
 
@@ -261,8 +262,6 @@ public:
   std::string name;
   RobotUpdateHandle::Unstable unstable = RobotUpdateHandle::Unstable();
   bool reported_loss = false;
-  std::unordered_map<std::string, nlohmann::json> schema_dictionary = {};
-
 
   static std::shared_ptr<RobotUpdateHandle> make(RobotContextPtr context)
   {
@@ -273,18 +272,6 @@ public:
       Implementation{std::move(context), std::move(name)});
     handle._pimpl->unstable._pimpl =
       &RobotUpdateHandle::Implementation::get(handle);
-
-    // Initialize schema dictionary
-    const std::vector<nlohmann::json> schemas = {
-      rmf_api_msgs::schemas::robot_state,
-      rmf_api_msgs::schemas::location_2D,
-    };
-
-    for (const auto& schema : schemas)
-    {
-      const auto json_uri = nlohmann::json_uri{schema["$id"]};
-      handle._pimpl->schema_dictionary.insert({json_uri.url(), schema});
-    }
 
     return std::make_shared<RobotUpdateHandle>(std::move(handle));
   }
