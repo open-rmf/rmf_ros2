@@ -67,6 +67,7 @@
 #include <rmf_api_msgs/schemas/fleet_log_update.hpp>
 #include <rmf_api_msgs/schemas/fleet_log.hpp>
 #include <rmf_api_msgs/schemas/log_entry.hpp>
+#include <rmf_api_msgs/schemas/commission.hpp>
 
 #include <rmf_fleet_adapter/schemas/event_description__perform_action.hpp>
 
@@ -440,7 +441,8 @@ public:
       rmf_api_msgs::schemas::robot_state,
       rmf_api_msgs::schemas::location_2D,
       rmf_api_msgs::schemas::fleet_log,
-      rmf_api_msgs::schemas::log_entry
+      rmf_api_msgs::schemas::log_entry,
+      rmf_api_msgs::schemas::commission
     };
 
     for (const auto& schema : schemas)
