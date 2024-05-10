@@ -10,6 +10,7 @@
 #include "rmf_traffic_ros2/Time.hpp"
 #include "rmf_fleet_adapter/agv/Adapter.hpp"
 #include "rmf_fleet_adapter/agv/EasyFullControl.hpp"
+#include "rmf_fleet_adapter/agv/FleetUpdateHandle.hpp"
 #include "rmf_fleet_adapter/agv/test/MockAdapter.hpp"
 #include "rmf_fleet_adapter_python/PyRobotCommandHandle.hpp"
 #include <rmf_fleet_adapter/agv/Transformation.hpp>
@@ -60,6 +61,7 @@ using ActivityIdentifier = agv::RobotUpdateHandle::ActivityIdentifier;
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
+using Commission = agv::RobotUpdateHandle::Commission;
 using Stubbornness = agv::RobotUpdateHandle::Unstable::Stubbornness;
 
 void bind_types(py::module&);
@@ -290,7 +292,14 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("text"))
   .def("enable_responsive_wait",
     &agv::RobotUpdateHandle::enable_responsive_wait,
-    py::arg("value"));
+    py::arg("value"))
+  .def("set_commission",
+    &agv::RobotUpdateHandle::set_commission,
+    py::arg("commission"))
+  .def("commission",
+    &agv::RobotUpdateHandle::commission)
+  .def("reassign_dispatched_tasks",
+    &agv::RobotUpdateHandle::reassign_dispatched_tasks);
 
   // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");
@@ -353,6 +362,22 @@ PYBIND11_MODULE(rmf_adapter, m) {
     .value("Warning", agv::RobotUpdateHandle::Tier::Warning)
     .value("Error", agv::RobotUpdateHandle::Tier::Error);
 
+  // Commission ======================================================
+  py::class_<Commission>(
+    m_robot_update_handle, "Commission")
+  .def_property(
+    "accept_dispatched_tasks",
+    &Commission::is_accepting_dispatched_tasks,
+    &Commission::accept_dispatched_tasks)
+  .def_property(
+    "accept_direct_tasks",
+    &Commission::is_accepting_direct_tasks,
+    &Commission::accept_direct_tasks)
+  .def_property(
+    "perform_idle_behavior",
+    &Commission::is_performing_idle_behavior,
+    &Commission::perform_idle_behavior);
+
   // Stubbornness ============================================================
   py::class_<Stubbornness>(
     m_robot_update_handle, "Stubbornness")
@@ -391,6 +416,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("open_lanes",
     &agv::FleetUpdateHandle::open_lanes,
     py::arg("lane_indices"))
+  .def("limit_lane_speeds",
+    &agv::FleetUpdateHandle::limit_lane_speeds,
+    py::arg("requests"))
+  .def("remove_speed_limits",
+    &agv::FleetUpdateHandle::remove_speed_limits,
+    py::arg("requests"))
   .def("set_task_planner_params",
     [&](agv::FleetUpdateHandle& self,
     battery::BatterySystem& b_sys,
@@ -488,6 +519,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::FleetUpdateHandle::set_update_listener,
     py::arg("listener"),
     "Provide a callback that will receive fleet state and task updates.")
+  .def_property("retreat_to_charger_interval",
+    &agv::FleetUpdateHandle::retreat_to_charger_interval,
+    &agv::FleetUpdateHandle::set_retreat_to_charger_interval)
   .def("consider_delivery_requests",
      [&](agv::FleetUpdateHandle& self,
          ModifiedConsiderRequest consider_pickup,
@@ -562,7 +596,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
         );
     },
     py::arg("category"),
-    py::arg("consider"));
+    py::arg("consider"))
+  .def("reassign_dispatched_tasks",
+    &agv::FleetUpdateHandle::reassign_dispatched_tasks);
 
   // TASK REQUEST CONFIRMATION ===============================================
   auto m_fleet_update_handle = m.def_submodule("fleet_update_handle");
@@ -589,6 +625,14 @@ PYBIND11_MODULE(rmf_adapter, m) {
     {
       return self.errors();
     });
+
+  // SPEED LIMIT REQUEST ===============================================
+  py::class_<agv::FleetUpdateHandle::SpeedLimitRequest>(
+    m_fleet_update_handle, "SpeedLimitRequest")
+  .def(py::init<std::size_t,
+    double>(),
+    py::arg("lane_index"),
+    py::arg("speed_limit"));
 
   // EASY TRAFFIC LIGHT HANDLE ===============================================
   py::class_<agv::Waypoint>(m, "Waypoint")
@@ -983,6 +1027,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def(
     "get_known_robot_configuration",
     &agv::EasyFullControl::FleetConfiguration::get_known_robot_configuration)
+  .def_property(
+    "retreat_to_charger_interval",
+    &agv::EasyFullControl::FleetConfiguration::retreat_to_charger_interval,
+    &agv::EasyFullControl::FleetConfiguration::set_retreat_to_charger_interval)
   .def_property(
     "graph",
     &agv::EasyFullControl::FleetConfiguration::graph,

@@ -23,6 +23,9 @@
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/Transformation.hpp>
 #include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
+#include <rmf_fleet_adapter/StandardNames.hpp>
+
+#include <rmf_fleet_msgs/msg/mutex_group_manual_release.hpp>
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
@@ -53,6 +56,7 @@ class TaskManager;
 
 namespace agv {
 
+class FleetUpdateHandle;
 class RobotContext;
 using TransformDictionary = std::unordered_map<std::string, Transformation>;
 using SharedPlanner = std::shared_ptr<
@@ -632,13 +636,18 @@ public:
   /// Get the task manager for this robot, if it exists.
   std::shared_ptr<TaskManager> task_manager();
 
-  /// Return true if this robot is currently commissioned (available to accept
-  /// new tasks).
-  bool is_commissioned() const;
+  /// Set the commission for this robot
+  void set_commission(RobotUpdateHandle::Commission value);
 
-  void decommission();
+  /// Get a reference to the robot's commission.
+  const RobotUpdateHandle::Commission& commission() const;
 
-  void recommission();
+  /// Lock the commission_mutex and return a copy of the robot's current
+  /// commission.
+  RobotUpdateHandle::Commission copy_commission() const;
+
+  /// Reassign the tasks that have been dispatched for this robot
+  void reassign_dispatched_tasks();
 
   Reporting& reporting();
 
@@ -667,8 +676,13 @@ public:
   /// Check if a door is being held
   const std::optional<std::string>& holding_door() const;
 
-  /// What mutex group is currently being locked.
+  /// What mutex groups are currently locked by this robot.
   const std::unordered_map<std::string, TimeMsg>& locked_mutex_groups() const;
+
+  /// What mutex groups are currently being requested (but have not yet been
+  /// locked) by this robot.
+  const std::unordered_map<std::string, TimeMsg>&
+  requesting_mutex_groups() const;
 
   /// Set the mutex group that this robot needs to lock.
   const rxcpp::observable<std::string>& request_mutex_groups(
@@ -761,6 +775,20 @@ public:
         self->_publish_mutex_group_requests();
       });
 
+    context->_mutex_group_manual_release_sub =
+      context->_node->create_subscription<
+      rmf_fleet_msgs::msg::MutexGroupManualRelease>(
+      MutexGroupManualReleaseTopicName,
+      rclcpp::SystemDefaultsQoS()
+      .reliable()
+      .keep_last(10),
+      [w = context->weak_from_this()](
+        rmf_fleet_msgs::msg::MutexGroupManualRelease::SharedPtr msg)
+      {
+        if (const auto self = w.lock())
+          self->_handle_mutex_group_manual_release(*msg);
+      });
+
     return context;
   }
 
@@ -831,7 +859,9 @@ private:
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);
-  bool _commissioned = true;
+  std::unique_ptr<std::mutex> _commission_mutex =
+    std::make_unique<std::mutex>();
+  RobotUpdateHandle::Commission _commission;
   bool _emergency = false;
   EasyFullControl::LocalizationRequest _localize;
 
@@ -864,12 +894,16 @@ private:
     std::unordered_map<std::string, TimeMsg>& _groups);
   void _release_mutex_group(const MutexGroupData& data) const;
   void _publish_mutex_group_requests();
+  void _handle_mutex_group_manual_release(
+    const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg);
   std::unordered_map<std::string, TimeMsg> _requesting_mutex_groups;
   std::unordered_map<std::string, TimeMsg> _locked_mutex_groups;
   rxcpp::subjects::subject<std::string> _mutex_group_lock_subject;
   rxcpp::observable<std::string> _mutex_group_lock_obs;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::MutexGroupManualRelease>::SharedPtr
+    _mutex_group_manual_release_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
 };
 

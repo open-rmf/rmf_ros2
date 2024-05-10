@@ -64,6 +64,9 @@
 #include <rmf_api_msgs/schemas/undo_skip_phase_request.hpp>
 #include <rmf_api_msgs/schemas/undo_skip_phase_response.hpp>
 #include <rmf_api_msgs/schemas/error.hpp>
+#include <rmf_api_msgs/schemas/commission.hpp>
+#include <rmf_api_msgs/schemas/robot_commission_request.hpp>
+#include <rmf_api_msgs/schemas/robot_commission_response.hpp>
 
 namespace rmf_fleet_adapter {
 
@@ -93,30 +96,8 @@ TaskManagerPtr TaskManager::make(
         [w = self->weak_from_this()](const auto&)
         {
           const auto self = w.lock();
-
-          if (!self->_emergency_active)
-            return;
-
-          auto task_id = "emergency_pullover." + self->_context->name() + "."
-          + self->_context->group() + "-"
-          + std::to_string(self->_count_emergency_pullover++);
-          self->_context->current_task_id(task_id);
-
-          // TODO(MXG): Consider subscribing to the emergency pullover update
-          self->_emergency_pullover = ActiveTask::start(
-            events::EmergencyPullover::start(
-              task_id,
-              self->_context,
-              self->_update_cb(),
-              self->_make_resume_from_emergency()),
-            self->_context->now());
-
-          self->_context->worker().schedule(
-            [w = self->weak_from_this()](const auto&)
-            {
-              if (const auto self = w.lock())
-                self->_process_robot_interrupts();
-            });
+          if (self && self->_emergency_active)
+            self->_begin_pullover();
         });
     };
 
@@ -181,16 +162,6 @@ TaskManagerPtr TaskManager::make(
       }
     });
 
-  mgr->_retreat_timer = mgr->context()->node()->try_create_wall_timer(
-    std::chrono::seconds(10),
-    [w = mgr->weak_from_this()]()
-    {
-      if (auto mgr = w.lock())
-      {
-        mgr->retreat_to_charger();
-      }
-    });
-
   mgr->_begin_waiting();
 
   // TODO(MXG): The tests allow a task manager to be created before a task
@@ -247,7 +218,10 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::skip_phase_response,
     rmf_api_msgs::schemas::task_request,
     rmf_api_msgs::schemas::undo_skip_phase_request,
-    rmf_api_msgs::schemas::undo_skip_phase_response
+    rmf_api_msgs::schemas::undo_skip_phase_response,
+    rmf_api_msgs::schemas::commission,
+    rmf_api_msgs::schemas::robot_commission_request,
+    rmf_api_msgs::schemas::robot_commission_response,
   };
 
   for (const auto& schema : schemas)
@@ -436,7 +410,12 @@ void copy_booking_data(
     booking_json["unix_millis_request_time"] =
       to_millis(request_time.value().time_since_epoch()).count();
   }
-  // TODO(MXG): Add priority and labels
+  const auto labels = booking.labels();
+  if (labels.size() != 0)
+  {
+    booking_json["labels"] = booking.labels();
+  }
+  // TODO(MXG): Add priority
 }
 
 //==============================================================================
@@ -824,17 +803,7 @@ bool TaskManager::cancel_task_if_present(const std::string& task_id)
     return true;
   }
 
-  std::lock_guard<std::mutex> lock(_mutex);
-  for (auto it = _queue.begin(); it != _queue.end(); ++it)
-  {
-    if (it->request()->booking()->id() == task_id)
-    {
-      _queue.erase(it);
-      return true;
-    }
-  }
-
-  return false;
+  return _cancel_task_from_dispatch_queue(task_id, {"DispatchRequest"});
 }
 
 //==============================================================================
@@ -853,7 +822,7 @@ std::string TaskManager::robot_status() const
 //==============================================================================
 auto TaskManager::expected_finish_state() const -> State
 {
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   if (!_direct_queue.empty())
   {
     return _direct_queue.rbegin()->assignment.finish_state();
@@ -903,7 +872,7 @@ void TaskManager::enable_responsive_wait(bool value)
 
   if (_responsive_wait_enabled)
   {
-    std::lock_guard<std::mutex> guard(_mutex);
+    std::lock_guard<std::recursive_mutex> guard(_mutex);
     if (!_active_task && _queue.empty() && _direct_queue.empty() && !_waiting)
     {
       _begin_waiting();
@@ -918,7 +887,7 @@ void TaskManager::set_idle_task(rmf_task::ConstRequestFactoryPtr task)
     return;
 
   _idle_task = std::move(task);
-  std::lock_guard<std::mutex> guard(_mutex);
+  std::lock_guard<std::recursive_mutex> guard(_mutex);
   if (!_active_task && _queue.empty() && _direct_queue.empty())
   {
     _begin_waiting();
@@ -932,7 +901,7 @@ void TaskManager::set_queue(
   // We indent this block as _mutex is also locked in the _begin_next_task()
   // function that is called at the end of this function.
   {
-    std::lock_guard<std::mutex> guard(_mutex);
+    std::lock_guard<std::recursive_mutex> guard(_mutex);
     // Do not remove automatic task if assignments is empty. See Issue #138
     if (assignments.empty() &&
       _queue.size() == 1 &&
@@ -971,12 +940,12 @@ void TaskManager::set_queue(
 }
 
 //==============================================================================
-const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
+std::vector<rmf_task::ConstRequestPtr> TaskManager::dispatched_requests() const
 {
   using namespace rmf_task::requests;
   std::vector<rmf_task::ConstRequestPtr> requests;
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   requests.reserve(_queue.size());
-  std::lock_guard<std::mutex> lock(_mutex);
   for (const auto& task : _queue)
   {
     if (task.request()->booking()->automatic())
@@ -987,6 +956,107 @@ const std::vector<rmf_task::ConstRequestPtr> TaskManager::requests() const
     requests.push_back(task.request());
   }
   return requests;
+}
+
+//==============================================================================
+void TaskManager::reassign_dispatched_requests(
+  std::function<void()> on_success,
+  std::function<void(std::vector<std::string>)> on_failure)
+{
+  std::vector<Assignment> assignments = _drain_dispatched_assignments();
+  const auto fleet = _fleet_handle.lock();
+  if (!fleet)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Attempting to reassign tasks for [%s] but its fleet is shutting down",
+      _context->requester_id().c_str());
+    return;
+  }
+
+  auto& fleet_impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
+  auto& unassigned = fleet_impl.unassigned_requests;
+  for (const auto& a : assignments)
+  {
+    unassigned.push_back(a.request());
+  }
+
+  fleet_impl.reassign_dispatched_tasks(
+    [name = _context->requester_id(), node = _context->node(), on_success]()
+    {
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Successfully reassigned tasks for [%s]",
+        name.c_str());
+      on_success();
+    },
+    [
+      name = _context->requester_id(),
+      node = _context->node(),
+      assignments,
+      fleet,
+      on_failure,
+      self = shared_from_this()
+    ](std::vector<std::string> errors)
+    {
+      std::stringstream ss_errors;
+      if (errors.empty())
+      {
+        ss_errors << " no reason given";
+      }
+      else
+      {
+        for (auto&& e : errors)
+        {
+          ss_errors << "\n -- " << e;
+        }
+      }
+
+      std::stringstream ss_requests;
+      if (assignments.empty())
+      {
+        ss_requests << "No tasks were assigned to the robot.";
+      }
+      else
+      {
+        ss_requests << "The following tasks will be canceled:";
+        for (const auto& a : assignments)
+        {
+          ss_requests << "\n -- " << a.request()->booking()->id();
+        }
+      }
+
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Failed to reassign tasks for [%s]. %s\nReasons for failure:%s",
+        ss_requests.str().c_str(),
+        ss_errors.str().c_str());
+
+      auto& fleet_impl = agv::FleetUpdateHandle::Implementation::get(*fleet);
+      auto& unassigned = fleet_impl.unassigned_requests;
+      const auto r_it = std::remove_if(
+        unassigned.begin(),
+        unassigned.end(),
+        [&assignments](const auto& r)
+        {
+          return std::find_if(
+            assignments.begin(),
+            assignments.end(),
+            [r](const auto& a)
+            {
+              return a.request() == r;
+            }) != assignments.end();
+        });
+      unassigned.erase(r_it, unassigned.end());
+
+      for (const auto& a : assignments)
+      {
+        self->_publish_canceled_pending_task(a, {"Failure to reassign"});
+        self->_register_executed_task(a.request()->booking()->id());
+      }
+
+      on_failure(errors);
+    });
 }
 
 //==============================================================================
@@ -1040,6 +1110,13 @@ nlohmann::json TaskManager::submit_direct_request(
   const auto& fleet = _context->group();
   const auto& robot = _context->name();
 
+  if (!_context->commission().is_accepting_direct_tasks())
+  {
+    return _make_error_response(
+      20, "Uncommissioned", "The robot [" + robot + "] in fleet ["
+      + fleet + "] is not commissioned to perform direct tasks.");
+  }
+
   const auto& impl =
     agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
   std::vector<std::string> errors;
@@ -1065,7 +1142,11 @@ nlohmann::json TaskManager::submit_direct_request(
       }
       catch (const std::exception&)
       {
-        json_errors.push_back(e);
+        nlohmann::json error;
+        error["code"] = 42;
+        error["category"] = "unknown";
+        error["detail"] = e;
+        json_errors.push_back(error);
       }
     }
     response_json["errors"] = std::move(json_errors);
@@ -1127,7 +1208,7 @@ nlohmann::json TaskManager::submit_direct_request(
   };
   ++_next_sequence_number;
   {
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<std::recursive_mutex> lock(_mutex);
     _direct_queue.insert(assignment);
   }
 
@@ -1243,7 +1324,7 @@ bool TaskManager::cancel_task(
 
   // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
   // unordered_sets and perform a lookup to see which function to call.
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   if (_cancel_task_from_dispatch_queue(task_id, labels))
     return true;
 
@@ -1265,7 +1346,7 @@ bool TaskManager::kill_task(
     return true;
   }
 
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   if (_cancel_task_from_dispatch_queue(task_id, labels))
     return true;
 
@@ -1276,20 +1357,35 @@ bool TaskManager::kill_task(
 }
 
 //==============================================================================
+void TaskManager::_cancel_idle_behavior(std::vector<std::string> labels)
+{
+  if (_waiting)
+  {
+    _waiting.cancel(std::move(labels), _context->now());
+  }
+}
+
+//==============================================================================
 void TaskManager::_begin_next_task()
 {
   if (_active_task)
+  {
     return;
+  }
 
   if (_emergency_active)
+  {
     return;
+  }
 
-  std::lock_guard<std::mutex> guard(_mutex);
+  std::lock_guard<std::recursive_mutex> guard(_mutex);
 
   if (_queue.empty() && _direct_queue.empty())
   {
     if (!_waiting && !_finished_waiting)
+    {
       _begin_waiting();
+    }
 
     return;
   }
@@ -1382,7 +1478,9 @@ void TaskManager::_begin_next_task()
   else
   {
     if (!_waiting && !_finished_waiting)
+    {
       _begin_waiting();
+    }
   }
 
   _context->worker().schedule(
@@ -1391,6 +1489,33 @@ void TaskManager::_begin_next_task()
       if (const auto self = w.lock())
         self->_process_robot_interrupts();
     });
+}
+
+//==============================================================================
+void TaskManager::_begin_pullover()
+{
+  _finished_waiting = false;
+  auto task_id = "emergency_pullover." + _context->name() + "."
+    + _context->group() + "-"
+    + std::to_string(_count_emergency_pullover++);
+  _context->current_task_id(task_id);
+
+  // TODO(MXG): Consider subscribing to the emergency pullover update
+  _emergency_pullover = ActiveTask::start(
+    events::EmergencyPullover::start(
+      task_id,
+      _context,
+      _update_cb(),
+      _make_resume_from_emergency()),
+    _context->now());
+
+  _context->worker().schedule(
+    [w = weak_from_this()](const auto&)
+    {
+      if (const auto self = w.lock())
+        self->_process_robot_interrupts();
+    });
+
 }
 
 //==============================================================================
@@ -1478,6 +1603,13 @@ std::function<void()> TaskManager::_robot_interruption_callback()
 //==============================================================================
 void TaskManager::_begin_waiting()
 {
+  if (!_context->commission().is_performing_idle_behavior())
+  {
+    // This robot is not supposed to perform its idle behavior, so we
+    // immediately from here.
+    return;
+  }
+
   if (_idle_task)
   {
     const auto request = _idle_task->make_request(_context->make_get_state()());
@@ -1565,12 +1697,17 @@ void TaskManager::_resume_from_emergency()
         return;
 
       if (self->_emergency_active)
+      {
         return;
+      }
 
       self->_emergency_pullover = ActiveTask();
 
       if (!self->_emergency_pullover_interrupt_token.has_value())
+      {
+        self->_begin_next_task();
         return;
+      }
 
       if (self->_active_task)
       {
@@ -1603,11 +1740,60 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
           if (!self)
             return;
 
-          self->_finished_waiting = true;
+          // This condition deals with an awkward edge case where idle behavior
+          // would not restart when toggling the idle behavior commission back
+          // on. We fix this by keeping the _finished_waiting flag clean if
+          // idle behavior commissioning is off, so there's nothing to block
+          // idle behavior from beginning again if it gets toggled back on.
+          if (self->_context->commission().is_performing_idle_behavior())
+          {
+            self->_finished_waiting = true;
+          }
+
           self->_waiting = ActiveTask();
           self->_begin_next_task();
+
+          if (self->_emergency_active)
+          {
+            self->_begin_pullover();
+          }
         });
     };
+}
+
+//==============================================================================
+void TaskManager::configure_retreat_to_charger(
+  std::optional<rmf_traffic::Duration> duration)
+{
+  if (duration.has_value() && *duration <= rmf_traffic::Duration(0))
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "[TaskManager::configure_retreat_to_charger] "
+      "Invalid value for duration: %f",
+      rmf_traffic::time::to_seconds(*duration));
+  }
+
+  if (!duration.has_value() || *duration <= rmf_traffic::Duration(0))
+  {
+    if (_retreat_timer && !_retreat_timer->is_canceled())
+    {
+      _retreat_timer->cancel();
+    }
+    return;
+  }
+
+  if (_retreat_timer)
+    _retreat_timer->reset();
+  _retreat_timer = _context->node()->try_create_wall_timer(
+    duration.value(),
+    [w = weak_from_this()]()
+    {
+      if (auto mgr = w.lock())
+      {
+        mgr->retreat_to_charger();
+      }
+    });
 }
 
 //==============================================================================
@@ -1617,7 +1803,7 @@ void TaskManager::retreat_to_charger()
     return;
 
   {
-    std::lock_guard<std::mutex> guard(_mutex);
+    std::lock_guard<std::recursive_mutex> guard(_mutex);
     if (_active_task || !_queue.empty())
       return;
   }
@@ -1690,7 +1876,7 @@ void TaskManager::retreat_to_charger()
       charging_assignment};
     ++_next_sequence_number;
     {
-      std::lock_guard<std::mutex> lock(_mutex);
+      std::lock_guard<std::recursive_mutex> lock(_mutex);
       _direct_queue.insert(assignment);
     }
 
@@ -1872,6 +2058,8 @@ rmf_task::State TaskManager::_publish_pending_task(
 {
   const auto info = pending.request()->description()->generate_info(
     std::move(expected_state), parameters);
+  PendingInfo cache;
+  cache.info = info;
 
   nlohmann::json pending_json;
   const auto& booking = *pending.request()->booking();
@@ -1885,13 +2073,18 @@ rmf_task::State TaskManager::_publish_pending_task(
 
   if (pending.finish_state().time())
   {
-    pending_json["unix_millis_finish_time"] =
+    PendingTimeInfo t;
+    t.unix_millis_finish_time =
       to_millis(pending.finish_state().time()->time_since_epoch()).count();
 
     const auto estimate =
       pending.finish_state().time().value() - pending.deployment_time();
-    pending_json["original_estimate_millis"] =
-      std::max(0l, to_millis(estimate).count());
+    t.original_estimate_millis = std::max(0l, to_millis(estimate).count());
+
+    pending_json["unix_millis_finish_time"] = t.unix_millis_finish_time;
+    pending_json["original_estimate_millis"] = t.original_estimate_millis;
+
+    cache.time = t;
   }
   copy_assignment(pending_json["assigned_to"], *_context);
   pending_json["status"] = "queued";
@@ -1904,6 +2097,7 @@ rmf_task::State TaskManager::_publish_pending_task(
 
   _validate_and_publish_websocket(task_state_update, validator);
 
+  _pending_task_info[pending.request()] = cache;
   return pending.finish_state();
 }
 
@@ -1912,6 +2106,7 @@ void TaskManager::_publish_task_queue()
 {
   rmf_task::State expected_state = _context->current_task_end_state();
   const auto& parameters = *_context->task_parameters();
+  _pending_task_info.clear();
 
   for (const auto& pending : _direct_queue)
   {
@@ -1935,6 +2130,20 @@ void TaskManager::_publish_canceled_pending_task(
   const auto& booking = *pending.request()->booking();
   copy_booking_data(pending_json["booking"], booking);
 
+  const auto info_it = _pending_task_info.find(pending.request());
+  if (info_it != _pending_task_info.end())
+  {
+    const auto& cache = info_it->second;
+    pending_json["category"] = cache.info.category;
+    pending_json["detail"] = cache.info.detail;
+    if (cache.time.has_value())
+    {
+      const auto& t = *cache.time;
+      pending_json["unix_millis_finish_time"] = t.unix_millis_finish_time;
+      pending_json["original_estimate_millis"] = t.original_estimate_millis;
+    }
+  }
+
   pending_json["unix_millis_start_time"] =
     to_millis(pending.deployment_time().time_since_epoch()).count();
 
@@ -1957,16 +2166,58 @@ void TaskManager::_publish_canceled_pending_task(
 }
 
 //==============================================================================
+auto TaskManager::_drain_dispatched_assignments() -> std::vector<Assignment>
+{
+  std::vector<Assignment> assignments;
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
+  for (const auto& a : _queue)
+  {
+    if (a.request()->booking()->automatic())
+    {
+      continue;
+    }
+
+    assignments.push_back(a);
+  }
+  _queue.clear();
+
+  return assignments;
+}
+
+//==============================================================================
+auto TaskManager::_drain_direct_assignments() -> std::vector<Assignment>
+{
+  std::vector<Assignment> assignments;
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
+  for (const auto& a : _direct_queue)
+  {
+    if (a.assignment.request()->booking()->automatic())
+    {
+      continue;
+    }
+
+    assignments.push_back(a.assignment);
+  }
+  _direct_queue.clear();
+
+  return assignments;
+}
+
+//==============================================================================
 bool TaskManager::_cancel_task_from_dispatch_queue(
   const std::string& task_id,
   const std::vector<std::string>& labels)
 {
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   for (auto it = _queue.begin(); it != _queue.end(); ++it)
   {
     if (it->request()->booking()->id() == task_id)
     {
       _publish_canceled_pending_task(*it, labels);
       _queue.erase(it);
+
+      // Count this as an executed task so we don't lose track of its existence
+      _register_executed_task(task_id);
       return true;
     }
   }
@@ -2092,7 +2343,7 @@ void TaskManager::_send_simple_error_if_queued(
 {
   // TODO(YV): We could cache the task_ids of direct and dispatched tasks in
   // unordered_sets and perform a lookup to see which queue to iterate.
-  std::lock_guard<std::mutex> lock(_mutex);
+  std::lock_guard<std::recursive_mutex> lock(_mutex);
   for (const auto& a : _queue)
   {
     if (a.request()->booking()->id() == task_id)
@@ -2248,6 +2499,8 @@ void TaskManager::_handle_request(
       _handle_undo_skip_phase_request(request_json, request_id);
     else if (type_str == "robot_task_request")
       _handle_direct_request(request_json, request_id);
+    else if (type_str == "robot_commission_request")
+      _handle_commission_request(request_json, request_id);
     else
       return;
   }
@@ -2273,17 +2526,153 @@ void TaskManager::_handle_direct_request(
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
-  const auto& robot = request_json["robot"].get<std::string>();
-  if (robot.empty() || robot != _context->name())
+  const auto& fleet = request_json["fleet"].get<std::string>();
+  if (fleet != _context->group())
     return;
 
-  const auto& fleet = request_json["fleet"].get<std::string>();
-  if (fleet.empty() || fleet != _context->group())
+  const auto& robot = request_json["robot"].get<std::string>();
+  if (robot != _context->name())
     return;
 
   const nlohmann::json& request = request_json["request"];
   const auto response = submit_direct_request(request, request_id);
   _validate_and_publish_api_response(response, response_validator, request_id);
+}
+
+//==============================================================================
+namespace {
+nlohmann::json simple_success_json()
+{
+  nlohmann::json successful_result;
+  successful_result["success"] = true;
+  return successful_result;
+}
+} // anonymous namespace
+
+//==============================================================================
+void TaskManager::_handle_commission_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  static const auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::robot_commission_request);
+
+  static const auto response_validator =
+    std::make_shared<nlohmann::json_schema::json_validator>(
+    _make_validator(rmf_api_msgs::schemas::robot_commission_response));
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& fleet = request_json["fleet"].get<std::string>();
+  if (fleet != _context->group())
+    return;
+
+  const auto& robot = request_json["robot"].get<std::string>();
+  if (robot != _context->name())
+    return;
+
+  agv::RobotUpdateHandle::Commission commission = _context->commission();
+  const nlohmann::json& commission_json = request_json["commission"];
+  const auto dispatch_it = commission_json.find("dispatch_tasks");
+  if (dispatch_it != commission_json.end())
+  {
+    commission.accept_dispatched_tasks(dispatch_it->get<bool>());
+  }
+
+  const auto direct_it = commission_json.find("direct_tasks");
+  if (direct_it != commission_json.end())
+  {
+    commission.accept_direct_tasks(direct_it->get<bool>());
+  }
+
+  const auto idle_it = commission_json.find("idle_behavior");
+  if (idle_it != commission_json.end())
+  {
+    commission.perform_idle_behavior(idle_it->get<bool>());
+  }
+
+  _context->set_commission(commission);
+
+  nlohmann::json response_json;
+  response_json["commission"] = simple_success_json();
+
+  const auto direct_policy_it =
+    request_json.find("pending_direct_tasks_policy");
+  if (direct_policy_it != request_json.end()
+    && direct_policy_it->get<std::string>() == "cancel")
+  {
+    const auto assignments = _drain_direct_assignments();
+    for (const auto& a : assignments)
+    {
+      _publish_canceled_pending_task(
+        a, {"Canceled by robot commission request [" + request_id + "]"});
+      _register_executed_task(a.request()->booking()->id());
+    }
+  }
+
+  response_json["pending_direct_tasks_policy"] = simple_success_json();
+
+  const auto dispatch_policy_it =
+    request_json.find("pending_dispatch_tasks_policy");
+  if (dispatch_policy_it == request_json.end()
+    || dispatch_policy_it->get<std::string>() == "reassign")
+  {
+    reassign_dispatched_requests(
+      [
+        request_id,
+        response_validator = response_validator,
+        base_response_json = response_json,
+        self = shared_from_this()
+      ]()
+      {
+        nlohmann::json response_json = base_response_json;
+        response_json["pending_dispatch_tasks_policy"] = simple_success_json();
+        self->_validate_and_publish_api_response(
+          response_json, *response_validator, request_id);
+      },
+      [
+        request_id,
+        response_validator = response_validator,
+        base_response_json = response_json,
+        self = shared_from_this()
+      ](std::vector<std::string> errors)
+      {
+        nlohmann::json response_json = base_response_json;
+        nlohmann::json dispatch_json;
+        dispatch_json["success"] = false;
+        std::vector<nlohmann::json> errors_json;
+        for (const auto& e : errors)
+        {
+          nlohmann::json error;
+          error["code"] = 21;
+          error["category"] = "planner";
+          error["detail"] = e;
+          errors_json.push_back(error);
+        }
+        dispatch_json["errors"] = errors_json;
+        response_json["pending_dispatch_tasks_policy"] = dispatch_json;
+        self->_validate_and_publish_api_response(
+          response_json, *response_validator, request_id);
+      });
+  }
+  else
+  {
+    if (dispatch_policy_it->get<std::string>() == "cancel")
+    {
+      std::vector<Assignment> assignments = _drain_dispatched_assignments();
+      for (const auto& a : assignments)
+      {
+        _publish_canceled_pending_task(
+          a, {"Canceled by robot commission request [" + request_id + "]"});
+        _register_executed_task(a.request()->booking()->id());
+      }
+    }
+
+    response_json["pending_dispatch_tasks_policy"] = simple_success_json();
+    _validate_and_publish_api_response(
+      response_json, *response_validator, request_id);
+  }
 }
 
 //==============================================================================

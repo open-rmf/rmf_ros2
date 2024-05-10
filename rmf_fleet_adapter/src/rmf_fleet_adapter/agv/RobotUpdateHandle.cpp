@@ -280,46 +280,60 @@ void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 }
 
 //==============================================================================
+std::function<void(const nlohmann::json_uri& id, nlohmann::json& value)>
+make_schema_loader(const rclcpp::Node::SharedPtr& node)
+{
+  // Initialize schema dictionary
+  const std::vector<nlohmann::json> schemas = {
+    rmf_api_msgs::schemas::robot_state,
+    rmf_api_msgs::schemas::location_2D,
+    rmf_api_msgs::schemas::commission,
+  };
+
+  std::unordered_map<std::string, nlohmann::json> schema_dictionary;
+
+  for (const auto& schema : schemas)
+  {
+    const auto json_uri = nlohmann::json_uri{schema["$id"]};
+    schema_dictionary.insert({json_uri.url(), schema});
+  }
+
+  return [schema_dictionary = std::move(schema_dictionary), node](
+    const nlohmann::json_uri& id,
+    nlohmann::json& value)
+    {
+      const auto it = schema_dictionary.find(id.url());
+      if (it == schema_dictionary.end())
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "url: %s not found in schema dictionary. "
+          "Status for robot will not be overwritten.",
+          id.url().c_str());
+        return;
+      }
+
+      value = it->second;
+    };
+}
+
+//==============================================================================
 void RobotUpdateHandle::override_status(std::optional<std::string> status)
 {
   if (const auto context = _pimpl->get_context())
   {
     if (status.has_value())
     {
-      // Here we capture [this] to avoid potential costly copy of
-      // schema_dictionary when more enties are inserted in the future.
-      // It is permissible here since the lambda will only be used within the
-      // scope of this function.
-      const auto loader =
-        [context, this](
-        const nlohmann::json_uri& id,
-        nlohmann::json& value)
-        {
-          const auto it = _pimpl->schema_dictionary.find(id.url());
-          if (it == _pimpl->schema_dictionary.end())
-          {
-            RCLCPP_ERROR(
-              context->node()->get_logger(),
-              "url: %s not found in schema dictionary. "
-              "Status for robot [%s] will not be overwritten.",
-              id.url().c_str(),
-              context->name().c_str());
-            return;
-          }
-
-          value = it->second;
-        };
-
       try
       {
         static const auto validator =
           nlohmann::json_schema::json_validator(
-          rmf_api_msgs::schemas::robot_state, loader);
+          rmf_api_msgs::schemas::robot_state,
+          make_schema_loader(context->node()));
 
         nlohmann::json dummy_msg;
         dummy_msg["status"] = status.value();
         validator.validate(dummy_msg);
-
       }
       catch (const std::exception& e)
       {
@@ -721,6 +735,100 @@ void RobotUpdateHandle::release_lift()
 }
 
 //==============================================================================
+class RobotUpdateHandle::Commission::Implementation
+{
+public:
+  bool is_accepting_dispatched_tasks = true;
+  bool is_accepting_direct_tasks = true;
+  bool is_performing_idle_behavior = true;
+};
+
+//==============================================================================
+RobotUpdateHandle::Commission::Commission()
+: _pimpl(rmf_utils::make_impl<Implementation>())
+{
+  // Do nothing
+}
+
+//==============================================================================
+auto RobotUpdateHandle::Commission::decommission() -> Commission
+{
+  return Commission()
+    .accept_dispatched_tasks(false)
+    .accept_direct_tasks(false)
+    .perform_idle_behavior(false);
+}
+
+//==============================================================================
+auto RobotUpdateHandle::Commission::accept_dispatched_tasks(bool decision)
+-> Commission&
+{
+  _pimpl->is_accepting_dispatched_tasks = decision;
+  return *this;
+}
+
+//==============================================================================
+bool RobotUpdateHandle::Commission::is_accepting_dispatched_tasks() const
+{
+  return _pimpl->is_accepting_dispatched_tasks;
+}
+
+//==============================================================================
+auto RobotUpdateHandle::Commission::accept_direct_tasks(bool decision)
+-> Commission&
+{
+  _pimpl->is_accepting_direct_tasks = decision;
+  return *this;
+}
+
+//==============================================================================
+bool RobotUpdateHandle::Commission::is_accepting_direct_tasks() const
+{
+  return _pimpl->is_accepting_direct_tasks;
+}
+
+//==============================================================================
+auto RobotUpdateHandle::Commission::perform_idle_behavior(bool decision)
+-> Commission&
+{
+  _pimpl->is_performing_idle_behavior = decision;
+  return *this;
+}
+
+//==============================================================================
+bool RobotUpdateHandle::Commission::is_performing_idle_behavior() const
+{
+  return _pimpl->is_performing_idle_behavior;
+}
+
+//==============================================================================
+void RobotUpdateHandle::set_commission(Commission commission)
+{
+  _pimpl->set_commission(std::move(commission));
+}
+
+//==============================================================================
+auto RobotUpdateHandle::commission() const -> Commission
+{
+  return _pimpl->commission();
+}
+
+//==============================================================================
+void RobotUpdateHandle::reassign_dispatched_tasks()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [context](const auto&)
+      {
+        const auto mgr = context->task_manager();
+        if (mgr)
+          mgr->reassign_dispatched_requests([]() {}, [](auto) {});
+      });
+  }
+}
+
+//==============================================================================
 RobotUpdateHandle::RobotUpdateHandle()
 {
   // Do nothing
@@ -742,7 +850,7 @@ const RobotUpdateHandle::Unstable& RobotUpdateHandle::unstable() const
 bool RobotUpdateHandle::Unstable::is_commissioned() const
 {
   if (const auto context = _pimpl->get_context())
-    return context->is_commissioned();
+    return context->copy_commission().is_accepting_dispatched_tasks();
 
   return false;
 }
@@ -750,29 +858,17 @@ bool RobotUpdateHandle::Unstable::is_commissioned() const
 //==============================================================================
 void RobotUpdateHandle::Unstable::decommission()
 {
-  if (const auto context = _pimpl->get_context())
-  {
-    context->worker().schedule(
-      [w = context->weak_from_this()](const auto&)
-      {
-        if (const auto context = w.lock())
-          context->decommission();
-      });
-  }
+  _pimpl->set_commission(
+    _pimpl->commission()
+    .accept_dispatched_tasks(false));
 }
 
 //==============================================================================
 void RobotUpdateHandle::Unstable::recommission()
 {
-  if (const auto context = _pimpl->get_context())
-  {
-    context->worker().schedule(
-      [w = context->weak_from_this()](const auto&)
-      {
-        if (const auto context = w.lock())
-          context->recommission();
-      });
-  }
+  _pimpl->set_commission(
+    _pimpl->commission()
+    .accept_dispatched_tasks(true));
 }
 
 //==============================================================================

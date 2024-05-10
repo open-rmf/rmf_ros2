@@ -70,7 +70,8 @@ void bind_graph(py::module& m)
     &Graph::Waypoint::set_charger)
   .def("set_charger", &Graph::Waypoint::set_charger)
   .def_property_readonly("index", &Graph::Waypoint::index)
-  .def_property_readonly("waypoint_name", &Graph::Waypoint::name);
+  .def_property_readonly("waypoint_name", &Graph::Waypoint::name)
+  .def_property_readonly("in_lift", &Graph::Waypoint::in_lift);
 
   // ORIENTATION_CONSTRAINT ====================================================
   py::class_<OrientationConstraint,
@@ -194,7 +195,10 @@ void bind_graph(py::module& m)
   .def_property_readonly("num_lanes", &Graph::num_lanes)
   .def("lanes_from_waypoint",
     py::overload_cast<std::size_t>(&Graph::lanes_from, py::const_),
-    py::arg("wp_index"));
+    py::arg("wp_index"))
+
+  //Lifts
+  .def_property_readonly("all_known_lifts", &Graph::all_known_lifts);
 
   // PARSE GRAPH ==============================================================
   // Helper function to parse a graph from a yaml file

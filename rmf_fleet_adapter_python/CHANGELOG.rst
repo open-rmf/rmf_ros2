@@ -2,6 +2,11 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.6.0 (2024-03-13)
+------------------
+* add in_lift readonly property in Graph::Waypoint binding. (`#326 <https://github.com/open-rmf/rmf_ros2/pull/326>`_)
+* Contributors: cwrx777
+
 2.5.0 (2023-12-22)
 ------------------
 

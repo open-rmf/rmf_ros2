@@ -739,13 +739,18 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
     if (first_graph_wp.has_value())
     {
-      const Eigen::Vector2d p1 =
-        graph.get_waypoint(*first_graph_wp).get_location();
+      const auto& wp = graph.get_waypoint(*first_graph_wp);
+      const Eigen::Vector2d p1 = wp.get_location();
+      const auto& map = wp.get_map_name();
 
       // Check if the line from the start of the plan to this waypoint crosses
       // through a door, and add a DoorOpen phase if it does
       for (const auto& door : graph.all_known_doors())
       {
+        if (door->map() != map)
+        {
+          continue;
+        }
 
         if (door->intersects(p0, p1, envelope))
         {
@@ -762,7 +767,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
         }
       }
 
-      const auto& map = graph.get_waypoint(*first_graph_wp).get_map_name();
       // Check if the robot is going into a lift and summon the lift
       for (const auto& lift : graph.all_known_lifts())
       {
@@ -958,7 +962,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
       return std::make_pair(mutex_group_change, new_mutex_groups);
     };
 
-  const auto t0 = waypoints.front().time();
   while (!waypoints.empty())
   {
     auto it = waypoints.begin();
