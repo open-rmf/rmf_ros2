@@ -795,10 +795,14 @@ public:
       }
 
       /// Publish failed bid
-      const auto task_state_update =
+      const auto task_state =
         create_task_state_json(dispatch_state, "failed");
       if (broadcast_client)
+      {
+        auto task_state_update = _task_state_update_json;
+        task_state_update["data"] = task_state;
         broadcast_client->publish(task_state_update);
+      }
 
       auctioneer->ready_for_next_bid();
       return;
@@ -870,9 +874,6 @@ public:
     dispatch_json["status"] = status_to_string(state->status);
     dispatch_json["errors"] = state->errors;
     task_state["dispatch"] = dispatch_json;
-
-    auto task_state_update = _task_state_update_json;
-    task_state_update["data"] = task_state;
 
     /// TODO: (YL) json validator for taskstateupdate
     return task_state;
