@@ -110,8 +110,15 @@ install(
 )
 
 install(
-  TARGETS rmf_task_ros2 rmf_task_dispatcher rmf_bidder_node
+  TARGETS rmf_task_ros2
   EXPORT rmf_task_ros2
+  RUNTIME DESTINATION lib/rmf_task_ros2
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+)
+
+install(
+  TARGETS rmf_task_dispatcher rmf_bidder_node
   RUNTIME DESTINATION lib/rmf_task_ros2
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
