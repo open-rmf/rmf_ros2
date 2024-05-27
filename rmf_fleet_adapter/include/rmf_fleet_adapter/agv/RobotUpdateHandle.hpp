@@ -542,6 +542,25 @@ public:
     /// Turn on/off a debug dump of how position updates are being processed
     void debug_positions(bool on);
 
+    /// Cancel a task but keep the task state displayed as completed, if it has
+    /// been assigned to this robot
+    ///
+    /// \param[in] task_id
+    ///   The ID of the task to be canceled
+    ///
+    /// \param[in] labels
+    ///   Labels that will be assigned to this cancellation. It is recommended to
+    ///   include information about why the cancellation is happening.
+    ///
+    /// \param[in] on_cancellation
+    ///   Callback that will be triggered after the cancellation is issued.
+    ///   task_was_found will be true if the task was successfully found and
+    ///   issued the cancellation, false otherwise.
+    void quiet_cancel_task(
+      std::string task_id,
+      std::vector<std::string> labels,
+      std::function<void(bool task_was_found)> on_cancellation);
+
   private:
     friend Implementation;
     Implementation* _pimpl;
