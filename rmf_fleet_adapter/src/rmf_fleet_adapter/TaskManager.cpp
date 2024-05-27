@@ -346,10 +346,10 @@ nlohmann::json& copy_phase_data(
     auto& event_state = event_states[std::to_string(top->id())];
     event_state["id"] = top->id();
     event_state["status"] = status_to_string(top->status());
-    if (quiet_cancel &&
-      top->status() == rmf_task::Event::Status::Canceled)
+    if (quiet_cancel && top->status() == rmf_task::Event::Status::Canceled)
     {
-      event_state["status"] = status_to_string(rmf_task::Event::Status::Completed);
+      event_state["status"] = status_to_string(
+        rmf_task::Event::Status::Completed);
     }
 
     // TODO(MXG): Keep a VersionedString Reader to know when to actually update
@@ -507,7 +507,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
     return;
   auto& active =
     copy_phase_data(
-      phases, *active_phase, mgr._log_reader, phase_logs, _quiet_cancel);
+    phases, *active_phase, mgr._log_reader, phase_logs, _quiet_cancel);
   if (_task->active_phase_start_time().has_value())
   {
     active["unix_millis_start_time"] =
