@@ -612,8 +612,7 @@ public:
       bid_notice.task_id, std::chrono::steady_clock::now());
     new_dispatch_state->request = request;
 
-    // Publish this initial task state message to the websocket
-    auto state = publish_task_state_ws(new_dispatch_state, "queued");
+    const auto state = create_task_state_json(new_dispatch_state, "queued");
 
     active_dispatch_states[bid_notice.task_id] = new_dispatch_state;
 
@@ -796,7 +795,14 @@ public:
       }
 
       /// Publish failed bid
-      publish_task_state_ws(dispatch_state, "failed");
+      if (broadcast_client)
+      {
+        const auto task_state =
+          create_task_state_json(dispatch_state, "failed");
+        auto task_state_update = _task_state_update_json;
+        task_state_update["data"] = task_state;
+        broadcast_client->publish(task_state_update);
+      }
 
       auctioneer->ready_for_next_bid();
       return;
@@ -829,7 +835,7 @@ public:
   }
 
   //==============================================================================
-  nlohmann::json publish_task_state_ws(
+  nlohmann::json create_task_state_json(
     const std::shared_ptr<DispatchState> state,
     const std::string& status)
   {
@@ -869,16 +875,12 @@ public:
     dispatch_json["errors"] = state->errors;
     task_state["dispatch"] = dispatch_json;
 
-    auto task_state_update = _task_state_update_json;
-    task_state_update["data"] = task_state;
-
     /// TODO: (YL) json validator for taskstateupdate
-
-    if (broadcast_client)
-      broadcast_client->publish(task_state_update);
     return task_state;
   }
 
+
+  //==============================================================================
   void move_to_finished(const std::string& task_id)
   {
     const auto active_it = active_dispatch_states.find(task_id);
