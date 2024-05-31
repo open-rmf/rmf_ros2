@@ -2,6 +2,13 @@
 Changelog for package rmf_websocket
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Fix deadlock in websocket server (`#342 <https://github.com/open-rmf/rmf_ros2/pull/342>`_)
+* Lower debug level of some messages in rmf_websocket (`#340 <https://github.com/open-rmf/rmf_ros2/pull/340>`_)
+* Refactors the socket broadcast client (`#329 <https://github.com/open-rmf/rmf_ros2/pull/329>`_)
+* Contributors: Arjo Chakravarty
+
 2.6.0 (2024-03-13)
 ------------------
 

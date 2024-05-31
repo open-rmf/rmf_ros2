@@ -2,6 +2,21 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Event based lift / door logic (`#320 <https://github.com/open-rmf/rmf_ros2/pull/320>`_)
+* Filter DoorOpen insertion by map name (`#353 <https://github.com/open-rmf/rmf_ros2/pull/353>`_)
+* Fix schema dictionary used during robot status override (`#349 <https://github.com/open-rmf/rmf_ros2/pull/349>`_)
+* Add fleet-level reassign dispatched tasks API (`#348 <https://github.com/open-rmf/rmf_ros2/pull/348>`_)
+* Automatically begin or cancel idle behavior when commission changes (`#346 <https://github.com/open-rmf/rmf_ros2/pull/346>`_)
+* Disable automatic retreat (`#330 <https://github.com/open-rmf/rmf_ros2/pull/330>`_)
+* Manual release of mutex groups (`#339 <https://github.com/open-rmf/rmf_ros2/pull/339>`_)
+* Stabilize commissioning feature (`#338 <https://github.com/open-rmf/rmf_ros2/pull/338>`_)
+* Release other mutexes if robot started charging (`#334 <https://github.com/open-rmf/rmf_ros2/pull/334>`_)
+* Support labels in booking information (`#328 <https://github.com/open-rmf/rmf_ros2/pull/328>`_)
+* Fix interaction between emergency pullover and finishing task (`#333 <https://github.com/open-rmf/rmf_ros2/pull/333>`_)
+* Contributors: Aaron Chong, Grey, Luca Della Vedova, Xiyu, Yadunund
+
 2.6.0 (2024-03-13)
 ------------------
 * Removes a line of dead code (`#322 <https://github.com/open-rmf/rmf_ros2/pull/322>`_)

@@ -2,6 +2,11 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Dispatcher only use websockets when dispatch fails (`#355 <https://github.com/open-rmf/rmf_ros2/pull/355>`_)
+* Contributors: Aaron Chong
+
 2.6.0 (2024-03-13)
 ------------------
 * Add Backward-ROS for improved logging in event of segfaults (`#327 <https://github.com/open-rmf/rmf_ros2/pull/327>`_)
