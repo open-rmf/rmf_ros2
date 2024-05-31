@@ -2,8 +2,8 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.7.0 (2024-06-01)
+------------------
 * Dispatcher only use websockets when dispatch fails (`#355 <https://github.com/open-rmf/rmf_ros2/pull/355>`_)
 * Contributors: Aaron Chong
 

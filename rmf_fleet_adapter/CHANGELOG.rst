@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.7.0 (2024-06-01)
+------------------
 * Event based lift / door logic (`#320 <https://github.com/open-rmf/rmf_ros2/pull/320>`_)
 * Filter DoorOpen insertion by map name (`#353 <https://github.com/open-rmf/rmf_ros2/pull/353>`_)
 * Fix schema dictionary used during robot status override (`#349 <https://github.com/open-rmf/rmf_ros2/pull/349>`_)

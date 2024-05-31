@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.7.0 (2024-06-01)
+------------------
 * Add fleet-level reassign dispatched tasks API (`#348 <https://github.com/open-rmf/rmf_ros2/pull/348>`_)
 * Disable automatic retreat (`#330 <https://github.com/open-rmf/rmf_ros2/pull/330>`_)
 * Stabilize commissioning feature (`#338 <https://github.com/open-rmf/rmf_ros2/pull/338>`_)
