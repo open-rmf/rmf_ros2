@@ -1449,13 +1449,14 @@ void TaskManager::_begin_next_task()
     {
       const auto info = assignment.request()->description()->generate_info(
         _context->make_get_state()(), *_context->task_parameters());
-      RCLCPP_ERROR(
-        _context->node()->get_logger(),
-        "[rmf_fleet_adapter::TaskManager::_begin_next_task] Failed to "
-        "instantiate task type [%s] for ID [%s]. This indicates that the "
-        "fleet adapter is incorrectly configured.",
-        info.category.c_str(),
-        assignment.request()->booking()->id().c_str());
+        // TODO(luca) uncrustify in Noble seems to wrongly indent this statement
+        RCLCPP_ERROR(
+          _context->node()->get_logger(),
+          "[rmf_fleet_adapter::TaskManager::_begin_next_task] Failed to "
+          "instantiate task type [%s] for ID [%s]. This indicates that the "
+          "fleet adapter is incorrectly configured.",
+          info.category.c_str(),
+          assignment.request()->booking()->id().c_str());
 
       _context->worker().schedule(
         [w = weak_from_this()](const auto&)
@@ -1614,17 +1615,18 @@ void TaskManager::_begin_waiting()
   if (_idle_task)
   {
     const auto request = _idle_task->make_request(_context->make_get_state()());
-    _waiting = ActiveTask::start(
-      _context->task_activator()->activate(
-        _context->make_get_state(),
-        _context->task_parameters(),
-        *request,
-        _update_cb(),
-        _checkpoint_cb(),
-        _phase_finished_cb(),
-        _make_resume_from_waiting()),
-      _context->now());
-    _context->current_task_id(request->booking()->id());
+        // TODO(luca) uncrustify in Noble seems to wrongly indent this statement
+        _waiting = ActiveTask::start(
+          _context->task_activator()->activate(
+            _context->make_get_state(),
+            _context->task_parameters(),
+            *request,
+            _update_cb(),
+            _checkpoint_cb(),
+            _phase_finished_cb(),
+            _make_resume_from_waiting()),
+          _context->now());
+        _context->current_task_id(request->booking()->id());
     return;
   }
 
