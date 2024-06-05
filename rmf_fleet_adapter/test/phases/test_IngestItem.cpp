@@ -202,7 +202,8 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
         bool completed = test->status_updates_cv.wait_for(
           lk, std::chrono::milliseconds(1000), [test]()
           {
-            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() ==
+              LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(completed);
       }
@@ -258,7 +259,8 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
           test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
               1000), [test]()
             {
-              return test->last_state_value() == LegacyTask::StatusMsg::STATE_FAILED;
+              return test->last_state_value() ==
+                LegacyTask::StatusMsg::STATE_FAILED;
             });
         CHECK(failed);
       }
@@ -311,16 +313,19 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
       THEN("it is completed")
       {
         std::unique_lock<std::mutex> lk(test->m);
-        bool completed = test->status_updates_cv.wait_for(lk, std::chrono::milliseconds(
+        bool completed = test->status_updates_cv.wait_for(lk,
+            std::chrono::milliseconds(
               1000), [test]()
             {
-              return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
+              return test->last_state_value() ==
+                LegacyTask::StatusMsg::STATE_COMPLETED;
             });
         CHECK(completed);
       }
     }
 
-    AND_WHEN("request acknowledged result arrives before request state in queue")
+    AND_WHEN(
+      "request acknowledged result arrives before request state in queue")
     {
       rmf_rxcpp::subscription_guard interval =
         rxcpp::observable<>::interval(std::chrono::milliseconds(100))
@@ -370,7 +375,8 @@ SCENARIO_METHOD(MockAdapterFixture, "ingest item phase", "[phases]")
         bool completed = test->status_updates_cv.wait_for(
           lk, std::chrono::milliseconds(30), [test]()
           {
-            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() ==
+              LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(!completed);
       }

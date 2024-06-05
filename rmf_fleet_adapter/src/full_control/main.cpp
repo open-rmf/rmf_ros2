@@ -883,7 +883,8 @@ struct Connections : public std::enable_shared_from_this<Connections>
             {
               auto request =
               std::make_shared<rmf_fleet_msgs::srv::LiftClearance::Request>(
-                rmf_fleet_msgs::build<rmf_fleet_msgs::srv::LiftClearance::Request>()
+                rmf_fleet_msgs::build<rmf_fleet_msgs::srv::LiftClearance::
+                Request>()
                 .robot_name(robot_name)
                 .lift_name(lift_name));
 
@@ -1333,9 +1334,8 @@ std::shared_ptr<Connections> make_fleet(
     });
 
   const auto consider =
-    []
-      (const nlohmann::json& /*description*/,
-      rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
+    [](const nlohmann::json& /*description*/,
+    rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
       // We accept all actions since full_control may be used for different
       // types of robots.

@@ -544,7 +544,7 @@ struct GoToChargerDescription
       {
         return standby(
           id, get_state, parameters, description, std::move(update))
-        ->begin(std::move(checkpoint), std::move(finished));
+          ->begin(std::move(checkpoint), std::move(finished));
       });
   }
 };
@@ -615,7 +615,7 @@ struct WaitForChargeDescription
       {
         return standby(
           id, get_state, parameters, description, std::move(update))
-        ->begin(std::move(checkpoint), std::move(finished));
+          ->begin(std::move(checkpoint), std::move(finished));
       });
   }
 };
@@ -654,7 +654,7 @@ void add_charge_battery(
     {
       return ChargeBatteryEvent::Standby::make(
         id, get_state, parameters, description, std::move(update))
-      ->begin(std::move(checkpoint), std::move(finished));
+        ->begin(std::move(checkpoint), std::move(finished));
     });
 
   auto charge_battery_task_unfolder =

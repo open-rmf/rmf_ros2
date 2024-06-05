@@ -59,7 +59,8 @@ std::vector<rmf_traffic_msgs::msg::NegotiationKey> convert(
 namespace schedule {
 
 //==============================================================================
-NegotiationRoom::NegotiationRoom(rmf_traffic::schedule::Negotiation negotiation_)
+NegotiationRoom::NegotiationRoom(
+  rmf_traffic::schedule::Negotiation negotiation_)
 : negotiation(std::move(negotiation_))
 {
   // Do nothing

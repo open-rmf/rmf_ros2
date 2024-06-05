@@ -56,7 +56,7 @@ inline auto grab_while_active()
   return grab_while([](const LegacyTask::StatusMsg& status)
       {
         return !(status.state == LegacyTask::StatusMsg::STATE_COMPLETED ||
-        status.state == LegacyTask::StatusMsg::STATE_FAILED);
+          status.state == LegacyTask::StatusMsg::STATE_FAILED);
       });
 }
 

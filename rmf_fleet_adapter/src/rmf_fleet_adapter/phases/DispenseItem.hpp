@@ -78,7 +78,8 @@ struct DispenseItem
     void _init_obs();
 
     LegacyTask::StatusMsg _get_status(
-      const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr& dispenser_result,
+      const rmf_dispenser_msgs::msg::DispenserResult::SharedPtr&
+      dispenser_result,
       const rmf_dispenser_msgs::msg::DispenserState::SharedPtr& dispenser_state);
 
     void _do_publish();

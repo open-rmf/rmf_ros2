@@ -170,7 +170,7 @@ public:
         {
           const auto& remote_desc = participant.description;
           return local_desc.owner() == remote_desc.owner
-          && local_desc.name() == remote_desc.name;
+            && local_desc.name() == remote_desc.name;
         });
 
       if (p == msg.participants.end())

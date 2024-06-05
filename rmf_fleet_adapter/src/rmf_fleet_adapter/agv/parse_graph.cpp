@@ -219,7 +219,8 @@ rmf_traffic::agv::Graph parse_graph(
             if (!lift)
             {
               throw std::runtime_error(
-                      "Lift properties for [" + lift_name + "] were not provided "
+                      "Lift properties for [" + lift_name +
+                      "] were not provided "
                       "even though it is used by a vertex. This suggests that your "
                       "nav graph was not generated correctly.");
             }

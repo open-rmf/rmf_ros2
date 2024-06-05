@@ -482,7 +482,8 @@ std::optional<rmf_traffic::agv::Graph> convert(
         {
           std::string name = params.at("door_close_name").value_string;
           rmf_traffic::Duration duration = std::chrono::nanoseconds(
-            static_cast<uint64_t>(params.at("door_close_duration").value_float));
+            static_cast<uint64_t>(params.at(
+              "door_close_duration").value_float));
           event_to_set = Event::make(DoorClose(std::move(name), duration));
         }
         // LiftSessionBegin

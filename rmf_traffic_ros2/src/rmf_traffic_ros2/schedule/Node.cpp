@@ -487,7 +487,7 @@ void ScheduleNode::setup_conflict_topics_and_thread()
           conflict_check_cv.wait_for(lock, std::chrono::milliseconds(100), [&]()
           {
             return !(database->latest_version() <= mirror.latest_version())
-            && !conflict_check_quit;
+              && !conflict_check_quit;
           });
 
           if ( (database->latest_version() == mirror.latest_version()

@@ -191,7 +191,7 @@ struct CleanEvent : public rmf_task_sequence::events::Placeholder::Description
       {
         return standby(
           id, get_state, parameters, description, std::move(update))
-        ->begin(std::move(checkpoint), std::move(finished));
+          ->begin(std::move(checkpoint), std::move(finished));
       });
   }
 

@@ -65,7 +65,7 @@ rmf_traffic::Duration LegacyPhaseShim::Standby::duration_estimate() const
 
 //==============================================================================
 auto LegacyPhaseShim::Standby::begin(
-  std::function<void()> /* none of the legacy phases have checkpoints */,
+  std::function<void()>/* none of the legacy phases have checkpoints */,
   std::function<void()> finished) -> ActivePtr
 {
   if (!_legacy)

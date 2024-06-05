@@ -195,10 +195,11 @@ void RobotUpdateHandle::update_position(
         {
           if (context->debug_positions)
           {
-            std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
-                      << map_name << " <" << position.block<2, 1>(0,
-            0).transpose()
-                      << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
+            std::cout << __FILE__ << "|" << __LINE__
+                      << ": setting robot to LOST | " << map_name
+                      << " <" << position.block<2, 1>(0, 0).transpose()
+                      << "> orientation " << position[2] * 180.0 / M_PI
+                      << std::endl;
           }
           context->set_lost(Location { now, map_name, position });
         });

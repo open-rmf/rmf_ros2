@@ -146,7 +146,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         return;
 
       self->_last_update_rostime = self->_context->node()->now();
-      self->_update_timeout_timer = self->_context->node()->try_create_wall_timer(
+      self->_update_timeout_timer =
+      self->_context->node()->try_create_wall_timer(
         self->_update_timeout,
         [w = self->weak_from_this()]()
         {
@@ -233,7 +234,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           {
             // TODO(MXG): This should really be a warning, but the legacy phase shim
             // does not have a way for us to specify a warning.
-            msg.status = "[Bug] [MoveRobot] Current path index was specified as ["
+            msg.status =
+            "[Bug] [MoveRobot] Current path index was specified as ["
             + std::to_string(path_index) + "] but that exceeds the limit of ["
             + std::to_string(action->_waypoints.size()-1) + "]";
           }
@@ -329,7 +331,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           });
       };
 
-      const auto finish = [
+      const auto finish =
+      [
         s,
         w = self->weak_from_this(),
         name = self->_context->requester_id()

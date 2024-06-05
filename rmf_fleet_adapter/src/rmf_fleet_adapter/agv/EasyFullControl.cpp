@@ -1596,7 +1596,8 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
 
       if (context->debug_positions)
       {
-        std::cout << "Searching for location from " << __FILE__ << "|" << __LINE__ << std::endl;
+        std::cout << "Searching for location from " << __FILE__ << "|" <<
+          __LINE__ << std::endl;
       }
       updater->nav_params->search_for_location(state.map(), position, *context);
     });
@@ -1828,9 +1829,11 @@ EasyFullControl::FleetConfiguration::from_config_files(
         {v_nom, a_nom},
         {w_nom, b_nom},
         rmf_traffic::Profile{
-          rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
+          rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>
+          (
             footprint_rad),
-          rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>(
+          rmf_traffic::geometry::make_final_convex<rmf_traffic::geometry::Circle>
+          (
             vicinity_rad)
         }
       });

@@ -149,7 +149,8 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
           std::cerr << " (" << to_string(start) << ")";
         std::cerr << " --> (" << search->_goal.waypoint() << "). Maximum cost: "
                   << maximum_cost << " | Leeway factor: "
-                  << search->_greedy_leeway << " | Current cost: " << current_cost
+                  << search->_greedy_leeway << " | Current cost: "
+                  << current_cost
                   << " | Saturated: " << r.saturated() << " (limit: "
                   << opt_to_str(r.options().saturation_limit())
                   << ") | interrupted: " << r.interrupted() << std::endl;

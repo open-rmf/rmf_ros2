@@ -143,9 +143,11 @@ public:
 
     if (!_update)
     {
+      // *INDENT-OFF*
       throw std::runtime_error(
               "Update handle has not been received by [" + _travel_info.robot_name
               + "] owned by [" + _travel_info.fleet_name + "]!");
+      // *INDENT-ON*
     }
 
     if (!_moving)

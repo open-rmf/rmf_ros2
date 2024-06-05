@@ -227,7 +227,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
           lk, std::chrono::milliseconds(1000),
           [test]()
           {
-            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() ==
+              LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(completed);
       }
@@ -251,7 +252,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
           lk, std::chrono::milliseconds(1000),
           [test]()
           {
-            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() ==
+              LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(!completed);
       }
@@ -275,7 +277,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
           lk, std::chrono::milliseconds(1000),
           [test]()
           {
-            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() ==
+              LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(!completed);
       }
@@ -297,7 +300,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door open phase", "[phases]")
         std::unique_lock<std::mutex> lk(test->m);
         test->received_requests_cv.wait(lk, [test]()
           {
-            return test->received_requests.back()->requested_mode.value == DoorMode::MODE_CLOSED;
+            return test->received_requests.back()->requested_mode.value ==
+              DoorMode::MODE_CLOSED;
           });
       }
     }

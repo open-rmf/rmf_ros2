@@ -561,7 +561,7 @@ Adapter& Adapter::wait_for(std::chrono::nanoseconds max_wait)
     lock, wait_until_time, [&]()
     {
       return !_pimpl->node->still_spinning()
-      && std::chrono::steady_clock::now() < wait_until_time;
+        && std::chrono::steady_clock::now() < wait_until_time;
     });
 
   return *this;

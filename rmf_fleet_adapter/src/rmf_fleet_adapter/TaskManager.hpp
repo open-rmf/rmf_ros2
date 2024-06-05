@@ -64,7 +64,8 @@ public:
 
   static std::shared_ptr<TaskManager> make(
     agv::RobotContextPtr context,
-    std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
+    std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>>
+    broadcast_client,
     std::weak_ptr<agv::FleetUpdateHandle> fleet_handle);
 
   using Start = rmf_traffic::agv::Plan::Start;
@@ -247,7 +248,8 @@ private:
 
   TaskManager(
     agv::RobotContextPtr context,
-    std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>> broadcast_client,
+    std::optional<std::weak_ptr<rmf_websocket::BroadcastClient>>
+    broadcast_client,
     std::weak_ptr<agv::FleetUpdateHandle>);
 
   class ActiveTask

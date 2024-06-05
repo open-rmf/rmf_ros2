@@ -212,8 +212,8 @@ private:
       new_msg.robots.push_back(robot);
 
       std::cout<<"Delta: "<<std::to_string(
-          new_msg.robots[0].path[new_msg.robots[0].path.size()-1].t.sec
-          -_fleet_state_msg.robots[0].path[1].t.sec)<<std::endl;
+        new_msg.robots[0].path[new_msg.robots[0].path.size()-1].t.sec
+        -_fleet_state_msg.robots[0].path[1].t.sec)<<std::endl;
 
       //publishing new FleetState msg
       _fleet_state_pub->publish(new_msg);
@@ -261,12 +261,12 @@ private:
       std::cout<<"New Path Count: "<<
         std::to_string(new_msg.robots[0].path.size())<<std::endl;
       std::cout<<"New path has "<<std::to_string(new_msg.robots[0].path.size() -
-          _fleet_state_msg.robots[0].path.size())<< " more locations"<<
+        _fleet_state_msg.robots[0].path.size())<< " more locations"<<
         std::endl;
 
       std::cout<<"Delta: "<<std::to_string(
-          new_msg.robots[0].path[new_msg.robots[0].path.size() -1].t.sec -
-          _fleet_state_msg.robots[0].path[1].t.sec)<<std::endl;
+        new_msg.robots[0].path[new_msg.robots[0].path.size() -1].t.sec -
+        _fleet_state_msg.robots[0].path[1].t.sec)<<std::endl;
 
       //publishing new FleetState msg
       _fleet_state_pub->publish(new_msg);
@@ -319,8 +319,8 @@ private:
         _fleet_state_msg.robots[0].path.size()<< " more locations"<<std::endl;
 
       std::cout<<"Delta: "<<std::to_string(
-          new_msg.robots[0].path[new_msg.robots[0].path.size() -1].t.sec
-          -_fleet_state_msg.robots[0].path[1].t.sec)<<std::endl;
+        new_msg.robots[0].path[new_msg.robots[0].path.size() -1].t.sec
+        -_fleet_state_msg.robots[0].path[1].t.sec)<<std::endl;
 
       //publishing new FleetState msg
       _fleet_state_pub->publish(new_msg);

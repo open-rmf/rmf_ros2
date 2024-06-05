@@ -403,7 +403,8 @@ public:
         }
       });
     handle->_pimpl->emergency_planner =
-      std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(nullptr);
+      std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(
+      nullptr);
 
     // TODO(MXG): This is a very crude implementation. We create a dummy set of
     // task planner parameters to stand in until the user sets the task planner

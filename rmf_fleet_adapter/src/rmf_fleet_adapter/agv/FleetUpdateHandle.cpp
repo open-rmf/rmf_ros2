@@ -1545,7 +1545,7 @@ FleetUpdateHandle::Implementation::make_validator(
 {
   const auto loader =
     [n = node, s = schema_dictionary](const nlohmann::json_uri& id,
-      nlohmann::json& value)
+    nlohmann::json& value)
     {
       const auto it = s.find(id.url());
       if (it == s.end())
@@ -1914,12 +1914,14 @@ void FleetUpdateHandle::add_robot(
           }
 
           mgr->set_idle_task(fleet->_pimpl->idle_task);
-          mgr->configure_retreat_to_charger(fleet->retreat_to_charger_interval());
+          mgr->configure_retreat_to_charger(
+            fleet->retreat_to_charger_interval());
 
           // -- Calling the handle_cb should always happen last --
           if (handle_cb)
           {
-            handle_cb(RobotUpdateHandle::Implementation::make(std::move(context)));
+            handle_cb(RobotUpdateHandle::Implementation::make(std::move(
+              context)));
           }
           else
           {

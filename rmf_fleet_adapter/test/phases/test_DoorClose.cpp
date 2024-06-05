@@ -208,7 +208,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
           lk, std::chrono::milliseconds(1000),
           [test]()
           {
-            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() ==
+              LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(completed);
       }
@@ -231,7 +232,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
         bool completed = test->status_updates_cv.wait_for(
           lk, std::chrono::milliseconds(1000), [test]()
           {
-            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() ==
+              LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(completed);
       }
@@ -255,7 +257,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
         bool completed = test->status_updates_cv.wait_for(
           lk, std::chrono::milliseconds(1000), [test]()
           {
-            return test->last_state_value() == LegacyTask::StatusMsg::STATE_COMPLETED;
+            return test->last_state_value() ==
+              LegacyTask::StatusMsg::STATE_COMPLETED;
           });
         CHECK(!completed);
       }
