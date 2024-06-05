@@ -296,8 +296,8 @@ rmf_traffic::agv::Plan::StartSet NavParams::_lift_boundary_filter(
 
       const Eigen::Vector2d p = location.location().value();
 
-      const auto robot_inside_lift = [&]()
-      -> rmf_traffic::agv::Graph::LiftPropertiesPtr
+      const auto robot_inside_lift =
+        [&]() -> rmf_traffic::agv::Graph::LiftPropertiesPtr
       {
         for (const auto& lift : graph.all_known_lifts())
         {
@@ -1580,7 +1580,8 @@ void RobotContext::_publish_mutex_group_requests()
       if (!_requesting_mutex_groups.empty()
         || !_locked_mutex_groups.empty())
       {
-        auto warning = [&](const std::string& name)
+        auto warning =
+          [&](const std::string& name)
           {
             RCLCPP_ERROR(
               _node->get_logger(),
@@ -1607,7 +1608,8 @@ void RobotContext::_publish_mutex_group_requests()
     }
   }
 
-  auto publish = [&](const MutexGroupData& data)
+  auto publish =
+    [&](const MutexGroupData& data)
     {
       _node->mutex_group_request()->publish(
         rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()

@@ -206,8 +206,8 @@ make_deserializer(
   const agv::PlaceDeserializer& place_deser,
   const std::shared_ptr<agv::FleetUpdateHandle::ConsiderRequest>& consider)
 {
-  auto parse_payload_component = [](const nlohmann::json& msg)
-    -> rmf_task::Payload::Component
+  auto parse_payload_component =
+    [](const nlohmann::json& msg) -> rmf_task::Payload::Component
     {
       std::string compartment = "";
 

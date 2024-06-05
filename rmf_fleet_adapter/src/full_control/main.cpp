@@ -817,7 +817,8 @@ struct Connections : public std::enable_shared_from_this<Connections>
       }
       else
       {
-        const auto to_name = [&](const std::size_t index) -> std::string
+        const auto to_name =
+          [&](const std::size_t index) -> std::string
           {
             const auto& wp = graph->get_waypoint(index);
             if (wp.name())
@@ -1332,7 +1333,8 @@ std::shared_ptr<Connections> make_fleet(
     });
 
   const auto consider =
-    [](const nlohmann::json& /*description*/,
+    []
+    (const nlohmann::json& /*description*/,
       rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
       // We accept all actions since full_control may be used for different

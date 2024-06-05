@@ -135,7 +135,8 @@ rmf_traffic::schedule::Itinerary
 EasyTrafficLight::Implementation::State::current_itinerary_slice() const
 {
   const auto& itin = itinerary->itinerary();
-  const bool include_initial_wps = [&]() -> bool
+  const bool include_initial_wps =
+    [&]() -> bool
     {
       for (const auto& wp : current_plan->plan.get_waypoints())
       {
@@ -153,7 +154,8 @@ EasyTrafficLight::Implementation::State::current_itinerary_slice() const
       // *INDENT-ON*
     } ();
 
-  const auto include = [&](std::optional<std::size_t> opt_wp) -> bool
+  const auto include =
+    [&](std::optional<std::size_t> opt_wp) -> bool
     {
       if (!opt_wp.has_value())
         return include_initial_wps;
@@ -165,7 +167,8 @@ EasyTrafficLight::Implementation::State::current_itinerary_slice() const
       return (*last_passed <= wp) && (wp <= *last_passed + 1);
     };
 
-  const auto should_break = [&](std::optional<std::size_t> opt_wp) -> bool
+  const auto should_break =
+    [&](std::optional<std::size_t> opt_wp) -> bool
     {
       // If this point has no value then definitely do not break here
       if (!opt_wp.has_value())
@@ -1032,7 +1035,8 @@ void EasyTrafficLight::Implementation::Shared::publish_fleet_state() const
   if (!reported_location.has_value())
     return;
 
-  auto robot_mode = [&]()
+  auto robot_mode =
+    [&]()
     {
       if (state.range.begin == state.range.end)
       {

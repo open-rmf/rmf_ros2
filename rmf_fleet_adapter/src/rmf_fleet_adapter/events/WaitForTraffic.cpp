@@ -140,7 +140,8 @@ auto WaitForTraffic::Active::make(
         }
       });
 
-  const auto consider_going = [w = active->weak_from_this()]()
+  const auto consider_going =
+    [w = active->weak_from_this()]()
     {
       if (const auto self = w.lock())
       {

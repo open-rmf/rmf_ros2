@@ -471,7 +471,8 @@ private:
       }
     }
 
-    const auto get_map_name = [&](rmf_utils::optional<std::size_t> index)
+    const auto get_map_name =
+      [&](rmf_utils::optional<std::size_t> index)
       {
         if (index.has_value())
           return graph->get_waypoint(index.value()).get_map_name();
@@ -692,13 +693,15 @@ struct Connections : public std::enable_shared_from_this<Connections>
       *adapter->node(), fleet_name, robot_name, graph, traits, planner,
       path_request_pub, pause_request_pub);
 
-    auto pause = [w = command->weak_from_this()]()
+    auto pause =
+      [w = command->weak_from_this()]()
       {
         if (const auto command = w.lock())
           command->pause_immediately();
       };
 
-    auto resume = [w = command->weak_from_this()]()
+    auto resume =
+      [w = command->weak_from_this()]()
       {
         if (const auto command = w.lock())
           command->resume();

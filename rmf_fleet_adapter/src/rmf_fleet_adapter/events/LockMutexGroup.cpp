@@ -236,8 +236,8 @@ void LockMutexGroup::Active::_initialize()
           const auto delay = now - self->_data.hold_time;
           if (delay > std::chrono::seconds(2))
           {
-            const auto start = [&]()
-            -> std::optional<rmf_traffic::agv::Plan::Start>
+            const auto start =
+            [&]() -> std::optional<rmf_traffic::agv::Plan::Start>
             {
               for (const auto& wp : self->_data.waypoints)
               {

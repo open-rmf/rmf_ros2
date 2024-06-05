@@ -136,7 +136,8 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
     return ec;
   }
 
-  auto reconnect_socket = [this]()
+  auto reconnect_socket =
+    [this]()
     {
       // TODO(arjo) Parametrize the timeout.
       RCLCPP_ERROR(_node->get_logger(),
@@ -156,7 +157,8 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
         this));
 
     };
-  auto connected_cb = [this]()
+  auto connected_cb =
+    [this]()
     {
       _connection_cb();
     };

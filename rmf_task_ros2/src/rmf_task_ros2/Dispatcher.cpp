@@ -907,7 +907,8 @@ public:
 
   void publish_dispatch_states()
   {
-    const auto fill_states = [](auto& into, const auto& from)
+    const auto fill_states =
+      [](auto& into, const auto& from)
       {
         for (const auto& [id, state] : from)
           into.push_back(convert(*state));

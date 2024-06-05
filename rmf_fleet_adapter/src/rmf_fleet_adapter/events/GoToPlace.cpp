@@ -707,7 +707,8 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
     return nullptr;
   }
 
-  auto approval_cb = [w = weak_from_this(), goal = *_chosen_goal](
+  auto approval_cb =
+    [w = weak_from_this(), goal = *_chosen_goal](
     const rmf_traffic::PlanId plan_id,
     const rmf_traffic::agv::Plan& plan,
     rmf_traffic::schedule::Itinerary itinerary)

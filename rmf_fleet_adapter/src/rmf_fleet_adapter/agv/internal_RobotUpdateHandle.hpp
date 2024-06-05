@@ -233,9 +233,8 @@ public:
 
   static ActionExecution make(std::shared_ptr<Data> data)
   {
-    auto update_fn = [data](
-      const std::string& map,
-      Eigen::Vector3d location)
+    auto update_fn =
+      [data](const std::string& map, Eigen::Vector3d location)
       {
         data->update_location(map, location);
       };

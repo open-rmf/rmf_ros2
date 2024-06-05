@@ -32,7 +32,8 @@ void Planning::operator()(const Subscriber& s, const Worker& w)
     // accidentally free the memory of its captured variables while they are
     // still in use.
     auto lock = _lock_resume();
-    _resume = [a = weak_from_this(), s, w]()
+    _resume =
+      [a = weak_from_this(), s, w]()
       {
         if (const auto self = a.lock())
         {

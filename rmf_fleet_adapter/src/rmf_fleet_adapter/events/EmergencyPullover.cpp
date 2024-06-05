@@ -384,7 +384,8 @@ Negotiator::NegotiatePtr EmergencyPullover::Active::_respond(
   const Negotiator::TableViewerPtr& table_view,
   const Negotiator::ResponderPtr& responder)
 {
-  auto approval_cb = [w = weak_from_this()](
+  auto approval_cb =
+    [w = weak_from_this()](
     const rmf_traffic::PlanId plan_id,
     const rmf_traffic::agv::Plan& plan,
     rmf_traffic::schedule::Itinerary full_itinerary)

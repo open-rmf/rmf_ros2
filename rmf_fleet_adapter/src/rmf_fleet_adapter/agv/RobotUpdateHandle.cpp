@@ -425,7 +425,8 @@ void RobotUpdateHandle::submit_direct_request(
   std::string request_id,
   std::function<void(nlohmann::json)> receive_response)
 {
-  auto context_missing_error = [receive_response]()
+  auto context_missing_error =
+    [receive_response]()
     {
       nlohmann::json response;
       response["success"] = false;
@@ -642,7 +643,8 @@ auto RobotUpdateHandle::create_issue(
     // *INDENT-ON*
   }
 
-  auto inner_tier = [](Tier tier) -> rmf_task::Log::Tier
+  auto inner_tier =
+    [](Tier tier) -> rmf_task::Log::Tier
     {
       switch (tier)
       {
@@ -888,7 +890,8 @@ void RobotUpdateHandle::Unstable::change_participant_profile(
   double footprint_radius,
   double vicinity_radius)
 {
-  const auto vicinity = [&]() -> rmf_traffic::geometry::FinalConvexShapePtr
+  const auto vicinity =
+    [&]() -> rmf_traffic::geometry::FinalConvexShapePtr
     {
       if (vicinity_radius <= footprint_radius)
         return nullptr;

@@ -179,7 +179,8 @@ SCENARIO_METHOD(MockAdapterFixture, "door close phase", "[phases]")
         heartbeat_pub->publish(heartbeat);
       };
 
-    auto publish_empty_heartbeat = [w_heartbeat_pub]()
+    auto publish_empty_heartbeat =
+      [w_heartbeat_pub]()
       {
         auto heartbeat_pub = w_heartbeat_pub.lock();
         if (!heartbeat_pub)

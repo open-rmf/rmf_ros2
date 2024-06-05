@@ -726,7 +726,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
       plan.get_waypoints().front().position().block<2, 1>(0, 0);
     const auto t0 = plan.get_waypoints().front().time();
 
-    const auto first_graph_wp = [&]() -> std::optional<std::size_t>
+    const auto first_graph_wp =
+      [&]() -> std::optional<std::size_t>
       {
         for (const auto& wp : plan.get_waypoints())
         {
@@ -849,7 +850,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::optional<LockMutexGroup::Data> current_mutex_groups;
   std::unordered_set<std::string> remaining_mutex_groups;
 
-  const auto make_current_mutex_groups = [&](
+  const auto make_current_mutex_groups =
+    [&](
     const std::unordered_set<std::string>& new_mutex_groups,
     const rmf_traffic::agv::Plan::Waypoint& wp)
     {
@@ -910,8 +912,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
       return data;
     };
 
-  const auto get_new_mutex_groups = [&](
-    const rmf_traffic::agv::Plan::Waypoint& wp)
+  const auto get_new_mutex_groups =
+    [&](const rmf_traffic::agv::Plan::Waypoint& wp)
     {
       std::unordered_set<std::string> new_mutex_groups;
       if (wp.graph_index().has_value())

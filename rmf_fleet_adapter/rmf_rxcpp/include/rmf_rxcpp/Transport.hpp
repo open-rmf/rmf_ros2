@@ -53,7 +53,8 @@ public:
 
     _started_cv.notify_all();
 
-    const auto keep_spinning = [&]()
+    const auto keep_spinning =
+      [&]()
       {
         return !_stopping && rclcpp::ok(context_);
       };

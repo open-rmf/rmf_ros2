@@ -134,7 +134,8 @@ void add_patrol(
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
 
   // Accept patrol tasks by default
-  *deserialization.consider_patrol = [](const auto&, auto& confirm)
+  *deserialization.consider_patrol =
+    [](const auto&, auto& confirm)
     {
       confirm.accept();
     };

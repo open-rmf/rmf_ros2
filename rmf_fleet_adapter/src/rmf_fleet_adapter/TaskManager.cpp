@@ -86,7 +86,8 @@ TaskManagerPtr TaskManager::make(
       std::move(broadcast_client),
       std::move(fleet_handle)));
 
-  auto begin_pullover = [w = mgr->weak_from_this()]()
+  auto begin_pullover =
+    [w = mgr->weak_from_this()]()
     {
       const auto self = w.lock();
       if (!self)

@@ -40,8 +40,8 @@ void Negotiate::operator()(const Subscriber& s)
 
   _queued_jobs.reserve(validators.size() * _goals.size());
 
-  auto interrupter = [
-    service_interrupted = _interrupted, viewer = _viewer]() -> bool
+  auto interrupter =
+    [service_interrupted = _interrupted, viewer = _viewer]() -> bool
     {
       return *service_interrupted || viewer->defunct();
     };
@@ -69,7 +69,8 @@ void Negotiate::operator()(const Subscriber& s)
   for (const auto& job : _queued_jobs)
     job->progress().options().maximum_cost_estimate(initial_max_cost);
 
-  auto check_if_finished = [w = weak_from_this(), s, N_jobs]() -> bool
+  auto check_if_finished =
+    [w = weak_from_this(), s, N_jobs]() -> bool
     {
       const auto self = w.lock();
       if (!self)

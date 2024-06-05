@@ -175,7 +175,8 @@ void MoveRobot::Action::operator()(const Subscriber& s)
           self->_context->request_replan();
         });
 
-      const auto update = [
+      const auto update =
+        [
         s,
         w_action = self->weak_from_this(),
         r = self->_context->requester_id()

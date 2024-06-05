@@ -71,16 +71,15 @@ MockAdapterFixture::MockAdapterFixture()
    *                   0
    **/
 
-  auto add_bidir_lane = [&](const std::size_t w0, const std::size_t w1)
+  auto add_bidir_lane =
+    [&](const std::size_t w0, const std::size_t w1)
     {
       data->graph.add_lane(w0, w1);
       data->graph.add_lane(w1, w0);
     };
 
-  auto add_dock_lane = [&](
-    const std::size_t w0,
-    const std::size_t w1,
-    std::string dock_name)
+  auto add_dock_lane =
+    [&](const std::size_t w0, const std::size_t w1, std::string dock_name)
     {
       using Lane = rmf_traffic::agv::Graph::Lane;
       data->graph.add_lane({w0,

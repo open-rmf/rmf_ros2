@@ -198,8 +198,8 @@ void FleetAdapterNode::register_robot(const RobotState& state)
           TableViewerPtr viewer,
           ResponderPtr responder)
         {
-          auto approval_cb = [participant, negotiated_delay](
-            const rmf_traffic::Duration t)
+          auto approval_cb =
+            [participant, negotiated_delay](const rmf_traffic::Duration t)
           {
             *negotiated_delay += t;
             participant->delay(t);
@@ -386,7 +386,8 @@ FleetAdapterNode::Robot::Expectation convert_to_expectation(
         continue;
     }
 
-    const auto map_name = [&]() -> std::string
+    const auto map_name =
+      [&]() -> std::string
       {
         if (wp.graph_index().has_value())
           return graph.get_waypoint(wp.graph_index().value()).get_map_name();

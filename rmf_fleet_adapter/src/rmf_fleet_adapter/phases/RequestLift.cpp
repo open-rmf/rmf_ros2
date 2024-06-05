@@ -209,7 +209,8 @@ void RequestLift::ActivePhase::_init_obs()
 
           if (me->_data.localize_after.has_value())
           {
-            auto finish = [s, worker = me->_context->worker(), weak]()
+            auto finish =
+            [s, worker = me->_context->worker(), weak]()
             {
               worker.schedule([s, weak](const auto&)
               {

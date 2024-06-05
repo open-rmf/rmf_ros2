@@ -562,8 +562,8 @@ public:
         if (!description.has_value() || !old_id.has_value())
           continue;
 
-        auto callback = [rectifiers = rectifier_factory, d, old_id](
-          Registration registration)
+        auto callback =
+          [rectifiers = rectifier_factory, d, old_id](Registration registration)
           {
             if (const auto stub = d.lock())
             {

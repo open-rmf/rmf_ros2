@@ -142,7 +142,8 @@ MoveRobot::Action::Action(
   _plan_id{plan_id},
   _tail_period{tail_period}
 {
-  _first_graph_index = [&]() -> std::optional<std::size_t>
+  _first_graph_index =
+    [&]() -> std::optional<std::size_t>
     {
       for (const auto& wp : _waypoints)
       {

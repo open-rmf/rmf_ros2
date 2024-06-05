@@ -94,7 +94,8 @@ void add_compose(
     std::make_shared<agv::FleetUpdateHandle::ConsiderRequest>();
 
   // Accept composed tasks by default
-  *deserialization.consider_composed = [](const auto&, auto& confirm)
+  *deserialization.consider_composed =
+    [](const auto&, auto& confirm)
     {
       confirm.accept();
     };

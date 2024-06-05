@@ -938,7 +938,8 @@ SCENARIO("Test Plan Negotiation Between Two Participants", "[.high_cpu]")
    *                   0
    **/
 
-  auto add_bidir_lane = [&](const std::size_t w0, const std::size_t w1)
+  auto add_bidir_lane =
+    [&](const std::size_t w0, const std::size_t w1)
     {
       graph.add_lane(w0, w1);
       graph.add_lane(w1, w0);
@@ -1093,7 +1094,8 @@ SCENARIO("Multi-participant negotiation", "[.high_cpu]")
    *         0
    */
 
-  auto add_bidir_lane = [&](const std::size_t w0, const std::size_t w1)
+  auto add_bidir_lane =
+    [&](const std::size_t w0, const std::size_t w1)
     {
       graph.add_lane(w0, w1);
       graph.add_lane(w1, w0);
@@ -2093,7 +2095,8 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
   auto graph = graph_data.first;
   auto vertex_id_to_idx = graph_data.second;
 
-  auto set_parking_spot = [&](const std::string& wp)
+  auto set_parking_spot =
+    [&](const std::string& wp)
     {
       graph.get_waypoint(vertex_id_to_idx[wp]).set_parking_spot(true);
     };
@@ -2104,7 +2107,8 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
   set_parking_spot("X");
   set_parking_spot("Z");
 
-  auto set_passthrough_point = [&](const std::string& wp)
+  auto set_passthrough_point =
+    [&](const std::string& wp)
     {
       graph.get_waypoint(vertex_id_to_idx[wp]).set_passthrough_point(true);
     };
@@ -2569,8 +2573,8 @@ SCENARIO("fan-in-fan-out bottleneck", "[.high_cpu]")
         REQUIRE(proposal_opt);
         const auto& proposal = *proposal_opt;
 
-        auto at_parking_spot = [&](const rmf_traffic::schedule::Itinerary& it)
-          -> bool
+        auto at_parking_spot =
+          [&](const rmf_traffic::schedule::Itinerary& it) -> bool
           {
             for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
             {

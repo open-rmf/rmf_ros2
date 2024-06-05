@@ -112,7 +112,8 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
         *r.options().maximum_cost_estimate() :
         std::numeric_limits<double>::infinity();
 
-        auto opt_to_str = [](const auto& v) -> std::string
+        auto opt_to_str =
+          [](const auto& v) -> std::string
         {
           if (v)
             return std::to_string(*v);
@@ -120,7 +121,8 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
           return "null";
         };
 
-        const auto to_string = [](const rmf_traffic::agv::Plan::Start& start)
+        const auto to_string =
+          [](const rmf_traffic::agv::Plan::Start& start)
         {
           std::ostringstream oss;
           oss << "[" << start.waypoint() << "] r:" << start.orientation();

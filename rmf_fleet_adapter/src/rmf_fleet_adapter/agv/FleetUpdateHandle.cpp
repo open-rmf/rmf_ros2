@@ -124,7 +124,8 @@ TaskDeserialization::TaskDeserialization()
         std::string, FleetUpdateHandle::ConsiderRequest>>();
 
   _schema_dictionary = std::make_shared<SchemaDictionary>();
-  _loader = [dict = _schema_dictionary](
+  _loader =
+    [dict = _schema_dictionary](
     const nlohmann::json_uri& id,
     nlohmann::json& value)
     {
@@ -551,7 +552,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     *task_planner,
     node);
 
-  auto receive_allocation = [w = weak_self, respond, task_id](
+  auto receive_allocation =
+    [w = weak_self, respond, task_id](
     AllocateTasks::Result result)
     {
       const auto self = w.lock();
@@ -1001,7 +1003,8 @@ void FleetUpdateHandle::Implementation::reassign_dispatched_tasks(
     return;
   }
 
-  auto on_plan_received = [
+  auto on_plan_received =
+    [
     on_success,
     on_failure,
     w = weak_self,
@@ -2285,7 +2288,8 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       confirm.errors({"Task rejected by legacy AcceptTaskRequest callback"});
     };
 
-  const auto convert_item = [](const nlohmann::json& item)
+  const auto convert_item =
+    [](const nlohmann::json& item)
     -> rmf_dispenser_msgs::msg::DispenserRequestItem
     {
       rmf_dispenser_msgs::msg::DispenserRequestItem output;
@@ -2298,7 +2302,8 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       return output;
     };
 
-  const auto convert_items = [convert_item](const nlohmann::json& payload)
+  const auto convert_items =
+    [convert_item](const nlohmann::json& payload)
     -> std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem>
     {
       std::vector<rmf_dispenser_msgs::msg::DispenserRequestItem> items;
@@ -2322,7 +2327,8 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       return items;
     };
 
-  auto consider_pickup = [legacy_converter, convert_items](
+  auto consider_pickup =
+    [legacy_converter, convert_items](
     const nlohmann::json& msg, Confirmation& confirm)
     {
       rmf_task_msgs::msg::TaskProfile profile;
@@ -2343,7 +2349,8 @@ FleetUpdateHandle& FleetUpdateHandle::accept_task_requests(
       legacy_converter(profile, confirm);
     };
 
-  auto consider_dropoff = [legacy_converter, convert_items](
+  auto consider_dropoff =
+    [legacy_converter, convert_items](
     const nlohmann::json& msg, Confirmation& confirm)
     {
       rmf_task_msgs::msg::TaskProfile profile;

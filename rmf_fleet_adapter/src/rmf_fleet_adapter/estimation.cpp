@@ -160,8 +160,8 @@ void estimate_midlane_state(
     }
   }
 
-  const std::optional<std::size_t> target_gi = [&]()
-    -> std::optional<std::size_t>
+  const std::optional<std::size_t> target_gi =
+    [&]() -> std::optional<std::size_t>
     {
       // At least one future waypoint must have a graph index
       if (target_wp.graph_index())

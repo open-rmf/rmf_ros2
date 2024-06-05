@@ -604,7 +604,8 @@ auto EasyFullControl::CommandExecution::Implementation::make(
   std::function<void(CommandExecution)> begin) -> CommandExecution
 {
   auto data = std::make_shared<Data>(data_);
-  auto update_fn = [w_context = context->weak_from_this(), data](
+  auto update_fn =
+    [w_context = context->weak_from_this(), data](
     const std::string& map,
     Eigen::Vector3d location)
     {
@@ -627,11 +628,8 @@ auto EasyFullControl::CommandExecution::Implementation::make_hold(
   rmf_traffic::PlanId plan_id,
   std::function<void()> finisher) -> CommandExecution
 {
-  auto update_fn = [
-    w_context = context->weak_from_this(),
-    expected_time,
-    plan_id
-    ](
+  auto update_fn =
+    [w_context = context->weak_from_this(), expected_time, plan_id](
     const std::string& map,
     Eigen::Vector3d location)
     {
@@ -794,7 +792,8 @@ struct ProgressTracker : std::enable_shared_from_this<ProgressTracker>
       ::get(current_activity).identifier;
     auto& current_activity_impl =
       EasyFullControl::CommandExecution::Implementation::get(current_activity);
-    current_activity_impl.finisher = [w_progress = weak_from_this()]()
+    current_activity_impl.finisher =
+      [w_progress = weak_from_this()]()
       {
         if (const auto progress = w_progress.lock())
         {
@@ -1176,7 +1175,8 @@ void EasyCommandHandle::follow_new_path(
       }
     }
 
-    std::string map = [&]()
+    std::string map =
+      [&]()
       {
         if (wp1.graph_index().has_value())
         {
@@ -2780,10 +2780,9 @@ auto EasyFullControl::add_robot(
   LocalizationRequest localization = nullptr;
   if (callbacks.localize())
   {
-    localization = [
-      inner = callbacks.localize(),
-      nav_params = robot_nav_params
-      ](Destination estimate, CommandExecution execution)
+    localization =
+      [inner = callbacks.localize(), nav_params = robot_nav_params](
+          Destination estimate, CommandExecution execution)
       {
         auto robot_position = nav_params->to_robot_coordinates(
           estimate.map(),

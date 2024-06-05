@@ -254,7 +254,8 @@ void PerformAction::Active::_execute_action()
     return;
   }
 
-  auto finished = [state = _state, cb = _finished]()
+  auto finished =
+    [state = _state, cb = _finished]()
     {
       state->update_status(Status::Completed);
       cb();

@@ -79,8 +79,8 @@ std::vector<ScheduleNode::ConflictSet> get_conflicts(
   const rmf_traffic::schedule::Viewer::View& view_changes,
   const rmf_traffic::schedule::ItineraryViewer& viewer)
 {
-  const auto is_unresponsive = [](
-    const rmf_traffic::schedule::ParticipantDescription& desc) -> bool
+  const auto is_unresponsive =
+    [](const rmf_traffic::schedule::ParticipantDescription& desc) -> bool
     {
       return desc.responsiveness()
         == rmf_traffic::schedule::ParticipantDescription::Rx::Unresponsive;

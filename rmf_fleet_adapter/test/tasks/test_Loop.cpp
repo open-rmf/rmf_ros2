@@ -89,16 +89,15 @@ SCENARIO("Test loop requests", "[.flaky]")
    *                   0[south]
    **/
 
-  auto add_bidir_lane = [&](const std::size_t w0, const std::size_t w1)
+  auto add_bidir_lane =
+    [&](const std::size_t w0, const std::size_t w1)
     {
       graph.add_lane(w0, w1);
       graph.add_lane(w1, w0);
     };
 
-  auto add_dock_lane = [&](
-    const std::size_t w0,
-    const std::size_t w1,
-    std::string dock_name)
+  auto add_dock_lane =
+    [&](const std::size_t w0, const std::size_t w1, std::string dock_name)
     {
       using Lane = rmf_traffic::agv::Graph::Lane;
       graph.add_lane({w0, Lane::Event::make(Lane::Dock(dock_name, 10s))}, w1);
@@ -348,7 +347,8 @@ SCENARIO("Test loop requests", "[.flaky]")
   }
 
   using VisitMap = std::unordered_map<std::size_t, std::size_t>;
-  const auto visited_wp = [](std::size_t wp, const VisitMap& v, std::size_t num)
+  const auto visited_wp =
+    [](std::size_t wp, const VisitMap& v, std::size_t num)
     {
       const auto it = v.find(wp);
       if (it == v.end())
@@ -357,17 +357,20 @@ SCENARIO("Test loop requests", "[.flaky]")
       return num <= it->second;
     };
 
-  const auto visited_north = [&visited_wp](const VisitMap& v, std::size_t num)
+  const auto visited_north =
+    [&visited_wp](const VisitMap& v, std::size_t num)
     {
       return visited_wp(10, v, num);
     };
 
-  const auto visited_east = [&visited_wp](const VisitMap& v, std::size_t num)
+  const auto visited_east =
+    [&visited_wp](const VisitMap& v, std::size_t num)
     {
       return visited_wp(7, v, num);
     };
 
-  const auto visited_south = [&visited_wp](const VisitMap& v, std::size_t num)
+  const auto visited_south =
+    [&visited_wp](const VisitMap& v, std::size_t num)
     {
       return visited_wp(0, v, num);
     };
