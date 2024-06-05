@@ -2782,7 +2782,7 @@ auto EasyFullControl::add_robot(
   {
     localization =
       [inner = callbacks.localize(), nav_params = robot_nav_params](
-          Destination estimate, CommandExecution execution)
+      Destination estimate, CommandExecution execution)
       {
         auto robot_position = nav_params->to_robot_coordinates(
           estimate.map(),

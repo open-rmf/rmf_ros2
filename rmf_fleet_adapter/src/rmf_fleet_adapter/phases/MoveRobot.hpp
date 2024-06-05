@@ -176,7 +176,7 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         });
 
       const auto update =
-        [
+      [
         s,
         w_action = self->weak_from_this(),
         r = self->_context->requester_id()

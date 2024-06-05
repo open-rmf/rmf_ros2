@@ -199,7 +199,7 @@ void FleetAdapterNode::register_robot(const RobotState& state)
           ResponderPtr responder)
         {
           auto approval_cb =
-            [participant, negotiated_delay](const rmf_traffic::Duration t)
+          [participant, negotiated_delay](const rmf_traffic::Duration t)
           {
             *negotiated_delay += t;
             participant->delay(t);

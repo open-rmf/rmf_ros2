@@ -1334,7 +1334,7 @@ std::shared_ptr<Connections> make_fleet(
 
   const auto consider =
     []
-    (const nlohmann::json& /*description*/,
+      (const nlohmann::json& /*description*/,
       rmf_fleet_adapter::agv::FleetUpdateHandle::Confirmation& confirm)
     {
       // We accept all actions since full_control may be used for different

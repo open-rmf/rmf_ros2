@@ -113,7 +113,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
         std::numeric_limits<double>::infinity();
 
         auto opt_to_str =
-          [](const auto& v) -> std::string
+        [](const auto& v) -> std::string
         {
           if (v)
             return std::to_string(*v);
@@ -122,7 +122,7 @@ void SearchForPath::operator()(const Subscriber& s, const Worker&)
         };
 
         const auto to_string =
-          [](const rmf_traffic::agv::Plan::Start& start)
+        [](const rmf_traffic::agv::Plan::Start& start)
         {
           std::ostringstream oss;
           oss << "[" << start.waypoint() << "] r:" << start.orientation();

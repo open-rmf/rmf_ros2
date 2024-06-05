@@ -297,7 +297,7 @@ rmf_traffic::agv::Plan::StartSet NavParams::_lift_boundary_filter(
       const Eigen::Vector2d p = location.location().value();
 
       const auto robot_inside_lift =
-        [&]() -> rmf_traffic::agv::Graph::LiftPropertiesPtr
+      [&]() -> rmf_traffic::agv::Graph::LiftPropertiesPtr
       {
         for (const auto& lift : graph.all_known_lifts())
         {
