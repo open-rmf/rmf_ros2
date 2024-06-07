@@ -870,7 +870,8 @@ void GoToPlace::Active::_stop_and_clear()
   if (const auto command = _context->command())
     command->stop();
 
-  _retry_timer->cancel();
+  if (_retry_timer)
+    _retry_timer->cancel();
   _context->itinerary().clear();
 }
 
