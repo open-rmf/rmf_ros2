@@ -142,7 +142,7 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
     REQUIRE(!test_notice_bidder2.has_value()); // bidder2 doesn't support patrol
 
     executor.spin_until_future_complete(ready_future,
-      rmf_traffic::time::from_seconds(5.0));
+      rmf_traffic::time::from_seconds(2.5));
 
     // Check if Auctioneer received Bid from bidder1
     REQUIRE(r_result_winner == "bidder1");
@@ -164,7 +164,7 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
     REQUIRE(*test_notice_bidder2 == bidding_task2.request);
 
     executor.spin_until_future_complete(ready_future,
-      rmf_traffic::time::from_seconds(5.0));
+      rmf_traffic::time::from_seconds(2.5));
 
     // Check if Auctioneer received Bid from bidder1
     REQUIRE(r_result_winner == "bidder2");
