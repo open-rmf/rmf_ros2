@@ -159,11 +159,13 @@ LegacyTask::StatusMsg IngestItem::ActivePhase::_get_status(
   status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
 
   using rmf_ingestor_msgs::msg::IngestorResult;
-  if (ingestor_result
-    && ingestor_result->request_guid == _request_guid
-    && is_newer(ingestor_result->time, _last_msg))
+  if (ingestor_result && ingestor_result->request_guid == _request_guid)
   {
-    _last_msg = ingestor_result->time;
+    if (is_newer(ingestor_result->time, _last_msg))
+    {
+      _last_msg = ingestor_result->time;
+    }
+
     switch (ingestor_result->status)
     {
       case IngestorResult::ACKNOWLEDGED:
