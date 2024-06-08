@@ -4,6 +4,9 @@ Changelog for package rmf_traffic_ros2
 
 2.7.0 (2024-06-01)
 ------------------
+* Fix race condition for ingesting/dispensing and disable uncrustify tests by default (`#362 <https://github.com/open-rmf/rmf_ros2/pull/362>`_)
+* Fix serialization of exit events (`#364 <https://github.com/open-rmf/rmf_ros2/pull/364>`_)
+* Contributors: Grey, Luca Della Vedova, Yadunund
 
 2.6.0 (2024-03-13)
 ------------------
