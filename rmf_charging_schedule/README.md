@@ -10,6 +10,7 @@ The format for the schedule looks like this:
     "02:00": { "robot_3": "charger_A", "robot_1": "queue_A" }
     "03:55": { "robot_2": "queue_B" }
     "04:00": { "robot_1": "charger_B", "robot_2": "queue_A" }
+parking: ["queue_A", "queue_B"]
 ```
 
 The time format is `"HH:MM"` where `HH` ranges from `00` to `23` and `MM` ranges
@@ -37,3 +38,7 @@ the intended charger assignments at midnight. When the node is launched, it will
 move through the schedule from the earliest entry up until the last relevant one
 and issue an initial charger assignment message based on what the assignments
 would have been if the schedule had run from `00:00`.
+
+If any of the waypoints are parking points instead of charging points, put them
+into a list called `parking`. Note that this node does not support the existence
+of a fleet with the name `parking`.

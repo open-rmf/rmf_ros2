@@ -844,10 +844,21 @@ std::string TaskManager::robot_status() const
   if (_context->override_status().has_value())
     return _context->override_status().value();
 
+  if (_context->is_charging())
+  {
+    if (_context->waiting_for_charger())
+    {
+      return "idle";
+    }
+    else
+    {
+      return "charging";
+    }
+  }
+
   if (!_active_task)
     return "idle";
 
-  // TODO(MXG): Identify if the robot is charging and report that status here
   return "working";
 }
 
