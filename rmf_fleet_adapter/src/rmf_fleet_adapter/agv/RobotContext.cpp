@@ -166,7 +166,8 @@ rmf_traffic::agv::Plan::StartSet NavParams::process_locations(
   const rmf_traffic::agv::Graph& graph,
   rmf_traffic::agv::Plan::StartSet locations) const
 {
-  return _lift_boundary_filter(graph, _descend_stacks(graph, locations));
+  return _strict_lane_filter(
+    _lift_boundary_filter(graph, _descend_stacks(graph, locations)));
 }
 
 //==============================================================================
@@ -315,6 +316,28 @@ rmf_traffic::agv::Plan::StartSet NavParams::_lift_boundary_filter(
       // If the robot's lift status and the waypoint's lift status don't match
       // then we should filter this waypoint out.
       return wp.in_lift() != robot_inside_lift;
+    });
+
+  locations.erase(r_it, locations.end());
+  return locations;
+}
+
+//==============================================================================
+rmf_traffic::agv::Plan::StartSet NavParams::_strict_lane_filter(
+  rmf_traffic::agv::Plan::StartSet locations) const
+{
+  const auto r_it = std::remove_if(
+    locations.begin(),
+    locations.end(),
+    [this](const rmf_traffic::agv::Plan::Start& location)
+    {
+      const auto lane = location.lane();
+      if (lane.has_value())
+      {
+        return this->strict_lanes.count(*lane) > 0;
+      }
+
+      return false;
     });
 
   locations.erase(r_it, locations.end());

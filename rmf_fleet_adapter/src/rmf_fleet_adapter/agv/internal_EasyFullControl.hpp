@@ -41,6 +41,7 @@ public:
     std::shared_ptr<FleetUpdateHandle> fleet_handle,
     bool skip_rotation_commands,
     std::shared_ptr<TransformDictionary> transforms_to_robot_coords,
+    std::unordered_set<std::size_t> strict_lanes,
     bool default_responsive_wait,
     double default_max_merge_waypoint_distance,
     double default_max_merge_lane_distance,
@@ -54,9 +55,11 @@ public:
         NavParams{
           skip_rotation_commands,
           std::move(transforms_to_robot_coords),
+          std::move(strict_lanes),
           default_max_merge_waypoint_distance,
           default_max_merge_lane_distance,
-          default_min_lane_length
+          default_min_lane_length,
+          {}
         },
         default_responsive_wait
       });

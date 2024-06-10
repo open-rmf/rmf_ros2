@@ -1702,6 +1702,7 @@ public:
   double default_max_merge_lane_distance;
   double default_min_lane_length;
   std::unordered_map<std::string, std::string> lift_emergency_levels;
+  std::unordered_set<std::size_t> strict_lanes;
 };
 
 //==============================================================================
@@ -2338,6 +2339,62 @@ EasyFullControl::FleetConfiguration::from_config_files(
     }
   }
 
+  std::unordered_set<std::size_t> strict_lanes;
+  const YAML::Node& strict_lanes_yaml = rmf_fleet["strict_lanes"];
+  if (strict_lanes_yaml)
+  {
+    if (!strict_lanes_yaml.IsSequence())
+    {
+      std::cerr
+        << "[strict_lanes] element is not a sequence in the config file ["
+        << config_file << "] so we cannot parse which lanes need to be "
+        << "considered strict." << std::endl;
+      return std::nullopt;
+    }
+
+    for (const auto& lane_yaml : strict_lanes_yaml)
+    {
+      if (!lane_yaml.IsSequence() || lane_yaml.size() != 2)
+      {
+        const auto mark = lane_yaml.Mark();
+        std::cerr << "[strict_lanes] Unrecognized lane format at line "
+          << mark.line << ", column " << mark.column << std::endl;
+        return std::nullopt;
+      }
+
+      const auto wp0_name = lane_yaml[0].as<std::string>();
+      const auto wp1_name = lane_yaml[1].as<std::string>();
+      const auto* wp0 = graph.find_waypoint(wp0_name);
+      if (!wp0)
+      {
+        const auto mark = lane_yaml[0].Mark();
+        std::cerr << "[strict_lanes] Unrecognized waypoint name [" << wp0_name
+          << "] at line " << mark.line << ", column " << mark.column << std::endl;
+        return std::nullopt;
+      }
+
+      const auto* wp1 = graph.find_waypoint(wp1_name);
+      if (!wp1)
+      {
+        const auto mark = lane_yaml[1].Mark();
+        std::cerr << "[strict_lanes] Unrecognized waypoint name [" << wp1_name
+          << "] at line " << mark.line << ", column " << mark.column << std::endl;
+        return std::nullopt;
+      }
+
+      const auto* lane = graph.lane_from(wp0->index(), wp1->index());
+      if (!lane)
+      {
+        const auto mark = lane_yaml.Mark();
+        std::cerr << "[strict_lanes] Unable to find a lane from [" << wp0_name
+          << "] to [" << wp1_name << "] at line " << mark.line << ", column "
+          << mark.column << std::endl;
+      }
+
+      strict_lanes.insert(lane->index());
+    }
+  }
+
   auto config = FleetConfiguration(
     fleet_name,
     std::move(tf_dict),
@@ -2364,6 +2421,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
     default_min_lane_length);
   config.change_lift_emergency_levels() = lift_emergency_levels;
   config.set_retreat_to_charger_interval(retreat_to_charger_interval);
+  config.change_strict_lanes() = std::move(strict_lanes);
   return config;
 }
 
@@ -2745,6 +2803,20 @@ const std::unordered_map<std::string, std::string>&
 EasyFullControl::FleetConfiguration::lift_emergency_levels() const
 {
   return _pimpl->lift_emergency_levels;
+}
+
+//==============================================================================
+const std::unordered_set<std::size_t>&
+EasyFullControl::FleetConfiguration::strict_lanes() const
+{
+  return _pimpl->strict_lanes;
+}
+
+//==============================================================================
+std::unordered_set<std::size_t>&
+EasyFullControl::FleetConfiguration::change_strict_lanes()
+{
+  return _pimpl->strict_lanes;
 }
 
 //==============================================================================
