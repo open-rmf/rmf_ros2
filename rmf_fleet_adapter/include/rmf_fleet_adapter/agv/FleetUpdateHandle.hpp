@@ -401,6 +401,9 @@ public:
   FleetUpdateHandle& set_retreat_to_charger_interval(
     std::optional<rmf_traffic::Duration> duration);
 
+  /// Trigger a replan for task allocation for robots in this fleet.
+  void reassign_dispatched_tasks();
+
   /// Get the rclcpp::Node that this fleet update handle will be using for
   /// communication.
   std::shared_ptr<rclcpp::Node> node();
