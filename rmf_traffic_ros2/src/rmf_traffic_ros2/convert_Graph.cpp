@@ -906,7 +906,7 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
     if (exit_event != nullptr)
     {
       EventPhaseFactory factory("exit", params);
-      entry_event->execute(factory);
+      exit_event->execute(factory);
     }
     const auto* exit_orientation = lane.entry().orientation_constraint();
     if (exit_orientation != nullptr)

@@ -2,6 +2,15 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.7.0 (2024-06-01)
+------------------
+* Add fleet-level reassign dispatched tasks API (`#348 <https://github.com/open-rmf/rmf_ros2/pull/348>`_)
+* Disable automatic retreat (`#330 <https://github.com/open-rmf/rmf_ros2/pull/330>`_)
+* Stabilize commissioning feature (`#338 <https://github.com/open-rmf/rmf_ros2/pull/338>`_)
+* Add all_known_lifts in Graph binding (`#336 <https://github.com/open-rmf/rmf_ros2/pull/336>`_)
+* Add Speed Limit Requests (`#335 <https://github.com/open-rmf/rmf_ros2/pull/335>`_)
+* Contributors: cwrx777, Grey, Pranay Shirodkar, Xiyu, Yadunund
+
 2.6.0 (2024-03-13)
 ------------------
 * add in_lift readonly property in Graph::Waypoint binding. (`#326 <https://github.com/open-rmf/rmf_ros2/pull/326>`_)

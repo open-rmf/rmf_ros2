@@ -2,6 +2,12 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.7.0 (2024-06-01)
+------------------
+* Fix race condition for ingesting/dispensing and disable uncrustify tests by default (`#362 <https://github.com/open-rmf/rmf_ros2/pull/362>`_)
+* Dispatcher only use websockets when dispatch fails (`#355 <https://github.com/open-rmf/rmf_ros2/pull/355>`_)
+* Contributors: Aaron Chong, Grey, Luca Della Vedova, Yadunund
+
 2.6.0 (2024-03-13)
 ------------------
 * Add Backward-ROS for improved logging in event of segfaults (`#327 <https://github.com/open-rmf/rmf_ros2/pull/327>`_)

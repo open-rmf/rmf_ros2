@@ -50,6 +50,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include <unordered_set>
+
 namespace rmf_fleet_adapter {
 
 // Forward declaration
@@ -791,16 +793,7 @@ public:
         self->_publish_mutex_group_requests();
       });
 
-    context->_free_space_sub = context->_node->freespots_obs()
-      .observe_on(rxcpp::identity_same_worker(context->_worker))
-      .subscribe([w = context->weak_from_this()](const auto& msg)
-        {
-          const auto self = w.lock();
-          if (!self)
-            return;
 
-          self->_free_spots = *msg;
-        });
     context->_mutex_group_manual_release_sub =
       context->_node->create_subscription<
       rmf_fleet_msgs::msg::MutexGroupManualRelease>(
@@ -814,6 +807,17 @@ public:
         if (const auto self = w.lock())
           self->_handle_mutex_group_manual_release(*msg);
       });
+
+    context->_free_space_sub = context->_node->freespots_obs()
+      .observe_on(rxcpp::identity_same_worker(context->_worker))
+      .subscribe([w = context->weak_from_this()](const auto& msg)
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
+
+          self->_free_spots = *msg;
+        });
 
     return context;
   }
@@ -935,6 +939,11 @@ private:
   rclcpp::Subscription<rmf_fleet_msgs::msg::MutexGroupManualRelease>::SharedPtr
     _mutex_group_manual_release_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
+
+  rclcpp::Subscription<rmf_fleet_msgs::msg::MutexGroupManualRelease>::SharedPtr
+    _mutex_group_manual_release_sub;
+  std::chrono::steady_clock::time_point _last_active_task_time;
+
   uint64_t _last_reservation_request_id;
   ReservationManager _reservation_mgr;
 };
