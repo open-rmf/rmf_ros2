@@ -68,7 +68,11 @@ class Assignment:
         self.charger = charger
 
 
-def publish_assignments(publisher: Publisher, assignments: dict[dict[str]]):
+def publish_assignments(
+    publisher: Publisher,
+    assignments: dict[dict[str]],
+    parking: list[str]
+):
     for fleet, robots in assignments.items():
         msg = ChargingAssignments()
         msg.fleet_name = fleet
@@ -76,9 +80,11 @@ def publish_assignments(publisher: Publisher, assignments: dict[dict[str]]):
             assignment = ChargingAssignment()
             assignment.robot_name = robot
             assignment.waypoint_name = charger
-            # The mode isn't actually used yet, so it doesn't matter what we set
-            # it to.
-            assignment.mode = ChargingAssignment.MODE_CHARGE
+
+            if charger in parking:
+                assignment.mode = ChargingAssignment.MODE_WAIT
+            else:
+                assignment.mode = ChargingAssignment.MODE_CHARGE
             msg.assignments.append(assignment)
 
         publisher.publish(msg)
@@ -89,6 +95,7 @@ def update_assignments(
     sorted_times: list,
     schedule: dict,
     assignments: dict,
+    parking: list[str],
     publisher: Publisher,
     node: Node,
 ):
@@ -100,7 +107,7 @@ def update_assignments(
                 f'Sending {change.fleet}/{change.robot} to {change.charger} at '
                 f'{key.hour:02d}:{key.minute:02d}'
             )
-    publish_assignments(publisher, assignments)
+    publish_assignments(publisher, assignments, parking)
 
 
 def simulation_time(node: Node) -> ScheduleTimePoint:
@@ -176,7 +183,14 @@ def main(argv=sys.argv):
         schedule_yaml = yaml.safe_load(f)
 
     unsorted_schedule = {}
+    parking = []
     for fleet, change in schedule_yaml.items():
+        if fleet == 'parking':
+            # We treat the parking entry as a special case that simply lists
+            # which waypoints are parking spots
+            parking = change
+            continue
+
         for time_text, assignments in change.items():
             time = ScheduleTimePoint.parse(time_text)
             entry: list[Assignment] = unsorted_schedule.get(time, list())
@@ -206,7 +220,7 @@ def main(argv=sys.argv):
     last_update_index = bisect.bisect_right(sorted_times, get_time())
     update_assignments(
         None, last_update_index,
-        sorted_times, schedule, assignments, publisher, node,
+        sorted_times, schedule, assignments, parking, publisher, node,
     )
 
     def update():
@@ -215,12 +229,13 @@ def main(argv=sys.argv):
         nonlocal schedule
         nonlocal assignments
         nonlocal publisher
+        nonlocal parking
 
         next_update_index = bisect.bisect_right(sorted_times, get_time())
         if last_update_index < next_update_index:
             update_assignments(
                 last_update_index, next_update_index,
-                sorted_times, schedule, assignments, publisher, node,
+                sorted_times, schedule, assignments, parking, publisher, node,
             )
             last_update_index = next_update_index
 
@@ -228,7 +243,7 @@ def main(argv=sys.argv):
             # The cycle must have restarted, e.g. passing midnight
             update_assignments(
                 None, next_update_index,
-                sorted_times, schedule, assignments, publisher, node,
+                sorted_times, schedule, assignments, parking, publisher, node,
             )
             last_update_index = next_update_index
 

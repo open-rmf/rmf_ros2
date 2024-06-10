@@ -254,7 +254,7 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
         if (!self)
           return;
 
-        self->_set_charging(charger_wp, true);
+        self->_set_charging(charger_wp, false);
         RCLCPP_INFO(
           self->node()->get_logger(),
           "Charger waypoint for robot [%s] set to index [%ld]",
