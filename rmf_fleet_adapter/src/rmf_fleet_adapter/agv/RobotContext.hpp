@@ -940,10 +940,6 @@ private:
     _mutex_group_manual_release_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
 
-  rclcpp::Subscription<rmf_fleet_msgs::msg::MutexGroupManualRelease>::SharedPtr
-    _mutex_group_manual_release_sub;
-  std::chrono::steady_clock::time_point _last_active_task_time;
-
   uint64_t _last_reservation_request_id;
   ReservationManager _reservation_mgr;
 };

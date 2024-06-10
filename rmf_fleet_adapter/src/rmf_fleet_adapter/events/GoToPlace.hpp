@@ -105,6 +105,15 @@ public:
     void kill() final;
 
   private:
+    enum class ReservationState
+    {
+      Pending=0,
+      Requested=1,
+      RecievedResponse=2
+    };
+
+    ReservationState _current_reservation_state = ReservationState::Pending;
+
 
     Active(Description description);
 
