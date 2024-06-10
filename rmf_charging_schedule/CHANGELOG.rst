@@ -2,8 +2,8 @@
 Changelog for package rmf_charging_schedule
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.7.1 (2024-06-11)
+------------------
 * Fix charging status (`#347 <https://github.com/open-rmf/rmf_ros2/pull/347>`_)
 * Contributors: Grey
 
