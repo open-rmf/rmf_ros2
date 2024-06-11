@@ -59,7 +59,6 @@ public:
           default_max_merge_waypoint_distance,
           default_max_merge_lane_distance,
           default_min_lane_length,
-          {}
         },
         default_responsive_wait
       });

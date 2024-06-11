@@ -373,6 +373,13 @@ public:
           continue;
         }
 
+        if (nav_params->strict_lanes.count(lane_id) > 0)
+        {
+          // The robot needs to fully approach the beginning waypoint before
+          // using this lane
+          continue;
+        }
+
         auto wp_exit = graph.get_lane(lane_id).exit().waypoint_index();
         starts.push_back(
           rmf_traffic::agv::Plan::Start(now, wp_exit, yaw, p, lane_id));
@@ -398,6 +405,12 @@ public:
 
         if (closures && closures->is_closed(lane_id))
         {
+          continue;
+        }
+
+        if (nav_params->strict_lanes.count(lane_id) > 0)
+        {
+          // This is a strict lane, so we cannot start from its middle.
           continue;
         }
 
@@ -1562,6 +1575,7 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
   RobotState state,
   ConstActivityIdentifierPtr current_activity)
 {
+
   _pimpl->worker.schedule(
     [
       state = std::move(state),
