@@ -2,6 +2,12 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.8.0 (2024-06-12)
+------------------
+
+2.7.1 (2024-06-11)
+------------------
+
 2.7.0 (2024-06-01)
 ------------------
 * Add fleet-level reassign dispatched tasks API (`#348 <https://github.com/open-rmf/rmf_ros2/pull/348>`_)
