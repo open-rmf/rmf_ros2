@@ -254,7 +254,7 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
         if (!self)
           return;
 
-        self->_set_charging(charger_wp, true);
+        self->_set_charging(charger_wp, false);
         RCLCPP_INFO(
           self->node()->get_logger(),
           "Charger waypoint for robot [%s] set to index [%ld]",
@@ -999,6 +999,37 @@ void RobotUpdateHandle::Unstable::debug_positions(bool on)
     // No need to worry about race conditions or data races here because this is
     // a mostly inconsequential bool
     context->debug_positions = on;
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::quiet_cancel_task(
+  std::string task_id,
+  std::vector<std::string> labels,
+  std::function<void(bool)> on_cancellation)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+        task_id = std::move(task_id),
+        labels = std::move(labels),
+        on_cancellation = std::move(on_cancellation),
+        c = context->weak_from_this()
+      ](const auto&)
+      {
+        const auto context = c.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        if (!mgr)
+          return;
+
+        const auto result = mgr->quiet_cancel_task(task_id, labels);
+        if (on_cancellation)
+          on_cancellation(result);
+      });
   }
 }
 
