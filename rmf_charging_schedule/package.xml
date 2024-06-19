@@ -2,13 +2,14 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>rmf_charging_schedule</name>
-  <version>2.7.1</version>
+  <version>2.8.0</version>
   <description>Node for a fixed 24-hour rotating charger usage schedule</description>
   <maintainer email="mxgrey@intrinsic.ai">Grey</maintainer>
   <license>Apache License 2.0</license>
 
   <depend>rclpy</depend>
   <depend>rmf_fleet_msgs</depend>
+  <depend>python3-icecream</depend>
 
   <export>
     <build_type>ament_python</build_type>
