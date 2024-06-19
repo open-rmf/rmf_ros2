@@ -597,6 +597,13 @@ public:
   /// (false)?
   bool waiting_for_charger() const;
 
+  /// This function will indicate that the robot is currently charging for as
+  /// long as the return value is held onto.
+  std::shared_ptr<void> be_charging();
+
+  /// Check if the robot is currently doing a battery charging task.
+  bool is_charging() const;
+
   // Get a reference to the battery soc observer of this robot.
   const rxcpp::observable<double>& observe_battery_soc() const;
 
@@ -877,7 +884,8 @@ private:
   std::size_t _charging_wp;
   /// When the robot reaches its _charging_wp, is there to wait for a charger
   /// (true) or to actually charge (false)?
-  bool _waiting_for_charger;
+  bool _waiting_for_charger = false;
+  std::shared_ptr<void> _lock_charging;
   rxcpp::subjects::subject<double> _battery_soc_publisher;
   rxcpp::observable<double> _battery_soc_obs;
   rmf_task::State _current_task_end_state;
