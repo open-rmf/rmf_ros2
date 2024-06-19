@@ -233,6 +233,12 @@ public:
     const std::string& task_id,
     std::vector<std::string> labels);
 
+  /// Cancel a task for this robot while marking it completed. Returns true if
+  /// the task was being managed by this task manager, or false if it was not.
+  bool quiet_cancel_task(
+    const std::string& task_id,
+    std::vector<std::string> labels);
+
   /// This should only be triggered by RobotContext::set_commission(~), and only
   /// in scenarios where the idle behavior commission has been toggled off.
   void _cancel_idle_behavior(std::vector<std::string> labels);
@@ -294,6 +300,10 @@ private:
 
     void rewind(uint64_t phase_id);
 
+    void quiet_cancel(
+      std::vector<std::string> labels,
+      rmf_traffic::Time time);
+
     std::string skip(
       uint64_t phase_id,
       std::vector<std::string> labels,
@@ -335,6 +345,7 @@ private:
     std::unordered_map<uint64_t, SkipInfo> _skip_info_map;
 
     uint64_t _next_token = 0;
+    bool _quiet_cancel = false;
   };
 
   friend class ActiveTask;

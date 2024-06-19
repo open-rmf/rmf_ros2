@@ -254,6 +254,21 @@ PYBIND11_MODULE(rmf_adapter, m) {
       self.unstable().debug_positions(on);
     },
     py::arg("on"))
+  .def("unstable_quiet_cancel_task",
+    [&](agv::RobotUpdateHandle& self,
+    std::string task_id,
+    std::vector<std::string> labels,
+    std::function<void(bool task_was_found)>on_cancellation)
+    {
+      self.unstable().quiet_cancel_task(
+        task_id,
+        labels,
+        on_cancellation
+      );
+    },
+    py::arg("task_id"),
+    py::arg("labels"),
+    py::arg("on_cancellation"))
   .def("set_action_executor",
     &agv::RobotUpdateHandle::set_action_executor,
     py::arg("action_executor"))
