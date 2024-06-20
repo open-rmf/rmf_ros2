@@ -312,7 +312,8 @@ nlohmann::json& copy_phase_data(
   nlohmann::json& phases,
   const rmf_task::Phase::Active& snapshot,
   rmf_task::Log::Reader& reader,
-  nlohmann::json& all_phase_logs)
+  nlohmann::json& all_phase_logs,
+  bool quiet_cancel = false)
 {
   const auto& tag = *snapshot.tag();
   const auto& header = tag.header();
@@ -345,6 +346,11 @@ nlohmann::json& copy_phase_data(
     auto& event_state = event_states[std::to_string(top->id())];
     event_state["id"] = top->id();
     event_state["status"] = status_to_string(top->status());
+    if (quiet_cancel && top->status() == rmf_task::Event::Status::Canceled)
+    {
+      event_state["status"] = status_to_string(
+        rmf_task::Event::Status::Completed);
+    }
 
     // TODO(MXG): Keep a VersionedString Reader to know when to actually update
     // this string
@@ -485,7 +491,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   {
     const auto& snapshot = completed->snapshot();
     auto& phase = copy_phase_data(
-      phases, *snapshot, mgr._log_reader, phase_logs);
+      phases, *snapshot, mgr._log_reader, phase_logs, _quiet_cancel);
     phase["unix_millis_start_time"] =
       to_millis(completed->start_time().time_since_epoch()).count();
 
@@ -500,7 +506,8 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   if (active_phase == nullptr)
     return;
   auto& active =
-    copy_phase_data(phases, *active_phase, mgr._log_reader, phase_logs);
+    copy_phase_data(
+    phases, *active_phase, mgr._log_reader, phase_logs, _quiet_cancel);
   if (_task->active_phase_start_time().has_value())
   {
     active["unix_millis_start_time"] =
@@ -527,7 +534,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
     }
   }
 
-  if (_cancellation.has_value())
+  if (_cancellation.has_value() && !_quiet_cancel)
     _state_msg["cancellation"] = *_cancellation;
 
   if (_killed.has_value())
@@ -541,6 +548,12 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
       for (const auto& [token, msg] : *s)
         skip_requests[token] = msg;
     }
+  }
+
+  if (_quiet_cancel &&
+    _task->status_overview() == rmf_task::Event::Status::Canceled)
+  {
+    _state_msg["status"] = status_to_string(rmf_task::Event::Status::Completed);
   }
 
   task_state_update["data"] = _state_msg;
@@ -713,6 +726,25 @@ void TaskManager::ActiveTask::kill(
 void TaskManager::ActiveTask::rewind(uint64_t phase_id)
 {
   _task->rewind(phase_id);
+}
+
+//==============================================================================
+void TaskManager::ActiveTask::quiet_cancel(
+  std::vector<std::string> labels,
+  rmf_traffic::Time time)
+{
+  if (_cancellation.has_value())
+    return;
+
+  nlohmann::json cancellation;
+  cancellation["unix_millis_request_time"] =
+    to_millis(time.time_since_epoch()).count();
+
+  cancellation["labels"] = std::move(labels);
+
+  _cancellation = std::move(cancellation);
+  _quiet_cancel = true;
+  _task->cancel();
 }
 
 //==============================================================================
@@ -1363,6 +1395,21 @@ bool TaskManager::kill_task(
 
   if (_cancel_task_from_direct_queue(task_id, labels))
     return true;
+
+  return false;
+}
+
+//==============================================================================
+bool TaskManager::quiet_cancel_task(
+  const std::string& task_id,
+  std::vector<std::string> labels)
+{
+  if (_active_task && _active_task.id() == task_id)
+  {
+    _task_state_update_available = true;
+    _active_task.quiet_cancel(std::move(labels), _context->now());
+    return true;
+  }
 
   return false;
 }
