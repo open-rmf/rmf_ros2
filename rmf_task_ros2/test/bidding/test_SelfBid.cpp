@@ -90,16 +90,16 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
   exec_options.context = rcl_context;
   rclcpp::executors::SingleThreadedExecutor executor(exec_options);
   executor.add_node(node);
+  const auto now = std::chrono::steady_clock::now();
 
   auto bidder1 = AsyncBidder::make(
     node,
-    [&test_notice_bidder1](const auto& notice, auto respond)
+    [&test_notice_bidder1, &now](const auto& notice, auto respond)
     {
       Response::Proposal best_robot_estimate;
       test_notice_bidder1 = notice.request;
       best_robot_estimate.fleet_name = "bidder1";
-      best_robot_estimate.finish_time =
-      std::chrono::steady_clock::time_point::max();
+      best_robot_estimate.finish_time = now + std::chrono::seconds(1000);
 
       respond(Response{best_robot_estimate, {}});
     }
@@ -107,7 +107,7 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
 
   auto bidder2 = AsyncBidder::make(
     node,
-    [&test_notice_bidder2](const auto& notice, auto respond)
+    [&test_notice_bidder2, &now](const auto& notice, auto respond)
     {
       auto request = nlohmann::json::parse(notice.request);
       if (request["category"] == "patrol")
@@ -117,8 +117,7 @@ SCENARIO("Auction with 2 Bids", "[TwoBids]")
       Response::Proposal best_robot_estimate;
       best_robot_estimate.new_cost = 2.3; // lower cost than bidder1
       best_robot_estimate.fleet_name = "bidder2";
-      best_robot_estimate.finish_time =
-      std::chrono::steady_clock::time_point::min();
+      best_robot_estimate.finish_time = now + std::chrono::seconds(1);
       test_notice_bidder2 = notice.request;
 
       respond(Response{best_robot_estimate, {}});

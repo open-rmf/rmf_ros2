@@ -1285,6 +1285,23 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
         commission.is_performing_idle_behavior();
 
       json["commission"] = commission_json;
+
+      nlohmann::json mutex_groups_json;
+      std::vector<std::string> locked_mutex_groups;
+      for (const auto& g : context->locked_mutex_groups())
+      {
+        locked_mutex_groups.push_back(g.first);
+      }
+      mutex_groups_json["locked"] = std::move(locked_mutex_groups);
+
+      std::vector<std::string> requesting_mutex_groups;
+      for (const auto& g : context->requesting_mutex_groups())
+      {
+        requesting_mutex_groups.push_back(g.first);
+      }
+      mutex_groups_json["requesting"] = std::move(requesting_mutex_groups);
+
+      json["mutex_groups"] = std::move(mutex_groups_json);
     }
 
     try
@@ -1894,6 +1911,7 @@ void FleetUpdateHandle::add_robot(
           }
 
           mgr->set_idle_task(fleet->_pimpl->idle_task);
+          mgr->configure_retreat_to_charger(fleet->retreat_to_charger_interval());
 
           // -- Calling the handle_cb should always happen last --
           if (handle_cb)
@@ -2497,6 +2515,41 @@ FleetUpdateHandle& FleetUpdateHandle::set_update_listener(
   std::unique_lock<std::mutex> lock(*_pimpl->update_callback_mutex);
   _pimpl->update_callback = std::move(listener);
   return *this;
+}
+
+//==============================================================================
+std::optional<rmf_traffic::Duration>
+FleetUpdateHandle::retreat_to_charger_interval() const
+{
+  return _pimpl->retreat_to_charger_interval;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::set_retreat_to_charger_interval(
+  std::optional<rmf_traffic::Duration> duration)
+{
+  _pimpl->retreat_to_charger_interval = duration;
+
+  // Start retreat timer
+  for (const auto& t : _pimpl->task_managers)
+  {
+    t.second->configure_retreat_to_charger(duration);
+  }
+  return *this;
+}
+
+//==============================================================================
+void FleetUpdateHandle::reassign_dispatched_tasks()
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this()](const auto&)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+      self->_pimpl->reassign_dispatched_tasks([]() {}, [](auto) {});
+    }
+  );
 }
 
 //==============================================================================

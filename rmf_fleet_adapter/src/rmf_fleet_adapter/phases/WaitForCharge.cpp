@@ -119,6 +119,7 @@ WaitForCharge::Active::Active(
   }
 
   _context->current_mode(rmf_fleet_msgs::msg::RobotMode::MODE_CHARGING);
+  _lock_charging = _context->be_charging();
 }
 
 //==============================================================================
