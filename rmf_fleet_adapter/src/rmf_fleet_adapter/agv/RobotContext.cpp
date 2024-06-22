@@ -31,49 +31,11 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
-void NavParams::search_for_location(
-  const std::string& map,
-  Eigen::Vector3d position,
-  RobotContext& context)
+std::unordered_map<std::size_t, VertexStack> compute_stacked_vertices(
+  const rmf_traffic::agv::Graph& graph,
+  double max_merge_waypoint_distance)
 {
-  auto planner = context.planner();
-  if (!planner)
-  {
-    RCLCPP_ERROR(
-      context.node()->get_logger(),
-      "Planner unavailable for robot [%s], cannot update its location",
-      context.requester_id().c_str());
-    return;
-  }
-  const auto& graph = planner->get_configuration().graph();
-  const auto now = context.now();
-  auto starts = compute_plan_starts(graph, map, position, now);
-  if (!starts.empty())
-  {
-    if (context.debug_positions)
-    {
-      std::stringstream ss;
-      ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
-         << " starts:" << print_starts(starts, graph);
-      std::cout << ss.str() << std::endl;
-    }
-    context.set_location(std::move(starts));
-  }
-  else
-  {
-    if (context.debug_positions)
-    {
-      std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
-                << map << " <" << position.block<2, 1>(0, 0).transpose()
-                << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
-    }
-    context.set_lost(Location { now, map, position });
-  }
-}
-
-//==============================================================================
-void NavParams::find_stacked_vertices(const rmf_traffic::agv::Graph& graph)
-{
+  std::unordered_map<std::size_t, VertexStack> stacked_vertices;
   for (std::size_t i = 0; i < graph.num_waypoints() - 1; ++i)
   {
     const auto& wp_i = graph.get_waypoint(i);
@@ -128,6 +90,56 @@ void NavParams::find_stacked_vertices(const rmf_traffic::agv::Graph& graph)
       stacked_vertices[j] = stack_j;
     }
   }
+
+  return stacked_vertices;
+}
+
+//==============================================================================
+void NavParams::search_for_location(
+  const std::string& map,
+  Eigen::Vector3d position,
+  RobotContext& context)
+{
+  auto planner = context.planner();
+  if (!planner)
+  {
+    RCLCPP_ERROR(
+      context.node()->get_logger(),
+      "Planner unavailable for robot [%s], cannot update its location",
+      context.requester_id().c_str());
+    return;
+  }
+  const auto& graph = planner->get_configuration().graph();
+  const auto now = context.now();
+  auto starts = compute_plan_starts(graph, map, position, now);
+  if (!starts.empty())
+  {
+    if (context.debug_positions)
+    {
+      std::stringstream ss;
+      ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
+         << " starts:" << print_starts(starts, graph);
+      std::cout << ss.str() << std::endl;
+    }
+    context.set_location(std::move(starts));
+  }
+  else
+  {
+    if (context.debug_positions)
+    {
+      std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
+                << map << " <" << position.block<2, 1>(0, 0).transpose()
+                << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
+    }
+    context.set_lost(Location { now, map, position });
+  }
+}
+
+//==============================================================================
+void NavParams::find_stacked_vertices(const rmf_traffic::agv::Graph& graph)
+{
+  stacked_vertices = compute_stacked_vertices(
+    graph, max_merge_waypoint_distance);
 }
 
 //==============================================================================

@@ -1772,6 +1772,7 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         std::move(default_max_merge_waypoint_distance),
         std::move(default_max_merge_lane_distance),
         std::move(default_min_lane_length),
+        {},
         {}
       }))
 {
@@ -2366,6 +2367,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
       return std::nullopt;
     }
 
+    const auto vertex_stacks = compute_stacked_vertices(
+      graph, default_max_merge_waypoint_distance);
     for (const auto& lane_yaml : strict_lanes_yaml)
     {
       if (!lane_yaml.IsSequence() || lane_yaml.size() != 2)
@@ -2396,16 +2399,51 @@ EasyFullControl::FleetConfiguration::from_config_files(
         return std::nullopt;
       }
 
-      const auto* lane = graph.lane_from(wp0->index(), wp1->index());
-      if (!lane)
+      const auto stack_0_it = vertex_stacks.find(wp0->index());
+      VertexStack stack_0;
+      if (stack_0_it == vertex_stacks.end())
+      {
+        stack_0 = std::make_shared<std::unordered_set<std::size_t>>();
+        stack_0->insert(wp0->index());
+      }
+      else
+      {
+        stack_0 = stack_0_it->second;
+      }
+
+      const auto stack_1_it = vertex_stacks.find(wp1->index());
+      VertexStack stack_1;
+      if (stack_1_it == vertex_stacks.end())
+      {
+        stack_1 = std::make_shared<std::unordered_set<std::size_t>>();
+        stack_1->insert(wp1->index());
+      }
+      else
+      {
+        stack_1 = stack_1_it->second;
+      }
+
+      bool found_lane = false;
+      for (std::size_t wp_i : *stack_0)
+      {
+        for (std::size_t wp_j : *stack_1)
+        {
+          const auto* lane = graph.lane_from(wp_i, wp_j);
+          if (lane)
+          {
+            strict_lanes.insert(lane->index());
+            found_lane = true;
+          }
+        }
+      }
+
+      if (!found_lane)
       {
         const auto mark = lane_yaml.Mark();
         std::cerr << "[strict_lanes] Unable to find a lane from [" << wp0_name
           << "] to [" << wp1_name << "] at line " << mark.line << ", column "
           << mark.column << std::endl;
       }
-
-      strict_lanes.insert(lane->index());
     }
   }
 
