@@ -244,6 +244,11 @@ inline std::string print_starts(
 }
 
 //==============================================================================
+std::unordered_map<std::size_t, VertexStack> compute_stacked_vertices(
+  const rmf_traffic::agv::Graph& graph,
+  double max_merge_waypoint_distance);
+
+//==============================================================================
 struct NavParams
 {
   bool skip_rotation_commands;
