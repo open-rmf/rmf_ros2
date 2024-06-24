@@ -788,6 +788,31 @@ get_nearest_charger(
   return nearest_charger;
 }
 
+//==============================================================================
+std::optional<std::size_t> FleetUpdateHandle::Implementation::
+get_nearest_parking_wp(
+  const rmf_traffic::agv::Planner::Start& start)
+{
+  if (parking_waypoints.empty())
+    return std::nullopt;
+
+  double min_cost = std::numeric_limits<double>::max();
+  std::optional<std::size_t> nearest_parking_wp = std::nullopt;
+  for (const auto& wp : parking_waypoints)
+  {
+    const rmf_traffic::agv::Planner::Goal goal{wp};
+    const auto& planner_result = (*planner)->setup(start, goal);
+    const auto ideal_cost = planner_result.ideal_cost();
+    if (ideal_cost.has_value() && ideal_cost.value() < min_cost)
+    {
+      min_cost = ideal_cost.value();
+      nearest_parking_wp = wp;
+    }
+  }
+
+  return nearest_parking_wp;
+}
+
 namespace {
 //==============================================================================
 std::optional<rmf_fleet_msgs::msg::Location> convert_location(
@@ -1319,6 +1344,7 @@ void FleetUpdateHandle::add_robot(
         return;
 
       const auto charger_wp = fleet->_pimpl->get_nearest_charger(start[0]);
+      const auto parking_wp = fleet->_pimpl->get_nearest_parking_wp(start[0]);
 
       if (!charger_wp.has_value())
       {
@@ -1330,8 +1356,19 @@ void FleetUpdateHandle::add_robot(
         // *INDENT-ON*
       }
 
+      if (!parking_wp.has_value())
+      {
+        // *INDENT-OFF*
+        throw std::runtime_error(
+          "[FleetUpdateHandle::add_robot] Unable to find nearest parking "
+          "waypoint. Adding a robot to a fleet requires at least one parking"
+          "waypoint to be present in its navigation graph.");
+        // *INDENT-ON*
+      }
+
       rmf_task::State state;
       state.load_basic(start[0], charger_wp.value(), 1.0);
+      state.load_parking_waypoint(parking_wp.value());
 
       auto context = std::make_shared<RobotContext>(
         RobotContext

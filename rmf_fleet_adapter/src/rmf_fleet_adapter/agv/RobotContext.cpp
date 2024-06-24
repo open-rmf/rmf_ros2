@@ -275,7 +275,9 @@ std::function<rmf_task::State()> RobotContext::make_get_state()
         self->_location.front(),
         self->_charger_wp,
         self->_current_battery_soc);
-
+      state.load_parking_waypoint(
+        self->_parking_wp);
+        
       state.insert<GetContext>(GetContext{self->shared_from_this()});
       return state;
     };
@@ -316,6 +318,12 @@ RobotContext& RobotContext::current_battery_soc(const double battery_soc)
 std::size_t RobotContext::dedicated_charger_wp() const
 {
   return _charger_wp;
+}
+
+//==============================================================================
+std::size_t RobotContext::dedicated_parking_wp() const
+{
+  return _parking_wp;
 }
 
 //==============================================================================
@@ -491,6 +499,7 @@ RobotContext::RobotContext(
   _requester_id(
     _itinerary.description().owner() + "/" + _itinerary.description().name()),
   _charger_wp(state.dedicated_charging_waypoint().value()),
+  _parking_wp(state.dedicated_parking_waypoint().value()),
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner)),

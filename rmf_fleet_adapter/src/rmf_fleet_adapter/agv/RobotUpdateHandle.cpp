@@ -208,6 +208,25 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
 }
 
 //==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::set_parking_waypoint(
+  const std::size_t parking_wp)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    auto end_state = context->current_task_end_state();
+    end_state.dedicated_parking_waypoint(parking_wp);
+    context->current_task_end_state(end_state);
+    RCLCPP_INFO(
+      context->node()->get_logger(),
+      "Parking waypoint for robot [%s] set to index [%ld]",
+      context->name().c_str(),
+      parking_wp);
+  }
+
+  return *this;
+}
+
+//==============================================================================
 void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 {
   if (battery_soc < 0.0 || battery_soc > 1.0)
