@@ -295,6 +295,12 @@ struct NavParams
     RobotContext& context);
 
   rmf_traffic::agv::Plan::StartSet compute_plan_starts(
+    const RobotContext& context,
+    const std::string& map_name,
+    const Eigen::Vector3d position,
+    const rmf_traffic::Time start_time) const;
+
+  rmf_traffic::agv::Plan::StartSet unfiltered_compute_plan_starts(
     const rmf_traffic::agv::Graph& graph,
     const std::string& map_name,
     const Eigen::Vector3d position,
@@ -312,13 +318,13 @@ struct NavParams
         min_lane_length);
 
       if (!starts.empty())
-        return process_locations(graph, starts);
+        return starts;
     }
 
     return {};
   }
 
-  std::unordered_map<std::size_t, VertexStack> stacked_vertices;
+  std::unordered_map<std::size_t, VertexStack> stacked_vertices = {};
 
   void find_stacked_vertices(const rmf_traffic::agv::Graph& graph);
 
@@ -327,8 +333,8 @@ struct NavParams
     std::optional<std::size_t> v) const;
 
   rmf_traffic::agv::Plan::StartSet process_locations(
-    const rmf_traffic::agv::Graph& graph,
-    rmf_traffic::agv::Plan::StartSet locations) const;
+    rmf_traffic::agv::Plan::StartSet locations,
+    const RobotContext& context) const;
 
   rmf_traffic::agv::Plan::StartSet _descend_stacks(
     const rmf_traffic::agv::Graph& graph,
@@ -337,8 +343,8 @@ struct NavParams
   // If one of the locations is associated with a lift vertex, filter it out if
   // the actual of the robot is outside the dimensions of the lift.
   rmf_traffic::agv::Plan::StartSet _lift_boundary_filter(
-    const rmf_traffic::agv::Graph& graph,
-    rmf_traffic::agv::Plan::StartSet locations) const;
+    rmf_traffic::agv::Plan::StartSet locations,
+    const RobotContext& context) const;
 
   bool in_same_stack(std::size_t wp0, std::size_t wp1) const;
 };
@@ -710,6 +716,24 @@ public:
     Eigen::Vector3d position,
     const std::string& map);
 
+  /// If the robot is inside a lift, this will indicate what level the lift is
+  /// currently on. This will be used for filtering out start points for the
+  /// planner.
+  std::shared_ptr<const std::string> current_boarded_lift_level() const;
+
+  /// This should only be set in RequestLift.cpp when the robot is doing a lift
+  /// request from the inside.
+  void _set_current_boarded_lift_level(
+    std::shared_ptr<const std::string> lift_level);
+
+  /// The last reported location of the robot, as given by the EasyFullControl
+  /// API
+  std::shared_ptr<const Location> reported_location() const;
+
+  /// Set the shared reference for the reported location. This should only be
+  /// called once while initializing a new EasyFullControl robot.
+  void _set_reported_location(std::shared_ptr<const Location> value);
+
   /// Set the task manager for this robot. This should only be called in the
   /// TaskManager::make function.
   void _set_task_manager(std::shared_ptr<TaskManager> mgr);
@@ -872,6 +896,9 @@ private:
   RobotUpdateHandle::Commission _commission;
   bool _emergency = false;
   EasyFullControl::LocalizationRequest _localize;
+
+  std::shared_ptr<const Location> _reported_location;
+  std::weak_ptr<const std::string> _current_boarded_lift_level;
 
   // Mode value for RobotMode message
   uint32_t _current_mode;
