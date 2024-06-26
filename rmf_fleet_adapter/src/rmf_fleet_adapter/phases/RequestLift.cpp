@@ -235,18 +235,9 @@ void RequestLift::ActivePhase::_init_obs()
             agv::Destination::Implementation::get(*me->_data.localize_after)
             .position = me->_context->position();
 
-            rmf_traffic::agv::Graph::LiftPropertiesPtr in_lift;
             const auto graph = me->_context->navigation_graph();
-            for (const auto& lift : graph.all_known_lifts())
-            {
-              if (lift->name() == me->_lift_name)
-              {
-                in_lift = lift;
-                break;
-              }
-            }
             agv::Destination::Implementation::get(*me->_data.localize_after)
-            .lift = in_lift;
+            .lift = graph.find_known_lift(me->_lift_name);
 
             if (me->_context->localize(*me->_data.localize_after,
             std::move(cmd)))
