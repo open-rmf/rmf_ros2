@@ -1377,14 +1377,14 @@ void RobotContext::_check_lift_state(
           // The lift destination reference count dropping to one while the lift
           // destination request is on the outside means the task that prompted
           // the lift usage was cancelled while the robot was outside of the lift.
-          // Therefore we should release the usage of the lift.
+          // Therefore we should recommend releasing the usage of the lift.
           RCLCPP_INFO(
             _node->get_logger(),
-            "Requesting lift [%s] to be released for [%s] because it is outside "
-            "the lift and not holding a claim for an extended period of time.",
+            "Lift [%s] has been held for an extended period of time by [%s] "
+            "when it is outside the lift, users may consider releasing the "
+            "lift manually.",
             _lift_destination->lift_name.c_str(),
             requester_id().c_str());
-          release_lift();
         }
       }
       else
