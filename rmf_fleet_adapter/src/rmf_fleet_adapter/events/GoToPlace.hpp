@@ -25,6 +25,8 @@
 
 #include "ExecutePlan.hpp"
 
+#include <cstdint>
+#include <optional>
 #include <rmf_task_sequence/Event.hpp>
 #include <rmf_task_sequence/events/GoToPlace.hpp>
 #include <rmf_task/events/SimpleEventState.hpp>
@@ -103,13 +105,22 @@ public:
     void kill() final;
 
   private:
+    enum class ReservationState
+    {
+      Pending=0,
+      Requested=1,
+      RecievedResponse=2
+    };
+
+    ReservationState _current_reservation_state = ReservationState::Pending;
+
 
     Active(Description description);
 
     void _schedule_retry();
 
     std::optional<rmf_traffic::agv::Plan::Goal> _choose_goal(
-      bool only_same_map) const;
+      bool only_same_map);
 
     void _find_plan();
 
@@ -142,6 +153,15 @@ public:
 
     rmf_rxcpp::subscription_guard _replan_request_subscription;
     rmf_rxcpp::subscription_guard _graph_change_subscription;
+
+    rmf_rxcpp::subscription_guard _reservation_ticket;
+    rmf_rxcpp::subscription_guard _reservation_allocation;
+
+    uint64_t _reservation_id = 0;
+    std::optional<std::shared_ptr<rmf_chope_msgs::msg::Ticket>> _ticket{std::
+      nullopt};
+    std::optional<std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>>
+    _final_allocated_destination{std::nullopt};
 
     bool _is_interrupted = false;
   };

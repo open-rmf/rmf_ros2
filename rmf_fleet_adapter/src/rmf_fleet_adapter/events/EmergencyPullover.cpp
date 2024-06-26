@@ -243,7 +243,7 @@ void EmergencyPullover::Active::_find_plan()
   _state->update_log().info("Searching for an emergency pullover");
 
   _find_pullover_service = std::make_shared<services::FindEmergencyPullover>(
-    _context->emergency_planner(), _context->location(),
+    _context->emergency_planner(), _context->_get_free_spots(), _context->location(),
     _context->schedule()->snapshot(),
     _context->itinerary().id(), _context->profile());
 
