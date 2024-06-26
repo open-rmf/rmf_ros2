@@ -1040,14 +1040,16 @@ void EasyTrafficLight::Implementation::Shared::publish_fleet_state() const
           .mode(rmf_fleet_msgs::msg::RobotMode::MODE_WAITING)
           // NOTE(MXG): This field is currently only used by the fleet drivers.
           // For now, we will just fill it with a zero.
-          .mode_request_id(0);
+          .mode_request_id(0)
+          .performing_action("");
       }
 
       return rmf_fleet_msgs::build<rmf_fleet_msgs::msg::RobotMode>()
         .mode(rmf_fleet_msgs::msg::RobotMode::MODE_MOVING)
         // NOTE(MXG): This field is currently only used by the fleet drivers.
         // For now, we will just fill it with a zero.
-        .mode_request_id(0);
+        .mode_request_id(0)
+        .performing_action("");
     } ();
 
   const auto& map = reported_location->map;
