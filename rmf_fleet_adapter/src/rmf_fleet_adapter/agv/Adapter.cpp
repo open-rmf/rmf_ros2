@@ -379,6 +379,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     fleet_handle,
     config.skip_rotation_commands(),
     tf_dict,
+    config.strict_lanes(),
     config.default_responsive_wait(),
     config.default_max_merge_waypoint_distance(),
     config.default_max_merge_lane_distance(),

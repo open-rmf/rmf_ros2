@@ -244,10 +244,16 @@ inline std::string print_starts(
 }
 
 //==============================================================================
+std::unordered_map<std::size_t, VertexStack> compute_stacked_vertices(
+  const rmf_traffic::agv::Graph& graph,
+  double max_merge_waypoint_distance);
+
+//==============================================================================
 struct NavParams
 {
   bool skip_rotation_commands;
   std::shared_ptr<TransformDictionary> transforms_to_robot_coords;
+  std::unordered_set<std::size_t> strict_lanes;
   double max_merge_waypoint_distance = 1e-3;
   double max_merge_lane_distance = 0.3;
   double min_lane_length = 1e-8;
@@ -318,7 +324,7 @@ struct NavParams
     return {};
   }
 
-  std::unordered_map<std::size_t, VertexStack> stacked_vertices;
+  std::unordered_map<std::size_t, VertexStack> stacked_vertices = {};
 
   void find_stacked_vertices(const rmf_traffic::agv::Graph& graph);
 
@@ -338,6 +344,11 @@ struct NavParams
   // the actual of the robot is outside the dimensions of the lift.
   rmf_traffic::agv::Plan::StartSet _lift_boundary_filter(
     const rmf_traffic::agv::Graph& graph,
+    rmf_traffic::agv::Plan::StartSet locations) const;
+
+  // If one of the starts is mid-lane on a strict lane, filter it out of the
+  // start set.
+  rmf_traffic::agv::Plan::StartSet _strict_lane_filter(
     rmf_traffic::agv::Plan::StartSet locations) const;
 
   bool in_same_stack(std::size_t wp0, std::size_t wp1) const;
