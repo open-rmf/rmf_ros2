@@ -1003,6 +1003,37 @@ void RobotUpdateHandle::Unstable::debug_positions(bool on)
 }
 
 //==============================================================================
+void RobotUpdateHandle::Unstable::quiet_cancel_task(
+  std::string task_id,
+  std::vector<std::string> labels,
+  std::function<void(bool)> on_cancellation)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+        task_id = std::move(task_id),
+        labels = std::move(labels),
+        on_cancellation = std::move(on_cancellation),
+        c = context->weak_from_this()
+      ](const auto&)
+      {
+        const auto context = c.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        if (!mgr)
+          return;
+
+        const auto result = mgr->quiet_cancel_task(task_id, labels);
+        if (on_cancellation)
+          on_cancellation(result);
+      });
+  }
+}
+
+//==============================================================================
 void RobotUpdateHandle::ActionExecution::update_remaining_time(
   rmf_traffic::Duration remaining_time_estimate)
 {
