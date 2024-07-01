@@ -11,7 +11,7 @@ on:
 jobs:
   build_and_test:
     name: rmf_ros2
-    uses: open-rmf/rmf_ci_templates/.github/workflows/reusable_build.yaml@luca/configurable_repos_file
+    uses: open-rmf/rmf_ci_templates/.github/workflows/reusable_build.yaml@main
     with:
       # NOTE: Avoid adding comments in the package lines, this can break some of the called scripts in github actions
       repos-branch-override: "main"
