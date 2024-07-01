@@ -235,6 +235,10 @@ void RequestLift::ActivePhase::_init_obs()
             agv::Destination::Implementation::get(*me->_data.localize_after)
             .position = me->_context->position();
 
+            const auto graph = me->_context->navigation_graph();
+            agv::Destination::Implementation::get(*me->_data.localize_after)
+            .lift = graph.find_known_lift(me->_lift_name);
+
             if (me->_context->localize(*me->_data.localize_after,
             std::move(cmd)))
             {
