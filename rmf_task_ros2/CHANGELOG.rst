@@ -2,6 +2,11 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Fix incorrect std rounding function used when generating timestamp strings for task ID `#370 <https://github.com/open-rmf/rmf_ros2/issues/370>`_)
+* Contributors: Aaron Chong
+
 2.2.5 (2023-12-22)
 ------------------
 

@@ -2,6 +2,13 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Filter DoorOpen insertion by map name (`#354 <https://github.com/open-rmf/rmf_ros2/issues/354>`_)
+* Fix schema dictionary used during robot status override (`#352 <https://github.com/open-rmf/rmf_ros2/issues/352>`_)
+* Fix schema loading (`#344 <https://github.com/open-rmf/rmf_ros2/issues/344>`_)
+* Contributors: Grey
+
 2.2.5 (2023-12-22)
 ------------------
 * Fix edge case when starting on a lane (`#312 <https://github.com/open-rmf/rmf_ros2/pull/312>`_)
