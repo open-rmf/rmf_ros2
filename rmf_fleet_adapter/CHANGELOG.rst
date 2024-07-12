@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.6 (2024-07-12)
+------------------
 * Filter DoorOpen insertion by map name (`#354 <https://github.com/open-rmf/rmf_ros2/issues/354>`_)
 * Fix schema dictionary used during robot status override (`#352 <https://github.com/open-rmf/rmf_ros2/issues/352>`_)
 * Fix schema loading (`#344 <https://github.com/open-rmf/rmf_ros2/issues/344>`_)
