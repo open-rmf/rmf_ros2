@@ -680,6 +680,22 @@ public:
   /// Indicate that the lift is no longer needed
   void release_lift();
 
+  /// Get the final lift destination that the overall session intends to end at.
+  /// This is used to give robots advanced notice of what floor they will be
+  /// going to, in case they need this information in order to enter the lift
+  /// correctly.
+  std::optional<RobotUpdateHandle::LiftDestination>
+  final_lift_destination() const;
+
+  /// Change what the final lift destination is currently set to. Typically this
+  /// should only be called by RequestLift.
+  void set_final_lift_destination(
+    RobotUpdateHandle::LiftDestination destination);
+
+  /// Clear the information about the final lift destination. Typically this
+  /// should only be called by release_lift().
+  void clear_final_lift_destination();
+
   /// Check if a door is being held
   const std::optional<std::string>& holding_door() const;
 
@@ -913,6 +929,10 @@ private:
   rclcpp::Subscription<rmf_fleet_msgs::msg::MutexGroupManualRelease>::SharedPtr
     _mutex_group_manual_release_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
+
+  std::optional<RobotUpdateHandle::LiftDestination> _final_lift_destination;
+  std::unique_ptr<std::mutex> _final_lift_destination_mutex =
+    std::make_unique<std::mutex>();
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

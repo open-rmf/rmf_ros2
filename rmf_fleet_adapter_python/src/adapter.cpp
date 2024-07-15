@@ -63,6 +63,7 @@ using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
 using Commission = agv::RobotUpdateHandle::Commission;
 using Stubbornness = agv::RobotUpdateHandle::Unstable::Stubbornness;
+using LiftDestination = agv::RobotUpdateHandle::LiftDestination;
 
 void bind_types(py::module&);
 void bind_graph(py::module&);
@@ -314,7 +315,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("commission",
     &agv::RobotUpdateHandle::commission)
   .def("reassign_dispatched_tasks",
-    &agv::RobotUpdateHandle::reassign_dispatched_tasks);
+    &agv::RobotUpdateHandle::reassign_dispatched_tasks)
+  .def("lift_destination",
+    &agv::RobotUpdateHandle::lift_destination);
 
   // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");
@@ -398,6 +401,16 @@ PYBIND11_MODULE(rmf_adapter, m) {
     m_robot_update_handle, "Stubbornness")
   .def("release",
     &Stubbornness::release);
+
+  // LiftDestination ======================================================
+  py::class_<LiftDestination>(
+    m_robot_update_handle, "LiftDestination")
+  .def_property_readonly(
+    "lift",
+    &LiftDestination::lift)
+  .def_property_readonly(
+    "level",
+    &LiftDestination::level);
 
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
