@@ -855,6 +855,8 @@ RobotUpdateHandle::lift_destination() const
   {
     return context->final_lift_destination();
   }
+
+  return std::nullopt;
 }
 
 //==============================================================================
