@@ -97,6 +97,11 @@ void RequestLift::ActivePhase::_init_obs()
 {
   using rmf_lift_msgs::msg::LiftState;
 
+  if (_data.final_lift_destination.has_value())
+  {
+    _context->set_final_lift_destination(*_data.final_lift_destination);
+  }
+
   if (_data.located == Located::Outside && _context->current_lift_destination())
   {
     // Check if the current destination is the one we want and also has arrived.
