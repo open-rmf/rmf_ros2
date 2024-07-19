@@ -36,12 +36,14 @@ public:
   std::unordered_map<std::string, EasyCommandHandlePtr> cmd_handles;
   NavParams nav_params;
   bool default_responsive_wait;
+  bool use_parking_reservation_node;
 
   static std::shared_ptr<EasyFullControl> make(
     std::shared_ptr<FleetUpdateHandle> fleet_handle,
     bool skip_rotation_commands,
     std::shared_ptr<TransformDictionary> transforms_to_robot_coords,
     bool default_responsive_wait,
+    bool use_parking_reservation_node,
     double default_max_merge_waypoint_distance,
     double default_max_merge_lane_distance,
     double default_min_lane_length)
@@ -58,7 +60,8 @@ public:
           default_max_merge_lane_distance,
           default_min_lane_length
         },
-        default_responsive_wait
+        default_responsive_wait,
+        use_parking_reservation_node
       });
     return handle;
   }

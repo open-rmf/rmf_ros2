@@ -758,6 +758,12 @@ public:
   void _set_allocated_destination(
     const rmf_chope_msgs::msg::ReservationAllocation&);
 
+  /// Set if the parking spot manager is used or not
+  void _set_parking_spot_manager(const bool enabled);
+
+  /// Set if the parking spot manager is used or not
+  bool _parking_spot_manager_enabled();
+
   /// Release last resource that was acquired.
   std::optional<rmf_chope_msgs::msg::ReservationAllocation> _release_resource();
 
@@ -969,6 +975,8 @@ private:
   std::optional<RobotUpdateHandle::LiftDestination> _final_lift_destination;
   std::unique_ptr<std::mutex> _final_lift_destination_mutex =
     std::make_unique<std::mutex>();
+
+  bool use_parking_spot_reservations;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

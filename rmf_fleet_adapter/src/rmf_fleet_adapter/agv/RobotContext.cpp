@@ -1678,6 +1678,18 @@ void RobotContext::_set_allocated_destination(
 }
 
 //==============================================================================
+void RobotContext::_set_parking_spot_manager(const bool enabled)
+{
+  this->use_parking_spot_reservations = enabled;
+}
+
+//==============================================================================
+bool RobotContext::_parking_spot_manager_enabled()
+{
+  return this->use_parking_spot_reservations;
+}
+
+//==============================================================================
 std::optional<rmf_chope_msgs::msg::ReservationAllocation>
 RobotContext::_release_resource()
 {

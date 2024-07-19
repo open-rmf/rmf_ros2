@@ -122,12 +122,14 @@ public:
   std::optional<double> max_merge_waypoint_distance;
   std::optional<double> max_merge_lane_distance;
   std::optional<double> min_lane_length;
+  bool use_parking_spot;
 };
 
 //==============================================================================
 EasyFullControl::RobotConfiguration::RobotConfiguration(
   std::vector<std::string> compatible_chargers,
   std::optional<bool> responsive_wait,
+  bool use_parking_spot_system,
   std::optional<double> max_merge_waypoint_distance,
   std::optional<double> max_merge_lane_distance,
   std::optional<double> min_lane_length)
@@ -136,7 +138,8 @@ EasyFullControl::RobotConfiguration::RobotConfiguration(
       responsive_wait,
       max_merge_waypoint_distance,
       max_merge_lane_distance,
-      min_lane_length
+      min_lane_length,
+      use_parking_spot_system
     }))
 {
   // Do nothing
@@ -160,6 +163,12 @@ void EasyFullControl::RobotConfiguration::set_compatible_chargers(
 std::optional<bool> EasyFullControl::RobotConfiguration::responsive_wait() const
 {
   return _pimpl->responsive_wait;
+}
+
+//==============================================================================
+bool EasyFullControl::RobotConfiguration::use_parking_spot_system() const
+{
+  return _pimpl->use_parking_spot;
 }
 
 //==============================================================================
@@ -1702,6 +1711,7 @@ public:
   double default_max_merge_lane_distance;
   double default_min_lane_length;
   std::unordered_map<std::string, std::string> lift_emergency_levels;
+  bool use_parking_reservation;
 };
 
 //==============================================================================
@@ -1730,7 +1740,8 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
   bool default_responsive_wait,
   double default_max_merge_waypoint_distance,
   double default_max_merge_lane_distance,
-  double default_min_lane_length)
+  double default_min_lane_length,
+  bool use_parking_reservation)
 : _pimpl(rmf_utils::make_impl<Implementation>(
       Implementation{
         std::move(fleet_name),
@@ -1757,7 +1768,8 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         std::move(default_max_merge_waypoint_distance),
         std::move(default_max_merge_lane_distance),
         std::move(default_min_lane_length),
-        {}
+        {},
+        std::move(use_parking_reservation)
       }))
 {
   // Do nothing
@@ -2202,6 +2214,14 @@ EasyFullControl::FleetConfiguration::from_config_files(
     default_responsive_wait = default_responsive_wait_yaml.as<bool>();
   }
 
+  bool use_simple_parking_reservation_system = false;
+  const YAML::Node& parking_reservation = rmf_fleet["use_parking_reservations"];
+  if (parking_reservation)
+  {
+    use_simple_parking_reservation_system =
+      parking_reservation.as<bool>();
+  }
+
   double default_max_merge_waypoint_distance = 1e-3;
   const YAML::Node& default_max_merge_waypoint_distance_yaml =
     rmf_fleet["max_merge_waypoint_distance"];
@@ -2300,6 +2320,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
           auto config = RobotConfiguration(
             std::move(chargers),
             responsive_wait,
+            use_simple_parking_reservation_system,
             max_merge_waypoint_distance,
             max_merge_lane_distance,
             min_lane_length);
@@ -2361,7 +2382,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
     default_responsive_wait,
     default_max_merge_waypoint_distance,
     default_max_merge_lane_distance,
-    default_min_lane_length);
+    default_min_lane_length,
+    use_simple_parking_reservation_system);
   config.change_lift_emergency_levels() = lift_emergency_levels;
   config.set_retreat_to_charger_interval(retreat_to_charger_interval);
   return config;
@@ -2677,6 +2699,13 @@ bool EasyFullControl::FleetConfiguration::default_responsive_wait() const
 }
 
 //==============================================================================
+bool EasyFullControl::FleetConfiguration::use_parking_reservation_system()
+const
+{
+  return _pimpl->use_parking_reservation;
+}
+
+//==============================================================================
 void EasyFullControl::FleetConfiguration::set_default_responsive_wait(
   bool enable)
 {
@@ -2944,6 +2973,8 @@ auto EasyFullControl::add_robot(
     enable_responsive_wait = *configuration.responsive_wait();
   }
 
+  bool enable_parking_spot = configuration.use_parking_spot_system();
+
   _pimpl->fleet_handle->add_robot(
     insertion.first->second,
     robot_name,
@@ -2959,7 +2990,8 @@ auto EasyFullControl::add_robot(
       action_executor = callbacks.action_executor(),
       localization = std::move(localization),
       nav_params = robot_nav_params,
-      enable_responsive_wait
+      enable_responsive_wait,
+      enable_parking_spot
     ](const RobotUpdateHandlePtr& updater)
     {
       auto context = RobotUpdateHandle::Implementation::get(*updater)
@@ -2978,7 +3010,8 @@ auto EasyFullControl::add_robot(
           localization,
           context,
           nav_params,
-          enable_responsive_wait
+          enable_responsive_wait,
+          enable_parking_spot
         ](const auto&)
         {
           cmd_handle->w_context = context;
@@ -2992,6 +3025,8 @@ auto EasyFullControl::add_robot(
             handle->set_charger_waypoint(*charger_index);
           }
           handle->enable_responsive_wait(enable_responsive_wait);
+
+          context->_set_parking_spot_manager(enable_parking_spot);
 
           RCLCPP_INFO(
             node->get_logger(),
