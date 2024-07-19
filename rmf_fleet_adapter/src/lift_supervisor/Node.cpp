@@ -47,9 +47,6 @@ Node::Node()
     {
       _lift_state_update(std::move(msg));
     });
-
-  _emergency_notice_pub = create_publisher<EmergencyNotice>(
-    rmf_traffic_ros2::EmergencyTopicName, default_qos);
 }
 
 //==============================================================================
@@ -124,19 +121,6 @@ void Node::_lift_state_update(LiftState::UniquePtr msg)
     request.request_type = LiftRequest::REQUEST_END_SESSION;
     _lift_request_pub->publish(request);
   }
-
-  // For now, we do not need to publish this.
-
-//  std_msgs::msg::Bool emergency_msg;
-//  emergency_msg.data = false;
-
-//  if (LiftState::MODE_FIRE == msg->current_mode
-//      || LiftState::MODE_EMERGENCY == msg->current_mode)
-//  {
-//    emergency_msg.data = true;
-//  }
-
-//  _emergency_notice_pub->publish(emergency_msg);
 }
 
 } // namespace lift_supervisor
