@@ -258,8 +258,7 @@ auto GoToPlace::Active::make(
         active->_context->worker()))
     .subscribe([w =
       active->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>
-      &
-      msg)
+      &msg)
       {
         const auto self = w.lock();
         if (!self)
@@ -276,9 +275,13 @@ auto GoToPlace::Active::make(
         }
 
         self->_final_allocated_destination = msg;
-        self->_current_reservation_state = ReservationState::RecievedResponse;
-        self->_retry_timer->cancel();
-        self->_find_plan();
+        if (msg->instruction_type
+          == rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
+        {
+          self->_current_reservation_state = ReservationState::RecievedResponse;
+          self->_retry_timer->cancel();
+          self->_find_plan();
+        }
       });
 
 
@@ -544,7 +547,8 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
 
   if (_context->_parking_spot_manager_enabled())
   {
-    RCLCPP_INFO(_context->node()->get_logger(), "Make");
+    RCLCPP_INFO(_context->node()->get_logger(),
+      "Requesting Chope Node For Time To Progress");
     // No need to use reservation system if we are already there.
     if (_description.one_of().size() == 1
       && _description.one_of()[0].waypoint() == current_location[0].waypoint()
@@ -638,6 +642,10 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
       if (_final_allocated_destination.value()->instruction_type ==
         rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
       {
+        RCLCPP_INFO(
+                _context->node()->get_logger(),
+                "Recieved proceed to final destination from chope node %d: ",
+                _final_allocated_destination.value());
         _context->_set_allocated_destination(
           *_final_allocated_destination.value().get());
         return _description.one_of()[_final_allocated_destination.value()->
@@ -650,13 +658,14 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
       // Probably not needed since, the node does not publish an allocation till its available?
       RCLCPP_ERROR(
         _context->node()->get_logger(),
-        "Unable to immediately service call, awaiting more."
+        "Chope node said its unable to immediately service call, awaiting more."
       );
       return std::nullopt;
     }
   }
   else
   {
+    RCLCPP_INFO(_context->node()->get_logger(), "Skipping chope node.");
     auto lowest_cost = std::numeric_limits<double>::infinity();
     std::optional<std::size_t> selected_idx;
     for (std::size_t i = 0; i < _description.one_of().size(); ++i)
