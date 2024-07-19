@@ -333,6 +333,23 @@ public:
   }
 };
 
+//==============================================================================
+class RobotUpdateHandle::LiftDestination::Implementation
+{
+public:
+  std::string lift;
+  std::string level;
+
+  static RobotUpdateHandle::LiftDestination make(
+    std::string lift, std::string level)
+  {
+    RobotUpdateHandle::LiftDestination result;
+    result._pimpl->lift = std::move(lift);
+    result._pimpl->level = std::move(level);
+    return result;
+  }
+};
+
 } // namespace agv
 } // namespace rmf_fleet_adapter
 

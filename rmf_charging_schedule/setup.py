@@ -7,6 +7,7 @@ setup(
     version='2.8.0',
     packages=find_packages(),
     data_files=[
+        ('share/' + package_name, ['package.xml']),
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
     ],

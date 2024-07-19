@@ -97,6 +97,11 @@ void RequestLift::ActivePhase::_init_obs()
 {
   using rmf_lift_msgs::msg::LiftState;
 
+  if (_data.final_lift_destination.has_value())
+  {
+    _context->set_final_lift_destination(*_data.final_lift_destination);
+  }
+
   if (_data.located == Located::Outside && _context->current_lift_destination())
   {
     // Check if the current destination is the one we want and also has arrived.
@@ -234,6 +239,10 @@ void RequestLift::ActivePhase::_init_obs()
 
             agv::Destination::Implementation::get(*me->_data.localize_after)
             .position = me->_context->position();
+
+            const auto graph = me->_context->navigation_graph();
+            agv::Destination::Implementation::get(*me->_data.localize_after)
+            .lift = graph.find_known_lift(me->_lift_name);
 
             if (me->_context->localize(*me->_data.localize_after,
             std::move(cmd)))
