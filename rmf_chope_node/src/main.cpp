@@ -135,9 +135,10 @@ struct LocationReq
   }
 };
 
+
 /// Implements a simple Mutex. Only one robot can claim a location at a time.
-/// The current implementation is relatively simplistic and basically checks if a location is occupied or not.
-/// A queuing system is in the works. Note: It is possible for the current system to get deadlocked.
+/// The current implementation is relatively simplistic and basically checks
+/// if a location is occupied or not. A queuing system is in the works.
 class CurrentState
 {
 public:
@@ -171,7 +172,9 @@ public:
   {
     if (_ticket_to_location.count(ticket_id) != 0)
     {
-      // Ticket has been allocated. Probably some DDS-ism causing the issue
+      /// This should never be reached. If this is reached it means that some
+      /// client fleetadapter node is misbehaving and requesting the same ticket
+      /// twice.
       std::cerr << "Ticket already allocated" << std::endl;
       return std::nullopt;
     }
@@ -206,17 +209,17 @@ public:
     return std::nullopt;
   }
 
-  bool release(const std::size_t ticket_id)
+  std::optional<std::string> release(const std::size_t ticket_id)
   {
     std::lock_guard<std::mutex> lock(_mtx);
     auto _ticket = _ticket_to_location.find(ticket_id);
     if (_ticket == _ticket_to_location.end())
     {
-      return false;
+      return std::nullopt;
     }
     auto location = _ticket->second;
     _current_location_reservations[location].ticket = std::nullopt;
-    return true;
+    return {location};
   }
 
 private:
@@ -225,12 +228,82 @@ private:
   std::unordered_map<std::size_t, std::string> _ticket_to_location;
 };
 
-using namespace std::chrono_literals;
 
-class SimpleQueueSystemNode : public rclcpp::Node
+template<typename T>
+class ItemQueue
 {
 public:
-  SimpleQueueSystemNode()
+  void add(T item)
+  {
+    index_to_item[curr_index] = item;
+    item_to_index[item] = curr_index;
+    indices.insert(curr_index);
+    curr_index++;
+  }
+
+  // Log(n)
+  void remove_item(T item)
+  {
+    auto index = item_to_index[item];
+    item_to_index.erase(item);
+    index_to_item.erase(index);
+    indices.erase(index);
+  }
+
+
+  std::optional<T> front()
+  {
+    auto it = indices.begin();
+    if (it == indices.end())
+    {
+      return std::nullopt;
+    }
+    return index_to_item[*it];
+  }
+
+  std::size_t curr_index = 0;
+
+  std::unordered_map<std::size_t, T> index_to_item;
+  std::unordered_map<T, std::size_t> item_to_index;
+  std::set<std::size_t> indices;
+};
+
+/// This class enqueues items based on how old a request is.
+class ServiceQueueManager
+{
+  std::unordered_map<std::string,
+    ItemQueue<std::size_t>> resource_queues;
+public:
+  std::optional<std::size_t> service_next_in_queue(const std::string& resource)
+  {
+    auto item = resource_queues[resource].front();
+    if (!item.has_value())
+    {
+      return std::nullopt;
+    }
+
+    for (auto& [_, resource_queue]: resource_queues)
+    {
+      resource_queue.remove_item(item.value());
+    }
+    return item;
+  }
+
+  void add_to_queue(std::size_t ticket, std::vector<std::string>& resources)
+  {
+    for(auto resource: resources)
+    {
+      resource_queues[resource].add(ticket);
+    }
+  }
+};
+
+using namespace std::chrono_literals;
+
+class ChopeNode : public rclcpp::Node
+{
+public:
+  ChopeNode()
   : Node("rmf_chope_node")
   {
 
@@ -242,21 +315,21 @@ public:
     request_subscription_ =
       this->create_subscription<rmf_chope_msgs::msg::FlexibleTimeRequest>(
       ReservationRequestTopicName, qos,
-      std::bind(&SimpleQueueSystemNode::on_request, this,
+      std::bind(&ChopeNode::on_request, this,
       std::placeholders::_1));
     claim_subscription_ =
       this->create_subscription<rmf_chope_msgs::msg::ClaimRequest>(
       ReservationClaimTopicName, qos,
-      std::bind(&SimpleQueueSystemNode::claim_request, this,
+      std::bind(&ChopeNode::claim_request, this,
       std::placeholders::_1));
     release_subscription_ =
       this->create_subscription<rmf_chope_msgs::msg::ReleaseRequest>(
       ReservationReleaseTopicName, qos,
-      std::bind(&SimpleQueueSystemNode::release, this, std::placeholders::_1));
+      std::bind(&ChopeNode::release, this, std::placeholders::_1));
     graph_subscription_ =
       this->create_subscription<rmf_building_map_msgs::msg::Graph>(
       "/nav_graphs", qos,
-      std::bind(&SimpleQueueSystemNode::recieved_graph, this,
+      std::bind(&ChopeNode::recieved_graph, this,
       std::placeholders::_1));
 
     ticket_pub_ = this->create_publisher<rmf_chope_msgs::msg::Ticket>(
@@ -270,7 +343,7 @@ public:
 
     timer_ =
       this->create_wall_timer(500ms,
-        std::bind(&SimpleQueueSystemNode::publish_free_spots, this));
+        std::bind(&ChopeNode::publish_free_spots, this));
   }
 
 private:
@@ -348,6 +421,7 @@ private:
         rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
 
       allocation.resource = result.value();
+      bool within_request = false;
 
       for (std::size_t i = 0; i < requests_[request->ticket.ticket_id].size();
         i++)
@@ -355,11 +429,29 @@ private:
         if (requests_[request->ticket.ticket_id][i].location  == result.value())
         {
           allocation.satisfies_alternative = i;
+          within_request = true;
         }
       }
-      RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
-        result.value().c_str(), request->ticket.ticket_id);
-      allocation_pub_->publish(allocation);
+      if (within_request)
+      {
+        RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
+          result.value().c_str(), request->ticket.ticket_id);
+        allocation_pub_->publish(allocation);
+      }
+      else
+      {
+        allocation.instruction_type =
+          rmf_chope_msgs::msg::ReservationAllocation::WAIT_AT_SPOT_AND_THEN_GO;
+        RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
+          result.value().c_str(), request->ticket.ticket_id);
+        allocation_pub_->publish(allocation);
+        std::vector<std::string> locations;
+        for(auto loc: requests_[request->ticket.ticket_id])
+        {
+          locations.push_back(loc.location);
+        }
+        queue_manager_.add_to_queue(request->ticket.ticket_id, locations);
+      }
     }
     else
     {
@@ -376,12 +468,58 @@ private:
       this->get_logger(), "Releasing ticket for %lu",
       request->ticket.ticket_id);
     auto ticket = request->ticket.ticket_id;
-    auto success = current_state_.release(ticket);
-    if (!success)
+    auto released_location = current_state_.release(ticket);
+    if (!released_location.has_value())
     {
       RCLCPP_ERROR(
-        this->get_logger(), "Could not find ticker %lu",
+        this->get_logger(), "Could not find ticket %lu",
         request->ticket.ticket_id);
+      return;
+    }
+
+    auto next_item = queue_manager_.service_next_in_queue(released_location.value());
+    if (next_item.has_value())
+    {
+      // Will go to lowest
+      auto result = current_state_.allocate_lowest_cost_free_spot(locations,
+            next_item.value());
+
+      if (!result.has_value())
+      {
+        RCLCPP_ERROR(
+          this->get_logger(), "FATAL ERROR: WE SHOULD NEVER GET HERE!!");
+        return;
+      }
+      rmf_chope_msgs::msg::ReservationAllocation allocation;
+      bool within_request = false;
+      for (std::size_t i = 0; i < requests_[next_item].size();
+          i++)
+      {
+        if (requests_[next_item][i].location  == result.value())
+        {
+          allocation.satisfies_alternative = i;
+          within_request = true;
+        }
+      }
+      if (within_request)
+      {
+        RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
+          result.value().c_str(), request->ticket.ticket_id);
+        allocation_pub_->publish(allocation);
+      }
+      else
+      {
+        RCLCPP_ERROR(
+          this->get_logger(), "FATAL ERROR: WE SHOULD NEVER GET HERE!!");
+        return;
+      }
+      allocation.ticket = ticket_store_.get_existing_ticket(
+        request->ticket.ticket_id);
+      allocation.instruction_type =
+        rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
+      RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
+        result.value().c_str(), request->ticket.ticket_id);
+      allocation_pub_->publish(allocation);
     }
   }
 
@@ -412,6 +550,7 @@ private:
   std::unordered_map<std::size_t, std::vector<LocationReq>> requests_;
   TicketStore ticket_store_;
   CurrentState current_state_;
+  ServiceQueueManager queue_manager_;
 
   rclcpp::TimerBase::SharedPtr timer_;
 };
@@ -419,7 +558,7 @@ private:
 int main(int argc, const char** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<SimpleQueueSystemNode>());
+  rclcpp::spin(std::make_shared<ChopeNode>());
   rclcpp::shutdown();
   return 0;
 }
