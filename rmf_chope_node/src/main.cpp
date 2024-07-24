@@ -481,7 +481,7 @@ private:
     if (next_item.has_value())
     {
       // Will go to lowest
-      auto result = current_state_.allocate_lowest_cost_free_spot(locations,
+      auto result = current_state_.allocate_lowest_cost_free_spot(requests_[next_item.value()],
             next_item.value());
 
       if (!result.has_value())
@@ -492,10 +492,10 @@ private:
       }
       rmf_chope_msgs::msg::ReservationAllocation allocation;
       bool within_request = false;
-      for (std::size_t i = 0; i < requests_[next_item].size();
+      for (std::size_t i = 0; i < requests_[next_item.value()].size();
           i++)
       {
-        if (requests_[next_item][i].location  == result.value())
+        if (requests_[next_item.value()][i].location  == result.value())
         {
           allocation.satisfies_alternative = i;
           within_request = true;
