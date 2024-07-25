@@ -58,16 +58,20 @@ void add_patrol(
         for (const auto& place_msg : one_of.value())
         {
           auto place = place_deser(place_msg);
-          if (!place.description.has_value())
-          {
-            return {nullptr, std::move(place.errors)};
-          }
-
-          goals.push_back(*place.description);
           errors.insert(
             errors.end(),
             std::make_move_iterator(place.errors.begin()),
             std::make_move_iterator(place.errors.end()));
+          if (!place.description.has_value())
+          {
+            continue;
+          }
+
+          goals.push_back(*place.description);
+        }
+        if (goals.empty())
+        {
+          return {nullptr, errors};
         }
 
         auto desc = GoToPlace::Description::make_for_one_of(goals);
