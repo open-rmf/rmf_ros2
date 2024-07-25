@@ -1344,6 +1344,9 @@ std::shared_ptr<Connections> make_fleet(
   connections->fleet->add_performable_action(
     "teleop",
     consider);
+  connections->fleet->add_performable_action(
+    "wait_until",
+    consider);
 
   if (node->declare_parameter<bool>("disable_delay_threshold", false))
   {
