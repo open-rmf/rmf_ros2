@@ -24,6 +24,7 @@
 #include "../services/FindPath.hpp"
 
 #include "ExecutePlan.hpp"
+#include "internal_ChopeNegotiator.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -132,6 +133,12 @@ public:
 
     void _stop_and_clear();
 
+    void _on_chope_node_allocate_final_destination(
+      const rmf_traffic::agv::Plan::Goal& goal);
+
+    void _on_chope_node_allocate_waitpoint(
+      const rmf_traffic::agv::Plan::Goal& goal);
+
     Negotiator::NegotiatePtr _respond(
       const Negotiator::TableViewerPtr& table_view,
       const Negotiator::ResponderPtr& responder);
@@ -154,16 +161,11 @@ public:
     rmf_rxcpp::subscription_guard _replan_request_subscription;
     rmf_rxcpp::subscription_guard _graph_change_subscription;
 
-    rmf_rxcpp::subscription_guard _reservation_ticket;
-    rmf_rxcpp::subscription_guard _reservation_allocation;
-
-    uint64_t _reservation_id = 0;
-    std::optional<std::shared_ptr<rmf_chope_msgs::msg::Ticket>> _ticket{std::
-      nullopt};
-    std::optional<std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>>
-    _final_allocated_destination{std::nullopt};
+    std::shared_ptr<chope::ChopeNodeNegotiator> _chope_client;
 
     bool _is_interrupted = false;
+    bool _is_final_destination = true;
+    bool _reached_waitpoint = false;
   };
 };
 

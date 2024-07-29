@@ -17,6 +17,7 @@
 
 #include "GoToPlace.hpp"
 #include "../project_itinerary.hpp"
+#include "internal_ChopeNegotiator.hpp"
 #include "PerformAction.hpp"
 
 #include <cstddef>
@@ -168,123 +169,6 @@ auto GoToPlace::Active::make(
     return active;
   }
 
-  active->_reservation_id = active->_context->last_reservation_request_id();
-  active->_reservation_ticket =
-    active->_context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(
-        active->_context->worker()))
-    .subscribe([w =
-      active->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::Ticket>
-      &
-      msg)
-      {
-
-        const auto self = w.lock();
-        if (!self)
-          return;
-
-        RCLCPP_ERROR(
-          self->_context->node()->get_logger(),
-          "Got ticket issueing claim");
-
-        if (msg->header.request_id != self->_reservation_id
-        || msg->header.robot_name != self->_context->name()
-        || msg->header.fleet_name != self->_context->group())
-        {
-          return;
-        }
-
-        self->_ticket = msg;
-
-
-        // Pick the nearest location to wait
-        auto current_location = self->_context->location();
-        if (current_location.size() == 0)
-        {
-          return;
-        }
-
-        // Order wait points by the distance from the destination.
-        std::vector<std::pair<double, std::string>> waitpoints_order;
-        for (std::size_t wp_idx = 0;
-        wp_idx < self->_context->navigation_graph().num_waypoints(); wp_idx++)
-        {
-          const auto wp = self->_context->navigation_graph().get_waypoint(
-            wp_idx);
-
-          // Wait at parking spot and check its on same floor.
-          if (!wp.is_parking_spot() ||
-          wp.get_map_name() != self->_context->map())
-          {
-            continue;
-          }
-
-          auto result =
-          self->_context->planner()->quickest_path(current_location, wp_idx);
-          if (!result.has_value())
-          {
-            continue;
-          }
-
-          std::stringstream json_stream;
-          json_stream << wp_idx << std::endl;
-          std::string json;
-          json_stream >> json;
-          waitpoints_order.emplace_back(result->cost(), json);
-        }
-
-        std::sort(waitpoints_order.begin(), waitpoints_order.end(),
-        [](const std::pair<double, std::string>& a, const std::pair<double,
-        std::string>& b)
-        {
-          return a.first < b.first;
-        });
-
-        // Immediately make claim cause we don't yet support flexible reservations.
-        rmf_chope_msgs::msg::ClaimRequest claim_request;
-        claim_request.ticket = *msg;
-        std::vector<std::string> waitpoints;
-        for (auto&[_, waitpoint]: waitpoints_order)
-        {
-          claim_request.wait_points.push_back(waitpoint);
-        }
-        self->_context->node()->claim_location_ticket()->publish(claim_request);
-        RCLCPP_ERROR(
-          self->_context->node()->get_logger(),
-          "Claim issued");
-      });
-
-  active->_reservation_allocation =
-    active->_context->node()->allocated_claims_obs().observe_on(rxcpp::identity_same_worker(
-        active->_context->worker()))
-    .subscribe([w =
-      active->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>
-      &msg)
-      {
-        const auto self = w.lock();
-        if (!self)
-          return;
-
-        if (!self->_ticket.has_value())
-        {
-          return;
-        }
-
-        if (msg->ticket.ticket_id != self->_ticket.value()->ticket_id)
-        {
-          return;
-        }
-
-        self->_final_allocated_destination = msg;
-        if (msg->instruction_type
-          == rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
-        {
-          self->_current_reservation_state = ReservationState::RecievedResponse;
-          self->_retry_timer->cancel();
-          self->_find_plan();
-        }
-      });
-
-
   active->_negotiator =
     Negotiator::make(
     active->_context,
@@ -382,7 +266,29 @@ auto GoToPlace::Active::make(
       }
     });
 
-  active->_find_plan();
+  if (!active->_context->_parking_spot_manager_enabled())
+  {
+    // If no parking spot manager is enabled then we
+    // just proceed to find plans as is.
+    active->_find_plan();
+  }
+  else {
+    using namespace std::placeholders;
+
+    // This is the parking spot manager.
+    active->_is_final_destination = false;
+
+    RCLCPP_INFO(active->_context->node()->get_logger(),
+      "Creating Chope negotiator");
+    active->_chope_client = chope::ChopeNodeNegotiator::make(
+      active->_context,
+      active->_description.one_of(),
+      active->_description.prefer_same_map(),
+      std::bind(&GoToPlace::Active::_on_chope_node_allocate_final_destination, active, _1),
+      std::bind(&GoToPlace::Active::_on_chope_node_allocate_waitpoint, active, _1)
+    );
+  };
+
   return active;
 }
 
@@ -390,6 +296,31 @@ auto GoToPlace::Active::make(
 auto GoToPlace::Active::state() const -> ConstStatePtr
 {
   return _state;
+}
+
+//==============================================================================
+void GoToPlace::Active::_on_chope_node_allocate_final_destination(
+ const rmf_traffic::agv::Plan::Goal& goal)
+{
+  RCLCPP_INFO(_context->node()->get_logger(),
+    "Received final destination from chope node");
+  _is_final_destination = true;
+  if (!_reached_waitpoint)
+  {
+    _stop_and_clear();
+  }
+  _chosen_goal = goal;
+  _find_plan();
+}
+
+//==============================================================================
+void GoToPlace::Active::_on_chope_node_allocate_waitpoint(
+ const rmf_traffic::agv::Plan::Goal& goal)
+{
+  RCLCPP_INFO(_context->node()->get_logger(),
+    "Received waitpoint from chope node");
+  _chosen_goal = goal;
+  _find_plan();
 }
 
 //==============================================================================
@@ -549,119 +480,7 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
   {
     RCLCPP_INFO(_context->node()->get_logger(),
       "Requesting Chope Node For Time To Progress");
-    // No need to use reservation system if we are already there.
-    if (_description.one_of().size() == 1
-      && _description.one_of()[0].waypoint() == current_location[0].waypoint()
-      && _context->_has_ticket())
-    {
-      return _description.one_of()[0];
-    }
 
-    if (_current_reservation_state == ReservationState::Pending)
-    {
-      // Select node
-      rmf_chope_msgs::msg::FlexibleTimeRequest ftr;
-      ftr.header.robot_name = _context->name();
-      ftr.header.fleet_name = _context->group();
-      ftr.header.request_id = _reservation_id;
-
-      auto lowest_cost = std::numeric_limits<double>::infinity();
-      std::optional<std::size_t> selected_idx;
-      for (std::size_t i = 0; i < _description.one_of().size(); ++i)
-      {
-        const auto wp_idx = _description.one_of()[i].waypoint();
-        if (only_same_map)
-        {
-          const auto& wp = graph.get_waypoint(wp_idx);
-
-          // Check if same map. If not don't consider location. This is to ensure
-          // the robot does not try to board a lift.
-          if (wp.get_map_name() != _context->map())
-          {
-            RCLCPP_INFO(
-              _context->node()->get_logger(),
-              "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
-              wp_idx,
-              wp.get_map_name().c_str(),
-              _context->map().c_str());
-            continue;
-          }
-        }
-
-        // Find distance to said point
-        auto result =
-          _context->planner()->quickest_path(current_location, wp_idx);
-        if (result.has_value())
-        {
-          RCLCPP_INFO(
-            _context->node()->get_logger(),
-            "Got distance from [%lu] as %f",
-            wp_idx,
-            result->cost());
-
-          if (result->cost() < lowest_cost)
-          {
-            selected_idx = i;
-            lowest_cost = result->cost();
-          }
-
-          std::stringstream json_stream;
-          json_stream << wp_idx << std::endl;
-          std::string json;
-          json_stream >> json;
-
-          rmf_chope_msgs::msg::FlexibleTimeReservationAlt alternative;
-          alternative.resource_name = json;
-          alternative.cost = result->cost();
-          alternative.has_end = false;
-
-          rmf_chope_msgs::msg::StartTimeRange start;
-          start.earliest_start_time = _context->node()->get_clock()->now();
-          start.latest_start_time = start.earliest_start_time;
-          start.has_earliest_start_time = true;
-          start.has_latest_start_time = true;
-          alternative.start_time = start;
-
-          ftr.alternatives.push_back(alternative);
-        }
-        else
-        {
-          RCLCPP_ERROR(
-            _context->node()->get_logger(),
-            "No path found for robot [%s] to waypoint [%lu]",
-            wp_idx,
-            _context->requester_id().c_str());
-        }
-      }
-      _context->node()->location_requester()->publish(ftr);
-      _current_reservation_state = ReservationState::Requested;
-    }
-    else if (_current_reservation_state == ReservationState::RecievedResponse)
-    {
-      // Go to recommended destination
-      if (_final_allocated_destination.value()->instruction_type ==
-        rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
-      {
-        RCLCPP_INFO(
-                _context->node()->get_logger(),
-                "Recieved proceed to final destination from chope node %d: ",
-                _final_allocated_destination.value());
-        _context->_set_allocated_destination(
-          *_final_allocated_destination.value().get());
-        return _description.one_of()[_final_allocated_destination.value()->
-            satisfies_alternative];
-      }
-      // For queueing system in future
-      //return rmf_traffic::agv::Plan::Goal(std::stoul(_final_allocated_destination.value()->resource), std::nullopt);
-
-      // For now just keep retrying until your turn.
-      // Probably not needed since, the node does not publish an allocation till its available?
-      RCLCPP_ERROR(
-        _context->node()->get_logger(),
-        "Chope node said its unable to immediately service call, awaiting more."
-      );
-      return std::nullopt;
-    }
   }
   else
   {
@@ -916,10 +735,26 @@ void GoToPlace::Active::_execute_plan(
     .name_or_index().c_str(),
     _context->requester_id().c_str());
 
-  _execution = ExecutePlan::make(
-    _context, plan_id, std::move(plan), std::move(goal),
-    std::move(full_itinerary),
-    _assign_id, _state, _update, _finished, _tail_period);
+
+  // If we use the parking spot manager, the goal may be the final destination
+  // or some waiting point.
+  if (_is_final_destination)
+  {
+    _execution = ExecutePlan::make(
+      _context, plan_id, std::move(plan), std::move(goal),
+      std::move(full_itinerary),
+      _assign_id, _state, _update, _finished, _tail_period);
+  }
+  else
+  {
+    _execution = ExecutePlan::make(
+      _context, plan_id, std::move(plan), std::move(goal),
+      std::move(full_itinerary),
+      _assign_id, _state, _update, [&](){
+        _reached_waitpoint = true;
+      }, _tail_period);
+  }
+
 
   if (!_execution.has_value())
   {

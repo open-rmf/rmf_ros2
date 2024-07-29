@@ -74,8 +74,9 @@ struct std::hash<RobotIdentifier>
 };
 
 
-/// Ticket generation class for book keeping purposes. Will eventually overflow and leak memory.
+/// Ticket generation class for book keeping purposes. Will eventually overflow.
 /// Ticket id 0 does not exist and is useful for making emergency claims.
+/// Ticket ids are mapped across multiple fleets.
 class TicketStore
 {
 
@@ -166,7 +167,11 @@ public:
     }
   }
 
-  std::optional<std::string> allocate_lowest_cost_free_spot(
+  /// Tries to greedily allocate the lowest cost free spot given a list of potential
+  /// parking spots.
+  /// \param[in] incoming_requests - Parking spot and cost of said parking spot
+  /// \param[in] ticket_id - Ticket which is being
+  std::optional<std::size_t> allocate_lowest_cost_free_spot(
     const std::vector<LocationReq>& incoming_requests,
     const std::size_t ticket_id)
   {
@@ -179,6 +184,12 @@ public:
       return std::nullopt;
     }
 
+    std::unordered_map<std::string, std::size_t> positions;
+    for (std::size_t i = 0; i < incoming_requests.size(); ++i)
+    {
+      positions[incoming_requests[i].location] = i;
+    }
+
     auto requests = incoming_requests;
     std::sort(requests.begin(), requests.end());
     std::lock_guard<std::mutex> lock(_mtx);
@@ -187,22 +198,24 @@ public:
       auto parking = _current_location_reservations.find(requests[i].location);
       if (parking == _current_location_reservations.end())
       {
+        // New parking spot not in list. Should be fine to occupy.
         _current_location_reservations[requests[i].location] =
           LocationState {ticket_id};
         _ticket_to_location.emplace(ticket_id, requests[i].location);
-        return requests[i].location;
+        return positions[requests[i].location];
       }
       else if (!parking->second.ticket.has_value())
       {
+        // Existing parking spot.
         _current_location_reservations[requests[i].location].ticket = ticket_id;
         _ticket_to_location.emplace(ticket_id, requests[i].location);
-        return parking->first;
+        return positions[parking->first];
       }
     }
 
-    std::cerr << "Could not find route to any of: ";
+    std::cerr << "Could not free space from any of: ";
     for (auto c: requests) {
-      std::cerr << "" << c.location <<", ";
+      std::cerr << c.location << ", ";
     }
     std::cerr << "\n";
 
@@ -229,10 +242,13 @@ private:
 };
 
 
+///A queue that allowss removal of an item based on its value.
 template<typename T>
 class ItemQueue
 {
 public:
+  /// Adds an item to the queue.
+  /// Time complexity: O(1)
   void add(T item)
   {
     index_to_item[curr_index] = item;
@@ -241,16 +257,22 @@ public:
     curr_index++;
   }
 
+  // Removes the item from the queue
   // Log(n)
   void remove_item(T item)
   {
-    auto index = item_to_index[item];
+    auto index = item_to_index.find(item);
+    if (index == item_to_index.end())
+    {
+      return;
+    }
     item_to_index.erase(item);
-    index_to_item.erase(index);
-    indices.erase(index);
+    index_to_item.erase(index->second);
+    indices.erase(index->second);
   }
 
-
+  // Gives the most recent item in the queue.
+  // Returns nullopt if the queue is empty.
   std::optional<T> front()
   {
     auto it = indices.begin();
@@ -269,6 +291,10 @@ public:
 };
 
 /// This class enqueues items based on how old a request is.
+/// The basic idea is that we maintain a queue for every resource. As requests
+/// come in we simultaneously add them to every queue which cam beserviced.
+/// Once a resource becomes free we call `service_next_in_queue` for said resource.
+/// When we service the next item in the queue we remove it from all other queues.
 class ServiceQueueManager
 {
   std::unordered_map<std::string,
@@ -396,20 +422,12 @@ private:
     // This logic is for the simplified queue-less version.
     std::vector<LocationReq> locations;
 
-    for (auto claim: requests_[request->ticket.ticket_id])
+    for (auto location_pref: requests_[request->ticket.ticket_id])
     {
-      locations.push_back(claim);
+      locations.push_back(location_pref);
     }
 
-    auto cost = (locations.size() == 0) ? 0.0 : locations.back().cost + 1.0;
-    for (auto claim: request->wait_points)
-    {
-      locations.push_back(LocationReq {
-          claim,
-          cost
-        });
-      cost += 1.0;
-    }
+    // Allocate the lowest cost free spot from list of intended final locations if possible
     auto result = current_state_.allocate_lowest_cost_free_spot(locations,
         request->ticket.ticket_id);
     if (result.has_value())
@@ -419,45 +437,45 @@ private:
         request->ticket.ticket_id);
       allocation.instruction_type =
         rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
+      allocation.satisfies_alternative = result.value();
+      allocation.resource = requests_[request->ticket.ticket_id][result.value()].location;
 
-      allocation.resource = result.value();
-      bool within_request = false;
+      RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
+        allocation.resource.c_str(), request->ticket.ticket_id);
+      allocation_pub_->publish(allocation);
+      return;
 
-      for (std::size_t i = 0; i < requests_[request->ticket.ticket_id].size();
-        i++)
-      {
-        if (requests_[request->ticket.ticket_id][i].location  == result.value())
-        {
-          allocation.satisfies_alternative = i;
-          within_request = true;
-        }
-      }
-      if (within_request)
-      {
-        RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
-          result.value().c_str(), request->ticket.ticket_id);
-        allocation_pub_->publish(allocation);
-      }
-      else
-      {
-        allocation.instruction_type =
-          rmf_chope_msgs::msg::ReservationAllocation::WAIT_AT_SPOT_AND_THEN_GO;
-        RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
-          result.value().c_str(), request->ticket.ticket_id);
-        allocation_pub_->publish(allocation);
-        std::vector<std::string> locations;
-        for(auto loc: requests_[request->ticket.ticket_id])
-        {
-          locations.push_back(loc.location);
-        }
-        queue_manager_.add_to_queue(request->ticket.ticket_id, locations);
-      }
+    }
+
+    std::vector<LocationReq> wait_points;
+    auto cost = 0.0;
+    for (auto waitpoint_name: request->wait_points)
+    {
+
+      LocationReq request{
+        waitpoint_name,
+        cost
+      };
+      wait_points.push_back(request);
+      cost += 1.0;
+    }
+
+    waitpoints_[request->ticket.ticket_id] = wait_points;
+    auto waitpoint_result = current_state_.allocate_lowest_cost_free_spot(locations,
+        request->ticket.ticket_id);
+    if (waitpoint_result.has_value())
+    {
+      rmf_chope_msgs::msg::ReservationAllocation allocation;
+      allocation.ticket = ticket_store_.get_existing_ticket(
+        request->ticket.ticket_id);
+      allocation.instruction_type =
+        rmf_chope_msgs::msg::ReservationAllocation::WAIT_PERMANENTLY;
+      allocation.satisfies_alternative = result.value();
+      allocation.resource = wait_points[result.value()].location;
     }
     else
     {
-      RCLCPP_INFO(
-        this->get_logger(), "Could not allocate resource for ticket %lu.",
-        request->ticket.ticket_id);
+      RCLCPP_ERROR(this->get_logger(), "Could not allocate a waiting point for robots");
     }
   }
 
@@ -478,49 +496,30 @@ private:
     }
 
     auto next_item = queue_manager_.service_next_in_queue(released_location.value());
-    if (next_item.has_value())
+    if (!next_item.has_value())
     {
-      // Will go to lowest
-      auto result = current_state_.allocate_lowest_cost_free_spot(requests_[next_item.value()],
-            next_item.value());
-
-      if (!result.has_value())
-      {
-        RCLCPP_ERROR(
-          this->get_logger(), "FATAL ERROR: WE SHOULD NEVER GET HERE!!");
-        return;
-      }
-      rmf_chope_msgs::msg::ReservationAllocation allocation;
-      bool within_request = false;
-      for (std::size_t i = 0; i < requests_[next_item.value()].size();
-          i++)
-      {
-        if (requests_[next_item.value()][i].location  == result.value())
-        {
-          allocation.satisfies_alternative = i;
-          within_request = true;
-        }
-      }
-      if (within_request)
-      {
-        RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
-          result.value().c_str(), request->ticket.ticket_id);
-        allocation_pub_->publish(allocation);
-      }
-      else
-      {
-        RCLCPP_ERROR(
-          this->get_logger(), "FATAL ERROR: WE SHOULD NEVER GET HERE!!");
-        return;
-      }
-      allocation.ticket = ticket_store_.get_existing_ticket(
-        request->ticket.ticket_id);
-      allocation.instruction_type =
-        rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
-      RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
-        result.value().c_str(), request->ticket.ticket_id);
-      allocation_pub_->publish(allocation);
+      return;
     }
+    // Will go to lowest
+    auto result = current_state_.allocate_lowest_cost_free_spot(requests_[next_item.value()],
+          next_item.value());
+
+    if (!result.has_value())
+    {
+      RCLCPP_ERROR(
+        this->get_logger(), "Tried to service %lu. Apparently there was some inconsitency between the chope node's state and the", ticket);
+      return;
+    }
+    rmf_chope_msgs::msg::ReservationAllocation allocation;
+    allocation.satisfies_alternative = result.value();
+    allocation.resource = requests_[next_item.value()][result.value()].location;
+    allocation.ticket = ticket_store_.get_existing_ticket(
+      request->ticket.ticket_id);
+    allocation.instruction_type =
+      rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
+    RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
+      allocation.resource.c_str(), request->ticket.ticket_id);
+    allocation_pub_->publish(allocation);
   }
 
 
@@ -548,6 +547,7 @@ private:
     free_spot_pub_;
 
   std::unordered_map<std::size_t, std::vector<LocationReq>> requests_;
+  std::unordered_map<std::size_t, std::vector<LocationReq>> waitpoints_;
   TicketStore ticket_store_;
   CurrentState current_state_;
   ServiceQueueManager queue_manager_;
