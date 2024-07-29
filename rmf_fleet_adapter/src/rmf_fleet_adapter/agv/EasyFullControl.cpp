@@ -2364,6 +2364,15 @@ EasyFullControl::FleetConfiguration::from_config_files(
                         << std::endl;
                     }
                   }
+                  else
+                  {
+                    std::cout
+                      << "Robot " << robot_name
+                      << " is configured to perform ParkRobot as finishing "
+                      "request, but no parking spot was provided. The robot "
+                      "will default to the fleet-wide finishing request."
+                      << std::endl;
+                  }
                 }
                 else if (request_type_string == "charge")
                 {
