@@ -25,6 +25,8 @@
 
 #include <rmf_traffic/schedule/Participant.hpp>
 
+#include <rmf_task/RequestFactory.hpp>
+
 #include <Eigen/Geometry>
 #include <nlohmann/json.hpp>
 
@@ -101,6 +103,9 @@ public:
   /// If not specified, the nearest waypoint in the graph with the is_charger()
   /// property will be assumed as the charger for this robot.
   RobotUpdateHandle& set_charger_waypoint(const std::size_t charger_wp);
+
+  /// Set a finishing request for this robot.
+  RobotUpdateHandle& set_finishing_request(rmf_task::ConstRequestFactoryPtr finishing_request);
 
   /// Update the current battery level of the robot by specifying its state of
   /// charge as a fraction of its total charge capacity, i.e. a value from 0.0

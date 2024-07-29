@@ -122,6 +122,7 @@ public:
   std::optional<double> max_merge_waypoint_distance;
   std::optional<double> max_merge_lane_distance;
   std::optional<double> min_lane_length;
+  std::optional<rmf_task::ConstRequestFactoryPtr> finishing_request;
 };
 
 //==============================================================================
@@ -130,13 +131,15 @@ EasyFullControl::RobotConfiguration::RobotConfiguration(
   std::optional<bool> responsive_wait,
   std::optional<double> max_merge_waypoint_distance,
   std::optional<double> max_merge_lane_distance,
-  std::optional<double> min_lane_length)
+  std::optional<double> min_lane_length,
+  std::optional<rmf_task::ConstRequestFactoryPtr> finishing_request)
 : _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
       std::move(compatible_chargers),
       responsive_wait,
       max_merge_waypoint_distance,
       max_merge_lane_distance,
-      min_lane_length
+      min_lane_length,
+      std::move(finishing_request)
     }))
 {
   // Do nothing
@@ -209,6 +212,20 @@ void EasyFullControl::RobotConfiguration::set_min_lane_length(
   std::optional<double> distance)
 {
   _pimpl->min_lane_length = distance;
+}
+
+//==============================================================================
+std::optional<rmf_task::ConstRequestFactoryPtr> EasyFullControl::
+RobotConfiguration::finishing_request() const
+{
+  return _pimpl->finishing_request;
+}
+
+//==============================================================================
+void EasyFullControl::RobotConfiguration::set_finishing_request(
+  std::optional<rmf_task::ConstRequestFactoryPtr> request)
+{
+  _pimpl->finishing_request = std::move(request);
 }
 
 //==============================================================================
@@ -2061,8 +2078,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
 
   // Finishing tasks
   std::string finishing_request_string;
-  const auto& finishing_request_yaml = rmf_fleet["finishing_request"];
-  if (!finishing_request_yaml)
+  const auto& default_finishing_request_yaml = rmf_fleet["finishing_request"];
+  if (!default_finishing_request_yaml)
   {
     std::cout
       << "Finishing request is not provided. The valid finishing requests "
@@ -2071,23 +2088,23 @@ EasyFullControl::FleetConfiguration::from_config_files(
   }
   else
   {
-    finishing_request_string = finishing_request_yaml.as<std::string>();
+    finishing_request_string = default_finishing_request_yaml.as<std::string>();
   }
   std::cout << "Finishing request: " << finishing_request_string << std::endl;
-  rmf_task::ConstRequestFactoryPtr finishing_request;
+  rmf_task::ConstRequestFactoryPtr default_finishing_request;
   if (finishing_request_string == "charge")
   {
     auto charge_factory =
       std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
     charge_factory->set_indefinite(true);
-    finishing_request = charge_factory;
+    default_finishing_request = charge_factory;
     std::cout
       << "Fleet is configured to perform ChargeBattery as finishing request"
       << std::endl;
   }
   else if (finishing_request_string == "park")
   {
-    finishing_request =
+    default_finishing_request =
       std::make_shared<rmf_fleet_adapter::tasks::ParkRobotIndefinitely>(
       "idle", nullptr);
     std::cout
@@ -2297,12 +2314,101 @@ EasyFullControl::FleetConfiguration::from_config_files(
             min_lane_length = min_lane_length_yaml.as<double>();
           }
 
+          std::optional<rmf_task::ConstRequestFactoryPtr> finishing_request =
+            std::nullopt;
+          const YAML::Node& finishing_request_yaml =
+            robot_config_yaml["finishing_request"];
+          if (finishing_request_yaml)
+          {
+            if (finishing_request_yaml.IsMap())
+            {
+              const YAML::Node& request_type_yaml =
+                finishing_request_yaml["type"];
+              std::string request_type_string;
+              if (request_type_yaml)
+              {
+                request_type_string = request_type_yaml.as<std::string>();
+                if (request_type_string == "park")
+                {
+                  // We will need to know the configured parking spot for this
+                  // robot.
+                  const YAML::Node& parking_spot_yaml =
+                    finishing_request_yaml["parking_spot"];
+                  std::string parking_spot_string;
+                  if (parking_spot_yaml)
+                  {
+                    parking_spot_string = parking_spot_yaml.as<std::string>();
+                    const auto* parking_wp =
+                      graph.find_waypoint(parking_spot_string);
+                    if (!parking_wp)
+                    {
+                      std::cout
+                        << "Provided parking spot " << parking_spot_string
+                        << " is not found in the fleet navigation graph. "
+                        "Unable to configure ParkRobot as a finishing request, "
+                        "the robot will default to the fleet-wide finishing "
+                        "request."
+                        << std::endl;
+                    }
+                    else
+                    {
+                      std::size_t parking_wp_index = parking_wp->index();
+                      // Create ParkRobotIndefinitely request here
+                      finishing_request =
+                        std::make_shared<rmf_fleet_adapter::tasks::ParkRobotIndefinitely>(
+                        "idle", nullptr, parking_wp_index);
+                      std::cout
+                        << "Robot " << robot_name
+                        << " is configured to perform ParkRobot as finishing "
+                        << "request"
+                        << std::endl;
+                    }
+                  }
+                }
+                else if (request_type_string == "charge")
+                {
+                  // If the robot is configured to charge as an idle behavior,
+                  // we will use the dedicated charging waypoint as its charger.
+                  // There is no need for a charger to be further specified.
+                  auto charge_battery =
+                    std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+                  charge_battery->set_indefinite(true);
+                  finishing_request = charge_battery;
+                  std::cout
+                    << "Robot " << robot_name
+                    << " is configured to perform ChargeBattery as finishing "
+                    "request"
+                    << std::endl;
+                }
+                else if (request_type_string == "nothing")
+                {
+                  std::cout
+                    << "Robot " << robot_name
+                    << " is configured to not perform any finishing request"
+                    << std::endl;
+                  finishing_request = nullptr;
+                }
+                else
+                {
+                  std::cout
+                    << "Provided finishing request " << request_type_string
+                    << " for robot " << robot_name
+                    << " is unsupported. The valid finishing requests are "
+                    "[charge, park, nothing]. The robot will default to the "
+                    "fleet-wide finishing request."
+                    << std::endl;
+                }
+              }
+            }
+          }
+
           auto config = RobotConfiguration(
             std::move(chargers),
             responsive_wait,
             max_merge_waypoint_distance,
             max_merge_lane_distance,
-            min_lane_length);
+            min_lane_length,
+            finishing_request);
           known_robot_configurations.insert_or_assign(robot_name, config);
         }
         else
@@ -2353,7 +2459,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
     account_for_battery_drain,
     task_consideration,
     action_consideration,
-    finishing_request,
+    default_finishing_request,
     skip_rotation_commands,
     server_uri,
     rmf_traffic::time::from_seconds(max_delay),
@@ -2944,6 +3050,8 @@ auto EasyFullControl::add_robot(
     enable_responsive_wait = *configuration.responsive_wait();
   }
 
+  auto finishing_request = configuration.finishing_request();
+
   _pimpl->fleet_handle->add_robot(
     insertion.first->second,
     robot_name,
@@ -2959,7 +3067,8 @@ auto EasyFullControl::add_robot(
       action_executor = callbacks.action_executor(),
       localization = std::move(localization),
       nav_params = robot_nav_params,
-      enable_responsive_wait
+      enable_responsive_wait,
+      finishing_request
     ](const RobotUpdateHandlePtr& updater)
     {
       auto context = RobotUpdateHandle::Implementation::get(*updater)
@@ -2978,7 +3087,8 @@ auto EasyFullControl::add_robot(
           localization,
           context,
           nav_params,
-          enable_responsive_wait
+          enable_responsive_wait,
+          finishing_request
         ](const auto&)
         {
           cmd_handle->w_context = context;
@@ -2992,6 +3102,10 @@ auto EasyFullControl::add_robot(
             handle->set_charger_waypoint(*charger_index);
           }
           handle->enable_responsive_wait(enable_responsive_wait);
+          if (finishing_request.has_value())
+          {
+            handle->set_finishing_request(finishing_request.value());
+          }
 
           RCLCPP_INFO(
             node->get_logger(),
