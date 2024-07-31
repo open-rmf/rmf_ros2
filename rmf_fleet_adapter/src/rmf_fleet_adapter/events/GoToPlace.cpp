@@ -768,12 +768,9 @@ void GoToPlace::Active::_execute_plan(
       _context, plan_id, std::move(plan), std::move(goal),
       std::move(full_itinerary),
       _assign_id, _state, _update, [&](){
-          RCLCPP_INFO(
+        RCLCPP_INFO(
               _context->node()->get_logger(),
-              "Chope: Reached waitpoint [%s] for robot [%s]",
-              graph.get_waypoint(plan.get_waypoints().back().graph_index().value())
-              .name_or_index().c_str(),
-              _context->requester_id().c_str());
+              "Chope: Reached waitpoint");
 
         _reached_waitpoint = true;
       }, _tail_period);
