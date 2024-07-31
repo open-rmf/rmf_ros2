@@ -177,11 +177,8 @@ public:
   {
     if (_ticket_to_location.count(ticket_id) != 0)
     {
-      /// This should never be reached. If this is reached it means that some
-      /// client fleetadapter node is misbehaving and requesting the same ticket
-      /// twice.
-      std::cerr << "Ticket already allocated" << std::endl;
-      return std::nullopt;
+      /// Release previous instance and reallocate ticket
+      release(ticket_id);
     }
 
     std::unordered_map<std::string, std::size_t> positions;
@@ -232,6 +229,7 @@ public:
     }
     auto location = _ticket->second;
     _current_location_reservations[location].ticket = std::nullopt;
+_ticket_to_location.erase(_ticket);
     return {location};
   }
 
@@ -251,6 +249,7 @@ public:
   /// Time complexity: O(1)
   void add(T item)
   {
+    std::cout << "Adding " << item << "to queue" << std::endl;
     index_to_item[curr_index] = item;
     item_to_index[item] = curr_index;
     indices.insert(curr_index);
@@ -305,6 +304,7 @@ public:
     auto item = resource_queues[resource].front();
     if (!item.has_value())
     {
+      std::cout << "Resource " << resource << "is empty" << std::endl;
       return std::nullopt;
     }
 
@@ -319,6 +319,8 @@ public:
   {
     for(auto resource: resources)
     {
+std::cout << "Queue for :" << resource <<std::endl;
+
       resource_queues[resource].add(ticket);
     }
   }
@@ -421,10 +423,12 @@ private:
 
     // This logic is for the simplified queue-less version.
     std::vector<LocationReq> locations;
+    std::vector<std::string> location_names;
 
     for (auto location_pref: requests_[request->ticket.ticket_id])
     {
       locations.push_back(location_pref);
+      location_names.push_back(location_pref.location);
     }
 
     // Allocate the lowest cost free spot from list of intended final locations if possible
@@ -444,9 +448,14 @@ private:
         allocation.resource.c_str(), request->ticket.ticket_id);
       allocation_pub_->publish(allocation);
       return;
-
     }
 
+    // If we can't proceed immediately add the ticket to a queue.
+    RCLCPP_INFO(this->get_logger(), "Could not immediately service %lu, enqueing.",
+      request->ticket.ticket_id);
+    queue_manager_.add_to_queue(request->ticket.ticket_id, location_names);
+
+    // Allocate a waitpoint by preference as given by Fleet Adapter
     std::vector<LocationReq> wait_points;
     auto cost = 0.0;
     for (auto waitpoint_name: request->wait_points)
@@ -461,7 +470,7 @@ private:
     }
 
     waitpoints_[request->ticket.ticket_id] = wait_points;
-    auto waitpoint_result = current_state_.allocate_lowest_cost_free_spot(locations,
+    auto waitpoint_result = current_state_.allocate_lowest_cost_free_spot(wait_points,
         request->ticket.ticket_id);
     if (waitpoint_result.has_value())
     {
@@ -470,12 +479,15 @@ private:
         request->ticket.ticket_id);
       allocation.instruction_type =
         rmf_chope_msgs::msg::ReservationAllocation::WAIT_PERMANENTLY;
-      allocation.satisfies_alternative = result.value();
-      allocation.resource = wait_points[result.value()].location;
+      allocation.satisfies_alternative = waitpoint_result.value();
+      allocation.resource = wait_points[waitpoint_result.value()].location;
+      RCLCPP_INFO(this->get_logger(), "Allocating %s as waitpoint to %lu",
+                allocation.resource.c_str(), request->ticket.ticket_id);
+      allocation_pub_->publish(allocation);
     }
     else
     {
-      RCLCPP_ERROR(this->get_logger(), "Could not allocate a waiting point for robots");
+      RCLCPP_ERROR(this->get_logger(), "Could not allocate a waiting point for robots from %lu waitpoints", wait_points.size());
     }
   }
 
@@ -498,11 +510,18 @@ private:
     auto next_item = queue_manager_.service_next_in_queue(released_location.value());
     if (!next_item.has_value())
     {
+      RCLCPP_INFO(
+        this->get_logger(), "Queue is now empty %s",
+        released_location->c_str());
       return;
     }
     // Will go to lowest
     auto result = current_state_.allocate_lowest_cost_free_spot(requests_[next_item.value()],
           next_item.value());
+    RCLCPP_INFO(
+        this->get_logger(), "Found next item %lu on queue %s",
+        next_item.value(),
+        released_location.value().c_str());
 
     if (!result.has_value())
     {
@@ -513,12 +532,11 @@ private:
     rmf_chope_msgs::msg::ReservationAllocation allocation;
     allocation.satisfies_alternative = result.value();
     allocation.resource = requests_[next_item.value()][result.value()].location;
-    allocation.ticket = ticket_store_.get_existing_ticket(
-      request->ticket.ticket_id);
+    allocation.ticket = ticket_store_.get_existing_ticket(next_item.value());
     allocation.instruction_type =
       rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
     RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
-      allocation.resource.c_str(), request->ticket.ticket_id);
+      allocation.resource.c_str(), next_item.value());
     allocation_pub_->publish(allocation);
   }
 

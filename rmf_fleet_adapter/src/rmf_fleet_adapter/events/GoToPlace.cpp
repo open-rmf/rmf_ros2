@@ -199,7 +199,15 @@ auto GoToPlace::Active::make(
         if (const auto c = self->_context->command())
           c->stop();
 
-        self->_find_plan();
+
+        RCLCPP_INFO(
+          self->_context->node()->get_logger(),
+          "Goal selected %lu, %d",
+          self->_chosen_goal.value().waypoint(), 
+          self->_task_finished);
+
+        if (!self->_task_finished)
+          self->_find_plan();
       }
     });
 
@@ -277,6 +285,7 @@ auto GoToPlace::Active::make(
 
     // This is the parking spot manager.
     active->_is_final_destination = false;
+    active->_chosen_goal = std::nullopt;
 
     RCLCPP_INFO(active->_context->node()->get_logger(),
       "Creating Chope negotiator");
@@ -549,7 +558,7 @@ void GoToPlace::Active::_find_plan()
   if (_is_interrupted)
     return;
 
-  if (!_chosen_goal.has_value() && _description.prefer_same_map())
+  if (!_chosen_goal.has_value() && _description.prefer_same_map() )
   {
     _chosen_goal = _choose_goal(true);
   }
@@ -688,7 +697,9 @@ void GoToPlace::Active::_schedule_retry()
       const auto self = w.lock();
       if (!self)
         return;
-
+      RCLCPP_INFO(
+        self->_context->node()->get_logger(),
+        "Retry timer rerunning _find_plan");
       self->_retry_timer = nullptr;
       if (self->_execution.has_value())
         return;
@@ -728,22 +739,28 @@ void GoToPlace::Active::_execute_plan(
 
   const auto& graph = _context->navigation_graph();
 
-  RCLCPP_INFO(
-    _context->node()->get_logger(),
-    "Executing go_to_place [%s] for robot [%s]",
-    graph.get_waypoint(plan.get_waypoints().back().graph_index().value())
-    .name_or_index().c_str(),
-    _context->requester_id().c_str());
-
 
   // If we use the parking spot manager, the goal may be the final destination
   // or some waiting point.
   if (_is_final_destination)
   {
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Executing final go_to_place [%s] for robot [%s]",
+      graph.get_waypoint(plan.get_waypoints().back().graph_index().value())
+      .name_or_index().c_str(),
+      _context->requester_id().c_str());
     _execution = ExecutePlan::make(
       _context, plan_id, std::move(plan), std::move(goal),
       std::move(full_itinerary),
-      _assign_id, _state, _update, _finished, _tail_period);
+      _assign_id, _state, _update, [&](){
+        RCLCPP_INFO(
+            _context->node()->get_logger(),
+            "Chope: Finished execution");
+        _task_finished = true;
+        _stop_and_clear();
+        _finished();
+      }, _tail_period);
   }
   else
   {
@@ -751,6 +768,13 @@ void GoToPlace::Active::_execute_plan(
       _context, plan_id, std::move(plan), std::move(goal),
       std::move(full_itinerary),
       _assign_id, _state, _update, [&](){
+          RCLCPP_INFO(
+              _context->node()->get_logger(),
+              "Chope: Reached waitpoint [%s] for robot [%s]",
+              graph.get_waypoint(plan.get_waypoints().back().graph_index().value())
+              .name_or_index().c_str(),
+              _context->requester_id().c_str());
+
         _reached_waitpoint = true;
       }, _tail_period);
   }
@@ -789,7 +813,7 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
     return nullptr;
   }
 
-  auto approval_cb = [w = weak_from_this(), goal = *_chosen_goal](
+  auto approval_cb = [w = weak_from_this()](
     const rmf_traffic::PlanId plan_id,
     const rmf_traffic::agv::Plan& plan,
     rmf_traffic::schedule::Itinerary itinerary)
@@ -797,8 +821,11 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
     {
       if (auto self = w.lock())
       {
-        self->_execute_plan(plan_id, plan, std::move(itinerary), goal);
-        return self->_context->itinerary().version();
+        if (self->_chosen_goal.has_value())
+        {
+          self->_execute_plan(plan_id, plan, std::move(itinerary), self->_chosen_goal.value());
+          return self->_context->itinerary().version();
+        }
       }
 
       return std::nullopt;

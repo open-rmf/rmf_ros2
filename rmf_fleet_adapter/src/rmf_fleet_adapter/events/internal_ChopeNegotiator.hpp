@@ -41,13 +41,8 @@ public:
   {
 
     auto negotiator = std::make_shared<ChopeNodeNegotiator>();
-
-    RCLCPP_INFO(context->node()->get_logger(),
-      "Creating Chope negotiator3242");
     negotiator->_context = context;
     negotiator->_goals = std::move(goals);
-    RCLCPP_INFO(context->node()->get_logger(),
-      "Creating Chope negotiatoer");
     negotiator->_selected_final_destination_cb = std::move(selected_final_destination_cb);
     negotiator->_selected_waitpoint_cb = std::move(selected_waitpoint_cb);
     negotiator->_reservation_id = negotiator->_context->last_reservation_request_id();
@@ -76,7 +71,6 @@ public:
 
         self->_ticket = msg;
 
-
         // Pick the nearest location to wait
         auto current_location = self->_context->location();
         if (current_location.size() == 0)
@@ -85,7 +79,8 @@ public:
         }
 
         // Order wait points by the distance from the destination.
-        std::vector<std::pair<double, std::string>> waitpoints_order;
+        std::vector<std::tuple<double, std::string, rmf_traffic::agv::Plan::Goal>>
+          waitpoints_order;
         for (std::size_t wp_idx = 0;
         wp_idx < self->_context->navigation_graph().num_waypoints(); wp_idx++)
         {
@@ -110,23 +105,26 @@ public:
           json_stream << wp_idx << std::endl;
           std::string json;
           json_stream >> json;
-          waitpoints_order.emplace_back(result->cost(), json);
+
+          rmf_traffic::agv::Plan::Goal goal(wp_idx);
+          waitpoints_order.emplace_back(result->cost(), json, goal);
         }
 
         std::sort(waitpoints_order.begin(), waitpoints_order.end(),
-        [](const std::pair<double, std::string>& a, const std::pair<double,
-        std::string>& b)
+        [](const std::tuple<double, std::string, rmf_traffic::agv::Plan::Goal>& a,
+          const std::tuple<double, std::string, rmf_traffic::agv::Plan::Goal>& b)
         {
-          return a.first < b.first;
+          return std::get<0>(a) < std::get<0>(b);
         });
 
         // Immediately make claim cause we don't yet support flexible reservations.
         rmf_chope_msgs::msg::ClaimRequest claim_request;
         claim_request.ticket = *msg;
         std::vector<std::string> waitpoints;
-        for (auto&[_, waitpoint]: waitpoints_order)
+        for (auto &[_, waitpoint, waitpoint_goal]: waitpoints_order)
         {
           claim_request.wait_points.push_back(waitpoint);
+          self->_waitpoints.push_back(waitpoint_goal);
         }
         self->_context->node()->claim_location_ticket()->publish(claim_request);
         RCLCPP_ERROR(
@@ -157,9 +155,14 @@ public:
           }
 
           self->_final_allocated_destination = msg;
+          self->_context->_set_allocated_destination(*msg.get());
+
           if (msg->instruction_type
             == rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
           {
+            RCLCPP_INFO(
+                self->_context->node()->get_logger(), "chope: Robot %s is going to final destination",
+                  self->_context->name().c_str());
             self->_current_reservation_state = ReservationState::RecievedResponseProceedImmediate;
             self->_selected_final_destination_cb(self->_goals[self->_final_allocated_destination.value()->
               satisfies_alternative]);
@@ -171,11 +174,14 @@ public:
             self->_current_reservation_state = ReservationState::RecievedResponceProceedWaitPoint;
             self->_selected_waitpoint_cb(self->_waitpoints[self->_final_allocated_destination.value()->
               satisfies_alternative]);
+            RCLCPP_INFO(
+                self->_context->node()->get_logger(), "chope: Robot %s is being asked to proceed to a to waitpoint",
+                  self->_context->name().c_str());
           }
         });
 
     RCLCPP_INFO(context->node()->get_logger(),
-      "Creating Chope negotiatoerwwqejnw");
+      "Sending chope request");
     negotiator->make_request(same_map);
     return negotiator;
   }
