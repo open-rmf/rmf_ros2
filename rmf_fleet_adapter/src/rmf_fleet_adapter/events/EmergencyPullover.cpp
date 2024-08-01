@@ -22,9 +22,43 @@
 #include <rmf_task_sequence/Task.hpp>
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 #include <rmf_task_sequence/events/Placeholder.hpp>
+#include "../project_itinerary.hpp"
 
 namespace rmf_fleet_adapter {
 namespace events {
+
+namespace {
+//==============================================================================
+std::string wp_name(
+  const agv::RobotContext& context,
+  const rmf_traffic::agv::Plan::Goal& goal)
+{
+  const auto& g = context.planner()->get_configuration().graph();
+  const auto& wp = g.get_waypoint(goal.waypoint());
+  if (wp.name())
+    return *wp.name();
+
+  return "#" + std::to_string(goal.waypoint());
+}
+
+//==============================================================================
+std::string wp_name(const agv::RobotContext& context)
+{
+  const auto& g = context.planner()->get_configuration().graph();
+  const auto& locations = context.location();
+  for (const auto& l : locations)
+  {
+    const auto& wp = g.get_waypoint(l.waypoint());
+    if (wp.name())
+      return *wp.name();
+  }
+
+  if (locations.empty())
+    return "<null>";
+
+  return "#" + std::to_string(locations.front().waypoint());
+}
+}
 
 //==============================================================================
 class EmergencyPulloverDescription
@@ -155,7 +189,89 @@ auto EmergencyPullover::Active::make(
       return nullptr;
     });
 
-  active->_find_plan();
+  if (!active->_context->_parking_spot_manager_enabled())
+  {
+    // If no parking spot manager is enabled then we
+    // just proceed to find plans using the old method.
+    active->_find_plan();
+  }
+  else
+  {
+    // Use chope node to retrieve the best emergency location.
+    active->_chosen_goal = std::nullopt;
+
+    // Find spots on same floor and order them by distance
+    auto current_location = active->_context->location();
+    if (current_location.size() == 0)
+    {
+      // Could not localize should probably log an error and move into a
+      // retry timer of some form.
+      return active;
+    }
+    std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
+          waitpoints_order;
+    for (std::size_t wp_idx = 0;
+      wp_idx < active->_context->navigation_graph().num_waypoints(); wp_idx++)
+    {
+      const auto wp = active->_context->navigation_graph().get_waypoint(
+        wp_idx);
+
+      // Wait at parking spot and check its on same floor.
+      if (!wp.is_parking_spot() ||
+      wp.get_map_name() != active->_context->map())
+      {
+        continue;
+      }
+
+      auto result =
+      active->_context->planner()->quickest_path(current_location, wp_idx);
+      if (!result.has_value())
+      {
+        continue;
+      }
+
+      rmf_traffic::agv::Plan::Goal goal(wp_idx);
+      waitpoints_order.emplace_back(result->cost(), goal);
+    }
+
+    std::sort(waitpoints_order.begin(), waitpoints_order.end(),
+    [](const std::tuple<double, rmf_traffic::agv::Plan::Goal>& a,
+      const std::tuple<double, rmf_traffic::agv::Plan::Goal>& b)
+    {
+      return std::get<0>(a) < std::get<0>(b);
+    });
+
+    std::vector<rmf_traffic::agv::Plan::Goal> potential_waitpoints;
+    for (auto &[_, wp]: waitpoints_order)
+    {
+      potential_waitpoints.push_back(wp);
+    }
+
+    RCLCPP_INFO(active->_context->node()->get_logger(),
+      "Creating Chope negotiator");
+    active->_chope_client = chope::ChopeNodeNegotiator::make(
+      active->_context,
+      potential_waitpoints,
+      true,
+      [w = active->weak_from_this()](const rmf_traffic::agv::Plan::Goal& goal)
+      {
+        auto self = w.lock();
+        if (!self)
+          return;
+        self->_chosen_goal = goal;
+        self->_find_plan();
+      },
+      [w = active->weak_from_this()](const rmf_traffic::agv::Plan::Goal& goal)
+      {
+        auto self = w.lock();
+        if (!self)
+          return;
+
+        self->_chosen_goal = goal;
+        self->_find_plan();
+      }
+    );
+  }
   return active;
 }
 
@@ -242,18 +358,86 @@ void EmergencyPullover::Active::_find_plan()
   _state->update_status(Status::Underway);
   _state->update_log().info("Searching for an emergency pullover");
 
-  _find_pullover_service = std::make_shared<services::FindEmergencyPullover>(
-    _context->emergency_planner(), _context->_get_free_spots(), _context->location(),
-    _context->schedule()->snapshot(),
-    _context->itinerary().id(), _context->profile());
+  if(!_context->_parking_spot_manager_enabled())
+  {
+    _find_pullover_service = std::make_shared<services::FindEmergencyPullover>(
+      _context->emergency_planner(), _context->location(),
+      _context->schedule()->snapshot(),
+      _context->itinerary().id(), _context->profile());
 
-  _pullover_subscription =
-    rmf_rxcpp::make_job<services::FindEmergencyPullover::Result>(
-    _find_pullover_service)
+    _pullover_subscription =
+      rmf_rxcpp::make_job<services::FindEmergencyPullover::Result>(
+      _find_pullover_service)
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
+      .subscribe(
+      [w = weak_from_this()](
+        const services::FindEmergencyPullover::Result& result)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        if (!result)
+        {
+          // The planner could not find any pullover
+          self->_state->update_status(Status::Error);
+          self->_state->update_log().error("Failed to find a pullover");
+
+          self->_execution = std::nullopt;
+          self->_schedule_retry();
+
+          self->_context->worker().schedule(
+            [update = self->_update](const auto&) { update(); });
+
+          return;
+        }
+
+        self->_state->update_status(Status::Underway);
+        self->_state->update_log().info("Found an emergency pullover");
+
+        auto full_itinerary = result->get_itinerary();
+        self->_execute_plan(
+          self->_context->itinerary().assign_plan_id(),
+          *std::move(result),
+          std::move(full_itinerary));
+
+        self->_find_pullover_service = nullptr;
+        self->_retry_timer = nullptr;
+      });
+
+    _find_pullover_timeout = _context->node()->try_create_wall_timer(
+      std::chrono::seconds(10),
+      [
+        weak_service = _find_pullover_service->weak_from_this(),
+        weak_self = weak_from_this()
+      ]()
+      {
+        if (const auto service = weak_service.lock())
+          service->interrupt();
+
+        if (const auto self = weak_self.lock())
+          self->_find_pullover_timeout = nullptr;
+      });
+
+    _update();
+  }
+  else {
+
+  _find_path_service = std::make_shared<services::FindPath>(
+    _context->planner(), _context->location(), *_chosen_goal,
+    _context->schedule()->snapshot(), _context->itinerary().id(),
+    _context->profile(),
+    std::chrono::seconds(5));
+
+  const auto start_name = wp_name(*_context);
+  const auto goal_name = wp_name(*_context, *_chosen_goal);
+
+  _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
+    _find_path_service)
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
     .subscribe(
-    [w = weak_from_this()](
-      const services::FindEmergencyPullover::Result& result)
+    [w = weak_from_this(), start_name, goal_name, goal = *_chosen_goal](
+      const services::FindPath::Result& result)
     {
       const auto self = w.lock();
       if (!self)
@@ -261,36 +445,48 @@ void EmergencyPullover::Active::_find_plan()
 
       if (!result)
       {
-        // The planner could not find any pullover
+        // The planner could not find a way to reach the goal
         self->_state->update_status(Status::Error);
-        self->_state->update_log().error("Failed to find a pullover");
+        self->_state->update_log().error(
+          "Failed to find a plan to move from ["
+          + start_name + "] to [" + goal_name + "]. Will retry soon.");
 
+        // Reset the chosen goal in case this goal has become impossible to
+        // reach
+        self->_chosen_goal = std::nullopt;
         self->_execution = std::nullopt;
         self->_schedule_retry();
 
-        self->_context->worker().schedule(
-          [update = self->_update](const auto&) { update(); });
+        self->_context->worker()
+        .schedule([update = self->_update](const auto&) { update(); });
 
         return;
       }
 
       self->_state->update_status(Status::Underway);
-      self->_state->update_log().info("Found an emergency pullover");
+      self->_state->update_log().info(
+        "Found a plan to move from ["
+        + start_name + "] to [" + goal_name + "]");
 
-      auto full_itinerary = result->get_itinerary();
+
+      std::vector<rmf_traffic::agv::Plan::Goal> no_future_projections;
+      auto full_itinerary = project_itinerary(
+        *result, no_future_projections,
+        *self->_context->planner());
+
       self->_execute_plan(
         self->_context->itinerary().assign_plan_id(),
         *std::move(result),
         std::move(full_itinerary));
 
-      self->_find_pullover_service = nullptr;
+      self->_find_path_service = nullptr;
       self->_retry_timer = nullptr;
     });
 
-  _find_pullover_timeout = _context->node()->try_create_wall_timer(
+  _find_path_timeout = _context->node()->try_create_wall_timer(
     std::chrono::seconds(10),
     [
-      weak_service = _find_pullover_service->weak_from_this(),
+      weak_service = _find_path_service->weak_from_this(),
       weak_self = weak_from_this()
     ]()
     {
@@ -298,10 +494,11 @@ void EmergencyPullover::Active::_find_plan()
         service->interrupt();
 
       if (const auto self = weak_self.lock())
-        self->_find_pullover_timeout = nullptr;
+        self->_find_path_timeout = nullptr;
     });
 
-  _update();
+    _update();
+  }
 }
 
 //==============================================================================

@@ -30,7 +30,7 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
   const auto& graph = _planner->get_configuration().graph();
   const std::size_t N = graph.num_waypoints();
   _search_jobs.reserve(N);
-  for (auto i: _parking_spots)
+  for (std::size_t i = 0; i < N; ++i)
   {
     const auto& wp = graph.get_waypoint(i);
     if (wp.is_parking_spot())
