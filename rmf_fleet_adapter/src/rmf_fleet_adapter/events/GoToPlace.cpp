@@ -202,12 +202,10 @@ auto GoToPlace::Active::make(
 
         RCLCPP_INFO(
           self->_context->node()->get_logger(),
-          "Goal selected %lu, %d",
-          self->_chosen_goal.value().waypoint(), 
-          self->_task_finished);
+          "Goal selected %lu",
+          self->_chosen_goal.value().waypoint());
 
-        if (!self->_task_finished)
-          self->_find_plan();
+        self->_find_plan();
       }
     });
 
@@ -281,8 +279,6 @@ auto GoToPlace::Active::make(
     active->_find_plan();
   }
   else {
-    using namespace std::placeholders;
-
     // This is the parking spot manager.
     active->_is_final_destination = false;
     active->_chosen_goal = std::nullopt;
@@ -293,8 +289,18 @@ auto GoToPlace::Active::make(
       active->_context,
       active->_description.one_of(),
       active->_description.prefer_same_map(),
-      std::bind(&GoToPlace::Active::_on_chope_node_allocate_final_destination, active, _1),
-      std::bind(&GoToPlace::Active::_on_chope_node_allocate_waitpoint, active, _1)
+      [w = active->weak_from_this()]( const rmf_traffic::agv::Plan::Goal& goal) {
+        if (auto self = w.lock())
+        {
+          self->_on_chope_node_allocate_final_destination(goal);
+        }
+      },
+      [w = active->weak_from_this()]( const rmf_traffic::agv::Plan::Goal& goal) {
+        if (auto self = w.lock())
+        {
+          self->_on_chope_node_allocate_waitpoint(goal);
+        }
+      }
     );
   };
 
@@ -732,8 +738,8 @@ void GoToPlace::Active::_execute_plan(
     const auto& graph = _context->navigation_graph();
     _context->retain_mutex_groups(
       {graph.get_waypoint(goal.waypoint()).in_mutex_group()});
-
-    _finished();
+    if (_is_final_destination)
+      _finished();
     return;
   }
 
@@ -757,7 +763,6 @@ void GoToPlace::Active::_execute_plan(
         RCLCPP_INFO(
             _context->node()->get_logger(),
             "Chope: Finished execution");
-        _task_finished = true;
         _stop_and_clear();
         _finished();
       }, _tail_period);

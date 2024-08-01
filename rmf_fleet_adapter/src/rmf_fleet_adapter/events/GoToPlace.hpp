@@ -166,7 +166,6 @@ public:
     bool _is_interrupted = false;
     bool _is_final_destination = true;
     bool _reached_waitpoint = false;
-    bool _task_finished = false;
   };
 };
 
