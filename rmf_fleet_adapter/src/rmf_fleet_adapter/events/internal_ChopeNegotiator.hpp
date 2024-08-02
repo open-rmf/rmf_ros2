@@ -101,6 +101,8 @@ public:
             continue;
           }
 
+          // TODO(arjo): We really should be using graph id and name here.
+          // For multiple graphs we need some form of mapping.
           std::stringstream json_stream;
           json_stream << wp_idx << std::endl;
           std::string json;
@@ -221,6 +223,20 @@ private:
       "Selecting a new go_to_place location from [%lu] choices for robot [%s]",
       _goals.size(),
       _context->requester_id().c_str());
+
+    // If we are at the goal location already do nothing.
+    for (auto goal: _goals)
+    {
+      if (goal.waypoint() == current_location[0].waypoint())
+      {
+        RCLCPP_INFO(
+      _   context->node()->get_logger(),
+          "Found we were already at %lu. No need to interact with the Chope node.",
+          current_location[0].waypoint());
+        _selected_final_destination_cb(goal);
+        return;
+      }
+    }
 
     if (_current_reservation_state == ReservationState::Pending)
     {
