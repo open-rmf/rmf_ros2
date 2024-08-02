@@ -320,10 +320,7 @@ void GoToPlace::Active::_on_chope_node_allocate_final_destination(
   RCLCPP_INFO(_context->node()->get_logger(),
     "Received final destination from chope node");
   _is_final_destination = true;
-  if (!_reached_waitpoint)
-  {
-    _stop_and_clear();
-  }
+
   _chosen_goal = goal;
   _find_plan();
 }

@@ -230,7 +230,7 @@ private:
       if (goal.waypoint() == current_location[0].waypoint())
       {
         RCLCPP_INFO(
-      _   context->node()->get_logger(),
+          context->node()->get_logger(),
           "Found we were already at %lu. No need to interact with the Chope node.",
           current_location[0].waypoint());
         _selected_final_destination_cb(goal);
