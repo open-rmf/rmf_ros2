@@ -159,6 +159,23 @@ public:
           self->_final_allocated_destination = msg;
           self->_context->_set_allocated_destination(*msg.get());
 
+          if (self->_current_reservation_state ==  ReservationState::Requested)
+          {
+            while (auto allocation = self->_context->_release_resource())
+            {
+              rmf_chope_msgs::msg::ReleaseRequest msg;
+              std::stringstream str;
+              str << self->_context->location()[0].waypoint();
+              str >> msg.location;
+              msg.ticket = allocation->ticket;
+              self->_context->node()->release_location()->publish(msg);
+              RCLCPP_ERROR(
+                self->_context->node()->get_logger(),
+                "Releasing waypoint"
+              );
+            }
+          }
+
           if (msg->instruction_type
             == rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
           {
@@ -225,7 +242,7 @@ private:
       _context->requester_id().c_str());
 
     // If we are at the goal location already do nothing.
-    for (auto goal: _goals)
+    /*for (auto goal: _goals)
     {
       if (goal.waypoint() == current_location[0].waypoint())
       {
@@ -236,7 +253,7 @@ private:
         _selected_final_destination_cb(goal);
         return;
       }
-    }
+    }*/
 
     if (_current_reservation_state == ReservationState::Pending)
     {

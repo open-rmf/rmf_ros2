@@ -1313,28 +1313,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
-  if (waypoint_copy.size() > 0 && context->location().size())
-  {
-    if (waypoint_copy.back().graph_index() != context->location()[0].waypoint())
-    {
-      auto allocation = context->_release_resource();
-      if (allocation.has_value())
-      {
-        rmf_chope_msgs::msg::ReleaseRequest msg;
-        std::stringstream str;
-        str << context->location()[0].waypoint();
-        str >> msg.location;
-        msg.ticket = allocation->ticket;
-        context->node()->release_location()->publish(msg);
-        RCLCPP_ERROR(
-          context->node()->get_logger(),
-          "Releasing waypoint",
-          waypoint_copy.size()
-        );
-      }
-
-    }
-  }
   return ExecutePlan{
     std::move(plan),
     plan_id,
