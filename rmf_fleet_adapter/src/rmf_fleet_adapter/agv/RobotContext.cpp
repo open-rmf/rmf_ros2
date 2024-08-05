@@ -1114,17 +1114,35 @@ void RobotContext::release_lift()
       "Releasing lift [%s] for [%s]",
       _lift_destination->lift_name.c_str(),
       requester_id().c_str());
-    rmf_lift_msgs::msg::LiftRequest msg;
-    msg.lift_name = _lift_destination->lift_name;
-    msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_END_SESSION;
-    msg.session_id = requester_id();
-    msg.destination_floor = _lift_destination->destination_floor;
-    _node->lift_request()->publish(msg);
   }
   _lift_destination = nullptr;
   _initial_time_idle_outside_lift = std::nullopt;
   _lift_stubbornness = nullptr;
   _lift_arrived = false;
+  clear_final_lift_destination();
+}
+
+//==============================================================================
+std::optional<RobotUpdateHandle::LiftDestination>
+RobotContext::final_lift_destination() const
+{
+  std::unique_lock<std::mutex> lock(*_final_lift_destination_mutex);
+  return _final_lift_destination;
+}
+
+//==============================================================================
+void RobotContext::set_final_lift_destination(
+  RobotUpdateHandle::LiftDestination destination)
+{
+  std::unique_lock<std::mutex> lock(*_final_lift_destination_mutex);
+  _final_lift_destination = std::move(destination);
+}
+
+//==============================================================================
+void RobotContext::clear_final_lift_destination()
+{
+  std::unique_lock<std::mutex> lock(*_final_lift_destination_mutex);
+  _final_lift_destination = std::nullopt;
 }
 
 //==============================================================================
