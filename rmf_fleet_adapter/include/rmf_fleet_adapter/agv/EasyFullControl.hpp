@@ -821,6 +821,17 @@ public:
   const std::unordered_map<std::string, std::string>&
   lift_emergency_levels() const;
 
+  /// A set of lanes which must strictly be navigated from from the start to end
+  /// of the lane when used. This means when replanning, the planner cannot ask
+  /// a robot in the middle of one of these lanes to immediately go to the end
+  /// of the lane.
+  const std::unordered_set<std::size_t>& strict_lanes() const;
+
+  /// Get a mutable reference to the set of strict lanes.
+  ///
+  /// \sa strict_lanes
+  std::unordered_set<std::size_t>& change_strict_lanes();
+
   class Implementation;
 private:
   rmf_utils::impl_ptr<Implementation> _pimpl;
