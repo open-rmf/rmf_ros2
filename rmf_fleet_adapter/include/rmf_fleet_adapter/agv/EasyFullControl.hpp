@@ -264,7 +264,8 @@ public:
     std::optional<bool> responsive_wait = std::nullopt,
     std::optional<double> max_merge_waypoint_distance = 1e-3,
     std::optional<double> max_merge_lane_distance = 0.3,
-    std::optional<double> min_lane_length = 1e-8);
+    std::optional<double> min_lane_length = 1e-8,
+    std::optional<rmf_task::ConstRequestFactoryPtr> finishing_request = std::nullopt);
 
   /// List of chargers that this robot is compatible with
   const std::vector<std::string>& compatible_chargers() const;
@@ -315,6 +316,15 @@ public:
 
   /// Set the minimum lane length.
   void set_min_lane_length(std::optional<double> distance);
+
+  /// Get the idle behavior.
+  ///
+  /// If std::nullopt is used, then the fleet-wide default finishing request
+  /// will be used.
+  std::optional<rmf_task::ConstRequestFactoryPtr> finishing_request() const;
+
+  /// Set the finishing request.
+  void set_finishing_request(std::optional<rmf_task::ConstRequestFactoryPtr> request);
 
   class Implementation;
 private:

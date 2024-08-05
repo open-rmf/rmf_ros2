@@ -267,6 +267,19 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
 }
 
 //==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::set_finishing_request(
+  rmf_task::ConstRequestFactoryPtr finishing_request)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    const auto mgr = context->task_manager();
+    mgr->set_idle_task(finishing_request);
+  }
+
+  return *this;
+}
+
+//==============================================================================
 void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 {
   if (const auto context = _pimpl->get_context())
