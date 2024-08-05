@@ -469,6 +469,26 @@ public:
   /// could change in the future.
   void reassign_dispatched_tasks();
 
+  /// Information about where the lift will be asked to go for a robot.
+  class LiftDestination
+  {
+  public:
+    /// Name of the lift that is being used.
+    const std::string& lift() const;
+
+    /// Name of the level that the lift will be going to.
+    const std::string& level() const;
+
+    class Implementation;
+  private:
+    LiftDestination();
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
+  /// If this robot has begun a lift session, this will contain information
+  /// about where the robot will ask to go, and which lift it intends to use.
+  std::optional<LiftDestination> lift_destination() const;
+
   class Implementation;
 
   /// This API is experimental and will not be supported in the future. Users
