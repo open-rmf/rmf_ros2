@@ -76,6 +76,15 @@ const std::string MutexGroupStatesTopicName = "mutex_group_states";
 const std::string MutexGroupManualReleaseTopicName =
   "mutex_group_manual_release";
 
+const std::string ReservationRequestTopicName = "/rmf/reservations/request";
+const std::string ReservationResponseTopicName = "/rmf/reservations/tickets";
+const std::string ReservationClaimTopicName = "/rmf/reservations/claim";
+const std::string ReservationAllocationTopicName =
+  "/rmf/reservations/allocation";
+const std::string ReservationReleaseTopicName = "/rmf/reservations/release";
+const std::string ReservationFreeSpotsTopicName =
+  "/rmf/reservations/free_parking_spot";
+
 const uint64_t Unclaimed = (uint64_t)(-1);
 
 } // namespace rmf_fleet_adapter

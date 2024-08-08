@@ -15,6 +15,7 @@
  *
 */
 
+#include <cstddef>
 #include <services/FindEmergencyPullover.hpp>
 #include <rmf_traffic/geometry/Circle.hpp>
 #include <rmf_traffic/schedule/Database.hpp>
@@ -127,7 +128,8 @@ SCENARIO("Emergency Pullover")
 
     auto pullover_service = std::make_shared<
       rmf_fleet_adapter::services::FindEmergencyPullover>(
-      planner, rmf_traffic::agv::Plan::StartSet({start_0}),
+      planner,
+      rmf_traffic::agv::Plan::StartSet({start_0}),
       database->snapshot(), p0.id(),
       std::make_shared<rmf_traffic::Profile>(p0.description().profile()));
 
@@ -164,7 +166,8 @@ SCENARIO("Emergency Pullover")
     // want to park at waypoint 7 in the absence of any other conflicts.
     pullover_service = std::make_shared<
       rmf_fleet_adapter::services::FindEmergencyPullover>(
-      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      planner,
+      rmf_traffic::agv::Plan::StartSet({start_1}),
       database->snapshot(), p1.id(),
       std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
@@ -205,7 +208,8 @@ SCENARIO("Emergency Pullover")
 
     pullover_service = std::make_shared<
       rmf_fleet_adapter::services::FindEmergencyPullover>(
-      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      planner,
+      rmf_traffic::agv::Plan::StartSet({start_1}),
       database->snapshot(), p1.id(),
       std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 
@@ -261,7 +265,8 @@ SCENARIO("Emergency Pullover")
 
     auto pullover_service = std::make_shared<
       rmf_fleet_adapter::services::FindEmergencyPullover>(
-      planner, rmf_traffic::agv::Plan::StartSet({start_1}),
+      planner,
+      rmf_traffic::agv::Plan::StartSet({start_1}),
       database->snapshot(), p1.id(),
       std::make_shared<rmf_traffic::Profile>(p1.description().profile()));
 

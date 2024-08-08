@@ -17,9 +17,15 @@
 
 #include "GoToPlace.hpp"
 #include "../project_itinerary.hpp"
+#include "internal_ChopeNegotiator.hpp"
+#include "PerformAction.hpp"
 
+#include <cstddef>
+#include <memory>
+#include <optional>
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 #include <rmf_traffic/agv/Planner.hpp>
+#include <string>
 
 namespace rmf_fleet_adapter {
 namespace events {
@@ -193,6 +199,12 @@ auto GoToPlace::Active::make(
         if (const auto c = self->_context->command())
           c->stop();
 
+
+        RCLCPP_INFO(
+          self->_context->node()->get_logger(),
+          "Goal selected %lu",
+          self->_chosen_goal.value().waypoint());
+
         self->_find_plan();
       }
     });
@@ -260,7 +272,38 @@ auto GoToPlace::Active::make(
       }
     });
 
-  active->_find_plan();
+  if (!active->_context->_parking_spot_manager_enabled())
+  {
+    // If no parking spot manager is enabled then we
+    // just proceed to find plans as is.
+    active->_find_plan();
+  }
+  else {
+    // This is the parking spot manager.
+    active->_is_final_destination = false;
+    active->_chosen_goal = std::nullopt;
+
+    RCLCPP_INFO(active->_context->node()->get_logger(),
+      "Creating Chope negotiator");
+    active->_chope_client = chope::ChopeNodeNegotiator::make(
+      active->_context,
+      active->_description.one_of(),
+      active->_description.prefer_same_map(),
+      [w = active->weak_from_this()]( const rmf_traffic::agv::Plan::Goal& goal) {
+        if (auto self = w.lock())
+        {
+          self->_on_chope_node_allocate_final_destination(goal);
+        }
+      },
+      [w = active->weak_from_this()]( const rmf_traffic::agv::Plan::Goal& goal) {
+        if (auto self = w.lock())
+        {
+          self->_on_chope_node_allocate_waitpoint(goal);
+        }
+      }
+    );
+  };
+
   return active;
 }
 
@@ -268,6 +311,28 @@ auto GoToPlace::Active::make(
 auto GoToPlace::Active::state() const -> ConstStatePtr
 {
   return _state;
+}
+
+//==============================================================================
+void GoToPlace::Active::_on_chope_node_allocate_final_destination(
+ const rmf_traffic::agv::Plan::Goal& goal)
+{
+  RCLCPP_INFO(_context->node()->get_logger(),
+    "Received final destination from chope node");
+  _is_final_destination = true;
+
+  _chosen_goal = goal;
+  _find_plan();
+}
+
+//==============================================================================
+void GoToPlace::Active::_on_chope_node_allocate_waitpoint(
+ const rmf_traffic::agv::Plan::Goal& goal)
+{
+  RCLCPP_INFO(_context->node()->get_logger(),
+    "Received waitpoint from chope node");
+  _chosen_goal = goal;
+  _find_plan();
 }
 
 //==============================================================================
@@ -402,7 +467,7 @@ std::string wp_name(const agv::RobotContext& context)
 
 //==============================================================================
 std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
-  bool only_same_map) const
+  bool only_same_map)
 {
   auto current_location = _context->location();
   auto graph = _context->navigation_graph();
@@ -422,58 +487,69 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
     _description.one_of().size(),
     _context->requester_id().c_str());
 
-  auto lowest_cost = std::numeric_limits<double>::infinity();
-  std::optional<std::size_t> selected_idx;
-  for (std::size_t i = 0; i < _description.one_of().size(); ++i)
-  {
-    const auto wp_idx = _description.one_of()[i].waypoint();
-    if (only_same_map)
-    {
-      const auto& wp = graph.get_waypoint(wp_idx);
 
-      // Check if same map. If not don't consider location. This is to ensure
-      // the robot does not try to board a lift.
-      if (wp.get_map_name() != _context->map())
+  if (_context->_parking_spot_manager_enabled())
+  {
+    RCLCPP_INFO(_context->node()->get_logger(),
+      "Requesting Chope Node For Time To Progress");
+
+  }
+  else
+  {
+    RCLCPP_INFO(_context->node()->get_logger(), "Skipping chope node.");
+    auto lowest_cost = std::numeric_limits<double>::infinity();
+    std::optional<std::size_t> selected_idx;
+    for (std::size_t i = 0; i < _description.one_of().size(); ++i)
+    {
+      const auto wp_idx = _description.one_of()[i].waypoint();
+      if (only_same_map)
+      {
+        const auto& wp = graph.get_waypoint(wp_idx);
+
+        // Check if same map. If not don't consider location. This is to ensure
+        // the robot does not try to board a lift.
+        if (wp.get_map_name() != _context->map())
+        {
+          RCLCPP_INFO(
+            _context->node()->get_logger(),
+            "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+            wp_idx,
+            wp.get_map_name().c_str(),
+            _context->map().c_str());
+          continue;
+        }
+      }
+
+      // Find distance to said point
+      auto result = _context->planner()->quickest_path(current_location, wp_idx);
+      if (result.has_value())
       {
         RCLCPP_INFO(
           _context->node()->get_logger(),
-          "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+          "Got distance from [%lu] as %f",
           wp_idx,
-          wp.get_map_name().c_str(),
-          _context->map().c_str());
-        continue;
+          result->cost());
+
+        if (result->cost() < lowest_cost)
+        {
+          selected_idx = i;
+          lowest_cost = result->cost();
+        }
       }
-    }
-
-    // Find distance to said point
-    auto result = _context->planner()->quickest_path(current_location, wp_idx);
-    if (result.has_value())
-    {
-      RCLCPP_INFO(
-        _context->node()->get_logger(),
-        "Got distance from [%lu] as %f",
-        wp_idx,
-        result->cost());
-
-      if (result->cost() < lowest_cost)
+      else
       {
-        selected_idx = i;
-        lowest_cost = result->cost();
+        RCLCPP_ERROR(
+          _context->node()->get_logger(),
+          "No path found for robot [%s] to waypoint [%lu]",
+          _context->requester_id().c_str(),
+          wp_idx);
       }
     }
-    else
-    {
-      RCLCPP_ERROR(
-        _context->node()->get_logger(),
-        "No path found for robot [%s] to waypoint [%lu]",
-        _context->requester_id().c_str(),
-        wp_idx);
-    }
-  }
 
-  if (selected_idx.has_value())
-  {
-    return _description.one_of()[*selected_idx];
+    if (selected_idx.has_value())
+    {
+      return _description.one_of()[*selected_idx];
+    }
   }
 
   return std::nullopt;
@@ -485,7 +561,7 @@ void GoToPlace::Active::_find_plan()
   if (_is_interrupted)
     return;
 
-  if (!_chosen_goal.has_value() && _description.prefer_same_map())
+  if (!_chosen_goal.has_value() && _description.prefer_same_map() )
   {
     _chosen_goal = _choose_goal(true);
   }
@@ -624,7 +700,9 @@ void GoToPlace::Active::_schedule_retry()
       const auto self = w.lock();
       if (!self)
         return;
-
+      RCLCPP_INFO(
+        self->_context->node()->get_logger(),
+        "Retry timer rerunning _find_plan");
       self->_retry_timer = nullptr;
       if (self->_execution.has_value())
         return;
@@ -657,24 +735,49 @@ void GoToPlace::Active::_execute_plan(
     const auto& graph = _context->navigation_graph();
     _context->retain_mutex_groups(
       {graph.get_waypoint(goal.waypoint()).in_mutex_group()});
-
-    _finished();
+    if (_is_final_destination)
+      _finished();
     return;
   }
 
   const auto& graph = _context->navigation_graph();
 
-  RCLCPP_INFO(
-    _context->node()->get_logger(),
-    "Executing go_to_place [%s] for robot [%s]",
-    graph.get_waypoint(plan.get_waypoints().back().graph_index().value())
-    .name_or_index().c_str(),
-    _context->requester_id().c_str());
 
-  _execution = ExecutePlan::make(
-    _context, plan_id, std::move(plan), std::move(goal),
-    std::move(full_itinerary),
-    _assign_id, _state, _update, _finished, _tail_period);
+  // If we use the parking spot manager, the goal may be the final destination
+  // or some waiting point.
+  if (_is_final_destination)
+  {
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "Executing final go_to_place [%s] for robot [%s]",
+      graph.get_waypoint(plan.get_waypoints().back().graph_index().value())
+      .name_or_index().c_str(),
+      _context->requester_id().c_str());
+    _execution = ExecutePlan::make(
+      _context, plan_id, std::move(plan), std::move(goal),
+      std::move(full_itinerary),
+      _assign_id, _state, _update, [&](){
+        RCLCPP_INFO(
+            _context->node()->get_logger(),
+            "Chope: Finished execution");
+        _stop_and_clear();
+        _finished();
+      }, _tail_period);
+  }
+  else
+  {
+    _execution = ExecutePlan::make(
+      _context, plan_id, std::move(plan), std::move(goal),
+      std::move(full_itinerary),
+      _assign_id, _state, _update, [&](){
+        RCLCPP_INFO(
+              _context->node()->get_logger(),
+              "Chope: Reached waitpoint");
+
+        _reached_waitpoint = true;
+      }, _tail_period);
+  }
+
 
   if (!_execution.has_value())
   {
@@ -693,6 +796,8 @@ void GoToPlace::Active::_stop_and_clear()
   if (const auto command = _context->command())
     command->stop();
 
+  if (_retry_timer)
+    _retry_timer->cancel();
   _context->itinerary().clear();
 }
 
@@ -707,7 +812,7 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
     return nullptr;
   }
 
-  auto approval_cb = [w = weak_from_this(), goal = *_chosen_goal](
+  auto approval_cb = [w = weak_from_this()](
     const rmf_traffic::PlanId plan_id,
     const rmf_traffic::agv::Plan& plan,
     rmf_traffic::schedule::Itinerary itinerary)
@@ -715,8 +820,11 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
     {
       if (auto self = w.lock())
       {
-        self->_execute_plan(plan_id, plan, std::move(itinerary), goal);
-        return self->_context->itinerary().version();
+        if (self->_chosen_goal.has_value())
+        {
+          self->_execute_plan(plan_id, plan, std::move(itinerary), self->_chosen_goal.value());
+          return self->_context->itinerary().version();
+        }
       }
 
       return std::nullopt;

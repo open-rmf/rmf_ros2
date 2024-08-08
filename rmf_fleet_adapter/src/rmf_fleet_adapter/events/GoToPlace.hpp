@@ -24,7 +24,10 @@
 #include "../services/FindPath.hpp"
 
 #include "ExecutePlan.hpp"
+#include "internal_ChopeNegotiator.hpp"
 
+#include <cstdint>
+#include <optional>
 #include <rmf_task_sequence/Event.hpp>
 #include <rmf_task_sequence/events/GoToPlace.hpp>
 #include <rmf_task/events/SimpleEventState.hpp>
@@ -103,13 +106,22 @@ public:
     void kill() final;
 
   private:
+    enum class ReservationState
+    {
+      Pending=0,
+      Requested=1,
+      RecievedResponse=2
+    };
+
+    ReservationState _current_reservation_state = ReservationState::Pending;
+
 
     Active(Description description);
 
     void _schedule_retry();
 
     std::optional<rmf_traffic::agv::Plan::Goal> _choose_goal(
-      bool only_same_map) const;
+      bool only_same_map);
 
     void _find_plan();
 
@@ -120,6 +132,12 @@ public:
       rmf_traffic::agv::Plan::Goal goal);
 
     void _stop_and_clear();
+
+    void _on_chope_node_allocate_final_destination(
+      const rmf_traffic::agv::Plan::Goal& goal);
+
+    void _on_chope_node_allocate_waitpoint(
+      const rmf_traffic::agv::Plan::Goal& goal);
 
     Negotiator::NegotiatePtr _respond(
       const Negotiator::TableViewerPtr& table_view,
@@ -143,7 +161,11 @@ public:
     rmf_rxcpp::subscription_guard _replan_request_subscription;
     rmf_rxcpp::subscription_guard _graph_change_subscription;
 
+    std::shared_ptr<chope::ChopeNodeNegotiator> _chope_client;
+
     bool _is_interrupted = false;
+    bool _is_final_destination = true;
+    bool _reached_waitpoint = false;
   };
 };
 

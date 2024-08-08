@@ -119,6 +119,29 @@ std::shared_ptr<Node> Node::make(
     node->create_observable<MutexGroupStates>(
     MutexGroupStatesTopicName, transient_local_qos);
 
+  node->_reservation_request_pub =
+    node->create_publisher<ReservationRequest>(
+    ReservationRequestTopicName, transient_local_qos);
+
+  node->_reservation_ticket_obs =
+    node->create_observable<ReservationTicket>(
+    ReservationResponseTopicName, transient_local_qos);
+
+  node->_reservation_claim_pub =
+    node->create_publisher<ReservationClaim>(
+    ReservationClaimTopicName, transient_local_qos);
+
+  node->_reservation_alloc_obs =
+    node->create_observable<ReservationAllocation>(
+    ReservationAllocationTopicName, transient_local_qos);
+
+  node->_reservation_release_pub =
+    node->create_publisher<ReservationRelease>(
+    ReservationReleaseTopicName, transient_local_qos);
+
+  node->_reservation_free_spot_obs =
+    node->create_observable<ReservationFreeSpotStatus>(
+    ReservationFreeSpotsTopicName, transient_local_qos);
   return node;
 }
 
@@ -260,5 +283,40 @@ auto Node::mutex_group_states() const -> const MutexGroupStatesObs&
   return _mutex_group_states_obs->observe();
 }
 
+//==============================================================================
+auto Node::location_requester() const -> const ReservationRequestPub&
+{
+  return _reservation_request_pub;
+}
+
+//==============================================================================
+auto Node::claim_location_ticket() const -> const ReservationClaimPub&
+{
+  return _reservation_claim_pub;
+}
+
+//==============================================================================
+auto Node::location_ticket_obs() const -> const ReservationTicketObs&
+{
+  return _reservation_ticket_obs->observe();
+}
+
+//==============================================================================
+auto Node::allocated_claims_obs() const -> const ReservationAllocationObs&
+{
+  return _reservation_alloc_obs->observe();
+}
+
+//==============================================================================
+auto Node::release_location() const -> const ReservationReleasePub&
+{
+  return _reservation_release_pub;
+}
+
+//==============================================================================
+auto Node::freespots_obs() const -> const ReservationFreeSpotObs&
+{
+  return _reservation_free_spot_obs->observe();
+}
 } // namespace agv
 } // namespace rmf_fleet_adapter

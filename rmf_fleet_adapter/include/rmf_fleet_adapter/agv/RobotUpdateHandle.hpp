@@ -408,6 +408,10 @@ public:
   /// By default this behavior is enabled.
   void enable_responsive_wait(bool value);
 
+
+  /// Enable simple parking spot
+  void enable_simple_parkingspot_reservation(bool  value);
+
   /// If the robot is holding onto a session with a lift, release that session.
   void release_lift();
 

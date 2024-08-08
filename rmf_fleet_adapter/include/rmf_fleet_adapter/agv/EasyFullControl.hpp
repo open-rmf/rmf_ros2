@@ -255,6 +255,9 @@ public:
   /// \param[in] responsive_wait
   ///   Should this robot use the responsive wait behavior? true / false / fleet default.
   ///
+  /// \param[in] use_parking_spot
+  ///   Use parking spot system.
+  ///
   /// \warning This must contain a single string value until a later release of
   /// RMF. We are using a vector for forward API compatibility. For now, make
   /// sure each robot has only one unique compatible charger to avoid charging
@@ -262,6 +265,7 @@ public:
   RobotConfiguration(
     std::vector<std::string> compatible_chargers,
     std::optional<bool> responsive_wait = std::nullopt,
+    bool use_parking_spot_system = false,
     std::optional<double> max_merge_waypoint_distance = 1e-3,
     std::optional<double> max_merge_lane_distance = 0.3,
     std::optional<double> min_lane_length = 1e-8);
@@ -280,6 +284,9 @@ public:
   /// If std::nullopt is used, then the fleet-wide responsive wait behavior will
   /// be used.
   std::optional<bool> responsive_wait() const;
+
+  /// Check if the robot should use the parking spot system.
+  bool use_parking_spot_system() const;
 
   /// Toggle responsive wait on (true), off (false), or use fleet default
   /// (std::nullopt).
@@ -559,6 +566,9 @@ public:
   ///
   /// \param[in] default_min_lane_length
   ///   The minimum length that a lane should have.
+  ///
+  /// \param[in] use_parking_reservation
+  ///   Whether ro use
   FleetConfiguration(
     const std::string& fleet_name,
     std::optional<std::unordered_map<std::string, Transformation>>
@@ -585,7 +595,8 @@ public:
     bool default_responsive_wait = false,
     double default_max_merge_waypoint_distance = 1e-3,
     double default_max_merge_lane_distance = 0.3,
-    double min_lane_length = 1e-8
+    double min_lane_length = 1e-8,
+    bool use_parking_reservation = false
   );
 
   /// Create a FleetConfiguration object using a set of configuration parameters
@@ -766,6 +777,9 @@ public:
 
   /// Should robots in this fleet have responsive wait enabled by default?
   bool default_responsive_wait() const;
+
+  /// Should robots use the parking reservation system.
+  bool use_parking_reservation_system() const;
 
   /// Set whether robots in this fleet should have responsive wait enabled by
   /// default.
