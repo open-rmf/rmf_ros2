@@ -222,7 +222,6 @@ private:
 
   void make_request(bool only_same_map)
   {
-    //auto _context = _context.lock();
     auto current_location = _context->location();
     auto graph = _context->navigation_graph();
     if (current_location.size() == 0)
@@ -240,20 +239,6 @@ private:
       "Selecting a new go_to_place location from [%lu] choices for robot [%s]",
       _goals.size(),
       _context->requester_id().c_str());
-
-    // If we are at the goal location already do nothing.
-    /*for (auto goal: _goals)
-    {
-      if (goal.waypoint() == current_location[0].waypoint())
-      {
-        RCLCPP_INFO(
-          context->node()->get_logger(),
-          "Found we were already at %lu. No need to interact with the Chope node.",
-          current_location[0].waypoint());
-        _selected_final_destination_cb(goal);
-        return;
-      }
-    }*/
 
     if (_current_reservation_state == ReservationState::Pending)
     {

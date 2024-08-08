@@ -249,7 +249,6 @@ public:
   /// Time complexity: O(1)
   void add(T item)
   {
-    std::cout << "Adding " << item << "to queue" << std::endl;
     index_to_item[curr_index] = item;
     item_to_index[item] = curr_index;
     indices.insert(curr_index);
@@ -304,7 +303,6 @@ public:
     auto item = resource_queues[resource].front();
     if (!item.has_value())
     {
-      std::cout << "Resource " << resource << "is empty" << std::endl;
       return std::nullopt;
     }
 
@@ -319,8 +317,6 @@ public:
   {
     for(auto resource: resources)
     {
-std::cout << "Queue for :" << resource <<std::endl;
-
       resource_queues[resource].add(ticket);
     }
   }
