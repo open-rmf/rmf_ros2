@@ -87,6 +87,15 @@ public:
           const auto wp = self->_context->navigation_graph().get_waypoint(
             wp_idx);
 
+          auto name = wp.name();
+          if (name == nullptr)
+          {
+            RCLCPP_ERROR(self->_context->node()->get_logger(),
+                "Got a parking spot without a name."
+                "This parking spot will not be used by the reservation system.");
+            continue;
+          }
+
           // Wait at parking spot and check its on same floor.
           if (!wp.is_parking_spot() ||
           wp.get_map_name() != self->_context->map())
@@ -101,15 +110,8 @@ public:
             continue;
           }
 
-          // TODO(arjo): We really should be using graph id and name here.
-          // For multiple graphs we need some form of mapping.
-          std::stringstream json_stream;
-          json_stream << wp_idx << std::endl;
-          std::string json;
-          json_stream >> json;
-
           rmf_traffic::agv::Plan::Goal goal(wp_idx);
-          waitpoints_order.emplace_back(result->cost(), json, goal);
+          waitpoints_order.emplace_back(result->cost(), *name, goal);
         }
 
         std::sort(waitpoints_order.begin(), waitpoints_order.end(),
@@ -253,9 +255,10 @@ private:
       for (std::size_t i = 0; i < _goals.size(); ++i)
       {
         const auto wp_idx = _goals[i].waypoint();
+        const auto& wp = graph.get_waypoint(wp_idx);
+
         if (only_same_map)
         {
-          const auto& wp = graph.get_waypoint(wp_idx);
 
           // Check if same map. If not don't consider location. This is to ensure
           // the robot does not try to board a lift.
@@ -288,13 +291,17 @@ private:
             lowest_cost = result->cost();
           }
 
-          std::stringstream json_stream;
-          json_stream << wp_idx << std::endl;
-          std::string json;
-          json_stream >> json;
+          auto name = wp.name();
+          if (name == nullptr)
+          {
+            RCLCPP_ERROR(_context->node()->get_logger(),
+                "Got a parking spot without a name."
+                "This parking spot will not be used by the reservation system.");
+            continue;
+          }
 
           rmf_chope_msgs::msg::FlexibleTimeReservationAlt alternative;
-          alternative.resource_name = json;
+          alternative.resource_name = *name;
           alternative.cost = result->cost();
           alternative.has_end = false;
 

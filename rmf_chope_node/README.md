@@ -44,11 +44,10 @@ If you have the same number or more waitpoints than robots you should never have
 
 ## Protocol Used Behind the Scenes
 
-The chope node has no idea about the state of the graph it simply maintains a list of available parking spots internally. The fleet adapter does most of the heavy lifting in the `GoToPlace`. When a `GoToPlace` event is started we first check if the robot is already at one of the target locations. If we are at the target location, no comms is needed. Otherwise the fleetadapter submits a `ReservationRequest` message with the desired end parameters.  The parameters are listed in terms of cost (where the cost function is distance). The chope node will issue a ticket for said request.When ready to proceed, send a claim message witht ht e ticket and with the list of potential waiting points ordered by distance. The chope node will then try to award the lowest cost target location. If it can't it will award the lowest cost waiting point to the robot. The fleet adapter will release the previous location as it starts to move to its next location.
+The chope node has no idea about the state of the graph it simply maintains a list of available parking spots internally. The fleet adapter does most of the heavy lifting in the `GoToPlace`. When a `GoToPlace` event is started we first check if the robot is already at one of the target locations. The fleetadapter submits a `ReservationRequest` message with the desired end parameters.  The parameters are listed in terms of cost (where the cost function is distance). The chope node will issue a ticket for said request.When ready to proceed, send a claim message with the ticket and with the list of potential waiting points ordered by distance. The chope node will then try to award the lowest cost target location. If it can't it will award the lowest cost waiting point to the robot. The fleet adapter will release the previous location as it starts to move to its next location.
 
 ## Known Issues
-1. We can only use one nav graoh with the chope node (it should be easy to resolve this with a mapping between nav graphs but for now its not part of the initial release).
-2. At start up if there is no idle task, the chope node will not know where the robots are. It is adviced to send 1 `GoToPlace` task for every robot that is added to the world.
+1. At start up if there is no idle task, the chope node will not know where the robots are. It is advised to send 1 `GoToPlace` task for every robot that is added to the world.
 
 ## Quality Declaration
 

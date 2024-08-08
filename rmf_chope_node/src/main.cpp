@@ -383,11 +383,7 @@ private:
         //TODO(arjoc) make this configure-able
         if (param.name == "is_parking_spot" && param.value_bool)
         {
-          std::stringstream name;
-          name << i;
-          std::string topic;
-          name >> topic;
-          current_state_.add_location(topic);
+          current_state_.add_location( graph_msg->vertices[i].name);
         }
       }
     }
