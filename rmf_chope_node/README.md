@@ -15,15 +15,15 @@ Some immediate limitations of the chope node is that it is limited to scenarios 
 You should never need to interact with this package directly. Rather, you can simply dispatch a task using the traditional methods. If you have `rmf_demos` installed you can run the
 office world. We can start by commanding the `tinyRobot2` to go to the pantry.
 ```bash
-ros2 run rmf_demos_tasks dispatch_go_to_place -p pantry -F tinyRobot2 --use-sim-time
+ros2 run rmf_demos_tasks dispatch_go_to_place -p pantry -F tinyRobot -R tinyRobot2 --use_sim_time
 ```
 The robot should proceed as expected. We can then ask `tinyRobot1` to also go to the pantry. Nothing should happen as the pantry is already occupied and `tinyRobot1` is at its parking spot.
 ```bash
-ros2 run rmf_demos_tasks dispatch_go_to_place -p pantry -F tinyRobot1 --use-sim-time
+ros2 run rmf_demos_tasks dispatch_go_to_place -p pantry  -F tinyRobot -R tinyRobot1 --use_sim_time
 ```
 We can ask `tinyRobot2` to move to the lounge after this.
 ```bash
-ros2 run rmf_demos_tasks dispatch_go_to_place -p lounge -F tinyRobot2 --use-sim-time
+ros2 run rmf_demos_tasks dispatch_go_to_place -p lounge -F tinyRobot -R tinyRobot2 --use_sim_time
 ```
 This should immediately trigger 2 things:
 1. `tinyRobot2` will move to the lounge
@@ -32,11 +32,11 @@ This should immediately trigger 2 things:
 ### Moving to a waitpoint
 If we continue from the previous example. Lets ask `tinyRobot1` and `tinyRobot2` to swap places starting at the pantry and lounge respectively.
 ```bash
-ros2 run rmf_demos_tasks dispatch_go_to_place -p pantry -F tinyRobot1 --use-sim-time
+ros2 run rmf_demos_tasks dispatch_go_to_place -p pantry -F tinyRobot -R tinyRobot1 --use_sim_time
 ```
 You should see tinyRobot1 move to`tinyRobot2_charger` as `lounge` is not a designated wait point. You can then command `tinyRobot2` to the lounge.
 ```bash
-ros2 run rmf_demos_tasks dispatch_go_to_place -p lounge -F tinyRobot2 --use-sim-time
+ros2 run rmf_demos_tasks dispatch_go_to_place -p lounge -F tinyRobot -R tinyRobot2 --use_sim_time
 ```
 `tinyRobot1` and `tinyRobot2` should now proceed to swap places.
 
