@@ -139,9 +139,6 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<ReservationRelease>(
     ReservationReleaseTopicName, transient_local_qos);
 
-  node->_reservation_free_spot_obs =
-    node->create_observable<ReservationFreeSpotStatus>(
-    ReservationFreeSpotsTopicName, transient_local_qos);
   return node;
 }
 
