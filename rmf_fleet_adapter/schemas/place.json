@@ -11,8 +11,7 @@
       "type": "object",
       "properties": {
         "waypoint": { "$ref": "#/$defs/waypoint" },
-        "orientation": { "type": "number" },
-        "hold_for": {"type": "number"}
+        "orientation": { "type": "number" }
       },
       "required": ["waypoint"]
     }

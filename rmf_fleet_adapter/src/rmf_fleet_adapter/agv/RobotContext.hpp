@@ -778,8 +778,6 @@ public:
   /// Release last resource that was acquired.
   std::optional<rmf_chope_msgs::msg::ReservationAllocation> _release_resource();
 
-  std::unordered_set<std::size_t> _get_free_spots() const;
-
   /// Has ticket now
   bool _has_ticket() const;
 
@@ -847,17 +845,6 @@ public:
         if (const auto self = w.lock())
           self->_handle_mutex_group_manual_release(*msg);
       });
-
-    context->_free_space_sub = context->_node->freespots_obs()
-      .observe_on(rxcpp::identity_same_worker(context->_worker))
-      .subscribe([w = context->weak_from_this()](const auto& msg)
-        {
-          const auto self = w.lock();
-          if (!self)
-            return;
-
-          self->_free_spots = *msg;
-        });
 
     return context;
   }
@@ -970,13 +957,11 @@ private:
   std::unordered_map<std::string, TimeMsg> _requesting_mutex_groups;
   std::unordered_map<std::string, TimeMsg> _locked_mutex_groups;
 
-  rmf_chope_msgs::msg::FreeParkingSpots _free_spots;
-
   rxcpp::subjects::subject<std::string> _mutex_group_lock_subject;
   rxcpp::observable<std::string> _mutex_group_lock_obs;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
-  rmf_rxcpp::subscription_guard _free_space_sub;
+
   rclcpp::Subscription<rmf_fleet_msgs::msg::MutexGroupManualRelease>::SharedPtr
     _mutex_group_manual_release_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
@@ -987,7 +972,7 @@ private:
   std::unique_ptr<std::mutex> _final_lift_destination_mutex =
     std::make_unique<std::mutex>();
 
-  bool use_parking_spot_reservations;
+  bool _use_parking_spot_reservations;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

@@ -1715,13 +1715,13 @@ void RobotContext::_set_allocated_destination(
 //==============================================================================
 void RobotContext::_set_parking_spot_manager(const bool enabled)
 {
-  this->use_parking_spot_reservations = enabled;
+  _use_parking_spot_reservations = enabled;
 }
 
 //==============================================================================
 bool RobotContext::_parking_spot_manager_enabled()
 {
-  return this->use_parking_spot_reservations;
+  return _use_parking_spot_reservations;
 }
 
 //==============================================================================
@@ -1737,18 +1737,6 @@ bool RobotContext::_has_ticket() const
   return _reservation_mgr.has_ticket();
 }
 
-//==============================================================================
-std::unordered_set<std::size_t> RobotContext::_get_free_spots() const
-{
-  // TODO(arjo129) Poor efficiency of messages. Change messages to use
-  // graph/vertex pair.
-  std::unordered_set<std::size_t> set;
-  for (auto spot: _free_spots.spots)
-  {
-    set.insert(std::stoul(spot));
-  }
-  return set;
-}
 
 //==============================================================================
 void RobotContext::_handle_mutex_group_manual_release(

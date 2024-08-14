@@ -51,4 +51,4 @@ The chope node has no idea about the state of the graph it simply maintains a li
 
 ## Quality Declaration
 
-This package claims to be in the **Quality Level 4** category. See the [Quality Declaration](QUALITY_DECLARATION.md) for more details.
+This package claims to be in the **Quality Level 4** category. See the [Quality Declaration](QUALITY_DECLARATION.md) for more details._

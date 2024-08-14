@@ -31,7 +31,7 @@ class ChopeNodeNegotiator:
   public std::enable_shared_from_this<ChopeNodeNegotiator>
 {
 public:
-  static std::shared_ptr<ChopeNodeNegotiator> make(
+  ChopeNodeNegotiator(
     std::shared_ptr<agv::RobotContext> context,
     const std::vector<rmf_traffic::agv::Plan::Goal> goals,
     const bool same_map,
@@ -39,18 +39,16 @@ public:
       selected_final_destination_cb,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
   {
-
-    auto negotiator = std::make_shared<ChopeNodeNegotiator>();
-    negotiator->_context = context;
-    negotiator->_goals = std::move(goals);
-    negotiator->_selected_final_destination_cb = std::move(selected_final_destination_cb);
-    negotiator->_selected_waitpoint_cb = std::move(selected_waitpoint_cb);
-    negotiator->_reservation_id = negotiator->_context->last_reservation_request_id();
-    negotiator->_reservation_ticket =
-      negotiator->_context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(
-        negotiator->_context->worker()))
+    _context = context;
+    _goals = std::move(goals);
+    _selected_final_destination_cb = std::move(selected_final_destination_cb);
+    _selected_waitpoint_cb = std::move(selected_waitpoint_cb);
+    _reservation_id = _context->last_reservation_request_id();
+    _reservation_ticket =
+      _context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(
+        _context->worker()))
       .subscribe([w =
-        negotiator->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::Ticket>
+        weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::Ticket>
         &msg)
       {
 
@@ -137,11 +135,11 @@ public:
       });
 
 
-    negotiator->_reservation_allocation =
-      negotiator->_context->node()->allocated_claims_obs().observe_on(rxcpp::identity_same_worker(
-          negotiator->_context->worker()))
+    _reservation_allocation =
+      _context->node()->allocated_claims_obs().observe_on(rxcpp::identity_same_worker(
+          _context->worker()))
       .subscribe([w =
-        negotiator->weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>
+        weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>
         &msg)
         {
           const auto self = w.lock();
@@ -184,7 +182,7 @@ public:
             RCLCPP_INFO(
                 self->_context->node()->get_logger(), "chope: Robot %s is going to final destination",
                   self->_context->name().c_str());
-            self->_current_reservation_state = ReservationState::RecievedResponseProceedImmediate;
+            self->_current_reservation_state = ReservationState::ReceivedResponseProceedImmediate;
             self->_selected_final_destination_cb(self->_goals[self->_final_allocated_destination.value()->
               satisfies_alternative]);
           }
@@ -192,7 +190,7 @@ public:
           if (msg->instruction_type
             == rmf_chope_msgs::msg::ReservationAllocation::WAIT_PERMANENTLY)
           {
-            self->_current_reservation_state = ReservationState::RecievedResponceProceedWaitPoint;
+            self->_current_reservation_state = ReservationState::ReceivedResponseProceedWaitPoint;
             self->_selected_waitpoint_cb(self->_waitpoints[self->_final_allocated_destination.value()->
               satisfies_alternative]);
             RCLCPP_INFO(
@@ -203,21 +201,31 @@ public:
 
     RCLCPP_INFO(context->node()->get_logger(),
       "Sending chope request");
-    negotiator->make_request(same_map);
+    make_request(same_map);
+  }
+  static std::shared_ptr<ChopeNodeNegotiator> make(
+    std::shared_ptr<agv::RobotContext> context,
+    const std::vector<rmf_traffic::agv::Plan::Goal> goals,
+    const bool same_map,
+    const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
+      selected_final_destination_cb,
+    const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
+  {
+
+    auto negotiator = std::make_shared<ChopeNodeNegotiator>(context,
+      goals, same_map, selected_final_destination_cb, selected_waitpoint_cb);
     return negotiator;
   }
 
-ChopeNodeNegotiator()
-  {
 
-  }
 private:
+
   enum class ReservationState
   {
     Pending=0,
     Requested=1,
-    RecievedResponceProceedWaitPoint=2,
-    RecievedResponseProceedImmediate=3
+    ReceivedResponseProceedWaitPoint=2,
+    ReceivedResponseProceedImmediate=3
   };
 
 
@@ -225,7 +233,7 @@ private:
   void make_request(bool only_same_map)
   {
     auto current_location = _context->location();
-    auto graph = _context->navigation_graph();
+    const auto& graph = _context->navigation_graph();
     if (current_location.size() == 0)
     {
       //unable to get location. We should return some form of error stste.
