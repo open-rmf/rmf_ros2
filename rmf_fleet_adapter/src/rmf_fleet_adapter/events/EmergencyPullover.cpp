@@ -200,52 +200,8 @@ auto EmergencyPullover::Active::make(
     // Use chope node to retrieve the best emergency location.
     active->_chosen_goal = std::nullopt;
 
-    // Find spots on same floor and order them by distance
-    auto current_location = active->_context->location();
-    if (current_location.size() == 0)
-    {
-      // Could not localize should probably log an error and move into a
-      // retry timer of some form.
-      return active;
-    }
-    std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
-          waitpoints_order;
-    for (std::size_t wp_idx = 0;
-      wp_idx < active->_context->navigation_graph().num_waypoints(); wp_idx++)
-    {
-      const auto wp = active->_context->navigation_graph().get_waypoint(
-        wp_idx);
-
-      // Wait at parking spot and check its on same floor.
-      if (!wp.is_parking_spot() ||
-      wp.get_map_name() != active->_context->map())
-      {
-        continue;
-      }
-
-      auto result =
-      active->_context->planner()->quickest_path(current_location, wp_idx);
-      if (!result.has_value())
-      {
-        continue;
-      }
-
-      rmf_traffic::agv::Plan::Goal goal(wp_idx);
-      waitpoints_order.emplace_back(result->cost(), goal);
-    }
-
-    std::sort(waitpoints_order.begin(), waitpoints_order.end(),
-    [](const std::tuple<double, rmf_traffic::agv::Plan::Goal>& a,
-      const std::tuple<double, rmf_traffic::agv::Plan::Goal>& b)
-    {
-      return std::get<0>(a) < std::get<0>(b);
-    });
-
-    std::vector<rmf_traffic::agv::Plan::Goal> potential_waitpoints;
-    for (auto &[_, wp]: waitpoints_order)
-    {
-      potential_waitpoints.push_back(wp);
-    }
+    const auto potential_waitpoints =
+      std::move(active->_context->_find_and_sort_parking_spots(true));
 
     RCLCPP_INFO(active->_context->node()->get_logger(),
       "Creating Chope negotiator");
@@ -423,81 +379,81 @@ void EmergencyPullover::Active::_find_plan()
   }
   else {
 
-  _find_path_service = std::make_shared<services::FindPath>(
-    _context->planner(), _context->location(), *_chosen_goal,
-    _context->schedule()->snapshot(), _context->itinerary().id(),
-    _context->profile(),
-    std::chrono::seconds(5));
+    _find_path_service = std::make_shared<services::FindPath>(
+      _context->planner(), _context->location(), *_chosen_goal,
+      _context->schedule()->snapshot(), _context->itinerary().id(),
+      _context->profile(),
+      std::chrono::seconds(5));
 
-  const auto start_name = wp_name(*_context);
-  const auto goal_name = wp_name(*_context, *_chosen_goal);
+    const auto start_name = wp_name(*_context);
+    const auto goal_name = wp_name(*_context, *_chosen_goal);
 
-  _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
-    _find_path_service)
-    .observe_on(rxcpp::identity_same_worker(_context->worker()))
-    .subscribe(
-    [w = weak_from_this(), start_name, goal_name, goal = *_chosen_goal](
-      const services::FindPath::Result& result)
-    {
-      const auto self = w.lock();
-      if (!self)
-        return;
-
-      if (!result)
+    _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
+      _find_path_service)
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
+      .subscribe(
+      [w = weak_from_this(), start_name, goal_name, goal = *_chosen_goal](
+        const services::FindPath::Result& result)
       {
-        // The planner could not find a way to reach the goal
-        self->_state->update_status(Status::Error);
-        self->_state->update_log().error(
-          "Failed to find a plan to move from ["
-          + start_name + "] to [" + goal_name + "]. Will retry soon.");
+        const auto self = w.lock();
+        if (!self)
+          return;
 
-        // Reset the chosen goal in case this goal has become impossible to
-        // reach
-        self->_chosen_goal = std::nullopt;
-        self->_execution = std::nullopt;
-        self->_schedule_retry();
+        if (!result)
+        {
+          // The planner could not find a way to reach the goal
+          self->_state->update_status(Status::Error);
+          self->_state->update_log().error(
+            "Failed to find a plan to move from ["
+            + start_name + "] to [" + goal_name + "]. Will retry soon.");
 
-        self->_context->worker()
-        .schedule([update = self->_update](const auto&) { update(); });
+          // Reset the chosen goal in case this goal has become impossible to
+          // reach
+          self->_chosen_goal = std::nullopt;
+          self->_execution = std::nullopt;
+          self->_schedule_retry();
 
-        return;
-      }
+          self->_context->worker()
+          .schedule([update = self->_update](const auto&) { update(); });
 
-      self->_state->update_status(Status::Underway);
-      self->_state->update_log().info(
-        "Found a plan to move from ["
-        + start_name + "] to [" + goal_name + "]");
+          return;
+        }
+
+        self->_state->update_status(Status::Underway);
+        self->_state->update_log().info(
+          "Found a plan to move from ["
+          + start_name + "] to [" + goal_name + "]");
 
 
-      std::vector<rmf_traffic::agv::Plan::Goal> no_future_projections;
-      auto full_itinerary = project_itinerary(
-        *result, no_future_projections,
-        *self->_context->planner());
+        std::vector<rmf_traffic::agv::Plan::Goal> no_future_projections;
+        auto full_itinerary = project_itinerary(
+          *result, no_future_projections,
+          *self->_context->planner());
 
-      self->_execute_plan(
-        self->_context->itinerary().assign_plan_id(),
-        *std::move(result),
-        std::move(full_itinerary));
+        self->_execute_plan(
+          self->_context->itinerary().assign_plan_id(),
+          *std::move(result),
+          std::move(full_itinerary));
 
-      self->_find_path_service = nullptr;
-      self->_retry_timer = nullptr;
-    });
+        self->_find_path_service = nullptr;
+        self->_retry_timer = nullptr;
+      });
 
-  _find_path_timeout = _context->node()->try_create_wall_timer(
-    std::chrono::seconds(10),
-    [
-      weak_service = _find_path_service->weak_from_this(),
-      weak_self = weak_from_this()
-    ]()
-    {
-      if (const auto service = weak_service.lock())
-        service->interrupt();
+    _find_path_timeout = _context->node()->try_create_wall_timer(
+      std::chrono::seconds(10),
+      [
+        weak_service = _find_path_service->weak_from_this(),
+        weak_self = weak_from_this()
+      ]()
+      {
+        if (const auto service = weak_service.lock())
+          service->interrupt();
 
-      if (const auto self = weak_self.lock())
-        self->_find_path_timeout = nullptr;
-    });
+        if (const auto self = weak_self.lock())
+          self->_find_path_timeout = nullptr;
+      });
 
-    _update();
+      _update();
   }
 }
 

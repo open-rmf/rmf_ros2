@@ -1737,6 +1737,91 @@ bool RobotContext::_has_ticket() const
   return _reservation_mgr.has_ticket();
 }
 
+//==============================================================================
+std::vector<rmf_traffic::agv::Plan::Goal>
+  RobotContext::_find_and_sort_parking_spots(
+    const bool same_floor, const std::vector<std::size_t> &waypoint_ids) const
+{
+  std::vector<rmf_traffic::agv::Plan::Goal>
+    final_result;
+  // Retrieve nav graph
+  const auto& graph = navigation_graph();
+
+  // Get current location
+  auto current_location = location();
+  if (current_location.size() == 0)
+  {
+    // Could not localize should probably log an error
+    RCLCPP_ERROR(node()->get_logger(), "Unable to localize.");
+    return final_result;
+  }
+
+  // In the event that no specific waypoint ids are used we look for parking spots
+  std::vector<std::size_t> parking_spots;
+  if (waypoint_ids.size() == 0)
+  {
+    for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
+    {
+      const auto& wp = graph.get_waypoint(i);
+      if (wp.is_parking_spot())
+      {
+        parking_spots.push_back(i);
+      }
+    }
+  }
+
+  const auto& waypoints = (waypoint_ids.size() == 0) ?
+    parking_spots : waypoint_ids;
+
+
+  // Order wait points by the distance from the destination.
+  std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
+    waitpoints_order;
+  for (auto wp_idx: waypoints)
+  {
+    if (same_floor)
+    {
+      const auto& wp = graph.get_waypoint(wp_idx);
+
+      // Check if same map. If not don't consider location. This is to ensure
+      // the robot does not try to board a lift.
+      if (wp.get_map_name() != map())
+      {
+        RCLCPP_INFO(
+          node()->get_logger(),
+          "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+          wp_idx,
+          wp.get_map_name().c_str(),
+          map().c_str());
+        continue;
+      }
+    }
+    auto result = planner()->quickest_path(current_location, wp_idx);
+    if (!result.has_value())
+    {
+      continue;
+    }
+
+    rmf_traffic::agv::Plan::Goal goal(wp_idx);
+    waitpoints_order.emplace_back(result->cost(), goal);
+
+  }
+
+  //Sort waiting points
+  std::sort(waitpoints_order.begin(), waitpoints_order.end(),
+    [](const std::tuple<double, rmf_traffic::agv::Plan::Goal>& a,
+      const std::tuple<double, rmf_traffic::agv::Plan::Goal>& b)
+    {
+      return std::get<0>(a) < std::get<0>(b);
+    });
+
+
+  for (auto &[_, waitpoint]: waitpoints_order)
+  {
+    final_result.push_back(waitpoint);
+  }
+  return final_result;
+}
 
 //==============================================================================
 void RobotContext::_handle_mutex_group_manual_release(

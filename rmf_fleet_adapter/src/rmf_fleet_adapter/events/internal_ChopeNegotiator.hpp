@@ -47,16 +47,11 @@ public:
     _reservation_ticket =
       _context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(
         _context->worker()))
-      .subscribe([w =
-        weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::Ticket>
+      .subscribe([self = this](const std::shared_ptr<rmf_chope_msgs::msg::Ticket>
         &msg)
       {
 
-        const auto self = w.lock();
-        if (!self)
-          return;
-
-        RCLCPP_ERROR(
+        RCLCPP_INFO(
           self->_context->node()->get_logger(),
           "Got ticket issueing claim");
 
@@ -68,65 +63,24 @@ public:
         }
 
         self->_ticket = msg;
+        self->_waitpoints = self->_context->_find_and_sort_parking_spots(true);
 
-        // Pick the nearest location to wait
-        auto current_location = self->_context->location();
-        if (current_location.size() == 0)
+        if (self->_waitpoints.size() == 0)
         {
+          RCLCPP_ERROR(
+            self->_context->node()->get_logger(),
+            "Got no waitpoints");
           return;
         }
-
-        // Order wait points by the distance from the destination.
-        std::vector<std::tuple<double, std::string, rmf_traffic::agv::Plan::Goal>>
-          waitpoints_order;
-        for (std::size_t wp_idx = 0;
-        wp_idx < self->_context->navigation_graph().num_waypoints(); wp_idx++)
-        {
-          const auto wp = self->_context->navigation_graph().get_waypoint(
-            wp_idx);
-
-          auto name = wp.name();
-          if (name == nullptr)
-          {
-            RCLCPP_ERROR(self->_context->node()->get_logger(),
-                "Got a parking spot without a name."
-                "This parking spot will not be used by the reservation system.");
-            continue;
-          }
-
-          // Wait at parking spot and check its on same floor.
-          if (!wp.is_parking_spot() ||
-          wp.get_map_name() != self->_context->map())
-          {
-            continue;
-          }
-
-          auto result =
-          self->_context->planner()->quickest_path(current_location, wp_idx);
-          if (!result.has_value())
-          {
-            continue;
-          }
-
-          rmf_traffic::agv::Plan::Goal goal(wp_idx);
-          waitpoints_order.emplace_back(result->cost(), *name, goal);
-        }
-
-        std::sort(waitpoints_order.begin(), waitpoints_order.end(),
-        [](const std::tuple<double, std::string, rmf_traffic::agv::Plan::Goal>& a,
-          const std::tuple<double, std::string, rmf_traffic::agv::Plan::Goal>& b)
-        {
-          return std::get<0>(a) < std::get<0>(b);
-        });
 
         // Immediately make claim cause we don't yet support flexible reservations.
         rmf_chope_msgs::msg::ClaimRequest claim_request;
         claim_request.ticket = *msg;
-        std::vector<std::string> waitpoints;
-        for (auto &[_, waitpoint, waitpoint_goal]: waitpoints_order)
+        for (const auto &goal: self->_waitpoints)
         {
-          claim_request.wait_points.push_back(waitpoint);
-          self->_waitpoints.push_back(waitpoint_goal);
+          auto wp =
+            self->_context->navigation_graph().get_waypoint(goal.waypoint());
+          claim_request.wait_points.push_back(*wp.name());
         }
         self->_context->node()->claim_location_ticket()->publish(claim_request);
         RCLCPP_ERROR(
@@ -138,14 +92,9 @@ public:
     _reservation_allocation =
       _context->node()->allocated_claims_obs().observe_on(rxcpp::identity_same_worker(
           _context->worker()))
-      .subscribe([w =
-        weak_from_this()](const std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>
+      .subscribe([self = this](const std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>
         &msg)
         {
-          const auto self = w.lock();
-          if (!self)
-            return;
-
           if (!self->_ticket.has_value())
           {
             return;
@@ -211,12 +160,12 @@ public:
       selected_final_destination_cb,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
   {
-
+    RCLCPP_INFO(context->node()->get_logger(),
+      "Constructing chope negotiator");
     auto negotiator = std::make_shared<ChopeNodeNegotiator>(context,
       goals, same_map, selected_final_destination_cb, selected_waitpoint_cb);
     return negotiator;
   }
-
 
 private:
 
@@ -246,7 +195,7 @@ private:
 
     RCLCPP_INFO(
       _context->node()->get_logger(),
-      "Selecting a new go_to_place location from [%lu] choices for robot [%s]",
+      "Chope Negotiator: Selecting a new go_to_place location from [%lu] choices for robot [%s]",
       _goals.size(),
       _context->requester_id().c_str());
 

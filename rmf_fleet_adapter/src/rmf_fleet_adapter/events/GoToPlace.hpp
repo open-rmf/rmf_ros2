@@ -106,22 +106,15 @@ public:
     void kill() final;
 
   private:
-    enum class ReservationState
-    {
-      Pending=0,
-      Requested=1,
-      RecievedResponse=2
-    };
-
-    ReservationState _current_reservation_state = ReservationState::Pending;
 
 
     Active(Description description);
 
     void _schedule_retry();
 
+    // Chooses goal if the goal is on the same map. Otherwise it
     std::optional<rmf_traffic::agv::Plan::Goal> _choose_goal(
-      bool only_same_map);
+      bool only_same_map) const;
 
     void _find_plan();
 

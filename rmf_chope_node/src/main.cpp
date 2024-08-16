@@ -91,8 +91,6 @@ public:
       request_header.robot_name,
       request_header.fleet_name
     };
-    _robots_to_tickets[robot_identifier].push_back(_last_issued_ticket_id);
-    _header_to_ticket.emplace(request_header, _last_issued_ticket_id);
     _ticket_to_header.emplace(_last_issued_ticket_id, request_header);
     _last_issued_ticket_id++;
     return ticket;
@@ -106,10 +104,6 @@ public:
     return ticket;
   }
 
-  std::unordered_map<RobotIdentifier,
-    std::vector<std::size_t>> _robots_to_tickets;
-  std::unordered_map<rmf_chope_msgs::msg::RequestHeader,
-    std::size_t> _header_to_ticket;
   std::unordered_map<std::size_t,
     rmf_chope_msgs::msg::RequestHeader> _ticket_to_header;
   std::size_t _last_issued_ticket_id = 1;
@@ -145,7 +139,6 @@ class CurrentState
 public:
   std::vector<std::string> free_locations()
   {
-    std::lock_guard<std::mutex> lock(_mtx);
     std::vector<std::string> locations;
     for (auto&[loc, state] : _current_location_reservations)
     {
@@ -159,7 +152,6 @@ public:
 
   void add_location(std::string location)
   {
-    std::lock_guard<std::mutex> lock(_mtx);
     if (_current_location_reservations.count(location) == 0)
     {
       _current_location_reservations.emplace(location,
@@ -170,7 +162,7 @@ public:
   /// Tries to greedily allocate the lowest cost free spot given a list of potential
   /// parking spots.
   /// \param[in] incoming_requests - Parking spot and cost of said parking spot
-  /// \param[in] ticket_id - Ticket which is being
+  /// \param[in] ticket_id - Ticket which is being serviced
   std::optional<std::size_t> allocate_lowest_cost_free_spot(
     const std::vector<LocationReq>& incoming_requests,
     const std::size_t ticket_id)
@@ -187,9 +179,8 @@ public:
       positions[incoming_requests[i].location] = i;
     }
 
-    auto requests = incoming_requests;
+    auto requests = std::move(incoming_requests);
     std::sort(requests.begin(), requests.end());
-    std::lock_guard<std::mutex> lock(_mtx);
     for (std::size_t i = 0; i < requests.size(); i++)
     {
       auto parking = _current_location_reservations.find(requests[i].location);
@@ -221,7 +212,6 @@ public:
 
   std::optional<std::string> release(const std::size_t ticket_id)
   {
-    std::lock_guard<std::mutex> lock(_mtx);
     auto _ticket = _ticket_to_location.find(ticket_id);
     if (_ticket == _ticket_to_location.end())
     {
@@ -234,13 +224,12 @@ _ticket_to_location.erase(_ticket);
   }
 
 private:
-  std::mutex _mtx;
   std::unordered_map<std::string, LocationState> _current_location_reservations;
   std::unordered_map<std::size_t, std::string> _ticket_to_location;
 };
 
 
-///A queue that allowss removal of an item based on its value.
+///A queue that allows removal of an item based on its value.
 template<typename T>
 class ItemQueue
 {
@@ -290,7 +279,7 @@ public:
 
 /// This class enqueues items based on how old a request is.
 /// The basic idea is that we maintain a queue for every resource. As requests
-/// come in we simultaneously add them to every queue which cam beserviced.
+/// come in we simultaneously add them to every queue which can be serviced.
 /// Once a resource becomes free we call `service_next_in_queue` for said resource.
 /// When we service the next item in the queue we remove it from all other queues.
 class ServiceQueueManager

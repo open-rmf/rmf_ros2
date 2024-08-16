@@ -285,7 +285,7 @@ auto GoToPlace::Active::make(
 
     RCLCPP_INFO(active->_context->node()->get_logger(),
       "Creating Chope negotiator");
-    active->_chope_client = chope::ChopeNodeNegotiator::make(
+    active->_chope_client = std::move(chope::ChopeNodeNegotiator::make(
       active->_context,
       active->_description.one_of(),
       active->_description.prefer_same_map(),
@@ -301,7 +301,7 @@ auto GoToPlace::Active::make(
           self->_on_chope_node_allocate_waitpoint(goal);
         }
       }
-    );
+    ));
   };
 
   return active;
@@ -467,10 +467,10 @@ std::string wp_name(const agv::RobotContext& context)
 
 //==============================================================================
 std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
-  bool only_same_map)
+  bool only_same_map) const
 {
   auto current_location = _context->location();
-  auto graph = _context->navigation_graph();
+  const auto& graph = _context->navigation_graph();
   if (current_location.size() == 0)
   {
     //unable to get location. We should return some form of error stste.
@@ -492,7 +492,6 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
   {
     RCLCPP_INFO(_context->node()->get_logger(),
       "Requesting Chope Node For Time To Progress");
-
   }
   else
   {
