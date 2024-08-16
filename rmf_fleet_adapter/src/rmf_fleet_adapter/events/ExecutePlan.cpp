@@ -32,7 +32,6 @@
 #include "../agv/internal_RobotUpdateHandle.hpp"
 
 #include <rmf_task_sequence/events/Bundle.hpp>
-#include <sstream>
 
 namespace rmf_fleet_adapter {
 namespace events {
@@ -860,7 +859,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints =
     plan.get_waypoints();
 
-  auto waypoint_copy = waypoints;
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
   std::optional<LockMutexGroup::Data> current_mutex_groups;
   std::unordered_set<std::string> remaining_mutex_groups;

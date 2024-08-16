@@ -161,8 +161,8 @@ public:
 
   /// Tries to greedily allocate the lowest cost free spot given a list of potential
   /// parking spots.
-  /// \param[in] incoming_requests - Parking spot and cost of said parking spot
-  /// \param[in] ticket_id - Ticket which is being serviced
+  /// \param[in] incoming_requests - Parking spot and cost of said parking spot.
+  /// \param[in] ticket_id - Ticket which is being serviced.
   std::optional<std::size_t> allocate_lowest_cost_free_spot(
     const std::vector<LocationReq>& incoming_requests,
     const std::size_t ticket_id)

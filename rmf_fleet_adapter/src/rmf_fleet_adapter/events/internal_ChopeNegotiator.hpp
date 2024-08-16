@@ -242,12 +242,6 @@ private:
             wp_idx,
             result->cost());
 
-          if (result->cost() < lowest_cost)
-          {
-            selected_idx = i;
-            lowest_cost = result->cost();
-          }
-
           auto name = wp.name();
           if (name == nullptr)
           {

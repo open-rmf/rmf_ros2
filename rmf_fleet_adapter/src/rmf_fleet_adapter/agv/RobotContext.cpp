@@ -1799,6 +1799,10 @@ std::vector<rmf_traffic::agv::Plan::Goal>
     auto result = planner()->quickest_path(current_location, wp_idx);
     if (!result.has_value())
     {
+      RCLCPP_INFO(
+          node()->get_logger(),
+          "No path found for waypoint #%lu",
+          wp_idx);
       continue;
     }
 
