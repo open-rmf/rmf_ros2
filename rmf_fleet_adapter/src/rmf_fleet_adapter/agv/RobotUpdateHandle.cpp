@@ -712,19 +712,6 @@ void RobotUpdateHandle::enable_responsive_wait(bool value)
     });
 }
 
-//==============================================================================
-void RobotUpdateHandle::enable_simple_parkingspot_reservation(bool value)
-{
-  const auto context = _pimpl->get_context();
-  if (!context)
-    return;
-
-  context->worker().schedule(
-    [context, value](const auto&)
-    {
-      context->_set_parking_spot_manager(value);
-    });
-}
 
 //==============================================================================
 void RobotUpdateHandle::release_lift()

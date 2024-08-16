@@ -568,7 +568,7 @@ public:
   ///   The minimum length that a lane should have.
   ///
   /// \param[in] use_parking_reservation
-  ///   Whether ro use
+  ///   Whether to use parking_reservations.
   FleetConfiguration(
     const std::string& fleet_name,
     std::optional<std::unordered_map<std::string, Transformation>>

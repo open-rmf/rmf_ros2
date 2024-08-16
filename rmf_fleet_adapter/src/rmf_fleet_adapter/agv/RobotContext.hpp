@@ -964,23 +964,21 @@ private:
     const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg);
   std::unordered_map<std::string, TimeMsg> _requesting_mutex_groups;
   std::unordered_map<std::string, TimeMsg> _locked_mutex_groups;
-
   rxcpp::subjects::subject<std::string> _mutex_group_lock_subject;
   rxcpp::observable<std::string> _mutex_group_lock_obs;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
-
   rclcpp::Subscription<rmf_fleet_msgs::msg::MutexGroupManualRelease>::SharedPtr
     _mutex_group_manual_release_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
 
   uint64_t _last_reservation_request_id;
   ReservationManager _reservation_mgr;
+  bool _use_parking_spot_reservations;
+
   std::optional<RobotUpdateHandle::LiftDestination> _final_lift_destination;
   std::unique_ptr<std::mutex> _final_lift_destination_mutex =
     std::make_unique<std::mutex>();
-
-  bool _use_parking_spot_reservations;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;
