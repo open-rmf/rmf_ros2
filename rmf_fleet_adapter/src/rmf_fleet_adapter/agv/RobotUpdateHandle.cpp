@@ -712,7 +712,6 @@ void RobotUpdateHandle::enable_responsive_wait(bool value)
     });
 }
 
-
 //==============================================================================
 void RobotUpdateHandle::release_lift()
 {
