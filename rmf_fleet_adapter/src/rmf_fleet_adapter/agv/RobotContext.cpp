@@ -1740,7 +1740,7 @@ bool RobotContext::_has_ticket() const
 //==============================================================================
 std::vector<rmf_traffic::agv::Plan::Goal>
   RobotContext::_find_and_sort_parking_spots(
-    const bool same_floor, const std::vector<std::size_t> &waypoint_ids) const
+    const bool same_floor) const
 {
   std::vector<rmf_traffic::agv::Plan::Goal>
     final_result;
@@ -1756,32 +1756,20 @@ std::vector<rmf_traffic::agv::Plan::Goal>
     return final_result;
   }
 
-  // In the event that no specific waypoint ids are used we look for parking spots
-  std::vector<std::size_t> parking_spots;
-  if (waypoint_ids.size() == 0)
-  {
-    for (std::size_t i = 0; i < graph.num_waypoints(); ++i)
-    {
-      const auto& wp = graph.get_waypoint(i);
-      if (wp.is_parking_spot())
-      {
-        parking_spots.push_back(i);
-      }
-    }
-  }
-
-  const auto& waypoints = (waypoint_ids.size() == 0) ?
-    parking_spots : waypoint_ids;
-
-
   // Order wait points by the distance from the destination.
   std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
     waitpoints_order;
-  for (auto wp_idx: waypoints)
+  for (std::size_t wp_idx = 0; wp_idx < graph.num_waypoints(); ++wp_idx)
   {
+    const auto& wp = graph.get_waypoint(wp_idx);
+
+    if (!wp.is_parking_spot())
+    {
+      continue;
+    }
+
     if (same_floor)
     {
-      const auto& wp = graph.get_waypoint(wp_idx);
 
       // Check if same map. If not don't consider location. This is to ensure
       // the robot does not try to board a lift.

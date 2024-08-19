@@ -154,6 +154,8 @@ public:
   {
     if (_current_location_reservations.count(location) == 0)
     {
+      std::cerr << "Got duplicate location [" << location
+        << "]" << std::endl;
       _current_location_reservations.emplace(location,
         LocationState {std::nullopt});
     }
@@ -179,7 +181,7 @@ public:
       positions[incoming_requests[i].location] = i;
     }
 
-    auto requests = std::move(incoming_requests);
+    auto requests = incoming_requests;
     std::sort(requests.begin(), requests.end());
     for (std::size_t i = 0; i < requests.size(); i++)
     {

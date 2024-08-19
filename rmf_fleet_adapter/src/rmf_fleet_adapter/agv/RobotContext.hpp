@@ -772,12 +772,10 @@ public:
   /// Set if the parking spot manager is used or not
   void _set_parking_spot_manager(const bool enabled);
 
-  /// Find all available spots from a list of graph waypoints
-  /// it an empty list is provided then we use the navgraph to
-  ///  infer parking spotsotherwise we will always rely on
+  /// Find all available spots.
+  /// \param[in] same_floor - if the parking spots should be on the same floor.
   std::vector<rmf_traffic::agv::Planner::Goal>
-    _find_and_sort_parking_spots(const bool same_floor,
-      const std::vector<std::size_t> &waypoint_ids=std::vector<std::size_t>())
+    _find_and_sort_parking_spots(const bool same_floor)
       const;
 
   /// Set if the parking spot manager is used or not
