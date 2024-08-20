@@ -154,10 +154,13 @@ public:
   {
     if (_current_location_reservations.count(location) == 0)
     {
-      std::cerr << "Got duplicate location [" << location
-        << "]" << std::endl;
       _current_location_reservations.emplace(location,
         LocationState {std::nullopt});
+    }
+    else
+    {
+      std::cerr << "Got duplicate location [" << location
+              << "]" << std::endl;
     }
   }
 
