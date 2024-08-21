@@ -24,13 +24,6 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
-enum class ReservationState
-{
-  AWAITING_REQUEST,
-  AWAITING_ALLOCATION,
-  AWAITING_TURN
-};
-
 
 class ReservationManager
 {

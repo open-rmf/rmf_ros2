@@ -201,7 +201,7 @@ auto EmergencyPullover::Active::make(
     active->_chosen_goal = std::nullopt;
 
     const auto potential_waitpoints =
-      std::move(active->_context->_find_and_sort_parking_spots(true));
+      active->_context->_find_and_sort_parking_spots(true);
 
     RCLCPP_INFO(active->_context->node()->get_logger(),
       "Creating Chope negotiator");

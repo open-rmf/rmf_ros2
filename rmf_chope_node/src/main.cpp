@@ -137,7 +137,8 @@ struct LocationReq
 class CurrentState
 {
 public:
-  std::vector<std::string> free_locations()
+  /// Get list of free locations
+  std::vector<std::string> free_locations() const
   {
     std::vector<std::string> locations;
     for (auto&[loc, state] : _current_location_reservations)
@@ -206,7 +207,7 @@ public:
       }
     }
 
-    std::cerr << "Could not free space from any of: ";
+    std::cerr << "Could not find a free space from any of: ";
     for (auto c: requests) {
       std::cerr << c.location << ", ";
     }
@@ -234,7 +235,7 @@ private:
 };
 
 
-///A queue that allows removal of an item based on its value.
+/// A queue that allows removal of an item based on its value.
 template<typename T>
 class ItemQueue
 {
@@ -292,6 +293,7 @@ class ServiceQueueManager
   std::unordered_map<std::string,
     ItemQueue<std::size_t>> resource_queues;
 public:
+  /// Service
   std::optional<std::size_t> service_next_in_queue(const std::string& resource)
   {
     auto item = resource_queues[resource].front();
@@ -307,7 +309,8 @@ public:
     return item;
   }
 
-  void add_to_queue(std::size_t ticket, std::vector<std::string>& resources)
+  void add_to_queue(
+    std::size_t ticket, std::vector<std::string>& resources)
   {
     for(auto resource: resources)
     {
@@ -492,38 +495,52 @@ private:
         request->ticket.ticket_id);
       return;
     }
-
-    auto next_item = queue_manager_.service_next_in_queue(released_location.value());
-    if (!next_item.has_value())
-    {
-      RCLCPP_INFO(
-        this->get_logger(), "Queue is now empty %s",
-        released_location->c_str());
-      return;
-    }
-    // Will go to lowest
-    auto result = current_state_.allocate_lowest_cost_free_spot(requests_[next_item.value()],
-          next_item.value());
     RCLCPP_INFO(
-        this->get_logger(), "Found next item %lu on queue %s",
-        next_item.value(),
-        released_location.value().c_str());
+      this->get_logger(), "Released ticket %lu, location %s is now free",
+      request->ticket.ticket_id,
+      released_location->c_str());
 
-    if (!result.has_value())
+    // Traverse waitgraph.
+    while(auto next_ticket = queue_manager_.service_next_in_queue(released_location.value()))
     {
-      RCLCPP_ERROR(
-        this->get_logger(), "Tried to service %lu. Apparently there was some inconsitency between the chope node's state and the", ticket);
-      return;
+      // Release the ticket
+      released_location = current_state_.release(next_ticket.value());
+      if (!released_location.has_value())
+      {
+        RCLCPP_ERROR(
+          this->get_logger(), "Could not find ticket %lu",
+          next_ticket.value());
+        return;
+      }
+
+      auto result = current_state_.allocate_lowest_cost_free_spot(requests_[next_ticket.value()],
+            next_ticket.value());
+      RCLCPP_INFO(
+          this->get_logger(), "Found next item %lu on queue %s",
+          next_ticket.value(),
+          released_location.value().c_str());
+
+
+      if (!result.has_value())
+      {
+        RCLCPP_ERROR(
+          this->get_logger(), "Tried to service %lu. Apparently there was some inconsitency between the chope node's state and the", ticket);
+        return;
+      }
+      rmf_chope_msgs::msg::ReservationAllocation allocation;
+      allocation.satisfies_alternative = result.value();
+      allocation.resource = requests_[next_ticket.value()][result.value()].location;
+      allocation.ticket = ticket_store_.get_existing_ticket(next_ticket.value());
+      allocation.instruction_type =
+        rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
+      RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
+        allocation.resource.c_str(), next_ticket.value());
+      allocation_pub_->publish(allocation);
     }
-    rmf_chope_msgs::msg::ReservationAllocation allocation;
-    allocation.satisfies_alternative = result.value();
-    allocation.resource = requests_[next_item.value()][result.value()].location;
-    allocation.ticket = ticket_store_.get_existing_ticket(next_item.value());
-    allocation.instruction_type =
-      rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
-    RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
-      allocation.resource.c_str(), next_item.value());
-    allocation_pub_->publish(allocation);
+    RCLCPP_INFO(
+          this->get_logger(), "Queue is now empty %s",
+          released_location->c_str());
+        return;
   }
 
 

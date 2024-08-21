@@ -53,7 +53,7 @@ public:
 
         RCLCPP_INFO(
           self->_context->node()->get_logger(),
-          "Got ticket issueing claim");
+          "Chope: Got ticket issueing claim");
 
         if (msg->header.request_id != self->_reservation_id
         || msg->header.robot_name != self->_context->name()
@@ -69,7 +69,7 @@ public:
         {
           RCLCPP_ERROR(
             self->_context->node()->get_logger(),
-            "Got no waitpoints");
+            "Chope: Got no waitpoints");
           return;
         }
 
@@ -85,7 +85,7 @@ public:
         self->_context->node()->claim_location_ticket()->publish(claim_request);
         RCLCPP_ERROR(
           self->_context->node()->get_logger(),
-          "Claim issued");
+          "Chope: Claim issued");
       });
 
 
@@ -110,17 +110,21 @@ public:
 
           if (self->_current_reservation_state ==  ReservationState::Requested)
           {
+            std::unordered_set<std::size_t> released_ticket_ids;
             while (auto allocation = self->_context->_release_resource())
             {
+              if (released_ticket_ids.count(allocation->ticket.ticket_id) != 0)
+              {
+                continue;
+              }
+              released_ticket_ids.insert(allocation->ticket.ticket_id);
               rmf_chope_msgs::msg::ReleaseRequest msg;
-              std::stringstream str;
-              str << self->_context->location()[0].waypoint();
-              str >> msg.location;
               msg.ticket = allocation->ticket;
               self->_context->node()->release_location()->publish(msg);
-              RCLCPP_ERROR(
+              RCLCPP_INFO(
                 self->_context->node()->get_logger(),
-                "Releasing waypoint"
+                "Chope: Releasing waypoint for ticket %lu",
+                msg.ticket
               );
             }
           }
@@ -129,7 +133,7 @@ public:
             == rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
           {
             RCLCPP_INFO(
-                self->_context->node()->get_logger(), "chope: Robot %s is going to final destination",
+                self->_context->node()->get_logger(), "Chope: Robot %s is going to final destination",
                   self->_context->name().c_str());
             self->_current_reservation_state = ReservationState::ReceivedResponseProceedImmediate;
             self->_selected_final_destination_cb(self->_goals[self->_final_allocated_destination.value()->
@@ -143,7 +147,7 @@ public:
             self->_selected_waitpoint_cb(self->_waitpoints[self->_final_allocated_destination.value()->
               satisfies_alternative]);
             RCLCPP_INFO(
-                self->_context->node()->get_logger(), "chope: Robot %s is being asked to proceed to a to waitpoint",
+                self->_context->node()->get_logger(), "Chope: Robot %s is being asked to proceed to a to waitpoint",
                   self->_context->name().c_str());
           }
         });
@@ -188,7 +192,7 @@ private:
       //unable to get location. We should return some form of error stste.
       RCLCPP_ERROR(
         _context->node()->get_logger(),
-        "Robot [%s] can't get location",
+        "Chope: Robot [%s] can't get location",
         _context->requester_id().c_str());
       return;
     }
@@ -201,13 +205,12 @@ private:
 
     if (_current_reservation_state == ReservationState::Pending)
     {
-      // Select node
+      // Submit costs of each alternative
       rmf_chope_msgs::msg::FlexibleTimeRequest ftr;
       ftr.header.robot_name = _context->name();
       ftr.header.fleet_name = _context->group();
       ftr.header.request_id = _reservation_id;
 
-      auto lowest_cost = std::numeric_limits<double>::infinity();
       std::optional<std::size_t> selected_idx;
       for (std::size_t i = 0; i < _goals.size(); ++i)
       {
