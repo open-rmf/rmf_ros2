@@ -401,14 +401,6 @@ struct MutexGroupData
 };
 
 //==============================================================================
-struct MutexGroupSwitch
-{
-  std::string from;
-  std::string to;
-  std::function<bool()> accept;
-};
-
-//==============================================================================
 class RobotContext
   : public std::enable_shared_from_this<RobotContext>,
   public rmf_traffic::schedule::Negotiator
