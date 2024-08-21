@@ -45,35 +45,6 @@ struct std::hash<rmf_chope_msgs::msg::RequestHeader>
 };
 
 
-/// Useful for identifying which tickets belong to which robots.
-struct RobotIdentifier
-{
-  std::string robot_name;
-  std::string fleet_name;
-
-  bool operator==(const RobotIdentifier& other) const
-  {
-    return robot_name == other.robot_name && fleet_name == other.fleet_name;
-  }
-};
-
-
-template<>
-struct std::hash<RobotIdentifier>
-{
-  std::size_t operator()(const RobotIdentifier& header) const
-  {
-    using std::size_t;
-    using std::hash;
-    using std::string;
-
-
-    return (hash<string>()(header.robot_name)
-      ^ (hash<string>()(header.fleet_name) << 1)) >> 1;
-  }
-};
-
-
 /// Ticket generation class for book keeping purposes. Will eventually overflow.
 /// Ticket id 0 does not exist and is useful for making emergency claims.
 /// Ticket ids are mapped across multiple fleets.
@@ -87,10 +58,7 @@ public:
     rmf_chope_msgs::msg::Ticket ticket;
     ticket.header = request_header;
     ticket.ticket_id = _last_issued_ticket_id;
-    RobotIdentifier robot_identifier {
-      request_header.robot_name,
-      request_header.fleet_name
-    };
+
     _ticket_to_header.emplace(_last_issued_ticket_id, request_header);
     _last_issued_ticket_id++;
     return ticket;
@@ -350,7 +318,7 @@ public:
     graph_subscription_ =
       this->create_subscription<rmf_building_map_msgs::msg::Graph>(
       "/nav_graphs", qos,
-      std::bind(&ChopeNode::recieved_graph, this,
+      std::bind(&ChopeNode::received_graph, this,
       std::placeholders::_1));
 
     ticket_pub_ = this->create_publisher<rmf_chope_msgs::msg::Ticket>(
@@ -368,7 +336,7 @@ public:
   }
 
 private:
-  void recieved_graph(
+  void received_graph(
     const rmf_building_map_msgs::msg::Graph::ConstSharedPtr& graph_msg)
   {
     RCLCPP_INFO(this->get_logger(), "Got graph");

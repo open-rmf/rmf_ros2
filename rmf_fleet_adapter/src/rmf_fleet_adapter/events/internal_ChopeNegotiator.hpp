@@ -124,7 +124,7 @@ public:
               RCLCPP_INFO(
                 self->_context->node()->get_logger(),
                 "Chope: Releasing waypoint for ticket %lu",
-                msg.ticket
+                msg.ticket.ticket_id
               );
             }
           }
