@@ -34,6 +34,7 @@ const std::string DispatchCommandTopicName = Prefix + "dispatch_request";
 const std::string DispatchAckTopicName = Prefix + "dispatch_ack";
 const std::string DispatchStatesTopicName = "dispatch_states";
 const std::string TaskStatusTopicName = "task_summaries";
+const std::string TaskStateUpdateTopicName = "task_state_update";
 
 } // namespace rmf_task_ros2
 

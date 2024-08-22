@@ -18,6 +18,8 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__AGV__INTERNAL_FLEETUPDATEHANDLE_HPP
 #define SRC__RMF_FLEET_ADAPTER__AGV__INTERNAL_FLEETUPDATEHANDLE_HPP
 
+#include <std_msgs/msg/string.hpp>
+
 #include <rmf_task_msgs/msg/loop.hpp>
 
 #include <rmf_task_ros2/bidding/AsyncBidder.hpp>
@@ -296,6 +298,15 @@ public:
     std::shared_ptr<TaskManager>> task_managers = {};
 
   std::shared_ptr<rmf_websocket::BroadcastClient> broadcast_client = nullptr;
+
+  using FleetStateUpdateMsg = std_msgs::msg::String;
+  rclcpp::Publisher<FleetStateUpdateMsg>::SharedPtr fleet_state_update_pub =
+    nullptr;
+
+  using FleetLogUpdateMsg = std_msgs::msg::String;
+  rclcpp::Publisher<FleetLogUpdateMsg>::SharedPtr fleet_log_update_pub =
+    nullptr;
+
   // Map uri to schema for validator loader function
   std::unordered_map<std::string, nlohmann::json> schema_dictionary = {};
 
@@ -529,6 +540,15 @@ public:
           }
           return task_logs;
         });
+    }
+    else
+    {
+      handle->_pimpl->fleet_state_update_pub =
+        handle->_pimpl->node->create_publisher<FleetStateUpdateMsg>(
+          FleetStateUpdateTopicName, reliable_transient_qos);
+      handle->_pimpl->fleet_log_update_pub =
+        handle->_pimpl->node->create_publisher<FleetLogUpdateMsg>(
+          FleetLogUpdateTopicName, reliable_transient_qos);
     }
 
     // Add PerformAction event to deserialization

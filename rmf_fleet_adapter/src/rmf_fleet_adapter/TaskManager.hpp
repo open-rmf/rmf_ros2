@@ -32,6 +32,8 @@
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
 
+#include <std_msgs/msg/string.hpp>
+
 #include <nlohmann/json.hpp>
 #include <nlohmann/json-schema.hpp>
 
@@ -395,6 +397,13 @@ private:
   bool _task_state_update_available = true;
   std::chrono::steady_clock::time_point _last_update_time;
 
+  using TaskStateUpdateMsg = std_msgs::msg::String;
+  rclcpp::Publisher<TaskStateUpdateMsg>::SharedPtr _task_state_update_pub =
+    nullptr;
+
+  using TaskLogUpdateMsg = std_msgs::msg::String;
+  rclcpp::Publisher<TaskLogUpdateMsg>::SharedPtr _task_log_update_pub = nullptr;
+
   // Container to keep track of tasks that have been started by this TaskManager
   // Use the _register_executed_task() to populate this container.
   std::vector<std::string> _executed_task_registry;
@@ -552,7 +561,7 @@ private:
 
   /// Validate and publish a json. This can be used for task
   /// state and log updates
-  void _validate_and_publish_websocket(
+  void _validate_and_publish_json(
     const nlohmann::json& msg,
     const nlohmann::json_schema::json_validator& validator) const;
 
