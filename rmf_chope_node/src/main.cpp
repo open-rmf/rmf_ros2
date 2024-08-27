@@ -408,8 +408,13 @@ private:
     }
 
     // If we can't proceed immediately add the ticket to a queue.
-    RCLCPP_INFO(this->get_logger(), "Could not immediately service %lu, enqueing.",
+    RCLCPP_INFO(this->get_logger(), "Could not immediately service %lu, enqueing. Locations in ticket were:",
       request->ticket.ticket_id);
+    for (auto i = 0; i < requests_[request->ticket.ticket_id].size(); i++)
+    {
+      RCLCPP_INFO(this->get_logger(), "\t- %s",
+        requests_[request->ticket.ticket_id][i].location.c_str());
+    }
     queue_manager_.add_to_queue(request->ticket.ticket_id, location_names);
 
     // Allocate a waitpoint by preference as given by Fleet Adapter

@@ -133,11 +133,12 @@ public:
             == rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
           {
             RCLCPP_INFO(
-                self->_context->node()->get_logger(), "Chope: Robot %s is going to final destination",
-                  self->_context->name().c_str());
+                self->_context->node()->get_logger(), "Chope: Robot %s is going to final destination %lu",
+                  self->_context->name().c_str(),
+                  self->_goals[self->_final_allocated_destination.value()->satisfies_alternative]);
             self->_current_reservation_state = ReservationState::ReceivedResponseProceedImmediate;
             self->_selected_final_destination_cb(self->_goals[self->_final_allocated_destination.value()->
-              satisfies_alternative]);
+              satisfies_alternative].waypoint());
           }
 
           if (msg->instruction_type
@@ -147,11 +148,59 @@ public:
             self->_selected_waitpoint_cb(self->_waitpoints[self->_final_allocated_destination.value()->
               satisfies_alternative]);
             RCLCPP_INFO(
-                self->_context->node()->get_logger(), "Chope: Robot %s is being asked to proceed to a to waitpoint",
-                  self->_context->name().c_str());
+                self->_context->node()->get_logger(), "Chope: Robot %s is being asked to proceed to a waitpoint %lu",
+                  self->_context->name().c_str(),
+                  self->_waitpoints[self->_final_allocated_destination.value()->
+              satisfies_alternative].waypoint());
           }
         });
 
+
+    auto current_location =_context->location();
+    if (current_location.size() == 0)
+    {
+      using namespace std::literals::chrono_literals;
+      _retry_timer = _context->node()->create_wall_timer(
+        500ms, [this, same_map]()
+        {
+          auto current_location = _context->location();
+          if (current_location.size() != 0)
+          {
+            _retry_timer->cancel();
+          }
+          else {
+            return;
+          }
+          for (std::size_t i = 0; i < _goals.size(); ++i)
+            {
+              if (_goals[i].waypoint() == current_location[0].waypoint())
+              {
+                RCLCPP_ERROR(_context->node()->get_logger(),
+                  "Already at goal no need to engage reservation system\n");
+                _selected_final_destination_cb(_goals[_final_allocated_destination.value()->
+                      satisfies_alternative].waypoint());
+                return;
+              }
+            }
+            RCLCPP_INFO(_context->node()->get_logger(),
+              "Sending chope request");
+            make_request(same_map);
+        }
+      );
+      return;
+    }
+
+    for (std::size_t i = 0; i < _goals.size(); ++i)
+    {
+      if (_goals[i].waypoint() == current_location[0].waypoint())
+      {
+        RCLCPP_ERROR(_context->node()->get_logger(),
+          "Already at goal no need to engage reservation system\n");
+        _selected_final_destination_cb(_goals[_final_allocated_destination.value()->
+              satisfies_alternative]);
+        return;
+      }
+    }
     RCLCPP_INFO(context->node()->get_logger(),
       "Sending chope request");
     make_request(same_map);
@@ -172,6 +221,8 @@ public:
   }
 
 private:
+
+ rclcpp::TimerBase::SharedPtr _retry_timer;
 
   enum class ReservationState
   {
