@@ -43,6 +43,7 @@
   <!-- The uri is set to the TrajectoryServer uri for debugging purposes. The default port needs to be updated before merging -->
   <arg name="server_uri" default="" description="The URI of the api server to trasnmit state and task infromation. If empty, information will not be transmitted"/>
 
+
   <node pkg="rmf_fleet_adapter"
         exec="$(var control_type)"
         name="$(var fleet_name)_fleet_adapter"
