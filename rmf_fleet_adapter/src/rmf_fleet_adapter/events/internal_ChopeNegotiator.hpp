@@ -177,8 +177,7 @@ public:
               {
                 RCLCPP_ERROR(_context->node()->get_logger(),
                   "Already at goal no need to engage reservation system\n");
-                _selected_final_destination_cb(_goals[_final_allocated_destination.value()->
-                      satisfies_alternative].waypoint());
+                _selected_final_destination_cb(_goals[i].waypoint());
                 return;
               }
             }
@@ -196,8 +195,7 @@ public:
       {
         RCLCPP_ERROR(_context->node()->get_logger(),
           "Already at goal no need to engage reservation system\n");
-        _selected_final_destination_cb(_goals[_final_allocated_destination.value()->
-              satisfies_alternative]);
+        _selected_final_destination_cb(_goals[i]);
         return;
       }
     }
