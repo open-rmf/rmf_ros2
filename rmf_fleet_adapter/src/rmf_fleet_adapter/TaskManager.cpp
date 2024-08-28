@@ -192,17 +192,14 @@ TaskManagerPtr TaskManager::make(
         self->_handle_request(request->json_msg, request->request_id);
     });
 
-  if (!mgr->_broadcast_client.has_value())
-  {
-    auto reliable_transient_qos =
-      rclcpp::ServicesQoS().keep_last(20).transient_local();
-    mgr->_task_state_update_pub =
-      mgr->_context->node()->create_publisher<TaskStateUpdateMsg>(
-        TaskStateUpdateTopicName, reliable_transient_qos);
-    mgr->_task_log_update_pub =
-      mgr->_context->node()->create_publisher<TaskLogUpdateMsg>(
-        TaskLogUpdateTopicName, reliable_transient_qos);
-  }
+  auto reliable_transient_qos =
+    rclcpp::ServicesQoS().keep_last(20).transient_local();
+  mgr->_task_state_update_pub =
+    mgr->_context->node()->create_publisher<TaskStateUpdateMsg>(
+      TaskStateUpdateTopicName, reliable_transient_qos);
+  mgr->_task_log_update_pub =
+    mgr->_context->node()->create_publisher<TaskLogUpdateMsg>(
+      TaskLogUpdateTopicName, reliable_transient_qos);
 
   const std::vector<nlohmann::json> schemas = {
     rmf_api_msgs::schemas::task_state,
@@ -2065,20 +2062,18 @@ void TaskManager::_validate_and_publish_json(
     }
     client->publish(msg);
   }
-  else
+
+  if (msg["type"] == "task_state_update")
   {
-    if (msg["type"] == "task_state_update" && _task_state_update_pub)
-    {
-      TaskStateUpdateMsg update_msg;
-      update_msg.data = msg.dump();
-      _task_state_update_pub->publish(update_msg);
-    }
-    else if (msg["type"] == "task_log_update" && _task_log_update_pub)
-    {
-      TaskLogUpdateMsg update_msg;
-      update_msg.data = msg.dump();
-      _task_log_update_pub->publish(update_msg);
-    }
+    TaskStateUpdateMsg update_msg;
+    update_msg.data = msg.dump();
+    _task_state_update_pub->publish(update_msg);
+  }
+  else if (msg["type"] == "task_log_update")
+  {
+    TaskLogUpdateMsg update_msg;
+    update_msg.data = msg.dump();
+    _task_log_update_pub->publish(update_msg);
   }
 }
 

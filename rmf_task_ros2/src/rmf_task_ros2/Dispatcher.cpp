@@ -300,16 +300,14 @@ public:
         this->handle_dispatch_ack(*msg);
       });
 
+    task_state_update_pub = node->create_publisher<TaskStateUpdateMsg>(
+      rmf_task_ros2::TaskStateUpdateTopicName,
+      rclcpp::ServicesQoS().keep_last(10).reliable().transient_local());
+
     if (server_uri)
     {
       broadcast_client = rmf_websocket::BroadcastClient::make(
         *server_uri, node);
-    }
-    else
-    {
-      task_state_update_pub = node->create_publisher<TaskStateUpdateMsg>(
-        rmf_task_ros2::TaskStateUpdateTopicName,
-        rclcpp::ServicesQoS().keep_last(10).reliable().transient_local());
     }
 
     auctioneer = bidding::Auctioneer::make(
@@ -816,12 +814,10 @@ public:
       {
         broadcast_client->publish(task_state_update);
       }
-      else if (task_state_update_pub)
-      {
-        TaskStateUpdateMsg update_msg;
-        update_msg.data = task_state_update.dump();
-        task_state_update_pub->publish(update_msg);
-      }
+
+      TaskStateUpdateMsg update_msg;
+      update_msg.data = task_state_update.dump();
+      task_state_update_pub->publish(update_msg);
 
       auctioneer->ready_for_next_bid();
       return;

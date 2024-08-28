@@ -541,15 +541,13 @@ public:
           return task_logs;
         });
     }
-    else
-    {
-      handle->_pimpl->fleet_state_update_pub =
-        handle->_pimpl->node->create_publisher<FleetStateUpdateMsg>(
-          FleetStateUpdateTopicName, reliable_transient_qos);
-      handle->_pimpl->fleet_log_update_pub =
-        handle->_pimpl->node->create_publisher<FleetLogUpdateMsg>(
-          FleetLogUpdateTopicName, reliable_transient_qos);
-    }
+
+    handle->_pimpl->fleet_state_update_pub =
+      handle->_pimpl->node->create_publisher<FleetStateUpdateMsg>(
+        FleetStateUpdateTopicName, reliable_transient_qos);
+    handle->_pimpl->fleet_log_update_pub =
+      handle->_pimpl->node->create_publisher<FleetLogUpdateMsg>(
+        FleetLogUpdateTopicName, reliable_transient_qos);
 
     // Add PerformAction event to deserialization
     auto validator = handle->_pimpl->deserialization.make_validator_shared(

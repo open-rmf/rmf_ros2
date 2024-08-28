@@ -1233,11 +1233,6 @@ void FleetUpdateHandle::Implementation::update_fleet() const
 //==============================================================================
 void FleetUpdateHandle::Implementation::update_fleet_state() const
 {
-  if (!broadcast_client && !fleet_state_update_pub)
-  {
-    return;
-  }
-
   nlohmann::json fleet_state_update_msg;
   fleet_state_update_msg["type"] = "fleet_state_update";
   auto& fleet_state_msg = fleet_state_update_msg["data"];
@@ -1322,12 +1317,10 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
     {
       broadcast_client->publish(fleet_state_update_msg);
     }
-    else
-    {
-      FleetStateUpdateMsg update_msg;
-      update_msg.data = fleet_state_update_msg.dump();
-      fleet_state_update_pub->publish(update_msg);
-    }
+
+    FleetStateUpdateMsg update_msg;
+    update_msg.data = fleet_state_update_msg.dump();
+    fleet_state_update_pub->publish(update_msg);
   }
   catch (const std::exception& e)
   {
@@ -1342,11 +1335,6 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
 //==============================================================================
 void FleetUpdateHandle::Implementation::update_fleet_logs() const
 {
-  if (!broadcast_client && !fleet_log_update_pub)
-  {
-    return;
-  }
-
   nlohmann::json fleet_log_update_msg;
   fleet_log_update_msg["type"] = "fleet_log_update";
   auto& fleet_log_msg = fleet_log_update_msg["data"];
@@ -1388,12 +1376,10 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
     {
       broadcast_client->publish(fleet_log_update_msg);
     }
-    else
-    {
-      FleetLogUpdateMsg update_msg;
-      update_msg.data = fleet_log_update_msg.dump();
-      fleet_log_update_pub->publish(update_msg);
-    }
+
+    FleetLogUpdateMsg update_msg;
+    update_msg.data = fleet_log_update_msg.dump();
+    fleet_log_update_pub->publish(update_msg);
   }
   catch (const std::exception& e)
   {

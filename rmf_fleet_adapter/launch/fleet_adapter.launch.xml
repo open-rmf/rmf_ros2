@@ -41,8 +41,7 @@
   <arg name="experimental_lift_watchdog_service" default="" description="(Experimental) The name of a service to check whether a robot can enter a lift"/>
   <arg name="enable_responsive_wait" default="true" description="Should the robot wait responsively"/>
   <!-- The uri is set to the TrajectoryServer uri for debugging purposes. The default port needs to be updated before merging -->
-  <arg name="server_uri" default="" description="The URI of the api server to trasnmit state and task infromation. If empty, information will be sent over ROS 2"/>
-
+  <arg name="server_uri" default="" description="The URI of the api server to trasnmit state and task infromation. If empty, information will not be transmitted"/>
 
   <node pkg="rmf_fleet_adapter"
         exec="$(var control_type)"
