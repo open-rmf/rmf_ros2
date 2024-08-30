@@ -254,7 +254,7 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
         if (!self)
           return;
 
-        self->_set_charging(charger_wp, true);
+        self->_set_charging(charger_wp, false);
         RCLCPP_INFO(
           self->node()->get_logger(),
           "Charger waypoint for robot [%s] set to index [%ld]",
@@ -280,46 +280,60 @@ void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 }
 
 //==============================================================================
+std::function<void(const nlohmann::json_uri& id, nlohmann::json& value)>
+make_schema_loader(const rclcpp::Node::SharedPtr& node)
+{
+  // Initialize schema dictionary
+  const std::vector<nlohmann::json> schemas = {
+    rmf_api_msgs::schemas::robot_state,
+    rmf_api_msgs::schemas::location_2D,
+    rmf_api_msgs::schemas::commission,
+  };
+
+  std::unordered_map<std::string, nlohmann::json> schema_dictionary;
+
+  for (const auto& schema : schemas)
+  {
+    const auto json_uri = nlohmann::json_uri{schema["$id"]};
+    schema_dictionary.insert({json_uri.url(), schema});
+  }
+
+  return [schema_dictionary = std::move(schema_dictionary), node](
+    const nlohmann::json_uri& id,
+    nlohmann::json& value)
+    {
+      const auto it = schema_dictionary.find(id.url());
+      if (it == schema_dictionary.end())
+      {
+        RCLCPP_ERROR(
+          node->get_logger(),
+          "url: %s not found in schema dictionary. "
+          "Status for robot will not be overwritten.",
+          id.url().c_str());
+        return;
+      }
+
+      value = it->second;
+    };
+}
+
+//==============================================================================
 void RobotUpdateHandle::override_status(std::optional<std::string> status)
 {
   if (const auto context = _pimpl->get_context())
   {
     if (status.has_value())
     {
-      // Here we capture [this] to avoid potential costly copy of
-      // schema_dictionary when more enties are inserted in the future.
-      // It is permissible here since the lambda will only be used within the
-      // scope of this function.
-      const auto loader =
-        [context, this](
-        const nlohmann::json_uri& id,
-        nlohmann::json& value)
-        {
-          const auto it = _pimpl->schema_dictionary.find(id.url());
-          if (it == _pimpl->schema_dictionary.end())
-          {
-            RCLCPP_ERROR(
-              context->node()->get_logger(),
-              "url: %s not found in schema dictionary. "
-              "Status for robot [%s] will not be overwritten.",
-              id.url().c_str(),
-              context->name().c_str());
-            return;
-          }
-
-          value = it->second;
-        };
-
       try
       {
         static const auto validator =
           nlohmann::json_schema::json_validator(
-          rmf_api_msgs::schemas::robot_state, loader);
+          rmf_api_msgs::schemas::robot_state,
+          make_schema_loader(context->node()));
 
         nlohmann::json dummy_msg;
         dummy_msg["status"] = status.value();
         validator.validate(dummy_msg);
-
       }
       catch (const std::exception& e)
       {
@@ -815,6 +829,37 @@ void RobotUpdateHandle::reassign_dispatched_tasks()
 }
 
 //==============================================================================
+RobotUpdateHandle::LiftDestination::LiftDestination()
+  : _pimpl(rmf_utils::make_impl<Implementation>())
+{
+  // Do nothing
+}
+
+//==============================================================================
+const std::string& RobotUpdateHandle::LiftDestination::lift() const
+{
+  return _pimpl->lift;
+}
+
+//==============================================================================
+const std::string& RobotUpdateHandle::LiftDestination::level() const
+{
+  return _pimpl->level;
+}
+
+//==============================================================================
+std::optional<RobotUpdateHandle::LiftDestination>
+RobotUpdateHandle::lift_destination() const
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    return context->final_lift_destination();
+  }
+
+  return std::nullopt;
+}
+
+//==============================================================================
 RobotUpdateHandle::RobotUpdateHandle()
 {
   // Do nothing
@@ -985,6 +1030,37 @@ void RobotUpdateHandle::Unstable::debug_positions(bool on)
     // No need to worry about race conditions or data races here because this is
     // a mostly inconsequential bool
     context->debug_positions = on;
+  }
+}
+
+//==============================================================================
+void RobotUpdateHandle::Unstable::quiet_cancel_task(
+  std::string task_id,
+  std::vector<std::string> labels,
+  std::function<void(bool)> on_cancellation)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [
+        task_id = std::move(task_id),
+        labels = std::move(labels),
+        on_cancellation = std::move(on_cancellation),
+        c = context->weak_from_this()
+      ](const auto&)
+      {
+        const auto context = c.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        if (!mgr)
+          return;
+
+        const auto result = mgr->quiet_cancel_task(task_id, labels);
+        if (on_cancellation)
+          on_cancellation(result);
+      });
   }
 }
 

@@ -513,6 +513,12 @@ public:
   ///   vehicles in this fleet when battery levels fall below the
   ///   recharge_threshold.
   ///
+  /// \param[in] retreat_to_charger_interval
+  ///   Specify whether to allow automatic retreat to charger if the robot's
+  ///   battery is estimated to fall below its recharge_threshold before it is
+  ///   able to complete its current task. Provide a duration between checks in
+  ///   seconds. If nullopt, retreat to charger would be disabled.
+  ///
   /// \param[in] task_categories
   ///   Provide callbacks for considering tasks belonging to each category.
   ///
@@ -706,6 +712,14 @@ public:
   /// Set whether or not to account for battery drain during task planning.
   void set_account_for_battery_drain(bool value);
 
+  /// Get the duration between retreat to charger checks.
+  std::optional<rmf_traffic::Duration> retreat_to_charger_interval() const;
+
+  /// Set the duration between retreat to charger checks. Passing in a nullopt
+  /// will turn off these checks entirely.
+  void set_retreat_to_charger_interval(
+    std::optional<rmf_traffic::Duration> value);
+
   /// Get the task categories
   const std::unordered_map<std::string, ConsiderRequest>&
   task_consideration() const;
@@ -806,6 +820,17 @@ public:
   /// \sa set_lift_emergency_level
   const std::unordered_map<std::string, std::string>&
   lift_emergency_levels() const;
+
+  /// A set of lanes which must strictly be navigated from from the start to end
+  /// of the lane when used. This means when replanning, the planner cannot ask
+  /// a robot in the middle of one of these lanes to immediately go to the end
+  /// of the lane.
+  const std::unordered_set<std::size_t>& strict_lanes() const;
+
+  /// Get a mutable reference to the set of strict lanes.
+  ///
+  /// \sa strict_lanes
+  std::unordered_set<std::size_t>& change_strict_lanes();
 
   class Implementation;
 private:

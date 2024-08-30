@@ -16,6 +16,7 @@
 */
 
 #include "internal_RobotUpdateHandle.hpp"
+#include "../TaskManager.hpp"
 
 #include <rmf_traffic_ros2/Time.hpp>
 
@@ -30,49 +31,11 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
-void NavParams::search_for_location(
-  const std::string& map,
-  Eigen::Vector3d position,
-  RobotContext& context)
+std::unordered_map<std::size_t, VertexStack> compute_stacked_vertices(
+  const rmf_traffic::agv::Graph& graph,
+  double max_merge_waypoint_distance)
 {
-  auto planner = context.planner();
-  if (!planner)
-  {
-    RCLCPP_ERROR(
-      context.node()->get_logger(),
-      "Planner unavailable for robot [%s], cannot update its location",
-      context.requester_id().c_str());
-    return;
-  }
-  const auto& graph = planner->get_configuration().graph();
-  const auto now = context.now();
-  auto starts = compute_plan_starts(graph, map, position, now);
-  if (!starts.empty())
-  {
-    if (context.debug_positions)
-    {
-      std::stringstream ss;
-      ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
-         << " starts:" << print_starts(starts, graph);
-      std::cout << ss.str() << std::endl;
-    }
-    context.set_location(std::move(starts));
-  }
-  else
-  {
-    if (context.debug_positions)
-    {
-      std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
-                << map << " <" << position.block<2, 1>(0, 0).transpose()
-                << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
-    }
-    context.set_lost(Location { now, map, position });
-  }
-}
-
-//==============================================================================
-void NavParams::find_stacked_vertices(const rmf_traffic::agv::Graph& graph)
-{
+  std::unordered_map<std::size_t, VertexStack> stacked_vertices;
   for (std::size_t i = 0; i < graph.num_waypoints() - 1; ++i)
   {
     const auto& wp_i = graph.get_waypoint(i);
@@ -127,6 +90,56 @@ void NavParams::find_stacked_vertices(const rmf_traffic::agv::Graph& graph)
       stacked_vertices[j] = stack_j;
     }
   }
+
+  return stacked_vertices;
+}
+
+//==============================================================================
+void NavParams::search_for_location(
+  const std::string& map,
+  Eigen::Vector3d position,
+  RobotContext& context)
+{
+  auto planner = context.planner();
+  if (!planner)
+  {
+    RCLCPP_ERROR(
+      context.node()->get_logger(),
+      "Planner unavailable for robot [%s], cannot update its location",
+      context.requester_id().c_str());
+    return;
+  }
+  const auto& graph = planner->get_configuration().graph();
+  const auto now = context.now();
+  auto starts = compute_plan_starts(graph, map, position, now);
+  if (!starts.empty())
+  {
+    if (context.debug_positions)
+    {
+      std::stringstream ss;
+      ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
+         << " starts:" << print_starts(starts, graph);
+      std::cout << ss.str() << std::endl;
+    }
+    context.set_location(std::move(starts));
+  }
+  else
+  {
+    if (context.debug_positions)
+    {
+      std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
+                << map << " <" << position.block<2, 1>(0, 0).transpose()
+                << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
+    }
+    context.set_lost(Location { now, map, position });
+  }
+}
+
+//==============================================================================
+void NavParams::find_stacked_vertices(const rmf_traffic::agv::Graph& graph)
+{
+  stacked_vertices = compute_stacked_vertices(
+    graph, max_merge_waypoint_distance);
 }
 
 //==============================================================================
@@ -165,7 +178,8 @@ rmf_traffic::agv::Plan::StartSet NavParams::process_locations(
   const rmf_traffic::agv::Graph& graph,
   rmf_traffic::agv::Plan::StartSet locations) const
 {
-  return _lift_boundary_filter(graph, _descend_stacks(graph, locations));
+  return _strict_lane_filter(
+    _lift_boundary_filter(graph, _descend_stacks(graph, locations)));
 }
 
 //==============================================================================
@@ -314,6 +328,28 @@ rmf_traffic::agv::Plan::StartSet NavParams::_lift_boundary_filter(
       // If the robot's lift status and the waypoint's lift status don't match
       // then we should filter this waypoint out.
       return wp.in_lift() != robot_inside_lift;
+    });
+
+  locations.erase(r_it, locations.end());
+  return locations;
+}
+
+//==============================================================================
+rmf_traffic::agv::Plan::StartSet NavParams::_strict_lane_filter(
+  rmf_traffic::agv::Plan::StartSet locations) const
+{
+  const auto r_it = std::remove_if(
+    locations.begin(),
+    locations.end(),
+    [this](const rmf_traffic::agv::Plan::Start& location)
+    {
+      const auto lane = location.lane();
+      if (lane.has_value())
+      {
+        return this->strict_lanes.count(*lane) > 0;
+      }
+
+      return false;
     });
 
   locations.erase(r_it, locations.end());
@@ -846,6 +882,18 @@ bool RobotContext::waiting_for_charger() const
 }
 
 //==============================================================================
+std::shared_ptr<void> RobotContext::be_charging()
+{
+  return _lock_charging;
+}
+
+//==============================================================================
+bool RobotContext::is_charging() const
+{
+  return _lock_charging.use_count() > 1;
+}
+
+//==============================================================================
 const rxcpp::observable<double>& RobotContext::observe_battery_soc() const
 {
   return _battery_soc_obs;
@@ -963,8 +1011,25 @@ std::shared_ptr<TaskManager> RobotContext::task_manager()
 //==============================================================================
 void RobotContext::set_commission(RobotUpdateHandle::Commission value)
 {
-  std::lock_guard<std::mutex> lock(*_commission_mutex);
-  _commission = std::move(value);
+  {
+    std::lock_guard<std::mutex> lock(*_commission_mutex);
+    _commission = std::move(value);
+  }
+
+  if (const auto mgr = _task_manager.lock())
+  {
+    if (!_commission.is_performing_idle_behavior())
+    {
+      mgr->_cancel_idle_behavior({"decommissioned"});
+    }
+    else
+    {
+      // We trigger this in case the robot needs to begin its idle behavior.
+      // If it shouldn't perform idle behavior for any reason (e.g. already
+      // performing a task), then this will have no effect.
+      mgr->_begin_next_task();
+    }
+  }
 }
 
 //==============================================================================
@@ -1054,6 +1119,30 @@ void RobotContext::release_lift()
   _initial_time_idle_outside_lift = std::nullopt;
   _lift_stubbornness = nullptr;
   _lift_arrived = false;
+  clear_final_lift_destination();
+}
+
+//==============================================================================
+std::optional<RobotUpdateHandle::LiftDestination>
+RobotContext::final_lift_destination() const
+{
+  std::unique_lock<std::mutex> lock(*_final_lift_destination_mutex);
+  return _final_lift_destination;
+}
+
+//==============================================================================
+void RobotContext::set_final_lift_destination(
+  RobotUpdateHandle::LiftDestination destination)
+{
+  std::unique_lock<std::mutex> lock(*_final_lift_destination_mutex);
+  _final_lift_destination = std::move(destination);
+}
+
+//==============================================================================
+void RobotContext::clear_final_lift_destination()
+{
+  std::unique_lock<std::mutex> lock(*_final_lift_destination_mutex);
+  _final_lift_destination = std::nullopt;
 }
 
 //==============================================================================
@@ -1067,6 +1156,13 @@ const std::unordered_map<std::string, TimeMsg>&
 RobotContext::locked_mutex_groups() const
 {
   return _locked_mutex_groups;
+}
+
+//==============================================================================
+const std::unordered_map<std::string, TimeMsg>&
+RobotContext::requesting_mutex_groups() const
+{
+  return _requesting_mutex_groups;
 }
 
 //==============================================================================
@@ -1127,6 +1223,7 @@ RobotContext::RobotContext(
   _requester_id(
     _itinerary.description().owner() + "/" + _itinerary.description().name()),
   _charging_wp(state.dedicated_charging_waypoint().value()),
+  _lock_charging(std::make_shared<int>(0)),
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner)),
@@ -1289,11 +1386,29 @@ void RobotContext::_check_lift_state(
   {
     if (_lift_destination && !_lift_destination->requested_from_inside)
     {
-      // The lift destination reference count dropping to one while the lift
-      // destination request is on the outside means the task that prompted the
-      // lift usage was cancelled while the robot was outside of the lift.
-      // Therefore we should release the usage of the lift.
-      release_lift();
+      const auto now = std::chrono::steady_clock::now();
+      if (_initial_time_idle_outside_lift.has_value())
+      {
+        const auto lapse = now - *_initial_time_idle_outside_lift;
+        if (lapse > std::chrono::seconds(30))
+        {
+          // The lift destination reference count dropping to one while the lift
+          // destination request is on the outside means the task that prompted
+          // the lift usage was cancelled while the robot was outside of the lift.
+          // Therefore we should release the usage of the lift.
+          RCLCPP_INFO(
+            _node->get_logger(),
+            "Requesting lift [%s] to be released for [%s] because it is outside "
+            "the lift and not holding a claim for an extended period of time.",
+            _lift_destination->lift_name.c_str(),
+            requester_id().c_str());
+          release_lift();
+        }
+      }
+      else
+      {
+        _initial_time_idle_outside_lift = now;
+      }
     }
     else if (_lift_destination && !_current_task_id.has_value())
     {
@@ -1318,7 +1433,7 @@ void RobotContext::_check_lift_state(
         if (_initial_time_idle_outside_lift.has_value())
         {
           const auto lapse = now - *_initial_time_idle_outside_lift;
-          if (lapse > std::chrono::seconds(2))
+          if (lapse > std::chrono::seconds(10))
           {
             RCLCPP_INFO(
               _node->get_logger(),
@@ -1326,8 +1441,8 @@ void RobotContext::_check_lift_state(
               "outside of the lift.",
               _lift_destination->lift_name.c_str(),
               requester_id().c_str());
+            release_lift();
           }
-          release_lift();
         }
         else
         {
@@ -1495,6 +1610,7 @@ void RobotContext::_check_mutex_groups(
   }
 }
 
+//==============================================================================
 void RobotContext::_retain_mutex_groups(
   const std::unordered_set<std::string>& retain,
   std::unordered_map<std::string, TimeMsg>& groups)
@@ -1594,6 +1710,30 @@ void RobotContext::_publish_mutex_group_requests()
   {
     publish(MutexGroupData{name, time});
   }
+}
+
+//==============================================================================
+void RobotContext::_handle_mutex_group_manual_release(
+  const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg)
+{
+  if (msg.fleet != group())
+    return;
+
+  if (msg.robot != name())
+    return;
+
+  std::unordered_set<std::string> retain;
+  for (const auto& g : _locked_mutex_groups)
+  {
+    retain.insert(g.first);
+  }
+
+  for (const auto& g : msg.release_mutex_groups)
+  {
+    retain.erase(g);
+  }
+
+  retain_mutex_groups(retain);
 }
 
 } // namespace agv

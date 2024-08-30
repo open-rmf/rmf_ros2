@@ -162,16 +162,6 @@ TaskManagerPtr TaskManager::make(
       }
     });
 
-  mgr->_retreat_timer = mgr->context()->node()->try_create_wall_timer(
-    std::chrono::seconds(10),
-    [w = mgr->weak_from_this()]()
-    {
-      if (auto mgr = w.lock())
-      {
-        mgr->retreat_to_charger();
-      }
-    });
-
   mgr->_begin_waiting();
 
   // TODO(MXG): The tests allow a task manager to be created before a task
@@ -322,7 +312,8 @@ nlohmann::json& copy_phase_data(
   nlohmann::json& phases,
   const rmf_task::Phase::Active& snapshot,
   rmf_task::Log::Reader& reader,
-  nlohmann::json& all_phase_logs)
+  nlohmann::json& all_phase_logs,
+  bool quiet_cancel = false)
 {
   const auto& tag = *snapshot.tag();
   const auto& header = tag.header();
@@ -355,6 +346,11 @@ nlohmann::json& copy_phase_data(
     auto& event_state = event_states[std::to_string(top->id())];
     event_state["id"] = top->id();
     event_state["status"] = status_to_string(top->status());
+    if (quiet_cancel && top->status() == rmf_task::Event::Status::Canceled)
+    {
+      event_state["status"] = status_to_string(
+        rmf_task::Event::Status::Completed);
+    }
 
     // TODO(MXG): Keep a VersionedString Reader to know when to actually update
     // this string
@@ -495,7 +491,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   {
     const auto& snapshot = completed->snapshot();
     auto& phase = copy_phase_data(
-      phases, *snapshot, mgr._log_reader, phase_logs);
+      phases, *snapshot, mgr._log_reader, phase_logs, _quiet_cancel);
     phase["unix_millis_start_time"] =
       to_millis(completed->start_time().time_since_epoch()).count();
 
@@ -510,7 +506,8 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
   if (active_phase == nullptr)
     return;
   auto& active =
-    copy_phase_data(phases, *active_phase, mgr._log_reader, phase_logs);
+    copy_phase_data(
+    phases, *active_phase, mgr._log_reader, phase_logs, _quiet_cancel);
   if (_task->active_phase_start_time().has_value())
   {
     active["unix_millis_start_time"] =
@@ -537,7 +534,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
     }
   }
 
-  if (_cancellation.has_value())
+  if (_cancellation.has_value() && !_quiet_cancel)
     _state_msg["cancellation"] = *_cancellation;
 
   if (_killed.has_value())
@@ -551,6 +548,12 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
       for (const auto& [token, msg] : *s)
         skip_requests[token] = msg;
     }
+  }
+
+  if (_quiet_cancel &&
+    _task->status_overview() == rmf_task::Event::Status::Canceled)
+  {
+    _state_msg["status"] = status_to_string(rmf_task::Event::Status::Completed);
   }
 
   task_state_update["data"] = _state_msg;
@@ -726,6 +729,25 @@ void TaskManager::ActiveTask::rewind(uint64_t phase_id)
 }
 
 //==============================================================================
+void TaskManager::ActiveTask::quiet_cancel(
+  std::vector<std::string> labels,
+  rmf_traffic::Time time)
+{
+  if (_cancellation.has_value())
+    return;
+
+  nlohmann::json cancellation;
+  cancellation["unix_millis_request_time"] =
+    to_millis(time.time_since_epoch()).count();
+
+  cancellation["labels"] = std::move(labels);
+
+  _cancellation = std::move(cancellation);
+  _quiet_cancel = true;
+  _task->cancel();
+}
+
+//==============================================================================
 std::string TaskManager::ActiveTask::skip(
   uint64_t phase_id,
   std::vector<std::string> labels,
@@ -822,10 +844,21 @@ std::string TaskManager::robot_status() const
   if (_context->override_status().has_value())
     return _context->override_status().value();
 
+  if (_context->is_charging())
+  {
+    if (_context->waiting_for_charger())
+    {
+      return "idle";
+    }
+    else
+    {
+      return "charging";
+    }
+  }
+
   if (!_active_task)
     return "idle";
 
-  // TODO(MXG): Identify if the robot is charging and report that status here
   return "working";
 }
 
@@ -1076,7 +1109,8 @@ TaskManager::RobotModeMsg TaskManager::robot_mode() const
     .mode(_active_task.is_finished() ?
       RobotModeMsg::MODE_IDLE :
       _context->current_mode())
-    .mode_request_id(0);
+    .mode_request_id(0)
+    .performing_action("");
 
   return mode;
 }
@@ -1367,6 +1401,30 @@ bool TaskManager::kill_task(
 }
 
 //==============================================================================
+bool TaskManager::quiet_cancel_task(
+  const std::string& task_id,
+  std::vector<std::string> labels)
+{
+  if (_active_task && _active_task.id() == task_id)
+  {
+    _task_state_update_available = true;
+    _active_task.quiet_cancel(std::move(labels), _context->now());
+    return true;
+  }
+
+  return false;
+}
+
+//==============================================================================
+void TaskManager::_cancel_idle_behavior(std::vector<std::string> labels)
+{
+  if (_waiting)
+  {
+    _waiting.cancel(std::move(labels), _context->now());
+  }
+}
+
+//==============================================================================
 void TaskManager::_begin_next_task()
 {
   if (_active_task)
@@ -1383,7 +1441,6 @@ void TaskManager::_begin_next_task()
 
   if (_queue.empty() && _direct_queue.empty())
   {
-
     if (!_waiting && !_finished_waiting)
     {
       _begin_waiting();
@@ -1480,7 +1537,9 @@ void TaskManager::_begin_next_task()
   else
   {
     if (!_waiting && !_finished_waiting)
+    {
       _begin_waiting();
+    }
   }
 
   _context->worker().schedule(
@@ -1740,7 +1799,16 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
           if (!self)
             return;
 
-          self->_finished_waiting = true;
+          // This condition deals with an awkward edge case where idle behavior
+          // would not restart when toggling the idle behavior commission back
+          // on. We fix this by keeping the _finished_waiting flag clean if
+          // idle behavior commissioning is off, so there's nothing to block
+          // idle behavior from beginning again if it gets toggled back on.
+          if (self->_context->commission().is_performing_idle_behavior())
+          {
+            self->_finished_waiting = true;
+          }
+
           self->_waiting = ActiveTask();
           self->_begin_next_task();
 
@@ -1750,6 +1818,41 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
           }
         });
     };
+}
+
+//==============================================================================
+void TaskManager::configure_retreat_to_charger(
+  std::optional<rmf_traffic::Duration> duration)
+{
+  if (duration.has_value() && *duration <= rmf_traffic::Duration(0))
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "[TaskManager::configure_retreat_to_charger] "
+      "Invalid value for duration: %f",
+      rmf_traffic::time::to_seconds(*duration));
+  }
+
+  if (!duration.has_value() || *duration <= rmf_traffic::Duration(0))
+  {
+    if (_retreat_timer && !_retreat_timer->is_canceled())
+    {
+      _retreat_timer->cancel();
+    }
+    return;
+  }
+
+  if (_retreat_timer)
+    _retreat_timer->reset();
+  _retreat_timer = _context->node()->try_create_wall_timer(
+    duration.value(),
+    [w = weak_from_this()]()
+    {
+      if (auto mgr = w.lock())
+      {
+        mgr->retreat_to_charger();
+      }
+    });
 }
 
 //==============================================================================

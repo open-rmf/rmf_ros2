@@ -160,11 +160,13 @@ LegacyTask::StatusMsg DispenseItem::ActivePhase::_get_status(
   status.state = LegacyTask::StatusMsg::STATE_ACTIVE;
 
   using rmf_dispenser_msgs::msg::DispenserResult;
-  if (dispenser_result
-    && dispenser_result->request_guid == _request_guid
-    && is_newer(dispenser_result->time, _last_msg))
+  if (dispenser_result && dispenser_result->request_guid == _request_guid)
   {
-    _last_msg = dispenser_result->time;
+    if (is_newer(dispenser_result->time, _last_msg))
+    {
+      _last_msg = dispenser_result->time;
+    }
+
     switch (dispenser_result->status)
     {
       case DispenserResult::ACKNOWLEDGED:

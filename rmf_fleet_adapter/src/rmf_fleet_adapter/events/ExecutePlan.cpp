@@ -29,6 +29,8 @@
 
 #include "../agv/internal_EasyFullControl.hpp"
 
+#include "../agv/internal_RobotUpdateHandle.hpp"
+
 #include <rmf_task_sequence/events/Bundle.hpp>
 
 namespace rmf_fleet_adapter {
@@ -515,6 +517,10 @@ std::optional<EventGroupInfo> search_for_lift_group(
         return std::nullopt;
       }
 
+      auto final_lift_destination =
+        agv::RobotUpdateHandle::LiftDestination::Implementation::make(
+          lift_name, lift_end->destination());
+
       auto category = "Take [lift:" + lift_name
         + "] to [floor:" + lift_end->destination() + "]";
 
@@ -534,6 +540,14 @@ std::optional<EventGroupInfo> search_for_lift_group(
 
         if (it->phase)
         {
+          if (auto* lift_request = dynamic_cast<RequestLift*>(it->phase.get()))
+          {
+            // Inject the final lift destination information into every lift
+            // request in this group.
+            lift_request->data().final_lift_destination =
+              final_lift_destination;
+          }
+
           lift_group.push_back(
             [legacy = it->phase, context, event_id](UpdateFn update)
             {
@@ -739,13 +753,18 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
     if (first_graph_wp.has_value())
     {
-      const Eigen::Vector2d p1 =
-        graph.get_waypoint(*first_graph_wp).get_location();
+      const auto& wp = graph.get_waypoint(*first_graph_wp);
+      const Eigen::Vector2d p1 = wp.get_location();
+      const auto& map = wp.get_map_name();
 
       // Check if the line from the start of the plan to this waypoint crosses
       // through a door, and add a DoorOpen phase if it does
       for (const auto& door : graph.all_known_doors())
       {
+        if (door->map() != map)
+        {
+          continue;
+        }
 
         if (door->intersects(p0, p1, envelope))
         {
@@ -762,7 +781,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
         }
       }
 
-      const auto& map = graph.get_waypoint(*first_graph_wp).get_map_name();
       // Check if the robot is going into a lift and summon the lift
       for (const auto& lift : graph.all_known_lifts())
       {

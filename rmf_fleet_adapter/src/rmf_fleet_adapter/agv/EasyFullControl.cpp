@@ -373,6 +373,13 @@ public:
           continue;
         }
 
+        if (nav_params->strict_lanes.count(lane_id) > 0)
+        {
+          // The robot needs to fully approach the beginning waypoint before
+          // using this lane
+          continue;
+        }
+
         auto wp_exit = graph.get_lane(lane_id).exit().waypoint_index();
         starts.push_back(
           rmf_traffic::agv::Plan::Start(now, wp_exit, yaw, p, lane_id));
@@ -398,6 +405,12 @@ public:
 
         if (closures && closures->is_closed(lane_id))
         {
+          continue;
+        }
+
+        if (nav_params->strict_lanes.count(lane_id) > 0)
+        {
+          // This is a strict lane, so we cannot start from its middle.
           continue;
         }
 
@@ -1562,6 +1575,7 @@ void EasyFullControl::EasyRobotUpdateHandle::update(
   RobotState state,
   ConstActivityIdentifierPtr current_activity)
 {
+
   _pimpl->worker.schedule(
     [
       state = std::move(state),
@@ -1689,6 +1703,7 @@ public:
   double recharge_threshold;
   double recharge_soc;
   bool account_for_battery_drain;
+  std::optional<rmf_traffic::Duration> retreat_to_charger_interval;
   std::unordered_map<std::string, ConsiderRequest> task_consideration;
   std::unordered_map<std::string, ConsiderRequest> action_consideration;
   rmf_task::ConstRequestFactoryPtr finishing_request;
@@ -1701,6 +1716,7 @@ public:
   double default_max_merge_lane_distance;
   double default_min_lane_length;
   std::unordered_map<std::string, std::string> lift_emergency_levels;
+  std::unordered_set<std::size_t> strict_lanes;
 };
 
 //==============================================================================
@@ -1744,6 +1760,7 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         std::move(recharge_threshold),
         std::move(recharge_soc),
         std::move(account_for_battery_drain),
+        std::chrono::seconds(10),
         std::move(task_consideration),
         std::move(action_consideration),
         std::move(finishing_request),
@@ -1755,6 +1772,7 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         std::move(default_max_merge_waypoint_distance),
         std::move(default_max_merge_lane_distance),
         std::move(default_min_lane_length),
+        {},
         {}
       }))
 {
@@ -1970,6 +1988,45 @@ EasyFullControl::FleetConfiguration::from_config_files(
   else
   {
     recharge_soc = rmf_fleet["recharge_soc"].as<double>();
+  }
+  // Retreat to charger
+  std::optional<rmf_traffic::Duration> retreat_to_charger_interval =
+    rmf_traffic::time::from_seconds(10);
+  const auto retreat_to_charger_yaml = rmf_fleet["retreat_to_charger_interval"];
+  if (!retreat_to_charger_yaml)
+  {
+    std::cout << "[retreat_to_charger_interval] value is not provided, "
+              << "default to 10 seconds" << std::endl;
+  }
+  else if (retreat_to_charger_yaml.IsScalar())
+  {
+    const double retreat_to_charger_interval_sec =
+      retreat_to_charger_yaml.as<double>();
+    if (retreat_to_charger_interval_sec <= 0.0)
+    {
+      std::cout
+        << "[retreat_to_charger_interval] has invalid value ["
+        << retreat_to_charger_interval_sec << "]. Turning off retreat to "
+        << "behavior." << std::endl;
+      retreat_to_charger_interval = std::nullopt;
+    }
+    else
+    {
+      retreat_to_charger_interval =
+        rmf_traffic::time::from_seconds(retreat_to_charger_interval_sec);
+    }
+  }
+  else if (retreat_to_charger_yaml.IsNull())
+  {
+    retreat_to_charger_interval = std::nullopt;
+  }
+  else
+  {
+    const auto mark = retreat_to_charger_yaml.Mark();
+    std::cout << "[retreat_to_charger_interval] Unsupported value type "
+              << "provided: line " << mark.line << ", column " << mark.column
+              << std::endl;
+    return std::nullopt;
   }
 
   // Task capabilities
@@ -2297,6 +2354,99 @@ EasyFullControl::FleetConfiguration::from_config_files(
     }
   }
 
+  std::unordered_set<std::size_t> strict_lanes;
+  const YAML::Node& strict_lanes_yaml = rmf_fleet["strict_lanes"];
+  if (strict_lanes_yaml)
+  {
+    if (!strict_lanes_yaml.IsSequence())
+    {
+      std::cerr
+        << "[strict_lanes] element is not a sequence in the config file ["
+        << config_file << "] so we cannot parse which lanes need to be "
+        << "considered strict." << std::endl;
+      return std::nullopt;
+    }
+
+    const auto vertex_stacks = compute_stacked_vertices(
+      graph, default_max_merge_waypoint_distance);
+    for (const auto& lane_yaml : strict_lanes_yaml)
+    {
+      if (!lane_yaml.IsSequence() || lane_yaml.size() != 2)
+      {
+        const auto mark = lane_yaml.Mark();
+        std::cerr << "[strict_lanes] Unrecognized lane format at line "
+          << mark.line << ", column " << mark.column << std::endl;
+        return std::nullopt;
+      }
+
+      const auto wp0_name = lane_yaml[0].as<std::string>();
+      const auto wp1_name = lane_yaml[1].as<std::string>();
+      const auto* wp0 = graph.find_waypoint(wp0_name);
+      if (!wp0)
+      {
+        const auto mark = lane_yaml[0].Mark();
+        std::cerr << "[strict_lanes] Unrecognized waypoint name [" << wp0_name
+          << "] at line " << mark.line << ", column " << mark.column << std::endl;
+        return std::nullopt;
+      }
+
+      const auto* wp1 = graph.find_waypoint(wp1_name);
+      if (!wp1)
+      {
+        const auto mark = lane_yaml[1].Mark();
+        std::cerr << "[strict_lanes] Unrecognized waypoint name [" << wp1_name
+          << "] at line " << mark.line << ", column " << mark.column << std::endl;
+        return std::nullopt;
+      }
+
+      const auto stack_0_it = vertex_stacks.find(wp0->index());
+      VertexStack stack_0;
+      if (stack_0_it == vertex_stacks.end())
+      {
+        stack_0 = std::make_shared<std::unordered_set<std::size_t>>();
+        stack_0->insert(wp0->index());
+      }
+      else
+      {
+        stack_0 = stack_0_it->second;
+      }
+
+      const auto stack_1_it = vertex_stacks.find(wp1->index());
+      VertexStack stack_1;
+      if (stack_1_it == vertex_stacks.end())
+      {
+        stack_1 = std::make_shared<std::unordered_set<std::size_t>>();
+        stack_1->insert(wp1->index());
+      }
+      else
+      {
+        stack_1 = stack_1_it->second;
+      }
+
+      bool found_lane = false;
+      for (std::size_t wp_i : *stack_0)
+      {
+        for (std::size_t wp_j : *stack_1)
+        {
+          const auto* lane = graph.lane_from(wp_i, wp_j);
+          if (lane)
+          {
+            strict_lanes.insert(lane->index());
+            found_lane = true;
+          }
+        }
+      }
+
+      if (!found_lane)
+      {
+        const auto mark = lane_yaml.Mark();
+        std::cerr << "[strict_lanes] Unable to find a lane from [" << wp0_name
+          << "] to [" << wp1_name << "] at line " << mark.line << ", column "
+          << mark.column << std::endl;
+      }
+    }
+  }
+
   auto config = FleetConfiguration(
     fleet_name,
     std::move(tf_dict),
@@ -2322,6 +2472,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
     default_max_merge_lane_distance,
     default_min_lane_length);
   config.change_lift_emergency_levels() = lift_emergency_levels;
+  config.set_retreat_to_charger_interval(retreat_to_charger_interval);
+  config.change_strict_lanes() = std::move(strict_lanes);
   return config;
 }
 
@@ -2520,6 +2672,20 @@ void EasyFullControl::FleetConfiguration::set_account_for_battery_drain(
 }
 
 //==============================================================================
+std::optional<rmf_traffic::Duration>
+EasyFullControl::FleetConfiguration::retreat_to_charger_interval() const
+{
+  return _pimpl->retreat_to_charger_interval;
+}
+
+//==============================================================================
+void EasyFullControl::FleetConfiguration::set_retreat_to_charger_interval(
+  std::optional<rmf_traffic::Duration> value)
+{
+  _pimpl->retreat_to_charger_interval = value;
+}
+
+//==============================================================================
 const std::unordered_map<std::string, ConsiderRequest>&
 EasyFullControl::FleetConfiguration::task_consideration() const
 {
@@ -2689,6 +2855,20 @@ const std::unordered_map<std::string, std::string>&
 EasyFullControl::FleetConfiguration::lift_emergency_levels() const
 {
   return _pimpl->lift_emergency_levels;
+}
+
+//==============================================================================
+const std::unordered_set<std::size_t>&
+EasyFullControl::FleetConfiguration::strict_lanes() const
+{
+  return _pimpl->strict_lanes;
+}
+
+//==============================================================================
+std::unordered_set<std::size_t>&
+EasyFullControl::FleetConfiguration::change_strict_lanes()
+{
+  return _pimpl->strict_lanes;
 }
 
 //==============================================================================
