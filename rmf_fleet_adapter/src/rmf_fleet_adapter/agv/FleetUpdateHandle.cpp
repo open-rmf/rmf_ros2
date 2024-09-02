@@ -264,7 +264,7 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
         node->get_logger(),
         "Malformed incoming priority description: %s\n%s",
         e.what(),
-        error_str);
+        error_str.c_str());
       errors.push_back(error_str);
     }
   }
