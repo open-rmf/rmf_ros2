@@ -53,10 +53,6 @@ private:
   LiftStateSub::SharedPtr _lift_state_sub;
   void _lift_state_update(LiftState::UniquePtr msg);
 
-  using EmergencyNotice = std_msgs::msg::Bool;
-  using EmergencyNoticePub = rclcpp::Publisher<EmergencyNotice>;
-  EmergencyNoticePub::SharedPtr _emergency_notice_pub;
-
   std::unordered_map<std::string, LiftRequest::UniquePtr> _active_sessions;
 };
 
