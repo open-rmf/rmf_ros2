@@ -135,7 +135,7 @@ public:
             RCLCPP_INFO(
                 self->_context->node()->get_logger(), "Chope: Robot %s is going to final destination %lu",
                   self->_context->name().c_str(),
-                  self->_goals[self->_final_allocated_destination.value()->satisfies_alternative]);
+                  self->_goals[self->_final_allocated_destination.value()->satisfies_alternative].waypoint());
             self->_current_reservation_state = ReservationState::ReceivedResponseProceedImmediate;
             self->_selected_final_destination_cb(self->_goals[self->_final_allocated_destination.value()->
               satisfies_alternative].waypoint());

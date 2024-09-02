@@ -18,6 +18,7 @@
 #include <vector>
 
 #include <iostream>
+#include <sstream>
 
 const std::string ReservationRequestTopicName = "/rmf/reservations/request";
 const std::string ReservationResponseTopicName = "/rmf/reservations/tickets";
@@ -68,8 +69,19 @@ public:
   {
     rmf_chope_msgs::msg::Ticket ticket;
     ticket.ticket_id = index;
-    ticket.header = _ticket_to_header[index];
+    auto res = _ticket_to_header.find(index);
+    if (res != _ticket_to_header.end())
+      ticket.header = _ticket_to_header[index];
     return ticket;
+  }
+
+  std::string debug_ticket(const std::size_t index)
+  {
+    auto ticket = get_existing_ticket(index);
+    std::stringstream ss;
+    ss << ticket.header.fleet_name << "/" << ticket.header.robot_name
+      << "(" << index << ")";
+    return ss.str();
   }
 
   std::unordered_map<std::size_t,
@@ -212,6 +224,13 @@ public:
   /// Time complexity: O(1)
   void add(T item)
   {
+    // Don't add the same item to the queue twice.
+    auto index = item_to_index.find(item);
+    if (index != item_to_index.end())
+    {
+      return;
+    }
+    // index stores the order of the item in the queue.
     index_to_item[curr_index] = item;
     item_to_index[item] = curr_index;
     indices.insert(curr_index);
@@ -401,8 +420,9 @@ private:
       allocation.satisfies_alternative = result.value();
       allocation.resource = requests_[request->ticket.ticket_id][result.value()].location;
 
-      RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
-        allocation.resource.c_str(), request->ticket.ticket_id);
+      RCLCPP_INFO(this->get_logger(), "Allocating %s to %s",
+        allocation.resource.c_str(),
+        ticket_store_.debug_ticket(request->ticket.ticket_id).c_str());
       allocation_pub_->publish(allocation);
       return;
     }
@@ -443,8 +463,9 @@ private:
         rmf_chope_msgs::msg::ReservationAllocation::WAIT_PERMANENTLY;
       allocation.satisfies_alternative = waitpoint_result.value();
       allocation.resource = wait_points[waitpoint_result.value()].location;
-      RCLCPP_INFO(this->get_logger(), "Allocating %s as waitpoint to %lu",
-                allocation.resource.c_str(), request->ticket.ticket_id);
+      RCLCPP_INFO(this->get_logger(), "Allocating %s as waitpoint to %s",
+                allocation.resource.c_str(),
+                ticket_store_.debug_ticket(request->ticket.ticket_id).c_str());
       allocation_pub_->publish(allocation);
     }
     else
@@ -457,8 +478,8 @@ private:
     const rmf_chope_msgs::msg::ReleaseRequest::ConstSharedPtr& request)
   {
     RCLCPP_INFO(
-      this->get_logger(), "Releasing ticket for %lu",
-      request->ticket.ticket_id);
+      this->get_logger(), "Releasing ticket for %s",
+      ticket_store_.debug_ticket(request->ticket.ticket_id).c_str());
     auto ticket = request->ticket.ticket_id;
     auto released_location = current_state_.release(ticket);
     if (!released_location.has_value())
@@ -481,7 +502,7 @@ private:
       if (!released_location.has_value())
       {
         RCLCPP_ERROR(
-          this->get_logger(), "Could not find ticket %lu",
+          this->get_logger(), "Could not find ticket %lu while traversing wait graph",
           next_ticket.value());
         return;
       }
@@ -506,8 +527,10 @@ private:
       allocation.ticket = ticket_store_.get_existing_ticket(next_ticket.value());
       allocation.instruction_type =
         rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
-      RCLCPP_INFO(this->get_logger(), "Allocating %s to %lu",
-        allocation.resource.c_str(), next_ticket.value());
+      RCLCPP_INFO(this->get_logger(), "Allocating %s to %s as a result of %s leaving",
+        allocation.resource.c_str(),
+        ticket_store_.debug_ticket(next_ticket.value()).c_str(),
+        ticket_store_.debug_ticket(request->ticket.ticket_id).c_str());
       allocation_pub_->publish(allocation);
     }
     RCLCPP_INFO(

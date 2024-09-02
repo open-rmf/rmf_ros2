@@ -31,6 +31,37 @@ namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
+std::string wp_name(
+  const agv::RobotContext& context,
+  const rmf_traffic::agv::Plan::Goal& goal)
+{
+  const auto& g = context.planner()->get_configuration().graph();
+  const auto& wp = g.get_waypoint(goal.waypoint());
+  if (wp.name())
+    return *wp.name();
+
+  return "#" + std::to_string(goal.waypoint());
+}
+
+//==============================================================================
+std::string wp_name(const agv::RobotContext& context)
+{
+  const auto& g = context.planner()->get_configuration().graph();
+  const auto& locations = context.location();
+  for (const auto& l : locations)
+  {
+    const auto& wp = g.get_waypoint(l.waypoint());
+    if (wp.name())
+      return *wp.name();
+  }
+
+  if (locations.empty())
+    return "<null>";
+
+  return "#" + std::to_string(locations.front().waypoint());
+}
+
+//==============================================================================
 void GoToPlace::add(rmf_task_sequence::Event::Initializer& initializer)
 {
   initializer.add<Description>(
@@ -202,8 +233,8 @@ auto GoToPlace::Active::make(
 
         RCLCPP_INFO(
           self->_context->node()->get_logger(),
-          "Goal selected %lu",
-          self->_chosen_goal.value().waypoint());
+          "Goal selected %s",
+          wp_name(*self->_context, self->_chosen_goal.value()).c_str());
 
         self->_find_plan();
       }
@@ -318,7 +349,9 @@ void GoToPlace::Active::_on_chope_node_allocate_final_destination(
  const rmf_traffic::agv::Plan::Goal& goal)
 {
   RCLCPP_INFO(_context->node()->get_logger(),
-    "Received final destination from chope node");
+    "%s Received final destination %s from chope node",
+    _context->requester_id().c_str(),
+    wp_name(*_context, goal).c_str());
   _is_final_destination = true;
 
   _chosen_goal = goal;
@@ -434,36 +467,6 @@ void GoToPlace::Active::kill()
   _finished();
 }
 
-//==============================================================================
-std::string wp_name(
-  const agv::RobotContext& context,
-  const rmf_traffic::agv::Plan::Goal& goal)
-{
-  const auto& g = context.planner()->get_configuration().graph();
-  const auto& wp = g.get_waypoint(goal.waypoint());
-  if (wp.name())
-    return *wp.name();
-
-  return "#" + std::to_string(goal.waypoint());
-}
-
-//==============================================================================
-std::string wp_name(const agv::RobotContext& context)
-{
-  const auto& g = context.planner()->get_configuration().graph();
-  const auto& locations = context.location();
-  for (const auto& l : locations)
-  {
-    const auto& wp = g.get_waypoint(l.waypoint());
-    if (wp.name())
-      return *wp.name();
-  }
-
-  if (locations.empty())
-    return "<null>";
-
-  return "#" + std::to_string(locations.front().waypoint());
-}
 
 //==============================================================================
 std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
@@ -581,6 +584,17 @@ void GoToPlace::Active::_find_plan()
       _context->node()->get_logger(),
       "%s for [%s]",
       error_msg.c_str(),
+      _context->requester_id().c_str());
+
+    _schedule_retry();
+    return;
+  }
+
+  if (_context->location().size() == 0)
+  {
+  RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Robot [%s] is lost retrying.",
       _context->requester_id().c_str());
 
     _schedule_retry();
