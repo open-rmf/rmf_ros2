@@ -51,6 +51,7 @@
 #include <stdexcept>
 
 #include <rmf_fleet_adapter/schemas/place.hpp>
+#include <rmf_fleet_adapter/schemas/priority_description__binary.hpp>
 #include <rmf_api_msgs/schemas/task_request.hpp>
 
 namespace rmf_fleet_adapter {
@@ -241,38 +242,30 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
   const auto p_it = request_msg.find("priority");
   if (p_it != request_msg.end())
   {
-    // Assume the schema is not valid until we have successfully parsed it.
-    bool valid_schema = false;
-    // TODO(YV): Validate with priority_description_Binary.json
-    if (p_it->contains("type") && p_it->contains("value"))
+    try
     {
-      const auto& p_type = (*p_it)["type"];
-      if (p_type.is_string() && p_type.get<std::string>() == "binary")
-      {
-        const auto& p_value = (*p_it)["value"];
-        if (p_value.is_number_integer())
-        {
-          // The message matches the expected schema, so now we can mark it as
-          // valid.
-          valid_schema = true;
+      static const auto validator =
+        make_validator(rmf_fleet_adapter::schemas::priority_description__binary);
+      validator.validate(*p_it);
 
-          // If we have an integer greater than 0, we assign a high priority.
-          // Else the priority will default to low.
-          if (p_value.get<uint64_t>() > 0)
-          {
-            priority = rmf_task::BinaryPriorityScheme::make_high_priority();
-          }
-        }
+      const auto& p_value = (*p_it)["value"];
+      if (p_value.get<uint64_t>() > 0)
+      {
+        priority = rmf_task::BinaryPriorityScheme::make_high_priority();
       }
     }
-
-    if (!valid_schema)
+    catch (const std::exception& e)
     {
-      errors.push_back(
-        make_error_str(
-          4, "Unsupported type",
-          "Fleet [" + name + "] does not support priority request: "
-          + p_it->dump() + "\nDefaulting to low binary priority."));
+      const std::string error_str = make_error_str(
+        4, "Unsupported type",
+        "Fleet [" + name + "] does not support priority request: "
+        + p_it->dump() + "\nDefaulting to low binary priority.");
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Malformed incoming priority description: %s\n%s",
+        e.what(),
+        error_str.c_str());
+      errors.push_back(error_str);
     }
   }
 

@@ -430,7 +430,11 @@ void copy_booking_data(
   {
     booking_json["labels"] = booking.labels();
   }
-  // TODO(MXG): Add priority
+  const auto priority = booking.priority();
+  if (priority)
+  {
+    booking_json["priority"] = booking.priority()->serialize();
+  }
 }
 
 //==============================================================================
