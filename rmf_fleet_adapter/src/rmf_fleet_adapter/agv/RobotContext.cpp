@@ -1514,10 +1514,17 @@ void RobotContext::_check_door_supervisor(
 {
   const auto now = std::chrono::steady_clock::now();
   const auto dt = std::chrono::seconds(10);
-  if (_last_active_task_time + dt < now)
+  if (_current_task_id.has_value())
   {
-    // Do not hold a door if a robot is idle for more than 10 seconds
-    _holding_door = std::nullopt;
+    _last_active_task_time = now;
+  }
+  else
+  {
+    if (_last_active_task_time + dt < now)
+    {
+      // Do not hold a door if a robot is idle for more than 10 seconds
+      _holding_door = std::nullopt;
+    }
   }
 
   for (const auto& door : state.all_sessions)
