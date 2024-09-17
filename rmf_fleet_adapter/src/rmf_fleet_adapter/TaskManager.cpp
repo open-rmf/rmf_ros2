@@ -1691,11 +1691,13 @@ void TaskManager::_begin_waiting()
   }
 
   if (!_responsive_wait_enabled)
+  {
     if (_waiting)
     {
       _waiting.cancel({"Idle behavior updated"}, _context->now());
     }
     return;
+  }
 
   if (_context->location().empty())
   {
