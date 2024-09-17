@@ -1,10 +1,8 @@
 #include "rmf_chope_msgs/msg/flexible_time_request.hpp"
 #include "rmf_chope_msgs/msg/claim_request.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include <cstddef>
-#include <cstdint>
-#include <mutex>
-#include <optional>
+
+
 #include <rclcpp/logging.hpp>
 
 #include <rmf_building_map_msgs/msg/graph.hpp>
@@ -14,20 +12,14 @@
 #include <rmf_chope_msgs/msg/reservation_allocation.hpp>
 #include <rmf_chope_msgs/msg/ticket.hpp>
 #include <rmf_chope_msgs/msg/free_parking_spots.hpp>
-#include <unordered_map>
-#include <vector>
+#include <rmf_fleet_adapter/StandardNames.hpp>
 
 #include <iostream>
 #include <sstream>
+#include <unordered_map>
+#include <vector>
 
-const std::string ReservationRequestTopicName = "/rmf/reservations/request";
-const std::string ReservationResponseTopicName = "/rmf/reservations/tickets";
-const std::string ReservationClaimTopicName = "/rmf/reservations/claim";
-const std::string ReservationAllocationTopicName =
-  "/rmf/reservations/allocation";
-const std::string ReservationReleaseTopicName = "/rmf/reservations/release";
-
-
+using namespace rmf_fleet_adapter;
 /// C++-isms
 template<>
 struct std::hash<rmf_chope_msgs::msg::RequestHeader>
@@ -133,6 +125,12 @@ public:
 
   void add_location(std::string location)
   {
+    if (location.empty())
+    {
+      std::cerr << "Got an empty location name. Make sure all locations"
+        << " are set correctly" << std::endl;
+      return;
+    }
     if (_current_location_reservations.count(location) == 0)
     {
       _current_location_reservations.emplace(location,
@@ -150,7 +148,7 @@ public:
   /// \param[in] incoming_requests - Parking spot and cost of said parking spot.
   /// \param[in] ticket_id - Ticket which is being serviced.
   std::optional<std::size_t> allocate_lowest_cost_free_spot(
-    const std::vector<LocationReq>& incoming_requests,
+    std::vector<LocationReq> requests,
     const std::size_t ticket_id)
   {
     if (_ticket_to_location.count(ticket_id) != 0)
@@ -160,12 +158,11 @@ public:
     }
 
     std::unordered_map<std::string, std::size_t> positions;
-    for (std::size_t i = 0; i < incoming_requests.size(); ++i)
+    for (std::size_t i = 0; i < requests.size(); ++i)
     {
-      positions[incoming_requests[i].location] = i;
+      positions[requests[i].location] = i;
     }
 
-    auto requests = incoming_requests;
     std::sort(requests.begin(), requests.end());
     for (std::size_t i = 0; i < requests.size(); i++)
     {
@@ -430,7 +427,7 @@ private:
     // If we can't proceed immediately add the ticket to a queue.
     RCLCPP_INFO(this->get_logger(), "Could not immediately service %lu, enqueing. Locations in ticket were:",
       request->ticket.ticket_id);
-    for (auto i = 0; i < requests_[request->ticket.ticket_id].size(); i++)
+    for (std::size_t i = 0; i < requests_[request->ticket.ticket_id].size(); i++)
     {
       RCLCPP_INFO(this->get_logger(), "\t- %s",
         requests_[request->ticket.ticket_id][i].location.c_str());

@@ -455,6 +455,11 @@ void GoToPlace::Active::cancel()
   _stop_and_clear();
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
+
+  if (_context->_parking_spot_manager_enabled())
+  {
+    _chope_client->force_release();
+  }
   _finished();
 }
 
@@ -464,6 +469,10 @@ void GoToPlace::Active::kill()
   _stop_and_clear();
   _state->update_status(Status::Killed);
   _state->update_log().info("Received signal to kill");
+  if (_context->_parking_spot_manager_enabled())
+  {
+    _chope_client->force_release();
+  }
   _finished();
 }
 

@@ -110,23 +110,7 @@ public:
 
           if (self->_current_reservation_state ==  ReservationState::Requested)
           {
-            std::unordered_set<std::size_t> released_ticket_ids;
-            while (auto allocation = self->_context->_release_resource())
-            {
-              if (released_ticket_ids.count(allocation->ticket.ticket_id) != 0)
-              {
-                continue;
-              }
-              released_ticket_ids.insert(allocation->ticket.ticket_id);
-              rmf_chope_msgs::msg::ReleaseRequest msg;
-              msg.ticket = allocation->ticket;
-              self->_context->node()->release_location()->publish(msg);
-              RCLCPP_INFO(
-                self->_context->node()->get_logger(),
-                "Chope: Releasing waypoint for ticket %lu",
-                msg.ticket.ticket_id
-              );
-            }
+            self->force_release();
           }
 
           if (msg->instruction_type
@@ -203,6 +187,28 @@ public:
       "Sending chope request");
     make_request(same_map);
   }
+
+  void force_release()
+  {
+    std::unordered_set<std::size_t> released_ticket_ids;
+    while (auto allocation = _context->_release_resource())
+    {
+      if (released_ticket_ids.count(allocation->ticket.ticket_id) != 0)
+      {
+        continue;
+      }
+      released_ticket_ids.insert(allocation->ticket.ticket_id);
+      rmf_chope_msgs::msg::ReleaseRequest msg;
+      msg.ticket = allocation->ticket;
+      _context->node()->release_location()->publish(msg);
+      RCLCPP_INFO(
+        _context->node()->get_logger(),
+        "Chope: Releasing waypoint for ticket %lu",
+        msg.ticket.ticket_id
+      );
+    }
+  }
+
   static std::shared_ptr<ChopeNodeNegotiator> make(
     std::shared_ptr<agv::RobotContext> context,
     const std::vector<rmf_traffic::agv::Plan::Goal> goals,
@@ -220,7 +226,7 @@ public:
 
 private:
 
- rclcpp::TimerBase::SharedPtr _retry_timer;
+  rclcpp::TimerBase::SharedPtr _retry_timer;
 
   enum class ReservationState
   {
