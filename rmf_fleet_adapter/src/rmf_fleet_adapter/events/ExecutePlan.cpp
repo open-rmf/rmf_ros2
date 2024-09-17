@@ -519,7 +519,7 @@ std::optional<EventGroupInfo> search_for_lift_group(
 
       auto final_lift_destination =
         agv::RobotUpdateHandle::LiftDestination::Implementation::make(
-          lift_name, lift_end->destination());
+        lift_name, lift_end->destination());
 
       auto category = "Take [lift:" + lift_name
         + "] to [floor:" + lift_end->destination() + "]";

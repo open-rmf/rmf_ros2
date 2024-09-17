@@ -1757,11 +1757,11 @@ bool RobotContext::_has_ticket() const
 
 //==============================================================================
 std::vector<rmf_traffic::agv::Plan::Goal>
-  RobotContext::_find_and_sort_parking_spots(
-    const bool same_floor) const
+RobotContext::_find_and_sort_parking_spots(
+  const bool same_floor) const
 {
   std::vector<rmf_traffic::agv::Plan::Goal>
-    final_result;
+  final_result;
   // Retrieve nav graph
   const auto& graph = navigation_graph();
 
@@ -1776,7 +1776,7 @@ std::vector<rmf_traffic::agv::Plan::Goal>
 
   // Order wait points by the distance from the destination.
   std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
-    waitpoints_order;
+  waitpoints_order;
   for (std::size_t wp_idx = 0; wp_idx < graph.num_waypoints(); ++wp_idx)
   {
     const auto& wp = graph.get_waypoint(wp_idx);
@@ -1806,9 +1806,9 @@ std::vector<rmf_traffic::agv::Plan::Goal>
     if (!result.has_value())
     {
       RCLCPP_INFO(
-          node()->get_logger(),
-          "No path found for waypoint #%lu",
-          wp_idx);
+        node()->get_logger(),
+        "No path found for waypoint #%lu",
+        wp_idx);
       continue;
     }
 
@@ -1820,13 +1820,13 @@ std::vector<rmf_traffic::agv::Plan::Goal>
   //Sort waiting points
   std::sort(waitpoints_order.begin(), waitpoints_order.end(),
     [](const std::tuple<double, rmf_traffic::agv::Plan::Goal>& a,
-      const std::tuple<double, rmf_traffic::agv::Plan::Goal>& b)
+    const std::tuple<double, rmf_traffic::agv::Plan::Goal>& b)
     {
       return std::get<0>(a) < std::get<0>(b);
     });
 
 
-  for (auto &[_, waitpoint]: waitpoints_order)
+  for (auto&[_, waitpoint]: waitpoints_order)
   {
     final_result.push_back(waitpoint);
   }

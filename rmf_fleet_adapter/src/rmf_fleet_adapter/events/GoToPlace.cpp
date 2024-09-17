@@ -279,7 +279,8 @@ auto GoToPlace::Active::make(
     // just proceed to find plans as is.
     active->_find_plan();
   }
-  else {
+  else
+  {
     // This is the parking spot manager.
     active->_is_final_destination = false;
     active->_chosen_goal = std::nullopt;
@@ -287,23 +288,27 @@ auto GoToPlace::Active::make(
     RCLCPP_INFO(active->_context->node()->get_logger(),
       "Creating Chope negotiator");
     active->_chope_client = std::move(chope::ChopeNodeNegotiator::make(
-      active->_context,
-      active->_description.one_of(),
-      active->_description.prefer_same_map(),
-      [w = active->weak_from_this()]( const rmf_traffic::agv::Plan::Goal& goal) {
-        if (auto self = w.lock())
-        {
-          self->_on_chope_node_allocate_final_destination(goal);
-        }
-      },
-      [w = active->weak_from_this()]( const rmf_traffic::agv::Plan::Goal& goal) {
-        if (auto self = w.lock())
-        {
-          self->_on_chope_node_allocate_waitpoint(goal);
-        }
-      }
+          active->_context,
+          active->_description.one_of(),
+          active->_description.prefer_same_map(),
+          [w =
+          active->weak_from_this()](const rmf_traffic::agv::Plan::Goal& goal)
+          {
+            if (auto self = w.lock())
+            {
+              self->_on_chope_node_allocate_final_destination(goal);
+            }
+          },
+          [w =
+          active->weak_from_this()](const rmf_traffic::agv::Plan::Goal& goal)
+          {
+            if (auto self = w.lock())
+            {
+              self->_on_chope_node_allocate_waitpoint(goal);
+            }
+          }
     ));
-  };
+  }
 
   return active;
 }
@@ -316,7 +321,7 @@ auto GoToPlace::Active::state() const -> ConstStatePtr
 
 //==============================================================================
 void GoToPlace::Active::_on_chope_node_allocate_final_destination(
- const rmf_traffic::agv::Plan::Goal& goal)
+  const rmf_traffic::agv::Plan::Goal& goal)
 {
   RCLCPP_INFO(_context->node()->get_logger(),
     "%s Received final destination %s from chope node",
@@ -330,7 +335,7 @@ void GoToPlace::Active::_on_chope_node_allocate_final_destination(
 
 //==============================================================================
 void GoToPlace::Active::_on_chope_node_allocate_waitpoint(
- const rmf_traffic::agv::Plan::Goal& goal)
+  const rmf_traffic::agv::Plan::Goal& goal)
 {
   RCLCPP_INFO(_context->node()->get_logger(),
     "Received waitpoint from chope node");
@@ -502,7 +507,8 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
       }
 
       // Find distance to said point
-      auto result = _context->planner()->quickest_path(current_location, wp_idx);
+      auto result =
+        _context->planner()->quickest_path(current_location, wp_idx);
       if (result.has_value())
       {
         RCLCPP_INFO(
@@ -571,7 +577,7 @@ void GoToPlace::Active::_find_plan()
 
   if (_context->location().size() == 0)
   {
-  RCLCPP_ERROR(
+    RCLCPP_ERROR(
       _context->node()->get_logger(),
       "Robot [%s] is lost retrying.",
       _context->requester_id().c_str());
@@ -748,10 +754,11 @@ void GoToPlace::Active::_execute_plan(
     _execution = ExecutePlan::make(
       _context, plan_id, std::move(plan), std::move(goal),
       std::move(full_itinerary),
-      _assign_id, _state, _update, [&](){
+      _assign_id, _state, _update, [&]()
+      {
         RCLCPP_INFO(
-            _context->node()->get_logger(),
-            "Chope: Finished execution");
+          _context->node()->get_logger(),
+          "Chope: Finished execution");
         _stop_and_clear();
         _finished();
       }, _tail_period);
@@ -761,10 +768,11 @@ void GoToPlace::Active::_execute_plan(
     _execution = ExecutePlan::make(
       _context, plan_id, std::move(plan), std::move(goal),
       std::move(full_itinerary),
-      _assign_id, _state, _update, [&](){
+      _assign_id, _state, _update, [&]()
+      {
         RCLCPP_INFO(
-              _context->node()->get_logger(),
-              "Chope: Reached waitpoint");
+          _context->node()->get_logger(),
+          "Chope: Reached waitpoint");
 
         _reached_waitpoint = true;
       }, _tail_period);
@@ -814,7 +822,8 @@ Negotiator::NegotiatePtr GoToPlace::Active::_respond(
       {
         if (self->_chosen_goal.has_value())
         {
-          self->_execute_plan(plan_id, plan, std::move(itinerary), self->_chosen_goal.value());
+          self->_execute_plan(plan_id, plan, std::move(
+              itinerary), self->_chosen_goal.value());
           return self->_context->itinerary().version();
         }
       }

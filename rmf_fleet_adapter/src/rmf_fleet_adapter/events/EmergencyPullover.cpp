@@ -292,7 +292,7 @@ void EmergencyPullover::Active::_find_plan()
   _state->update_status(Status::Underway);
   _state->update_log().info("Searching for an emergency pullover");
 
-  if(!_context->_parking_spot_manager_enabled())
+  if (!_context->_parking_spot_manager_enabled())
   {
     _find_pullover_service = std::make_shared<services::FindEmergencyPullover>(
       _context->emergency_planner(), _context->location(),
@@ -355,7 +355,8 @@ void EmergencyPullover::Active::_find_plan()
 
     _update();
   }
-  else {
+  else
+  {
 
     _find_path_service = std::make_shared<services::FindPath>(
       _context->planner(), _context->location(), *_chosen_goal,
@@ -431,7 +432,7 @@ void EmergencyPullover::Active::_find_plan()
           self->_find_path_timeout = nullptr;
       });
 
-      _update();
+    _update();
   }
 }
 

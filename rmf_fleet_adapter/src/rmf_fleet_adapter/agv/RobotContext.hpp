@@ -765,8 +765,8 @@ public:
   /// Find all available spots.
   /// \param[in] same_floor - if the parking spots should be on the same floor.
   std::vector<rmf_traffic::agv::Planner::Goal>
-    _find_and_sort_parking_spots(const bool same_floor)
-      const;
+  _find_and_sort_parking_spots(const bool same_floor)
+  const;
 
   /// Set if the parking spot manager is used or not
   bool _parking_spot_manager_enabled();

@@ -27,7 +27,7 @@ namespace chope {
 
 /// This class implements the protocol for negotiating a spot with the "chope"
 /// node. The chope node maintains a list of spots which are free.
-class ChopeNodeNegotiator:
+class ChopeNodeNegotiator :
   public std::enable_shared_from_this<ChopeNodeNegotiator>
 {
 public:
@@ -36,7 +36,7 @@ public:
     const std::vector<rmf_traffic::agv::Plan::Goal> goals,
     const bool same_map,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
-      selected_final_destination_cb,
+    selected_final_destination_cb,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
   {
     _context = context;
@@ -46,54 +46,56 @@ public:
     _reservation_id = _context->last_reservation_request_id();
     _reservation_ticket =
       _context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(
-        _context->worker()))
+          _context->worker()))
       .subscribe([self = this](const std::shared_ptr<rmf_chope_msgs::msg::Ticket>
-        &msg)
-      {
-
-        RCLCPP_INFO(
-          self->_context->node()->get_logger(),
-          "Chope: Got ticket issueing claim");
-
-        if (msg->header.request_id != self->_reservation_id
-        || msg->header.robot_name != self->_context->name()
-        || msg->header.fleet_name != self->_context->group())
+        & msg)
         {
-          return;
-        }
 
-        self->_ticket = msg;
-        self->_waitpoints = self->_context->_find_and_sort_parking_spots(true);
+          RCLCPP_INFO(
+            self->_context->node()->get_logger(),
+            "Chope: Got ticket issueing claim");
 
-        if (self->_waitpoints.size() == 0)
-        {
+          if (msg->header.request_id != self->_reservation_id
+          || msg->header.robot_name != self->_context->name()
+          || msg->header.fleet_name != self->_context->group())
+          {
+            return;
+          }
+
+          self->_ticket = msg;
+          self->_waitpoints = self->_context->_find_and_sort_parking_spots(
+            true);
+
+          if (self->_waitpoints.size() == 0)
+          {
+            RCLCPP_ERROR(
+              self->_context->node()->get_logger(),
+              "Chope: Got no waitpoints");
+            return;
+          }
+
+          // Immediately make claim cause we don't yet support flexible reservations.
+          rmf_chope_msgs::msg::ClaimRequest claim_request;
+          claim_request.ticket = *msg;
+          for (const auto& goal: self->_waitpoints)
+          {
+            auto wp =
+            self->_context->navigation_graph().get_waypoint(goal.waypoint());
+            claim_request.wait_points.push_back(*wp.name());
+          }
+          self->_context->node()->claim_location_ticket()->publish(
+            claim_request);
           RCLCPP_ERROR(
             self->_context->node()->get_logger(),
-            "Chope: Got no waitpoints");
-          return;
-        }
-
-        // Immediately make claim cause we don't yet support flexible reservations.
-        rmf_chope_msgs::msg::ClaimRequest claim_request;
-        claim_request.ticket = *msg;
-        for (const auto &goal: self->_waitpoints)
-        {
-          auto wp =
-            self->_context->navigation_graph().get_waypoint(goal.waypoint());
-          claim_request.wait_points.push_back(*wp.name());
-        }
-        self->_context->node()->claim_location_ticket()->publish(claim_request);
-        RCLCPP_ERROR(
-          self->_context->node()->get_logger(),
-          "Chope: Claim issued");
-      });
+            "Chope: Claim issued");
+        });
 
 
     _reservation_allocation =
       _context->node()->allocated_claims_obs().observe_on(rxcpp::identity_same_worker(
           _context->worker()))
       .subscribe([self = this](const std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>
-        &msg)
+        & msg)
         {
           if (!self->_ticket.has_value())
           {
@@ -114,33 +116,38 @@ public:
           }
 
           if (msg->instruction_type
-            == rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
+          == rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
           {
             RCLCPP_INFO(
-                self->_context->node()->get_logger(), "Chope: Robot %s is going to final destination %lu",
-                  self->_context->name().c_str(),
-                  self->_goals[self->_final_allocated_destination.value()->satisfies_alternative].waypoint());
-            self->_current_reservation_state = ReservationState::ReceivedResponseProceedImmediate;
-            self->_selected_final_destination_cb(self->_goals[self->_final_allocated_destination.value()->
+              self->_context->node()->get_logger(),
+              "Chope: Robot %s is going to final destination %lu",
+              self->_context->name().c_str(),
+              self->_goals[self->_final_allocated_destination.value()->
               satisfies_alternative].waypoint());
+            self->_current_reservation_state = ReservationState::ReceivedResponseProceedImmediate;
+            self->_selected_final_destination_cb(self->_goals[self->
+            _final_allocated_destination.value()->
+            satisfies_alternative].waypoint());
           }
 
           if (msg->instruction_type
-            == rmf_chope_msgs::msg::ReservationAllocation::WAIT_PERMANENTLY)
+          == rmf_chope_msgs::msg::ReservationAllocation::WAIT_PERMANENTLY)
           {
             self->_current_reservation_state = ReservationState::ReceivedResponseProceedWaitPoint;
-            self->_selected_waitpoint_cb(self->_waitpoints[self->_final_allocated_destination.value()->
-              satisfies_alternative]);
+            self->_selected_waitpoint_cb(self->_waitpoints[self->
+            _final_allocated_destination.value()->
+            satisfies_alternative]);
             RCLCPP_INFO(
-                self->_context->node()->get_logger(), "Chope: Robot %s is being asked to proceed to a waitpoint %lu",
-                  self->_context->name().c_str(),
-                  self->_waitpoints[self->_final_allocated_destination.value()->
+              self->_context->node()->get_logger(),
+              "Chope: Robot %s is being asked to proceed to a waitpoint %lu",
+              self->_context->name().c_str(),
+              self->_waitpoints[self->_final_allocated_destination.value()->
               satisfies_alternative].waypoint());
           }
         });
 
 
-    auto current_location =_context->location();
+    auto current_location = _context->location();
     if (current_location.size() == 0)
     {
       using namespace std::literals::chrono_literals;
@@ -152,22 +159,23 @@ public:
           {
             _retry_timer->cancel();
           }
-          else {
+          else
+          {
             return;
           }
           for (std::size_t i = 0; i < _goals.size(); ++i)
+          {
+            if (_goals[i].waypoint() == current_location[0].waypoint())
             {
-              if (_goals[i].waypoint() == current_location[0].waypoint())
-              {
-                RCLCPP_ERROR(_context->node()->get_logger(),
-                  "Already at goal no need to engage reservation system\n");
-                _selected_final_destination_cb(_goals[i].waypoint());
-                return;
-              }
+              RCLCPP_ERROR(_context->node()->get_logger(),
+              "Already at goal no need to engage reservation system\n");
+              _selected_final_destination_cb(_goals[i].waypoint());
+              return;
             }
-            RCLCPP_INFO(_context->node()->get_logger(),
-              "Sending chope request");
-            make_request(same_map);
+          }
+          RCLCPP_INFO(_context->node()->get_logger(),
+          "Sending chope request");
+          make_request(same_map);
         }
       );
       return;
@@ -214,13 +222,13 @@ public:
     const std::vector<rmf_traffic::agv::Plan::Goal> goals,
     const bool same_map,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
-      selected_final_destination_cb,
+    selected_final_destination_cb,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
   {
     RCLCPP_INFO(context->node()->get_logger(),
       "Constructing chope negotiator");
     auto negotiator = std::make_shared<ChopeNodeNegotiator>(context,
-      goals, same_map, selected_final_destination_cb, selected_waitpoint_cb);
+        goals, same_map, selected_final_destination_cb, selected_waitpoint_cb);
     return negotiator;
   }
 
@@ -235,7 +243,6 @@ private:
     ReceivedResponseProceedWaitPoint=2,
     ReceivedResponseProceedImmediate=3
   };
-
 
 
   void make_request(bool only_same_map)
@@ -304,8 +311,8 @@ private:
           if (name == nullptr)
           {
             RCLCPP_ERROR(_context->node()->get_logger(),
-                "Got a parking spot without a name."
-                "This parking spot will not be used by the reservation system.");
+              "Got a parking spot without a name."
+              "This parking spot will not be used by the reservation system.");
             continue;
           }
 
@@ -339,8 +346,10 @@ private:
 
   ReservationState _current_reservation_state = ReservationState::Pending;
   std::shared_ptr<agv::RobotContext> _context;
-  std::function<void(const rmf_traffic::agv::Plan::Goal&)> _selected_waitpoint_cb;
-  std::function<void(const rmf_traffic::agv::Plan::Goal&)> _selected_final_destination_cb;
+  std::function<void(const rmf_traffic::agv::Plan::Goal&)>
+  _selected_waitpoint_cb;
+  std::function<void(const rmf_traffic::agv::Plan::Goal&)>
+  _selected_final_destination_cb;
   rmf_rxcpp::subscription_guard _reservation_ticket;
   rmf_rxcpp::subscription_guard _reservation_allocation;
 
@@ -348,7 +357,7 @@ private:
   std::optional<std::shared_ptr<rmf_chope_msgs::msg::Ticket>> _ticket{std::
     nullopt};
   std::optional<std::shared_ptr<rmf_chope_msgs::msg::ReservationAllocation>>
-    _final_allocated_destination{std::nullopt};
+  _final_allocated_destination{std::nullopt};
 
   std::vector<rmf_traffic::agv::Plan::Goal> _goals;
   std::vector<rmf_traffic::agv::Plan::Goal> _waitpoints;
