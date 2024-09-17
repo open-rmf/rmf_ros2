@@ -1386,11 +1386,29 @@ void RobotContext::_check_lift_state(
   {
     if (_lift_destination && !_lift_destination->requested_from_inside)
     {
-      // The lift destination reference count dropping to one while the lift
-      // destination request is on the outside means the task that prompted the
-      // lift usage was cancelled while the robot was outside of the lift.
-      // Therefore we should release the usage of the lift.
-      release_lift();
+      const auto now = std::chrono::steady_clock::now();
+      if (_initial_time_idle_outside_lift.has_value())
+      {
+        const auto lapse = now - *_initial_time_idle_outside_lift;
+        if (lapse > std::chrono::seconds(30))
+        {
+          // The lift destination reference count dropping to one while the lift
+          // destination request is on the outside means the task that prompted
+          // the lift usage was cancelled while the robot was outside of the lift.
+          // Therefore we should release the usage of the lift.
+          RCLCPP_INFO(
+            _node->get_logger(),
+            "Requesting lift [%s] to be released for [%s] because it is outside "
+            "the lift and not holding a claim for an extended period of time.",
+            _lift_destination->lift_name.c_str(),
+            requester_id().c_str());
+          release_lift();
+        }
+      }
+      else
+      {
+        _initial_time_idle_outside_lift = now;
+      }
     }
     else if (_lift_destination && !_current_task_id.has_value())
     {
@@ -1415,7 +1433,7 @@ void RobotContext::_check_lift_state(
         if (_initial_time_idle_outside_lift.has_value())
         {
           const auto lapse = now - *_initial_time_idle_outside_lift;
-          if (lapse > std::chrono::seconds(2))
+          if (lapse > std::chrono::seconds(10))
           {
             RCLCPP_INFO(
               _node->get_logger(),
@@ -1423,8 +1441,8 @@ void RobotContext::_check_lift_state(
               "outside of the lift.",
               _lift_destination->lift_name.c_str(),
               requester_id().c_str());
+            release_lift();
           }
-          release_lift();
         }
         else
         {
@@ -1442,6 +1460,7 @@ void RobotContext::_check_lift_state(
       msg.lift_name = state.lift_name;
       msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_END_SESSION;
       msg.session_id = requester_id();
+      msg.request_time = _node->now();
       _node->lift_request()->publish(msg);
     }
 
@@ -1496,10 +1515,17 @@ void RobotContext::_check_door_supervisor(
 {
   const auto now = std::chrono::steady_clock::now();
   const auto dt = std::chrono::seconds(10);
-  if (_last_active_task_time + dt < now)
+  if (_current_task_id.has_value())
   {
-    // Do not hold a door if a robot is idle for more than 10 seconds
-    _holding_door = std::nullopt;
+    _last_active_task_time = now;
+  }
+  else
+  {
+    if (_last_active_task_time + dt < now)
+    {
+      // Do not hold a door if a robot is idle for more than 10 seconds
+      _holding_door = std::nullopt;
+    }
   }
 
   for (const auto& door : state.all_sessions)
