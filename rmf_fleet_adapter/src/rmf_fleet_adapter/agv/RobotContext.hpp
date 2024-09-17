@@ -47,8 +47,6 @@
 #include "Node.hpp"
 #include "../Reporting.hpp"
 #include "ReservationManager.hpp"
-#include <unordered_set>
-#include <vector>
 
 #include <unordered_set>
 
@@ -828,7 +826,6 @@ public:
 
         self->_publish_mutex_group_requests();
       });
-
 
     context->_mutex_group_manual_release_sub =
       context->_node->create_subscription<

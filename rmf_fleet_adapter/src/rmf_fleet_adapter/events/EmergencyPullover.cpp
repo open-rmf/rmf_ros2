@@ -24,41 +24,11 @@
 #include <rmf_task_sequence/events/Placeholder.hpp>
 #include "../project_itinerary.hpp"
 
+#include "internal_Utilities.hpp"
+
 namespace rmf_fleet_adapter {
 namespace events {
 
-namespace {
-//==============================================================================
-std::string wp_name(
-  const agv::RobotContext& context,
-  const rmf_traffic::agv::Plan::Goal& goal)
-{
-  const auto& g = context.planner()->get_configuration().graph();
-  const auto& wp = g.get_waypoint(goal.waypoint());
-  if (wp.name())
-    return *wp.name();
-
-  return "#" + std::to_string(goal.waypoint());
-}
-
-//==============================================================================
-std::string wp_name(const agv::RobotContext& context)
-{
-  const auto& g = context.planner()->get_configuration().graph();
-  const auto& locations = context.location();
-  for (const auto& l : locations)
-  {
-    const auto& wp = g.get_waypoint(l.waypoint());
-    if (wp.name())
-      return *wp.name();
-  }
-
-  if (locations.empty())
-    return "<null>";
-
-  return "#" + std::to_string(locations.front().waypoint());
-}
-}
 
 //==============================================================================
 class EmergencyPulloverDescription
@@ -293,6 +263,10 @@ void EmergencyPullover::Active::cancel()
   _execution = std::nullopt;
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
+  if (_context->_parking_spot_manager_enabled())
+  {
+    _chope_client->force_release();
+  }
   _finished();
 }
 
@@ -302,6 +276,10 @@ void EmergencyPullover::Active::kill()
   _execution = std::nullopt;
   _state->update_status(Status::Killed);
   _state->update_log().info("Received signal to kill");
+  if (_context->_parking_spot_manager_enabled())
+  {
+    _chope_client->force_release();
+  }
   _finished();
 }
 
