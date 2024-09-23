@@ -31,63 +31,6 @@ namespace rmf_fleet_adapter {
 namespace agv {
 
 //==============================================================================
-void NavParams::search_for_location(
-  const std::string& map,
-  Eigen::Vector3d position,
-  RobotContext& context)
-{
-  auto planner = context.planner();
-  const auto& graph = context.navigation_graph();
-  if (!planner)
-  {
-    RCLCPP_ERROR(
-      context.node()->get_logger(),
-      "Planner unavailable for robot [%s], cannot update its location",
-      context.requester_id().c_str());
-    return;
-  }
-  const auto now = context.now();
-  auto starts = compute_plan_starts(context, map, position, now);
-  if (!starts.empty())
-  {
-    if (context.debug_positions)
-    {
-      std::stringstream ss;
-      ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
-         << " starts:" << print_starts(starts, graph);
-      std::cout << ss.str() << std::endl;
-    }
-    context.set_location(std::move(starts));
-  }
-  else
-  {
-    if (context.debug_positions)
-    {
-      std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
-                << map << " <" << position.block<2, 1>(0, 0).transpose()
-                << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
-    }
-    context.set_lost(Location { now, map, position });
-  }
-}
-
-rmf_traffic::agv::Plan::StartSet NavParams::compute_plan_starts(
-  const RobotContext& context,
-  const std::string& map_name,
-  const Eigen::Vector3d position,
-  const rmf_traffic::Time start_time) const
-{
-  const auto& graph = context.navigation_graph();
-  auto unfiltered = unfiltered_compute_plan_starts(
-    graph, map_name, position, start_time);
-
-  if (!unfiltered.empty())
-    return process_locations(std::move(unfiltered), context);
-
-  return {};
-}
-
-//==============================================================================
 std::unordered_map<std::size_t, VertexStack> compute_stacked_vertices(
   const rmf_traffic::agv::Graph& graph,
   double max_merge_waypoint_distance)
@@ -152,6 +95,63 @@ std::unordered_map<std::size_t, VertexStack> compute_stacked_vertices(
 }
 
 //==============================================================================
+void NavParams::search_for_location(
+  const std::string& map,
+  Eigen::Vector3d position,
+  RobotContext& context)
+{
+  auto planner = context.planner();
+  const auto& graph = context.navigation_graph();
+  if (!planner)
+  {
+    RCLCPP_ERROR(
+      context.node()->get_logger(),
+      "Planner unavailable for robot [%s], cannot update its location",
+      context.requester_id().c_str());
+    return;
+  }
+  const auto now = context.now();
+  auto starts = compute_plan_starts(context, map, position, now);
+  if (!starts.empty())
+  {
+    if (context.debug_positions)
+    {
+      std::stringstream ss;
+      ss << __FILE__ << "|" << __LINE__ << ": " << starts.size()
+         << " starts:" << print_starts(starts, graph);
+      std::cout << ss.str() << std::endl;
+    }
+    context.set_location(std::move(starts));
+  }
+  else
+  {
+    if (context.debug_positions)
+    {
+      std::cout << __FILE__ << "|" << __LINE__ << ": setting robot to LOST | "
+                << map << " <" << position.block<2, 1>(0, 0).transpose()
+                << "> orientation " << position[2] * 180.0 / M_PI << std::endl;
+    }
+    context.set_lost(Location { now, map, position });
+  }
+}
+
+rmf_traffic::agv::Plan::StartSet NavParams::compute_plan_starts(
+  const RobotContext& context,
+  const std::string& map_name,
+  const Eigen::Vector3d position,
+  const rmf_traffic::Time start_time) const
+{
+  const auto& graph = context.navigation_graph();
+  auto unfiltered = unfiltered_compute_plan_starts(
+    graph, map_name, position, start_time);
+
+  if (!unfiltered.empty())
+    return process_locations(std::move(unfiltered), context);
+
+  return {};
+}
+
+//==============================================================================
 void NavParams::find_stacked_vertices(const rmf_traffic::agv::Graph& graph)
 {
   stacked_vertices = compute_stacked_vertices(
@@ -197,7 +197,7 @@ rmf_traffic::agv::Plan::StartSet NavParams::process_locations(
   return _strict_lane_filter(
     _lift_boundary_filter(
       _descend_stacks(
-        context.navigation_graph(), 
+        context.navigation_graph(),
         locations),
       context));
 }
