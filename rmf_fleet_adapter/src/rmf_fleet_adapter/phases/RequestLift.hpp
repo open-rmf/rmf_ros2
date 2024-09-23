@@ -43,6 +43,9 @@ struct RequestLift
     std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary =
       nullptr;
     std::optional<rmf_traffic::agv::Plan::Waypoint> hold_point = std::nullopt;
+
+    std::optional<agv::RobotUpdateHandle::LiftDestination>
+    final_lift_destination = std::nullopt;
   };
 
   class ActivePhase : public LegacyTask::ActivePhase,
@@ -127,6 +130,11 @@ struct RequestLift
     const std::string& lift_name() const
     {
       return _lift_name;
+    }
+
+    Data& data()
+    {
+      return _data;
     }
 
   private:

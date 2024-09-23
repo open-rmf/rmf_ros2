@@ -469,6 +469,26 @@ public:
   /// could change in the future.
   void reassign_dispatched_tasks();
 
+  /// Information about where the lift will be asked to go for a robot.
+  class LiftDestination
+  {
+  public:
+    /// Name of the lift that is being used.
+    const std::string& lift() const;
+
+    /// Name of the level that the lift will be going to.
+    const std::string& level() const;
+
+    class Implementation;
+  private:
+    LiftDestination();
+    rmf_utils::impl_ptr<Implementation> _pimpl;
+  };
+
+  /// If this robot has begun a lift session, this will contain information
+  /// about where the robot will ask to go, and which lift it intends to use.
+  std::optional<LiftDestination> lift_destination() const;
+
   class Implementation;
 
   /// This API is experimental and will not be supported in the future. Users
@@ -541,6 +561,25 @@ public:
 
     /// Turn on/off a debug dump of how position updates are being processed
     void debug_positions(bool on);
+
+    /// Cancel a task but keep the task state displayed as completed, if it has
+    /// been assigned to this robot
+    ///
+    /// \param[in] task_id
+    ///   The ID of the task to be canceled
+    ///
+    /// \param[in] labels
+    ///   Labels that will be assigned to this cancellation. It is recommended to
+    ///   include information about why the cancellation is happening.
+    ///
+    /// \param[in] on_cancellation
+    ///   Callback that will be triggered after the cancellation is issued.
+    ///   task_was_found will be true if the task was successfully found and
+    ///   issued the cancellation, false otherwise.
+    void quiet_cancel_task(
+      std::string task_id,
+      std::vector<std::string> labels,
+      std::function<void(bool task_was_found)> on_cancellation);
 
   private:
     friend Implementation;

@@ -49,7 +49,9 @@ foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
 endforeach()
 
-if(BUILD_TESTING)
+# Disable uncrustify tests by default.
+set(TEST_UNCRUSTIFY "Off")
+if(BUILD_TESTING AND TEST_UNCRUSTIFY)
   find_package(ament_cmake_uncrustify REQUIRED)
   find_file(uncrustify_config_file
     NAMES "rmf_code_style.cfg"

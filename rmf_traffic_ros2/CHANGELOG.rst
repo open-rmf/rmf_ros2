@@ -2,6 +2,18 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.8.0 (2024-06-12)
+------------------
+
+2.7.1 (2024-06-11)
+------------------
+
+2.7.0 (2024-06-01)
+------------------
+* Fix race condition for ingesting/dispensing and disable uncrustify tests by default (`#362 <https://github.com/open-rmf/rmf_ros2/pull/362>`_)
+* Fix serialization of exit events (`#364 <https://github.com/open-rmf/rmf_ros2/pull/364>`_)
+* Contributors: Grey, Luca Della Vedova, Yadunund
+
 2.6.0 (2024-03-13)
 ------------------
 * Add Backward-ROS for improved logging in event of segfaults (`#327 <https://github.com/open-rmf/rmf_ros2/pull/327>`_)

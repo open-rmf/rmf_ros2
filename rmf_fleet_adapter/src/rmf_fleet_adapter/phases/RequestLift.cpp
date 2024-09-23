@@ -105,6 +105,11 @@ void RequestLift::ActivePhase::_init_obs()
     _context->_set_current_boarded_lift_level(_current_boarded_lift_level);
   }
 
+  if (_data.final_lift_destination.has_value())
+  {
+    _context->set_final_lift_destination(*_data.final_lift_destination);
+  }
+
   if (_data.located == Located::Outside && _context->current_lift_destination())
   {
     // Check if the current destination is the one we want and also has arrived.
@@ -118,6 +123,16 @@ void RequestLift::ActivePhase::_init_obs()
           const auto self = w.lock();
           if (!self)
             return;
+
+          if (self->_data.located == Located::Outside)
+          {
+            // The robot is going to start moving into the lift now, so we
+            // should lock in the lift by saying that the request is coming from
+            // inside the lift. This will prevent the auto-detection system from
+            // releasing the lift prematurely.
+            self->_context->set_lift_destination(
+              self->_lift_name, self->_destination, true);
+          }
 
           if (self->_data.resume_itinerary)
           {
@@ -242,6 +257,10 @@ void RequestLift::ActivePhase::_init_obs()
 
             agv::Destination::Implementation::get(*me->_data.localize_after)
             .position = me->_context->position();
+
+            const auto graph = me->_context->navigation_graph();
+            agv::Destination::Implementation::get(*me->_data.localize_after)
+            .lift = graph.find_known_lift(me->_lift_name);
 
             if (me->_context->localize(*me->_data.localize_after,
             std::move(cmd)))
@@ -419,8 +438,10 @@ bool RequestLift::ActivePhase::_finish()
 
   if (_data.located == Located::Outside)
   {
-    // The robot is going to start moving into the lift now, so we should lock
-    // the destination in.
+    // The robot is going to start moving into the lift now, so we
+    // should lock in the lift by saying that the request is coming from
+    // inside the lift. This will prevent the auto-detection system from
+    // releasing the lift prematurely.
     _context->set_lift_destination(_lift_name, _destination, true);
 
     // We should replan to make sure there are no traffic issues that came up

@@ -63,6 +63,7 @@ using RobotInterruption = agv::RobotUpdateHandle::Interruption;
 using IssueTicket = agv::RobotUpdateHandle::IssueTicket;
 using Commission = agv::RobotUpdateHandle::Commission;
 using Stubbornness = agv::RobotUpdateHandle::Unstable::Stubbornness;
+using LiftDestination = agv::RobotUpdateHandle::LiftDestination;
 
 void bind_types(py::module&);
 void bind_graph(py::module&);
@@ -254,6 +255,21 @@ PYBIND11_MODULE(rmf_adapter, m) {
       self.unstable().debug_positions(on);
     },
     py::arg("on"))
+  .def("unstable_quiet_cancel_task",
+    [&](agv::RobotUpdateHandle& self,
+    std::string task_id,
+    std::vector<std::string> labels,
+    std::function<void(bool task_was_found)>on_cancellation)
+    {
+      self.unstable().quiet_cancel_task(
+        task_id,
+        labels,
+        on_cancellation
+      );
+    },
+    py::arg("task_id"),
+    py::arg("labels"),
+    py::arg("on_cancellation"))
   .def("set_action_executor",
     &agv::RobotUpdateHandle::set_action_executor,
     py::arg("action_executor"))
@@ -299,7 +315,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("commission",
     &agv::RobotUpdateHandle::commission)
   .def("reassign_dispatched_tasks",
-    &agv::RobotUpdateHandle::reassign_dispatched_tasks);
+    &agv::RobotUpdateHandle::reassign_dispatched_tasks)
+  .def("lift_destination",
+    &agv::RobotUpdateHandle::lift_destination);
 
   // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");
@@ -383,6 +401,16 @@ PYBIND11_MODULE(rmf_adapter, m) {
     m_robot_update_handle, "Stubbornness")
   .def("release",
     &Stubbornness::release);
+
+  // LiftDestination ======================================================
+  py::class_<LiftDestination>(
+    m_robot_update_handle, "LiftDestination")
+  .def_property_readonly(
+    "lift",
+    &LiftDestination::lift)
+  .def_property_readonly(
+    "level",
+    &LiftDestination::level);
 
   // FLEETUPDATE HANDLE ======================================================
   py::class_<agv::FleetUpdateHandle,
@@ -519,6 +547,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
     &agv::FleetUpdateHandle::set_update_listener,
     py::arg("listener"),
     "Provide a callback that will receive fleet state and task updates.")
+  .def_property("retreat_to_charger_interval",
+    &agv::FleetUpdateHandle::retreat_to_charger_interval,
+    &agv::FleetUpdateHandle::set_retreat_to_charger_interval)
   .def("consider_delivery_requests",
      [&](agv::FleetUpdateHandle& self,
          ModifiedConsiderRequest consider_pickup,
@@ -593,7 +624,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
         );
     },
     py::arg("category"),
-    py::arg("consider"));
+    py::arg("consider"))
+  .def("reassign_dispatched_tasks",
+    &agv::FleetUpdateHandle::reassign_dispatched_tasks);
 
   // TASK REQUEST CONFIRMATION ===============================================
   auto m_fleet_update_handle = m.def_submodule("fleet_update_handle");
@@ -1022,6 +1055,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def(
     "get_known_robot_configuration",
     &agv::EasyFullControl::FleetConfiguration::get_known_robot_configuration)
+  .def_property(
+    "retreat_to_charger_interval",
+    &agv::EasyFullControl::FleetConfiguration::retreat_to_charger_interval,
+    &agv::EasyFullControl::FleetConfiguration::set_retreat_to_charger_interval)
   .def_property(
     "graph",
     &agv::EasyFullControl::FleetConfiguration::graph,

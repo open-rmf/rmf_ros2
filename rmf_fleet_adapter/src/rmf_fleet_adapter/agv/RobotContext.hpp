@@ -23,6 +23,9 @@
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/Transformation.hpp>
 #include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
+#include <rmf_fleet_adapter/StandardNames.hpp>
+
+#include <rmf_fleet_msgs/msg/mutex_group_manual_release.hpp>
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
@@ -241,10 +244,16 @@ inline std::string print_starts(
 }
 
 //==============================================================================
+std::unordered_map<std::size_t, VertexStack> compute_stacked_vertices(
+  const rmf_traffic::agv::Graph& graph,
+  double max_merge_waypoint_distance);
+
+//==============================================================================
 struct NavParams
 {
   bool skip_rotation_commands;
   std::shared_ptr<TransformDictionary> transforms_to_robot_coords;
+  std::unordered_set<std::size_t> strict_lanes;
   double max_merge_waypoint_distance = 1e-3;
   double max_merge_lane_distance = 0.3;
   double min_lane_length = 1e-8;
@@ -343,6 +352,11 @@ struct NavParams
     rmf_traffic::agv::Plan::StartSet locations,
     const RobotContext& context) const;
 
+  // If one of the starts is mid-lane on a strict lane, filter it out of the
+  // start set.
+  rmf_traffic::agv::Plan::StartSet _strict_lane_filter(
+    rmf_traffic::agv::Plan::StartSet locations) const;
+
   bool in_same_stack(std::size_t wp0, std::size_t wp1) const;
 };
 
@@ -387,14 +401,6 @@ struct MutexGroupData
 {
   std::string name;
   TimeMsg claim_time;
-};
-
-//==============================================================================
-struct MutexGroupSwitch
-{
-  std::string from;
-  std::string to;
-  std::function<bool()> accept;
 };
 
 //==============================================================================
@@ -594,6 +600,13 @@ public:
   /// (false)?
   bool waiting_for_charger() const;
 
+  /// This function will indicate that the robot is currently charging for as
+  /// long as the return value is held onto.
+  std::shared_ptr<void> be_charging();
+
+  /// Check if the robot is currently doing a battery charging task.
+  bool is_charging() const;
+
   // Get a reference to the battery soc observer of this robot.
   const rxcpp::observable<double>& observe_battery_soc() const;
 
@@ -676,11 +689,32 @@ public:
   /// Indicate that the lift is no longer needed
   void release_lift();
 
+  /// Get the final lift destination that the overall session intends to end at.
+  /// This is used to give robots advanced notice of what floor they will be
+  /// going to, in case they need this information in order to enter the lift
+  /// correctly.
+  std::optional<RobotUpdateHandle::LiftDestination>
+  final_lift_destination() const;
+
+  /// Change what the final lift destination is currently set to. Typically this
+  /// should only be called by RequestLift.
+  void set_final_lift_destination(
+    RobotUpdateHandle::LiftDestination destination);
+
+  /// Clear the information about the final lift destination. Typically this
+  /// should only be called by release_lift().
+  void clear_final_lift_destination();
+
   /// Check if a door is being held
   const std::optional<std::string>& holding_door() const;
 
-  /// What mutex group is currently being locked.
+  /// What mutex groups are currently locked by this robot.
   const std::unordered_map<std::string, TimeMsg>& locked_mutex_groups() const;
+
+  /// What mutex groups are currently being requested (but have not yet been
+  /// locked) by this robot.
+  const std::unordered_map<std::string, TimeMsg>&
+  requesting_mutex_groups() const;
 
   /// Set the mutex group that this robot needs to lock.
   const rxcpp::observable<std::string>& request_mutex_groups(
@@ -791,6 +825,20 @@ public:
         self->_publish_mutex_group_requests();
       });
 
+    context->_mutex_group_manual_release_sub =
+      context->_node->create_subscription<
+      rmf_fleet_msgs::msg::MutexGroupManualRelease>(
+      MutexGroupManualReleaseTopicName,
+      rclcpp::SystemDefaultsQoS()
+      .reliable()
+      .keep_last(10),
+      [w = context->weak_from_this()](
+        rmf_fleet_msgs::msg::MutexGroupManualRelease::SharedPtr msg)
+      {
+        if (const auto self = w.lock())
+          self->_handle_mutex_group_manual_release(*msg);
+      });
+
     return context;
   }
 
@@ -849,7 +897,8 @@ private:
   std::size_t _charging_wp;
   /// When the robot reaches its _charging_wp, is there to wait for a charger
   /// (true) or to actually charge (false)?
-  bool _waiting_for_charger;
+  bool _waiting_for_charger = false;
+  std::shared_ptr<void> _lock_charging;
   rxcpp::subjects::subject<double> _battery_soc_publisher;
   rxcpp::observable<double> _battery_soc_obs;
   rmf_task::State _current_task_end_state;
@@ -899,13 +948,21 @@ private:
     std::unordered_map<std::string, TimeMsg>& _groups);
   void _release_mutex_group(const MutexGroupData& data) const;
   void _publish_mutex_group_requests();
+  void _handle_mutex_group_manual_release(
+    const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg);
   std::unordered_map<std::string, TimeMsg> _requesting_mutex_groups;
   std::unordered_map<std::string, TimeMsg> _locked_mutex_groups;
   rxcpp::subjects::subject<std::string> _mutex_group_lock_subject;
   rxcpp::observable<std::string> _mutex_group_lock_obs;
   rclcpp::TimerBase::SharedPtr _mutex_group_heartbeat;
   rmf_rxcpp::subscription_guard _mutex_group_sanity_check;
+  rclcpp::Subscription<rmf_fleet_msgs::msg::MutexGroupManualRelease>::SharedPtr
+    _mutex_group_manual_release_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
+
+  std::optional<RobotUpdateHandle::LiftDestination> _final_lift_destination;
+  std::unique_ptr<std::mutex> _final_lift_destination_mutex =
+    std::make_unique<std::mutex>();
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

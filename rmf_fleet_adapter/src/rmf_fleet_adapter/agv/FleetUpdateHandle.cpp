@@ -51,6 +51,7 @@
 #include <stdexcept>
 
 #include <rmf_fleet_adapter/schemas/place.hpp>
+#include <rmf_fleet_adapter/schemas/priority_description__binary.hpp>
 #include <rmf_api_msgs/schemas/task_request.hpp>
 
 namespace rmf_fleet_adapter {
@@ -241,38 +242,30 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
   const auto p_it = request_msg.find("priority");
   if (p_it != request_msg.end())
   {
-    // Assume the schema is not valid until we have successfully parsed it.
-    bool valid_schema = false;
-    // TODO(YV): Validate with priority_description_Binary.json
-    if (p_it->contains("type") && p_it->contains("value"))
+    try
     {
-      const auto& p_type = (*p_it)["type"];
-      if (p_type.is_string() && p_type.get<std::string>() == "binary")
-      {
-        const auto& p_value = (*p_it)["value"];
-        if (p_value.is_number_integer())
-        {
-          // The message matches the expected schema, so now we can mark it as
-          // valid.
-          valid_schema = true;
+      static const auto validator =
+        make_validator(rmf_fleet_adapter::schemas::priority_description__binary);
+      validator.validate(*p_it);
 
-          // If we have an integer greater than 0, we assign a high priority.
-          // Else the priority will default to low.
-          if (p_value.get<uint64_t>() > 0)
-          {
-            priority = rmf_task::BinaryPriorityScheme::make_high_priority();
-          }
-        }
+      const auto& p_value = (*p_it)["value"];
+      if (p_value.get<uint64_t>() > 0)
+      {
+        priority = rmf_task::BinaryPriorityScheme::make_high_priority();
       }
     }
-
-    if (!valid_schema)
+    catch (const std::exception& e)
     {
-      errors.push_back(
-        make_error_str(
-          4, "Unsupported type",
-          "Fleet [" + name + "] does not support priority request: "
-          + p_it->dump() + "\nDefaulting to low binary priority."));
+      const std::string error_str = make_error_str(
+        4, "Unsupported type",
+        "Fleet [" + name + "] does not support priority request: "
+        + p_it->dump() + "\nDefaulting to low binary priority.");
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Malformed incoming priority description: %s\n%s",
+        e.what(),
+        error_str.c_str());
+      errors.push_back(error_str);
     }
   }
 
@@ -469,7 +462,7 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     RCLCPP_INFO(
       node->get_logger(),
       "Fleet [%s] does not have any robots to accept task [%s]. Use "
-      "FleetUpdateHadndle::add_robot(~) to add robots to this fleet. ",
+      "FleetUpdateHandle::add_robot(~) to add robots to this fleet. ",
       name.c_str(), task_id.c_str());
     return;
   }
@@ -1285,6 +1278,23 @@ void FleetUpdateHandle::Implementation::update_fleet_state() const
         commission.is_performing_idle_behavior();
 
       json["commission"] = commission_json;
+
+      nlohmann::json mutex_groups_json;
+      std::vector<std::string> locked_mutex_groups;
+      for (const auto& g : context->locked_mutex_groups())
+      {
+        locked_mutex_groups.push_back(g.first);
+      }
+      mutex_groups_json["locked"] = std::move(locked_mutex_groups);
+
+      std::vector<std::string> requesting_mutex_groups;
+      for (const auto& g : context->requesting_mutex_groups())
+      {
+        requesting_mutex_groups.push_back(g.first);
+      }
+      mutex_groups_json["requesting"] = std::move(requesting_mutex_groups);
+
+      json["mutex_groups"] = std::move(mutex_groups_json);
     }
 
     try
@@ -1894,6 +1904,7 @@ void FleetUpdateHandle::add_robot(
           }
 
           mgr->set_idle_task(fleet->_pimpl->idle_task);
+          mgr->configure_retreat_to_charger(fleet->retreat_to_charger_interval());
 
           // -- Calling the handle_cb should always happen last --
           if (handle_cb)
@@ -2497,6 +2508,41 @@ FleetUpdateHandle& FleetUpdateHandle::set_update_listener(
   std::unique_lock<std::mutex> lock(*_pimpl->update_callback_mutex);
   _pimpl->update_callback = std::move(listener);
   return *this;
+}
+
+//==============================================================================
+std::optional<rmf_traffic::Duration>
+FleetUpdateHandle::retreat_to_charger_interval() const
+{
+  return _pimpl->retreat_to_charger_interval;
+}
+
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::set_retreat_to_charger_interval(
+  std::optional<rmf_traffic::Duration> duration)
+{
+  _pimpl->retreat_to_charger_interval = duration;
+
+  // Start retreat timer
+  for (const auto& t : _pimpl->task_managers)
+  {
+    t.second->configure_retreat_to_charger(duration);
+  }
+  return *this;
+}
+
+//==============================================================================
+void FleetUpdateHandle::reassign_dispatched_tasks()
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this()](const auto&)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+      self->_pimpl->reassign_dispatched_tasks([]() {}, [](auto) {});
+    }
+  );
 }
 
 //==============================================================================

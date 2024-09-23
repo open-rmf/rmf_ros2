@@ -207,12 +207,12 @@ private:
       }
       else
       {
-        RCLCPP_INFO(
+        RCLCPP_DEBUG(
           this->_node->get_logger(), "Sent successfully");
       }
       _queue.pop_item();
     }
-    RCLCPP_INFO(
+    RCLCPP_DEBUG(
       this->_node->get_logger(), "Emptied queue");
   }
   // create pimpl
