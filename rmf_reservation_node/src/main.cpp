@@ -1,17 +1,14 @@
-#include "rmf_chope_msgs/msg/flexible_time_request.hpp"
-#include "rmf_chope_msgs/msg/claim_request.hpp"
 #include "rclcpp/rclcpp.hpp"
-
-
 #include <rclcpp/logging.hpp>
 
 #include <rmf_building_map_msgs/msg/graph.hpp>
-#include <rmf_chope_msgs/msg/detail/free_parking_spots__struct.hpp>
-#include <rmf_chope_msgs/msg/request_header.hpp>
-#include <rmf_chope_msgs/msg/release_request.hpp>
-#include <rmf_chope_msgs/msg/reservation_allocation.hpp>
-#include <rmf_chope_msgs/msg/ticket.hpp>
-#include <rmf_chope_msgs/msg/free_parking_spots.hpp>
+#include <rmf_reservation_msgs/msg/request_header.hpp>
+#include <rmf_reservation_msgs/msg/release_request.hpp>
+#include <rmf_reservation_msgs/msg/reservation_allocation.hpp>
+#include <rmf_reservation_msgs/msg/ticket.hpp>
+#include <rmf_reservation_msgs/msg/free_parking_spots.hpp>
+#include <rmf_reservation_msgs/msg/flexible_time_request.hpp>
+#include <rmf_reservation_msgs/msg/claim_request.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
 #include <iostream>
@@ -22,9 +19,9 @@
 using namespace rmf_fleet_adapter;
 /// C++-isms
 template<>
-struct std::hash<rmf_chope_msgs::msg::RequestHeader>
+struct std::hash<rmf_reservation_msgs::msg::RequestHeader>
 {
-  std::size_t operator()(const rmf_chope_msgs::msg::RequestHeader& header) const
+  std::size_t operator()(const rmf_reservation_msgs::msg::RequestHeader& header) const
   {
     using std::size_t;
     using std::hash;
@@ -45,10 +42,10 @@ class TicketStore
 {
 
 public:
-  rmf_chope_msgs::msg::Ticket get_new_ticket(
-    const rmf_chope_msgs::msg::RequestHeader& request_header)
+  rmf_reservation_msgs::msg::Ticket get_new_ticket(
+    const rmf_reservation_msgs::msg::RequestHeader& request_header)
   {
-    rmf_chope_msgs::msg::Ticket ticket;
+    rmf_reservation_msgs::msg::Ticket ticket;
     ticket.header = request_header;
     ticket.ticket_id = _last_issued_ticket_id;
 
@@ -57,9 +54,9 @@ public:
     return ticket;
   }
 
-  rmf_chope_msgs::msg::Ticket get_existing_ticket(const std::size_t index)
+  rmf_reservation_msgs::msg::Ticket get_existing_ticket(const std::size_t index)
   {
-    rmf_chope_msgs::msg::Ticket ticket;
+    rmf_reservation_msgs::msg::Ticket ticket;
     ticket.ticket_id = index;
     auto res = _ticket_to_header.find(index);
     if (res != _ticket_to_header.end())
@@ -77,7 +74,7 @@ public:
   }
 
   std::unordered_map<std::size_t,
-    rmf_chope_msgs::msg::RequestHeader> _ticket_to_header;
+    rmf_reservation_msgs::msg::RequestHeader> _ticket_to_header;
   std::size_t _last_issued_ticket_id = 1;
 };
 
@@ -244,9 +241,10 @@ public:
     {
       return;
     }
+    auto idx = index->second;
     item_to_index.erase(item);
-    index_to_item.erase(index->second);
-    indices.erase(index->second);
+    index_to_item.erase(idx);
+    indices.erase(idx);
   }
 
   // Gives the most recent item in the queue.
@@ -306,11 +304,11 @@ public:
 
 using namespace std::chrono_literals;
 
-class ChopeNode : public rclcpp::Node
+class reservationNode : public rclcpp::Node
 {
 public:
-  ChopeNode()
-  : Node("rmf_chope_node")
+  reservationNode()
+  : Node("rmf_reservation_node")
   {
 
     rclcpp::QoS qos(10);
@@ -319,37 +317,37 @@ public:
     qos = qos.transient_local();
 
     request_subscription_ =
-      this->create_subscription<rmf_chope_msgs::msg::FlexibleTimeRequest>(
+      this->create_subscription<rmf_reservation_msgs::msg::FlexibleTimeRequest>(
       ReservationRequestTopicName, qos,
-      std::bind(&ChopeNode::on_request, this,
+      std::bind(&reservationNode::on_request, this,
       std::placeholders::_1));
     claim_subscription_ =
-      this->create_subscription<rmf_chope_msgs::msg::ClaimRequest>(
+      this->create_subscription<rmf_reservation_msgs::msg::ClaimRequest>(
       ReservationClaimTopicName, qos,
-      std::bind(&ChopeNode::claim_request, this,
+      std::bind(&reservationNode::claim_request, this,
       std::placeholders::_1));
     release_subscription_ =
-      this->create_subscription<rmf_chope_msgs::msg::ReleaseRequest>(
+      this->create_subscription<rmf_reservation_msgs::msg::ReleaseRequest>(
       ReservationReleaseTopicName, qos,
-      std::bind(&ChopeNode::release, this, std::placeholders::_1));
+      std::bind(&reservationNode::release, this, std::placeholders::_1));
     graph_subscription_ =
       this->create_subscription<rmf_building_map_msgs::msg::Graph>(
       "/nav_graphs", qos,
-      std::bind(&ChopeNode::received_graph, this,
+      std::bind(&reservationNode::received_graph, this,
       std::placeholders::_1));
 
-    ticket_pub_ = this->create_publisher<rmf_chope_msgs::msg::Ticket>(
+    ticket_pub_ = this->create_publisher<rmf_reservation_msgs::msg::Ticket>(
       ReservationResponseTopicName, qos);
     allocation_pub_ =
-      this->create_publisher<rmf_chope_msgs::msg::ReservationAllocation>(
+      this->create_publisher<rmf_reservation_msgs::msg::ReservationAllocation>(
       ReservationAllocationTopicName, qos);
     free_spot_pub_ =
-      this->create_publisher<rmf_chope_msgs::msg::FreeParkingSpots>(
+      this->create_publisher<rmf_reservation_msgs::msg::FreeParkingSpots>(
       "/rmf/reservations/free_parking_spot", qos);
 
     timer_ =
       this->create_wall_timer(500ms,
-        std::bind(&ChopeNode::publish_free_spots, this));
+        std::bind(&reservationNode::publish_free_spots, this));
   }
 
 private:
@@ -371,7 +369,7 @@ private:
     }
   }
   void on_request(
-    const rmf_chope_msgs::msg::FlexibleTimeRequest::ConstSharedPtr& request)
+    const rmf_reservation_msgs::msg::FlexibleTimeRequest::ConstSharedPtr& request)
   {
 
     std::vector<LocationReq> requests;
@@ -392,7 +390,7 @@ private:
   }
 
   void claim_request(
-    const rmf_chope_msgs::msg::ClaimRequest::ConstSharedPtr& request)
+    const rmf_reservation_msgs::msg::ClaimRequest::ConstSharedPtr& request)
   {
 
     // This logic is for the simplified queue-less version.
@@ -410,11 +408,11 @@ private:
         request->ticket.ticket_id);
     if (result.has_value())
     {
-      rmf_chope_msgs::msg::ReservationAllocation allocation;
+      rmf_reservation_msgs::msg::ReservationAllocation allocation;
       allocation.ticket = ticket_store_.get_existing_ticket(
         request->ticket.ticket_id);
       allocation.instruction_type =
-        rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
+        rmf_reservation_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
       allocation.satisfies_alternative = result.value();
       allocation.resource =
         requests_[request->ticket.ticket_id][result.value()].location;
@@ -458,11 +456,11 @@ private:
       request->ticket.ticket_id);
     if (waitpoint_result.has_value())
     {
-      rmf_chope_msgs::msg::ReservationAllocation allocation;
+      rmf_reservation_msgs::msg::ReservationAllocation allocation;
       allocation.ticket = ticket_store_.get_existing_ticket(
         request->ticket.ticket_id);
       allocation.instruction_type =
-        rmf_chope_msgs::msg::ReservationAllocation::WAIT_PERMANENTLY;
+        rmf_reservation_msgs::msg::ReservationAllocation::WAIT_PERMANENTLY;
       allocation.satisfies_alternative = waitpoint_result.value();
       allocation.resource = wait_points[waitpoint_result.value()].location;
       RCLCPP_INFO(this->get_logger(), "Allocating %s as waitpoint to %s",
@@ -479,7 +477,7 @@ private:
   }
 
   void release(
-    const rmf_chope_msgs::msg::ReleaseRequest::ConstSharedPtr& request)
+    const rmf_reservation_msgs::msg::ReleaseRequest::ConstSharedPtr& request)
   {
     RCLCPP_INFO(
       this->get_logger(), "Releasing ticket for %s",
@@ -525,18 +523,18 @@ private:
       if (!result.has_value())
       {
         RCLCPP_ERROR(
-          this->get_logger(), "Tried to service %lu. Apparently there was some inconsitency between the chope node's state and the",
+          this->get_logger(), "Tried to service %lu. Apparently there was some inconsitency between the reservation node's state and the",
           ticket);
         return;
       }
-      rmf_chope_msgs::msg::ReservationAllocation allocation;
+      rmf_reservation_msgs::msg::ReservationAllocation allocation;
       allocation.satisfies_alternative = result.value();
       allocation.resource =
         requests_[next_ticket.value()][result.value()].location;
       allocation.ticket =
         ticket_store_.get_existing_ticket(next_ticket.value());
       allocation.instruction_type =
-        rmf_chope_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
+        rmf_reservation_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
       RCLCPP_INFO(
         this->get_logger(), "Allocating %s to %s as a result of %s leaving",
         allocation.resource.c_str(),
@@ -553,25 +551,25 @@ private:
 
   void publish_free_spots()
   {
-    rmf_chope_msgs::msg::FreeParkingSpots spots;
+    rmf_reservation_msgs::msg::FreeParkingSpots spots;
     spots.spots = current_state_.free_locations();
 
     free_spot_pub_->publish(spots);
   }
 
-  rclcpp::Subscription<rmf_chope_msgs::msg::FlexibleTimeRequest>::SharedPtr
+  rclcpp::Subscription<rmf_reservation_msgs::msg::FlexibleTimeRequest>::SharedPtr
     request_subscription_;
-  rclcpp::Subscription<rmf_chope_msgs::msg::ClaimRequest>::SharedPtr
+  rclcpp::Subscription<rmf_reservation_msgs::msg::ClaimRequest>::SharedPtr
     claim_subscription_;
-  rclcpp::Subscription<rmf_chope_msgs::msg::ReleaseRequest>::SharedPtr
+  rclcpp::Subscription<rmf_reservation_msgs::msg::ReleaseRequest>::SharedPtr
     release_subscription_;
   rclcpp::Subscription<rmf_building_map_msgs::msg::Graph>::SharedPtr
     graph_subscription_;
 
-  rclcpp::Publisher<rmf_chope_msgs::msg::Ticket>::SharedPtr ticket_pub_;
-  rclcpp::Publisher<rmf_chope_msgs::msg::ReservationAllocation>::SharedPtr
+  rclcpp::Publisher<rmf_reservation_msgs::msg::Ticket>::SharedPtr ticket_pub_;
+  rclcpp::Publisher<rmf_reservation_msgs::msg::ReservationAllocation>::SharedPtr
     allocation_pub_;
-  rclcpp::Publisher<rmf_chope_msgs::msg::FreeParkingSpots>::SharedPtr
+  rclcpp::Publisher<rmf_reservation_msgs::msg::FreeParkingSpots>::SharedPtr
     free_spot_pub_;
 
   std::unordered_map<std::size_t, std::vector<LocationReq>> requests_;
@@ -586,7 +584,7 @@ private:
 int main(int argc, const char** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<ChopeNode>());
+  rclcpp::spin(std::make_shared<reservationNode>());
   rclcpp::shutdown();
   return 0;
 }

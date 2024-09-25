@@ -757,7 +757,7 @@ public:
 
   /// Set an allocated destination.
   void _set_allocated_destination(
-    const rmf_chope_msgs::msg::ReservationAllocation&);
+    const rmf_reservation_msgs::msg::ReservationAllocation&);
 
   /// Set if the parking spot manager is used or not
   void _set_parking_spot_manager(const bool enabled);
@@ -772,7 +772,7 @@ public:
   bool _parking_spot_manager_enabled();
 
   /// Release last resource that was acquired.
-  std::optional<rmf_chope_msgs::msg::ReservationAllocation> _release_resource();
+  std::optional<rmf_reservation_msgs::msg::ReservationAllocation> _release_resource();
 
   /// Has ticket now
   bool _has_ticket() const;

@@ -24,7 +24,7 @@
 #include "../services/FindPath.hpp"
 
 #include "ExecutePlan.hpp"
-#include "internal_ChopeNegotiator.hpp"
+#include "internal_ReservationNegotiator.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -126,10 +126,10 @@ public:
 
     void _stop_and_clear();
 
-    void _on_chope_node_allocate_final_destination(
+    void _on_reservation_node_allocate_final_destination(
       const rmf_traffic::agv::Plan::Goal& goal);
 
-    void _on_chope_node_allocate_waitpoint(
+    void _on_reservation_node_allocate_waitpoint(
       const rmf_traffic::agv::Plan::Goal& goal);
 
     Negotiator::NegotiatePtr _respond(
@@ -154,7 +154,7 @@ public:
     rmf_rxcpp::subscription_guard _replan_request_subscription;
     rmf_rxcpp::subscription_guard _graph_change_subscription;
 
-    std::shared_ptr<chope::ChopeNodeNegotiator> _chope_client;
+    std::shared_ptr<reservation::reservationNodeNegotiator> _reservation_client;
 
     bool _is_interrupted = false;
     bool _is_final_destination = true;

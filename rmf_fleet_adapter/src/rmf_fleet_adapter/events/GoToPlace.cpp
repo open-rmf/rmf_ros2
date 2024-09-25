@@ -17,7 +17,7 @@
 
 #include "GoToPlace.hpp"
 #include "../project_itinerary.hpp"
-#include "internal_ChopeNegotiator.hpp"
+#include "internal_ReservationNegotiator.hpp"
 #include "internal_Utilities.hpp"
 #include "PerformAction.hpp"
 
@@ -286,8 +286,8 @@ auto GoToPlace::Active::make(
     active->_chosen_goal = std::nullopt;
 
     RCLCPP_INFO(active->_context->node()->get_logger(),
-      "Creating Chope negotiator");
-    active->_chope_client = std::move(chope::ChopeNodeNegotiator::make(
+      "Creating reservation negotiator");
+    active->_reservation_client = std::move(reservation::reservationNodeNegotiator::make(
           active->_context,
           active->_description.one_of(),
           active->_description.prefer_same_map(),
@@ -296,7 +296,7 @@ auto GoToPlace::Active::make(
           {
             if (auto self = w.lock())
             {
-              self->_on_chope_node_allocate_final_destination(goal);
+              self->_on_reservation_node_allocate_final_destination(goal);
             }
           },
           [w =
@@ -304,7 +304,7 @@ auto GoToPlace::Active::make(
           {
             if (auto self = w.lock())
             {
-              self->_on_chope_node_allocate_waitpoint(goal);
+              self->_on_reservation_node_allocate_waitpoint(goal);
             }
           }
     ));
@@ -320,11 +320,11 @@ auto GoToPlace::Active::state() const -> ConstStatePtr
 }
 
 //==============================================================================
-void GoToPlace::Active::_on_chope_node_allocate_final_destination(
+void GoToPlace::Active::_on_reservation_node_allocate_final_destination(
   const rmf_traffic::agv::Plan::Goal& goal)
 {
   RCLCPP_INFO(_context->node()->get_logger(),
-    "%s Received final destination %s from chope node",
+    "%s Received final destination %s from reservation node",
     _context->requester_id().c_str(),
     wp_name(*_context, goal).c_str());
   _is_final_destination = true;
@@ -334,11 +334,11 @@ void GoToPlace::Active::_on_chope_node_allocate_final_destination(
 }
 
 //==============================================================================
-void GoToPlace::Active::_on_chope_node_allocate_waitpoint(
+void GoToPlace::Active::_on_reservation_node_allocate_waitpoint(
   const rmf_traffic::agv::Plan::Goal& goal)
 {
   RCLCPP_INFO(_context->node()->get_logger(),
-    "Received waitpoint from chope node");
+    "Received waitpoint from reservation node");
   _chosen_goal = goal;
   _find_plan();
 }
@@ -433,7 +433,7 @@ void GoToPlace::Active::cancel()
 
   if (_context->_parking_spot_manager_enabled())
   {
-    _chope_client->force_release();
+    _reservation_client->force_release();
   }
   _finished();
 }
@@ -446,7 +446,7 @@ void GoToPlace::Active::kill()
   _state->update_log().info("Received signal to kill");
   if (_context->_parking_spot_manager_enabled())
   {
-    _chope_client->force_release();
+    _reservation_client->force_release();
   }
   _finished();
 }
@@ -478,11 +478,11 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
   if (_context->_parking_spot_manager_enabled())
   {
     RCLCPP_INFO(_context->node()->get_logger(),
-      "Requesting Chope Node For Time To Progress");
+      "Requesting reservation Node For Time To Progress");
   }
   else
   {
-    RCLCPP_INFO(_context->node()->get_logger(), "Skipping chope node.");
+    RCLCPP_INFO(_context->node()->get_logger(), "Skipping reservation node.");
     auto lowest_cost = std::numeric_limits<double>::infinity();
     std::optional<std::size_t> selected_idx;
     for (std::size_t i = 0; i < _description.one_of().size(); ++i)
@@ -758,7 +758,7 @@ void GoToPlace::Active::_execute_plan(
       {
         RCLCPP_INFO(
           _context->node()->get_logger(),
-          "Chope: Finished execution");
+          "reservation: Finished execution");
         _stop_and_clear();
         _finished();
       }, _tail_period);
@@ -772,7 +772,7 @@ void GoToPlace::Active::_execute_plan(
       {
         RCLCPP_INFO(
           _context->node()->get_logger(),
-          "Chope: Reached waitpoint");
+          "reservation: Reached waitpoint");
 
         _reached_waitpoint = true;
       }, _tail_period);

@@ -19,7 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__AGV__RESERVATION_MANAGER_HPP
 #include <deque>
 #include <optional>
-#include <rmf_chope_msgs/msg/reservation_allocation.hpp>
+#include <rmf_reservation_msgs/msg/reservation_allocation.hpp>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -28,12 +28,12 @@ namespace agv {
 class ReservationManager
 {
 public:
-  void add_ticket(const rmf_chope_msgs::msg::ReservationAllocation alloc)
+  void add_ticket(const rmf_reservation_msgs::msg::ReservationAllocation alloc)
   {
     allocations.push_front(alloc);
   }
 
-  std::optional<rmf_chope_msgs::msg::ReservationAllocation> release_ticket()
+  std::optional<rmf_reservation_msgs::msg::ReservationAllocation> release_ticket()
   {
     if (allocations.size() <= 1)
     {
@@ -50,7 +50,7 @@ public:
     return allocations.size() != 0;
   }
 
-  std::deque<rmf_chope_msgs::msg::ReservationAllocation> allocations;
+  std::deque<rmf_reservation_msgs::msg::ReservationAllocation> allocations;
 };
 }
 }

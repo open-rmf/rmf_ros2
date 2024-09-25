@@ -167,15 +167,15 @@ auto EmergencyPullover::Active::make(
   }
   else
   {
-    // Use chope node to retrieve the best emergency location.
+    // Use reservation node to retrieve the best emergency location.
     active->_chosen_goal = std::nullopt;
 
     const auto potential_waitpoints =
       active->_context->_find_and_sort_parking_spots(true);
 
     RCLCPP_INFO(active->_context->node()->get_logger(),
-      "Creating Chope negotiator");
-    active->_chope_client = chope::ChopeNodeNegotiator::make(
+      "Creating reservation negotiator");
+    active->_reservation_client = reservation::reservationNodeNegotiator::make(
       active->_context,
       potential_waitpoints,
       true,
@@ -265,7 +265,7 @@ void EmergencyPullover::Active::cancel()
   _state->update_log().info("Received signal to cancel");
   if (_context->_parking_spot_manager_enabled())
   {
-    _chope_client->force_release();
+    _reservation_client->force_release();
   }
   _finished();
 }
@@ -278,7 +278,7 @@ void EmergencyPullover::Active::kill()
   _state->update_log().info("Received signal to kill");
   if (_context->_parking_spot_manager_enabled())
   {
-    _chope_client->force_release();
+    _reservation_client->force_release();
   }
   _finished();
 }
