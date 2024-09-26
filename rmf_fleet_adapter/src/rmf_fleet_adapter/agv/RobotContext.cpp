@@ -105,6 +105,7 @@ void NavParams::search_for_location(
   RobotContext& context)
 {
   auto planner = context.planner();
+  const auto& graph = context.navigation_graph();
   if (!planner)
   {
     RCLCPP_ERROR(
@@ -113,9 +114,8 @@ void NavParams::search_for_location(
       context.requester_id().c_str());
     return;
   }
-  const auto& graph = planner->get_configuration().graph();
   const auto now = context.now();
-  auto starts = compute_plan_starts(graph, map, position, now);
+  auto starts = compute_plan_starts(context, map, position, now);
   if (!starts.empty())
   {
     if (context.debug_positions)
@@ -137,6 +137,22 @@ void NavParams::search_for_location(
     }
     context.set_lost(Location { now, map, position });
   }
+}
+
+rmf_traffic::agv::Plan::StartSet NavParams::compute_plan_starts(
+  const RobotContext& context,
+  const std::string& map_name,
+  const Eigen::Vector3d position,
+  const rmf_traffic::Time start_time) const
+{
+  const auto& graph = context.navigation_graph();
+  auto unfiltered = unfiltered_compute_plan_starts(
+    graph, map_name, position, start_time);
+
+  if (!unfiltered.empty())
+    return process_locations(std::move(unfiltered), context);
+
+  return {};
 }
 
 //==============================================================================
@@ -179,11 +195,15 @@ std::string NavParams::get_vertex_name(
 
 //==============================================================================
 rmf_traffic::agv::Plan::StartSet NavParams::process_locations(
-  const rmf_traffic::agv::Graph& graph,
-  rmf_traffic::agv::Plan::StartSet locations) const
+  rmf_traffic::agv::Plan::StartSet locations,
+  const RobotContext& context) const
 {
   return _strict_lane_filter(
-    _lift_boundary_filter(graph, _descend_stacks(graph, locations)));
+    _lift_boundary_filter(
+      _descend_stacks(
+        context.navigation_graph(),
+        locations),
+      context));
 }
 
 //==============================================================================
@@ -286,29 +306,57 @@ rmf_traffic::agv::Plan::StartSet NavParams::_descend_stacks(
 
 //==============================================================================
 rmf_traffic::agv::Plan::StartSet NavParams::_lift_boundary_filter(
-  const rmf_traffic::agv::Graph& graph,
-  rmf_traffic::agv::Plan::StartSet locations) const
+  rmf_traffic::agv::Plan::StartSet locations,
+  const RobotContext& context) const
 {
+  std::string correct_map;
+  if (const auto level = context.current_boarded_lift_level())
+  {
+    correct_map = *level;
+  }
+  else if (const auto location = context.reported_location())
+  {
+    correct_map = location->map;
+  }
+
+  const auto& graph = context.navigation_graph();
+  const auto valid_waypoint = [&graph, &correct_map](std::size_t wp_index)
+    {
+      if (correct_map.empty())
+        return true;
+
+      const auto& wp_map = graph.get_waypoint(wp_index).get_map_name();
+      return wp_map == correct_map;
+    };
+
+  const auto valid_lane = [&graph, &correct_map, valid_waypoint](
+    std::size_t lane_index)
+    {
+      const auto& wp = graph.get_lane(lane_index).entry().waypoint_index();
+      return valid_waypoint(wp);
+    };
+
   const auto r_it = std::remove_if(
     locations.begin(),
     locations.end(),
-    [&graph](const rmf_traffic::agv::Plan::Start& location)
+    [&graph, valid_waypoint,
+    valid_lane](const rmf_traffic::agv::Plan::Start& location)
     {
       if (location.lane().has_value())
       {
         // If the intention is to move along a lane, then it is okay to keep
-        // this. If the lane is entering or exiting the lift, then it should
-        // have the necessary events.
-        // TODO(@mxgrey): Should we check and make sure that the event is
-        // actually present?
-        return false;
+        // this, as long as the first waypoint is on the correct map.
+
+        // TODO(@mxgrey): Should we check and make sure that the right events
+        // are actually present?
+        return !valid_lane(*location.lane());
       }
 
       if (!location.location().has_value())
       {
-        // If the robot is perfectly on some waypoint then there is no need to
-        // filter.
-        return false;
+        // If the robot is perfectly on some waypoint then we should only check
+        // if it's on the correct map.
+        return !valid_waypoint(location.waypoint());
       }
 
       const Eigen::Vector2d p = location.location().value();
@@ -1347,6 +1395,33 @@ void RobotContext::schedule_hold(
 }
 
 //==============================================================================
+std::shared_ptr<const std::string>
+RobotContext::current_boarded_lift_level() const
+{
+  return _current_boarded_lift_level.lock();
+}
+
+//==============================================================================
+void RobotContext::_set_current_boarded_lift_level(
+  std::shared_ptr<const std::string> lift_level)
+{
+  _current_boarded_lift_level = lift_level;
+}
+
+//==============================================================================
+std::shared_ptr<const Location> RobotContext::reported_location() const
+{
+  return _reported_location;
+}
+
+//==============================================================================
+void RobotContext::_set_reported_location(
+  std::shared_ptr<const Location> value)
+{
+  _reported_location = std::move(value);
+}
+
+//==============================================================================
 void RobotContext::_set_task_manager(std::shared_ptr<TaskManager> mgr)
 {
   _task_manager = std::move(mgr);
@@ -1471,6 +1546,7 @@ void RobotContext::_check_lift_state(
       msg.lift_name = state.lift_name;
       msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_END_SESSION;
       msg.session_id = requester_id();
+      msg.request_time = _node->now();
       _node->lift_request()->publish(msg);
     }
 
