@@ -23,7 +23,7 @@
 
 #include "../services/FindEmergencyPullover.hpp"
 #include "../services/FindPath.hpp"
-#include "internal_ReservationNegotiator.hpp"
+#include "internal_ReservationNodeNegotiator.hpp"
 
 
 #include "ExecutePlan.hpp"
@@ -129,7 +129,7 @@ public:
     rclcpp::TimerBase::SharedPtr _find_path_timeout;
     std::optional<rmf_traffic::agv::Plan::Goal> _chosen_goal;
 
-    std::shared_ptr<reservation::reservationNodeNegotiator> _reservation_client;
+    std::shared_ptr<reservation::ReservationNodeNegotiator> _reservation_client;
 
     bool _is_interrupted = false;
   };

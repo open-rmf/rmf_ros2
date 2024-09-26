@@ -24,7 +24,7 @@
 #include "../services/FindPath.hpp"
 
 #include "ExecutePlan.hpp"
-#include "internal_ReservationNegotiator.hpp"
+#include "internal_ReservationNodeNegotiator.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -154,7 +154,7 @@ public:
     rmf_rxcpp::subscription_guard _replan_request_subscription;
     rmf_rxcpp::subscription_guard _graph_change_subscription;
 
-    std::shared_ptr<reservation::reservationNodeNegotiator> _reservation_client;
+    std::shared_ptr<reservation::ReservationNodeNegotiator> _reservation_client;
 
     bool _is_interrupted = false;
     bool _is_final_destination = true;

@@ -17,8 +17,8 @@
 
 #include "GoToPlace.hpp"
 #include "../project_itinerary.hpp"
-#include "internal_ReservationNegotiator.hpp"
-#include "internal_Utilities.hpp"
+#include "internal_ReservationNodeNegotiator.hpp"
+#include "internal_utilities.hpp"
 #include "PerformAction.hpp"
 
 #include <cstddef>
@@ -285,9 +285,7 @@ auto GoToPlace::Active::make(
     active->_is_final_destination = false;
     active->_chosen_goal = std::nullopt;
 
-    RCLCPP_INFO(active->_context->node()->get_logger(),
-      "Creating reservation negotiator");
-    active->_reservation_client = std::move(reservation::reservationNodeNegotiator::make(
+    active->_reservation_client = std::move(reservation::ReservationNodeNegotiator::make(
           active->_context,
           active->_description.one_of(),
           active->_description.prefer_same_map(),
@@ -340,6 +338,7 @@ void GoToPlace::Active::_on_reservation_node_allocate_waitpoint(
   RCLCPP_INFO(_context->node()->get_logger(),
     "Received waitpoint from reservation node");
   _chosen_goal = goal;
+_is_final_destination = false;
   _find_plan();
 }
 
@@ -478,11 +477,10 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
   if (_context->_parking_spot_manager_enabled())
   {
     RCLCPP_INFO(_context->node()->get_logger(),
-      "Requesting reservation Node For Time To Progress");
+      "Waiting for next location from reservation node.");
   }
   else
   {
-    RCLCPP_INFO(_context->node()->get_logger(), "Skipping reservation node.");
     auto lowest_cost = std::numeric_limits<double>::infinity();
     std::optional<std::size_t> selected_idx;
     for (std::size_t i = 0; i < _description.one_of().size(); ++i)
@@ -579,7 +577,7 @@ void GoToPlace::Active::_find_plan()
   {
     RCLCPP_ERROR(
       _context->node()->get_logger(),
-      "Robot [%s] is lost retrying.",
+      "Robot [%s] is lost while trying to find a plan.",
       _context->requester_id().c_str());
 
     _schedule_retry();

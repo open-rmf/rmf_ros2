@@ -36,7 +36,6 @@ struct std::hash<rmf_reservation_msgs::msg::RequestHeader>
 
 
 /// Ticket generation class for book keeping purposes. Will eventually overflow.
-/// Ticket id 0 does not exist and is useful for making emergency claims.
 /// Ticket ids are mapped across multiple fleets.
 class TicketStore
 {

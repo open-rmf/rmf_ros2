@@ -24,7 +24,7 @@
 #include <rmf_task_sequence/events/Placeholder.hpp>
 #include "../project_itinerary.hpp"
 
-#include "internal_Utilities.hpp"
+#include "internal_utilities.hpp"
 
 namespace rmf_fleet_adapter {
 namespace events {
@@ -175,7 +175,7 @@ auto EmergencyPullover::Active::make(
 
     RCLCPP_INFO(active->_context->node()->get_logger(),
       "Creating reservation negotiator");
-    active->_reservation_client = reservation::reservationNodeNegotiator::make(
+    active->_reservation_client = reservation::ReservationNodeNegotiator::make(
       active->_context,
       potential_waitpoints,
       true,
