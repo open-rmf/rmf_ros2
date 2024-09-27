@@ -193,7 +193,7 @@ TaskManagerPtr TaskManager::make(
     });
 
   auto reliable_transient_qos =
-    rclcpp::ServicesQoS().keep_last(20).transient_local();
+    rclcpp::ServicesQoS().keep_last(10).reliable().transient_local();
   mgr->_task_state_update_pub =
     mgr->_context->node()->create_publisher<TaskStateUpdateMsg>(
       TaskStateUpdateTopicName, reliable_transient_qos);
