@@ -131,15 +131,13 @@ EasyFullControl::RobotConfiguration::RobotConfiguration(
   std::optional<bool> responsive_wait,
   std::optional<double> max_merge_waypoint_distance,
   std::optional<double> max_merge_lane_distance,
-  std::optional<double> min_lane_length,
-  std::optional<rmf_task::ConstRequestFactoryPtr> finishing_request)
+  std::optional<double> min_lane_length)
 : _pimpl(rmf_utils::make_impl<Implementation>(Implementation{
       std::move(compatible_chargers),
       responsive_wait,
       max_merge_waypoint_distance,
       max_merge_lane_distance,
-      min_lane_length,
-      std::move(finishing_request)
+      min_lane_length
     }))
 {
   // Do nothing
@@ -1636,6 +1634,156 @@ ConsiderRequest consider_all()
     };
 }
 
+std::optional<rmf_task::ConstRequestFactoryPtr> parse_finishing_request(
+  const YAML::Node& finishing_request_yaml,
+  const rmf_traffic::agv::Graph& graph,
+  std::optional<std::string> robot_name,
+  bool& error)
+{
+  rmf_task::ConstRequestFactoryPtr finishing_request;
+  std::string finishing_request_string;
+
+  if (!finishing_request_yaml)
+  {
+    if (robot_name.has_value())
+    {
+      // No finishing request is provided for this specific robot, default to
+      // fleet-wide finishing request by returning nullopt.
+      return std::nullopt;
+    }
+    // No finishing request specified for fleet, default to nothing.
+    std::cout
+      << "Finishing request is not provided for this fleet. The valid finishing"
+      " requests are [charge, park, nothing]. The task planner will default to "
+      "[nothing]."
+      << std::endl;
+    return finishing_request;
+  }
+
+  if (finishing_request_yaml.IsMap())
+  {
+    if (!robot_name.has_value())
+    {
+      const auto mark = finishing_request_yaml.Mark();
+      std::cerr
+        << "[finishing_request] Type provided for fleet-wide finishing request "
+        "at line " << mark.line << ", column " << mark.column
+        << std::endl;
+      error = true;
+      return std::nullopt;
+    }
+    // Configure the robot-specific finishing request
+    const YAML::Node& request_type_yaml = finishing_request_yaml["type"];
+    std::string request_type_string;
+
+    if (request_type_yaml)
+    {
+      request_type_string = request_type_yaml.as<std::string>();
+      if (request_type_string == "park")
+      {
+        // We will need to know the configured parking spot for this
+        // robot.
+        const YAML::Node& parking_spot_yaml =
+          finishing_request_yaml["waypoint_name"];
+        std::string parking_spot_string;
+        if (parking_spot_yaml)
+        {
+          parking_spot_string = parking_spot_yaml.as<std::string>();
+          const auto* parking_wp =
+            graph.find_waypoint(parking_spot_string);
+          if (!parking_wp)
+          {
+            std::cout
+              << "Provided parking spot " << parking_spot_string
+              << " is not found in the fleet navigation graph. "
+              "Unable to configure ParkRobot as a finishing request, "
+              "the robot will default to the fleet-wide finishing "
+              "request."
+              << std::endl;
+          }
+          else
+          {
+            std::size_t parking_wp_index = parking_wp->index();
+            // Create ParkRobotIndefinitely request here
+            finishing_request =
+              std::make_shared<rmf_fleet_adapter::tasks::ParkRobotIndefinitely>(
+              "idle", nullptr, parking_wp_index);
+            std::cout
+              << "Robot " << robot_name.value()
+              << " is configured to perform ParkRobot as finishing "
+              << "request"
+              << std::endl;
+          }
+        }
+        else
+        {
+          std::cout
+            << "Robot " << robot_name.value()
+            << " is configured to perform ParkRobot as finishing "
+            "request, but no parking spot was provided. The robot "
+            "will default to the fleet-wide finishing request."
+            << std::endl;
+        }
+        return finishing_request;
+      }
+      else if (request_type_string == "charge" || request_type_string == "nothing")
+      {
+        finishing_request_string = request_type_string;
+      }
+      else
+      {
+        std::cout
+          << "Provided finishing request " << request_type_string
+          << " for robot " << robot_name.value()
+          << " is unsupported. The valid finishing requests are "
+          "[charge, park, nothing]. The robot will default to the "
+          "fleet-wide finishing request."
+          << std::endl;
+        return finishing_request;
+      }
+    }
+  }
+  else
+  {
+    finishing_request_string = finishing_request_yaml.as<std::string>();
+  }
+
+  std::cout << "Finishing request: " << finishing_request_string << std::endl;
+  if (finishing_request_string == "charge")
+  {
+    auto charge_factory =
+      std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
+    charge_factory->set_indefinite(true);
+    finishing_request = charge_factory;
+    std::cout
+      << "Fleet is configured to perform ChargeBattery as finishing request"
+      << std::endl;
+  }
+  else if (finishing_request_string == "park")
+  {
+    finishing_request =
+      std::make_shared<rmf_fleet_adapter::tasks::ParkRobotIndefinitely>(
+      "idle", nullptr);
+    std::cout
+      << "Fleet is configured to perform ParkRobot as finishing request"
+      << std::endl;
+  }
+  else if (finishing_request_string == "nothing")
+  {
+    std::cout << "Fleet is not configured to perform any finishing request"
+              << std::endl;
+  }
+  else
+  {
+    std::cout
+      << "Provided finishing request " << finishing_request_string
+      << "is unsupported. The valid finishing requests are"
+      "[charge, park, nothing]. The task planner will default to [nothing].";
+  }
+
+  return finishing_request;
+}
+
 //==============================================================================
 class EasyFullControl::EasyRobotUpdateHandle::Implementation
 {
@@ -2221,52 +2369,18 @@ EasyFullControl::FleetConfiguration::from_config_files(
   }
 
   // Finishing tasks
-  std::string finishing_request_string;
-  const auto& default_finishing_request_yaml = rmf_fleet["finishing_request"];
-  if (!default_finishing_request_yaml)
-  {
-    std::cout
-      << "Finishing request is not provided. The valid finishing requests "
-      "are [charge, park, nothing]. The task planner will default to [nothing]."
-      << std::endl;
-  }
-  else
-  {
-    finishing_request_string = default_finishing_request_yaml.as<std::string>();
-  }
-  std::cout << "Finishing request: " << finishing_request_string << std::endl;
   rmf_task::ConstRequestFactoryPtr default_finishing_request;
-  if (finishing_request_string == "charge")
+  const auto& default_finishing_request_yaml = rmf_fleet["finishing_request"];
+  bool fleet_request_error = false;
+  auto configured_default_finishing_request = parse_finishing_request(
+    default_finishing_request_yaml, graph, std::nullopt, fleet_request_error);
+  if (fleet_request_error)
   {
-    auto charge_factory =
-      std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
-    charge_factory->set_indefinite(true);
-    default_finishing_request = charge_factory;
-    std::cout
-      << "Fleet is configured to perform ChargeBattery as finishing request"
-      << std::endl;
+    // Invalid FleetConfiguration
+    return std::nullopt;
   }
-  else if (finishing_request_string == "park")
-  {
-    default_finishing_request =
-      std::make_shared<rmf_fleet_adapter::tasks::ParkRobotIndefinitely>(
-      "idle", nullptr);
-    std::cout
-      << "Fleet is configured to perform ParkRobot as finishing request"
-      << std::endl;
-  }
-  else if (finishing_request_string == "nothing")
-  {
-    std::cout << "Fleet is not configured to perform any finishing request"
-              << std::endl;
-  }
-  else
-  {
-    std::cout
-      << "Provided finishing request " << finishing_request_string
-      << "is unsupported. The valid finishing requests are"
-      "[charge, park, nothing]. The task planner will default to [nothing].";
-  }
+  if (configured_default_finishing_request.has_value())
+    default_finishing_request = configured_default_finishing_request.value();
 
   // Ignore rotations within path commands
   bool skip_rotation_commands = true;
@@ -2462,97 +2576,13 @@ EasyFullControl::FleetConfiguration::from_config_files(
             std::nullopt;
           const YAML::Node& finishing_request_yaml =
             robot_config_yaml["finishing_request"];
-          if (finishing_request_yaml)
+          bool robot_request_error = false;
+          finishing_request = parse_finishing_request(
+            finishing_request_yaml, graph, robot_name, robot_request_error);
+          if (robot_request_error)
           {
-            if (finishing_request_yaml.IsMap())
-            {
-              const YAML::Node& request_type_yaml =
-                finishing_request_yaml["type"];
-              std::string request_type_string;
-              if (request_type_yaml)
-              {
-                request_type_string = request_type_yaml.as<std::string>();
-                if (request_type_string == "park")
-                {
-                  // We will need to know the configured parking spot for this
-                  // robot.
-                  const YAML::Node& parking_spot_yaml =
-                    finishing_request_yaml["parking_spot"];
-                  std::string parking_spot_string;
-                  if (parking_spot_yaml)
-                  {
-                    parking_spot_string = parking_spot_yaml.as<std::string>();
-                    const auto* parking_wp =
-                      graph.find_waypoint(parking_spot_string);
-                    if (!parking_wp)
-                    {
-                      std::cout
-                        << "Provided parking spot " << parking_spot_string
-                        << " is not found in the fleet navigation graph. "
-                        "Unable to configure ParkRobot as a finishing request, "
-                        "the robot will default to the fleet-wide finishing "
-                        "request."
-                        << std::endl;
-                    }
-                    else
-                    {
-                      std::size_t parking_wp_index = parking_wp->index();
-                      // Create ParkRobotIndefinitely request here
-                      finishing_request =
-                        std::make_shared<rmf_fleet_adapter::tasks::ParkRobotIndefinitely>(
-                        "idle", nullptr, parking_wp_index);
-                      std::cout
-                        << "Robot " << robot_name
-                        << " is configured to perform ParkRobot as finishing "
-                        << "request"
-                        << std::endl;
-                    }
-                  }
-                  else
-                  {
-                    std::cout
-                      << "Robot " << robot_name
-                      << " is configured to perform ParkRobot as finishing "
-                      "request, but no parking spot was provided. The robot "
-                      "will default to the fleet-wide finishing request."
-                      << std::endl;
-                  }
-                }
-                else if (request_type_string == "charge")
-                {
-                  // If the robot is configured to charge as an idle behavior,
-                  // we will use the dedicated charging waypoint as its charger.
-                  // There is no need for a charger to be further specified.
-                  auto charge_battery =
-                    std::make_shared<rmf_task::requests::ChargeBatteryFactory>();
-                  charge_battery->set_indefinite(true);
-                  finishing_request = charge_battery;
-                  std::cout
-                    << "Robot " << robot_name
-                    << " is configured to perform ChargeBattery as finishing "
-                    "request"
-                    << std::endl;
-                }
-                else if (request_type_string == "nothing")
-                {
-                  std::cout
-                    << "Robot " << robot_name
-                    << " is configured to not perform any finishing request"
-                    << std::endl;
-                  finishing_request = nullptr;
-                }
-                else
-                {
-                  std::cout
-                    << "Provided finishing request " << request_type_string
-                    << " for robot " << robot_name
-                    << " is unsupported. The valid finishing requests are "
-                    "[charge, park, nothing]. The robot will default to the "
-                    "fleet-wide finishing request."
-                    << std::endl;
-                }
-              }
-            }
+            // Invalid FleetConfiguration
+            return std::nullopt;
           }
 
           auto config = RobotConfiguration(
@@ -2560,8 +2590,8 @@ EasyFullControl::FleetConfiguration::from_config_files(
             responsive_wait,
             max_merge_waypoint_distance,
             max_merge_lane_distance,
-            min_lane_length,
-            finishing_request);
+            min_lane_length);
+          config.set_finishing_request(finishing_request);
           known_robot_configurations.insert_or_assign(robot_name, config);
         }
         else
@@ -3373,6 +3403,7 @@ auto EasyFullControl::add_robot(
           if (finishing_request.has_value())
           {
             handle->set_finishing_request(finishing_request.value());
+            context->robot_finishing_request(true);
           }
 
           RCLCPP_INFO(

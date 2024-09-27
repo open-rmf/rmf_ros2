@@ -500,6 +500,14 @@ public:
   /// robots.
   void set_nav_params(std::shared_ptr<NavParams> value);
 
+  /// Check whether this robot is using a robot-specific or fleet-wide finishing
+  /// request.
+  bool robot_finishing_request() const;
+
+  /// Toggle the robot_finishing_request flag to indicate whether this robot is
+  /// using a robot-specific or fleet-wide finishing request.
+  void robot_finishing_request(bool robot_specific);
+
   class NegotiatorLicense;
 
   /// Set the schedule negotiator that will take responsibility for this robot.
@@ -907,6 +915,7 @@ private:
     std::make_unique<std::mutex>();
   std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
   std::weak_ptr<TaskManager> _task_manager;
+  bool _robot_finishing_request = false;
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);

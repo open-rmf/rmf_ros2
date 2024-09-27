@@ -264,8 +264,8 @@ public:
     std::optional<bool> responsive_wait = std::nullopt,
     std::optional<double> max_merge_waypoint_distance = 1e-3,
     std::optional<double> max_merge_lane_distance = 0.3,
-    std::optional<double> min_lane_length = 1e-8,
-    std::optional<rmf_task::ConstRequestFactoryPtr> finishing_request = std::nullopt);
+    std::optional<double> min_lane_length = 1e-8);
+    // std::optional<rmf_task::ConstRequestFactoryPtr> finishing_request = std::nullopt);
 
   /// List of chargers that this robot is compatible with
   const std::vector<std::string>& compatible_chargers() const;

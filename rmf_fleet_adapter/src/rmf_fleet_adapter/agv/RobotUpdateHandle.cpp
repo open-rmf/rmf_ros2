@@ -280,6 +280,20 @@ RobotUpdateHandle& RobotUpdateHandle::set_finishing_request(
 }
 
 //==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::use_default_finishing_request()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    const auto mgr = context->task_manager();
+    mgr->use_default_idle_task();
+    // Disable robot_finishing_request flag in RobotContext
+    context->robot_finishing_request(false);
+  }
+
+  return *this;
+}
+
+//==============================================================================
 void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 {
   if (const auto context = _pimpl->get_context())
