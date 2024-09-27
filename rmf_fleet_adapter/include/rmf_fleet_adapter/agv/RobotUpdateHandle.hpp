@@ -104,11 +104,11 @@ public:
   /// property will be assumed as the charger for this robot.
   RobotUpdateHandle& set_charger_waypoint(const std::size_t charger_wp);
 
-  /// Set a finishing request for this robot to use the fleet-wide finishing
-  /// request.
+  /// Set a finishing request for this robot.
   RobotUpdateHandle& set_finishing_request(rmf_task::ConstRequestFactoryPtr finishing_request);
 
-  /// Set a finishing request for this robot.
+  /// Set a finishing request for this robot to use the fleet-wide finishing
+  /// request.
   RobotUpdateHandle& use_default_finishing_request();
 
   /// Update the current battery level of the robot by specifying its state of
