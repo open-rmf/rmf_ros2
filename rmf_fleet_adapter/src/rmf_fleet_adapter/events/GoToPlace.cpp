@@ -338,7 +338,7 @@ void GoToPlace::Active::_on_reservation_node_allocate_waitpoint(
   RCLCPP_INFO(_context->node()->get_logger(),
     "Received waitpoint from reservation node");
   _chosen_goal = goal;
-_is_final_destination = false;
+  _is_final_destination = false;
   _find_plan();
 }
 

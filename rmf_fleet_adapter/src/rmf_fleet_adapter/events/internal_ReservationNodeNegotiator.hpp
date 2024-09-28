@@ -75,8 +75,6 @@ public:
     selected_final_destination_cb,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
   {
-    RCLCPP_INFO(context->node()->get_logger(),
-      "Constructing reservation negotiator");
     auto negotiator = std::make_shared<ReservationNodeNegotiator>(context,
         goals, same_map, selected_final_destination_cb, selected_waitpoint_cb);
 
@@ -95,7 +93,7 @@ public:
 
           RCLCPP_INFO(
             self->_context->node()->get_logger(),
-            "reservation: Got ticket issueing claim");
+            "Reservations: Got ticket issueing claim");
 
           if (msg->header.request_id != self->_reservation_id
           || msg->header.robot_name != self->_context->name()
@@ -112,7 +110,7 @@ public:
           {
             RCLCPP_ERROR(
               self->_context->node()->get_logger(),
-              "Reservation: Got no waitpoints");
+              "Reservations: Got no waitpoints");
             return;
           }
 
@@ -129,7 +127,7 @@ public:
             claim_request);
           RCLCPP_DEBUG(
             self->_context->node()->get_logger(),
-            "Reservation: Claim issued by %s",  self->_context->name().c_str());
+            "Reservations: Claim issued by %s",  self->_context->name().c_str());
         });
 
 
@@ -269,7 +267,7 @@ private:
     const auto& graph = _context->navigation_graph();
     if (current_location.size() == 0)
     {
-      //unable to get location. We should return some form of error stste.
+      //unable to get location. We should return some form of error state.
       RCLCPP_ERROR(
         _context->node()->get_logger(),
         "reservation: Robot [%s] can't get location",

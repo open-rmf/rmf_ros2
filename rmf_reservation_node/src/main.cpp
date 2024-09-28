@@ -46,10 +46,10 @@ public:
   {
     rmf_reservation_msgs::msg::Ticket ticket;
     ticket.header = request_header;
-    ticket.ticket_id = _last_issued_ticket_id;
+    ticket.ticket_id = _next_ticket_id;
 
-    _ticket_to_header.emplace(_last_issued_ticket_id, request_header);
-    _last_issued_ticket_id++;
+    _ticket_to_header.emplace(_next_ticket_id, request_header);
+    _next_ticket_id++;
     return ticket;
   }
 
@@ -74,7 +74,7 @@ public:
 
   std::unordered_map<std::size_t,
     rmf_reservation_msgs::msg::RequestHeader> _ticket_to_header;
-  std::size_t _last_issued_ticket_id = 1;
+  std::size_t _next_ticket_id = 1;
 };
 
 struct LocationState
@@ -303,10 +303,10 @@ public:
 
 using namespace std::chrono_literals;
 
-class reservationNode : public rclcpp::Node
+class ReservationNode : public rclcpp::Node
 {
 public:
-  reservationNode()
+  ReservationNode()
   : Node("rmf_reservation_node")
   {
 
@@ -318,21 +318,21 @@ public:
     request_subscription_ =
       this->create_subscription<rmf_reservation_msgs::msg::FlexibleTimeRequest>(
       ReservationRequestTopicName, qos,
-      std::bind(&reservationNode::on_request, this,
+      std::bind(&ReservationNode::on_request, this,
       std::placeholders::_1));
     claim_subscription_ =
       this->create_subscription<rmf_reservation_msgs::msg::ClaimRequest>(
       ReservationClaimTopicName, qos,
-      std::bind(&reservationNode::claim_request, this,
+      std::bind(&ReservationNode::claim_request, this,
       std::placeholders::_1));
     release_subscription_ =
       this->create_subscription<rmf_reservation_msgs::msg::ReleaseRequest>(
       ReservationReleaseTopicName, qos,
-      std::bind(&reservationNode::release, this, std::placeholders::_1));
+      std::bind(&ReservationNode::release, this, std::placeholders::_1));
     graph_subscription_ =
       this->create_subscription<rmf_building_map_msgs::msg::Graph>(
       "/nav_graphs", qos,
-      std::bind(&reservationNode::received_graph, this,
+      std::bind(&ReservationNode::received_graph, this,
       std::placeholders::_1));
 
     ticket_pub_ = this->create_publisher<rmf_reservation_msgs::msg::Ticket>(
@@ -346,7 +346,7 @@ public:
 
     timer_ =
       this->create_wall_timer(500ms,
-        std::bind(&reservationNode::publish_free_spots, this));
+        std::bind(&ReservationNode::publish_free_spots, this));
   }
 
 private:
@@ -513,7 +513,7 @@ private:
         current_state_.allocate_lowest_cost_free_spot(requests_[next_ticket.
           value()],
           next_ticket.value());
-      RCLCPP_INFO(
+      RCLCPP_DEBUG(
         this->get_logger(), "Found next item %lu on queue %s",
         next_ticket.value(),
         released_location.value().c_str());
@@ -522,7 +522,9 @@ private:
       if (!result.has_value())
       {
         RCLCPP_ERROR(
-          this->get_logger(), "Tried to service %lu. Apparently there was some inconsitency between the reservation node's state and the",
+          this->get_logger(),
+          "Tried to service %lu. Apparently there was some inconsistency"
+          " between the reservation node's state and the fleetadapter.",
           ticket);
         return;
       }
@@ -541,7 +543,7 @@ private:
         ticket_store_.debug_ticket(request->ticket.ticket_id).c_str());
       allocation_pub_->publish(allocation);
     }
-    RCLCPP_INFO(
+    RCLCPP_DEBUG(
       this->get_logger(), "Queue is now empty %s",
       released_location->c_str());
     return;
@@ -583,7 +585,7 @@ private:
 int main(int argc, const char** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<reservationNode>());
+  rclcpp::spin(std::make_shared<ReservationNode>());
   rclcpp::shutdown();
   return 0;
 }
