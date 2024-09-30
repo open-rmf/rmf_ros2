@@ -33,12 +33,12 @@
 #include <rmf_lift_msgs/msg/lift_request.hpp>
 #include <rmf_lift_msgs/msg/lift_state.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
-#include <rmf_reservation_msgs/msg/flexible_time_request.hpp>
 #include <rmf_reservation_msgs/msg/claim_request.hpp>
-#include <rmf_reservation_msgs/msg/ticket.hpp>
-#include <rmf_reservation_msgs/msg/reservation_allocation.hpp>
-#include <rmf_reservation_msgs/msg/release_request.hpp>
+#include <rmf_reservation_msgs/msg/flexible_time_request.hpp>
 #include <rmf_reservation_msgs/msg/free_parking_spots.hpp>
+#include <rmf_reservation_msgs/msg/release_request.hpp>
+#include <rmf_reservation_msgs/msg/reservation_allocation.hpp>
+#include <rmf_reservation_msgs/msg/ticket.hpp>
 
 #include <std_msgs/msg/bool.hpp>
 
@@ -166,10 +166,6 @@ public:
     rclcpp::Publisher<ReservationRelease>::SharedPtr;
   const ReservationReleasePub& release_location() const;
 
-  using ReservationFreeSpotStatus = rmf_reservation_msgs::msg::FreeParkingSpots;
-  using ReservationFreeSpotObs =
-    rxcpp::observable<ReservationFreeSpotStatus::SharedPtr>;
-  const ReservationFreeSpotObs& freespots_obs() const;
 
   template<typename DurationRepT, typename DurationT, typename CallbackT>
   rclcpp::TimerBase::SharedPtr try_create_wall_timer(
@@ -236,7 +232,6 @@ private:
   ReservationClaimPub _reservation_claim_pub;
   Bridge<ReservationAllocation> _reservation_alloc_obs;
   ReservationReleasePub _reservation_release_pub;
-  Bridge<ReservationFreeSpotStatus> _reservation_free_spot_obs;
 };
 
 } // namespace agv

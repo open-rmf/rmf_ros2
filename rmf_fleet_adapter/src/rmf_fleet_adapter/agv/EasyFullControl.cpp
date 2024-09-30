@@ -136,7 +136,7 @@ EasyFullControl::RobotConfiguration::RobotConfiguration(
       responsive_wait,
       max_merge_waypoint_distance,
       max_merge_lane_distance,
-      min_lane_length,
+      min_lane_length
     }))
 {
   // Do nothing
@@ -161,7 +161,6 @@ std::optional<bool> EasyFullControl::RobotConfiguration::responsive_wait() const
 {
   return _pimpl->responsive_wait;
 }
-
 
 //==============================================================================
 void EasyFullControl::RobotConfiguration::set_responsive_wait(
@@ -1904,7 +1903,7 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         std::move(default_min_lane_length),
         {},
         {},
-        false
+        false // Parking reservation system
       }))
 {
   // Do nothing
@@ -2928,14 +2927,14 @@ bool EasyFullControl::FleetConfiguration::default_responsive_wait() const
 
 //==============================================================================
 bool EasyFullControl::FleetConfiguration::using_parking_reservation_system()
-const
+  const
 {
   return _pimpl->use_parking_reservation;
 }
 
 //==============================================================================
 void EasyFullControl::FleetConfiguration::use_parking_reservation_system(
-    const bool use)
+  const bool use)
 {
   _pimpl->use_parking_reservation = use;
 }
