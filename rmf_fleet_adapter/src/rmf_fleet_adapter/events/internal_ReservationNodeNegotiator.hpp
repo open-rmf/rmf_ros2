@@ -34,7 +34,6 @@ public:
   ReservationNodeNegotiator(
     std::shared_ptr<agv::RobotContext> context,
     const std::vector<rmf_traffic::agv::Plan::Goal> goals,
-    const bool same_map,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
     selected_final_destination_cb,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
@@ -76,7 +75,7 @@ public:
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
   {
     auto negotiator = std::make_shared<ReservationNodeNegotiator>(context,
-        goals, same_map, selected_final_destination_cb, selected_waitpoint_cb);
+        goals, selected_final_destination_cb, selected_waitpoint_cb);
 
     negotiator->_reservation_ticket =
       context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(
