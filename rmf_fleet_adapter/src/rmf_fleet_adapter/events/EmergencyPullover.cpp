@@ -359,19 +359,19 @@ void EmergencyPullover::Active::_find_plan()
   {
 
     _find_path_service = std::make_shared<services::FindPath>(
-      _context->planner(), _context->location(), *_chosen_goal,
+      _context->planner(), _context->location(), _chosen_goal.value(),
       _context->schedule()->snapshot(), _context->itinerary().id(),
       _context->profile(),
       std::chrono::seconds(5));
 
     const auto start_name = wp_name(*_context);
-    const auto goal_name = wp_name(*_context, *_chosen_goal);
+    const auto goal_name = wp_name(*_context, _chosen_goal.value());
 
     _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
       _find_path_service)
       .observe_on(rxcpp::identity_same_worker(_context->worker()))
       .subscribe(
-      [w = weak_from_this(), start_name, goal_name, goal = *_chosen_goal](
+      [w = weak_from_this(), start_name, goal_name, goal = _chosen_goal.value()](
         const services::FindPath::Result& result)
       {
         const auto self = w.lock();
@@ -406,7 +406,7 @@ void EmergencyPullover::Active::_find_plan()
 
         std::vector<rmf_traffic::agv::Plan::Goal> no_future_projections;
         auto full_itinerary = project_itinerary(
-          *result, no_future_projections,
+          *result, {},
           *self->_context->planner());
 
         self->_execute_plan(
