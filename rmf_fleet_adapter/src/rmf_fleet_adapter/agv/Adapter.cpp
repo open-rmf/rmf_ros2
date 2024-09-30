@@ -381,10 +381,10 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     tf_dict,
     config.strict_lanes(),
     config.default_responsive_wait(),
-    config.use_parking_reservation_system(),
     config.default_max_merge_waypoint_distance(),
     config.default_max_merge_lane_distance(),
-    config.default_min_lane_length());
+    config.default_min_lane_length(),
+    config.using_parking_reservation_system());
 }
 
 //==============================================================================

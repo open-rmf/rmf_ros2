@@ -36,7 +36,7 @@ public:
   std::unordered_map<std::string, EasyCommandHandlePtr> cmd_handles;
   NavParams nav_params;
   bool default_responsive_wait;
-  bool use_parking_reservation_node;
+  bool use_parking_reservation;
 
   static std::shared_ptr<EasyFullControl> make(
     std::shared_ptr<FleetUpdateHandle> fleet_handle,
@@ -44,10 +44,10 @@ public:
     std::shared_ptr<TransformDictionary> transforms_to_robot_coords,
     std::unordered_set<std::size_t> strict_lanes,
     bool default_responsive_wait,
-    bool use_parking_reservation_node,
     double default_max_merge_waypoint_distance,
     double default_max_merge_lane_distance,
-    double default_min_lane_length)
+    double default_min_lane_length,
+    bool use_parking_reservation)
   {
     auto handle = std::shared_ptr<EasyFullControl>(new EasyFullControl);
     handle->_pimpl = rmf_utils::make_unique_impl<Implementation>(
@@ -63,7 +63,7 @@ public:
           default_min_lane_length,
         },
         default_responsive_wait,
-        use_parking_reservation_node
+        use_parking_reservation
       });
     return handle;
   }

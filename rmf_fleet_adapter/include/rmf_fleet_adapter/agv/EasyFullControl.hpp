@@ -265,7 +265,6 @@ public:
   RobotConfiguration(
     std::vector<std::string> compatible_chargers,
     std::optional<bool> responsive_wait = std::nullopt,
-    bool use_parking_spot_system = false,
     std::optional<double> max_merge_waypoint_distance = 1e-3,
     std::optional<double> max_merge_lane_distance = 0.3,
     std::optional<double> min_lane_length = 1e-8);
@@ -285,8 +284,7 @@ public:
   /// be used.
   std::optional<bool> responsive_wait() const;
 
-  /// Check if the robot should use the parking spot system.
-  bool use_parking_spot_system() const;
+
 
   /// Toggle responsive wait on (true), off (false), or use fleet default
   /// (std::nullopt).
@@ -566,9 +564,6 @@ public:
   ///
   /// \param[in] default_min_lane_length
   ///   The minimum length that a lane should have.
-  ///
-  /// \param[in] use_parking_reservation
-  ///   Whether to use parking_reservations.
   FleetConfiguration(
     const std::string& fleet_name,
     std::optional<std::unordered_map<std::string, Transformation>>
@@ -595,8 +590,8 @@ public:
     bool default_responsive_wait = false,
     double default_max_merge_waypoint_distance = 1e-3,
     double default_max_merge_lane_distance = 0.3,
-    double min_lane_length = 1e-8,
-    bool use_parking_reservation = false
+    double min_lane_length = 1e-8
+
   );
 
   /// Create a FleetConfiguration object using a set of configuration parameters
@@ -779,7 +774,11 @@ public:
   bool default_responsive_wait() const;
 
   /// Should robots use the parking reservation system.
-  bool use_parking_reservation_system() const;
+  bool using_parking_reservation_system() const;
+
+  /// Set whether this fleet uses the parking reservation system.
+  void use_parking_reservation_system(
+    const bool use);
 
   /// Set whether robots in this fleet should have responsive wait enabled by
   /// default.
