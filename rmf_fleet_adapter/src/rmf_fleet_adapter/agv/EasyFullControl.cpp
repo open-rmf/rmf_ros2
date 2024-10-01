@@ -137,7 +137,8 @@ EasyFullControl::RobotConfiguration::RobotConfiguration(
       responsive_wait,
       max_merge_waypoint_distance,
       max_merge_lane_distance,
-      min_lane_length
+      min_lane_length,
+      std::nullopt
     }))
 {
   // Do nothing
@@ -1685,7 +1686,7 @@ std::optional<rmf_task::ConstRequestFactoryPtr> parse_finishing_request(
             const auto mark = parking_spot_yaml.Mark();
             std::cerr
               << "Cannot assign a specific parking spot waypoint to the "
-              "fleet-wide default finishing request (line " << mark.line
+              "fleet-wide default finishing request (line " << (mark.line + 1)
               << ", column " << mark.column << ") because then all robots "
               "would attempt to park at the same location." << std::endl;
             error = true;
@@ -1699,7 +1700,7 @@ std::optional<rmf_task::ConstRequestFactoryPtr> parse_finishing_request(
             const auto mark = parking_spot_yaml.Mark();
             std::cerr
               << "Provided parking spot [" << parking_spot_string
-              << "] (line " << mark.line << ", column " << mark.column
+              << "] (line " << (mark.line + 1) << ", column " << mark.column
               << ") is not found in the fleet navigation graph. Unable to "
               "configure the fleet." << std::endl;
             error = true;
@@ -1723,8 +1724,8 @@ std::optional<rmf_task::ConstRequestFactoryPtr> parse_finishing_request(
     {
       const auto mark = finishing_request_yaml.Mark();
       std::cerr
-        << "Missing [type] for finishing_request object (line " << mark.line
-        << ", column " << mark.column << ")" << std::endl;
+        << "Missing [type] for finishing_request object (line "
+        << (mark.line + 1) << ", column " << mark.column << ")" << std::endl;
       error = true;
       return nullptr;
     }
@@ -1756,7 +1757,7 @@ std::optional<rmf_task::ConstRequestFactoryPtr> parse_finishing_request(
     const auto mark = finishing_request_yaml.Mark();
     std::cerr
       << "The finishing request [" << finishing_request_string << "] (line "
-      << mark.line << ", column " << mark.column
+      << (mark.line + 1) << ", column " << mark.column
       << ") is unsupported. The valid finishing requests are "
       "[charge, park, nothing].";
 
@@ -2313,7 +2314,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
   {
     const auto mark = retreat_to_charger_yaml.Mark();
     std::cout << "[retreat_to_charger_interval] Unsupported value type "
-              << "provided: line " << mark.line << ", column " << mark.column
+              << "provided: line " << (mark.line + 1) << ", column " << mark.column
               << std::endl;
     return std::nullopt;
   }
@@ -2644,7 +2645,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
       {
         const auto mark = lane_yaml.Mark();
         std::cerr << "[strict_lanes] Unrecognized lane format at line "
-          << mark.line << ", column " << mark.column << std::endl;
+          << (mark.line + 1) << ", column " << mark.column << std::endl;
         return std::nullopt;
       }
 
@@ -2655,7 +2656,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
       {
         const auto mark = lane_yaml[0].Mark();
         std::cerr << "[strict_lanes] Unrecognized waypoint name [" << wp0_name
-          << "] at line " << mark.line << ", column " << mark.column << std::endl;
+          << "] at line " << (mark.line + 1) << ", column " << mark.column << std::endl;
         return std::nullopt;
       }
 
@@ -2664,7 +2665,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
       {
         const auto mark = lane_yaml[1].Mark();
         std::cerr << "[strict_lanes] Unrecognized waypoint name [" << wp1_name
-          << "] at line " << mark.line << ", column " << mark.column << std::endl;
+          << "] at line " << (mark.line + 1) << ", column " << mark.column << std::endl;
         return std::nullopt;
       }
 
@@ -2710,7 +2711,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
       {
         const auto mark = lane_yaml.Mark();
         std::cerr << "[strict_lanes] Unable to find a lane from [" << wp0_name
-          << "] to [" << wp1_name << "] at line " << mark.line << ", column "
+          << "] to [" << wp1_name << "] at line " << (mark.line + 1) << ", column "
           << mark.column << std::endl;
       }
     }
