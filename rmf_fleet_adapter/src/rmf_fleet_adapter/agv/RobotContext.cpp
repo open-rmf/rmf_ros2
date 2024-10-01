@@ -15,11 +15,9 @@
  *
 */
 
-#include "RobotContext.hpp"
 #include "internal_RobotUpdateHandle.hpp"
 #include "../TaskManager.hpp"
 
-#include <cstddef>
 #include <rmf_traffic_ros2/Time.hpp>
 
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
@@ -1843,8 +1841,7 @@ std::vector<rmf_traffic::agv::Plan::Goal>
 RobotContext::_find_and_sort_parking_spots(
   const bool same_floor) const
 {
-  std::vector<rmf_traffic::agv::Plan::Goal>
-  final_result;
+  std::vector<rmf_traffic::agv::Plan::Goal> final_result;
   // Retrieve nav graph
   const auto& graph = navigation_graph();
 
