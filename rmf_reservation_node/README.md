@@ -7,7 +7,6 @@ Before a robot goes to its next destination the fleet adapter asks the reservati
 ```
 We recommend disabling `responsive_wait` when you do so. An example is available in `rmf_demos`.
 
-Some immediate limitations of the reservation node is that it is limited to scenarios with a single navigation graph. Overcoming this limitation should not be too much work now that the basic infrastructure is in place.
 
 ## Expected Behaviour
 
@@ -39,11 +38,12 @@ ros2 run rmf_demos_tasks dispatch_go_to_place -p lounge -F tinyRobot -R tinyRobo
 ```
 `tinyRobot1` and `tinyRobot2` should now proceed to swap places.
 
-If you have the same number or more waitpoints than robots you should never have a deadlock.
+If there are at least as many parking spots as robots on any given floor, then you should never have a deadlock.
 
 ## Protocol Used Behind the Scenes
 
-The reservation node has no information about the state of the graph, it simply maintains a list of available parking spots internally. The fleet adapter does most of the heavy lifting in the `GoToPlace` event. When a `GoToPlace` event is started we first check if the robot is already at one of the target locations. The fleet adapter submits a ReservationRequest message with the desired end parameters. The parameters are listed in terms of cost (where the cost function is distance). The reservation node will issue a ticket for said request. When ready to proceed, send a claim message with the ticket and list of potential waiting points ordered by distance. The reservation node will then try to award the lowest cost target location. If it can't it will award the lowest cost waiting point to the robot. The fleet adapter will release the previous location as it starts to move to its next location.
+The reservation node has no information about the state of the graph, it simply maintains a list of available parking spots internally. The fleet adapter does most of the heavy lifting in the `GoToPlace` event. When a `GoToPlace` event is started we first check if the robot is already at one of the target locations. The fleet adapter submits a ReservationRequest message with the desired end parameters. The parameters are listed in terms of cost (where the cost function is distance). The reservation node will issue a ticket for said request. When ready to proceed, send a claim message with the ticket and list of potential waiting points ordered by distance. The reservation node will then try to award the lowest cost target location. If the destination is not available yet then it will award the lowest cost waiting point to the robot. The fleet adapter will release the previous location as it starts to move to its next location.
+
 
 
 ## Known Issues

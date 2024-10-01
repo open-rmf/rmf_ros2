@@ -29,7 +29,6 @@
 namespace rmf_fleet_adapter {
 namespace events {
 
-
 //==============================================================================
 class EmergencyPulloverDescription
   : public rmf_task_sequence::events::Placeholder::Description
