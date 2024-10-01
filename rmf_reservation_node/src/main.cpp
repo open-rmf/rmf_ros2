@@ -432,7 +432,7 @@ private:
       allocation.resource =
         requests_[request->ticket.ticket_id][result.value()].location;
 
-      RCLCPP_INFO(this->get_logger(), "Allocating %s to %s",
+      RCLCPP_DEBUG(this->get_logger(), "Allocating %s to %s",
         allocation.resource.c_str(),
         ticket_store_.debug_ticket(request->ticket.ticket_id).c_str());
       allocation_pub_->publish(allocation);
@@ -440,15 +440,17 @@ private:
     }
 
     // If we can't proceed immediately add the ticket to a queue.
-    RCLCPP_INFO(
-      this->get_logger(), "Could not immediately service %lu, enqueing. Locations in ticket were:",
-      request->ticket.ticket_id);
+    std::stringstream ss;
+    ss << "Could not immediately service %lu, enqueing. Locations in ticket were:" <<
+      request->ticket.ticket_id << std::endl;
     for (std::size_t i = 0; i < requests_[request->ticket.ticket_id].size();
       i++)
     {
-      RCLCPP_INFO(this->get_logger(), "\t- %s",
-        requests_[request->ticket.ticket_id][i].location.c_str());
+      ss << "\t- %s" << requests_[request->ticket.ticket_id][i].location.c_str() << std::endl;
     }
+
+    RCLCPP_INFO(
+      this->get_logger(), "%s", ss.str().c_str());
     queue_manager_.add_to_queue(request->ticket.ticket_id, location_names);
 
     // Allocate a waitpoint by preference as given by Fleet Adapter
@@ -494,7 +496,7 @@ private:
   void release(
     const rmf_reservation_msgs::msg::ReleaseRequest::ConstSharedPtr& request)
   {
-    RCLCPP_INFO(
+    RCLCPP_DEBUG(
       this->get_logger(), "Releasing ticket for %s",
       ticket_store_.debug_ticket(request->ticket.ticket_id).c_str());
     auto ticket = request->ticket.ticket_id;
@@ -502,11 +504,11 @@ private:
     if (!released_location.has_value())
     {
       RCLCPP_ERROR(
-        this->get_logger(), "Could not find ticket %lu",
+        this->get_logger(), "Could not find ticket %lu. Something is wrong.",
         request->ticket.ticket_id);
       return;
     }
-    RCLCPP_INFO(
+    RCLCPP_DEBUG(
       this->get_logger(), "Released ticket %lu, location %s is now free",
       request->ticket.ticket_id,
       released_location->c_str());
@@ -520,7 +522,8 @@ private:
       if (!released_location.has_value())
       {
         RCLCPP_ERROR(
-          this->get_logger(), "Could not find ticket %lu while traversing wait graph",
+          this->get_logger(),
+          "Could not find ticket %lu while traversing wait graph. Something has gone wrong.",
           next_ticket.value());
         return;
       }
@@ -552,7 +555,7 @@ private:
         ticket_store_.get_existing_ticket(next_ticket.value());
       allocation.instruction_type =
         rmf_reservation_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
-      RCLCPP_INFO(
+      RCLCPP_DEBUG(
         this->get_logger(), "Allocating %s to %s as a result of %s leaving",
         allocation.resource.c_str(),
         ticket_store_.debug_ticket(next_ticket.value()).c_str(),

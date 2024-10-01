@@ -190,60 +190,69 @@ public:
           }
         });
 
-
-    auto current_location = context->location();
-    if (current_location.size() == 0)
+    context->worker().schedule(
+      [ptr = negotiator->weak_from_this(), w = context->weak_from_this(), same_map](
+        const auto&)
     {
-      using namespace std::literals::chrono_literals;
-      negotiator->_retry_timer = context->node()->create_wall_timer(
-        500ms, [self = negotiator->weak_from_this(), same_map]()
-        {
-          auto negotiator = self.lock();
-          if(!negotiator)
-          {
-            return;
-          }
+      auto context = w.lock();
+      if (!context)
+        return;
 
-          auto current_location = negotiator->_context->location();
-          if (current_location.size() != 0)
+      auto negotiator = ptr.lock();
+
+      auto current_location = context->location();
+      if (current_location.size() == 0)
+      {
+        using namespace std::literals::chrono_literals;
+        negotiator->_retry_timer = context->node()->create_wall_timer(
+          500ms, [self = negotiator->weak_from_this(), same_map]()
           {
-            negotiator->_retry_timer->cancel();
-          }
-          else
-          {
-            return;
-          }
-          for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
-          {
-            if (negotiator->_goals[i].waypoint() == current_location[0].waypoint())
+            auto negotiator = self.lock();
+            if(!negotiator)
             {
-              RCLCPP_ERROR(negotiator->_context->node()->get_logger(),
-              "Already at goal no need to engage reservation system\n");
-              negotiator->_selected_final_destination_cb(negotiator->_goals[i].waypoint());
               return;
             }
-          }
-          RCLCPP_INFO(negotiator->_context->node()->get_logger(),
-          "Sending reservation request");
-          negotiator->make_request(same_map);
-        }
-      );
-      return negotiator;
-    }
 
-    for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
-    {
-      if (negotiator->_goals[i].waypoint() == current_location[0].waypoint())
-      {
-        RCLCPP_ERROR(context->node()->get_logger(),
-          "Already at goal no need to engage reservation system\n");
-        negotiator->_selected_final_destination_cb(negotiator->_goals[i]);
-        return negotiator;
+            auto current_location = negotiator->_context->location();
+            if (current_location.size() != 0)
+            {
+              negotiator->_retry_timer->cancel();
+            }
+            else
+            {
+              return;
+            }
+            for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
+            {
+              if (negotiator->_goals[i].waypoint() == current_location[0].waypoint())
+              {
+                RCLCPP_ERROR(negotiator->_context->node()->get_logger(),
+                "Already at goal no need to engage reservation system\n");
+                negotiator->_selected_final_destination_cb(negotiator->_goals[i].waypoint());
+                return;
+              }
+            }
+            RCLCPP_INFO(negotiator->_context->node()->get_logger(),
+            "Sending reservation request");
+            negotiator->make_request(same_map);
+          }
+        );
       }
-    }
-    RCLCPP_INFO(context->node()->get_logger(),
-      "Sending reservation request");
-    negotiator->make_request(same_map);
+
+      for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
+      {
+        if (negotiator->_goals[i].waypoint() == current_location[0].waypoint())
+        {
+          RCLCPP_ERROR(context->node()->get_logger(),
+            "Already at goal no need to engage reservation system\n");
+          negotiator->_selected_final_destination_cb(negotiator->_goals[i]);
+          return;
+        }
+      }
+      RCLCPP_INFO(context->node()->get_logger(),
+        "Sending reservation request");
+      negotiator->make_request(same_map);
+    });
     return negotiator;
   }
 
