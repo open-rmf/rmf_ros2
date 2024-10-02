@@ -47,12 +47,23 @@ public:
 
   void cancel()
   {
-    if (auto allocation = _context->_release_resource())
+    _context->worker().schedule(
+      [ptr = weak_from_this()](
+        const auto&)
     {
+      auto self = ptr.lock();
+      if(!self)
+      {
+        return;
+      }
+      if (!self->_ticket.has_value())
+      {
+        return;
+      }
       rmf_reservation_msgs::msg::ReleaseRequest msg;
-      msg.ticket = allocation->ticket;
-      _context->node()->cancel_reservation()->publish(msg);
-    }
+      msg.ticket = *self->_ticket.value().get();
+      self->_context->node()->cancel_reservation()->publish(msg);
+    });
   }
 
   void force_release()
