@@ -109,7 +109,7 @@ public:
           {
             RCLCPP_ERROR(
               self->_context->node()->get_logger(),
-              "Reservations: Got no waitpoints");
+              "Reservations: Got no waitpoints for %s", self->_context->requester_id().c_str());
             return;
           }
 
@@ -156,6 +156,7 @@ public:
 
           if (self->_current_reservation_state ==  ReservationState::Requested)
           {
+            /// Release all previous reservations if a new reservation was requested.
             self->force_release();
           }
 

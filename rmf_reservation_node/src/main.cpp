@@ -135,12 +135,15 @@ public:
     return locations;
   }
 
-  void add_location(std::string location)
+  void add_location(std::shared_ptr<rclcpp::Node> node, std::string location)
   {
     if (location.empty())
     {
-      std::cerr << "Got an empty location name. Make sure all locations"
-                << " are set correctly" << std::endl;
+      std::stringstream str;
+
+
+      RCLCPP_ERROR(node->get_logger(),
+        "Got an empty location name. Make sure all locations have names.");
       return;
     }
     if (_current_location_reservations.count(location) == 0)
@@ -150,8 +153,9 @@ public:
     }
     else
     {
-      std::cerr << "Got duplicate location [" << location
-                << "]" << std::endl;
+
+      RCLCPP_ERROR(node->get_logger(),
+        "Got duplicate location: [%s]", location.c_str());
     }
   }
 
@@ -160,6 +164,7 @@ public:
   /// \param[in] incoming_requests - Parking spot and cost of said parking spot.
   /// \param[in] ticket_id - Ticket which is being serviced.
   std::optional<std::size_t> allocate_lowest_cost_free_spot(
+    std::shared_ptr<rclcpp::Node> node,
     std::vector<LocationReq> requests,
     const std::size_t ticket_id)
   {
@@ -196,13 +201,14 @@ public:
       }
     }
 
-    std::cerr << "Could not find a free space from any of: ";
+    std::stringstream str;
+    str << "Could not find a free space from any of: ";
     for (auto c: requests)
     {
-      std::cerr << c.location << ", ";
+      str << c.location << ", ";
     }
-    std::cerr << "\n";
-
+    RCLCPP_ERROR(node->get_logger(),
+        "%s", str.str().c_str());
     return std::nullopt;
   }
 
@@ -286,6 +292,8 @@ public:
 /// come in we simultaneously add them to every queue which can be serviced.
 /// Once a resource becomes free we call `service_next_in_queue` for said resource.
 /// When we service the next item in the queue we remove it from all other queues.
+/// We essentially use this to reconstruct a waitgraph that we free when an item is
+/// released.
 class ServiceQueueManager
 {
   std::unordered_map<std::string,
@@ -378,7 +386,8 @@ private:
         //TODO(arjoc) make this configure-able
         if (param.name == "is_parking_spot" && param.value_bool)
         {
-          current_state_.add_location(graph_msg->vertices[i].name);
+          current_state_.add_location(shared_from_this(),
+            graph_msg->vertices[i].name);
         }
       }
     }
@@ -419,7 +428,9 @@ private:
     }
 
     // Allocate the lowest cost free spot from list of intended final locations if possible
-    auto result = current_state_.allocate_lowest_cost_free_spot(locations,
+    auto result = current_state_.allocate_lowest_cost_free_spot(
+        shared_from_this(),
+        locations,
         request->ticket.ticket_id);
     if (result.has_value())
     {
@@ -469,6 +480,7 @@ private:
 
     waitpoints_[request->ticket.ticket_id] = wait_points;
     auto waitpoint_result = current_state_.allocate_lowest_cost_free_spot(
+      shared_from_this(),
       wait_points,
       request->ticket.ticket_id);
     if (waitpoint_result.has_value())
@@ -529,8 +541,9 @@ private:
       }
 
       auto result =
-        current_state_.allocate_lowest_cost_free_spot(requests_[next_ticket.
-          value()],
+        current_state_.allocate_lowest_cost_free_spot(
+          shared_from_this(),
+          requests_[next_ticket.value()],
           next_ticket.value());
       RCLCPP_DEBUG(
         this->get_logger(), "Found next item %lu on queue %s",
