@@ -45,6 +45,16 @@ public:
     _reservation_id = _context->last_reservation_request_id();
   }
 
+  void cancel()
+  {
+    if (auto allocation = _context->_release_resource())
+    {
+      rmf_reservation_msgs::msg::ReleaseRequest msg;
+      msg.ticket = allocation->ticket;
+      _context->node()->cancel_reservation()->publish(msg);
+    }
+  }
+
   void force_release()
   {
     std::unordered_set<std::size_t> released_ticket_ids;
@@ -90,7 +100,7 @@ public:
             return;
           }
 
-          RCLCPP_INFO(
+          RCLCPP_DEBUG(
             self->_context->node()->get_logger(),
             "Reservations: Got ticket issueing claim");
 

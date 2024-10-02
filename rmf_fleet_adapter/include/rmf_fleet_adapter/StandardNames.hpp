@@ -82,6 +82,7 @@ const std::string ReservationClaimTopicName = "rmf/reservations/claim";
 const std::string ReservationAllocationTopicName =
   "rmf/reservations/allocation";
 const std::string ReservationReleaseTopicName = "rmf/reservations/release";
+const std::string ReservationCancelTopicName = "rmf/reservations/cancel";
 
 const uint64_t Unclaimed = (uint64_t)(-1);
 

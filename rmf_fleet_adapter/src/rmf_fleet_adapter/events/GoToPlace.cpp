@@ -432,7 +432,7 @@ void GoToPlace::Active::cancel()
 
   if (_context->_parking_spot_manager_enabled())
   {
-    _reservation_client->force_release();
+    _reservation_client->cancel();
   }
   _finished();
 }
@@ -445,7 +445,7 @@ void GoToPlace::Active::kill()
   _state->update_log().info("Received signal to kill");
   if (_context->_parking_spot_manager_enabled())
   {
-    _reservation_client->force_release();
+    _reservation_client->cancel();
   }
   _finished();
 }
@@ -754,9 +754,6 @@ void GoToPlace::Active::_execute_plan(
       std::move(full_itinerary),
       _assign_id, _state, _update, [&]()
       {
-        RCLCPP_INFO(
-          _context->node()->get_logger(),
-          "reservation: Finished execution");
         _stop_and_clear();
         _finished();
       }, _tail_period);
@@ -768,10 +765,6 @@ void GoToPlace::Active::_execute_plan(
       std::move(full_itinerary),
       _assign_id, _state, _update, [&]()
       {
-        RCLCPP_INFO(
-          _context->node()->get_logger(),
-          "reservation: Reached waitpoint");
-
         _reached_waitpoint = true;
       }, _tail_period);
   }

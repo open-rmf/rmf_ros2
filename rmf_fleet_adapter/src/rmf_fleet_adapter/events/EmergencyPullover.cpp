@@ -264,7 +264,7 @@ void EmergencyPullover::Active::cancel()
   _state->update_log().info("Received signal to cancel");
   if (_context->_parking_spot_manager_enabled())
   {
-    _reservation_client->force_release();
+    _reservation_client->cancel();
   }
   _finished();
 }
@@ -277,7 +277,7 @@ void EmergencyPullover::Active::kill()
   _state->update_log().info("Received signal to kill");
   if (_context->_parking_spot_manager_enabled())
   {
-    _reservation_client->force_release();
+    _reservation_client->cancel();
   }
   _finished();
 }

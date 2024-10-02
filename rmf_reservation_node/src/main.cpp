@@ -308,10 +308,7 @@ public:
       return std::nullopt;
     }
 
-    for (auto& [_, resource_queue]: resource_queues)
-    {
-      resource_queue.remove_item(item.value());
-    }
+    remove_ticket(item.value());
     return item;
   }
 
@@ -321,6 +318,14 @@ public:
     for (auto resource: resources)
     {
       resource_queues[resource].add(ticket);
+    }
+  }
+
+  void remove_ticket(std::size_t ticket)
+  {
+    for (auto& [_, resource_queue]: resource_queues)
+    {
+      resource_queue.remove_item(ticket);
     }
   }
 };
@@ -341,23 +346,27 @@ public:
 
     request_subscription_ =
       this->create_subscription<rmf_reservation_msgs::msg::FlexibleTimeRequest>(
-      ReservationRequestTopicName, qos,
-      std::bind(&ReservationNode::on_request, this,
-      std::placeholders::_1));
+        ReservationRequestTopicName, qos,
+        std::bind(&ReservationNode::on_request, this,
+        std::placeholders::_1));
     claim_subscription_ =
       this->create_subscription<rmf_reservation_msgs::msg::ClaimRequest>(
-      ReservationClaimTopicName, qos,
-      std::bind(&ReservationNode::claim_request, this,
-      std::placeholders::_1));
+        ReservationClaimTopicName, qos,
+        std::bind(&ReservationNode::claim_request, this,
+        std::placeholders::_1));
     release_subscription_ =
       this->create_subscription<rmf_reservation_msgs::msg::ReleaseRequest>(
-      ReservationReleaseTopicName, qos,
-      std::bind(&ReservationNode::release, this, std::placeholders::_1));
+        ReservationReleaseTopicName, qos,
+        std::bind(&ReservationNode::release, this, std::placeholders::_1));
+    cancel_subscription_ =
+      this->create_subscription<rmf_reservation_msgs::msg::ReleaseRequest>(
+        ReservationCancelTopicName, qos,
+        std::bind(&ReservationNode::cancel, this, std::placeholders::_1));
     graph_subscription_ =
       this->create_subscription<rmf_building_map_msgs::msg::Graph>(
-      "/nav_graphs", qos,
-      std::bind(&ReservationNode::received_graph, this,
-      std::placeholders::_1));
+        NavGraphTopicName, qos,
+        std::bind(&ReservationNode::received_graph, this,
+        std::placeholders::_1));
 
     ticket_pub_ = this->create_publisher<rmf_reservation_msgs::msg::Ticket>(
       ReservationResponseTopicName, qos);
@@ -505,6 +514,13 @@ private:
     }
   }
 
+  void cancel(
+    const rmf_reservation_msgs::msg::ReleaseRequest::ConstSharedPtr& request)
+  {
+    queue_manager_.remove_ticket(request->ticket.ticket_id);
+    release(request);
+  }
+
   void release(
     const rmf_reservation_msgs::msg::ReleaseRequest::ConstSharedPtr& request)
   {
@@ -596,6 +612,8 @@ private:
     claim_subscription_;
   rclcpp::Subscription<rmf_reservation_msgs::msg::ReleaseRequest>::SharedPtr
     release_subscription_;
+  rclcpp::Subscription<rmf_reservation_msgs::msg::ReleaseRequest>::SharedPtr
+    cancel_subscription_;
   rclcpp::Subscription<rmf_building_map_msgs::msg::Graph>::SharedPtr
     graph_subscription_;
 
