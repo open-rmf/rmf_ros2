@@ -199,7 +199,7 @@ TaskManagerPtr TaskManager::make(
       TaskStateUpdateTopicName, reliable_transient_qos);
   mgr->_task_log_update_pub =
     mgr->_context->node()->create_publisher<TaskLogUpdateMsg>(
-      TaskLogUpdateTopicName, reliable_transient_qos);
+      TaskLogUpdateTopicName, reliable_transient_qos.keep_last(100));
 
   const std::vector<nlohmann::json> schemas = {
     rmf_api_msgs::schemas::task_state,

@@ -544,10 +544,10 @@ public:
 
     handle->_pimpl->fleet_state_update_pub =
       handle->_pimpl->node->create_publisher<FleetStateUpdateMsg>(
-        FleetStateUpdateTopicName, reliable_transient_qos);
+        FleetStateUpdateTopicName, reliable_transient_qos.keep_last(10));
     handle->_pimpl->fleet_log_update_pub =
       handle->_pimpl->node->create_publisher<FleetLogUpdateMsg>(
-        FleetLogUpdateTopicName, reliable_transient_qos);
+        FleetLogUpdateTopicName, reliable_transient_qos.keep_last(100));
 
     // Add PerformAction event to deserialization
     auto validator = handle->_pimpl->deserialization.make_validator_shared(
