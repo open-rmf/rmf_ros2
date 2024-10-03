@@ -189,26 +189,26 @@ public:
               "Reservation: Robot %s is going to final destination %lu",
               self->_context->name().c_str(),
               self->_goals[self->_final_allocated_destination.value()->
-              satisfies_alternative].waypoint());
+              chosen_alternative].waypoint());
             self->_current_reservation_state = ReservationState::ReceivedResponseProceedImmediate;
             self->_selected_final_destination_cb(self->_goals[self->
             _final_allocated_destination.value()->
-            satisfies_alternative].waypoint());
+            chosen_alternative].waypoint());
           }
 
           if (msg->instruction_type
-          == rmf_reservation_msgs::msg::ReservationAllocation::WAIT_PERMANENTLY)
+          == rmf_reservation_msgs::msg::ReservationAllocation::WAIT_IDENTIFIED)
           {
             self->_current_reservation_state = ReservationState::ReceivedResponseProceedWaitPoint;
             self->_selected_waitpoint_cb(self->_waitpoints[self->
             _final_allocated_destination.value()->
-            satisfies_alternative]);
+            chosen_alternative]);
             RCLCPP_INFO(
               self->_context->node()->get_logger(),
               "Reservation: Robot %s is being asked to proceed to a waitpoint %lu",
               self->_context->name().c_str(),
               self->_waitpoints[self->_final_allocated_destination.value()->
-              satisfies_alternative].waypoint());
+              chosen_alternative].waypoint());
           }
         });
 

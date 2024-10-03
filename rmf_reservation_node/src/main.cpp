@@ -448,7 +448,7 @@ private:
         request->ticket.ticket_id);
       allocation.instruction_type =
         rmf_reservation_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
-      allocation.satisfies_alternative = result.value();
+      allocation.chosen_alternative = result.value();
       allocation.resource =
         requests_[request->ticket.ticket_id][result.value()].location;
 
@@ -498,8 +498,8 @@ private:
       allocation.ticket = ticket_store_.get_existing_ticket(
         request->ticket.ticket_id);
       allocation.instruction_type =
-        rmf_reservation_msgs::msg::ReservationAllocation::WAIT_PERMANENTLY;
-      allocation.satisfies_alternative = waitpoint_result.value();
+        rmf_reservation_msgs::msg::ReservationAllocation::WAIT_IDENTIFIED;
+      allocation.chosen_alternative = waitpoint_result.value();
       allocation.resource = wait_points[waitpoint_result.value()].location;
       RCLCPP_INFO(this->get_logger(), "Allocating %s as waitpoint to %s",
         allocation.resource.c_str(),
@@ -577,7 +577,7 @@ private:
         return;
       }
       rmf_reservation_msgs::msg::ReservationAllocation allocation;
-      allocation.satisfies_alternative = result.value();
+      allocation.chosen_alternative = result.value();
       allocation.resource =
         requests_[next_ticket.value()][result.value()].location;
       allocation.ticket =
