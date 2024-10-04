@@ -28,6 +28,8 @@ const std::string DestinationRequestTopicName = "destination_requests";
 const std::string ModeRequestTopicName = "robot_mode_requests";
 const std::string PathRequestTopicName = "robot_path_requests";
 const std::string PauseRequestTopicName = "robot_pause_requests";
+const std::string FleetStateUpdateTopicName = "fleet_state_update";
+const std::string FleetLogUpdateTopicName = "fleet_log_update";
 
 const std::string FinalDoorRequestTopicName = "door_requests";
 const std::string AdapterDoorRequestTopicName = "adapter_door_requests";
@@ -68,6 +70,8 @@ const std::string InterruptRequestTopicName = "robot_interrupt_request";
 
 const std::string TaskApiRequests = "task_api_requests";
 const std::string TaskApiResponses = "task_api_responses";
+const std::string TaskStateUpdateTopicName = "task_state_update";
+const std::string TaskLogUpdateTopicName = "task_log_update";
 
 const std::string ChargingAssignmentsTopicName = "charging_assignments";
 
