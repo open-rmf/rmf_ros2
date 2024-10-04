@@ -267,6 +267,50 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
 }
 
 //==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::set_finishing_request(
+  rmf_task::ConstRequestFactoryPtr finishing_request)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [finishing_request, w = context->weak_from_this()](
+        const auto&)
+      {
+        const auto context = w.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        mgr->set_idle_task(finishing_request);
+      });
+  }
+
+  return *this;
+}
+
+//==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::use_default_finishing_request()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule([w = context->weak_from_this()](const auto&)
+      {
+        const auto context = w.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        mgr->use_default_idle_task();
+        // Disable robot_finishing_request flag in RobotContext
+        context->robot_finishing_request(false);
+      }
+    );
+  }
+
+  return *this;
+}
+
+//==============================================================================
 void RobotUpdateHandle::update_battery_soc(const double battery_soc)
 {
   if (const auto context = _pimpl->get_context())
