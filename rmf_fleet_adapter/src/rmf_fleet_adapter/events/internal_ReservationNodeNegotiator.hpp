@@ -180,30 +180,36 @@ public:
           }
         });
 
+
+    for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
+    {
+      if (events::wp_name(*context.get(), negotiator->_goals[i]) == context->_get_reserved_location())
+      {
+        RCLCPP_INFO(context->node()->get_logger(),
+          "%s: Already at goal no need to engage reservation system\n",
+          context->requester_id().c_str());
+        context->worker().schedule([
+            cb = negotiator->_selected_final_destination_cb,
+            wp = negotiator->_goals[i]
+          ](const auto&)
+          {
+            cb(wp);
+          });
+        return negotiator;
+      }
+    }
+    RCLCPP_INFO(negotiator->_context->node()->get_logger(),
+      "%s: Sending reservation request",
+      negotiator->_context->requester_id().c_str());
+
     context->worker().schedule(
-      [ptr = negotiator->weak_from_this(), w = context->weak_from_this(), same_map](
+      [ptr = negotiator->weak_from_this(), same_map](
         const auto&)
     {
-      auto context = w.lock();
-      if (!context)
+      auto negotiator = ptr.lock();
+      if (!negotiator)
         return;
 
-      auto negotiator = ptr.lock();
-
-      for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
-      {
-        if (events::wp_name(*negotiator->_context.get(), negotiator->_goals[i]) == negotiator->_context->_get_reserved_location())
-        {
-          RCLCPP_INFO(negotiator->_context->node()->get_logger(),
-            "%s: Already at goal no need to engage reservation system\n",
-            negotiator->_context->requester_id().c_str());
-          negotiator->_selected_final_destination_cb(negotiator->_goals[i].waypoint());
-          return;
-        }
-      }
-      RCLCPP_INFO(negotiator->_context->node()->get_logger(),
-        "%s: Sending reservation request",
-        negotiator->_context->requester_id().c_str());
       negotiator->make_request(same_map);
     });
     return negotiator;
