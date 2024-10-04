@@ -127,6 +127,8 @@ public:
 
   void set_idle_task(rmf_task::ConstRequestFactoryPtr task);
 
+  void use_default_idle_task();
+
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
   void set_queue(const std::vector<Assignment>& assignments);

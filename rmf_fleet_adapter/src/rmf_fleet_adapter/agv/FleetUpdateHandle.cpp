@@ -2624,7 +2624,9 @@ bool FleetUpdateHandle::set_task_planner_params(
         for (const auto& t : self->_pimpl->task_managers)
         {
           t.first->task_planner(self->_pimpl->task_planner);
-          t.second->set_idle_task(idle_task);
+          // Skip setting idle task if there exists a robot-specific behavior
+          if (!t.first->robot_finishing_request())
+            t.second->set_idle_task(idle_task);
         }
       });
 
