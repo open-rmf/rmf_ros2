@@ -190,68 +190,26 @@ public:
 
       auto negotiator = ptr.lock();
 
-      auto current_location = context->location();
-      if (current_location.size() == 0)
-      {
-        using namespace std::literals::chrono_literals;
-        negotiator->_retry_timer = context->node()->create_wall_timer(
-          500ms, [self = negotiator->weak_from_this(), same_map]()
-          {
-            auto negotiator = self.lock();
-            if(!negotiator)
-            {
-              return;
-            }
-
-            auto current_location = negotiator->_context->location();
-            if (current_location.size() != 0)
-            {
-              negotiator->_retry_timer->cancel();
-            }
-            else
-            {
-              return;
-            }
-            for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
-            {
-              if (events::wp_name(*negotiator->_context.get(), negotiator->_goals[i]) == negotiator->_context->_get_reserved_location())
-              {
-                RCLCPP_INFO(negotiator->_context->node()->get_logger(),
-                  "%s: Already at goal no need to engage reservation system\n",
-                  negotiator->_context->requester_id().c_str());
-                negotiator->_selected_final_destination_cb(negotiator->_goals[i].waypoint());
-                return;
-              }
-            }
-            RCLCPP_INFO(negotiator->_context->node()->get_logger(),
-              "%s: Sending reservation request",
-              negotiator->_context->requester_id().c_str());
-            negotiator->make_request(same_map);
-          }
-        );
-      }
-
       for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
       {
-        if (events::wp_name(*context.get(), negotiator->_goals[i]) == context->_get_reserved_location())
+        if (events::wp_name(*negotiator->_context.get(), negotiator->_goals[i]) == negotiator->_context->_get_reserved_location())
         {
-          RCLCPP_INFO(context->node()->get_logger(),
+          RCLCPP_INFO(negotiator->_context->node()->get_logger(),
             "%s: Already at goal no need to engage reservation system\n",
-            context->requester_id().c_str());
-          negotiator->_selected_final_destination_cb(negotiator->_goals[i]);
+            negotiator->_context->requester_id().c_str());
+          negotiator->_selected_final_destination_cb(negotiator->_goals[i].waypoint());
           return;
         }
       }
-      RCLCPP_INFO(context->node()->get_logger(),
-        "Sending reservation request");
+      RCLCPP_INFO(negotiator->_context->node()->get_logger(),
+        "%s: Sending reservation request",
+        negotiator->_context->requester_id().c_str());
       negotiator->make_request(same_map);
     });
     return negotiator;
   }
 
 private:
-
-  rclcpp::TimerBase::SharedPtr _retry_timer;
 
   enum class ReservationState
   {
