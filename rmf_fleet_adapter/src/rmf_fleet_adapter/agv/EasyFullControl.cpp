@@ -3387,7 +3387,7 @@ auto EasyFullControl::add_robot(
       localization = std::move(localization),
       nav_params = robot_nav_params,
       enable_responsive_wait,
-      use_parking_reservation = _pimpl->use_parking_reservation
+      use_parking_reservation = _pimpl->use_parking_reservation,
       finishing_request
     ](const RobotUpdateHandlePtr& updater)
     {
@@ -3408,7 +3408,7 @@ auto EasyFullControl::add_robot(
           context,
           nav_params,
           enable_responsive_wait,
-          use_parking_reservation
+          use_parking_reservation,
           finishing_request
         ](const auto&)
         {

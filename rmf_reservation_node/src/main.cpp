@@ -528,8 +528,8 @@ private:
       this->get_logger(), "Releasing ticket for %s",
       ticket_store_.debug_ticket(request->ticket.ticket_id).c_str());
     auto ticket = request->ticket.ticket_id;
-    auto released_location = current_state_.release(ticket);
-    if (!released_location.has_value())
+    auto previous_waiting_location = current_state_.release(ticket);
+    if (!previous_waiting_location.has_value())
     {
       RCLCPP_ERROR(
         this->get_logger(), "Could not find ticket %lu. Something is wrong.",
@@ -539,15 +539,15 @@ private:
     RCLCPP_DEBUG(
       this->get_logger(), "Released ticket %lu, location %s is now free",
       request->ticket.ticket_id,
-      released_location->c_str());
+      previous_waiting_location->c_str());
 
     // Traverse waitgraph.
     while (auto next_ticket =
-      queue_manager_.service_next_in_queue(released_location.value()))
+      queue_manager_.service_next_in_queue(previous_waiting_location.value()))
     {
       // Release the ticket
-      released_location = current_state_.release(next_ticket.value());
-      if (!released_location.has_value())
+      previous_waiting_location = current_state_.release(next_ticket.value());
+      if (!previous_waiting_location.has_value())u
       {
         RCLCPP_ERROR(
           this->get_logger(),
@@ -564,7 +564,7 @@ private:
       RCLCPP_DEBUG(
         this->get_logger(), "Found next item %lu on queue %s",
         next_ticket.value(),
-        released_location.value().c_str());
+        previous_waiting_location.value().c_str());
 
 
       if (!result.has_value())
@@ -593,7 +593,7 @@ private:
     }
     RCLCPP_DEBUG(
       this->get_logger(), "Queue is now empty %s",
-      released_location->c_str());
+      previous_waiting_location->c_str());
     return;
   }
 
