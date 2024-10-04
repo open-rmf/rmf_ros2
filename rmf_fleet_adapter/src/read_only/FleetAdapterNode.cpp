@@ -20,8 +20,6 @@
 #include <rmf_traffic/DetectConflict.hpp>
 
 #include <rmf_traffic/agv/Interpolate.hpp>
-#include <rmf_traffic/agv/Planner.hpp>
-#include <rmf_traffic/Time.hpp>
 
 #include <rmf_traffic_ros2/StandardNames.hpp>
 #include <rmf_traffic_ros2/Time.hpp>
