@@ -30,11 +30,14 @@ class ReservationManager
 {
 public:
   /// Adds a ticket and releases the previous ticket if the ticket id is different
-  void add_ticket(
+  void replace_ticket(
     const rmf_reservation_msgs::msg::ReservationAllocation new_allocation);
 
   /// Cancels the current reservation
   void cancel();
+
+  /// Retrieves the location name of the current reservation. Returns empty string if
+  /// no location is found.
   std::string get_reserved_location() const;
 
   /// Checks if a ticket exists

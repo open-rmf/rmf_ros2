@@ -1808,7 +1808,7 @@ void RobotContext::_publish_mutex_group_requests()
 void RobotContext::_set_allocated_destination(
   const rmf_reservation_msgs::msg::ReservationAllocation& ticket)
 {
-  _reservation_mgr.add_ticket(ticket);
+  _reservation_mgr.replace_ticket(ticket);
 }
 
 //==============================================================================

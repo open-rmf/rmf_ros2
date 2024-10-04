@@ -801,7 +801,7 @@ public:
   /// Set if the parking spot manager is used or not
   bool _parking_spot_manager_enabled();
 
-  /// Has ticket now
+  /// Does the parking spot have a ticket?
   bool _has_ticket() const;
 
   template<typename... Args>

@@ -21,7 +21,7 @@
 using namespace rmf_fleet_adapter::agv;
 
 //==============================================================================
-void ReservationManager::add_ticket(
+void ReservationManager::replace_ticket(
   const rmf_reservation_msgs::msg::ReservationAllocation new_allocation)
 {
   if (has_ticket())
@@ -52,7 +52,7 @@ void ReservationManager::cancel()
     _allocation->ticket.ticket_id);
   rmf_reservation_msgs::msg::ReleaseRequest msg;
   msg.ticket = _allocation->ticket;
-  _context->node()->release_location()->publish(msg);
+  _context->node()->cancel_reservation()->publish(msg);
   _allocation = std::nullopt;
 }
 
