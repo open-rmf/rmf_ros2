@@ -942,6 +942,24 @@ void TaskManager::set_idle_task(rmf_task::ConstRequestFactoryPtr task)
 }
 
 //==============================================================================
+void TaskManager::use_default_idle_task()
+{
+  auto fleet_handle = _fleet_handle.lock();
+  if (!fleet_handle)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Attempting to use default idle task for [%s] but its fleet is shutting down",
+      _context->requester_id().c_str());
+    return;
+  }
+  const auto& impl =
+    agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+
+  set_idle_task(impl.idle_task);
+}
+
+//==============================================================================
 void TaskManager::set_queue(
   const std::vector<TaskManager::Assignment>& assignments)
 {
@@ -1691,7 +1709,13 @@ void TaskManager::_begin_waiting()
   }
 
   if (!_responsive_wait_enabled)
+  {
+    if (_waiting)
+    {
+      _waiting.cancel({"Idle behavior updated"}, _context->now());
+    }
     return;
+  }
 
   if (_context->location().empty())
   {

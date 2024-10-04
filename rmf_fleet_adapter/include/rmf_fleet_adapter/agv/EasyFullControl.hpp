@@ -316,6 +316,15 @@ public:
   /// Set the minimum lane length.
   void set_min_lane_length(std::optional<double> distance);
 
+  /// Get the idle behavior.
+  ///
+  /// If std::nullopt is used, then the fleet-wide default finishing request
+  /// will be used.
+  std::optional<rmf_task::ConstRequestFactoryPtr> finishing_request() const;
+
+  /// Set the finishing request.
+  void set_finishing_request(std::optional<rmf_task::ConstRequestFactoryPtr> request);
+
   class Implementation;
 private:
   rmf_utils::impl_ptr<Implementation> _pimpl;
