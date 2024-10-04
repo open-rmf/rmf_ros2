@@ -547,7 +547,7 @@ private:
     {
       // Release the ticket
       previous_waiting_location = current_state_.release(next_ticket.value());
-      if (!previous_waiting_location.has_value())u
+      if (!previous_waiting_location.has_value())
       {
         RCLCPP_ERROR(
           this->get_logger(),
