@@ -697,6 +697,18 @@ void RobotContext::set_nav_params(std::shared_ptr<NavParams> value)
 }
 
 //==============================================================================
+bool RobotContext::robot_finishing_request() const
+{
+  return _robot_finishing_request;
+}
+
+//==============================================================================
+void RobotContext::robot_finishing_request(bool robot_specific)
+{
+  _robot_finishing_request = robot_specific;
+}
+
+//==============================================================================
 class RobotContext::NegotiatorLicense
 {
 public:

@@ -192,6 +192,15 @@ TaskManagerPtr TaskManager::make(
         self->_handle_request(request->json_msg, request->request_id);
     });
 
+  auto reliable_transient_qos =
+    rclcpp::ServicesQoS().keep_last(10).reliable().transient_local();
+  mgr->_task_state_update_pub =
+    mgr->_context->node()->create_publisher<TaskStateUpdateMsg>(
+      TaskStateUpdateTopicName, reliable_transient_qos);
+  mgr->_task_log_update_pub =
+    mgr->_context->node()->create_publisher<TaskLogUpdateMsg>(
+      TaskLogUpdateTopicName, reliable_transient_qos.keep_last(100));
+
   const std::vector<nlohmann::json> schemas = {
     rmf_api_msgs::schemas::task_state,
     rmf_api_msgs::schemas::task_log,
@@ -564,7 +573,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
 
   static const auto task_update_validator =
     mgr._make_validator(rmf_api_msgs::schemas::task_state_update);
-  mgr._validate_and_publish_websocket(task_state_update, task_update_validator);
+  mgr._validate_and_publish_json(task_state_update, task_update_validator);
 
   auto task_log_update = nlohmann::json();
   task_log_update["type"] = "task_log_update";
@@ -572,7 +581,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
 
   static const auto log_update_validator =
     mgr._make_validator(rmf_api_msgs::schemas::task_log_update);
-  mgr._validate_and_publish_websocket(task_log_update, log_update_validator);
+  mgr._validate_and_publish_json(task_log_update, log_update_validator);
 }
 
 //==============================================================================
@@ -939,6 +948,24 @@ void TaskManager::set_idle_task(rmf_task::ConstRequestFactoryPtr task)
   {
     _begin_waiting();
   }
+}
+
+//==============================================================================
+void TaskManager::use_default_idle_task()
+{
+  auto fleet_handle = _fleet_handle.lock();
+  if (!fleet_handle)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Attempting to use default idle task for [%s] but its fleet is shutting down",
+      _context->requester_id().c_str());
+    return;
+  }
+  const auto& impl =
+    agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+
+  set_idle_task(impl.idle_task);
 }
 
 //==============================================================================
@@ -1691,7 +1718,13 @@ void TaskManager::_begin_waiting()
   }
 
   if (!_responsive_wait_enabled)
+  {
+    if (_waiting)
+    {
+      _waiting.cancel({"Idle behavior updated"}, _context->now());
+    }
     return;
+  }
 
   if (_context->location().empty())
   {
@@ -2029,7 +2062,7 @@ void TaskManager::_schema_loader(
 }
 
 //==============================================================================
-void TaskManager::_validate_and_publish_websocket(
+void TaskManager::_validate_and_publish_json(
   const nlohmann::json& msg,
   const nlohmann::json_schema::json_validator& validator) const
 {
@@ -2044,19 +2077,32 @@ void TaskManager::_validate_and_publish_websocket(
     return;
   }
 
-  if (!_broadcast_client.has_value())
-    return;
-
-  const auto client = _broadcast_client->lock();
-  if (!client)
+  if (_broadcast_client.has_value())
   {
-    RCLCPP_ERROR(
-      _context->node()->get_logger(),
-      "Unable to lock BroadcastClient within TaskManager of robot [%s]",
-      _context->name().c_str());
-    return;
+    const auto client = _broadcast_client->lock();
+    if (!client)
+    {
+      RCLCPP_ERROR(
+        _context->node()->get_logger(),
+        "Unable to lock BroadcastClient within TaskManager of robot [%s]",
+        _context->name().c_str());
+      return;
+    }
+    client->publish(msg);
   }
-  client->publish(msg);
+
+  if (msg["type"] == "task_state_update")
+  {
+    TaskStateUpdateMsg update_msg;
+    update_msg.data = msg.dump();
+    _task_state_update_pub->publish(update_msg);
+  }
+  else if (msg["type"] == "task_log_update")
+  {
+    TaskLogUpdateMsg update_msg;
+    update_msg.data = msg.dump();
+    _task_log_update_pub->publish(update_msg);
+  }
 }
 
 //==============================================================================
@@ -2158,7 +2204,7 @@ rmf_task::State TaskManager::_publish_pending_task(
   static const auto validator =
     _make_validator(rmf_api_msgs::schemas::task_state_update);
 
-  _validate_and_publish_websocket(task_state_update, validator);
+  _validate_and_publish_json(task_state_update, validator);
 
   _pending_task_info[pending.request()] = cache;
   return pending.finish_state();
@@ -2225,7 +2271,7 @@ void TaskManager::_publish_canceled_pending_task(
   static const auto validator =
     _make_validator(rmf_api_msgs::schemas::task_state_update);
 
-  _validate_and_publish_websocket(task_state_update, validator);
+  _validate_and_publish_json(task_state_update, validator);
 }
 
 //==============================================================================
