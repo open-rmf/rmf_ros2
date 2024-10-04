@@ -783,6 +783,12 @@ public:
   void _set_allocated_destination(
     const rmf_reservation_msgs::msg::ReservationAllocation&);
 
+  /// Cancel allocated destination
+  void _cancel_allocated_destination();
+
+  /// Get last reserved location. Empty string if not reserved.
+  std::string _get_reserved_location();
+
   /// Set if the parking spot manager is used or not
   void _set_parking_spot_manager(const bool enabled);
 
@@ -794,9 +800,6 @@ public:
 
   /// Set if the parking spot manager is used or not
   bool _parking_spot_manager_enabled();
-
-  /// Release last resource that was acquired.
-  std::optional<rmf_reservation_msgs::msg::ReservationAllocation> _release_resource();
 
   /// Has ticket now
   bool _has_ticket() const;
@@ -864,6 +867,8 @@ public:
         if (const auto self = w.lock())
           self->_handle_mutex_group_manual_release(*msg);
       });
+
+    context->_reservation_mgr._context = context;
 
     return context;
   }

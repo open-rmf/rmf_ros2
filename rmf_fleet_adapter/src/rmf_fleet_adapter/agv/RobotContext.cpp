@@ -1824,10 +1824,15 @@ bool RobotContext::_parking_spot_manager_enabled()
 }
 
 //==============================================================================
-std::optional<rmf_reservation_msgs::msg::ReservationAllocation>
-RobotContext::_release_resource()
+void RobotContext::_cancel_allocated_destination()
 {
-  return _reservation_mgr.release_ticket();
+  return _reservation_mgr.cancel();
+}
+
+//==============================================================================
+std::string RobotContext::_get_reserved_location()
+{
+  return _reservation_mgr.get_reserved_location();
 }
 
 //==============================================================================

@@ -19,7 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__AGV__INTERNAL_RESERVATION_NEGOTIATOR_HPP
 
 #include "../agv/RobotContext.hpp"
-
+#include "internal_utilities.hpp"
 #include <memory.h>
 
 namespace rmf_fleet_adapter {
@@ -56,35 +56,9 @@ public:
       {
         return;
       }
-      if (!self->_ticket.has_value())
-      {
-        return;
-      }
-      rmf_reservation_msgs::msg::ReleaseRequest msg;
-      msg.ticket = *self->_ticket.value().get();
-      self->_context->node()->cancel_reservation()->publish(msg);
-    });
-  }
 
-  void force_release()
-  {
-    std::unordered_set<std::size_t> released_ticket_ids;
-    while (auto allocation = _context->_release_resource())
-    {
-      if (released_ticket_ids.count(allocation->ticket.ticket_id) != 0)
-      {
-        continue;
-      }
-      released_ticket_ids.insert(allocation->ticket.ticket_id);
-      rmf_reservation_msgs::msg::ReleaseRequest msg;
-      msg.ticket = allocation->ticket;
-      _context->node()->release_location()->publish(msg);
-      RCLCPP_INFO(
-        _context->node()->get_logger(),
-        "reservation: Releasing waypoint for ticket %lu",
-        msg.ticket.ticket_id
-      );
-    }
+      self->_context->_cancel_allocated_destination();
+    });
   }
 
   static std::shared_ptr<ReservationNodeNegotiator> make(
@@ -175,12 +149,6 @@ public:
           self->_final_allocated_destination = msg;
           self->_context->_set_allocated_destination(*msg.get());
 
-          if (self->_current_reservation_state ==  ReservationState::Requested)
-          {
-            /// Release all previous reservations if a new reservation was requested.
-            self->force_release();
-          }
-
           if (msg->instruction_type
           == rmf_reservation_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)
           {
@@ -246,7 +214,7 @@ public:
             }
             for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
             {
-              if (negotiator->_goals[i].waypoint() == current_location[0].waypoint())
+              if (events::wp_name(*negotiator->_context.get(), negotiator->_goals[i]) == negotiator->_context->_get_reserved_location())
               {
                 RCLCPP_ERROR(negotiator->_context->node()->get_logger(),
                 "Already at goal no need to engage reservation system\n");
@@ -263,7 +231,7 @@ public:
 
       for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
       {
-        if (negotiator->_goals[i].waypoint() == current_location[0].waypoint())
+        if (events::wp_name(*context.get(), negotiator->_goals[i]) == context->_get_reserved_location())
         {
           RCLCPP_ERROR(context->node()->get_logger(),
             "Already at goal no need to engage reservation system\n");

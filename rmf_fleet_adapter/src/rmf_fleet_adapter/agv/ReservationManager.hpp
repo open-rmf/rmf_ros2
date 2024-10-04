@@ -24,33 +24,26 @@
 namespace rmf_fleet_adapter {
 namespace agv {
 
+class RobotContext;
 
 class ReservationManager
 {
 public:
-  void add_ticket(const rmf_reservation_msgs::msg::ReservationAllocation alloc)
-  {
-    allocations.push_front(alloc);
-  }
+  /// Adds a ticket and releases the previous ticket if the ticket id is different
+  void add_ticket(
+    const rmf_reservation_msgs::msg::ReservationAllocation new_allocation);
 
-  std::optional<rmf_reservation_msgs::msg::ReservationAllocation> release_ticket()
-  {
-    if (allocations.size() <= 1)
-    {
-      // For safety every robot must have at least one reservation at any point in time.
-      return std::nullopt;
-    }
-    auto temp = allocations.back();
-    allocations.pop_back();
-    return temp;
-  }
+  /// Cancels the current reservation
+  void cancel();
+  std::string get_reserved_location() const;
 
-  bool has_ticket() const
-  {
-    return allocations.size() != 0;
-  }
+  /// Checks if a ticket exists
+  bool has_ticket() const;
+private:
+  std::optional<rmf_reservation_msgs::msg::ReservationAllocation> _allocation;
+  std::shared_ptr<agv::RobotContext> _context;
 
-  std::deque<rmf_reservation_msgs::msg::ReservationAllocation> allocations;
+  friend RobotContext;
 };
 }
 }
