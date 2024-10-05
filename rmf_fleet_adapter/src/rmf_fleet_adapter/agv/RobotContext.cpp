@@ -1296,7 +1296,8 @@ RobotContext::RobotContext(
   _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner)),
   _reporting(_worker),
-  _last_reservation_request_id(0)
+  _last_reservation_request_id(0),
+  _use_parking_spot_reservations(false)
 {
   _most_recent_valid_location = _location;
   _profile = std::make_shared<rmf_traffic::Profile>(
