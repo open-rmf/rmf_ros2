@@ -24,17 +24,22 @@ using namespace rmf_fleet_adapter::agv;
 void ReservationManager::replace_ticket(
   const rmf_reservation_msgs::msg::ReservationAllocation new_allocation)
 {
+  auto context = _context.lock();
+  if (!context)
+  {
+    return;
+  }
   if (has_ticket())
   {
     if (new_allocation.ticket.ticket_id != _allocation->ticket.ticket_id)
     {
       RCLCPP_INFO(
-        _context->node()->get_logger(),
+        context->node()->get_logger(),
         "Releasing waypoint for ticket %lu as new ticket has become available",
         _allocation->ticket.ticket_id);
       rmf_reservation_msgs::msg::ReleaseRequest msg;
       msg.ticket = _allocation->ticket;
-      _context->node()->release_location()->publish(msg);
+      context->node()->release_location()->publish(msg);
     }
   }
   _allocation = new_allocation;
@@ -43,30 +48,35 @@ void ReservationManager::replace_ticket(
 //==============================================================================
 void ReservationManager::cancel()
 {
+  auto context = _context.lock();
+  if (!context)
+  {
+    return;
+  }
   if (has_ticket())
     return;
 
   RCLCPP_INFO(
-    _context->node()->get_logger(),
+    context->node()->get_logger(),
     "Cancelling ticket %lu",
     _allocation->ticket.ticket_id);
   rmf_reservation_msgs::msg::ReleaseRequest msg;
   msg.ticket = _allocation->ticket;
-  _context->node()->cancel_reservation()->publish(msg);
+  context->node()->cancel_reservation()->publish(msg);
   _allocation = std::nullopt;
 }
 
 //==============================================================================
 std::string ReservationManager::get_reserved_location() const
 {
-if (has_ticket())
+  if (has_ticket())
     return _allocation->resource;
 
-return "";
+  return "";
 }
 
 //==============================================================================
 bool ReservationManager::has_ticket() const
 {
-return _allocation.has_value();
+  return _allocation.has_value();
 }

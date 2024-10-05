@@ -44,7 +44,7 @@ public:
   bool has_ticket() const;
 private:
   std::optional<rmf_reservation_msgs::msg::ReservationAllocation> _allocation;
-  std::shared_ptr<agv::RobotContext> _context;
+  std::weak_ptr<agv::RobotContext> _context;
 
   friend RobotContext;
 };
