@@ -461,12 +461,12 @@ private:
 
     // If we can't proceed immediately add the ticket to a queue.
     std::stringstream ss;
-    ss << "Could not immediately service %lu, enqueing. Locations in ticket were:" <<
-      request->ticket.ticket_id << std::endl;
+    ss << "Could not immediately service " << request->ticket.ticket_id
+      << " enqueing. Locations in ticket were:" << std::endl;
     for (std::size_t i = 0; i < requests_[request->ticket.ticket_id].size();
       i++)
     {
-      ss << "\t- %s" << requests_[request->ticket.ticket_id][i].location.c_str() << std::endl;
+      ss << "\t- " << requests_[request->ticket.ticket_id][i].location.c_str() << std::endl;
     }
 
     RCLCPP_INFO(
