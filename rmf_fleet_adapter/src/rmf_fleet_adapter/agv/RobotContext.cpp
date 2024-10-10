@@ -1932,6 +1932,78 @@ RobotContext::_find_and_sort_parking_spots(
 }
 
 //==============================================================================
+std::vector<rmf_traffic::agv::Plan::Goal>
+RobotContext::_find_and_sort_parking_spots(
+  const rmf_traffic::agv::Plan::Goal& dest, const bool same_floor) const
+{
+  std::vector<rmf_traffic::agv::Plan::Goal> final_result;
+  // Retrieve nav graph
+  const auto& graph = navigation_graph();
+
+  // Get current location
+  rmf_traffic::agv::Plan::StartSet start;
+  start.emplace_back(now(), dest.waypoint(), 0);
+
+  // Order wait points by the distance from the destination.
+  std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
+  waitpoints_order;
+  for (std::size_t wp_idx = 0; wp_idx < graph.num_waypoints(); ++wp_idx)
+  {
+    const auto& wp = graph.get_waypoint(wp_idx);
+
+    if (!wp.is_parking_spot())
+    {
+      continue;
+    }
+
+    if (same_floor)
+    {
+
+      // Check if same map. If not don't consider location. This is to ensure
+      // the robot does not try to board a lift.
+      if (wp.get_map_name() != map())
+      {
+        RCLCPP_INFO(
+          node()->get_logger(),
+          "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+          wp_idx,
+          wp.get_map_name().c_str(),
+          map().c_str());
+        continue;
+      }
+    }
+    auto result = planner()->quickest_path(start, wp_idx);
+    if (!result.has_value())
+    {
+      RCLCPP_INFO(
+        node()->get_logger(),
+        "No path found for waypoint #%lu",
+        wp_idx);
+      continue;
+    }
+
+    rmf_traffic::agv::Plan::Goal goal(wp_idx);
+    waitpoints_order.emplace_back(result->cost(), goal);
+
+  }
+
+  //Sort waiting points
+  std::sort(waitpoints_order.begin(), waitpoints_order.end(),
+    [](const std::tuple<double, rmf_traffic::agv::Plan::Goal>& a,
+    const std::tuple<double, rmf_traffic::agv::Plan::Goal>& b)
+    {
+      return std::get<0>(a) < std::get<0>(b);
+    });
+
+
+  for (auto&[_, waitpoint]: waitpoints_order)
+  {
+    final_result.push_back(waitpoint);
+  }
+  return final_result;
+}
+
+//==============================================================================
 void RobotContext::_handle_mutex_group_manual_release(
   const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg)
 {

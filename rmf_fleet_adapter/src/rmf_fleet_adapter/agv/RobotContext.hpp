@@ -800,10 +800,17 @@ public:
   /// Set if the parking spot manager is used or not
   void _set_parking_spot_manager(const bool enabled);
 
-  /// Find all available spots.
+  /// Find all available spots. Order based on current location.
   /// \param[in] same_floor - if the parking spots should be on the same floor.
   std::vector<rmf_traffic::agv::Planner::Goal>
   _find_and_sort_parking_spots(const bool same_floor)
+  const;
+
+  /// Find all available parking sports. Order based on goal.
+  /// \param[in] same_floor - if the parking spots should be on the same floor.
+  std::vector<rmf_traffic::agv::Planner::Goal>
+  _find_and_sort_parking_spots(
+    const rmf_traffic::agv::Plan::Goal& dest, const bool same_floor)
   const;
 
   /// Set if the parking spot manager is used or not

@@ -39,7 +39,7 @@ public:
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
   {
     _context = context;
-    _goals = std::move(goals);
+    _goals = goals;
     _selected_final_destination_cb = std::move(selected_final_destination_cb);
     _selected_waitpoint_cb = std::move(selected_waitpoint_cb);
     _reservation_id = _context->last_reservation_request_id();
@@ -97,11 +97,27 @@ public:
           }
 
           self->_ticket = msg;
-          self->_waitpoints = self->_context->_find_and_sort_parking_spots(
-            true);
+          if(self->_goals.size() == 1)
+          {
+            RCLCPP_INFO(
+              self->_context->node()->get_logger(),
+              "Sorting waitpoint by distance from goal %lu",
+              self->_goals[0].waypoint());
 
+            // If there is only one destination to go to then we should rank
+            // waiting spots by their distance from said destination.
+            self->_waitpoints = self->_context->_find_and_sort_parking_spots(
+              self->_goals[0], true);
+          }
+          else
+          {
+            // Otherwise go to the nearest destination based on your current location
+            self->_waitpoints = self->_context->_find_and_sort_parking_spots(
+              true);
+          }
           if (self->_waitpoints.size() == 0)
           {
+            // This may happen if the robot is lost.
             RCLCPP_ERROR(
               self->_context->node()->get_logger(),
               "Reservations: Got no waitpoints for %s", self->_context->requester_id().c_str());
