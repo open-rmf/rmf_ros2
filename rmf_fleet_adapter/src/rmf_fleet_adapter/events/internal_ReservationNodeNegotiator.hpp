@@ -106,8 +106,10 @@ public:
 
             // If there is only one destination to go to then we should rank
             // waiting spots by their distance from said destination.
+            // In this case we allow the robot to board lifts to go to the waiting pot nearest
+            // their target.
             self->_waitpoints = self->_context->_find_and_sort_parking_spots(
-              self->_goals[0], true);
+              self->_goals[0], false);
           }
           else
           {
