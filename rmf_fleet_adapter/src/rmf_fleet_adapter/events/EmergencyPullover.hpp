@@ -22,6 +22,9 @@
 #include "../Negotiator.hpp"
 
 #include "../services/FindEmergencyPullover.hpp"
+#include "../services/FindPath.hpp"
+#include "internal_ReservationNodeNegotiator.hpp"
+
 
 #include "ExecutePlan.hpp"
 
@@ -120,6 +123,13 @@ public:
     rmf_rxcpp::subscription_guard _pullover_subscription;
     rclcpp::TimerBase::SharedPtr _find_pullover_timeout;
     rclcpp::TimerBase::SharedPtr _retry_timer;
+
+    std::shared_ptr<services::FindPath> _find_path_service;
+    rmf_rxcpp::subscription_guard _plan_subscription;
+    rclcpp::TimerBase::SharedPtr _find_path_timeout;
+    std::optional<rmf_traffic::agv::Plan::Goal> _chosen_goal;
+
+    std::shared_ptr<reservation::ReservationNodeNegotiator> _reservation_client;
 
     bool _is_interrupted = false;
   };
