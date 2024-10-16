@@ -260,7 +260,7 @@ private:
 
     RCLCPP_INFO(
       _context->node()->get_logger(),
-      "reservationvationvation Negotiator: Selecting a new go_to_place location from [%lu] choices for robot [%s]",
+      "Reservation Negotiator: Selecting a new go_to_place location from [%lu] choices for robot [%s]",
       _goals.size(),
       _context->requester_id().c_str());
 
