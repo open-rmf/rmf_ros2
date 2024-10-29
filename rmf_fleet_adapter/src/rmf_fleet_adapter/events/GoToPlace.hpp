@@ -112,7 +112,10 @@ public:
 
     void _schedule_retry();
 
-    // Chooses goal if the goal is on the same map. Otherwise it
+    /// Chooses a goal from the list of acceptable destinations based on which
+    /// is nearest to the current location. If only_same_map is true then this
+    /// will filter out goals that are not on the same map that the robot
+    /// currently is.
     std::optional<rmf_traffic::agv::Plan::Goal> _choose_goal(
       bool only_same_map) const;
 
