@@ -99,6 +99,14 @@ public:
   /// for it.
   void update_position(rmf_traffic::agv::Plan::StartSet position);
 
+  /// Set whether this robot uses the parking reservation system. By default this
+  /// is false in order to keep the system behavior backwards compatible, but it
+  /// is recommended that you turn this on.
+  ///
+  /// If you are using the EasyFullControl API then you can set this in your
+  /// fleet configuration.
+  RobotUpdateHandle& use_parking_reservation_system(bool use);
+
   /// Set the waypoint where the charger for this robot is located.
   /// If not specified, the nearest waypoint in the graph with the is_charger()
   /// property will be assumed as the charger for this robot.

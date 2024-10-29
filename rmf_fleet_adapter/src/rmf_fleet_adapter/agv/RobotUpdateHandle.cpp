@@ -242,6 +242,39 @@ void RobotUpdateHandle::update_position(
 }
 
 //==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::use_parking_reservation_system(bool use)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule([use, w = context->weak_from_this()](
+        const auto&)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        self->_set_parking_spot_manager(use);
+
+        std::string status;
+        if (use)
+        {
+          status = "enabled";
+        }
+        else
+        {
+          status = "disabled";
+        }
+
+        RCLCPP_INFO(
+          self->node()->get_logger(),
+          "Parking reservation system %s for %s",
+          status.c_str(),
+          self->requester_id().c_str());
+      });
+  }
+}
+
+//==============================================================================
 RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
   const std::size_t charger_wp)
 {

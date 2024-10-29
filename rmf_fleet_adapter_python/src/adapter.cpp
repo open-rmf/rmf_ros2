@@ -145,6 +145,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::overload_cast<rmf_traffic::agv::Plan::StartSet>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("start_set"))
+  .def("use_parking_reservation_system", &agv::RobotUpdateHandle::use_parking_reservation_system,
+    py::arg("enable"))
   .def("set_charger_waypoint", &agv::RobotUpdateHandle::set_charger_waypoint,
     py::arg("charger_wp"))
   .def("set_finishing_request", &agv::RobotUpdateHandle::set_finishing_request,
