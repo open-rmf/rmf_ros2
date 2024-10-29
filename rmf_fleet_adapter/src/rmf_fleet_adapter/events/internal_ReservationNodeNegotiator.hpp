@@ -31,20 +31,6 @@ class ReservationNodeNegotiator :
   public std::enable_shared_from_this<ReservationNodeNegotiator>
 {
 public:
-  ReservationNodeNegotiator(
-    std::shared_ptr<agv::RobotContext> context,
-    const std::vector<rmf_traffic::agv::Plan::Goal> goals,
-    const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
-    selected_final_destination_cb,
-    const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
-  {
-    _context = context;
-    _goals = goals;
-    _selected_final_destination_cb = std::move(selected_final_destination_cb);
-    _selected_waitpoint_cb = std::move(selected_waitpoint_cb);
-    _reservation_id = _context->last_reservation_request_id();
-  }
-
   void cancel()
   {
     _context->worker().schedule(
@@ -69,8 +55,9 @@ public:
     selected_final_destination_cb,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
   {
-    auto negotiator = std::make_shared<ReservationNodeNegotiator>(context,
-        goals, selected_final_destination_cb, selected_waitpoint_cb);
+    auto negotiator = std::shared_ptr<ReservationNodeNegotiator>(
+      new ReservationNodeNegotiator(
+        context, goals, selected_final_destination_cb, selected_waitpoint_cb));
 
     negotiator->_reservation_ticket =
       context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(
@@ -234,6 +221,20 @@ public:
   }
 
 private:
+
+  ReservationNodeNegotiator(
+    std::shared_ptr<agv::RobotContext> context,
+    const std::vector<rmf_traffic::agv::Plan::Goal> goals,
+    const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
+    selected_final_destination_cb,
+    const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
+  {
+    _context = context;
+    _goals = goals;
+    _selected_final_destination_cb = std::move(selected_final_destination_cb);
+    _selected_waitpoint_cb = std::move(selected_waitpoint_cb);
+    _reservation_id = _context->last_reservation_request_id();
+  }
 
   enum class ReservationState
   {
