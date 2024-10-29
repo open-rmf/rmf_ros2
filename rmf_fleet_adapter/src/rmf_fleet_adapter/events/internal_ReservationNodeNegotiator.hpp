@@ -306,7 +306,7 @@ private:
             wp_idx,
             result->cost());
 
-          auto name = wp.name();
+          const auto* name = wp.name();
           if (name == nullptr)
           {
             RCLCPP_ERROR(_context->node()->get_logger(),
