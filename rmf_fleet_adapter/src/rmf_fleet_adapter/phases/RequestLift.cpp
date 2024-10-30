@@ -111,6 +111,16 @@ void RequestLift::ActivePhase::_init_obs()
           if (!self)
             return;
 
+          if (self->_data.located == Located::Outside)
+          {
+            // The robot is going to start moving into the lift now, so we
+            // should lock in the lift by saying that the request is coming from
+            // inside the lift. This will prevent the auto-detection system from
+            // releasing the lift prematurely.
+            self->_context->set_lift_destination(
+              self->_lift_name, self->_destination, true);
+          }
+
           if (self->_data.resume_itinerary)
           {
             self->_context->schedule_itinerary(
