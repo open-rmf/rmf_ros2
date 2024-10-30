@@ -359,6 +359,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("hold") = 0.0)
   .def("finished", &ActionExecution::finished)
   .def("okay", &ActionExecution::okay)
+  .def("set_automatic_cancel", &ActionExecution::set_automatic_cancel, py::arg("on"))
   .def_property_readonly("identifier", &ActionExecution::identifier);
 
   // ROBOT INTERRUPTION   ====================================================
