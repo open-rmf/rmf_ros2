@@ -46,6 +46,7 @@
 
 #include "Node.hpp"
 #include "../Reporting.hpp"
+#include "ReservationManager.hpp"
 
 #include <unordered_set>
 
@@ -409,6 +410,9 @@ class RobotContext
   public rmf_traffic::schedule::Negotiator
 {
 public:
+
+
+  uint64_t last_reservation_request_id();
 
   /// Get a handle to the command interface of the robot. This may return a
   /// nullptr if the robot has disconnected and/or its command API is no longer
@@ -795,6 +799,38 @@ public:
     const std::string& lift_name,
     const std::string& destination_name);
 
+  /// Set an allocated destination.
+  void _set_allocated_destination(
+    const rmf_reservation_msgs::msg::ReservationAllocation&);
+
+  /// Cancel allocated destination
+  void _cancel_allocated_destination();
+
+  /// Get last reserved location. Empty string if not reserved.
+  std::string _get_reserved_location();
+
+  /// Set if the parking spot manager is used or not
+  void _set_parking_spot_manager(const bool enabled);
+
+  /// Find all available spots. Order based on current location.
+  /// \param[in] same_floor - if the parking spots should be on the same floor.
+  std::vector<rmf_traffic::agv::Planner::Goal>
+  _find_and_sort_parking_spots(const bool same_floor)
+  const;
+
+  /// Find all available parking sports. Order based on goal.
+  /// \param[in] same_floor - if the parking spots should be on the same floor.
+  std::vector<rmf_traffic::agv::Planner::Goal>
+  _find_and_sort_parking_spots(
+    const rmf_traffic::agv::Plan::Goal& dest, const bool same_floor)
+  const;
+
+  /// Set if the parking spot manager is used or not
+  bool _parking_spot_manager_enabled();
+
+  /// Does the parking spot have a ticket?
+  bool _has_ticket() const;
+
   template<typename... Args>
   static std::shared_ptr<RobotContext> make(Args&&... args)
   {
@@ -858,6 +894,8 @@ public:
         if (const auto self = w.lock())
           self->_handle_mutex_group_manual_release(*msg);
       });
+
+    context->_reservation_mgr._context = context;
 
     return context;
   }
@@ -980,6 +1018,10 @@ private:
   rclcpp::Subscription<rmf_fleet_msgs::msg::MutexGroupManualRelease>::SharedPtr
     _mutex_group_manual_release_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
+
+  uint64_t _last_reservation_request_id;
+  ReservationManager _reservation_mgr;
+  bool _use_parking_spot_reservations;
 
   std::optional<RobotUpdateHandle::LiftDestination> _final_lift_destination;
   std::unique_ptr<std::mutex> _final_lift_destination_mutex =
