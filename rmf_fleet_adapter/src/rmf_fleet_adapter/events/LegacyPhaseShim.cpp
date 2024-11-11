@@ -153,6 +153,11 @@ auto LegacyPhaseShim::Active::make(
       {
         if (self->_finished)
         {
+          rmf_task::VersionedString::Reader reader;
+          std::cout << " !!!!!!!!!!!!!!!!!!!! TRIGGERING LEGACY FINISHED FOR ["
+            << self->_state << "] "
+            << *reader.read(self->_state->name()) << ": " << *reader.read(self->_state->detail())
+            << std::endl;
           // We don't change the event status here because that should have been
           // done in the task summary update, and from here we don't know what
           // kind of finish the legacy phase may have had (e.g. completed,

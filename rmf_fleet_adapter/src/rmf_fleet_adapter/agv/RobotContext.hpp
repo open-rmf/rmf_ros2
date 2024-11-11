@@ -688,6 +688,12 @@ public:
   /// Get the current lift destination request for this robot
   const LiftDestination* current_lift_destination() const;
 
+  /// Check whether the lift has arrived at its current destination with the
+  /// correct session ID
+  bool has_lift_arrived(
+    const std::string& lift_name,
+    const std::string& destination_floor) const;
+
   /// Ask for a certain lift to go to a certain destination and open the doors
   std::shared_ptr<void> set_lift_destination(
     std::string lift_name,
@@ -782,6 +788,12 @@ public:
 
   /// Release a door. This should only be used by DoorClose
   void _release_door(const std::string& door_name);
+
+  /// This should only be called by RequestLift to notify the context that the
+  /// lift successfully arrived for its current destination request.
+  void _set_lift_arrived(
+    const std::string& lift_name,
+    const std::string& destination_name);
 
   template<typename... Args>
   static std::shared_ptr<RobotContext> make(Args&&... args)

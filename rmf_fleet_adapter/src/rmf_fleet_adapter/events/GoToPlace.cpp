@@ -671,6 +671,10 @@ void GoToPlace::Active::_execute_plan(
     .name_or_index().c_str(),
     _context->requester_id().c_str());
 
+  if (_execution.has_value())
+  {
+    std::cout << " >>>>>> Replacing execution for " << _context->requester_id() << std::endl;
+  }
   _execution = ExecutePlan::make(
     _context, plan_id, std::move(plan), std::move(goal),
     std::move(full_itinerary),
