@@ -97,9 +97,6 @@ void RequestLift::ActivePhase::_init_obs()
 {
   using rmf_lift_msgs::msg::LiftState;
 
-  std::cout << " >>> INITIALIZING RequestLift for " << _context->requester_id()
-    << ": " << _description << std::endl;
-
   if (_data.located == Located::Inside)
   {
     // If the robot is requesting from the inside, then we should update the
@@ -225,10 +222,7 @@ void RequestLift::ActivePhase::_init_obs()
         }
         return true;
       }))
-    .take_until(_cancelled.get_observable().filter([c = _context](auto b) {
-      std::cout << " ================= CANCELLED TRIGGERED FOR " << c->requester_id() << ": " << b << std::endl;
-      return b;
-    }))
+    .take_until(_cancelled.get_observable().filter([c = _context](auto b) { return b; }))
     .concat(rxcpp::observable<>::create<LegacyTask::StatusMsg>(
         [weak = weak_from_this()](const auto& s)
         {
@@ -244,10 +238,6 @@ void RequestLift::ActivePhase::_init_obs()
               {
                 if (const auto me = weak.lock())
                 {
-                  std::cout << "Calling RequestLift finish for "
-                    << me->_context->requester_id()
-                    << " | " << me->_description
-                    << ": " << __LINE__ << std::endl;
                   if (!me->_finish())
                   {
                     return;
@@ -291,10 +281,6 @@ void RequestLift::ActivePhase::_init_obs()
                     "process is finished.",
                     me->_context->requester_id().c_str());
 
-                  std::cout << "Calling RequestLift finish for "
-                    << me->_context->requester_id()
-                    << " | " << me->_description
-                    << ": " << __LINE__ << std::endl;
                   if (me->_finish())
                     s.on_completed();
                 });
@@ -302,10 +288,6 @@ void RequestLift::ActivePhase::_init_obs()
             }
           }
 
-          std::cout << "Calling RequestLift finish for "
-            << me->_context->requester_id()
-            << " | " << me->_description
-            << ": " << __LINE__ << std::endl;
           if (me->_finish())
             s.on_completed();
         }));
@@ -445,7 +427,6 @@ void RequestLift::ActivePhase::_do_publish()
 //==============================================================================
 bool RequestLift::ActivePhase::_finish()
 {
-  std::cout << "RequestLift finished has been triggered for " << _context->requester_id() << std::endl;
   // The return value of _finish tells us whether we should have the observable
   // proceed to trigger on_completed(). If we have already finished before then
   // _finished will be true, so we should return false to indicate that the
@@ -507,7 +488,7 @@ RequestLift::PendingPhase::PendingPhase(
   _data(std::move(data))
 {
   std::ostringstream oss;
-  oss << "Requesting lift \"" << _lift_name << "\" to \"" << _destination << "\"";
+  oss << "Requesting lift [" << _lift_name << "] to [" << _destination << "]";
 
   _description = oss.str();
 }

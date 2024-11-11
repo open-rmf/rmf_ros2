@@ -698,11 +698,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
   if (plan.get_waypoints().empty())
     return std::nullopt;
 
-  std::stringstream ss;
-  ss << "Executing plan for " << context->requester_id()
-    << print_plan_waypoints(plan.get_waypoints(), context->navigation_graph());
-  std::cout << ss.str() << std::endl;
-
   auto plan_id = std::make_shared<rmf_traffic::PlanId>(recommended_plan_id);
   const auto& graph = context->navigation_graph();
   LegacyPhases legacy_phases;
@@ -1332,11 +1327,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
   auto sequence = rmf_task_sequence::events::Bundle::standby(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
-
-  std::stringstream seq;
-  seq << "Event sequence for " << context->requester_id();
-  print_events(seq, sequence->state(), 0);
-  std::cout << seq.str() << std::endl;
 
   return ExecutePlan{
     std::move(plan),
