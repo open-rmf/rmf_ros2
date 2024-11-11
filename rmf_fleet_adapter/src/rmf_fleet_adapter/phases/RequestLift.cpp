@@ -222,7 +222,7 @@ void RequestLift::ActivePhase::_init_obs()
         }
         return true;
       }))
-    .take_until(_cancelled.get_observable().filter([c = _context](auto b) { return b; }))
+    .take_until(_cancelled.get_observable().filter([](auto b) { return b; }))
     .concat(rxcpp::observable<>::create<LegacyTask::StatusMsg>(
         [weak = weak_from_this()](const auto& s)
         {
