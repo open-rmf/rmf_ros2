@@ -29,13 +29,29 @@ auto WaitForTraffic::Standby::make(
   const AssignIDPtr& id,
   std::function<void()> update) -> std::shared_ptr<Standby>
 {
+  std::stringstream ss;
+  ss << "[";
+  for (const auto& dep : dependencies)
+  {
+    const auto participant = context->schedule()->get_participant(dep.on_participant);
+    if (participant)
+    {
+      ss << " " << participant->name();
+    }
+    else
+    {
+      ss << " <unknown>";
+    }
+  }
+  ss << " ]";
+
   auto standby = std::make_shared<Standby>();
   standby->_context = std::move(context);
   standby->_plan_id = plan_id;
   standby->_dependencies = std::move(dependencies);
   standby->_expected_time = expected_time;
   standby->_state = rmf_task::events::SimpleEventState::make(
-    id->assign(), "Wait for traffic", "",
+    id->assign(), "Wait for traffic", ss.str(),
     rmf_task::Event::Status::Standby, {}, standby->_context->clock());
   standby->_update = std::move(update);
 

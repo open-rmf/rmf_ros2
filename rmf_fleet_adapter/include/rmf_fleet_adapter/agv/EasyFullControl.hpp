@@ -776,6 +776,13 @@ public:
   /// Should robots in this fleet have responsive wait enabled by default?
   bool default_responsive_wait() const;
 
+  /// Should robots use the parking reservation system.
+  bool using_parking_reservation_system() const;
+
+  /// Set whether this fleet uses the parking reservation system.
+  void use_parking_reservation_system(
+    const bool use);
+
   /// Set whether robots in this fleet should have responsive wait enabled by
   /// default.
   void set_default_responsive_wait(bool enable);

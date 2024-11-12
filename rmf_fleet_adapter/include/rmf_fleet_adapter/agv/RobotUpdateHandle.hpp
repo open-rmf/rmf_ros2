@@ -99,6 +99,14 @@ public:
   /// for it.
   void update_position(rmf_traffic::agv::Plan::StartSet position);
 
+  /// Set whether this robot uses the parking reservation system. By default this
+  /// is false in order to keep the system behavior backwards compatible, but it
+  /// is recommended that you turn this on.
+  ///
+  /// If you are using the EasyFullControl API then you can set this in your
+  /// fleet configuration.
+  RobotUpdateHandle& use_parking_reservation_system(bool use);
+
   /// Set the waypoint where the charger for this robot is located.
   /// If not specified, the nearest waypoint in the graph with the is_charger()
   /// property will be assumed as the charger for this robot.
@@ -238,6 +246,19 @@ public:
 
     /// Returns false if the Action has been killed or cancelled
     bool okay() const;
+
+    /// Set whether automatic cancellation is turned on for this action.
+    ///
+    /// When automatic cancellation is on, the task system will believe that the
+    /// action is successfully cancelled immediately upon receiving a cancel
+    /// signal. By default, automatic cancellation is on (true).
+    ///
+    /// If your action needs to perform some kind of wind-down or cleanup after
+    /// being cancelled, then you should set this to false. At that point you
+    /// must ensure that your action implementation is watching okay() to know
+    /// if it has been cancelled, and you must trigger finished() when your
+    /// wind-down or cleanup is finished.
+    void set_automatic_cancel(bool on);
 
     /// Activity identifier for this action. Used by the EasyFullControl API.
     ConstActivityIdentifierPtr identifier() const;

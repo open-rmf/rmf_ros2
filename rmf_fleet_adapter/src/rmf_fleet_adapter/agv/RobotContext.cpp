@@ -26,6 +26,8 @@
 #include <rmf_door_msgs/msg/door_mode.hpp>
 
 #include <rmf_utils/math.hpp>
+#include <string>
+#include <unordered_set>
 
 namespace rmf_fleet_adapter {
 namespace agv {
@@ -998,6 +1000,12 @@ rmf_traffic::Duration RobotContext::get_lift_rewait_duration() const
 }
 
 //==============================================================================
+uint64_t RobotContext::last_reservation_request_id()
+{
+  return _last_reservation_request_id++;
+}
+
+//==============================================================================
 void RobotContext::respond(
   const TableViewerPtr& table_viewer,
   const ResponderPtr& responder)
@@ -1146,6 +1154,20 @@ const LiftDestination* RobotContext::current_lift_destination() const
 }
 
 //==============================================================================
+bool RobotContext::has_lift_arrived(
+  const std::string& lift_name,
+  const std::string& destination_floor) const
+{
+  if (!_lift_destination)
+    return false;
+
+  if (!_lift_destination->matches(lift_name, destination_floor))
+    return false;
+
+  return _lift_arrived;
+}
+
+//==============================================================================
 std::shared_ptr<void> RobotContext::set_lift_destination(
   std::string lift_name,
   std::string destination_floor,
@@ -1287,7 +1309,9 @@ RobotContext::RobotContext(
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner)),
-  _reporting(_worker)
+  _reporting(_worker),
+  _last_reservation_request_id(0),
+  _use_parking_spot_reservations(false)
 {
   _most_recent_valid_location = _location;
   _profile = std::make_shared<rmf_traffic::Profile>(
@@ -1466,6 +1490,20 @@ void RobotContext::_release_door(const std::string& door_name)
 }
 
 //==============================================================================
+void RobotContext::_set_lift_arrived(
+  const std::string& lift_name,
+  const std::string& destination_floor)
+{
+  if (!_lift_destination)
+    return;
+
+  if (!_lift_destination->matches(lift_name, destination_floor))
+    return;
+
+  _lift_arrived = true;
+}
+
+//==============================================================================
 void RobotContext::_check_lift_state(
   const rmf_lift_msgs::msg::LiftState& state)
 {
@@ -1558,9 +1596,6 @@ void RobotContext::_check_lift_state(
         // Be a stubborn negotiator while using the lift
         _lift_stubbornness = be_stubborn();
       }
-
-      _lift_arrived =
-        _lift_destination->destination_floor == state.current_floor;
     }
   }
   else if (_lift_destination && _lift_destination->lift_name == state.lift_name)
@@ -1805,6 +1840,192 @@ void RobotContext::_publish_mutex_group_requests()
   {
     publish(MutexGroupData{name, time});
   }
+}
+
+//==============================================================================
+void RobotContext::_set_allocated_destination(
+  const rmf_reservation_msgs::msg::ReservationAllocation& ticket)
+{
+  _reservation_mgr.replace_ticket(ticket);
+}
+
+//==============================================================================
+void RobotContext::_set_parking_spot_manager(const bool enabled)
+{
+  _use_parking_spot_reservations = enabled;
+}
+
+//==============================================================================
+bool RobotContext::_parking_spot_manager_enabled()
+{
+  return _use_parking_spot_reservations;
+}
+
+//==============================================================================
+void RobotContext::_cancel_allocated_destination()
+{
+  return _reservation_mgr.cancel();
+}
+
+//==============================================================================
+std::string RobotContext::_get_reserved_location()
+{
+  return _reservation_mgr.get_reserved_location();
+}
+
+//==============================================================================
+bool RobotContext::_has_ticket() const
+{
+  return _reservation_mgr.has_ticket();
+}
+
+//==============================================================================
+std::vector<rmf_traffic::agv::Plan::Goal>
+RobotContext::_find_and_sort_parking_spots(
+  const bool same_floor) const
+{
+  std::vector<rmf_traffic::agv::Plan::Goal> final_result;
+  // Retrieve nav graph
+  const auto& graph = navigation_graph();
+
+  // Get current location
+  auto current_location = location();
+  if (current_location.size() == 0)
+  {
+    // Could not localize should probably log an error
+    RCLCPP_ERROR(node()->get_logger(), "Unable to localize.");
+    return final_result;
+  }
+
+  // Order wait points by the distance from the destination.
+  std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
+  waitpoints_order;
+  for (std::size_t wp_idx = 0; wp_idx < graph.num_waypoints(); ++wp_idx)
+  {
+    const auto& wp = graph.get_waypoint(wp_idx);
+
+    if (!wp.is_parking_spot())
+    {
+      continue;
+    }
+
+    if (same_floor)
+    {
+
+      // Check if same map. If not don't consider location. This is to ensure
+      // the robot does not try to board a lift.
+      if (wp.get_map_name() != map())
+      {
+        RCLCPP_INFO(
+          node()->get_logger(),
+          "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+          wp_idx,
+          wp.get_map_name().c_str(),
+          map().c_str());
+        continue;
+      }
+    }
+    auto result = planner()->quickest_path(current_location, wp_idx);
+    if (!result.has_value())
+    {
+      RCLCPP_INFO(
+        node()->get_logger(),
+        "No path found for waypoint #%lu",
+        wp_idx);
+      continue;
+    }
+
+    rmf_traffic::agv::Plan::Goal goal(wp_idx);
+    waitpoints_order.emplace_back(result->cost(), goal);
+
+  }
+
+  //Sort waiting points
+  std::sort(waitpoints_order.begin(), waitpoints_order.end(),
+    [](const std::tuple<double, rmf_traffic::agv::Plan::Goal>& a,
+    const std::tuple<double, rmf_traffic::agv::Plan::Goal>& b)
+    {
+      return std::get<0>(a) < std::get<0>(b);
+    });
+
+
+  for (auto&[_, waitpoint]: waitpoints_order)
+  {
+    final_result.push_back(waitpoint);
+  }
+  return final_result;
+}
+
+//==============================================================================
+std::vector<rmf_traffic::agv::Plan::Goal>
+RobotContext::_find_and_sort_parking_spots(
+  const rmf_traffic::agv::Plan::Goal& dest, const bool same_floor) const
+{
+  std::vector<rmf_traffic::agv::Plan::Goal> final_result;
+  // Retrieve nav graph
+  const auto& graph = navigation_graph();
+
+  // Get current location
+  rmf_traffic::agv::Plan::StartSet start;
+  start.emplace_back(now(), dest.waypoint(), 0);
+
+  // Order wait points by the distance from the destination.
+  std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
+  waitpoints_order;
+  for (std::size_t wp_idx = 0; wp_idx < graph.num_waypoints(); ++wp_idx)
+  {
+    const auto& wp = graph.get_waypoint(wp_idx);
+
+    if (!wp.is_parking_spot())
+    {
+      continue;
+    }
+
+    if (same_floor)
+    {
+
+      // Check if same map. If not don't consider location. This is to ensure
+      // the robot does not try to board a lift.
+      if (wp.get_map_name() != map())
+      {
+        RCLCPP_INFO(
+          node()->get_logger(),
+          "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+          wp_idx,
+          wp.get_map_name().c_str(),
+          map().c_str());
+        continue;
+      }
+    }
+    auto result = planner()->quickest_path(start, wp_idx);
+    if (!result.has_value())
+    {
+      RCLCPP_INFO(
+        node()->get_logger(),
+        "No path found for waypoint #%lu",
+        wp_idx);
+      continue;
+    }
+
+    rmf_traffic::agv::Plan::Goal goal(wp_idx);
+    waitpoints_order.emplace_back(result->cost(), goal);
+
+  }
+
+  //Sort waiting points
+  std::sort(waitpoints_order.begin(), waitpoints_order.end(),
+    [](const std::tuple<double, rmf_traffic::agv::Plan::Goal>& a,
+    const std::tuple<double, rmf_traffic::agv::Plan::Goal>& b)
+    {
+      return std::get<0>(a) < std::get<0>(b);
+    });
+
+
+  for (auto&[_, waitpoint]: waitpoints_order)
+  {
+    final_result.push_back(waitpoint);
+  }
+  return final_result;
 }
 
 //==============================================================================

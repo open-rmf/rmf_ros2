@@ -21,6 +21,7 @@
   <depend>rmf_api_msgs</depend>
   <depend>rmf_battery</depend>
   <depend>rmf_building_map_msgs</depend>
+  <depend>rmf_reservation_msgs</depend>
   <depend>rmf_dispenser_msgs</depend>
   <depend>rmf_door_msgs</depend>
   <depend>rmf_fleet_msgs</depend>

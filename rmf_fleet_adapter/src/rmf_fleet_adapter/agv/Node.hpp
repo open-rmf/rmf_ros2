@@ -18,6 +18,7 @@
 #ifndef SRC__RMF_FLEET_ADAPTER__AGV__NODE_HPP
 #define SRC__RMF_FLEET_ADAPTER__AGV__NODE_HPP
 
+
 #include <rmf_rxcpp/Transport.hpp>
 
 #include <rmf_dispenser_msgs/msg/dispenser_request.hpp>
@@ -32,6 +33,13 @@
 #include <rmf_lift_msgs/msg/lift_request.hpp>
 #include <rmf_lift_msgs/msg/lift_state.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
+#include <rmf_reservation_msgs/msg/claim_request.hpp>
+#include <rmf_reservation_msgs/msg/flexible_time_request.hpp>
+#include <rmf_reservation_msgs/msg/free_parking_spots.hpp>
+#include <rmf_reservation_msgs/msg/release_request.hpp>
+#include <rmf_reservation_msgs/msg/reservation_allocation.hpp>
+#include <rmf_reservation_msgs/msg/ticket.hpp>
+
 #include <std_msgs/msg/bool.hpp>
 
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
@@ -135,6 +143,35 @@ public:
   using MutexGroupStatesObs = rxcpp::observable<MutexGroupStates::SharedPtr>;
   const MutexGroupStatesObs& mutex_group_states() const;
 
+  using ReservationRequest = rmf_reservation_msgs::msg::FlexibleTimeRequest;
+  using ReservationRequestPub =
+    rclcpp::Publisher<ReservationRequest>::SharedPtr;
+  const ReservationRequestPub& location_requester() const;
+
+  using ReservationTicket = rmf_reservation_msgs::msg::Ticket;
+  using ReservationTicketObs = rxcpp::observable<ReservationTicket::SharedPtr>;
+  const ReservationTicketObs& location_ticket_obs() const;
+
+  using ReservationClaim = rmf_reservation_msgs::msg::ClaimRequest;
+  using ReservationClaimPub = rclcpp::Publisher<ReservationClaim>::SharedPtr;
+  const ReservationClaimPub& claim_location_ticket() const;
+
+  using ReservationAllocation = rmf_reservation_msgs::msg::ReservationAllocation;
+  using ReservationAllocationObs =
+    rxcpp::observable<ReservationAllocation::SharedPtr>;
+  const ReservationAllocationObs& allocated_claims_obs() const;
+
+  using ReservationRelease = rmf_reservation_msgs::msg::ReleaseRequest;
+  using ReservationReleasePub =
+    rclcpp::Publisher<ReservationRelease>::SharedPtr;
+  const ReservationReleasePub& release_location() const;
+
+  using ReservationCancel = rmf_reservation_msgs::msg::ReleaseRequest;
+  using ReservationCancelPub =
+    rclcpp::Publisher<ReservationCancel>::SharedPtr;
+  const ReservationCancelPub& cancel_reservation() const;
+
+
   template<typename DurationRepT, typename DurationT, typename CallbackT>
   rclcpp::TimerBase::SharedPtr try_create_wall_timer(
     std::chrono::duration<DurationRepT, DurationT> period,
@@ -195,6 +232,12 @@ private:
   MutexGroupRequestPub _mutex_group_request_pub;
   Bridge<MutexGroupRequest> _mutex_group_request_obs;
   Bridge<MutexGroupStates> _mutex_group_states_obs;
+  ReservationRequestPub _reservation_request_pub;
+  Bridge<ReservationTicket> _reservation_ticket_obs;
+  ReservationClaimPub _reservation_claim_pub;
+  Bridge<ReservationAllocation> _reservation_alloc_obs;
+  ReservationReleasePub _reservation_release_pub;
+  ReservationCancelPub _reservation_cancel_pub;
 };
 
 } // namespace agv

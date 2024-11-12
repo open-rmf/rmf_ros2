@@ -145,6 +145,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::overload_cast<rmf_traffic::agv::Plan::StartSet>(
       &agv::RobotUpdateHandle::update_position),
     py::arg("start_set"))
+  .def("use_parking_reservation_system", &agv::RobotUpdateHandle::use_parking_reservation_system,
+    py::arg("enable"))
   .def("set_charger_waypoint", &agv::RobotUpdateHandle::set_charger_waypoint,
     py::arg("charger_wp"))
   .def("set_finishing_request", &agv::RobotUpdateHandle::set_finishing_request,
@@ -359,6 +361,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("hold") = 0.0)
   .def("finished", &ActionExecution::finished)
   .def("okay", &ActionExecution::okay)
+  .def("set_automatic_cancel", &ActionExecution::set_automatic_cancel, py::arg("on"))
   .def_property_readonly("identifier", &ActionExecution::identifier);
 
   // ROBOT INTERRUPTION   ====================================================
