@@ -87,7 +87,7 @@ RequestLift::ActivePhase::ActivePhase(
   _data(std::move(data))
 {
   std::ostringstream oss;
-  oss << "Requesting lift [" << lift_name << "] to [" << destination << "]";
+  oss << "Requesting lift [" << _lift_name << "] to [" << _destination << "]";
 
   _description = oss.str();
 }
@@ -110,12 +110,12 @@ void RequestLift::ActivePhase::_init_obs()
     _context->set_final_lift_destination(*_data.final_lift_destination);
   }
 
-  if (_data.located == Located::Outside && _context->current_lift_destination())
+  if (_data.located == Located::Outside)
   {
     // Check if the current destination is the one we want and also has arrived.
     // If so, we can skip the rest of this process and just make an observable
     // that says it's completed right away.
-    if (_context->current_lift_destination()->matches(_lift_name, _destination))
+    if (_context->has_lift_arrived(_lift_name, _destination))
     {
       _obs = rxcpp::observable<>::create<LegacyTask::StatusMsg>(
         [w = weak_from_this()](rxcpp::subscriber<LegacyTask::StatusMsg> s)
@@ -444,6 +444,10 @@ bool RequestLift::ActivePhase::_finish()
     // releasing the lift prematurely.
     _context->set_lift_destination(_lift_name, _destination, true);
 
+    // In the context, save the fact that the lift has already arrived for this
+    // destination so we can short-circuit the usual event-driven logic.
+    _context->_set_lift_arrived(_lift_name, _destination);
+
     // We should replan to make sure there are no traffic issues that came up
     // in the time that we were waiting for the lift.
     if (_data.hold_point.has_value())
@@ -484,7 +488,7 @@ RequestLift::PendingPhase::PendingPhase(
   _data(std::move(data))
 {
   std::ostringstream oss;
-  oss << "Requesting lift \"" << lift_name << "\" to \"" << destination << "\"";
+  oss << "Requesting lift [" << _lift_name << "] to [" << _destination << "]";
 
   _description = oss.str();
 }

@@ -666,6 +666,23 @@ public:
 };
 
 //==============================================================================
+void print_events(
+  std::stringstream& seq,
+  rmf_task::Event::ConstStatePtr state,
+  std::size_t depth
+) {
+    rmf_task::VersionedString::Reader reader;
+    seq << "\n -- ";
+    for (std::size_t i=0; i < depth; ++i) {
+      seq << "  ";
+    }
+    seq << "[" << state << "] " << *reader.read(state->name()) << ": " << *reader.read(state->detail());
+    for (const auto& d : state->dependencies()) {
+      print_events(seq, d, depth+1);
+    }
+}
+
+//==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
   rmf_traffic::PlanId recommended_plan_id,

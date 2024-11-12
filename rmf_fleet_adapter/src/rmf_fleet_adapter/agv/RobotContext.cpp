@@ -1154,6 +1154,20 @@ const LiftDestination* RobotContext::current_lift_destination() const
 }
 
 //==============================================================================
+bool RobotContext::has_lift_arrived(
+  const std::string& lift_name,
+  const std::string& destination_floor) const
+{
+  if (!_lift_destination)
+    return false;
+
+  if (!_lift_destination->matches(lift_name, destination_floor))
+    return false;
+
+  return _lift_arrived;
+}
+
+//==============================================================================
 std::shared_ptr<void> RobotContext::set_lift_destination(
   std::string lift_name,
   std::string destination_floor,
@@ -1476,6 +1490,20 @@ void RobotContext::_release_door(const std::string& door_name)
 }
 
 //==============================================================================
+void RobotContext::_set_lift_arrived(
+  const std::string& lift_name,
+  const std::string& destination_floor)
+{
+  if (!_lift_destination)
+    return;
+
+  if (!_lift_destination->matches(lift_name, destination_floor))
+    return;
+
+  _lift_arrived = true;
+}
+
+//==============================================================================
 void RobotContext::_check_lift_state(
   const rmf_lift_msgs::msg::LiftState& state)
 {
@@ -1568,9 +1596,6 @@ void RobotContext::_check_lift_state(
         // Be a stubborn negotiator while using the lift
         _lift_stubbornness = be_stubborn();
       }
-
-      _lift_arrived =
-        _lift_destination->destination_floor == state.current_floor;
     }
   }
   else if (_lift_destination && _lift_destination->lift_name == state.lift_name)
