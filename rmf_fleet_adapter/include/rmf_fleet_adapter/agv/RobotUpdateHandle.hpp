@@ -247,6 +247,19 @@ public:
     /// Returns false if the Action has been killed or cancelled
     bool okay() const;
 
+    /// Set whether automatic cancellation is turned on for this action.
+    ///
+    /// When automatic cancellation is on, the task system will believe that the
+    /// action is successfully cancelled immediately upon receiving a cancel
+    /// signal. By default, automatic cancellation is on (true).
+    ///
+    /// If your action needs to perform some kind of wind-down or cleanup after
+    /// being cancelled, then you should set this to false. At that point you
+    /// must ensure that your action implementation is watching okay() to know
+    /// if it has been cancelled, and you must trigger finished() when your
+    /// wind-down or cleanup is finished.
+    void set_automatic_cancel(bool on);
+
     /// Activity identifier for this action. Used by the EasyFullControl API.
     ConstActivityIdentifierPtr identifier() const;
 
