@@ -1246,6 +1246,22 @@ bool RobotUpdateHandle::ActionExecution::okay() const
 }
 
 //==============================================================================
+void RobotUpdateHandle::ActionExecution::set_automatic_cancel(bool on)
+{
+  if (_pimpl->data)
+  {
+    if (const auto context = _pimpl->data->w_context.lock())
+    {
+      context->worker().schedule(
+        [on, self = _pimpl->data](const auto&)
+        {
+          self->automatic_cancel = on;
+        });
+    }
+  }
+}
+
+//==============================================================================
 auto RobotUpdateHandle::ActionExecution::identifier() const
 -> ConstActivityIdentifierPtr
 {

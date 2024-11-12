@@ -221,22 +221,41 @@ auto PerformAction::Active::interrupt(
 //==============================================================================
 void PerformAction::Active::cancel()
 {
-  _state->update_status(Status::Canceled);
-  _state->update_log().info("Received signal to cancel");
-  auto self = shared_from_this();
-  _finished();
-  if (auto data = _execution_data.lock())
+  const auto self = shared_from_this();
+  self->_state->update_status(Status::Canceled);
+  self->_state->update_log().info("Received signal to cancel");
+  if (auto data = self->_execution_data.lock())
+  {
     data->okay = false;
+    if (data->automatic_cancel)
+    {
+      data->finished.trigger();
+    }
+  }
+  else
+  {
+    // If the action could not be obtained, then we will forcibly move on
+    self->_finished();
+  }
 }
 
 //==============================================================================
 void PerformAction::Active::kill()
 {
-  _state->update_status(Status::Killed);
-  _state->update_log().info("Received signal to kill");
-  _finished();
-  if (auto data = _execution_data.lock())
+  const auto self = shared_from_this();
+  self->_state->update_status(Status::Killed);
+  self->_state->update_log().info("Received signal to kill");
+  if (auto data = self->_execution_data.lock())
+  {
     data->okay = false;
+    // During a kill, we always immediately move on
+    data->finished.trigger();
+  }
+  else
+  {
+    // If the action could not be obtained, then we will forcibly move on
+    self->_finished();
+  }
 }
 
 //==============================================================================
