@@ -1018,6 +1018,20 @@ const LiftDestination* RobotContext::current_lift_destination() const
 }
 
 //==============================================================================
+bool RobotContext::has_lift_arrived(
+  const std::string& lift_name,
+  const std::string& destination_floor) const
+{
+  if (!_lift_destination)
+    return false;
+
+  if (!_lift_destination->matches(lift_name, destination_floor))
+    return false;
+
+  return _lift_arrived;
+}
+
+//==============================================================================
 std::shared_ptr<void> RobotContext::set_lift_destination(
   std::string lift_name,
   std::string destination_floor,
@@ -1276,6 +1290,20 @@ void RobotContext::_release_door(const std::string& door_name)
 {
   if (_holding_door.has_value() && *_holding_door == door_name)
     _holding_door = std::nullopt;
+}
+
+//==============================================================================
+void RobotContext::_set_lift_arrived(
+  const std::string& lift_name,
+  const std::string& destination_floor)
+{
+  if (!_lift_destination)
+    return;
+
+  if (!_lift_destination->matches(lift_name, destination_floor))
+    return;
+
+  _lift_arrived = true;
 }
 
 //==============================================================================
