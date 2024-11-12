@@ -19,6 +19,7 @@
 #define RMF_FLEET_ADAPTER__STANDARDNAMES_HPP
 
 #include <string>
+#include <cstdint>
 
 namespace rmf_fleet_adapter {
 

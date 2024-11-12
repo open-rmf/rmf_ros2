@@ -1018,6 +1018,20 @@ const LiftDestination* RobotContext::current_lift_destination() const
 }
 
 //==============================================================================
+bool RobotContext::has_lift_arrived(
+  const std::string& lift_name,
+  const std::string& destination_floor) const
+{
+  if (!_lift_destination)
+    return false;
+
+  if (!_lift_destination->matches(lift_name, destination_floor))
+    return false;
+
+  return _lift_arrived;
+}
+
+//==============================================================================
 std::shared_ptr<void> RobotContext::set_lift_destination(
   std::string lift_name,
   std::string destination_floor,
@@ -1279,6 +1293,20 @@ void RobotContext::_release_door(const std::string& door_name)
 }
 
 //==============================================================================
+void RobotContext::_set_lift_arrived(
+  const std::string& lift_name,
+  const std::string& destination_floor)
+{
+  if (!_lift_destination)
+    return;
+
+  if (!_lift_destination->matches(lift_name, destination_floor))
+    return;
+
+  _lift_arrived = true;
+}
+
+//==============================================================================
 void RobotContext::_check_lift_state(
   const rmf_lift_msgs::msg::LiftState& state)
 {
@@ -1286,11 +1314,29 @@ void RobotContext::_check_lift_state(
   {
     if (_lift_destination && !_lift_destination->requested_from_inside)
     {
-      // The lift destination reference count dropping to one while the lift
-      // destination request is on the outside means the task that prompted the
-      // lift usage was cancelled while the robot was outside of the lift.
-      // Therefore we should release the usage of the lift.
-      release_lift();
+      const auto now = std::chrono::steady_clock::now();
+      if (_initial_time_idle_outside_lift.has_value())
+      {
+        const auto lapse = now - *_initial_time_idle_outside_lift;
+        if (lapse > std::chrono::seconds(30))
+        {
+          // The lift destination reference count dropping to one while the lift
+          // destination request is on the outside means the task that prompted
+          // the lift usage was cancelled while the robot was outside of the lift.
+          // Therefore we should release the usage of the lift.
+          RCLCPP_INFO(
+            _node->get_logger(),
+            "Requesting lift [%s] to be released for [%s] because it is outside "
+            "the lift and not holding a claim for an extended period of time.",
+            _lift_destination->lift_name.c_str(),
+            requester_id().c_str());
+          release_lift();
+        }
+      }
+      else
+      {
+        _initial_time_idle_outside_lift = now;
+      }
     }
     else if (_lift_destination && !_current_task_id.has_value())
     {
@@ -1315,7 +1361,7 @@ void RobotContext::_check_lift_state(
         if (_initial_time_idle_outside_lift.has_value())
         {
           const auto lapse = now - *_initial_time_idle_outside_lift;
-          if (lapse > std::chrono::seconds(2))
+          if (lapse > std::chrono::seconds(10))
           {
             RCLCPP_INFO(
               _node->get_logger(),
@@ -1323,8 +1369,8 @@ void RobotContext::_check_lift_state(
               "outside of the lift.",
               _lift_destination->lift_name.c_str(),
               requester_id().c_str());
+            release_lift();
           }
-          release_lift();
         }
         else
         {
