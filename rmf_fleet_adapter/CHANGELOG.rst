@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.2.7 (2024-11-15)
+------------------
 * Backport lift release fixes to Iron (`#390 <https://github.com/open-rmf/rmf_ros2/issues/390>`_)
 * Contributors: Grey
 
