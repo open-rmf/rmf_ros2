@@ -2,6 +2,11 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Backport lift release fixes to Iron (`#390 <https://github.com/open-rmf/rmf_ros2/issues/390>`_)
+* Contributors: Grey
+
 2.2.6 (2024-07-12)
 ------------------
 * Filter DoorOpen insertion by map name (`#354 <https://github.com/open-rmf/rmf_ros2/issues/354>`_)

@@ -2,6 +2,9 @@
 Changelog for package rmf_charging_schedule
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 2.2.6 (2024-07-12)
 ------------------
 
