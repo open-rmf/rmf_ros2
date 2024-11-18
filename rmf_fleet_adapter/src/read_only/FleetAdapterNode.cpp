@@ -214,15 +214,6 @@ void FleetAdapterNode::push_route(
 
   it->second->cumulative_delay = std::chrono::seconds(0);
   it->second->route = make_route(state, _traits, it->second->sitting);
-  // Set checkpoints for this route
-  std::set<uint64_t> checkpoints;
-  uint64_t checkpoint_id = 0;
-  for (const auto& wp : it->second->route->trajectory())
-  {
-    checkpoints.insert(checkpoint_id);
-    checkpoint_id++;
-  }
-  it->second->route->checkpoints(checkpoints);
   it->second->schedule->push_routes({*it->second->route});
 }
 
@@ -243,40 +234,6 @@ void FleetAdapterNode::update_robot(
   const RobotState& state,
   const ScheduleEntries::iterator& it)
 {
-  if (it->second->route.has_value())
-  {
-    auto& participant = it->second->schedule->participant();
-    uint64_t route_id = participant.itinerary().size() - 1;
-    uint64_t last_checkpoint_reached = participant.reached()[route_id];
-
-    uint64_t checkpoint_id = 0;
-    for (const auto& wp : it->second->route.value().trajectory())
-    {
-      if (checkpoint_id <= last_checkpoint_reached)
-      {
-        checkpoint_id++;
-        continue;
-      }
-
-      Eigen::Vector2d current_location =
-        Eigen::Vector2d(state.location.x, state.location.y);
-      Eigen::Vector2d checkpoint_pose =
-        Eigen::Vector2d(wp.position()[0], wp.position()[1]);
-      Eigen::Vector2d diff = current_location - checkpoint_pose;
-      // TODO(@xiyuoh) Make this merge_waypoint_distance configurable
-      if (diff.norm() < 0.3)
-      {
-        // The robot is close enough to the checkpoint, mark as reached.
-        participant.reached(
-          participant.current_plan_id(), route_id, checkpoint_id);
-      }
-      else
-        break;
-
-      checkpoint_id++;
-    }
-  }
-
   if (handle_delay(state, it))
     return;
 
@@ -438,6 +395,16 @@ bool FleetAdapterNode::handle_delay(
   }
 
   entry.schedule->push_delay(time_difference);
+
+  const auto route_size = entry.route->trajectory().size();
+  const auto remaining_path_size = state.path.size();
+  if (route_size > remaining_path_size)
+  {
+    entry.schedule->participant().reached(
+      entry.schedule->participant().current_plan_id(),
+      0,
+      route_size - remaining_path_size - 1);
+  }
 
   // Return true to indicate that the delay has been handled.
   return true;
