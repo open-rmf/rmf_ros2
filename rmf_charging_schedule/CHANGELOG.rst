@@ -2,8 +2,8 @@
 Changelog for package rmf_charging_schedule
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.9.0 (2024-11-27)
+------------------
 * Fixes warning given by `colcon_ros` on Jazzy (`#377 <https://github.com/open-rmf/rmf_ros2/issues/377>`_)
 * Add icecream as a rosdep dependency (`#358 <https://github.com/open-rmf/rmf_ros2/issues/358>`_)
 * Contributors: Arjo Chakravarty

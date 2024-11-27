@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.9.0 (2024-11-27)
+------------------
 * Add reached API to read-only fleet adapter (`#387 <https://github.com/open-rmf/rmf_ros2/issues/387>`_)
 * Fix lift disruption issue (`#393 <https://github.com/open-rmf/rmf_ros2/issues/393>`_)
 * Allow automatic action cancellation to be toggled (`#392 <https://github.com/open-rmf/rmf_ros2/issues/392>`_)
