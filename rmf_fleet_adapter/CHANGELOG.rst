@@ -2,6 +2,30 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.9.0 (2024-11-27)
+------------------
+* Add reached API to read-only fleet adapter (`#387 <https://github.com/open-rmf/rmf_ros2/issues/387>`_)
+* Fix lift disruption issue (`#393 <https://github.com/open-rmf/rmf_ros2/issues/393>`_)
+* Allow automatic action cancellation to be toggled (`#392 <https://github.com/open-rmf/rmf_ros2/issues/392>`_)
+* Adds a simple parking spot management system.  (`#325 <https://github.com/open-rmf/rmf_ros2/issues/325>`_)
+* Publish fleet and task updates over ROS 2 if websocket is not provided (`#383 <https://github.com/open-rmf/rmf_ros2/issues/383>`_)
+* Allow robot-specific finishing request and specify parking spots (`#379 <https://github.com/open-rmf/rmf_ros2/issues/379>`_)
+* Issue relocalization command if the robot is on the wrong map (`#316 <https://github.com/open-rmf/rmf_ros2/issues/316>`_)
+* set request_time in lift end session request. (`#385 <https://github.com/open-rmf/rmf_ros2/issues/385>`_)
+* Update _last_active_task_time if robot is executing task (`#384 <https://github.com/open-rmf/rmf_ros2/issues/384>`_)
+* Populate `Booking.Priority`, added schema to validate `Priority` (`#381 <https://github.com/open-rmf/rmf_ros2/issues/381>`_)
+* Emergency trigger to use transient local qos (`#341 <https://github.com/open-rmf/rmf_ros2/issues/341>`_)
+* Add a timeout before automatically releasing lift (`#369 <https://github.com/open-rmf/rmf_ros2/issues/369>`_)
+* Configure strict lanes (`#367 <https://github.com/open-rmf/rmf_ros2/issues/367>`_)
+* Only fail on_cancel deserializations when none of the activities are possible (`#378 <https://github.com/open-rmf/rmf_ros2/issues/378>`_)
+* Fix a minor typo in fleet adapter error log (`#307 <https://github.com/open-rmf/rmf_ros2/issues/307>`_)
+* Provide an API that says the robot's lift destination (`#376 <https://github.com/open-rmf/rmf_ros2/issues/376>`_)
+* Populate LiftProperties for Destination in localize callbacks (`#373 <https://github.com/open-rmf/rmf_ros2/issues/373>`_)
+* Revert "Event based lift / door logic (`#320 <https://github.com/open-rmf/rmf_ros2/issues/320>`_)" (`#372 <https://github.com/open-rmf/rmf_ros2/issues/372>`_)
+* Update with new RobotMode field (`#345 <https://github.com/open-rmf/rmf_ros2/issues/345>`_)
+* Quiet cancel API (`#357 <https://github.com/open-rmf/rmf_ros2/issues/357>`_)
+* Contributors: Aaron Chong, Arjo Chakravarty, Grey, Luca Della Vedova, Xiyu, cwrx777
+
 2.8.0 (2024-06-12)
 ------------------
 
