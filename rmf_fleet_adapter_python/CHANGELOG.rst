@@ -2,6 +2,15 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Allow automatic action cancellation to be toggled (`#392 <https://github.com/open-rmf/rmf_ros2/issues/392>`_)
+* Adds a simple parking spot management system.  (`#325 <https://github.com/open-rmf/rmf_ros2/issues/325>`_)
+* Allow robot-specific finishing request and specify parking spots (`#379 <https://github.com/open-rmf/rmf_ros2/issues/379>`_)
+* Provide an API that says the robot's lift destination (`#376 <https://github.com/open-rmf/rmf_ros2/issues/376>`_)
+* Quiet cancel API (`#357 <https://github.com/open-rmf/rmf_ros2/issues/357>`_)
+* Contributors: Arjo Chakravarty, Grey, Xiyu
+
 2.8.0 (2024-06-12)
 ------------------
 

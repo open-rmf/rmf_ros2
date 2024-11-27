@@ -2,6 +2,12 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Publish fleet and task updates over ROS 2 if websocket is not provided (`#383 <https://github.com/open-rmf/rmf_ros2/issues/383>`_)
+* Fix incorrect std rounding function used when generating timestamp strings for task ID (`#366 <https://github.com/open-rmf/rmf_ros2/issues/366>`_)
+* Contributors: Aaron Chong
+
 2.8.0 (2024-06-12)
 ------------------
 
