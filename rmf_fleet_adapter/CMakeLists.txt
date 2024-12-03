@@ -517,7 +517,7 @@ rmf_api_generate_schema_headers(
 
 # -----------------------------------------------------------------------------
 
-ament_export_targets(rmf_fleet_adapter HAS_LIBRARY_TARGET)
+ament_export_targets(export_rmf_fleet_adapter HAS_LIBRARY_TARGET)
 ament_export_dependencies(${dep_pkgs})
 
 install(
@@ -538,7 +538,7 @@ install(
     close_lanes
     interrupt_robot
     robot_state_aggregator_main
-  EXPORT rmf_fleet_adapter
+  EXPORT export_rmf_fleet_adapter
   RUNTIME DESTINATION lib/rmf_fleet_adapter
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
