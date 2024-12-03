@@ -204,7 +204,7 @@ target_include_directories(rmf_traffic_ros2
     ${rclcpp_INCLUDE_DIRS}
 )
 
-ament_export_targets(rmf_traffic_ros2 HAS_LIBRARY_TARGET)
+ament_export_targets(export_rmf_traffic_ros2 HAS_LIBRARY_TARGET)
 ament_export_dependencies(
   rclcpp
   rmf_traffic
@@ -278,7 +278,7 @@ install(
 install(
   TARGETS
     rmf_traffic_ros2
-  EXPORT rmf_traffic_ros2
+  EXPORT export_rmf_traffic_ros2
   RUNTIME DESTINATION lib/rmf_traffic_ros2
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib

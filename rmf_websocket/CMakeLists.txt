@@ -71,7 +71,7 @@ target_include_directories(example_client
 )
 
 
-ament_export_targets(rmf_websocket HAS_LIBRARY_TARGET)
+ament_export_targets(export_rmf_websocket HAS_LIBRARY_TARGET)
 ament_export_dependencies(rmf_traffic rclcpp nlohmann_json websocketpp)
 
 #===============================================================================
@@ -82,7 +82,7 @@ install(
 
 install(
   TARGETS rmf_websocket
-  EXPORT rmf_websocket
+  EXPORT export_rmf_websocket
   RUNTIME DESTINATION lib/rmf_websocket
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
