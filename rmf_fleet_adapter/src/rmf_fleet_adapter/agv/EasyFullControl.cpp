@@ -1059,7 +1059,7 @@ void EasyCommandHandle::follow_new_path(
     {
       if (!nav_params->skip_rotation_commands)
       {
-        // If the waypoint and current orientations are not aligned with
+        // If the waypoint and robot orientations are not aligned with
         // skip rotation command set to False, we will not consider this as
         // a connection
         if (std::abs(wp.position()[2] -
@@ -1148,7 +1148,7 @@ void EasyCommandHandle::follow_new_path(
         {
           if (!nav_params->skip_rotation_commands)
           {
-            // If the waypoint and current orientations are not aligned with
+            // If the waypoint and robot orientations are not aligned with
             // skip rotation command set to False, we will not consider this as
             // a connection
             if (std::abs(wp.position()[2] -
