@@ -1055,9 +1055,21 @@ void EasyCommandHandle::follow_new_path(
   for (std::size_t i = 0; i < waypoints.size(); ++i)
   {
     const auto& wp = waypoints[i];
-    if (wp.graph_index().has_value())
+    for (const auto& l : current_location)
     {
-      for (const auto& l : current_location)
+      if (!nav_params->skip_rotation_commands)
+      {
+        // If the waypoint and current orientations are not aligned with
+        // skip rotation command set to False, we will not consider this as
+        // a connection
+        if (std::abs(wp.position()[2] -
+          l.orientation())*180.0 / M_PI > 1e-2)
+        {
+          continue;
+        }
+      }
+
+      if (wp.graph_index().has_value())
       {
         if (nav_params->in_same_stack(*wp.graph_index(),
           l.waypoint()) && !l.lane().has_value())
@@ -1073,7 +1085,7 @@ void EasyCommandHandle::follow_new_path(
             {
               const double dist =
                 (*l.location() - wp.position().block<2, 1>(0, 0)).norm();
-              if (dist <= nav_params->max_merge_lane_distance)
+              if (dist <= nav_params->max_merge_waypoint_distance)
               {
                 found_connection = true;
                 i0 = 0;
@@ -1108,10 +1120,7 @@ void EasyCommandHandle::follow_new_path(
           }
         }
       }
-    }
-    else
-    {
-      for (const auto& l : current_location)
+      else
       {
         Eigen::Vector2d p_l;
         if (l.location().has_value())
@@ -1137,6 +1146,17 @@ void EasyCommandHandle::follow_new_path(
       {
         for (const auto& l : current_location)
         {
+          if (!nav_params->skip_rotation_commands)
+          {
+            // If the waypoint and current orientations are not aligned with
+            // skip rotation command set to False, we will not consider this as
+            // a connection
+            if (std::abs(wp.position()[2] -
+              l.orientation())*180.0 / M_PI > 1e-2)
+            {
+              continue;
+            }
+          }
           if (l.lane().has_value())
           {
             if (lane == *l.lane())
