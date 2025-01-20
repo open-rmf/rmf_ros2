@@ -1245,10 +1245,19 @@ void EasyCommandHandle::follow_new_path(
     }
 
     std::optional<double> speed_limit;
-    if (!wp1.approach_lanes().empty())
+    for (const auto arrival_lane : wp1.approach_lanes())
     {
-      const auto arrival_lane = wp1.approach_lanes().back();
-      speed_limit = graph.get_lane(arrival_lane).properties().speed_limit();
+      if (const auto lane_speed_limit = graph.get_lane(arrival_lane).properties().speed_limit())
+      {
+        if (!speed_limit.has_value())
+        {
+          speed_limit = lane_speed_limit;
+        }
+        else if (*lane_speed_limit < *speed_limit)
+        {
+          speed_limit = lane_speed_limit;
+        }
+      }
     }
 
     Eigen::Vector3d target_position = wp1.position();
