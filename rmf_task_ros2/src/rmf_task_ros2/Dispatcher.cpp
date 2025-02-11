@@ -536,7 +536,8 @@ public:
         rmf_task_msgs::build<bidding::BidNoticeMsg>()
         .request(task_request_json.dump())
         .task_id(task_id)
-        .time_window(bidding_time_window));
+        .time_window(bidding_time_window)
+        .dry_run(false));
 
       nlohmann::json response_json;
       response_json["success"] = true;
@@ -599,7 +600,8 @@ public:
       rmf_task_msgs::build<bidding::BidNoticeMsg>()
       .request(task_request.dump())
       .task_id(task_id)
-      .time_window(bidding_time_window));
+      .time_window(bidding_time_window)
+      .dry_run(false));
 
     return task_id;
   }

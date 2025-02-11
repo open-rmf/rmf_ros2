@@ -787,7 +787,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("dispatch_task",
     &agv::test::MockAdapter::dispatch_task,
     py::arg("task_id"),
-    py::arg("request"))
+    py::arg("request"),
+    py::arg("dry_run") = true)
   .def("start", &agv::test::MockAdapter::start)
   .def("stop", &agv::test::MockAdapter::stop)
   .def("now", [&](agv::test::MockAdapter& self)
