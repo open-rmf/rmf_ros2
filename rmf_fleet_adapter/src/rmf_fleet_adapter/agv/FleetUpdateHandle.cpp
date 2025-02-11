@@ -544,7 +544,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
     *task_planner,
     node);
 
-  auto receive_allocation = [w = weak_self, respond, task_id](
+  auto receive_allocation =
+    [w = weak_self, respond, task_id, dry_run = bid_notice.dry_run](
     AllocateTasks::Result result)
     {
       const auto self = w.lock();
@@ -635,6 +636,12 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
         self->_pimpl->node->get_logger(),
         "Submitted BidProposal to accommodate task [%s] by robot [%s] with new cost [%f]",
         task_id.c_str(), robot_name->c_str(), cost);
+
+      // If the request is for a dry run, we do not store the assignments for
+      // dispatch.
+      if (dry_run) {
+        return;
+      }
 
       // Store assignments in internal map
       self->_pimpl->bid_notice_assignments.insert({task_id, assignments});
