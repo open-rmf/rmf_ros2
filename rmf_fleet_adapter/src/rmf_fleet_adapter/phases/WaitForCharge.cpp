@@ -150,7 +150,7 @@ std::shared_ptr<LegacyTask::ActivePhase> WaitForCharge::Pending::begin()
     "Robot [%s] has begun waiting for its battery to charge to %.1f%%. "
     "Please ensure that the robot is charging.",
     _context->name().c_str(),
-    _charge_to_soc.value_or(1.0) * 100.0);
+    _charge_to_soc.value_or(0.98) * 100.0);
 
   active->_battery_soc_subscription = _context->observe_battery_soc()
     .observe_on(rxcpp::identity_same_worker(_context->worker()))
