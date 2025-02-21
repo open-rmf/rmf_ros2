@@ -1085,7 +1085,7 @@ void EasyCommandHandle::follow_new_path(
             {
               const double dist =
                 (*l.location() - wp.position().block<2, 1>(0, 0)).norm();
-              if (dist <= nav_params->max_merge_waypoint_distance)
+              if (dist <= nav_params->max_merge_lane_distance)
               {
                 found_connection = true;
                 i0 = 0;
