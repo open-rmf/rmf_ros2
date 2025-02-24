@@ -282,7 +282,9 @@ void WaitForTraffic::Active::_consider_going()
   for (const auto& dep : _dependencies)
   {
     if (!dep.reached() && !dep.deprecated())
+    {
       all_dependencies_reached = false;
+    }
   }
 
   if (all_dependencies_reached)

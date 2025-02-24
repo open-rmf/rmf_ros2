@@ -1293,6 +1293,15 @@ nlohmann::json TaskManager::submit_direct_request(
     request_id.c_str(),
     robot.c_str());
 
+  _context->worker().schedule([w = weak_from_this()](const auto&)
+    {
+      if (const auto self = w.lock())
+      {
+        // Schedule this manager to check if it should run this task.
+        self->_begin_next_task();
+      }
+    });
+
   // Publish api response
   nlohmann::json response_json;
   response_json["success"] = true;
@@ -1499,6 +1508,7 @@ void TaskManager::_begin_next_task()
   const rmf_traffic::Time now = rmf_traffic_ros2::convert(
     _context->node()->now());
 
+
   if (now >= deployment_time)
   {
     if (_waiting)
@@ -1550,7 +1560,9 @@ void TaskManager::_begin_next_task()
         [w = weak_from_this()](const auto&)
         {
           if (const auto self = w.lock())
+          {
             self->_begin_next_task();
+          }
         });
 
       return;
@@ -2557,7 +2569,9 @@ std::function<void()> TaskManager::_task_finished(std::string id)
         [w = self->weak_from_this()](const auto&)
         {
           if (const auto self = w.lock())
+          {
             self->_begin_next_task();
+          }
         });
     };
 }
