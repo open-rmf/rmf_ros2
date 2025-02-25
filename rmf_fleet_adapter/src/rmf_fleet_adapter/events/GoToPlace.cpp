@@ -201,10 +201,12 @@ auto GoToPlace::Active::make(
           c->stop();
 
 
-        RCLCPP_INFO(
-          self->_context->node()->get_logger(),
-          "Goal selected %s",
-          wp_name(*self->_context, self->_chosen_goal.value()).c_str());
+        if (self->_chosen_goal.has_value()) {
+          RCLCPP_INFO(
+            self->_context->node()->get_logger(),
+            "Goal selected %s",
+            wp_name(*self->_context, self->_chosen_goal.value()).c_str());
+        }
 
         self->_find_plan();
       }
