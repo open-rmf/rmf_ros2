@@ -200,14 +200,6 @@ auto GoToPlace::Active::make(
         if (const auto c = self->_context->command())
           c->stop();
 
-
-        if (self->_chosen_goal.has_value()) {
-          RCLCPP_INFO(
-            self->_context->node()->get_logger(),
-            "Goal selected %s",
-            wp_name(*self->_context, self->_chosen_goal.value()).c_str());
-        }
-
         self->_find_plan();
       }
     });
