@@ -191,6 +191,22 @@ public:
     const nlohmann::json& task_request,
     const std::string& request_id);
 
+  /// Submit an estimate task request to this manager
+  ///
+  /// \param[in] task_request
+  ///   A JSON description of the task request. It should match the
+  ///   task_request.json schema of rmf_api_msgs, in particular it must contain
+  ///   `category` and `description` properties.
+  ///
+  /// \param[in] request_id
+  ///   The unique ID for this task request.
+  ///
+  /// \return A robot_task_response.json message from rmf_api_msgs (note: this
+  /// message is not validated before being returned).
+  nlohmann::json estimate_task_request(
+    const nlohmann::json& task_request,
+    const std::string& request_id);
+
   class Interruption
   {
   public:
@@ -632,6 +648,10 @@ private:
     const std::string& request_id);
 
   void _handle_undo_skip_phase_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_estimate_request(
     const nlohmann::json& request_json,
     const std::string& request_id);
 

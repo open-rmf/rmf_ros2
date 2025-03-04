@@ -67,6 +67,8 @@
 #include <rmf_api_msgs/schemas/commission.hpp>
 #include <rmf_api_msgs/schemas/robot_commission_request.hpp>
 #include <rmf_api_msgs/schemas/robot_commission_response.hpp>
+#include <rmf_api_msgs/schemas/task_estimate_request.hpp>
+#include <rmf_api_msgs/schemas/task_estimate_response.hpp>
 
 namespace rmf_fleet_adapter {
 
@@ -231,6 +233,9 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::commission,
     rmf_api_msgs::schemas::robot_commission_request,
     rmf_api_msgs::schemas::robot_commission_response,
+    rmf_api_msgs::schemas::error,
+    rmf_api_msgs::schemas::task_estimate_request,
+    rmf_api_msgs::schemas::task_estimate_response
   };
 
   for (const auto& schema : schemas)
@@ -1168,6 +1173,195 @@ std::vector<nlohmann::json> TaskManager::task_log_updates() const
     }
   }
   return logs;
+}
+
+//==============================================================================
+nlohmann::json TaskManager::estimate_task_request(
+  const nlohmann::json& request,
+  const std::string& request_id)
+{
+  auto fleet_handle = _fleet_handle.lock();
+  if (!fleet_handle)
+  {
+    return _make_error_response(
+      18, "Shutdown", "The fleet adapter is shutting down");
+  }
+  const auto& fleet = _context->group();
+  const auto& robot = _context->name();
+  const auto& impl =
+    agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+  std::vector<std::string> errors;
+  const auto new_request = impl.convert(request_id, request["task_request"],
+      errors);
+
+  if (!new_request)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Unable to generate a valid request for direct task [%s]:\n%s",
+      request_id.c_str(),
+      request.dump().c_str());
+
+    nlohmann::json response_json;
+    response_json["success"] = false;
+    std::vector<nlohmann::json> json_errors = {};
+    for (const auto& e : errors)
+    {
+      RCLCPP_ERROR(_context->node()->get_logger(), "%s", e.c_str());
+      try
+      {
+        auto error = nlohmann::json::parse(e);
+        json_errors.push_back(error);
+      }
+      catch (const std::exception&)
+      {
+        json_errors.push_back(e);
+      }
+    }
+    response_json["errors"] = std::move(json_errors);
+
+    return response_json;
+  }
+  // Get finish state and deployment time
+  const auto task_planner = _context->task_planner();
+  if (!task_planner)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Fleet [%s] is not configured with parameters for task planning."
+      "Use FleetUpdateHandle::set_task_planner_params(~) to set the "
+      "parameters required.", fleet.c_str());
+
+    return _make_error_response(
+      19, "Misconfigured",
+      "The fleet adapter is not configured for task planning");
+  }
+
+  // Convert JSON into rmf_task::State
+  rmf_task::State start_state;
+
+  if (request.find("state") == request.end())
+    start_state = expected_finish_state();
+  else
+  {
+    if (std::size_t(request["state"]["waypoint"].get<int>()) >
+      (_context->navigation_graph().num_waypoints() -1))
+    {
+      return _make_error_response(
+        20, "Invalid", "Invalid Task State");
+    }
+    start_state.waypoint(std::size_t(request["state"]["waypoint"].get<int>()));
+    start_state.orientation(request["state"]["orientation"].get<double>());
+    std::chrono::steady_clock::time_point dp_time(
+      rmf_traffic::time::from_seconds(request["state"]["time"].get<double>()/
+      1000));
+    start_state.time(dp_time);
+    start_state.battery_soc(request["state"]["battery_soc"].get<double>());
+  }
+
+
+  const auto& constraints = task_planner->configuration().constraints();
+  const auto& parameters = task_planner->configuration().parameters();
+  const auto model = new_request->description()->make_model(
+    new_request->booking()->earliest_start_time(),
+    parameters);
+  const auto estimate = model->estimate_finish(
+    start_state,
+    constraints,
+    *_travel_estimator);
+
+  rmf_task::State finish_state;
+  rmf_traffic::Time deployment_time;
+
+  if (!estimate.has_value())
+  {
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      "Unable to estimate final state for direct task request [%s]. This may "
+      "be due to insufficient resources to perform the task.",
+      request_id.c_str());
+    finish_state = start_state;
+    deployment_time = new_request->booking()->earliest_start_time();
+  }
+  else
+  {
+    finish_state = estimate.value().finish_state();
+    deployment_time = estimate.value().wait_until();
+  }
+
+
+  // calculate estimated duration of task
+  nlohmann::json response_json;
+
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Estimated results: \n"
+  );
+
+  response_json["deployment_time"] =
+    to_millis(deployment_time.time_since_epoch()).count();
+
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "   estimated deployment time: [%f]\n",
+    response_json["deployment_time"].get<double>()
+  );
+
+  if (finish_state.time().has_value())
+  {
+    response_json["finish_time"] =
+      to_millis(finish_state.time().value().time_since_epoch()).count();
+
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "   estimated finish time: [%f]\n",
+      response_json["finish_time"].get<double>()
+    );
+
+    auto estimate_duration_rmf =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+      finish_state.time().value() - deployment_time);
+    response_json["duration"] = estimate_duration_rmf.count();
+
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "   estimated duration: [%f] seconds\n",
+      response_json["duration"].get<double>()
+    );
+  }
+
+  // Convert rmf_task::State into a JSON
+  nlohmann::json state;
+  if (finish_state.waypoint().has_value())
+  {
+    state["waypoint"] = int(finish_state.waypoint().value());
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "   waypoint: [%i]\n",
+      state["waypoint"].get<int>()
+    );
+  }
+  if (finish_state.orientation().has_value())
+  {
+    state["orientation"] = finish_state.orientation().value();
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "   orientation: [%f]\n",
+      state["orientation"].get<double>()
+    );
+  }
+  if (finish_state.battery_soc().has_value())
+  {
+    state["battery_soc"] = finish_state.battery_soc().value();
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "   battery soc: [%f]\n",
+      state["battery_soc"].get<double>()
+    );
+  }
+
+  response_json["state"] = state;
+  return response_json;
 }
 
 //==============================================================================
@@ -2624,6 +2818,8 @@ void TaskManager::_handle_request(
       _handle_direct_request(request_json, request_id);
     else if (type_str == "robot_commission_request")
       _handle_commission_request(request_json, request_id);
+    else if (type_str == "estimate_task_request")
+      _handle_estimate_request(request_json, request_id);
     else
       return;
   }
@@ -2633,6 +2829,38 @@ void TaskManager::_handle_request(
       _context->node()->get_logger(),
       "Encountered exception while handling a request: %s", e.what());
   }
+}
+
+//==============================================================================
+void TaskManager::_handle_estimate_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  // TODO: Add a validator for estimate_task_request
+  static auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::task_estimate_request);
+
+  static auto response_validator =
+    _make_validator(rmf_api_msgs::schemas::task_estimate_response);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& robot = request_json["robot"].get<std::string>();
+  if (robot.empty() || robot != _context->name())
+    return;
+
+  const auto& fleet = request_json["fleet"].get<std::string>();
+  if (fleet.empty() || fleet != _context->group())
+    return;
+
+  const nlohmann::json& request = request_json["request"];
+
+  const auto response = estimate_task_request(
+    request,
+    request_id);
+
+  _validate_and_publish_api_response(response, response_validator, request_id);
 }
 
 //==============================================================================
