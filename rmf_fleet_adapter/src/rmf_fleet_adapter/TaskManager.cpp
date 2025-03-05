@@ -67,6 +67,7 @@
 #include <rmf_api_msgs/schemas/commission.hpp>
 #include <rmf_api_msgs/schemas/robot_commission_request.hpp>
 #include <rmf_api_msgs/schemas/robot_commission_response.hpp>
+#include <rmf_api_msgs/schemas/task_estimate_result.hpp>
 #include <rmf_api_msgs/schemas/task_estimate_request.hpp>
 #include <rmf_api_msgs/schemas/task_estimate_response.hpp>
 
@@ -234,6 +235,7 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::robot_commission_request,
     rmf_api_msgs::schemas::robot_commission_response,
     rmf_api_msgs::schemas::error,
+    rmf_api_msgs::schemas::task_estimate_result,
     rmf_api_msgs::schemas::task_estimate_request,
     rmf_api_msgs::schemas::task_estimate_response
   };
@@ -1362,7 +1364,7 @@ nlohmann::json TaskManager::estimate_task_request(
 
   result_json["state"] = state;
   nlohmann::json response_json;
-  response_json["success"] = false;
+  response_json["success"] = true;
   response_json["result"] = result_json;
   return response_json;
 }
