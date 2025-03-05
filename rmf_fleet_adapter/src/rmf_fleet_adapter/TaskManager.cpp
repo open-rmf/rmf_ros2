@@ -1280,8 +1280,8 @@ nlohmann::json TaskManager::estimate_task_request(
       "Unable to estimate final state for direct task request [%s]. This may "
       "be due to insufficient resources to perform the task.",
       request_id.c_str());
-    finish_state = start_state;
-    deployment_time = new_request->booking()->earliest_start_time();
+    return _make_error_response(
+      21, "Failed", "Failed Task Estimation");
   }
   else
   {
@@ -1291,76 +1291,79 @@ nlohmann::json TaskManager::estimate_task_request(
 
 
   // calculate estimated duration of task
-  nlohmann::json response_json;
+  nlohmann::json result_json;
 
   RCLCPP_INFO(
     _context->node()->get_logger(),
     "Estimated results: \n"
   );
 
-  response_json["deployment_time"] =
+  result_json["deployment_time"] =
     to_millis(deployment_time.time_since_epoch()).count();
 
   RCLCPP_INFO(
     _context->node()->get_logger(),
     "   estimated deployment time: [%f]\n",
-    response_json["deployment_time"].get<double>()
+    result_json["deployment_time"].get<double>()
   );
 
   if (finish_state.time().has_value())
   {
-    response_json["finish_time"] =
+    result_json["finish_time"] =
       to_millis(finish_state.time().value().time_since_epoch()).count();
 
     RCLCPP_INFO(
       _context->node()->get_logger(),
       "   estimated finish time: [%f]\n",
-      response_json["finish_time"].get<double>()
+      result_json["finish_time"].get<double>()
     );
 
     auto estimate_duration_rmf =
       std::chrono::duration_cast<std::chrono::milliseconds>(
       finish_state.time().value() - deployment_time);
-    response_json["duration"] = estimate_duration_rmf.count();
+    result_json["duration"] = estimate_duration_rmf.count();
 
     RCLCPP_INFO(
       _context->node()->get_logger(),
       "   estimated duration: [%f] seconds\n",
-      response_json["duration"].get<double>()
+      result_json["duration"].get<double>()
     );
   }
 
   // Convert rmf_task::State into a JSON
   nlohmann::json state;
-  if (finish_state.waypoint().has_value())
+  if (!finish_state.waypoint().has_value() || !finish_state.orientation().has_value()
+    || !finish_state.battery_soc().has_value())
   {
-    state["waypoint"] = int(finish_state.waypoint().value());
-    RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "   waypoint: [%i]\n",
-      state["waypoint"].get<int>()
-    );
-  }
-  if (finish_state.orientation().has_value())
-  {
-    state["orientation"] = finish_state.orientation().value();
-    RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "   orientation: [%f]\n",
-      state["orientation"].get<double>()
-    );
-  }
-  if (finish_state.battery_soc().has_value())
-  {
-    state["battery_soc"] = finish_state.battery_soc().value();
-    RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "   battery soc: [%f]\n",
-      state["battery_soc"].get<double>()
-    );
+    return _make_error_response(
+      21, "Failed", "Failed Task Estimation");
   }
 
-  response_json["state"] = state;
+  state["waypoint"] = int(finish_state.waypoint().value());
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "   waypoint: [%i]\n",
+    state["waypoint"].get<int>()
+  );
+
+  state["orientation"] = finish_state.orientation().value();
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "   orientation: [%f]\n",
+    state["orientation"].get<double>()
+  );
+
+  state["battery_soc"] = finish_state.battery_soc().value();
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "   battery soc: [%f]\n",
+    state["battery_soc"].get<double>()
+  );
+
+  result_json["state"] = state;
+  nlohmann::json response_json;
+  response_json["success"] = false;
+  response_json["result"] = result_json;
   return response_json;
 }
 
