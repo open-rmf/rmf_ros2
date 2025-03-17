@@ -26,6 +26,9 @@
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
 #include <rmf_fleet_msgs/msg/mutex_group_manual_release.hpp>
+#include <rmf_task_msgs/action/dynamic_event.hpp>
+#include <rmf_task_msgs/msg/dynamic_event_description.hpp>
+#include <rmf_task_msgs/msg/dynamic_event_status.hpp>
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
@@ -47,13 +50,21 @@
 #include "Node.hpp"
 #include "../Reporting.hpp"
 #include "ReservationManager.hpp"
+#include "../DeserializeJSON.hpp"
 
 #include <unordered_set>
+
+#include <rclcpp_action/rclcpp_action.hpp>
 
 namespace rmf_fleet_adapter {
 
 // Forward declaration
 class TaskManager;
+
+using DynamicEventAction = rmf_task_msgs::action::DynamicEvent;
+using DynamicEventHandle = rclcpp_action::ServerGoalHandle<DynamicEventAction>;
+using DynamicEventStatus = rmf_task_msgs::msg::DynamicEventStatus;
+using DynamicEventStatusPub = rclcpp::Publisher<DynamicEventStatus>::SharedPtr;
 
 namespace agv {
 
@@ -402,6 +413,13 @@ struct MutexGroupData
 {
   std::string name;
   TimeMsg claim_time;
+};
+
+//==============================================================================
+struct DynamicEventCallbacks {
+  std::function<void(std::shared_ptr<DynamicEventHandle>, std::shared_ptr<void>)> executor;
+  std::function<void(std::shared_ptr<DynamicEventHandle>)> cancel;
+  std::function<bool(const std::string&, const std::string&)> validator;
 };
 
 //==============================================================================
@@ -831,6 +849,12 @@ public:
   /// Does the parking spot have a ticket?
   bool _has_ticket() const;
 
+  /// Announce that a dynamic event is beginning. This provides the sequence
+  /// number for dynamic event. This should only be used by DynamicEvent.
+  uint32_t _begin_dynamic_event(
+    std::string description,
+    std::shared_ptr<DynamicEventCallbacks> callbacks);
+
   template<typename... Args>
   static std::shared_ptr<RobotContext> make(Args&&... args)
   {
@@ -896,6 +920,8 @@ public:
       });
 
     context->_reservation_mgr._context = context;
+
+    context->_initialize_dynamic_event_server();
 
     return context;
   }
@@ -1026,6 +1052,14 @@ private:
   std::optional<RobotUpdateHandle::LiftDestination> _final_lift_destination;
   std::unique_ptr<std::mutex> _final_lift_destination_mutex =
     std::make_unique<std::mutex>();
+
+  void _initialize_dynamic_event_server();
+  std::weak_ptr<DynamicEventCallbacks> _dynamic_event_callbacks;
+  std::weak_ptr<rclcpp_action::GoalUUID> _dynamic_event_goal;
+  DynamicEventDescriptionPub _individual_dynamic_event_description_pub;
+  DynamicEventStatusPub _dynamic_event_status_pub;
+  uint32_t _dynamic_event_seq;
+  rclcpp_action::Server<DynamicEventAction>::SharedPtr _dynamic_event_server;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

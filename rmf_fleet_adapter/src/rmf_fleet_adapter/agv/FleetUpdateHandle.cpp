@@ -1575,7 +1575,7 @@ PlaceDeserializer make_place_deserializer(
   planner)
 {
   return [planner = std::move(planner)](const nlohmann::json& msg)
-    -> agv::DeserializedPlace
+    -> DeserializedPlace
     {
       std::optional<rmf_traffic::agv::Plan::Goal> place;
       const auto& graph = (*planner)->get_configuration().graph();

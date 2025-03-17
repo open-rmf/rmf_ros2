@@ -143,6 +143,10 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<ReservationCancel>(
     ReservationCancelTopicName, transient_local_qos);
 
+  node->_general_dynamic_event_description_pub =
+    node->create_publisher<DynamicEventDescription>(
+      DynamicEventBeginTopicBase, transient_local_qos);
+
   return node;
 }
 
@@ -319,5 +323,12 @@ auto Node::cancel_reservation() const -> const ReservationCancelPub&
 {
   return _reservation_cancel_pub;
 }
+
+//==============================================================================
+const DynamicEventDescriptionPub& Node::all_dynamic_event_descriptions() const
+{
+  return _general_dynamic_event_description_pub;
+}
+
 } // namespace agv
 } // namespace rmf_fleet_adapter
