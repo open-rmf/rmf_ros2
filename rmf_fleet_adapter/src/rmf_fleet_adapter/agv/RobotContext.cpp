@@ -30,6 +30,23 @@
 #include <unordered_set>
 
 namespace rmf_fleet_adapter {
+
+//==============================================================================
+DynamicEventCallbacks::~DynamicEventCallbacks()
+{
+  const auto c = context.lock();
+  if (!c)
+    return;
+
+  c->worker().schedule([c](const auto&)
+    {
+      // Publish a dynamic event status update that reports the dynamic event
+      // as non-active.
+      c->_publish_dynamic_event_status(
+        rmf_task::Event::State::Status::Uninitialized, 0);
+    });
+}
+
 namespace agv {
 
 //==============================================================================
@@ -1903,6 +1920,34 @@ uint32_t RobotContext::_begin_dynamic_event(
 }
 
 //==============================================================================
+void RobotContext::_publish_dynamic_event_status(
+  rmf_task::Event::State::Status status,
+  uint64_t id)
+{
+  uint8_t dynamic_state = DynamicEventStatus::DYNAMIC_STATE_INACTIVE;
+  if (!_dynamic_event_callbacks.expired())
+  {
+    if (_dynamic_event_goal.expired())
+    {
+      dynamic_state = DynamicEventStatus::DYNAMIC_STATE_WAITING;
+    }
+    else
+    {
+      dynamic_state = DynamicEventStatus::DYNAMIC_STATE_RUNNING;
+    }
+  }
+
+  auto msg = rmf_task_msgs::build<DynamicEventStatus>()
+    .dynamic_event_seq(_dynamic_event_seq)
+    .dynamic_state(dynamic_state)
+    .status(status_to_string(status))
+    .id(id)
+    .time(_node->now());
+
+  _dynamic_event_status_pub->publish(msg);
+}
+
+//==============================================================================
 std::vector<rmf_traffic::agv::Plan::Goal>
 RobotContext::_find_and_sort_parking_spots(
   const bool same_floor) const
@@ -2102,8 +2147,18 @@ void RobotContext::_initialize_dynamic_event_server()
     }
 
     const auto callbacks = me->_dynamic_event_callbacks.lock();
-    if (!callbacks || !me->_dynamic_event_goal.expired())
+    if (!callbacks)
     {
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+
+    const bool cancellation = goal->event_type ==
+      DynamicEventAction::Goal::EVENT_TYPE_CANCEL;
+
+    if (!me->_dynamic_event_goal.expired() && !cancellation)
+    {
+      // There is an ongoing goal and the request is not a cancellation, so we
+      // should reject it.
       return rclcpp_action::GoalResponse::REJECT;
     }
 
@@ -2122,13 +2177,7 @@ void RobotContext::_initialize_dynamic_event_server()
     if (!me)
     {
       handle->execute();
-      handle->abort(
-        std::make_shared<DynamicEventAction::Result>(
-          rmf_task_msgs::build<DynamicEventAction::Result>()
-            .execution_failure("shutting down")
-            .status("")
-            .id(0)
-        ));
+      handle->abort(dynamic_event_execution_failure("shutting down"));
       return;
     }
 
@@ -2136,13 +2185,7 @@ void RobotContext::_initialize_dynamic_event_server()
     if (!callbacks || !me->_dynamic_event_goal.expired())
     {
       handle->execute();
-      handle->abort(
-        std::make_shared<DynamicEventAction::Result>(
-          rmf_task_msgs::build<DynamicEventAction::Result>()
-            .execution_failure("race condition")
-            .status("")
-            .id(0)
-        ));
+      handle->abort(dynamic_event_execution_failure("race condition"));
       return;
     }
 
@@ -2166,12 +2209,7 @@ void RobotContext::_initialize_dynamic_event_server()
     if (!callbacks || !current_action_guid || *current_action_guid != handle->get_goal_id())
     {
       handle->canceled(
-        std::make_shared<DynamicEventAction::Result>(
-          rmf_task_msgs::build<DynamicEventAction::Result>()
-            .execution_failure("cancelled while not running")
-            .status("")
-            .id(0)
-        ));
+        dynamic_event_execution_failure("cancelled while not running"));
       return rclcpp_action::CancelResponse::ACCEPT;
     }
 

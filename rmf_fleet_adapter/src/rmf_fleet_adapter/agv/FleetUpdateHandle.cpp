@@ -36,6 +36,7 @@
 #include "../events/GoToPlace.hpp"
 #include "../events/ResponsiveWait.hpp"
 #include "../events/PerformAction.hpp"
+#include "../events/DynamicEvent.hpp"
 
 #include <rmf_task/Constraints.hpp>
 #include <rmf_task/Parameters.hpp>
@@ -1683,6 +1684,8 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     deserialization,
     activation,
     node->clock());
+
+  events::DynamicEvent::add(deserialization, activation.event);
 }
 
 //==============================================================================
