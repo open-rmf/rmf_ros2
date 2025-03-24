@@ -304,7 +304,6 @@ auto DynamicEvent::Active::make(
     std::shared_ptr<DynamicEventHandle> handle,
     std::shared_ptr<void> event_raii)
   {
-    handle->execute();
     const auto me = w.lock();
     if (!me)
     {
