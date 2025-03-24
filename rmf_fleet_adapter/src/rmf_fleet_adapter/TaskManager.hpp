@@ -203,8 +203,9 @@ public:
   ///
   /// \return A robot_task_response.json message from rmf_api_msgs (note: this
   /// message is not validated before being returned).
-  nlohmann::json estimate_task_request(
+  nlohmann::json estimate_robot_task_request(
     const nlohmann::json& task_request,
+    const nlohmann::json& initial_state,
     const std::string& request_id);
 
   class Interruption
@@ -651,7 +652,7 @@ private:
     const nlohmann::json& request_json,
     const std::string& request_id);
 
-  void _handle_estimate_request(
+  void _handle_estimate_robot_task_request(
     const nlohmann::json& request_json,
     const std::string& request_id);
 

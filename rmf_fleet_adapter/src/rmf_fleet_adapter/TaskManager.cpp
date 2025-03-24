@@ -68,8 +68,8 @@
 #include <rmf_api_msgs/schemas/robot_commission_request.hpp>
 #include <rmf_api_msgs/schemas/robot_commission_response.hpp>
 #include <rmf_api_msgs/schemas/task_estimate_result.hpp>
-#include <rmf_api_msgs/schemas/task_estimate_request.hpp>
-#include <rmf_api_msgs/schemas/task_estimate_response.hpp>
+#include <rmf_api_msgs/schemas/estimate_robot_task_request.hpp>
+#include <rmf_api_msgs/schemas/estimate_robot_task_response.hpp>
 
 namespace rmf_fleet_adapter {
 
@@ -236,8 +236,8 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::robot_commission_response,
     rmf_api_msgs::schemas::error,
     rmf_api_msgs::schemas::task_estimate_result,
-    rmf_api_msgs::schemas::task_estimate_request,
-    rmf_api_msgs::schemas::task_estimate_response
+    rmf_api_msgs::schemas::estimate_robot_task_request,
+    rmf_api_msgs::schemas::estimate_robot_task_response
   };
 
   for (const auto& schema : schemas)
@@ -1178,8 +1178,9 @@ std::vector<nlohmann::json> TaskManager::task_log_updates() const
 }
 
 //==============================================================================
-nlohmann::json TaskManager::estimate_task_request(
+nlohmann::json TaskManager::estimate_robot_task_request(
   const nlohmann::json& request,
+  const nlohmann::json& initial_state,
   const std::string& request_id)
 {
   auto fleet_handle = _fleet_handle.lock();
@@ -1242,23 +1243,23 @@ nlohmann::json TaskManager::estimate_task_request(
   // Convert JSON into rmf_task::State
   rmf_task::State start_state;
 
-  if (request.find("state") == request.end())
+  if (initial_state.empty())
     start_state = expected_finish_state();
   else
   {
-    if (std::size_t(request["state"]["waypoint"].get<int>()) >
+    if (std::size_t(initial_state["waypoint"].get<int>()) >
       (_context->navigation_graph().num_waypoints() -1))
     {
       return _make_error_response(
         20, "Invalid", "Invalid Task State");
     }
-    start_state.waypoint(std::size_t(request["state"]["waypoint"].get<int>()));
-    start_state.orientation(request["state"]["orientation"].get<double>());
+    start_state.waypoint(std::size_t(initial_state["waypoint"].get<int>()));
+    start_state.orientation(initial_state["orientation"].get<double>());
     std::chrono::steady_clock::time_point dp_time(
-      rmf_traffic::time::from_seconds(request["state"]["time"].get<double>()/
+      rmf_traffic::time::from_seconds(initial_state["time"].get<double>()/
       1000));
     start_state.time(dp_time);
-    start_state.battery_soc(request["state"]["battery_soc"].get<double>());
+    start_state.battery_soc(initial_state["battery_soc"].get<double>());
   }
 
 
@@ -2823,8 +2824,8 @@ void TaskManager::_handle_request(
       _handle_direct_request(request_json, request_id);
     else if (type_str == "robot_commission_request")
       _handle_commission_request(request_json, request_id);
-    else if (type_str == "estimate_task_request")
-      _handle_estimate_request(request_json, request_id);
+    else if (type_str == "estimate_robot_task_request")
+      _handle_estimate_robot_task_request(request_json, request_id);
     else
       return;
   }
@@ -2837,16 +2838,16 @@ void TaskManager::_handle_request(
 }
 
 //==============================================================================
-void TaskManager::_handle_estimate_request(
+void TaskManager::_handle_estimate_robot_task_request(
   const nlohmann::json& request_json,
   const std::string& request_id)
 {
   // TODO: Add a validator for estimate_task_request
   static auto request_validator =
-    _make_validator(rmf_api_msgs::schemas::task_estimate_request);
+    _make_validator(rmf_api_msgs::schemas::estimate_robot_task_request);
 
   static auto response_validator =
-    _make_validator(rmf_api_msgs::schemas::task_estimate_response);
+    _make_validator(rmf_api_msgs::schemas::estimate_robot_task_response);
 
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
@@ -2860,9 +2861,12 @@ void TaskManager::_handle_estimate_request(
     return;
 
   const nlohmann::json& request = request_json["request"];
+  const nlohmann::json& state = (request.find("state") == request.end()) ?
+    nlohmann::json({}) : request_json["state"];
 
-  const auto response = estimate_task_request(
+  const auto response = estimate_robot_task_request(
     request,
+    state,
     request_id);
 
   _validate_and_publish_api_response(response, response_validator, request_id);
