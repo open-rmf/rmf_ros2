@@ -2860,12 +2860,12 @@ void TaskManager::_handle_estimate_robot_task_request(
   if (fleet.empty() || fleet != _context->group())
     return;
 
-  const nlohmann::json& request = request_json["request"];
-  const nlohmann::json& state = (request.find("state") == request.end()) ?
+  const nlohmann::json& task_request = request_json["request"];
+  const nlohmann::json& state = (request_json.find("state") == request_json.end()) ?
     nlohmann::json({}) : request_json["state"];
 
   const auto response = estimate_robot_task_request(
-    request,
+    task_request,
     state,
     request_id);
 
