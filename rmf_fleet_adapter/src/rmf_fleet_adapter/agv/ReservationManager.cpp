@@ -53,7 +53,7 @@ void ReservationManager::cancel()
   {
     return;
   }
-  if (has_ticket())
+  if (!has_ticket())
     return;
 
   RCLCPP_INFO(
