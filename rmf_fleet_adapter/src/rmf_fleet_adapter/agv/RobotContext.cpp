@@ -2185,7 +2185,10 @@ void RobotContext::_initialize_dynamic_event_server()
     }
 
     const auto callbacks = me->_dynamic_event_callbacks.lock();
-    if (!callbacks || !me->_dynamic_event_goal.expired())
+    const auto event_conflict = !me->_dynamic_event_goal.expired()
+      && handle->get_goal()->event_type != DynamicEventAction::Goal::EVENT_TYPE_CANCEL;
+
+    if (!callbacks || event_conflict)
     {
       handle->execute();
       handle->abort(dynamic_event_execution_failure("race condition"));
