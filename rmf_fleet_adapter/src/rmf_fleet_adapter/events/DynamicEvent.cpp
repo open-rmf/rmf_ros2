@@ -519,6 +519,8 @@ auto DynamicEvent::Active::interrupt(
 void DynamicEvent::Active::cancel()
 {
   _cancelled = true;
+  _state->update_status(Status::Canceled);
+  _state->update_log().info("Received signal to cancel");
   if (_current_event)
   {
     _current_event->cancel();
@@ -535,6 +537,8 @@ void DynamicEvent::Active::cancel()
 void DynamicEvent::Active::kill()
 {
   _cancelled = true;
+  _state->update_status(Status::Killed);
+  _state->update_log().info("Received signal to kill");
   if (_current_event)
   {
     _current_event->kill();
@@ -596,6 +600,24 @@ void DynamicEvent::Active::_begin_next_event(
     const auto me = w.lock();
     if (!me)
       return;
+
+    const auto current_status = me->_state->status();
+    const bool need_status_update =
+      current_status != rmf_task::Event::Status::Canceled
+      && current_status != rmf_task::Event::Status::Killed
+      && current_status != rmf_task::Event::Status::Skipped;
+
+    if (need_status_update)
+    {
+      if (me->_current_event)
+      {
+        me->_state->update_status(me->_current_event->state()->status());
+      }
+      else
+      {
+        me->_state->update_status(rmf_task::Event::Status::Standby);
+      }
+    }
 
     me->_publish_update();
   };
