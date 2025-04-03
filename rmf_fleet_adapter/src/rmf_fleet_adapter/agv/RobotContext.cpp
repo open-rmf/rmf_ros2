@@ -2162,9 +2162,12 @@ void RobotContext::_initialize_dynamic_event_server()
       return rclcpp_action::GoalResponse::REJECT;
     }
 
-    if (!callbacks->validator(goal->category, goal->description))
+    if (goal->event_type == DynamicEventAction::Goal::EVENT_TYPE_NEXT)
     {
-      return rclcpp_action::GoalResponse::REJECT;
+      if (!callbacks->validator(goal->category, goal->description))
+      {
+        return rclcpp_action::GoalResponse::REJECT;
+      }
     }
 
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
