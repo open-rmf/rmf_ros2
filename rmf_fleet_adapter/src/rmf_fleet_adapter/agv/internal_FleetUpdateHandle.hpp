@@ -32,11 +32,6 @@
 #include <rmf_task/requests/Clean.hpp>
 #include <rmf_task/BinaryPriorityScheme.hpp>
 
-#include <rmf_task_sequence/Task.hpp>
-#include <rmf_task_sequence/Phase.hpp>
-#include <rmf_task_sequence/Event.hpp>
-#include <rmf_task_sequence/events/PerformAction.hpp>
-
 #include <rmf_building_map_msgs/msg/graph.hpp>
 
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
@@ -49,7 +44,6 @@
 #include "Node.hpp"
 #include "RobotContext.hpp"
 #include "../TaskManager.hpp"
-#include "../DeserializeJSON.hpp"
 #include <rmf_websocket/BroadcastClient.hpp>
 
 #include <rmf_traffic/schedule/Mirror.hpp>
@@ -89,38 +83,6 @@ struct TaskActivation
   rmf_task_sequence::Phase::ActivatorPtr phase;
   rmf_task_sequence::Event::InitializerPtr event;
 };
-
-//==============================================================================
-template<typename T>
-struct DeserializedDescription
-{
-  T description;
-  std::vector<std::string> errors;
-};
-
-//==============================================================================
-using DeserializedTask =
-  DeserializedDescription<std::shared_ptr<const rmf_task::Task::Description>>;
-
-//==============================================================================
-using TaskDescriptionDeserializer =
-  std::function<DeserializedTask(const nlohmann::json&)>;
-
-//==============================================================================
-using DeserializedPhase =
-  DeserializedDescription<
-  std::shared_ptr<const rmf_task_sequence::Phase::Description>
-  >;
-
-//==============================================================================
-using PhaseDescriptionDeserializer =
-  std::function<DeserializedPhase(const nlohmann::json&)>;
-
-//==============================================================================
-using DeserializedEvent =
-  DeserializedDescription<
-  std::shared_ptr<const rmf_task_sequence::Event::Description>
-  >;
 
 //==============================================================================
 using EventDescriptionDeserializer =

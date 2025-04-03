@@ -22,7 +22,44 @@
 #include <nlohmann/json.hpp>
 #include <nlohmann/json-schema.hpp>
 
+#include <rmf_task_sequence/Task.hpp>
+#include <rmf_task_sequence/Phase.hpp>
+#include <rmf_task_sequence/Event.hpp>
+#include <rmf_task_sequence/events/PerformAction.hpp>
+
 namespace rmf_fleet_adapter {
+
+//==============================================================================
+template<typename T>
+struct DeserializedDescription
+{
+  T description;
+  std::vector<std::string> errors;
+};
+
+//==============================================================================
+using DeserializedTask =
+  DeserializedDescription<std::shared_ptr<const rmf_task::Task::Description>>;
+
+//==============================================================================
+using TaskDescriptionDeserializer =
+  std::function<DeserializedTask(const nlohmann::json&)>;
+
+//==============================================================================
+using DeserializedPhase =
+  DeserializedDescription<
+  std::shared_ptr<const rmf_task_sequence::Phase::Description>
+  >;
+
+//==============================================================================
+using PhaseDescriptionDeserializer =
+  std::function<DeserializedPhase(const nlohmann::json&)>;
+
+//==============================================================================
+using DeserializedEvent =
+  DeserializedDescription<
+  std::shared_ptr<const rmf_task_sequence::Event::Description>
+  >;
 
 //==============================================================================
 template<typename Deserialized>

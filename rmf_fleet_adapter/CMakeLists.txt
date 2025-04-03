@@ -25,6 +25,7 @@ include(GNUInstallDirs)
 
 set(dep_pkgs
   rclcpp
+  rclcpp_action
   rclcpp_components
   rmf_utils
   rmf_dispenser_msgs
@@ -91,6 +92,7 @@ ament_target_dependencies(rmf_fleet_adapter
     rmf_building_map_msgs
     rmf_reservation_msgs
     rclcpp
+    rclcpp_action
 )
 
 target_link_libraries(rmf_fleet_adapter

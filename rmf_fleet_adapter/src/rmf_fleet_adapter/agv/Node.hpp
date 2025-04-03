@@ -48,10 +48,17 @@
 
 #include <rmf_task_msgs/msg/api_request.hpp>
 #include <rmf_task_msgs/msg/api_response.hpp>
+#include <rmf_task_msgs/msg/dynamic_event_description.hpp>
 
 #include <rmf_traffic/Time.hpp>
 
 namespace rmf_fleet_adapter {
+
+using DynamicEventDescription = rmf_task_msgs::msg::DynamicEventDescription;
+using DynamicEventDescriptionPub =
+  rclcpp::Publisher<DynamicEventDescription>::SharedPtr;
+
+
 namespace agv {
 
 //==============================================================================
@@ -171,6 +178,8 @@ public:
     rclcpp::Publisher<ReservationCancel>::SharedPtr;
   const ReservationCancelPub& cancel_reservation() const;
 
+  const DynamicEventDescriptionPub& all_dynamic_event_descriptions() const;
+
 
   template<typename DurationRepT, typename DurationT, typename CallbackT>
   rclcpp::TimerBase::SharedPtr try_create_wall_timer(
@@ -238,6 +247,7 @@ private:
   Bridge<ReservationAllocation> _reservation_alloc_obs;
   ReservationReleasePub _reservation_release_pub;
   ReservationCancelPub _reservation_cancel_pub;
+  DynamicEventDescriptionPub _general_dynamic_event_description_pub;
 };
 
 } // namespace agv
