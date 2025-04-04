@@ -42,6 +42,7 @@
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
 #include <rmf_fleet_msgs/msg/lane_states.hpp>
 #include <rmf_fleet_msgs/msg/charging_assignments.hpp>
+#include <rmf_fleet_msgs/msg/emergency_signal.hpp>
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
@@ -410,7 +411,7 @@ public:
       {
         if (const auto self = w.lock())
         {
-          self->_pimpl->handle_emergency(msg->data);
+          self->_pimpl->handle_emergency(msg);
         }
       });
     handle->_pimpl->emergency_planner =
@@ -686,7 +687,7 @@ public:
 
   void update_fleet_state() const;
   void update_fleet_logs() const;
-  void handle_emergency(bool is_emergency);
+  void handle_emergency(std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> is_emergency);
   void update_emergency_planner();
 
   void update_charging_assignments(const ChargingAssignments& assignments);

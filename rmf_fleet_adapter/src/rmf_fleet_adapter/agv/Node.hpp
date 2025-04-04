@@ -45,6 +45,7 @@
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
 #include <rmf_fleet_msgs/msg/mutex_group_request.hpp>
 #include <rmf_fleet_msgs/msg/mutex_group_states.hpp>
+#include <rmf_fleet_msgs/msg/emergency_signal.hpp>
 
 #include <rmf_task_msgs/msg/api_request.hpp>
 #include <rmf_task_msgs/msg/api_response.hpp>
@@ -104,7 +105,7 @@ public:
   using DispenserStateObs = rxcpp::observable<DispenserState::SharedPtr>;
   const DispenserStateObs& dispenser_state() const;
 
-  using EmergencyNotice = std_msgs::msg::Bool;
+  using EmergencyNotice = rmf_fleet_msgs::msg::EmergencySignal;
   using EmergencyNoticeObs = rxcpp::observable<EmergencyNotice::SharedPtr>;
   const EmergencyNoticeObs& emergency_notice() const;
 
