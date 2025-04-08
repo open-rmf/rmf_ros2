@@ -1194,8 +1194,7 @@ nlohmann::json TaskManager::estimate_robot_task_request(
   const auto& impl =
     agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
   std::vector<std::string> errors;
-  const auto new_request = impl.convert(request_id, request["task_request"],
-      errors);
+  const auto new_request = impl.convert(request_id, request, errors);
 
   if (!new_request)
   {
