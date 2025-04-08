@@ -105,9 +105,13 @@ public:
   using DispenserStateObs = rxcpp::observable<DispenserState::SharedPtr>;
   const DispenserStateObs& dispenser_state() const;
 
-  using EmergencyNotice = rmf_fleet_msgs::msg::EmergencySignal;
+  using EmergencyNotice = std_msgs::msg::Bool;
   using EmergencyNoticeObs = rxcpp::observable<EmergencyNotice::SharedPtr>;
   const EmergencyNoticeObs& emergency_notice() const;
+
+  using TargetEmergencyNotice = rmf_fleet_msgs::msg::EmergencySignal;
+  using TargetEmergencyNoticeObs = rxcpp::observable<TargetEmergencyNotice::SharedPtr>;
+  const TargetEmergencyNoticeObs& target_emergency_notice() const;
 
   using IngestorRequest = rmf_ingestor_msgs::msg::IngestorRequest;
   using IngestorRequestPub = rclcpp::Publisher<IngestorRequest>::SharedPtr;
@@ -224,6 +228,7 @@ private:
   Bridge<DispenserResult> _dispenser_result_obs;
   Bridge<DispenserState> _dispenser_state_obs;
   Bridge<EmergencyNotice> _emergency_notice_obs;
+  Bridge<TargetEmergencyNotice> _target_emergency_notice_obs;
   IngestorRequestPub _ingestor_request_pub;
   Bridge<IngestorResult> _ingestor_result_obs;
   Bridge<IngestorState> _ingestor_state_obs;

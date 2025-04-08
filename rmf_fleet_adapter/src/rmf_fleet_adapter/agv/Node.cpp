@@ -78,6 +78,10 @@ std::shared_ptr<Node> Node::make(
     node->create_observable<EmergencyNotice>(
     rmf_traffic_ros2::EmergencyTopicName, transient_qos);
 
+  node->_target_emergency_notice_obs =
+    node->create_observable<TargetEmergencyNotice>(
+    rmf_traffic_ros2::TargetEmergencyTopicName, transient_qos);
+
   node->_ingestor_request_pub =
     node->create_publisher<IngestorRequest>(
     IngestorRequestTopicName, default_qos);
@@ -230,6 +234,14 @@ auto Node::emergency_notice() const -> const EmergencyNoticeObs&
 {
   return _emergency_notice_obs->observe();
 }
+
+//==============================================================================
+auto Node::target_emergency_notice() const -> const TargetEmergencyNoticeObs&
+{
+  return _target_emergency_notice_obs->observe();
+}
+
+//==============================================================================
 
 auto Node::ingestor_request() const -> const IngestorRequestPub&
 {

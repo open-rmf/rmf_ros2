@@ -76,7 +76,8 @@ const std::string BlockadeReleaseTopicName = Prefix +
 const std::string BlockadeSetTopicName = Prefix +
   "blockade_set";
 
-const std::string EmergencyTopicName = "fire_alarm_trigger";
+  const std::string EmergencyTopicName = "fire_alarm_trigger";
+  const std::string TargetEmergencyTopicName = "target_fire_alarm_trigger";
 
 } // namespace rmf_traffic_ros2
 
