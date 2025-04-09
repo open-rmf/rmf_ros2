@@ -76,6 +76,7 @@ const std::string BlockadeReleaseTopicName = Prefix +
 const std::string BlockadeSetTopicName = Prefix +
   "blockade_set";
 
+[[deprecated("Use EmergencySignalTopicName with the rmf_fleet_msgs/EmergencySignal message instead")]]
 const std::string EmergencyTopicName = "fire_alarm_trigger";
 const std::string EmergencySignalTopicName = "emergency_signal";
 
