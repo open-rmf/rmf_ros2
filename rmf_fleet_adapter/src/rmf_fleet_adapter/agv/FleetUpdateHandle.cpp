@@ -1430,20 +1430,7 @@ void FleetUpdateHandle::Implementation::handle_target_emergency(
   }
 
   if (execute) {
-    if (emergency_signal->is_emergency == emergency_active)
-      return;
-  
-    emergency_active = emergency_signal->is_emergency;
-    if (emergency_signal->is_emergency)
-    {
-      update_emergency_planner();
-    }
-  
-    for (const auto& [context, _] : task_managers)
-    {
-      context->_set_emergency(emergency_signal->is_emergency);
-    }
-    emergency_publisher.get_subscriber().on_next(emergency_signal->is_emergency);
+    handle_emergency(emergency_signal->is_emergency);
   }
 }
 
