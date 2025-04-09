@@ -413,6 +413,10 @@ public:
       {
         if (const auto self = w.lock())
         {
+          RCLCPP_WARN_ONCE(
+            self->_pimpl->node->get_logger(),
+            "This topic is getting deprecated soon. Please use the topic 'emergency_signal instead.");
+          [[deprecated("Use target_emergency_sub instead")]]
           self->_pimpl->handle_emergency(msg->data);
         }
       });
