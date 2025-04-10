@@ -40,6 +40,8 @@
 #include <rmf_fleet_msgs/msg/dock_summary.hpp>
 #include <rmf_fleet_msgs/msg/lane_states.hpp>
 #include <rmf_fleet_msgs/msg/charging_assignments.hpp>
+#include <rmf_fleet_msgs/msg/emergency_signal.hpp>
+#include <std_msgs/msg/bool.hpp>
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
@@ -306,6 +308,7 @@ public:
   rclcpp::TimerBase::SharedPtr memory_trim_timer = nullptr;
 
   rxcpp::subscription emergency_sub;
+  rxcpp::subscription target_emergency_sub;
   rxcpp::subjects::subject<bool> emergency_publisher;
   rxcpp::observable<bool> emergency_obs;
   bool emergency_active = false;
@@ -399,9 +402,23 @@ public:
       {
         if (const auto self = w.lock())
         {
+          RCLCPP_WARN_ONCE(
+            self->_pimpl->node->get_logger(),
+            "This topic is getting deprecated soon. Please use the topic 'emergency_signal instead.");
           self->_pimpl->handle_emergency(msg->data);
         }
       });
+    handle->_pimpl->target_emergency_sub = handle->_pimpl->node->target_emergency_notice()
+      .observe_on(rxcpp::identity_same_worker(handle->_pimpl->worker))
+      .subscribe(
+      [w = handle->weak_from_this()](const auto& msg)
+      {
+        if (const auto self = w.lock())
+        {
+          self->_pimpl->handle_target_emergency(msg);
+        }
+      });
+    
     handle->_pimpl->emergency_planner =
       std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(nullptr);
 
@@ -668,7 +685,8 @@ public:
 
   void update_fleet_state() const;
   void update_fleet_logs() const;
-  void handle_emergency(bool is_emergency);
+  void handle_emergency(const bool is_emergency);
+  void handle_target_emergency(std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> is_emergency);
   void update_emergency_planner();
 
   void update_charging_assignments(const ChargingAssignments& assignments);
