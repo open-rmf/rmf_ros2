@@ -1615,6 +1615,81 @@ void EasyCommandHandle::dock(
     angle = std::atan2(dy, dx);
   }
 
+  std::vector<EasyFullControl::CommandExecution> queue;
+
+  // Check that robot is in position and facing the docking point
+  const auto current_pose = reported_location->position;
+  if (!nav_params->skip_rotation_commands &&
+    std::abs(angle - current_pose[2]) > 1e-2)
+  {
+    RCLCPP_DEBUG(
+      context->node()->get_logger(),
+      "Inserting rotation command for [%s] because it is requested to dock "
+      "but is not facing the docking position.",
+      context->requester_id().c_str());
+
+    const Eigen::Vector3d target_orientation(p0.x(), p0.y(), angle);
+    const auto command_rotation = to_robot_coordinates(
+      wp0.get_map_name(), target_orientation);
+    auto rot_destination = EasyFullControl::Destination::Implementation::make(
+      wp0.get_map_name(),
+      command_rotation,
+      i0,
+      nav_params->get_vertex_name(graph, i0),
+      lane.properties().speed_limit(),
+      wp0.in_lift());
+
+    const double w = std::max(traits.rotational().get_nominal_velocity(), 0.001);
+    const auto turn = rmf_traffic::time::from_seconds(angle / w);
+    queue.push_back(
+      EasyFullControl::CommandExecution::Implementation::make(
+        context,
+        EasyFullControl::CommandExecution::Implementation::Data{
+          {i0, i1},
+          {*found_lane},
+          p0,
+          angle,
+          rmf_traffic::Duration(0),
+          std::nullopt,
+          nav_params,
+          [w_context = context->weak_from_this(), expected_arrival, plan_id](
+            rmf_traffic::Duration turn)
+          {
+            const auto context = w_context.lock();
+            if (!context)
+            {
+              return;
+            }
+    
+            context->worker().schedule([
+                w = context->weak_from_this(),
+                expected_arrival,
+                plan_id,
+                turn
+              ](const auto&)
+              {
+                const auto context = w.lock();
+                if (!context)
+                  return;
+    
+                const rmf_traffic::Time now = context->now();
+                const auto updated_arrival = now + turn;
+                const auto delay = updated_arrival - expected_arrival;
+                context->itinerary().cumulative_delay(
+                  plan_id, delay, std::chrono::seconds(1));
+              });
+          }
+        },
+        [
+          handle_nav_request = this->handle_nav_request,
+          rot_destination = std::move(rot_destination)
+        ](EasyFullControl::CommandExecution execution)
+        {
+          handle_nav_request(rot_destination, execution);
+        }
+    ));
+  }
+
   const Eigen::Vector3d position(p1.x(), p1.y(), angle);
   const auto command_position = to_robot_coordinates(
     wp1.get_map_name(), position);
@@ -1628,7 +1703,7 @@ void EasyCommandHandle::dock(
     wp1.in_lift(),
     dock_name_);
 
-  auto cmd = EasyFullControl::CommandExecution::Implementation::make(
+  queue.push_back(EasyFullControl::CommandExecution::Implementation::make(
     context,
     data,
     [
@@ -1638,10 +1713,10 @@ void EasyCommandHandle::dock(
       EasyFullControl::CommandExecution execution)
     {
       handle_nav_request(destination, execution);
-    });
+    }));
 
   this->current_progress = ProgressTracker::make(
-    {std::move(cmd)},
+    queue,
     std::move(docking_finished_callback_));
   this->current_progress->next();
 }
