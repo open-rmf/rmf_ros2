@@ -1396,22 +1396,46 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
 
 //==============================================================================
 void FleetUpdateHandle::Implementation::handle_emergency(
-  const bool is_emergency)
+  const bool emergency_signal)
 {
-  if (is_emergency == emergency_active)
+  if (emergency_signal == emergency_active)
     return;
 
-  emergency_active = is_emergency;
-  if (is_emergency)
+  emergency_active = emergency_signal;
+  if (emergency_signal)
   {
     update_emergency_planner();
   }
 
   for (const auto& [context, _] : task_managers)
   {
-    context->_set_emergency(is_emergency);
+    context->_set_emergency(emergency_signal);
   }
-  emergency_publisher.get_subscriber().on_next(is_emergency);
+  emergency_publisher.get_subscriber().on_next(emergency_signal);
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::handle_target_emergency(
+  std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> emergency_signal)
+{
+  bool execute = false;
+  if (emergency_signal->fleet_names.empty())
+  {
+    execute = true;
+  }
+
+  for (const auto& fleet_name : emergency_signal->fleet_names)
+  {
+    if (fleet_name == name)
+    {
+      execute = true;
+      break;
+    }
+  }
+
+  if (execute) {
+    handle_emergency(emergency_signal->is_emergency);
+  }
 }
 
 //==============================================================================
