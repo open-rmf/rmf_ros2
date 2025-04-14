@@ -1295,41 +1295,18 @@ nlohmann::json TaskManager::estimate_robot_task_request(
   // calculate estimated duration of task
   nlohmann::json result_json;
 
-  RCLCPP_INFO(
-    _context->node()->get_logger(),
-    "Estimated results: \n"
-  );
-
   result_json["deployment_time"] =
     to_millis(deployment_time.time_since_epoch()).count();
-
-  RCLCPP_INFO(
-    _context->node()->get_logger(),
-    "   estimated deployment time: [%f]\n",
-    result_json["deployment_time"].get<double>()
-  );
 
   if (finish_state.time().has_value())
   {
     result_json["finish_time"] =
       to_millis(finish_state.time().value().time_since_epoch()).count();
 
-    RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "   estimated finish time: [%f]\n",
-      result_json["finish_time"].get<double>()
-    );
-
     auto estimate_duration_rmf =
       std::chrono::duration_cast<std::chrono::milliseconds>(
       finish_state.time().value() - deployment_time);
     result_json["duration"] = estimate_duration_rmf.count();
-
-    RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "   estimated duration: [%f] seconds\n",
-      result_json["duration"].get<double>()
-    );
   }
 
   // Convert rmf_task::State into a JSON
@@ -1342,25 +1319,8 @@ nlohmann::json TaskManager::estimate_robot_task_request(
   }
 
   state["waypoint"] = int(finish_state.waypoint().value());
-  RCLCPP_INFO(
-    _context->node()->get_logger(),
-    "   waypoint: [%i]\n",
-    state["waypoint"].get<int>()
-  );
-
   state["orientation"] = finish_state.orientation().value();
-  RCLCPP_INFO(
-    _context->node()->get_logger(),
-    "   orientation: [%f]\n",
-    state["orientation"].get<double>()
-  );
-
   state["battery_soc"] = finish_state.battery_soc().value();
-  RCLCPP_INFO(
-    _context->node()->get_logger(),
-    "   battery soc: [%f]\n",
-    state["battery_soc"].get<double>()
-  );
 
   result_json["state"] = state;
   nlohmann::json response_json;
