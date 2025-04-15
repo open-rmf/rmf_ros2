@@ -373,24 +373,29 @@ auto DynamicEvent::Active::make(
       return;
     }
 
+    const auto stubborn_period = handle->get_goal()->stubborn_period;
     me->_deferred_event_start = nullptr;
     me->_current_event_raii = std::move(event_raii);
     me->_current_handle = std::move(handle);
     if (me->_interrupted)
     {
-      me->_deferred_event_start = [w = me->weak_from_this(), child_description]()
+      me->_deferred_event_start = [
+        w = me->weak_from_this(),
+        child_description,
+        stubborn_period
+      ]()
         {
           const auto me = w.lock();
           if (!me)
             return;
 
-          me->_begin_next_event(child_description);
+          me->_begin_next_event(child_description, stubborn_period);
         };
 
       return;
     }
 
-    me->_begin_next_event(child_description);
+    me->_begin_next_event(child_description, stubborn_period);
   };
 
   auto cancel = [w = active->weak_from_this()](
@@ -601,7 +606,8 @@ bool terminating_status(rmf_task::Event::Status status)
 
 //==============================================================================
 void DynamicEvent::Active::_begin_next_event(
-  std::shared_ptr<const rmf_task_sequence::Event::Description> child_description)
+  std::shared_ptr<const rmf_task_sequence::Event::Description> child_description,
+  const float stubborn_period)
 {
   auto on_update = [w = this->weak_from_this()]()
   {
@@ -631,7 +637,7 @@ void DynamicEvent::Active::_begin_next_event(
     me->_publish_update();
   };
 
-  auto on_finish = [w = this->weak_from_this(), handle = _current_handle]()
+  auto on_finish = [w = this->weak_from_this(), handle = _current_handle, stubborn_period]()
   {
     const auto me = w.lock();
     if (!me || !me->_current_event)
@@ -665,7 +671,46 @@ void DynamicEvent::Active::_begin_next_event(
     {
       me->_finished();
     }
+    else if (stubborn_period > 0.0)
+    {
+      float period = stubborn_period;
+      if (period < 2.0)
+      {
+        period = 2.0;
+      }
+
+      const auto stubbornness = me->_context->be_stubborn();
+      const auto plan_id = me->_context->itinerary().assign_plan_id();
+
+      const auto position = me->_context->position();
+      const auto map = me->_context->map();
+      const auto period_start = me->_context->now();
+      const auto period_finish = period_start + rmf_traffic::time::from_seconds(period);
+
+      rmf_traffic::Trajectory trajectory;
+      trajectory.insert(period_start, position, Eigen::Vector3d::Zero());
+      trajectory.insert(period_finish, position, Eigen::Vector3d::Zero());
+      rmf_traffic::schedule::Itinerary itinerary;
+      itinerary.push_back(rmf_traffic::Route(map, trajectory));
+
+      me->_context->itinerary().set(plan_id, itinerary);
+      me->_stubborn_timer = me->_context->node()->try_create_wall_timer(
+        rmf_traffic::time::from_seconds(1.0),
+        [plan_id, stubbornness, period_start, w = me->weak_from_this()]()
+        {
+          const auto me = w.lock();
+          if (!me)
+            return;
+
+          const auto now = me->_context->now();
+          const auto delay = now - period_start;
+          me->_context->itinerary().cumulative_delay(plan_id, delay);
+        });
+    }
   };
+
+  // End the stubborn behavior if it was active before
+  _stubborn_timer = nullptr;
 
   // We don't use checkpoints for dynamic events
   auto on_checkpoint = []() {};

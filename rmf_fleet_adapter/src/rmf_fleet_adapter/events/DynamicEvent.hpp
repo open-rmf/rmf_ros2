@@ -160,7 +160,8 @@ private:
   void _publish_update();
 
   void _begin_next_event(
-    std::shared_ptr<const rmf_task_sequence::Event::Description> child_description);
+    std::shared_ptr<const rmf_task_sequence::Event::Description> child_description,
+    float stubborn_period);
 
   Description _description;
   std::shared_ptr<DynamicEventCallbacks> _callbacks;
@@ -178,6 +179,7 @@ private:
   bool _interrupted = false;
   bool _cancelled = false;
   std::function<void()> _deferred_event_start;
+  rclcpp::TimerBase::SharedPtr _stubborn_timer;
 };
 
 } // namespace events
