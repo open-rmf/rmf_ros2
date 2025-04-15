@@ -215,6 +215,10 @@ std::shared_ptr<rmf_task::Request> FleetUpdateHandle::Implementation::convert(
   if (!deserialized_task.description)
   {
     errors = deserialized_task.errors;
+    for (auto& e : errors)
+    {
+      e = make_error_str(6, "Unable to deserialize", e);
+    }
     return nullptr;
   }
 
