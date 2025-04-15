@@ -592,6 +592,14 @@ void DynamicEvent::Active::_publish_update()
 }
 
 //==============================================================================
+bool terminating_status(rmf_task::Event::Status status)
+{
+  return status == rmf_task::Event::Status::Canceled
+    || status == rmf_task::Event::Status::Killed
+    || status == rmf_task::Event::Status::Skipped;
+}
+
+//==============================================================================
 void DynamicEvent::Active::_begin_next_event(
   std::shared_ptr<const rmf_task_sequence::Event::Description> child_description)
 {
@@ -602,16 +610,17 @@ void DynamicEvent::Active::_begin_next_event(
       return;
 
     const auto current_status = me->_state->status();
-    const bool need_status_update =
-      current_status != rmf_task::Event::Status::Canceled
-      && current_status != rmf_task::Event::Status::Killed
-      && current_status != rmf_task::Event::Status::Skipped;
+    const bool need_status_update = !terminating_status(current_status);
 
     if (need_status_update)
     {
       if (me->_current_event)
       {
-        me->_state->update_status(me->_current_event->state()->status());
+        const auto child_status = me->_current_event->state()->status();
+        if (!terminating_status(child_status))
+        {
+          me->_state->update_status(child_status);
+        }
       }
       else
       {
@@ -633,7 +642,10 @@ void DynamicEvent::Active::_begin_next_event(
       return;
     }
 
-    me->_state->update_status(rmf_task::Event::Status::Standby);
+    if (!me->_cancelled)
+    {
+      me->_state->update_status(rmf_task::Event::Status::Standby);
+    }
     me->_publish_update();
 
     const auto state = me->_current_event->state();
