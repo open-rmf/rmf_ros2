@@ -174,6 +174,7 @@ private:
   std::shared_ptr<void> _current_event_raii;
   rmf_task_sequence::Event::ActivePtr _current_event;
   std::shared_ptr<DynamicEventHandle> _current_handle;
+  std::vector<std::shared_ptr<DynamicEventHandle>> _event_cancellation_handles;
   rmf_task::VersionedString::Reader _string_reader;
   rmf_task::Log::Reader _log_reader;
   bool _interrupted = false;

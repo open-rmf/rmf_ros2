@@ -337,7 +337,12 @@ auto DynamicEvent::Active::make(
         return;
       }
 
-      me->_current_event->cancel();
+      me->_event_cancellation_handles.push_back(handle);
+      me->_context->worker().schedule([w = me->weak_from_this()](const auto&)
+        {
+          if (const auto me = w.lock())
+            me->_current_event->cancel();
+        });
       return;
     }
 
@@ -399,13 +404,16 @@ auto DynamicEvent::Active::make(
   };
 
   auto cancel = [w = active->weak_from_this()](
-    std::shared_ptr<DynamicEventHandle>)
+    std::shared_ptr<DynamicEventHandle> handle)
   {
     const auto me = w.lock();
     if (!me || !me->_current_event)
       return;
 
     me->_current_event->cancel();
+    // NOTE(@mxgrey): We do not add this handle to _cancellation_handles because
+    // this is a cancellation request from the main driving action, not an
+    // external cancellation request.
   };
 
   auto validator = [w = active->weak_from_this()](
@@ -597,7 +605,7 @@ void DynamicEvent::Active::_publish_update()
 }
 
 //==============================================================================
-bool terminating_status(rmf_task::Event::Status status)
+bool early_termination_status(rmf_task::Event::Status status)
 {
   return status == rmf_task::Event::Status::Canceled
     || status == rmf_task::Event::Status::Killed
@@ -616,14 +624,14 @@ void DynamicEvent::Active::_begin_next_event(
       return;
 
     const auto current_status = me->_state->status();
-    const bool need_status_update = !terminating_status(current_status);
+    const bool need_status_update = !early_termination_status(current_status);
 
     if (need_status_update)
     {
       if (me->_current_event)
       {
         const auto child_status = me->_current_event->state()->status();
-        if (!terminating_status(child_status))
+        if (!early_termination_status(child_status))
         {
           me->_state->update_status(child_status);
         }
@@ -655,17 +663,45 @@ void DynamicEvent::Active::_begin_next_event(
     me->_publish_update();
 
     const auto state = me->_current_event->state();
-    handle->succeed(std::make_shared<DynamicEventAction::Result>(
+    const auto result = std::make_shared<DynamicEventAction::Result>(
       rmf_task_msgs::build<DynamicEventAction::Result>()
         .execution_failure("")
         .status(status_to_string(state->status()))
         .id(state->id())
-    ));
+    );
+
+    if (early_termination_status(state->status()))
+    {
+      if (handle->is_canceling())
+      {
+        handle->canceled(result);
+      }
+      else
+      {
+        handle->abort(result);
+      }
+    }
+    else
+    {
+      handle->succeed(result);
+    }
+
+    for (const auto& handle : me->_event_cancellation_handles)
+    {
+      // Whether the event terminated early or not, we tell the cancellation
+      // requests that the cancellation has succeeded, because the most
+      // important thing for those action clients is to know that the event is
+      // no longer running. We would only return a canceled result to them if
+      // it isn't possible to bring the action to an end, e.g. the action they
+      // requested is unknown.
+      handle->succeed(result);
+    }
 
     me->_current_event = nullptr;
     me->_current_event_raii = nullptr;
     me->_current_handle = nullptr;
     me->_deferred_event_start = nullptr;
+    me->_event_cancellation_handles.clear();
 
     if (me->_cancelled)
     {
