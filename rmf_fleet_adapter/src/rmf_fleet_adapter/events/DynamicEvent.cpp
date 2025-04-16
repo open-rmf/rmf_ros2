@@ -413,7 +413,7 @@ auto DynamicEvent::Active::make(
   };
 
   auto cancel = [w = active->weak_from_this()](
-    std::shared_ptr<DynamicEventHandle> handle)
+    std::shared_ptr<DynamicEventHandle>)
   {
     const auto me = w.lock();
     if (!me || !me->_current_event)
@@ -622,6 +622,27 @@ bool early_termination_status(rmf_task::Event::Status status)
 }
 
 //==============================================================================
+rmf_traffic::PlanId set_to_holding_itinerary(
+  const std::string& map,
+  Eigen::Vector3d position,
+  rmf_traffic::Time start_time,
+  double period,
+  rmf_traffic::schedule::Participant& participant)
+{
+  const auto plan_id = participant.assign_plan_id();
+  const auto finish_time = start_time + rmf_traffic::time::from_seconds(period);
+
+  rmf_traffic::Trajectory trajectory;
+  trajectory.insert(start_time, position, Eigen::Vector3d::Zero());
+  trajectory.insert(finish_time, position, Eigen::Vector3d::Zero());
+  rmf_traffic::schedule::Itinerary itinerary;
+  itinerary.push_back(rmf_traffic::Route(map, trajectory));
+
+  participant.set(plan_id, itinerary);
+  return plan_id;
+}
+
+//==============================================================================
 void DynamicEvent::Active::_begin_next_event(
   std::shared_ptr<const rmf_task_sequence::Event::Description> child_description,
   const float stubborn_period)
@@ -725,31 +746,55 @@ void DynamicEvent::Active::_begin_next_event(
       }
 
       const auto stubbornness = me->_context->be_stubborn();
-      const auto plan_id = me->_context->itinerary().assign_plan_id();
 
-      const auto position = me->_context->position();
-      const auto map = me->_context->map();
-      const auto period_start = me->_context->now();
-      const auto period_finish = period_start + rmf_traffic::time::from_seconds(period);
+      const auto position = std::make_shared<Eigen::Vector3d>(me->_context->position());
+      const auto map = std::make_shared<std::string>(me->_context->map());
+      const auto period_start = std::make_shared<rmf_traffic::Time>(me->_context->now());
+      const auto plan_id = std::make_shared<rmf_traffic::PlanId>(
+        set_to_holding_itinerary(
+          *map, *position, *period_start, period, me->_context->itinerary()));
 
-      rmf_traffic::Trajectory trajectory;
-      trajectory.insert(period_start, position, Eigen::Vector3d::Zero());
-      trajectory.insert(period_finish, position, Eigen::Vector3d::Zero());
-      rmf_traffic::schedule::Itinerary itinerary;
-      itinerary.push_back(rmf_traffic::Route(map, trajectory));
-
-      me->_context->itinerary().set(plan_id, itinerary);
       me->_stubborn_timer = me->_context->node()->try_create_wall_timer(
         rmf_traffic::time::from_seconds(1.0),
-        [plan_id, stubbornness, period_start, w = me->weak_from_this()]()
+        [plan_id, map, stubbornness, period_start, position, period, w = me->weak_from_this()]()
         {
           const auto me = w.lock();
           if (!me)
             return;
 
           const auto now = me->_context->now();
-          const auto delay = now - period_start;
-          me->_context->itinerary().cumulative_delay(plan_id, delay);
+          const auto current_position = me->_context->position();
+          const auto& current_map = me->_context->map();
+          const double threshold = std::max(
+            me->_context->nav_params()->max_merge_waypoint_distance,
+            1e-2);
+
+          const double dist = (current_position - *position).norm();
+
+          if (threshold < dist || *map != current_map)
+          {
+            *position = current_position;
+            *map = current_map;
+            *period_start = now;
+
+            // The robot has moved substantially from its last position, so
+            // let's update the location in the schedule
+            RCLCPP_INFO(
+              me->_context->node()->get_logger(),
+              "Robot [%s] has moved a distance of %.2fm while idle in a "
+              "dynamic event so we are adjusting its stubbornness location.",
+              me->_context->requester_id().c_str(),
+              dist);
+
+            *plan_id = set_to_holding_itinerary(
+              *map, *position, *period_start, period, me->_context->itinerary());
+          }
+          else
+          {
+            const auto delay = now - *period_start;
+            me->_context->itinerary().cumulative_delay(*plan_id, delay);
+          }
+
         });
     }
   };
