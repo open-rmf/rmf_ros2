@@ -46,7 +46,7 @@ void add_compose(
     [
     deser_phase = deserialization.phase,
     deser_event = deserialization.event
-    ](const nlohmann::json& msg) -> agv::DeserializedPhase
+    ](const nlohmann::json& msg) -> DeserializedPhase
     {
       const auto& category = msg.at("category").get<std::string>();
       const auto& description_json = msg.at("description");
@@ -104,7 +104,7 @@ void add_compose(
     deser_activity = deserialize_activity,
     consider = deserialization.consider_composed
     ](const nlohmann::json& msg)
-    -> agv::DeserializedTask
+    -> DeserializedTask
     {
       if (!(*consider))
       {
@@ -188,7 +188,7 @@ void add_compose(
 
   using rmf_task_sequence::events::Bundle;
   using DeserializedDependencies =
-    agv::DeserializedDescription<
+    DeserializedDescription<
     std::optional<Bundle::Description::Dependencies>>;
 
   // Deserialize composed tasks
@@ -234,7 +234,7 @@ void add_compose(
 
   auto deserialize_event_sequence =
     [deserialize_event_dependencies](const nlohmann::json& msg)
-    -> agv::DeserializedEvent
+    -> DeserializedEvent
     {
       DeserializedDependencies dependencies;
       std::optional<std::string> category;

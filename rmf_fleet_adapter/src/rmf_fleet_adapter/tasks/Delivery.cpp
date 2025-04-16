@@ -199,7 +199,7 @@ struct TransferItems
 };
 
 //==============================================================================
-using DeserializedItemTransfer = agv::DeserializedEvent;
+using DeserializedItemTransfer = DeserializedEvent;
 template<typename T>
 std::function<DeserializedItemTransfer(const nlohmann::json& msg)>
 make_deserializer(
@@ -226,7 +226,7 @@ make_deserializer(
     place_deser,
     consider,
     parse_payload_component = std::move(parse_payload_component)
-    ](const nlohmann::json& msg) -> agv::DeserializedEvent
+    ](const nlohmann::json& msg) -> DeserializedEvent
     {
       if (!consider || !(*consider))
       {
@@ -332,7 +332,7 @@ void add_delivery(
 
   auto deserialize_delivery =
     [deserialize_pickup, deserialize_dropoff](
-    const nlohmann::json& msg) -> agv::DeserializedTask
+    const nlohmann::json& msg) -> DeserializedTask
     {
       const auto pickup = deserialize_pickup(msg.at("pickup"));
       const auto dropoff = deserialize_dropoff(msg.at("dropoff"));

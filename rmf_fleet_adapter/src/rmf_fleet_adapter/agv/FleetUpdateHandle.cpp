@@ -36,6 +36,7 @@
 #include "../events/GoToPlace.hpp"
 #include "../events/ResponsiveWait.hpp"
 #include "../events/PerformAction.hpp"
+#include "../events/DynamicEvent.hpp"
 
 #include <rmf_task/Constraints.hpp>
 #include <rmf_task/Parameters.hpp>
@@ -1603,7 +1604,7 @@ PlaceDeserializer make_place_deserializer(
   planner)
 {
   return [planner = std::move(planner)](const nlohmann::json& msg)
-    -> agv::DeserializedPlace
+    -> DeserializedPlace
     {
       std::optional<rmf_traffic::agv::Plan::Goal> place;
       const auto& graph = (*planner)->get_configuration().graph();
@@ -1711,6 +1712,8 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     deserialization,
     activation,
     node->clock());
+
+  events::DynamicEvent::add(deserialization, activation.event);
 }
 
 //==============================================================================

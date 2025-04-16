@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description__dynamic_event.json",
+  "title": "Event Description for executing events dynamically",
+  "description": "Have a robot go to a place",
+  "type": "object",
+  "properties": {
+    "estimate": {
+      "description": "Optional. An event that estimates the expected behavior of the dynamic event, used by the task planner for optimal dispatch. If this is left out, the model for the event will be a no-op.",
+      "$ref": "#/$defs/event"
+    },
+    "required": {
+      "description": "An array of events that the fleet must be able to execute to ensure that the dynamic event will execute successfully. This is used during task dispatch to ensure the RMF system choose an appropriate fleet for the task.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/event" }
+    },
+    "category": {
+      "description": "Optional. Override the category that will be displayed in the event header. If this is left out, the catgegory field in the header will be dynamic_event."
+    },
+    "detail": {
+      "description": "Optional. Details about this event which will go into the event header. If this is left out, the detail field in the header will be left blank.",
+      "type": "string"
+    },
+    "parameters": {
+      "description": "Optional. This field is reserved for custom user-defined parameters that can inform the dynamic event client what its behavior should be."
+    }
+  },
+  "$defs": {
+    "event": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "description": "The category name of the event being used to estimate the dynamic event",
+          "type": "string"
+        },
+        "description": {
+          "description": "A description of the event. This must match a schema supported by the fleet for the event category."
+        }
+      }
+    }
+  }
+}
