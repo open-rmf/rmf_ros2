@@ -1614,6 +1614,21 @@ void EasyCommandHandle::dock(
   {
     angle = std::atan2(dy, dx);
   }
+  const Eigen::Vector2d course_vector = p1 - p0;
+  Eigen::Vector3d entry_position(p0.x(), p0.y(), angle);
+  const auto* entry_constraint = lane.entry().orientation_constraint();
+  if (entry_constraint)
+  {
+    entry_constraint->apply(entry_position, course_vector);
+    angle = entry_position[2];
+  }
+  Eigen::Vector3d exit_position(p1.x(), p1.y(), angle);
+  const auto* exit_constraint = lane.exit().orientation_constraint();
+  if (exit_constraint)
+  {
+    exit_constraint->apply(exit_position, course_vector);
+    angle = exit_position[2];
+  }
 
   std::vector<EasyFullControl::CommandExecution> queue;
 
