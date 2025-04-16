@@ -317,6 +317,15 @@ auto DynamicEvent::Active::make(
       me->_state->update_status(rmf_task::Event::State::Status::Completed);
       me->_publish_update();
       me->_finished();
+
+      const auto state = me->_current_event->state();
+      const auto result = std::make_shared<DynamicEventAction::Result>(
+        rmf_task_msgs::build<DynamicEventAction::Result>()
+          .execution_failure("")
+          .status(status_to_string(state->status()))
+          .id(state->id())
+      );
+      handle->succeed(result);
       return;
     }
 
