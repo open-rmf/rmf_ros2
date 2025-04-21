@@ -45,6 +45,7 @@
 #include <rmf_fleet_msgs/msg/fleet_state.hpp>
 #include <rmf_fleet_msgs/msg/mutex_group_request.hpp>
 #include <rmf_fleet_msgs/msg/mutex_group_states.hpp>
+#include <rmf_fleet_msgs/msg/emergency_signal.hpp>
 
 #include <rmf_task_msgs/msg/api_request.hpp>
 #include <rmf_task_msgs/msg/api_response.hpp>
@@ -107,6 +108,10 @@ public:
   using EmergencyNotice = std_msgs::msg::Bool;
   using EmergencyNoticeObs = rxcpp::observable<EmergencyNotice::SharedPtr>;
   const EmergencyNoticeObs& emergency_notice() const;
+
+  using TargetEmergencyNotice = rmf_fleet_msgs::msg::EmergencySignal;
+  using TargetEmergencyNoticeObs = rxcpp::observable<TargetEmergencyNotice::SharedPtr>;
+  const TargetEmergencyNoticeObs& target_emergency_notice() const;
 
   using IngestorRequest = rmf_ingestor_msgs::msg::IngestorRequest;
   using IngestorRequestPub = rclcpp::Publisher<IngestorRequest>::SharedPtr;
@@ -223,6 +228,7 @@ private:
   Bridge<DispenserResult> _dispenser_result_obs;
   Bridge<DispenserState> _dispenser_state_obs;
   Bridge<EmergencyNotice> _emergency_notice_obs;
+  Bridge<TargetEmergencyNotice> _target_emergency_notice_obs;
   IngestorRequestPub _ingestor_request_pub;
   Bridge<IngestorResult> _ingestor_result_obs;
   Bridge<IngestorState> _ingestor_state_obs;
