@@ -52,11 +52,10 @@ public:
   /// it should immediately switch over to this one.
   ///
   /// \param[in] waypoints
-  ///   The sequence of waypoints to follow. When the robot arrives at a
-  ///   waypoint in this sequence, it should wait at that waypoint until the
-  ///   clock reaches the time() field of the waypoint. This is important
-  ///   because the waypoint timing is used to avoid traffic conflicts with
-  ///   other vehicles.
+  ///   The sequence of waypoints to follow. The robot can safely move through
+  ///   the entire sequence without interruption. The time values of each
+  ///   waypoint indicate the expected time the robot will leave that waypoint,
+  ///   but that can be safely ignored.
   ///
   /// \param[in] next_arrival_estimator
   ///   Use this callback to give estimates for how long the robot will take to
@@ -66,7 +65,7 @@ public:
   ///
   /// \param[in] path_finished_callback
   ///   Trigger this callback when the robot is done following the new path.
-  ///   You do not need to trigger waypoint_arrival_callback when triggering
+  ///   You do not need to trigger next_arrival_estimator when triggering
   ///   this one.
   virtual void follow_new_path(
     const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
