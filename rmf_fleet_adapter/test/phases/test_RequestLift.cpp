@@ -103,14 +103,14 @@ SCENARIO_METHOD(MockAdapterFixture, "request lift phase", "[phases]")
       CHECK(test->received_requests.front().destination_floor == destination);
     }
 
-    THEN("it should continuously send lift requests when the lift state includes its requester ID")
+    THEN("it should continuously send lift requests when the lift state has the target lift name")
     {
       auto t = std::thread([&]()
           {
             for (std::size_t i = 0; i < 10; ++i)
             {
               LiftState state;
-              state.session_id = context->requester_id();
+              state.lift_name = lift_name;
               lift_state_pub->publish(state);
               std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
