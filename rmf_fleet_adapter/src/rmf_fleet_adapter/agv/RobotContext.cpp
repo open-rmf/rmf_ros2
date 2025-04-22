@@ -1862,12 +1862,6 @@ bool RobotContext::_parking_spot_manager_enabled()
 }
 
 //==============================================================================
-void RobotContext::_cancel_allocated_destination()
-{
-  return _reservation_mgr.cancel();
-}
-
-//==============================================================================
 std::string RobotContext::_get_reserved_location()
 {
   return _reservation_mgr.get_reserved_location();

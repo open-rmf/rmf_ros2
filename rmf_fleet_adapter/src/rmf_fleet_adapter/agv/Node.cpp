@@ -139,10 +139,6 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<ReservationRelease>(
     ReservationReleaseTopicName, transient_local_qos);
 
-  node->_reservation_cancel_pub =
-    node->create_publisher<ReservationCancel>(
-    ReservationCancelTopicName, transient_local_qos);
-
   return node;
 }
 
@@ -314,10 +310,5 @@ auto Node::release_location() const -> const ReservationReleasePub&
   return _reservation_release_pub;
 }
 
-//==============================================================================
-auto Node::cancel_reservation() const -> const ReservationCancelPub&
-{
-  return _reservation_cancel_pub;
-}
 } // namespace agv
 } // namespace rmf_fleet_adapter

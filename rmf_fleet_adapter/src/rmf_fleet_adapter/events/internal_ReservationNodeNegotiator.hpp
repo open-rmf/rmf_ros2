@@ -31,11 +31,6 @@ class ReservationNodeNegotiator :
   public std::enable_shared_from_this<ReservationNodeNegotiator>
 {
 public:
-  void cancel()
-  {
-    _context->_cancel_allocated_destination();
-  }
-
   static std::shared_ptr<ReservationNodeNegotiator> make(
     std::shared_ptr<agv::RobotContext> context,
     const std::vector<rmf_traffic::agv::Plan::Goal> goals,

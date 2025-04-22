@@ -358,10 +358,6 @@ public:
       this->create_subscription<rmf_reservation_msgs::msg::ReleaseRequest>(
         ReservationReleaseTopicName, qos,
         std::bind(&ReservationNode::release, this, std::placeholders::_1));
-    cancel_subscription_ =
-      this->create_subscription<rmf_reservation_msgs::msg::ReleaseRequest>(
-        ReservationCancelTopicName, qos,
-        std::bind(&ReservationNode::cancel, this, std::placeholders::_1));
     graph_subscription_ =
       this->create_subscription<rmf_building_map_msgs::msg::Graph>(
         NavGraphTopicName, qos,
@@ -514,13 +510,6 @@ private:
     }
   }
 
-  void cancel(
-    const rmf_reservation_msgs::msg::ReleaseRequest::ConstSharedPtr& request)
-  {
-    queue_manager_.remove_ticket(request->ticket.ticket_id);
-    release(request);
-  }
-
   void release(
     const rmf_reservation_msgs::msg::ReleaseRequest::ConstSharedPtr& request)
   {
@@ -612,8 +601,6 @@ private:
     claim_subscription_;
   rclcpp::Subscription<rmf_reservation_msgs::msg::ReleaseRequest>::SharedPtr
     release_subscription_;
-  rclcpp::Subscription<rmf_reservation_msgs::msg::ReleaseRequest>::SharedPtr
-    cancel_subscription_;
   rclcpp::Subscription<rmf_building_map_msgs::msg::Graph>::SharedPtr
     graph_subscription_;
 

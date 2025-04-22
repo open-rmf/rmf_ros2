@@ -166,12 +166,6 @@ public:
     rclcpp::Publisher<ReservationRelease>::SharedPtr;
   const ReservationReleasePub& release_location() const;
 
-  using ReservationCancel = rmf_reservation_msgs::msg::ReleaseRequest;
-  using ReservationCancelPub =
-    rclcpp::Publisher<ReservationCancel>::SharedPtr;
-  const ReservationCancelPub& cancel_reservation() const;
-
-
   template<typename DurationRepT, typename DurationT, typename CallbackT>
   rclcpp::TimerBase::SharedPtr try_create_wall_timer(
     std::chrono::duration<DurationRepT, DurationT> period,
@@ -237,7 +231,6 @@ private:
   ReservationClaimPub _reservation_claim_pub;
   Bridge<ReservationAllocation> _reservation_alloc_obs;
   ReservationReleasePub _reservation_release_pub;
-  ReservationCancelPub _reservation_cancel_pub;
 };
 
 } // namespace agv
