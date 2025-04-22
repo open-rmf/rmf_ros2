@@ -1686,6 +1686,7 @@ void EasyCommandHandle::dock(
           rmf_traffic::Duration(0),
           std::nullopt,
           nav_params,
+          speed_limit,
           [w_context = context->weak_from_this(), expected_arrival, plan_id](
             rmf_traffic::Duration turn)
           {
@@ -1694,7 +1695,7 @@ void EasyCommandHandle::dock(
             {
               return;
             }
-    
+
             context->worker().schedule([
                 w = context->weak_from_this(),
                 expected_arrival,
@@ -1705,7 +1706,7 @@ void EasyCommandHandle::dock(
                 const auto context = w.lock();
                 if (!context)
                   return;
-    
+
                 const rmf_traffic::Time now = context->now();
                 const auto updated_arrival = now + turn;
                 const auto delay = updated_arrival - expected_arrival;
