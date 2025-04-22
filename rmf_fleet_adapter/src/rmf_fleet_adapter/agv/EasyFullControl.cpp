@@ -295,6 +295,7 @@ public:
   rmf_traffic::Duration planned_wait_time;
   std::optional<ScheduleOverride> schedule_override;
   std::shared_ptr<NavParams> nav_params;
+  std::optional<double> speed_limit;
   std::function<void(rmf_traffic::Duration)> arrival_estimator;
 
   void release_stubbornness()
@@ -544,7 +545,12 @@ public:
       }
 
       const auto& traits = planner->get_configuration().vehicle_traits();
-      const auto v = std::max(traits.linear().get_nominal_velocity(), 0.001);
+      double v = std::max(traits.linear().get_nominal_velocity(), 0.001);
+      if (speed_limit.has_value())
+      {
+        v = std::min(v, *speed_limit);
+      }
+
       const auto w =
         std::max(traits.rotational().get_nominal_velocity(), 0.001);
       const auto t = distance / v + rotation / w;
@@ -1245,10 +1251,19 @@ void EasyCommandHandle::follow_new_path(
     }
 
     std::optional<double> speed_limit;
-    if (!wp1.approach_lanes().empty())
+    for (const auto arrival_lane : wp1.approach_lanes())
     {
-      const auto arrival_lane = wp1.approach_lanes().back();
-      speed_limit = graph.get_lane(arrival_lane).properties().speed_limit();
+      if (const auto lane_speed_limit = graph.get_lane(arrival_lane).properties().speed_limit())
+      {
+        if (!speed_limit.has_value())
+        {
+          speed_limit = lane_speed_limit;
+        }
+        else if (*lane_speed_limit < *speed_limit)
+        {
+          speed_limit = lane_speed_limit;
+        }
+      }
     }
 
     Eigen::Vector3d target_position = wp1.position();
@@ -1322,6 +1337,7 @@ void EasyCommandHandle::follow_new_path(
           planned_wait_time,
           std::nullopt,
           nav_params,
+          speed_limit,
           [next_arrival_estimator_, target_index,
           target_p](rmf_traffic::Duration dt)
           {
@@ -1570,6 +1586,8 @@ void EasyCommandHandle::dock(
     .value_or(rmf_traffic::Duration(0));
   const rmf_traffic::Time expected_arrival = now + dt - initial_delay;
 
+  const auto speed_limit = lane.properties().speed_limit();
+
   auto data = EasyFullControl::CommandExecution::Implementation::Data{
     {i0, i1},
     {*found_lane},
@@ -1578,6 +1596,7 @@ void EasyCommandHandle::dock(
     rmf_traffic::Duration(0),
     std::nullopt,
     nav_params,
+    speed_limit,
     [w_context = context->weak_from_this(), expected_arrival, plan_id](
       rmf_traffic::Duration dt)
     {
@@ -1667,6 +1686,7 @@ void EasyCommandHandle::dock(
           rmf_traffic::Duration(0),
           std::nullopt,
           nav_params,
+          speed_limit,
           [w_context = context->weak_from_this(), expected_arrival, plan_id](
             rmf_traffic::Duration turn)
           {
@@ -1675,7 +1695,7 @@ void EasyCommandHandle::dock(
             {
               return;
             }
-    
+
             context->worker().schedule([
                 w = context->weak_from_this(),
                 expected_arrival,
@@ -1686,7 +1706,7 @@ void EasyCommandHandle::dock(
                 const auto context = w.lock();
                 if (!context)
                   return;
-    
+
                 const rmf_traffic::Time now = context->now();
                 const auto updated_arrival = now + turn;
                 const auto delay = updated_arrival - expected_arrival;
@@ -1714,7 +1734,7 @@ void EasyCommandHandle::dock(
     command_position,
     i1,
     nav_params->get_vertex_name(graph, i1),
-    lane.properties().speed_limit(),
+    speed_limit,
     wp1.in_lift(),
     dock_name_);
 
