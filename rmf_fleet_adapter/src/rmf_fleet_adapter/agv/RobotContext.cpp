@@ -1609,7 +1609,10 @@ void RobotContext::_check_lift_state(
       state.session_id.c_str());
   }
 
-  _publish_lift_destination();
+  if (_lift_destination && _lift_destination->lift_name == state.lift_name)
+  {
+    _publish_lift_destination();
+  }
 }
 
 //==============================================================================
