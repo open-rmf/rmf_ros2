@@ -626,6 +626,16 @@ void ScheduleNode::setup_cull_timer()
 {
   cull_timer = create_wall_timer(
     std::chrono::minutes(1), [this]() { cull(); });
+
+  debug_timer = create_wall_timer(
+    std::chrono::minutes(1), [this]()
+    {
+      RCLCPP_INFO(
+        this->get_logger(),
+        "Memory footprint: stored waypoints %zu - timeline entries %zu",
+        this->database->waypoints_in_storage(),
+        this->database->entries_in_timeline());
+    });
 }
 
 //==============================================================================
