@@ -980,10 +980,28 @@ public:
 
     context->_initialize_dynamic_event_server();
 
+    context->debug_f_timer = context->_node->try_create_wall_timer(
+      std::chrono::seconds(1),
+      [w = context->weak_from_this()]()
+      {
+        if (const auto self = w.lock())
+        {
+          if (self->debug_f)
+          {
+            (self->debug_f)();
+          }
+        }
+      });
+
     return context;
   }
 
   bool debug_positions = false;
+
+  void set_debug_f(std::function<void()> f)
+  {
+    debug_f = f;
+  }
 
 private:
 
@@ -1117,6 +1135,10 @@ private:
   DynamicEventStatusPub _dynamic_event_status_pub;
   uint32_t _dynamic_event_seq;
   rclcpp_action::Server<DynamicEventAction>::SharedPtr _dynamic_event_server;
+
+
+  std::function<void()> debug_f;
+  rclcpp::TimerBase::SharedPtr debug_f_timer;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

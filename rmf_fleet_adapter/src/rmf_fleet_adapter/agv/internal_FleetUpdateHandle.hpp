@@ -391,7 +391,7 @@ public:
           self->_pimpl->handle_target_emergency(msg);
         }
       });
-    
+
     handle->_pimpl->emergency_planner =
       std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(nullptr);
 

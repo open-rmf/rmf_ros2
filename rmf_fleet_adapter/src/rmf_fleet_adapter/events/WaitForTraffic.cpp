@@ -158,13 +158,19 @@ auto WaitForTraffic::Active::make(
 
   const auto consider_going = [w = active->weak_from_this()]()
     {
+      std::cout << " >>>>>>>>>> CONSIDER GOING " << __LINE__ << std::endl;
       if (const auto self = w.lock())
       {
+        std::cout << " >>>>>>>>>> CONSIDER GOING " << __LINE__ << std::endl;
         self->_context->worker().schedule(
           [w = self->weak_from_this()](const auto&)
           {
+            std::cout << " >>>>>>>>>> CONSIDER GOING " << __LINE__ << std::endl;
             if (const auto self = w.lock())
+            {
+              std::cout << " >>>>>>>>>> CONSIDER GOING " << __LINE__ << std::endl;
               self->_consider_going();
+            }
           });
       }
     };
@@ -201,10 +207,32 @@ auto WaitForTraffic::Active::make(
   }
 
   if (all_reached_already || one_deprecated)
+  {
     consider_going();
+  }
 
   active->_timer = active->_context->node()->try_create_wall_timer(
     std::chrono::seconds(1), consider_going);
+
+  active->_heartbeat = active->_context->node()->try_create_wall_timer(
+    std::chrono::seconds(1), []() {
+      std::cout << " ------- WaitForTraffic Heartbeat --------- " << std::endl;
+    });
+
+  active->_context->set_debug_f([w = active->weak_from_this()]() {
+    if (const auto self = w.lock())
+    {
+      std::cout << "timer: " << self->_timer
+        << " is_cancelled: " << self->_timer->is_canceled()
+        << " is_ready: " << self->_timer->is_ready()
+        << " time_until_trigger: " << rmf_traffic::time::to_seconds(self->_timer->time_until_trigger())
+        << std::endl;
+    }
+    else
+    {
+      std::cout << " >>>>> WaitForTraffic ptr lost" << std::endl;
+    }
+  });
 
   return active;
 }
@@ -219,6 +247,7 @@ auto WaitForTraffic::Active::state() const -> ConstStatePtr
 rmf_traffic::Duration WaitForTraffic::Active::remaining_time_estimate() const
 {
   const auto estimate = _expected_time - _context->now();
+  std::cout << " <<<<<< remaining_time_estimate: " << rmf_traffic::time::to_seconds(estimate);
   if (estimate.count() > 0)
     return estimate;
 
@@ -262,6 +291,7 @@ void WaitForTraffic::Active::kill()
 //==============================================================================
 void WaitForTraffic::Active::_consider_going()
 {
+  std::cout << " >>>>>>> WAITING " << __LINE__ << std::endl;
   if (_decision_made)
   {
     const auto time_lapse = std::chrono::steady_clock::now() - *_decision_made;
@@ -275,6 +305,7 @@ void WaitForTraffic::Active::_consider_going()
       _replan();
     }
 
+    std::cout << " >>>>>>> WAITING " << __LINE__ << std::endl;
     return;
   }
 
@@ -296,6 +327,8 @@ void WaitForTraffic::Active::_consider_going()
       _context->node()->get_logger(),
       "[%s] done waiting for traffic",
       _context->requester_id().c_str());
+
+    std::cout << " >>>>>>> WAITING " << __LINE__ << std::endl;
     return _finished();
   }
 
@@ -304,6 +337,7 @@ void WaitForTraffic::Active::_consider_going()
   const auto cumulative_delay = now - _expected_time;
   if (30s < cumulative_delay)
   {
+    std::cout << " >>>>>>> WAITING " << __LINE__ << std::endl;
     // TODO(MXG): Make the max waiting time configurable
     _state->update_status(Status::Delayed);
     _state->update_log().info(
@@ -315,11 +349,26 @@ void WaitForTraffic::Active::_consider_going()
     return _replan();
   }
 
+  std::cout << " >>>>>>> WAITING " << __LINE__ << ": _plan_id " << _plan_id
+    << " vs " << _context->itinerary().current_plan_id() << std::endl;
+  std::cout << " >>>>>>> WAITING " << __LINE__ << ": cumulative_delay " << rmf_traffic::time::to_seconds(cumulative_delay) << std::endl;
   const auto current_delay = _context->itinerary().cumulative_delay(_plan_id);
+  if (current_delay.has_value())
+  {
+    std::cout << " >>>>>>> WAITING " << __LINE__ << ": current_delay " << rmf_traffic::time::to_seconds(*current_delay) << std::endl;
+  }
+
   if (current_delay.has_value() && *current_delay < cumulative_delay)
   {
+    std::cout << " >>>>>>> WAITING " << __LINE__ << std::endl;
     _context->itinerary().cumulative_delay(_plan_id, cumulative_delay, 500ms);
   }
+  else
+  {
+    std::cout << " >>>>>>> WAITING " << __LINE__ << std::endl;
+  }
+
+  std::cout << " >>>>>>> WAITING " << __LINE__ << std::endl;
 }
 
 //==============================================================================

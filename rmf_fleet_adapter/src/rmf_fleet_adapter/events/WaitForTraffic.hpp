@@ -89,6 +89,10 @@ public:
 
     void kill() final;
 
+    ~Active() {
+      std::cout << " >>>>>> DESTRUCTING WaitForTraffic for " << _context->requester_id() << std::endl;
+    }
+
   private:
     void _consider_going();
     void _replan();
@@ -104,6 +108,7 @@ public:
     std::function<void()> _update;
     std::function<void()> _finished;
     rclcpp::TimerBase::SharedPtr _timer;
+    rclcpp::TimerBase::SharedPtr _heartbeat;
     std::optional<rmf_traffic::Time> _decision_made;
     rmf_rxcpp::subscription_guard _mutex_group_listener;
   };
