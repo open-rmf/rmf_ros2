@@ -229,7 +229,7 @@ void add_clean(
     traits,
     place_deser = deserialization.place,
     consider = deserialization.consider_clean
-    ](const nlohmann::json& msg) -> agv::DeserializedTask
+    ](const nlohmann::json& msg) -> DeserializedTask
     {
       if (!consider || !(*consider))
       {
@@ -308,7 +308,7 @@ void add_clean(
   deserialization.task->add("clean", validate_clean_task, deserialize_clean);
 
   auto deserialize_clean_event =
-    [deserialize_clean](const nlohmann::json& msg) -> agv::DeserializedEvent
+    [deserialize_clean](const nlohmann::json& msg) -> DeserializedEvent
     {
       auto clean_task = deserialize_clean(msg);
       if (!clean_task.description)

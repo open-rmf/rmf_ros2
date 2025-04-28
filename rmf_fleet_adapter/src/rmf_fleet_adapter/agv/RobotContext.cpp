@@ -30,6 +30,23 @@
 #include <unordered_set>
 
 namespace rmf_fleet_adapter {
+
+//==============================================================================
+DynamicEventCallbacks::~DynamicEventCallbacks()
+{
+  const auto c = context.lock();
+  if (!c)
+    return;
+
+  c->worker().schedule([c](const auto&)
+    {
+      // Publish a dynamic event status update that reports the dynamic event
+      // as non-active.
+      c->_publish_dynamic_event_status(
+        rmf_task::Event::State::Status::Uninitialized, 0);
+    });
+}
+
 namespace agv {
 
 //==============================================================================
@@ -1883,6 +1900,57 @@ bool RobotContext::_has_ticket() const
 }
 
 //==============================================================================
+uint32_t RobotContext::_begin_dynamic_event(
+  std::string description,
+  std::shared_ptr<DynamicEventCallbacks> callbacks)
+{
+  ++_dynamic_event_seq;
+  _dynamic_event_goal.reset();
+  _dynamic_event_callbacks = std::move(callbacks);
+
+  auto msg = rmf_task_msgs::build<DynamicEventDescription>()
+    .fleet(_itinerary.description().owner())
+    .robot(_itinerary.description().name())
+    .dynamic_event_seq(_dynamic_event_seq)
+    .description(std::move(description))
+    .start_time(_node->now());
+
+  // We publish to both the general topic and the robot-specific topic
+  _node->all_dynamic_event_descriptions()->publish(msg);
+  _individual_dynamic_event_description_pub->publish(msg);
+
+  return _dynamic_event_seq;
+}
+
+//==============================================================================
+void RobotContext::_publish_dynamic_event_status(
+  rmf_task::Event::State::Status status,
+  uint64_t id)
+{
+  uint8_t dynamic_state = DynamicEventStatus::DYNAMIC_STATE_INACTIVE;
+  if (!_dynamic_event_callbacks.expired())
+  {
+    if (_dynamic_event_goal.expired())
+    {
+      dynamic_state = DynamicEventStatus::DYNAMIC_STATE_WAITING;
+    }
+    else
+    {
+      dynamic_state = DynamicEventStatus::DYNAMIC_STATE_RUNNING;
+    }
+  }
+
+  auto msg = rmf_task_msgs::build<DynamicEventStatus>()
+    .dynamic_event_seq(_dynamic_event_seq)
+    .dynamic_state(dynamic_state)
+    .status(status_to_string(status))
+    .id(id)
+    .time(_node->now());
+
+  _dynamic_event_status_pub->publish(msg);
+}
+
+//==============================================================================
 std::vector<rmf_traffic::agv::Plan::Goal>
 RobotContext::_find_and_sort_parking_spots(
   const bool same_floor) const
@@ -2053,6 +2121,118 @@ void RobotContext::_handle_mutex_group_manual_release(
   }
 
   retain_mutex_groups(retain);
+}
+
+//==============================================================================
+void RobotContext::_initialize_dynamic_event_server()
+{
+  const auto single_transient_local_qos = rclcpp::QoS(1).reliable().transient_local();
+  _individual_dynamic_event_description_pub = _node
+    ->create_publisher<DynamicEventDescription>(
+      DynamicEventBeginTopicBase + "/" + requester_id(),
+      single_transient_local_qos);
+
+  _dynamic_event_status_pub = _node
+      ->create_publisher<DynamicEventStatus>(
+        DynamicEventStatusTopicBase + "/" + requester_id(),
+        single_transient_local_qos);
+
+  _dynamic_event_seq = 0;
+
+  auto handle_goal = [w = weak_from_this()](
+    const rclcpp_action::GoalUUID&,
+    std::shared_ptr<const DynamicEventAction::Goal> goal)
+  {
+    const auto me = w.lock();
+    if (!me || goal->dynamic_event_seq != me->_dynamic_event_seq)
+    {
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+
+    const auto callbacks = me->_dynamic_event_callbacks.lock();
+    if (!callbacks)
+    {
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+
+    const bool cancellation = goal->event_type ==
+      DynamicEventAction::Goal::EVENT_TYPE_CANCEL;
+
+    if (!me->_dynamic_event_goal.expired() && !cancellation)
+    {
+      // There is an ongoing goal and the request is not a cancellation, so we
+      // should reject it.
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+
+    if (goal->event_type == DynamicEventAction::Goal::EVENT_TYPE_NEXT)
+    {
+      if (!callbacks->validator(goal->category, goal->description))
+      {
+        return rclcpp_action::GoalResponse::REJECT;
+      }
+    }
+
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+  };
+
+  auto handle_accepted = [w = weak_from_this()](
+    const std::shared_ptr<DynamicEventHandle> handle)
+  {
+    const auto me = w.lock();
+    if (!me)
+    {
+      handle->execute();
+      handle->abort(dynamic_event_execution_failure("shutting down"));
+      return;
+    }
+
+    const auto callbacks = me->_dynamic_event_callbacks.lock();
+    const auto event_conflict = !me->_dynamic_event_goal.expired()
+      && handle->get_goal()->event_type != DynamicEventAction::Goal::EVENT_TYPE_CANCEL;
+
+    if (!callbacks || event_conflict)
+    {
+      handle->execute();
+      handle->abort(dynamic_event_execution_failure("race condition"));
+      return;
+    }
+
+    auto execution_raii = std::make_shared<rclcpp_action::GoalUUID>(handle->get_goal_id());
+    me->_dynamic_event_goal = execution_raii;
+    callbacks->executor(handle, execution_raii);
+  };
+
+  auto handle_cancel = [w = weak_from_this()](
+    const std::shared_ptr<DynamicEventHandle> handle)
+  {
+    const auto me = w.lock();
+    std::shared_ptr<rclcpp_action::GoalUUID> current_action_guid;
+    std::shared_ptr<DynamicEventCallbacks> callbacks;
+    if (me)
+    {
+      current_action_guid = me->_dynamic_event_goal.lock();
+      callbacks = me->_dynamic_event_callbacks.lock();
+    }
+
+    if (!callbacks || !current_action_guid || *current_action_guid != handle->get_goal_id())
+    {
+      handle->canceled(
+        dynamic_event_execution_failure("cancelled while not running"));
+      return rclcpp_action::CancelResponse::ACCEPT;
+    }
+
+    callbacks->cancel(handle);
+
+    return rclcpp_action::CancelResponse::ACCEPT;
+  };
+
+  _dynamic_event_server = rclcpp_action::create_server<DynamicEventAction>(
+    _node,
+    DynamicEventActionName + "/" + requester_id(),
+    handle_goal,
+    handle_cancel,
+    handle_accepted);
 }
 
 } // namespace agv

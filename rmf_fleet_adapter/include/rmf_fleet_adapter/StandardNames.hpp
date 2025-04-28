@@ -88,6 +88,10 @@ const std::string ReservationAllocationTopicName =
 const std::string ReservationReleaseTopicName = "rmf/reservations/release";
 const std::string ReservationCancelTopicName = "rmf/reservations/cancel";
 
+const std::string DynamicEventBeginTopicBase = "rmf/dynamic_event/begin";
+const std::string DynamicEventStatusTopicBase = "rmf/dynamic_event/status";
+const std::string DynamicEventActionName = "rmf/dynamic_event/command";
+
 const uint64_t Unclaimed = (uint64_t)(-1);
 
 } // namespace rmf_fleet_adapter

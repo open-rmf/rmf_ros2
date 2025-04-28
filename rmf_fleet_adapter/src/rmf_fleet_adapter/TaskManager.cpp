@@ -291,39 +291,6 @@ const std::string& TaskManager::ActiveTask::id() const
 namespace {
 
 //==============================================================================
-std::string status_to_string(rmf_task::Event::Status status)
-{
-  using Status = rmf_task::Event::Status;
-  switch (status)
-  {
-    case Status::Uninitialized:
-      return "uninitialized";
-    case Status::Blocked:
-      return "blocked";
-    case Status::Error:
-      return "error";
-    case Status::Failed:
-      return "failed";
-    case Status::Standby:
-      return "standby";
-    case Status::Underway:
-      return "underway";
-    case Status::Delayed:
-      return "delayed";
-    case Status::Skipped:
-      return "skipped";
-    case Status::Canceled:
-      return "canceled";
-    case Status::Killed:
-      return "killed";
-    case Status::Completed:
-      return "completed";
-    default:
-      return "uninitialized";
-  }
-}
-
-//==============================================================================
 nlohmann::json& copy_phase_data(
   nlohmann::json& phases,
   const rmf_task::Phase::Active& snapshot,
