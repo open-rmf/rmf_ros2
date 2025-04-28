@@ -113,7 +113,8 @@ void Node::_lift_state_update(LiftState::UniquePtr state)
   if (lift_request)
   {
     if ((lift_request->destination_floor != state->destination_floor) ||
-      (lift_request->door_state != state->door_state))
+      (lift_request->door_state != state->door_state) ||
+      (lift_request->session_id != state->session_id))
     {
       lift_request->request_time = this->now();
       _lift_request_pub->publish(*lift_request);
