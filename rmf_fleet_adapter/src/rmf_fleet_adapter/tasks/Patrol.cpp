@@ -47,7 +47,7 @@ void add_patrol(
 
   auto deserialize_go_to_place =
     [place_deser = deserialization.place](const nlohmann::json& msg)
-    -> agv::DeserializedEvent
+    -> DeserializedEvent
     {
       nlohmann::json place_msg;
       const auto one_of = msg.find("one_of");
@@ -147,7 +147,7 @@ void add_patrol(
     [
     place_deser = deserialization.place,
     consider = deserialization.consider_patrol
-    ](const nlohmann::json& msg) -> agv::DeserializedTask
+    ](const nlohmann::json& msg) -> DeserializedTask
     {
       if (!(*consider))
       {
