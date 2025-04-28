@@ -70,6 +70,8 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
           );
         }
         curr_request = std::move(msg);
+        curr_request->request_time = this->now();
+        _lift_request_pub->publish(*curr_request);
       }
       else
       {
@@ -94,6 +96,8 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
         msg->session_id.c_str(), msg->destination_floor.c_str(), msg->request_type
       );
       curr_request = std::move(msg);
+      curr_request->request_time = this->now();
+      _lift_request_pub->publish(*curr_request);
     }
   }
 
@@ -111,13 +115,15 @@ void Node::_lift_state_update(LiftState::UniquePtr state)
     if ((lift_request->destination_floor != state->destination_floor) ||
       (lift_request->door_state != state->door_state))
     {
+      lift_request->request_time = this->now();
       _lift_request_pub->publish(*lift_request);
     }
   }
-  else
+  else if (!state->session_id.empty())
   {
-    // If there are no active sessions going on, we keep publishing session
-    // end requests to ensure that the lift is released
+    // If the lift state has an active session but there are not supposed to be
+    // any active sessions going on, we keep publishing session end requests to
+    // ensure that the lift gets released
     LiftRequest request;
     request.lift_name = state->lift_name;
     request.destination_floor = state->current_floor;
