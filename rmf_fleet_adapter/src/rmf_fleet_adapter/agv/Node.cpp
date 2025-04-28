@@ -143,6 +143,10 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<ReservationRelease>(
     ReservationReleaseTopicName, transient_local_qos);
 
+  node->_general_dynamic_event_description_pub =
+    node->create_publisher<DynamicEventDescription>(
+      DynamicEventBeginTopicBase, transient_local_qos);
+
   return node;
 }
 
@@ -320,6 +324,12 @@ auto Node::allocated_claims_obs() const -> const ReservationAllocationObs&
 auto Node::release_location() const -> const ReservationReleasePub&
 {
   return _reservation_release_pub;
+}
+
+//==============================================================================
+const DynamicEventDescriptionPub& Node::all_dynamic_event_descriptions() const
+{
+  return _general_dynamic_event_description_pub;
 }
 
 } // namespace agv
