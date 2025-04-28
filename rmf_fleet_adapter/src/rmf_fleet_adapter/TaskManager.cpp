@@ -327,7 +327,7 @@ nlohmann::json& copy_phase_data(
   phase_state["estimate_millis"] =
     std::max(0l, to_millis(snapshot.estimate_remaining_time()).count());
   phase_state["final_event_id"] = snapshot.final_event()->id();
-  auto& event_states = phase_state["events"];
+  //auto& event_states = phase_state["events"];
 
   // TODO(MXG): Add in skip request information
 
@@ -338,6 +338,7 @@ nlohmann::json& copy_phase_data(
   auto& event_logs = phase_logs["events"];
   event_logs = std::unordered_map<std::string, std::vector<nlohmann::json>>();
 
+  /*
   while (!event_queue.empty())
   {
     const auto top = event_queue.back();
@@ -377,6 +378,7 @@ nlohmann::json& copy_phase_data(
 
     event_state["deps"] = std::move(deps);
   }
+  */
 
   return phase_state;
 }
