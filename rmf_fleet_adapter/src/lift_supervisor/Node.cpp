@@ -61,6 +61,8 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
     {
       if (msg->request_type != LiftRequest::REQUEST_END_SESSION)
       {
+        // Set the timestamp to be the same so it doesn't confuse the comparison.
+        msg->request_time = curr_request->request_time;
         if (*curr_request != *msg)
         {
           RCLCPP_INFO(
