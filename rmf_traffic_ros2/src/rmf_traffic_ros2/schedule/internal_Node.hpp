@@ -545,7 +545,7 @@ public:
   std::size_t last_known_participants_version = 0;
   std::size_t current_participants_version = 1;
 
-  rclcpp::TimerBase::SharedPtr debug_timer;
+  rclcpp::TimerBase::SharedPtr memory_utilization_timer;
 };
 
 } // namespace schedule

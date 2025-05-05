@@ -627,7 +627,7 @@ void ScheduleNode::setup_cull_timer()
   cull_timer = create_wall_timer(
     std::chrono::minutes(1), [this]() { cull(); });
 
-  debug_timer = create_wall_timer(
+  memory_utilization_timer = create_wall_timer(
     std::chrono::minutes(1), [this]()
     {
       RCLCPP_INFO(

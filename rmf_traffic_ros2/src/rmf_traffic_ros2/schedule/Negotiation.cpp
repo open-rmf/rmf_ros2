@@ -217,7 +217,7 @@ public:
   std::shared_ptr<Worker> worker;
   rmf_traffic::Duration timeout = std::chrono::seconds(15);
 
-  rclcpp::TimerBase::SharedPtr debug_timer;
+  rclcpp::TimerBase::SharedPtr memory_utilization_timer;
 
   using Repeat = rmf_traffic_msgs::msg::NegotiationRepeat;
   using RepeatSub = rclcpp::Subscription<Repeat>;
@@ -323,7 +323,7 @@ public:
     // TODO(MXG): Make the QoS configurable
     const auto qos = rclcpp::ServicesQoS().reliable().keep_last(1000);
 
-    debug_timer = node.create_timer(
+    memory_utilization_timer = node.create_wall_timer(
       rmf_traffic::time::from_seconds(600.0),
       [this]()
       {
