@@ -46,27 +46,6 @@ void ReservationManager::replace_ticket(
 }
 
 //==============================================================================
-void ReservationManager::cancel()
-{
-  auto context = _context.lock();
-  if (!context)
-  {
-    return;
-  }
-  if (has_ticket())
-    return;
-
-  RCLCPP_INFO(
-    context->node()->get_logger(),
-    "Cancelling ticket %lu",
-    _allocation->ticket.ticket_id);
-  rmf_reservation_msgs::msg::ReleaseRequest msg;
-  msg.ticket = _allocation->ticket;
-  context->node()->cancel_reservation()->publish(msg);
-  _allocation = std::nullopt;
-}
-
-//==============================================================================
 std::string ReservationManager::get_reserved_location() const
 {
   if (has_ticket())

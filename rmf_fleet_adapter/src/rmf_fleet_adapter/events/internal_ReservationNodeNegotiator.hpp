@@ -31,22 +31,6 @@ class ReservationNodeNegotiator :
   public std::enable_shared_from_this<ReservationNodeNegotiator>
 {
 public:
-  void cancel()
-  {
-    _context->worker().schedule(
-      [ptr = weak_from_this()](
-        const auto&)
-    {
-      auto self = ptr.lock();
-      if(!self)
-      {
-        return;
-      }
-
-      self->_context->_cancel_allocated_destination();
-    });
-  }
-
   static std::shared_ptr<ReservationNodeNegotiator> make(
     std::shared_ptr<agv::RobotContext> context,
     const std::vector<rmf_traffic::agv::Plan::Goal> goals,

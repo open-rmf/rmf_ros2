@@ -86,7 +86,6 @@ const std::string ReservationClaimTopicName = "rmf/reservations/claim";
 const std::string ReservationAllocationTopicName =
   "rmf/reservations/allocation";
 const std::string ReservationReleaseTopicName = "rmf/reservations/release";
-const std::string ReservationCancelTopicName = "rmf/reservations/cancel";
 
 const std::string DynamicEventBeginTopicBase = "rmf/dynamic_event/begin";
 const std::string DynamicEventStatusTopicBase = "rmf/dynamic_event/status";

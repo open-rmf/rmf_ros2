@@ -178,12 +178,7 @@ public:
     rclcpp::Publisher<ReservationRelease>::SharedPtr;
   const ReservationReleasePub& release_location() const;
 
-  using ReservationCancel = rmf_reservation_msgs::msg::ReleaseRequest;
-  using ReservationCancelPub =
-    rclcpp::Publisher<ReservationCancel>::SharedPtr;
-  const ReservationCancelPub& cancel_reservation() const;
-
-  const DynamicEventDescriptionPub& all_dynamic_event_descriptions() const;
+ const DynamicEventDescriptionPub& all_dynamic_event_descriptions() const;
 
 
   template<typename DurationRepT, typename DurationT, typename CallbackT>
@@ -252,7 +247,6 @@ private:
   ReservationClaimPub _reservation_claim_pub;
   Bridge<ReservationAllocation> _reservation_alloc_obs;
   ReservationReleasePub _reservation_release_pub;
-  ReservationCancelPub _reservation_cancel_pub;
   DynamicEventDescriptionPub _general_dynamic_event_description_pub;
 };
 
