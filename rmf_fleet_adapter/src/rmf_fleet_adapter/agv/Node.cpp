@@ -143,10 +143,6 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<ReservationRelease>(
     ReservationReleaseTopicName, transient_local_qos);
 
-  node->_reservation_cancel_pub =
-    node->create_publisher<ReservationCancel>(
-    ReservationCancelTopicName, transient_local_qos);
-
   node->_general_dynamic_event_description_pub =
     node->create_publisher<DynamicEventDescription>(
       DynamicEventBeginTopicBase, transient_local_qos);
@@ -328,12 +324,6 @@ auto Node::allocated_claims_obs() const -> const ReservationAllocationObs&
 auto Node::release_location() const -> const ReservationReleasePub&
 {
   return _reservation_release_pub;
-}
-
-//==============================================================================
-auto Node::cancel_reservation() const -> const ReservationCancelPub&
-{
-  return _reservation_cancel_pub;
 }
 
 //==============================================================================

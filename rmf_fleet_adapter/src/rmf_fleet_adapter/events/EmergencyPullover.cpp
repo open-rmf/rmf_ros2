@@ -262,10 +262,6 @@ void EmergencyPullover::Active::cancel()
   _execution = std::nullopt;
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
-  if (_context->_parking_spot_manager_enabled())
-  {
-    _reservation_client->cancel();
-  }
   _finished();
 }
 
@@ -275,10 +271,6 @@ void EmergencyPullover::Active::kill()
   _execution = std::nullopt;
   _state->update_status(Status::Killed);
   _state->update_log().info("Received signal to kill");
-  if (_context->_parking_spot_manager_enabled())
-  {
-    _reservation_client->cancel();
-  }
   _finished();
 }
 
