@@ -52,7 +52,7 @@ target_include_directories(rmf_task_ros2
 )
 
 ament_export_targets(export_rmf_task_ros2 HAS_LIBRARY_TARGET)
-ament_export_dependencies(rmf_traffic rmf_task_msgs rclcpp nlohmann_json)
+ament_export_dependencies(rmf_traffic rmf_task_msgs rclcpp nlohmann_json rmf_api_msgs rmf_websocket)
 
 #===============================================================================
 set(TEST_UNCRUSTIFY "Off")
