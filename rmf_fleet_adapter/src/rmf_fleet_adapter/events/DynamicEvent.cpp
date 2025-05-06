@@ -424,22 +424,23 @@ auto DynamicEvent::Active::make(
     // external cancellation request.
   };
 
-  auto validator = [w = active->weak_from_this()](
+  std::string logger_name =
+    std::string("rmf.dynamic_event.")
+    + active->_context->group() + "."
+    + active->_context->name();
+  auto logger = rclcpp::get_logger(logger_name);
+  auto validator = [w = active->weak_from_this(), logger](
     const std::string& category,
     const std::string& description)
   {
     const auto me = w.lock();
     if (!me)
     {
-      std::cerr << "Cannot validate dynamic event goal because the dynamic event has ended." << std::endl;
+      RCLCPP_ERROR(
+        logger,
+        "Cannot validate dynamic event goal because the dynamic event has ended.");
       return false;
     }
-
-    std::string logger_name =
-      std::string("rmf.dynamic_event.")
-      + me->_context->group() + "."
-      + me->_context->name();
-    auto logger = rclcpp::get_logger(logger_name);
 
     const auto& handlers = me->_description.event_deserializer()->handlers;
 
