@@ -20,6 +20,15 @@
 
 #include <queue>
 #include <rclcpp/node.hpp>
+#include <rclcpp/node_interfaces/node_base_interface.hpp>
+#include <rclcpp/node_interfaces/node_clock_interface.hpp>
+#include <rclcpp/node_interfaces/node_graph_interface.hpp>
+#include <rclcpp/node_interfaces/node_logging_interface.hpp>
+#include <rclcpp/node_interfaces/node_parameters_interface.hpp>
+#include <rclcpp/node_interfaces/node_services_interface.hpp>
+#include <rclcpp/node_interfaces/node_time_source_interface.hpp>
+#include <rclcpp/node_interfaces/node_timers_interface.hpp>
+#include <rclcpp/node_interfaces/node_topics_interface.hpp>
 #include <rmf_utils/impl_ptr.hpp>
 
 #include <rmf_task_ros2/bidding/Response.hpp>
@@ -77,6 +86,47 @@ public:
   /// \sa make()
   static std::shared_ptr<Auctioneer> make(
     const std::shared_ptr<rclcpp::Node>& node,
+    BiddingResultCallback result_callback,
+    ConstEvaluatorPtr evaluator);
+
+  /// Create an instance of the Auctioneer. This instance will handle all
+  /// the task dispatching bidding mechanism. A default evaluator is used.
+  ///
+  /// \param[in] node_base_interface
+  ///   ros2 node base interface for managing callback groups and timers
+  ///
+  /// \param[in] node_clock_interface
+  ///   ros2 node clock interface for managing time
+  ///
+  /// \param[in] node_logging_interface
+  ///   ros2 node logging interface for enabling logging
+  ///
+  /// \param[in] node_timers_interface
+  ///   ros2 node timers interface for adding timers
+  ///
+  /// \param[in] node_topics_interface
+  ///   ros2 node topics interface for creating publishers and subscribers
+  ///
+  /// \param[in] node_parameters_interface
+  ///   ros2 node parameters interface for handling parameters
+  ///
+  /// \param[in] result_callback
+  ///   This callback fn will be called when a bidding result is concluded
+  ///
+  /// \sa make()
+  static std::shared_ptr<Auctioneer> make(
+    const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
+    node_base_interface,
+    const rclcpp::node_interfaces::NodeClockInterface::SharedPtr
+    node_clock_interface,
+    const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
+    node_logging_interface,
+    const rclcpp::node_interfaces::NodeTimersInterface::SharedPtr
+    node_timers_interface,
+    const rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr
+    node_topics_interface,
+    const rclcpp::node_interfaces::NodeParametersInterface::SharedPtr
+    node_parameters_interface,
     BiddingResultCallback result_callback,
     ConstEvaluatorPtr evaluator);
 
