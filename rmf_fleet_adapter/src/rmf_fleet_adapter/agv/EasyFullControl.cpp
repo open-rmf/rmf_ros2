@@ -1403,8 +1403,7 @@ void EasyCommandHandle::follow_new_path(
         speed_limit,
         in_lift);
 
-      queue.push_back(
-        EasyFullControl::CommandExecution::Implementation::make(
+      auto cmd = EasyFullControl::CommandExecution::Implementation::make(
           context,
           EasyFullControl::CommandExecution::Implementation::Data{
             cmd_wps,
@@ -1427,8 +1426,9 @@ void EasyCommandHandle::follow_new_path(
           ](EasyFullControl::CommandExecution execution)
           {
             handle_nav_request(destination, execution);
-          }
-        ));
+          });
+
+      queue.insert(queue.begin(), cmd);
     }
   }
 
