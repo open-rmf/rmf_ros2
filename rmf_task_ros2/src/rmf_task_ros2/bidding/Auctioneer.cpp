@@ -235,12 +235,13 @@ std::shared_ptr<Auctioneer> Auctioneer::make(
   ConstEvaluatorPtr evaluator)
 {
   auto auctioneer = make(
-    node->get_node_base_interface(),
-    node->get_node_clock_interface(),
-    node->get_node_logging_interface(),
-    node->get_node_timers_interface(),
-    node->get_node_topics_interface(),
-    node->get_node_parameters_interface(),
+    ActioneerInterfaces(
+      node->get_node_base_interface(),
+      node->get_node_clock_interface(),
+      node->get_node_logging_interface(),
+      node->get_node_timers_interface(),
+      node->get_node_topics_interface(),
+      node->get_node_parameters_interface()),
     std::move(result_callback),
     std::move(evaluator));
   return auctioneer;
@@ -248,29 +249,18 @@ std::shared_ptr<Auctioneer> Auctioneer::make(
 
 //==============================================================================
 std::shared_ptr<Auctioneer> Auctioneer::make(
-  const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
-  node_base_interface,
-  const rclcpp::node_interfaces::NodeClockInterface::SharedPtr
-  node_clock_interface,
-  const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
-  node_logging_interface,
-  const rclcpp::node_interfaces::NodeTimersInterface::SharedPtr
-  node_timers_interface,
-  const rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr
-  node_topics_interface,
-  const rclcpp::node_interfaces::NodeParametersInterface::SharedPtr
-  node_parameters_interface,
+  ActioneerInterfaces node_interfaces,
   BiddingResultCallback result_callback,
   ConstEvaluatorPtr evaluator)
 {
   auto auctioneer = std::shared_ptr<Auctioneer>(new Auctioneer());
   auctioneer->_pimpl = rmf_utils::make_unique_impl<Implementation>(
-    node_base_interface,
-    node_clock_interface,
-    node_logging_interface,
-    node_timers_interface,
-    node_topics_interface,
-    node_parameters_interface,
+    node_interfaces.get<rclcpp::node_interfaces::NodeBaseInterface>(),
+    node_interfaces.get<rclcpp::node_interfaces::NodeClockInterface>(),
+    node_interfaces.get<rclcpp::node_interfaces::NodeLoggingInterface>(),
+    node_interfaces.get<rclcpp::node_interfaces::NodeTimersInterface>(),
+    node_interfaces.get<rclcpp::node_interfaces::NodeTopicsInterface>(),
+    node_interfaces.get<rclcpp::node_interfaces::NodeParametersInterface>(),
     std::move(result_callback),
     std::move(evaluator));
   return auctioneer;
