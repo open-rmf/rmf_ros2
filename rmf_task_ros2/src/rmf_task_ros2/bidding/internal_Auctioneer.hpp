@@ -34,7 +34,7 @@ class Auctioneer::Implementation
 {
 public:
 
-  Auctioneer::ActioneerInterfaces node_interfaces;
+  Auctioneer::AuctioneerNodeInterfaces node_interfaces;
 
   rclcpp::TimerBase::SharedPtr timer;
   BiddingResultCallback bidding_result_callback;
@@ -57,7 +57,7 @@ public:
   BidResponseSub::SharedPtr bid_proposal_sub;
 
   Implementation(
-    Auctioneer::ActioneerInterfaces node_interfaces,
+    Auctioneer::AuctioneerNodeInterfaces node_interfaces,
     BiddingResultCallback result_callback,
     ConstEvaluatorPtr evaluator);
 

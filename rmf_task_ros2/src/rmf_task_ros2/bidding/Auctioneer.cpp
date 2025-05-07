@@ -26,7 +26,7 @@ namespace bidding {
 
 //==============================================================================
 Auctioneer::Implementation::Implementation(
-  ActioneerInterfaces node_interfaces_,
+  AuctioneerNodeInterfaces node_interfaces_,
   BiddingResultCallback result_callback,
   ConstEvaluatorPtr evaluator_)
 : node_interfaces{std::move(node_interfaces_)},
@@ -228,7 +228,7 @@ std::shared_ptr<Auctioneer> Auctioneer::make(
   ConstEvaluatorPtr evaluator)
 {
   auto auctioneer = make(
-    ActioneerInterfaces(*node),
+    AuctioneerNodeInterfaces(*node),
     std::move(result_callback),
     std::move(evaluator));
   return auctioneer;
@@ -236,7 +236,7 @@ std::shared_ptr<Auctioneer> Auctioneer::make(
 
 //==============================================================================
 std::shared_ptr<Auctioneer> Auctioneer::make(
-  ActioneerInterfaces node_interfaces,
+  AuctioneerNodeInterfaces node_interfaces,
   BiddingResultCallback result_callback,
   ConstEvaluatorPtr evaluator)
 {

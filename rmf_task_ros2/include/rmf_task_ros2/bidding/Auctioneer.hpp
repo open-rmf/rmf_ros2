@@ -81,7 +81,7 @@ public:
     BiddingResultCallback result_callback,
     ConstEvaluatorPtr evaluator);
 
-  using ActioneerInterfaces = rclcpp::node_interfaces::NodeInterfaces<
+  using AuctioneerNodeInterfaces = rclcpp::node_interfaces::NodeInterfaces<
     rclcpp::node_interfaces::NodeBaseInterface,
     rclcpp::node_interfaces::NodeClockInterface,
     rclcpp::node_interfaces::NodeLoggingInterface,
@@ -100,7 +100,7 @@ public:
   ///
   /// \sa make()
   static std::shared_ptr<Auctioneer> make(
-    ActioneerInterfaces node_interfaces,
+    AuctioneerNodeInterfaces node_interfaces,
     BiddingResultCallback result_callback,
     ConstEvaluatorPtr evaluator);
 
