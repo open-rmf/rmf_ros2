@@ -1063,18 +1063,6 @@ void EasyCommandHandle::follow_new_path(
     const auto& wp = waypoints[i];
     for (const auto& l : current_location)
     {
-      if (!nav_params->skip_rotation_commands)
-      {
-        // If the waypoint and robot orientations are not aligned with
-        // skip rotation command set to False, we will not consider this as
-        // a connection
-        if (std::abs(wp.position()[2] -
-          l.orientation())*180.0 / M_PI > 1e-2)
-        {
-          continue;
-        }
-      }
-
       if (wp.graph_index().has_value())
       {
         if (nav_params->in_same_stack(*wp.graph_index(),
@@ -1152,17 +1140,6 @@ void EasyCommandHandle::follow_new_path(
       {
         for (const auto& l : current_location)
         {
-          if (!nav_params->skip_rotation_commands)
-          {
-            // If the waypoint and robot orientations are not aligned with
-            // skip rotation command set to False, we will not consider this as
-            // a connection
-            if (std::abs(wp.position()[2] -
-              l.orientation())*180.0 / M_PI > 1e-2)
-            {
-              continue;
-            }
-          }
           if (l.lane().has_value())
           {
             if (lane == *l.lane())
@@ -1271,6 +1248,7 @@ void EasyCommandHandle::follow_new_path(
     rmf_traffic::Duration planned_wait_time = rmf_traffic::Duration(0);
     if (nav_params->skip_rotation_commands)
     {
+      // Skip command points that only exist to rotate the robot
       std::size_t i2 = i1 + 1;
       while (i2 < waypoints.size())
       {
@@ -1286,8 +1264,9 @@ void EasyCommandHandle::follow_new_path(
         {
           target_index = i2;
           target_position = wp2.position();
-          if (std::abs(wp1.position()[2] -
-            wp2.position()[2])*180.0 / M_PI < 1e-2)
+          const auto delta_yaw = rmf_utils::wrap_to_pi(
+            wp1.position()[2] - wp2.position()[2]);
+          if (std::abs(delta_yaw)*180.0 / M_PI < 1e-2)
           {
             // The plan had a wait between these points.
             planned_wait_time += wp2.time() - wp1.time();
@@ -1355,6 +1334,102 @@ void EasyCommandHandle::follow_new_path(
 
     i0 = target_index;
     i1 = i0 + 1;
+  }
+
+  if (!nav_params->skip_rotation_commands && !queue.empty())
+  {
+    // Add a command to rotate to the first target if needed
+    const Eigen::Vector3d current_position = context->position();
+    const Eigen::Vector2d current_p = current_position.block<2, 1>(0, 0);
+    const auto& first_command =
+      EasyFullControl::CommandExecution::Implementation::get(queue.front());
+    const Eigen::Vector2d first_target = first_command.data->target_location.value();
+    const Eigen::Vector2d course_vector = first_target - current_p;
+    if (course_vector.norm() > nav_params->max_merge_waypoint_distance)
+    {
+      // Rotate towards the first target before commanding the robot to go there
+      double yaw = std::atan2(course_vector[1], course_vector[0]);
+      std::vector<std::size_t> cmd_lanes;
+      std::optional<double> speed_limit;
+      if (first_command.data->lanes.size() == 1)
+      {
+        const auto l = first_command.data->lanes[0];
+        const auto& lane = graph.get_lane(l);
+        speed_limit = lane.properties().speed_limit();
+        const auto* entry_constraint = lane.entry().orientation_constraint();
+        if (entry_constraint)
+        {
+          Eigen::Vector3d entry_position(current_p[0], current_p[1], yaw);
+          entry_constraint->apply(entry_position, course_vector);
+          yaw = entry_position[2];
+        }
+
+        const auto* exit_constraint = lane.exit().orientation_constraint();
+        if (exit_constraint)
+        {
+          Eigen::Vector3d exit_position(first_target[0], first_target[1], yaw);
+          exit_constraint->apply(exit_position, course_vector);
+          yaw = exit_position[2];
+        }
+        cmd_lanes.push_back(l);
+      }
+
+      std::vector<std::size_t> cmd_wps;
+      for (const auto& l : current_location)
+      {
+        cmd_wps.push_back(l.waypoint());
+        if (l.lane().has_value())
+        {
+          cmd_lanes.push_back(*l.lane());
+        }
+      }
+
+      rmf_traffic::agv::Graph::LiftPropertiesPtr in_lift;
+      for (const auto& lift : graph.all_known_lifts())
+      {
+        if (lift->is_in_lift(current_p))
+        {
+          in_lift = lift;
+          break;
+        }
+      }
+
+      Eigen::Vector3d command_position(current_p[0], current_p[1], yaw);
+      auto destination = EasyFullControl::Destination::Implementation::make(
+        std::move(initial_map),
+        command_position,
+        std::nullopt,
+        "",
+        speed_limit,
+        in_lift);
+
+      queue.push_back(
+        EasyFullControl::CommandExecution::Implementation::make(
+          context,
+          EasyFullControl::CommandExecution::Implementation::Data{
+            cmd_wps,
+            cmd_lanes,
+            current_p,
+            yaw,
+            rmf_traffic::Duration(0),
+            std::nullopt,
+            nav_params,
+            speed_limit,
+            [](rmf_traffic::Duration)
+            {
+              // Don't try to adjust here, just wait until the next command
+              // before doing schedule adjustments.
+            }
+          },
+          [
+            handle_nav_request = this->handle_nav_request,
+            destination = std::move(destination)
+          ](EasyFullControl::CommandExecution execution)
+          {
+            handle_nav_request(destination, execution);
+          }
+        ));
+    }
   }
 
   this->current_progress = ProgressTracker::make(
@@ -1654,7 +1729,7 @@ void EasyCommandHandle::dock(
   // Check that robot is in position and facing the docking point
   const auto current_pose = reported_location->position;
   if (!nav_params->skip_rotation_commands &&
-    std::abs(angle - current_pose[2]) > 1e-2)
+    std::abs(rmf_utils::wrap_to_pi(angle - current_pose[2])) > 1e-2)
   {
     RCLCPP_DEBUG(
       context->node()->get_logger(),
