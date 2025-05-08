@@ -354,6 +354,8 @@ public:
   std::shared_ptr<AllocateTasks> calculate_bid;
   rmf_rxcpp::subscription_guard calculate_bid_subscription;
 
+  rclcpp::TimerBase::SharedPtr memory_utilization_timer;
+
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
   {
@@ -391,7 +393,7 @@ public:
           self->_pimpl->handle_target_emergency(msg);
         }
       });
-    
+
     handle->_pimpl->emergency_planner =
       std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(nullptr);
 
@@ -615,6 +617,23 @@ public:
 
     handle->_pimpl->deserialization.event->add(
       "perform_action", validator, deserializer);
+
+    handle->_pimpl->memory_utilization_timer =
+      handle->_pimpl->node->create_wall_timer(
+        std::chrono::minutes(1), [w = handle->weak_from_this()]()
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
+
+          const auto& planner = *self->_pimpl->planner;
+          std::stringstream ss;
+          ss << planner->cache_audit();
+          RCLCPP_INFO(
+            self->_pimpl->node->get_logger(),
+            "%s",
+            ss.str().c_str());
+        });
 
     return handle;
   }
