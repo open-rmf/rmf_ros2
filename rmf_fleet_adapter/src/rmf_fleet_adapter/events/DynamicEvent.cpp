@@ -424,27 +424,56 @@ auto DynamicEvent::Active::make(
     // external cancellation request.
   };
 
-  auto validator = [w = active->weak_from_this()](
+  std::string logger_name =
+    std::string("rmf.dynamic_event.")
+    + active->_context->group() + "."
+    + active->_context->name();
+  auto logger = rclcpp::get_logger(logger_name);
+  auto validator = [w = active->weak_from_this(), logger](
     const std::string& category,
     const std::string& description)
   {
     const auto me = w.lock();
     if (!me)
+    {
+      RCLCPP_ERROR(
+        logger,
+        "Cannot validate dynamic event goal because the dynamic event has ended.");
       return false;
+    }
 
     const auto& handlers = me->_description.event_deserializer()->handlers;
 
     const auto deserialize_it = handlers.find(category);
     if (deserialize_it == handlers.end())
+    {
+      std::string supported;
+      for (const auto& [category, _] : handlers)
+      {
+        supported += "[" + category + "] ";
+      }
+
+      RCLCPP_ERROR(
+        logger,
+        "Dynamic event goal is invalid because the category [%s] is not "
+        "supported by the robot. Supported categories include %s",
+        category.c_str(),
+        supported.c_str());
       return false;
+    }
 
     nlohmann::json description_json;
     try
     {
       description_json = nlohmann::json::parse(description);
     }
-    catch (const std::exception&)
+    catch (const std::exception& e)
     {
+      RCLCPP_ERROR(
+        logger,
+        "Dynamic event goal is invalid because its description could not be "
+        "parsed as json: %s",
+        e.what());
       return false;
     }
 
@@ -452,13 +481,34 @@ auto DynamicEvent::Active::make(
     {
       deserialize_it->second.validator->validate(description_json);
     }
-    catch (const std::exception&)
+    catch (const std::exception& e)
     {
+      RCLCPP_ERROR(
+        logger,
+        "Dynamic event goal is invalid because its description is not "
+        "compatible with the category [%s]: %s",
+        category.c_str(),
+        e.what());
       return false;
     }
 
     const auto deser = deserialize_it->second.deserializer(description_json);
-    return deser.description != nullptr;
+    if (deser.description == nullptr)
+    {
+      std::string errors;
+      for (const auto& error : deser.errors)
+      {
+        errors += "\n -- " + error;
+      }
+      RCLCPP_ERROR(
+        logger,
+        "Dynamic event goal is invalid because its description is not "
+        "compatible with the robot:%s",
+        errors.c_str());
+      return false;
+    }
+
+    return true;
   };
 
   active->_callbacks = std::make_shared<DynamicEventCallbacks>(
