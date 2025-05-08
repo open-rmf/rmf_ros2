@@ -150,7 +150,7 @@ public:
             self->_current_reservation_state = ReservationState::ReceivedResponseProceedImmediate;
             self->_selected_final_destination_cb(self->_goals[self->
             _final_allocated_destination.value()->
-            chosen_alternative].waypoint());
+            chosen_alternative]);
           }
 
           if (msg->instruction_type
