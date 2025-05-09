@@ -2,6 +2,12 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Giving options to separate fire alarm by fleet names (`#413 <https://github.com/open-rmf/rmf_ros2/issues/413>`_)
+* Use unique name for exported targets and avoid exporting binary targets (`#396 <https://github.com/open-rmf/rmf_ros2/issues/396>`_)
+* Contributors: Jun, Luca Della Vedova
+
 2.9.0 (2024-11-27)
 ------------------
 * Adds a simple parking spot management system.  (`#325 <https://github.com/open-rmf/rmf_ros2/issues/325>`_)

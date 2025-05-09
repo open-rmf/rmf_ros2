@@ -2,6 +2,27 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Add a timer to log the size of planner caches (`#427 <https://github.com/open-rmf/rmf_ros2/issues/427>`_)
+* Fix goal orientation constraint (`#426 <https://github.com/open-rmf/rmf_ros2/issues/426>`_)
+* Log reason for rejecting dynamic event goals (`#419 <https://github.com/open-rmf/rmf_ros2/issues/419>`_)
+* Completely Excise Reservation Cancellation pathways (`#416 <https://github.com/open-rmf/rmf_ros2/issues/416>`_)
+* Reduce churn in lift supervisor (`#418 <https://github.com/open-rmf/rmf_ros2/issues/418>`_)
+* Dynamic Event Action Server (`#410 <https://github.com/open-rmf/rmf_ros2/issues/410>`_)
+* Improve arrival time predictions for lanes with speed limits (`#400 <https://github.com/open-rmf/rmf_ros2/issues/400>`_)
+* Ensure correct docking orientation (`#414 <https://github.com/open-rmf/rmf_ros2/issues/414>`_)
+* Direct robot task request estimation feature (`#408 <https://github.com/open-rmf/rmf_ros2/issues/408>`_)
+* Giving options to separate fire alarm by fleet names (`#413 <https://github.com/open-rmf/rmf_ros2/issues/413>`_)
+* Update documentation for RobotCommandHandle (`#409 <https://github.com/open-rmf/rmf_ros2/issues/409>`_)
+* Remove bad optional access (`#406 <https://github.com/open-rmf/rmf_ros2/issues/406>`_)
+* Fix potential issues around tasks starting (`#403 <https://github.com/open-rmf/rmf_ros2/issues/403>`_)
+* Fix the criteria for replanning (`#405 <https://github.com/open-rmf/rmf_ros2/issues/405>`_)
+* Do not update assignments if bid notice is for a dry run (`#401 <https://github.com/open-rmf/rmf_ros2/issues/401>`_)
+* Use unique name for exported targets and avoid exporting binary targets (`#396 <https://github.com/open-rmf/rmf_ros2/issues/396>`_)
+* Do not skip waypoint if orientation is not aligned (`#398 <https://github.com/open-rmf/rmf_ros2/issues/398>`_)
+* Contributors: Arjo Chakravarty, Chen Bainian, Cheng-Wei Chen, Grey, Jun, Luca Della Vedova, Xiyu, lkw303, yadunund
+
 2.9.0 (2024-11-27)
 ------------------
 * Add reached API to read-only fleet adapter (`#387 <https://github.com/open-rmf/rmf_ros2/issues/387>`_)
