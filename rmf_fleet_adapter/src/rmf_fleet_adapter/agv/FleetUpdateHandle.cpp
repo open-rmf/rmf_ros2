@@ -1657,7 +1657,9 @@ PlaceDeserializer make_place_deserializer(
       {
         const auto& ori_it = msg.find("orientation");
         if (ori_it != msg.end())
+        {
           place->orientation(ori_it->get<double>());
+        }
       }
 
       return {place, {}};
