@@ -633,6 +633,8 @@ public:
             self->_pimpl->node->get_logger(),
             "%s",
             ss.str().c_str());
+
+          planner->clear_differential_drive_cache();
         });
 
     return handle;
