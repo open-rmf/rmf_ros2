@@ -620,7 +620,7 @@ public:
 
     handle->_pimpl->memory_utilization_timer =
       handle->_pimpl->node->create_wall_timer(
-        std::chrono::minutes(1), [w = handle->weak_from_this()]()
+        std::chrono::minutes(5), [w = handle->weak_from_this()]()
         {
           const auto self = w.lock();
           if (!self)
