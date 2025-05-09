@@ -2,8 +2,8 @@
 Changelog for package rmf_reservation_node
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.10.0 (2025-05-09)
+-------------------
 * Completely Excise Reservation Cancellation pathways (`#416 <https://github.com/open-rmf/rmf_ros2/issues/416>`_)
 * Contributors: Arjo Chakravarty
 

@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.10.0 (2025-05-09)
+-------------------
 * Add a timer to log the size of planner caches (`#427 <https://github.com/open-rmf/rmf_ros2/issues/427>`_)
 * Fix goal orientation constraint (`#426 <https://github.com/open-rmf/rmf_ros2/issues/426>`_)
 * Log reason for rejecting dynamic event goals (`#419 <https://github.com/open-rmf/rmf_ros2/issues/419>`_)

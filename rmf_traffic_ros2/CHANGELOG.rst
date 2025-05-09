@@ -2,8 +2,8 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.10.0 (2025-05-09)
+-------------------
 * Giving options to separate fire alarm by fleet names (`#413 <https://github.com/open-rmf/rmf_ros2/issues/413>`_)
 * Use unique name for exported targets and avoid exporting binary targets (`#396 <https://github.com/open-rmf/rmf_ros2/issues/396>`_)
 * Contributors: Jun, Luca Della Vedova
