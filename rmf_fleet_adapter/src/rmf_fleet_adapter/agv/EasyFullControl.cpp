@@ -1396,7 +1396,7 @@ void EasyCommandHandle::follow_new_path(
 
       Eigen::Vector3d command_position(current_p[0], current_p[1], yaw);
       auto destination = EasyFullControl::Destination::Implementation::make(
-        std::move(initial_map),
+        initial_map,
         command_position,
         std::nullopt,
         "",
