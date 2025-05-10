@@ -2,6 +2,12 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.10.0 (2025-05-09)
+-------------------
+* Add a timer to log the size of planner caches (`#427 <https://github.com/open-rmf/rmf_ros2/issues/427>`_)
+* Do not update assignments if bid notice is for a dry run (`#401 <https://github.com/open-rmf/rmf_ros2/issues/401>`_)
+* Contributors: Grey, yadunund
+
 2.9.0 (2024-11-27)
 ------------------
 * Allow automatic action cancellation to be toggled (`#392 <https://github.com/open-rmf/rmf_ros2/issues/392>`_)
