@@ -2,6 +2,10 @@
 Changelog for package rmf_charging_schedule
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.10.1 (2025-05-13)
+-------------------
+* Remove icecream as a dependency entirely (`#432 <https://github.com/open-rmf/rmf_ros2/issues/432>`_)
+
 2.10.0 (2025-05-09)
 -------------------
 
