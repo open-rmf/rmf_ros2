@@ -2,6 +2,10 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.10.1 (2025-05-13)
+-------------------
+* Add dependency on rclcpp_action (`#431 <https://github.com/open-rmf/rmf_ros2/issues/431>`_)
+
 2.10.0 (2025-05-09)
 -------------------
 * Add a timer to log the size of planner caches (`#427 <https://github.com/open-rmf/rmf_ros2/issues/427>`_)
