@@ -16,6 +16,7 @@
   <depend>backward_ros</depend>
   <depend>nlohmann_json_schema_validator_vendor</depend>
   <depend>nlohmann-json-dev</depend>
+  <depend>rclcpp_action</depend>
   <depend>rclcpp_components</depend>
   <depend>rclcpp</depend>
   <depend>rmf_api_msgs</depend>
