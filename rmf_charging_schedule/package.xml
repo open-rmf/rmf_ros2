@@ -9,7 +9,6 @@
 
   <depend>rclpy</depend>
   <depend>rmf_fleet_msgs</depend>
-  <depend>python3-icecream</depend>
 
   <export>
     <build_type>ament_python</build_type>
