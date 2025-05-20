@@ -7,8 +7,6 @@ import bisect
 from functools import total_ordering
 from zoneinfo import ZoneInfo
 
-from icecream import ic
-
 import rclpy
 from rclpy.node import Node, Publisher
 from rclpy.qos import (

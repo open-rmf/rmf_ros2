@@ -354,6 +354,9 @@ public:
   std::shared_ptr<AllocateTasks> calculate_bid;
   rmf_rxcpp::subscription_guard calculate_bid_subscription;
 
+  rclcpp::TimerBase::SharedPtr memory_utilization_timer;
+  std::optional<std::size_t> planner_cache_reset_size;
+
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)
   {
@@ -391,7 +394,7 @@ public:
           self->_pimpl->handle_target_emergency(msg);
         }
       });
-    
+
     handle->_pimpl->emergency_planner =
       std::make_shared<std::shared_ptr<const rmf_traffic::agv::Planner>>(nullptr);
 
@@ -615,6 +618,38 @@ public:
 
     handle->_pimpl->deserialization.event->add(
       "perform_action", validator, deserializer);
+
+    handle->_pimpl->memory_utilization_timer =
+      handle->_pimpl->node->create_wall_timer(
+        std::chrono::minutes(5), [w = handle->weak_from_this()]()
+        {
+          const auto self = w.lock();
+          if (!self)
+            return;
+
+          const auto& planner = *self->_pimpl->planner;
+          const auto audit = planner->cache_audit();
+          std::stringstream ss;
+          ss << audit;
+          RCLCPP_INFO(
+            self->_pimpl->node->get_logger(),
+            "%s",
+            ss.str().c_str());
+
+          const std::optional<std::size_t> reset_size =
+            self->_pimpl->planner_cache_reset_size;
+          if (reset_size.has_value())
+          {
+            if (audit.differential_drive_planner_cache_size() > *reset_size)
+            {
+              RCLCPP_INFO(
+                self->_pimpl->node->get_logger(),
+                "Reseting planner cache since it exceeded size limit of %zu",
+                *reset_size);
+              planner->clear_differential_drive_cache();
+            }
+          }
+        });
 
     return handle;
   }
