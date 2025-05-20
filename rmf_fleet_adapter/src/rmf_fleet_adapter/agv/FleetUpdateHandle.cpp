@@ -2595,6 +2595,22 @@ void FleetUpdateHandle::reassign_dispatched_tasks()
 }
 
 //==============================================================================
+void FleetUpdateHandle::set_planner_cache_reset_size(
+  std::optional<std::size_t> max_size)
+{
+  _pimpl->worker.schedule(
+    [w = weak_from_this(), max_size](const auto&)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_pimpl->planner_cache_reset_size = max_size;
+    }
+  );
+}
+
+//==============================================================================
 std::shared_ptr<rclcpp::Node> FleetUpdateHandle::node()
 {
   return _pimpl->node;
