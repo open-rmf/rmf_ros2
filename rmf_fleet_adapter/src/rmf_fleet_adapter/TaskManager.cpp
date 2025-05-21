@@ -2129,7 +2129,7 @@ bool TaskManager::retreat_to_charger()
   const double battery_soc_after_retreat =
     current_battery_soc - result->change_in_charge();
 
-  if (retreat_threshold < battery_soc_after_retreat)
+  if (battery_soc_after_retreat < retreat_threshold)
   {
     RCLCPP_WARN(
       _context->node()->get_logger(),
