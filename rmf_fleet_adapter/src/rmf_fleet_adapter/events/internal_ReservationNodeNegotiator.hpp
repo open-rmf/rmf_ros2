@@ -256,6 +256,7 @@ private:
       ftr.header.robot_name = _context->name();
       ftr.header.fleet_name = _context->group();
       ftr.header.request_id = _reservation_id;
+      ftr.header.task_id = _context->copy_current_task_id();
 
       std::optional<std::size_t> selected_idx;
       for (std::size_t i = 0; i < _goals.size(); ++i)
