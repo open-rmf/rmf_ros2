@@ -20,6 +20,7 @@
 
 #include <queue>
 #include <rclcpp/node.hpp>
+#include <rclcpp/node_interfaces/node_interfaces.hpp>
 #include <rmf_utils/impl_ptr.hpp>
 
 #include <rmf_task_ros2/bidding/Response.hpp>
@@ -77,6 +78,29 @@ public:
   /// \sa make()
   static std::shared_ptr<Auctioneer> make(
     const std::shared_ptr<rclcpp::Node>& node,
+    BiddingResultCallback result_callback,
+    ConstEvaluatorPtr evaluator);
+
+  using AuctioneerNodeInterfaces = rclcpp::node_interfaces::NodeInterfaces<
+    rclcpp::node_interfaces::NodeBaseInterface,
+    rclcpp::node_interfaces::NodeClockInterface,
+    rclcpp::node_interfaces::NodeLoggingInterface,
+    rclcpp::node_interfaces::NodeTimersInterface,
+    rclcpp::node_interfaces::NodeTopicsInterface,
+    rclcpp::node_interfaces::NodeParametersInterface>;
+
+  /// Create an instance of the Auctioneer. This instance will handle all
+  /// the task dispatching bidding mechanism. A default evaluator is used.
+  ///
+  /// \param[in] node_interfaces
+  ///   ros2 node base interfaces that may be used for initialization
+  ///
+  /// \param[in] result_callback
+  ///   This callback fn will be called when a bidding result is concluded
+  ///
+  /// \sa make()
+  static std::shared_ptr<Auctioneer> make(
+    AuctioneerNodeInterfaces node_interfaces,
     BiddingResultCallback result_callback,
     ConstEvaluatorPtr evaluator);
 
