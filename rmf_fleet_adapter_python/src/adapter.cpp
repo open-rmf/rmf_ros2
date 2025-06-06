@@ -631,7 +631,9 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("category"),
     py::arg("consider"))
   .def("reassign_dispatched_tasks",
-    &agv::FleetUpdateHandle::reassign_dispatched_tasks);
+    &agv::FleetUpdateHandle::reassign_dispatched_tasks)
+  .def("set_planner_cache_reset_size",
+    &agv::FleetUpdateHandle::set_planner_cache_reset_size);
 
   // TASK REQUEST CONFIRMATION ===============================================
   auto m_fleet_update_handle = m.def_submodule("fleet_update_handle");

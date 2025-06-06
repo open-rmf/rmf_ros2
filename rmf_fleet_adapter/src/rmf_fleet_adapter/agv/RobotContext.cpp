@@ -2133,19 +2133,39 @@ void RobotContext::_initialize_dynamic_event_server()
 
   _dynamic_event_seq = 0;
 
-  auto handle_goal = [w = weak_from_this()](
+  std::string logger_name = std::string("rmf.dynamic_event.") + group() + "." + name();
+  auto logger = rclcpp::get_logger(logger_name);
+  auto handle_goal = [w = weak_from_this(), logger](
     const rclcpp_action::GoalUUID&,
     std::shared_ptr<const DynamicEventAction::Goal> goal)
   {
     const auto me = w.lock();
     if (!me || goal->dynamic_event_seq != me->_dynamic_event_seq)
     {
+      if (me)
+      {
+        RCLCPP_ERROR(
+          logger,
+          "Rejecting dynamic event goal because of dynamic_event_seq mismatch. "
+          "Expected %d, received %d.",
+          me->_dynamic_event_seq,
+          goal->dynamic_event_seq);
+      }
+      else
+      {
+        RCLCPP_ERROR(
+          logger,
+          "Rejecting dynamic event goal because the fleet adapter is winding down.");
+      }
       return rclcpp_action::GoalResponse::REJECT;
     }
 
     const auto callbacks = me->_dynamic_event_callbacks.lock();
     if (!callbacks)
     {
+      RCLCPP_ERROR(
+        logger,
+        "Rejecting dynamic event goal because there is no active dynamic event.");
       return rclcpp_action::GoalResponse::REJECT;
     }
 
@@ -2156,6 +2176,10 @@ void RobotContext::_initialize_dynamic_event_server()
     {
       // There is an ongoing goal and the request is not a cancellation, so we
       // should reject it.
+      RCLCPP_ERROR(
+        logger,
+        "Rejecting dynamic event goal because there is an active child event, "
+        "and the goal was not a cancellation.");
       return rclcpp_action::GoalResponse::REJECT;
     }
 
@@ -2163,6 +2187,9 @@ void RobotContext::_initialize_dynamic_event_server()
     {
       if (!callbacks->validator(goal->category, goal->description))
       {
+        RCLCPP_ERROR(
+          logger,
+          "Rejecting dynamic event goal because it failed validation.");
         return rclcpp_action::GoalResponse::REJECT;
       }
     }
