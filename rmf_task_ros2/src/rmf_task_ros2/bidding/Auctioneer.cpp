@@ -238,7 +238,7 @@ std::shared_ptr<Auctioneer> Auctioneer::make(
   BiddingResultCallback result_callback,
   ConstEvaluatorPtr evaluator)
 {
-  auto auctioneer = make(
+  auto auctioneer = make_with_node_interfaces(
     node->get_node_base_interface(),
     node->get_node_clock_interface(),
     node->get_node_logging_interface(),
@@ -251,7 +251,7 @@ std::shared_ptr<Auctioneer> Auctioneer::make(
 }
 
 //==============================================================================
-std::shared_ptr<Auctioneer> Auctioneer::make(
+std::shared_ptr<Auctioneer> Auctioneer::make_with_node_interfaces(
   const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
   node_base_interface,
   const rclcpp::node_interfaces::NodeClockInterface::SharedPtr

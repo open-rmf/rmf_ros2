@@ -86,8 +86,9 @@ public:
     BiddingResultCallback result_callback,
     ConstEvaluatorPtr evaluator);
 
-  /// Create an instance of the Auctioneer. This instance will handle all
-  /// the task dispatching bidding mechanism. A default evaluator is used.
+  /// Create an instance of the Auctioneer using node interfaces. This allows
+  /// support for lifecycle nodes. This instance will handle all the task
+  /// dispatching bidding mechanism. A default evaluator is used.
   ///
   /// \param[in] node_base_interface
   ///   ros2 node base interface for managing callback groups and timers
@@ -111,7 +112,7 @@ public:
   ///   This callback fn will be called when a bidding result is concluded
   ///
   /// \sa make()
-  static std::shared_ptr<Auctioneer> make(
+  static std::shared_ptr<Auctioneer> make_with_node_interfaces(
     const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
     node_base_interface,
     const rclcpp::node_interfaces::NodeClockInterface::SharedPtr
