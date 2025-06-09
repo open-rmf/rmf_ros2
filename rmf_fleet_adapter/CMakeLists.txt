@@ -51,6 +51,12 @@ foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
 endforeach()
 
+# Backward compatibility for yaml-cpp 0.7 that exports a yaml-cpp target
+# while 0.8.0 and above export yaml-cpp::yaml-cpp
+if (TARGET yaml-cpp)
+  add_library(yaml-cpp::yaml-cpp ALIAS yaml-cpp)
+endif()
+
 # Disable uncrustify tests by default.
 set(TEST_UNCRUSTIFY "Off")
 if(BUILD_TESTING AND TEST_UNCRUSTIFY)
