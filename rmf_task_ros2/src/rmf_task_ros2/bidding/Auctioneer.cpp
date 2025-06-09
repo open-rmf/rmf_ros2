@@ -26,10 +26,26 @@ namespace bidding {
 
 //==============================================================================
 Auctioneer::Implementation::Implementation(
-  AuctioneerNodeInterfaces node_interfaces_,
+  const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
+  node_base_interface_,
+  const rclcpp::node_interfaces::NodeClockInterface::SharedPtr
+  node_clock_interface_,
+  const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
+  node_logging_interface_,
+  const rclcpp::node_interfaces::NodeTimersInterface::SharedPtr
+  node_timers_interface_,
+  const rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr
+  node_topics_interface_,
+  const rclcpp::node_interfaces::NodeParametersInterface::SharedPtr
+  node_parameters_interface_,
   BiddingResultCallback result_callback,
   ConstEvaluatorPtr evaluator_)
-: node_interfaces{std::move(node_interfaces_)},
+: node_base_interface{std::move(node_base_interface_)},
+  node_clock_interface{std::move(node_clock_interface_)},
+  node_logging_interface{std::move(node_logging_interface_)},
+  node_timers_interface{std::move(node_timers_interface_)},
+  node_topics_interface{std::move(node_topics_interface_)},
+  node_parameters_interface{std::move(node_parameters_interface_)},
   bidding_result_callback{std::move(result_callback)},
   evaluator(std::move(evaluator_))
 {
@@ -38,23 +54,20 @@ Auctioneer::Implementation::Implementation(
   {
     evaluator = std::make_shared<QuickestFinishEvaluator>();
     RCLCPP_INFO(
-      node_interfaces.get_node_logging_interface()->get_logger(),
+      node_logging_interface->get_logger(),
       "Dispatcher evaluator set to QuickestFinishEvaluator by default");
   }
   const auto dispatch_qos = rclcpp::ServicesQoS().reliable();
 
-  auto parameters_interface = node_interfaces.get_node_parameters_interface();
-  auto topics_interface = node_interfaces.get_node_topics_interface();
-
   bid_notice_pub = rclcpp::create_publisher<BidNoticeMsg>(
-    parameters_interface,
-    topics_interface,
+    node_parameters_interface,
+    node_topics_interface,
     rmf_task_ros2::BidNoticeTopicName,
     dispatch_qos);
 
   bid_proposal_sub = rclcpp::create_subscription<BidResponseMsg>(
-    parameters_interface,
-    topics_interface,
+    node_parameters_interface,
+    node_topics_interface,
     rmf_task_ros2::BidResponseTopicName,
     dispatch_qos,
     [&](const BidResponseMsg::UniquePtr msg)
@@ -63,10 +76,9 @@ Auctioneer::Implementation::Implementation(
     });
 
   timer = rclcpp::create_timer(
-    node_interfaces.get_node_base_interface(),
-    node_interfaces.get_node_timers_interface(),
-    node_interfaces.get_node_clock_interface()
-    ->get_clock(),
+    node_base_interface,
+    node_timers_interface,
+    node_clock_interface->get_clock(),
     std::chrono::milliseconds(200),
     [&]()
       {
@@ -79,13 +91,13 @@ void Auctioneer::Implementation::request_bid(
   const BidNoticeMsg& bid_notice)
 {
   RCLCPP_INFO(
-    node_interfaces.get_node_logging_interface()->get_logger(),
+    node_logging_interface->get_logger(),
     "Add Task [%s] to a bidding queue",
     bid_notice.task_id.c_str());
 
   open_bid_queue.push(
     OpenBid{bid_notice,
-      node_interfaces.get_node_clock_interface()->get_clock()->now(), {}});
+      node_clock_interface->get_clock()->now(), {}});
 }
 
 //==============================================================================
@@ -97,14 +109,14 @@ void Auctioneer::Implementation::receive_response(const BidResponseMsg& msg)
   if (response.proposal.has_value())
   {
     RCLCPP_DEBUG(
-      node_interfaces.get_node_logging_interface()->get_logger(),
+      node_logging_interface->get_logger(),
       "[Auctioneer] Receive proposal from task_id: %s | from: %s",
       id.c_str(), response.proposal->fleet_name.c_str());
   }
   else if (!response.errors.empty())
   {
     RCLCPP_DEBUG(
-      node_interfaces.get_node_logging_interface()->get_logger(),
+      node_logging_interface->get_logger(),
       "[Auctioneer] Received %lu errors from a bidder",
       response.errors.size());
   }
@@ -135,11 +147,11 @@ void Auctioneer::Implementation::finish_bidding_process()
   else
   {
     RCLCPP_INFO(
-      node_interfaces.get_node_logging_interface()->get_logger(),
+      node_logging_interface->get_logger(),
       " - Start new bidding task: %s",
       front_task.bid_notice.task_id.c_str());
     open_bid_queue.front().start_time =
-      node_interfaces.get_node_clock_interface()->get_clock()->now();
+      node_clock_interface->get_clock()->now();
     bid_notice_pub->publish(front_task.bid_notice);
     bidding_in_process = true;
   }
@@ -150,8 +162,7 @@ bool Auctioneer::Implementation::determine_winner(
   const OpenBid& bidding_task)
 {
   const auto duration =
-    node_interfaces.get_node_clock_interface()->get_clock()->now()
-    - bidding_task.start_time;
+    node_clock_interface->get_clock()->now() - bidding_task.start_time;
   if (duration < bidding_task.bid_notice.time_window)
     return false;
 
@@ -160,7 +171,7 @@ bool Auctioneer::Implementation::determine_winner(
 
   auto task_id = bidding_task.bid_notice.task_id;
   RCLCPP_DEBUG(
-    node_interfaces.get_node_logging_interface()->get_logger(),
+    node_logging_interface->get_logger(),
     "Bidding Deadline reached for [%s]",
     task_id.c_str());
 
@@ -173,7 +184,7 @@ bool Auctioneer::Implementation::determine_winner(
   if (bidding_task.responses.empty())
   {
     RCLCPP_INFO(
-      node_interfaces.get_node_logging_interface()->get_logger(),
+      node_logging_interface->get_logger(),
       "Task auction for [%s] did not received any bids", task_id.c_str());
 
     bidding_result_callback(task_id, std::nullopt, errors);
@@ -184,7 +195,7 @@ bool Auctioneer::Implementation::determine_winner(
   if (winner.has_value())
   {
     RCLCPP_INFO(
-      node_interfaces.get_node_logging_interface()->get_logger(),
+      node_logging_interface->get_logger(),
       "Determined winning Fleet Adapter: [%s], from %ld responses",
       winner->fleet_name.c_str(),
       bidding_task.responses.size());
@@ -206,7 +217,7 @@ std::optional<Response::Proposal> Auctioneer::Implementation::evaluate(
   if (!evaluator)
   {
     RCLCPP_WARN(
-      node_interfaces.get_node_logging_interface()->get_logger(),
+      node_logging_interface->get_logger(),
       "Bidding Evaluator is not set");
     return std::nullopt;
   }
@@ -228,7 +239,12 @@ std::shared_ptr<Auctioneer> Auctioneer::make(
   ConstEvaluatorPtr evaluator)
 {
   auto auctioneer = make(
-    AuctioneerNodeInterfaces(*node),
+    node->get_node_base_interface(),
+    node->get_node_clock_interface(),
+    node->get_node_logging_interface(),
+    node->get_node_timers_interface(),
+    node->get_node_topics_interface(),
+    node->get_node_parameters_interface(),
     std::move(result_callback),
     std::move(evaluator));
   return auctioneer;
@@ -236,13 +252,29 @@ std::shared_ptr<Auctioneer> Auctioneer::make(
 
 //==============================================================================
 std::shared_ptr<Auctioneer> Auctioneer::make(
-  AuctioneerNodeInterfaces node_interfaces,
+  const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
+  node_base_interface,
+  const rclcpp::node_interfaces::NodeClockInterface::SharedPtr
+  node_clock_interface,
+  const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
+  node_logging_interface,
+  const rclcpp::node_interfaces::NodeTimersInterface::SharedPtr
+  node_timers_interface,
+  const rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr
+  node_topics_interface,
+  const rclcpp::node_interfaces::NodeParametersInterface::SharedPtr
+  node_parameters_interface,
   BiddingResultCallback result_callback,
   ConstEvaluatorPtr evaluator)
 {
   auto auctioneer = std::shared_ptr<Auctioneer>(new Auctioneer());
   auctioneer->_pimpl = rmf_utils::make_unique_impl<Implementation>(
-    std::move(node_interfaces),
+    std::move(node_base_interface),
+    std::move(node_clock_interface),
+    std::move(node_logging_interface),
+    std::move(node_timers_interface),
+    std::move(node_topics_interface),
+    std::move(node_parameters_interface),
     std::move(result_callback),
     std::move(evaluator));
   return auctioneer;
