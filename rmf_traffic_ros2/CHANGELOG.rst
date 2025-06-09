@@ -2,6 +2,11 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Adding mutex parameters to navgraph (`#436 <https://github.com/open-rmf/rmf_ros2/issues/436>`_)
+* Contributors: Jun
+
 2.10.1 (2025-05-13)
 -------------------
 
