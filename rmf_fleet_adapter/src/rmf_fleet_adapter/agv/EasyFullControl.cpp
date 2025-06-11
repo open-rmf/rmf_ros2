@@ -1428,61 +1428,65 @@ void EasyCommandHandle::follow_new_path(
         }
       }
 
-      std::vector<std::size_t> cmd_wps;
-      for (const auto& l : current_location)
+      const auto yaw_cost = std::abs(rmf_utils::wrap_to_pi(current_yaw - target_yaw));
+      if (yaw_cost > 5.0*M_PI/180.0)
       {
-        cmd_wps.push_back(l.waypoint());
-        if (l.lane().has_value())
+        std::vector<std::size_t> cmd_wps;
+        for (const auto& l : current_location)
         {
-          cmd_lanes.push_back(*l.lane());
-        }
-      }
-
-      rmf_traffic::agv::Graph::LiftPropertiesPtr in_lift;
-      for (const auto& lift : graph.all_known_lifts())
-      {
-        if (lift->is_in_lift(current_p))
-        {
-          in_lift = lift;
-          break;
-        }
-      }
-
-      Eigen::Vector3d command_position(current_p[0], current_p[1], target_yaw);
-      auto destination = EasyFullControl::Destination::Implementation::make(
-        initial_map,
-        command_position,
-        std::nullopt,
-        "",
-        speed_limit,
-        in_lift);
-
-      auto cmd = EasyFullControl::CommandExecution::Implementation::make(
-          context,
-          EasyFullControl::CommandExecution::Implementation::Data{
-            cmd_wps,
-            cmd_lanes,
-            current_p,
-            target_yaw,
-            rmf_traffic::Duration(0),
-            std::nullopt,
-            nav_params,
-            speed_limit,
-            [](rmf_traffic::Duration)
-            {
-              // Don't try to adjust here, just wait until the next command
-              // before doing schedule adjustments.
-            }
-          },
-          [
-            handle_nav_request = this->handle_nav_request,
-            destination = std::move(destination)
-          ](EasyFullControl::CommandExecution execution)
+          cmd_wps.push_back(l.waypoint());
+          if (l.lane().has_value())
           {
-            handle_nav_request(destination, execution);
-          });
+            cmd_lanes.push_back(*l.lane());
+          }
+        }
 
-      queue.insert(queue.begin(), cmd);
+        rmf_traffic::agv::Graph::LiftPropertiesPtr in_lift;
+        for (const auto& lift : graph.all_known_lifts())
+        {
+          if (lift->is_in_lift(current_p))
+          {
+            in_lift = lift;
+            break;
+          }
+        }
+
+        Eigen::Vector3d command_position(current_p[0], current_p[1], target_yaw);
+        auto destination = EasyFullControl::Destination::Implementation::make(
+          initial_map,
+          command_position,
+          std::nullopt,
+          "",
+          speed_limit,
+          in_lift);
+
+        auto cmd = EasyFullControl::CommandExecution::Implementation::make(
+            context,
+            EasyFullControl::CommandExecution::Implementation::Data{
+              cmd_wps,
+              cmd_lanes,
+              current_p,
+              target_yaw,
+              rmf_traffic::Duration(0),
+              std::nullopt,
+              nav_params,
+              speed_limit,
+              [](rmf_traffic::Duration)
+              {
+                // Don't try to adjust here, just wait until the next command
+                // before doing schedule adjustments.
+              }
+            },
+            [
+              handle_nav_request = this->handle_nav_request,
+              destination = std::move(destination)
+            ](EasyFullControl::CommandExecution execution)
+            {
+              handle_nav_request(destination, execution);
+            });
+
+        queue.insert(queue.begin(), cmd);
+      }
     }
   }
 
