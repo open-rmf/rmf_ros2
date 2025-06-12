@@ -75,15 +75,15 @@ Auctioneer::Implementation::Implementation(
       this->receive_response(*msg);
     });
 
-  timer = rclcpp::create_timer(
-    node_base_interface,
-    node_timers_interface,
-    node_clock_interface->get_clock(),
+  timer = rclcpp::create_wall_timer(
     std::chrono::milliseconds(200),
     [&]()
       {
         this->finish_bidding_process();
-      });
+      },
+    nullptr,
+    node_base_interface.get(),
+    node_timers_interface.get());
 }
 
 //==============================================================================
