@@ -117,6 +117,10 @@ void RequestLift::ActivePhase::_init_obs()
     // that says it's completed right away.
     if (_context->has_lift_arrived(_lift_name, _destination))
     {
+      RCLCPP_INFO(
+        _context->node()->get_logger(),
+        "Lift has already arrived for [%s]",
+        _context->requester_id().c_str());
       _obs = rxcpp::observable<>::create<LegacyTask::StatusMsg>(
         [w = weak_from_this()](rxcpp::subscriber<LegacyTask::StatusMsg> s)
         {
@@ -147,6 +151,26 @@ void RequestLift::ActivePhase::_init_obs()
           s.on_completed();
         });
       return;
+    }
+    else
+    {
+      if (const auto d = _context->current_lift_destination())
+      {
+        RCLCPP_INFO(
+          _context->node()->get_logger(),
+          "Wrong lift destination: %s to %s vs %s to %s",
+          d->lift_name.c_str(),
+          d->destination_floor.c_str(),
+          _lift_name.c_str(),
+          _destination.c_str());
+      }
+      else
+      {
+        RCLCPP_INFO(
+          _context->node()->get_logger(),
+          "Fresh call for lift by %s",
+          _context->requester_id().c_str());
+      }
     }
   }
 
