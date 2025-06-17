@@ -920,9 +920,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
       truncate_arrival(*previous_itinerary, wp);
 
-      std::cout << " >>>> Remaining waypoints before LockMutexGroup: "
-        << print_plan_waypoints(waypoints, graph) << std::endl;
-
       auto expected_waypoints = waypoints;
       for (auto e_it = expected_waypoints.begin(); e_it != expected_waypoints.end(); ++e_it)
       {
@@ -932,9 +929,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
           break;
         }
       }
-
-      std::cout << " vvvvvvv Expected waypoints following LockMutexGroup: "
-        << print_plan_waypoints(expected_waypoints, graph) << std::endl;
 
       auto next_itinerary = std::make_shared<
         rmf_traffic::schedule::Itinerary>(full_itinerary);
@@ -1012,7 +1006,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
     bool event_occurred = false;
     for (; it != waypoints.end(); ++it)
     {
-      std::cout << " >>>>> Processing waypoint " << agv::print_plan_waypoint(*it, graph, it->time()) << std::endl;
       const auto [mutex_group_change, new_mutex_groups] = get_new_mutex_groups(
         *it);
       if (mutex_group_change)
@@ -1032,8 +1025,6 @@ std::optional<ExecutePlan> ExecutePlan::make(
           move_through.clear();
           // Repeat the last waypoint so that follow_new_path has continuity.
           move_through.push_back(last);
-
-          std::cout << " >>>>>> Erasing up to " << agv::print_plan_waypoint(*it, graph, it->time()) << std::endl;
           waypoints.erase(waypoints.begin(), it);
 
           current_mutex_groups = next_mutex_group;
