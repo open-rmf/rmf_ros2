@@ -359,7 +359,7 @@ std::vector<std::size_t> filter_graph_indices(
   {
     if (wp.graph_index().has_value())
     {
-      if (*wp.graph_index() != output.back())
+      if (output.empty() || *wp.graph_index() != output.back())
       {
         output.push_back(*wp.graph_index());
       }
