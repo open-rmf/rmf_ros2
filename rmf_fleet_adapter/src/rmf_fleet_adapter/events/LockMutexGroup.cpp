@@ -297,12 +297,8 @@ void LockMutexGroup::Active::_initialize()
                   // proper replan.
                   self->_state->update_status(Status::Completed);
 
-                  RCLCPP_INFO(
-                    self->_context->node()->get_logger(),
-                    "Requesting replan for [%s] because its recommended plan "
-                    "changed while waiting for to lock %s",
-                    self->_context->requester_id().c_str(),
-                    self->_data.all_groups_str().c_str());
+                  // NOTE: If this gets triggered, the RCLCPP_INFO explaining
+                  // why will have been sent out earlier by _consider_plan_result
                   self->_context->request_replan();
                 });
 
@@ -371,6 +367,26 @@ std::vector<std::size_t> filter_graph_indices(
   }
   return output;
 }
+
+std::string stringify_graph_indices(
+  const std::vector<std::size_t>& waypoints,
+  const rmf_traffic::agv::Graph& graph)
+{
+  std::stringstream ss;
+  for (const auto index : waypoints)
+  {
+    if (graph.num_waypoints() <= index)
+    {
+      ss << "[invalid:#" << index << "]";
+    }
+    else
+    {
+      ss << "[" << graph.get_waypoint(index).name_or_index() << "]";
+    }
+  }
+
+  return ss.str();
+}
 } // anonymous namespace
 
 //==============================================================================
@@ -390,14 +406,17 @@ bool LockMutexGroup::Active::_consider_plan_result(
 
   const auto original_sequence = filter_graph_indices(_data.waypoints);
   const auto new_sequence = filter_graph_indices(result->get_waypoints());
+  const auto& graph = _context->navigation_graph();
   if (original_sequence != new_sequence)
   {
     RCLCPP_INFO(
       _context->node()->get_logger(),
-      "Replanning for [%s] after locking mutexes %s because the external "
-      "traffic has substantially changed.",
+      "Replanning for [%s] after locking mutexes %s because the recommended "
+      "plan has changed from %s to %s",
       _context->requester_id().c_str(),
-      _data.all_groups_str().c_str());
+      _data.all_groups_str().c_str(),
+      stringify_graph_indices(original_sequence, graph).c_str(),
+      stringify_graph_indices(new_sequence, graph).c_str());
     return false;
   }
 
