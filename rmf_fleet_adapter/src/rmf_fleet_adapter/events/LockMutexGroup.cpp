@@ -296,6 +296,13 @@ void LockMutexGroup::Active::_initialize()
                   // The new plan was not a match, so we should trigger a
                   // proper replan.
                   self->_state->update_status(Status::Completed);
+
+                  RCLCPP_INFO(
+                    self->_context->node()->get_logger(),
+                    "Requesting replan for [%s] because its recommended plan "
+                    "changed while waiting for to lock %s",
+                    self->_context->requester_id().c_str(),
+                    self->_data.all_groups_str().c_str());
                   self->_context->request_replan();
                 });
 
