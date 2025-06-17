@@ -139,9 +139,6 @@ public:
   {
     if (location.empty())
     {
-      std::stringstream str;
-
-
       RCLCPP_ERROR(node->get_logger(),
         "Got an empty location name. Make sure all locations have names.");
       return;
@@ -387,7 +384,6 @@ private:
     {
       for (auto& param: graph_msg->vertices[i].params)
       {
-
         //TODO(arjoc) make this configure-able
         if (param.name == "is_parking_spot" && param.value_bool)
         {
@@ -421,7 +417,6 @@ private:
   void claim_request(
     const rmf_reservation_msgs::msg::ClaimRequest::ConstSharedPtr& request)
   {
-
     // This logic is for the simplified queue-less version.
     std::vector<LocationReq> locations;
     std::vector<std::string> location_names;

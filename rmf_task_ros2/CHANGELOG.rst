@@ -2,6 +2,18 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.11.0 (2025-06-09)
+-------------------
+
+2.10.1 (2025-05-13)
+-------------------
+
+2.10.0 (2025-05-09)
+-------------------
+* Do not update assignments if bid notice is for a dry run (`#401 <https://github.com/open-rmf/rmf_ros2/issues/401>`_)
+* Use unique name for exported targets and avoid exporting binary targets (`#396 <https://github.com/open-rmf/rmf_ros2/issues/396>`_)
+* Contributors: Luca Della Vedova, yadunund
+
 2.9.0 (2024-11-27)
 ------------------
 * Publish fleet and task updates over ROS 2 if websocket is not provided (`#383 <https://github.com/open-rmf/rmf_ros2/issues/383>`_)
