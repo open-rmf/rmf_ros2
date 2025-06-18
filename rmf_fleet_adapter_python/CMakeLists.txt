@@ -30,10 +30,8 @@ include_directories(
   ${rmf_fleet_adapter_INCLUDE_DIRS}
 )
 
-find_package(pybind11_vendor REQUIRED)
 find_package(pybind11 REQUIRED)
 find_package(nlohmann_json REQUIRED)
-find_package(pybind11_json_vendor REQUIRED)
 find_package(pybind11_json REQUIRED)
 
 pybind11_add_module(rmf_adapter SHARED
