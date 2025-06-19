@@ -356,13 +356,33 @@ std::vector<std::size_t> filter_graph_indices(
   {
     if (wp.graph_index().has_value())
     {
-      if (*wp.graph_index() != output.back())
+      if (output.empty() || *wp.graph_index() != output.back())
       {
         output.push_back(*wp.graph_index());
       }
     }
   }
   return output;
+}
+
+std::string stringify_graph_indices(
+  const std::vector<std::size_t>& waypoints,
+  const rmf_traffic::agv::Graph& graph)
+{
+  std::stringstream ss;
+  for (const auto index : waypoints)
+  {
+    if (graph.num_waypoints() <= index)
+    {
+      ss << "[invalid:#" << index << "]";
+    }
+    else
+    {
+      ss << "[" << graph.get_waypoint(index).name_or_index() << "]";
+    }
+  }
+
+  return ss.str();
 }
 } // anonymous namespace
 
@@ -383,14 +403,17 @@ bool LockMutexGroup::Active::_consider_plan_result(
 
   const auto original_sequence = filter_graph_indices(_data.waypoints);
   const auto new_sequence = filter_graph_indices(result->get_waypoints());
+  const auto& graph = _context->navigation_graph();
   if (original_sequence != new_sequence)
   {
     RCLCPP_INFO(
       _context->node()->get_logger(),
-      "Replanning for [%s] after locking mutexes %s because the external "
-      "traffic has substantially changed.",
+      "Replanning for [%s] after locking mutexes %s because the recommended "
+      "plan has changed from %s to %s",
       _context->requester_id().c_str(),
-      _data.all_groups_str().c_str());
+      _data.all_groups_str().c_str(),
+      stringify_graph_indices(original_sequence, graph).c_str(),
+      stringify_graph_indices(new_sequence, graph).c_str());
     return false;
   }
 

@@ -279,6 +279,7 @@ public:
   rmf_traffic::Duration planned_wait_time;
   std::optional<ScheduleOverride> schedule_override;
   std::shared_ptr<NavParams> nav_params;
+  std::optional<double> speed_limit;
   std::function<void(rmf_traffic::Duration)> arrival_estimator;
 
   void release_stubbornness()
@@ -515,7 +516,12 @@ public:
       }
 
       const auto& traits = planner->get_configuration().vehicle_traits();
-      const auto v = std::max(traits.linear().get_nominal_velocity(), 0.001);
+      double v = std::max(traits.linear().get_nominal_velocity(), 0.001);
+      if (speed_limit.has_value())
+      {
+        v = std::min(v, *speed_limit);
+      }
+
       const auto w =
         std::max(traits.rotational().get_nominal_velocity(), 0.001);
       const auto t = distance / v + rotation / w;
@@ -929,6 +935,37 @@ void EasyCommandHandle::stop()
 }
 
 //==============================================================================
+double calculate_constrained_target_yaw(
+  Eigen::Vector2d current_position,
+  Eigen::Vector2d target_position,
+  const rmf_traffic::agv::Graph::OrientationConstraint* entry_constraint,
+  const rmf_traffic::agv::Graph::OrientationConstraint* exit_constraint,
+  bool reverse)
+{
+  const Eigen::Vector2d course_vector = target_position - current_position;
+  double target_yaw = std::atan2(course_vector[1], course_vector[0]);
+  if (reverse)
+  {
+    target_yaw = rmf_utils::wrap_to_pi(target_yaw + M_PI);
+  }
+
+  if (entry_constraint)
+  {
+    Eigen::Vector3d entry_position(current_position[0], current_position[1], target_yaw);
+    entry_constraint->apply(entry_position, course_vector);
+    target_yaw = entry_position[2];
+  }
+
+  if (exit_constraint)
+  {
+    Eigen::Vector3d exit_position(target_position[0], target_position[1], target_yaw);
+    exit_constraint->apply(exit_position, course_vector);
+    target_yaw = exit_position[2];
+  }
+
+  return target_yaw;
+}
+//==============================================================================
 void EasyCommandHandle::follow_new_path(
   const std::vector<rmf_traffic::agv::Plan::Waypoint>& cmd_waypoints,
   ArrivalEstimator next_arrival_estimator_,
@@ -1021,9 +1058,9 @@ void EasyCommandHandle::follow_new_path(
   for (std::size_t i = 0; i < waypoints.size(); ++i)
   {
     const auto& wp = waypoints[i];
-    if (wp.graph_index().has_value())
+    for (const auto& l : current_location)
     {
-      for (const auto& l : current_location)
+      if (wp.graph_index().has_value())
       {
         if (nav_params->in_same_stack(*wp.graph_index(),
           l.waypoint()) && !l.lane().has_value())
@@ -1074,10 +1111,7 @@ void EasyCommandHandle::follow_new_path(
           }
         }
       }
-    }
-    else
-    {
-      for (const auto& l : current_location)
+      else
       {
         Eigen::Vector2d p_l;
         if (l.location().has_value())
@@ -1191,10 +1225,19 @@ void EasyCommandHandle::follow_new_path(
     }
 
     std::optional<double> speed_limit;
-    if (!wp1.approach_lanes().empty())
+    for (const auto arrival_lane : wp1.approach_lanes())
     {
-      const auto arrival_lane = wp1.approach_lanes().back();
-      speed_limit = graph.get_lane(arrival_lane).properties().speed_limit();
+      if (const auto lane_speed_limit = graph.get_lane(arrival_lane).properties().speed_limit())
+      {
+        if (!speed_limit.has_value())
+        {
+          speed_limit = lane_speed_limit;
+        }
+        else if (*lane_speed_limit < *speed_limit)
+        {
+          speed_limit = lane_speed_limit;
+        }
+      }
     }
 
     Eigen::Vector3d target_position = wp1.position();
@@ -1202,6 +1245,7 @@ void EasyCommandHandle::follow_new_path(
     rmf_traffic::Duration planned_wait_time = rmf_traffic::Duration(0);
     if (nav_params->skip_rotation_commands)
     {
+      // Skip command points that only exist to rotate the robot
       std::size_t i2 = i1 + 1;
       while (i2 < waypoints.size())
       {
@@ -1217,8 +1261,9 @@ void EasyCommandHandle::follow_new_path(
         {
           target_index = i2;
           target_position = wp2.position();
-          if (std::abs(wp1.position()[2] -
-            wp2.position()[2])*180.0 / M_PI < 1e-2)
+          const auto delta_yaw = rmf_utils::wrap_to_pi(
+            wp1.position()[2] - wp2.position()[2]);
+          if (std::abs(delta_yaw)*180.0 / M_PI < 1e-2)
           {
             // The plan had a wait between these points.
             planned_wait_time += wp2.time() - wp1.time();
@@ -1268,6 +1313,7 @@ void EasyCommandHandle::follow_new_path(
           planned_wait_time,
           std::nullopt,
           nav_params,
+          speed_limit,
           [next_arrival_estimator_, target_index,
           target_p](rmf_traffic::Duration dt)
           {
@@ -1287,9 +1333,132 @@ void EasyCommandHandle::follow_new_path(
     i1 = i0 + 1;
   }
 
+  if (!nav_params->skip_rotation_commands && !queue.empty())
+  {
+    const auto reversible = planner->get_configuration()
+      .vehicle_traits().get_differential()->is_reversible();
+
+    // Add a command to rotate to the first target if needed
+    const Eigen::Vector3d current_position = context->position();
+    const Eigen::Vector2d current_p = current_position.block<2, 1>(0, 0);
+    const auto& first_command =
+      EasyFullControl::CommandExecution::Implementation::get(queue.front());
+    const Eigen::Vector2d first_target = first_command.data->target_location.value();
+    const Eigen::Vector2d course_vector = first_target - current_p;
+
+    if (course_vector.norm() > nav_params->max_merge_waypoint_distance)
+    {
+      const rmf_traffic::agv::Graph::OrientationConstraint* entry_constraint = nullptr;
+      const rmf_traffic::agv::Graph::OrientationConstraint* exit_constraint = nullptr;
+
+      // Rotate towards the first target before commanding the robot to go there
+      std::vector<std::size_t> cmd_lanes;
+      std::optional<double> speed_limit;
+      if (first_command.data->lanes.size() == 1)
+      {
+        const auto l = first_command.data->lanes[0];
+        const auto& lane = graph.get_lane(l);
+        speed_limit = lane.properties().speed_limit();
+        cmd_lanes.push_back(l);
+
+        entry_constraint = lane.entry().orientation_constraint();
+        exit_constraint = lane.exit().orientation_constraint();
+      }
+
+      const double current_yaw = current_position[2];
+      double target_yaw = calculate_constrained_target_yaw(
+        current_p,
+        first_target,
+        entry_constraint,
+        exit_constraint,
+        false);
+
+      if (reversible)
+      {
+        const double reverse_target_yaw = calculate_constrained_target_yaw(
+          current_p,
+          first_target,
+          entry_constraint,
+          exit_constraint,
+          true);
+
+        const auto forward_yaw_cost = std::abs(rmf_utils::wrap_to_pi(
+          current_yaw - target_yaw));
+        const auto reverse_yaw_cost = std::abs(rmf_utils::wrap_to_pi(
+          current_yaw - reverse_target_yaw));
+
+        if (reverse_yaw_cost < forward_yaw_cost)
+        {
+          target_yaw = reverse_target_yaw;
+        }
+      }
+
+      const auto yaw_cost = std::abs(rmf_utils::wrap_to_pi(current_yaw - target_yaw));
+      if (yaw_cost > 5.0*M_PI/180.0)
+      {
+        std::vector<std::size_t> cmd_wps;
+        for (const auto& l : current_location)
+        {
+          cmd_wps.push_back(l.waypoint());
+          if (l.lane().has_value())
+          {
+            cmd_lanes.push_back(*l.lane());
+          }
+        }
+
+        rmf_traffic::agv::Graph::LiftPropertiesPtr in_lift;
+        for (const auto& lift : graph.all_known_lifts())
+        {
+          if (lift->is_in_lift(current_p))
+          {
+            in_lift = lift;
+            break;
+          }
+        }
+
+        Eigen::Vector3d command_position(current_p[0], current_p[1], target_yaw);
+        auto destination = EasyFullControl::Destination::Implementation::make(
+          initial_map,
+          command_position,
+          std::nullopt,
+          "",
+          speed_limit,
+          in_lift);
+
+        auto cmd = EasyFullControl::CommandExecution::Implementation::make(
+            context,
+            EasyFullControl::CommandExecution::Implementation::Data{
+              cmd_wps,
+              cmd_lanes,
+              current_p,
+              target_yaw,
+              rmf_traffic::Duration(0),
+              std::nullopt,
+              nav_params,
+              speed_limit,
+              [](rmf_traffic::Duration)
+              {
+                // Don't try to adjust here, just wait until the next command
+                // before doing schedule adjustments.
+              }
+            },
+            [
+              handle_nav_request = this->handle_nav_request,
+              destination = std::move(destination)
+            ](EasyFullControl::CommandExecution execution)
+            {
+              handle_nav_request(destination, execution);
+            });
+
+        queue.insert(queue.begin(), cmd);
+      }
+    }
+  }
+
   this->current_progress = ProgressTracker::make(
     queue,
     path_finished_callback_);
+
   this->current_progress->next();
 }
 
@@ -1405,6 +1574,8 @@ void EasyCommandHandle::dock(
     .value_or(rmf_traffic::Duration(0));
   const rmf_traffic::Time expected_arrival = now + dt - initial_delay;
 
+  const auto speed_limit = lane.properties().speed_limit();
+
   auto data = EasyFullControl::CommandExecution::Implementation::Data{
     {i0, i1},
     {*found_lane},
@@ -1413,6 +1584,7 @@ void EasyCommandHandle::dock(
     rmf_traffic::Duration(0),
     std::nullopt,
     nav_params,
+    speed_limit,
     [w_context = context->weak_from_this(), expected_arrival, plan_id](
       rmf_traffic::Duration dt)
     {
