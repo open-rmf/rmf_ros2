@@ -99,7 +99,7 @@ public:
 class EasyFullControl::CommandExecution::Implementation
 {
 public:
-  struct Data;
+  class Data;
   using DataPtr = std::shared_ptr<Data>;
 
   std::weak_ptr<RobotContext> w_context;
