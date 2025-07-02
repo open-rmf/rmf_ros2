@@ -34,7 +34,15 @@ class Auctioneer::Implementation
 {
 public:
 
-  std::shared_ptr<rclcpp::Node> node;
+  rclcpp::node_interfaces::NodeBaseInterface::SharedPtr node_base_interface;
+  rclcpp::node_interfaces::NodeClockInterface::SharedPtr node_clock_interface;
+  rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
+    node_logging_interface;
+  rclcpp::node_interfaces::NodeTimersInterface::SharedPtr node_timers_interface;
+  rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr node_topics_interface;
+  rclcpp::node_interfaces::NodeParametersInterface::SharedPtr
+  node_parameters_interface;
+
   rclcpp::TimerBase::SharedPtr timer;
   BiddingResultCallback bidding_result_callback;
   ConstEvaluatorPtr evaluator;
@@ -56,7 +64,18 @@ public:
   BidResponseSub::SharedPtr bid_proposal_sub;
 
   Implementation(
-    const std::shared_ptr<rclcpp::Node>& node_,
+    const rclcpp::node_interfaces::NodeBaseInterface::SharedPtr
+    node_base_interface,
+    const rclcpp::node_interfaces::NodeClockInterface::SharedPtr
+    node_clock_interface,
+    const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
+    node_logging_interface,
+    const rclcpp::node_interfaces::NodeTimersInterface::SharedPtr
+    node_timers_interface,
+    const rclcpp::node_interfaces::NodeTopicsInterface::SharedPtr
+    node_topics_interface,
+    const rclcpp::node_interfaces::NodeParametersInterface::SharedPtr
+    node_parameters_interface_,
     BiddingResultCallback result_callback,
     ConstEvaluatorPtr evaluator);
 

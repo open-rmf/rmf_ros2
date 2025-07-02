@@ -921,7 +921,14 @@ std::optional<ExecutePlan> ExecutePlan::make(
       truncate_arrival(*previous_itinerary, wp);
 
       auto expected_waypoints = waypoints;
-      expected_waypoints.insert(expected_waypoints.begin(), wp);
+      for (auto e_it = expected_waypoints.begin(); e_it != expected_waypoints.end(); ++e_it)
+      {
+        if (e_it->time() >= wp.time())
+        {
+          expected_waypoints.erase(expected_waypoints.begin(), e_it);
+          break;
+        }
+      }
 
       auto next_itinerary = std::make_shared<
         rmf_traffic::schedule::Itinerary>(full_itinerary);
