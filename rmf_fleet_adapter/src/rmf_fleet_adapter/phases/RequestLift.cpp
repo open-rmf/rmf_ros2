@@ -134,6 +134,11 @@ void RequestLift::ActivePhase::_init_obs()
             // should lock in the lift by saying that the request is coming from
             // inside the lift. This will prevent the auto-detection system from
             // releasing the lift prematurely.
+            RCLCPP_INFO(
+              self->_context->node()->get_logger(),
+              "Setting lift destination for [%s] after a lift arrival",
+              self->_context->requester_id().c_str());
+
             self->_context->set_lift_destination(
               self->_lift_name, self->_destination, true);
           }
@@ -148,29 +153,14 @@ void RequestLift::ActivePhase::_init_obs()
               *self->_data.plan_id, delay);
           }
 
+          RCLCPP_INFO(
+            self->_context->node()->get_logger(),
+            "Resuming itinerary for [%s] after lift arrival",
+            self->_context->requester_id().c_str());
+
           s.on_completed();
         });
       return;
-    }
-    else
-    {
-      if (const auto d = _context->current_lift_destination())
-      {
-        RCLCPP_INFO(
-          _context->node()->get_logger(),
-          "Wrong lift destination: %s to %s vs %s to %s",
-          d->lift_name.c_str(),
-          d->destination_floor.c_str(),
-          _lift_name.c_str(),
-          _destination.c_str());
-      }
-      else
-      {
-        RCLCPP_INFO(
-          _context->node()->get_logger(),
-          "Fresh call for lift by %s",
-          _context->requester_id().c_str());
-      }
     }
   }
 
