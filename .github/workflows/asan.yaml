@@ -16,7 +16,7 @@ jobs:
           [{"ros_distribution": "humble",
             "ubuntu_distribution": "jammy"}]
       # NOTE: Avoid adding comments in the package lines, this can break some of the called scripts in github actions
-      repos-branch-override: "main"
+      repos-branch-override: "throaway/rmf_ros2_pr_450"
       packages: |
         rmf_traffic_ros2
         rmf_task_ros2
