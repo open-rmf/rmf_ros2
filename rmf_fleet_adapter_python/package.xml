@@ -9,8 +9,8 @@
   <maintainer email="yadunund@openrobotics.org">Yadunund</maintainer>
   <license>Apache License 2.0</license>
 
-  <depend>pybind11_vendor</depend>
-  <depend>pybind11_json_vendor</depend>
+  <depend>pybind11-dev</depend>
+  <depend>pybind11-json-dev</depend>
   <depend>rclpy</depend>
   <depend>rmf_fleet_adapter</depend>
 
