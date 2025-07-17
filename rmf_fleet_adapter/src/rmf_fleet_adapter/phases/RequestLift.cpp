@@ -117,6 +117,10 @@ void RequestLift::ActivePhase::_init_obs()
     // that says it's completed right away.
     if (_context->has_lift_arrived(_lift_name, _destination))
     {
+      RCLCPP_INFO(
+        _context->node()->get_logger(),
+        "Lift has already arrived for [%s]",
+        _context->requester_id().c_str());
       _obs = rxcpp::observable<>::create<LegacyTask::StatusMsg>(
         [w = weak_from_this()](rxcpp::subscriber<LegacyTask::StatusMsg> s)
         {
@@ -130,6 +134,11 @@ void RequestLift::ActivePhase::_init_obs()
             // should lock in the lift by saying that the request is coming from
             // inside the lift. This will prevent the auto-detection system from
             // releasing the lift prematurely.
+            RCLCPP_INFO(
+              self->_context->node()->get_logger(),
+              "Setting lift destination for [%s] after a lift arrival",
+              self->_context->requester_id().c_str());
+
             self->_context->set_lift_destination(
               self->_lift_name, self->_destination, true);
           }
@@ -143,6 +152,11 @@ void RequestLift::ActivePhase::_init_obs()
             self->_context->itinerary().cumulative_delay(
               *self->_data.plan_id, delay);
           }
+
+          RCLCPP_INFO(
+            self->_context->node()->get_logger(),
+            "Resuming itinerary for [%s] after lift arrival",
+            self->_context->requester_id().c_str());
 
           s.on_completed();
         });
