@@ -23,7 +23,7 @@ namespace rmf_traffic_ros2 {
 
 namespace {
 //==============================================================================
-Eigen::Isometry2d to_eigen(const geometry_msgs::msg::Pose2D& pose)
+Eigen::Isometry2d to_eigen(const rmf_traffic_msgs::msg::Pose2D& pose)
 {
   Eigen::Isometry2d tf = Eigen::Isometry2d::Identity();
   tf.translation() = Eigen::Vector2d{pose.x, pose.y};
@@ -113,9 +113,9 @@ rmf_traffic::schedule::Query::Spacetime convert(
 
 namespace {
 //==============================================================================
-geometry_msgs::msg::Pose2D from_eigen(const Eigen::Isometry2d& pose)
+rmf_traffic_msgs::msg::Pose2D from_eigen(const Eigen::Isometry2d& pose)
 {
-  geometry_msgs::msg::Pose2D msg;
+  rmf_traffic_msgs::msg::Pose2D msg;
   msg.x = pose.translation().x();
   msg.y = pose.translation().y();
   msg.theta = Eigen::Rotation2Dd(pose.rotation()).angle();

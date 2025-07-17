@@ -20,6 +20,7 @@
   <depend>rmf_traffic</depend>
   <depend>rmf_utils</depend>
   <depend>rmf_websocket</depend>
+  <depend>std_msgs</depend>
 
   <build_depend>eigen</build_depend>
 
