@@ -19,11 +19,19 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-find_package(Python3 COMPONENTS Interpreter Development)
+find_package(Python3 COMPONENTS Interpreter Development Numpy)
 find_package(rmf_fleet_adapter REQUIRED)
 find_package(rmf_task REQUIRED)
 find_package(rmf_battery REQUIRED)
 find_package(rmf_task_msgs REQUIRED)
+
+# Get the NumPy version string via Python interpreter
+execute_process(COMMAND ${Python_EXECUTABLE} -c "import numpy; print(numpy.__version__)"
+                OUTPUT_VARIABLE NUMPY_VERSION_STRING
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+# Define the macro for C++ compilation
+add_compile_definitions(BUILT_AGAINST_NUMPY_VERSION="${NUMPY_VERSION_STRING}")
 
 include_directories(
   include
