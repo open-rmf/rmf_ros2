@@ -75,7 +75,64 @@ void bind_nodes(py::module&);
 void bind_battery(py::module&);
 void bind_schedule(py::module&);
 
+// Numpy incompatibility check
+#ifndef BUILT_AGAINST_NUMPY_VERSION
+#define BUILT_AGAINST_NUMPY_VERSION "UNKNOWN_VERSION" // Fallback
+#endif
+void check_numpy_version_on_import()
+{
+  try {
+    py::module_ numpy = py::module_::import("numpy");
+    std::string current_numpy_version = py::str(numpy.attr("__version__"));
+
+    std::string built_against_version = BUILT_AGAINST_NUMPY_VERSION;
+
+    // Simple major.minor version check (e.g., "1.24" vs "2.0")
+    size_t built_dot = built_against_version.find('.');
+    size_t current_dot = current_numpy_version.find('.');
+
+    if (built_dot != std::string::npos && current_dot != std::string::npos) {
+      std::string built_major_minor = built_against_version.substr(0, built_dot + 2);
+      std::string current_major_minor = current_numpy_version.substr(0, current_dot + 2);
+
+      if (built_major_minor != current_major_minor) {
+        // For ABI-breaking changes (like NumPy 1.x to 2.x),
+        // it's often better to raise an ImportError to prevent crashes.
+        // Otherwise, a RuntimeWarning might be appropriate.
+        PyErr_SetString(PyExc_ImportError,
+                        ("Your module was compiled against NumPy " + built_against_version +
+                          " but you are running with NumPy " + current_numpy_version +
+                          ". This is an ABI incompatibility. Please install a compatible NumPy version "
+                          "or reinstall the module against your current NumPy version.").c_str());
+        throw py::error_already_set(); // Propagate the Python exception
+      }
+    } 
+    else if (built_against_version == "UNKNOWN_VERSION")
+    {
+      // If the version wasn't properly embedded at build time
+      PyErr_WarnEx(PyExc_RuntimeWarning,
+                      "Warning: Could not determine the NumPy version this module was built against. "
+                      "Compatibility issues may arise.", 1);
+    }
+
+  }
+  catch (const py::error_already_set& e)
+  {
+    // If an exception was set (e.g., ImportError from above), re-throw it.
+    throw;
+  }
+  catch (const std::exception& e)
+  {
+    // Catch other C++ exceptions and convert them to Python exceptions
+    PyErr_SetString(PyExc_RuntimeError, ("Error during NumPy version check: " + std::string(e.what())).c_str());
+    throw py::error_already_set();
+  }
+}
+
+
 PYBIND11_MODULE(rmf_adapter, m) {
+  check_numpy_version_on_import();
+
   bind_types(m);
   bind_graph(m);
   bind_shapes(m);
