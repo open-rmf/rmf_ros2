@@ -81,7 +81,8 @@ void bind_schedule(py::module&);
 #endif
 void check_numpy_version_on_import()
 {
-  try {
+  try
+  {
     py::module_ numpy = py::module_::import("numpy");
     std::string current_numpy_version = py::str(numpy.attr("__version__"));
 
@@ -91,16 +92,18 @@ void check_numpy_version_on_import()
     size_t built_dot = built_against_version.find('.');
     size_t current_dot = current_numpy_version.find('.');
 
-    if (built_dot != std::string::npos && current_dot != std::string::npos) {
+    if (built_dot != std::string::npos && current_dot != std::string::npos)
+    {
       std::string built_major_minor = built_against_version.substr(0, built_dot + 2);
       std::string current_major_minor = current_numpy_version.substr(0, current_dot + 2);
 
-      if (built_major_minor != current_major_minor) {
+      if (built_major_minor != current_major_minor)
+      {
         // For ABI-breaking changes (like NumPy 1.x to 2.x),
         // it's often better to raise an ImportError to prevent crashes.
         // Otherwise, a RuntimeWarning might be appropriate.
         PyErr_SetString(PyExc_ImportError,
-                        ("Your module was compiled against NumPy " + built_against_version +
+                        ("rmf_fleet_adapter_python was compiled against NumPy " + built_against_version +
                           " but you are running with NumPy " + current_numpy_version +
                           ". This is an ABI incompatibility. Please install a compatible NumPy version "
                           "or reinstall the module against your current NumPy version.").c_str());
