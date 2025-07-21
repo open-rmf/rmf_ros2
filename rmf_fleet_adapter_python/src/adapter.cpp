@@ -79,25 +79,25 @@ void bind_schedule(py::module&);
 /// Returns a pair<int, int> {major, minor} or {-1, -1} on parsing failure.
 std::pair<int, int> parse_major_minor(const std::string& version_str) {
   size_t first_dot = version_str.find('.');
-  if (first_dot == std::string::npos) 
+  if (first_dot == std::string::npos)
   {
     // Only major version (e.g., "1" or "2")
-    try 
+    try
     {
       int major = std::stoi(version_str);
       return {major, 0}; // Assume minor 0 if not specified
-    } 
-    catch (...) 
+    }
+    catch (...)
     {
       return {-1, -1}; // Parsing error
     }
   }
 
-  try 
+  try
   {
     int major = std::stoi(version_str.substr(0, first_dot));
-    
-    if (version_str.size() <= first_dot) {
+    if (version_str.size() <= first_dot)
+    {
       return {major, -1};
     }
 
@@ -123,7 +123,7 @@ std::pair<int, int> parse_major_minor(const std::string& version_str) {
     int minor = std::stoi(minor_str);
     return {major, minor};
   } catch (...) {
-      return {-1, -1}; // Parsing error
+    return {-1, -1}; // Parsing error
   }
 }
 
@@ -133,7 +133,7 @@ std::pair<int, int> parse_major_minor(const std::string& version_str) {
 #endif
 void check_numpy_version_on_import()
 {
-  try 
+  try
   {
     py::module_ numpy = py::module_::import("numpy");
     std::string current_numpy_version_str = py::str(numpy.attr("__version__"));
@@ -182,17 +182,19 @@ void check_numpy_version_on_import()
         "cause subtle compatibility issues. Consider reinstalling"
         " if you encounter problems.").c_str(), 1);
     }
-
   } catch (const py::error_already_set& e) {
-      throw;
+    throw;
   } catch (const std::exception& e) {
-      PyErr_SetString(PyExc_RuntimeError, ("Error during NumPy version check: " + std::string(e.what())).c_str());
-      throw py::error_already_set();
+    PyErr_SetString(PyExc_RuntimeError, ("Error during NumPy version check: " + std::string(e.what())).c_str());
+    throw py::error_already_set();
   }
 }
 
 
 PYBIND11_MODULE(rmf_adapter, m) {
+
+  // If numpy versions are incompatible we should crash
+  // to prevent further UB.
   check_numpy_version_on_import();
 
   bind_types(m);
