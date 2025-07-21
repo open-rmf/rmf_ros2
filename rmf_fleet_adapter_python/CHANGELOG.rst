@@ -2,6 +2,11 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Remove pybind11 vendored dependencies (`#444 <https://github.com/open-rmf/rmf_ros2/issues/444>`_)
+* Contributors: Luca Della Vedova
+
 2.11.0 (2025-06-09)
 -------------------
 

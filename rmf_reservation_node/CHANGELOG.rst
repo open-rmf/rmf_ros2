@@ -2,6 +2,9 @@
 Changelog for package rmf_reservation_node
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+
 2.11.0 (2025-06-09)
 -------------------
 * Migrate reservation node to target_link_libraries (`#437 <https://github.com/open-rmf/rmf_ros2/issues/437>`_)

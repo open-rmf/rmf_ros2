@@ -2,6 +2,13 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Fix a race condition that can cause an endless loop when waiting for a lift (`#449 <https://github.com/open-rmf/rmf_ros2/issues/449>`_)
+* Fix orientation mismatch when !skip_rotation_commands (`#422 <https://github.com/open-rmf/rmf_ros2/issues/422>`_)
+* Migrate fleet_adapter to target_link_libraries (`#438 <https://github.com/open-rmf/rmf_ros2/issues/438>`_)
+* Contributors: Grey, Luca Della Vedova
+
 2.11.0 (2025-06-09)
 -------------------
 
