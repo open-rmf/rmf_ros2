@@ -2,8 +2,8 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.11.1 (2025-07-21)
+-------------------
 * Remove deprecated Pose2D message (`#450 <https://github.com/open-rmf/rmf_ros2/issues/450>`_)
 * Contributors: Luca Della Vedova
 
