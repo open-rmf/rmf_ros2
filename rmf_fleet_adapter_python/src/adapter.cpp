@@ -75,7 +75,128 @@ void bind_nodes(py::module&);
 void bind_battery(py::module&);
 void bind_schedule(py::module&);
 
+/// Helper function to parse major and minor version as integers
+/// Returns a pair<int, int> {major, minor} or {-1, -1} on parsing failure.
+std::pair<int, int> parse_major_minor(const std::string& version_str) {
+  size_t first_dot = version_str.find('.');
+  if (first_dot == std::string::npos)
+  {
+    // Only major version (e.g., "1" or "2")
+    try
+    {
+      int major = std::stoi(version_str);
+      return {major, 0}; // Assume minor 0 if not specified
+    }
+    catch (...)
+    {
+      return {-1, -1}; // Parsing error
+    }
+  }
+
+  try
+  {
+    int major = std::stoi(version_str.substr(0, first_dot));
+    if (version_str.size() <= first_dot)
+    {
+      return {-1, -1};
+    }
+
+    size_t second_dot = version_str.find('.', first_dot + 1);
+    std::string minor_str;
+
+    if (second_dot != std::string::npos)
+    {
+      minor_str = version_str.substr(first_dot + 1, second_dot - (first_dot + 1));
+    }
+    else
+    {
+      minor_str = version_str.substr(first_dot + 1);
+    }
+
+    // Remove any non-digit characters from the end (e.g., "1.2.0rc1" -> "1.2")
+    size_t non_digit_pos = minor_str.find_first_not_of("0123456789");
+    if (non_digit_pos != std::string::npos) 
+    {
+      minor_str = minor_str.substr(0, non_digit_pos);
+    }
+
+    int minor = std::stoi(minor_str);
+    return {major, minor};
+  } catch (...) {
+    return {-1, -1}; // Parsing error
+  }
+}
+
+// Numpy incompatibility check
+#ifndef BUILT_AGAINST_NUMPY_VERSION
+#define BUILT_AGAINST_NUMPY_VERSION "UNKNOWN_VERSION" // Fallback
+#endif
+void check_numpy_version_on_import()
+{
+  try
+  {
+    py::module_ numpy = py::module_::import("numpy");
+    std::string current_numpy_version_str = py::str(numpy.attr("__version__"));
+    std::string built_against_version_str = BUILT_AGAINST_NUMPY_VERSION;
+
+    auto built_version = parse_major_minor(built_against_version_str);
+    auto current_version = parse_major_minor(current_numpy_version_str);
+
+    if (built_version.first == -1 || current_version.first == -1)
+    {
+      PyErr_WarnEx(PyExc_RuntimeWarning,
+        ("Warning: Could not reliably parse NumPy versions. Built: '" 
+        + built_against_version_str +
+        "', Current: '" + current_numpy_version_str +
+        "'. Compatibility issues may arise.").c_str(), 1);
+      return;
+    }
+
+    // Compare major versions first - 1.0 is not compatible with 2.0.
+    // Compare minor versions also numpy doesn't follow semantic versioning.
+    // ABI is "forward compatible" between minor versions in numpy. So older versions
+    // of numpy are NOT guaranteed to be ABI compatible, however newer versions are.
+    if (built_version.first != current_version.first || built_version.second > current_version.second)
+    {
+      PyErr_SetString(PyExc_ImportError,
+        ("rmf_fleet_adapter_python was compiled against NumPy " 
+        + built_against_version_str +
+        " (major version " + std::to_string(built_version.first) +
+        ") but you are running with NumPy " + current_numpy_version_str +
+        " (major version " + std::to_string(current_version.first) +
+        "). Major version mismatch indicates ABI incompatibility. "
+        "Please install a compatible NumPy version or rebuild the module"
+        " against your current NumPy version.").c_str());
+      throw py::error_already_set();
+    }
+
+    // If major versions match, compare minor versions for a warning.
+    if (built_version.second != current_version.second) 
+    {
+      PyErr_WarnEx(PyExc_RuntimeWarning,
+        ("Warning: rmf_fleet_adapter_python was compiled against NumPy " 
+        + built_against_version_str +
+        " but you are running with NumPy "
+        + current_numpy_version_str +
+        ". While major versions match, minor versions differ, which *might* "
+        "cause subtle compatibility issues. Consider reinstalling"
+        " if you encounter problems.").c_str(), 1);
+    }
+  } catch (const py::error_already_set& e) {
+    throw;
+  } catch (const std::exception& e) {
+    PyErr_SetString(PyExc_RuntimeError, ("Error during NumPy version check: " + std::string(e.what())).c_str());
+    throw py::error_already_set();
+  }
+}
+
+
 PYBIND11_MODULE(rmf_adapter, m) {
+
+  // If numpy versions are incompatible we should crash
+  // to prevent further UB.
+  check_numpy_version_on_import();
+
   bind_types(m);
   bind_graph(m);
   bind_shapes(m);
