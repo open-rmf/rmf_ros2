@@ -384,7 +384,8 @@ public:
           self->_pimpl->handle_emergency(msg->data);
         }
       });
-    handle->_pimpl->target_emergency_sub = handle->_pimpl->node->target_emergency_notice()
+    handle->_pimpl->target_emergency_sub =
+      handle->_pimpl->node->target_emergency_notice()
       .observe_on(rxcpp::identity_same_worker(handle->_pimpl->worker))
       .subscribe(
       [w = handle->weak_from_this()](const auto& msg)
@@ -526,10 +527,10 @@ public:
 
     handle->_pimpl->fleet_state_update_pub =
       handle->_pimpl->node->create_publisher<FleetStateUpdateMsg>(
-        FleetStateUpdateTopicName, reliable_transient_qos.keep_last(10));
+      FleetStateUpdateTopicName, reliable_transient_qos.keep_last(10));
     handle->_pimpl->fleet_log_update_pub =
       handle->_pimpl->node->create_publisher<FleetLogUpdateMsg>(
-        FleetLogUpdateTopicName, reliable_transient_qos.keep_last(100));
+      FleetLogUpdateTopicName, reliable_transient_qos.keep_last(100));
 
     // Add PerformAction event to deserialization
     auto validator = handle->_pimpl->deserialization.make_validator_shared(
@@ -621,35 +622,38 @@ public:
 
     handle->_pimpl->memory_utilization_timer =
       handle->_pimpl->node->create_wall_timer(
-        std::chrono::minutes(5), [w = handle->weak_from_this()]()
+      std::chrono::minutes(5), [w = handle->weak_from_this()]()
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        const auto& planner = *self->_pimpl->planner;
+        const auto audit = planner->cache_audit();
+        std::stringstream ss;
+        ss << audit;
+        RCLCPP_INFO(
+          self->_pimpl->node->get_logger(),
+          "%s",
+          ss.str().c_str());
+
+        const std::optional<std::size_t> reset_size =
+        self->_pimpl->planner_cache_reset_size;
+        if (reset_size.has_value())
         {
-          const auto self = w.lock();
-          if (!self)
-            return;
-
-          const auto& planner = *self->_pimpl->planner;
-          const auto audit = planner->cache_audit();
-          std::stringstream ss;
-          ss << audit;
-          RCLCPP_INFO(
-            self->_pimpl->node->get_logger(),
-            "%s",
-            ss.str().c_str());
-
-          const std::optional<std::size_t> reset_size =
-            self->_pimpl->planner_cache_reset_size;
-          if (reset_size.has_value())
+          if ((audit.differential_drive_planner_cache_size() +
+          audit.shortest_path_cache_size() +
+          audit.euclidean_heuristic_cache_size()) > *reset_size)
           {
-            if (audit.differential_drive_planner_cache_size() > *reset_size)
-            {
-              RCLCPP_INFO(
-                self->_pimpl->node->get_logger(),
-                "Reseting planner cache since it exceeded size limit of %zu",
-                *reset_size);
-              planner->clear_differential_drive_cache();
-            }
+            RCLCPP_INFO(
+              self->_pimpl->node->get_logger(),
+              "Reseting planner cache since it exceeded size limit of %zu",
+              *reset_size);
+            planner->clear_differential_drive_cache();
+            planner->clear_inner_cache();
           }
-        });
+        }
+      });
 
     return handle;
   }
@@ -701,7 +705,8 @@ public:
   void update_fleet_state() const;
   void update_fleet_logs() const;
   void handle_emergency(const bool is_emergency);
-  void handle_target_emergency(std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> is_emergency);
+  void handle_target_emergency(
+    std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> is_emergency);
   void update_emergency_planner();
 
   void update_charging_assignments(const ChargingAssignments& assignments);
