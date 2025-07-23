@@ -2610,7 +2610,7 @@ void FleetUpdateHandle::set_planner_cache_reset_size(
       RCLCPP_INFO(
         self->_pimpl->node->get_logger(),
         "Setting planner_cache_reset_size to [%s]",
-        max_size ? std::to_string(*max_size).c_str() : "unset"
+        max_size.has_value() ? std::to_string(*max_size).c_str() : "unset"
       );
 
       self->_pimpl->planner_cache_reset_size = max_size;
