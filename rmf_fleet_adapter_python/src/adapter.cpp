@@ -98,7 +98,7 @@ std::pair<int, int> parse_major_minor(const std::string& version_str) {
     int major = std::stoi(version_str.substr(0, first_dot));
     if (version_str.size() <= first_dot)
     {
-      return {major, -1};
+      return {-1, -1};
     }
 
     size_t second_dot = version_str.find('.', first_dot + 1);
