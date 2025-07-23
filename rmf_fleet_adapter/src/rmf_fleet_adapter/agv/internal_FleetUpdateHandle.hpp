@@ -637,17 +637,20 @@ public:
           "%s",
           ss.str().c_str());
 
-        const std::optional<std::size_t> reset_size =
-        self->_pimpl->planner_cache_reset_size;
+        const std::optional<std::size_t> reset_size = 
+          self->_pimpl->planner_cache_reset_size;
         if (reset_size.has_value())
         {
-          if ((audit.differential_drive_planner_cache_size() +
-          audit.shortest_path_cache_size() +
-          audit.euclidean_heuristic_cache_size()) > *reset_size)
+
+          const std::size_t cache_size_sum = audit.differential_drive_planner_cache_size()
+            + audit.shortest_path_cache_size()
+            + audit.euclidean_heuristic_cache_size();
+
+          if (cache_size_sum > *reset_size)
           {
             RCLCPP_INFO(
               self->_pimpl->node->get_logger(),
-              "Reseting planner cache since it exceeded size limit of %zu",
+              "Resetting planner cache since it exceeded size limit of %zu",
               *reset_size);
             planner->clear_differential_drive_cache();
             planner->clear_inner_cache();
