@@ -43,7 +43,6 @@ public:
   : _data(std::make_shared<Data>(std::move(callback),
       std::move(msg_selection)))
   {
-    std::cout << "Run websocket server with port " << port << std::endl;
     try
     {
       // Hide all logs from websocketpp
@@ -78,7 +77,6 @@ public:
   /// Start Server
   void start()
   {
-    std::cout << "Start BroadcastServer" << std::endl;
     // Start the ASIO io_service run loop
     _server_thread = std::thread(
       [data = _data]() { data->echo_server.run(); });
@@ -87,7 +85,6 @@ public:
   /// Stop Server
   void stop()
   {
-    std::cout << "Stop BroadcastServer" << std::endl;
     if (_server_thread.joinable())
     {
       _data->echo_server.get_io_service().post(
