@@ -22,7 +22,6 @@
 
 #include <nlohmann/json.hpp>
 #include <iostream>
-#include <exception>
 #include <functional>
 #include <thread>
 
@@ -91,9 +90,12 @@ public:
     std::cout << "Stop BroadcastServer" << std::endl;
     if (_server_thread.joinable())
     {
-      _data->echo_server.stop_listening();
-      _data->echo_server.stop();
-      // TODO: properly close all connections
+      _data->echo_server.get_io_service().post(
+          [data = _data]()
+          {
+            data->echo_server.stop_listening();
+            data->echo_server.stop();
+          });
       _server_thread.join();
     }
   }
