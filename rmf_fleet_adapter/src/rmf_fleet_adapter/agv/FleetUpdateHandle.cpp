@@ -644,7 +644,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
       // If the request is for a dry run, we do not store the assignments for
       // dispatch.
-      if (dry_run) {
+      if (dry_run)
+      {
         return;
       }
 
@@ -1434,7 +1435,8 @@ void FleetUpdateHandle::Implementation::handle_target_emergency(
     }
   }
 
-  if (execute) {
+  if (execute)
+  {
     handle_emergency(emergency_signal->is_emergency);
   }
 }
@@ -2604,6 +2606,12 @@ void FleetUpdateHandle::set_planner_cache_reset_size(
       const auto self = w.lock();
       if (!self)
         return;
+
+      RCLCPP_INFO(
+        self->_pimpl->node->get_logger(),
+        "Setting planner_cache_reset_size to [%s]",
+        max_size.has_value() ? std::to_string(*max_size).c_str() : "unset"
+      );
 
       self->_pimpl->planner_cache_reset_size = max_size;
     }
