@@ -372,7 +372,7 @@ SCENARIO("Test Delivery")
   /// from the websocket connection
   /* *INDENT-OFF* */
   using WebsocketServer = rmf_websocket::BroadcastServer;
-	const auto ws_server = WebsocketServer::make(
+	const auto ws_server = WebsocketServer::make_with_logger(
 		37878,
     [ &cb_mutex, delivery_id, &completed_promise,
       &at_least_one_incomplete, &fulfilled_promise](
@@ -397,7 +397,8 @@ SCENARIO("Test Delivery")
         else
           at_least_one_incomplete = true;
       },
-    WebsocketServer::ApiMsgType::TaskStateUpdate
+    WebsocketServer::ApiMsgType::TaskStateUpdate,
+    adapter.node()->get_node_logging_interface()
   );
   /* *INDENT-ON* */
 
