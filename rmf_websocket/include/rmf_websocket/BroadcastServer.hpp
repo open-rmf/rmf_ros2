@@ -23,6 +23,8 @@
 #include <optional>
 #include <rmf_utils/impl_ptr.hpp>
 
+#include <rclcpp/rclcpp.hpp>
+
 namespace rmf_websocket {
 
 //==============================================================================
@@ -58,6 +60,26 @@ public:
     const int port,
     ApiMessageCallback callback,
     std::optional<ApiMsgType> msg_selection = std::nullopt);
+
+  /// Add a callback to convert from a Description into an active Task.
+  ///
+  /// \param[in] port
+  ///   server url port number
+  ///
+  /// \param[in] callback
+  ///   callback function when the message is received
+  ///
+  /// \param[in] msg_selection
+  ///   selected msg type to listen. Will listen to all msg if nullopt
+  ///
+  /// \param[in] node_logging_interface
+  ///   node for logging
+  static std::shared_ptr<BroadcastServer> make_with_logger(
+    const int port,
+    ApiMessageCallback callback,
+    std::optional<ApiMsgType> msg_selection = std::nullopt,
+    const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
+      node_logging_interface = nullptr);
 
   /// Start Server
   void start();
