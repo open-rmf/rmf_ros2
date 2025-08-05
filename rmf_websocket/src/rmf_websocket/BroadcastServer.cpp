@@ -41,7 +41,7 @@ public:
     ApiMessageCallback callback,
     std::optional<ApiMsgType> msg_selection,
     const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
-      node_logging_interface = nullptr)
+      node_logging_interface)
   : _data(std::make_shared<Data>(std::move(callback), std::move(msg_selection))),
     _logger_interface(node_logging_interface)
   {
@@ -124,7 +124,7 @@ public:
       if (_logger_interface)
       {
         RCLCPP_INFO(
-          _logger_interface->get_logger(),"Stopping BroadcastServer");
+          _logger_interface->get_logger(), "Stopping BroadcastServer");
       }
 
       _data->echo_server.get_io_service().post(
@@ -152,7 +152,6 @@ public:
         {ApiMsgType::FleetLogUpdate, "fleet_log_update"}});
     return map.at(type);
   }
-
 
 private:
 
@@ -207,7 +206,7 @@ std::shared_ptr<BroadcastServer> BroadcastServer::make(
   auto server = std::shared_ptr<BroadcastServer>(new BroadcastServer());
   server->_pimpl =
     rmf_utils::make_unique_impl<Implementation>(
-    port, callback, msg_selection);
+    port, callback, msg_selection, nullptr);
   return server;
 }
 
@@ -215,9 +214,9 @@ std::shared_ptr<BroadcastServer> BroadcastServer::make(
 std::shared_ptr<BroadcastServer> BroadcastServer::make_with_logger(
   const int port,
   ApiMessageCallback callback,
-  std::optional<ApiMsgType> msg_selection,
   const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
-    node_logging_interface)
+    node_logging_interface,
+  std::optional<ApiMsgType> msg_selection)
 {
   auto server = std::shared_ptr<BroadcastServer>(new BroadcastServer());
   server->_pimpl =

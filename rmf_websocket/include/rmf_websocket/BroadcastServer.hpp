@@ -45,7 +45,8 @@ public:
 
   using ApiMessageCallback = std::function<void(const nlohmann::json&)>;
 
-  /// Add a callback to convert from a Description into an active Task.
+  /// Create a wrapper around a websocket server for receiving states and logs for
+  /// fleets, robots and tasks
   ///
   /// \param[in] port
   ///   server url port number
@@ -61,7 +62,8 @@ public:
     ApiMessageCallback callback,
     std::optional<ApiMsgType> msg_selection = std::nullopt);
 
-  /// Add a callback to convert from a Description into an active Task.
+  /// Create a wrapper around a websocket server for receiving states and logs for
+  /// fleets, robots and tasks
   ///
   /// \param[in] port
   ///   server url port number
@@ -69,17 +71,19 @@ public:
   /// \param[in] callback
   ///   callback function when the message is received
   ///
+  /// \param[in] node_logging_interface
+  ///   node interface for logging. Default as nullptr which will result
+  ///   in errors and additional debug information not being logged
+  ///
   /// \param[in] msg_selection
   ///   selected msg type to listen. Will listen to all msg if nullopt
   ///
-  /// \param[in] node_logging_interface
-  ///   node for logging
   static std::shared_ptr<BroadcastServer> make_with_logger(
     const int port,
     ApiMessageCallback callback,
-    std::optional<ApiMsgType> msg_selection = std::nullopt,
     const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
-      node_logging_interface = nullptr);
+      node_logging_interface,
+    std::optional<ApiMsgType> msg_selection = std::nullopt);
 
   /// Start Server
   void start();

@@ -397,8 +397,8 @@ SCENARIO("Test Delivery")
         else
           at_least_one_incomplete = true;
       },
-    WebsocketServer::ApiMsgType::TaskStateUpdate,
-    adapter.node()->get_node_logging_interface()
+    adapter.node()->get_node_logging_interface(),
+    WebsocketServer::ApiMsgType::TaskStateUpdate
   );
   /* *INDENT-ON* */
 
