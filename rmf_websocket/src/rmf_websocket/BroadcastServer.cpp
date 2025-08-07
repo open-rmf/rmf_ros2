@@ -42,10 +42,11 @@ public:
     std::optional<ApiMsgType> msg_selection,
     const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
       node_logging_interface)
-  : _data(std::make_shared<Data>(std::move(callback), std::move(msg_selection))),
+  : _data(std::make_shared<Data>(std::move(callback),
+        std::move(msg_selection))),
     _logger_interface(node_logging_interface)
   {
-    if(_logger_interface)
+    if (_logger_interface)
     {
       RCLCPP_INFO_STREAM(
         _logger_interface->get_logger(),
@@ -75,7 +76,7 @@ public:
     }
     catch (const websocketpp::exception& e)
     {
-      if(_logger_interface)
+      if (_logger_interface)
       {
         RCLCPP_ERROR_STREAM(
           _logger_interface->get_logger(),
@@ -84,7 +85,7 @@ public:
     }
     catch (...)
     {
-      if(_logger_interface)
+      if (_logger_interface)
       {
         RCLCPP_ERROR(
           _logger_interface->get_logger(), "Unknown exception occured");
@@ -99,7 +100,7 @@ public:
     {
       websocketpp::lib::asio::error_code ec;
       auto endpoint = _data->echo_server.get_local_endpoint(ec);
-      if(ec)
+      if (ec)
       {
         RCLCPP_ERROR_STREAM(
           _logger_interface->get_logger(),
