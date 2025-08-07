@@ -22,7 +22,6 @@
 
 #include <nlohmann/json.hpp>
 #include <iostream>
-#include <exception>
 #include <functional>
 #include <thread>
 
@@ -40,11 +39,20 @@ public:
   Implementation(
     const int port,
     ApiMessageCallback callback,
-    std::optional<ApiMsgType> msg_selection)
+    std::optional<ApiMsgType> msg_selection,
+    const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
+      node_logging_interface)
   : _data(std::make_shared<Data>(std::move(callback),
-      std::move(msg_selection)))
+        std::move(msg_selection))),
+    _logger_interface(node_logging_interface)
   {
-    std::cout << "Run websocket server with port " << port << std::endl;
+    if (_logger_interface)
+    {
+      RCLCPP_INFO_STREAM(
+        _logger_interface->get_logger(),
+        "Running websocket server on port " << port);
+    }
+
     try
     {
       // Hide all logs from websocketpp
@@ -68,18 +76,42 @@ public:
     }
     catch (const websocketpp::exception& e)
     {
-      std::cout << e.what() << std::endl;
+      if (_logger_interface)
+      {
+        RCLCPP_ERROR_STREAM(
+          _logger_interface->get_logger(),
+          "WebSocket exception occured: " << e.what());
+      }
     }
     catch (...)
     {
-      std::cout << "other exception" << std::endl;
+      if (_logger_interface)
+      {
+        RCLCPP_ERROR(
+          _logger_interface->get_logger(), "Unknown exception occured");
+      }
     }
   }
 
   /// Start Server
   void start()
   {
-    std::cout << "Start BroadcastServer" << std::endl;
+    if (_logger_interface)
+    {
+      websocketpp::lib::asio::error_code ec;
+      auto endpoint = _data->echo_server.get_local_endpoint(ec);
+      if (ec)
+      {
+        RCLCPP_ERROR_STREAM(
+          _logger_interface->get_logger(),
+          "Failed to create connection: " << ec.message());
+         return;
+      }
+      RCLCPP_INFO_STREAM(
+        _logger_interface->get_logger(),
+        "Starting BroadcastServer on port " << endpoint.port());
+    }
+
     // Start the ASIO io_service run loop
     _server_thread = std::thread(
       [data = _data]() { data->echo_server.run(); });
@@ -88,12 +120,20 @@ public:
   /// Stop Server
   void stop()
   {
-    std::cout << "Stop BroadcastServer" << std::endl;
     if (_server_thread.joinable())
     {
-      _data->echo_server.stop_listening();
-      _data->echo_server.stop();
-      // TODO: properly close all connections
+      if (_logger_interface)
+      {
+        RCLCPP_INFO(
+          _logger_interface->get_logger(), "Stopping BroadcastServer");
+      }
+
+      _data->echo_server.get_io_service().post(
+          [data = _data]()
+          {
+            data->echo_server.stop_listening();
+            data->echo_server.stop();
+          });
       _server_thread.join();
     }
   }
@@ -155,6 +195,7 @@ private:
   };
   std::shared_ptr<Data> _data;
   std::thread _server_thread;
+  rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr _logger_interface;
 };
 
 //==============================================================================
@@ -166,7 +207,22 @@ std::shared_ptr<BroadcastServer> BroadcastServer::make(
   auto server = std::shared_ptr<BroadcastServer>(new BroadcastServer());
   server->_pimpl =
     rmf_utils::make_unique_impl<Implementation>(
-    port, callback, msg_selection);
+    port, callback, msg_selection, nullptr);
+  return server;
+}
+
+//==============================================================================
+std::shared_ptr<BroadcastServer> BroadcastServer::make_with_logger(
+  const int port,
+  ApiMessageCallback callback,
+  const rclcpp::node_interfaces::NodeLoggingInterface::SharedPtr
+    node_logging_interface,
+  std::optional<ApiMsgType> msg_selection)
+{
+  auto server = std::shared_ptr<BroadcastServer>(new BroadcastServer());
+  server->_pimpl =
+    rmf_utils::make_unique_impl<Implementation>(
+        port, callback, msg_selection, node_logging_interface);
   return server;
 }
 
