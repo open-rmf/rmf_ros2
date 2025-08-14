@@ -2006,21 +2006,29 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
 bool TaskManager::consider_retreating_to_charger()
 {
   if (!_travel_estimator)
+  {
     return false;
+  }
 
   {
     std::lock_guard<std::recursive_mutex> guard(_mutex);
     if (_active_task || _emergency_active)
+    {
       return false;
+    }
   }
 
   const auto task_planner = _context->task_planner();
   if (!task_planner)
+  {
     return false;
+  }
 
   const auto& config = task_planner->configuration();
   if (!config.constraints().drain_battery())
+  {
     return false;
+  }
 
   const auto current_state = _context->make_get_state()()
     .time(_context->now());
