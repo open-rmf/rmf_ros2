@@ -1076,7 +1076,7 @@ void TaskManager::reassign_dispatched_requests(
 
       RCLCPP_ERROR(
         node->get_logger(),
-        "Failed to reassign tasks for [%s]. %s\nReasons for failure:%s",
+        "Failed to reassign tasks for [%s]. Reasons for failure:%s",
         ss_requests.str().c_str(),
         ss_errors.str().c_str());
 
@@ -1157,7 +1157,6 @@ nlohmann::json TaskManager::estimate_robot_task_request(
       18, "Shutdown", "The fleet adapter is shutting down");
   }
   const auto& fleet = _context->group();
-  const auto& robot = _context->name();
   const auto& impl =
     agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
   std::vector<std::string> errors;
@@ -1593,6 +1592,8 @@ void TaskManager::_cancel_idle_behavior(std::vector<std::string> labels)
 //==============================================================================
 void TaskManager::_begin_next_task()
 {
+  std::lock_guard<std::recursive_mutex> guard(_mutex);
+
   if (_active_task)
   {
     return;
@@ -1603,7 +1604,13 @@ void TaskManager::_begin_next_task()
     return;
   }
 
-  std::lock_guard<std::recursive_mutex> guard(_mutex);
+  if (consider_retreating_to_charger())
+  {
+    // Our estimates indicate that the robot battery is too low to complete
+    // its next task, so we should immediately retreat to the charger.
+    _run_emergency_charge_task();
+    return;
+  }
 
   if (_queue.empty() && _direct_queue.empty())
   {
@@ -1633,7 +1640,6 @@ void TaskManager::_begin_next_task()
 
   const rmf_traffic::Time now = rmf_traffic_ros2::convert(
     _context->node()->now());
-
 
   if (now >= deployment_time)
   {
@@ -1996,139 +2002,118 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
 }
 
 //==============================================================================
-void TaskManager::configure_retreat_to_charger(
-  std::optional<rmf_traffic::Duration> duration)
-{
-  if (duration.has_value() && *duration <= rmf_traffic::Duration(0))
-  {
-    RCLCPP_ERROR(
-      _context->node()->get_logger(),
-      "[TaskManager::configure_retreat_to_charger] "
-      "Invalid value for duration: %f",
-      rmf_traffic::time::to_seconds(*duration));
-  }
-
-  if (!duration.has_value() || *duration <= rmf_traffic::Duration(0))
-  {
-    if (_retreat_timer && !_retreat_timer->is_canceled())
-    {
-      _retreat_timer->cancel();
-    }
-    return;
-  }
-
-  if (_retreat_timer)
-    _retreat_timer->reset();
-  _retreat_timer = _context->node()->try_create_wall_timer(
-    duration.value(),
-    [w = weak_from_this()]()
-    {
-      if (auto mgr = w.lock())
-      {
-        mgr->retreat_to_charger();
-      }
-    });
-}
-
-//==============================================================================
-void TaskManager::retreat_to_charger()
+bool TaskManager::consider_retreating_to_charger()
 {
   if (!_travel_estimator)
-    return;
+  {
+    return false;
+  }
 
   {
     std::lock_guard<std::recursive_mutex> guard(_mutex);
-    if (_active_task || !_queue.empty())
-      return;
+    if (_active_task || _emergency_active)
+    {
+      return false;
+    }
   }
 
   const auto task_planner = _context->task_planner();
   if (!task_planner)
-    return;
+  {
+    return false;
+  }
 
-  if (!task_planner->configuration().constraints().drain_battery())
-    return;
+  const auto& config = task_planner->configuration();
+  if (!config.constraints().drain_battery())
+  {
+    return false;
+  }
 
-  const auto current_state = expected_finish_state();
+  const auto current_state = _context->make_get_state()()
+    .time(_context->now());
+
   const auto charging_waypoint =
     current_state.dedicated_charging_waypoint().value();
   if (current_state.waypoint() == charging_waypoint)
-    return;
+  {
+    // No need for the robot to retreat to the charger since it is already
+    // there.
+    return false;
+  }
+
+  auto state_after_next_task = current_state;
+  const auto& parameters = config.parameters();
+  rmf_task::ConstRequestPtr next_request = nullptr;
+  if (!_direct_queue.empty())
+  {
+    next_request = _direct_queue.begin()->assignment.request();
+  }
+  else if (!_queue.empty())
+  {
+    next_request = _queue.begin()->request();
+  }
+
+  if (next_request)
+  {
+    const auto start_time = next_request->booking()->earliest_start_time();
+    const auto model =
+      next_request->description()->make_model(start_time, parameters);
+    const auto finish = model->estimate_finish(
+      current_state,
+      config.constraints(),
+      *_travel_estimator);
+
+    if (!finish)
+    {
+      RCLCPP_ERROR(
+        _context->node()->get_logger(),
+        "Unable to compute estimate for the next task for robot [%s]. This may "
+        "mean the robot does not have enough battery to perform it. We will "
+        "immediately retreat to the charger.",
+        _context->requester_id().c_str());
+
+      return true;
+    }
+
+    state_after_next_task = finish->finish_state();
+  }
 
   const auto& constraints = task_planner->configuration().constraints();
   const double threshold_soc = constraints.threshold_soc();
   const double retreat_threshold = 1.2 * threshold_soc; // safety factor
   const double current_battery_soc = _context->current_battery_soc();
 
-  const auto& parameters = task_planner->configuration().parameters();
-  // TODO(YV): Expose the TravelEstimator in the TaskPlanner to benefit from
-  // caching
   const rmf_traffic::agv::Planner::Goal retreat_goal{charging_waypoint};
   const auto result = _travel_estimator->estimate(
-    current_state.extract_plan_start().value(), retreat_goal);
+    state_after_next_task.extract_plan_start().value(), retreat_goal);
   if (!result.has_value())
   {
     RCLCPP_WARN(
       _context->node()->get_logger(),
-      "Unable to compute estimate of journey back to charger for robot [%s]",
+      "Cannot compute a feasible journey back to charger for robot [%s] after "
+      "its next task is finished. We will immediately retreat to the charger.",
       _context->name().c_str());
-    return;
+
+    return true;
   }
 
   const double battery_soc_after_retreat =
     current_battery_soc - result->change_in_charge();
 
-  if ((battery_soc_after_retreat < retreat_threshold) &&
-    (battery_soc_after_retreat > threshold_soc))
-  {
-    // Add a new charging task to the task queue
-    const auto charging_request = rmf_task::requests::ChargeBattery::make(
-      current_state.time().value(),
-      _context->requester_id(),
-      rmf_traffic_ros2::convert(_context->node()->now()),
-      nullptr,
-      true);
-    const auto model = charging_request->description()->make_model(
-      current_state.time().value(),
-      parameters);
-
-    const auto finish = model->estimate_finish(
-      current_state,
-      constraints,
-      *_travel_estimator);
-
-    if (!finish)
-      return;
-
-    rmf_task::TaskPlanner::Assignment charging_assignment(
-      charging_request,
-      finish.value().finish_state(),
-      current_state.time().value());
-
-    const DirectAssignment assignment = DirectAssignment{
-      _next_sequence_number,
-      charging_assignment};
-    ++_next_sequence_number;
-    {
-      std::lock_guard<std::recursive_mutex> lock(_mutex);
-      _direct_queue.insert(assignment);
-    }
-
-    RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "Initiating automatic retreat to charger for robot [%s]",
-      _context->name().c_str());
-  }
-
-  if ((battery_soc_after_retreat < retreat_threshold) &&
-    (battery_soc_after_retreat < threshold_soc))
+  if (battery_soc_after_retreat < retreat_threshold)
   {
     RCLCPP_WARN(
       _context->node()->get_logger(),
-      "Robot [%s] needs to be charged but has insufficient battery remaining "
-      "to retreat to its designated charger.",
-      _context->name().c_str());
+      "Battery charge for [%s] will fall below threshold [%f] if it retreats for "
+      "its charger after its next task. We will have it retreat to its charger "
+      "now instead.",
+      _context->name().c_str(),
+      retreat_threshold);
+
+    return true;
   }
+
+  return false;
 }
 
 //==============================================================================
@@ -2147,6 +2132,53 @@ void TaskManager::_register_executed_task(const std::string& id)
     _executed_task_registry.erase(_executed_task_registry.begin());
 
   _executed_task_registry.push_back(id);
+}
+
+//==============================================================================
+void TaskManager::_run_emergency_charge_task()
+{
+  if (_waiting)
+  {
+    // Cancel waiting and then perform the charging task.
+    _waiting.cancel({"Emergency charge needed"}, _context->now());
+    return;
+  }
+
+  const auto now = _context->now();
+  // Add a new charging task to the task queue
+  const auto charging_request = rmf_task::requests::ChargeBattery::make(
+    now, _context->requester_id(), now, nullptr, true);
+  const auto id = charging_request->booking()->id();
+
+  const auto current_state = _context->make_get_state()().time(now);
+
+  const auto& config = _context->task_planner()->configuration();
+  const auto& parameters = config.parameters();
+  const auto finish = charging_request
+    ->description()
+    ->make_model(now, parameters)
+    ->estimate_finish(current_state, config.constraints(), *_travel_estimator);
+
+  {
+    std::lock_guard<std::recursive_mutex> guard(_mutex);
+    _active_task = ActiveTask::start(
+      _context->task_activator()->activate(
+        _context->make_get_state(),
+        _context->task_parameters(),
+        *charging_request,
+        _update_cb(),
+        _checkpoint_cb(),
+        _phase_finished_cb(),
+        _task_finished(id)),
+      _context->now());
+  }
+
+  _finished_waiting = false;
+  if (finish.has_value())
+  {
+    _context->current_task_end_state(finish->finish_state());
+  }
+  _context->current_task_id(id);
 }
 
 //==============================================================================
