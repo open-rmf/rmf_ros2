@@ -15,6 +15,7 @@ include(GNUInstallDirs)
 
 find_package(ament_cmake REQUIRED)
 find_package(backward_ros REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(rmf_api_msgs REQUIRED)
 find_package(rmf_traffic REQUIRED)
 find_package(rmf_traffic_ros2 REQUIRED)
@@ -31,6 +32,7 @@ add_library(rmf_task_ros2 SHARED ${core_lib_srcs})
 
 target_link_libraries(rmf_task_ros2
   PUBLIC
+    ${std_msgs_TARGETS}
     rmf_api_msgs::rmf_api_msgs
     rmf_traffic::rmf_traffic
     rmf_traffic_ros2::rmf_traffic_ros2
@@ -52,7 +54,7 @@ target_include_directories(rmf_task_ros2
 )
 
 ament_export_targets(export_rmf_task_ros2 HAS_LIBRARY_TARGET)
-ament_export_dependencies(rmf_traffic rmf_task_msgs rclcpp nlohmann_json nlohmann_json_schema_validator rmf_api_msgs rmf_websocket)
+ament_export_dependencies(std_msgs rmf_traffic rmf_task_msgs rclcpp nlohmann_json nlohmann_json_schema_validator rmf_api_msgs rmf_websocket)
 
 #===============================================================================
 set(TEST_UNCRUSTIFY "Off")
