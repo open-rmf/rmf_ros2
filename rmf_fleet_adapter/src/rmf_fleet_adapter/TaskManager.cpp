@@ -1604,10 +1604,11 @@ void TaskManager::_begin_next_task()
     return;
   }
 
-  if (retreat_to_charger())
+  if (consider_retreating_to_charger())
   {
-    // The robot needs to retreat to the charger, so we should do nothing else
-    // in this function.
+    // Our estimates indicate that the robot battery is too low to complete
+    // its next task, so we should immediately retreat to the charger.
+    _run_emergency_charge_task();
     return;
   }
 
@@ -2002,42 +2003,7 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
 }
 
 //==============================================================================
-void TaskManager::configure_retreat_to_charger(
-  std::optional<rmf_traffic::Duration> duration)
-{
-  if (duration.has_value() && *duration <= rmf_traffic::Duration(0))
-  {
-    RCLCPP_ERROR(
-      _context->node()->get_logger(),
-      "[TaskManager::configure_retreat_to_charger] "
-      "Invalid value for duration: %f",
-      rmf_traffic::time::to_seconds(*duration));
-  }
-
-  if (!duration.has_value() || *duration <= rmf_traffic::Duration(0))
-  {
-    if (_retreat_timer && !_retreat_timer->is_canceled())
-    {
-      _retreat_timer->cancel();
-    }
-    return;
-  }
-
-  if (_retreat_timer)
-    _retreat_timer->reset();
-  _retreat_timer = _context->node()->try_create_wall_timer(
-    duration.value(),
-    [w = weak_from_this()]()
-    {
-      if (auto mgr = w.lock())
-      {
-        mgr->retreat_to_charger();
-      }
-    });
-}
-
-//==============================================================================
-bool TaskManager::retreat_to_charger()
+bool TaskManager::consider_retreating_to_charger()
 {
   if (!_travel_estimator)
     return false;
@@ -2099,7 +2065,6 @@ bool TaskManager::retreat_to_charger()
         "immediately retreat to the charger.",
         _context->requester_id().c_str());
 
-      _begin_emergency_charge_task();
       return true;
     }
 
@@ -2122,7 +2087,6 @@ bool TaskManager::retreat_to_charger()
       "its next task is finished. We will immediately retreat to the charger.",
       _context->name().c_str());
 
-    _begin_emergency_charge_task();
     return true;
   }
 
@@ -2139,7 +2103,6 @@ bool TaskManager::retreat_to_charger()
       _context->name().c_str(),
       retreat_threshold);
 
-    _begin_emergency_charge_task();
     return true;
   }
 
@@ -2165,7 +2128,7 @@ void TaskManager::_register_executed_task(const std::string& id)
 }
 
 //==============================================================================
-void TaskManager::_begin_emergency_charge_task()
+void TaskManager::_run_emergency_charge_task()
 {
   const auto now = _context->now();
   // Add a new charging task to the task queue
