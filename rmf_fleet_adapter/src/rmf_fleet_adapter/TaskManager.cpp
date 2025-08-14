@@ -1641,7 +1641,6 @@ void TaskManager::_begin_next_task()
   const rmf_traffic::Time now = rmf_traffic_ros2::convert(
     _context->node()->now());
 
-
   if (now >= deployment_time)
   {
     if (_waiting)
@@ -2138,6 +2137,13 @@ void TaskManager::_register_executed_task(const std::string& id)
 //==============================================================================
 void TaskManager::_run_emergency_charge_task()
 {
+  if (_waiting)
+  {
+    // Cancel waiting and then perform the charging task.
+    _waiting.cancel({"Emergency charge needed"}, _context->now());
+    return;
+  }
+
   const auto now = _context->now();
   // Add a new charging task to the task queue
   const auto charging_request = rmf_task::requests::ChargeBattery::make(
@@ -2167,6 +2173,7 @@ void TaskManager::_run_emergency_charge_task()
       _context->now());
   }
 
+  _finished_waiting = false;
   if (finish.has_value())
   {
     _context->current_task_end_state(finish->finish_state());
