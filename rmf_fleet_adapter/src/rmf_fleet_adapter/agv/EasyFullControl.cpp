@@ -2270,6 +2270,7 @@ public:
   std::unordered_map<std::string, std::string> lift_emergency_levels;
   std::unordered_set<std::size_t> strict_lanes;
   bool use_parking_reservation;
+  bool prefer_idle_robots_for_tasks;
 };
 
 //==============================================================================
@@ -2327,7 +2328,8 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         std::move(default_min_lane_length),
         {},
         {},
-        false // Parking reservation system
+        false, // Parking reservation system
+        false  // Prefer idle robots for tasks
       }))
 {
   // Do nothing
@@ -2989,6 +2991,13 @@ EasyFullControl::FleetConfiguration::from_config_files(
     }
   }
 
+  // idle robot preferred task planning option
+  bool prefer_idle_robots_for_tasks = false;
+  if (rmf_fleet["prefer_idle_robots_for_tasks"])
+  {
+    prefer_idle_robots_for_tasks = rmf_fleet["prefer_idle_robots_for_tasks"].as<bool>();
+  }
+
   auto config = FleetConfiguration(
     fleet_name,
     std::move(tf_dict),
@@ -3017,6 +3026,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
   config.set_retreat_to_charger_interval(retreat_to_charger_interval);
   config.use_parking_reservation_system(use_simple_parking_reservation_system);
   config.change_strict_lanes() = std::move(strict_lanes);
+  config.set_prefer_idle_robots_for_tasks(prefer_idle_robots_for_tasks);
   return config;
 }
 
@@ -3426,6 +3436,19 @@ std::unordered_set<std::size_t>&
 EasyFullControl::FleetConfiguration::change_strict_lanes()
 {
   return _pimpl->strict_lanes;
+}
+
+//==============================================================================
+bool EasyFullControl::FleetConfiguration::prefer_idle_robots_for_tasks() const
+{
+  return _pimpl->prefer_idle_robots_for_tasks;
+}
+
+//==============================================================================
+void EasyFullControl::FleetConfiguration::set_prefer_idle_robots_for_tasks(
+  const bool prefer)
+{
+  _pimpl->prefer_idle_robots_for_tasks = prefer;
 }
 
 //==============================================================================

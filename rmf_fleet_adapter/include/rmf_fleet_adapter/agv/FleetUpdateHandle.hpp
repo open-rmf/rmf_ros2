@@ -299,6 +299,9 @@ public:
   ///   A factory for a request that should be performed by each robot in this
   ///   fleet at the end of its assignments.
   ///
+  /// \param[in] idle_robot_preferred
+  ///   Specify whether idle robots are preferred for task planning.
+  ///
   /// \return true if task planner parameters were successfully updated.
   bool set_task_planner_params(
     rmf_battery::agv::ConstBatterySystemPtr battery_system,
@@ -308,7 +311,8 @@ public:
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr);
+    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
+    bool idle_robot_preferred = false);
 
   /// A callback function that evaluates whether a fleet will accept a task
   /// request

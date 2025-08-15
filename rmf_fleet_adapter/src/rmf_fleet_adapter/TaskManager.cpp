@@ -853,17 +853,31 @@ std::string TaskManager::robot_status() const
 auto TaskManager::expected_finish_state() const -> State
 {
   std::lock_guard<std::recursive_mutex> lock(_mutex);
+  bool is_idle = false;
   if (!_direct_queue.empty())
   {
-    return _direct_queue.rbegin()->assignment.finish_state();
+    rmf_task::State return_state = _direct_queue.rbegin()->assignment.finish_state();
+    return_state.idle(is_idle);
+    return return_state;
   }
 
   if (_active_task)
-    return _context->current_task_end_state();
+  {
+    rmf_task::State return_state = _context->current_task_end_state();
+    return_state.idle(is_idle);
+    return return_state;
+  }
+    
+  if (_queue.empty())
+  {
+    is_idle = true;
+  }
 
   rmf_task::State current_state =
     _context->make_get_state()()
-    .time(rmf_traffic_ros2::convert(_context->node()->now()));
+    .time(rmf_traffic_ros2::convert(_context->node()->now()))
+    .idle(is_idle);
+    
   return current_state;
 }
 

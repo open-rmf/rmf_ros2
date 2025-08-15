@@ -848,6 +848,13 @@ public:
   /// \sa strict_lanes
   std::unordered_set<std::size_t>& change_strict_lanes();
 
+  /// Should task planner prefer idle robots for tasks assignment?
+  bool prefer_idle_robots_for_tasks() const;
+
+  /// Set whether task planner should prefer idle robots for tasks assignment.
+  void set_prefer_idle_robots_for_tasks(
+    const bool prefer);
+
   class Implementation;
 private:
   rmf_utils::impl_ptr<Implementation> _pimpl;
