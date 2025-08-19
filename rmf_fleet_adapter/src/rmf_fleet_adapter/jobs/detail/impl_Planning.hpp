@@ -27,33 +27,35 @@ namespace jobs {
 template<typename Subscriber, typename Worker>
 void Planning::operator()(const Subscriber& s, const Worker& w)
 {
+  if (!_resume)
   {
-    // We need to lock read/write access to the _resume object so that we do not
-    // accidentally free the memory of its captured variables while they are
-    // still in use.
-    auto lock = _lock_resume();
     _resume = [a = weak_from_this(), s, w]()
       {
         if (const auto self = a.lock())
         {
-          auto lock = self->_lock_resume();
           w.schedule([a, s, w](const auto&)
             {
               if (const auto action = a.lock())
+              {
                 (*action)(s, w);
+              }
             });
         }
       };
   }
 
-  if (!_current_result)
+  if (!_current_result.has_value())
+  {
+    _resume_scheduled.store(false, std::memory_order_release);
     return;
+  }
 
   _current_result->resume();
 
   const bool completed =
-    _current_result->success() || !_current_result->cost_estimate();
+    _current_result->success() || !_current_result->cost_estimate().has_value();
 
+  _resume_scheduled.store(false, std::memory_order_release);
   s.on_next(Result{shared_from_this()});
   if (completed)
   {

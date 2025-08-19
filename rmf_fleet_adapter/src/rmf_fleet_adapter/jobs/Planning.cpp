@@ -41,6 +41,12 @@ Planning::Planning(rmf_traffic::agv::Planner::Result _setup)
 //==============================================================================
 void Planning::resume()
 {
+  if (_resume_scheduled.exchange(true))
+  {
+    // This has already been scheduled to resume
+    return;
+  }
+
   _resume();
 }
 
@@ -60,25 +66,13 @@ bool Planning::active() const
 //==============================================================================
 rmf_traffic::agv::Planner::Result& Planning::progress()
 {
-  return *_current_result;
+  return _current_result.value();
 }
 
 //==============================================================================
 const rmf_traffic::agv::Planner::Result& Planning::progress() const
 {
-  return *_current_result;
-}
-
-//==============================================================================
-std::unique_lock<std::mutex> Planning::_lock_resume() const
-{
-  std::unique_lock<std::mutex> lock(_resume_mutex, std::defer_lock);
-  while (!lock.try_lock())
-  {
-    // Intentionally busy wait to obtain the mutex as fast as possible
-  }
-
-  return lock;
+  return _current_result.value();
 }
 
 } // namespace jobs
