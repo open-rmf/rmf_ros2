@@ -1737,12 +1737,6 @@ void TaskManager::_begin_next_task()
 //==============================================================================
 void TaskManager::_begin_pullover()
 {
-
-  if (_emergency_pullover && !_emergency_pullover.is_finished())
-  {
-    return;
-  }
-
   _finished_waiting = false;
   auto task_id = "emergency_pullover." + _context->name() + "."
     + _context->group() + "-"
@@ -1972,7 +1966,12 @@ void TaskManager::_resume_from_emergency()
           {"emergency finished"},
           self->_context->now());
         self->_emergency_pullover_interrupt_token = std::nullopt;
-        
+
+        RCLCPP_INFO(
+          self->_context->node()->get_logger(),
+          "Resume execution of task [%s] for [%s] after emergency pullover",
+          self->_active_task.id().c_str(),
+          self->_context->requester_id().c_str());
         self->_context->current_task_id(self->_active_task.id());
       }
       else
