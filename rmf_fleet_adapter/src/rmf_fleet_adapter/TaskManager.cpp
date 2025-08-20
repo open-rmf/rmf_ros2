@@ -1972,6 +1972,8 @@ void TaskManager::_resume_from_emergency()
           {"emergency finished"},
           self->_context->now());
         self->_emergency_pullover_interrupt_token = std::nullopt;
+        
+        self->_context->current_task_id(self->_active_task.id());
       }
       else
       {
