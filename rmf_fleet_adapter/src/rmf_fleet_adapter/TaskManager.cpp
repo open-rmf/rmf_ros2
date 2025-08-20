@@ -1722,6 +1722,12 @@ void TaskManager::_begin_next_task()
 //==============================================================================
 void TaskManager::_begin_pullover()
 {
+
+  if (_emergency_pullover && !_emergency_pullover.is_finished())
+  {
+    return;
+  }
+
   _finished_waiting = false;
   auto task_id = "emergency_pullover." + _context->name() + "."
     + _context->group() + "-"
@@ -1936,6 +1942,7 @@ void TaskManager::_resume_from_emergency()
       }
 
       self->_emergency_pullover = ActiveTask();
+      self->_context->current_task_id(std::nullopt);
 
       if (!self->_emergency_pullover_interrupt_token.has_value())
       {
@@ -2972,6 +2979,11 @@ void TaskManager::_handle_cancel_request(
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
+  if (_emergency_active)
+  {
+    return;
+  }
+
   const auto& task_id = request_json["task_id"].get<std::string>();
   if (cancel_task(task_id, get_labels(request_json)))
     _send_simple_success_response(request_id);
@@ -2988,6 +3000,11 @@ void TaskManager::_handle_kill_request(
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
+  if (_emergency_active)
+  {
+    return;
+  }
+
   const auto& task_id = request_json["task_id"].get<std::string>();
   if (kill_task(task_id, get_labels(request_json)))
     _send_simple_success_response(request_id);
@@ -3003,6 +3020,11 @@ void TaskManager::_handle_interrupt_request(
 
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
+
+  if (_emergency_active)
+  {
+    return;
+  }
 
   const auto& task_id = request_json["task_id"].get<std::string>();
 
@@ -3028,6 +3050,11 @@ void TaskManager::_handle_resume_request(
 
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
+
+  if (_emergency_active)
+  {
+    return;
+  }
 
   const auto& task_id = request_json["for_task"].get<std::string>();
 
@@ -3069,6 +3096,11 @@ void TaskManager::_handle_rewind_request(
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
+  if (_emergency_active)
+  {
+    return;
+  }
+
   const auto& task_id = request_json["task_id"].get<std::string>();
 
   if (_active_task && _active_task.id() == task_id)
@@ -3091,6 +3123,11 @@ void TaskManager::_handle_skip_phase_request(
 
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
+
+  if (_emergency_active)
+  {
+    return;
+  }
 
   const auto& task_id = request_json["task_id"].get<std::string>();
 
@@ -3119,7 +3156,12 @@ void TaskManager::_handle_undo_skip_phase_request(
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
-  const auto& task_id = request_json["for_task"];
+  if (_emergency_active)
+  {
+    return;
+  }
+
+  const auto& task_id = request_json["for_task"].get<std::string>();
 
   if (_active_task && _active_task.id() == task_id)
   {
