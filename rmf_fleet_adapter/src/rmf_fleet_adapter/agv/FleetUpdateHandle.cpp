@@ -2640,7 +2640,7 @@ bool FleetUpdateHandle::set_task_planner_params(
   double recharge_soc,
   bool account_for_battery_drain,
   rmf_task::ConstRequestFactoryPtr idle_task,
-  bool idle_robot_preferred)
+  rmf_task::TaskPlanner::ExpansionPolicy expansion_policy)
 {
   if (battery_system &&
     motion_sink &&
@@ -2669,7 +2669,7 @@ bool FleetUpdateHandle::set_task_planner_params(
       // The finishing request is no longer handled by the planner, we handle
       // it separately as a waiting behavior now.
       nullptr,
-      idle_robot_preferred};
+      expansion_policy};
 
     _pimpl->worker.schedule(
       [w = weak_from_this(), task_config, options, idle_task](const auto&)

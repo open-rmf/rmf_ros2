@@ -2270,7 +2270,7 @@ public:
   std::unordered_map<std::string, std::string> lift_emergency_levels;
   std::unordered_set<std::size_t> strict_lanes;
   bool use_parking_reservation;
-  bool prefer_idle_robots_for_tasks;
+  rmf_task::TaskPlanner::ExpansionPolicy task_node_expansion_policy;
 };
 
 //==============================================================================
@@ -2329,7 +2329,7 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         {},
         {},
         false, // Parking reservation system
-        false  // Prefer idle robots for tasks
+        rmf_task::TaskPlanner::ExpansionPolicy::ShortestFinishTime
       }))
 {
   // Do nothing
@@ -2991,11 +2991,20 @@ EasyFullControl::FleetConfiguration::from_config_files(
     }
   }
 
-  // idle robot preferred task planning option
-  bool prefer_idle_robots_for_tasks = false;
-  if (rmf_fleet["prefer_idle_robots_for_tasks"])
+  // Task Planning search node expansion policy
+  rmf_task::TaskPlanner::ExpansionPolicy expansion_policy =
+    rmf_task::TaskPlanner::ExpansionPolicy::ShortestFinishTime;
+  if (rmf_fleet["task_assignment_strategy"])
   {
-    prefer_idle_robots_for_tasks = rmf_fleet["prefer_idle_robots_for_tasks"].as<bool>();
+    const auto policy_str = rmf_fleet["task_assignment_strategy"].as<std::string>();
+    if (policy_str == "ShortestFinishTime")
+    {
+      expansion_policy = rmf_task::TaskPlanner::ExpansionPolicy::ShortestFinishTime;
+    }
+    else if (policy_str == "IdlePreferred")
+    {
+      expansion_policy = rmf_task::TaskPlanner::ExpansionPolicy::IdlePreferred;
+    }
   }
 
   auto config = FleetConfiguration(
@@ -3026,7 +3035,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
   config.set_retreat_to_charger_interval(retreat_to_charger_interval);
   config.use_parking_reservation_system(use_simple_parking_reservation_system);
   config.change_strict_lanes() = std::move(strict_lanes);
-  config.set_prefer_idle_robots_for_tasks(prefer_idle_robots_for_tasks);
+  config.set_task_node_expansion_policy(expansion_policy);
   return config;
 }
 
@@ -3439,16 +3448,17 @@ EasyFullControl::FleetConfiguration::change_strict_lanes()
 }
 
 //==============================================================================
-bool EasyFullControl::FleetConfiguration::prefer_idle_robots_for_tasks() const
+rmf_task::TaskPlanner::ExpansionPolicy 
+  EasyFullControl::FleetConfiguration::task_node_expansion_policy() const
 {
-  return _pimpl->prefer_idle_robots_for_tasks;
+  return _pimpl->task_node_expansion_policy;
 }
 
 //==============================================================================
-void EasyFullControl::FleetConfiguration::set_prefer_idle_robots_for_tasks(
-  const bool prefer)
+void EasyFullControl::FleetConfiguration::set_task_node_expansion_policy(
+  const rmf_task::TaskPlanner::ExpansionPolicy policy)
 {
-  _pimpl->prefer_idle_robots_for_tasks = prefer;
+  _pimpl->task_node_expansion_policy = policy;
 }
 
 //==============================================================================

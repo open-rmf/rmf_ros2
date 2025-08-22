@@ -307,7 +307,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     config.recharge_soc(),
     config.account_for_battery_drain(),
     config.finishing_request(),
-    config.prefer_idle_robots_for_tasks());
+    config.task_node_expansion_policy());
 
   if (!planner_params_ok)
   {

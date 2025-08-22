@@ -36,6 +36,9 @@
 #include <rmf_traffic/agv/Graph.hpp>
 #include <rmf_traffic/agv/VehicleTraits.hpp>
 
+// rmf_task headers
+#include <rmf_task/TaskPlanner.hpp>
+
 #include <rmf_utils/impl_ptr.hpp>
 
 // System headers
@@ -848,12 +851,16 @@ public:
   /// \sa strict_lanes
   std::unordered_set<std::size_t>& change_strict_lanes();
 
-  /// Should task planner prefer idle robots for tasks assignment?
-  bool prefer_idle_robots_for_tasks() const;
+  /// Get the task planner node expansion policy.
+  /// This policy determines how the task planner will expand nodes in the task
+  /// assignment.
+  rmf_task::TaskPlanner::ExpansionPolicy task_node_expansion_policy() const;
 
-  /// Set whether task planner should prefer idle robots for tasks assignment.
-  void set_prefer_idle_robots_for_tasks(
-    const bool prefer);
+  /// Set the task planner expansion policy.
+  /// example: rmf_task::TaskPlanner::ExpansionPolicy::IdlePreferred,
+  /// rmf_task::TaskPlanner::ExpansionPolicy::ShortestPathFirst, etc.
+  void set_task_node_expansion_policy(
+    const rmf_task::TaskPlanner::ExpansionPolicy policy);
 
   class Implementation;
 private:
