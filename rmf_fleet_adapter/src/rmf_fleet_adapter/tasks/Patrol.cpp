@@ -87,6 +87,12 @@ void add_patrol(
           }
         }
 
+        if (const auto start_at_departure_it = msg.find("start_at_departure");
+          start_at_departure_it != msg.end())
+        {
+          desc->start_at_departure(start_at_departure_it->get<bool>());
+        }
+
         return {desc, errors};
       }
 
@@ -123,6 +129,12 @@ void add_patrol(
           followed_by.push_back(*f.description);
         }
         desc->expected_next_destinations(std::move(followed_by));
+      }
+
+      if (const auto start_at_departure_it = msg.find("start_at_departure");
+        start_at_departure_it != msg.end())
+      {
+        desc->start_at_departure(start_at_departure_it->get<bool>());
       }
 
       return {desc, std::move(place.errors)};
