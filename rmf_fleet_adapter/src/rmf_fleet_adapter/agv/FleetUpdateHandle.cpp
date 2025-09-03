@@ -2646,7 +2646,7 @@ bool FleetUpdateHandle::set_task_planner_params(
     ambient_sink &&
     tool_sink &&
     (recharge_threshold >= 0.0 && recharge_threshold <= 1.0) &&
-    (recharge_soc >= 0.0 && recharge_threshold <= 1.0))
+    (recharge_soc >= 0.0 && recharge_soc <= 1.0))
   {
     const rmf_task::Parameters parameters{
       *_pimpl->planner,
