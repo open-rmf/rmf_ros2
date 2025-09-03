@@ -100,27 +100,27 @@ void SearchForPath::interrupt()
 }
 
 //==============================================================================
-Planning& SearchForPath::greedy()
+const std::shared_ptr<Planning>& SearchForPath::greedy()
 {
-  return *_greedy_job;
+  return _greedy_job;
 }
 
 //==============================================================================
-const Planning& SearchForPath::greedy() const
+std::shared_ptr<const Planning> SearchForPath::greedy() const
 {
-  return *_greedy_job;
+  return _greedy_job;
 }
 
 //==============================================================================
-Planning& SearchForPath::compliant()
+const std::shared_ptr<Planning>& SearchForPath::compliant()
 {
-  return *_compliant_job;
+  return _compliant_job;
 }
 
 //==============================================================================
-const Planning& SearchForPath::compliant() const
+std::shared_ptr<const Planning> SearchForPath::compliant() const
 {
-  return *_compliant_job;
+  return _compliant_job;
 }
 
 //==============================================================================

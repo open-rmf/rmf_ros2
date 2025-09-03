@@ -19,6 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__JOBS__SEARCHFORPATH_HPP
 
 #include "Planning.hpp"
+#include <memory>
 
 namespace rmf_fleet_adapter {
 namespace jobs {
@@ -65,11 +66,11 @@ public:
 
   void set_cost_limit(double cost);
 
-  Planning& greedy();
-  const Planning& greedy() const;
+  const std::shared_ptr<Planning>& greedy();
+  std::shared_ptr<const Planning> greedy() const;
 
-  Planning& compliant();
-  const Planning& compliant() const;
+  const std::shared_ptr<Planning>& compliant();
+  std::shared_ptr<const Planning> compliant() const;
 
 private:
   std::shared_ptr<const rmf_traffic::agv::Planner> _planner;
