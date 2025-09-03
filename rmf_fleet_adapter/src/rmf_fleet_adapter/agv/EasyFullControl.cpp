@@ -2270,6 +2270,7 @@ public:
   std::unordered_map<std::string, std::string> lift_emergency_levels;
   std::unordered_set<std::size_t> strict_lanes;
   bool use_parking_reservation;
+  rmf_task::TaskPlanner::ExpansionPolicy task_node_expansion_policy;
 };
 
 //==============================================================================
@@ -2327,7 +2328,8 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         std::move(default_min_lane_length),
         {},
         {},
-        false // Parking reservation system
+        false, // Parking reservation system
+        rmf_task::TaskPlanner::ExpansionPolicy::ShortestFinishTime
       }))
 {
   // Do nothing
@@ -2989,6 +2991,22 @@ EasyFullControl::FleetConfiguration::from_config_files(
     }
   }
 
+  // Task Planning search node expansion policy
+  rmf_task::TaskPlanner::ExpansionPolicy expansion_policy =
+    rmf_task::TaskPlanner::ExpansionPolicy::ShortestFinishTime;
+  if (rmf_fleet["task_assignment_strategy"])
+  {
+    const auto policy_str = rmf_fleet["task_assignment_strategy"].as<std::string>();
+    if (policy_str == "ShortestFinishTime")
+    {
+      expansion_policy = rmf_task::TaskPlanner::ExpansionPolicy::ShortestFinishTime;
+    }
+    else if (policy_str == "IdlePreferred")
+    {
+      expansion_policy = rmf_task::TaskPlanner::ExpansionPolicy::IdlePreferred;
+    }
+  }
+
   auto config = FleetConfiguration(
     fleet_name,
     std::move(tf_dict),
@@ -3017,6 +3035,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
   config.set_retreat_to_charger_interval(retreat_to_charger_interval);
   config.use_parking_reservation_system(use_simple_parking_reservation_system);
   config.change_strict_lanes() = std::move(strict_lanes);
+  config.set_task_node_expansion_policy(expansion_policy);
   return config;
 }
 
@@ -3426,6 +3445,20 @@ std::unordered_set<std::size_t>&
 EasyFullControl::FleetConfiguration::change_strict_lanes()
 {
   return _pimpl->strict_lanes;
+}
+
+//==============================================================================
+rmf_task::TaskPlanner::ExpansionPolicy 
+  EasyFullControl::FleetConfiguration::task_node_expansion_policy() const
+{
+  return _pimpl->task_node_expansion_policy;
+}
+
+//==============================================================================
+void EasyFullControl::FleetConfiguration::set_task_node_expansion_policy(
+  const rmf_task::TaskPlanner::ExpansionPolicy policy)
+{
+  _pimpl->task_node_expansion_policy = policy;
 }
 
 //==============================================================================

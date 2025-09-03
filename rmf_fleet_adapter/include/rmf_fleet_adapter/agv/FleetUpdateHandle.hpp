@@ -35,6 +35,8 @@
 #include <rmf_task_sequence/Phase.hpp>
 #include <rmf_task_sequence/Event.hpp>
 
+#include <rmf_task/TaskPlanner.hpp>
+
 #include <rclcpp/node.hpp>
 
 namespace rmf_fleet_adapter {
@@ -299,6 +301,11 @@ public:
   ///   A factory for a request that should be performed by each robot in this
   ///   fleet at the end of its assignments.
   ///
+  /// \param[in] expansion_policy
+  ///   The policy that defines how the planner expands search nodes during
+  ///   task assignment. Available options are in enum class ExpansionPolicy.
+  ///   If not specified, the default is ShortestFinishTime.
+  ///
   /// \return true if task planner parameters were successfully updated.
   bool set_task_planner_params(
     rmf_battery::agv::ConstBatterySystemPtr battery_system,
@@ -308,7 +315,9 @@ public:
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr);
+    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
+    rmf_task::TaskPlanner::ExpansionPolicy expansion_policy =
+      rmf_task::TaskPlanner::ExpansionPolicy::ShortestFinishTime);
 
   /// A callback function that evaluates whether a fleet will accept a task
   /// request
