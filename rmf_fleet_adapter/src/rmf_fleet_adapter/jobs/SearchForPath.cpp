@@ -86,7 +86,7 @@ SearchForPath::SearchForPath(
     rmf_traffic::agv::ScheduleRouteValidator::make(
       _schedule, _participant_id, *profile));
   compliant_options.maximum_cost_estimate(_compliant_leeway*base_cost);
-  greedy_options.interrupter(make_interrupter(_interrupt_flag, _deadline));
+  compliant_options.interrupter(make_interrupter(_interrupt_flag, _deadline));
   auto compliant_setup = _planner->setup(_starts, _goal, compliant_options);
 
   _greedy_job = std::make_shared<Planning>(std::move(greedy_setup));
