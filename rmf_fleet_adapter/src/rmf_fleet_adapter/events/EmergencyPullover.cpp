@@ -227,16 +227,11 @@ auto EmergencyPullover::Active::interrupt(
 {
   _negotiator->clear_license();
   _is_interrupted = true;
-  _execution = std::nullopt;
+  _stop_and_clear();
 
   _state->update_status(Status::Standby);
   _state->update_log().info("Going into standby for an interruption");
   _state->update_dependencies({});
-
-  if (const auto command = _context->command())
-    command->stop();
-
-  _context->itinerary().clear();
 
   _context->worker().schedule(
     [task_is_interrupted](const auto&)
@@ -259,7 +254,11 @@ auto EmergencyPullover::Active::interrupt(
 //==============================================================================
 void EmergencyPullover::Active::cancel()
 {
-  _execution = std::nullopt;
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Canceling emergency_pullover for robot [%s]",
+    _context->requester_id().c_str());
+  _stop_and_clear();
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
   _finished();
@@ -268,7 +267,7 @@ void EmergencyPullover::Active::cancel()
 //==============================================================================
 void EmergencyPullover::Active::kill()
 {
-  _execution = std::nullopt;
+  _stop_and_clear();
   _state->update_status(Status::Killed);
   _state->update_log().info("Received signal to kill");
   _finished();
@@ -500,6 +499,18 @@ void EmergencyPullover::Active::_execute_plan(
       "Please report this incident to the Open-RMF developers.");
     _schedule_retry();
   }
+}
+
+//==============================================================================
+void EmergencyPullover::Active::_stop_and_clear()
+{
+  _execution = std::nullopt;
+  if (const auto command = _context->command())
+    command->stop();
+
+  if (_retry_timer)
+    _retry_timer->cancel();
+  _context->itinerary().clear();
 }
 
 //==============================================================================
