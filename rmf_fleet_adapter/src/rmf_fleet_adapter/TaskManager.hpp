@@ -158,13 +158,7 @@ public:
 
   /// Callback for the retreat timer. Appends a charging task to the task queue
   /// when robot is idle and battery level drops below a retreat threshold.
-  void retreat_to_charger();
-
-  /// Start the retreat timer that periodically checks whether the robot
-  /// should retreat to charger if its battery state of charge is close to
-  /// the recharge threshold.
-  void configure_retreat_to_charger(
-    std::optional<rmf_traffic::Duration> duration);
+  bool consider_retreating_to_charger();
 
   /// Get the list of task ids for tasks that have started execution.
   /// The list will contain upto 100 latest task ids only.
@@ -411,7 +405,6 @@ private:
   // rxcpp worker
   mutable std::recursive_mutex _mutex;
   rclcpp::TimerBase::SharedPtr _task_timer;
-  rclcpp::TimerBase::SharedPtr _retreat_timer;
   rclcpp::TimerBase::SharedPtr _update_timer;
   bool _task_state_update_available = true;
   std::chrono::steady_clock::time_point _last_update_time;
@@ -606,6 +599,8 @@ private:
   /// The input task id will be inserted into the registry such that the max
   /// size of the registry is 100.
   void _register_executed_task(const std::string& id);
+
+  void _run_emergency_charge_task();
 
   void _populate_task_summary(
     std::shared_ptr<LegacyTask> task,
