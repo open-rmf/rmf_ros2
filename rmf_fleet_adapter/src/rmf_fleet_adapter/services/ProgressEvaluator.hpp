@@ -19,6 +19,7 @@
 #define SRC__RMF_FLEET_ADAPTER__SERVICES__PROGRESSEVALUATOR_HPP
 
 #include <rmf_traffic/agv/Planner.hpp>
+#include "../jobs/Planning.hpp"
 
 namespace rmf_fleet_adapter {
 namespace services {
@@ -37,19 +38,19 @@ struct ProgressEvaluator
     double estimate_leeway_ = DefaultEstimateLeeway,
     double max_cost_threshold_ = DefaultMaxCostThreshold);
 
-  using Result = rmf_traffic::agv::Plan::Result;
+  using Planning = rmf_fleet_adapter::jobs::Planning;
 
   struct Info
   {
     double cost = std::numeric_limits<double>::infinity();
-    const Result* progress = nullptr;
+    std::shared_ptr<const Planning> planning = nullptr;
   };
 
-  bool initialize(const Result& setup);
+  bool initialize(std::shared_ptr<const Planning> setup);
 
-  bool evaluate(Result& progress);
+  bool evaluate(std::shared_ptr<Planning> progress);
 
-  void discard(Result& progress);
+  void discard(std::shared_ptr<Planning> progress);
 
   Info best_estimate;
   Info second_best_estimate;
