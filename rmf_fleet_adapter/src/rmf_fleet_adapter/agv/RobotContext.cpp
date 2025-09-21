@@ -1786,7 +1786,7 @@ void RobotContext::_retain_mutex_groups(
   for (const auto& data : release)
   {
     _release_mutex_group(data);
-    _locked_mutex_groups.erase(data.name);
+    groups.erase(data.name);
   }
 }
 
