@@ -1911,7 +1911,6 @@ void FleetUpdateHandle::add_robot(
           }
 
           mgr->set_idle_task(fleet->_pimpl->idle_task);
-          mgr->configure_retreat_to_charger(fleet->retreat_to_charger_interval());
 
           // -- Calling the handle_cb should always happen last --
           if (handle_cb)
@@ -2528,13 +2527,11 @@ FleetUpdateHandle::retreat_to_charger_interval() const
 FleetUpdateHandle& FleetUpdateHandle::set_retreat_to_charger_interval(
   std::optional<rmf_traffic::Duration> duration)
 {
-  _pimpl->retreat_to_charger_interval = duration;
-
-  // Start retreat timer
-  for (const auto& t : _pimpl->task_managers)
-  {
-    t.second->configure_retreat_to_charger(duration);
-  }
+  RCLCPP_WARN(
+    _pimpl->node->get_logger(),
+    "[FleetUpdateHandle::set_retreat_to_charger_interval] This parameter is no "
+    "longer being used."
+  );
   return *this;
 }
 
