@@ -55,6 +55,7 @@
     },
     "start_at_departure": {
       "type": "boolean",
+      "default": false,
       "description": "(Optional) Determines how [unix_millis_earliest_start_time] is interpreted. If true, the event is considered to start when the robot departs from its current location. If false (default), the event is considered to start when the robot arrives at the destination."
     }
   }
