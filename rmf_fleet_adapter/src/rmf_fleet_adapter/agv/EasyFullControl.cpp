@@ -2497,7 +2497,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
     return std::nullopt;
   }
   const YAML::Node tool_system = rmf_fleet["tool_system"];
-  const double tool_power_drain = ambient_system["power"].as<double>();
+  const double tool_power_drain = tool_system["power"].as<double>();
   auto tool_power_system = rmf_battery::agv::PowerSystem::make(
     tool_power_drain);
   if (!tool_power_system)
