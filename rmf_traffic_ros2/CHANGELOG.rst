@@ -2,6 +2,25 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.11.1 (2025-07-21)
+-------------------
+* Remove deprecated Pose2D message (`#450 <https://github.com/open-rmf/rmf_ros2/issues/450>`_)
+* Contributors: Luca Della Vedova
+
+2.11.0 (2025-06-09)
+-------------------
+* Adding mutex parameters to navgraph (`#436 <https://github.com/open-rmf/rmf_ros2/issues/436>`_)
+* Contributors: Jun
+
+2.10.1 (2025-05-13)
+-------------------
+
+2.10.0 (2025-05-09)
+-------------------
+* Giving options to separate fire alarm by fleet names (`#413 <https://github.com/open-rmf/rmf_ros2/issues/413>`_)
+* Use unique name for exported targets and avoid exporting binary targets (`#396 <https://github.com/open-rmf/rmf_ros2/issues/396>`_)
+* Contributors: Jun, Luca Della Vedova
+
 2.9.0 (2024-11-27)
 ------------------
 * Adds a simple parking spot management system.  (`#325 <https://github.com/open-rmf/rmf_ros2/issues/325>`_)

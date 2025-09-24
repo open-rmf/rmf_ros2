@@ -2,6 +2,24 @@
 Changelog for package rmf_reservation_node
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.11.1 (2025-07-21)
+-------------------
+
+2.11.0 (2025-06-09)
+-------------------
+* Migrate reservation node to target_link_libraries (`#437 <https://github.com/open-rmf/rmf_ros2/issues/437>`_)
+* Remove unused variable (`#435 <https://github.com/open-rmf/rmf_ros2/issues/435>`_)
+  Minnor code quality issue.
+* Contributors: Arjo Chakravarty, Luca Della Vedova
+
+2.10.1 (2025-05-13)
+-------------------
+
+2.10.0 (2025-05-09)
+-------------------
+* Completely Excise Reservation Cancellation pathways (`#416 <https://github.com/open-rmf/rmf_ros2/issues/416>`_)
+* Contributors: Arjo Chakravarty
+
 2.9.0 (2024-11-27)
 ------------------
 * Adds a simple parking spot management system.  (`#325 <https://github.com/open-rmf/rmf_ros2/issues/325>`_)

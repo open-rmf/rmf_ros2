@@ -855,6 +855,16 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
       .value_float(0.0)
       .value_string("")
       .value_bool(wp.is_charger()));
+    if (wp.in_mutex_group() != "")
+    {
+      params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("mutex")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string(wp.in_mutex_group())
+      .value_bool(false));
+    }
     const std::string wp_name = wp.name() ? *wp.name() : "";
     vertices.emplace_back(rmf_building_map_msgs::build<GraphNodeMsg>()
       .x(loc[0])
@@ -878,6 +888,16 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
         .value_float(properties.speed_limit().value())
         .value_string("")
         .value_bool(false));
+    }
+    if (properties.in_mutex_group() != "")
+    {
+      params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name("mutex")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0.0)
+      .value_string(properties.in_mutex_group())
+      .value_bool(false));
     }
     // Serialize events for this lane
     const auto entry_event = lane.entry().event();

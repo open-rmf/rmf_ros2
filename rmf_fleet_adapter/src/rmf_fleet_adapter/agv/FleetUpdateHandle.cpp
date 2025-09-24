@@ -644,7 +644,8 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
 
       // If the request is for a dry run, we do not store the assignments for
       // dispatch.
-      if (dry_run) {
+      if (dry_run)
+      {
         return;
       }
 
@@ -1434,7 +1435,8 @@ void FleetUpdateHandle::Implementation::handle_target_emergency(
     }
   }
 
-  if (execute) {
+  if (execute)
+  {
     handle_emergency(emergency_signal->is_emergency);
   }
 }
@@ -1953,7 +1955,6 @@ void FleetUpdateHandle::add_robot(
           }
 
           mgr->set_idle_task(fleet->_pimpl->idle_task);
-          mgr->configure_retreat_to_charger(fleet->retreat_to_charger_interval());
 
           // -- Calling the handle_cb should always happen last --
           if (handle_cb)
@@ -2570,13 +2571,11 @@ FleetUpdateHandle::retreat_to_charger_interval() const
 FleetUpdateHandle& FleetUpdateHandle::set_retreat_to_charger_interval(
   std::optional<rmf_traffic::Duration> duration)
 {
-  _pimpl->retreat_to_charger_interval = duration;
-
-  // Start retreat timer
-  for (const auto& t : _pimpl->task_managers)
-  {
-    t.second->configure_retreat_to_charger(duration);
-  }
+  RCLCPP_WARN(
+    _pimpl->node->get_logger(),
+    "[FleetUpdateHandle::set_retreat_to_charger_interval] This parameter is no "
+    "longer being used."
+  );
   return *this;
 }
 
@@ -2604,6 +2603,12 @@ void FleetUpdateHandle::set_planner_cache_reset_size(
       const auto self = w.lock();
       if (!self)
         return;
+
+      RCLCPP_INFO(
+        self->_pimpl->node->get_logger(),
+        "Setting planner_cache_reset_size to [%s]",
+        max_size.has_value() ? std::to_string(*max_size).c_str() : "unset"
+      );
 
       self->_pimpl->planner_cache_reset_size = max_size;
     }
@@ -2638,7 +2643,7 @@ bool FleetUpdateHandle::set_task_planner_params(
     ambient_sink &&
     tool_sink &&
     (recharge_threshold >= 0.0 && recharge_threshold <= 1.0) &&
-    (recharge_soc >= 0.0 && recharge_threshold <= 1.0))
+    (recharge_soc >= 0.0 && recharge_soc <= 1.0))
   {
     const rmf_task::Parameters parameters{
       *_pimpl->planner,

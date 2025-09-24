@@ -86,7 +86,7 @@ SearchForPath::SearchForPath(
     rmf_traffic::agv::ScheduleRouteValidator::make(
       _schedule, _participant_id, *profile));
   compliant_options.maximum_cost_estimate(_compliant_leeway*base_cost);
-  greedy_options.interrupter(make_interrupter(_interrupt_flag, _deadline));
+  compliant_options.interrupter(make_interrupter(_interrupt_flag, _deadline));
   auto compliant_setup = _planner->setup(_starts, _goal, compliant_options);
 
   _greedy_job = std::make_shared<Planning>(std::move(greedy_setup));
@@ -100,27 +100,27 @@ void SearchForPath::interrupt()
 }
 
 //==============================================================================
-Planning& SearchForPath::greedy()
+const std::shared_ptr<Planning>& SearchForPath::greedy()
 {
-  return *_greedy_job;
+  return _greedy_job;
 }
 
 //==============================================================================
-const Planning& SearchForPath::greedy() const
+std::shared_ptr<const Planning> SearchForPath::greedy() const
 {
-  return *_greedy_job;
+  return _greedy_job;
 }
 
 //==============================================================================
-Planning& SearchForPath::compliant()
+const std::shared_ptr<Planning>& SearchForPath::compliant()
 {
-  return *_compliant_job;
+  return _compliant_job;
 }
 
 //==============================================================================
-const Planning& SearchForPath::compliant() const
+std::shared_ptr<const Planning> SearchForPath::compliant() const
 {
-  return *_compliant_job;
+  return _compliant_job;
 }
 
 //==============================================================================

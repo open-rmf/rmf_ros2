@@ -19,21 +19,40 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-find_package(Python3 COMPONENTS Interpreter Development)
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(rmf_fleet_adapter REQUIRED)
 find_package(rmf_task REQUIRED)
 find_package(rmf_battery REQUIRED)
 find_package(rmf_task_msgs REQUIRED)
+
+if (NOT Python3_EXECUTABLE)
+    message(FATAL_ERROR "Could not find Python interpreter executable. Is Python3 installed and found correctly?")
+else()
+    message(STATUS "Python Interpreter Executable: ${Python3_EXECUTABLE}")
+endif()
+
+# Get the NumPy version string via Python interpreter
+execute_process(COMMAND ${Python3_EXECUTABLE} -c "import numpy; print(numpy.__version__)"
+                OUTPUT_VARIABLE NUMPY_VERSION_STRING
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_VARIABLE PYTHON_STDERR_OUTPUT # Capture stderr for debugging
+                RESULT_VARIABLE PYTHON_CMD_RESULT)
+message(STATUS "NumPy Version String from Python: ${NUMPY_VERSION_STRING}")
+message(STATUS "Python Command Result: ${PYTHON_CMD_RESULT}")
+message(STATUS "Python Command Error: ${PYTHON_CMD_ERROR}")
+message(STATUS "Python Command Result: ${PYTHON_CMD_RESULT}")
+message(STATUS "Python STDERR Output: ${PYTHON_STDERR_OUTPUT}")
+
+# Define the macro for C++ compilation
+add_compile_definitions(BUILT_AGAINST_NUMPY_VERSION="${NUMPY_VERSION_STRING}")
 
 include_directories(
   include
   ${rmf_fleet_adapter_INCLUDE_DIRS}
 )
 
-find_package(pybind11_vendor REQUIRED)
 find_package(pybind11 REQUIRED)
 find_package(nlohmann_json REQUIRED)
-find_package(pybind11_json_vendor REQUIRED)
 find_package(pybind11_json REQUIRED)
 
 pybind11_add_module(rmf_adapter SHARED

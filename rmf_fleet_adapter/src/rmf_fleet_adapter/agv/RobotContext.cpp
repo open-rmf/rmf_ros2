@@ -1190,13 +1190,22 @@ std::shared_ptr<void> RobotContext::set_lift_destination(
   std::string destination_floor,
   bool requested_from_inside)
 {
-  _lift_arrived = false;
+  RCLCPP_INFO(
+    _node->get_logger(),
+    "Setting lift destination for [%s] to %s at level %s",
+    requester_id().c_str(),
+    lift_name.c_str(),
+    destination_floor.c_str());
+
+  _lift_arrived = has_lift_arrived(lift_name, destination_floor);
+
   _lift_destination = std::make_shared<LiftDestination>(
     LiftDestination{
       std::move(lift_name),
       std::move(destination_floor),
       requested_from_inside
     });
+
   _initial_time_idle_outside_lift = std::nullopt;
 
   _publish_lift_destination();
@@ -1777,7 +1786,7 @@ void RobotContext::_retain_mutex_groups(
   for (const auto& data : release)
   {
     _release_mutex_group(data);
-    _locked_mutex_groups.erase(data.name);
+    groups.erase(data.name);
   }
 }
 
