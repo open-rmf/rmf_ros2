@@ -1526,6 +1526,11 @@ bool TaskManager::cancel_task(
 {
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return false;
+    }
+
     _task_state_update_available = true;
     _active_task.cancel(std::move(labels), _context->now());
     return true;
@@ -1550,6 +1555,11 @@ bool TaskManager::kill_task(
 {
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return false;
+    }
+
     _task_state_update_available = true;
     _active_task.kill(std::move(labels), _context->now());
     return true;
@@ -1572,6 +1582,11 @@ bool TaskManager::quiet_cancel_task(
 {
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return false;
+    }
+
     _task_state_update_available = true;
     _active_task.quiet_cancel(std::move(labels), _context->now());
     return true;
@@ -1942,6 +1957,7 @@ void TaskManager::_resume_from_emergency()
       }
 
       self->_emergency_pullover = ActiveTask();
+      self->_context->current_task_id(std::nullopt);
 
       if (!self->_emergency_pullover_interrupt_token.has_value())
       {
@@ -1956,6 +1972,13 @@ void TaskManager::_resume_from_emergency()
           {"emergency finished"},
           self->_context->now());
         self->_emergency_pullover_interrupt_token = std::nullopt;
+
+        RCLCPP_INFO(
+          self->_context->node()->get_logger(),
+          "Resume execution of task [%s] for [%s] after emergency pullover",
+          self->_active_task.id().c_str(),
+          self->_context->requester_id().c_str());
+        self->_context->current_task_id(self->_active_task.id());
       }
       else
       {
@@ -3040,6 +3063,11 @@ void TaskManager::_handle_interrupt_request(
 
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return;
+    }
+
     _task_state_update_available = true;
     return _send_token_success_response(
       _active_task.add_interruption(
@@ -3065,6 +3093,11 @@ void TaskManager::_handle_resume_request(
 
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return;
+    }
+
     _task_state_update_available = true;
     auto unknown_tokens = _active_task.remove_interruption(
       request_json["for_tokens"].get<std::vector<std::string>>(),
@@ -3105,6 +3138,11 @@ void TaskManager::_handle_rewind_request(
 
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return;
+    }
+
     _task_state_update_available = true;
     _active_task.rewind(request_json["phase_id"].get<uint64_t>());
     return _send_simple_success_response(request_id);
@@ -3128,6 +3166,12 @@ void TaskManager::_handle_skip_phase_request(
 
   if (_active_task && _active_task.id() == task_id)
   {
+
+    if (_emergency_active)
+    {
+      return;
+    }
+
     _task_state_update_available = true;
     return _send_token_success_response(
       _active_task.skip(
@@ -3151,10 +3195,15 @@ void TaskManager::_handle_undo_skip_phase_request(
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
-  const auto& task_id = request_json["for_task"];
+  const auto& task_id = request_json["for_task"].get<std::string>();
 
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return;
+    }
+
     _task_state_update_available = true;
     auto unknown_tokens = _active_task.remove_skips(
       request_json["for_tokens"].get<std::vector<std::string>>(),
