@@ -66,6 +66,7 @@ public:
     RobotUpdateHandle::ConstActivityIdentifierPtr;
   using Stubbornness = RobotUpdateHandle::Unstable::Stubbornness;
   using ConsiderRequest = FleetUpdateHandle::ConsiderRequest;
+  using AssignmentStrategy = rmf_task::TaskPlanner::TaskAssignmentStrategy;
 
   // Nested class declarations
   class EasyRobotUpdateHandle;
@@ -851,16 +852,12 @@ public:
   /// \sa strict_lanes
   std::unordered_set<std::size_t>& change_strict_lanes();
 
-  /// Get the task planner node expansion policy.
-  /// This policy determines how the task planner will expand nodes in the task
-  /// assignment.
-  rmf_task::TaskPlanner::ExpansionPolicy task_node_expansion_policy() const;
+  /// Get the task planner assignment strategy.
+  AssignmentStrategy task_assignment_strategy() const;
 
-  /// Set the task planner expansion policy.
-  /// example: rmf_task::TaskPlanner::ExpansionPolicy::IdlePreferred,
-  /// rmf_task::TaskPlanner::ExpansionPolicy::ShortestPathFirst, etc.
-  void set_task_node_expansion_policy(
-    const rmf_task::TaskPlanner::ExpansionPolicy policy);
+  /// Set the task planner assignment strategy.
+  void set_task_assignment_strategy(
+    const AssignmentStrategy strategy);
 
   class Implementation;
 private:
