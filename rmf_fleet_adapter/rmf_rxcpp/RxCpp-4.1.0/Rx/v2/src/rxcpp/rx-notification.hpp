@@ -146,11 +146,12 @@ private:
     };
 
     struct on_error_notification : public base {
-        on_error_notification(rxu::error_ptr ep) : ep(ep) {
-        }
-        on_error_notification(const on_error_notification& o) : ep(o.ep) {}
-        on_error_notification(const on_error_notification&& o) : ep(std::move(o.ep)) {}
-        on_error_notification& operator=(on_error_notification o) { ep = std::move(o.ep); return *this; }
+        explicit on_error_notification(rxu::error_ptr ep_arg) : ep(std::move(ep_arg)) {}
+        virtual ~on_error_notification() = default;
+        on_error_notification(const on_error_notification& other) = default;
+        on_error_notification& operator=(const on_error_notification& other) = default;
+        on_error_notification(on_error_notification&& other) noexcept = default;
+        on_error_notification& operator=(on_error_notification&& other) noexcept = default;
         virtual void out(std::ostream& os) const {
             os << "on_error(";
             os << rxu::what(ep);
@@ -167,7 +168,7 @@ private:
         virtual void accept(const typename base::observer_type& o) const {
             o.on_error(ep);
         }
-        const rxu::error_ptr ep;
+        rxu::error_ptr ep;
     };
 
     struct on_completed_notification : public base {
@@ -264,7 +265,7 @@ std::ostream& operator<< (std::ostream& out, const recorded<T>& r) {
     out << "@" << r.time() << "-" << r.value();
     return out;
 }
- 
+
 }
 namespace rxn=notifications;
 
