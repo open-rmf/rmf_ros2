@@ -36,6 +36,9 @@
 #include <rmf_traffic/agv/Graph.hpp>
 #include <rmf_traffic/agv/VehicleTraits.hpp>
 
+// rmf_task headers
+#include <rmf_task/TaskPlanner.hpp>
+
 #include <rmf_utils/impl_ptr.hpp>
 
 // System headers
@@ -63,6 +66,7 @@ public:
     RobotUpdateHandle::ConstActivityIdentifierPtr;
   using Stubbornness = RobotUpdateHandle::Unstable::Stubbornness;
   using ConsiderRequest = FleetUpdateHandle::ConsiderRequest;
+  using AssignmentStrategy = rmf_task::TaskPlanner::TaskAssignmentStrategy;
 
   // Nested class declarations
   class EasyRobotUpdateHandle;
@@ -847,6 +851,13 @@ public:
   ///
   /// \sa strict_lanes
   std::unordered_set<std::size_t>& change_strict_lanes();
+
+  /// Get the task planner assignment strategy.
+  AssignmentStrategy task_assignment_strategy() const;
+
+  /// Set the task planner assignment strategy.
+  void set_task_assignment_strategy(
+    const AssignmentStrategy strategy);
 
   class Implementation;
 private:
