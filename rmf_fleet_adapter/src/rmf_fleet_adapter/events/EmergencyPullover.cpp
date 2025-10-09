@@ -195,7 +195,7 @@ auto EmergencyPullover::Active::make(
         self->_chosen_goal = goal;
         self->_find_plan();
       },
-      true // Always re-plan to find the nearest lift.
+      true // Always re-plan to find the nearest spot.
     );
   }
   return active;
