@@ -56,8 +56,7 @@ public:
         context,
         goals,
         selected_final_destination_cb,
-        selected_waitpoint_cb,
-        always_recalculate_nearest_goal));
+        selected_waitpoint_cb));
 
     negotiator->_reservation_ticket =
       context->node()->location_ticket_obs().observe_on(
@@ -189,7 +188,7 @@ public:
     for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
     {
       if (
-        !_always_recaclulate_nearest_goal &&
+        !always_recalculate_nearest_goal &&
         events::wp_name(*context.get(), negotiator->_goals[i]) == context->_get_reserved_location())
       {
         RCLCPP_INFO(context->node()->get_logger(),
@@ -230,15 +229,13 @@ private:
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
       selected_final_destination_cb,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
-      selected_waitpoint_cb,
-    bool always_recalculate_nearest_goal)
+      selected_waitpoint_cb)
   {
     _context = context;
     _goals = goals;
     _selected_final_destination_cb = std::move(selected_final_destination_cb);
     _selected_waitpoint_cb = std::move(selected_waitpoint_cb);
     _reservation_id = _context->last_reservation_request_id();
-    _always_recaclulate_nearest_goal = always_recalculate_nearest_goal;
   }
 
   //============================================================================
@@ -367,8 +364,6 @@ private:
 
   std::vector<rmf_traffic::agv::Plan::Goal> _goals;
   std::vector<rmf_traffic::agv::Plan::Goal> _waitpoints;
-
-  bool _always_recaclulate_nearest_goal;
 };
 } // namespace rmf_fleet_adapter
 } // namespace
