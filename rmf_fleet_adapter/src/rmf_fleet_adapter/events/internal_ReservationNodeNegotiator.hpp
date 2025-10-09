@@ -193,7 +193,7 @@ public:
         events::wp_name(*context.get(), negotiator->_goals[i]) == context->_get_reserved_location())
       {
         RCLCPP_INFO(context->node()->get_logger(),
-          "%s: Already at goal no need to engage reservation system\n",
+          "%s: Already have a goal no need to engage reservation system\n",
           context->requester_id().c_str());
         context->worker().schedule([
             cb = negotiator->_selected_final_destination_cb,
