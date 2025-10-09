@@ -25,27 +25,43 @@
 namespace rmf_fleet_adapter {
 namespace reservation {
 
-/// This class implements the protocol for negotiating a spot with the "reservation"
-/// node. The reservation node maintains a list of spots which are free.
+/// This class implements the protocol for negotiating a spot with the
+/// "reservation" node. The reservation node maintains a list of spots which
+/// are free.
 class ReservationNodeNegotiator :
   public std::enable_shared_from_this<ReservationNodeNegotiator>
 {
 public:
+  //============================================================================
+  /// Creates a ReservationNegotiator to handle the reservation system protocol
+  /// \param[in] context the RobotContext with all of the current robot's
+  /// context.
+  /// \param[in] goals a list of potential spots.
+  /// \param[in] same_map Is the goal on the same map
+  /// \param[in] selected_final_destination_cb A callback which is triggered
+  /// when the final destination is selected.
+  /// \param[in] always_recalculate_nearest_goal Always find the nearest goal
   static std::shared_ptr<ReservationNodeNegotiator> make(
     std::shared_ptr<agv::RobotContext> context,
     const std::vector<rmf_traffic::agv::Plan::Goal> goals,
     const bool same_map,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
     selected_final_destination_cb,
-    const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
+    const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
+    selected_waitpoint_cb,
+    bool always_recalculate_nearest_goal = false)
   {
     auto negotiator = std::shared_ptr<ReservationNodeNegotiator>(
       new ReservationNodeNegotiator(
-        context, goals, selected_final_destination_cb, selected_waitpoint_cb));
+        context,
+        goals,
+        selected_final_destination_cb,
+        selected_waitpoint_cb,
+        always_recalculate_nearest_goal));
 
     negotiator->_reservation_ticket =
-      context->node()->location_ticket_obs().observe_on(rxcpp::identity_same_worker(
-          context->worker()))
+      context->node()->location_ticket_obs().observe_on(
+        rxcpp::identity_same_worker(context->worker()))
       .subscribe([ptr = negotiator->weak_from_this()](
         const std::shared_ptr<rmf_reservation_msgs::msg::Ticket>
         & msg)
@@ -172,7 +188,9 @@ public:
 
     for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
     {
-      if (events::wp_name(*context.get(), negotiator->_goals[i]) == context->_get_reserved_location())
+      if (
+        !_always_recaclulate_nearest_goal &&
+        events::wp_name(*context.get(), negotiator->_goals[i]) == context->_get_reserved_location())
       {
         RCLCPP_INFO(context->node()->get_logger(),
           "%s: Already at goal no need to engage reservation system\n",
@@ -205,21 +223,25 @@ public:
   }
 
 private:
-
+  //============================================================================
   ReservationNodeNegotiator(
     std::shared_ptr<agv::RobotContext> context,
     const std::vector<rmf_traffic::agv::Plan::Goal> goals,
     const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
-    selected_final_destination_cb,
-    const std::function<void(const rmf_traffic::agv::Plan::Goal&)> selected_waitpoint_cb)
+      selected_final_destination_cb,
+    const std::function<void(const rmf_traffic::agv::Plan::Goal&)>
+      selected_waitpoint_cb,
+    bool always_recalculate_nearest_goal)
   {
     _context = context;
     _goals = goals;
     _selected_final_destination_cb = std::move(selected_final_destination_cb);
     _selected_waitpoint_cb = std::move(selected_waitpoint_cb);
     _reservation_id = _context->last_reservation_request_id();
+    _always_recaclulate_nearest_goal = always_recalculate_nearest_goal;
   }
 
+  //============================================================================
   enum class ReservationState
   {
     Pending=0,
@@ -228,7 +250,7 @@ private:
     ReceivedResponseProceedImmediate=3
   };
 
-
+  //============================================================================
   void make_request(bool only_same_map)
   {
     auto current_location = _context->location();
@@ -345,6 +367,8 @@ private:
 
   std::vector<rmf_traffic::agv::Plan::Goal> _goals;
   std::vector<rmf_traffic::agv::Plan::Goal> _waitpoints;
+
+  bool _always_recaclulate_nearest_goal;
 };
 } // namespace rmf_fleet_adapter
 } // namespace
