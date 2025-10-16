@@ -184,24 +184,24 @@ public:
           }
         });
 
-
-    for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
+    if (!always_recalculate_nearest_goal)
     {
-      if (
-        !always_recalculate_nearest_goal &&
-        events::wp_name(*context.get(), negotiator->_goals[i]) == context->_get_reserved_location())
+      for (std::size_t i = 0; i < negotiator->_goals.size(); ++i)
       {
-        RCLCPP_INFO(context->node()->get_logger(),
-          "%s: Already have a goal no need to engage reservation system\n",
-          context->requester_id().c_str());
-        context->worker().schedule([
-            cb = negotiator->_selected_final_destination_cb,
-            wp = negotiator->_goals[i]
-          ](const auto&)
-          {
-            cb(wp);
-          });
-        return negotiator;
+        if (events::wp_name(*context.get(), negotiator->_goals[i]) == context->_get_reserved_location())
+        {
+          RCLCPP_INFO(context->node()->get_logger(),
+            "%s: Already have a goal no need to engage reservation system\n",
+            context->requester_id().c_str());
+          context->worker().schedule([
+              cb = negotiator->_selected_final_destination_cb,
+              wp = negotiator->_goals[i]
+            ](const auto&)
+            {
+              cb(wp);
+            });
+          return negotiator;
+        }
       }
     }
     RCLCPP_INFO(negotiator->_context->node()->get_logger(),
