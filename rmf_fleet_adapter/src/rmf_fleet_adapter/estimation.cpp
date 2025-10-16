@@ -88,6 +88,22 @@ void estimate_path_traveling(
   assert(!state.path.empty());
 
   const std::size_t remaining_count = state.path.size();
+  
+  // Add bounds checking to prevent race condition crash
+  if (remaining_count > info.waypoints.size()) {
+    RCLCPP_WARN(
+      node->get_logger(),
+      "Race condition detected: Robot reports %zu remaining waypoints but RMF plan only "
+      "has %zu waypoints. This happens when robot still reports from old path while RMF has "
+      "replanned a shorter path. Robot: %s, Fleet: %s. Using fallback estimation.",
+      remaining_count, info.waypoints.size(), 
+      info.robot_name.c_str(), info.fleet_name.c_str());
+    
+    // Fallback: estimate based on robot's current location relative to final goal
+    estimate_state(node, state.location, info);
+    return;
+  }
+  
   const std::size_t i_target_wp = info.waypoints.size() - remaining_count;
   info.target_plan_index = i_target_wp;
   const auto& target_wp = info.waypoints.at(i_target_wp);
