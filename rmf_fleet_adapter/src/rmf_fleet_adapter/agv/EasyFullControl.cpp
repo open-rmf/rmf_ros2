@@ -2270,6 +2270,7 @@ public:
   std::unordered_map<std::string, std::string> lift_emergency_levels;
   std::unordered_set<std::size_t> strict_lanes;
   bool use_parking_reservation;
+  AssignmentStrategy task_assignment_strategy;
 };
 
 //==============================================================================
@@ -2327,7 +2328,8 @@ EasyFullControl::FleetConfiguration::FleetConfiguration(
         std::move(default_min_lane_length),
         {},
         {},
-        false // Parking reservation system
+        false, // Parking reservation system
+        AssignmentStrategy::make(AssignmentStrategy::Profile::DefaultFastest)
       }))
 {
   // Do nothing
@@ -2989,6 +2991,63 @@ EasyFullControl::FleetConfiguration::from_config_files(
     }
   }
 
+  // Task Planning Assignment Strategy
+  AssignmentStrategy task_assignment_strategy =
+    AssignmentStrategy::make(AssignmentStrategy::Profile::DefaultFastest);
+  if (rmf_fleet["task_assignment_strategy"])
+  {
+    if (rmf_fleet["task_assignment_strategy"]["profile"])
+    {
+      const auto profile_str =
+        rmf_fleet["task_assignment_strategy"]["profile"].as<std::string>();
+      if (profile_str == "DefaultFastest")
+      {
+        task_assignment_strategy =
+          AssignmentStrategy::make(AssignmentStrategy::Profile::DefaultFastest);
+      }
+      else if (profile_str == "BatteryAware")
+      {
+        task_assignment_strategy =
+          AssignmentStrategy::make(AssignmentStrategy::Profile::BatteryAware);
+      }
+      else if (profile_str == "Custom")
+      {
+        std::vector<double> weights_finish_time{0.0, 1.0};
+        std::vector<double> weights_battery_penalty{0.0};
+        std::vector<double> weights_busy_penalty{0.0};
+        if (rmf_fleet["task_assignment_strategy"]["weights"])
+        {
+          const auto weights_node =
+            rmf_fleet["task_assignment_strategy"]["weights"];
+          if (weights_node["finish_time"])
+            weights_finish_time = weights_node["finish_time"].as<std::vector<double>>();
+          if (weights_node["battery_penalty"])
+            weights_battery_penalty = weights_node["battery_penalty"].as<std::vector<double>>();
+          if (weights_node["busy_penalty"])
+            weights_busy_penalty = weights_node["busy_penalty"].as<std::vector<double>>();
+        }
+
+        auto busy_mode = AssignmentStrategy::Options::BusyMode::Binary;
+        if (rmf_fleet["task_assignment_strategy"]["options"] &&
+          rmf_fleet["task_assignment_strategy"]["options"]["busy_mode"])
+        {
+          const auto busy_mode_str =
+            rmf_fleet["task_assignment_strategy"]["options"]["busy_mode"]
+            .as<std::string>();
+          if (busy_mode_str == "Binary")
+            busy_mode = AssignmentStrategy::Options::BusyMode::Binary;
+          else if (busy_mode_str == "Count")
+            busy_mode = AssignmentStrategy::Options::BusyMode::Count;
+        }
+        task_assignment_strategy = AssignmentStrategy::make(AssignmentStrategy::Profile::Custom);
+        task_assignment_strategy.weights.finish_time = weights_finish_time;
+        task_assignment_strategy.weights.battery_penalty = weights_battery_penalty;
+        task_assignment_strategy.weights.busy_penalty = weights_busy_penalty;
+        task_assignment_strategy.options.busy_mode = busy_mode;
+      }
+    }
+  }
+
   auto config = FleetConfiguration(
     fleet_name,
     std::move(tf_dict),
@@ -3017,6 +3076,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
   config.set_retreat_to_charger_interval(retreat_to_charger_interval);
   config.use_parking_reservation_system(use_simple_parking_reservation_system);
   config.change_strict_lanes() = std::move(strict_lanes);
+  config.set_task_assignment_strategy(task_assignment_strategy);
   return config;
 }
 
@@ -3426,6 +3486,20 @@ std::unordered_set<std::size_t>&
 EasyFullControl::FleetConfiguration::change_strict_lanes()
 {
   return _pimpl->strict_lanes;
+}
+
+//==============================================================================
+rmf_task::TaskPlanner::TaskAssignmentStrategy 
+  EasyFullControl::FleetConfiguration::task_assignment_strategy() const
+{
+  return _pimpl->task_assignment_strategy;
+}
+
+//==============================================================================
+void EasyFullControl::FleetConfiguration::set_task_assignment_strategy(
+  const rmf_task::TaskPlanner::TaskAssignmentStrategy strategy)
+{
+  _pimpl->task_assignment_strategy = strategy;
 }
 
 //==============================================================================
