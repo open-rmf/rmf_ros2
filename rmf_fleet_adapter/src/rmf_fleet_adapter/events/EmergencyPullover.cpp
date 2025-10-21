@@ -173,7 +173,7 @@ auto EmergencyPullover::Active::make(
       active->_context->_find_and_sort_parking_spots(true);
 
     RCLCPP_INFO(active->_context->node()->get_logger(),
-      "Creating reservation negotiator");
+      "Creating reservation negotiator for emergency pullover");
     active->_reservation_client = reservation::ReservationNodeNegotiator::make(
       active->_context,
       potential_waitpoints,
@@ -194,7 +194,8 @@ auto EmergencyPullover::Active::make(
 
         self->_chosen_goal = goal;
         self->_find_plan();
-      }
+      },
+      true // Always re-plan to find the nearest spot.
     );
   }
   return active;

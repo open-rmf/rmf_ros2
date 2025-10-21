@@ -27,7 +27,6 @@
 #include <rmf_reservation_msgs/msg/claim_request.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
-#include <iostream>
 #include <sstream>
 #include <unordered_map>
 #include <vector>
