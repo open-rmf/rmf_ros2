@@ -1,0 +1,57 @@
+name: Build rmf-ros2 docker images
+
+on:
+  push:
+    branches: ['cgh_ot_main']
+  pull_request:
+    branches: ['cgh_ot_main']
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out the repo
+      uses: actions/checkout@v4
+
+    - name: Set branch name
+      run: echo "branch_name=$(echo ${GITHUB_REF_NAME} | tr '/' '_' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+    - name: Set git commit SHA
+      run: echo "git_sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+    - name: Build rmf-ros2 Docker image
+      run: docker build --no-cache=true -t rmf-ros2:latest -f Dockerfile .
+
+    - name: Tag rmf-ros2 image
+      run: docker tag rmf-ros2:latest hopetechnik/rmf-ros2:${{ env.git_sha_short }}
+
+    - name: Tag rmf-ros2 image with branch
+      run: docker tag rmf-ros2:latest hopetechnik/rmf-ros2:${{ env.branch_name }}-${{ env.git_sha_short }}
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: hopetechnik
+        password: Hope@608614
+
+    - name: Push rmf-ros2 image with commit SHA
+      run: docker push hopetechnik/rmf-ros2:${{ env.git_sha_short }}
+
+    - name: Push rmf-ros2 image with branch and commit SHA
+      run: docker push hopetechnik/rmf-ros2:${{ env.branch_name }}-${{ env.git_sha_short }}
+
+    - name: Remove local rmf-ros2 image with commit SHA
+      run: docker rmi hopetechnik/rmf-ros2:${{ env.git_sha_short }} || true
+
+    - name: Remove local rmf-ros2 image with branch and commit SHA
+      run: docker rmi hopetechnik/rmf-ros2:${{ env.branch_name }}-${{ env.git_sha_short }} || true
+
+    - name: Remove local rmf-ros2 latest image
+      run: docker rmi rmf-ros2:latest || true
+
+    - name: Clean up Docker system
+      run: docker system prune -f
