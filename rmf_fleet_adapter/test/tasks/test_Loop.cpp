@@ -149,7 +149,6 @@ SCENARIO("Test loop requests", "[.flaky]")
   auto task_0_completed_future = task_0_completed_promise.get_future();
   std::size_t completed_0_count = 0;
   bool at_least_one_incomplete_task_0 = false;
-  rmf_task_msgs::msg::TaskSummary last_task_0_msg;
   std::size_t finding_a_plan_0_count = 0;
   std::vector<std::string> finding_a_plan_0_statuses;
 
@@ -158,7 +157,6 @@ SCENARIO("Test loop requests", "[.flaky]")
   auto task_1_completed_future = task_1_completed_promise.get_future();
   std::size_t completed_1_count = 0;
   bool at_least_one_incomplete_task_1 = false;
-  rmf_task_msgs::msg::TaskSummary last_task_1_msg;
   std::size_t finding_a_plan_1_count = 0;
   std::vector<std::string> finding_a_plan_1_statuses;
 
@@ -201,30 +199,6 @@ SCENARIO("Test loop requests", "[.flaky]")
           else if (id == loop_1)
             at_least_one_incomplete_task_1 = true;
         }
-
-        /// TODO(YL) listen to task_log_update.
-        /// Note: This testcases block is copied over from the previous
-        /// task summary msg check. The current msg field is nested within
-        /// phases->events->[ text ] field. Thus a better impl is needed.
-        ///
-        // if (msg->task_id == loop_0)
-        // {
-        //   last_task_0_msg = *msg;
-        //   if (msg->status.find("Finding a plan for") != std::string::npos)
-        //   {
-        //     ++finding_a_plan_0_count;
-        //     finding_a_plan_0_statuses.push_back(msg->status);
-        //   }
-        // }
-        // else if (msg->task_id == loop_1)
-        // {
-        //   last_task_1_msg = *msg;
-        //   if (msg->status.find("Finding a plan for") != std::string::npos)
-        //   {
-        //     ++finding_a_plan_1_count;
-        //     finding_a_plan_1_statuses.push_back(msg->status);
-        //   }
-        // }
       },
     WebsocketServer::ApiMsgType::TaskStateUpdate);
   /* *INDENT-ON* */
@@ -330,22 +304,10 @@ SCENARIO("Test loop requests", "[.flaky]")
   const auto task_0_completed_status = task_0_completed_future.wait_for(20s);
   CHECK(task_0_completed_status == std::future_status::ready);
   CHECK(at_least_one_incomplete_task_0);
-  if (task_0_completed_status != std::future_status::ready)
-  {
-    std::cout << "Last " << loop_0 << " status (" << last_task_0_msg.task_id
-              << "|" << last_task_0_msg.state << "): " << last_task_0_msg.status
-              << std::endl;
-  }
 
   const auto task_1_completed_status = task_1_completed_future.wait_for(20s);
   CHECK(task_1_completed_status == std::future_status::ready);
   CHECK(at_least_one_incomplete_task_1);
-  if (task_1_completed_status != std::future_status::ready)
-  {
-    std::cout << "Last " << loop_1 << " status (" << last_task_1_msg.task_id
-              << "|" << last_task_1_msg.state << "): " << last_task_1_msg.status
-              << std::endl;
-  }
 
   using VisitMap = std::unordered_map<std::size_t, std::size_t>;
   const auto visited_wp = [](std::size_t wp, const VisitMap& v, std::size_t num)

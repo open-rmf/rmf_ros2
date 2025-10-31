@@ -76,7 +76,6 @@ public:
   using RobotModeMsg = rmf_fleet_msgs::msg::RobotMode;
   using TaskProfileMsg = rmf_task_msgs::msg::TaskProfile;
   using TaskProfiles = std::unordered_map<std::string, TaskProfileMsg>;
-  using TaskSummaryMsg = rmf_task_msgs::msg::TaskSummary;
 
   struct DirectAssignment
   {
@@ -601,11 +600,6 @@ private:
   void _register_executed_task(const std::string& id);
 
   void _run_emergency_charge_task();
-
-  void _populate_task_summary(
-    std::shared_ptr<LegacyTask> task,
-    uint32_t task_summary_state,
-    TaskSummaryMsg& msg);
 
   void _handle_request(
     const std::string& request_msg,

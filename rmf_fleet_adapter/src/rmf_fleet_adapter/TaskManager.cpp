@@ -2205,40 +2205,6 @@ void TaskManager::_run_emergency_charge_task()
 }
 
 //==============================================================================
-void TaskManager::_populate_task_summary(
-  std::shared_ptr<LegacyTask> task,
-  uint32_t task_summary_state,
-  TaskManager::TaskSummaryMsg& msg)
-{
-  if (task == nullptr) // ResponsiveWait
-  {
-    msg.task_id = _context->requester_id() + ":waiting";
-
-    msg.start_time = _context->node()->now();
-    msg.end_time = _queue.empty() ? msg.start_time : rmf_traffic_ros2::convert(
-      _queue.front().deployment_time());
-    // Make the task type explicit
-    msg.task_profile.description.task_type.type =
-      rmf_task_msgs::msg::TaskType::TYPE_STATION;
-  }
-
-  else
-  {
-    msg.task_id = task->id();
-    msg.start_time = rmf_traffic_ros2::convert(
-      task->deployment_time());
-    msg.end_time = rmf_traffic_ros2::convert(
-      task->finish_state().time().value());
-    msg.task_profile = task->task_profile();
-  }
-
-  msg.fleet_name = _context->description().owner();
-  msg.robot_name = _context->name();
-
-  msg.state = task_summary_state;
-}
-
-//==============================================================================
 void TaskManager::_schema_loader(
   const nlohmann::json_uri& id, nlohmann::json& value) const
 {
