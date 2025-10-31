@@ -96,10 +96,6 @@ public:
   using LiftRequestPub = rclcpp::Publisher<LiftRequest>::SharedPtr;
   const LiftRequestPub& lift_request() const;
 
-  using TaskSummary = rmf_task_msgs::msg::TaskSummary;
-  using TaskSummaryPub = rclcpp::Publisher<TaskSummary>::SharedPtr;
-  const TaskSummaryPub& task_summary() const;
-
   using DispenserRequest = rmf_dispenser_msgs::msg::DispenserRequest;
   using DispenserRequestPub = rclcpp::Publisher<DispenserRequest>::SharedPtr;
   const DispenserRequestPub& dispenser_request() const;
@@ -227,7 +223,6 @@ private:
   DoorRequestPub _door_request_pub;
   Bridge<LiftState> _lift_state_obs;
   LiftRequestPub _lift_request_pub;
-  TaskSummaryPub _task_summary_pub;
   DispenserRequestPub _dispenser_request_pub;
   Bridge<DispenserResult> _dispenser_result_obs;
   Bridge<DispenserState> _dispenser_state_obs;
