@@ -231,10 +231,13 @@ auto GoToPlace::Active::make(
 
       if (self->_execution.has_value())
       {
-        // TODO(@mxgrey): Consider ignoring waypoints that have already been
-        // passed.
+        const auto now = self->_context->now();
         for (const auto& wp : self->_execution->plan.get_waypoints())
         {
+          // Ignore waypoints that have already been passed.
+          if (wp.time() < now)
+            continue;
+
           for (const std::size_t lane : wp.approach_lanes())
           {
             const auto closed = std::find(
