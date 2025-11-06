@@ -23,8 +23,15 @@ jobs:
     - name: Set git commit SHA
       run: echo "git_sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
+    - name: build rosdep 
+
+      run: docker build --no-cache=true -t rosdep:latest -f build/builder-rosdep.Dockerfile .
+
+    - name: check out source code
+      run:  mkdir build/rmf-src && vcs import build/rmf-src < build/rmf.repos
+      
     - name: Build rmf-ros2 Docker image
-      run: docker build --no-cache=true -t rmf-ros2:latest -f Dockerfile .
+      run: docker build --no-cache=true -t rmf-ros2:latest -f build/Dockerfile .
 
     - name: Tag rmf-ros2 image
       run: docker tag rmf-ros2:latest hopetechnik/rmf-ros2:${{ env.git_sha_short }}
