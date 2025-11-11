@@ -396,6 +396,16 @@ bool FleetAdapterNode::handle_delay(
 
   entry.schedule->push_delay(time_difference);
 
+  const auto route_size = entry.route->trajectory().size();
+  const auto remaining_path_size = state.path.size();
+  if (route_size > remaining_path_size)
+  {
+    entry.schedule->participant().reached(
+      entry.schedule->participant().current_plan_id(),
+      0,
+      route_size - remaining_path_size - 1);
+  }
+
   // Return true to indicate that the delay has been handled.
   return true;
 }

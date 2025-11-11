@@ -46,6 +46,8 @@
 #include <rmf_api_msgs/schemas/task_state.hpp>
 #include <rmf_api_msgs/schemas/error.hpp>
 
+#include <std_msgs/msg/string.hpp>
+
 #include <random>
 #include <unordered_set>
 
@@ -140,6 +142,10 @@ public:
   using ApiResponseMsg = rmf_task_msgs::msg::ApiResponse;
   rclcpp::Subscription<ApiRequestMsg>::SharedPtr api_request;
   rclcpp::Publisher<ApiResponseMsg>::SharedPtr api_response;
+
+  using TaskStateUpdateMsg = std_msgs::msg::String;
+  rclcpp::Publisher<TaskStateUpdateMsg>::SharedPtr task_state_update_pub =
+    nullptr;
 
   class ApiMemory
   {
@@ -294,9 +300,15 @@ public:
         this->handle_dispatch_ack(*msg);
       });
 
+    task_state_update_pub = node->create_publisher<TaskStateUpdateMsg>(
+      rmf_task_ros2::TaskStateUpdateTopicName,
+      rclcpp::ServicesQoS().keep_last(10).reliable().transient_local());
+
     if (server_uri)
+    {
       broadcast_client = rmf_websocket::BroadcastClient::make(
         *server_uri, node);
+    }
 
     auctioneer = bidding::Auctioneer::make(
       node,
@@ -535,7 +547,8 @@ public:
         rmf_task_msgs::build<bidding::BidNoticeMsg>()
         .request(task_request_json.dump())
         .task_id(task_id)
-        .time_window(bidding_time_window));
+        .time_window(bidding_time_window)
+        .dry_run(false));
 
       nlohmann::json response_json;
       response_json["success"] = true;
@@ -598,7 +611,8 @@ public:
       rmf_task_msgs::build<bidding::BidNoticeMsg>()
       .request(task_request.dump())
       .task_id(task_id)
-      .time_window(bidding_time_window));
+      .time_window(bidding_time_window)
+      .dry_run(false));
 
     return task_id;
   }
@@ -794,14 +808,18 @@ public:
       }
 
       /// Publish failed bid
+      const auto task_state =
+        create_task_state_json(dispatch_state, "failed");
+      auto task_state_update = _task_state_update_json;
+      task_state_update["data"] = task_state;
       if (broadcast_client)
       {
-        const auto task_state =
-          create_task_state_json(dispatch_state, "failed");
-        auto task_state_update = _task_state_update_json;
-        task_state_update["data"] = task_state;
         broadcast_client->publish(task_state_update);
       }
+
+      TaskStateUpdateMsg update_msg;
+      update_msg.data = task_state_update.dump();
+      task_state_update_pub->publish(update_msg);
 
       auctioneer->ready_for_next_bid();
       return;
@@ -902,6 +920,7 @@ public:
     }
 
     finished_dispatch_states[active_it->first] = active_it->second;
+    active_dispatch_states.erase(active_it);
   }
 
   void publish_dispatch_states()

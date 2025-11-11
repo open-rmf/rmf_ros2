@@ -43,10 +43,10 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       // Be sure to initialize these individually and not in a single statement,
       // otherwise the logic might short-circuit one of the initialize() calls
       const bool keep_greedy =
-        _greedy_evaluator.initialize(search->greedy().progress());
+        _greedy_evaluator.initialize(search->greedy());
 
       const bool keep_compliant =
-        _compliant_evaluator.initialize(search->compliant().progress());
+        _compliant_evaluator.initialize(search->compliant());
 
       if (keep_greedy || keep_compliant)
         _search_jobs.emplace_back(std::move(search));
@@ -70,11 +70,12 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       if (!f)
         return;
 
-      const auto& greedy = progress.greedy_job;
-      const auto& compliant = progress.compliant_job;
+      const auto greedy = progress.greedy_job;
+      const auto compliant = progress.compliant_job;
 
       bool resume_compliant = static_cast<bool>(compliant);
-      if (compliant && f->_greedy_evaluator.best_result.progress)
+      const auto greedy_best_planning = f->_greedy_evaluator.best_result.planning;
+      if (compliant && greedy_best_planning && greedy_best_planning->progress().success())
       {
         auto& compliant_progress = compliant->progress();
         if (!compliant_progress.success())
@@ -82,18 +83,18 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
           if (!compliant_progress.cost_estimate())
           {
             resume_compliant = false;
-            f->_compliant_evaluator.discard(compliant_progress);
+            f->_compliant_evaluator.discard(compliant);
           }
           else
           {
             const double best_greedy_cost =
-            (*f->_greedy_evaluator.best_result.progress)->get_cost();
+              greedy_best_planning->progress()->get_cost();
             const double compliant_cost = *compliant_progress.cost_estimate();
 
             if (best_greedy_cost * compliance_leeway < compliant_cost)
             {
               resume_compliant = false;
-              f->_compliant_evaluator.discard(compliant_progress);
+              f->_compliant_evaluator.discard(compliant);
             }
           }
         }
@@ -102,14 +103,14 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       bool resume_greedy = false;
       if (jobs::SearchForPath::Type::greedy == progress.type)
       {
-        if (f->_greedy_evaluator.evaluate(greedy->progress()))
+        if (f->_greedy_evaluator.evaluate(greedy))
           resume_greedy = true;
       }
 
       if (jobs::SearchForPath::Type::compliant == progress.type
       && resume_compliant)
       {
-        if (f->_compliant_evaluator.evaluate(compliant->progress()))
+        if (f->_compliant_evaluator.evaluate(compliant))
           resume_compliant = true;
       }
 
@@ -117,19 +118,22 @@ void FindEmergencyPullover::operator()(const Subscriber& s)
       && f->_greedy_evaluator.finished_count >= N_jobs)
       || f->_interrupted)
       {
-        if (f->_compliant_evaluator.best_result.progress)
-          s.on_next(*f->_compliant_evaluator.best_result.progress);
-        else
-          s.on_next(*f->_greedy_evaluator.best_result.progress);
+        const auto compliant_best_planning = f->_compliant_evaluator.best_result.planning;
+        if (compliant_best_planning)
+          s.on_next(compliant_best_planning->progress());
+        else if (f->_greedy_evaluator.best_result.planning)
+          s.on_next(f->_greedy_evaluator.best_result.planning->progress());
+        else if (f->_greedy_evaluator.best_estimate.planning)
+          s.on_next(f->_greedy_evaluator.best_estimate.planning->progress());
 
         s.on_completed();
         return;
       }
 
-      if (resume_greedy)
+      if (greedy && resume_greedy)
         greedy->resume();
 
-      if (resume_compliant)
+      if (compliant && resume_compliant)
         compliant->resume();
     });
 }

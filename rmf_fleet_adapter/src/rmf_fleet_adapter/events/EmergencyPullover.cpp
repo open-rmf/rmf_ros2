@@ -22,6 +22,9 @@
 #include <rmf_task_sequence/Task.hpp>
 #include <rmf_task_sequence/phases/SimplePhase.hpp>
 #include <rmf_task_sequence/events/Placeholder.hpp>
+#include "../project_itinerary.hpp"
+
+#include "internal_utilities.hpp"
 
 namespace rmf_fleet_adapter {
 namespace events {
@@ -155,7 +158,46 @@ auto EmergencyPullover::Active::make(
       return nullptr;
     });
 
-  active->_find_plan();
+  if (!active->_context->_parking_spot_manager_enabled())
+  {
+    // If no parking spot manager is enabled then we
+    // just proceed to find plans using the old method.
+    active->_find_plan();
+  }
+  else
+  {
+    // Use reservation node to retrieve the best emergency location.
+    active->_chosen_goal = std::nullopt;
+
+    const auto potential_waitpoints =
+      active->_context->_find_and_sort_parking_spots(true);
+
+    RCLCPP_INFO(active->_context->node()->get_logger(),
+      "Creating reservation negotiator for emergency pullover");
+    active->_reservation_client = reservation::ReservationNodeNegotiator::make(
+      active->_context,
+      potential_waitpoints,
+      true,
+      [w = active->weak_from_this()](const rmf_traffic::agv::Plan::Goal& goal)
+      {
+        auto self = w.lock();
+        if (!self)
+          return;
+        self->_chosen_goal = goal;
+        self->_find_plan();
+      },
+      [w = active->weak_from_this()](const rmf_traffic::agv::Plan::Goal& goal)
+      {
+        auto self = w.lock();
+        if (!self)
+          return;
+
+        self->_chosen_goal = goal;
+        self->_find_plan();
+      },
+      true // Always re-plan to find the nearest spot.
+    );
+  }
   return active;
 }
 
@@ -186,16 +228,11 @@ auto EmergencyPullover::Active::interrupt(
 {
   _negotiator->clear_license();
   _is_interrupted = true;
-  _execution = std::nullopt;
+  _stop_and_clear();
 
   _state->update_status(Status::Standby);
   _state->update_log().info("Going into standby for an interruption");
   _state->update_dependencies({});
-
-  if (const auto command = _context->command())
-    command->stop();
-
-  _context->itinerary().clear();
 
   _context->worker().schedule(
     [task_is_interrupted](const auto&)
@@ -218,7 +255,11 @@ auto EmergencyPullover::Active::interrupt(
 //==============================================================================
 void EmergencyPullover::Active::cancel()
 {
-  _execution = std::nullopt;
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "Canceling emergency_pullover for robot [%s]",
+    _context->requester_id().c_str());
+  _stop_and_clear();
   _state->update_status(Status::Canceled);
   _state->update_log().info("Received signal to cancel");
   _finished();
@@ -227,7 +268,7 @@ void EmergencyPullover::Active::cancel()
 //==============================================================================
 void EmergencyPullover::Active::kill()
 {
-  _execution = std::nullopt;
+  _stop_and_clear();
   _state->update_status(Status::Killed);
   _state->update_log().info("Received signal to kill");
   _finished();
@@ -242,66 +283,148 @@ void EmergencyPullover::Active::_find_plan()
   _state->update_status(Status::Underway);
   _state->update_log().info("Searching for an emergency pullover");
 
-  _find_pullover_service = std::make_shared<services::FindEmergencyPullover>(
-    _context->emergency_planner(), _context->location(),
-    _context->schedule()->snapshot(),
-    _context->itinerary().id(), _context->profile());
+  if (!_context->_parking_spot_manager_enabled())
+  {
+    _find_pullover_service = std::make_shared<services::FindEmergencyPullover>(
+      _context->emergency_planner(), _context->location(),
+      _context->schedule()->snapshot(),
+      _context->itinerary().id(), _context->profile());
 
-  _pullover_subscription =
-    rmf_rxcpp::make_job<services::FindEmergencyPullover::Result>(
-    _find_pullover_service)
-    .observe_on(rxcpp::identity_same_worker(_context->worker()))
-    .subscribe(
-    [w = weak_from_this()](
-      const services::FindEmergencyPullover::Result& result)
-    {
-      const auto self = w.lock();
-      if (!self)
-        return;
-
-      if (!result)
+    _pullover_subscription =
+      rmf_rxcpp::make_job<services::FindEmergencyPullover::Result>(
+      _find_pullover_service)
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
+      .subscribe(
+      [w = weak_from_this()](
+        const services::FindEmergencyPullover::Result& result)
       {
-        // The planner could not find any pullover
-        self->_state->update_status(Status::Error);
-        self->_state->update_log().error("Failed to find a pullover");
+        const auto self = w.lock();
+        if (!self)
+          return;
 
-        self->_execution = std::nullopt;
-        self->_schedule_retry();
+        if (!result)
+        {
+          // The planner could not find any pullover
+          self->_state->update_status(Status::Error);
+          self->_state->update_log().error("Failed to find a pullover");
 
-        self->_context->worker().schedule(
-          [update = self->_update](const auto&) { update(); });
+          self->_execution = std::nullopt;
+          self->_schedule_retry();
 
-        return;
-      }
+          self->_context->worker().schedule(
+            [update = self->_update](const auto&) { update(); });
 
-      self->_state->update_status(Status::Underway);
-      self->_state->update_log().info("Found an emergency pullover");
+          return;
+        }
 
-      auto full_itinerary = result->get_itinerary();
-      self->_execute_plan(
-        self->_context->itinerary().assign_plan_id(),
-        *std::move(result),
-        std::move(full_itinerary));
+        self->_state->update_status(Status::Underway);
+        self->_state->update_log().info("Found an emergency pullover");
 
-      self->_find_pullover_service = nullptr;
-      self->_retry_timer = nullptr;
-    });
+        auto full_itinerary = result->get_itinerary();
+        self->_execute_plan(
+          self->_context->itinerary().assign_plan_id(),
+          *std::move(result),
+          std::move(full_itinerary));
 
-  _find_pullover_timeout = _context->node()->try_create_wall_timer(
-    std::chrono::seconds(10),
-    [
-      weak_service = _find_pullover_service->weak_from_this(),
-      weak_self = weak_from_this()
-    ]()
-    {
-      if (const auto service = weak_service.lock())
-        service->interrupt();
+        self->_find_pullover_service = nullptr;
+        self->_retry_timer = nullptr;
+      });
 
-      if (const auto self = weak_self.lock())
-        self->_find_pullover_timeout = nullptr;
-    });
+    _find_pullover_timeout = _context->node()->try_create_wall_timer(
+      std::chrono::seconds(10),
+      [
+        weak_service = _find_pullover_service->weak_from_this(),
+        weak_self = weak_from_this()
+      ]()
+      {
+        if (const auto service = weak_service.lock())
+          service->interrupt();
 
-  _update();
+        if (const auto self = weak_self.lock())
+          self->_find_pullover_timeout = nullptr;
+      });
+
+    _update();
+  }
+  else
+  {
+
+    _find_path_service = std::make_shared<services::FindPath>(
+      _context->planner(), _context->location(), _chosen_goal.value(),
+      _context->schedule()->snapshot(), _context->itinerary().id(),
+      _context->profile(),
+      std::chrono::seconds(5));
+
+    const auto start_name = wp_name(*_context);
+    const auto goal_name = wp_name(*_context, _chosen_goal.value());
+
+    _plan_subscription = rmf_rxcpp::make_job<services::FindPath::Result>(
+      _find_path_service)
+      .observe_on(rxcpp::identity_same_worker(_context->worker()))
+      .subscribe(
+      [w = weak_from_this(), start_name, goal_name, goal = _chosen_goal.value()](
+        const services::FindPath::Result& result)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        if (!result)
+        {
+          // The planner could not find a way to reach the goal
+          self->_state->update_status(Status::Error);
+          self->_state->update_log().error(
+            "Failed to find a plan to move from ["
+            + start_name + "] to [" + goal_name + "]. Will retry soon.");
+
+          // Reset the chosen goal in case this goal has become impossible to
+          // reach
+          self->_chosen_goal = std::nullopt;
+          self->_execution = std::nullopt;
+          self->_schedule_retry();
+
+          self->_context->worker()
+          .schedule([update = self->_update](const auto&) { update(); });
+
+          return;
+        }
+
+        self->_state->update_status(Status::Underway);
+        self->_state->update_log().info(
+          "Found a plan to move from ["
+          + start_name + "] to [" + goal_name + "]");
+
+
+        std::vector<rmf_traffic::agv::Plan::Goal> no_future_projections;
+        auto full_itinerary = project_itinerary(
+          *result, {},
+          *self->_context->planner());
+
+        self->_execute_plan(
+          self->_context->itinerary().assign_plan_id(),
+          *std::move(result),
+          std::move(full_itinerary));
+
+        self->_find_path_service = nullptr;
+        self->_retry_timer = nullptr;
+      });
+
+    _find_path_timeout = _context->node()->try_create_wall_timer(
+      std::chrono::seconds(10),
+      [
+        weak_service = _find_path_service->weak_from_this(),
+        weak_self = weak_from_this()
+      ]()
+      {
+        if (const auto service = weak_service.lock())
+          service->interrupt();
+
+        if (const auto self = weak_self.lock())
+          self->_find_path_timeout = nullptr;
+      });
+
+    _update();
+  }
 }
 
 //==============================================================================
@@ -377,6 +500,18 @@ void EmergencyPullover::Active::_execute_plan(
       "Please report this incident to the Open-RMF developers.");
     _schedule_retry();
   }
+}
+
+//==============================================================================
+void EmergencyPullover::Active::_stop_and_clear()
+{
+  _execution = std::nullopt;
+  if (const auto command = _context->command())
+    command->stop();
+
+  if (_retry_timer)
+    _retry_timer->cancel();
+  _context->itinerary().clear();
 }
 
 //==============================================================================

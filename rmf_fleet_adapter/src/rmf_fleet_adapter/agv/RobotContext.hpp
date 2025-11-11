@@ -26,6 +26,9 @@
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
 #include <rmf_fleet_msgs/msg/mutex_group_manual_release.hpp>
+#include <rmf_task_msgs/action/dynamic_event.hpp>
+#include <rmf_task_msgs/msg/dynamic_event_description.hpp>
+#include <rmf_task_msgs/msg/dynamic_event_status.hpp>
 
 #include <rmf_traffic/schedule/Negotiator.hpp>
 #include <rmf_traffic/schedule/Participant.hpp>
@@ -46,18 +49,87 @@
 
 #include "Node.hpp"
 #include "../Reporting.hpp"
+#include "ReservationManager.hpp"
+#include "../DeserializeJSON.hpp"
 
 #include <unordered_set>
 
+#include <rclcpp_action/rclcpp_action.hpp>
+
 namespace rmf_fleet_adapter {
+
+namespace agv {
+
+// Forward declaring for DynamicEventCallbacks
+class RobotContext;
+
+} // namespace agv
+
+//==============================================================================
+inline std::string status_to_string(rmf_task::Event::Status status)
+{
+  using Status = rmf_task::Event::Status;
+  switch (status)
+  {
+    case Status::Uninitialized:
+      return "uninitialized";
+    case Status::Blocked:
+      return "blocked";
+    case Status::Error:
+      return "error";
+    case Status::Failed:
+      return "failed";
+    case Status::Standby:
+      return "standby";
+    case Status::Underway:
+      return "underway";
+    case Status::Delayed:
+      return "delayed";
+    case Status::Skipped:
+      return "skipped";
+    case Status::Canceled:
+      return "canceled";
+    case Status::Killed:
+      return "killed";
+    case Status::Completed:
+      return "completed";
+    default:
+      return "uninitialized";
+  }
+}
 
 // Forward declaration
 class TaskManager;
 
+using DynamicEventAction = rmf_task_msgs::action::DynamicEvent;
+using DynamicEventHandle = rclcpp_action::ServerGoalHandle<DynamicEventAction>;
+using DynamicEventStatus = rmf_task_msgs::msg::DynamicEventStatus;
+using DynamicEventStatusPub = rclcpp::Publisher<DynamicEventStatus>::SharedPtr;
+
+//==============================================================================
+struct DynamicEventCallbacks {
+  std::function<void(std::shared_ptr<DynamicEventHandle>, std::shared_ptr<void>)> executor;
+  std::function<void(std::shared_ptr<DynamicEventHandle>)> cancel;
+  std::function<bool(const std::string&, const std::string&)> validator;
+  std::weak_ptr<agv::RobotContext> context;
+
+  ~DynamicEventCallbacks();
+};
+
+//==============================================================================
+inline std::shared_ptr<DynamicEventAction::Result>
+dynamic_event_execution_failure(std::string message)
+{
+  return std::make_shared<DynamicEventAction::Result>(
+    rmf_task_msgs::build<DynamicEventAction::Result>()
+      .execution_failure(std::move(message))
+      .status("")
+      .id(0));
+}
+
 namespace agv {
 
 class FleetUpdateHandle;
-class RobotContext;
 using TransformDictionary = std::unordered_map<std::string, Transformation>;
 using SharedPlanner = std::shared_ptr<
   std::shared_ptr<const rmf_traffic::agv::Planner>>;
@@ -301,6 +373,12 @@ struct NavParams
     RobotContext& context);
 
   rmf_traffic::agv::Plan::StartSet compute_plan_starts(
+    const RobotContext& context,
+    const std::string& map_name,
+    const Eigen::Vector3d position,
+    const rmf_traffic::Time start_time) const;
+
+  rmf_traffic::agv::Plan::StartSet unfiltered_compute_plan_starts(
     const rmf_traffic::agv::Graph& graph,
     const std::string& map_name,
     const Eigen::Vector3d position,
@@ -318,7 +396,7 @@ struct NavParams
         min_lane_length);
 
       if (!starts.empty())
-        return process_locations(graph, starts);
+        return starts;
     }
 
     return {};
@@ -333,8 +411,8 @@ struct NavParams
     std::optional<std::size_t> v) const;
 
   rmf_traffic::agv::Plan::StartSet process_locations(
-    const rmf_traffic::agv::Graph& graph,
-    rmf_traffic::agv::Plan::StartSet locations) const;
+    rmf_traffic::agv::Plan::StartSet locations,
+    const RobotContext& context) const;
 
   rmf_traffic::agv::Plan::StartSet _descend_stacks(
     const rmf_traffic::agv::Graph& graph,
@@ -343,8 +421,8 @@ struct NavParams
   // If one of the locations is associated with a lift vertex, filter it out if
   // the actual of the robot is outside the dimensions of the lift.
   rmf_traffic::agv::Plan::StartSet _lift_boundary_filter(
-    const rmf_traffic::agv::Graph& graph,
-    rmf_traffic::agv::Plan::StartSet locations) const;
+    rmf_traffic::agv::Plan::StartSet locations,
+    const RobotContext& context) const;
 
   // If one of the starts is mid-lane on a strict lane, filter it out of the
   // start set.
@@ -398,19 +476,14 @@ struct MutexGroupData
 };
 
 //==============================================================================
-struct MutexGroupSwitch
-{
-  std::string from;
-  std::string to;
-  std::function<bool()> accept;
-};
-
-//==============================================================================
 class RobotContext
   : public std::enable_shared_from_this<RobotContext>,
   public rmf_traffic::schedule::Negotiator
 {
 public:
+
+
+  uint64_t last_reservation_request_id();
 
   /// Get a handle to the command interface of the robot. This may return a
   /// nullptr if the robot has disconnected and/or its command API is no longer
@@ -501,6 +574,14 @@ public:
   /// Set the navigation params for this robot. This is used by EasyFullControl
   /// robots.
   void set_nav_params(std::shared_ptr<NavParams> value);
+
+  /// Check whether this robot is using a robot-specific or fleet-wide finishing
+  /// request.
+  bool robot_finishing_request() const;
+
+  /// Toggle the robot_finishing_request flag to indicate whether this robot is
+  /// using a robot-specific or fleet-wide finishing request.
+  void robot_finishing_request(bool robot_specific);
 
   class NegotiatorLicense;
 
@@ -682,6 +763,12 @@ public:
   /// Get the current lift destination request for this robot
   const LiftDestination* current_lift_destination() const;
 
+  /// Check whether the lift has arrived at its current destination with the
+  /// correct session ID
+  bool has_lift_arrived(
+    const std::string& lift_name,
+    const std::string& destination_floor) const;
+
   /// Ask for a certain lift to go to a certain destination and open the doors
   std::shared_ptr<void> set_lift_destination(
     std::string lift_name,
@@ -737,6 +824,24 @@ public:
     Eigen::Vector3d position,
     const std::string& map);
 
+  /// If the robot is inside a lift, this will indicate what level the lift is
+  /// currently on. This will be used for filtering out start points for the
+  /// planner.
+  std::shared_ptr<const std::string> current_boarded_lift_level() const;
+
+  /// This should only be set in RequestLift.cpp when the robot is doing a lift
+  /// request from the inside.
+  void _set_current_boarded_lift_level(
+    std::shared_ptr<const std::string> lift_level);
+
+  /// The last reported location of the robot, as given by the EasyFullControl
+  /// API
+  std::shared_ptr<const Location> reported_location() const;
+
+  /// Set the shared reference for the reported location. This should only be
+  /// called once while initializing a new EasyFullControl robot.
+  void _set_reported_location(std::shared_ptr<const Location> value);
+
   /// Set the task manager for this robot. This should only be called in the
   /// TaskManager::make function.
   void _set_task_manager(std::shared_ptr<TaskManager> mgr);
@@ -758,6 +863,54 @@ public:
 
   /// Release a door. This should only be used by DoorClose
   void _release_door(const std::string& door_name);
+
+  /// This should only be called by RequestLift to notify the context that the
+  /// lift successfully arrived for its current destination request.
+  void _set_lift_arrived(
+    const std::string& lift_name,
+    const std::string& destination_name);
+
+  /// Set an allocated destination.
+  void _set_allocated_destination(
+    const rmf_reservation_msgs::msg::ReservationAllocation&);
+
+  /// Cancel allocated destination
+  void _cancel_allocated_destination();
+
+  /// Get last reserved location. Empty string if not reserved.
+  std::string _get_reserved_location();
+
+  /// Set if the parking spot manager is used or not
+  void _set_parking_spot_manager(const bool enabled);
+
+  /// Find all available spots. Order based on current location.
+  /// \param[in] same_floor - if the parking spots should be on the same floor.
+  std::vector<rmf_traffic::agv::Planner::Goal>
+  _find_and_sort_parking_spots(const bool same_floor)
+  const;
+
+  /// Find all available parking sports. Order based on goal.
+  /// \param[in] same_floor - if the parking spots should be on the same floor.
+  std::vector<rmf_traffic::agv::Planner::Goal>
+  _find_and_sort_parking_spots(
+    const rmf_traffic::agv::Plan::Goal& dest, const bool same_floor)
+  const;
+
+  /// Set if the parking spot manager is used or not
+  bool _parking_spot_manager_enabled();
+
+  /// Does the parking spot have a ticket?
+  bool _has_ticket() const;
+
+  /// Announce that a dynamic event is beginning. This provides the sequence
+  /// number for dynamic event. This should only be used by DynamicEvent.
+  uint32_t _begin_dynamic_event(
+    std::string description,
+    std::shared_ptr<DynamicEventCallbacks> callbacks);
+
+  void _publish_dynamic_event_status(
+    rmf_task::Event::State::Status status,
+    uint64_t id);
 
   template<typename... Args>
   static std::shared_ptr<RobotContext> make(Args&&... args)
@@ -822,6 +975,10 @@ public:
         if (const auto self = w.lock())
           self->_handle_mutex_group_manual_release(*msg);
       });
+
+    context->_reservation_mgr._context = context;
+
+    context->_initialize_dynamic_event_server();
 
     return context;
   }
@@ -891,6 +1048,7 @@ private:
     std::make_unique<std::mutex>();
   std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
   std::weak_ptr<TaskManager> _task_manager;
+  bool _robot_finishing_request = false;
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);
@@ -899,6 +1057,9 @@ private:
   RobotUpdateHandle::Commission _commission;
   bool _emergency = false;
   EasyFullControl::LocalizationRequest _localize;
+
+  std::shared_ptr<const Location> _reported_location;
+  std::weak_ptr<const std::string> _current_boarded_lift_level;
 
   // Mode value for RobotMode message
   uint32_t _current_mode;
@@ -941,9 +1102,21 @@ private:
     _mutex_group_manual_release_sub;
   std::chrono::steady_clock::time_point _last_active_task_time;
 
+  uint64_t _last_reservation_request_id;
+  ReservationManager _reservation_mgr;
+  bool _use_parking_spot_reservations;
+
   std::optional<RobotUpdateHandle::LiftDestination> _final_lift_destination;
   std::unique_ptr<std::mutex> _final_lift_destination_mutex =
     std::make_unique<std::mutex>();
+
+  void _initialize_dynamic_event_server();
+  std::weak_ptr<DynamicEventCallbacks> _dynamic_event_callbacks;
+  std::weak_ptr<rclcpp_action::GoalUUID> _dynamic_event_goal;
+  DynamicEventDescriptionPub _individual_dynamic_event_description_pub;
+  DynamicEventStatusPub _dynamic_event_status_pub;
+  uint32_t _dynamic_event_seq;
+  rclcpp_action::Server<DynamicEventAction>::SharedPtr _dynamic_event_server;
 };
 
 using RobotContextPtr = std::shared_ptr<RobotContext>;

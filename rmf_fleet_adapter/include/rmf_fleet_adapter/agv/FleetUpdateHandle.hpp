@@ -404,6 +404,23 @@ public:
   /// Trigger a replan for task allocation for robots in this fleet.
   void reassign_dispatched_tasks();
 
+  /// The planner cache might be able to balloon to very large sizes on maps
+  /// with many vertices. The fleet adapter will periodically audit the size
+  /// of the cache. Setting this reset size will have the fleet adapter clear
+  /// the planning cache when its number of entries exceeds the size that you
+  /// stipulate here.
+  ///
+  /// Overall the planner cache is important for ensuring reasonable performance
+  /// for traffic planning, especially during negotiations, but it can easily
+  /// grow larger than it really needs to be, so periodically clearing it can
+  /// help keep the fleet adapter's memory usage from inflating without
+  /// noticeably impacting performance.
+  ///
+  /// If you pass 0 into this function, then the cache will be cleared every
+  /// time the periodic audit occurs. Pass in std::nullopt to never clear the
+  /// cache (this is the default behavior).
+  void set_planner_cache_reset_size(std::optional<std::size_t> max_size);
+
   /// Get the rclcpp::Node that this fleet update handle will be using for
   /// communication.
   std::shared_ptr<rclcpp::Node> node();

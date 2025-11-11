@@ -32,6 +32,8 @@
 #include <rmf_fleet_msgs/msg/robot_mode.hpp>
 #include <rmf_task_msgs/msg/task_summary.hpp>
 
+#include <std_msgs/msg/string.hpp>
+
 #include <nlohmann/json.hpp>
 #include <nlohmann/json-schema.hpp>
 
@@ -125,6 +127,8 @@ public:
 
   void set_idle_task(rmf_task::ConstRequestFactoryPtr task);
 
+  void use_default_idle_task();
+
   /// Set the queue for this task manager with assignments generated from the
   /// task planner
   void set_queue(const std::vector<Assignment>& assignments);
@@ -154,13 +158,7 @@ public:
 
   /// Callback for the retreat timer. Appends a charging task to the task queue
   /// when robot is idle and battery level drops below a retreat threshold.
-  void retreat_to_charger();
-
-  /// Start the retreat timer that periodically checks whether the robot
-  /// should retreat to charger if its battery state of charge is close to
-  /// the recharge threshold.
-  void configure_retreat_to_charger(
-    std::optional<rmf_traffic::Duration> duration);
+  bool consider_retreating_to_charger();
 
   /// Get the list of task ids for tasks that have started execution.
   /// The list will contain upto 100 latest task ids only.
@@ -185,6 +183,23 @@ public:
   /// message is not validated before being returned).
   nlohmann::json submit_direct_request(
     const nlohmann::json& task_request,
+    const std::string& request_id);
+
+  /// Submit an estimate task request to this manager
+  ///
+  /// \param[in] task_request
+  ///   A JSON description of the task request. It should match the
+  ///   task_request.json schema of rmf_api_msgs, in particular it must contain
+  ///   `category` and `description` properties.
+  ///
+  /// \param[in] request_id
+  ///   The unique ID for this task request.
+  ///
+  /// \return A robot_task_response.json message from rmf_api_msgs (note: this
+  /// message is not validated before being returned).
+  nlohmann::json estimate_robot_task_request(
+    const nlohmann::json& task_request,
+    const nlohmann::json& initial_state,
     const std::string& request_id);
 
   class Interruption
@@ -390,10 +405,16 @@ private:
   // rxcpp worker
   mutable std::recursive_mutex _mutex;
   rclcpp::TimerBase::SharedPtr _task_timer;
-  rclcpp::TimerBase::SharedPtr _retreat_timer;
   rclcpp::TimerBase::SharedPtr _update_timer;
   bool _task_state_update_available = true;
   std::chrono::steady_clock::time_point _last_update_time;
+
+  using TaskStateUpdateMsg = std_msgs::msg::String;
+  rclcpp::Publisher<TaskStateUpdateMsg>::SharedPtr _task_state_update_pub =
+    nullptr;
+
+  using TaskLogUpdateMsg = std_msgs::msg::String;
+  rclcpp::Publisher<TaskLogUpdateMsg>::SharedPtr _task_log_update_pub = nullptr;
 
   // Container to keep track of tasks that have been started by this TaskManager
   // Use the _register_executed_task() to populate this container.
@@ -552,7 +573,7 @@ private:
 
   /// Validate and publish a json. This can be used for task
   /// state and log updates
-  void _validate_and_publish_websocket(
+  void _validate_and_publish_json(
     const nlohmann::json& msg,
     const nlohmann::json_schema::json_validator& validator) const;
 
@@ -578,6 +599,8 @@ private:
   /// The input task id will be inserted into the registry such that the max
   /// size of the registry is 100.
   void _register_executed_task(const std::string& id);
+
+  void _run_emergency_charge_task();
 
   void _populate_task_summary(
     std::shared_ptr<LegacyTask> task,
@@ -621,6 +644,10 @@ private:
     const std::string& request_id);
 
   void _handle_undo_skip_phase_request(
+    const nlohmann::json& request_json,
+    const std::string& request_id);
+
+  void _handle_estimate_robot_task_request(
     const nlohmann::json& request_json,
     const std::string& request_id);
 

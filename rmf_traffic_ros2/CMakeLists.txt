@@ -28,6 +28,8 @@ find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(LibUUID REQUIRED)
+find_package(rmf_reservation_msgs REQUIRED)
+
 
 # NOTE(MXG): libproj-dev does not currently distribute its cmake config-files
 # in Debian, so we can't use find_package and need to rely on pkg-config.
@@ -182,6 +184,7 @@ target_link_libraries(rmf_traffic_ros2
     ${rmf_traffic_msgs_LIBRARIES}
     ${rmf_site_map_msgs_LIBRARIES}
     ${rmf_building_map_msgs_LIBRARIES}
+    ${rmf_reservation_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     yaml-cpp
     ZLIB::ZLIB
@@ -197,10 +200,11 @@ target_include_directories(rmf_traffic_ros2
     ${rmf_traffic_msgs_INCLUDE_DIRS}
     ${rmf_site_map_msgs_INCLUDE_DIRS}
     ${rmf_building_map_msgs_INCLUDE_DIRS}
+    ${rmf_reservation_msgs_INCLUDE_DIRS}
     ${rclcpp_INCLUDE_DIRS}
 )
 
-ament_export_targets(rmf_traffic_ros2 HAS_LIBRARY_TARGET)
+ament_export_targets(export_rmf_traffic_ros2 HAS_LIBRARY_TARGET)
 ament_export_dependencies(
   rclcpp
   rmf_traffic
@@ -274,7 +278,7 @@ install(
 install(
   TARGETS
     rmf_traffic_ros2
-  EXPORT rmf_traffic_ros2
+  EXPORT export_rmf_traffic_ros2
   RUNTIME DESTINATION lib/rmf_traffic_ros2
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib

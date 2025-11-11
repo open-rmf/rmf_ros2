@@ -666,6 +666,23 @@ public:
 };
 
 //==============================================================================
+void print_events(
+  std::stringstream& seq,
+  rmf_task::Event::ConstStatePtr state,
+  std::size_t depth
+) {
+    rmf_task::VersionedString::Reader reader;
+    seq << "\n -- ";
+    for (std::size_t i=0; i < depth; ++i) {
+      seq << "  ";
+    }
+    seq << "[" << state << "] " << *reader.read(state->name()) << ": " << *reader.read(state->detail());
+    for (const auto& d : state->dependencies()) {
+      print_events(seq, d, depth+1);
+    }
+}
+
+//==============================================================================
 std::optional<ExecutePlan> ExecutePlan::make(
   agv::RobotContextPtr context,
   rmf_traffic::PlanId recommended_plan_id,
@@ -904,7 +921,14 @@ std::optional<ExecutePlan> ExecutePlan::make(
       truncate_arrival(*previous_itinerary, wp);
 
       auto expected_waypoints = waypoints;
-      expected_waypoints.insert(expected_waypoints.begin(), wp);
+      for (auto e_it = expected_waypoints.begin(); e_it != expected_waypoints.end(); ++e_it)
+      {
+        if (e_it->time() >= wp.time())
+        {
+          expected_waypoints.erase(expected_waypoints.begin(), e_it);
+          break;
+        }
+      }
 
       auto next_itinerary = std::make_shared<
         rmf_traffic::schedule::Itinerary>(full_itinerary);

@@ -47,20 +47,11 @@ Node::Node()
     {
       _lift_state_update(std::move(msg));
     });
-
-  _emergency_notice_pub = create_publisher<EmergencyNotice>(
-    rmf_traffic_ros2::EmergencyTopicName, default_qos);
 }
 
 //==============================================================================
 void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
 {
-
-  RCLCPP_INFO(
-    this->get_logger(),
-    "[%s] Received adapter lift request to [%s] with request type [%d]",
-    msg->session_id.c_str(), msg->destination_floor.c_str(), msg->request_type
-  );
   auto& curr_request = _active_sessions.insert(
     std::make_pair(msg->lift_name, nullptr)).first->second;
 
@@ -69,7 +60,21 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
     if (curr_request->session_id == msg->session_id)
     {
       if (msg->request_type != LiftRequest::REQUEST_END_SESSION)
+      {
+        // Set the timestamp to be the same so it doesn't confuse the comparison.
+        msg->request_time = curr_request->request_time;
+        if (*curr_request != *msg)
+        {
+          RCLCPP_INFO(
+            this->get_logger(),
+            "[%s] Received updated adapter lift request to [%s] with request type [%d]",
+            msg->session_id.c_str(), msg->destination_floor.c_str(), msg->request_type
+          );
+        }
         curr_request = std::move(msg);
+        curr_request->request_time = this->now();
+        _lift_request_pub->publish(*curr_request);
+      }
       else
       {
         msg->request_time = this->now();
@@ -87,7 +92,14 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
   {
     if (msg->request_type != LiftRequest::REQUEST_END_SESSION)
     {
+      RCLCPP_INFO(
+        this->get_logger(),
+        "[%s] Received new adapter lift request to [%s] with request type [%d]",
+        msg->session_id.c_str(), msg->destination_floor.c_str(), msg->request_type
+      );
       curr_request = std::move(msg);
+      curr_request->request_time = this->now();
+      _lift_request_pub->publish(*curr_request);
     }
   }
 
@@ -95,48 +107,37 @@ void Node::_adapter_lift_request_update(LiftRequest::UniquePtr msg)
 }
 
 //==============================================================================
-void Node::_lift_state_update(LiftState::UniquePtr msg)
+void Node::_lift_state_update(LiftState::UniquePtr state)
 {
   auto& lift_request = _active_sessions.insert(
-    std::make_pair(msg->lift_name, nullptr)).first->second;
+    std::make_pair(state->lift_name, nullptr)).first->second;
 
   if (lift_request)
   {
-    if ((lift_request->destination_floor != msg->current_floor) ||
-      (lift_request->door_state != msg->door_state))
+    const bool correct_floor = lift_request->destination_floor == state->destination_floor
+      || (lift_request->destination_floor == state->current_floor && state->destination_floor.empty());
+
+    if (!correct_floor ||
+      (lift_request->door_state != state->door_state) ||
+      (lift_request->session_id != state->session_id))
+    {
       lift_request->request_time = this->now();
-    _lift_request_pub->publish(*lift_request);
-    RCLCPP_INFO(
-      this->get_logger(),
-      "[%s] Published lift request to [%s] from lift supervisor",
-      msg->session_id.c_str(), lift_request->destination_floor.c_str()
-    );
+      _lift_request_pub->publish(*lift_request);
+    }
   }
-  else
+  else if (!state->session_id.empty())
   {
-    // If there are no active sessions going on, we keep publishing session
-    // end requests to ensure that the lift is released
+    // If the lift state has an active session but there are not supposed to be
+    // any active sessions going on, we keep publishing session end requests to
+    // ensure that the lift gets released
     LiftRequest request;
-    request.lift_name = msg->lift_name;
-    request.destination_floor = msg->current_floor;
-    request.session_id = msg->session_id;
+    request.lift_name = state->lift_name;
+    request.destination_floor = state->current_floor;
+    request.session_id = state->session_id;
     request.request_time = this->now();
     request.request_type = LiftRequest::REQUEST_END_SESSION;
     _lift_request_pub->publish(request);
   }
-
-  // For now, we do not need to publish this.
-
-//  std_msgs::msg::Bool emergency_msg;
-//  emergency_msg.data = false;
-
-//  if (LiftState::MODE_FIRE == msg->current_mode
-//      || LiftState::MODE_EMERGENCY == msg->current_mode)
-//  {
-//    emergency_msg.data = true;
-//  }
-
-//  _emergency_notice_pub->publish(emergency_msg);
 }
 
 } // namespace lift_supervisor

@@ -2,6 +2,33 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.11.1 (2025-07-21)
+-------------------
+* Remove pybind11 vendored dependencies (`#444 <https://github.com/open-rmf/rmf_ros2/issues/444>`_)
+* Add a check for numpy version (`#451 <https://github.com/open-rmf/rmf_ros2/pull/451>`_)
+* Contributors: Luca Della Vedova, Arjo Chakravarty
+
+2.11.0 (2025-06-09)
+-------------------
+
+2.10.1 (2025-05-13)
+-------------------
+
+2.10.0 (2025-05-09)
+-------------------
+* Add a timer to log the size of planner caches (`#427 <https://github.com/open-rmf/rmf_ros2/issues/427>`_)
+* Do not update assignments if bid notice is for a dry run (`#401 <https://github.com/open-rmf/rmf_ros2/issues/401>`_)
+* Contributors: Grey, yadunund
+
+2.9.0 (2024-11-27)
+------------------
+* Allow automatic action cancellation to be toggled (`#392 <https://github.com/open-rmf/rmf_ros2/issues/392>`_)
+* Adds a simple parking spot management system.  (`#325 <https://github.com/open-rmf/rmf_ros2/issues/325>`_)
+* Allow robot-specific finishing request and specify parking spots (`#379 <https://github.com/open-rmf/rmf_ros2/issues/379>`_)
+* Provide an API that says the robot's lift destination (`#376 <https://github.com/open-rmf/rmf_ros2/issues/376>`_)
+* Quiet cancel API (`#357 <https://github.com/open-rmf/rmf_ros2/issues/357>`_)
+* Contributors: Arjo Chakravarty, Grey, Xiyu
+
 2.8.0 (2024-06-12)
 ------------------
 

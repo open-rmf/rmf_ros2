@@ -156,6 +156,7 @@ public:
     std::optional<rmf_traffic::Duration> remaining_time;
     bool request_replan;
     bool okay;
+    bool automatic_cancel;
     std::optional<ScheduleOverride> schedule_override;
 
     void update_location(
@@ -213,7 +214,8 @@ public:
       state(std::move(state_)),
       remaining_time(remaining_time_),
       request_replan(false),
-      okay(true)
+      okay(true),
+      automatic_cancel(true)
     {
       // Do nothing
     }

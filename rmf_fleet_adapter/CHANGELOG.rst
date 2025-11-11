@@ -2,6 +2,65 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.11.1 (2025-07-21)
+-------------------
+* Fix a race condition that can cause an endless loop when waiting for a lift (`#449 <https://github.com/open-rmf/rmf_ros2/issues/449>`_)
+* Fix orientation mismatch when !skip_rotation_commands (`#422 <https://github.com/open-rmf/rmf_ros2/issues/422>`_)
+* Migrate fleet_adapter to target_link_libraries (`#438 <https://github.com/open-rmf/rmf_ros2/issues/438>`_)
+* Contributors: Grey, Luca Della Vedova
+
+2.11.0 (2025-06-09)
+-------------------
+
+2.10.1 (2025-05-13)
+-------------------
+* Add dependency on rclcpp_action (`#431 <https://github.com/open-rmf/rmf_ros2/issues/431>`_)
+
+2.10.0 (2025-05-09)
+-------------------
+* Add a timer to log the size of planner caches (`#427 <https://github.com/open-rmf/rmf_ros2/issues/427>`_)
+* Fix goal orientation constraint (`#426 <https://github.com/open-rmf/rmf_ros2/issues/426>`_)
+* Log reason for rejecting dynamic event goals (`#419 <https://github.com/open-rmf/rmf_ros2/issues/419>`_)
+* Completely Excise Reservation Cancellation pathways (`#416 <https://github.com/open-rmf/rmf_ros2/issues/416>`_)
+* Reduce churn in lift supervisor (`#418 <https://github.com/open-rmf/rmf_ros2/issues/418>`_)
+* Dynamic Event Action Server (`#410 <https://github.com/open-rmf/rmf_ros2/issues/410>`_)
+* Improve arrival time predictions for lanes with speed limits (`#400 <https://github.com/open-rmf/rmf_ros2/issues/400>`_)
+* Ensure correct docking orientation (`#414 <https://github.com/open-rmf/rmf_ros2/issues/414>`_)
+* Direct robot task request estimation feature (`#408 <https://github.com/open-rmf/rmf_ros2/issues/408>`_)
+* Giving options to separate fire alarm by fleet names (`#413 <https://github.com/open-rmf/rmf_ros2/issues/413>`_)
+* Update documentation for RobotCommandHandle (`#409 <https://github.com/open-rmf/rmf_ros2/issues/409>`_)
+* Remove bad optional access (`#406 <https://github.com/open-rmf/rmf_ros2/issues/406>`_)
+* Fix potential issues around tasks starting (`#403 <https://github.com/open-rmf/rmf_ros2/issues/403>`_)
+* Fix the criteria for replanning (`#405 <https://github.com/open-rmf/rmf_ros2/issues/405>`_)
+* Do not update assignments if bid notice is for a dry run (`#401 <https://github.com/open-rmf/rmf_ros2/issues/401>`_)
+* Use unique name for exported targets and avoid exporting binary targets (`#396 <https://github.com/open-rmf/rmf_ros2/issues/396>`_)
+* Do not skip waypoint if orientation is not aligned (`#398 <https://github.com/open-rmf/rmf_ros2/issues/398>`_)
+* Contributors: Arjo Chakravarty, Chen Bainian, Cheng-Wei Chen, Grey, Jun, Luca Della Vedova, Xiyu, lkw303, yadunund
+
+2.9.0 (2024-11-27)
+------------------
+* Add reached API to read-only fleet adapter (`#387 <https://github.com/open-rmf/rmf_ros2/issues/387>`_)
+* Fix lift disruption issue (`#393 <https://github.com/open-rmf/rmf_ros2/issues/393>`_)
+* Allow automatic action cancellation to be toggled (`#392 <https://github.com/open-rmf/rmf_ros2/issues/392>`_)
+* Adds a simple parking spot management system.  (`#325 <https://github.com/open-rmf/rmf_ros2/issues/325>`_)
+* Publish fleet and task updates over ROS 2 if websocket is not provided (`#383 <https://github.com/open-rmf/rmf_ros2/issues/383>`_)
+* Allow robot-specific finishing request and specify parking spots (`#379 <https://github.com/open-rmf/rmf_ros2/issues/379>`_)
+* Issue relocalization command if the robot is on the wrong map (`#316 <https://github.com/open-rmf/rmf_ros2/issues/316>`_)
+* set request_time in lift end session request. (`#385 <https://github.com/open-rmf/rmf_ros2/issues/385>`_)
+* Update _last_active_task_time if robot is executing task (`#384 <https://github.com/open-rmf/rmf_ros2/issues/384>`_)
+* Populate `Booking.Priority`, added schema to validate `Priority` (`#381 <https://github.com/open-rmf/rmf_ros2/issues/381>`_)
+* Emergency trigger to use transient local qos (`#341 <https://github.com/open-rmf/rmf_ros2/issues/341>`_)
+* Add a timeout before automatically releasing lift (`#369 <https://github.com/open-rmf/rmf_ros2/issues/369>`_)
+* Configure strict lanes (`#367 <https://github.com/open-rmf/rmf_ros2/issues/367>`_)
+* Only fail on_cancel deserializations when none of the activities are possible (`#378 <https://github.com/open-rmf/rmf_ros2/issues/378>`_)
+* Fix a minor typo in fleet adapter error log (`#307 <https://github.com/open-rmf/rmf_ros2/issues/307>`_)
+* Provide an API that says the robot's lift destination (`#376 <https://github.com/open-rmf/rmf_ros2/issues/376>`_)
+* Populate LiftProperties for Destination in localize callbacks (`#373 <https://github.com/open-rmf/rmf_ros2/issues/373>`_)
+* Revert "Event based lift / door logic (`#320 <https://github.com/open-rmf/rmf_ros2/issues/320>`_)" (`#372 <https://github.com/open-rmf/rmf_ros2/issues/372>`_)
+* Update with new RobotMode field (`#345 <https://github.com/open-rmf/rmf_ros2/issues/345>`_)
+* Quiet cancel API (`#357 <https://github.com/open-rmf/rmf_ros2/issues/357>`_)
+* Contributors: Aaron Chong, Arjo Chakravarty, Grey, Luca Della Vedova, Xiyu, cwrx777
+
 2.8.0 (2024-06-12)
 ------------------
 

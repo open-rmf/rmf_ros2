@@ -67,6 +67,9 @@
 #include <rmf_api_msgs/schemas/commission.hpp>
 #include <rmf_api_msgs/schemas/robot_commission_request.hpp>
 #include <rmf_api_msgs/schemas/robot_commission_response.hpp>
+#include <rmf_api_msgs/schemas/task_estimate_result.hpp>
+#include <rmf_api_msgs/schemas/estimate_robot_task_request.hpp>
+#include <rmf_api_msgs/schemas/estimate_robot_task_response.hpp>
 
 namespace rmf_fleet_adapter {
 
@@ -192,6 +195,15 @@ TaskManagerPtr TaskManager::make(
         self->_handle_request(request->json_msg, request->request_id);
     });
 
+  auto reliable_transient_qos =
+    rclcpp::ServicesQoS().keep_last(10).reliable().transient_local();
+  mgr->_task_state_update_pub =
+    mgr->_context->node()->create_publisher<TaskStateUpdateMsg>(
+      TaskStateUpdateTopicName, reliable_transient_qos);
+  mgr->_task_log_update_pub =
+    mgr->_context->node()->create_publisher<TaskLogUpdateMsg>(
+      TaskLogUpdateTopicName, reliable_transient_qos.keep_last(100));
+
   const std::vector<nlohmann::json> schemas = {
     rmf_api_msgs::schemas::task_state,
     rmf_api_msgs::schemas::task_log,
@@ -222,6 +234,10 @@ TaskManagerPtr TaskManager::make(
     rmf_api_msgs::schemas::commission,
     rmf_api_msgs::schemas::robot_commission_request,
     rmf_api_msgs::schemas::robot_commission_response,
+    rmf_api_msgs::schemas::error,
+    rmf_api_msgs::schemas::task_estimate_result,
+    rmf_api_msgs::schemas::estimate_robot_task_request,
+    rmf_api_msgs::schemas::estimate_robot_task_response
   };
 
   for (const auto& schema : schemas)
@@ -273,39 +289,6 @@ const std::string& TaskManager::ActiveTask::id() const
 }
 
 namespace {
-
-//==============================================================================
-std::string status_to_string(rmf_task::Event::Status status)
-{
-  using Status = rmf_task::Event::Status;
-  switch (status)
-  {
-    case Status::Uninitialized:
-      return "uninitialized";
-    case Status::Blocked:
-      return "blocked";
-    case Status::Error:
-      return "error";
-    case Status::Failed:
-      return "failed";
-    case Status::Standby:
-      return "standby";
-    case Status::Underway:
-      return "underway";
-    case Status::Delayed:
-      return "delayed";
-    case Status::Skipped:
-      return "skipped";
-    case Status::Canceled:
-      return "canceled";
-    case Status::Killed:
-      return "killed";
-    case Status::Completed:
-      return "completed";
-    default:
-      return "uninitialized";
-  }
-}
 
 //==============================================================================
 nlohmann::json& copy_phase_data(
@@ -423,7 +406,11 @@ void copy_booking_data(
   {
     booking_json["labels"] = booking.labels();
   }
-  // TODO(MXG): Add priority
+  const auto priority = booking.priority();
+  if (priority)
+  {
+    booking_json["priority"] = booking.priority()->serialize();
+  }
 }
 
 //==============================================================================
@@ -562,7 +549,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
 
   static const auto task_update_validator =
     mgr._make_validator(rmf_api_msgs::schemas::task_state_update);
-  mgr._validate_and_publish_websocket(task_state_update, task_update_validator);
+  mgr._validate_and_publish_json(task_state_update, task_update_validator);
 
   auto task_log_update = nlohmann::json();
   task_log_update["type"] = "task_log_update";
@@ -570,7 +557,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
 
   static const auto log_update_validator =
     mgr._make_validator(rmf_api_msgs::schemas::task_log_update);
-  mgr._validate_and_publish_websocket(task_log_update, log_update_validator);
+  mgr._validate_and_publish_json(task_log_update, log_update_validator);
 }
 
 //==============================================================================
@@ -940,6 +927,24 @@ void TaskManager::set_idle_task(rmf_task::ConstRequestFactoryPtr task)
 }
 
 //==============================================================================
+void TaskManager::use_default_idle_task()
+{
+  auto fleet_handle = _fleet_handle.lock();
+  if (!fleet_handle)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Attempting to use default idle task for [%s] but its fleet is shutting down",
+      _context->requester_id().c_str());
+    return;
+  }
+  const auto& impl =
+    agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+
+  set_idle_task(impl.idle_task);
+}
+
+//==============================================================================
 void TaskManager::set_queue(
   const std::vector<TaskManager::Assignment>& assignments)
 {
@@ -1073,7 +1078,7 @@ void TaskManager::reassign_dispatched_requests(
 
       RCLCPP_ERROR(
         node->get_logger(),
-        "Failed to reassign tasks for [%s]. %s\nReasons for failure:%s",
+        "Failed to reassign tasks for [%s]. Reasons for failure:%s",
         ss_requests.str().c_str(),
         ss_errors.str().c_str());
 
@@ -1139,6 +1144,157 @@ std::vector<nlohmann::json> TaskManager::task_log_updates() const
     }
   }
   return logs;
+}
+
+//==============================================================================
+nlohmann::json TaskManager::estimate_robot_task_request(
+  const nlohmann::json& request,
+  const nlohmann::json& initial_state,
+  const std::string& request_id)
+{
+  auto fleet_handle = _fleet_handle.lock();
+  if (!fleet_handle)
+  {
+    return _make_error_response(
+      18, "Shutdown", "The fleet adapter is shutting down");
+  }
+  const auto& fleet = _context->group();
+  const auto& impl =
+    agv::FleetUpdateHandle::Implementation::get(*fleet_handle);
+  std::vector<std::string> errors;
+  const auto new_request = impl.convert(request_id, request, errors);
+
+  if (!new_request)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Unable to generate a valid request for direct task [%s]:\n%s",
+      request_id.c_str(),
+      request.dump().c_str());
+
+    nlohmann::json response_json;
+    response_json["success"] = false;
+    std::vector<nlohmann::json> json_errors = {};
+    for (const auto& e : errors)
+    {
+      RCLCPP_ERROR(_context->node()->get_logger(), "%s", e.c_str());
+      try
+      {
+        auto error = nlohmann::json::parse(e);
+        json_errors.push_back(error);
+      }
+      catch (const std::exception&)
+      {
+        json_errors.push_back(e);
+      }
+    }
+    response_json["errors"] = std::move(json_errors);
+
+    return response_json;
+  }
+  // Get finish state and deployment time
+  const auto task_planner = _context->task_planner();
+  if (!task_planner)
+  {
+    RCLCPP_ERROR(
+      _context->node()->get_logger(),
+      "Fleet [%s] is not configured with parameters for task planning."
+      "Use FleetUpdateHandle::set_task_planner_params(~) to set the "
+      "parameters required.", fleet.c_str());
+
+    return _make_error_response(
+      19, "Misconfigured",
+      "The fleet adapter is not configured for task planning");
+  }
+
+  // Convert JSON into rmf_task::State
+  rmf_task::State start_state;
+
+  if (initial_state.empty())
+    start_state = expected_finish_state();
+  else
+  {
+    if (std::size_t(initial_state["waypoint"].get<int>()) >
+      (_context->navigation_graph().num_waypoints() -1))
+    {
+      return _make_error_response(
+        20, "Invalid", "Invalid Task State");
+    }
+    start_state.waypoint(std::size_t(initial_state["waypoint"].get<int>()));
+    start_state.orientation(initial_state["orientation"].get<double>());
+    std::chrono::steady_clock::time_point dp_time(
+      rmf_traffic::time::from_seconds(initial_state["time"].get<double>()/
+      1000));
+    start_state.time(dp_time);
+    start_state.battery_soc(initial_state["battery_soc"].get<double>());
+  }
+
+
+  const auto& constraints = task_planner->configuration().constraints();
+  const auto& parameters = task_planner->configuration().parameters();
+  const auto model = new_request->description()->make_model(
+    new_request->booking()->earliest_start_time(),
+    parameters);
+  const auto estimate = model->estimate_finish(
+    start_state,
+    constraints,
+    *_travel_estimator);
+
+  rmf_task::State finish_state;
+  rmf_traffic::Time deployment_time;
+
+  if (!estimate.has_value())
+  {
+    RCLCPP_WARN(
+      _context->node()->get_logger(),
+      "Unable to estimate final state for direct task request [%s]. This may "
+      "be due to insufficient resources to perform the task.",
+      request_id.c_str());
+    return _make_error_response(
+      21, "Failed", "Failed Task Estimation");
+  }
+  else
+  {
+    finish_state = estimate.value().finish_state();
+    deployment_time = estimate.value().wait_until();
+  }
+
+
+  // calculate estimated duration of task
+  nlohmann::json result_json;
+
+  result_json["deployment_time"] =
+    to_millis(deployment_time.time_since_epoch()).count();
+
+  if (finish_state.time().has_value())
+  {
+    result_json["finish_time"] =
+      to_millis(finish_state.time().value().time_since_epoch()).count();
+
+    auto estimate_duration_rmf =
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+      finish_state.time().value() - deployment_time);
+    result_json["duration"] = estimate_duration_rmf.count();
+  }
+
+  // Convert rmf_task::State into a JSON
+  nlohmann::json state;
+  if (!finish_state.waypoint().has_value() || !finish_state.orientation().has_value()
+    || !finish_state.battery_soc().has_value())
+  {
+    return _make_error_response(
+      21, "Failed", "Failed Task Estimation");
+  }
+
+  state["waypoint"] = int(finish_state.waypoint().value());
+  state["orientation"] = finish_state.orientation().value();
+  state["battery_soc"] = finish_state.battery_soc().value();
+
+  result_json["state"] = state;
+  nlohmann::json response_json;
+  response_json["success"] = true;
+  response_json["result"] = result_json;
+  return response_json;
 }
 
 //==============================================================================
@@ -1264,6 +1420,15 @@ nlohmann::json TaskManager::submit_direct_request(
     request_id.c_str(),
     robot.c_str());
 
+  _context->worker().schedule([w = weak_from_this()](const auto&)
+    {
+      if (const auto self = w.lock())
+      {
+        // Schedule this manager to check if it should run this task.
+        self->_begin_next_task();
+      }
+    });
+
   // Publish api response
   nlohmann::json response_json;
   response_json["success"] = true;
@@ -1363,6 +1528,11 @@ bool TaskManager::cancel_task(
 {
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return false;
+    }
+
     _task_state_update_available = true;
     _active_task.cancel(std::move(labels), _context->now());
     return true;
@@ -1387,6 +1557,11 @@ bool TaskManager::kill_task(
 {
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return false;
+    }
+
     _task_state_update_available = true;
     _active_task.kill(std::move(labels), _context->now());
     return true;
@@ -1409,6 +1584,11 @@ bool TaskManager::quiet_cancel_task(
 {
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return false;
+    }
+
     _task_state_update_available = true;
     _active_task.quiet_cancel(std::move(labels), _context->now());
     return true;
@@ -1429,6 +1609,8 @@ void TaskManager::_cancel_idle_behavior(std::vector<std::string> labels)
 //==============================================================================
 void TaskManager::_begin_next_task()
 {
+  std::lock_guard<std::recursive_mutex> guard(_mutex);
+
   if (_active_task)
   {
     return;
@@ -1439,7 +1621,13 @@ void TaskManager::_begin_next_task()
     return;
   }
 
-  std::lock_guard<std::recursive_mutex> guard(_mutex);
+  if (consider_retreating_to_charger())
+  {
+    // Our estimates indicate that the robot battery is too low to complete
+    // its next task, so we should immediately retreat to the charger.
+    _run_emergency_charge_task();
+    return;
+  }
 
   if (_queue.empty() && _direct_queue.empty())
   {
@@ -1521,7 +1709,9 @@ void TaskManager::_begin_next_task()
         [w = weak_from_this()](const auto&)
         {
           if (const auto self = w.lock())
+          {
             self->_begin_next_task();
+          }
         });
 
       return;
@@ -1689,7 +1879,13 @@ void TaskManager::_begin_waiting()
   }
 
   if (!_responsive_wait_enabled)
+  {
+    if (_waiting)
+    {
+      _waiting.cancel({"Idle behavior updated"}, _context->now());
+    }
     return;
+  }
 
   if (_context->location().empty())
   {
@@ -1763,6 +1959,7 @@ void TaskManager::_resume_from_emergency()
       }
 
       self->_emergency_pullover = ActiveTask();
+      self->_context->current_task_id(std::nullopt);
 
       if (!self->_emergency_pullover_interrupt_token.has_value())
       {
@@ -1777,6 +1974,13 @@ void TaskManager::_resume_from_emergency()
           {"emergency finished"},
           self->_context->now());
         self->_emergency_pullover_interrupt_token = std::nullopt;
+
+        RCLCPP_INFO(
+          self->_context->node()->get_logger(),
+          "Resume execution of task [%s] for [%s] after emergency pullover",
+          self->_active_task.id().c_str(),
+          self->_context->requester_id().c_str());
+        self->_context->current_task_id(self->_active_task.id());
       }
       else
       {
@@ -1823,139 +2027,118 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
 }
 
 //==============================================================================
-void TaskManager::configure_retreat_to_charger(
-  std::optional<rmf_traffic::Duration> duration)
-{
-  if (duration.has_value() && *duration <= rmf_traffic::Duration(0))
-  {
-    RCLCPP_ERROR(
-      _context->node()->get_logger(),
-      "[TaskManager::configure_retreat_to_charger] "
-      "Invalid value for duration: %f",
-      rmf_traffic::time::to_seconds(*duration));
-  }
-
-  if (!duration.has_value() || *duration <= rmf_traffic::Duration(0))
-  {
-    if (_retreat_timer && !_retreat_timer->is_canceled())
-    {
-      _retreat_timer->cancel();
-    }
-    return;
-  }
-
-  if (_retreat_timer)
-    _retreat_timer->reset();
-  _retreat_timer = _context->node()->try_create_wall_timer(
-    duration.value(),
-    [w = weak_from_this()]()
-    {
-      if (auto mgr = w.lock())
-      {
-        mgr->retreat_to_charger();
-      }
-    });
-}
-
-//==============================================================================
-void TaskManager::retreat_to_charger()
+bool TaskManager::consider_retreating_to_charger()
 {
   if (!_travel_estimator)
-    return;
+  {
+    return false;
+  }
 
   {
     std::lock_guard<std::recursive_mutex> guard(_mutex);
-    if (_active_task || !_queue.empty())
-      return;
+    if (_active_task || _emergency_active)
+    {
+      return false;
+    }
   }
 
   const auto task_planner = _context->task_planner();
   if (!task_planner)
-    return;
+  {
+    return false;
+  }
 
-  if (!task_planner->configuration().constraints().drain_battery())
-    return;
+  const auto& config = task_planner->configuration();
+  if (!config.constraints().drain_battery())
+  {
+    return false;
+  }
 
-  const auto current_state = expected_finish_state();
+  const auto current_state = _context->make_get_state()()
+    .time(_context->now());
+
   const auto charging_waypoint =
     current_state.dedicated_charging_waypoint().value();
   if (current_state.waypoint() == charging_waypoint)
-    return;
+  {
+    // No need for the robot to retreat to the charger since it is already
+    // there.
+    return false;
+  }
+
+  auto state_after_next_task = current_state;
+  const auto& parameters = config.parameters();
+  rmf_task::ConstRequestPtr next_request = nullptr;
+  if (!_direct_queue.empty())
+  {
+    next_request = _direct_queue.begin()->assignment.request();
+  }
+  else if (!_queue.empty())
+  {
+    next_request = _queue.begin()->request();
+  }
+
+  if (next_request)
+  {
+    const auto start_time = next_request->booking()->earliest_start_time();
+    const auto model =
+      next_request->description()->make_model(start_time, parameters);
+    const auto finish = model->estimate_finish(
+      current_state,
+      config.constraints(),
+      *_travel_estimator);
+
+    if (!finish)
+    {
+      RCLCPP_ERROR(
+        _context->node()->get_logger(),
+        "Unable to compute estimate for the next task for robot [%s]. This may "
+        "mean the robot does not have enough battery to perform it. We will "
+        "immediately retreat to the charger.",
+        _context->requester_id().c_str());
+
+      return true;
+    }
+
+    state_after_next_task = finish->finish_state();
+  }
 
   const auto& constraints = task_planner->configuration().constraints();
   const double threshold_soc = constraints.threshold_soc();
   const double retreat_threshold = 1.2 * threshold_soc; // safety factor
   const double current_battery_soc = _context->current_battery_soc();
 
-  const auto& parameters = task_planner->configuration().parameters();
-  // TODO(YV): Expose the TravelEstimator in the TaskPlanner to benefit from
-  // caching
   const rmf_traffic::agv::Planner::Goal retreat_goal{charging_waypoint};
   const auto result = _travel_estimator->estimate(
-    current_state.extract_plan_start().value(), retreat_goal);
+    state_after_next_task.extract_plan_start().value(), retreat_goal);
   if (!result.has_value())
   {
     RCLCPP_WARN(
       _context->node()->get_logger(),
-      "Unable to compute estimate of journey back to charger for robot [%s]",
+      "Cannot compute a feasible journey back to charger for robot [%s] after "
+      "its next task is finished. We will immediately retreat to the charger.",
       _context->name().c_str());
-    return;
+
+    return true;
   }
 
   const double battery_soc_after_retreat =
     current_battery_soc - result->change_in_charge();
 
-  if ((battery_soc_after_retreat < retreat_threshold) &&
-    (battery_soc_after_retreat > threshold_soc))
-  {
-    // Add a new charging task to the task queue
-    const auto charging_request = rmf_task::requests::ChargeBattery::make(
-      current_state.time().value(),
-      _context->requester_id(),
-      rmf_traffic_ros2::convert(_context->node()->now()),
-      nullptr,
-      true);
-    const auto model = charging_request->description()->make_model(
-      current_state.time().value(),
-      parameters);
-
-    const auto finish = model->estimate_finish(
-      current_state,
-      constraints,
-      *_travel_estimator);
-
-    if (!finish)
-      return;
-
-    rmf_task::TaskPlanner::Assignment charging_assignment(
-      charging_request,
-      finish.value().finish_state(),
-      current_state.time().value());
-
-    const DirectAssignment assignment = DirectAssignment{
-      _next_sequence_number,
-      charging_assignment};
-    ++_next_sequence_number;
-    {
-      std::lock_guard<std::recursive_mutex> lock(_mutex);
-      _direct_queue.insert(assignment);
-    }
-
-    RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "Initiating automatic retreat to charger for robot [%s]",
-      _context->name().c_str());
-  }
-
-  if ((battery_soc_after_retreat < retreat_threshold) &&
-    (battery_soc_after_retreat < threshold_soc))
+  if (battery_soc_after_retreat < retreat_threshold)
   {
     RCLCPP_WARN(
       _context->node()->get_logger(),
-      "Robot [%s] needs to be charged but has insufficient battery remaining "
-      "to retreat to its designated charger.",
-      _context->name().c_str());
+      "Battery charge for [%s] will fall below threshold [%f] if it retreats for "
+      "its charger after its next task. We will have it retreat to its charger "
+      "now instead.",
+      _context->name().c_str(),
+      retreat_threshold);
+
+    return true;
   }
+
+  return false;
 }
 
 //==============================================================================
@@ -1974,6 +2157,53 @@ void TaskManager::_register_executed_task(const std::string& id)
     _executed_task_registry.erase(_executed_task_registry.begin());
 
   _executed_task_registry.push_back(id);
+}
+
+//==============================================================================
+void TaskManager::_run_emergency_charge_task()
+{
+  if (_waiting)
+  {
+    // Cancel waiting and then perform the charging task.
+    _waiting.cancel({"Emergency charge needed"}, _context->now());
+    return;
+  }
+
+  const auto now = _context->now();
+  // Add a new charging task to the task queue
+  const auto charging_request = rmf_task::requests::ChargeBattery::make(
+    now, _context->requester_id(), now, nullptr, true);
+  const auto id = charging_request->booking()->id();
+
+  const auto current_state = _context->make_get_state()().time(now);
+
+  const auto& config = _context->task_planner()->configuration();
+  const auto& parameters = config.parameters();
+  const auto finish = charging_request
+    ->description()
+    ->make_model(now, parameters)
+    ->estimate_finish(current_state, config.constraints(), *_travel_estimator);
+
+  {
+    std::lock_guard<std::recursive_mutex> guard(_mutex);
+    _active_task = ActiveTask::start(
+      _context->task_activator()->activate(
+        _context->make_get_state(),
+        _context->task_parameters(),
+        *charging_request,
+        _update_cb(),
+        _checkpoint_cb(),
+        _phase_finished_cb(),
+        _task_finished(id)),
+      _context->now());
+  }
+
+  _finished_waiting = false;
+  if (finish.has_value())
+  {
+    _context->current_task_end_state(finish->finish_state());
+  }
+  _context->current_task_id(id);
 }
 
 //==============================================================================
@@ -2027,7 +2257,7 @@ void TaskManager::_schema_loader(
 }
 
 //==============================================================================
-void TaskManager::_validate_and_publish_websocket(
+void TaskManager::_validate_and_publish_json(
   const nlohmann::json& msg,
   const nlohmann::json_schema::json_validator& validator) const
 {
@@ -2042,19 +2272,32 @@ void TaskManager::_validate_and_publish_websocket(
     return;
   }
 
-  if (!_broadcast_client.has_value())
-    return;
-
-  const auto client = _broadcast_client->lock();
-  if (!client)
+  if (_broadcast_client.has_value())
   {
-    RCLCPP_ERROR(
-      _context->node()->get_logger(),
-      "Unable to lock BroadcastClient within TaskManager of robot [%s]",
-      _context->name().c_str());
-    return;
+    const auto client = _broadcast_client->lock();
+    if (!client)
+    {
+      RCLCPP_ERROR(
+        _context->node()->get_logger(),
+        "Unable to lock BroadcastClient within TaskManager of robot [%s]",
+        _context->name().c_str());
+      return;
+    }
+    client->publish(msg);
   }
-  client->publish(msg);
+
+  if (msg["type"] == "task_state_update")
+  {
+    TaskStateUpdateMsg update_msg;
+    update_msg.data = msg.dump();
+    _task_state_update_pub->publish(update_msg);
+  }
+  else if (msg["type"] == "task_log_update")
+  {
+    TaskLogUpdateMsg update_msg;
+    update_msg.data = msg.dump();
+    _task_log_update_pub->publish(update_msg);
+  }
 }
 
 //==============================================================================
@@ -2156,7 +2399,7 @@ rmf_task::State TaskManager::_publish_pending_task(
   static const auto validator =
     _make_validator(rmf_api_msgs::schemas::task_state_update);
 
-  _validate_and_publish_websocket(task_state_update, validator);
+  _validate_and_publish_json(task_state_update, validator);
 
   _pending_task_info[pending.request()] = cache;
   return pending.finish_state();
@@ -2223,7 +2466,7 @@ void TaskManager::_publish_canceled_pending_task(
   static const auto validator =
     _make_validator(rmf_api_msgs::schemas::task_state_update);
 
-  _validate_and_publish_websocket(task_state_update, validator);
+  _validate_and_publish_json(task_state_update, validator);
 }
 
 //==============================================================================
@@ -2509,7 +2752,9 @@ std::function<void()> TaskManager::_task_finished(std::string id)
         [w = self->weak_from_this()](const auto&)
         {
           if (const auto self = w.lock())
+          {
             self->_begin_next_task();
+          }
         });
     };
 }
@@ -2562,6 +2807,8 @@ void TaskManager::_handle_request(
       _handle_direct_request(request_json, request_id);
     else if (type_str == "robot_commission_request")
       _handle_commission_request(request_json, request_id);
+    else if (type_str == "estimate_robot_task_request")
+      _handle_estimate_robot_task_request(request_json, request_id);
     else
       return;
   }
@@ -2571,6 +2818,41 @@ void TaskManager::_handle_request(
       _context->node()->get_logger(),
       "Encountered exception while handling a request: %s", e.what());
   }
+}
+
+//==============================================================================
+void TaskManager::_handle_estimate_robot_task_request(
+  const nlohmann::json& request_json,
+  const std::string& request_id)
+{
+  // TODO: Add a validator for estimate_task_request
+  static auto request_validator =
+    _make_validator(rmf_api_msgs::schemas::estimate_robot_task_request);
+
+  static auto response_validator =
+    _make_validator(rmf_api_msgs::schemas::estimate_robot_task_response);
+
+  if (!_validate_request_message(request_json, request_validator, request_id))
+    return;
+
+  const auto& robot = request_json["robot"].get<std::string>();
+  if (robot.empty() || robot != _context->name())
+    return;
+
+  const auto& fleet = request_json["fleet"].get<std::string>();
+  if (fleet.empty() || fleet != _context->group())
+    return;
+
+  const nlohmann::json& task_request = request_json["request"];
+  const nlohmann::json& state = (request_json.find("state") == request_json.end()) ?
+    nlohmann::json({}) : request_json["state"];
+
+  const auto response = estimate_robot_task_request(
+    task_request,
+    state,
+    request_id);
+
+  _validate_and_publish_api_response(response, response_validator, request_id);
 }
 
 //==============================================================================
@@ -2783,6 +3065,11 @@ void TaskManager::_handle_interrupt_request(
 
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return;
+    }
+
     _task_state_update_available = true;
     return _send_token_success_response(
       _active_task.add_interruption(
@@ -2808,6 +3095,11 @@ void TaskManager::_handle_resume_request(
 
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return;
+    }
+
     _task_state_update_available = true;
     auto unknown_tokens = _active_task.remove_interruption(
       request_json["for_tokens"].get<std::vector<std::string>>(),
@@ -2848,6 +3140,11 @@ void TaskManager::_handle_rewind_request(
 
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return;
+    }
+
     _task_state_update_available = true;
     _active_task.rewind(request_json["phase_id"].get<uint64_t>());
     return _send_simple_success_response(request_id);
@@ -2871,6 +3168,12 @@ void TaskManager::_handle_skip_phase_request(
 
   if (_active_task && _active_task.id() == task_id)
   {
+
+    if (_emergency_active)
+    {
+      return;
+    }
+
     _task_state_update_available = true;
     return _send_token_success_response(
       _active_task.skip(
@@ -2894,10 +3197,15 @@ void TaskManager::_handle_undo_skip_phase_request(
   if (!_validate_request_message(request_json, request_validator, request_id))
     return;
 
-  const auto& task_id = request_json["for_task"];
+  const auto& task_id = request_json["for_task"].get<std::string>();
 
   if (_active_task && _active_task.id() == task_id)
   {
+    if (_emergency_active)
+    {
+      return;
+    }
+
     _task_state_update_available = true;
     auto unknown_tokens = _active_task.remove_skips(
       request_json["for_tokens"].get<std::vector<std::string>>(),

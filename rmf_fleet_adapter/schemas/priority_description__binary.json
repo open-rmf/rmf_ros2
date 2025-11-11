@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/priority_description__binary.json",
+  "title": "Binary Priority Description",
+  "description": "Describes the priority of a task as a binary",
+  "type": "object",
+  "properties": {
+      "type": { "type": "string" },
+      "value": { "type": "integer", "minimum": 0, "maximum": 1 }
+  },
+  "required": ["type", "value"]
+}

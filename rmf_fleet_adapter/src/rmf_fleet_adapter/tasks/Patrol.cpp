@@ -47,7 +47,7 @@ void add_patrol(
 
   auto deserialize_go_to_place =
     [place_deser = deserialization.place](const nlohmann::json& msg)
-    -> agv::DeserializedEvent
+    -> DeserializedEvent
     {
       nlohmann::json place_msg;
       const auto one_of = msg.find("one_of");
@@ -85,6 +85,12 @@ void add_patrol(
               desc->prefer_same_map(true);
             }
           }
+        }
+
+        if (const auto start_at_departure_it = msg.find("start_at_departure");
+          start_at_departure_it != msg.end())
+        {
+          desc->start_at_departure(start_at_departure_it->get<bool>());
         }
 
         return {desc, errors};
@@ -125,6 +131,12 @@ void add_patrol(
         desc->expected_next_destinations(std::move(followed_by));
       }
 
+      if (const auto start_at_departure_it = msg.find("start_at_departure");
+        start_at_departure_it != msg.end())
+      {
+        desc->start_at_departure(start_at_departure_it->get<bool>());
+      }
+
       return {desc, std::move(place.errors)};
     };
 
@@ -147,7 +159,7 @@ void add_patrol(
     [
     place_deser = deserialization.place,
     consider = deserialization.consider_patrol
-    ](const nlohmann::json& msg) -> agv::DeserializedTask
+    ](const nlohmann::json& msg) -> DeserializedTask
     {
       if (!(*consider))
       {

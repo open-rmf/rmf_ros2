@@ -242,6 +242,41 @@ void RobotUpdateHandle::update_position(
 }
 
 //==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::use_parking_reservation_system(bool use)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule([use, w = context->weak_from_this()](
+        const auto&)
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        self->_set_parking_spot_manager(use);
+
+        std::string status;
+        if (use)
+        {
+          status = "enabled";
+        }
+        else
+        {
+          status = "disabled";
+        }
+
+        RCLCPP_INFO(
+          self->node()->get_logger(),
+          "Parking reservation system %s for %s",
+          status.c_str(),
+          self->requester_id().c_str());
+      });
+  }
+
+  return *this;
+}
+
+//==============================================================================
 RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
   const std::size_t charger_wp)
 {
@@ -261,6 +296,50 @@ RobotUpdateHandle& RobotUpdateHandle::set_charger_waypoint(
           self->requester_id().c_str(),
           charger_wp);
       });
+  }
+
+  return *this;
+}
+
+//==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::set_finishing_request(
+  rmf_task::ConstRequestFactoryPtr finishing_request)
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule(
+      [finishing_request, w = context->weak_from_this()](
+        const auto&)
+      {
+        const auto context = w.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        mgr->set_idle_task(finishing_request);
+      });
+  }
+
+  return *this;
+}
+
+//==============================================================================
+RobotUpdateHandle& RobotUpdateHandle::use_default_finishing_request()
+{
+  if (const auto context = _pimpl->get_context())
+  {
+    context->worker().schedule([w = context->weak_from_this()](const auto&)
+      {
+        const auto context = w.lock();
+        if (!context)
+          return;
+
+        const auto mgr = context->task_manager();
+        mgr->use_default_idle_task();
+        // Disable robot_finishing_request flag in RobotContext
+        context->robot_finishing_request(false);
+      }
+    );
   }
 
   return *this;
@@ -1166,6 +1245,22 @@ void RobotUpdateHandle::ActionExecution::finished()
 bool RobotUpdateHandle::ActionExecution::okay() const
 {
   return _pimpl->data->okay;
+}
+
+//==============================================================================
+void RobotUpdateHandle::ActionExecution::set_automatic_cancel(bool on)
+{
+  if (_pimpl->data)
+  {
+    if (const auto context = _pimpl->data->w_context.lock())
+    {
+      context->worker().schedule(
+        [on, self = _pimpl->data](const auto&)
+        {
+          self->automatic_cancel = on;
+        });
+    }
+  }
 }
 
 //==============================================================================

@@ -26,8 +26,27 @@
 #include <rmf_door_msgs/msg/door_mode.hpp>
 
 #include <rmf_utils/math.hpp>
+#include <string>
+#include <unordered_set>
 
 namespace rmf_fleet_adapter {
+
+//==============================================================================
+DynamicEventCallbacks::~DynamicEventCallbacks()
+{
+  const auto c = context.lock();
+  if (!c)
+    return;
+
+  c->worker().schedule([c](const auto&)
+    {
+      // Publish a dynamic event status update that reports the dynamic event
+      // as non-active.
+      c->_publish_dynamic_event_status(
+        rmf_task::Event::State::Status::Uninitialized, 0);
+    });
+}
+
 namespace agv {
 
 //==============================================================================
@@ -101,6 +120,7 @@ void NavParams::search_for_location(
   RobotContext& context)
 {
   auto planner = context.planner();
+  const auto& graph = context.navigation_graph();
   if (!planner)
   {
     RCLCPP_ERROR(
@@ -109,9 +129,8 @@ void NavParams::search_for_location(
       context.requester_id().c_str());
     return;
   }
-  const auto& graph = planner->get_configuration().graph();
   const auto now = context.now();
-  auto starts = compute_plan_starts(graph, map, position, now);
+  auto starts = compute_plan_starts(context, map, position, now);
   if (!starts.empty())
   {
     if (context.debug_positions)
@@ -133,6 +152,22 @@ void NavParams::search_for_location(
     }
     context.set_lost(Location { now, map, position });
   }
+}
+
+rmf_traffic::agv::Plan::StartSet NavParams::compute_plan_starts(
+  const RobotContext& context,
+  const std::string& map_name,
+  const Eigen::Vector3d position,
+  const rmf_traffic::Time start_time) const
+{
+  const auto& graph = context.navigation_graph();
+  auto unfiltered = unfiltered_compute_plan_starts(
+    graph, map_name, position, start_time);
+
+  if (!unfiltered.empty())
+    return process_locations(std::move(unfiltered), context);
+
+  return {};
 }
 
 //==============================================================================
@@ -175,11 +210,15 @@ std::string NavParams::get_vertex_name(
 
 //==============================================================================
 rmf_traffic::agv::Plan::StartSet NavParams::process_locations(
-  const rmf_traffic::agv::Graph& graph,
-  rmf_traffic::agv::Plan::StartSet locations) const
+  rmf_traffic::agv::Plan::StartSet locations,
+  const RobotContext& context) const
 {
   return _strict_lane_filter(
-    _lift_boundary_filter(graph, _descend_stacks(graph, locations)));
+    _lift_boundary_filter(
+      _descend_stacks(
+        context.navigation_graph(),
+        locations),
+      context));
 }
 
 //==============================================================================
@@ -282,29 +321,57 @@ rmf_traffic::agv::Plan::StartSet NavParams::_descend_stacks(
 
 //==============================================================================
 rmf_traffic::agv::Plan::StartSet NavParams::_lift_boundary_filter(
-  const rmf_traffic::agv::Graph& graph,
-  rmf_traffic::agv::Plan::StartSet locations) const
+  rmf_traffic::agv::Plan::StartSet locations,
+  const RobotContext& context) const
 {
+  std::string correct_map;
+  if (const auto level = context.current_boarded_lift_level())
+  {
+    correct_map = *level;
+  }
+  else if (const auto location = context.reported_location())
+  {
+    correct_map = location->map;
+  }
+
+  const auto& graph = context.navigation_graph();
+  const auto valid_waypoint = [&graph, &correct_map](std::size_t wp_index)
+    {
+      if (correct_map.empty())
+        return true;
+
+      const auto& wp_map = graph.get_waypoint(wp_index).get_map_name();
+      return wp_map == correct_map;
+    };
+
+  const auto valid_lane = [&graph, &correct_map, valid_waypoint](
+    std::size_t lane_index)
+    {
+      const auto& wp = graph.get_lane(lane_index).entry().waypoint_index();
+      return valid_waypoint(wp);
+    };
+
   const auto r_it = std::remove_if(
     locations.begin(),
     locations.end(),
-    [&graph](const rmf_traffic::agv::Plan::Start& location)
+    [&graph, valid_waypoint,
+    valid_lane](const rmf_traffic::agv::Plan::Start& location)
     {
       if (location.lane().has_value())
       {
         // If the intention is to move along a lane, then it is okay to keep
-        // this. If the lane is entering or exiting the lift, then it should
-        // have the necessary events.
-        // TODO(@mxgrey): Should we check and make sure that the event is
-        // actually present?
-        return false;
+        // this, as long as the first waypoint is on the correct map.
+
+        // TODO(@mxgrey): Should we check and make sure that the right events
+        // are actually present?
+        return !valid_lane(*location.lane());
       }
 
       if (!location.location().has_value())
       {
-        // If the robot is perfectly on some waypoint then there is no need to
-        // filter.
-        return false;
+        // If the robot is perfectly on some waypoint then we should only check
+        // if it's on the correct map.
+        return !valid_waypoint(location.waypoint());
       }
 
       const Eigen::Vector2d p = location.location().value();
@@ -649,6 +716,18 @@ void RobotContext::set_nav_params(std::shared_ptr<NavParams> value)
 }
 
 //==============================================================================
+bool RobotContext::robot_finishing_request() const
+{
+  return _robot_finishing_request;
+}
+
+//==============================================================================
+void RobotContext::robot_finishing_request(bool robot_specific)
+{
+  _robot_finishing_request = robot_specific;
+}
+
+//==============================================================================
 class RobotContext::NegotiatorLicense
 {
 public:
@@ -938,6 +1017,12 @@ rmf_traffic::Duration RobotContext::get_lift_rewait_duration() const
 }
 
 //==============================================================================
+uint64_t RobotContext::last_reservation_request_id()
+{
+  return _last_reservation_request_id++;
+}
+
+//==============================================================================
 void RobotContext::respond(
   const TableViewerPtr& table_viewer,
   const ResponderPtr& responder)
@@ -1086,18 +1171,41 @@ const LiftDestination* RobotContext::current_lift_destination() const
 }
 
 //==============================================================================
+bool RobotContext::has_lift_arrived(
+  const std::string& lift_name,
+  const std::string& destination_floor) const
+{
+  if (!_lift_destination)
+    return false;
+
+  if (!_lift_destination->matches(lift_name, destination_floor))
+    return false;
+
+  return _lift_arrived;
+}
+
+//==============================================================================
 std::shared_ptr<void> RobotContext::set_lift_destination(
   std::string lift_name,
   std::string destination_floor,
   bool requested_from_inside)
 {
-  _lift_arrived = false;
+  RCLCPP_INFO(
+    _node->get_logger(),
+    "Setting lift destination for [%s] to %s at level %s",
+    requester_id().c_str(),
+    lift_name.c_str(),
+    destination_floor.c_str());
+
+  _lift_arrived = has_lift_arrived(lift_name, destination_floor);
+
   _lift_destination = std::make_shared<LiftDestination>(
     LiftDestination{
       std::move(lift_name),
       std::move(destination_floor),
       requested_from_inside
     });
+
   _initial_time_idle_outside_lift = std::nullopt;
 
   _publish_lift_destination();
@@ -1227,7 +1335,9 @@ RobotContext::RobotContext(
   _current_task_end_state(state),
   _current_task_id(std::nullopt),
   _task_planner(std::move(task_planner)),
-  _reporting(_worker)
+  _reporting(_worker),
+  _last_reservation_request_id(0),
+  _use_parking_spot_reservations(false)
 {
   _most_recent_valid_location = _location;
   _profile = std::make_shared<rmf_traffic::Profile>(
@@ -1336,6 +1446,33 @@ void RobotContext::schedule_hold(
 }
 
 //==============================================================================
+std::shared_ptr<const std::string>
+RobotContext::current_boarded_lift_level() const
+{
+  return _current_boarded_lift_level.lock();
+}
+
+//==============================================================================
+void RobotContext::_set_current_boarded_lift_level(
+  std::shared_ptr<const std::string> lift_level)
+{
+  _current_boarded_lift_level = lift_level;
+}
+
+//==============================================================================
+std::shared_ptr<const Location> RobotContext::reported_location() const
+{
+  return _reported_location;
+}
+
+//==============================================================================
+void RobotContext::_set_reported_location(
+  std::shared_ptr<const Location> value)
+{
+  _reported_location = std::move(value);
+}
+
+//==============================================================================
 void RobotContext::_set_task_manager(std::shared_ptr<TaskManager> mgr)
 {
   _task_manager = std::move(mgr);
@@ -1379,6 +1516,20 @@ void RobotContext::_release_door(const std::string& door_name)
 }
 
 //==============================================================================
+void RobotContext::_set_lift_arrived(
+  const std::string& lift_name,
+  const std::string& destination_floor)
+{
+  if (!_lift_destination)
+    return;
+
+  if (!_lift_destination->matches(lift_name, destination_floor))
+    return;
+
+  _lift_arrived = true;
+}
+
+//==============================================================================
 void RobotContext::_check_lift_state(
   const rmf_lift_msgs::msg::LiftState& state)
 {
@@ -1386,11 +1537,29 @@ void RobotContext::_check_lift_state(
   {
     if (_lift_destination && !_lift_destination->requested_from_inside)
     {
-      // The lift destination reference count dropping to one while the lift
-      // destination request is on the outside means the task that prompted the
-      // lift usage was cancelled while the robot was outside of the lift.
-      // Therefore we should release the usage of the lift.
-      release_lift();
+      const auto now = std::chrono::steady_clock::now();
+      if (_initial_time_idle_outside_lift.has_value())
+      {
+        const auto lapse = now - *_initial_time_idle_outside_lift;
+        if (lapse > std::chrono::seconds(30))
+        {
+          // The lift destination reference count dropping to one while the lift
+          // destination request is on the outside means the task that prompted
+          // the lift usage was cancelled while the robot was outside of the lift.
+          // Therefore we should release the usage of the lift.
+          RCLCPP_INFO(
+            _node->get_logger(),
+            "Requesting lift [%s] to be released for [%s] because it is outside "
+            "the lift and not holding a claim for an extended period of time.",
+            _lift_destination->lift_name.c_str(),
+            requester_id().c_str());
+          release_lift();
+        }
+      }
+      else
+      {
+        _initial_time_idle_outside_lift = now;
+      }
     }
     else if (_lift_destination && !_current_task_id.has_value())
     {
@@ -1415,7 +1584,7 @@ void RobotContext::_check_lift_state(
         if (_initial_time_idle_outside_lift.has_value())
         {
           const auto lapse = now - *_initial_time_idle_outside_lift;
-          if (lapse > std::chrono::seconds(2))
+          if (lapse > std::chrono::seconds(10))
           {
             RCLCPP_INFO(
               _node->get_logger(),
@@ -1423,8 +1592,8 @@ void RobotContext::_check_lift_state(
               "outside of the lift.",
               _lift_destination->lift_name.c_str(),
               requester_id().c_str());
+            release_lift();
           }
-          release_lift();
         }
         else
         {
@@ -1442,6 +1611,7 @@ void RobotContext::_check_lift_state(
       msg.lift_name = state.lift_name;
       msg.request_type = rmf_lift_msgs::msg::LiftRequest::REQUEST_END_SESSION;
       msg.session_id = requester_id();
+      msg.request_time = _node->now();
       _node->lift_request()->publish(msg);
     }
 
@@ -1452,9 +1622,6 @@ void RobotContext::_check_lift_state(
         // Be a stubborn negotiator while using the lift
         _lift_stubbornness = be_stubborn();
       }
-
-      _lift_arrived =
-        _lift_destination->destination_floor == state.current_floor;
     }
   }
   else if (_lift_destination && _lift_destination->lift_name == state.lift_name)
@@ -1468,7 +1635,10 @@ void RobotContext::_check_lift_state(
       state.session_id.c_str());
   }
 
-  _publish_lift_destination();
+  if (_lift_destination && _lift_destination->lift_name == state.lift_name)
+  {
+    _publish_lift_destination();
+  }
 }
 
 //==============================================================================
@@ -1496,10 +1666,17 @@ void RobotContext::_check_door_supervisor(
 {
   const auto now = std::chrono::steady_clock::now();
   const auto dt = std::chrono::seconds(10);
-  if (_last_active_task_time + dt < now)
+  if (_current_task_id.has_value())
   {
-    // Do not hold a door if a robot is idle for more than 10 seconds
-    _holding_door = std::nullopt;
+    _last_active_task_time = now;
+  }
+  else
+  {
+    if (_last_active_task_time + dt < now)
+    {
+      // Do not hold a door if a robot is idle for more than 10 seconds
+      _holding_door = std::nullopt;
+    }
   }
 
   for (const auto& door : state.all_sessions)
@@ -1609,7 +1786,7 @@ void RobotContext::_retain_mutex_groups(
   for (const auto& data : release)
   {
     _release_mutex_group(data);
-    _locked_mutex_groups.erase(data.name);
+    groups.erase(data.name);
   }
 }
 
@@ -1695,6 +1872,237 @@ void RobotContext::_publish_mutex_group_requests()
 }
 
 //==============================================================================
+void RobotContext::_set_allocated_destination(
+  const rmf_reservation_msgs::msg::ReservationAllocation& ticket)
+{
+  _reservation_mgr.replace_ticket(ticket);
+}
+
+//==============================================================================
+void RobotContext::_set_parking_spot_manager(const bool enabled)
+{
+  _use_parking_spot_reservations = enabled;
+}
+
+//==============================================================================
+bool RobotContext::_parking_spot_manager_enabled()
+{
+  return _use_parking_spot_reservations;
+}
+
+//==============================================================================
+std::string RobotContext::_get_reserved_location()
+{
+  return _reservation_mgr.get_reserved_location();
+}
+
+//==============================================================================
+bool RobotContext::_has_ticket() const
+{
+  return _reservation_mgr.has_ticket();
+}
+
+//==============================================================================
+uint32_t RobotContext::_begin_dynamic_event(
+  std::string description,
+  std::shared_ptr<DynamicEventCallbacks> callbacks)
+{
+  ++_dynamic_event_seq;
+  _dynamic_event_goal.reset();
+  _dynamic_event_callbacks = std::move(callbacks);
+
+  auto msg = rmf_task_msgs::build<DynamicEventDescription>()
+    .fleet(_itinerary.description().owner())
+    .robot(_itinerary.description().name())
+    .dynamic_event_seq(_dynamic_event_seq)
+    .description(std::move(description))
+    .start_time(_node->now());
+
+  // We publish to both the general topic and the robot-specific topic
+  _node->all_dynamic_event_descriptions()->publish(msg);
+  _individual_dynamic_event_description_pub->publish(msg);
+
+  return _dynamic_event_seq;
+}
+
+//==============================================================================
+void RobotContext::_publish_dynamic_event_status(
+  rmf_task::Event::State::Status status,
+  uint64_t id)
+{
+  uint8_t dynamic_state = DynamicEventStatus::DYNAMIC_STATE_INACTIVE;
+  if (!_dynamic_event_callbacks.expired())
+  {
+    if (_dynamic_event_goal.expired())
+    {
+      dynamic_state = DynamicEventStatus::DYNAMIC_STATE_WAITING;
+    }
+    else
+    {
+      dynamic_state = DynamicEventStatus::DYNAMIC_STATE_RUNNING;
+    }
+  }
+
+  auto msg = rmf_task_msgs::build<DynamicEventStatus>()
+    .dynamic_event_seq(_dynamic_event_seq)
+    .dynamic_state(dynamic_state)
+    .status(status_to_string(status))
+    .id(id)
+    .time(_node->now());
+
+  _dynamic_event_status_pub->publish(msg);
+}
+
+//==============================================================================
+std::vector<rmf_traffic::agv::Plan::Goal>
+RobotContext::_find_and_sort_parking_spots(
+  const bool same_floor) const
+{
+  std::vector<rmf_traffic::agv::Plan::Goal> final_result;
+  // Retrieve nav graph
+  const auto& graph = navigation_graph();
+
+  // Get current location
+  auto current_location = location();
+  if (current_location.size() == 0)
+  {
+    // Could not localize should probably log an error
+    RCLCPP_ERROR(node()->get_logger(), "Unable to localize.");
+    return final_result;
+  }
+
+  // Order wait points by the distance from the destination.
+  std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
+  waitpoints_order;
+  for (std::size_t wp_idx = 0; wp_idx < graph.num_waypoints(); ++wp_idx)
+  {
+    const auto& wp = graph.get_waypoint(wp_idx);
+
+    if (!wp.is_parking_spot())
+    {
+      continue;
+    }
+
+    if (same_floor)
+    {
+
+      // Check if same map. If not don't consider location. This is to ensure
+      // the robot does not try to board a lift.
+      if (wp.get_map_name() != map())
+      {
+        RCLCPP_INFO(
+          node()->get_logger(),
+          "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+          wp_idx,
+          wp.get_map_name().c_str(),
+          map().c_str());
+        continue;
+      }
+    }
+    auto result = planner()->quickest_path(current_location, wp_idx);
+    if (!result.has_value())
+    {
+      RCLCPP_INFO(
+        node()->get_logger(),
+        "No path found for waypoint #%lu",
+        wp_idx);
+      continue;
+    }
+
+    rmf_traffic::agv::Plan::Goal goal(wp_idx);
+    waitpoints_order.emplace_back(result->cost(), goal);
+
+  }
+
+  //Sort waiting points
+  std::sort(waitpoints_order.begin(), waitpoints_order.end(),
+    [](const std::tuple<double, rmf_traffic::agv::Plan::Goal>& a,
+    const std::tuple<double, rmf_traffic::agv::Plan::Goal>& b)
+    {
+      return std::get<0>(a) < std::get<0>(b);
+    });
+
+
+  for (auto&[_, waitpoint]: waitpoints_order)
+  {
+    final_result.push_back(waitpoint);
+  }
+  return final_result;
+}
+
+//==============================================================================
+std::vector<rmf_traffic::agv::Plan::Goal>
+RobotContext::_find_and_sort_parking_spots(
+  const rmf_traffic::agv::Plan::Goal& dest, const bool same_floor) const
+{
+  std::vector<rmf_traffic::agv::Plan::Goal> final_result;
+  // Retrieve nav graph
+  const auto& graph = navigation_graph();
+
+  // Get current location
+  rmf_traffic::agv::Plan::StartSet start;
+  start.emplace_back(now(), dest.waypoint(), 0);
+
+  // Order wait points by the distance from the destination.
+  std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
+  waitpoints_order;
+  for (std::size_t wp_idx = 0; wp_idx < graph.num_waypoints(); ++wp_idx)
+  {
+    const auto& wp = graph.get_waypoint(wp_idx);
+
+    if (!wp.is_parking_spot())
+    {
+      continue;
+    }
+
+    if (same_floor)
+    {
+
+      // Check if same map. If not don't consider location. This is to ensure
+      // the robot does not try to board a lift.
+      if (wp.get_map_name() != map())
+      {
+        RCLCPP_INFO(
+          node()->get_logger(),
+          "Skipping [%lu] as it is on map [%s] but robot is on map [%s].",
+          wp_idx,
+          wp.get_map_name().c_str(),
+          map().c_str());
+        continue;
+      }
+    }
+    auto result = planner()->quickest_path(start, wp_idx);
+    if (!result.has_value())
+    {
+      RCLCPP_INFO(
+        node()->get_logger(),
+        "No path found for waypoint #%lu",
+        wp_idx);
+      continue;
+    }
+
+    rmf_traffic::agv::Plan::Goal goal(wp_idx);
+    waitpoints_order.emplace_back(result->cost(), goal);
+
+  }
+
+  //Sort waiting points
+  std::sort(waitpoints_order.begin(), waitpoints_order.end(),
+    [](const std::tuple<double, rmf_traffic::agv::Plan::Goal>& a,
+    const std::tuple<double, rmf_traffic::agv::Plan::Goal>& b)
+    {
+      return std::get<0>(a) < std::get<0>(b);
+    });
+
+
+  for (auto&[_, waitpoint]: waitpoints_order)
+  {
+    final_result.push_back(waitpoint);
+  }
+  return final_result;
+}
+
+//==============================================================================
 void RobotContext::_handle_mutex_group_manual_release(
   const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg)
 {
@@ -1716,6 +2124,145 @@ void RobotContext::_handle_mutex_group_manual_release(
   }
 
   retain_mutex_groups(retain);
+}
+
+//==============================================================================
+void RobotContext::_initialize_dynamic_event_server()
+{
+  const auto single_transient_local_qos = rclcpp::QoS(1).reliable().transient_local();
+  _individual_dynamic_event_description_pub = _node
+    ->create_publisher<DynamicEventDescription>(
+      DynamicEventBeginTopicBase + "/" + requester_id(),
+      single_transient_local_qos);
+
+  _dynamic_event_status_pub = _node
+      ->create_publisher<DynamicEventStatus>(
+        DynamicEventStatusTopicBase + "/" + requester_id(),
+        single_transient_local_qos);
+
+  _dynamic_event_seq = 0;
+
+  std::string logger_name = std::string("rmf.dynamic_event.") + group() + "." + name();
+  auto logger = rclcpp::get_logger(logger_name);
+  auto handle_goal = [w = weak_from_this(), logger](
+    const rclcpp_action::GoalUUID&,
+    std::shared_ptr<const DynamicEventAction::Goal> goal)
+  {
+    const auto me = w.lock();
+    if (!me || goal->dynamic_event_seq != me->_dynamic_event_seq)
+    {
+      if (me)
+      {
+        RCLCPP_ERROR(
+          logger,
+          "Rejecting dynamic event goal because of dynamic_event_seq mismatch. "
+          "Expected %d, received %d.",
+          me->_dynamic_event_seq,
+          goal->dynamic_event_seq);
+      }
+      else
+      {
+        RCLCPP_ERROR(
+          logger,
+          "Rejecting dynamic event goal because the fleet adapter is winding down.");
+      }
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+
+    const auto callbacks = me->_dynamic_event_callbacks.lock();
+    if (!callbacks)
+    {
+      RCLCPP_ERROR(
+        logger,
+        "Rejecting dynamic event goal because there is no active dynamic event.");
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+
+    const bool cancellation = goal->event_type ==
+      DynamicEventAction::Goal::EVENT_TYPE_CANCEL;
+
+    if (!me->_dynamic_event_goal.expired() && !cancellation)
+    {
+      // There is an ongoing goal and the request is not a cancellation, so we
+      // should reject it.
+      RCLCPP_ERROR(
+        logger,
+        "Rejecting dynamic event goal because there is an active child event, "
+        "and the goal was not a cancellation.");
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+
+    if (goal->event_type == DynamicEventAction::Goal::EVENT_TYPE_NEXT)
+    {
+      if (!callbacks->validator(goal->category, goal->description))
+      {
+        RCLCPP_ERROR(
+          logger,
+          "Rejecting dynamic event goal because it failed validation.");
+        return rclcpp_action::GoalResponse::REJECT;
+      }
+    }
+
+    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+  };
+
+  auto handle_accepted = [w = weak_from_this()](
+    const std::shared_ptr<DynamicEventHandle> handle)
+  {
+    const auto me = w.lock();
+    if (!me)
+    {
+      handle->execute();
+      handle->abort(dynamic_event_execution_failure("shutting down"));
+      return;
+    }
+
+    const auto callbacks = me->_dynamic_event_callbacks.lock();
+    const auto event_conflict = !me->_dynamic_event_goal.expired()
+      && handle->get_goal()->event_type != DynamicEventAction::Goal::EVENT_TYPE_CANCEL;
+
+    if (!callbacks || event_conflict)
+    {
+      handle->execute();
+      handle->abort(dynamic_event_execution_failure("race condition"));
+      return;
+    }
+
+    auto execution_raii = std::make_shared<rclcpp_action::GoalUUID>(handle->get_goal_id());
+    me->_dynamic_event_goal = execution_raii;
+    callbacks->executor(handle, execution_raii);
+  };
+
+  auto handle_cancel = [w = weak_from_this()](
+    const std::shared_ptr<DynamicEventHandle> handle)
+  {
+    const auto me = w.lock();
+    std::shared_ptr<rclcpp_action::GoalUUID> current_action_guid;
+    std::shared_ptr<DynamicEventCallbacks> callbacks;
+    if (me)
+    {
+      current_action_guid = me->_dynamic_event_goal.lock();
+      callbacks = me->_dynamic_event_callbacks.lock();
+    }
+
+    if (!callbacks || !current_action_guid || *current_action_guid != handle->get_goal_id())
+    {
+      handle->canceled(
+        dynamic_event_execution_failure("cancelled while not running"));
+      return rclcpp_action::CancelResponse::ACCEPT;
+    }
+
+    callbacks->cancel(handle);
+
+    return rclcpp_action::CancelResponse::ACCEPT;
+  };
+
+  _dynamic_event_server = rclcpp_action::create_server<DynamicEventAction>(
+    _node,
+    DynamicEventActionName + "/" + requester_id(),
+    handle_goal,
+    handle_cancel,
+    handle_accepted);
 }
 
 } // namespace agv

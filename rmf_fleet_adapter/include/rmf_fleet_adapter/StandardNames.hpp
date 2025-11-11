@@ -28,6 +28,8 @@ const std::string DestinationRequestTopicName = "destination_requests";
 const std::string ModeRequestTopicName = "robot_mode_requests";
 const std::string PathRequestTopicName = "robot_path_requests";
 const std::string PauseRequestTopicName = "robot_pause_requests";
+const std::string FleetStateUpdateTopicName = "fleet_state_update";
+const std::string FleetLogUpdateTopicName = "fleet_log_update";
 
 const std::string FinalDoorRequestTopicName = "door_requests";
 const std::string AdapterDoorRequestTopicName = "adapter_door_requests";
@@ -68,6 +70,8 @@ const std::string InterruptRequestTopicName = "robot_interrupt_request";
 
 const std::string TaskApiRequests = "task_api_requests";
 const std::string TaskApiResponses = "task_api_responses";
+const std::string TaskStateUpdateTopicName = "task_state_update";
+const std::string TaskLogUpdateTopicName = "task_log_update";
 
 const std::string ChargingAssignmentsTopicName = "charging_assignments";
 
@@ -75,6 +79,17 @@ const std::string MutexGroupRequestTopicName = "mutex_group_request";
 const std::string MutexGroupStatesTopicName = "mutex_group_states";
 const std::string MutexGroupManualReleaseTopicName =
   "mutex_group_manual_release";
+
+const std::string ReservationRequestTopicName = "rmf/reservations/request";
+const std::string ReservationResponseTopicName = "rmf/reservations/tickets";
+const std::string ReservationClaimTopicName = "rmf/reservations/claim";
+const std::string ReservationAllocationTopicName =
+  "rmf/reservations/allocation";
+const std::string ReservationReleaseTopicName = "rmf/reservations/release";
+
+const std::string DynamicEventBeginTopicBase = "rmf/dynamic_event/begin";
+const std::string DynamicEventStatusTopicBase = "rmf/dynamic_event/status";
+const std::string DynamicEventActionName = "rmf/dynamic_event/command";
 
 const uint64_t Unclaimed = (uint64_t)(-1);
 
