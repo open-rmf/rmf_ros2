@@ -3489,7 +3489,7 @@ EasyFullControl::FleetConfiguration::change_strict_lanes()
 }
 
 //==============================================================================
-rmf_task::TaskPlanner::TaskAssignmentStrategy 
+const rmf_task::TaskPlanner::TaskAssignmentStrategy& 
   EasyFullControl::FleetConfiguration::task_assignment_strategy() const
 {
   return _pimpl->task_assignment_strategy;
@@ -3497,7 +3497,7 @@ rmf_task::TaskPlanner::TaskAssignmentStrategy
 
 //==============================================================================
 void EasyFullControl::FleetConfiguration::set_task_assignment_strategy(
-  const rmf_task::TaskPlanner::TaskAssignmentStrategy strategy)
+  const rmf_task::TaskPlanner::TaskAssignmentStrategy& strategy)
 {
   _pimpl->task_assignment_strategy = strategy;
 }

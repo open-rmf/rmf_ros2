@@ -853,11 +853,11 @@ public:
   std::unordered_set<std::size_t>& change_strict_lanes();
 
   /// Get the task planner assignment strategy.
-  AssignmentStrategy task_assignment_strategy() const;
+  const AssignmentStrategy& task_assignment_strategy() const;
 
   /// Set the task planner assignment strategy.
   void set_task_assignment_strategy(
-    const AssignmentStrategy strategy);
+    const AssignmentStrategy& strategy);
 
   class Implementation;
 private:
