@@ -3012,9 +3012,9 @@ EasyFullControl::FleetConfiguration::from_config_files(
       }
       else if (profile_str == "Custom")
       {
-        std::vector<double> weights_finish_time{0.0, 1.0};
-        std::vector<double> weights_battery_penalty{0.0};
-        std::vector<double> weights_busy_penalty{0.0};
+        std::vector<double> weights_finish_time{1.0};
+        std::vector<double> weights_battery_penalty{};
+        std::vector<double> weights_busy_penalty{};
         if (rmf_fleet["task_assignment_strategy"]["weights"])
         {
           const auto weights_node =
@@ -3027,7 +3027,7 @@ EasyFullControl::FleetConfiguration::from_config_files(
             weights_busy_penalty = weights_node["busy_penalty"].as<std::vector<double>>();
         }
 
-        auto busy_mode = AssignmentStrategy::Options::BusyMode::Binary;
+        auto busy_mode = AssignmentStrategy::BusyMode::Binary;
         if (rmf_fleet["task_assignment_strategy"]["options"] &&
           rmf_fleet["task_assignment_strategy"]["options"]["busy_mode"])
         {
@@ -3035,15 +3035,15 @@ EasyFullControl::FleetConfiguration::from_config_files(
             rmf_fleet["task_assignment_strategy"]["options"]["busy_mode"]
             .as<std::string>();
           if (busy_mode_str == "Binary")
-            busy_mode = AssignmentStrategy::Options::BusyMode::Binary;
+            busy_mode = AssignmentStrategy::BusyMode::Binary;
           else if (busy_mode_str == "Count")
-            busy_mode = AssignmentStrategy::Options::BusyMode::Count;
+            busy_mode = AssignmentStrategy::BusyMode::Count;
         }
-        task_assignment_strategy = AssignmentStrategy::make(AssignmentStrategy::Profile::Custom);
-        task_assignment_strategy.weights.finish_time = weights_finish_time;
-        task_assignment_strategy.weights.battery_penalty = weights_battery_penalty;
-        task_assignment_strategy.weights.busy_penalty = weights_busy_penalty;
-        task_assignment_strategy.options.busy_mode = busy_mode;
+        task_assignment_strategy = AssignmentStrategy::make(AssignmentStrategy::Profile::Unset);
+        task_assignment_strategy.finish_time_weights(weights_finish_time);
+        task_assignment_strategy.battery_penalty_weights(weights_battery_penalty);
+        task_assignment_strategy.busy_penalty_weights(weights_busy_penalty);
+        task_assignment_strategy.busy_mode(busy_mode);
       }
     }
   }
