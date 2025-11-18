@@ -672,11 +672,11 @@ void print_events(
   std::size_t depth
 ) {
     rmf_task::VersionedString::Reader reader;
-    seq << "\n -- ";
+    seq << "\n";
     for (std::size_t i=0; i < depth; ++i) {
-      seq << "  ";
+      seq << "    ";
     }
-    seq << "[" << state << "] " << *reader.read(state->name()) << ": " << *reader.read(state->detail());
+    seq << " -- [" << state << "] " << *reader.read(state->name()) << ": " << *reader.read(state->detail());
     for (const auto& d : state->dependencies()) {
       print_events(seq, d, depth+1);
     }
@@ -695,6 +695,12 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::function<void()> finished,
   std::optional<rmf_traffic::Duration> tail_period)
 {
+  // RCLCPP_INFO(
+  //   context->node()->get_logger(),
+  //   "New plan for [%s]:\n%s",
+  //   context->requester_id().c_str(),
+  //   print_plan_waypoints(plan.get_waypoints(), context->navigation_graph()).c_str());
+
   if (plan.get_waypoints().empty())
     return std::nullopt;
 
@@ -973,15 +979,26 @@ std::optional<ExecutePlan> ExecutePlan::make(
         }
       }
 
+      // If we need to lock mutex groups to reach the next waypoint and we
+      // didn't have any mutex groups locked previously, then we definitely
+      // have a change in mutex groups, so we will need to insert a locking
+      // event.
       bool mutex_group_change =
         (!new_mutex_groups.empty() && remaining_mutex_groups.empty());
 
       if (!mutex_group_change && !remaining_mutex_groups.empty())
       {
+        // If we did previously have some mutex groups locked, then we should
+        // check to see if the new ones are included in the ones already locked.
+        // If the new ones all included in the old ones, then no new lock event
+        // is needed.
         for (const auto& new_group : new_mutex_groups)
         {
           if (remaining_mutex_groups.count(new_group) == 0)
           {
+            // We have at least one new mutex group we need to lock that was not
+            // locked previously, so we set this to true to indicate that we
+            // need a locking event.
             mutex_group_change = true;
             break;
           }
@@ -1008,6 +1025,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
     {
       const auto [mutex_group_change, new_mutex_groups] = get_new_mutex_groups(
         *it);
+
       if (mutex_group_change)
       {
         if (move_through.size() > 1)
@@ -1179,6 +1197,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
           legacy_phases.emplace_back(
             nullptr, it->time(), it->dependencies(), current_mutex_groups);
         }
+        current_mutex_groups = std::nullopt;
 
         // Have the next sequence of waypoints begin with this one.
         move_through.clear();
@@ -1203,6 +1222,8 @@ std::optional<ExecutePlan> ExecutePlan::make(
           context, move_through, plan_id, tail_period),
         finish_time_estimate.value(), rmf_traffic::Dependencies{},
         current_mutex_groups);
+
+      current_mutex_groups = std::nullopt;
     }
 
     if (!event_occurred)
@@ -1334,6 +1355,14 @@ std::optional<ExecutePlan> ExecutePlan::make(
   auto sequence = rmf_task_sequence::events::Bundle::standby(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
+
+  // std::stringstream ss;
+  // print_events(ss, sequence->state(), 0);
+  // RCLCPP_INFO(
+  //   context->node()->get_logger(),
+  //   "Execution plan for %s:%s",
+  //   context->requester_id().c_str(),
+  //   ss.str().c_str());
 
   return ExecutePlan{
     std::move(plan),

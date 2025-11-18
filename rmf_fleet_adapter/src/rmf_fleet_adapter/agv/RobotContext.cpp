@@ -1295,10 +1295,11 @@ const rxcpp::observable<std::string>& RobotContext::request_mutex_groups(
 
 //==============================================================================
 void RobotContext::retain_mutex_groups(
-  const std::unordered_set<std::string>& retain)
+  const std::unordered_set<std::string>& retain,
+  std::string backtrace)
 {
-  _retain_mutex_groups(retain, _requesting_mutex_groups);
-  _retain_mutex_groups(retain, _locked_mutex_groups);
+  _retain_mutex_groups(retain, _requesting_mutex_groups, backtrace);
+  _retain_mutex_groups(retain, _locked_mutex_groups, backtrace);
 }
 
 //==============================================================================
@@ -1772,7 +1773,8 @@ void RobotContext::_check_mutex_groups(
 //==============================================================================
 void RobotContext::_retain_mutex_groups(
   const std::unordered_set<std::string>& retain,
-  std::unordered_map<std::string, TimeMsg>& groups)
+  std::unordered_map<std::string, TimeMsg>& groups,
+  std::string backtrace)
 {
   std::vector<MutexGroupData> release;
   for (const auto& [name, time] : groups)
@@ -1785,18 +1787,25 @@ void RobotContext::_retain_mutex_groups(
 
   for (const auto& data : release)
   {
-    _release_mutex_group(data);
+    _release_mutex_group(data, backtrace);
     groups.erase(data.name);
   }
 }
 
 //==============================================================================
-void RobotContext::_release_mutex_group(const MutexGroupData& data) const
+void RobotContext::_release_mutex_group(const MutexGroupData& data, std::string backtrace) const
 {
   if (data.name.empty())
   {
     return;
   }
+
+  // RCLCPP_INFO(
+  //   _node->get_logger(),
+  //   "Releasing mutex group [%s] for robot [%s] (backtrace: %s)",
+  //   data.name.c_str(),
+  //   requester_id().c_str(),
+  //   backtrace.c_str());
 
   _node->mutex_group_request()->publish(
     rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
@@ -1836,14 +1845,14 @@ void RobotContext::_publish_mutex_group_requests()
         for (const auto& [name, time] : _requesting_mutex_groups)
         {
           warning(name);
-          _release_mutex_group(MutexGroupData{name, time});
+          _release_mutex_group(MutexGroupData{name, time}, "idle");
         }
         _requesting_mutex_groups.clear();
 
         for (const auto& [name, time] : _locked_mutex_groups)
         {
           warning(name);
-          _release_mutex_group(MutexGroupData{name, time});
+          _release_mutex_group(MutexGroupData{name, time}, "idle");
         }
         _locked_mutex_groups.clear();
       }
@@ -2123,7 +2132,7 @@ void RobotContext::_handle_mutex_group_manual_release(
     retain.erase(g);
   }
 
-  retain_mutex_groups(retain);
+  retain_mutex_groups(retain, "manual");
 }
 
 //==============================================================================

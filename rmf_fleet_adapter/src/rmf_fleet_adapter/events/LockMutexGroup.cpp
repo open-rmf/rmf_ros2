@@ -49,7 +49,7 @@ auto LockMutexGroup::Standby::make(
   standby->_context = std::move(context);
   standby->_state = rmf_task::events::SimpleEventState::make(
     id->assign(),
-    "Lock mutex groups " + data.all_groups_str(),
+    "Lock mutex groups " + standby->_data.all_groups_str(),
     "Waiting for the mutex groups to be locked",
     rmf_task::Event::Status::Standby, {}, standby->_context->clock());
   return standby;

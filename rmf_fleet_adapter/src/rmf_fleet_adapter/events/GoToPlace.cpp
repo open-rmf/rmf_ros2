@@ -715,7 +715,8 @@ void GoToPlace::Active::_execute_plan(
 
     const auto& graph = _context->navigation_graph();
     _context->retain_mutex_groups(
-      {graph.get_waypoint(goal.waypoint()).in_mutex_group()});
+      {graph.get_waypoint(goal.waypoint()).in_mutex_group()},
+      "empty plan");
     if (_is_final_destination)
       _finished();
     return;

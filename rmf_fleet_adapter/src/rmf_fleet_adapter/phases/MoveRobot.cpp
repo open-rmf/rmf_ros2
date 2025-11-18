@@ -33,8 +33,20 @@ MoveRobot::ActivePhase::ActivePhase(
   std::ostringstream oss;
   const auto dest = destination(
     waypoints.back(), _context->planner()->get_configuration().graph());
-  oss << "Moving to " << dest;
+  const auto& graph = _context->navigation_graph();
+  oss << "Moving to " << dest << " via";
+  for (const auto& wp : waypoints)
+  {
+    oss << "\n -- " << agv::print_plan_waypoint(wp, graph, waypoints.front().time());
+  }
+
   _description = oss.str();
+
+  RCLCPP_INFO(
+    _context->node()->get_logger(),
+    "[%s] %s",
+    _context->requester_id().c_str(),
+    _description.c_str());
 
   _action = std::make_shared<MoveRobot::Action>(
     _context, waypoints, plan_id, _tail_period);
@@ -138,10 +150,34 @@ MoveRobot::Action::Action(
   rmf_traffic::PlanId plan_id,
   std::optional<rmf_traffic::Duration> tail_period)
 : _context{context},
+  _has_nav_elements(false),
   _waypoints{waypoints},
   _plan_id{plan_id},
   _tail_period{tail_period}
 {
+  for (const auto& wp : _waypoints)
+  {
+    if (wp.graph_index().has_value())
+    {
+      _has_nav_elements = true;
+      break;
+    }
+
+    if (!wp.approach_lanes().empty())
+    {
+      _has_nav_elements = true;
+      break;
+    }
+  }
+
+  if (!_has_nav_elements)
+  {
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "[%s] has no nav elements for this move",
+      _context->requester_id().c_str());
+  }
+
   _first_graph_index = [&]() -> std::optional<std::size_t>
     {
       for (const auto& wp : _waypoints)
