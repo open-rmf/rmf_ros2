@@ -349,21 +349,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             if (last_index.has_value())
             {
               const auto& graph = self->_context->navigation_graph();
-
-              // RCLCPP_INFO(
-              //   self->_context->node()->get_logger(),
-              //   "[%s] last waypoint: %zu",
-              //   self->_context->requester_id().c_str(),
-              //   *last_index);
-
-              // const auto& final_wp = graph.get_waypoint(*last_index);
-              // RCLCPP_INFO(
-              //   self->_context->node()->get_logger(),
-              //   "[%s] finished move at waypoint [%s] with mutex [%s]",
-              //   self->_context->requester_id().c_str(),
-              //   final_wp.name_or_index().c_str(),
-              //   final_wp.in_mutex_group().c_str());
-
               self->_context->retain_mutex_groups(
                 {graph.get_waypoint(*last_index).in_mutex_group()}, "move robot finish");
             }

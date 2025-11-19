@@ -1296,7 +1296,7 @@ const rxcpp::observable<std::string>& RobotContext::request_mutex_groups(
 //==============================================================================
 void RobotContext::retain_mutex_groups(
   const std::unordered_set<std::string>& retain,
-  std::string backtrace)
+  const std::string& backtrace)
 {
   _retain_mutex_groups(retain, _requesting_mutex_groups, backtrace);
   _retain_mutex_groups(retain, _locked_mutex_groups, backtrace);
@@ -1774,7 +1774,7 @@ void RobotContext::_check_mutex_groups(
 void RobotContext::_retain_mutex_groups(
   const std::unordered_set<std::string>& retain,
   std::unordered_map<std::string, TimeMsg>& groups,
-  std::string backtrace)
+  const std::string& backtrace)
 {
   std::vector<MutexGroupData> release;
   for (const auto& [name, time] : groups)
@@ -1793,19 +1793,21 @@ void RobotContext::_retain_mutex_groups(
 }
 
 //==============================================================================
-void RobotContext::_release_mutex_group(const MutexGroupData& data, std::string backtrace) const
+void RobotContext::_release_mutex_group(
+  const MutexGroupData& data,
+  const std::string& backtrace) const
 {
   if (data.name.empty())
   {
     return;
   }
 
-  // RCLCPP_INFO(
-  //   _node->get_logger(),
-  //   "Releasing mutex group [%s] for robot [%s] (backtrace: %s)",
-  //   data.name.c_str(),
-  //   requester_id().c_str(),
-  //   backtrace.c_str());
+  RCLCPP_DEBUG(
+    _node->get_logger(),
+    "Releasing mutex group [%s] for robot [%s] (backtrace: %s)",
+    data.name.c_str(),
+    requester_id().c_str(),
+    backtrace.c_str());
 
   _node->mutex_group_request()->publish(
     rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()

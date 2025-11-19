@@ -170,14 +170,6 @@ MoveRobot::Action::Action(
     }
   }
 
-  if (!_has_nav_elements)
-  {
-    RCLCPP_INFO(
-      _context->node()->get_logger(),
-      "[%s] has no nav elements for this move",
-      _context->requester_id().c_str());
-  }
-
   _first_graph_index = [&]() -> std::optional<std::size_t>
     {
       for (const auto& wp : _waypoints)

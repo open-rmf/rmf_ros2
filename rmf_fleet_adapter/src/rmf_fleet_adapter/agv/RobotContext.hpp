@@ -825,7 +825,9 @@ public:
     rmf_traffic::Time claim_time);
 
   /// Retain only the mutex groups listed in the set. Release all others.
-  void retain_mutex_groups(const std::unordered_set<std::string>& groups, std::string backtrace);
+  void retain_mutex_groups(
+    const std::unordered_set<std::string>& groups,
+    const std::string& backtrace);
 
   void schedule_itinerary(
     std::shared_ptr<rmf_traffic::PlanId> plan_id,
@@ -1102,8 +1104,10 @@ private:
   void _retain_mutex_groups(
     const std::unordered_set<std::string>& retain,
     std::unordered_map<std::string, TimeMsg>& _groups,
-    std::string backtrace);
-  void _release_mutex_group(const MutexGroupData& data, std::string backtrace) const;
+    const std::string& backtrace);
+  void _release_mutex_group(
+    const MutexGroupData& data,
+    const std::string& backtrace) const;
   void _publish_mutex_group_requests();
   void _handle_mutex_group_manual_release(
     const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg);

@@ -695,11 +695,11 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::function<void()> finished,
   std::optional<rmf_traffic::Duration> tail_period)
 {
-  // RCLCPP_INFO(
-  //   context->node()->get_logger(),
-  //   "New plan for [%s]:\n%s",
-  //   context->requester_id().c_str(),
-  //   print_plan_waypoints(plan.get_waypoints(), context->navigation_graph()).c_str());
+  RCLCPP_DEBUG(
+    context->node()->get_logger(),
+    "New plan for [%s]:\n%s",
+    context->requester_id().c_str(),
+    print_plan_waypoints(plan.get_waypoints(), context->navigation_graph()).c_str());
 
   if (plan.get_waypoints().empty())
     return std::nullopt;
@@ -1356,13 +1356,13 @@ std::optional<ExecutePlan> ExecutePlan::make(
     rmf_task_sequence::events::Bundle::Type::Sequence,
     standbys, state, std::move(update))->begin([]() {}, std::move(finished));
 
-  // std::stringstream ss;
-  // print_events(ss, sequence->state(), 0);
-  // RCLCPP_INFO(
-  //   context->node()->get_logger(),
-  //   "Execution plan for %s:%s",
-  //   context->requester_id().c_str(),
-  //   ss.str().c_str());
+  std::stringstream ss;
+  print_events(ss, sequence->state(), 0);
+  RCLCPP_DEBUG(
+    context->node()->get_logger(),
+    "Execution plan for %s:%s",
+    context->requester_id().c_str(),
+    ss.str().c_str());
 
   return ExecutePlan{
     std::move(plan),
