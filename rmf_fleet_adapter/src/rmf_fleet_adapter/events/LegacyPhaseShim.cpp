@@ -101,6 +101,7 @@ auto LegacyPhaseShim::Active::make(
   active->_parent_update = std::move(parent_update);
   active->_finished = std::move(finished);
   active->_legacy = legacy->begin();
+  // TODO(luca) Task summaries are not published anymore, revisit and remove
   active->_subscription = active->_legacy->observe()
     .observe_on(rxcpp::identity_same_worker(worker))
     .subscribe(
