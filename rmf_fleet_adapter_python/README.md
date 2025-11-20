@@ -28,7 +28,7 @@ ros2 run rmf_fleet_adapter_python test_adapter.py
 ```
 
 You may then probe the effects on the ROS2 graph by subscribing to the following topics with `ros2 topic echo <TOPIC_NAME>`:
-- <TOPIC_NAME>: `/dispenser_requests`, `/dispenser_results`, `ingestor_requests`, `ingestor_results`, `/task_summaries`
+- <TOPIC_NAME>: `/dispenser_requests`, `/dispenser_results`, `ingestor_requests`, `ingestor_results`
 
 ###  Traffic Light Example
 This will showcase an example of having 2 "traffic light" robots using RMF.

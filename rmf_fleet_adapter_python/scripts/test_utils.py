@@ -24,7 +24,6 @@ class Constants:
     ingestor_states_topic = 'ingestor_states'
     ingestor_requests_topic = 'ingestor_requests'
 
-    task_summary_topic = 'task_summaries'
 
 
 class MockDispenser(Node):
