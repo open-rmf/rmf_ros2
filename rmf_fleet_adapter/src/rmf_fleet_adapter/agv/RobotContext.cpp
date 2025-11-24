@@ -511,9 +511,58 @@ std::function<rmf_traffic::Time()> RobotContext::clock() const
 }
 
 //==============================================================================
-const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
+rmf_traffic::agv::Plan::StartSet RobotContext::location() const
 {
-  return _location;
+  if (const auto wp_ptr = _current_event_waypoint.lock())
+  {
+    std::size_t wp = *wp_ptr;
+    const auto& graph = navigation_graph();
+
+    Eigen::Vector2d p = graph.get_waypoint(wp).get_location();
+    double orientation = 0.0;
+    for (const auto& start : _location)
+    {
+      orientation = start.orientation();
+      if (start.location().has_value())
+      {
+        // Get the exact position based on the first location to specify one.
+        // In practice all positions specified by all start locations should be
+        // the same. Something is wrong with user input if there is any
+        // difference between them.
+        p = start.location().value();
+        break;
+      }
+    }
+
+    rmf_traffic::agv::Plan::StartSet starts;
+
+    const auto time = now();
+
+    // Create a start option for every lane coming out of this waypoint
+    for (const std::size_t l : graph.lanes_from(wp))
+    {
+      const auto& lane = graph.get_lane(l);
+      starts.push_back(rmf_traffic::agv::Plan::Start(
+        time,
+        lane.exit().waypoint_index(),
+        orientation,
+        p,
+        l));
+    }
+
+    // Add a start that simply begins directly with the waypoint
+    starts.push_back(rmf_traffic::agv::Plan::Start(
+      time,
+      wp,
+      orientation,
+      p));
+
+    return starts;
+  }
+  else
+  {
+    return _location;
+  }
 }
 
 //==============================================================================
