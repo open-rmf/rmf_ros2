@@ -436,25 +436,6 @@ target_include_directories(dump_fleet_states
 
 # -----------------------------------------------------------------------------
 
-add_executable(task_aggregator
-  src/task_aggregator/main.cpp
-)
-
-target_link_libraries(task_aggregator
-  PRIVATE
-    rmf_fleet_adapter
-    ${rclcpp_LIBRARIES}
-    ${rmf_task_msgs_LIBRARIES}
-)
-
-target_include_directories(task_aggregator
-  PRIVATE
-    ${rclcpp_INCLUDE_DIRS}
-    ${rmf_task_msgs_INCLUDE_DIRS}
-)
-
-# -----------------------------------------------------------------------------
-
 add_executable(open_lanes src/open_lanes/main.cpp)
 
 target_link_libraries(open_lanes
@@ -536,7 +517,6 @@ install(
     door_supervisor
     robot_state_aggregator
     test_read_only_adapter
-    task_aggregator
     open_lanes
     close_lanes
     interrupt_robot

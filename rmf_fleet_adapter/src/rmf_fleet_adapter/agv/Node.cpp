@@ -58,10 +58,6 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<LiftRequest>(
     AdapterLiftRequestTopicName, transient_qos);
 
-  node->_task_summary_pub =
-    node->create_publisher<TaskSummary>(
-    TaskSummaryTopicName, default_qos);
-
   node->_dispenser_request_pub =
     node->create_publisher<DispenserRequest>(
     DispenserRequestTopicName, default_qos);
@@ -203,12 +199,6 @@ auto Node::lift_state() const -> const LiftStateObs&
 auto Node::lift_request() const -> const LiftRequestPub&
 {
   return _lift_request_pub;
-}
-
-//==============================================================================
-auto Node::task_summary() const -> const TaskSummaryPub&
-{
-  return _task_summary_pub;
 }
 
 //==============================================================================
