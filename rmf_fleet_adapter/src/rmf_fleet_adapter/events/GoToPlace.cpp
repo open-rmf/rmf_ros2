@@ -746,7 +746,12 @@ void GoToPlace::Active::_execute_plan(
   }
   else
   {
-    auto event = rmf_task::events::SimpleEventState::make(_assign_id->assign(), "detour", "", Status::Underway, {});
+    auto event = rmf_task::events::SimpleEventState::make(
+      _assign_id->assign(),
+      "detour",
+      "The robot is parking until its destination becomes available", 
+      Status::Underway,
+      {});
     _state->update_dependencies({event});
     _execution = ExecutePlan::make(
       _context, plan_id, std::move(plan), std::move(goal),
