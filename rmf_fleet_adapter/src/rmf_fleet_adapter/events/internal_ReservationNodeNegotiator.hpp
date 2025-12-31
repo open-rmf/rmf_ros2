@@ -150,8 +150,16 @@ public:
             return;
           }
 
+          if (self->_final_allocated_destination.has_value() && 
+              self->_final_allocated_destination.value()->resource == msg->resource)
+          {
+            // Do nothing
+          }
+          else
+          {
+            self->_context->_set_allocated_destination(*msg.get());
+          }
           self->_final_allocated_destination = msg;
-          self->_context->_set_allocated_destination(*msg.get());
 
           if (msg->instruction_type
           == rmf_reservation_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED)

@@ -162,7 +162,8 @@ public:
   std::optional<std::size_t> allocate_lowest_cost_free_spot(
     std::shared_ptr<rclcpp::Node> node,
     std::vector<LocationReq> requests,
-    const std::size_t ticket_id)
+    const std::size_t ticket_id,
+    TicketStore& ticket_store)
   {
     if (_ticket_to_location.count(ticket_id) != 0)
     {
@@ -191,6 +192,19 @@ public:
       else if (!parking->second.ticket.has_value())
       {
         // Existing parking spot.
+        _current_location_reservations[requests[i].location].ticket = ticket_id;
+        _ticket_to_location.emplace(ticket_id, requests[i].location);
+        return positions[parking->first];
+      }
+      // Check if the requester already occupies one of the waitpoints
+      auto existing_ticket = ticket_store.get_existing_ticket(
+        parking->second.ticket.value());
+      auto request_ticket = ticket_store.get_existing_ticket(ticket_id);
+      if (existing_ticket.header.fleet_name == request_ticket.header.fleet_name &&
+          existing_ticket.header.robot_name == request_ticket.header.robot_name)
+      {
+        // Release the previous ticket for the same waitpoint and update with the current ticket
+        release(parking->second.ticket.value());
         _current_location_reservations[requests[i].location].ticket = ticket_id;
         _ticket_to_location.emplace(ticket_id, requests[i].location);
         return positions[parking->first];
@@ -430,7 +444,8 @@ private:
     auto result = current_state_.allocate_lowest_cost_free_spot(
         shared_from_this(),
         locations,
-        request->ticket.ticket_id);
+        request->ticket.ticket_id,
+        ticket_store_);
     if (result.has_value())
     {
       rmf_reservation_msgs::msg::ReservationAllocation allocation;
@@ -481,7 +496,8 @@ private:
     auto waitpoint_result = current_state_.allocate_lowest_cost_free_spot(
       shared_from_this(),
       wait_points,
-      request->ticket.ticket_id);
+      request->ticket.ticket_id,
+      ticket_store_);
     if (waitpoint_result.has_value())
     {
       rmf_reservation_msgs::msg::ReservationAllocation allocation;
@@ -515,7 +531,9 @@ private:
     if (!previous_waiting_location.has_value())
     {
       RCLCPP_ERROR(
-        this->get_logger(), "Could not find ticket %lu. Something is wrong.",
+        this->get_logger(),
+        "Could not find ticket %lu. It may have been released "
+        "in favor of a duplicate reservation request.",
         request->ticket.ticket_id);
       return;
     }
@@ -543,7 +561,8 @@ private:
         current_state_.allocate_lowest_cost_free_spot(
           shared_from_this(),
           requests_[next_ticket.value()],
-          next_ticket.value());
+          next_ticket.value(),
+          ticket_store_);
       RCLCPP_DEBUG(
         this->get_logger(), "Found next item %lu on queue %s",
         next_ticket.value(),
