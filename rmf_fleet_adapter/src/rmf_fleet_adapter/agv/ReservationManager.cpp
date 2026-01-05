@@ -33,6 +33,11 @@ void ReservationManager::replace_ticket(
   {
     if (new_allocation.ticket.ticket_id != _allocation->ticket.ticket_id)
     {
+      // Do not publish release request if this is a re-allocation
+      if (new_allocation.resource == _allocation->resource)
+      {
+        return;
+      }
       RCLCPP_INFO(
         context->node()->get_logger(),
         "Releasing waypoint for ticket %lu as new ticket has become available",
