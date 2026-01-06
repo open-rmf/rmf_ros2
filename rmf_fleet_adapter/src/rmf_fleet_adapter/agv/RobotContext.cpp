@@ -2045,7 +2045,7 @@ RobotContext::_find_and_sort_parking_spots(
   for (std::size_t wp_idx = 0; wp_idx < graph.num_waypoints(); ++wp_idx)
   {
     const auto& wp = graph.get_waypoint(wp_idx);
-    
+
     if (!wp.is_parking_spot())
     {
       continue;
@@ -2082,7 +2082,7 @@ RobotContext::_find_and_sort_parking_spots(
 
     rmf_traffic::agv::Plan::Goal goal(wp_idx);
     waitpoints_order.emplace_back(result->cost(), goal);
-    
+
   }
 
   //Sort waiting points
