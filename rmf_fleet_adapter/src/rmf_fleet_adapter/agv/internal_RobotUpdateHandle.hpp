@@ -167,32 +167,13 @@ public:
       if (!context)
         return;
 
-      const auto nav_params = context->nav_params();
-      if (nav_params)
-      {
-        if (const auto p = nav_params->to_rmf_coordinates(map, location))
-        {
-          location = *p;
-        }
-        else
-        {
-          RCLCPP_ERROR(
-            context->node()->get_logger(),
-            "[EasyFullControl] Unable to find a robot transform for map [%s] "
-            "while updating the location of robot [%s] performing an activity. "
-            "We cannot update the robot's location.",
-            map.c_str(),
-            context->requester_id().c_str());
-          return;
-        }
-      }
-
       if (schedule_override.has_value())
       {
         return schedule_override->overridden_update(
           context, map, location);
       }
 
+      const auto nav_params = context->nav_params();
       if (nav_params)
       {
         if (context->debug_positions)

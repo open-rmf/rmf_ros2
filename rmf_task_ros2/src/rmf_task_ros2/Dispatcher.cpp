@@ -920,6 +920,7 @@ public:
     }
 
     finished_dispatch_states[active_it->first] = active_it->second;
+    active_dispatch_states.erase(active_it);
   }
 
   void publish_dispatch_states()

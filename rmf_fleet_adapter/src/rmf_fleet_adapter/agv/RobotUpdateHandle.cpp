@@ -272,6 +272,8 @@ RobotUpdateHandle& RobotUpdateHandle::use_parking_reservation_system(bool use)
           self->requester_id().c_str());
       });
   }
+
+  return *this;
 }
 
 //==============================================================================
