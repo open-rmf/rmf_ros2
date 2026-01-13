@@ -162,7 +162,8 @@ public:
   std::optional<std::size_t> allocate_lowest_cost_free_spot(
     std::shared_ptr<rclcpp::Node> node,
     std::vector<LocationReq> requests,
-    const std::size_t ticket_id)
+    const std::size_t ticket_id,
+    TicketStore& ticket_store)
   {
     if (_ticket_to_location.count(ticket_id) != 0)
     {
@@ -176,6 +177,7 @@ public:
       positions[requests[i].location] = i;
     }
 
+    auto request_ticket = ticket_store.get_existing_ticket(ticket_id);
     std::sort(requests.begin(), requests.end());
     for (std::size_t i = 0; i < requests.size(); i++)
     {
@@ -194,6 +196,39 @@ public:
         _current_location_reservations[requests[i].location].ticket = ticket_id;
         _ticket_to_location.emplace(ticket_id, requests[i].location);
         return positions[parking->first];
+      }
+    }
+
+    // If there is no free spot found, check if the robot is already sitting on
+    // one of the spot requested, re-allocate it
+    for (auto& it : _current_location_reservations)
+    {
+      if (!it.second.ticket.has_value())
+      {
+        continue;
+      }
+      auto existing_ticket = ticket_store.get_existing_ticket(
+        it.second.ticket.value());
+      if (existing_ticket.header.fleet_name == request_ticket.header.fleet_name &&
+          existing_ticket.header.robot_name == request_ticket.header.robot_name)
+      {
+        if (positions.find(it.first) == positions.end())
+        {
+          continue;
+        }
+        // Release the previous ticket for the same waitpoint and update with
+        // the current ticket
+        RCLCPP_INFO(node->get_logger(),
+          "Robot [%s] is already sitting on waitspot [%s], re-allocating it to "
+          "the same robot. Replacing ticket %lu with ticket %lu.",
+          request_ticket.header.robot_name.c_str(),
+          it.first.c_str(),
+          existing_ticket.ticket_id,
+          ticket_id);
+        release(it.second.ticket.value());
+        it.second.ticket = ticket_id;
+        _ticket_to_location.emplace(ticket_id, it.first);
+        return positions[it.first];
       }
     }
 
@@ -430,7 +465,8 @@ private:
     auto result = current_state_.allocate_lowest_cost_free_spot(
         shared_from_this(),
         locations,
-        request->ticket.ticket_id);
+        request->ticket.ticket_id,
+        ticket_store_);
     if (result.has_value())
     {
       rmf_reservation_msgs::msg::ReservationAllocation allocation;
@@ -442,9 +478,10 @@ private:
       allocation.resource =
         requests_[request->ticket.ticket_id][result.value()].location;
 
-      RCLCPP_DEBUG(this->get_logger(), "Allocating %s to %s",
+      RCLCPP_DEBUG(this->get_logger(), "Allocating %s to %s with ticket %lu",
         allocation.resource.c_str(),
-        ticket_store_.debug_ticket(request->ticket.ticket_id).c_str());
+        ticket_store_.debug_ticket(request->ticket.ticket_id).c_str(),
+        allocation.ticket.ticket_id);
       allocation_pub_->publish(allocation);
       return;
     }
@@ -481,7 +518,8 @@ private:
     auto waitpoint_result = current_state_.allocate_lowest_cost_free_spot(
       shared_from_this(),
       wait_points,
-      request->ticket.ticket_id);
+      request->ticket.ticket_id,
+      ticket_store_);
     if (waitpoint_result.has_value())
     {
       rmf_reservation_msgs::msg::ReservationAllocation allocation;
@@ -491,9 +529,10 @@ private:
         rmf_reservation_msgs::msg::ReservationAllocation::WAIT_IDENTIFIED;
       allocation.chosen_alternative = waitpoint_result.value();
       allocation.resource = wait_points[waitpoint_result.value()].location;
-      RCLCPP_INFO(this->get_logger(), "Allocating %s as waitpoint to %s",
+      RCLCPP_INFO(this->get_logger(), "Allocating %s as waitpoint to %s with ticket %lu",
         allocation.resource.c_str(),
-        ticket_store_.debug_ticket(request->ticket.ticket_id).c_str());
+        ticket_store_.debug_ticket(request->ticket.ticket_id).c_str(),
+        allocation.ticket.ticket_id);
       allocation_pub_->publish(allocation);
     }
     else
@@ -543,7 +582,8 @@ private:
         current_state_.allocate_lowest_cost_free_spot(
           shared_from_this(),
           requests_[next_ticket.value()],
-          next_ticket.value());
+          next_ticket.value(),
+          ticket_store_);
       RCLCPP_DEBUG(
         this->get_logger(), "Found next item %lu on queue %s",
         next_ticket.value(),
