@@ -705,7 +705,6 @@ void GoToPlace::Active::_execute_plan(
 
   if (plan.get_itinerary().empty() || plan.get_waypoints().empty())
   {
-    _state->update_status(Status::Completed);
     _state->update_log().info(
       "The planner indicates that the robot is already at its goal.");
     RCLCPP_INFO(
@@ -718,7 +717,12 @@ void GoToPlace::Active::_execute_plan(
     _context->retain_mutex_groups(
       {graph.get_waypoint(goal.waypoint()).in_mutex_group()});
     if (_is_final_destination)
+    {
+      _state->update_status(Status::Completed);
       _finished();
+    }
+
+    _execution = std::nullopt;
     return;
   }
 
