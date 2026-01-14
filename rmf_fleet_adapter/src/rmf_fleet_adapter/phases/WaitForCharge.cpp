@@ -166,6 +166,11 @@ std::shared_ptr<LegacyTask::ActivePhase> WaitForCharge::Pending::begin()
       {
         if (*active->_charge_to_soc <= battery_soc)
         {
+          StatusMsg msg;
+          msg.state = msg.STATE_COMPLETED;
+          msg.status = "Completed phase [" + active->_description + "]";
+          active->_status_publisher.get_subscriber().on_next(msg);
+
           active->_status_publisher.get_subscriber().on_completed();
         }
       }
