@@ -35,6 +35,8 @@
 #include <rmf_task_sequence/Phase.hpp>
 #include <rmf_task_sequence/Event.hpp>
 
+#include <rmf_task/TaskPlanner.hpp>
+
 #include <rclcpp/node.hpp>
 
 namespace rmf_fleet_adapter {
@@ -263,6 +265,8 @@ public:
   /// Remove speed limits from specified lanes.
   void remove_speed_limits(std::vector<std::size_t> requests);
 
+  using AssignmentStrategy = rmf_task::TaskPlanner::TaskAssignmentStrategy;
+
   /// Set the parameters required for task planning. Without calling this
   /// function, this fleet will not bid for and accept tasks.
   ///
@@ -299,6 +303,11 @@ public:
   ///   A factory for a request that should be performed by each robot in this
   ///   fleet at the end of its assignments.
   ///
+  /// \param[in] task_assignment_strategy
+  ///   The strategy used to assign tasks during node expansion while
+  ///   looping unassigned tasks in the task planner.
+  ///   If not specified, the default is Profile::DefaultFastest.
+  ///
   /// \return true if task planner parameters were successfully updated.
   bool set_task_planner_params(
     rmf_battery::agv::ConstBatterySystemPtr battery_system,
@@ -308,7 +317,9 @@ public:
     double recharge_threshold,
     double recharge_soc,
     bool account_for_battery_drain,
-    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr);
+    rmf_task::ConstRequestFactoryPtr finishing_request = nullptr,
+    AssignmentStrategy task_assignment_strategy =
+      AssignmentStrategy::make(AssignmentStrategy::Profile::DefaultFastest));
 
   /// A callback function that evaluates whether a fleet will accept a task
   /// request
