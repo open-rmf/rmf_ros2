@@ -24,6 +24,7 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
+#include <rmf_task/events/SimpleEventState.hpp>
 #include <rmf_traffic/schedule/StubbornNegotiator.hpp>
 #include <rmf_traffic/agv/Planner.hpp>
 #include <string>
@@ -704,7 +705,6 @@ void GoToPlace::Active::_execute_plan(
 
   if (plan.get_itinerary().empty() || plan.get_waypoints().empty())
   {
-    _state->update_status(Status::Completed);
     _state->update_log().info(
       "The planner indicates that the robot is already at its goal.");
     RCLCPP_INFO(
@@ -718,7 +718,12 @@ void GoToPlace::Active::_execute_plan(
       {graph.get_waypoint(goal.waypoint()).in_mutex_group()},
       "empty plan");
     if (_is_final_destination)
+    {
+      _state->update_status(Status::Completed);
       _finished();
+    }
+
+    _execution = std::nullopt;
     return;
   }
 
@@ -746,12 +751,20 @@ void GoToPlace::Active::_execute_plan(
   }
   else
   {
+    auto event = rmf_task::events::SimpleEventState::make(
+      _assign_id->assign(),
+      "detour",
+      "The robot is parking until its destination becomes available", 
+      Status::Underway,
+      {});
+    _state->update_dependencies({event});
     _execution = ExecutePlan::make(
       _context, plan_id, std::move(plan), std::move(goal),
       std::move(full_itinerary),
-      _assign_id, _state, _update, [&]()
+      _assign_id, event, _update, [&]()
       {
         _reached_waitpoint = true;
+        _state->update_status(Status::Standby);
       }, _tail_period);
   }
 
