@@ -36,7 +36,7 @@ public:
   struct Data
   {
     std::unordered_set<std::string> mutex_groups;
-    std::optional<std::size_t> hold_wp;
+    // std::optional<std::size_t> hold_wp;
     std::string hold_map;
     Eigen::Vector3d hold_position;
     rmf_traffic::Time hold_time;
@@ -111,7 +111,7 @@ public:
     rmf_rxcpp::subscription_guard _plan_subscription;
     std::shared_ptr<services::FindPath> _find_path_service;
     rclcpp::TimerBase::SharedPtr _find_path_timeout;
-    std::shared_ptr<std::size_t> _current_event_waypoint;
+    // std::shared_ptr<std::size_t> _current_event_waypoint;
   };
 };
 
