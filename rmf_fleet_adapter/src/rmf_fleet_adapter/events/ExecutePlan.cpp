@@ -940,6 +940,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
         rmf_traffic::schedule::Itinerary>(full_itinerary);
       auto data = LockMutexGroup::Data{
         new_mutex_groups,
+        wp.graph_index(),
         hold_map,
         hold_position,
         hold_time,

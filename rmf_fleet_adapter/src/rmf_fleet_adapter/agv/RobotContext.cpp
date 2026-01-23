@@ -517,21 +517,54 @@ rmf_traffic::agv::Plan::StartSet RobotContext::location() const
   {
     std::size_t wp = *wp_ptr;
     const auto& graph = navigation_graph();
+    const auto p_wp = graph.get_waypoint(wp).get_location();
+    const double merge_radius = std::max(
+      graph.get_waypoint(wp).merge_radius().value_or(0.0),
+      nav_params()->max_merge_lane_distance);
 
-    Eigen::Vector2d p = graph.get_waypoint(wp).get_location();
+    std::optional<Eigen::Vector2d> p = std::nullopt;
     double orientation = 0.0;
     for (const auto& start : _location)
     {
-      orientation = start.orientation();
-      if (start.location().has_value())
+      if (start.lane().has_value())
       {
-        // Get the exact position based on the first location to specify one.
-        // In practice all positions specified by all start locations should be
-        // the same. Something is wrong with user input if there is any
-        // difference between them.
-        p = start.location().value();
-        break;
+        const auto& lane = graph.get_lane(start.lane().value());
+        if (lane.entry().waypoint_index() == wp)
+        {
+          p = start.location().value_or(p_wp);
+          break;
+        }
       }
+      else if (start.location().has_value())
+      {
+        if ((p_wp - start.location().value()).norm() < merge_radius)
+        {
+          // Get the exact position based on the first location to specify a
+          // one close enough to the current event waypoint. In practice all
+          // positions specified by all start locations should be the same.
+          // Something is wrong with user input if there is any difference
+          // between them.
+          p = start.location().value();
+          break;
+        }
+      }
+      else
+      {
+        const auto p_s = graph.get_waypoint(start.waypoint()).get_location();
+        if ((p_s - p_wp).norm() < merge_radius)
+        {
+          p = p_s;
+          break;
+        }
+      }
+    }
+
+    if (!p.has_value())
+    {
+      // The robot is too far from the current event waypoint. We can't consider
+      // it to be on that waypoint. Just return the _location as reported by
+      // the client.
+      return _location;
     }
 
     rmf_traffic::agv::Plan::StartSet starts;
@@ -633,6 +666,15 @@ void RobotContext::set_lost(std::optional<Location> location)
   {
     _lost->location = location;
   }
+}
+
+//==============================================================================
+std::shared_ptr<std::size_t> RobotContext::_set_current_event_waypoint(
+  std::size_t index)
+{
+  const auto wp = std::make_shared<std::size_t>(index);
+  _current_event_waypoint = wp;
+  return wp;
 }
 
 //==============================================================================
