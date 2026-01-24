@@ -2039,13 +2039,9 @@ RobotContext::_find_and_sort_parking_spots(
   // Retrieve nav graph
   const auto& graph = navigation_graph();
 
-  // Get current location
-  rmf_traffic::agv::Plan::StartSet start;
-  start.emplace_back(now(), dest.waypoint(), 0);
 
-  // Order wait points by the distance from the destination.
-  std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>>
-  waitpoints_order;
+  // Calculate the cost from each parking spot (as the start) to the destination (as the goal)
+  std::vector<std::tuple<double, rmf_traffic::agv::Plan::Goal>> waitpoints_order;
   for (std::size_t wp_idx = 0; wp_idx < graph.num_waypoints(); ++wp_idx)
   {
     const auto& wp = graph.get_waypoint(wp_idx);
@@ -2071,13 +2067,16 @@ RobotContext::_find_and_sort_parking_spots(
         continue;
       }
     }
-    auto result = planner()->quickest_path(start, wp_idx);
+    // Use the parking spot as the start, and the destination as the goal
+    rmf_traffic::agv::Plan::StartSet parking_start;
+    parking_start.emplace_back(now(), wp_idx, 0);
+    auto result = planner()->quickest_path(parking_start, dest.waypoint());
     if (!result.has_value())
     {
       RCLCPP_INFO(
         node()->get_logger(),
-        "No path found for waypoint #%lu",
-        wp_idx);
+        "No path found from parking spot #%lu to dest #%lu",
+        wp_idx, dest.waypoint());
       continue;
     }
 
