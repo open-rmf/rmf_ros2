@@ -855,15 +855,23 @@ auto TaskManager::expected_finish_state() const -> State
   std::lock_guard<std::recursive_mutex> lock(_mutex);
   if (!_direct_queue.empty())
   {
-    return _direct_queue.rbegin()->assignment.finish_state();
+    rmf_task::State return_state = _direct_queue.rbegin()->assignment.finish_state();
+    return_state.idle(false);
+    return return_state;
   }
 
   if (_active_task)
-    return _context->current_task_end_state();
+  {
+    rmf_task::State return_state = _context->current_task_end_state();
+    return_state.idle(false);
+    return return_state;
+  }
 
   rmf_task::State current_state =
     _context->make_get_state()()
-    .time(rmf_traffic_ros2::convert(_context->node()->now()));
+    .time(rmf_traffic_ros2::convert(_context->node()->now()))
+    .idle(true);
+    
   return current_state;
 }
 
