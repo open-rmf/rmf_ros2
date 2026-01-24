@@ -378,8 +378,58 @@ public:
     void _consider_restart()
     {
       std::size_t target_wp = _context->dedicated_charging_wp();
+
       if (!_desc.specific_location.has_value())
       {
+        // No specific location specified - need to determine target
+        if (_desc.park)
+        {
+          // Park mode: Only select parking spot if reservation manager is NOT enabled
+          // or if we have a valid ticket for a parking spot
+          if (_context->_parking_spot_manager_enabled() && !_context->_has_ticket())
+          {
+            // Parking spot manager is enabled but we don't have a ticket yet
+            // This means all parking spots are likely occupied
+            // Fall back to charging waypoint instead
+            target_wp = _context->dedicated_charging_wp();
+            RCLCPP_WARN(
+              _context->node()->get_logger(),
+              "No parking spot ticket available, using charging waypoint [%lu] for robot [%s]. "
+              "This may indicate all parking spots are occupied.",
+              target_wp,
+              _context->requester_id().c_str());
+          }
+          else
+          {
+            // Either parking spot manager is disabled, or we have a valid ticket
+            auto parking_spots = _context->_find_and_sort_parking_spots(true);
+            if (!parking_spots.empty())
+            {
+              target_wp = parking_spots.front().waypoint();
+              RCLCPP_INFO(
+                _context->node()->get_logger(),
+                "Auto-selected parking spot waypoint [%lu] for robot [%s]",
+                target_wp,
+                _context->requester_id().c_str());
+            }
+            else
+            {
+              // No parking spots available, fall back to charging waypoint
+              target_wp = _context->dedicated_charging_wp();
+              RCLCPP_WARN(
+                _context->node()->get_logger(),
+                "No parking spots available, using charging waypoint [%lu] for robot [%s]",
+                target_wp,
+                _context->requester_id().c_str());
+            }
+          }
+        }
+        else
+        {
+          // Charge mode: use dedicated charging waypoint
+          target_wp = _context->dedicated_charging_wp();
+        }
+
         bool location_changed = true;
         if (_current_target_wp.has_value())
         {
