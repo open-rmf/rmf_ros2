@@ -377,8 +377,8 @@ public:
     }
     void _consider_restart()
     {
-      std::size_t target_wp;
-      
+      std::size_t target_wp = _context->dedicated_charging_wp();
+
       if (!_desc.specific_location.has_value())
       {
         // No specific location specified - need to determine target
@@ -429,7 +429,7 @@ public:
           // Charge mode: use dedicated charging waypoint
           target_wp = _context->dedicated_charging_wp();
         }
-        
+
         bool location_changed = true;
         if (_current_target_wp.has_value())
         {
