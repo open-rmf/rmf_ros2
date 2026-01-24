@@ -559,7 +559,8 @@ void GoToPlace::Active::_find_plan()
     return;
   }
 
-  if (_context->location().size() == 0)
+  const auto location = _context->location();
+  if (location.size() == 0)
   {
     RCLCPP_ERROR(
       _context->node()->get_logger(),
@@ -580,7 +581,7 @@ void GoToPlace::Active::_find_plan()
   std::stringstream ss;
   ss << "Planning for [" << _context->requester_id()
      << "] to [" << goal_name << "] from one of these locations:"
-     << agv::print_starts(_context->location(), graph);
+     << agv::print_starts(location, graph);
 
   RCLCPP_INFO(
     _context->node()->get_logger(),
@@ -589,7 +590,7 @@ void GoToPlace::Active::_find_plan()
 
   // TODO(MXG): Make the planning time limit configurable
   _find_path_service = std::make_shared<services::FindPath>(
-    _context->planner(), _context->location(), *_chosen_goal,
+    _context->planner(), location, *_chosen_goal,
     _context->schedule()->snapshot(), _context->itinerary().id(),
     _context->profile(),
     std::chrono::seconds(5));
@@ -754,7 +755,7 @@ void GoToPlace::Active::_execute_plan(
     auto event = rmf_task::events::SimpleEventState::make(
       _assign_id->assign(),
       "detour",
-      "The robot is parking until its destination becomes available", 
+      "The robot is parking until its destination becomes available",
       Status::Underway,
       {});
     _state->update_dependencies({event});

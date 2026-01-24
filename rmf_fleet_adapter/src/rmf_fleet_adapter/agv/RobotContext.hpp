@@ -521,8 +521,8 @@ public:
 
   /// This is the current "location" of the robot, which can be used to initiate
   /// a planning job
-  // rmf_traffic::agv::Plan::StartSet location() const;
-  const rmf_traffic::agv::Plan::StartSet& location() const;
+  rmf_traffic::agv::Plan::StartSet location() const;
+  // const rmf_traffic::agv::Plan::StartSet& location() const;
 
   /// Set the current location for the robot in terms of a planner start set
   void set_location(rmf_traffic::agv::Plan::StartSet location_);
@@ -1033,7 +1033,7 @@ private:
   /// This is used by LockMutexGroup to prevent deadlocks that could arise from
   /// the planner chosing to start from a different Plan::Start element that
   /// requires some other mutex to also be locked before proceeding.
-  // std::weak_ptr<std::size_t> _current_event_waypoint;
+  std::weak_ptr<std::size_t> _current_event_waypoint;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
   std::vector<rmf_traffic::agv::Plan::Start> _most_recent_valid_location;
   rmf_traffic::schedule::Participant _itinerary;

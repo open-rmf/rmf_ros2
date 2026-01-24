@@ -511,36 +511,46 @@ std::function<rmf_traffic::Time()> RobotContext::clock() const
 }
 
 //==============================================================================
-// rmf_traffic::agv::Plan::StartSet RobotContext::location() const
-const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
+rmf_traffic::agv::Plan::StartSet RobotContext::location() const
+// const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
 {
   return _location;
   // if (const auto wp_ptr = _current_event_waypoint.lock())
   // {
+  //   std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //   std::size_t wp = *wp_ptr;
+  //   std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //   const auto& graph = navigation_graph();
+  //   std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //   const auto p_wp = graph.get_waypoint(wp).get_location();
+  //   std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //   const double merge_radius = std::max(
   //     graph.get_waypoint(wp).merge_radius().value_or(0.0),
   //     nav_params()->max_merge_lane_distance);
 
+  //   std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //   std::optional<Eigen::Vector2d> p = std::nullopt;
   //   double orientation = 0.0;
   //   for (const auto& start : _location)
   //   {
+  //     std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //     if (start.lane().has_value())
   //     {
+  //       std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //       const auto& lane = graph.get_lane(start.lane().value());
   //       if (lane.entry().waypoint_index() == wp)
   //       {
+  //         std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //         p = start.location().value_or(p_wp);
   //         break;
   //       }
   //     }
   //     else if (start.location().has_value())
   //     {
+  //       std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //       if ((p_wp - start.location().value()).norm() < merge_radius)
   //       {
+  //         std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //         // Get the exact position based on the first location to specify a
   //         // one close enough to the current event waypoint. In practice all
   //         // positions specified by all start locations should be the same.
@@ -552,9 +562,12 @@ const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
   //     }
   //     else
   //     {
+  //       std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //       const auto p_s = graph.get_waypoint(start.waypoint()).get_location();
+  //       std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //       if ((p_s - p_wp).norm() < merge_radius)
   //       {
+  //         std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //         p = p_s;
   //         break;
   //       }
@@ -563,6 +576,7 @@ const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
 
   //   if (!p.has_value())
   //   {
+  //     std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //     // The robot is too far from the current event waypoint. We can't consider
   //     // it to be on that waypoint. Just return the _location as reported by
   //     // the client.
@@ -573,9 +587,11 @@ const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
 
   //   const auto time = now();
 
+  //   std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //   // Create a start option for every lane coming out of this waypoint
   //   for (const std::size_t l : graph.lanes_from(wp))
   //   {
+  //     std::cout << " >>>>>>>>>>> " << __LINE__ << " : " << l << std::endl;
   //     const auto& lane = graph.get_lane(l);
   //     starts.push_back(rmf_traffic::agv::Plan::Start(
   //       time,
@@ -585,6 +601,7 @@ const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
   //       l));
   //   }
 
+  //   std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //   // Add a start that simply begins directly with the waypoint
   //   starts.push_back(rmf_traffic::agv::Plan::Start(
   //     time,
@@ -592,10 +609,12 @@ const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
   //     orientation,
   //     p));
 
+  //   std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //   return starts;
   // }
   // else
   // {
+  //   std::cout << " >>>>>>>>>>> " << __LINE__ << std::endl;
   //   return _location;
   // }
 }
