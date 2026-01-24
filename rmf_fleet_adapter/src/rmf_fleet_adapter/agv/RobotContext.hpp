@@ -537,7 +537,7 @@ public:
   /// Used by certain events to lock in a specific waypoint as the current event
   /// waypoint. This alters how the planner interprets the current start set,
   /// focusing it in on the waypoint of the event.
-  // std::shared_ptr<std::size_t> _set_current_event_waypoint(std::size_t index);
+  std::shared_ptr<std::size_t> _set_current_event_waypoint(std::size_t index);
 
   /// Filter closed lanes out of the planner start set. At least one start will
   /// be retained so that the planner can offer some solution, even if all

@@ -93,11 +93,11 @@ auto LockMutexGroup::Active::make(
   active->_context = std::move(context);
   active->_state = std::move(state);
   active->_finished = std::move(finished);
-  // if (active->_data.hold_wp.has_value())
-  // {
-  //   active->_current_event_waypoint =
-  //     active->_context->_set_current_event_waypoint(active->_data.hold_wp.value());
-  // }
+  if (active->_data.hold_wp.has_value())
+  {
+    active->_current_event_waypoint =
+      active->_context->_set_current_event_waypoint(active->_data.hold_wp.value());
+  }
   active->_initialize();
 
   return active;
