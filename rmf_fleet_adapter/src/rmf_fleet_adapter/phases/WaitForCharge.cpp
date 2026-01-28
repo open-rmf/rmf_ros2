@@ -168,9 +168,8 @@ std::shared_ptr<LegacyTask::ActivePhase> WaitForCharge::Pending::begin()
         {
           StatusMsg msg;
           msg.state = msg.STATE_COMPLETED;
-          msg.status = "Completed phase [Charging ["
-            + active->_context->requester_id() + "] to "
-            + std::to_string(100.0 * *active->_charge_to_soc) + "]";
+          msg.status = "Reached target battery charge of "
+            + std::to_string(100.0 * *active->_charge_to_soc);
           active->_status_publisher.get_subscriber().on_next(msg);
 
           active->_status_publisher.get_subscriber().on_completed();
