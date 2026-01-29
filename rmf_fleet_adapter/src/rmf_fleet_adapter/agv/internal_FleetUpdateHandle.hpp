@@ -686,7 +686,8 @@ public:
   void update_fleet_state() const;
   void update_fleet_logs() const;
   void handle_emergency(const bool is_emergency);
-  void handle_target_emergency(std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> is_emergency);
+  void handle_emergency_by_zone(std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> emergency_signal);
+  void handle_target_emergency(std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> emergency_signal);
   void update_emergency_planner();
 
   void update_charging_assignments(const ChargingAssignments& assignments);

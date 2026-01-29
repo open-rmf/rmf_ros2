@@ -1381,24 +1381,52 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
   }
 }
 
-//==============================================================================
 void FleetUpdateHandle::Implementation::handle_emergency(
-  const bool emergency_signal)
+  const bool is_emergency)
 {
-  if (emergency_signal == emergency_active)
+  if (is_emergency == emergency_active)
     return;
 
-  emergency_active = emergency_signal;
-  if (emergency_signal)
+  emergency_active = is_emergency;
+  if (is_emergency)
   {
     update_emergency_planner();
   }
 
   for (const auto& [context, _] : task_managers)
   {
-    context->_set_emergency(emergency_signal);
+    context->_set_emergency(is_emergency);
   }
-  emergency_publisher.get_subscriber().on_next(emergency_signal);
+  emergency_publisher.get_subscriber().on_next(is_emergency);
+}
+
+//==============================================================================
+void FleetUpdateHandle::Implementation::handle_emergency_by_zone(
+  std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> emergency_signal)
+{
+  auto is_emergency = emergency_signal->is_emergency;
+  if (is_emergency == emergency_active)
+    return;
+
+  emergency_active = is_emergency;
+  if (is_emergency)
+  {
+    update_emergency_planner();
+  }
+
+  for (const auto& [context, _] : task_managers)
+  {
+    for (const auto& zone_name : emergency_signal->zone_names)
+    {
+      // For the current implementation, the zone is only on a certain level
+      if (context->map() == zone_name)
+      {
+        context->_set_emergency(is_emergency);
+        break;
+      }
+    }
+  }
+  emergency_publisher.get_subscriber().on_next(is_emergency);
 }
 
 //==============================================================================
