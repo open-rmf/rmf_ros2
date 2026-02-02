@@ -1416,13 +1416,17 @@ void FleetUpdateHandle::Implementation::handle_emergency_by_zone(
 
   for (const auto& [context, _] : task_managers)
   {
+    if (emergency_signal->zone_name.empty())
+    {
+      context->_set_emergency(is_emergency);
+    }
+
     for (const auto& zone_name : emergency_signal->zone_names)
     {
       // For the current implementation, the zone is only on a certain level
       if (context->map() == zone_name)
       {
         context->_set_emergency(is_emergency);
-        break;
       }
     }
   }
