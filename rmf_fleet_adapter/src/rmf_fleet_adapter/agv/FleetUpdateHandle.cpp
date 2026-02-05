@@ -1453,7 +1453,7 @@ void FleetUpdateHandle::Implementation::handle_target_emergency(
   }
 
   if (execute) {
-    handle_emergency(emergency_signal->is_emergency);
+    handle_emergency_by_zone(emergency_signal);
   }
 }
 
