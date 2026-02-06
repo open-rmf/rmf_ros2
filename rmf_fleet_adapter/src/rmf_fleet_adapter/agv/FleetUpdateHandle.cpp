@@ -1401,6 +1401,84 @@ void FleetUpdateHandle::Implementation::handle_emergency(
 }
 
 //==============================================================================
+// Visitor to detect if a lane has lift events
+class LiftLaneDetector : public rmf_traffic::agv::Graph::Lane::Executor
+{
+public:
+  using DoorOpen = rmf_traffic::agv::Graph::Lane::DoorOpen;
+  using DoorClose = rmf_traffic::agv::Graph::Lane::DoorClose;
+  using LiftSessionBegin = rmf_traffic::agv::Graph::Lane::LiftSessionBegin;
+  using LiftSessionEnd = rmf_traffic::agv::Graph::Lane::LiftSessionEnd;
+  using LiftMove = rmf_traffic::agv::Graph::Lane::LiftMove;
+  using LiftDoorOpen = rmf_traffic::agv::Graph::Lane::LiftDoorOpen;
+  using Dock = rmf_traffic::agv::Graph::Lane::Dock;
+  using Wait = rmf_traffic::agv::Graph::Lane::Wait;
+
+  void execute(const DoorOpen&) override {}
+  void execute(const DoorClose&) override {}
+  void execute(const LiftSessionEnd&) override { is_lift = true; }
+  void execute(const LiftMove&) override { is_lift = true; }
+  void execute(const Wait&) override {}
+  void execute(const Dock&) override {}
+  void execute(const LiftSessionBegin&) override { is_lift = true; }
+  void execute(const LiftDoorOpen&) override { is_lift = true; }
+
+  bool is_lift = false;
+};
+
+// Helper: Check if robot is near any lift waypoint (in lift transit)
+// Returns true if robot position is within lift_tolerance of any lift-related waypoint
+bool is_robot_in_lift(
+  const agv::RobotContext& context,
+  const rmf_traffic::agv::Graph& graph,
+  double lift_tolerance = 2.0)  // meters - generous to cover lift interior
+{
+  // Get robot position
+  if (context.location().empty())
+    return false;
+  
+  const auto& loc = context.location().front();
+  const auto robot_pos = loc.location();
+  if (!robot_pos.has_value())
+    return false;
+  
+  const Eigen::Vector2d robot_xy = robot_pos.value();
+  
+  // Collect all lift waypoint indices
+  std::unordered_set<std::size_t> lift_waypoints;
+  
+  for (std::size_t i = 0; i < graph.num_lanes(); ++i)
+  {
+    const auto& lane = graph.get_lane(i);
+    LiftLaneDetector detector;
+    
+    if (const auto* event = lane.entry().event())
+      event->execute(detector);
+    if (const auto* event = lane.exit().event())
+      event->execute(detector);
+    
+    if (detector.is_lift)
+    {
+      lift_waypoints.insert(lane.entry().waypoint_index());
+      lift_waypoints.insert(lane.exit().waypoint_index());
+    }
+  }
+  
+  // Check distance to all lift waypoints
+  for (const auto wp_idx : lift_waypoints)
+  {
+    const auto& wp = graph.get_waypoint(wp_idx);
+    const double dist = (robot_xy - wp.get_location()).norm();
+    
+    if (dist < lift_tolerance)
+    {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 void FleetUpdateHandle::Implementation::handle_emergency_by_zone(
   std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> emergency_signal)
 {
@@ -1417,19 +1495,31 @@ void FleetUpdateHandle::Implementation::handle_emergency_by_zone(
   }
 
   // Zone-based code blue:
-  // 1. Update emergency planner (closes lift lanes - OK because matching robots
-  //    don't need lifts to reach elot on their current floor)
+  // 1. Update emergency planner (closes lift lanes)
   // 2. Set emergency only for robots whose current map matches the zone
-  // 3. Notify task managers via emergency_publisher so they react to the state change
+  //    AND who are NOT currently in a lift (lift transit defers the check)
+  // 3. Notify task managers via emergency_publisher so they react
   
   if (is_emergency)
   {
     update_emergency_planner();
   }
 
+  const auto& graph = (*planner)->get_configuration().graph();
+  
   bool any_robot_matched = false;
   for (const auto& [context, _] : task_managers)
   {
+    // Skip robots in lift transit - they'll be checked again after exiting
+    // This prevents false positives when robot is leaving emergency zone via lift
+    if (is_emergency && is_robot_in_lift(*context, graph))
+    {
+      RCLCPP_INFO(node->get_logger(),
+        "[Emergency - CodeBlue] robot [%s] is in lift transit, deferring check",
+        context->name().c_str());
+      continue;
+    }
+    
     for (const auto& zone_name : emergency_signal->zone_names)
     {
       RCLCPP_INFO(node->get_logger(),
