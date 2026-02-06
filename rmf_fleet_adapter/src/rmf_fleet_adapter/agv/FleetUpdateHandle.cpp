@@ -1416,16 +1416,18 @@ void FleetUpdateHandle::Implementation::handle_emergency_by_zone(
     return;
   }
 
+  // Zone-based code blue:
+  // 1. Update emergency planner (closes lift lanes - OK because matching robots
+  //    don't need lifts to reach elot on their current floor)
+  // 2. Set emergency only for robots whose current map matches the zone
+  // 3. Notify task managers via emergency_publisher so they react to the state change
+  
   if (is_emergency)
   {
     update_emergency_planner();
   }
 
-  // Zone-based code blue:
-  // - NO early return on emergency_active (robot may have moved to a new map)
-  // - NO update_emergency_planner (that closes ALL lift lanes globally)
-  // - NO emergency_active flag change (that's for global fire alarm)
-  // - Only _set_emergency per robot whose current map matches the zone
+  bool any_robot_matched = false;
   for (const auto& [context, _] : task_managers)
   {
     for (const auto& zone_name : emergency_signal->zone_names)
@@ -1440,9 +1442,20 @@ void FleetUpdateHandle::Implementation::handle_emergency_by_zone(
           "[Emergency - CodeBlue] MATCH: setting emergency=%d for robot [%s]",
           is_emergency, context->name().c_str());
         context->_set_emergency(is_emergency);
+        any_robot_matched = true;
         break;
       }
     }
+  }
+
+  // CRITICAL: Notify task managers to check emergency state and replan
+  // This triggers the actual behavioral change (cancel task, go to elot)
+  if (any_robot_matched)
+  {
+    RCLCPP_INFO(node->get_logger(),
+      "[Emergency - CodeBlue] Notifying task managers: emergency=%d",
+      is_emergency);
+    emergency_publisher.get_subscriber().on_next(is_emergency);
   }
 }
 
