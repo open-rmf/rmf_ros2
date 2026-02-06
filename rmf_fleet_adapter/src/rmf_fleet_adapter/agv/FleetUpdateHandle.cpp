@@ -1410,10 +1410,15 @@ void FleetUpdateHandle::Implementation::handle_emergency_by_zone(
   if (emergency_signal->zone_names.empty())
   {
     RCLCPP_INFO(node->get_logger(),
-      "[CodeBlue] No zones specified, falling back to global emergency=%d",
+      "[Emergency - Fire] No zones specified, falling back to global emergency=%d",
       is_emergency);
     handle_emergency(is_emergency);
     return;
+  }
+
+  if (is_emergency)
+  {
+    update_emergency_planner();
   }
 
   // Zone-based code blue:
@@ -1426,13 +1431,13 @@ void FleetUpdateHandle::Implementation::handle_emergency_by_zone(
     for (const auto& zone_name : emergency_signal->zone_names)
     {
       RCLCPP_INFO(node->get_logger(),
-        "[CodeBlue] robot [%s] current_map=[%s] vs zone=[%s]",
+        "[Emergency - CodeBlue] robot [%s] current_map=[%s] vs zone=[%s]",
         context->name().c_str(), context->map().c_str(), zone_name.c_str());
 
       if (context->map() == zone_name)
       {
         RCLCPP_INFO(node->get_logger(),
-          "[CodeBlue] MATCH: setting emergency=%d for robot [%s]",
+          "[Emergency - CodeBlue] MATCH: setting emergency=%d for robot [%s]",
           is_emergency, context->name().c_str());
         context->_set_emergency(is_emergency);
         break;
