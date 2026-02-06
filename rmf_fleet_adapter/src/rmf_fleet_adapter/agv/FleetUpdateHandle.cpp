@@ -1405,32 +1405,40 @@ void FleetUpdateHandle::Implementation::handle_emergency_by_zone(
   std::shared_ptr<rmf_fleet_msgs::msg::EmergencySignal> emergency_signal)
 {
   auto is_emergency = emergency_signal->is_emergency;
-  if (is_emergency == emergency_active)
-    return;
 
-  emergency_active = is_emergency;
-  if (is_emergency)
+  // If no zones specified, treat as global emergency (fire alarm behavior)
+  if (emergency_signal->zone_names.empty())
   {
-    update_emergency_planner();
+    RCLCPP_INFO(node->get_logger(),
+      "[CodeBlue] No zones specified, falling back to global emergency=%d",
+      is_emergency);
+    handle_emergency(is_emergency);
+    return;
   }
 
+  // Zone-based code blue:
+  // - NO early return on emergency_active (robot may have moved to a new map)
+  // - NO update_emergency_planner (that closes ALL lift lanes globally)
+  // - NO emergency_active flag change (that's for global fire alarm)
+  // - Only _set_emergency per robot whose current map matches the zone
   for (const auto& [context, _] : task_managers)
   {
-    if (emergency_signal->zone_names.empty())
-    {
-      context->_set_emergency(is_emergency);
-    }
-
     for (const auto& zone_name : emergency_signal->zone_names)
     {
-      // For the current implementation, the zone is only on a certain level
+      RCLCPP_INFO(node->get_logger(),
+        "[CodeBlue] robot [%s] current_map=[%s] vs zone=[%s]",
+        context->name().c_str(), context->map().c_str(), zone_name.c_str());
+
       if (context->map() == zone_name)
       {
+        RCLCPP_INFO(node->get_logger(),
+          "[CodeBlue] MATCH: setting emergency=%d for robot [%s]",
+          is_emergency, context->name().c_str());
         context->_set_emergency(is_emergency);
+        break;
       }
     }
   }
-  emergency_publisher.get_subscriber().on_next(is_emergency);
 }
 
 //==============================================================================
@@ -1453,6 +1461,9 @@ void FleetUpdateHandle::Implementation::handle_target_emergency(
   }
 
   if (execute) {
+    RCLCPP_INFO(node->get_logger(),
+      "[CodeBlue] Fleet [%s] matched, calling handle_emergency_by_zone",
+      name.c_str());
     handle_emergency_by_zone(emergency_signal);
   }
 }
