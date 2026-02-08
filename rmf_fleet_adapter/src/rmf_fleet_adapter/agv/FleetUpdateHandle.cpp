@@ -1381,6 +1381,12 @@ void FleetUpdateHandle::Implementation::update_fleet_logs() const
   }
 }
 
+// Forward declaration for is_robot_in_lift (defined below at ~line 1444)
+bool is_robot_in_lift(
+  const agv::RobotContext& context,
+  const rmf_traffic::agv::Graph& graph,
+  double lift_tolerance = 2.0);
+
 void FleetUpdateHandle::Implementation::handle_emergency(
   const bool is_emergency)
 {
@@ -1393,11 +1399,71 @@ void FleetUpdateHandle::Implementation::handle_emergency(
     update_emergency_planner();
   }
 
+  const auto& graph = (*planner)->get_configuration().graph();
+
+  bool any_robot_affected = false;
+  std::vector<std::shared_ptr<RobotContext>> deferred_contexts;
+  
   for (const auto& [context, _] : task_managers)
   {
+    // Skip robots in lift transit - same approach as Code Blue
+    if (is_emergency && is_robot_in_lift(*context, graph))
+    {
+      RCLCPP_INFO(node->get_logger(),
+        "[Emergency - Fire] robot [%s] is in lift transit, deferring check",
+        context->name().c_str());
+      deferred_contexts.push_back(context);
+      continue;
+    }
     context->_set_emergency(is_emergency);
+    any_robot_affected = true;
   }
-  emergency_publisher.get_subscriber().on_next(is_emergency);
+  
+  // Only notify task managers if at least one robot was affected
+  if (any_robot_affected || !is_emergency)
+  {
+    emergency_publisher.get_subscriber().on_next(is_emergency);
+  }
+  
+  // For deferred robots, schedule a simple delayed check
+  // After 60 seconds, apply emergency and send signal
+  if (!deferred_contexts.empty() && is_emergency)
+  {
+    RCLCPP_INFO(node->get_logger(),
+      "[Emergency - Fire] Scheduling delayed emergency for %zu robots in lift",
+      deferred_contexts.size());
+    
+    // Capture what we need safely using pointers
+    auto contexts_copy = deferred_contexts;
+    auto* pub_ptr = &emergency_publisher;
+    auto weak_node = std::weak_ptr<Node>(node);
+    auto* active_flag = &emergency_active;
+    
+    // Use shared_ptr to timer so callback can cancel itself (one-shot)
+    auto timer_ptr = std::make_shared<rclcpp::TimerBase::SharedPtr>();
+    *timer_ptr = node->create_wall_timer(
+      std::chrono::seconds(60),
+      [contexts_copy, pub_ptr, weak_node, active_flag, timer_ptr]()
+      {
+        // Cancel timer immediately to make this one-shot
+        if (*timer_ptr)
+          (*timer_ptr)->cancel();
+        
+        auto n = weak_node.lock();
+        if (!n || !*active_flag)
+          return;
+        
+        RCLCPP_INFO(n->get_logger(),
+          "[Emergency - Fire] Applying deferred emergency to %zu robots",
+          contexts_copy.size());
+        
+        for (const auto& ctx : contexts_copy)
+        {
+          ctx->_set_emergency(true);
+        }
+        pub_ptr->get_subscriber().on_next(true);
+      });
+  }
 }
 
 //==============================================================================
@@ -1431,7 +1497,7 @@ public:
 bool is_robot_in_lift(
   const agv::RobotContext& context,
   const rmf_traffic::agv::Graph& graph,
-  double lift_tolerance = 2.0)  // meters - generous to cover lift interior
+  double lift_tolerance)  // default value in forward declaration above
 {
   // Get robot position
   if (context.location().empty())
