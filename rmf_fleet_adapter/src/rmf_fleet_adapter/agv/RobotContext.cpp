@@ -527,6 +527,7 @@ rmf_traffic::agv::Plan::StartSet RobotContext::location() const
     double orientation = 0.0;
     for (const auto& start : _location)
     {
+      orientation = start.orientation();
       if (start.lane().has_value())
       {
         const auto& lane = graph.get_lane(start.lane().value());
