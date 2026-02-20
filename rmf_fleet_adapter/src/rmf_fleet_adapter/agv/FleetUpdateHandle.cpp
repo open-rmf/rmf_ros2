@@ -776,7 +776,7 @@ void FleetUpdateHandle::Implementation::dispatch_command_cb(
         {
           auto msg = dispatch_ack;
           msg.success = true;
-          dispatch_ack_pub->publish(dispatch_ack);
+          dispatch_ack_pub->publish(msg);
         },
         // On failure
         [dispatch_ack, w = weak_self, request](
