@@ -2,6 +2,12 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.12.0 (2026-02-23)
+-------------------
+* Removed /task_summaries publishers from rmf_fleet_adapter (`#487 <https://github.com/open-rmf/rmf_ros2/issues/487>`_)
+* Fix indefinite growth of active_dispatch_states (`#468 <https://github.com/open-rmf/rmf_ros2/issues/468>`_)
+* Contributors: cheriehu, kj
+
 2.11.1 (2025-07-21)
 -------------------
 * Remove deprecated Pose2D message (`#450 <https://github.com/open-rmf/rmf_ros2/issues/450>`_)
