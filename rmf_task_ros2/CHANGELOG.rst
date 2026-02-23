@@ -2,8 +2,8 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.12.0 (2026-02-23)
+-------------------
 * Removed /task_summaries publishers from rmf_fleet_adapter (`#487 <https://github.com/open-rmf/rmf_ros2/issues/487>`_)
 * Fix indefinite growth of active_dispatch_states (`#468 <https://github.com/open-rmf/rmf_ros2/issues/468>`_)
 * Contributors: cheriehu, kj

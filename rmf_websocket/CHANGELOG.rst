@@ -2,8 +2,8 @@
 Changelog for package rmf_websocket
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.12.0 (2026-02-23)
+-------------------
 * Added RCL logging for BroadcastServer (`#458 <https://github.com/open-rmf/rmf_ros2/issues/458>`_)
 * Fix BroadcastServer shutdown errors (`#457 <https://github.com/open-rmf/rmf_ros2/issues/457>`_)
 * Contributors: Saurabh Kamat

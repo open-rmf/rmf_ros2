@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.12.0 (2026-02-23)
+-------------------
 * Fix dispatch command acknowledgment message publishing (`#508 <https://github.com/open-rmf/rmf_ros2/issues/508>`_)
 * Publish WaitForCharge phase completed (`#502 <https://github.com/open-rmf/rmf_ros2/issues/502>`_)
 * Choose nearest parking spot for "park" idle behavior (`#495 <https://github.com/open-rmf/rmf_ros2/issues/495>`_)

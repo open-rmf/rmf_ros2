@@ -2,8 +2,8 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.12.0 (2026-02-23)
+-------------------
 * Correct early cull of negotiations (`#478 <https://github.com/open-rmf/rmf_ros2/issues/478>`_)
 * Contributors: kj
 
