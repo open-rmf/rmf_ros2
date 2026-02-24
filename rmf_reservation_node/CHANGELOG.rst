@@ -2,6 +2,12 @@
 Changelog for package rmf_reservation_node
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.12.0 (2026-02-23)
+-------------------
+* Accurate GoToPlace task update and reservation fixes (`#498 <https://github.com/open-rmf/rmf_ros2/issues/498>`_)
+* Makes sure that the reservation system always assigns nearest goal during Emergency Pullover (`#484 <https://github.com/open-rmf/rmf_ros2/issues/484>`_)
+* Contributors: Arjo Chakravarty, Xiyu
+
 2.11.1 (2025-07-21)
 -------------------
 
