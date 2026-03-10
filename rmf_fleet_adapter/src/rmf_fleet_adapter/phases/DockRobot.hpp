@@ -146,7 +146,8 @@ void DockRobot::Action::operator()(const Subscriber& s)
               {
                 const auto& graph = context->navigation_graph();
                 context->retain_mutex_groups(
-                  {graph.get_waypoint(*wp.graph_index()).in_mutex_group()});
+                  {graph.get_waypoint(*wp.graph_index()).in_mutex_group()},
+                  "finished docking");
               }
 
               const auto now = context->now();

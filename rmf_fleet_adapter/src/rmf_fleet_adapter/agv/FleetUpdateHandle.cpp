@@ -1137,7 +1137,8 @@ namespace {
 std::optional<rmf_fleet_msgs::msg::Location> convert_location(
   const agv::RobotContext& context)
 {
-  if (context.location().empty())
+  const auto location = context.location();
+  if (location.empty())
   {
     const auto& lost = context.lost();
     if (lost.has_value() && lost->location.has_value())
@@ -1161,7 +1162,7 @@ std::optional<rmf_fleet_msgs::msg::Location> convert_location(
   }
 
   const auto& graph = context.planner()->get_configuration().graph();
-  const auto& l = context.location().front();
+  const auto l = location.front();
   const auto& wp = graph.get_waypoint(l.waypoint());
   const Eigen::Vector2d p = l.location().value_or(wp.get_location());
 

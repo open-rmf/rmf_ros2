@@ -511,9 +511,93 @@ std::function<rmf_traffic::Time()> RobotContext::clock() const
 }
 
 //==============================================================================
-const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
+rmf_traffic::agv::Plan::StartSet RobotContext::location() const
+// const rmf_traffic::agv::Plan::StartSet& RobotContext::location() const
 {
-  return _location;
+  if (const auto wp_ptr = _current_event_waypoint.lock())
+  {
+    std::size_t wp = *wp_ptr;
+    const auto& graph = navigation_graph();
+    const auto p_wp = graph.get_waypoint(wp).get_location();
+    const double merge_radius = std::max(
+      graph.get_waypoint(wp).merge_radius().value_or(0.0),
+      nav_params()->max_merge_lane_distance);
+
+    std::optional<Eigen::Vector2d> p = std::nullopt;
+    double orientation = 0.0;
+    for (const auto& start : _location)
+    {
+      orientation = start.orientation();
+      if (start.lane().has_value())
+      {
+        const auto& lane = graph.get_lane(start.lane().value());
+        if (lane.entry().waypoint_index() == wp)
+        {
+          p = start.location().value_or(p_wp);
+          break;
+        }
+      }
+      else if (start.location().has_value())
+      {
+        if ((p_wp - start.location().value()).norm() < merge_radius)
+        {
+          // Get the exact position based on the first location to specify a
+          // one close enough to the current event waypoint. In practice all
+          // positions specified by all start locations should be the same.
+          // Something is wrong with user input if there is any difference
+          // between them.
+          p = start.location().value();
+          break;
+        }
+      }
+      else
+      {
+        const auto p_s = graph.get_waypoint(start.waypoint()).get_location();
+        if ((p_s - p_wp).norm() < merge_radius)
+        {
+          p = p_s;
+          break;
+        }
+      }
+    }
+
+    if (!p.has_value())
+    {
+      // The robot is too far from the current event waypoint. We can't consider
+      // it to be on that waypoint. Just return the _location as reported by
+      // the client.
+      return _location;
+    }
+
+    rmf_traffic::agv::Plan::StartSet starts;
+
+    const auto time = now();
+
+    // Create a start option for every lane coming out of this waypoint
+    for (const std::size_t l : graph.lanes_from(wp))
+    {
+      const auto& lane = graph.get_lane(l);
+      starts.push_back(rmf_traffic::agv::Plan::Start(
+        time,
+        lane.exit().waypoint_index(),
+        orientation,
+        p,
+        l));
+    }
+
+    // Add a start that simply begins directly with the waypoint
+    starts.push_back(rmf_traffic::agv::Plan::Start(
+      time,
+      wp,
+      orientation,
+      p));
+
+    return starts;
+  }
+  else
+  {
+    return _location;
+  }
 }
 
 //==============================================================================
@@ -584,6 +668,15 @@ void RobotContext::set_lost(std::optional<Location> location)
   {
     _lost->location = location;
   }
+}
+
+//==============================================================================
+std::shared_ptr<std::size_t> RobotContext::_set_current_event_waypoint(
+  std::size_t index)
+{
+  const auto wp = std::make_shared<std::size_t>(index);
+  _current_event_waypoint = wp;
+  return wp;
 }
 
 //==============================================================================
@@ -1295,10 +1388,11 @@ const rxcpp::observable<std::string>& RobotContext::request_mutex_groups(
 
 //==============================================================================
 void RobotContext::retain_mutex_groups(
-  const std::unordered_set<std::string>& retain)
+  const std::unordered_set<std::string>& retain,
+  const std::string& backtrace)
 {
-  _retain_mutex_groups(retain, _requesting_mutex_groups);
-  _retain_mutex_groups(retain, _locked_mutex_groups);
+  _retain_mutex_groups(retain, _requesting_mutex_groups, backtrace);
+  _retain_mutex_groups(retain, _locked_mutex_groups, backtrace);
 }
 
 //==============================================================================
@@ -1772,7 +1866,8 @@ void RobotContext::_check_mutex_groups(
 //==============================================================================
 void RobotContext::_retain_mutex_groups(
   const std::unordered_set<std::string>& retain,
-  std::unordered_map<std::string, TimeMsg>& groups)
+  std::unordered_map<std::string, TimeMsg>& groups,
+  const std::string& backtrace)
 {
   std::vector<MutexGroupData> release;
   for (const auto& [name, time] : groups)
@@ -1785,18 +1880,27 @@ void RobotContext::_retain_mutex_groups(
 
   for (const auto& data : release)
   {
-    _release_mutex_group(data);
+    _release_mutex_group(data, backtrace);
     groups.erase(data.name);
   }
 }
 
 //==============================================================================
-void RobotContext::_release_mutex_group(const MutexGroupData& data) const
+void RobotContext::_release_mutex_group(
+  const MutexGroupData& data,
+  const std::string& backtrace) const
 {
   if (data.name.empty())
   {
     return;
   }
+
+  RCLCPP_DEBUG(
+    _node->get_logger(),
+    "Releasing mutex group [%s] for robot [%s] (backtrace: %s)",
+    data.name.c_str(),
+    requester_id().c_str(),
+    backtrace.c_str());
 
   _node->mutex_group_request()->publish(
     rmf_fleet_msgs::build<rmf_fleet_msgs::msg::MutexGroupRequest>()
@@ -1836,14 +1940,14 @@ void RobotContext::_publish_mutex_group_requests()
         for (const auto& [name, time] : _requesting_mutex_groups)
         {
           warning(name);
-          _release_mutex_group(MutexGroupData{name, time});
+          _release_mutex_group(MutexGroupData{name, time}, "idle");
         }
         _requesting_mutex_groups.clear();
 
         for (const auto& [name, time] : _locked_mutex_groups)
         {
           warning(name);
-          _release_mutex_group(MutexGroupData{name, time});
+          _release_mutex_group(MutexGroupData{name, time}, "idle");
         }
         _locked_mutex_groups.clear();
       }
@@ -2122,7 +2226,7 @@ void RobotContext::_handle_mutex_group_manual_release(
     retain.erase(g);
   }
 
-  retain_mutex_groups(retain);
+  retain_mutex_groups(retain, "manual");
 }
 
 //==============================================================================
