@@ -199,6 +199,13 @@ inline std::string print_waypoint(
 
   ss << wp.get_map_name() << " <" << wp.get_location().transpose() << "> ["
      << wp.name_or_index() << "]";
+
+  const auto& mutex = wp.in_mutex_group();
+  if (!mutex.empty())
+  {
+    ss << " [mutex: " << mutex << "]";
+  }
+
   return ss.str();
 }
 
@@ -272,6 +279,13 @@ inline std::string print_lane(
   const auto& lane = graph.get_lane(i_lane);
   ss << "lane " << i_lane << ": " << print_lane_node(lane.entry(), graph)
      << " -> " << print_lane_node(lane.exit(), graph);
+
+  const auto& mutex = lane.properties().in_mutex_group();
+  if (!mutex.empty())
+  {
+    ss << " [mutex: " << mutex  << "]";
+  }
+
   return ss.str();
 }
 
@@ -507,7 +521,8 @@ public:
 
   /// This is the current "location" of the robot, which can be used to initiate
   /// a planning job
-  const rmf_traffic::agv::Plan::StartSet& location() const;
+  rmf_traffic::agv::Plan::StartSet location() const;
+  // const rmf_traffic::agv::Plan::StartSet& location() const;
 
   /// Set the current location for the robot in terms of a planner start set
   void set_location(rmf_traffic::agv::Plan::StartSet location_);
@@ -518,6 +533,11 @@ public:
 
   /// Set that the robot is currently lost
   void set_lost(std::optional<Location> location);
+
+  /// Used by certain events to lock in a specific waypoint as the current event
+  /// waypoint. This alters how the planner interprets the current start set,
+  /// focusing it in on the waypoint of the event.
+  std::shared_ptr<std::size_t> _set_current_event_waypoint(std::size_t index);
 
   /// Filter closed lanes out of the planner start set. At least one start will
   /// be retained so that the planner can offer some solution, even if all
@@ -811,7 +831,9 @@ public:
     rmf_traffic::Time claim_time);
 
   /// Retain only the mutex groups listed in the set. Release all others.
-  void retain_mutex_groups(const std::unordered_set<std::string>& groups);
+  void retain_mutex_groups(
+    const std::unordered_set<std::string>& groups,
+    const std::string& backtrace);
 
   void schedule_itinerary(
     std::shared_ptr<rmf_traffic::PlanId> plan_id,
@@ -1003,6 +1025,15 @@ private:
     std::shared_ptr<const rmf_task::TaskPlanner> task_planner);
 
   std::weak_ptr<RobotCommandHandle> _command_handle;
+
+  /// If an event is taking place at a waypoint, this field will be set with the
+  /// value of that waypoint. As long as this is set, any replan will use this
+  /// waypoint as its starting point instead of _location.
+  ///
+  /// This is used by LockMutexGroup to prevent deadlocks that could arise from
+  /// the planner chosing to start from a different Plan::Start element that
+  /// requires some other mutex to also be locked before proceeding.
+  std::weak_ptr<std::size_t> _current_event_waypoint;
   std::vector<rmf_traffic::agv::Plan::Start> _location;
   std::vector<rmf_traffic::agv::Plan::Start> _most_recent_valid_location;
   rmf_traffic::schedule::Participant _itinerary;
@@ -1087,8 +1118,11 @@ private:
   void _check_mutex_groups(const rmf_fleet_msgs::msg::MutexGroupStates& states);
   void _retain_mutex_groups(
     const std::unordered_set<std::string>& retain,
-    std::unordered_map<std::string, TimeMsg>& _groups);
-  void _release_mutex_group(const MutexGroupData& data) const;
+    std::unordered_map<std::string, TimeMsg>& _groups,
+    const std::string& backtrace);
+  void _release_mutex_group(
+    const MutexGroupData& data,
+    const std::string& backtrace) const;
   void _publish_mutex_group_requests();
   void _handle_mutex_group_manual_release(
     const rmf_fleet_msgs::msg::MutexGroupManualRelease& msg);
