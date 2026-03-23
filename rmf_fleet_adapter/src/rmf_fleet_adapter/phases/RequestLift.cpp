@@ -158,6 +158,10 @@ void RequestLift::ActivePhase::_init_obs()
             "Resuming itinerary for [%s] after lift arrival",
             self->_context->requester_id().c_str());
 
+          auto completion_state = LegacyTask::StatusMsg();
+          completion_state.state = LegacyTask::StatusMsg::STATE_COMPLETED;
+          completion_state.status = "success";
+          s.on_next(completion_state);
           s.on_completed();
         });
       return;
