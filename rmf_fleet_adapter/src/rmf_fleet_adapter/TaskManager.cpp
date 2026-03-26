@@ -2036,6 +2036,13 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
 //==============================================================================
 bool TaskManager::consider_retreating_to_charger()
 {
+  if (!_context->commission().is_performing_idle_behavior())
+  {
+    // This robot is not supposed to perform its idle behavior, so we
+    // immediately from here.
+    return false;
+  }
+
   if (!_travel_estimator)
   {
     return false;
