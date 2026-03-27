@@ -2036,6 +2036,23 @@ std::function<void()> TaskManager::_make_resume_from_waiting()
 //==============================================================================
 bool TaskManager::consider_retreating_to_charger()
 {
+  if (_idle_task)
+  {
+    // If the robot's idle behavior is charging, but it has been decommissioned
+    // from performing its idle behavior, we should not retreat to the charger.
+    const auto request = _idle_task->make_request(_context->make_get_state()());
+    const auto& booking_labels = request->booking()->labels();
+    const auto it =
+      std::find(booking_labels.begin(), booking_labels.end(), "charge");
+    if (it != booking_labels.end())
+    {
+      if (!_context->commission().is_performing_idle_behavior())
+      {
+        return false;
+      }
+    }
+  }
+
   if (!_travel_estimator)
   {
     return false;
