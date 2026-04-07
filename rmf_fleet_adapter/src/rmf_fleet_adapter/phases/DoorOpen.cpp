@@ -128,16 +128,23 @@ void DoorOpen::ActivePhase::_init_obs()
           // supervisor sees our request.
           me->_publish_open_door();
 
+          const auto plan_id =
+            me->_context->itinerary().current_plan_id();
+          const auto current_cumulative =
+            me->_context->itinerary().cumulative_delay(plan_id)
+            .value_or(rmf_traffic::Duration(0));
           const auto current_expected_finish =
-          me->_expected_finish + me->_context->itinerary().delay();
+            me->_expected_finish + current_cumulative;
 
           const auto delay = me->_context->now() - current_expected_finish;
           if (delay > std::chrono::seconds(0))
           {
             me->_context->worker().schedule(
-              [context = me->_context, delay](const auto&)
+              [context = me->_context, plan_id, current_cumulative, delay](
+                const auto&)
               {
-                context->itinerary().delay(delay);
+                context->itinerary().cumulative_delay(
+                  plan_id, current_cumulative + delay);
               });
           }
         });
