@@ -1171,7 +1171,7 @@ public:
     const TableViewerPtr& table_viewer,
     const ResponderPtr& responder) final
   {
-    _respond(std::move(table_viewer), std::move(responder));
+    _respond(table_viewer, responder);
   }
 
 private:

@@ -149,16 +149,12 @@ SCENARIO("Test loop requests", "[.flaky]")
   auto task_0_completed_future = task_0_completed_promise.get_future();
   std::size_t completed_0_count = 0;
   bool at_least_one_incomplete_task_0 = false;
-  std::size_t finding_a_plan_0_count = 0;
-  std::vector<std::string> finding_a_plan_0_statuses;
 
   const std::string loop_1 = "loop_1";
   std::promise<bool> task_1_completed_promise;
   auto task_1_completed_future = task_1_completed_promise.get_future();
   std::size_t completed_1_count = 0;
   bool at_least_one_incomplete_task_1 = false;
-  std::size_t finding_a_plan_1_count = 0;
-  std::vector<std::string> finding_a_plan_1_statuses;
 
   /// Mock Task State observer server, This checks the task_state
   /// of the targeted task id, by listening to the task_state_update

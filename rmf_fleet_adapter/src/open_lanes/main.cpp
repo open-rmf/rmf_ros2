@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
     for (const auto& f : failed_conversions)
       extra_message += " " + std::to_string(f);
 
-    extra_message + " into integers";
+    extra_message += " into integers";
     return help(extra_message);
   }
 

@@ -302,10 +302,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
               std::unordered_set<std::string> retain_mutexes;
               for (const auto& wp : self->_waypoints)
               {
-                const auto s_100 =
-                (int)(rmf_traffic::time::to_seconds(adjusted_now -
-                wp.time()) * 100);
-                const auto s = (double)(s_100)/100.0;
                 if (wp.time() < adjusted_now)
                 {
                   continue;

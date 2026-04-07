@@ -492,7 +492,7 @@ public:
           [
             assign_id = _assign_id,
             context = _context
-          ](UpdateFn update) -> StandbyPtr
+          ](UpdateFn /*update*/) -> StandbyPtr
           {
             return events::WaitForCancel::Standby::make(context, assign_id);
           });
@@ -677,7 +677,6 @@ void add_charge_battery(
   rmf_task_sequence::Event::Initializer& event_initializer,
   std::function<rmf_traffic::Time()> clock)
 {
-  using Bundle = rmf_task_sequence::events::Bundle;
   using Phase = rmf_task_sequence::phases::SimplePhase;
   using ChargeBatteryTask = rmf_task::requests::ChargeBattery;
 
