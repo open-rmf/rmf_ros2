@@ -72,7 +72,7 @@ std::shared_ptr<Node> Node::make(
 
   node->_emergency_notice_obs =
     node->create_observable<EmergencyNotice>(
-    "fire_alarm_trigger", transient_qos);
+    rmf_traffic_ros2::EmergencyTopicName, transient_qos);
 
   node->_target_emergency_notice_obs =
     node->create_observable<TargetEmergencyNotice>(
