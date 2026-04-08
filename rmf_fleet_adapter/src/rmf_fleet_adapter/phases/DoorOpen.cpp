@@ -139,12 +139,12 @@ void DoorOpen::ActivePhase::_init_obs()
           const auto delay = me->_context->now() - current_expected_finish;
           if (delay > std::chrono::seconds(0))
           {
+            const auto new_cumulative = current_cumulative + delay;
             me->_context->worker().schedule(
-              [context = me->_context, plan_id, current_cumulative, delay](
+              [context = me->_context, plan_id, new_cumulative](
                 const auto&)
               {
-                context->itinerary().cumulative_delay(
-                  plan_id, current_cumulative + delay);
+                context->itinerary().cumulative_delay(plan_id, new_cumulative);
               });
           }
         });
