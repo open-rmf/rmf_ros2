@@ -202,7 +202,11 @@ void FleetAdapterNode::register_robot(const RobotState& state)
             const rmf_traffic::Duration t)
           {
             *negotiated_delay += t;
-            participant->delay(t);
+            const auto plan_id = participant->current_plan_id();
+            const auto current =
+              participant->cumulative_delay(plan_id)
+              .value_or(rmf_traffic::Duration(0));
+            participant->cumulative_delay(plan_id, current + t);
             return participant->version();
           };
 
@@ -319,7 +323,12 @@ void FleetAdapterNode::update_robot(
       {
         // The robot is still at the same location that it was in last time, so
         // we can just add a delay to the schedule
-        robot->schedule->delay(make_delay(*robot->schedule, now));
+        const auto plan_id = robot->schedule->current_plan_id();
+        const auto current =
+          robot->schedule->cumulative_delay(plan_id)
+          .value_or(rmf_traffic::Duration(0));
+        robot->schedule->cumulative_delay(
+          plan_id, current + make_delay(*robot->schedule, now));
         return;
       }
     }
@@ -614,7 +623,10 @@ void FleetAdapterNode::update_arrival(
     rmf_traffic::agv::Interpolate::positions(_traits, now, input_positions)
     .back().time();
 
-  const auto current_delay = robot.schedule->delay();
+  const auto sched_plan_id = robot.schedule->current_plan_id();
+  const auto current_delay =
+    robot.schedule->cumulative_delay(sched_plan_id)
+    .value_or(rmf_traffic::Duration(0));
   const auto planned_time = robot.expectation->timing.at(next_waypoint);
   const auto previously_expected_arrival = planned_time + current_delay;
   const auto new_delay = newly_expected_arrival - previously_expected_arrival;
@@ -640,7 +652,10 @@ void FleetAdapterNode::update_delay(
     new_delay = 0s;
   }
 
-  robot.schedule->delay(new_delay);
+  const auto plan_id = robot.schedule->current_plan_id();
+  const auto current =
+    robot.schedule->cumulative_delay(plan_id).value_or(rmf_traffic::Duration(0));
+  robot.schedule->cumulative_delay(plan_id, current + new_delay);
 }
 
 //==============================================================================

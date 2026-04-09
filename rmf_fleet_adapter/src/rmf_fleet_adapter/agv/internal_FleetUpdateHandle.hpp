@@ -280,15 +280,15 @@ public:
   rclcpp::TimerBase::SharedPtr fleet_state_update_timer = nullptr;
   rclcpp::TimerBase::SharedPtr memory_trim_timer = nullptr;
 
-  rxcpp::subscription emergency_sub;
-  rxcpp::subscription target_emergency_sub;
-  rxcpp::subjects::subject<bool> emergency_publisher;
-  rxcpp::observable<bool> emergency_obs;
+  rxcpp::subscription emergency_sub = {};
+  rxcpp::subscription target_emergency_sub = {};
+  rxcpp::subjects::subject<bool> emergency_publisher = {};
+  rxcpp::observable<bool> emergency_obs = {};
   bool emergency_active = false;
   // When an emergency (fire alarm) is active, this map says which level each
   // lift will "home" to (if any).
-  std::unordered_map<std::string, std::string> emergency_level_for_lift;
-  SharedPlanner emergency_planner;
+  std::unordered_map<std::string, std::string> emergency_level_for_lift = {};
+  SharedPlanner emergency_planner = nullptr;
 
   rclcpp::Subscription<rmf_fleet_msgs::msg::ChargingAssignments>::SharedPtr
     charging_assignments_sub = nullptr;
@@ -297,7 +297,7 @@ public:
   // Keep track of charging assignments for robots that have not been registered
   // yet.
   std::unordered_map<std::string, ChargingAssignment>
-  unregistered_charging_assignments;
+  unregistered_charging_assignments = {};
 
   using DockParamMap =
     std::unordered_map<
@@ -323,9 +323,9 @@ public:
   // This is checked before and after the task reassignment procedure to ensure
   // that no new task came in from the dispatcher while the reassignment was
   // being calculated.
-  std::string last_bid_assignment;
-  std::vector<rmf_task::ConstRequestPtr> unassigned_requests;
-  rxcpp::schedulers::worker reassignment_worker;
+  std::string last_bid_assignment = {};
+  std::vector<rmf_task::ConstRequestPtr> unassigned_requests = {};
+  rxcpp::schedulers::worker reassignment_worker = {};
 
   using BidNoticeMsg = rmf_task_msgs::msg::BidNotice;
 
@@ -351,11 +351,11 @@ public:
   std::unordered_map<std::size_t, double> speed_limited_lanes = {};
   std::unordered_set<std::size_t> closed_lanes = {};
 
-  std::shared_ptr<AllocateTasks> calculate_bid;
-  rmf_rxcpp::subscription_guard calculate_bid_subscription;
+  std::shared_ptr<AllocateTasks> calculate_bid = nullptr;
+  rmf_rxcpp::subscription_guard calculate_bid_subscription = {};
 
-  rclcpp::TimerBase::SharedPtr memory_utilization_timer;
-  std::optional<std::size_t> planner_cache_reset_size;
+  rclcpp::TimerBase::SharedPtr memory_utilization_timer = nullptr;
+  std::optional<std::size_t> planner_cache_reset_size = std::nullopt;
 
   template<typename... Args>
   static std::shared_ptr<FleetUpdateHandle> make(Args&&... args)

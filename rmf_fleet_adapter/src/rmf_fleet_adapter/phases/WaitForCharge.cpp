@@ -122,11 +122,11 @@ _reservation_client = std::move(reservation::ReservationNodeNegotiator::make(
           _context,
           std::vector<rmf_traffic::agv::Plan::Goal>{ charging_waypoint},
           true,
-          [](const rmf_traffic::agv::Plan::Goal& goal)
+          [](const rmf_traffic::agv::Plan::Goal& /*goal*/)
           {
             // Do Nothing
           },
-          [](const rmf_traffic::agv::Plan::Goal& goal)
+          [](const rmf_traffic::agv::Plan::Goal& /*goal*/)
           {
             // Do Nothing
           }

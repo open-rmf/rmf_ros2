@@ -34,10 +34,16 @@ void bind_schedule(py::module& m)
     "current_plan_id",
     &schedule::Participant::current_plan_id)
   .def_property("delay",
-    py::overload_cast<>(
-      &schedule::Participant::delay, py::const_),
-    py::overload_cast<
-      rmf_traffic::Duration>(&schedule::Participant::delay))
+    [](const schedule::Participant& p) {
+      return p.cumulative_delay(p.current_plan_id())
+        .value_or(rmf_traffic::Duration(0));
+    },
+    [](schedule::Participant& p, rmf_traffic::Duration d) {
+      const auto plan_id = p.current_plan_id();
+      const auto current =
+        p.cumulative_delay(plan_id).value_or(rmf_traffic::Duration(0));
+      p.cumulative_delay(plan_id, current + d);
+    })
   .def("clear", &schedule::Participant::clear)
   .def("get_itinerary", &schedule::Participant::itinerary)
   .def("set_itinerary",

@@ -161,9 +161,6 @@ LockMutexGroup::Active::Active(Data data)
 void LockMutexGroup::Active::_initialize()
 {
   _state->update_status(State::Status::Underway);
-  using MutexGroupStatesPtr =
-    std::shared_ptr<rmf_fleet_msgs::msg::MutexGroupStates>;
-
   _remaining = _data.mutex_groups;
   for (const auto& [locked, _] : _context->locked_mutex_groups())
   {

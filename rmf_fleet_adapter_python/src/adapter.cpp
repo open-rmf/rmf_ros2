@@ -55,6 +55,7 @@ std::unordered_map<std::string, ConsiderRequest> convert(
       confirm = consider(description);
     };
   }
+  return output;
 }
 
 using ActivityIdentifier = agv::RobotUpdateHandle::ActivityIdentifier;
