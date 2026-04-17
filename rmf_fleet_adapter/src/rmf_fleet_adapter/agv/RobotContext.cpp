@@ -601,6 +601,79 @@ rmf_traffic::agv::Plan::StartSet RobotContext::location() const
 }
 
 //==============================================================================
+void RobotContext::set_zone_task_modifiers(ZoneTaskModifiers modifiers)
+{
+  _zone_task_modifiers = std::move(modifiers);
+}
+
+//==============================================================================
+auto RobotContext::zone_task_modifiers() const -> const ZoneTaskModifiers&
+{
+  return _zone_task_modifiers;
+}
+
+//==============================================================================
+void RobotContext::set_is_zone_task(bool value)
+{
+  _is_zone_task = value;
+}
+
+//==============================================================================
+bool RobotContext::is_zone_task() const
+{
+  return _is_zone_task;
+}
+
+//==============================================================================
+void RobotContext::set_booked_zone_goal(rmf_traffic::agv::Plan::Goal goal)
+{
+  _booked_zone_goal = std::move(goal);
+}
+
+//==============================================================================
+std::optional<rmf_traffic::agv::Plan::Goal>
+RobotContext::booked_zone_goal() const
+{
+  return _booked_zone_goal;
+}
+
+//==============================================================================
+void RobotContext::clear_booked_zone_goal()
+{
+  _booked_zone_goal = std::nullopt;
+}
+
+//==============================================================================
+void RobotContext::set_booked_zone_waypoint(std::string name)
+{
+  _booked_zone_waypoint = std::move(name);
+  if (!_zone_stubbornness)
+    _zone_stubbornness = be_stubborn();
+}
+
+//==============================================================================
+const std::string& RobotContext::booked_zone_waypoint() const
+{
+  return _booked_zone_waypoint;
+}
+
+//==============================================================================
+void RobotContext::clear_booked_zone_waypoint()
+{
+  _booked_zone_waypoint.clear();
+  _zone_stubbornness = nullptr;
+}
+
+//==============================================================================
+std::optional<std::size_t> RobotContext::current_waypoint() const
+{
+  if (_location.empty())
+    return std::nullopt;
+
+  return _location.front().waypoint();
+}
+
+//==============================================================================
 void RobotContext::set_location(rmf_traffic::agv::Plan::StartSet location_)
 {
   for (auto& location : location_)
