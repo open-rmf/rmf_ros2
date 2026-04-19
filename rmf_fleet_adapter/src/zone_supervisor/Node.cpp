@@ -14,11 +14,11 @@ Node::Node(const rclcpp::NodeOptions& options)
 {
   // Declare parameters
   _stale_booking_check_interval =
-    this->declare_parameter("stale_booking_check_interval", 300.0);
+    this->declare_parameter("stale_booking_check_interval", 60.0);
   _stale_booking_distance_threshold =
     this->declare_parameter("stale_booking_distance_threshold", 1.0);
   _stale_booking_grace_period =
-    this->declare_parameter("stale_booking_grace_period", 60.0);
+    this->declare_parameter("stale_booking_grace_period", 180.0);
 
   // All callbacks share a single MutuallyExclusive group so that they
   // serialize through one thread. This avoids data races on _zones,
