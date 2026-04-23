@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description__zone.json",
+  "title": "Zone Event Description",
+  "description": "Send a robot to a named zone. Optional modifiers influence zone waypoint selection.",
+  "type": "object",
+  "properties": {
+    "zone_name": {
+      "type": "string",
+      "description": "The unique name of the target zone."
+    },
+    "modifiers": {
+      "description": "Optional modifiers that influence waypoint selection within the zone. If present, at least one modifier field must be specified.",
+      "type": "object",
+      "properties": {
+        "waypoint_preference": { "$ref": "#/$defs/waypoint_preference" }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    }
+  },
+  "required": ["zone_name"],
+  "$defs": {
+    "waypoint_preference": {
+      "type": "object",
+      "description": "Hints that influence which waypoint the Zone Supervisor assigns. All fields are optional, but at least one must be present.",
+      "properties": {
+        "group": {
+          "type": "string",
+          "description": "Group label used to filter candidate waypoints (e.g. 'left', 'right', 'A', 'B'). Groups are defined per vertex in the Traffic Editor."
+        },
+        "orientation": {
+          "type": "number",
+          "description": "Desired robot heading in radians at the assigned waypoint. Follows the same convention as the orientation field in place.json."
+        },
+        "preferred_waypoints": {
+          "type": "array",
+          "description": "Ordered list of preferred waypoints. Each item follows the place.json schema and may use either the full vertex name or the short alias shown in the Traffic Editor. The Zone Supervisor attempts these in order and falls back to priority-based selection if none are available.",
+          "items": { "$ref": "place.json" },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    }
+  }
+}

@@ -181,6 +181,17 @@ public:
     text = "Wait";
   }
 
+  void execute(const ZoneEntry& zone) override
+  {
+    text = "Zone " + zone.zone_name();
+  }
+
+  void execute(const ZoneExit& zone) override
+  {
+    text = "Zone " + zone.zone_name();
+  }
+
+
   void execute(const Dock& dock) override
   {
     text = "Dock " + dock.dock_name();
@@ -1007,6 +1018,54 @@ public:
 
   bool debug_positions = false;
 
+  /// Mirrors rmf_task_sequence::events::GoToZone::Description::Modifiers.
+  /// Duplicated here so RobotContext.hpp doesn't pull in a concrete event
+  /// header.
+  struct ZoneTaskModifiers
+  {
+    std::string group_hint;
+    std::optional<double> orientation_hint;
+    std::vector<std::string> preferred_waypoints;
+  };
+
+  /// Set the modifiers for a zone task.
+  void set_zone_task_modifiers(ZoneTaskModifiers modifiers);
+  const ZoneTaskModifiers& zone_task_modifiers() const;
+
+  /// Set whether this robot is currently doing a zone task.
+  void set_is_zone_task(bool value);
+
+  /// Check whether this robot is currently doing a zone task.
+  bool is_zone_task() const;
+
+  /// Planner goal for the active zone booking (waypoint index +
+  /// orientation). Consumed by GoToPlace::_find_plan() to override the
+  /// planner's destination while in a zone task.
+  void set_booked_zone_goal(rmf_traffic::agv::Plan::Goal goal);
+
+  /// Get the planner goal for the active zone booking.
+  std::optional<rmf_traffic::agv::Plan::Goal> booked_zone_goal() const;
+
+  /// Clear the planner goal for the active zone booking.
+  void clear_booked_zone_goal();
+
+  /// Waypoint name of the active zone booking. Non-empty means the
+  /// supervisor has granted this robot a booking that has not yet been
+  /// released. As a lifecycle side effect, non-empty also keeps the robot
+  /// stubborn in schedule negotiations: stubbornness is acquired on set,
+  /// released on clear.
+  void set_booked_zone_waypoint(std::string name);
+
+  /// Get the waypoint name of the active zone booking.
+  const std::string& booked_zone_waypoint() const;
+
+  /// Clear the waypoint name of the active zone booking (also releases
+  /// stubbornness).
+  void clear_booked_zone_waypoint();
+
+  /// First waypoint from the current location() start set, or nullopt.
+  std::optional<std::size_t> current_waypoint() const;
+
 private:
 
   RobotContext(
@@ -1080,6 +1139,12 @@ private:
   std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
   std::weak_ptr<TaskManager> _task_manager;
   bool _robot_finishing_request = false;
+
+  ZoneTaskModifiers _zone_task_modifiers;
+  bool _is_zone_task = false;
+  std::string _booked_zone_waypoint;
+  std::shared_ptr<void> _zone_stubbornness;
+  std::optional<rmf_traffic::agv::Plan::Goal> _booked_zone_goal;
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);

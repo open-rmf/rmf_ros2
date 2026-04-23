@@ -26,6 +26,8 @@
 #include "../phases/DoorClose.hpp"
 #include "../phases/RequestLift.hpp"
 #include "../phases/DockRobot.hpp"
+#include "../phases/ZoneEntry.hpp"
+#include "../phases/ZoneExit.hpp"
 
 #include "../agv/internal_EasyFullControl.hpp"
 
@@ -340,6 +342,68 @@ public:
     // Do nothing
   }
 
+  void execute(const ZoneEntry& zone_entry) final
+  {
+    if (!_context->is_zone_task())
+      return;
+
+    // Already booked in this zone (e.g. replan after supervisor assignment)
+    if (!_context->booked_zone_waypoint().empty())
+    {
+      const auto& graph = _context->navigation_graph();
+      const auto zone_props = graph.find_known_zone(
+        zone_entry.zone_name());
+      // To check if the assigned waypoint belongs to the this target zone
+      if (zone_props && zone_props->find_internal_vertex(
+          _context->booked_zone_waypoint()))
+        return;
+    }
+
+    // Truncate itinerary at zone entry waypoint
+    truncate_arrival(*_previous_itinerary, initial_waypoint);
+    auto resume_itinerary =
+      std::make_shared<rmf_traffic::schedule::Itinerary>(_full_itinerary);
+    _previous_itinerary = resume_itinerary;
+
+    _phases.emplace_back(
+      std::make_shared<phases::ZoneEntry::PendingPhase>(
+        _context,
+        zone_entry.zone_name(),
+        _event_start_time + zone_entry.duration(),
+        std::move(resume_itinerary),
+        _plan_id),
+      _event_start_time,
+      initial_waypoint.dependencies(),
+      std::nullopt);
+    _continuous = true;
+  }
+
+  void execute(const ZoneExit& zone_exit) final
+  {
+    const bool has_booking = !_context->booked_zone_waypoint().empty();
+    if (!has_booking)
+      return;
+
+    // Only fire if the exit lane belongs to the zone we're booked in
+    const auto& graph = _context->navigation_graph();
+    const auto zone_props = graph.find_known_zone(
+      zone_exit.zone_name());
+    if (!zone_props || !zone_props->find_internal_vertex(
+        _context->booked_zone_waypoint()))
+      return;
+
+    _phases.emplace_back(
+      std::make_shared<phases::ZoneExit::PendingPhase>(
+        _context,
+        zone_exit.zone_name(),
+        _event_start_time + zone_exit.duration(),
+        _plan_id),
+      _event_start_time,
+      initial_waypoint.dependencies(),
+      std::nullopt);
+    _continuous = true;
+  }
+
   bool moving_lift() const
   {
     return _moving_lift;
@@ -610,6 +674,8 @@ public:
   void execute(const Wait&) final {}
   void execute(const DoorOpen&) final {}
   void execute(const DoorClose&) final {}
+  void execute(const ZoneEntry&) final {}
+  void execute(const ZoneExit&) final {}
   void execute(const LiftSessionBegin& e) final
   {
     // If we're going to re-begin using a lift, then we don't need to keep this
@@ -659,6 +725,8 @@ public:
     if (close.name() == current_name)
       still_using = true;
   }
+  void execute(const ZoneEntry&) final {}
+  void execute(const ZoneExit&) final {}
   void execute(const LiftSessionBegin& /*e*/) final {}
   void execute(const LiftMove& /*e*/) final {}
   void execute(const LiftDoorOpen& /*e*/) final {}
