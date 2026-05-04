@@ -122,6 +122,7 @@ auto LegacyPhaseShim::Active::make(
             log.info(msg.status);
         }
 
+        /* *INDENT-OFF* */
         if (!self->_last_state_value.has_value()
             || *self->_last_state_value != msg.state)
         {
