@@ -93,6 +93,7 @@ public:
     std::shared_ptr<LegacyTask::ActivePhase> _legacy;
     rmf_task::events::SimpleEventStatePtr _state;
     std::string _last_status_message;
+    std::optional<uint32_t> _last_state_value;
     std::function<void()> _parent_update;
     std::function<void()> _finished;
     rmf_rxcpp::subscription_guard _subscription;

@@ -122,11 +122,26 @@ auto LegacyPhaseShim::Active::make(
             log.info(msg.status);
         }
 
-        if (msg.state == TaskSummary::STATE_FAILED)
+        if (!self->_last_state_value.has_value()
+            || *self->_last_state_value != msg.state)
         {
           need_update = true;
-          self->_state->update_status(Event::Status::Failed);
+          self->_last_state_value = msg.state;
+          if (msg.state == TaskSummary::STATE_QUEUED
+              || msg.state == TaskSummary::STATE_PENDING)
+            self->_state->update_status(Event::Status::Standby);
+          else if (msg.state == TaskSummary::STATE_ACTIVE)
+            self->_state->update_status(Event::Status::Underway);
+          else if (msg.state == TaskSummary::STATE_COMPLETED)
+            self->_state->update_status(Event::Status::Completed);
+          else if (msg.state == TaskSummary::STATE_FAILED)
+            self->_state->update_status(Event::Status::Failed);
+          else if (msg.state == TaskSummary::STATE_CANCELED)
+            self->_state->update_status(Event::Status::Canceled);
+          else
+            self->_state->update_status(Event::Status::Uninitialized);
         }
+        /* *INDENT-ON* */
 
         if (need_update)
           self->_parent_update();
