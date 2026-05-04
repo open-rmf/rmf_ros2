@@ -78,6 +78,7 @@ const std::string BlockadeSetTopicName = Prefix +
 
 [[deprecated("Use EmergencySignalTopicName with the rmf_fleet_msgs/EmergencySignal message instead")]]
 const std::string EmergencyTopicName = "fire_alarm_trigger";
+
 const std::string EmergencySignalTopicName = "emergency_signal";
 
 } // namespace rmf_traffic_ros2

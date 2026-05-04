@@ -1806,7 +1806,6 @@ void EasyCommandHandle::dock(
       lane.properties().speed_limit(),
       wp0.in_lift());
 
-    const double w = std::max(traits.rotational().get_nominal_velocity(), 0.001);
     queue.push_back(
       EasyFullControl::CommandExecution::Implementation::make(
         context,

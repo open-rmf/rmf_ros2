@@ -39,10 +39,10 @@ public:
     const std::shared_ptr<rclcpp::Node>& node,
     ProvideJsonUpdates get_json_updates_cb)
   : _uri{std::move(uri)},
-    _node{std::move(node)},
-    _get_json_updates_cb{std::move(get_json_updates_cb)},
-    _queue(1000),
     _io_service{},
+    _node{std::move(node)},
+    _queue(1000),
+    _get_json_updates_cb{std::move(get_json_updates_cb)},
     _endpoint(_uri,
       _node,
       &_io_service,

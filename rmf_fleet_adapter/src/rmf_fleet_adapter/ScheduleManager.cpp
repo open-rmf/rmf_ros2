@@ -71,7 +71,10 @@ void ScheduleManager::push_routes(const std::vector<rmf_traffic::Route>& routes)
 //==============================================================================
 void ScheduleManager::push_delay(const rmf_traffic::Duration duration)
 {
-  _participant.delay(duration);
+  const auto plan_id = _participant.current_plan_id();
+  const auto current =
+    _participant.cumulative_delay(plan_id).value_or(rmf_traffic::Duration(0));
+  _participant.cumulative_delay(plan_id, current + duration);
 }
 
 //==============================================================================

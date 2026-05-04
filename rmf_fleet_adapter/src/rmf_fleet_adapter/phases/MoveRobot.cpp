@@ -150,8 +150,8 @@ MoveRobot::Action::Action(
   rmf_traffic::PlanId plan_id,
   std::optional<rmf_traffic::Duration> tail_period)
 : _context{context},
-  _has_nav_elements(false),
   _waypoints{waypoints},
+  _has_nav_elements(false),
   _plan_id{plan_id},
   _tail_period{tail_period}
 {

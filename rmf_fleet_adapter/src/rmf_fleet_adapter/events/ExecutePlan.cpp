@@ -90,7 +90,7 @@ MakeStandby make_wait_for_mutex(
   const rmf_task_sequence::Event::AssignIDPtr& id,
   const LockMutexGroup::Data& data)
 {
-  return [context, id, data](UpdateFn update)
+  return [context, id, data](UpdateFn /*update*/)
     {
       return LockMutexGroup::Standby::make(context, id, data);
     };
@@ -606,7 +606,7 @@ public:
   std::string current_name;
   bool still_using = false;
 
-  void execute(const Dock& dock) final {}
+  void execute(const Dock& /*dock*/) final {}
   void execute(const Wait&) final {}
   void execute(const DoorOpen&) final {}
   void execute(const DoorClose&) final {}
@@ -647,7 +647,7 @@ public:
   std::string current_name;
   bool still_using;
 
-  void execute(const Dock& dock) final {}
+  void execute(const Dock& /*dock*/) final {}
   void execute(const Wait&) final {}
   void execute(const DoorOpen& open) final
   {
@@ -659,10 +659,10 @@ public:
     if (close.name() == current_name)
       still_using = true;
   }
-  void execute(const LiftSessionBegin& e) final {}
-  void execute(const LiftMove& e) final {}
-  void execute(const LiftDoorOpen& e) final {}
-  void execute(const LiftSessionEnd& e) final {}
+  void execute(const LiftSessionBegin& /*e*/) final {}
+  void execute(const LiftMove& /*e*/) final {}
+  void execute(const LiftDoorOpen& /*e*/) final {}
+  void execute(const LiftSessionEnd& /*e*/) final {}
 };
 
 //==============================================================================
