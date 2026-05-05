@@ -220,6 +220,8 @@ public:
   void execute(const LiftSessionEnd&) override {}
   void execute(const LiftMove&) override {}
   void execute(const Wait&) override {}
+  void execute(const ZoneEntry&) override {}
+  void execute(const ZoneExit&) override {}
   void execute(const Dock& dock) override
   {
     if (!visited_docks.insert(dock.dock_name()).second)
@@ -339,6 +341,15 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
       RCLCPP_INFO(
         this->node()->get_logger(),
         "Fleet [%s] is configured to perform patrol tasks",
+        config.fleet_name().c_str());
+    }
+
+    if (task == "zone" && consider)
+    {
+      fleet_handle->consider_zone_requests(consider);
+      RCLCPP_INFO(
+        this->node()->get_logger(),
+        "Fleet [%s] is configured to perform zone tasks",
         config.fleet_name().c_str());
     }
 

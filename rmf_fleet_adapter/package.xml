@@ -28,6 +28,7 @@
   <depend>rmf_fleet_msgs</depend>
   <depend>rmf_ingestor_msgs</depend>
   <depend>rmf_lift_msgs</depend>
+  <depend>rmf_zone_msgs</depend>
   <depend>rmf_task_msgs</depend>
   <depend>rmf_task_ros2</depend>
   <depend>rmf_task_sequence</depend>

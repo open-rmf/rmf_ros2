@@ -268,7 +268,13 @@ auto GoToPlace::Active::make(
       }
     });
 
-  if (!active->_context->_parking_spot_manager_enabled())
+  if (active->_context->is_zone_task())
+  {
+    // Zone tasks skip the reservation manager, the zone supervisor
+    // assigns the waypoint via phases::ZoneEntry instead.
+    active->_find_plan();
+  }
+  else if (!active->_context->_parking_spot_manager_enabled())
   {
     // If no parking spot manager is enabled then we
     // just proceed to find plans as is.
@@ -475,7 +481,7 @@ std::optional<rmf_traffic::agv::Plan::Goal> GoToPlace::Active::_choose_goal(
     _context->requester_id().c_str());
 
 
-  if (_context->_parking_spot_manager_enabled())
+  if (_context->_parking_spot_manager_enabled() && !_context->is_zone_task())
   {
     RCLCPP_INFO(_context->node()->get_logger(),
       "Waiting for next location from reservation node.");
@@ -546,6 +552,13 @@ void GoToPlace::Active::_find_plan()
 {
   if (_is_interrupted)
     return;
+
+  // Use zone supervisor's assigned goal if this is a zone task.
+  if (_context->is_zone_task()
+    && _context->booked_zone_goal().has_value())
+  {
+    _chosen_goal = *_context->booked_zone_goal();
+  }
 
   if (!_chosen_goal.has_value() && _description.prefer_same_map() )
   {
