@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.22)
 
 project(rmf_websocket)
 
@@ -8,6 +8,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   # we dont use add_compile_options with pedantic in message packages
   # because the Python C extensions dont comply with it
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
+endif()
+
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
 endif()
 
 include(GNUInstallDirs)
@@ -20,7 +24,7 @@ find_package(nlohmann_json REQUIRED)
 find_package(nlohmann_json_schema_validator_vendor REQUIRED)
 find_package(nlohmann_json_schema_validator REQUIRED)
 find_package(websocketpp REQUIRED)
-find_package(Boost COMPONENTS system REQUIRED)
+find_package(Boost REQUIRED)
 find_package(Threads)
 
 
@@ -38,7 +42,7 @@ target_link_libraries(rmf_websocket
     nlohmann_json::nlohmann_json
     nlohmann_json_schema_validator
   PRIVATE
-    Boost::system
+    ${Boost_LIBRARIES}
     Threads::Threads
 )
 
@@ -112,8 +116,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_ring_buffer
     PRIVATE
       rmf_utils::rmf_utils
-      Boost::system
-    )
+      ${Boost_LIBRARIES}
+  )
 
 #integration test
   find_package(OpenSSL REQUIRED)
@@ -125,12 +129,12 @@ if(BUILD_TESTING)
     ${websocketpp_LIBRARIES}
       ${rclcpp_LIBRARIES}
       rmf_utils::rmf_utils
-      Boost::system
+      ${Boost_LIBRARIES}
       rmf_websocket
       PRIVATE
       Threads::Threads
       OpenSSL::Crypto
-    )
+  )
   target_include_directories(test_client
     PUBLIC
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -148,7 +152,7 @@ if(BUILD_TESTING)
       ${websocketpp_LIBRARIES}
       ${rclcpp_LIBRARIES}
       rmf_utils::rmf_utils
-      Boost::system
+      ${Boost_LIBRARIES}
       rmf_websocket
       PRIVATE
       Threads::Threads
@@ -170,7 +174,7 @@ if(BUILD_TESTING)
       ${websocketpp_LIBRARIES}
       ${rclcpp_LIBRARIES}
       rmf_utils::rmf_utils
-      Boost::system
+      ${Boost_LIBRARIES}
       rmf_websocket
       PRIVATE
       Threads::Threads
