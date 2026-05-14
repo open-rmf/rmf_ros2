@@ -1079,6 +1079,12 @@ void EasyTrafficLight::Implementation::Shared::publish_fleet_state() const
     .battery_percent(battery_soc*100.0)
     .location(std::move(location))
     .path({});
+
+  const auto& fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
+    .name(fleet_name)
+    .robots({std::move(robot_state)});
+
+  hooks.fleet_state_pub->publish(fleet_state);
 }
 
 //==============================================================================
