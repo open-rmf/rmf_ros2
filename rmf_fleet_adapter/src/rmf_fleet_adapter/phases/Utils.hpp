@@ -20,12 +20,21 @@
 
 #include <builtin_interfaces/msg/time.hpp>
 
+#include <string>
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
 bool is_newer(
   const builtin_interfaces::msg::Time& a,
   const builtin_interfaces::msg::Time& b);
+
+// Generate a zone request id of the form
+// {fleet}_{robot}_{zone}_{random_hex}.
+std::string generate_zone_request_id(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone);
 
 } // namespace phases
 } // namespace rmf_fleet_adapter

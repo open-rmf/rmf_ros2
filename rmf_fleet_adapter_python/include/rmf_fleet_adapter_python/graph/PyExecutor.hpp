@@ -118,6 +118,28 @@ public:
       wait
     );
   }
+
+  void execute(const Lane::ZoneEntry& zone) override
+  {
+    PYBIND11_OVERLOAD_PURE_NAME(
+      void,
+      Lane::Executor,
+      "zone_entry_execute",
+      execute,
+      zone
+    );
+  }
+
+  void execute(const Lane::ZoneExit& zone) override
+  {
+    PYBIND11_OVERLOAD_PURE_NAME(
+      void,
+      Lane::Executor,
+      "zone_exit_execute",
+      execute,
+      zone
+    );
+  }
 };
 
 #endif // PYEXECUTOR_HPP

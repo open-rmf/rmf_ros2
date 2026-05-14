@@ -57,6 +57,8 @@ public:
     void execute(const LiftDoorOpen&) override {}
     void execute(const LiftSessionEnd&) override {}
     void execute(const Wait&) override {}
+    void execute(const ZoneEntry&) override {}
+    void execute(const ZoneExit&) override {}
 
   private:
     std::unordered_map<std::string, std::size_t>& _dock_to_wp;

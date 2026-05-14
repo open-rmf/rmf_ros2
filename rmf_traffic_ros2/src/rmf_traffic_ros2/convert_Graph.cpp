@@ -27,6 +27,9 @@
 
 #include <rmf_building_map_msgs/msg/graph_node.hpp>
 #include <rmf_building_map_msgs/msg/graph_edge.hpp>
+#include <rmf_building_map_msgs/msg/graph_zone.hpp>
+#include <rmf_building_map_msgs/msg/zone_vertex.hpp>
+#include <rmf_building_map_msgs/msg/zone_transition_lane.hpp>
 #include <rmf_building_map_msgs/msg/param.hpp>
 
 #include <unordered_set>
@@ -789,6 +792,28 @@ public:
       .value_bool(false));
   }
 
+  void execute(const ZoneEntry& zone) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name(_prefix + "_ZoneEntry_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(zone.duration().count())
+      .value_string("")
+      .value_bool(false));
+  }
+
+  void execute(const ZoneExit& zone) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name(_prefix + "_ZoneExit_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(zone.duration().count())
+      .value_string("")
+      .value_bool(false));
+  }
+
 private:
   std::string _prefix;
   std::vector<GraphParamMsg>& _edge_params;
@@ -801,6 +826,9 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
   using GraphMsg = rmf_building_map_msgs::msg::Graph;
   using GraphNodeMsg = rmf_building_map_msgs::msg::GraphNode;
   using GraphEdgeMsg = rmf_building_map_msgs::msg::GraphEdge;
+  using GraphZoneMsg = rmf_building_map_msgs::msg::GraphZone;
+  using GraphZoneVertexMsg = rmf_building_map_msgs::msg::ZoneVertex;
+  using GraphZoneTransitionLaneMsg = rmf_building_map_msgs::msg::ZoneTransitionLane;
   using GraphParamMsg = rmf_building_map_msgs::msg::Param;
 
   if (fleet_name.empty())
@@ -814,6 +842,8 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
 
   std::vector<GraphNodeMsg> vertices;
   std::vector<GraphEdgeMsg> edges;
+  std::vector<GraphZoneMsg> zones;
+
   // Populate vertices
   for (std::size_t i = 0; i < n_waypoints; ++i)
   {
@@ -954,11 +984,49 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
     );
   }
 
+  const auto& graph_zones = graph.all_known_zones();
+  for (const auto& zone_ptr : graph_zones)
+  {
+    std::vector<GraphZoneVertexMsg> zone_vertices;
+    for (const auto& zv : zone_ptr->internal_vertices())
+    {
+      zone_vertices.emplace_back(rmf_building_map_msgs::build<GraphZoneVertexMsg>()
+        .name(zv.name())
+        .x(zv.get_location().x())
+        .y(zv.get_location().y())
+        .group(zv.get_group_name())
+        .priority(zv.get_priority()));
+    }
+
+    std::vector<GraphZoneTransitionLaneMsg> zone_transition_lanes;
+    for (const auto& zl : zone_ptr->transition_lanes())
+    {
+      zone_transition_lanes.emplace_back(rmf_building_map_msgs::build<GraphZoneTransitionLaneMsg>()
+        .internal_vertex(zl.internal_vertex())
+        .external_vertex(zl.external_vertex())
+        .entry_lane(zl.is_entry_lane())
+        .exit_lane(zl.is_exit_lane()));
+    }
+
+    zones.emplace_back(rmf_building_map_msgs::build<GraphZoneMsg>()
+      .name(zone_ptr->name())
+      .level(zone_ptr->map())
+      .type(zone_ptr->type())
+      .transition_lanes(std::move(zone_transition_lanes))
+      .center_x(zone_ptr->location().x())
+      .center_y(zone_ptr->location().y())
+      .yaw(zone_ptr->orientation())
+      .length(zone_ptr->dimensions().x())
+      .width(zone_ptr->dimensions().y())
+      .vertices(std::move(zone_vertices)));
+  }
+
   std::unique_ptr<GraphMsg> msg = std::make_unique<GraphMsg>(
     rmf_building_map_msgs::build<GraphMsg>()
     .name(fleet_name)
     .vertices(std::move(vertices))
     .edges(std::move(edges))
+    .zones(std::move(zones))
     .params({})
   );
 

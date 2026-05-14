@@ -33,7 +33,9 @@
 #include "../tasks/Clean.hpp"
 #include "../tasks/ChargeBattery.hpp"
 #include "../tasks/Compose.hpp"
+#include "../tasks/Zone.hpp"
 #include "../events/GoToPlace.hpp"
+#include "../events/GoToZone.hpp"
 #include "../events/ResponsiveWait.hpp"
 #include "../events/PerformAction.hpp"
 #include "../events/DynamicEvent.hpp"
@@ -1453,6 +1455,8 @@ public:
   void execute(const LiftMove&) override {}
   void execute(const Wait&) override {}
   void execute(const Dock& /*dock*/) override {}
+  void execute(const ZoneEntry&) override {}
+  void execute(const ZoneExit&) override {}
   void execute(const LiftSessionBegin& info) override
   {
     lift = info.lift_name();
@@ -1666,6 +1670,135 @@ PlaceDeserializer make_place_deserializer(
       return {place, {}};
     };
 }
+
+ZoneDeserializer make_zone_deserializer(
+  std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>>
+  planner)
+{
+  return [planner = std::move(planner)](const nlohmann::json& msg)
+    -> DeserializedZone
+    {
+      std::optional<std::string> zone_name;
+      const auto& graph = (*planner)->get_configuration().graph();
+      const auto zone_property = graph.find_known_zone(msg.get<std::string>());
+      if (!zone_property)
+      {
+        return {
+          std::nullopt,
+          {"zone name [" + msg.get<std::string>() + "] cannot be "
+            "found in the navigation graph"}
+        };
+      }
+      zone_name = zone_property->name();
+      return {zone_name, {}};
+    };
+}
+
+ZoneWaypointDeserializer make_zone_waypoint_deserializer(
+  std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>>
+  planner)
+{
+  return [planner = std::move(planner)](
+      const std::string& zone_name,
+      const nlohmann::json& msg) -> DeserializedZoneWaypoint
+    {
+      const auto& graph = (*planner)->get_configuration().graph();
+      const auto zone_props = graph.find_known_zone(zone_name);
+      if (!zone_props)
+      {
+        return {
+          std::nullopt,
+          {"zone name [" + zone_name + "] cannot be found in the navigation "
+            "graph"}
+        };
+      }
+
+      // Resolve the JSON value to either a name or a graph waypoint index.
+      std::optional<std::string> name_in;
+      std::optional<std::size_t> index_in;
+      if (msg.is_string())
+      {
+        name_in = msg.get<std::string>();
+      }
+      else if (msg.is_number_integer())
+      {
+        index_in = msg.get<std::size_t>();
+      }
+      else if (msg.is_object() && msg.contains("waypoint"))
+      {
+        const auto& wp_field = msg.at("waypoint");
+        if (wp_field.is_string())
+          name_in = wp_field.get<std::string>();
+        else if (wp_field.is_number_integer())
+          index_in = wp_field.get<std::size_t>();
+      }
+
+      if (!name_in.has_value() && !index_in.has_value())
+      {
+        return {
+          std::nullopt,
+          {"zone waypoint must be a string, integer, or "
+            "{\"waypoint\": <string|integer>}"}
+        };
+      }
+
+      if (index_in.has_value() && *index_in >= graph.num_waypoints())
+      {
+        return {
+          std::nullopt,
+          {"waypoint index [" + std::to_string(*index_in)
+            + "] exceeds the navigation graph size ["
+            + std::to_string(graph.num_waypoints()) + "]"}
+        };
+      }
+
+      for (const auto& iv : zone_props->internal_vertices())
+      {
+        if (name_in.has_value())
+        {
+          // Exact match on full RMF vertex name
+          if (iv.name() == *name_in)
+            return {iv.name(), {}};
+        }
+        else
+        {
+          const auto* wp = graph.find_waypoint(iv.name());
+          if (wp && wp->index() == *index_in)
+            return {iv.name(), {}};
+        }
+      }
+
+      // Fallback: match by traffic editor short name.
+      // Full vertex names follow {zone}#{group}#p{priority}#{zone_wp_name},
+      // e.g. "zoneA#L#p1#waypoint_A". Match by the trailing short name
+      // segment, and also require the zone prefix matches.
+      if (name_in.has_value())
+      {
+        const std::string wp_suffix = "#" + *name_in;
+        const std::string zone_prefix = zone_name + "#";
+        for (const auto& iv : zone_props->internal_vertices())
+        {
+          const auto& full = iv.name();
+          // check if full vertex name ends with the suffix
+          // and starts with the zone prefix
+          if (full.size() > wp_suffix.size()
+            && full.compare(full.size() - wp_suffix.size(),
+                wp_suffix.size(), wp_suffix) == 0
+            && full.compare(0, zone_prefix.size(), zone_prefix) == 0)
+            return {iv.name(), {}};
+        }
+      }
+
+      const std::string unknown_wp = name_in.has_value()
+        ? ("[" + *name_in + "]")
+        : ("index [" + std::to_string(*index_in) + "]");
+      return {
+        std::nullopt,
+        {"waypoint " + unknown_wp + " is not an internal vertex of zone ["
+          + zone_name + "]"}
+      };
+    };
+}
 } // anonymous namespace
 
 //==============================================================================
@@ -1682,8 +1815,11 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     *activation.phase, activation.event);
 
   events::GoToPlace::add(*activation.event);
+  events::GoToZone::add(*activation.event);
   events::PerformAction::add(*activation.event);
   deserialization.place = make_place_deserializer(planner);
+  deserialization.zone = make_zone_deserializer(planner);
+  deserialization.zone_waypoint = make_zone_waypoint_deserializer(planner);
   deserialization.add_schema(schemas::place);
 
   events::ResponsiveWait::add(*activation.event);
@@ -1715,6 +1851,9 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
     deserialization,
     activation,
     node->clock());
+
+  tasks::add_zone(
+    deserialization);
 
   events::DynamicEvent::add(deserialization, activation.event);
 }
@@ -2058,6 +2197,14 @@ FleetUpdateHandle& FleetUpdateHandle::consider_composed_requests(
   ConsiderRequest consider)
 {
   *_pimpl->deserialization.consider_composed = std::move(consider);
+  return *this;
+}
+  
+//==============================================================================
+FleetUpdateHandle& FleetUpdateHandle::consider_zone_requests(
+  ConsiderRequest consider)
+{
+  *_pimpl->deserialization.consider_zone = std::move(consider);
   return *this;
 }
 

@@ -54,6 +54,8 @@ struct CleanEvent : public rmf_task_sequence::events::Placeholder::Description
     void execute(const LiftDoorOpen&) final {}
     void execute(const LiftSessionEnd&) final {}
     void execute(const LiftSessionBegin&) final {}
+    void execute(const ZoneEntry&) final {}
+    void execute(const ZoneExit&) final {}
 
     std::optional<std::string> found_dock = std::nullopt;
   };
