@@ -112,7 +112,7 @@ public:
         "Starting BroadcastServer on port " << endpoint.port());
     }
 
-    // Start the ASIO io_service run loop
+    // Start the ASIO io_context run loop
     _server_thread = std::thread(
       [data = _data]() { data->echo_server.run(); });
   }
@@ -128,8 +128,9 @@ public:
           _logger_interface->get_logger(), "Stopping BroadcastServer");
       }
 
-      _data->echo_server.get_io_service().post(
-          [data = _data]()
+      boost::asio::post(
+        _data->echo_server.get_io_context(),
+        [data = _data]()
           {
             data->echo_server.stop_listening();
             data->echo_server.stop();

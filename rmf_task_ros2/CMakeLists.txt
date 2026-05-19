@@ -40,7 +40,7 @@ target_link_libraries(rmf_task_ros2
     ${rmf_task_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     nlohmann_json::nlohmann_json
-    nlohmann_json_schema_validator
+    nlohmann_json_schema_validator::validator
 )
 
 target_include_directories(rmf_task_ros2
