@@ -253,8 +253,10 @@ auto EasyTrafficLight::Implementation::State::location() const
     return std::nullopt;
 
   const auto& g_wp = graph.get_waypoint(wp);
-  const auto p = g_wp.get_location();
-  return Location{g_wp.get_map_name(), {p[0], p[1], 0.0}};
+  const Eigen::Vector2d pos = last_known_location->location()
+    .value_or(g_wp.get_location());
+  const double yaw = last_known_location->orientation();
+  return Location{g_wp.get_map_name(), {pos[0], pos[1], yaw}};
 }
 
 //==============================================================================
