@@ -522,6 +522,10 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
   {
     const auto slices = state.current_itinerary_slice();
 
+    const auto existing_cumulative_delay =
+      state.itinerary->cumulative_delay(state.itinerary->current_plan_id())
+      .value_or(rmf_traffic::Duration(0));
+
     for (const auto& slice : slices)
     {
       try
@@ -530,7 +534,8 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
           rmf_traffic::agv::interpolate_time_along_quadratic_straight_line(
           slice.trajectory(), location->block<2, 1>(0, 0));
 
-        new_cumulative_delay = hooks.node->rmf_now() - expected_time;
+        const auto delay_delta = hooks.node->rmf_now() - expected_time;
+        new_cumulative_delay = existing_cumulative_delay + delay_delta;
         break;
       }
       catch (const std::exception& e)
