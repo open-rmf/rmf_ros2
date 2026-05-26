@@ -2,9 +2,8 @@ cmake_minimum_required(VERSION 3.5)
 
 project(rmf_websocket)
 
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 17)
-endif()
+# Websocketpp is not compatible with CXX above 17
+set(CMAKE_CXX_STANDARD 17)
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   # we dont use add_compile_options with pedantic in message packages
   # because the Python C extensions dont comply with it

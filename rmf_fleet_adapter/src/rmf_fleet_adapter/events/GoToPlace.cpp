@@ -349,7 +349,22 @@ rmf_traffic::Duration GoToPlace::Active::remaining_time_estimate() const
     if (_execution->plan_id)
     {
       if (const auto delay = itin.cumulative_delay(*_execution->plan_id))
-        return finish - now + *delay;
+      {
+        // Parabolic frustration penalty (delay^2 / reference_delay):
+        // zero at zero delay, matches delay at reference_delay,
+        // grows much faster beyond.
+        // Used so remaining_time_estimate keeps growing with the stall
+        // instead of staying flat, which makes the task planner less likely
+        // to assign new tasks to robots stuck on lift/door/mutex events.
+        const auto reference_delay = std::chrono::seconds(60);
+        const double delay_s =
+          std::max(0.0, rmf_traffic::time::to_seconds(*delay));
+        const double reference_delay_s =
+          rmf_traffic::time::to_seconds(reference_delay);
+        const auto frustration_penalty =
+          rmf_traffic::time::from_seconds(delay_s * delay_s / reference_delay_s);
+        return finish - now + *delay + frustration_penalty;
+      }
     }
     else
     {

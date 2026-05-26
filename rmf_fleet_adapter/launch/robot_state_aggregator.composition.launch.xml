@@ -7,7 +7,7 @@
   <arg name="use_sim_time" default="false" description="Use the /clock topic for time to sync with simulation"/>
   
   <arg name="subns" default="yin" description="Names the composition of nodes"/>
-  <arg name="buddy_subns" default="yang" descrption="Names the buddy composition of nodes" />
+  <arg name="buddy_subns" default="yang" description="Names the buddy composition of nodes" />
   <arg name="active_node" default="true" description="Indicates if this is the active node"/>
   <arg name="verbose" default="true" description="Extra verbosity" />
   <arg name="failover_mode" default="false" description="Sets failover mode on or off"/>
