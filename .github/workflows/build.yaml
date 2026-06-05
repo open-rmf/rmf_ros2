@@ -21,3 +21,4 @@ jobs:
             rmf_task_ros2
             rmf_traffic_ros2
             rmf_websocket
+      repos-branch-override: lyrical
