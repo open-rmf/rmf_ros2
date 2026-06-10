@@ -11,7 +11,7 @@ on:
 jobs:
   build_and_test:
     name: rmf_ros2
-    uses: aaronchongth/rmf_ci_templates/.github/workflows/reusable_build.yaml@1f9a147c3ae8e73de401c72560a3a99bac5babb8
+    uses: aaronchongth/rmf_ci_templates/.github/workflows/reusable_build.yaml@4a0496f9f7be0152f2ff1d55f61d41df422591c6
     with:
       # NOTE: Avoid adding comments in the package lines, this can break some of the called scripts in github actions
       packages: |
