@@ -23,6 +23,7 @@ find_package(nlohmann_json_schema_validator_vendor REQUIRED)
 find_package(nlohmann_json_schema_validator REQUIRED)
 find_package(Boost REQUIRED)
 find_package(Threads)
+find_package(backward_ros REQUIRED)
 
 add_subdirectory(websocketpp)
 
