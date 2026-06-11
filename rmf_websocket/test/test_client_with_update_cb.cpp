@@ -131,8 +131,6 @@ TEST_CASE("Client", "Reconnecting server") {
   REQUIRE(num_msgs == 1);
   REQUIRE(num_init_msgs == 1);
 
-  on_init_promise = std::promise<void>();
-
   auto t2 = std::thread([]()
       {
         run_server();
