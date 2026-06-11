@@ -13,7 +13,6 @@
   <depend>rmf_utils</depend>
   <depend>rclcpp</depend>
 
-  <depend>libwebsocketpp-dev</depend>
   <depend>nlohmann-json-dev</depend>
   <depend>nlohmann_json_schema_validator_vendor</depend>
 
