@@ -127,6 +127,7 @@ if(BUILD_TESTING)
       rmf_utils::rmf_utils
       ${Boost_LIBRARIES}
       rmf_websocket
+      websocketpp
       PRIVATE
       Threads::Threads
       OpenSSL::Crypto
@@ -148,6 +149,7 @@ if(BUILD_TESTING)
       rmf_utils::rmf_utils
       ${Boost_LIBRARIES}
       rmf_websocket
+      websocketpp
       PRIVATE
       Threads::Threads
       OpenSSL::Crypto
@@ -168,6 +170,7 @@ if(BUILD_TESTING)
       rmf_utils::rmf_utils
       ${Boost_LIBRARIES}
       rmf_websocket
+      websocketpp
       PRIVATE
       Threads::Threads
       OpenSSL::Crypto
