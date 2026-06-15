@@ -7,6 +7,21 @@ Changelog for package rmf_fleet_adapter_python
 * Removed /task_summaries publishers from rmf_fleet_adapter (`#487 <https://github.com/open-rmf/rmf_ros2/issues/487>`_)
 * Contributors: cheriehu
 
+Forthcoming
+-----------
+* Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)
+* Resolve compilation warnings (`#514 <https://github.com/open-rmf/rmf_ros2/issues/514>`_)
+  * resolve compilation warnings
+  * more deprecated changes
+  * differentiate deprecated
+  * capture only one variable for cumulative delay
+  * revert string literal
+  ---------
+* Bump and release 2.12.0 (`#509 <https://github.com/open-rmf/rmf_ros2/issues/509>`_)
+* Removed /task_summaries publishers from rmf_fleet_adapter (`#487 <https://github.com/open-rmf/rmf_ros2/issues/487>`_)
+  Co-authored-by: Luca Della Vedova <lucadv@intrinsic.ai>
+* Contributors: Aaron Chong, Grey, Luca Della Vedova, cheriehu
+
 2.11.1 (2025-07-21)
 -------------------
 * Remove pybind11 vendored dependencies (`#444 <https://github.com/open-rmf/rmf_ros2/issues/444>`_)

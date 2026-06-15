@@ -7,6 +7,20 @@ Changelog for package rmf_traffic_ros2
 * Correct early cull of negotiations (`#478 <https://github.com/open-rmf/rmf_ros2/issues/478>`_)
 * Contributors: kj
 
+Forthcoming
+-----------
+* Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)
+* Resolve compilation warnings (`#514 <https://github.com/open-rmf/rmf_ros2/issues/514>`_)
+  * resolve compilation warnings
+  * more deprecated changes
+  * differentiate deprecated
+  * capture only one variable for cumulative delay
+  * revert string literal
+  ---------
+* Bump and release 2.12.0 (`#509 <https://github.com/open-rmf/rmf_ros2/issues/509>`_)
+* Correct early cull of negotiations (`#478 <https://github.com/open-rmf/rmf_ros2/issues/478>`_)
+* Contributors: Aaron Chong, Grey, Luca Della Vedova, kj
+
 2.11.1 (2025-07-21)
 -------------------
 * Remove deprecated Pose2D message (`#450 <https://github.com/open-rmf/rmf_ros2/issues/450>`_)

@@ -31,6 +31,105 @@ Changelog for package rmf_fleet_adapter
 * Clear planner inner cache planner cache size check timer (`#454 <https://github.com/open-rmf/rmf_ros2/issues/454>`_)
 * Contributors: Adharsh Venkatachalam, Arjo Chakravarty, Cheng-Wei Chen, Grey, Leong Teck, Saurabh Kamat, Xiyu, cheriehu, cwrx777, kj, yadunund, yutaroha
 
+Forthcoming
+-----------
+* Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)
+* Fix descrption typo in robot_state_aggregator launch file (`#521 <https://github.com/open-rmf/rmf_ros2/issues/521>`_)
+  Co-authored-by: Lots-ninety-nine <261080291+Lots-ninety-nine@users.noreply.github.com>
+* Make expected_finish_state reflect cumulative delay, plus frustration penalty (`#518 <https://github.com/open-rmf/rmf_ros2/issues/518>`_)
+* Resolve compilation warnings (`#514 <https://github.com/open-rmf/rmf_ros2/issues/514>`_)
+  * resolve compilation warnings
+  * more deprecated changes
+  * differentiate deprecated
+  * capture only one variable for cumulative delay
+  * revert string literal
+  ---------
+* Checks idle behavior before executing emergency charge (`#512 <https://github.com/open-rmf/rmf_ros2/issues/512>`_)
+  * check idle behaviors when considering emergency charge
+  * check for label
+  ---------
+* emit completion legacy state if lift is already on the level (`#510 <https://github.com/open-rmf/rmf_ros2/issues/510>`_)
+* Fix potential deadlocks from execution of mutex lock and release (`#490 <https://github.com/open-rmf/rmf_ros2/issues/490>`_)
+  * Fix mutex lock placement within execution
+  * Clean up debug code
+  * Introduce the concept of a current event waypoint
+  * Set current_event_waypoint during mutex lock event
+  * Debugging
+  * Eliminate undefined behavior from RobotContext::location change
+  * Finish debugging
+  * Set orientation based on location update
+  ---------
+* Bump and release 2.12.0 (`#509 <https://github.com/open-rmf/rmf_ros2/issues/509>`_)
+* Fix dispatch command acknowledgment message publishing (`#508 <https://github.com/open-rmf/rmf_ros2/issues/508>`_)
+  Co-authored-by: Luca Della Vedova <lucadv@intrinsic.ai>
+* Publish WaitForCharge phase completed (`#502 <https://github.com/open-rmf/rmf_ros2/issues/502>`_)
+* Choose nearest parking spot for "park" idle behavior (`#495 <https://github.com/open-rmf/rmf_ros2/issues/495>`_)
+* enable path replanning during emergency pull over (`#500 <https://github.com/open-rmf/rmf_ros2/issues/500>`_)
+* Fix parking spot selection for one-way lanes (`#499 <https://github.com/open-rmf/rmf_ros2/issues/499>`_)
+  ## Bug fix
+  ### Fixed bug
+  When using the reservation system, parking spots nearest to the destination are not always selected when one-way lanes exist in the navigation graph.
+  The current implementation calculates path costs from the destination to parking spots (destination → parking spot). This causes the system to select distant parking spots when the return path from the destination to the parking spot is long due to one-way lane constraints, even though a closer parking spot exists near the destination.
+  ### Fix applied
+  Reversed the path cost calculation direction to parking spot → destination instead of destination → parking spot. This ensures that the parking spot nearest to the destination is correctly selected by accounting for the robot's actual travel direction and one-way lane constraints.
+  ### Reproduction Steps
+  1. Use the `office` demo from `rmf_demos`
+  2. Change `finishing_request` to `nothing` in `tinyRobot_config.yaml`
+  3. Open `office_building.yaml` in the traffic editor and configure `park_1` and one-way lanes:
+  <img width="1205" height="836" alt="Group 1" src="https://github.com/user-attachments/assets/35531757-8892-49c2-90e9-5071cd1b921d" />
+  4. Move `tinyRobot2` to `coe`:
+  ```bash
+  ros2 run rmf_demos_tasks dispatch_patrol -p coe -F tinyRobot -R tinyRobot2 -n 1 --use_sim_time
+  ```
+  5. Move `tinyRobot1` to `coe` (it will move to a parking spot since `coe` is occupied by `tinyRobot2`):
+  ```bash
+  ros2 run rmf_demos_tasks dispatch_patrol -p coe -F tinyRobot -R tinyRobot1 -n 1 --use_sim_time
+  ```
+  **Expected:** `tinyRobot1` should move to `park_1` (the nearest parking spot considering one-way lanes)
+  **Actual (before fix):** `tinyRobot1` moves to `tinyRobot1_charger` instead
+  ### Verification
+  After applying the fix, `tinyRobot1` correctly moves to `park_1` when following the reproduction steps above.
+  **Tested on:** ROS 2 Jazzy
+  ---------
+  Co-authored-by: Arjo Chakravarty <arjoc@intrinsic.ai>
+* Customizable weights for task assignment cost (`#466 <https://github.com/open-rmf/rmf_ros2/issues/466>`_)
+* Accurate GoToPlace task update and reservation fixes (`#498 <https://github.com/open-rmf/rmf_ros2/issues/498>`_)
+  This PR addresses https://github.com/open-rmf/rmf_demos/issues/342 with the following fixes:
+  - Ensures that the task status is reflected correctly during reservation-related go to place tasks
+  - Check whether the requester is already sitting on a valid parking spot before reporting that there are no free waitpoints available
+  ---------
+* Attempt to fix the spam generated by false completion of a task during detours in GoToPlace (`#491 <https://github.com/open-rmf/rmf_ros2/issues/491>`_)
+* Fix double coordinate transformation of robot position during action execution (`#494 <https://github.com/open-rmf/rmf_ros2/issues/494>`_)
+* Removed /task_summaries publishers from rmf_fleet_adapter (`#487 <https://github.com/open-rmf/rmf_ros2/issues/487>`_)
+  Co-authored-by: Luca Della Vedova <lucadv@intrinsic.ai>
+* Makes sure that the reservation system always assigns nearest goal during Emergency Pullover (`#484 <https://github.com/open-rmf/rmf_ros2/issues/484>`_)
+* Remove cancel method from ReservationManager (`#483 <https://github.com/open-rmf/rmf_ros2/issues/483>`_)
+  Removed the cancel method from ReservationManager as this is not implemented and was removed in `#416 <https://github.com/open-rmf/rmf_ros2/issues/416>`_
+  Thanks @cwrx777 for highlighting this error in `#482 <https://github.com/open-rmf/rmf_ros2/issues/482>`_
+  Co-authored-by: Grey <greyxmike@gmail.com>
+* Fix race condition crash in estimate_path_traveling (`#486 <https://github.com/open-rmf/rmf_ros2/issues/486>`_)
+  Co-authored-by: Adharsh Venkatachalam <adharshvenkat@users.noreply.github.com>
+* add return (`#480 <https://github.com/open-rmf/rmf_ros2/issues/480>`_)
+* Implement rule of five for on_error_notification (`#476 <https://github.com/open-rmf/rmf_ros2/issues/476>`_)
+* Fix tool_power_drain bug (`#474 <https://github.com/open-rmf/rmf_ros2/issues/474>`_)
+  Co-authored-by: Grey <greyxmike@gmail.com>
+  Co-authored-by: Xiyu <xiyu@openrobotics.org>
+* feature/Add start_at_departure flag for GoToPlace (`#467 <https://github.com/open-rmf/rmf_ros2/issues/467>`_)
+* handling of task_api_requests on active task during emergency pullover (`#465 <https://github.com/open-rmf/rmf_ros2/issues/465>`_)
+* Retreat to charger if there will not be enough charge for the next task (`#423 <https://github.com/open-rmf/rmf_ros2/issues/423>`_)
+* Fix mutex group erasure bug in _retain_mutex_groups (`#473 <https://github.com/open-rmf/rmf_ros2/issues/473>`_)
+* Fix interrupter for compliant path planning (`#470 <https://github.com/open-rmf/rmf_ros2/issues/470>`_)
+* Remove potential data races (`#464 <https://github.com/open-rmf/rmf_ros2/issues/464>`_)
+* Fix recharge state of charge validation in set_task_planner_params (`#469 <https://github.com/open-rmf/rmf_ros2/issues/469>`_)
+* Added RCL logging for BroadcastServer (`#458 <https://github.com/open-rmf/rmf_ros2/issues/458>`_)
+  * Added new API to pass in a logger
+  * Changed test to use new BraodcastServer API
+  * Removed default value of node from logging related ws api
+  * Lint fixes
+  ---------
+* Clear planner inner cache planner cache size check timer (`#454 <https://github.com/open-rmf/rmf_ros2/issues/454>`_)
+* Contributors: Aaron Chong, Adharsh Venkatachalam, Arjo Chakravarty, Cheng-Wei Chen, Grey, Leong Teck, Luca Della Vedova, Mosiwon, Saurabh Kamat, Xiyu, cheriehu, cwrx777, kj, yadunund, yutaroha
+
 2.11.1 (2025-07-21)
 -------------------
 * Fix a race condition that can cause an endless loop when waiting for a lift (`#449 <https://github.com/open-rmf/rmf_ros2/issues/449>`_)
