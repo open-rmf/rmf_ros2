@@ -2,11 +2,6 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-2.12.0 (2026-02-23)
--------------------
-* Correct early cull of negotiations (`#478 <https://github.com/open-rmf/rmf_ros2/issues/478>`_)
-* Contributors: kj
-
 2.13.0 (2026-06-15)
 -------------------
 * Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)
@@ -17,9 +12,12 @@ Changelog for package rmf_traffic_ros2
   * capture only one variable for cumulative delay
   * revert string literal
   ---------
-* Bump and release 2.12.0 (`#509 <https://github.com/open-rmf/rmf_ros2/issues/509>`_)
+* Contributors: Aaron Chong, Grey
+
+2.12.0 (2026-02-23)
+-------------------
 * Correct early cull of negotiations (`#478 <https://github.com/open-rmf/rmf_ros2/issues/478>`_)
-* Contributors: Aaron Chong, Grey, Luca Della Vedova, kj
+* Contributors: kj
 
 2.11.1 (2025-07-21)
 -------------------

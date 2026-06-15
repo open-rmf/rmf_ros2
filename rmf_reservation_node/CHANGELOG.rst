@@ -2,22 +2,14 @@
 Changelog for package rmf_reservation_node
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.13.0 (2026-06-15)
+-------------------
+
 2.12.0 (2026-02-23)
 -------------------
 * Accurate GoToPlace task update and reservation fixes (`#498 <https://github.com/open-rmf/rmf_ros2/issues/498>`_)
 * Makes sure that the reservation system always assigns nearest goal during Emergency Pullover (`#484 <https://github.com/open-rmf/rmf_ros2/issues/484>`_)
 * Contributors: Arjo Chakravarty, Xiyu
-
-2.13.0 (2026-06-15)
--------------------
-* Bump and release 2.12.0 (`#509 <https://github.com/open-rmf/rmf_ros2/issues/509>`_)
-* Accurate GoToPlace task update and reservation fixes (`#498 <https://github.com/open-rmf/rmf_ros2/issues/498>`_)
-  This PR addresses https://github.com/open-rmf/rmf_demos/issues/342 with the following fixes:
-  - Ensures that the task status is reflected correctly during reservation-related go to place tasks
-  - Check whether the requester is already sitting on a valid parking spot before reporting that there are no free waitpoints available
-  ---------
-* Makes sure that the reservation system always assigns nearest goal during Emergency Pullover (`#484 <https://github.com/open-rmf/rmf_ros2/issues/484>`_)
-* Contributors: Arjo Chakravarty, Luca Della Vedova, Xiyu
 
 2.11.1 (2025-07-21)
 -------------------

@@ -2,11 +2,6 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-2.12.0 (2026-02-23)
--------------------
-* Removed /task_summaries publishers from rmf_fleet_adapter (`#487 <https://github.com/open-rmf/rmf_ros2/issues/487>`_)
-* Contributors: cheriehu
-
 2.13.0 (2026-06-15)
 -------------------
 * Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)
@@ -17,10 +12,12 @@ Changelog for package rmf_fleet_adapter_python
   * capture only one variable for cumulative delay
   * revert string literal
   ---------
-* Bump and release 2.12.0 (`#509 <https://github.com/open-rmf/rmf_ros2/issues/509>`_)
+* Contributors: Aaron Chong, Grey
+
+2.12.0 (2026-02-23)
+-------------------
 * Removed /task_summaries publishers from rmf_fleet_adapter (`#487 <https://github.com/open-rmf/rmf_ros2/issues/487>`_)
-  Co-authored-by: Luca Della Vedova <lucadv@intrinsic.ai>
-* Contributors: Aaron Chong, Grey, Luca Della Vedova, cheriehu
+* Contributors: cheriehu
 
 2.11.1 (2025-07-21)
 -------------------
