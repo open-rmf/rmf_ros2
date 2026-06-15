@@ -5,8 +5,8 @@ Changelog for package rmf_charging_schedule
 2.12.0 (2026-02-23)
 -------------------
 
-Forthcoming
------------
+2.13.0 (2026-06-15)
+-------------------
 * Bump and release 2.12.0 (`#509 <https://github.com/open-rmf/rmf_ros2/issues/509>`_)
 * Contributors: Luca Della Vedova
 

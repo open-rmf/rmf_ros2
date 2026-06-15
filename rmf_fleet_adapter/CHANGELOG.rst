@@ -31,8 +31,8 @@ Changelog for package rmf_fleet_adapter
 * Clear planner inner cache planner cache size check timer (`#454 <https://github.com/open-rmf/rmf_ros2/issues/454>`_)
 * Contributors: Adharsh Venkatachalam, Arjo Chakravarty, Cheng-Wei Chen, Grey, Leong Teck, Saurabh Kamat, Xiyu, cheriehu, cwrx777, kj, yadunund, yutaroha
 
-Forthcoming
------------
+2.13.0 (2026-06-15)
+-------------------
 * Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)
 * Fix descrption typo in robot_state_aggregator launch file (`#521 <https://github.com/open-rmf/rmf_ros2/issues/521>`_)
   Co-authored-by: Lots-ninety-nine <261080291+Lots-ninety-nine@users.noreply.github.com>

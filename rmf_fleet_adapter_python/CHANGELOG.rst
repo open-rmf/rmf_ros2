@@ -7,8 +7,8 @@ Changelog for package rmf_fleet_adapter_python
 * Removed /task_summaries publishers from rmf_fleet_adapter (`#487 <https://github.com/open-rmf/rmf_ros2/issues/487>`_)
 * Contributors: cheriehu
 
-Forthcoming
------------
+2.13.0 (2026-06-15)
+-------------------
 * Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)
 * Resolve compilation warnings (`#514 <https://github.com/open-rmf/rmf_ros2/issues/514>`_)
   * resolve compilation warnings
