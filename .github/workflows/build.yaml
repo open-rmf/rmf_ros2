@@ -14,10 +14,10 @@ jobs:
     uses: open-rmf/rmf_ci_templates/.github/workflows/reusable_build.yaml@main
     with:
       # NOTE: Avoid adding comments in the package lines, this can break some of the called scripts in github actions
-      repos-branch-override: "main"
       packages: |
             rmf_fleet_adapter
             rmf_fleet_adapter_python
             rmf_task_ros2
             rmf_traffic_ros2
             rmf_websocket
+      repos-branch-override: lyrical
