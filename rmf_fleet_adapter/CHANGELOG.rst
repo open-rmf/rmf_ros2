@@ -2,6 +2,35 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.13.0 (2026-06-15)
+-------------------
+* Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)
+* Fix descrption typo in robot_state_aggregator launch file (`#521 <https://github.com/open-rmf/rmf_ros2/issues/521>`_)
+  Co-authored-by: Lots-ninety-nine <261080291+Lots-ninety-nine@users.noreply.github.com>
+* Make expected_finish_state reflect cumulative delay, plus frustration penalty (`#518 <https://github.com/open-rmf/rmf_ros2/issues/518>`_)
+* Resolve compilation warnings (`#514 <https://github.com/open-rmf/rmf_ros2/issues/514>`_)
+  * resolve compilation warnings
+  * more deprecated changes
+  * differentiate deprecated
+  * capture only one variable for cumulative delay
+  * revert string literal
+  ---------
+* Checks idle behavior before executing emergency charge (`#512 <https://github.com/open-rmf/rmf_ros2/issues/512>`_)
+  * check idle behaviors when considering emergency charge
+  * check for label
+  ---------
+* emit completion legacy state if lift is already on the level (`#510 <https://github.com/open-rmf/rmf_ros2/issues/510>`_)
+* Fix potential deadlocks from execution of mutex lock and release (`#490 <https://github.com/open-rmf/rmf_ros2/issues/490>`_)
+  * Fix mutex lock placement within execution
+  * Clean up debug code
+  * Introduce the concept of a current event waypoint
+  * Set current_event_waypoint during mutex lock event
+  * Debugging
+  * Eliminate undefined behavior from RobotContext::location change
+  * Finish debugging
+  * Set orientation based on location update
+* Contributors: Aaron Chong, kj, Grey, Mosiwon
+
 2.12.0 (2026-02-23)
 -------------------
 * Fix dispatch command acknowledgment message publishing (`#508 <https://github.com/open-rmf/rmf_ros2/issues/508>`_)

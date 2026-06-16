@@ -41,7 +41,7 @@ void ConnectionMetadata::on_fail(WsClient* c, websocketpp::connection_hdl hdl)
   WsClient::connection_ptr con = c->get_con_from_hdl(hdl);
   _server = con->get_response_header("Server");
   _error_reason = con->get_ec().message();
-  c->get_io_service().post(_reconnection_cb);
+  boost::asio::post(c->get_io_context(), _reconnection_cb);
 }
 
 //=============================================================================
@@ -54,7 +54,7 @@ void ConnectionMetadata::on_close(WsClient* c, websocketpp::connection_hdl hdl)
     << websocketpp::close::status::get_string(con->get_remote_close_code())
     << "), close reason: " << con->get_remote_close_reason();
   _error_reason = s.str();
-  c->get_io_service().post(_reconnection_cb);
+  boost::asio::post(c->get_io_context(), _reconnection_cb);
 }
 
 //=============================================================================
@@ -108,7 +108,7 @@ websocketpp::connection_hdl ConnectionMetadata::get_hdl() const
 //=============================================================================
 ClientWebSocketEndpoint::ClientWebSocketEndpoint(
   std::string const& uri, std::shared_ptr<rclcpp::Node> node,
-  asio::io_service* io_service,
+  asio::io_context* io_context,
   ConnectionCallback cb)
 : _uri(uri), _node(node), _init{false}, _reconnect_enqueued(false),
   _connection_cb(std::move(cb))
@@ -116,7 +116,7 @@ ClientWebSocketEndpoint::ClientWebSocketEndpoint(
   _endpoint = std::make_unique<WsClient>();
   _endpoint->clear_access_channels(websocketpp::log::alevel::all);
   _endpoint->clear_error_channels(websocketpp::log::elevel::all);
-  _endpoint->init_asio(io_service);
+  _endpoint->init_asio(io_context);
   _endpoint->start_perpetual();
 }
 
@@ -144,11 +144,11 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
         "> Reconnecting in 1s\n"
         "> Host: %s", _uri.c_str());
       _endpoint->stop_perpetual();
-      auto io_service = &_endpoint->get_io_service();
+      auto io_context = &_endpoint->get_io_context();
       _endpoint = std::make_unique<WsClient>();
       _endpoint->clear_access_channels(websocketpp::log::alevel::all);
       _endpoint->clear_error_channels(websocketpp::log::elevel::all);
-      _endpoint->init_asio(io_service);
+      _endpoint->init_asio(io_context);
       _endpoint->start_perpetual();
       websocketpp::lib::error_code ec;
 
