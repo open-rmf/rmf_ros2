@@ -80,7 +80,7 @@ public:
       {
         RCLCPP_ERROR_STREAM(
           _logger_interface->get_logger(),
-          "WebSocket exception occured: " << e.what());
+          "WebSocket exception occurred: " << e.what());
       }
     }
     catch (...)
@@ -88,7 +88,7 @@ public:
       if (_logger_interface)
       {
         RCLCPP_ERROR(
-          _logger_interface->get_logger(), "Unknown exception occured");
+          _logger_interface->get_logger(), "Unknown exception occurred");
       }
     }
   }
