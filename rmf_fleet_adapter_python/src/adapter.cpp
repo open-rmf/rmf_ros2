@@ -443,7 +443,10 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def("reassign_dispatched_tasks",
     &agv::RobotUpdateHandle::reassign_dispatched_tasks)
   .def("lift_destination",
-    &agv::RobotUpdateHandle::lift_destination);
+    &agv::RobotUpdateHandle::lift_destination)
+  .def("release_lift",
+    &agv::RobotUpdateHandle::release_lift,
+    "Release any lift session currently held by this robot.");
 
   // ACTION EXECUTOR   =======================================================
   auto m_robot_update_handle = m.def_submodule("robot_update_handle");
