@@ -520,17 +520,40 @@ void FleetUpdateHandle::Implementation::bid_notice_cb(
       });
   }
 
-  // If a fleet_name was specified in the request, only proceed if the value matches
-  // the name of this fleet.
-  if (request_msg.contains("fleet_name") &&
-    request_msg["fleet_name"].template get<std::string>() != name)
+  // If a fleet_name was specified in the request, only proceed if this
+  // fleet's name matches it. fleet_name may be a single string or an array
+  // of strings, in which case this fleet must be one of the listed names.
+  if (request_msg.contains("fleet_name"))
   {
-    RCLCPP_INFO(
-      node->get_logger(),
-      "Ignoring BidNotice request as it is for fleet [%s].",
-      request_msg["fleet_name"].template get<std::string>().c_str());
-    return;
+    const auto& fleet_name = request_msg["fleet_name"];
+    bool allowed = false;
+    if (fleet_name.is_array())
+    {
+      for (const auto& n : fleet_name)
+      {
+        if (n.template get<std::string>() == name)
+        {
+          allowed = true;
+          break;
+        }
+      }
+    }
+    else
+    {
+      allowed = fleet_name.template get<std::string>() == name;
+    }
+
+    if (!allowed)
+    {
+      RCLCPP_INFO(
+        node->get_logger(),
+        "Ignoring BidNotice request as fleet [%s] is not in the requested "
+        "fleet_name list.",
+        name.c_str());
+      return;
+    }
   }
+
 
   std::vector<std::string> errors = {};
   const auto new_request = convert(task_id, request_msg, errors);
