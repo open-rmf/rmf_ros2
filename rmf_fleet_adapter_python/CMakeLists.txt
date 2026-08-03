@@ -121,6 +121,7 @@ if(BUILD_TESTING)
   set(_rmf_fleet_adapter_python_tests
     tests/unit/test_geometry.py
     tests/unit/test_graph.py
+    tests/unit/test_property_setters.py
     tests/unit/test_RobotCommandHandle.py
     tests/unit/test_types.py
     tests/unit/test_vehicletraits.py
