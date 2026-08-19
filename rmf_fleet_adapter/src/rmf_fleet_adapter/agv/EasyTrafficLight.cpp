@@ -1085,7 +1085,8 @@ void EasyTrafficLight::Implementation::Shared::publish_fleet_state() const
     .location(std::move(location))
     .path({});
 
-  const auto& fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
+  const auto& fleet_state =
+    rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
     .name(fleet_name)
     .robots({std::move(robot_state)});
 
