@@ -253,10 +253,8 @@ auto EasyTrafficLight::Implementation::State::location() const
     return std::nullopt;
 
   const auto& g_wp = graph.get_waypoint(wp);
-  const Eigen::Vector2d pos = last_known_location->location()
-    .value_or(g_wp.get_location());
-  const double yaw = last_known_location->orientation();
-  return Location{g_wp.get_map_name(), {pos[0], pos[1], yaw}};
+  const auto p = g_wp.get_location();
+  return Location{g_wp.get_map_name(), {p[0], p[1], 0.0}};
 }
 
 //==============================================================================
@@ -524,10 +522,6 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
   {
     const auto slices = state.current_itinerary_slice();
 
-    const auto existing_cumulative_delay =
-      state.itinerary->cumulative_delay(state.itinerary->current_plan_id())
-      .value_or(rmf_traffic::Duration(0));
-
     for (const auto& slice : slices)
     {
       try
@@ -536,8 +530,7 @@ void EasyTrafficLight::Implementation::Shared::update_delay(
           rmf_traffic::agv::interpolate_time_along_quadratic_straight_line(
           slice.trajectory(), location->block<2, 1>(0, 0));
 
-        const auto delay_delta = hooks.node->rmf_now() - expected_time;
-        new_cumulative_delay = existing_cumulative_delay + delay_delta;
+        new_cumulative_delay = hooks.node->rmf_now() - expected_time;
         break;
       }
       catch (const std::exception& e)
@@ -1084,12 +1077,6 @@ void EasyTrafficLight::Implementation::Shared::publish_fleet_state() const
     .battery_percent(battery_soc*100.0)
     .location(std::move(location))
     .path({});
-
-  const auto& fleet_state = rmf_fleet_msgs::build<rmf_fleet_msgs::msg::FleetState>()
-    .name(fleet_name)
-    .robots({std::move(robot_state)});
-
-  hooks.fleet_state_pub->publish(fleet_state);
 }
 
 //==============================================================================
