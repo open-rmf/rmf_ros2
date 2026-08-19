@@ -1031,6 +1031,7 @@ void ScheduleNode::request_changes(
   const RequestChanges::Request::SharedPtr& request,
   const RequestChanges::Response::SharedPtr& response)
 {
+  response->node_id = node_id;
   const auto query = registered_queries.find(request->query_id);
   if (query == registered_queries.end())
   {
