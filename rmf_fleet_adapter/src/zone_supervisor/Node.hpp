@@ -32,8 +32,6 @@ private:
   struct ZoneWaypointInfo
   {
     std::string name;
-    float x;
-    float y;
     uint8_t priority;
     std::string group;
   };

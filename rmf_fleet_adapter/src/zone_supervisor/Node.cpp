@@ -91,12 +91,17 @@ void Node::_on_nav_graphs(
     {
       ZoneWaypointInfo wp_info;
       wp_info.name = vtx.name;
-      wp_info.x = vtx.x;
-      wp_info.y = vtx.y;
       wp_info.priority = vtx.priority;
       wp_info.group = vtx.group;
       info.waypoints.push_back(std::move(wp_info));
-      info.waypoint_positions[vtx.name] = {vtx.x, vtx.y};
+      for (const auto& v: msg->vertices)
+      {
+        if (v.name == vtx.name)
+        {
+          info.waypoint_positions[vtx.name] = {v.x, v.y};
+          break;
+        }
+      }
     }
 
     std::sort(info.waypoints.begin(), info.waypoints.end(),
