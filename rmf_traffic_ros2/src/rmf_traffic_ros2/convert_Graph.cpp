@@ -29,7 +29,6 @@
 #include <rmf_building_map_msgs/msg/graph_edge.hpp>
 #include <rmf_building_map_msgs/msg/graph_zone.hpp>
 #include <rmf_building_map_msgs/msg/zone_vertex.hpp>
-#include <rmf_building_map_msgs/msg/zone_transition_lane.hpp>
 #include <rmf_building_map_msgs/msg/param.hpp>
 
 #include <unordered_set>
@@ -358,6 +357,28 @@ std::optional<rmf_traffic::agv::Graph> convert(
   rmf_traffic::agv::Graph graph;
   std::unordered_set<std::size_t> added_waypoints = {};
 
+  std::unordered_map<std::string, rmf_traffic::agv::Graph::ZonePropertiesPtr>
+  zone_of_vertex;
+  for (const auto& z : navgraph.zones)
+  {
+    const auto zone = graph.set_known_zone(
+      rmf_traffic::agv::Graph::ZoneProperties(
+        z.name,
+        z.level,
+        z.type,
+        Eigen::Vector2d(z.center_x, z.center_y),
+        z.yaw,
+        Eigen::Vector2d(z.length, z.width)));
+
+    for (const auto& v : z.vertices)
+    {
+      auto& iv = zone->add_internal_vertex(v.name);
+      iv.set_group_name(v.group);
+      iv.set_priority(v.priority);
+      zone_of_vertex[v.name] = zone;
+    }
+  }
+
   for (const auto& v : navgraph.vertices)
   {
     const std::string wp_name = v.name;
@@ -393,11 +414,16 @@ std::optional<rmf_traffic::agv::Graph> convert(
     // The map_name field is essential for a Graph::Waypoint
     if (map_name.empty())
       return std::nullopt;
-    graph.add_waypoint(map_name, loc)
-    .set_holding_point(is_holding_point)
+    auto& wp = graph.add_waypoint(map_name, loc);
+    wp.set_holding_point(is_holding_point)
     .set_passthrough_point(is_passthrough_point)
     .set_parking_spot(is_parking_spot)
     .set_charger(is_charger);
+
+    const auto zone_it = zone_of_vertex.find(wp_name);
+    if (zone_it != zone_of_vertex.end())
+      wp.set_in_zone(zone_it->second);
+
     const auto wp_index = graph.num_waypoints() - 1;
     if (!graph.set_key(wp_name, wp_index))
       return std::nullopt;
@@ -457,6 +483,8 @@ std::optional<rmf_traffic::agv::Graph> convert(
         using LiftMove = Lane::LiftMove;
         using Dock = Lane::Dock;
         using Wait = Lane::Wait;
+        using ZoneEntry = Lane::ZoneEntry;
+        using ZoneExit = Lane::ZoneExit;
 
         if (params.empty())
           return;
@@ -549,6 +577,27 @@ std::optional<rmf_traffic::agv::Graph> convert(
                 std::move(lift_name),
                 std::move(floor_name),
                 duration));
+        }
+        // ZoneEntry
+        else if (params.find("ZoneEntry_zone_name") != params.end() &&
+          params.find("ZoneEntry_duration") != params.end())
+        {
+          std::string zone_name = params.at("ZoneEntry_zone_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(
+              params.at("ZoneEntry_duration").value_float));
+          event_to_set = Event::make(
+            ZoneEntry(std::move(zone_name), duration));
+        }
+        // ZoneExit
+        else if (params.find("ZoneExit_zone_name") != params.end() &&
+          params.find("ZoneExit_duration") != params.end())
+        {
+          std::string zone_name = params.at("ZoneExit_zone_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(params.at("ZoneExit_duration").value_float));
+          event_to_set = Event::make(
+            ZoneExit(std::move(zone_name), duration));
         }
         // Dock
         else if (params.find("wait_duration") != params.end())
@@ -795,6 +844,14 @@ public:
   void execute(const ZoneEntry& zone) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name(_prefix + "_ZoneEntry_zone_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(zone.zone_name())
+      .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
       .name(_prefix + "_ZoneEntry_duration")
       .type(GraphParamMsg::TYPE_INT)
       .value_int(0)
@@ -805,6 +862,14 @@ public:
 
   void execute(const ZoneExit& zone) final
   {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name(_prefix + "_ZoneExit_zone_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(zone.zone_name())
+      .value_bool(false));
+
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
       .name(_prefix + "_ZoneExit_duration")
       .type(GraphParamMsg::TYPE_INT)
@@ -828,7 +893,6 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
   using GraphEdgeMsg = rmf_building_map_msgs::msg::GraphEdge;
   using GraphZoneMsg = rmf_building_map_msgs::msg::GraphZone;
   using GraphZoneVertexMsg = rmf_building_map_msgs::msg::ZoneVertex;
-  using GraphZoneTransitionLaneMsg = rmf_building_map_msgs::msg::ZoneTransitionLane;
   using GraphParamMsg = rmf_building_map_msgs::msg::Param;
 
   if (fleet_name.empty())
@@ -992,27 +1056,14 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
     {
       zone_vertices.emplace_back(rmf_building_map_msgs::build<GraphZoneVertexMsg>()
         .name(zv.name())
-        .x(zv.get_location().x())
-        .y(zv.get_location().y())
         .group(zv.get_group_name())
         .priority(zv.get_priority()));
-    }
-
-    std::vector<GraphZoneTransitionLaneMsg> zone_transition_lanes;
-    for (const auto& zl : zone_ptr->transition_lanes())
-    {
-      zone_transition_lanes.emplace_back(rmf_building_map_msgs::build<GraphZoneTransitionLaneMsg>()
-        .internal_vertex(zl.internal_vertex())
-        .external_vertex(zl.external_vertex())
-        .entry_lane(zl.is_entry_lane())
-        .exit_lane(zl.is_exit_lane()));
     }
 
     zones.emplace_back(rmf_building_map_msgs::build<GraphZoneMsg>()
       .name(zone_ptr->name())
       .level(zone_ptr->map())
       .type(zone_ptr->type())
-      .transition_lanes(std::move(zone_transition_lanes))
       .center_x(zone_ptr->location().x())
       .center_y(zone_ptr->location().y())
       .yaw(zone_ptr->orientation())
