@@ -135,38 +135,11 @@ rmf_traffic::agv::Graph parse_graph(
 
       const YAML::Node& dims_yaml = properties_yaml["dims"];
       const Eigen::Vector2d dimensions(
-        dims_yaml[0].as<double>(), //depth
-        dims_yaml[1].as<double>()); //width
+        dims_yaml[0].as<double>(),
+        dims_yaml[1].as<double>());
 
-      rmf_traffic::agv::Graph::ZoneProperties zone_props(
-        name,
-        level,
-        type,
-        location,
-        orientation,
-        dimensions);
-
-      const YAML::Node& internal_vertices = properties_yaml["internal_vertices"];
-      for (const auto& iv : internal_vertices)
-      {
-        auto& vertex = zone_props.add_internal_vertex(iv["name"].as<std::string>());
-        vertex.set_location(Eigen::Vector2d(iv["x"].as<double>(), iv["y"].as<double>()));
-        vertex.set_group_name(iv["group"].as<std::string>());
-        vertex.set_priority(iv["priority"].as<std::size_t>());
-      }
-
-      const YAML::Node& transition_lanes = properties_yaml["transition_lanes"];
-      for (const auto& tl : transition_lanes)
-      {
-        auto& lane = zone_props.add_transition_lane();
-        lane.link_internal_vertex(tl["internal_vertex"].as<std::string>());
-        lane.link_external_vertex(tl["external_vertex"].as<std::string>());
-        lane.set_entry_lane(tl["is_entry_lane"].as<bool>());
-        lane.set_exit_lane(tl["is_exit_lane"].as<bool>());
-      }
-
-      // set_known_zone takes by value and returns the shared_ptr
-      graph.set_known_zone(std::move(zone_props));
+      graph.set_known_zone(rmf_traffic::agv::Graph::ZoneProperties(
+          name, level, type, location, orientation, dimensions));
     }
   }
 
@@ -288,6 +261,30 @@ rmf_traffic::agv::Graph parse_graph(
             }
             wp.set_in_lift(lift);
           }
+        }
+      }
+
+      const YAML::Node& zone_option = options["zone"];
+      if (zone_option)
+      {
+        const std::string& zone_name = zone_option.as<std::string>();
+        if (zone_name != "")
+        {
+          const auto zone = graph.find_known_zone(zone_name);
+          if (!zone)
+          {
+            throw std::runtime_error(
+                    "Zone properties for [" + zone_name + "] were not provided "
+                    "even though it is used by a vertex. This suggests that your "
+                    "nav graph was not generated correctly.");
+          }
+
+          const YAML::Node& group_option = options["group"];
+          const YAML::Node& priority_option = options["priority"];
+          auto& iv = zone->add_internal_vertex(name_option.as<std::string>());
+          iv.set_group_name(group_option.as<std::string>());
+          iv.set_priority(priority_option.as<uint8_t>());
+          wp.set_in_zone(zone);
         }
       }
 
