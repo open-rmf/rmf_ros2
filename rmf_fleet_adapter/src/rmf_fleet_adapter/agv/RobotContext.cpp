@@ -601,67 +601,65 @@ rmf_traffic::agv::Plan::StartSet RobotContext::location() const
 }
 
 //==============================================================================
-void RobotContext::set_zone_task_modifiers(ZoneTaskModifiers modifiers)
+void RobotContext::set_zone_intent(
+  std::optional<std::string> zone_name)
 {
-  _zone_task_modifiers = std::move(modifiers);
+  _zone_intent = std::move(zone_name);
 }
 
 //==============================================================================
-auto RobotContext::zone_task_modifiers() const -> const ZoneTaskModifiers&
+bool RobotContext::intends_zone(const std::string& zone_name) const
 {
-  return _zone_task_modifiers;
+  if (!_zone_intent.has_value())
+    return false;
+
+  return *_zone_intent == zone_name;
 }
 
 //==============================================================================
-void RobotContext::set_is_zone_task(bool value)
+void RobotContext::set_zone_booking(
+  std::string zone_name,
+  std::string waypoint_name,
+  rmf_traffic::agv::Plan::Goal goal)
 {
-  _is_zone_task = value;
+  auto booking = std::make_shared<ZoneBooking>(
+    ZoneBooking{
+      zone_name,
+      std::move(waypoint_name),
+      std::move(goal),
+      be_stubborn()
+    });
+
+  _zone_bookings[zone_name] = std::move(booking);
 }
 
 //==============================================================================
-bool RobotContext::is_zone_task() const
+auto RobotContext::zone_booking(const std::string& zone_name) const
+-> ZoneBookingPtr
 {
-  return _is_zone_task;
+  const auto it = _zone_bookings.find(zone_name);
+  if (it == _zone_bookings.end())
+    return nullptr;
+
+  return it->second;
 }
 
 //==============================================================================
-void RobotContext::set_booked_zone_goal(rmf_traffic::agv::Plan::Goal goal)
+void RobotContext::clear_zone_booking(const std::string& zone_name)
 {
-  _booked_zone_goal = std::move(goal);
+  const auto it = _zone_bookings.find(zone_name);
+  if (it == _zone_bookings.end())
+    return;
+
+  // TODO: to release reservation node ticket as well if there is any
+
+  _zone_bookings.erase(it);
 }
 
 //==============================================================================
-std::optional<rmf_traffic::agv::Plan::Goal>
-RobotContext::booked_zone_goal() const
+bool RobotContext::has_zone_bookings() const
 {
-  return _booked_zone_goal;
-}
-
-//==============================================================================
-void RobotContext::clear_booked_zone_goal()
-{
-  _booked_zone_goal = std::nullopt;
-}
-
-//==============================================================================
-void RobotContext::set_booked_zone_waypoint(std::string name)
-{
-  _booked_zone_waypoint = std::move(name);
-  if (!_zone_stubbornness)
-    _zone_stubbornness = be_stubborn();
-}
-
-//==============================================================================
-const std::string& RobotContext::booked_zone_waypoint() const
-{
-  return _booked_zone_waypoint;
-}
-
-//==============================================================================
-void RobotContext::clear_booked_zone_waypoint()
-{
-  _booked_zone_waypoint.clear();
-  _zone_stubbornness = nullptr;
+  return !_zone_bookings.empty();
 }
 
 //==============================================================================

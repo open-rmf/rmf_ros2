@@ -1018,50 +1018,39 @@ public:
 
   bool debug_positions = false;
 
-  /// Mirrors rmf_task_sequence::events::GoToZone::Description::Modifiers.
-  /// Duplicated here so RobotContext.hpp doesn't pull in a concrete event
-  /// header.
-  struct ZoneTaskModifiers
+  /// Set the zone this robot intends to occupy, or nullopt for none
+  void set_zone_intent(std::optional<std::string> zone_name);
+
+  /// Get whether this robot intends to occupy this particular zone
+  bool intends_zone(const std::string& zone_name) const;
+
+  /// The zone supervisor's grant of one vertex to this robot. Shared, so the
+  /// context holds one reference and any event using it holds another.
+  struct ZoneBooking
   {
-    std::string group_hint;
-    std::optional<double> orientation_hint;
-    std::vector<std::string> preferred_waypoints;
+    std::string zone_name;
+    std::string waypoint_name;
+    rmf_traffic::agv::Plan::Goal goal;
+    std::shared_ptr<void> stubbornness;
   };
 
-  /// Set the modifiers for a zone task.
-  void set_zone_task_modifiers(ZoneTaskModifiers modifiers);
-  const ZoneTaskModifiers& zone_task_modifiers() const;
+  using ZoneBookingPtr = std::shared_ptr<ZoneBooking>;
 
-  /// Set whether this robot is currently doing a zone task.
-  void set_is_zone_task(bool value);
+  /// Set the booking for a zone, replacing any already held for that zone.
+  /// Acquires stubbornness on behalf of the booking.
+  void set_zone_booking(
+    std::string zone_name,
+    std::string waypoint_name,
+    rmf_traffic::agv::Plan::Goal goal);
 
-  /// Check whether this robot is currently doing a zone task.
-  bool is_zone_task() const;
+  /// Get the booking held for a zone, or nullptr
+  ZoneBookingPtr zone_booking(const std::string& zone_name) const;
 
-  /// Planner goal for the active zone booking (waypoint index +
-  /// orientation). Consumed by GoToPlace::_find_plan() to override the
-  /// planner's destination while in a zone task.
-  void set_booked_zone_goal(rmf_traffic::agv::Plan::Goal goal);
+  /// Release the booking held for a zone
+  void clear_zone_booking(const std::string& zone_name);
 
-  /// Get the planner goal for the active zone booking.
-  std::optional<rmf_traffic::agv::Plan::Goal> booked_zone_goal() const;
-
-  /// Clear the planner goal for the active zone booking.
-  void clear_booked_zone_goal();
-
-  /// Waypoint name of the active zone booking. Non-empty means the
-  /// supervisor has granted this robot a booking that has not yet been
-  /// released. As a lifecycle side effect, non-empty also keeps the robot
-  /// stubborn in schedule negotiations: stubbornness is acquired on set,
-  /// released on clear.
-  void set_booked_zone_waypoint(std::string name);
-
-  /// Get the waypoint name of the active zone booking.
-  const std::string& booked_zone_waypoint() const;
-
-  /// Clear the waypoint name of the active zone booking (also releases
-  /// stubbornness).
-  void clear_booked_zone_waypoint();
+  /// Get whether this robot holds any zone booking at all
+  bool has_zone_bookings() const;
 
   /// First waypoint from the current location() start set, or nullopt.
   std::optional<std::size_t> current_waypoint() const;
@@ -1140,11 +1129,9 @@ private:
   std::weak_ptr<TaskManager> _task_manager;
   bool _robot_finishing_request = false;
 
-  ZoneTaskModifiers _zone_task_modifiers;
-  bool _is_zone_task = false;
-  std::string _booked_zone_waypoint;
-  std::shared_ptr<void> _zone_stubbornness;
-  std::optional<rmf_traffic::agv::Plan::Goal> _booked_zone_goal;
+  std::optional<std::string> _zone_intent;
+  // Keyed by zone name
+  std::unordered_map<std::string, ZoneBookingPtr> _zone_bookings;
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);
