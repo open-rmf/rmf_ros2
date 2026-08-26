@@ -27,6 +27,12 @@ find_package(nlohmann_json REQUIRED)
 find_package(nlohmann_json_schema_validator_vendor REQUIRED)
 find_package(nlohmann_json_schema_validator REQUIRED)
 
+if(TARGET nlohmann_json_schema_validator)
+  set(json_schema_validator_target nlohmann_json_schema_validator)
+else()
+  set(json_schema_validator_target nlohmann_json_schema_validator::validator)
+endif()
+
 file(GLOB_RECURSE core_lib_srcs "src/rmf_task_ros2/*.cpp")
 add_library(rmf_task_ros2 SHARED ${core_lib_srcs})
 
@@ -40,7 +46,7 @@ target_link_libraries(rmf_task_ros2
     ${rmf_task_msgs_LIBRARIES}
     ${rclcpp_LIBRARIES}
     nlohmann_json::nlohmann_json
-    nlohmann_json_schema_validator::validator
+    ${json_schema_validator_target}
 )
 
 target_include_directories(rmf_task_ros2

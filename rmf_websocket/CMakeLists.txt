@@ -25,6 +25,12 @@ find_package(Boost REQUIRED)
 find_package(Threads)
 find_package(backward_ros REQUIRED)
 
+if(TARGET nlohmann_json_schema_validator)
+  set(json_schema_validator_target nlohmann_json_schema_validator)
+else()
+  set(json_schema_validator_target nlohmann_json_schema_validator::validator)
+endif()
+
 add_subdirectory(websocketpp)
 
 add_library(rmf_websocket SHARED
@@ -38,7 +44,7 @@ target_link_libraries(rmf_websocket
     ${rclcpp_LIBRARIES}
     rmf_utils::rmf_utils
     nlohmann_json::nlohmann_json
-    nlohmann_json_schema_validator::validator
+    ${json_schema_validator_target}
   PRIVATE
     ${Boost_LIBRARIES}
     Threads::Threads
