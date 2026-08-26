@@ -537,7 +537,7 @@ void TaskManager::ActiveTask::publish_task_state(TaskManager& mgr)
 
   for (const auto& [phase, skip_info] : _skip_info_map)
   {
-    auto& skip_requests = phases[phase]["skip_requests"];
+    auto& skip_requests = phases[std::to_string(phase)]["skip_requests"];
     for (const auto& s : {&skip_info.active_skips, &skip_info.removed_skips})
     {
       for (const auto& [token, msg] : *s)
