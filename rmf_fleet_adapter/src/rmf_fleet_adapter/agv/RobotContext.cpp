@@ -1377,7 +1377,8 @@ const rxcpp::observable<std::string>& RobotContext::request_mutex_groups(
     const auto [it, inserted] = _requesting_mutex_groups.insert({group, t});
     if (!inserted)
     {
-      if (t.nanosec < it->second.nanosec)
+      const auto& prev = it->second;
+      if (t.sec < prev.sec || (t.sec == prev.sec && t.nanosec < prev.nanosec))
         it->second = t;
     }
   }
