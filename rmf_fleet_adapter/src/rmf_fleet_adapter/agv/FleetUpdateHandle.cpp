@@ -1768,27 +1768,6 @@ ZoneWaypointDeserializer make_zone_waypoint_deserializer(
         }
       }
 
-      // Fallback: match by traffic editor short name.
-      // Full vertex names follow {zone}#{group}#p{priority}#{zone_wp_name},
-      // e.g. "zoneA#L#p1#waypoint_A". Match by the trailing short name
-      // segment, and also require the zone prefix matches.
-      if (name_in.has_value())
-      {
-        const std::string wp_suffix = "#" + *name_in;
-        const std::string zone_prefix = zone_name + "#";
-        for (const auto& iv : zone_props->internal_vertices())
-        {
-          const auto& full = iv.name();
-          // check if full vertex name ends with the suffix
-          // and starts with the zone prefix
-          if (full.size() > wp_suffix.size()
-            && full.compare(full.size() - wp_suffix.size(),
-                wp_suffix.size(), wp_suffix) == 0
-            && full.compare(0, zone_prefix.size(), zone_prefix) == 0)
-            return {iv.name(), {}};
-        }
-      }
-
       const std::string unknown_wp = name_in.has_value()
         ? ("[" + *name_in + "]")
         : ("index [" + std::to_string(*index_in) + "]");
