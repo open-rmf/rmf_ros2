@@ -368,7 +368,7 @@ std::optional<rmf_traffic::agv::Graph> convert(
         z.type,
         Eigen::Vector2d(z.center_x, z.center_y),
         z.yaw,
-        Eigen::Vector2d(z.length, z.width)));
+        Eigen::Vector2d(z.width, z.length)));
 
     for (const auto& v : z.vertices)
     {
@@ -1067,8 +1067,8 @@ std::unique_ptr<rmf_building_map_msgs::msg::Graph> convert(
       .center_x(zone_ptr->location().x())
       .center_y(zone_ptr->location().y())
       .yaw(zone_ptr->orientation())
-      .length(zone_ptr->dimensions().x())
-      .width(zone_ptr->dimensions().y())
+      .length(zone_ptr->dimensions().y())
+      .width(zone_ptr->dimensions().x())
       .vertices(std::move(zone_vertices)));
   }
 
