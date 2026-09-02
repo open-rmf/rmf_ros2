@@ -601,19 +601,24 @@ rmf_traffic::agv::Plan::StartSet RobotContext::location() const
 }
 
 //==============================================================================
-void RobotContext::set_zone_intent(
-  std::optional<std::string> zone_name)
+RobotContext::ZonePreferenceHandle RobotContext::set_zone_preference(
+  std::string zone_name,
+  ZonePreference preference)
 {
-  _zone_intent = std::move(zone_name);
+  auto handle = std::make_shared<const ZonePreference>(std::move(preference));
+  _zone_preferences[std::move(zone_name)] = handle;
+  return handle;
 }
 
 //==============================================================================
-bool RobotContext::intends_zone(const std::string& zone_name) const
+RobotContext::ZonePreferenceHandle RobotContext::zone_preference(
+  const std::string& zone_name) const
 {
-  if (!_zone_intent.has_value())
-    return false;
+  const auto it = _zone_preferences.find(zone_name);
+  if (it == _zone_preferences.end())
+    return nullptr;
 
-  return *_zone_intent == zone_name;
+  return it->second.lock();
 }
 
 //==============================================================================
@@ -622,15 +627,21 @@ void RobotContext::set_zone_booking(
   std::string waypoint_name,
   rmf_traffic::agv::Plan::Goal goal)
 {
-  auto booking = std::make_shared<ZoneBooking>(
+  const auto it = _zone_bookings.find(zone_name);
+  if (it != _zone_bookings.end() && it->second)
+  {
+    it->second->waypoint_name = std::move(waypoint_name);
+    it->second->goal = std::move(goal);
+    return;
+  }
+
+  _zone_bookings[zone_name] = std::make_shared<ZoneBooking>(
     ZoneBooking{
       zone_name,
       std::move(waypoint_name),
       std::move(goal),
       be_stubborn()
     });
-
-  _zone_bookings[zone_name] = std::move(booking);
 }
 
 //==============================================================================
@@ -645,21 +656,126 @@ auto RobotContext::zone_booking(const std::string& zone_name) const
 }
 
 //==============================================================================
-void RobotContext::clear_zone_booking(const std::string& zone_name)
+void RobotContext::clear_zone_booking(
+  const std::string& zone_name, ZoneTicketDisposal disposal)
 {
   const auto it = _zone_bookings.find(zone_name);
   if (it == _zone_bookings.end())
     return;
 
-  // TODO: to release reservation node ticket as well if there is any
-
+  const auto booking = it->second;
   _zone_bookings.erase(it);
+
+  if (!booking)
+    return;
+
+  if (disposal == ZoneTicketDisposal::Release)
+  {
+    _reservation_mgr.release_if_holding(booking->waypoint_name);
+    return;
+  }
+
+  // Forget rather than release, so the vertex stays reserved and the manager
+  // can keep it in the zone's pool. Releasing it would put a zone vertex back
+  // in the reservation node's free pool, where a plain GoToPlace naming it
+  // would be granted, and the manager would have to re-acquire it before the
+  // zone could offer it again.
+  if (_zone_manager_listening())
+  {
+    _reservation_mgr.forget_if_holding(booking->waypoint_name);
+    return;
+  }
+
+  // Nobody to hand back to, so give it to the reservation node instead.
+  RCLCPP_WARN(
+    node()->get_logger(),
+    "[%s] is releasing [%s] to the reservation node rather than back to the "
+    "Zone Manager, which is not listening",
+    requester_id().c_str(), booking->waypoint_name.c_str());
+
+  _reservation_mgr.release_if_holding(booking->waypoint_name);
+}
+
+//==============================================================================
+void RobotContext::_adopt_zone_ticket(
+  uint64_t ticket_id,
+  const std::string& resource,
+  bool release_previous)
+{
+  rmf_reservation_msgs::msg::ReservationAllocation adopted;
+  adopted.ticket.ticket_id = ticket_id;
+  adopted.ticket.header.robot_name = name();
+  adopted.ticket.header.fleet_name = group();
+  adopted.resource = resource;
+  adopted.instruction_type =
+    rmf_reservation_msgs::msg::ReservationAllocation::IMMEDIATELY_PROCEED;
+  adopted.chosen_alternative = 0;
+
+  RCLCPP_INFO(
+    node()->get_logger(),
+    "Robot [%s] adopted zone reservation ticket %lu holding [%s]",
+    requester_id().c_str(), ticket_id, resource.c_str());
+
+  if (release_previous)
+    _reservation_mgr.replace_ticket(adopted);
+  else
+    _reservation_mgr.adopt_without_release(adopted);
+}
+
+//==============================================================================
+bool RobotContext::_zone_manager_listening() const
+{
+  const auto n = node();
+  if (!n)
+    return false;
+
+  const auto& pub = n->zone_request();
+  return pub && pub->get_subscription_count() > 0;
+}
+
+//==============================================================================
+std::optional<std::string> RobotContext::zone_holding_waypoint(
+  const std::string& waypoint_name) const
+{
+  for (const auto& [zone_name, booking] : _zone_bookings)
+  {
+    if (booking && booking->waypoint_name == waypoint_name)
+      return zone_name;
+  }
+
+  return std::nullopt;
 }
 
 //==============================================================================
 bool RobotContext::has_zone_bookings() const
 {
   return !_zone_bookings.empty();
+}
+
+//==============================================================================
+void RobotContext::for_each_releasable_booking(
+  const std::function<void(const ZoneBooking&)>& fn) const
+{
+  // Collected first because releasing mutates the map being walked. The
+  // copies are taken after the use_count() test, so it still sees the true
+  // count.
+  std::vector<ZoneBookingPtr> releasable;
+  for (const auto& entry : _zone_bookings)
+  {
+    const auto& booking = entry.second;
+    if (!booking)
+      continue;
+
+    // _zone_bookings holds one reference for the life of the booking, so
+    // anything above that is an event still using it.
+    if (booking.use_count() > 1)
+      continue;
+
+    releasable.push_back(booking);
+  }
+
+  for (const auto& booking : releasable)
+    fn(*booking);
 }
 
 //==============================================================================
