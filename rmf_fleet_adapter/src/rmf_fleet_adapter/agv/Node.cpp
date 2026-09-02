@@ -139,6 +139,10 @@ std::shared_ptr<Node> Node::make(
     node->create_publisher<ReservationRelease>(
     ReservationReleaseTopicName, transient_local_qos);
 
+  node->_zone_request_pub =
+    node->create_publisher<ZoneRequest>(
+    ZoneRequestTopicName, transient_local_qos);
+
   node->_general_dynamic_event_description_pub =
     node->create_publisher<DynamicEventDescription>(
       DynamicEventBeginTopicBase, transient_local_qos);
@@ -314,6 +318,12 @@ auto Node::allocated_claims_obs() const -> const ReservationAllocationObs&
 auto Node::release_location() const -> const ReservationReleasePub&
 {
   return _reservation_release_pub;
+}
+
+//==============================================================================
+auto Node::zone_request() const -> const ZoneRequestPub&
+{
+  return _zone_request_pub;
 }
 
 //==============================================================================
