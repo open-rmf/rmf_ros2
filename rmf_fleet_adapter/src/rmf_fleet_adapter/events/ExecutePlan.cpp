@@ -20,14 +20,14 @@
 #include "WaitForTraffic.hpp"
 #include "WaitUntil.hpp"
 #include "LockMutexGroup.hpp"
+#include "ZoneEntry.hpp"
+#include "ZoneExit.hpp"
 
 #include "../phases/MoveRobot.hpp"
 #include "../phases/DoorOpen.hpp"
 #include "../phases/DoorClose.hpp"
 #include "../phases/RequestLift.hpp"
 #include "../phases/DockRobot.hpp"
-#include "../phases/ZoneEntry.hpp"
-#include "../phases/ZoneExit.hpp"
 
 #include "../agv/internal_EasyFullControl.hpp"
 
@@ -43,6 +43,8 @@ namespace {
 using StandbyPtr = rmf_task_sequence::Event::StandbyPtr;
 using UpdateFn = std::function<void()>;
 using MakeStandby = std::function<StandbyPtr(UpdateFn)>;
+using MakeEventStandby =
+  std::function<MakeStandby(const rmf_task_sequence::Event::AssignIDPtr&)>;
 
 std::string print_plan_waypoints(
   const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
@@ -62,11 +64,13 @@ struct LegacyPhaseWrapper
     std::shared_ptr<LegacyTask::PendingPhase> phase_,
     rmf_traffic::Time time_,
     rmf_traffic::Dependencies dependencies_,
-    std::optional<LockMutexGroup::Data> mutex_group_dependency_)
+    std::optional<LockMutexGroup::Data> mutex_group_dependency_,
+    std::optional<MakeEventStandby> task_event_ = std::nullopt)
   : phase(std::move(phase_)),
     time(time_),
     dependencies(std::move(dependencies_)),
-    mutex_group_dependency(std::move(mutex_group_dependency_))
+    mutex_group_dependency(std::move(mutex_group_dependency_)),
+    task_event(std::move(task_event_))
   {
     // Do nothing
   }
@@ -75,6 +79,7 @@ struct LegacyPhaseWrapper
   rmf_traffic::Time time;
   rmf_traffic::Dependencies dependencies;
   std::optional<LockMutexGroup::Data> mutex_group_dependency;
+  std::optional<MakeEventStandby> task_event;
 };
 
 using LegacyPhases = std::vector<LegacyPhaseWrapper>;
@@ -344,63 +349,56 @@ public:
 
   void execute(const ZoneEntry& zone_entry) final
   {
-    if (!_context->is_zone_task())
+    // Only a GoToZone books a zone, so this keeps a plain GoToPlace from
+    // firing the entry event on a boundary it happens to cross. Keyed by
+    // zone, so a booking in one zone does not admit the robot to another.
+    if (!_context->zone_booking(zone_entry.zone_name()))
       return;
 
-    // Already booked in this zone (e.g. replan after supervisor assignment)
-    if (!_context->booked_zone_waypoint().empty())
-    {
-      const auto& graph = _context->navigation_graph();
-      const auto zone_props = graph.find_known_zone(
-        zone_entry.zone_name());
-      // To check if the assigned waypoint belongs to the this target zone
-      if (zone_props && zone_props->find_internal_vertex(
-          _context->booked_zone_waypoint()))
-        return;
-    }
-
-    // Truncate itinerary at zone entry waypoint
-    truncate_arrival(*_previous_itinerary, initial_waypoint);
-    auto resume_itinerary =
-      std::make_shared<rmf_traffic::schedule::Itinerary>(_full_itinerary);
-    _previous_itinerary = resume_itinerary;
-
     _phases.emplace_back(
-      std::make_shared<phases::ZoneEntry::PendingPhase>(
-        _context,
-        zone_entry.zone_name(),
-        _event_start_time + zone_entry.duration(),
-        std::move(resume_itinerary),
-        _plan_id),
+      nullptr,
       _event_start_time,
       initial_waypoint.dependencies(),
-      std::nullopt);
+      std::nullopt,
+      MakeEventStandby(
+        [
+          context = _context,
+          data = events::ZoneEntry::Data{
+            zone_entry.zone_name(),
+            _event_start_time + zone_entry.duration(),
+            _plan_id}
+        ](const rmf_task_sequence::Event::AssignIDPtr& id) -> MakeStandby
+        {
+          return [context, id, data](UpdateFn /*update*/)
+            {
+              return events::ZoneEntry::Standby::make(context, id, data);
+            };
+        }));
     _continuous = true;
   }
 
   void execute(const ZoneExit& zone_exit) final
   {
-    const bool has_booking = !_context->booked_zone_waypoint().empty();
-    if (!has_booking)
-      return;
-
-    // Only fire if the exit lane belongs to the zone we're booked in
-    const auto& graph = _context->navigation_graph();
-    const auto zone_props = graph.find_known_zone(
-      zone_exit.zone_name());
-    if (!zone_props || !zone_props->find_internal_vertex(
-        _context->booked_zone_waypoint()))
+    // Only fires when a booking is held in the zone this exit lane belongs
+    // to.
+    if (!_context->zone_booking(zone_exit.zone_name()))
       return;
 
     _phases.emplace_back(
-      std::make_shared<phases::ZoneExit::PendingPhase>(
-        _context,
-        zone_exit.zone_name(),
-        _event_start_time + zone_exit.duration(),
-        _plan_id),
+      nullptr,
       _event_start_time,
       initial_waypoint.dependencies(),
-      std::nullopt);
+      std::nullopt,
+      MakeEventStandby(
+        [context = _context,
+        data = events::ZoneExit::Data{zone_exit.zone_name()}](
+          const rmf_task_sequence::Event::AssignIDPtr& id) -> MakeStandby
+        {
+          return [context, id, data](UpdateFn /*update*/)
+            {
+              return events::ZoneExit::Standby::make(context, id, data);
+            };
+        }));
     _continuous = true;
   }
 
@@ -1331,6 +1329,11 @@ std::optional<ExecutePlan> ExecutePlan::make(
       {
         standbys.push_back(make_wait_for_mutex(
             context, event_id, head->mutex_group_dependency.value()));
+      }
+
+      if (head->task_event.has_value())
+      {
+        standbys.push_back((*head->task_event)(event_id));
       }
 
       if (head->phase)
