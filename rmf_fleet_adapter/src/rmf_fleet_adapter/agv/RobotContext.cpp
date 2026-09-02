@@ -17,6 +17,7 @@
 
 #include "internal_RobotUpdateHandle.hpp"
 #include "../TaskManager.hpp"
+#include "../phases/Utils.hpp"
 
 #include <rmf_traffic_ros2/Time.hpp>
 
@@ -2166,7 +2167,26 @@ void RobotContext::_publish_mutex_group_requests()
 void RobotContext::_set_allocated_destination(
   const rmf_reservation_msgs::msg::ReservationAllocation& ticket)
 {
-  _reservation_mgr.replace_ticket(ticket);
+  // Release the ticket to the reservation node if it is a normal waypoint.
+  // Hand it back to the zone manager if it is a zone waypoint.
+  const auto displaced = _get_reserved_location();
+  std::optional<std::string> displaced_zone;
+  if (!displaced.empty() && displaced != ticket.resource)
+    displaced_zone = zone_holding_waypoint(displaced);
+
+  // Ordinary way, release back to reservation node
+  if (!displaced_zone || !_zone_manager_listening())
+  {
+    _reservation_mgr.replace_ticket(ticket);
+    return;
+  }
+
+  // Release it back to zone manager
+  _reservation_mgr.adopt_without_release(ticket);
+
+  node()->zone_request()->publish(
+    phases::make_zone_handback_request(
+      group(), name(), *displaced_zone, displaced));
 }
 
 //==============================================================================
