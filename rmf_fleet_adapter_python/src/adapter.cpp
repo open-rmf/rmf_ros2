@@ -58,6 +58,18 @@ std::unordered_map<std::string, ConsiderRequest> convert(
   return output;
 }
 
+template<typename DelaySetter>
+void set_optional_delay(py::handle value, DelaySetter&& setter)
+{
+  if (value.is_none())
+  {
+    setter(rmf_utils::nullopt);
+    return;
+  }
+
+  setter(value.cast<rmf_traffic::Duration>());
+}
+
 using ActivityIdentifier = agv::RobotUpdateHandle::ActivityIdentifier;
 using ActionExecution = agv::RobotUpdateHandle::ActionExecution;
 using RobotInterruption = agv::RobotUpdateHandle::Interruption;
@@ -280,9 +292,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property("maximum_delay",
     py::overload_cast<>(
       &agv::RobotUpdateHandle::maximum_delay, py::const_),
-    [&](agv::RobotUpdateHandle& self)
+    [&](agv::RobotUpdateHandle& self, py::object value)
     {
-      return self.maximum_delay();
+      set_optional_delay(value, [&](const auto& delay)
+      {
+        self.maximum_delay(delay);
+      });
     })
   .def("current_task_id",
     [&](agv::RobotUpdateHandle& self)
@@ -650,9 +665,12 @@ PYBIND11_MODULE(rmf_adapter, m) {
   .def_property("default_maximum_delay",
     py::overload_cast<>(
       &agv::FleetUpdateHandle::default_maximum_delay, py::const_),
-    [&](agv::FleetUpdateHandle& self)
+    [&](agv::FleetUpdateHandle& self, py::object value)
     {
-      return self.default_maximum_delay();
+      set_optional_delay(value, [&](const auto& delay)
+      {
+        self.default_maximum_delay(delay);
+      });
     })
   .def("fleet_state_publish_period",
     &agv::FleetUpdateHandle::fleet_state_publish_period,
