@@ -20,8 +20,8 @@
 #include "WaitForTraffic.hpp"
 #include "WaitUntil.hpp"
 #include "LockMutexGroup.hpp"
-#include "ZoneEntry.hpp"
-#include "ZoneExit.hpp"
+#include "ZonePreEntry.hpp"
+#include "ZonePostExit.hpp"
 
 #include "../phases/MoveRobot.hpp"
 #include "../phases/DoorOpen.hpp"
@@ -347,7 +347,7 @@ public:
     // Do nothing
   }
 
-  void execute(const ZoneEntry& zone_entry) final
+  void execute(const ZonePreEntry& zone_entry) final
   {
     // Only a GoToZone books a zone, so this keeps a plain GoToPlace from
     // firing the entry event on a boundary it happens to cross. Keyed by
@@ -363,7 +363,7 @@ public:
       MakeEventStandby(
         [
           context = _context,
-          data = events::ZoneEntry::Data{
+          data = events::ZonePreEntry::Data{
             zone_entry.zone_name(),
             _event_start_time + zone_entry.duration(),
             _plan_id}
@@ -371,13 +371,13 @@ public:
         {
           return [context, id, data](UpdateFn /*update*/)
             {
-              return events::ZoneEntry::Standby::make(context, id, data);
+              return events::ZonePreEntry::Standby::make(context, id, data);
             };
         }));
     _continuous = true;
   }
 
-  void execute(const ZoneExit& zone_exit) final
+  void execute(const ZonePostExit& zone_exit) final
   {
     // Only fires when a booking is held in the zone this exit lane belongs
     // to.
@@ -391,16 +391,19 @@ public:
       std::nullopt,
       MakeEventStandby(
         [context = _context,
-        data = events::ZoneExit::Data{zone_exit.zone_name()}](
+        data = events::ZonePostExit::Data{zone_exit.zone_name()}](
           const rmf_task_sequence::Event::AssignIDPtr& id) -> MakeStandby
         {
           return [context, id, data](UpdateFn /*update*/)
             {
-              return events::ZoneExit::Standby::make(context, id, data);
+              return events::ZonePostExit::Standby::make(context, id, data);
             };
         }));
     _continuous = true;
   }
+
+  void execute(const ZonePostEntry&) final {}
+  void execute(const ZonePreExit&) final {}
 
   bool moving_lift() const
   {
@@ -672,8 +675,10 @@ public:
   void execute(const Wait&) final {}
   void execute(const DoorOpen&) final {}
   void execute(const DoorClose&) final {}
-  void execute(const ZoneEntry&) final {}
-  void execute(const ZoneExit&) final {}
+  void execute(const ZonePreEntry&) final {}
+  void execute(const ZonePostEntry&) final {}
+  void execute(const ZonePreExit&) final {}
+  void execute(const ZonePostExit&) final {}
   void execute(const LiftSessionBegin& e) final
   {
     // If we're going to re-begin using a lift, then we don't need to keep this
@@ -723,8 +728,10 @@ public:
     if (close.name() == current_name)
       still_using = true;
   }
-  void execute(const ZoneEntry&) final {}
-  void execute(const ZoneExit&) final {}
+  void execute(const ZonePreEntry&) final {}
+  void execute(const ZonePostEntry&) final {}
+  void execute(const ZonePreExit&) final {}
+  void execute(const ZonePostExit&) final {}
   void execute(const LiftSessionBegin& /*e*/) final {}
   void execute(const LiftMove& /*e*/) final {}
   void execute(const LiftDoorOpen& /*e*/) final {}

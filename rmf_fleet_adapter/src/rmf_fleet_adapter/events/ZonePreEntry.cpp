@@ -15,7 +15,7 @@
  *
 */
 
-#include "ZoneEntry.hpp"
+#include "ZonePreEntry.hpp"
 
 #include "../phases/Utils.hpp"
 
@@ -25,7 +25,7 @@ namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
-auto ZoneEntry::Standby::make(
+auto ZonePreEntry::Standby::make(
   agv::RobotContextPtr context,
   const AssignIDPtr& id,
   Data data) -> std::shared_ptr<Standby>
@@ -41,19 +41,19 @@ auto ZoneEntry::Standby::make(
 }
 
 //==============================================================================
-auto ZoneEntry::Standby::state() const -> ConstStatePtr
+auto ZonePreEntry::Standby::state() const -> ConstStatePtr
 {
   return _state;
 }
 
 //==============================================================================
-rmf_traffic::Duration ZoneEntry::Standby::duration_estimate() const
+rmf_traffic::Duration ZonePreEntry::Standby::duration_estimate() const
 {
   return rmf_traffic::Duration(0);
 }
 
 //==============================================================================
-auto ZoneEntry::Standby::begin(
+auto ZonePreEntry::Standby::begin(
   std::function<void()>,
   std::function<void()> finished) -> ActivePtr
 {
@@ -61,14 +61,14 @@ auto ZoneEntry::Standby::begin(
 }
 
 //==============================================================================
-ZoneEntry::Standby::Standby(Data data)
+ZonePreEntry::Standby::Standby(Data data)
 : _data(std::move(data))
 {
   // Do nothing
 }
 
 //==============================================================================
-auto ZoneEntry::Active::make(
+auto ZonePreEntry::Active::make(
   agv::RobotContextPtr context,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> finished,
@@ -83,25 +83,25 @@ auto ZoneEntry::Active::make(
 }
 
 //==============================================================================
-auto ZoneEntry::Active::state() const -> ConstStatePtr
+auto ZonePreEntry::Active::state() const -> ConstStatePtr
 {
   return _state;
 }
 
 //==============================================================================
-rmf_traffic::Duration ZoneEntry::Active::remaining_time_estimate() const
+rmf_traffic::Duration ZonePreEntry::Active::remaining_time_estimate() const
 {
   return rmf_traffic::Duration(0);
 }
 
 //==============================================================================
-auto ZoneEntry::Active::backup() const -> Backup
+auto ZonePreEntry::Active::backup() const -> Backup
 {
   return Backup::make(0, nlohmann::json());
 }
 
 //==============================================================================
-auto ZoneEntry::Active::interrupt(
+auto ZonePreEntry::Active::interrupt(
   std::function<void()> task_is_interrupted) -> Resume
 {
   _context->worker().schedule([task_is_interrupted](const auto&)
@@ -112,14 +112,14 @@ auto ZoneEntry::Active::interrupt(
 }
 
 //==============================================================================
-ZoneEntry::Active::Active(Data data)
+ZonePreEntry::Active::Active(Data data)
 : _data(std::move(data))
 {
   // Do nothing
 }
 
 //==============================================================================
-void ZoneEntry::Active::_initialize()
+void ZonePreEntry::Active::_initialize()
 {
   _state->update_status(Status::Underway);
 
@@ -147,7 +147,7 @@ void ZoneEntry::Active::_initialize()
 
       const auto result = phases::handle_zone_state(
         self->_context, *msg, zone_name, self->_current_request_id,
-        "ZoneEntry");
+        "ZonePreEntry");
 
       switch (result.status)
       {
@@ -257,7 +257,7 @@ void ZoneEntry::Active::_initialize()
 }
 
 //==============================================================================
-void ZoneEntry::Active::_begin_move(
+void ZonePreEntry::Active::_begin_move(
   rmf_traffic::agv::Plan::Goal goal,
   const std::string& waypoint_name)
 {
@@ -316,7 +316,7 @@ void ZoneEntry::Active::_begin_move(
 }
 
 //==============================================================================
-void ZoneEntry::Active::_finish_with_replan()
+void ZonePreEntry::Active::_finish_with_replan()
 {
   if (!_finished)
     return;
@@ -326,7 +326,7 @@ void ZoneEntry::Active::_finish_with_replan()
 }
 
 //==============================================================================
-void ZoneEntry::Active::_publish_finalize_request()
+void ZonePreEntry::Active::_publish_finalize_request()
 {
   _current_request_id = phases::generate_zone_request_id(
     _context->group(), _context->name(), _data.zone_name);
@@ -348,7 +348,7 @@ void ZoneEntry::Active::_publish_finalize_request()
 }
 
 //==============================================================================
-void ZoneEntry::Active::cancel()
+void ZonePreEntry::Active::cancel()
 {
   _state_sub.reset();
   _delay_timer.reset();
@@ -378,13 +378,13 @@ void ZoneEntry::Active::cancel()
 }
 
 //==============================================================================
-void ZoneEntry::Active::kill()
+void ZonePreEntry::Active::kill()
 {
   cancel();
 }
 
 //==============================================================================
-void ZoneEntry::Active::_complete(Status status)
+void ZonePreEntry::Active::_complete(Status status)
 {
   if (!_finished)
     return;

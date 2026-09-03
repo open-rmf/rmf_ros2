@@ -483,8 +483,10 @@ std::optional<rmf_traffic::agv::Graph> convert(
         using LiftMove = Lane::LiftMove;
         using Dock = Lane::Dock;
         using Wait = Lane::Wait;
-        using ZoneEntry = Lane::ZoneEntry;
-        using ZoneExit = Lane::ZoneExit;
+        using ZonePreEntry = Lane::ZonePreEntry;
+        using ZonePostEntry = Lane::ZonePostEntry;
+        using ZonePreExit = Lane::ZonePreExit;
+        using ZonePostExit = Lane::ZonePostExit;
 
         if (params.empty())
           return;
@@ -578,26 +580,53 @@ std::optional<rmf_traffic::agv::Graph> convert(
                 std::move(floor_name),
                 duration));
         }
-        // ZoneEntry
-        else if (params.find("ZoneEntry_zone_name") != params.end() &&
-          params.find("ZoneEntry_duration") != params.end())
+        // ZonePreEntry
+        else if (params.find("ZonePreEntry_zone_name") != params.end() &&
+          params.find("ZonePreEntry_duration") != params.end())
         {
-          std::string zone_name = params.at("ZoneEntry_zone_name").value_string;
+          std::string zone_name =
+            params.at("ZonePreEntry_zone_name").value_string;
           rmf_traffic::Duration duration = std::chrono::nanoseconds(
             static_cast<uint64_t>(
-              params.at("ZoneEntry_duration").value_float));
+              params.at("ZonePreEntry_duration").value_float));
           event_to_set = Event::make(
-            ZoneEntry(std::move(zone_name), duration));
+            ZonePreEntry(std::move(zone_name), duration));
         }
-        // ZoneExit
-        else if (params.find("ZoneExit_zone_name") != params.end() &&
-          params.find("ZoneExit_duration") != params.end())
+        // ZonePostEntry
+        else if (params.find("ZonePostEntry_zone_name") != params.end() &&
+          params.find("ZonePostEntry_duration") != params.end())
         {
-          std::string zone_name = params.at("ZoneExit_zone_name").value_string;
+          std::string zone_name =
+            params.at("ZonePostEntry_zone_name").value_string;
           rmf_traffic::Duration duration = std::chrono::nanoseconds(
-            static_cast<uint64_t>(params.at("ZoneExit_duration").value_float));
+            static_cast<uint64_t>(
+              params.at("ZonePostEntry_duration").value_float));
           event_to_set = Event::make(
-            ZoneExit(std::move(zone_name), duration));
+            ZonePostEntry(std::move(zone_name), duration));
+        }
+        // ZonePreExit
+        else if (params.find("ZonePreExit_zone_name") != params.end() &&
+          params.find("ZonePreExit_duration") != params.end())
+        {
+          std::string zone_name =
+            params.at("ZonePreExit_zone_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(
+              params.at("ZonePreExit_duration").value_float));
+          event_to_set = Event::make(
+            ZonePreExit(std::move(zone_name), duration));
+        }
+        // ZonePostExit
+        else if (params.find("ZonePostExit_zone_name") != params.end() &&
+          params.find("ZonePostExit_duration") != params.end())
+        {
+          std::string zone_name =
+            params.at("ZonePostExit_zone_name").value_string;
+          rmf_traffic::Duration duration = std::chrono::nanoseconds(
+            static_cast<uint64_t>(
+              params.at("ZonePostExit_duration").value_float));
+          event_to_set = Event::make(
+            ZonePostExit(std::move(zone_name), duration));
         }
         // Dock
         else if (params.find("wait_duration") != params.end())
@@ -841,10 +870,10 @@ public:
       .value_bool(false));
   }
 
-  void execute(const ZoneEntry& zone) final
+  void execute(const ZonePreEntry& zone) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-      .name(_prefix + "_ZoneEntry_zone_name")
+      .name(_prefix + "_ZonePreEntry_zone_name")
       .type(GraphParamMsg::TYPE_STRING)
       .value_int(0)
       .value_float(0)
@@ -852,7 +881,7 @@ public:
       .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-      .name(_prefix + "_ZoneEntry_duration")
+      .name(_prefix + "_ZonePreEntry_duration")
       .type(GraphParamMsg::TYPE_INT)
       .value_int(0)
       .value_float(zone.duration().count())
@@ -860,10 +889,10 @@ public:
       .value_bool(false));
   }
 
-  void execute(const ZoneExit& zone) final
+  void execute(const ZonePostEntry& zone) final
   {
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-      .name(_prefix + "_ZoneExit_zone_name")
+      .name(_prefix + "_ZonePostEntry_zone_name")
       .type(GraphParamMsg::TYPE_STRING)
       .value_int(0)
       .value_float(0)
@@ -871,7 +900,45 @@ public:
       .value_bool(false));
 
     _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
-      .name(_prefix + "_ZoneExit_duration")
+      .name(_prefix + "_ZonePostEntry_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(zone.duration().count())
+      .value_string("")
+      .value_bool(false));
+  }
+
+  void execute(const ZonePreExit& zone) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name(_prefix + "_ZonePreExit_zone_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(zone.zone_name())
+      .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name(_prefix + "_ZonePreExit_duration")
+      .type(GraphParamMsg::TYPE_INT)
+      .value_int(0)
+      .value_float(zone.duration().count())
+      .value_string("")
+      .value_bool(false));
+  }
+
+  void execute(const ZonePostExit& zone) final
+  {
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name(_prefix + "_ZonePostExit_zone_name")
+      .type(GraphParamMsg::TYPE_STRING)
+      .value_int(0)
+      .value_float(0)
+      .value_string(zone.zone_name())
+      .value_bool(false));
+
+    _edge_params.emplace_back(rmf_building_map_msgs::build<GraphParamMsg>()
+      .name(_prefix + "_ZonePostExit_duration")
       .type(GraphParamMsg::TYPE_INT)
       .value_int(0)
       .value_float(zone.duration().count())

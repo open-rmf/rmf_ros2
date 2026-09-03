@@ -452,37 +452,26 @@ rmf_traffic::agv::Graph parse_graph(
         const std::string transition = transition_node.as<std::string>();
         const rmf_traffic::Duration duration = std::chrono::seconds(4);
 
-        if (transition == "entry")
-        {
-          if (entry_event)
+        const auto displace_entry_event = [&]()
           {
-            // Door event already on this lane, split so door opens first
-            const auto entry_wp = graph.get_waypoint(begin);
-            auto& split_wp =
-              graph.add_waypoint(map_name, entry_wp.get_location());
-            split_wp.set_in_mutex_group(entry_wp.in_mutex_group());
+            const auto wp = graph.get_waypoint(begin);
+            auto& split_wp = graph.add_waypoint(map_name, wp.get_location());
+            split_wp.set_in_mutex_group(wp.in_mutex_group());
             split_wp.set_merge_radius(0.0);
 
             graph.add_lane(
               {begin, entry_event},
               {split_wp.index(), rmf_utils::clone_ptr<Event>()});
-            stacked_vertex.insert({begin, split_wp.index()});
 
             begin = split_wp.index();
             vnum_temp++;
-          }
+          };
 
-          entry_event = Event::make(Lane::ZoneEntry(zone_name, duration));
-        }
-        else if (transition == "exit")
-        {
-          if (exit_event)
+        const auto displace_exit_event = [&]()
           {
-            // Door event already on this lane, split so zone exit fires first
-            const auto exit_wp = graph.get_waypoint(end);
-            auto& split_wp =
-              graph.add_waypoint(map_name, exit_wp.get_location());
-            split_wp.set_in_mutex_group(exit_wp.in_mutex_group());
+            const auto wp = graph.get_waypoint(end);
+            auto& split_wp = graph.add_waypoint(map_name, wp.get_location());
+            split_wp.set_in_mutex_group(wp.in_mutex_group());
             split_wp.set_merge_radius(0.0);
 
             graph.add_lane(
@@ -491,9 +480,29 @@ rmf_traffic::agv::Graph parse_graph(
 
             end = split_wp.index();
             vnum_temp++;
-          }
+          };
 
-          exit_event = Event::make(Lane::ZoneExit(zone_name, duration));
+        if (transition == "entry")
+        {
+          if (entry_event)
+            displace_entry_event();
+
+          if (exit_event)
+            displace_exit_event();
+
+          entry_event = Event::make(Lane::ZonePreEntry(zone_name, duration));
+          exit_event = Event::make(Lane::ZonePostEntry(zone_name, duration));
+        }
+        else if (transition == "exit")
+        {
+          if (entry_event)
+            displace_entry_event();
+
+          if (exit_event)
+            displace_exit_event();
+
+          entry_event = Event::make(Lane::ZonePreExit(zone_name, duration));
+          exit_event = Event::make(Lane::ZonePostExit(zone_name, duration));
         }
         else
         {

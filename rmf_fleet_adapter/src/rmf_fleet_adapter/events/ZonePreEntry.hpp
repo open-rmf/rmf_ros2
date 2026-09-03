@@ -15,8 +15,8 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEENTRY_HPP
-#define SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEENTRY_HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPREENTRY_HPP
+#define SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPREENTRY_HPP
 
 #include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
@@ -38,7 +38,7 @@ namespace events {
 /// only for a robot that already holds a booking in the zone, which a
 /// GoToZone establishes before the robot moves. The manager may name a
 /// different vertex, which this event drives to before requesting a replan.
-class ZoneEntry : public rmf_task_sequence::Event
+class ZonePreEntry : public rmf_task_sequence::Event
 {
 public:
 
@@ -142,4 +142,4 @@ public:
 } // namespace events
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEENTRY_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPREENTRY_HPP

@@ -182,12 +182,22 @@ public:
     text = "Wait";
   }
 
-  void execute(const ZoneEntry& zone) override
+  void execute(const ZonePreEntry& zone) override
   {
     text = "Zone " + zone.zone_name();
   }
 
-  void execute(const ZoneExit& zone) override
+  void execute(const ZonePostEntry& zone) override
+  {
+    text = "Zone " + zone.zone_name();
+  }
+
+  void execute(const ZonePreExit& zone) override
+  {
+    text = "Zone " + zone.zone_name();
+  }
+
+  void execute(const ZonePostExit& zone) override
   {
     text = "Zone " + zone.zone_name();
   }

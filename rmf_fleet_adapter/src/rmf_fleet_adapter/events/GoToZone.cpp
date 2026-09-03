@@ -177,7 +177,7 @@ auto GoToZone::Active::make(
 
   // _preference is the only thing keeping this alive: RobotContext observes
   // it through a weak_ptr, so dropping the handle discards it at once. Held
-  // until this event dies, since bookings outlive their task and ZoneEntry
+  // until this event dies, since bookings outlive their task and ZonePreEntry
   // must not send hints from a task that has ended.
   active->_preference = active->_context->set_zone_preference(
     active->_description.zone_name(),

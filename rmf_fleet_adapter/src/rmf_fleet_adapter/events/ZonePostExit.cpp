@@ -15,7 +15,7 @@
  *
 */
 
-#include "ZoneExit.hpp"
+#include "ZonePostExit.hpp"
 
 #include "../phases/Utils.hpp"
 
@@ -23,7 +23,7 @@ namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
-auto ZoneExit::Standby::make(
+auto ZonePostExit::Standby::make(
   agv::RobotContextPtr context,
   const AssignIDPtr& id,
   Data data) -> std::shared_ptr<Standby>
@@ -39,19 +39,19 @@ auto ZoneExit::Standby::make(
 }
 
 //==============================================================================
-auto ZoneExit::Standby::state() const -> ConstStatePtr
+auto ZonePostExit::Standby::state() const -> ConstStatePtr
 {
   return _state;
 }
 
 //==============================================================================
-rmf_traffic::Duration ZoneExit::Standby::duration_estimate() const
+rmf_traffic::Duration ZonePostExit::Standby::duration_estimate() const
 {
   return rmf_traffic::Duration(0);
 }
 
 //==============================================================================
-auto ZoneExit::Standby::begin(
+auto ZonePostExit::Standby::begin(
   std::function<void()>,
   std::function<void()> finished) -> ActivePtr
 {
@@ -59,14 +59,14 @@ auto ZoneExit::Standby::begin(
 }
 
 //==============================================================================
-ZoneExit::Standby::Standby(Data data)
+ZonePostExit::Standby::Standby(Data data)
 : _data(std::move(data))
 {
   // Do nothing
 }
 
 //==============================================================================
-auto ZoneExit::Active::make(
+auto ZonePostExit::Active::make(
   agv::RobotContextPtr context,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> finished,
@@ -81,25 +81,25 @@ auto ZoneExit::Active::make(
 }
 
 //==============================================================================
-auto ZoneExit::Active::state() const -> ConstStatePtr
+auto ZonePostExit::Active::state() const -> ConstStatePtr
 {
   return _state;
 }
 
 //==============================================================================
-rmf_traffic::Duration ZoneExit::Active::remaining_time_estimate() const
+rmf_traffic::Duration ZonePostExit::Active::remaining_time_estimate() const
 {
   return rmf_traffic::Duration(0);
 }
 
 //==============================================================================
-auto ZoneExit::Active::backup() const -> Backup
+auto ZonePostExit::Active::backup() const -> Backup
 {
   return Backup::make(0, nlohmann::json());
 }
 
 //==============================================================================
-auto ZoneExit::Active::interrupt(
+auto ZonePostExit::Active::interrupt(
   std::function<void()> task_is_interrupted) -> Resume
 {
   _context->worker().schedule([task_is_interrupted](const auto&)
@@ -110,26 +110,26 @@ auto ZoneExit::Active::interrupt(
 }
 
 //==============================================================================
-void ZoneExit::Active::cancel()
+void ZonePostExit::Active::cancel()
 {
   _complete(Status::Canceled);
 }
 
 //==============================================================================
-void ZoneExit::Active::kill()
+void ZonePostExit::Active::kill()
 {
   cancel();
 }
 
 //==============================================================================
-ZoneExit::Active::Active(Data data)
+ZonePostExit::Active::Active(Data data)
 : _data(std::move(data))
 {
   // Do nothing
 }
 
 //==============================================================================
-void ZoneExit::Active::_initialize()
+void ZonePostExit::Active::_initialize()
 {
   _state->update_status(Status::Underway);
 
@@ -147,7 +147,7 @@ void ZoneExit::Active::_initialize()
     // Nothing was held for this zone.
     RCLCPP_DEBUG(
       node->get_logger(),
-      "ZoneExit for zone [%s]: robot [%s] held no booking",
+      "ZonePostExit for zone [%s]: robot [%s] held no booking",
       _data.zone_name.c_str(), _context->requester_id().c_str());
 
     _state->update_log().info(
@@ -172,7 +172,7 @@ void ZoneExit::Active::_initialize()
 }
 
 //==============================================================================
-void ZoneExit::Active::_complete(Status status)
+void ZonePostExit::Active::_complete(Status status)
 {
   if (!_finished)
     return;

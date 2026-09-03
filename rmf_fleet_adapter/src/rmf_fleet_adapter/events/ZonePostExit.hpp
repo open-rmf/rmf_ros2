@@ -15,8 +15,8 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEEXIT_HPP
-#define SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEEXIT_HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPOSTEXIT_HPP
+#define SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPOSTEXIT_HPP
 
 #include "../agv/RobotContext.hpp"
 
@@ -33,7 +33,7 @@ namespace events {
 /// The fleet adapter is the release authority, not the zone manager. The
 /// local clear is immediate and authoritative, and the EXIT request only
 /// notifies. Nothing here waits for or fails on a manager response.
-class ZoneExit : public rmf_task_sequence::Event
+class ZonePostExit : public rmf_task_sequence::Event
 {
 public:
 
@@ -106,4 +106,4 @@ public:
 } // namespace events
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEEXIT_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPOSTEXIT_HPP
