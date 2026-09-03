@@ -59,8 +59,10 @@ std::string generate_zone_request_id(
     + generate_random_hex_string(5);
 }
 
+namespace {
 //==============================================================================
-rmf_zone_msgs::msg::ZoneRequest make_zone_entry_request(
+rmf_zone_msgs::msg::ZoneRequest make_zone_claim_request(
+  const uint8_t request_type,
   const std::string& fleet,
   const std::string& robot,
   const std::string& zone,
@@ -72,8 +74,50 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_entry_request(
   request.fleet_name = fleet;
   request.request_id = std::move(request_id);
   request.zone_name = zone;
-  request.request_type = rmf_zone_msgs::msg::ZoneRequest::ENTRY;
+  request.request_type = request_type;
   request.modifiers = std::move(modifiers);
+  return request;
+}
+} // anonymous namespace
+
+//==============================================================================
+rmf_zone_msgs::msg::ZoneRequest make_zone_prebooking_request(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone,
+  std::string request_id,
+  rmf_zone_msgs::msg::ZoneModifiers modifiers)
+{
+  return make_zone_claim_request(
+    rmf_zone_msgs::msg::ZoneRequest::PREBOOKING,
+    fleet, robot, zone, std::move(request_id), std::move(modifiers));
+}
+
+//==============================================================================
+rmf_zone_msgs::msg::ZoneRequest make_zone_entry_request(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone,
+  std::string request_id,
+  rmf_zone_msgs::msg::ZoneModifiers modifiers)
+{
+  return make_zone_claim_request(
+    rmf_zone_msgs::msg::ZoneRequest::ENTRY,
+    fleet, robot, zone, std::move(request_id), std::move(modifiers));
+}
+
+//==============================================================================
+rmf_zone_msgs::msg::ZoneRequest make_zone_arrived_request(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone)
+{
+  auto request = rmf_zone_msgs::msg::ZoneRequest();
+  request.robot_name = robot;
+  request.fleet_name = fleet;
+  request.request_id = generate_zone_request_id(fleet, robot, zone);
+  request.zone_name = zone;
+  request.request_type = rmf_zone_msgs::msg::ZoneRequest::ARRIVED;
   return request;
 }
 

@@ -219,13 +219,13 @@ GoToZone::Active::Active(Description description)
 }
 
 //==============================================================================
-void GoToZone::Active::_publish_entry_request()
+void GoToZone::Active::_publish_prebooking_request()
 {
   _current_request_id = phases::generate_zone_request_id(
     _context->group(), _context->name(), _description.zone_name());
 
   _context->node()->zone_request()->publish(
-    phases::make_zone_entry_request(
+    phases::make_zone_prebooking_request(
       _context->group(),
       _context->name(),
       _description.zone_name(),
@@ -348,10 +348,10 @@ void GoToZone::Active::_request_booking()
       if (self->_context->zone_booking(zone_name))
         return;
 
-      self->_publish_entry_request();
+      self->_publish_prebooking_request();
     });
 
-  _publish_entry_request();
+  _publish_prebooking_request();
 
   _request_timer = node->try_create_wall_timer(
     WAITING_WARN_INTERVAL,
@@ -404,7 +404,7 @@ void GoToZone::Active::_request_booking()
       if (!self->_has_pending_request
         && !self->_context->zone_booking(zone))
       {
-        self->_publish_entry_request();
+        self->_publish_prebooking_request();
       }
     });
 }

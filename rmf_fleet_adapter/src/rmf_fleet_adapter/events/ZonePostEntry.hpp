@@ -15,38 +15,29 @@
  *
 */
 
-#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPREENTRY_HPP
-#define SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPREENTRY_HPP
+#ifndef SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPOSTENTRY_HPP
+#define SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPOSTENTRY_HPP
 
-#include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
-#include "../phases/MoveRobot.hpp"
-
-#include <optional>
 
 #include <rmf_task/events/SimpleEventState.hpp>
 #include <rmf_task_sequence/Event.hpp>
 
-#include <rmf_zone_msgs/msg/zone_state.hpp>
 
 namespace rmf_fleet_adapter {
 namespace events {
 
 //==============================================================================
-/// Confirms which vertex a robot gets as it crosses a zone's entry lane,
-/// holding it there until the zone manager answers. ExecutePlan runs this
-/// only for a robot that already holds a booking in the zone, which a
-/// GoToZone establishes before the robot moves. The manager may name a
-/// different vertex, which this event drives to before requesting a replan.
-class ZonePreEntry : public rmf_task_sequence::Event
+/// Tells the zone manager the robot has reached its booked zone waypoint,
+/// so the zone's other vertices need not be held for it. Nothing answers,
+/// and a lost message only leaves the pool held, as it was before.
+class ZonePostEntry : public rmf_task_sequence::Event
 {
 public:
 
   struct Data
   {
     std::string zone_name;
-    rmf_traffic::Time expected_finish;
-    std::shared_ptr<rmf_traffic::PlanId> plan_id;
   };
 
   class Standby : public rmf_task_sequence::Event::Standby
@@ -68,7 +59,6 @@ public:
   private:
     Standby(Data data);
     agv::RobotContextPtr _context;
-    AssignIDPtr _assign_id;
     rmf_task::events::SimpleEventStatePtr _state;
     Data _data;
   };
@@ -80,7 +70,6 @@ public:
   public:
     static std::shared_ptr<Active> make(
       agv::RobotContextPtr context,
-      const AssignIDPtr& id,
       rmf_task::events::SimpleEventStatePtr state,
       std::function<void()> finished,
       Data data);
@@ -102,48 +91,11 @@ public:
 
     void _initialize();
 
-    /// Send the finalize request and mark one as outstanding.
-    void _publish_finalize_request();
-
-    /// Drive onto the vertex the manager just assigned.
-    ///
-    /// MoveRobot rather than a nested GoToPlace, because GoToPlace consults
-    /// the reservation system, and a vertex it finds booked can send the
-    /// robot to a parking spot instead of into the zone.
-    void _begin_move(
-      rmf_traffic::agv::Plan::Goal goal,
-      const std::string& waypoint_name);
-
-    /// Announce arrival on the vertex, then ask for a replan and finish.
-    void _finish_at_waypoint();
-
-    /// Ask for a replan so the driving event re-aims from here, then finish.
-    void _finish_with_replan();
-
     void _complete(Status status);
 
     agv::RobotContextPtr _context;
-    AssignIDPtr _assign_id;
     rmf_task::events::SimpleEventStatePtr _state;
     std::function<void()> _finished;
-
-    /// The booking we are finalizing. Our reference is what tells the release
-    /// sweep it is in use.
-    agv::RobotContext::ZoneBookingPtr _booking;
-
-    /// The post-entry event, held while it runs so its completion can
-    /// carry on into the replan.
-    ActivePtr _post_entry;
-
-    rclcpp::Subscription<rmf_zone_msgs::msg::ZoneState>::SharedPtr _state_sub;
-
-    std::string _current_request_id;
-    bool _has_pending_request = false;
-
-    rclcpp::TimerBase::SharedPtr _delay_timer;
-
-    std::shared_ptr<phases::MoveRobot::ActivePhase> _move;
-    rmf_rxcpp::subscription_guard _move_sub;
 
     Data _data;
   };
@@ -152,4 +104,4 @@ public:
 } // namespace events
 } // namespace rmf_fleet_adapter
 
-#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPREENTRY_HPP
+#endif // SRC__RMF_FLEET_ADAPTER__EVENTS__ZONEPOSTENTRY_HPP

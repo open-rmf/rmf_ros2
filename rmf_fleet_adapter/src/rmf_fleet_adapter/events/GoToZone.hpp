@@ -107,8 +107,8 @@ public:
     /// the grant. Used only when we do not already hold a booking.
     void _request_booking();
 
-    /// Publish a zone ENTRY request for the destination zone.
-    void _publish_entry_request();
+    /// Publish a zone PREBOOKING request for the destination zone.
+    void _publish_prebooking_request();
 
     /// Drop any inner event and start a fresh GoToPlace toward goal.
     void _start_inner(rmf_traffic::agv::Plan::Goal goal);

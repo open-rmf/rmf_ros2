@@ -16,6 +16,7 @@
 */
 
 #include "ZonePreEntry.hpp"
+#include "ZonePostEntry.hpp"
 
 #include "../phases/Utils.hpp"
 
@@ -32,6 +33,7 @@ auto ZonePreEntry::Standby::make(
 {
   auto standby = std::shared_ptr<Standby>(new Standby(std::move(data)));
   standby->_context = std::move(context);
+  standby->_assign_id = id;
   standby->_state = rmf_task::events::SimpleEventState::make(
     id->assign(),
     "Enter zone [" + standby->_data.zone_name + "]",
@@ -57,7 +59,8 @@ auto ZonePreEntry::Standby::begin(
   std::function<void()>,
   std::function<void()> finished) -> ActivePtr
 {
-  return Active::make(_context, _state, std::move(finished), _data);
+  return Active::make(
+    _context, _assign_id, _state, std::move(finished), _data);
 }
 
 //==============================================================================
@@ -70,12 +73,14 @@ ZonePreEntry::Standby::Standby(Data data)
 //==============================================================================
 auto ZonePreEntry::Active::make(
   agv::RobotContextPtr context,
+  const AssignIDPtr& id,
   rmf_task::events::SimpleEventStatePtr state,
   std::function<void()> finished,
   Data data) -> std::shared_ptr<Active>
 {
   auto active = std::shared_ptr<Active>(new Active(std::move(data)));
   active->_context = std::move(context);
+  active->_assign_id = id;
   active->_state = std::move(state);
   active->_finished = std::move(finished);
   active->_initialize();
@@ -271,14 +276,22 @@ void ZonePreEntry::Active::_begin_move(
 
   const auto result = planner->plan(_context->location(), std::move(goal));
 
-  if (!result.success() || result->get_waypoints().empty())
+  if (!result.success())
   {
-    // Already standing on the vertex, or no route to it. Either way there is
-    // nothing to drive, so fall back to a replan from wherever we are.
-    _state->update_log().info(
-      "Nothing to drive for waypoint [" + waypoint_name + "]");
+    _state->update_log().error(
+      "No route to waypoint [" + waypoint_name + "]");
 
     _finish_with_replan();
+    return;
+  }
+
+  if (result->get_waypoints().empty())
+  {
+    // Nothing to drive means we are standing on the vertex already
+    _state->update_log().info(
+      "Already on waypoint [" + waypoint_name + "]");
+
+    _finish_at_waypoint();
     return;
   }
 
@@ -305,6 +318,26 @@ void ZonePreEntry::Active::_begin_move(
       if (msg.state == LegacyTask::StatusMsg::STATE_FAILED)
         self->_state->update_log().error(msg.status);
     },
+    [w = weak_from_this()]()
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_finish_at_waypoint();
+    });
+}
+
+//==============================================================================
+void ZonePreEntry::Active::_finish_at_waypoint()
+{
+  if (!_finished)
+    return;
+
+  _post_entry = ZonePostEntry::Standby::make(
+    _context, _assign_id, ZonePostEntry::Data{_data.zone_name})
+    ->begin(
+    []() {},
     [w = weak_from_this()]()
     {
       const auto self = w.lock();

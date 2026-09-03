@@ -402,6 +402,9 @@ public:
     _continuous = true;
   }
 
+  // Left empty because ZonePreEntry drives the entry lane itself and replans
+  // on arrival, which discards every later phase of this plan. It runs the
+  // post-entry event directly instead.
   void execute(const ZonePostEntry&) final {}
   void execute(const ZonePreExit&) final {}
 

@@ -50,8 +50,18 @@ std::string generate_zone_request_id(
   const std::string& robot,
   const std::string& zone);
 
-// Build an ENTRY request asking the zone manager to assign this robot a
-// vertex inside a zone.
+// Build a PREBOOKING request asking the zone manager to assign this robot a
+// vertex inside a zone, before it sets off.
+rmf_zone_msgs::msg::ZoneRequest make_zone_prebooking_request(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone,
+  std::string request_id,
+  rmf_zone_msgs::msg::ZoneModifiers modifiers =
+    rmf_zone_msgs::msg::ZoneModifiers());
+
+// Build an ENTRY request asking the zone manager to confirm the booking at
+// the zone boundary, taking a better vertex if one has freed up.
 rmf_zone_msgs::msg::ZoneRequest make_zone_entry_request(
   const std::string& fleet,
   const std::string& robot,
@@ -59,6 +69,13 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_entry_request(
   std::string request_id,
   rmf_zone_msgs::msg::ZoneModifiers modifiers =
     rmf_zone_msgs::msg::ZoneModifiers());
+
+// Build the ARRIVED request that tells the zone manager this robot has
+// crossed into the zone. Nothing answers it.
+rmf_zone_msgs::msg::ZoneRequest make_zone_arrived_request(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone);
 
 // Build the EXIT request that tells the zone manager a booking has been
 // given up.
