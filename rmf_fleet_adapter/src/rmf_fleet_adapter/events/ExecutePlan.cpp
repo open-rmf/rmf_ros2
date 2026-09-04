@@ -354,6 +354,12 @@ public:
     // Unconditional. Every robot crossing into a zone announces itself and
     // the zone manager decides what that means, so a plain GoToPlace is told
     // to proceed rather than never asking.
+
+    truncate_arrival(*_previous_itinerary, initial_waypoint);
+
+    _previous_itinerary =
+      std::make_shared<rmf_traffic::schedule::Itinerary>(_full_itinerary);
+
     _phases.emplace_back(
       nullptr,
       _event_start_time,
@@ -366,7 +372,8 @@ public:
             zone_entry.zone_name(),
             _event_start_time + zone_entry.duration(),
             _plan_id,
-            _plan_end_zone}
+            _plan_end_zone,
+            _previous_itinerary}
         ](const rmf_task_sequence::Event::AssignIDPtr& id) -> MakeStandby
         {
           return [context, id, data](UpdateFn /*update*/)

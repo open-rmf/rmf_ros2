@@ -50,6 +50,8 @@ public:
 
     /// The zone this plan ends in, or an empty string for none.
     std::optional<std::string> plan_end_zone;
+
+    std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary;
   };
 
   class Standby : public rmf_task_sequence::Event::Standby

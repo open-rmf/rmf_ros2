@@ -175,6 +175,15 @@ void ZonePreEntry::Active::_initialize()
           self->_state->update_log().info(
             "entering zone [" + zone_name + "] without a booking");
 
+          // Put back what ExecutePlan cut at the boundary. The granted path
+          // does not need this, since its hop and replan overwrite the
+          // itinerary anyway.
+          if (self->_data.resume_itinerary)
+          {
+            self->_context->schedule_itinerary(
+              self->_data.plan_id, *self->_data.resume_itinerary);
+          }
+
           self->_state_sub.reset();
           self->_delay_timer.reset();
           self->_request_timer.reset();
