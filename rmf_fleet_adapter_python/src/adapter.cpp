@@ -75,6 +75,7 @@ void bind_tests(py::module&);
 void bind_nodes(py::module&);
 void bind_battery(py::module&);
 void bind_schedule(py::module&);
+void bind_path_guide(py::module&);
 
 /// Helper function to parse major and minor version as integers
 /// Returns a pair<int, int> {major, minor} or {-1, -1} on parsing failure.
@@ -207,6 +208,7 @@ PYBIND11_MODULE(rmf_adapter, m) {
   bind_nodes(m);
   bind_battery(m);
   bind_schedule(m);
+  bind_path_guide(m);
 
   // ROBOTCOMMAND HANDLE =====================================================
   // Abstract class
@@ -905,6 +907,8 @@ PYBIND11_MODULE(rmf_adapter, m) {
     py::arg("wait_time") = rmf_utils::optional<rmf_traffic::Duration>(
       rmf_utils::nullopt))
   .def("add_easy_fleet", &agv::Adapter::add_easy_fleet,
+    py::arg("configuration"))
+  .def("add_path_guide_fleet", &agv::Adapter::add_path_guide_fleet,
     py::arg("configuration"))
   .def("add_fleet", &agv::Adapter::add_fleet,
     py::arg("fleet_name"),
