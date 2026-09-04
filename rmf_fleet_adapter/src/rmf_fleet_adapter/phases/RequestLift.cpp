@@ -266,22 +266,30 @@ void RequestLift::ActivePhase::_init_obs()
               });
             };
 
-            auto cmd = agv::EasyFullControl
-            ::CommandExecution::Implementation::make_hold(
-              me->_context,
-              me->_data.expected_finish,
-              *me->_data.plan_id,
-              std::move(finish));
-
-            agv::Destination::Implementation::get(*me->_data.localize_after)
-            .position = me->_context->position();
+            auto& estimate = agv::Destination::Implementation::get(
+              *me->_data.localize_after);
+            estimate.position = me->_context->position();
 
             const auto graph = me->_context->navigation_graph();
-            agv::Destination::Implementation::get(*me->_data.localize_after)
-            .lift = graph.find_known_lift(me->_lift_name);
+            estimate.lift = graph.find_known_lift(me->_lift_name);
 
-            if (me->_context->localize(*me->_data.localize_after,
-            std::move(cmd)))
+            // Handed over without naming a flavour: whichever adapter this
+            // robot registered builds its own Destination and hold. This phase
+            // is shared by every flavour, and when it named one of them
+            // directly the request silently went nowhere for the others.
+            if (me->_context->localize(
+              agv::LocalizationHandoff{
+                me->_context,
+                estimate.map,
+                estimate.position,
+                estimate.graph_index,
+                estimate.name,
+                estimate.speed_limit,
+                estimate.lift,
+                estimate.dock,
+                me->_data.expected_finish,
+                *me->_data.plan_id,
+                std::move(finish)}))
             {
               me->_rewait_timer = me->_context->node()->try_create_wall_timer(
                 std::chrono::seconds(300),

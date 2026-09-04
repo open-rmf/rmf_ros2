@@ -20,6 +20,7 @@
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
 #include <rmf_fleet_adapter/agv/EasyTrafficLight.hpp>
 #include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
+#include <rmf_fleet_adapter/agv/PathGuide.hpp>
 
 #include <rmf_traffic/agv/VehicleTraits.hpp>
 #include <rmf_traffic/agv/Graph.hpp>
@@ -86,6 +87,19 @@ public:
   /// \return The handle for adding new robots to the fleet.
   std::shared_ptr<EasyFullControl> add_easy_fleet(
     const EasyFullControl::FleetConfiguration& config);
+
+  /// Add a Path Guide fleet to be adapted.
+  ///
+  /// A Path Guide fleet behaves like an Easy Full Control fleet in every way
+  /// except that it hands the downstream integrator the entire path in one
+  /// request instead of one destination at a time. \sa PathGuide
+  ///
+  /// \param[in] config
+  ///   Configuration for the new Path Guide fleet.
+  ///
+  /// \return The handle for adding new robots to the fleet.
+  std::shared_ptr<PathGuide> add_path_guide_fleet(
+    const PathGuide::FleetConfiguration& config);
 
   /// Add a fleet to be adapted.
   ///
