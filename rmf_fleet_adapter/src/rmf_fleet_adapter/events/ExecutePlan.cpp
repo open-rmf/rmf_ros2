@@ -167,6 +167,7 @@ public:
     const rmf_traffic::agv::Plan::Waypoint& initial_waypoint_,
     std::optional<rmf_traffic::agv::Plan::Waypoint> next_waypoint_,
     const PlanIdPtr plan_id,
+    std::optional<std::string> plan_end_zone,
     std::function<LockMutexGroup::Data(
       const std::unordered_set<std::string>&,
       const rmf_traffic::agv::Plan::Waypoint&)> make_current_mutex_groups,
@@ -181,6 +182,7 @@ public:
     _phases(phases),
     _event_start_time(initial_waypoint_.time()),
     _plan_id(plan_id),
+    _plan_end_zone(std::move(plan_end_zone)),
     _make_current_mutex_groups(std::move(make_current_mutex_groups)),
     _get_new_mutex_group(std::move(get_new_mutex_groups)),
     _previous_itinerary(previous_itinerary),
@@ -349,12 +351,9 @@ public:
 
   void execute(const ZonePreEntry& zone_entry) final
   {
-    // Only a GoToZone books a zone, so this keeps a plain GoToPlace from
-    // firing the entry event on a boundary it happens to cross. Keyed by
-    // zone, so a booking in one zone does not admit the robot to another.
-    if (!_context->zone_booking(zone_entry.zone_name()))
-      return;
-
+    // Unconditional. Every robot crossing into a zone announces itself and
+    // the zone manager decides what that means, so a plain GoToPlace is told
+    // to proceed rather than never asking.
     _phases.emplace_back(
       nullptr,
       _event_start_time,
@@ -366,7 +365,8 @@ public:
           data = events::ZonePreEntry::Data{
             zone_entry.zone_name(),
             _event_start_time + zone_entry.duration(),
-            _plan_id}
+            _plan_id,
+            _plan_end_zone}
         ](const rmf_task_sequence::Event::AssignIDPtr& id) -> MakeStandby
         {
           return [context, id, data](UpdateFn /*update*/)
@@ -379,11 +379,8 @@ public:
 
   void execute(const ZonePostExit& zone_exit) final
   {
-    // Only fires when a booking is held in the zone this exit lane belongs
-    // to.
-    if (!_context->zone_booking(zone_exit.zone_name()))
-      return;
-
+    // Unconditional, as with the entry side. A robot that booked nothing
+    // still tells the manager it has gone.
     _phases.emplace_back(
       nullptr,
       _event_start_time,
@@ -402,9 +399,11 @@ public:
     _continuous = true;
   }
 
-  // Left empty because ZonePreEntry drives the entry lane itself and replans
-  // on arrival, which discards every later phase of this plan. It runs the
-  // post-entry event directly instead.
+  // Left empty. On the booked path ZonePreEntry drives the entry lane itself
+  // and replans on arrival, which discards every later phase of this plan, so
+  // it runs the post-entry event directly instead. On the unbooked path this
+  // phase does survive, but a robot holding no vertex has no arrival to
+  // report and the event would no-op anyway.
   void execute(const ZonePostEntry&) final {}
   void execute(const ZonePreExit&) final {}
 
@@ -418,6 +417,7 @@ private:
   LegacyPhases& _phases;
   rmf_traffic::Time _event_start_time;
   PlanIdPtr _plan_id;
+  std::optional<std::string> _plan_end_zone;
   std::function<LockMutexGroup::Data(
       const std::unordered_set<std::string>&,
       const rmf_traffic::agv::Plan::Waypoint&)> _make_current_mutex_groups;
@@ -958,6 +958,17 @@ std::optional<ExecutePlan> ExecutePlan::make(
   std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints =
     plan.get_waypoints();
 
+  // Which zone this plan finishes in, for the zone events to pass on. Unset
+  // when it does not end on a graph vertex, which is not the same as ending
+  // outside every zone.
+  std::optional<std::string> plan_end_zone;
+  if (!waypoints.empty() && waypoints.back().graph_index().has_value())
+  {
+    const auto& last = graph.get_waypoint(*waypoints.back().graph_index());
+    const auto zone = last.in_zone();
+    plan_end_zone = zone ? zone->name() : std::string();
+  }
+
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
   std::optional<LockMutexGroup::Data> current_mutex_groups;
   std::unordered_set<std::string> remaining_mutex_groups;
@@ -1209,6 +1220,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
         {
           EventPhaseFactory factory(
             context, legacy_phases, *it, next_waypoint, plan_id,
+            plan_end_zone,
             make_current_mutex_groups, get_new_mutex_groups,
             previous_itinerary, full_itinerary,
             continuous);

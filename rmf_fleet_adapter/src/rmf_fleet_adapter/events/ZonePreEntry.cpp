@@ -25,6 +25,15 @@
 namespace rmf_fleet_adapter {
 namespace events {
 
+// How often we re-send the entry request while waiting for an answer.
+const auto WAITING_WARN_INTERVAL = std::chrono::seconds(10);
+
+// How long before the warning points at the zone manager.
+const auto SUSPECT_MANAGER_AFTER = std::chrono::seconds(45);
+
+// How often we actually say we are still waiting.
+const auto WAITING_LOG_INTERVAL = std::chrono::seconds(60);
+
 //==============================================================================
 auto ZonePreEntry::Standby::make(
   agv::RobotContextPtr context,
@@ -154,8 +163,25 @@ void ZonePreEntry::Active::_initialize()
         self->_context, *msg, zone_name, self->_current_request_id,
         "ZonePreEntry");
 
+      if (result.status != phases::ZoneStateResult::Status::NoMatch)
+        self->_had_any_answer = true;
+
       switch (result.status)
       {
+        case phases::ZoneStateResult::Status::Proceed:
+        {
+          // Nothing was booked, so there is nothing to drive to and nothing
+          // to re-aim. Finish and let the plan we already have carry on.
+          self->_state->update_log().info(
+            "entering zone [" + zone_name + "] without a booking");
+
+          self->_state_sub.reset();
+          self->_delay_timer.reset();
+          self->_request_timer.reset();
+          self->_complete(Status::Completed);
+          return;
+        }
+
         case phases::ZoneStateResult::Status::Granted:
         {
           self->_state->update_log().info(
@@ -166,6 +192,7 @@ void ZonePreEntry::Active::_initialize()
 
           self->_state_sub.reset();
           self->_delay_timer.reset();
+          self->_request_timer.reset();
 
           self->_begin_move(*result.goal, result.waypoint_name);
           return;
@@ -178,6 +205,7 @@ void ZonePreEntry::Active::_initialize()
             + "] is not in the navigation graph");
           self->_state_sub.reset();
           self->_delay_timer.reset();
+          self->_request_timer.reset();
           self->_complete(Status::Failed);
           return;
         }
@@ -189,6 +217,7 @@ void ZonePreEntry::Active::_initialize()
             "ticket for a different vertex, so it was not adopted");
           self->_state_sub.reset();
           self->_delay_timer.reset();
+          self->_request_timer.reset();
           self->_complete(Status::Failed);
           return;
         }
@@ -199,6 +228,7 @@ void ZonePreEntry::Active::_initialize()
             "zone [" + zone_name + "] is unknown to the zone manager");
           self->_state_sub.reset();
           self->_delay_timer.reset();
+          self->_request_timer.reset();
           self->_complete(Status::Failed);
           return;
         }
@@ -210,6 +240,7 @@ void ZonePreEntry::Active::_initialize()
             + result.reason + ")");
           self->_state_sub.reset();
           self->_delay_timer.reset();
+          self->_request_timer.reset();
           self->_complete(Status::Failed);
           return;
         }
@@ -235,7 +266,17 @@ void ZonePreEntry::Active::_initialize()
       self->_publish_finalize_request();
     });
 
+  _requested_at = _context->now();
   _publish_finalize_request();
+
+  _request_timer = node->try_create_wall_timer(
+    WAITING_WARN_INTERVAL,
+    [w = weak_from_this()]()
+    {
+      const auto self = w.lock();
+      if (self)
+        self->_on_request_timer();
+    });
 
   _delay_timer = node->try_create_wall_timer(
     std::chrono::milliseconds(1000),
@@ -259,6 +300,53 @@ void ZonePreEntry::Active::_initialize()
           });
       }
     });
+}
+
+//==============================================================================
+void ZonePreEntry::Active::_on_request_timer()
+{
+  if (!_finished || !_requested_at)
+    return;
+
+  const auto now = _context->now();
+  const auto elapsed = now - *_requested_at;
+  const auto waited =
+    std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
+
+  const bool manager_silent =
+    elapsed >= SUSPECT_MANAGER_AFTER && !_had_any_answer;
+
+  const bool due = !_last_warned
+    || now - *_last_warned >= WAITING_LOG_INTERVAL;
+
+  if (due || (manager_silent && !_warned_manager_silent))
+  {
+    _last_warned = now;
+
+    if (manager_silent)
+    {
+      _warned_manager_silent = true;
+      RCLCPP_WARN(
+        _context->node()->get_logger(),
+        "ZonePreEntry: [%s] has waited %lds at the boundary of zone [%s] and "
+        "the zone manager has never answered. Is it running?",
+        _context->requester_id().c_str(), waited, _data.zone_name.c_str());
+    }
+    else
+    {
+      RCLCPP_WARN(
+        _context->node()->get_logger(),
+        "ZonePreEntry: [%s] has been waiting %lds to enter zone [%s]",
+        _context->requester_id().c_str(), waited, _data.zone_name.c_str());
+    }
+
+    _state->update_log().info(
+      "still waiting to enter zone [" + _data.zone_name + "] after "
+      + std::to_string(waited) + "s");
+  }
+
+  if (!_has_pending_request)
+    _publish_finalize_request();
 }
 
 //==============================================================================
@@ -369,12 +457,26 @@ void ZonePreEntry::Active::_publish_finalize_request()
   if (preference)
     modifiers = *preference;
 
+  using Context = rmf_zone_msgs::msg::ZoneEntryContext;
+  auto entry_context = Context();
+  entry_context.task_type =
+    preference ? Context::TASK_ZONE : Context::TASK_OTHER;
+
+  // Stopping here or crossing, decided by the zone the plan ends in.
+  if (!_data.plan_end_zone.has_value())
+    entry_context.zone_relation = Context::RELATION_UNKNOWN;
+  else if (*_data.plan_end_zone == _data.zone_name)
+    entry_context.zone_relation = Context::RELATION_DESTINATION;
+  else
+    entry_context.zone_relation = Context::RELATION_PASSING_THROUGH;
+
   _context->node()->zone_request()->publish(
     phases::make_zone_entry_request(
       _context->group(),
       _context->name(),
       _data.zone_name,
       _current_request_id,
+      std::move(entry_context),
       std::move(modifiers)));
 
   _has_pending_request = true;
@@ -385,6 +487,7 @@ void ZonePreEntry::Active::cancel()
 {
   _state_sub.reset();
   _delay_timer.reset();
+  _request_timer.reset();
   if (_move_sub.get().is_subscribed())
     _move_sub.get().unsubscribe();
 

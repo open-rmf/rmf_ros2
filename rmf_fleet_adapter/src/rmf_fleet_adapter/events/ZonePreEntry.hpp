@@ -47,6 +47,9 @@ public:
     std::string zone_name;
     rmf_traffic::Time expected_finish;
     std::shared_ptr<rmf_traffic::PlanId> plan_id;
+
+    /// The zone this plan ends in, or an empty string for none.
+    std::optional<std::string> plan_end_zone;
   };
 
   class Standby : public rmf_task_sequence::Event::Standby
@@ -120,6 +123,8 @@ public:
     /// Ask for a replan so the driving event re-aims from here, then finish.
     void _finish_with_replan();
 
+    void _on_request_timer();
+
     void _complete(Status status);
 
     agv::RobotContextPtr _context;
@@ -141,6 +146,14 @@ public:
     bool _has_pending_request = false;
 
     rclcpp::TimerBase::SharedPtr _delay_timer;
+
+    /// Re-sends the request while we wait, and escalates the log if the
+    /// manager never answers at all.
+    rclcpp::TimerBase::SharedPtr _request_timer;
+    std::optional<rmf_traffic::Time> _requested_at;
+    std::optional<rmf_traffic::Time> _last_warned;
+    bool _had_any_answer = false;
+    bool _warned_manager_silent = false;
 
     std::shared_ptr<phases::MoveRobot::ActivePhase> _move;
     rmf_rxcpp::subscription_guard _move_sub;

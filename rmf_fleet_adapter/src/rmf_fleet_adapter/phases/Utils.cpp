@@ -67,6 +67,7 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_claim_request(
   const std::string& robot,
   const std::string& zone,
   std::string request_id,
+  rmf_zone_msgs::msg::ZoneEntryContext entry_context,
   rmf_zone_msgs::msg::ZoneModifiers modifiers)
 {
   auto request = rmf_zone_msgs::msg::ZoneRequest();
@@ -75,6 +76,7 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_claim_request(
   request.request_id = std::move(request_id);
   request.zone_name = zone;
   request.request_type = request_type;
+  request.entry_context = std::move(entry_context);
   request.modifiers = std::move(modifiers);
   return request;
 }
@@ -88,9 +90,17 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_prebooking_request(
   std::string request_id,
   rmf_zone_msgs::msg::ZoneModifiers modifiers)
 {
+  // Only a zone task ever prebooks. The zone is its destination by
+  // definition, and it is sent before there is a plan to cross anything.
+  auto context = rmf_zone_msgs::msg::ZoneEntryContext();
+  context.task_type = rmf_zone_msgs::msg::ZoneEntryContext::TASK_ZONE;
+  context.zone_relation =
+    rmf_zone_msgs::msg::ZoneEntryContext::RELATION_DESTINATION;
+
   return make_zone_claim_request(
     rmf_zone_msgs::msg::ZoneRequest::PREBOOKING,
-    fleet, robot, zone, std::move(request_id), std::move(modifiers));
+    fleet, robot, zone, std::move(request_id), std::move(context),
+    std::move(modifiers));
 }
 
 //==============================================================================
@@ -99,11 +109,13 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_entry_request(
   const std::string& robot,
   const std::string& zone,
   std::string request_id,
+  rmf_zone_msgs::msg::ZoneEntryContext entry_context,
   rmf_zone_msgs::msg::ZoneModifiers modifiers)
 {
   return make_zone_claim_request(
     rmf_zone_msgs::msg::ZoneRequest::ENTRY,
-    fleet, robot, zone, std::move(request_id), std::move(modifiers));
+    fleet, robot, zone, std::move(request_id), std::move(entry_context),
+    std::move(modifiers));
 }
 
 //==============================================================================
@@ -270,6 +282,26 @@ ZoneStateResult handle_zone_state(
     result.status = ZoneStateResult::Status::Granted;
     result.goal = std::move(goal);
     result.waypoint_name = booking.assigned_waypoint_name;
+    return result;
+  }
+
+  for (const auto& proceed : state.proceed)
+  {
+    if (proceed.robot_name != robot_name
+      || proceed.fleet_name != fleet_name
+      || proceed.zone_name != zone_name
+      || proceed.request_id != request_id)
+      continue;
+
+    RCLCPP_INFO(
+      node->get_logger(),
+      "%s: [%s] may enter zone [%s] without a booking, so it will carry on "
+      "with the plan it already has",
+      caller,
+      context->requester_id().c_str(),
+      zone_name.c_str());
+
+    result.status = ZoneStateResult::Status::Proceed;
     return result;
   }
 

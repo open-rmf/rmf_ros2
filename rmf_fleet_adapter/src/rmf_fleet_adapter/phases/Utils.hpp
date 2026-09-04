@@ -62,11 +62,15 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_prebooking_request(
 
 // Build an ENTRY request asking the zone manager to confirm the booking at
 // the zone boundary, taking a better vertex if one has freed up.
+//
+// entry_context says what the fleet adapter knows about why the robot is
+// here. The zone manager decides what it implies.
 rmf_zone_msgs::msg::ZoneRequest make_zone_entry_request(
   const std::string& fleet,
   const std::string& robot,
   const std::string& zone,
   std::string request_id,
+  rmf_zone_msgs::msg::ZoneEntryContext entry_context,
   rmf_zone_msgs::msg::ZoneModifiers modifiers =
     rmf_zone_msgs::msg::ZoneModifiers());
 
@@ -122,7 +126,11 @@ struct ZoneStateResult
 
     /// The grant carried a ticket for a different vertex, so it was refused
     /// rather than adopted. Terminal.
-    TicketMismatch
+    TicketMismatch,
+
+    /// Let in without a waypoint. Nothing is booked or reserved, so carry on
+    /// with the plan already in hand and do not reroute.
+    Proceed
   };
 
   Status status = Status::NoMatch;
