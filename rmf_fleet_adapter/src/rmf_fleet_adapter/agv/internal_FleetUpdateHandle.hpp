@@ -46,6 +46,8 @@
 
 #include "Node.hpp"
 #include "RobotContext.hpp"
+#include "internal_ZoneBounds.hpp"
+#include "../phases/Utils.hpp"
 #include "../TaskManager.hpp"
 #include <rmf_websocket/BroadcastClient.hpp>
 
@@ -316,6 +318,11 @@ public:
 
   rclcpp::Subscription<rmf_zone_msgs::msg::ZoneBookingRevoked>::SharedPtr
     zone_booking_revoked_sub = nullptr;
+
+  // Metres past the zone edge a robot must be before the sweep releases it.
+  static constexpr double zone_release_margin = 0.5;
+
+  rclcpp::TimerBase::SharedPtr zone_release_sweep_timer = nullptr;
   using ChargingAssignments = rmf_fleet_msgs::msg::ChargingAssignments;
   using ChargingAssignment = rmf_fleet_msgs::msg::ChargingAssignment;
   // Keep track of charging assignments for robots that have not been registered
@@ -450,6 +457,96 @@ public:
     // memory-efficient.
     handle->_pimpl->memory_trim_timer = handle->_pimpl->node->create_wall_timer(
       std::chrono::minutes(5), []() { malloc_trim(0); });
+
+    // Zone booking release sweep.
+    handle->_pimpl->zone_release_sweep_timer =
+      handle->_pimpl->node->create_wall_timer(
+      std::chrono::seconds(2), [w = handle->weak_from_this()]()
+      {
+        const auto self = w.lock();
+        if (!self)
+          return;
+
+        for (const auto& [context, _] : self->_pimpl->task_managers)
+        {
+          if (!context)
+            continue;
+
+          if (!context->has_zone_bookings())
+            continue;
+
+          const auto& graph = context->navigation_graph();
+
+          Eigen::Vector2d robot_xy;
+          std::string robot_map;
+          try
+          {
+            const Eigen::Vector3d p = context->position();
+            robot_xy = p.block<2, 1>(0, 0);
+            robot_map = context->map();
+          }
+          catch (const std::exception& e)
+          {
+            RCLCPP_DEBUG(
+              self->_pimpl->node->get_logger(),
+              "Zone release sweep skipping [%s/%s]: %s",
+              context->group().c_str(), context->name().c_str(), e.what());
+            continue;
+          }
+
+          std::vector<std::string> to_release;
+
+          context->for_each_releasable_booking(
+            [&](const RobotContext::ZoneBooking& booking)
+            {
+              const auto zone = graph.find_known_zone(booking.zone_name);
+              if (!zone)
+              {
+                // The zone is no longer in the graph. Nothing can ever
+                // release this booking on geometry, so release it here.
+                RCLCPP_WARN(
+                  self->_pimpl->node->get_logger(),
+                  "Releasing booking for [%s/%s] in zone [%s]: that zone is "
+                  "no longer in the navigation graph",
+                  context->group().c_str(), context->name().c_str(),
+                  booking.zone_name.c_str());
+                to_release.push_back(booking.zone_name);
+                return;
+              }
+
+              const bool inside =
+                robot_map == zone->map()
+                && is_inside_zone(
+                  robot_xy,
+                  zone->location(),
+                  zone->orientation(),
+                  zone->dimensions(),
+                  zone_release_margin);
+
+              if (!inside)
+                to_release.push_back(booking.zone_name);
+            });
+
+          for (const auto& zone_name : to_release)
+          {
+            RCLCPP_INFO(
+              self->_pimpl->node->get_logger(),
+              "Zone release sweep: [%s/%s] left zone [%s] without an exit "
+              "event, releasing its booking",
+              context->group().c_str(), context->name().c_str(),
+              zone_name.c_str());
+
+            context->clear_zone_booking(
+              zone_name, RobotContext::ZoneTicketDisposal::HandBack);
+
+            // The handback above only forgets the ticket, so this is the
+            // only thing that tells the manager the robot has gone.
+            context->node()->zone_request()->publish(
+              phases::make_zone_exit_request(
+                context->group(), context->name(), zone_name));
+          }
+        }
+      });
 
     // Create subs and pubs for bidding
     auto transient_qos = rclcpp::QoS(10).transient_local();
@@ -644,7 +741,8 @@ public:
     handle->_pimpl->zone_booking_revoked_sub =
       handle->_pimpl->node->create_subscription<
       rmf_zone_msgs::msg::ZoneBookingRevoked>(
-      ZoneBookingRevokedTopicName, 10,
+      ZoneBookingRevokedTopicName,
+      rclcpp::QoS(10).transient_local().reliable(),
       [w = handle->weak_from_this()](
         const rmf_zone_msgs::msg::ZoneBookingRevoked::SharedPtr msg)
       {
@@ -658,16 +756,19 @@ public:
             || context->group() != msg->fleet_name)
             continue;
 
-          // Ignore revocations that don't correspond to the robot's
-          // current booking.
-          if (context->booked_zone_waypoint() != msg->assigned_waypoint_name)
+          // Ignore revocations that do not correspond to a booking held in
+          // the zone the message names.
+          const auto booking = context->zone_booking(msg->zone_name);
+          if (!booking
+            || booking->waypoint_name != msg->assigned_waypoint_name)
           {
             RCLCPP_DEBUG(context->node()->get_logger(),
-              "Ignoring stale ZoneBookingRevoked for [%s]: waypoint [%s] "
-              "does not match current booking [%s]",
+              "Ignoring stale ZoneBookingRevoked for [%s]: waypoint [%s] in "
+              "zone [%s] does not match current booking [%s]",
               msg->robot_name.c_str(),
               msg->assigned_waypoint_name.c_str(),
-              context->booked_zone_waypoint().c_str());
+              msg->zone_name.c_str(),
+              booking ? booking->waypoint_name.c_str() : "<none>");
             return;
           }
 
@@ -678,10 +779,8 @@ public:
             msg->zone_name.c_str(),
             msg->reason.c_str());
 
-          context->clear_booked_zone_goal();
-          context->clear_booked_zone_waypoint();
-          context->set_zone_task_modifiers({});
-          context->set_is_zone_task(false);
+          context->clear_zone_booking(
+            msg->zone_name, RobotContext::ZoneTicketDisposal::Release);
           return;
         }
       });
