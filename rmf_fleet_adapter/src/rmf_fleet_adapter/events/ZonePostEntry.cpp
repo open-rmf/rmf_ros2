@@ -134,28 +134,25 @@ void ZonePostEntry::Active::_initialize()
   _state->update_status(Status::Underway);
 
   const auto node = _context->node();
-  const auto booking = _context->zone_booking(_data.zone_name);
 
-  // A grant precedes every path into this event, so a booking is expected.
-  // A revocation or the release sweep could still have cleared it, and
-  // reporting arrival would name a booking the manager no longer holds.
+  // Announced whether or not anything is booked here. Every robot entering a
+  // zone says so and the manager decides what that is worth, which for a
+  // robot it holds nothing for is nothing.
+  node->zone_request()->publish(
+    phases::make_zone_arrived_request(
+      _context->group(), _context->name(), _data.zone_name));
+
+  const auto booking = _context->zone_booking(_data.zone_name);
   if (booking)
   {
-    node->zone_request()->publish(
-      phases::make_zone_arrived_request(
-        _context->group(), _context->name(), _data.zone_name));
-
     _state->update_log().info(
       "arrived at waypoint [" + booking->waypoint_name + "] in zone ["
       + _data.zone_name + "]");
   }
   else
   {
-    RCLCPP_INFO(
-      node->get_logger(),
-      "ZonePostEntry for zone [%s]: robot [%s] holds no booking, so the zone "
-      "manager is not told it arrived",
-      _data.zone_name.c_str(), _context->requester_id().c_str());
+    _state->update_log().info(
+      "entered zone [" + _data.zone_name + "] holding no booking");
   }
 
   _complete(Status::Completed);

@@ -21,6 +21,7 @@
 #include "WaitUntil.hpp"
 #include "LockMutexGroup.hpp"
 #include "ZonePreEntry.hpp"
+#include "ZonePostEntry.hpp"
 #include "ZonePostExit.hpp"
 
 #include "../phases/MoveRobot.hpp"
@@ -406,12 +407,26 @@ public:
     _continuous = true;
   }
 
-  // Left empty. On the booked path ZonePreEntry drives the entry lane itself
-  // and replans on arrival, which discards every later phase of this plan, so
-  // it runs the post-entry event directly instead. On the unbooked path this
-  // phase does survive, but a robot holding no vertex has no arrival to
-  // report and the event would no-op anyway.
-  void execute(const ZonePostEntry&) final {}
+  void execute(const ZonePostEntry& zone_post_entry) final
+  {
+    _phases.emplace_back(
+      nullptr,
+      _event_start_time,
+      initial_waypoint.dependencies(),
+      std::nullopt,
+      MakeEventStandby(
+        [context = _context,
+        data = events::ZonePostEntry::Data{zone_post_entry.zone_name()}](
+          const rmf_task_sequence::Event::AssignIDPtr& id) -> MakeStandby
+        {
+          return [context, id, data](UpdateFn /*update*/)
+            {
+              return events::ZonePostEntry::Standby::make(context, id, data);
+            };
+        }));
+    _continuous = true;
+  }
+
   void execute(const ZonePreExit&) final {}
 
   bool moving_lift() const
