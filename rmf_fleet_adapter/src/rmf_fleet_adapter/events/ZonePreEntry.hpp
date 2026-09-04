@@ -34,10 +34,10 @@ namespace events {
 
 //==============================================================================
 /// Confirms which vertex a robot gets as it crosses a zone's entry lane,
-/// holding it there until the zone manager answers. ExecutePlan runs this
-/// only for a robot that already holds a booking in the zone, which a
-/// GoToZone establishes before the robot moves. The manager may name a
-/// different vertex, which this event drives to before requesting a replan.
+/// holding it there until the zone manager answers. Every robot crossing the
+/// lane runs this, booked or not. A grant that names the vertex the robot
+/// already held changes nothing, so the plan carries on untouched. Any other
+/// answer is driven to before requesting a replan.
 class ZonePreEntry : public rmf_task_sequence::Event
 {
 public:
@@ -122,6 +122,10 @@ public:
     /// Announce arrival on the vertex, then ask for a replan and finish.
     void _finish_at_waypoint();
 
+    /// Put back the itinerary ExecutePlan cut at the boundary, for the paths
+    /// that leave the plan to carry on.
+    void _resume_plan();
+
     /// Ask for a replan so the driving event re-aims from here, then finish.
     void _finish_with_replan();
 
@@ -137,6 +141,9 @@ public:
     /// The booking we are finalizing. Our reference is what tells the release
     /// sweep it is in use.
     agv::RobotContext::ZoneBookingPtr _booking;
+
+    /// The vertex we arrived holding, which is the one the plan is aimed at.
+    std::string _entry_waypoint;
 
     /// The post-entry event, held while it runs so its completion can
     /// carry on into the replan.

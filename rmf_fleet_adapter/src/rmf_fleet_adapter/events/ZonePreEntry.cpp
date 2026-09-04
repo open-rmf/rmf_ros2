@@ -142,6 +142,8 @@ void ZonePreEntry::Active::_initialize()
   // entry lane the robot is still outside the zone box, so our reference is
   // the only thing keeping the sweep off.
   _booking = _context->zone_booking(_data.zone_name);
+  if (_booking)
+    _entry_waypoint = _booking->waypoint_name;
 
   _state->update_log().info(
     "Finalizing our waypoint in zone [" + _data.zone_name + "]");
@@ -175,14 +177,7 @@ void ZonePreEntry::Active::_initialize()
           self->_state->update_log().info(
             "entering zone [" + zone_name + "] without a booking");
 
-          // Put back what ExecutePlan cut at the boundary. The granted path
-          // does not need this, since its hop and replan overwrite the
-          // itinerary anyway.
-          if (self->_data.resume_itinerary)
-          {
-            self->_context->schedule_itinerary(
-              self->_data.plan_id, *self->_data.resume_itinerary);
-          }
+          self->_resume_plan();
 
           self->_state_sub.reset();
           self->_delay_timer.reset();
@@ -202,6 +197,16 @@ void ZonePreEntry::Active::_initialize()
           self->_state_sub.reset();
           self->_delay_timer.reset();
           self->_request_timer.reset();
+
+          if (result.waypoint_name == self->_entry_waypoint)
+          {
+            // Nothing was re-aimed, so the plan is already going there and
+            // can finish the lane itself. Hopping would leave the robot on
+            // this lane, and the replan would trigger this event again.
+            self->_resume_plan();
+            self->_complete(Status::Completed);
+            return;
+          }
 
           self->_begin_move(*result.goal, result.waypoint_name);
           return;
@@ -443,6 +448,16 @@ void ZonePreEntry::Active::_finish_at_waypoint()
 
       self->_finish_with_replan();
     });
+}
+
+//==============================================================================
+void ZonePreEntry::Active::_resume_plan()
+{
+  // ExecutePlan truncates the published itinerary at the boundary so the
+  // robot holds nothing beyond it while it waits. The re-aimed path does not
+  // need this back, since its hop and replan overwrite the itinerary anyway.
+  if (_data.resume_itinerary)
+    _context->schedule_itinerary(_data.plan_id, *_data.resume_itinerary);
 }
 
 //==============================================================================
