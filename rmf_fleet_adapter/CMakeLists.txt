@@ -260,21 +260,22 @@ target_include_directories(lift_supervisor
 
 # -----------------------------------------------------------------------------
 
-add_executable(zone_supervisor
-  src/zone_supervisor/main.cpp
-  src/zone_supervisor/Node.cpp
+add_executable(zone_manager
+  src/zone_manager/main.cpp
+  src/zone_manager/Node.cpp
+  src/zone_manager/ZoneReservationClient.cpp
 )
 
-target_link_libraries(zone_supervisor
+target_link_libraries(zone_manager
   PRIVATE
     rmf_fleet_adapter
     ${rclcpp_LIBRARIES}
     ${rmf_zone_msgs_TARGETS}
     ${rmf_building_map_msgs_TARGETS}
-    ${rmf_fleet_msgs_TARGETS}
+    ${rmf_reservation_msgs_TARGETS}
 )
 
-target_include_directories(zone_supervisor
+target_include_directories(zone_manager
   PRIVATE
     ${rclcpp_INCLUDE_DIRS}
 )
@@ -536,7 +537,7 @@ install(
     mock_traffic_light
     full_control
     lift_supervisor
-    zone_supervisor
+    zone_manager
     mutex_group_supervisor
     experimental_lift_watchdog
     door_supervisor
