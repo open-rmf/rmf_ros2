@@ -164,6 +164,11 @@ void ZonePostExit::Active::_initialize()
     _state->update_log().info("released waypoint [" + released + "]");
   }
 
+  // Held only until the release. Keeping it would keep the booking's
+  // stubbornness alive, so the robot would not yield for the rest of the plan.
+  if (_data.hold)
+    _data.hold->reset();
+
   node->zone_request()->publish(
     phases::make_zone_exit_request(
       _context->group(), _context->name(), _data.zone_name));

@@ -40,6 +40,11 @@ public:
   struct Data
   {
     std::string zone_name;
+
+    /// Keeps the booking alive from plan assembly, or the sweep takes it
+    /// before this event runs. A shared slot since Data is copied and one
+    /// reset must clear every copy.
+    std::shared_ptr<agv::RobotContext::ZoneBookingPtr> hold;
   };
 
   class Standby : public rmf_task_sequence::Event::Standby

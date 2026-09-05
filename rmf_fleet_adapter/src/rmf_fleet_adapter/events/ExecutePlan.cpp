@@ -396,7 +396,10 @@ public:
       std::nullopt,
       MakeEventStandby(
         [context = _context,
-        data = events::ZonePostExit::Data{zone_exit.zone_name()}](
+        data = events::ZonePostExit::Data{
+          zone_exit.zone_name(),
+          std::make_shared<agv::RobotContext::ZoneBookingPtr>(
+            _context->zone_booking(zone_exit.zone_name()))}](
           const rmf_task_sequence::Event::AssignIDPtr& id) -> MakeStandby
         {
           return [context, id, data](UpdateFn /*update*/)
