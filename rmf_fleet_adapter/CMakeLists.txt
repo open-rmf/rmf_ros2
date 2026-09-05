@@ -40,6 +40,7 @@ set(dep_pkgs
   rmf_task
   rmf_task_sequence
   rmf_reservation_msgs
+  rmf_zone_msgs
   std_msgs
   rmf_api_msgs
   rmf_websocket
@@ -100,6 +101,7 @@ target_link_libraries(rmf_fleet_adapter
     ${rmf_ingestor_msgs_TARGETS}
     ${rmf_lift_msgs_TARGETS}
     ${rmf_reservation_msgs_TARGETS}
+    ${rmf_zone_msgs_TARGETS}
     ${rmf_task_msgs_TARGETS}
     yaml-cpp::yaml-cpp
   PRIVATE
@@ -155,6 +157,7 @@ if (BUILD_TESTING)
       ${rmf_ingestor_msgs_TARGETS}
       ${rmf_lift_msgs_TARGETS}
       ${rmf_reservation_msgs_TARGETS}
+      ${rmf_zone_msgs_TARGETS}
       ${rmf_task_msgs_TARGETS}
       rmf_websocket::rmf_websocket
       ${std_msgs_TARGETS}
@@ -251,6 +254,28 @@ target_include_directories(lift_supervisor
     ${rclcpp_INCLUDE_DIRS}
     ${rmf_lift_msgs_INCLUDE_DIRS}
     ${std_msgs_INCLUDE_DIRS}
+)
+
+# -----------------------------------------------------------------------------
+
+add_executable(zone_manager
+  src/zone_manager/main.cpp
+  src/zone_manager/Node.cpp
+  src/zone_manager/ZoneReservationClient.cpp
+)
+
+target_link_libraries(zone_manager
+  PRIVATE
+    rmf_fleet_adapter
+    ${rclcpp_LIBRARIES}
+    ${rmf_zone_msgs_TARGETS}
+    ${rmf_building_map_msgs_TARGETS}
+    ${rmf_reservation_msgs_TARGETS}
+)
+
+target_include_directories(zone_manager
+  PRIVATE
+    ${rclcpp_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------
@@ -510,6 +535,7 @@ install(
     mock_traffic_light
     full_control
     lift_supervisor
+    zone_manager
     mutex_group_supervisor
     experimental_lift_watchdog
     door_supervisor

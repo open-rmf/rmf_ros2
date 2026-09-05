@@ -107,6 +107,42 @@ rmf_traffic::agv::Graph parse_graph(
     }
   }
 
+  const YAML::Node zones_yaml = graph_config["zones"];
+  if (!zones_yaml)
+  {
+    std::cout << "Your navigation graph does not provide zone information. "
+              <<
+      "This may cause problems with behaviors around zones. Please consider "
+              <<
+      "regenerating your navigration graph with the latest version of "
+              << "rmf_building_map_tools (from the rmf_traffic_editor repo)."
+              << std::endl;
+  }
+  else
+  {
+    for (const auto& zone : zones_yaml)
+    {
+      const std::string& name = zone.first.as<std::string>();
+      const YAML::Node properties_yaml = zone.second;
+      std::string level = properties_yaml["level"].as<std::string>();
+      std::string type = properties_yaml["type"].as<std::string>();
+      double orientation = properties_yaml["orientation"].as<double>();
+
+      const YAML::Node& pos_yaml = properties_yaml["position"];
+      const Eigen::Vector2d location(
+        pos_yaml[0].as<double>(),
+        pos_yaml[1].as<double>());
+
+      const YAML::Node& dims_yaml = properties_yaml["dims"];
+      const Eigen::Vector2d dimensions(
+        dims_yaml[0].as<double>(),
+        dims_yaml[1].as<double>());
+
+      graph.set_known_zone(rmf_traffic::agv::Graph::ZoneProperties(
+          name, level, type, location, orientation, dimensions));
+    }
+  }
+
   const YAML::Node levels = graph_config["levels"];
   if (!levels)
   {
@@ -225,6 +261,30 @@ rmf_traffic::agv::Graph parse_graph(
             }
             wp.set_in_lift(lift);
           }
+        }
+      }
+
+      const YAML::Node& zone_option = options["zone"];
+      if (zone_option)
+      {
+        const std::string& zone_name = zone_option.as<std::string>();
+        if (zone_name != "")
+        {
+          const auto zone = graph.find_known_zone(zone_name);
+          if (!zone)
+          {
+            throw std::runtime_error(
+                    "Zone properties for [" + zone_name + "] were not provided "
+                    "even though it is used by a vertex. This suggests that your "
+                    "nav graph was not generated correctly.");
+          }
+
+          const YAML::Node& group_option = options["group"];
+          const YAML::Node& priority_option = options["priority"];
+          auto& iv = zone->add_internal_vertex(name_option.as<std::string>());
+          iv.set_group_name(group_option.as<std::string>());
+          iv.set_priority(priority_option.as<uint8_t>());
+          wp.set_in_zone(zone);
         }
       }
 
@@ -364,6 +424,92 @@ rmf_traffic::agv::Graph parse_graph(
           const rmf_traffic::Duration duration = std::chrono::seconds(4);
           entry_event = Event::make(Lane::DoorOpen(name, duration));
           exit_event = Event::make(Lane::DoorClose(name, duration));
+        }
+      }
+      if (const YAML::Node zone_option = options["zone"])
+      {
+        // Zone + lift on the same lane is not supported for now
+        // (lift cabin zone feature will be added in the future)
+        if (is_lift)
+        {
+          throw std::runtime_error(
+            "Lane [" + std::to_string(begin) + " -> " + std::to_string(end)
+            + "] has both a zone and a lift event. "
+            "Zone transition lanes inside lifts are not supported for now.");
+        }
+
+        const auto name_node = zone_option["name"];
+        const auto transition_node = zone_option["transition_type"];
+        if (!name_node || !transition_node)
+        {
+          throw std::runtime_error(
+            "Zone option on lane [" + std::to_string(begin) + " -> "
+            + std::to_string(end)
+            + "] must contain both name and transition_type.");
+        }
+
+        const std::string zone_name = name_node.as<std::string>();
+        const std::string transition = transition_node.as<std::string>();
+        const rmf_traffic::Duration duration = std::chrono::seconds(4);
+
+        const auto displace_entry_event = [&]()
+          {
+            const auto wp = graph.get_waypoint(begin);
+            auto& split_wp = graph.add_waypoint(map_name, wp.get_location());
+            split_wp.set_in_mutex_group(wp.in_mutex_group());
+            split_wp.set_merge_radius(0.0);
+
+            graph.add_lane(
+              {begin, entry_event},
+              {split_wp.index(), rmf_utils::clone_ptr<Event>()});
+
+            begin = split_wp.index();
+            vnum_temp++;
+          };
+
+        const auto displace_exit_event = [&]()
+          {
+            const auto wp = graph.get_waypoint(end);
+            auto& split_wp = graph.add_waypoint(map_name, wp.get_location());
+            split_wp.set_in_mutex_group(wp.in_mutex_group());
+            split_wp.set_merge_radius(0.0);
+
+            graph.add_lane(
+              {split_wp.index(), rmf_utils::clone_ptr<Event>()},
+              {end, exit_event});
+
+            end = split_wp.index();
+            vnum_temp++;
+          };
+
+        if (transition == "entry")
+        {
+          if (entry_event)
+            displace_entry_event();
+
+          if (exit_event)
+            displace_exit_event();
+
+          entry_event = Event::make(Lane::ZonePreEntry(zone_name, duration));
+          exit_event = Event::make(Lane::ZonePostEntry(zone_name, duration));
+        }
+        else if (transition == "exit")
+        {
+          if (entry_event)
+            displace_entry_event();
+
+          if (exit_event)
+            displace_exit_event();
+
+          entry_event = Event::make(Lane::ZonePreExit(zone_name, duration));
+          exit_event = Event::make(Lane::ZonePostExit(zone_name, duration));
+        }
+        else
+        {
+          throw std::runtime_error(
+            "Unrecognized zone transition_type [" + transition
+            + "] on lane [" + std::to_string(begin) + " -> "
+            + std::to_string(end) + "]. Expected 'entry' or 'exit'.");
         }
       }
 

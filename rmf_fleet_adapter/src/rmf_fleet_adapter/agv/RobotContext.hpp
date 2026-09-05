@@ -26,6 +26,7 @@
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
 #include <rmf_fleet_msgs/msg/mutex_group_manual_release.hpp>
+#include <rmf_zone_msgs/msg/zone_modifiers.hpp>
 #include <rmf_task_msgs/action/dynamic_event.hpp>
 #include <rmf_task_msgs/msg/dynamic_event_description.hpp>
 #include <rmf_task_msgs/msg/dynamic_event_status.hpp>
@@ -180,6 +181,27 @@ public:
   {
     text = "Wait";
   }
+
+  void execute(const ZonePreEntry& zone) override
+  {
+    text = "Zone " + zone.zone_name();
+  }
+
+  void execute(const ZonePostEntry& zone) override
+  {
+    text = "Zone " + zone.zone_name();
+  }
+
+  void execute(const ZonePreExit& zone) override
+  {
+    text = "Zone " + zone.zone_name();
+  }
+
+  void execute(const ZonePostExit& zone) override
+  {
+    text = "Zone " + zone.zone_name();
+  }
+
 
   void execute(const Dock& dock) override
   {
@@ -1007,6 +1029,95 @@ public:
 
   bool debug_positions = false;
 
+  /// The hints a on-going GoToZone is expressing for a zone: which group, which
+  /// orientation, which vertices it would rather be given.
+  using ZonePreference = rmf_zone_msgs::msg::ZoneModifiers;
+  using ZonePreferenceHandle = std::shared_ptr<const ZonePreference>;
+
+  /// Set the preference for a zone and return the handle that owns it. It
+  /// applies for as long as the caller holds that handle, and no longer.
+  [[nodiscard]] ZonePreferenceHandle set_zone_preference(
+    std::string zone_name,
+    ZonePreference preference);
+
+  /// Get the preference currently expressed for this zone, or nullptr.
+  ZonePreferenceHandle zone_preference(const std::string& zone_name) const;
+
+  /// The zone manager's grant of one vertex to this robot. Shared, so the
+  /// context holds one reference and any event using it holds another.
+  struct ZoneBooking
+  {
+    std::string zone_name;
+    std::string waypoint_name;
+    rmf_traffic::agv::Plan::Goal goal;
+    std::shared_ptr<void> stubbornness;
+  };
+
+  using ZoneBookingPtr = std::shared_ptr<ZoneBooking>;
+
+  /// Set the booking for a zone, replacing any already held for that zone.
+  /// Acquires stubbornness on behalf of the booking.
+  void set_zone_booking(
+    std::string zone_name,
+    std::string waypoint_name,
+    rmf_traffic::agv::Plan::Goal goal);
+
+  /// Get the booking held for a zone, or nullptr
+  ZoneBookingPtr zone_booking(const std::string& zone_name) const;
+
+  /// What to do with a zone booking's reservation ticket when the booking is
+  /// cleared.
+  enum class ZoneTicketDisposal
+  {
+    /// Keep the vertex reserved and let the zone manager take it back, so it
+    /// stays in that zone's pool for the next robot.
+    HandBack,
+
+    /// Give the vertex back to the reservation node.
+    Release
+  };
+
+  /// Release the booking held for a zone
+  void clear_zone_booking(
+    const std::string& zone_name,
+    ZoneTicketDisposal disposal);
+
+  /// Get whether this robot holds any zone booking at all
+  bool has_zone_bookings() const;
+
+  /// Take over a reservation ticket the zone manager was holding for us.
+  /// Nothing is released, so the vertex never looks free for an instant, and
+  /// the reservation negotiator short-circuits instead of asking for it again.
+  ///
+  /// \param[in] ticket_id
+  ///   The live ticket currently holding the vertex.
+  ///
+  /// \param[in] resource
+  ///   The vertex the ticket holds, by name.
+  ///
+  /// \param[in] release_previous
+  ///   Whether to give our current ticket back to the reservation node.
+  void _adopt_zone_ticket(
+    uint64_t ticket_id,
+    const std::string& resource,
+    bool release_previous = true);
+
+  /// Get whether a zone manager is listening for our zone requests.
+  bool _zone_manager_listening() const;
+
+  /// The zone whose booking sits on this waypoint, if any. Says whether a
+  /// reservation we are about to displace belongs to a zone we still hold,
+  /// which the ticket alone cannot.
+  std::optional<std::string> zone_holding_waypoint(
+    const std::string& waypoint_name) const;
+
+  /// Visit every booking no event is using.
+  void for_each_releasable_booking(
+    const std::function<void(const ZoneBooking&)>& fn) const;
+
+  /// First waypoint from the current location() start set, or nullopt.
+  std::optional<std::size_t> current_waypoint() const;
+
 private:
 
   RobotContext(
@@ -1080,6 +1191,14 @@ private:
   std::shared_ptr<const rmf_task::TaskPlanner> _task_planner;
   std::weak_ptr<TaskManager> _task_manager;
   bool _robot_finishing_request = false;
+
+  // Keyed by zone name
+  std::unordered_map<std::string, ZoneBookingPtr> _zone_bookings;
+
+  // Weak on purpose: the event expressing the preference owns it, and its
+  // death is what ends it.
+  std::unordered_map<std::string, std::weak_ptr<const ZonePreference>>
+  _zone_preferences;
 
   RobotUpdateHandle::Unstable::Watchdog _lift_watchdog;
   rmf_traffic::Duration _lift_rewait_duration = std::chrono::seconds(0);

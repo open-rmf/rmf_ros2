@@ -86,6 +86,11 @@ const std::string ReservationAllocationTopicName =
   "rmf/reservations/allocation";
 const std::string ReservationReleaseTopicName = "rmf/reservations/release";
 
+const std::string ZoneRequestTopicName = "zone_requests";
+const std::string ZoneStateTopicName = "zone_states";
+const std::string ZoneManualReleaseTopicName = "zone_manual_release";
+const std::string ZoneBookingRevokedTopicName = "zone_booking_revoked";
+
 const std::string DynamicEventBeginTopicBase = "rmf/dynamic_event/begin";
 const std::string DynamicEventStatusTopicBase = "rmf/dynamic_event/status";
 const std::string DynamicEventActionName = "rmf/dynamic_event/command";

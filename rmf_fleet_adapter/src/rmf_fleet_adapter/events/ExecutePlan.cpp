@@ -20,6 +20,9 @@
 #include "WaitForTraffic.hpp"
 #include "WaitUntil.hpp"
 #include "LockMutexGroup.hpp"
+#include "ZonePreEntry.hpp"
+#include "ZonePostEntry.hpp"
+#include "ZonePostExit.hpp"
 
 #include "../phases/MoveRobot.hpp"
 #include "../phases/DoorOpen.hpp"
@@ -41,6 +44,8 @@ namespace {
 using StandbyPtr = rmf_task_sequence::Event::StandbyPtr;
 using UpdateFn = std::function<void()>;
 using MakeStandby = std::function<StandbyPtr(UpdateFn)>;
+using MakeEventStandby =
+  std::function<MakeStandby(const rmf_task_sequence::Event::AssignIDPtr&)>;
 
 std::string print_plan_waypoints(
   const std::vector<rmf_traffic::agv::Plan::Waypoint>& waypoints,
@@ -60,11 +65,13 @@ struct LegacyPhaseWrapper
     std::shared_ptr<LegacyTask::PendingPhase> phase_,
     rmf_traffic::Time time_,
     rmf_traffic::Dependencies dependencies_,
-    std::optional<LockMutexGroup::Data> mutex_group_dependency_)
+    std::optional<LockMutexGroup::Data> mutex_group_dependency_,
+    std::optional<MakeEventStandby> task_event_ = std::nullopt)
   : phase(std::move(phase_)),
     time(time_),
     dependencies(std::move(dependencies_)),
-    mutex_group_dependency(std::move(mutex_group_dependency_))
+    mutex_group_dependency(std::move(mutex_group_dependency_)),
+    task_event(std::move(task_event_))
   {
     // Do nothing
   }
@@ -73,6 +80,7 @@ struct LegacyPhaseWrapper
   rmf_traffic::Time time;
   rmf_traffic::Dependencies dependencies;
   std::optional<LockMutexGroup::Data> mutex_group_dependency;
+  std::optional<MakeEventStandby> task_event;
 };
 
 using LegacyPhases = std::vector<LegacyPhaseWrapper>;
@@ -160,6 +168,7 @@ public:
     const rmf_traffic::agv::Plan::Waypoint& initial_waypoint_,
     std::optional<rmf_traffic::agv::Plan::Waypoint> next_waypoint_,
     const PlanIdPtr plan_id,
+    std::optional<std::string> plan_end_zone,
     std::function<LockMutexGroup::Data(
       const std::unordered_set<std::string>&,
       const rmf_traffic::agv::Plan::Waypoint&)> make_current_mutex_groups,
@@ -174,6 +183,7 @@ public:
     _phases(phases),
     _event_start_time(initial_waypoint_.time()),
     _plan_id(plan_id),
+    _plan_end_zone(std::move(plan_end_zone)),
     _make_current_mutex_groups(std::move(make_current_mutex_groups)),
     _get_new_mutex_group(std::move(get_new_mutex_groups)),
     _previous_itinerary(previous_itinerary),
@@ -340,6 +350,88 @@ public:
     // Do nothing
   }
 
+  void execute(const ZonePreEntry& zone_entry) final
+  {
+    // Unconditional. Every robot crossing into a zone announces itself and
+    // the zone manager decides what that means, so a plain GoToPlace is told
+    // to proceed rather than never asking.
+
+    truncate_arrival(*_previous_itinerary, initial_waypoint);
+
+    _previous_itinerary =
+      std::make_shared<rmf_traffic::schedule::Itinerary>(_full_itinerary);
+
+    _phases.emplace_back(
+      nullptr,
+      _event_start_time,
+      initial_waypoint.dependencies(),
+      std::nullopt,
+      MakeEventStandby(
+        [
+          context = _context,
+          data = events::ZonePreEntry::Data{
+            zone_entry.zone_name(),
+            _event_start_time + zone_entry.duration(),
+            _plan_id,
+            _plan_end_zone,
+            _previous_itinerary}
+        ](const rmf_task_sequence::Event::AssignIDPtr& id) -> MakeStandby
+        {
+          return [context, id, data](UpdateFn /*update*/)
+            {
+              return events::ZonePreEntry::Standby::make(context, id, data);
+            };
+        }));
+    _continuous = true;
+  }
+
+  void execute(const ZonePostExit& zone_exit) final
+  {
+    // Unconditional, as with the entry side. A robot that booked nothing
+    // still tells the manager it has gone.
+    _phases.emplace_back(
+      nullptr,
+      _event_start_time,
+      initial_waypoint.dependencies(),
+      std::nullopt,
+      MakeEventStandby(
+        [context = _context,
+        data = events::ZonePostExit::Data{
+          zone_exit.zone_name(),
+          std::make_shared<agv::RobotContext::ZoneBookingPtr>(
+            _context->zone_booking(zone_exit.zone_name()))}](
+          const rmf_task_sequence::Event::AssignIDPtr& id) -> MakeStandby
+        {
+          return [context, id, data](UpdateFn /*update*/)
+            {
+              return events::ZonePostExit::Standby::make(context, id, data);
+            };
+        }));
+    _continuous = true;
+  }
+
+  void execute(const ZonePostEntry& zone_post_entry) final
+  {
+    _phases.emplace_back(
+      nullptr,
+      _event_start_time,
+      initial_waypoint.dependencies(),
+      std::nullopt,
+      MakeEventStandby(
+        [context = _context,
+        data = events::ZonePostEntry::Data{zone_post_entry.zone_name()}](
+          const rmf_task_sequence::Event::AssignIDPtr& id) -> MakeStandby
+        {
+          return [context, id, data](UpdateFn /*update*/)
+            {
+              return events::ZonePostEntry::Standby::make(context, id, data);
+            };
+        }));
+    _continuous = true;
+  }
+
+  void execute(const ZonePreExit&) final {}
+
   bool moving_lift() const
   {
     return _moving_lift;
@@ -350,6 +442,7 @@ private:
   LegacyPhases& _phases;
   rmf_traffic::Time _event_start_time;
   PlanIdPtr _plan_id;
+  std::optional<std::string> _plan_end_zone;
   std::function<LockMutexGroup::Data(
       const std::unordered_set<std::string>&,
       const rmf_traffic::agv::Plan::Waypoint&)> _make_current_mutex_groups;
@@ -610,6 +703,10 @@ public:
   void execute(const Wait&) final {}
   void execute(const DoorOpen&) final {}
   void execute(const DoorClose&) final {}
+  void execute(const ZonePreEntry&) final {}
+  void execute(const ZonePostEntry&) final {}
+  void execute(const ZonePreExit&) final {}
+  void execute(const ZonePostExit&) final {}
   void execute(const LiftSessionBegin& e) final
   {
     // If we're going to re-begin using a lift, then we don't need to keep this
@@ -659,6 +756,10 @@ public:
     if (close.name() == current_name)
       still_using = true;
   }
+  void execute(const ZonePreEntry&) final {}
+  void execute(const ZonePostEntry&) final {}
+  void execute(const ZonePreExit&) final {}
+  void execute(const ZonePostExit&) final {}
   void execute(const LiftSessionBegin& /*e*/) final {}
   void execute(const LiftMove& /*e*/) final {}
   void execute(const LiftDoorOpen& /*e*/) final {}
@@ -881,6 +982,17 @@ std::optional<ExecutePlan> ExecutePlan::make(
 
   std::vector<rmf_traffic::agv::Plan::Waypoint> waypoints =
     plan.get_waypoints();
+
+  // Which zone this plan finishes in, for the zone events to pass on. Unset
+  // when it does not end on a graph vertex, which is not the same as ending
+  // outside every zone.
+  std::optional<std::string> plan_end_zone;
+  if (!waypoints.empty() && waypoints.back().graph_index().has_value())
+  {
+    const auto& last = graph.get_waypoint(*waypoints.back().graph_index());
+    const auto zone = last.in_zone();
+    plan_end_zone = zone ? zone->name() : std::string();
+  }
 
   std::vector<rmf_traffic::agv::Plan::Waypoint> move_through;
   std::optional<LockMutexGroup::Data> current_mutex_groups;
@@ -1133,6 +1245,7 @@ std::optional<ExecutePlan> ExecutePlan::make(
         {
           EventPhaseFactory factory(
             context, legacy_phases, *it, next_waypoint, plan_id,
+            plan_end_zone,
             make_current_mutex_groups, get_new_mutex_groups,
             previous_itinerary, full_itinerary,
             continuous);
@@ -1263,6 +1376,11 @@ std::optional<ExecutePlan> ExecutePlan::make(
       {
         standbys.push_back(make_wait_for_mutex(
             context, event_id, head->mutex_group_dependency.value()));
+      }
+
+      if (head->task_event.has_value())
+      {
+        standbys.push_back((*head->task_event)(event_id));
       }
 
       if (head->phase)
