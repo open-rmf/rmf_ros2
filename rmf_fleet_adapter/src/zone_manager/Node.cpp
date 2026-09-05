@@ -951,14 +951,24 @@ void Node::_sweep_idle_zone_pools()
     // Nothing has wanted this zone for some time, so stop holding its
     // vertices, release the not-in-used waypoint back to reservation
     // node
-    const auto released = _reservation_client->release_zone(zone);
+    const auto given_up = _reservation_client->release_zone(zone);
 
-    if (released > 0)
+    if (given_up.released > 0)
     {
       RCLCPP_INFO(this->get_logger(),
         "Released %lu reservation(s) for zone [%s] after %ld s idle",
-        released, zone.c_str(),
+        given_up.released, zone.c_str(),
         static_cast<long>(_zone_pool_idle_timeout.count()));
+    }
+
+    // Reported apart from the releases. A claim we never had granted means
+    // something outside the zone system is sitting on that vertex.
+    if (given_up.dropped_claims > 0)
+    {
+      RCLCPP_INFO(this->get_logger(),
+        "Dropped %lu queued claim(s) in zone [%s], whose waypoints are held "
+        "by somebody outside the zone system",
+        given_up.dropped_claims, zone.c_str());
     }
 
     std::vector<std::string> orphaned;

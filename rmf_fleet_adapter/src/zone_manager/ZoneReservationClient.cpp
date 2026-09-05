@@ -320,18 +320,18 @@ void ZoneReservationClient::_disown(const std::string& vertex)
 }
 
 //==============================================================================
-void ZoneReservationClient::release(
+bool ZoneReservationClient::release(
   const std::string& zone, const std::string& vertex)
 {
   const auto it = _holdings.find(vertex);
   if (it == _holdings.end() || !_find(zone, vertex))
-    return;
+    return false;
 
   if (it->second.state == Holding::State::Transferred)
   {
     // Not ours to release. The robot owns it now.
     _disown(vertex);
-    return;
+    return false;
   }
 
   // Only an allocated ticket can be released, and _on_allocation catches a
@@ -352,13 +352,19 @@ void ZoneReservationClient::release(
       _node.get_logger(),
       "Zone manager released [%s] in zone [%s]",
       vertex.c_str(), zone.c_str());
+
+    _holdings.erase(it);
+    return true;
   }
 
+  // State::Requested, means that a claim still queued at the reservation node.
   _holdings.erase(it);
+  return false;
 }
 
 //==============================================================================
-std::size_t ZoneReservationClient::release_zone(const std::string& zone)
+auto ZoneReservationClient::release_zone(const std::string& zone)
+-> ZonePoolRelease
 {
   std::vector<std::string> to_release;
   for (const auto& [vertex, holding] : _holdings)
@@ -372,10 +378,16 @@ std::size_t ZoneReservationClient::release_zone(const std::string& zone)
       to_release.push_back(vertex);
   }
 
+  ZonePoolRelease result;
   for (const auto& vertex : to_release)
-    release(zone, vertex);
+  {
+    if (release(zone, vertex))
+      ++result.released;
+    else
+      ++result.dropped_claims;
+  }
 
-  return to_release.size();
+  return result;
 }
 
 //==============================================================================

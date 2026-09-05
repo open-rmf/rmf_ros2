@@ -88,12 +88,21 @@ public:
     const std::string& robot,
     HandbackDisposal disposal);
 
-  /// Relinquish one vertex.
-  void release(const std::string& zone, const std::string& vertex);
+  /// Relinquish one vertex. True when a reservation was actually handed
+  /// back, false for a vertex we only had a queued claim on.
+  bool release(const std::string& zone, const std::string& vertex);
+
+  /// What release_zone gave up. A dropped claim was never granted, so
+  /// somebody outside the zone system is most likely on that vertex.
+  struct ZonePoolRelease
+  {
+    std::size_t released = 0;
+    std::size_t dropped_claims = 0;
+  };
 
   /// Release a zone's free spares. A transferred or frozen vertex has a
   /// robot on it, so it stays.
-  std::size_t release_zone(const std::string& zone);
+  ZonePoolRelease release_zone(const std::string& zone);
 
   /// Is a reservation node present?
   bool reservation_node_present() const;
