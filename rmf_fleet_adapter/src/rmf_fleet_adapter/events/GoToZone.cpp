@@ -106,9 +106,9 @@ auto GoToZone::Standby::make(
   {
     RCLCPP_WARN(
       context->node()->get_logger(),
-      "GoToZone for [%s] in zone [%s], but use_parking_reservations is off "
-      "for this fleet. Another robot could take the assigned waypoint.",
-      context->requester_id().c_str(),
+      "GoToZone for [%s/%s] in zone [%s], but use_parking_reservations is "
+      "off for this fleet. Another robot could take the assigned waypoint.",
+      context->group().c_str(), context->name().c_str(),
       description.zone_name().c_str());
 
     standby->_state->update_log().warn(
@@ -383,16 +383,19 @@ void GoToZone::Active::_request_booking()
           self->_warned_manager_silent = true;
           RCLCPP_WARN(
             self->_context->node()->get_logger(),
-            "GoToZone: [%s] has waited %lds for zone [%s] and the zone "
+            "GoToZone: [%s/%s] has waited %lds for zone [%s] and the zone "
             "manager has never answered.",
-            self->_context->requester_id().c_str(), waited, zone.c_str());
+            self->_context->group().c_str(),
+            self->_context->name().c_str(), waited, zone.c_str());
         }
         else
         {
           RCLCPP_WARN(
             self->_context->node()->get_logger(),
-            "GoToZone: [%s] has been waiting %lds for a waypoint in zone [%s]",
-            self->_context->requester_id().c_str(), waited, zone.c_str());
+            "GoToZone: [%s/%s] has been waiting %lds for a waypoint in "
+            "zone [%s]",
+            self->_context->group().c_str(),
+            self->_context->name().c_str(), waited, zone.c_str());
         }
 
         self->_state->update_log().info(
@@ -483,8 +486,8 @@ void GoToZone::Active::_on_replan()
   // The vertex we own has changed, so re-aim.
   RCLCPP_INFO(
     _context->node()->get_logger(),
-    "GoToZone: re-aiming [%s] at waypoint [%s] in zone [%s]",
-    _context->requester_id().c_str(),
+    "GoToZone: re-aiming [%s/%s] at waypoint [%s] in zone [%s]",
+    _context->group().c_str(), _context->name().c_str(),
     booked->waypoint_name.c_str(),
     _description.zone_name().c_str());
 
@@ -591,8 +594,8 @@ void GoToZone::Active::cancel()
 {
   RCLCPP_INFO(
     _context->node()->get_logger(),
-    "Canceling GoToZone for robot [%s]",
-    _context->requester_id().c_str());
+    "Canceling GoToZone for robot [%s/%s]",
+    _context->group().c_str(), _context->name().c_str());
 
   _stop(false);
 }

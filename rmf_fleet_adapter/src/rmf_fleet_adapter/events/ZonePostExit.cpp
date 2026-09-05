@@ -147,8 +147,10 @@ void ZonePostExit::Active::_initialize()
     // Nothing was held for this zone.
     RCLCPP_DEBUG(
       node->get_logger(),
-      "ZonePostExit for zone [%s]: robot [%s] held no booking",
-      _data.zone_name.c_str(), _context->requester_id().c_str());
+      "ZonePostExit: [%s/%s] is at the exit of zone [%s] holding no "
+      "booking",
+      _context->group().c_str(), _context->name().c_str(),
+      _data.zone_name.c_str());
 
     _state->update_log().info(
       "no booking was held in zone [" + _data.zone_name + "]");
@@ -157,9 +159,10 @@ void ZonePostExit::Active::_initialize()
   {
     RCLCPP_INFO(
       node->get_logger(),
-      "Released zone booking [%s] in zone [%s] for robot [%s]",
-      released.c_str(), _data.zone_name.c_str(),
-      _context->requester_id().c_str());
+      "ZonePostExit: [%s/%s] is at the exit of zone [%s] and released its "
+      "booking [%s]",
+      _context->group().c_str(), _context->name().c_str(),
+      _data.zone_name.c_str(), released.c_str());
 
     _state->update_log().info("released waypoint [" + released + "]");
   }

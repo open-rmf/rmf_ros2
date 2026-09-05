@@ -193,11 +193,11 @@ ZoneStateResult handle_zone_state(
     {
       RCLCPP_ERROR(
         node->get_logger(),
-        "%s: manager assigned waypoint [%s] to [%s], which is not in the "
+        "%s: manager assigned waypoint [%s] to [%s/%s], which is not in the "
         "navigation graph",
         caller,
         booking.assigned_waypoint_name.c_str(),
-        context->requester_id().c_str());
+        context->group().c_str(), context->name().c_str());
 
       result.status = ZoneStateResult::Status::UnknownWaypoint;
       result.waypoint_name = booking.assigned_waypoint_name;
@@ -211,9 +211,9 @@ ZoneStateResult handle_zone_state(
 
     RCLCPP_INFO(
       node->get_logger(),
-      "%s: [%s] booked waypoint [%s] in zone [%s]",
+      "%s: [%s/%s] booked waypoint [%s] in zone [%s]",
       caller,
-      context->requester_id().c_str(),
+      context->group().c_str(), context->name().c_str(),
       booking.assigned_waypoint_name.c_str(),
       zone_name.c_str());
 
@@ -239,11 +239,11 @@ ZoneStateResult handle_zone_state(
       {
         RCLCPP_ERROR(
           node->get_logger(),
-          "%s: manager granted [%s] to [%s] but backed it with a ticket "
+          "%s: manager granted [%s] to [%s/%s] but backed it with a ticket "
           "holding [%s], so it will not be adopted",
           caller,
           booking.assigned_waypoint_name.c_str(),
-          context->requester_id().c_str(),
+          context->group().c_str(), context->name().c_str(),
           booking.ticket_resource.c_str());
 
         result.status = ZoneStateResult::Status::TicketMismatch;
@@ -268,12 +268,12 @@ ZoneStateResult handle_zone_state(
       {
         RCLCPP_ERROR(
           node->get_logger(),
-          "%s: about to drive [%s] to [%s] without holding its reservation "
-          "(holding [%s] instead). The reservation system will be engaged for "
-          "a vertex the zone manager holds, and this robot will wait "
-          "indefinitely.",
+          "%s: about to drive [%s/%s] to [%s] without holding its "
+          "reservation (holding [%s] instead). The reservation system will be "
+          "engaged for a vertex the zone manager holds, and this robot will "
+          "wait indefinitely.",
           caller,
-          context->requester_id().c_str(),
+          context->group().c_str(), context->name().c_str(),
           booking.assigned_waypoint_name.c_str(),
           context->_get_reserved_location().c_str());
       }
@@ -295,10 +295,10 @@ ZoneStateResult handle_zone_state(
 
     RCLCPP_INFO(
       node->get_logger(),
-      "%s: [%s] may enter zone [%s] without a booking, so it will carry on "
-      "with the plan it already has",
+      "%s: [%s/%s] may enter zone [%s] without a booking, so it will carry "
+      "on with the plan it already has",
       caller,
-      context->requester_id().c_str(),
+      context->group().c_str(), context->name().c_str(),
       zone_name.c_str());
 
     result.status = ZoneStateResult::Status::Proceed;
@@ -342,11 +342,11 @@ ZoneStateResult handle_zone_state(
       RCLCPP_INFO(
         node->get_logger(),
         "%s: no waypoint in zone [%s] is reserved to the zone manager, so "
-        "none can be assigned to [%s] yet. Is the reservation node running, "
-        "and is something else holding this zone's waypoints?",
+        "none can be assigned to [%s/%s] yet. Is the reservation node "
+        "running, and is something else holding this zone's waypoints?",
         caller,
         zone_name.c_str(),
-        context->requester_id().c_str());
+        context->group().c_str(), context->name().c_str());
 
       result.status = ZoneStateResult::Status::Deferred;
       return result;
@@ -355,10 +355,10 @@ ZoneStateResult handle_zone_state(
     // A full zone.
     RCLCPP_INFO(
       node->get_logger(),
-      "%s: request for [%s] in zone [%s] rejected (%s). The zone is most "
+      "%s: request for [%s/%s] in zone [%s] rejected (%s). The zone is most "
       "likely full, so waiting for it to change",
       caller,
-      context->requester_id().c_str(),
+      context->group().c_str(), context->name().c_str(),
       zone_name.c_str(),
       rejection.reason.c_str());
 

@@ -342,16 +342,18 @@ void ZonePreEntry::Active::_on_request_timer()
       _warned_manager_silent = true;
       RCLCPP_WARN(
         _context->node()->get_logger(),
-        "ZonePreEntry: [%s] has waited %lds at the boundary of zone [%s] and "
-        "the zone manager has never answered. Is it running?",
-        _context->requester_id().c_str(), waited, _data.zone_name.c_str());
+        "ZonePreEntry: [%s/%s] has waited %lds at the boundary of zone [%s] "
+        "and the zone manager has never answered. Is it running?",
+        _context->group().c_str(), _context->name().c_str(), waited,
+        _data.zone_name.c_str());
     }
     else
     {
       RCLCPP_WARN(
         _context->node()->get_logger(),
-        "ZonePreEntry: [%s] has been waiting %lds to enter zone [%s]",
-        _context->requester_id().c_str(), waited, _data.zone_name.c_str());
+        "ZonePreEntry: [%s/%s] has been waiting %lds to enter zone [%s]",
+        _context->group().c_str(), _context->name().c_str(), waited,
+        _data.zone_name.c_str());
     }
 
     _state->update_log().info(
@@ -493,6 +495,27 @@ void ZonePreEntry::Active::_publish_finalize_request()
     entry_context.zone_relation = Context::RELATION_DESTINATION;
   else
     entry_context.zone_relation = Context::RELATION_PASSING_THROUGH;
+
+  if (!_announced_request)
+  {
+    _announced_request = true;
+
+    const char* task = entry_context.task_type == Context::TASK_ZONE
+      ? "on a zone task" : "on another task";
+
+    const char* relation = "destination unknown";
+    if (entry_context.zone_relation == Context::RELATION_DESTINATION)
+      relation = "stopping here";
+    else if (entry_context.zone_relation == Context::RELATION_PASSING_THROUGH)
+      relation = "passing through";
+
+    RCLCPP_INFO(
+      _context->node()->get_logger(),
+      "ZonePreEntry: [%s/%s] is at the boundary of zone [%s] and going to "
+      "request a booking, %s, %s",
+      _context->group().c_str(), _context->name().c_str(),
+      _data.zone_name.c_str(), task, relation);
+  }
 
   _context->node()->zone_request()->publish(
     phases::make_zone_entry_request(

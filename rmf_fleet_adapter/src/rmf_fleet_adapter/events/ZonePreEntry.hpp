@@ -164,6 +164,9 @@ public:
     bool _had_any_answer = false;
     bool _warned_manager_silent = false;
 
+    /// Only the first request is announced.
+    bool _announced_request = false;
+
     std::shared_ptr<phases::MoveRobot::ActivePhase> _move;
     rmf_rxcpp::subscription_guard _move_sub;
 

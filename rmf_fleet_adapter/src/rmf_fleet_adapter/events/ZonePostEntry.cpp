@@ -145,12 +145,24 @@ void ZonePostEntry::Active::_initialize()
   const auto booking = _context->zone_booking(_data.zone_name);
   if (booking)
   {
+    RCLCPP_INFO(
+      node->get_logger(),
+      "ZonePostEntry: [%s/%s] arrived at [%s] in zone [%s]",
+      _context->group().c_str(), _context->name().c_str(),
+      booking->waypoint_name.c_str(), _data.zone_name.c_str());
+
     _state->update_log().info(
       "arrived at waypoint [" + booking->waypoint_name + "] in zone ["
       + _data.zone_name + "]");
   }
   else
   {
+    RCLCPP_DEBUG(
+      node->get_logger(),
+      "ZonePostEntry: [%s/%s] entered zone [%s] holding no booking",
+      _context->group().c_str(), _context->name().c_str(),
+      _data.zone_name.c_str());
+
     _state->update_log().info(
       "entered zone [" + _data.zone_name + "] holding no booking");
   }
