@@ -35,10 +35,10 @@ rmf_zone_msgs::msg::ZoneModifiers zone_modifiers(
   if (description.modifiers().has_value())
   {
     const auto& m = *description.modifiers();
-    modifiers.group_hint = m.group_hint;
-    modifiers.has_orientation_hint = m.orientation_hint.has_value();
-    modifiers.orientation_hint = m.orientation_hint.value_or(0.0);
-    modifiers.preferred_waypoints = m.preferred_waypoints;
+    modifiers.group_hint = m.group_hint();
+    modifiers.has_orientation_hint = m.orientation_hint().has_value();
+    modifiers.orientation_hint = m.orientation_hint().value_or(0.0);
+    modifiers.preferred_waypoints = m.preferred_waypoints();
   }
   return modifiers;
 }

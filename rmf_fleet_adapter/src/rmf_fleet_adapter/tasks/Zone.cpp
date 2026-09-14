@@ -80,13 +80,14 @@ void add_zone(
             wp_it != mod_it->end())
         {
           if (wp_it->contains("group"))
-            m.group_hint = wp_it->at("group").get<std::string>();
+            m.set_group_hint(wp_it->at("group").get<std::string>());
           if (wp_it->contains("orientation"))
-            m.orientation_hint = wp_it->at("orientation").get<double>();
+            m.set_orientation_hint(wp_it->at("orientation").get<double>());
           if (const auto pw_it = wp_it->find("preferred_waypoints");
               pw_it != wp_it->end())
           {
             bool any_failure = false;
+            std::vector<std::string> preferred;
             for (const auto& wp : *pw_it)
             {
               auto vp = zone_wp_deser(*valid_zone.description, wp);
@@ -97,10 +98,11 @@ void add_zone(
                 any_failure = true;
                 continue;
               }
-              m.preferred_waypoints.push_back(*vp.description);
+              preferred.push_back(*vp.description);
             }
             if (any_failure)
               return {nullptr, errors};
+            m.set_preferred_waypoints(std::move(preferred));
           }
         }
         // extend with more modifiers here in future
