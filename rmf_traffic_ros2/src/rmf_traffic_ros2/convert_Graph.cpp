@@ -357,8 +357,14 @@ std::optional<rmf_traffic::agv::Graph> convert(
   rmf_traffic::agv::Graph graph;
   std::unordered_set<std::size_t> added_waypoints = {};
 
-  std::unordered_map<std::string, rmf_traffic::agv::Graph::ZonePropertiesPtr>
-  zone_of_vertex;
+  struct ZoneVertexProperties
+  {
+    rmf_traffic::agv::Graph::ZonePropertiesPtr zone;
+    std::string group;
+    uint8_t priority;
+  };
+  std::unordered_map<std::string, ZoneVertexProperties> zone_of_vertex;
+
   for (const auto& z : navgraph.zones)
   {
     const auto zone = graph.set_known_zone(
@@ -371,12 +377,7 @@ std::optional<rmf_traffic::agv::Graph> convert(
         Eigen::Vector2d(z.width, z.length)));
 
     for (const auto& v : z.vertices)
-    {
-      auto& iv = zone->add_internal_vertex(v.name);
-      iv.set_group_name(v.group);
-      iv.set_priority(v.priority);
-      zone_of_vertex[v.name] = zone;
-    }
+      zone_of_vertex[v.name] = ZoneVertexProperties{zone, v.group, v.priority};
   }
 
   for (const auto& v : navgraph.vertices)
@@ -420,13 +421,20 @@ std::optional<rmf_traffic::agv::Graph> convert(
     .set_parking_spot(is_parking_spot)
     .set_charger(is_charger);
 
-    const auto zone_it = zone_of_vertex.find(wp_name);
-    if (zone_it != zone_of_vertex.end())
-      wp.set_in_zone(zone_it->second);
-
     const auto wp_index = graph.num_waypoints() - 1;
     if (!graph.set_key(wp_name, wp_index))
       return std::nullopt;
+
+    // Called after set_key to avoid adding an empty waypoint
+    const auto zone_it = zone_of_vertex.find(wp_name);
+    if (zone_it != zone_of_vertex.end())
+    {
+      wp.set_in_zone(zone_it->second.zone);
+      auto* iv = zone_it->second.zone->find_internal_vertex(wp_name);
+      iv->set_group_name(zone_it->second.group);
+      iv->set_priority(zone_it->second.priority);
+    }
+
     added_waypoints.insert(wp_index);
   }
   for (const auto& e : navgraph.edges)

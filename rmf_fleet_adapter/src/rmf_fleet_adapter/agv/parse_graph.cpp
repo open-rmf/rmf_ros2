@@ -281,10 +281,11 @@ rmf_traffic::agv::Graph parse_graph(
 
           const YAML::Node& group_option = options["group"];
           const YAML::Node& priority_option = options["priority"];
-          auto& iv = zone->add_internal_vertex(name_option.as<std::string>());
-          iv.set_group_name(group_option.as<std::string>());
-          iv.set_priority(priority_option.as<uint8_t>());
+
           wp.set_in_zone(zone);
+          auto* iv = zone->find_internal_vertex(*wp.name());
+          iv->set_group_name(group_option.as<std::string>());
+          iv->set_priority(priority_option.as<uint8_t>());
         }
       }
 
