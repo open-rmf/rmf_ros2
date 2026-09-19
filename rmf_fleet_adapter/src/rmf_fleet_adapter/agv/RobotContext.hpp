@@ -1050,7 +1050,6 @@ public:
     std::string zone_name;
     std::string waypoint_name;
     rmf_traffic::agv::Plan::Goal goal;
-    std::shared_ptr<void> stubbornness;
   };
 
   using ZoneBookingPtr = std::shared_ptr<ZoneBooking>;

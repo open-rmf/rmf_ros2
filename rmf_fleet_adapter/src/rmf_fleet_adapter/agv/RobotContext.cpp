@@ -640,8 +640,7 @@ void RobotContext::set_zone_booking(
     ZoneBooking{
       zone_name,
       std::move(waypoint_name),
-      std::move(goal),
-      be_stubborn()
+      std::move(goal)
     });
 }
 
