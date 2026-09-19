@@ -50,8 +50,6 @@ public:
 
     /// The zone this plan ends in, or an empty string for none.
     std::optional<std::string> plan_end_zone;
-
-    std::shared_ptr<rmf_traffic::schedule::Itinerary> resume_itinerary;
   };
 
   class Standby : public rmf_task_sequence::Event::Standby
@@ -121,10 +119,6 @@ public:
 
     /// Announce arrival on the vertex, then ask for a replan and finish.
     void _finish_at_waypoint();
-
-    /// Put back the itinerary ExecutePlan cut at the boundary, for the paths
-    /// that leave the plan to carry on.
-    void _resume_plan();
 
     /// Ask for a replan so the driving event re-aims from here, then finish.
     void _finish_with_replan();
