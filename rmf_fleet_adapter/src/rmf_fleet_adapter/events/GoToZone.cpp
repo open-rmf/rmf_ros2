@@ -1,8 +1,6 @@
 #include "GoToZone.hpp"
 #include "GoToPlace.hpp"
 
-#include "../phases/Utils.hpp"
-
 #include <rmf_task_sequence/events/GoToPlace.hpp>
 #include <rmf_traffic/agv/Planner.hpp>
 #include <rmf_zone_msgs/msg/zone_request.hpp>
@@ -255,10 +253,15 @@ void GoToZone::Active::_request_booking()
         return;
 
       const auto& zone_name = self->_description.zone_name();
-
       const auto result = phases::handle_zone_state(
-        self->_context, *msg, zone_name, self->_current_request_id,
+        self->_context, *msg, self->_last_status, zone_name, self->_current_request_id,
         "GoToZone");
+
+      const auto last_status = self->_last_status;
+      if (result.status != phases::ZoneStateResult::Status::NoMatch)
+      {
+        self->_last_status = result.status;
+      }
 
       switch (result.status)
       {
@@ -330,10 +333,13 @@ void GoToZone::Active::_request_booking()
         {
           // The manager cannot answer yet, so keep waiting.
           self->_had_any_answer = true;
-          self->_state->update_status(Status::Blocked);
-          self->_state->update_log().info(
-            "waiting for a free waypoint in zone [" + zone_name + "]: "
-            + result.reason);
+          if (last_status != phases::ZoneStateResult::Status::Deferred)
+          {
+            self->_state->update_status(Status::Blocked);
+            self->_state->update_log().info(
+              "waiting for a free waypoint in zone [" + zone_name + "]: "
+              + result.reason);
+          }
           self->_has_pending_request = false;
           return;
         }

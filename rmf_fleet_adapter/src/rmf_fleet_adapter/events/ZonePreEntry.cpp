@@ -18,8 +18,6 @@
 #include "ZonePreEntry.hpp"
 #include "ZonePostEntry.hpp"
 
-#include "../phases/Utils.hpp"
-
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
 namespace rmf_fleet_adapter {
@@ -162,11 +160,14 @@ void ZonePreEntry::Active::_initialize()
       const auto& zone_name = self->_data.zone_name;
 
       const auto result = phases::handle_zone_state(
-        self->_context, *msg, zone_name, self->_current_request_id,
+        self->_context, *msg, self->_last_status, zone_name, self->_current_request_id,
         "ZonePreEntry");
 
       if (result.status != phases::ZoneStateResult::Status::NoMatch)
+      {
         self->_had_any_answer = true;
+        self->_last_status = result.status;
+      }
 
       switch (result.status)
       {

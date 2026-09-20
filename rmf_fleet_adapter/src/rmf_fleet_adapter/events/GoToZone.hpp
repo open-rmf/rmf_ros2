@@ -2,6 +2,7 @@
 #define SRC__RMF_FLEET_ADAPTER__EVENTS__GOTOZONE_HPP
 
 #include "../agv/RobotContext.hpp"
+#include "../phases/Utils.hpp"
 
 #include <rmf_zone_msgs/msg/zone_state.hpp>
 
@@ -169,6 +170,8 @@ public:
     // Whether the manager has responded to our request at all. A grant and
     // a refusal both count.
     bool _had_any_answer = false;
+
+    phases::ZoneStateResult::Status _last_status = phases::ZoneStateResult::Status::NoMatch;
 
     // Whether the louder complaint about a silent manager has been made.
     bool _warned_manager_silent = false;

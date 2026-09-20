@@ -21,6 +21,7 @@
 #include "../LegacyTask.hpp"
 #include "../agv/RobotContext.hpp"
 #include "../phases/MoveRobot.hpp"
+#include "../phases/Utils.hpp"
 
 #include <optional>
 
@@ -160,6 +161,7 @@ public:
 
     /// Only the first request is announced.
     bool _announced_request = false;
+    phases::ZoneStateResult::Status _last_status = phases::ZoneStateResult::Status::NoMatch;
 
     std::shared_ptr<phases::MoveRobot::ActivePhase> _move;
     rmf_rxcpp::subscription_guard _move_sub;

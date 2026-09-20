@@ -154,6 +154,7 @@ struct ZoneStateResult
 ZoneStateResult handle_zone_state(
   const std::shared_ptr<agv::RobotContext>& context,
   const rmf_zone_msgs::msg::ZoneState& state,
+  const ZoneStateResult::Status last_status,
   const std::string& zone_name,
   const std::string& request_id,
   const char* caller);

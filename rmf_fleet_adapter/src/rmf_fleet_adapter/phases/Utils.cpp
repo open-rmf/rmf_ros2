@@ -169,6 +169,7 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_handback_request(
 ZoneStateResult handle_zone_state(
   const std::shared_ptr<agv::RobotContext>& context,
   const rmf_zone_msgs::msg::ZoneState& state,
+  const ZoneStateResult::Status last_status,
   const std::string& zone_name,
   const std::string& request_id,
   const char* caller)
@@ -352,15 +353,18 @@ ZoneStateResult handle_zone_state(
       return result;
     }
 
-    // A full zone.
-    RCLCPP_INFO(
-      node->get_logger(),
-      "%s: request for [%s/%s] in zone [%s] rejected (%s). The zone is most "
-      "likely full, so waiting for it to change",
-      caller,
-      context->group().c_str(), context->name().c_str(),
-      zone_name.c_str(),
-      rejection.reason.c_str());
+    if (last_status != ZoneStateResult::Status::Deferred)
+    {
+      // A full zone.
+      RCLCPP_INFO(
+        node->get_logger(),
+        "%s: request for [%s] in zone [%s] is deferred (%s). The zone is "
+        "most likely full, so we will wait for an availability.",
+        caller,
+        context->requester_id().c_str(),
+        zone_name.c_str(),
+        rejection.reason.c_str());
+    }
 
     result.status = ZoneStateResult::Status::Deferred;
     return result;
