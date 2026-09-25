@@ -2,6 +2,16 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Submit bid as long as fleet name exists (in string or array) (`#534 <https://github.com/open-rmf/rmf_ros2/issues/534>`_)
+* Add missing include to unordered_set (`#535 <https://github.com/open-rmf/rmf_ros2/issues/535>`_)
+* Fix EasyTrafficLight publish fleet state (`#525 <https://github.com/open-rmf/rmf_ros2/issues/525>`_)
+* Fix cumulative delay calculation in EasyTrafficLight (`#524 <https://github.com/open-rmf/rmf_ros2/issues/524>`_)
+* Clean up LegacyPhaseShim subscription after task_summaries removal (`#511 <https://github.com/open-rmf/rmf_ros2/issues/511>`_)
+  Co-authored-by: Grey <mxgrey@intrinsic.ai>
+* Contributors: Grey, Leong Teck, Luca Della Vedova, Matthew Wong, jixiancgh, kj
+
 2.13.0 (2026-06-15)
 -------------------
 * Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)
