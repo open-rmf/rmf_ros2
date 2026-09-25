@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.14.0 (2026-09-26)
+-------------------
 * Support both JSON schema validator target names in rmf_fleet_adapter (`#558 <https://github.com/open-rmf/rmf_ros2/issues/558>`_)
   `#541 <https://github.com/open-rmf/rmf_ros2/issues/541>`_ added a fallback for installations that export the validator as
   nlohmann_json_schema_validator instead of

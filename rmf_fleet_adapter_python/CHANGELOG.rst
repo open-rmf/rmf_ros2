@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.14.0 (2026-09-26)
+-------------------
 * Fix pybind property setters that ignored assigned values (`#539 <https://github.com/open-rmf/rmf_ros2/issues/539>`_) (`#540 <https://github.com/open-rmf/rmf_ros2/issues/540>`_)
 * Add Python binding for RobotUpdateHandle::release_lift (`#536 <https://github.com/open-rmf/rmf_ros2/issues/536>`_)
   Add a Python binding for the existing RobotUpdateHandle::release_lift() API.

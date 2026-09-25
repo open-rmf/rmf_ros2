@@ -2,8 +2,8 @@
 Changelog for package rmf_websocket
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.14.0 (2026-09-26)
+-------------------
 * Support both JSON schema validator target names (`#541 <https://github.com/open-rmf/rmf_ros2/issues/541>`_)
 * Fix spelling: occured -> occurred in rmf_websocket exception logs (`#533 <https://github.com/open-rmf/rmf_ros2/issues/533>`_)
   Co-authored-by: Lots-ninety-nine <261080291+Lots-ninety-nine@users.noreply.github.com>

@@ -2,8 +2,8 @@
 Changelog for package rmf_traffic_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.14.0 (2026-09-26)
+-------------------
 * Set schedule node ID when changes are explicitly requested (`#538 <https://github.com/open-rmf/rmf_ros2/issues/538>`_)
   This fixes the issue reported by `#537 <https://github.com/open-rmf/rmf_ros2/issues/537>`_
   Thanks @amerm for identifying the cause and providing the solution.
