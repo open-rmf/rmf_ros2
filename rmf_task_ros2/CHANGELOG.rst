@@ -2,6 +2,11 @@
 Changelog for package rmf_task_ros2
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Support both JSON schema validator target names (`#541 <https://github.com/open-rmf/rmf_ros2/issues/541>`_)
+* Contributors: Wolf Vollprecht
+
 2.13.0 (2026-06-15)
 -------------------
 

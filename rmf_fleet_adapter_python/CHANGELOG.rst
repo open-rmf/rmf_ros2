@@ -2,6 +2,16 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Fix pybind property setters that ignored assigned values (`#539 <https://github.com/open-rmf/rmf_ros2/issues/539>`_) (`#540 <https://github.com/open-rmf/rmf_ros2/issues/540>`_)
+* Add Python binding for RobotUpdateHandle::release_lift (`#536 <https://github.com/open-rmf/rmf_ros2/issues/536>`_)
+  Add a Python binding for the existing RobotUpdateHandle::release_lift() API.
+  Python fleet adapters can inspect the current lift destination, but currently cannot explicitly release a held lift session. This binding allows Python integrations to use the same recovery API that is already available in C++.
+  This PR only adds the missing binding and does not change the existing lift behavior.
+  Co-authored-by: Grey <mxgrey@intrinsic.ai>
+* Contributors: Grey, Jeremy McKeehen, h-wata
+
 2.13.0 (2026-06-15)
 -------------------
 * Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)
