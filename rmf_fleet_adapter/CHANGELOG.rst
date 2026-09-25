@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.14.0 (2026-09-26)
+-------------------
 * Submit bid as long as fleet name exists (in string or array) (`#534 <https://github.com/open-rmf/rmf_ros2/issues/534>`_)
 * Add missing include to unordered_set (`#535 <https://github.com/open-rmf/rmf_ros2/issues/535>`_)
 * Fix EasyTrafficLight publish fleet state (`#525 <https://github.com/open-rmf/rmf_ros2/issues/525>`_)
