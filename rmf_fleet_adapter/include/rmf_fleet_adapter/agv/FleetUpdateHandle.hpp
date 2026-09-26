@@ -191,6 +191,19 @@ public:
   ///   robots before triggering this callback.
   FleetUpdateHandle& consider_composed_requests(ConsiderRequest consider);
 
+  /// Allow this fleet adapter to consider zone requests.
+  ///
+  /// Pass in a nullptr to disable zone requests.
+  ///
+  /// By default, zone requests are always accepted.
+  ///
+  /// \param[in] consider
+  ///   Decide whether to accept a zone request. The description will satisfy
+  ///   the event_description__zone.json schema of rmf_fleet_adapter. The
+  ///   FleetUpdateHandle will ensure that the request is feasible for the
+  ///   robots before triggering this callback.
+  FleetUpdateHandle& consider_zone_requests(ConsiderRequest consider);
+
   /// Allow this fleet adapter to execute a PerformAction activity of specified
   /// category which may be present in sequence event.
   ///
