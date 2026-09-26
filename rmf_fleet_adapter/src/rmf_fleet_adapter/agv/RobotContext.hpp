@@ -25,6 +25,8 @@
 #include <rmf_fleet_adapter/agv/EasyFullControl.hpp>
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
+#include "internal_Localization.hpp"
+
 #include <rmf_fleet_msgs/msg/mutex_group_manual_release.hpp>
 #include <rmf_task_msgs/action/dynamic_event.hpp>
 #include <rmf_task_msgs/msg/dynamic_event_description.hpp>
@@ -772,13 +774,45 @@ public:
 
   const Reporting& reporting() const;
 
-  /// Tell the robot to localize near here
+  /// Tell the robot to localize near here, whatever flavour it belongs to.
+  ///
+  /// There is one slot, not one per flavour. A robot belongs to exactly one
+  /// flavour, and shared phase code must not have to know which — when it did,
+  /// it bound the wrong slot and the request vanished without a warning. See
+  /// `LocalizationHandoff` for that history.
+  ///
+  /// Returns true if the request reached an integrator.
+  bool localize(LocalizationHandoff handoff) const;
+
+  /// Register this robot's flavour adapter for localization requests. A new
+  /// fleet-adapter flavour needs this call and nothing else — no new slot, no
+  /// new overload, and no edit to the phase code that raises the request.
+  void set_localization_handler(LocalizationHandler handler);
+
+  /// Set the callback for localizing the robot.
+  ///
+  /// EasyFullControl convenience: it registers its typed
+  /// `LocalizationRequest` directly, and `EasyFullControl.cpp` is kept
+  /// byte-identical to upstream, so the adaptation into the neutral handler
+  /// above lives here instead. Every other flavour should call
+  /// `set_localization_handler`.
+  void set_localization(EasyFullControl::LocalizationRequest localization);
+
+  /// Deliver an already-built EasyFullControl localization request.
+  ///
+  /// **EasyFullControl's own back-channel, not a dispatch path.** Its
+  /// `follow_new_path` builds its own `Destination` and hold and calls this
+  /// rather than handing over a `LocalizationHandoff`, and a built
+  /// `CommandExecution` cannot be decomposed back into one. It exists only
+  /// because `EasyFullControl.cpp` is off limits; letting one edit there
+  /// build a handoff instead would delete this method and the `_localize`
+  /// member behind it.
+  ///
+  /// Shared phase code must **never** call this — that is the bug this whole
+  /// arrangement exists to prevent. Use `localize(LocalizationHandoff)`.
   bool localize(
     EasyFullControl::Destination estimate,
     EasyFullControl::CommandExecution execution) const;
-
-  /// Set the callback for localizing the robot
-  void set_localization(EasyFullControl::LocalizationRequest localization);
 
   /// Get the current lift destination request for this robot
   const LiftDestination* current_lift_destination() const;
@@ -1087,6 +1121,10 @@ private:
     std::make_unique<std::mutex>();
   RobotUpdateHandle::Commission _commission;
   bool _emergency = false;
+  LocalizationHandler _localization_handler;
+  // Backs the EasyFullControl-only overload above. Both are filled by the same
+  // set_localization call, so they can never disagree about whether this robot
+  // has a localization callback.
   EasyFullControl::LocalizationRequest _localize;
 
   std::shared_ptr<const Location> _reported_location;

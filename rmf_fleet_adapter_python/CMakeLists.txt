@@ -68,6 +68,7 @@ pybind11_add_module(rmf_adapter SHARED
   src/vehicletraits/vehicletraits.cpp
   src/battery/battery.cpp
   src/schedule/schedule.cpp
+  src/path_guide/path_guide.cpp
 )
 
 target_link_libraries(rmf_adapter PRIVATE
