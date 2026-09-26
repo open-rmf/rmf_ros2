@@ -815,16 +815,31 @@ std::optional<ExecutePlan> ExecutePlan::make(
             side = phases::RequestLift::Located::Inside;
           }
 
+          // While a robot is riding a lift, the map of the first graph
+          // waypoint may still be the floor that it boarded from, because the
+          // robot cannot localize onto the destination floor until the lift
+          // arrives. Summoning the lift there would carry the robot back.
+          const auto* floor = &map;
+          if (side == phases::RequestLift::Located::Inside)
+          {
+            const auto* current_lift = context->current_lift_destination();
+            if (current_lift && current_lift->requested_from_inside
+              && current_lift->lift_name == lift->name())
+            {
+              floor = &current_lift->destination_floor;
+            }
+          }
+
           RCLCPP_INFO(
             context->node()->get_logger(),
             "Robot [%s] will summon lift [%s] to floor [%s] after a replan",
             context->requester_id().c_str(),
             lift->name().c_str(),
-            map.c_str());
+            floor->c_str());
 
           legacy_phases.emplace_back(
             std::make_shared<phases::RequestLift::PendingPhase>(
-              context, lift->name(), map,
+              context, lift->name(), *floor,
               phases::RequestLift::Data{t0, side, plan_id}),
             t0, rmf_traffic::Dependencies(), std::nullopt);
         }
