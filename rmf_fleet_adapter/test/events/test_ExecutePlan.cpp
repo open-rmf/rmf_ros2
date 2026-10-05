@@ -37,6 +37,12 @@ const std::string lift_name = "test_lift";
 const std::string departure_map = "L1";
 const std::string destination_map = "L2";
 
+struct EventInfo
+{
+  std::string name;
+  std::string detail;
+};
+
 // A lift specific counterpart of phases/MockAdapterFixture: that fixture's
 // graph has a single map and no lift, so it cannot reach the lift insertion
 // in ExecutePlan::make.
@@ -44,7 +50,7 @@ const std::string destination_map = "L2";
 // A minimal two level graph where a single lift joins the two levels:
 //
 //   L1:  0 (outside) ---- 1 (inside the lift)
-//                         |  LiftMove / LiftDoorOpen (upward only)
+//                         |  LiftMove (upward only)
 //   L2:  3 (outside) ---- 2 (inside the lift)
 //
 struct LiftFixture
@@ -79,32 +85,36 @@ struct LiftFixture
     graph.add_waypoint(destination_map, {0.0, 0.0}).set_in_lift(lift); // 2
     graph.add_waypoint(destination_map, {5.0, 0.0}); // 3
 
-    // The lanes are shaped the way rmf_traffic_ros2::convert_Graph builds
-    // them for a lift: entering the car begins a session and waits for the
-    // doors, riding the car moves it and waits for the doors on the arrival
-    // floor, and leaving the car ends the session. Only the upward ride is
-    // modelled, because a downward lane would give the planner a zero length
-    // cycle between the two coincident car waypoints.
+    // The lanes are shaped the way rmf_fleet_adapter::agv::parse_graph builds
+    // them for a lift: entering the car begins a session, riding the car moves
+    // it (ExecutePlan::make then skips ahead to the next event, which is the
+    // door opening on the lane that leaves the car), and leaving the car opens
+    // the doors on its entry and ends the session on its exit. Only the upward
+    // ride is modelled, because a downward lane would give the planner a zero
+    // length cycle between the two coincident car waypoints.
     using Lane = rmf_traffic::agv::Graph::Lane;
     using Event = Lane::Event;
     const auto d = std::chrono::seconds(4);
+    const auto move_d = std::chrono::seconds(1);
+    const auto end_d = std::chrono::seconds(0);
     const auto no_event = rmf_utils::clone_ptr<Event>();
 
     graph.add_lane(
       {0, Event::make(Lane::LiftSessionBegin(lift_name, departure_map, d))},
-      {1, Event::make(Lane::LiftDoorOpen(lift_name, departure_map, d))});
+      {1, no_event});
     graph.add_lane(
-      {1, no_event},
-      {0, Event::make(Lane::LiftSessionEnd(lift_name, departure_map, d))});
+      {1, Event::make(Lane::LiftDoorOpen(lift_name, departure_map, d))},
+      {0, Event::make(Lane::LiftSessionEnd(lift_name, departure_map, end_d))});
     graph.add_lane(
       {3, Event::make(Lane::LiftSessionBegin(lift_name, destination_map, d))},
-      {2, Event::make(Lane::LiftDoorOpen(lift_name, destination_map, d))});
+      {2, no_event});
     graph.add_lane(
-      {2, no_event},
-      {3, Event::make(Lane::LiftSessionEnd(lift_name, destination_map, d))});
+      {2, Event::make(Lane::LiftDoorOpen(lift_name, destination_map, d))},
+      {3, Event::make(
+          Lane::LiftSessionEnd(lift_name, destination_map, end_d))});
     graph.add_lane(
-      {1, Event::make(Lane::LiftMove(lift_name, destination_map, d))},
-      {2, Event::make(Lane::LiftDoorOpen(lift_name, destination_map, d))});
+      {1, Event::make(Lane::LiftMove(lift_name, destination_map, move_d))},
+      {2, no_event});
 
     const rmf_traffic::Profile profile{
       rmf_traffic::geometry::make_final_convex<
@@ -160,9 +170,9 @@ struct LiftFixture
     }
   }
 
-  // Plans from `start` to `goal` and returns the names of the events that
-  // ExecutePlan::make builds for that plan.
-  std::vector<std::string> event_names(
+  // Plans from `start` to `goal` and returns the events that
+  // ExecutePlan::make builds for that plan, in order.
+  std::vector<EventInfo> events(
     const rmf_traffic::agv::Plan::Start& start,
     std::size_t goal) const;
 
@@ -184,33 +194,36 @@ struct LiftFixture
 std::size_t LiftFixture::node_counter = 0;
 
 //==============================================================================
-void collect_event_names(
+// Depth first, in execution order: each event's name and detail.
+void collect_events(
   const rmf_task::Event::ConstStatePtr& state,
-  std::vector<std::string>& names)
+  std::vector<EventInfo>& events)
 {
   rmf_task::VersionedString::Reader reader;
-  names.push_back(*reader.read(state->name()));
-  names.push_back(*reader.read(state->detail()));
+  events.push_back(
+    {*reader.read(state->name()), *reader.read(state->detail())});
   for (const auto& dep : state->dependencies())
-    collect_event_names(dep, names);
-}
-
-//==============================================================================
-bool any_name_contains(
-  const std::vector<std::string>& names,
-  const std::string& snippet)
-{
-  for (const auto& name : names)
   {
-    if (name.find(snippet) != std::string::npos)
-      return true;
+    collect_events(dep, events);
   }
-
-  return false;
 }
 
 //==============================================================================
-std::vector<std::string> LiftFixture::event_names(
+void check_events(
+  const std::vector<EventInfo>& actual,
+  const std::vector<EventInfo>& expected)
+{
+  REQUIRE(actual.size() == expected.size());
+  for (std::size_t i = 0; i < expected.size(); ++i)
+  {
+    CAPTURE(i);
+    CHECK(actual[i].name == expected[i].name);
+    CHECK(actual[i].detail == expected[i].detail);
+  }
+}
+
+//==============================================================================
+std::vector<EventInfo> LiftFixture::events(
   const rmf_traffic::agv::Plan::Start& start,
   std::size_t goal) const
 {
@@ -221,7 +234,7 @@ std::vector<std::string> LiftFixture::event_names(
   REQUIRE(plan.success());
   REQUIRE_FALSE(plan->get_waypoints().front().graph_index().has_value());
 
-  return schedule_and_wait<std::vector<std::string>>(
+  return schedule_and_wait<std::vector<EventInfo>>(
     [&]()
     {
       auto state = rmf_task::events::SimpleEventState::make(
@@ -234,9 +247,11 @@ std::vector<std::string> LiftFixture::event_names(
         rmf_task::Event::AssignID::make(), state, []() {}, []() {},
         std::nullopt);
 
-      std::vector<std::string> result;
+      std::vector<EventInfo> result;
       if (execution.has_value())
-        collect_event_names(execution->sequence->state(), result);
+      {
+        collect_events(execution->sequence->state(), result);
+      }
 
       return result;
     });
@@ -266,29 +281,45 @@ SCENARIO_METHOD(LiftFixture, "execute plan lift summon after replan",
 
     WHEN("the new plan continues to the floor the lift is riding to")
     {
-      const auto names = event_names(start, 3);
-      REQUIRE_FALSE(names.empty());
-
+      // The first summon is the one ExecutePlan::make re-inserts after the
+      // replan. It must follow the session (L2), not the reported map (L1).
+      // The second is the LiftDoorOpen on the lane that leaves the car.
       THEN("every summon targets the destination floor")
       {
-        CHECK(any_name_contains(
-            names, "lift [" + lift_name + "] to [" + destination_map + "]"));
-        CHECK_FALSE(any_name_contains(
-            names, "lift [" + lift_name + "] to [" + departure_map + "]"));
+        check_events(
+          events(start, 3),
+          {
+            {"test", ""},
+            {"Take [lift:test_lift] to [floor:L2]", ""},
+            {"Requesting lift [test_lift] to [L2]", ""},
+            {"Move to [graph-wp:1] <0 0 0> through 3 points", ""},
+            {"Requesting lift [test_lift] to [L2]", ""},
+            {"Move to [graph-wp:3] <5 0 0> through 3 points", ""},
+            {"End session with lift [test_lift]", ""},
+            {"Move to [graph-wp:3] <5 0 0> through 2 points", ""}
+          });
       }
     }
 
     WHEN("the new plan returns to the floor the robot boarded from")
     {
-      const auto names = event_names(start, 0);
-      REQUIRE_FALSE(names.empty());
-
+      // The re-inserted summon still follows the session (L2). Only the
+      // LiftDoorOpen on the lane that leaves the car asks for the floor the
+      // robot is returning to (L1).
       THEN("the inserted summon follows the session, not the reported map")
       {
-        CHECK(any_name_contains(
-            names, "lift [" + lift_name + "] to [" + destination_map + "]"));
-        CHECK_FALSE(any_name_contains(
-            names, "lift [" + lift_name + "] to [" + departure_map + "]"));
+        check_events(
+          events(start, 0),
+          {
+            {"test", ""},
+            {"Take [lift:test_lift] to [floor:L1]", ""},
+            {"Requesting lift [test_lift] to [L2]", ""},
+            {"Move to [graph-wp:1] <0 0 0> through 3 points", ""},
+            {"Requesting lift [test_lift] to [L1]", ""},
+            {"Move to [graph-wp:0] <5 0 0> through 3 points", ""},
+            {"End session with lift [test_lift]", ""},
+            {"Move to [graph-wp:0] <5 0 0> through 2 points", ""}
+          });
       }
     }
   }
