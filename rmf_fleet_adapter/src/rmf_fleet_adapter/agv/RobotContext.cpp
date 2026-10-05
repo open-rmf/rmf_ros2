@@ -16,6 +16,9 @@
 */
 
 #include "internal_RobotUpdateHandle.hpp"
+// For the EasyFullControl adapter in set_localization below, which builds that
+// flavour's Destination and hold from the neutral handoff.
+#include "internal_EasyFullControl.hpp"
 #include "../TaskManager.hpp"
 
 #include <rmf_traffic_ros2/Time.hpp>
@@ -1237,6 +1240,23 @@ const Reporting& RobotContext::reporting() const
 }
 
 //==============================================================================
+bool RobotContext::localize(LocalizationHandoff handoff) const
+{
+  if (_localization_handler)
+  {
+    return _localization_handler(std::move(handoff));
+  }
+
+  return false;
+}
+
+//==============================================================================
+void RobotContext::set_localization_handler(LocalizationHandler handler)
+{
+  _localization_handler = std::move(handler);
+}
+
+//==============================================================================
 bool RobotContext::localize(
   EasyFullControl::Destination estimate,
   EasyFullControl::CommandExecution execution) const
@@ -1254,7 +1274,34 @@ bool RobotContext::localize(
 void RobotContext::set_localization(
   EasyFullControl::LocalizationRequest localization)
 {
-  _localize = std::move(localization);
+  _localize = localization;
+
+  if (!localization)
+  {
+    // Preserves the previous behaviour: EasyFullControl::add_robot calls this
+    // unconditionally with a null request when the integrator supplied no
+    // localization callback, and `localize` must then report false so
+    // RequestLift does not arm its watchdog waiting for a finish that is never
+    // coming.
+    _localization_handler = nullptr;
+    return;
+  }
+
+  // Adapts EasyFullControl's typed request into the one neutral slot. This
+  // lives here rather than in EasyFullControl.cpp only because that file is
+  // kept byte-identical to upstream; it is otherwise exactly the handler any
+  // other flavour registers for itself via set_localization_handler. If
+  // upstream ever adopts a neutral slot, this function deletes and
+  // EasyFullControl registers its own handler like everybody else.
+  _localization_handler =
+    [localization = std::move(localization)](LocalizationHandoff handoff)
+    {
+      localization(
+        make_localization_destination<EasyFullControl::Destination>(handoff),
+        make_localization_hold<EasyFullControl::CommandExecution>(handoff));
+
+      return true;
+    };
 }
 
 //==============================================================================

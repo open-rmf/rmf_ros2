@@ -21,6 +21,7 @@
 #include "Node.hpp"
 #include "internal_FleetUpdateHandle.hpp"
 #include "internal_EasyFullControl.hpp"
+#include "internal_PathGuide.hpp"
 
 #include <rmf_traffic_ros2/schedule/MirrorManager.hpp>
 #include <rmf_traffic_ros2/schedule/Negotiation.hpp>
@@ -231,16 +232,26 @@ public:
   std::unordered_set<std::string> visited_docks;
   std::unordered_set<std::string> duplicate_docks;
 };
-} // anonymous namespace
 
 //==============================================================================
-std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
-  const EasyFullControl::FleetConfiguration& config)
+/// Validate a fleet configuration and apply every setting that EasyFullControl
+/// and PathGuide handle identically, returning the FleetUpdateHandle on success
+/// or nullptr if the configuration is unusable.
+///
+/// Both configuration types expose the same API for these settings, so this is
+/// a template rather than two copies that could drift apart.
+template<typename Config>
+std::shared_ptr<FleetUpdateHandle> make_configured_fleet(
+  Adapter& adapter,
+  const Config& config,
+  const char* adapter_label)
 {
+  const auto node = adapter.node();
+
   if (!config.graph())
   {
     RCLCPP_ERROR(
-      this->node()->get_logger(),
+      node->get_logger(),
       "Graph missing in the configuration for fleet [%s]. The fleet will not "
       "be added.",
       config.fleet_name().c_str());
@@ -250,7 +261,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
   if (!config.vehicle_traits())
   {
     RCLCPP_ERROR(
-      this->node()->get_logger(),
+      node->get_logger(),
       "Vehicle traits missing in the configuration for fleet [%s]. The fleet "
       "will not be added.",
       config.fleet_name().c_str());
@@ -272,7 +283,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
   if (!finder.duplicate_docks.empty())
   {
     RCLCPP_ERROR(
-      this->node()->get_logger(),
+      node->get_logger(),
       "Graph provided for fleet [%s] has %lu duplicate lanes:",
       config.fleet_name().c_str(),
       finder.duplicate_docks.size());
@@ -280,19 +291,19 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     for (const auto& dock : finder.duplicate_docks)
     {
       RCLCPP_ERROR(
-        this->node()->get_logger(),
+        node->get_logger(),
         "- [%s]",
         dock.c_str());
     }
 
     RCLCPP_ERROR(
-      this->node()->get_logger(),
+      node->get_logger(),
       "Each dock name on a graph must be unique, so we cannot add fleet [%s]",
       config.fleet_name().c_str());
     return nullptr;
   }
 
-  auto fleet_handle = this->add_fleet(
+  auto fleet_handle = adapter.add_fleet(
     config.fleet_name(),
     *config.vehicle_traits(),
     *config.graph(),
@@ -308,12 +319,11 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     config.account_for_battery_drain(),
     config.finishing_request(),
     config.task_assignment_strategy());
-    
 
   if (!planner_params_ok)
   {
     RCLCPP_WARN(
-      this->node()->get_logger(),
+      node->get_logger(),
       "Failed to initialize task planner parameters for fleet [%s]. "
       "It will not respond to bid requests for tasks",
       config.fleet_name().c_str());
@@ -328,7 +338,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     {
       fleet_handle->consider_delivery_requests(consider, consider);
       RCLCPP_INFO(
-        this->node()->get_logger(),
+        node->get_logger(),
         "Fleet [%s] is configured to perform delivery tasks",
         config.fleet_name().c_str());
     }
@@ -337,7 +347,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     {
       fleet_handle->consider_patrol_requests(consider);
       RCLCPP_INFO(
-        this->node()->get_logger(),
+        node->get_logger(),
         "Fleet [%s] is configured to perform patrol tasks",
         config.fleet_name().c_str());
     }
@@ -346,7 +356,7 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
     {
       fleet_handle->consider_cleaning_requests(consider);
       RCLCPP_INFO(
-        this->node()->get_logger(),
+        node->get_logger(),
         "Fleet [%s] is configured to perform cleaning tasks",
         config.fleet_name().c_str());
     }
@@ -360,27 +370,72 @@ std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
   fleet_handle->default_maximum_delay(config.max_delay());
   fleet_handle->fleet_state_topic_publish_period(config.update_interval());
 
-  RCLCPP_INFO(
-    this->node()->get_logger(),
-    "Finished configuring Easy Full Control adapter for fleet [%s]",
-    config.fleet_name().c_str());
-
-  std::shared_ptr<TransformDictionary> tf_dict;
-  if (config.transformations_to_robot_coordinates().has_value())
-  {
-    tf_dict = std::make_shared<TransformDictionary>(
-      *config.transformations_to_robot_coordinates());
-  }
-
   for (const auto& [lift, level] : config.lift_emergency_levels())
   {
     fleet_handle->set_lift_emergency_level(lift, level);
   }
 
+  RCLCPP_INFO(
+    node->get_logger(),
+    "Finished configuring %s adapter for fleet [%s]",
+    adapter_label,
+    config.fleet_name().c_str());
+
+  return fleet_handle;
+}
+
+//==============================================================================
+template<typename Config>
+std::shared_ptr<TransformDictionary> make_transform_dictionary(
+  const Config& config)
+{
+  if (config.transformations_to_robot_coordinates().has_value())
+  {
+    return std::make_shared<TransformDictionary>(
+      *config.transformations_to_robot_coordinates());
+  }
+
+  return nullptr;
+}
+} // anonymous namespace
+
+//==============================================================================
+std::shared_ptr<EasyFullControl> Adapter::add_easy_fleet(
+  const EasyFullControl::FleetConfiguration& config)
+{
+  auto fleet_handle = make_configured_fleet(*this, config, "Easy Full Control");
+  if (!fleet_handle)
+  {
+    return nullptr;
+  }
+
   return EasyFullControl::Implementation::make(
     fleet_handle,
     config.skip_rotation_commands(),
-    tf_dict,
+    make_transform_dictionary(config),
+    config.strict_lanes(),
+    config.default_responsive_wait(),
+    config.default_max_merge_waypoint_distance(),
+    config.default_max_merge_lane_distance(),
+    config.default_min_lane_length(),
+    config.using_parking_reservation_system());
+}
+
+//==============================================================================
+std::shared_ptr<PathGuide> Adapter::add_path_guide_fleet(
+  const PathGuide::FleetConfiguration& config)
+{
+  auto fleet_handle = make_configured_fleet(*this, config, "Path Guide");
+  if (!fleet_handle)
+  {
+    return nullptr;
+  }
+
+  // No skip_rotation_commands argument: PathGuide never issues a
+  // rotate-in-place command, so the behaviour is not configurable.
+  return PathGuide::Implementation::make(
+    fleet_handle,
+    make_transform_dictionary(config),
     config.strict_lanes(),
     config.default_responsive_wait(),
     config.default_max_merge_waypoint_distance(),
