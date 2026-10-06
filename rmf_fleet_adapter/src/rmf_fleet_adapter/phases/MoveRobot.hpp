@@ -234,8 +234,15 @@ void MoveRobot::Action::operator()(const Subscriber& s)
         s.on_next(msg);
       }
 
-      if (action->_next_path_index > action->_waypoints.size())
+      if (action->_next_path_index >= action->_waypoints.size())
       {
+        return;
+      }
+
+      if (action->_plan_id != action->_context->itinerary().current_plan_id())
+      {
+        // If the current Plan ID of the itinerary does not match the Plan ID
+        // of this action, then we should not modify the delay here.
         return;
       }
 
@@ -254,13 +261,6 @@ void MoveRobot::Action::operator()(const Subscriber& s)
             .reached(action->_plan_id, c.route_id, c.checkpoint_id);
           }
         }
-      }
-
-      if (action->_plan_id != action->_context->itinerary().current_plan_id())
-      {
-        // If the current Plan ID of the itinerary does not match the Plan ID
-        // of this action, then we should not modify the delay here.
-        return;
       }
 
       using namespace std::chrono_literals;
