@@ -903,7 +903,7 @@ void FleetUpdateHandle::Implementation::dispatch_command_cb(
           [task_id, name = name, node = node](std::vector<std::string> errors)
           {
             std::stringstream ss;
-            ss << "Unabled to replan assignments when cancelling task ["
+            ss << "Unable to replan assignments when cancelling task ["
                << task_id << "] for fleet [" << name << "]. ";
             if (errors.empty())
             {

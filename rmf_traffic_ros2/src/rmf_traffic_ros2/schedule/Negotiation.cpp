@@ -565,7 +565,7 @@ public:
     {
       std::string error =
         "[rmf_traffic_ros2::schedule::Negotiation::receive_proposal] "
-        "Receieved a proposal for negotiation ["
+        "Received a proposal for negotiation ["
         + std::to_string(msg.conflict_version) + "] that builds on an "
         "unknown table: [";
       for (const auto p : msg.to_accommodate)
@@ -630,7 +630,7 @@ public:
     {
       std::string error =
         "[rmf_traffic_ros2::schedule::Negotiation::receive_rejection] "
-        "Receieved a rejection for negotiation ["
+        "Received a rejection for negotiation ["
         + std::to_string(msg.conflict_version) + "] for an "
         "unknown table: [";
       for (const auto p : msg.table)

@@ -122,7 +122,7 @@ void Auctioneer::Implementation::receive_response(const BidResponseMsg& msg)
   }
 
   // check if bidding task is initiated by the auctioneer previously
-  // add submited proposal to the current bidding tasks list
+  // add submitted proposal to the current bidding tasks list
   if (open_bid_queue.front().bid_notice.task_id == id)
     open_bid_queue.front().responses.push_back(response);
 }

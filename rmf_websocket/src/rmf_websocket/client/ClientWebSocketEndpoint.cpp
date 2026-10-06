@@ -170,7 +170,7 @@ websocketpp::lib::error_code ClientWebSocketEndpoint::connect()
 
   _con->set_open_handler([this](websocketpp::connection_hdl hdl)
     {
-      RCLCPP_INFO(_node->get_logger(), "Succesfully connected to %s",
+      RCLCPP_INFO(_node->get_logger(), "Successfully connected to %s",
       _uri.c_str());
       _current_connection->on_open(_endpoint.get(), hdl);
     });
