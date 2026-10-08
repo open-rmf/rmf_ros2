@@ -1469,7 +1469,7 @@ void RobotContext::schedule_itinerary(
 
       RCLCPP_ERROR(
         node()->get_logger(),
-        "Repeatedly failled attempts to update schedule with an itinerary "
+        "Repeatedly failed attempts to update schedule with an itinerary "
         "containing [%lu] routes with sizes %s during LockMutexGroup "
         "action for robot [%s]. Last attempted value was [%lu]. We will "
         "continue without updating the traffic schedule. This could lead to "

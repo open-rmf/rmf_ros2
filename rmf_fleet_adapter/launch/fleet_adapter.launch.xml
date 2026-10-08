@@ -34,14 +34,14 @@
   <arg name="inertia" description="The inertia(kg.m^2) of the vehicles in this fleet"/>
   <arg name="friction_coefficient" description="The friction coefficient of the vehicles in this fleet"/>
   <arg name="ambient_power_drain" description="The power rating(W) of ambient devices (processors, sensors, etc.) of the vehicles in this fleet"/>
-  <arg name="tool_power_drain" description="The power rating(W) of special tools (vaccuum, cleaning systems, etc.) of the vehicles in this fleet"/>
-  <arg name="drain_battery" default="false" description="Whether battery drain should be considered while assigning tasks to vechiles in this fleet"/>
+  <arg name="tool_power_drain" description="The power rating(W) of special tools (vacuum, cleaning systems, etc.) of the vehicles in this fleet"/>
+  <arg name="drain_battery" default="false" description="Whether battery drain should be considered while assigning tasks to vehicles in this fleet"/>
   <arg name="recharge_threshold" default="0.2" description="The fraction of total battery capacity below which the robot must return to its charger"/>
   <arg name="recharge_soc" default="1.0" description="The fraction of total battery capacity to which the robot should be charged"/>
   <arg name="experimental_lift_watchdog_service" default="" description="(Experimental) The name of a service to check whether a robot can enter a lift"/>
   <arg name="enable_responsive_wait" default="true" description="Should the robot wait responsively"/>
   <!-- The uri is set to the TrajectoryServer uri for debugging purposes. The default port needs to be updated before merging -->
-  <arg name="server_uri" default="" description="The URI of the api server to trasnmit state and task infromation. If empty, information will not be transmitted"/>
+  <arg name="server_uri" default="" description="The URI of the api server to transmit state and task information. If empty, information will not be transmitted"/>
 
 
   <node pkg="rmf_fleet_adapter"

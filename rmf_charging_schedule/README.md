@@ -29,7 +29,7 @@ the schedule will correspond to `t=0.0` in simulation time.
 
 When run without sim time on, the hours and minutes will correspond to the local
 timezone of the machine that the node is run on. To choose a specific timezone
-instead of using the system's local timzeone, use the `--timezone` argument and
+instead of using the system's local timezone, use the `--timezone` argument and
 provide the desired [TZ identifier](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
 string.
 
