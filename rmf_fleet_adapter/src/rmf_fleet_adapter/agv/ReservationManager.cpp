@@ -51,6 +51,13 @@ void ReservationManager::replace_ticket(
 }
 
 //==============================================================================
+void ReservationManager::adopt_without_release(
+  const rmf_reservation_msgs::msg::ReservationAllocation new_allocation)
+{
+  _allocation = new_allocation;
+}
+
+//==============================================================================
 std::string ReservationManager::get_reserved_location() const
 {
   if (has_ticket())
@@ -63,4 +70,39 @@ std::string ReservationManager::get_reserved_location() const
 bool ReservationManager::has_ticket() const
 {
   return _allocation.has_value();
+}
+
+//==============================================================================
+bool ReservationManager::release_if_holding(const std::string& resource)
+{
+  if (!has_ticket() || _allocation->resource != resource)
+    return false;
+
+  auto context = _context.lock();
+  if (!context)
+    return false;
+
+  RCLCPP_INFO(
+    context->node()->get_logger(),
+    "Releasing ticket %lu holding [%s] for robot [%s]",
+    _allocation->ticket.ticket_id,
+    resource.c_str(),
+    context->requester_id().c_str());
+
+  rmf_reservation_msgs::msg::ReleaseRequest msg;
+  msg.ticket = _allocation->ticket;
+  context->node()->release_location()->publish(msg);
+
+  _allocation = std::nullopt;
+  return true;
+}
+
+//==============================================================================
+bool ReservationManager::forget_if_holding(const std::string& resource)
+{
+  if (!has_ticket() || _allocation->resource != resource)
+    return false;
+
+  _allocation = std::nullopt;
+  return true;
 }

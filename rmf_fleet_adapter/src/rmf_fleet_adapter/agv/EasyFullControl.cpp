@@ -1625,6 +1625,10 @@ public:
   void execute(const LiftSessionEnd&) override {}
   void execute(const LiftMove&) override {}
   void execute(const Wait&) override {}
+  void execute(const ZonePreEntry&) override {}
+  void execute(const ZonePostEntry&) override {}
+  void execute(const ZonePreExit&) override {}
+  void execute(const ZonePostExit&) override {}
   void execute(const Dock& dock) override
   {
     if (looking_for == dock.dock_name())

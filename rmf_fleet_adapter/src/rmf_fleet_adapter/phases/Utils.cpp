@@ -17,6 +17,11 @@
 
 #include "Utils.hpp"
 
+#include "../agv/RobotContext.hpp"
+
+#include <random>
+#include <sstream>
+
 namespace rmf_fleet_adapter {
 namespace phases {
 
@@ -24,6 +29,420 @@ bool is_newer(const builtin_interfaces::msg::Time& a,
   const builtin_interfaces::msg::Time& b)
 {
   return a.sec > b.sec || (a.sec == b.sec && a.nanosec >= b.nanosec);
+}
+
+namespace {
+// Produces a length*2 character zero-padded hex string from random bytes.
+std::string generate_random_hex_string(const std::size_t length)
+{
+  static thread_local std::mt19937 gen{std::random_device{}()};
+  static thread_local std::uniform_int_distribution<int> dis(0, 255);
+  std::stringstream ss;
+  for (std::size_t i = 0; i < length; ++i)
+  {
+    const auto random_char = dis(gen);
+    std::stringstream hexstream;
+    hexstream << std::hex << random_char;
+    auto hex = hexstream.str();
+    ss << (hex.length() < 2 ? '0' + hex : hex);
+  }
+  return ss.str();
+}
+} // anonymous namespace
+
+std::string generate_zone_request_id(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone)
+{
+  return fleet + "_" + robot + "_" + zone + "_"
+    + generate_random_hex_string(5);
+}
+
+namespace {
+//==============================================================================
+rmf_zone_msgs::msg::ZoneRequest make_zone_claim_request(
+  const uint8_t request_type,
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone,
+  std::string request_id,
+  rmf_zone_msgs::msg::ZoneEntryContext entry_context,
+  rmf_zone_msgs::msg::ZoneModifiers modifiers)
+{
+  auto request = rmf_zone_msgs::msg::ZoneRequest();
+  request.robot_name = robot;
+  request.fleet_name = fleet;
+  request.request_id = std::move(request_id);
+  request.zone_name = zone;
+  request.request_type = request_type;
+  request.entry_context = std::move(entry_context);
+  request.modifiers = std::move(modifiers);
+  return request;
+}
+} // anonymous namespace
+
+//==============================================================================
+rmf_zone_msgs::msg::ZoneRequest make_zone_prebooking_request(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone,
+  std::string request_id,
+  rmf_zone_msgs::msg::ZoneModifiers modifiers)
+{
+  // Only a zone task ever prebooks. The zone is its destination by
+  // definition, and it is sent before there is a plan to cross anything.
+  auto context = rmf_zone_msgs::msg::ZoneEntryContext();
+  context.task_type = rmf_zone_msgs::msg::ZoneEntryContext::TASK_ZONE;
+  context.zone_relation =
+    rmf_zone_msgs::msg::ZoneEntryContext::RELATION_DESTINATION;
+
+  return make_zone_claim_request(
+    rmf_zone_msgs::msg::ZoneRequest::PREBOOKING,
+    fleet, robot, zone, std::move(request_id), std::move(context),
+    std::move(modifiers));
+}
+
+//==============================================================================
+rmf_zone_msgs::msg::ZoneRequest make_zone_entry_request(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone,
+  std::string request_id,
+  rmf_zone_msgs::msg::ZoneEntryContext entry_context,
+  rmf_zone_msgs::msg::ZoneModifiers modifiers)
+{
+  return make_zone_claim_request(
+    rmf_zone_msgs::msg::ZoneRequest::ENTRY,
+    fleet, robot, zone, std::move(request_id), std::move(entry_context),
+    std::move(modifiers));
+}
+
+//==============================================================================
+rmf_zone_msgs::msg::ZoneRequest make_zone_arrived_request(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone)
+{
+  auto request = rmf_zone_msgs::msg::ZoneRequest();
+  request.robot_name = robot;
+  request.fleet_name = fleet;
+  request.request_id = generate_zone_request_id(fleet, robot, zone);
+  request.zone_name = zone;
+  request.request_type = rmf_zone_msgs::msg::ZoneRequest::ARRIVED;
+  return request;
+}
+
+//==============================================================================
+rmf_zone_msgs::msg::ZoneRequest make_zone_exit_request(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone)
+{
+  auto request = rmf_zone_msgs::msg::ZoneRequest();
+  request.robot_name = robot;
+  request.fleet_name = fleet;
+  request.request_id = generate_zone_request_id(fleet, robot, zone);
+  request.zone_name = zone;
+  request.request_type = rmf_zone_msgs::msg::ZoneRequest::EXIT;
+  return request;
+}
+
+//==============================================================================
+rmf_zone_msgs::msg::ZoneRequest make_zone_handback_request(
+  const std::string& fleet,
+  const std::string& robot,
+  const std::string& zone,
+  const std::string& released_waypoint)
+{
+  auto request = rmf_zone_msgs::msg::ZoneRequest();
+  request.robot_name = robot;
+  request.fleet_name = fleet;
+  request.request_id = generate_zone_request_id(fleet, robot, zone);
+  request.zone_name = zone;
+  request.request_type = rmf_zone_msgs::msg::ZoneRequest::HANDBACK;
+  request.released_waypoint = released_waypoint;
+  return request;
+}
+
+//==============================================================================
+namespace {
+// Seat a granted booking on the context and adopt the ticket that came with
+// it. The grant response says a vertex is ours, this reads what it is.
+ZoneStateResult accept_zone_booking(
+  const std::shared_ptr<agv::RobotContext>& context,
+  const rmf_zone_msgs::msg::ZoneBooking& booking,
+  const std::string& zone_name,
+  const char* caller)
+{
+  ZoneStateResult result;
+
+  const auto& robot_name = context->name();
+  const auto& fleet_name = context->group();
+  const auto node = context->node();
+
+  const auto& graph = context->navigation_graph();
+  const auto* wp = graph.find_waypoint(booking.assigned_waypoint_name);
+  if (!wp)
+  {
+    RCLCPP_ERROR(
+      node->get_logger(),
+      "%s: manager assigned waypoint [%s] to [%s/%s], which is not in the "
+      "navigation graph",
+      caller,
+      booking.assigned_waypoint_name.c_str(),
+      context->group().c_str(), context->name().c_str());
+
+    result.status = ZoneStateResult::Status::UnknownWaypoint;
+    result.waypoint_name = booking.assigned_waypoint_name;
+    result.reason = "assigned_waypoint_not_in_graph";
+    return result;
+  }
+
+  auto goal = rmf_traffic::agv::Plan::Goal(wp->index());
+  if (booking.has_orientation)
+    goal = rmf_traffic::agv::Plan::Goal(wp->index(), booking.orientation);
+
+  RCLCPP_INFO(
+    node->get_logger(),
+    "%s: [%s/%s] booked waypoint [%s] in zone [%s]",
+    caller,
+    context->group().c_str(), context->name().c_str(),
+    booking.assigned_waypoint_name.c_str(),
+    zone_name.c_str());
+
+  // The zone and the vertex we are giving up, for the manager to take
+  // back. Empty when there is nothing to hand back.
+  std::optional<std::pair<std::string, std::string>> hand_back;
+  const auto reserved = context->_get_reserved_location();
+  if (booking.has_ticket
+    && !reserved.empty() && reserved != booking.assigned_waypoint_name
+    && context->_zone_manager_listening())
+  {
+    const auto zone = context->zone_holding_waypoint(reserved);
+    if (zone)
+      hand_back = std::make_pair(*zone, reserved);
+  }
+
+  context->set_zone_booking(
+    zone_name, booking.assigned_waypoint_name, goal, booking.request_id);
+
+  if (booking.has_ticket)
+  {
+    if (booking.ticket_resource != booking.assigned_waypoint_name)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "%s: manager granted [%s] to [%s/%s] but backed it with a ticket "
+        "holding [%s], so it will not be adopted",
+        caller,
+        booking.assigned_waypoint_name.c_str(),
+        context->group().c_str(), context->name().c_str(),
+        booking.ticket_resource.c_str());
+
+      result.status = ZoneStateResult::Status::TicketMismatch;
+      result.waypoint_name = booking.assigned_waypoint_name;
+      result.reason = "ticket_resource_mismatch";
+      return result;
+    }
+
+    context->_adopt_zone_ticket(
+      booking.ticket_id, booking.ticket_resource, !hand_back.has_value());
+
+    if (hand_back)
+    {
+      node->zone_request()->publish(
+        make_zone_handback_request(
+          fleet_name, robot_name, hand_back->first, hand_back->second));
+
+      result.handed_back_waypoint = hand_back->second;
+    }
+
+    if (context->_get_reserved_location() != booking.assigned_waypoint_name)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "%s: about to drive [%s/%s] to [%s] without holding its "
+        "reservation (holding [%s] instead). The reservation system will be "
+        "engaged for a vertex the zone manager holds, and this robot will "
+        "wait indefinitely.",
+        caller,
+        context->group().c_str(), context->name().c_str(),
+        booking.assigned_waypoint_name.c_str(),
+        context->_get_reserved_location().c_str());
+    }
+  }
+
+  result.status = ZoneStateResult::Status::Granted;
+  result.goal = std::move(goal);
+  result.waypoint_name = booking.assigned_waypoint_name;
+  return result;
+}
+
+//==============================================================================
+// The booking matching this request, if the manager advertised one. A grant
+// rides the same publish as its booking, so a grant with nothing to find
+// means the manager disagrees with itself.
+const rmf_zone_msgs::msg::ZoneBooking* find_zone_booking(
+  const rmf_zone_msgs::msg::ZoneState& state,
+  const std::string& robot_name,
+  const std::string& fleet_name,
+  const std::string& zone_name,
+  const std::string& request_id)
+{
+  for (const auto& booking : state.bookings)
+  {
+    if (booking.robot_name == robot_name
+      && booking.fleet_name == fleet_name
+      && booking.zone_name == zone_name
+      && booking.request_id == request_id)
+      return &booking;
+  }
+
+  return nullptr;
+}
+} // anonymous namespace
+
+//==============================================================================
+ZoneStateResult handle_zone_state(
+  const std::shared_ptr<agv::RobotContext>& context,
+  const rmf_zone_msgs::msg::ZoneState& state,
+  const ZoneStateResult::Status last_status,
+  const std::string& zone_name,
+  const std::string& request_id,
+  const char* caller)
+{
+  ZoneStateResult result;
+
+  const auto& robot_name = context->name();
+  const auto& fleet_name = context->group();
+  const auto node = context->node();
+
+  using Response = rmf_zone_msgs::msg::ZoneResponse;
+  for (const auto& response : state.responses)
+  {
+    if (response.robot_name != robot_name
+      || response.fleet_name != fleet_name
+      || response.zone_name != zone_name
+      || response.request_id != request_id)
+      continue;
+
+    // Revocations are handled at the fleet level, since they must reach a
+    // robot that is parked in a zone with no task running.
+    if (response.status == Response::REVOKED)
+      continue;
+
+    if (response.status == Response::GRANTED)
+    {
+      const auto* booking = find_zone_booking(
+        state, robot_name, fleet_name, zone_name, request_id);
+      if (booking)
+        return accept_zone_booking(context, *booking, zone_name, caller);
+
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "%s: the zone manager granted a waypoint in zone [%s] to [%s/%s] but "
+        "sent no booking to go with it, so there is nothing to drive to",
+        caller,
+        zone_name.c_str(),
+        context->group().c_str(), context->name().c_str());
+
+      continue;
+    }
+
+    if (response.status == Response::PROCEED)
+    {
+      RCLCPP_INFO(
+        node->get_logger(),
+        "%s: [%s/%s] may enter zone [%s] without a booking, so it will carry "
+        "on with the plan it already has",
+        caller,
+        context->group().c_str(), context->name().c_str(),
+        zone_name.c_str());
+
+      result.status = ZoneStateResult::Status::Proceed;
+      return result;
+    }
+
+    result.reason = response.reason;
+
+    if (response.reason == "unknown_zone")
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "%s: the zone manager does not know zone [%s]",
+        caller, zone_name.c_str());
+
+      result.status = ZoneStateResult::Status::UnknownZone;
+      return result;
+    }
+
+    if (response.reason == "zone_has_no_waypoints")
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "%s: zone [%s] has no waypoints, so nothing can ever be assigned in "
+        "it. Check the zone's vertices in the building map",
+        caller, zone_name.c_str());
+
+      result.status = ZoneStateResult::Status::ZoneUnusable;
+      return result;
+    }
+
+    if (response.reason == "waypoints_not_reserved")
+    {
+      if (last_status != ZoneStateResult::Status::Deferred)
+      {
+        RCLCPP_INFO(
+          node->get_logger(),
+          "%s: no waypoint in zone [%s] is reserved to the zone manager, so "
+          "none can be assigned to [%s/%s] yet. Is the reservation node "
+          "running, and is something else holding this zone's waypoints?",
+          caller,
+          zone_name.c_str(),
+          context->group().c_str(), context->name().c_str());
+      }
+
+      result.status = ZoneStateResult::Status::Deferred;
+      return result;
+    }
+
+    if (last_status != ZoneStateResult::Status::Deferred)
+    {
+      // A full zone.
+      RCLCPP_INFO(
+        node->get_logger(),
+        "%s: request for [%s] in zone [%s] is deferred (%s). The zone is "
+        "most likely full, so we will wait for an availability.",
+        caller,
+        context->requester_id().c_str(),
+        zone_name.c_str(),
+        response.reason.c_str());
+    }
+
+    result.status = ZoneStateResult::Status::Deferred;
+    return result;
+  }
+
+  // No response named this request, so fall back to the bookings.
+  const auto* booking = find_zone_booking(
+    state, robot_name, fleet_name, zone_name, request_id);
+  if (booking)
+  {
+    // Louder than the grant path, since reaching here means the grant that
+    // should have carried this booking never arrived.
+    RCLCPP_INFO(
+      node->get_logger(),
+      "%s: seating [%s/%s]'s booking in zone [%s] from the booking log, "
+      "having seen no grant for this request",
+      caller,
+      context->group().c_str(), context->name().c_str(),
+      zone_name.c_str());
+
+    return accept_zone_booking(context, *booking, zone_name, caller);
+  }
+
+  return result;
 }
 
 } // namespace phases
