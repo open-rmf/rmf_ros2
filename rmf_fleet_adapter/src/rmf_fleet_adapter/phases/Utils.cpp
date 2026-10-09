@@ -391,14 +391,17 @@ ZoneStateResult handle_zone_state(
 
     if (response.reason == "waypoints_not_reserved")
     {
-      RCLCPP_INFO(
-        node->get_logger(),
-        "%s: no waypoint in zone [%s] is reserved to the zone manager, so "
-        "none can be assigned to [%s/%s] yet. Is the reservation node "
-        "running, and is something else holding this zone's waypoints?",
-        caller,
-        zone_name.c_str(),
-        context->group().c_str(), context->name().c_str());
+      if (last_status != ZoneStateResult::Status::Deferred)
+      {
+        RCLCPP_INFO(
+          node->get_logger(),
+          "%s: no waypoint in zone [%s] is reserved to the zone manager, so "
+          "none can be assigned to [%s/%s] yet. Is the reservation node "
+          "running, and is something else holding this zone's waypoints?",
+          caller,
+          zone_name.c_str(),
+          context->group().c_str(), context->name().c_str());
+      }
 
       result.status = ZoneStateResult::Status::Deferred;
       return result;

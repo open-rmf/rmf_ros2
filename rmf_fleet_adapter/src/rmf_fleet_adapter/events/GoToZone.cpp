@@ -333,9 +333,9 @@ void GoToZone::Active::_request_booking()
         {
           // The manager cannot answer yet, so keep waiting.
           self->_had_any_answer = true;
+          self->_state->update_status(Status::Blocked);
           if (last_status != phases::ZoneStateResult::Status::Deferred)
           {
-            self->_state->update_status(Status::Blocked);
             self->_state->update_log().info(
               "waiting for a free waypoint in zone [" + zone_name + "]: "
               + result.reason);

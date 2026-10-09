@@ -261,9 +261,12 @@ void ZonePreEntry::Active::_initialize()
         case phases::ZoneStateResult::Status::Deferred:
         {
           self->_state->update_status(Status::Blocked);
-          self->_state->update_log().info(
-            "waiting for a free waypoint in zone [" + zone_name + "]: "
-            + result.reason);
+          if (last_status != phases::ZoneStateResult::Status::Deferred)
+          {
+            self->_state->update_log().info(
+              "waiting for a free waypoint in zone [" + zone_name + "]: "
+              + result.reason);
+          }
           self->_has_pending_request = false;
           return;
         }
