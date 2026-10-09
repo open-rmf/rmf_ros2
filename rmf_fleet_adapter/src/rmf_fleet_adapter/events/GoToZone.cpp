@@ -359,6 +359,12 @@ void GoToZone::Active::_request_booking()
       if (self->_context->zone_booking(zone_name))
         return;
 
+      // A publish that did not concern this robot is no reason to ask
+      // again. The retry timer re-asks every WAITING_WARN_INTERVAL
+      // instead.
+      if (last_status == phases::ZoneStateResult::Status::Deferred)
+        return;
+
       self->_publish_prebooking_request();
     });
 

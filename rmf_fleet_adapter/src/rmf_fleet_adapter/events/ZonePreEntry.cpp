@@ -163,6 +163,7 @@ void ZonePreEntry::Active::_initialize()
         self->_context, *msg, self->_last_status, zone_name, self->_current_request_id,
         "ZonePreEntry");
 
+      const auto last_status = self->_last_status;
       if (result.status != phases::ZoneStateResult::Status::NoMatch)
       {
         self->_had_any_answer = true;
@@ -273,6 +274,12 @@ void ZonePreEntry::Active::_initialize()
 
       // Not our booking
       if (self->_has_pending_request)
+        return;
+
+      // A publish that did not concern this robot is no reason to ask
+      // again. The retry timer re-asks every WAITING_WARN_INTERVAL
+      // instead.
+      if (last_status == phases::ZoneStateResult::Status::Deferred)
         return;
 
       self->_publish_finalize_request();
