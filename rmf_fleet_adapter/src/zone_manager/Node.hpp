@@ -6,8 +6,7 @@
 #include <rmf_zone_msgs/msg/zone_request.hpp>
 #include <rmf_zone_msgs/msg/zone_state.hpp>
 #include <rmf_zone_msgs/msg/zone_booking.hpp>
-#include <rmf_zone_msgs/msg/zone_rejection.hpp>
-#include <rmf_zone_msgs/msg/zone_booking_revoked.hpp>
+#include <rmf_zone_msgs/msg/zone_response.hpp>
 #include <rmf_zone_msgs/msg/zone_manual_release.hpp>
 
 #include <rmf_building_map_msgs/msg/graph.hpp>
@@ -78,8 +77,6 @@ private:
     _manual_release_sub;
 
   rclcpp::Publisher<rmf_zone_msgs::msg::ZoneState>::SharedPtr _state_pub;
-  rclcpp::Publisher<rmf_zone_msgs::msg::ZoneBookingRevoked>::SharedPtr
-    _booking_revoked_pub;
 
   // Not ready until we receive a nav graph. Requests are queued until then.
   bool _ready = false;
@@ -192,6 +189,16 @@ private:
 
   rmf_zone_msgs::msg::ZoneState _build_state_msg();
   void _publish_state();
+
+  void _publish_state_with_response(rmf_zone_msgs::msg::ZoneResponse response);
+
+  void _publish_state_with_grant(
+    const std::string& robot_name,
+    const std::string& fleet_name,
+    const std::string& request_id,
+    const std::string& zone_name,
+    const std::string& waypoint_name);
+
   void _publish_state_with_rejection(
     const std::string& robot_name,
     const std::string& fleet_name,
@@ -199,8 +206,7 @@ private:
     const std::string& zone_name,
     const std::string& reason);
 
-  /// Answer a robot that asked for nothing. Carried on one publish only,
-  /// since no booking is made and there is nothing to keep advertising.
+  /// Answer a robot that asked for nothing.
   void _publish_state_with_proceed(
     const std::string& robot_name,
     const std::string& fleet_name,

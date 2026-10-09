@@ -344,6 +344,11 @@ void GoToZone::Active::_request_booking()
           return;
         }
 
+        // A Proceed answers an ENTRY, and this event sends a PREBOOKING,
+        // so a Proceed is never ours.
+        case phases::ZoneStateResult::Status::Proceed:
+          break;
+
         case phases::ZoneStateResult::Status::NoMatch:
           break;
       }

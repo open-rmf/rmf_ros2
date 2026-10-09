@@ -38,7 +38,7 @@
 #include <rmf_fleet_msgs/msg/lane_states.hpp>
 #include <rmf_fleet_msgs/msg/charging_assignments.hpp>
 #include <rmf_fleet_msgs/msg/emergency_signal.hpp>
-#include <rmf_zone_msgs/msg/zone_booking_revoked.hpp>
+#include <rmf_zone_msgs/msg/zone_state.hpp>
 #include <std_msgs/msg/bool.hpp>
 
 #include <rmf_fleet_adapter/agv/FleetUpdateHandle.hpp>
@@ -316,8 +316,8 @@ public:
   rclcpp::Subscription<rmf_fleet_msgs::msg::ChargingAssignments>::SharedPtr
     charging_assignments_sub = nullptr;
 
-  rclcpp::Subscription<rmf_zone_msgs::msg::ZoneBookingRevoked>::SharedPtr
-    zone_booking_revoked_sub = nullptr;
+  rclcpp::Subscription<rmf_zone_msgs::msg::ZoneState>::SharedPtr
+    zone_state_sub = nullptr;
 
   // Metres past the zone edge a robot must be before the sweep releases it.
   static constexpr double zone_release_margin = 0.5;
@@ -738,50 +738,81 @@ public:
           self->_pimpl->update_charging_assignments(assignments);
       });
 
-    handle->_pimpl->zone_booking_revoked_sub =
+    handle->_pimpl->zone_state_sub =
       handle->_pimpl->node->create_subscription<
-      rmf_zone_msgs::msg::ZoneBookingRevoked>(
-      ZoneBookingRevokedTopicName,
+      rmf_zone_msgs::msg::ZoneState>(
+      ZoneStateTopicName,
       rclcpp::QoS(10).transient_local().reliable(),
       [w = handle->weak_from_this()](
-        const rmf_zone_msgs::msg::ZoneBookingRevoked::SharedPtr msg)
+        const rmf_zone_msgs::msg::ZoneState::SharedPtr msg)
       {
         const auto self = w.lock();
         if (!self)
           return;
 
-        for (const auto& [context, _] : self->_pimpl->task_managers)
+        // Keep each booking's request_id current.
+        for (const auto& booking : msg->bookings)
         {
-          if (context->name() != msg->robot_name
-            || context->group() != msg->fleet_name)
+          for (const auto& [context, _] : self->_pimpl->task_managers)
+          {
+            if (context->name() != booking.robot_name
+              || context->group() != booking.fleet_name)
+              continue;
+
+            // The const binds the pointer, not the booking it points at.
+            const auto held = context->zone_booking(booking.zone_name);
+            if (held
+              && held->waypoint_name == booking.assigned_waypoint_name)
+            {
+              held->granted_under_request_id = booking.request_id;
+            }
+            break;
+          }
+        }
+
+        using Response = rmf_zone_msgs::msg::ZoneResponse;
+        for (const auto& response : msg->responses)
+        {
+          if (response.status != Response::REVOKED)
             continue;
 
-          // Ignore revocations that do not correspond to a booking held in
-          // the zone the message names.
-          const auto booking = context->zone_booking(msg->zone_name);
-          if (!booking
-            || booking->waypoint_name != msg->assigned_waypoint_name)
+          for (const auto& [context, _] : self->_pimpl->task_managers)
           {
-            RCLCPP_DEBUG(context->node()->get_logger(),
-              "Ignoring stale ZoneBookingRevoked for [%s]: waypoint [%s] in "
-              "zone [%s] does not match current booking [%s]",
-              msg->robot_name.c_str(),
-              msg->assigned_waypoint_name.c_str(),
-              msg->zone_name.c_str(),
-              booking ? booking->waypoint_name.c_str() : "<none>");
-            return;
+            if (context->name() != response.robot_name
+              || context->group() != response.fleet_name)
+              continue;
+
+            // A revocation can arrive late, after the robot has been
+            // re-granted the same vertex. Only the id tells the two apart.
+            const auto booking = context->zone_booking(response.zone_name);
+            if (!booking
+              || booking->granted_under_request_id != response.request_id)
+            {
+              RCLCPP_DEBUG(context->node()->get_logger(),
+                "Ignoring stale revocation for [%s] at [%s] in zone [%s]: "
+                "request [%s] is not the one the current booking was granted "
+                "under [%s]",
+                response.robot_name.c_str(),
+                response.assigned_waypoint_name.c_str(),
+                response.zone_name.c_str(),
+                response.request_id.c_str(),
+                booking
+                  ? booking->granted_under_request_id.c_str() : "<none>");
+              break;
+            }
+
+            RCLCPP_WARN(context->node()->get_logger(),
+              "Zone booking revoked for [%s] at waypoint [%s] in zone [%s]: "
+              "%s",
+              response.robot_name.c_str(),
+              response.assigned_waypoint_name.c_str(),
+              response.zone_name.c_str(),
+              response.reason.c_str());
+
+            context->clear_zone_booking(
+              response.zone_name, RobotContext::ZoneTicketDisposal::Release);
+            break;
           }
-
-          RCLCPP_WARN(context->node()->get_logger(),
-            "Zone booking revoked for [%s] at waypoint [%s] in zone [%s]: %s",
-            msg->robot_name.c_str(),
-            msg->assigned_waypoint_name.c_str(),
-            msg->zone_name.c_str(),
-            msg->reason.c_str());
-
-          context->clear_zone_booking(
-            msg->zone_name, RobotContext::ZoneTicketDisposal::Release);
-          return;
         }
       });
 

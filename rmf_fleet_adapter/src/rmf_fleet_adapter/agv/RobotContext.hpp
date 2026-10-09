@@ -1050,16 +1050,17 @@ public:
     std::string zone_name;
     std::string waypoint_name;
     rmf_traffic::agv::Plan::Goal goal;
+    std::string granted_under_request_id;
   };
 
   using ZoneBookingPtr = std::shared_ptr<ZoneBooking>;
 
   /// Set the booking for a zone, replacing any already held for that zone.
-  /// Acquires stubbornness on behalf of the booking.
   void set_zone_booking(
     std::string zone_name,
     std::string waypoint_name,
-    rmf_traffic::agv::Plan::Goal goal);
+    rmf_traffic::agv::Plan::Goal goal,
+    std::string request_id);
 
   /// Get the booking held for a zone, or nullptr
   ZoneBookingPtr zone_booking(const std::string& zone_name) const;

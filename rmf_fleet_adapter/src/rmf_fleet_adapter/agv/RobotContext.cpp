@@ -626,13 +626,15 @@ RobotContext::ZonePreferenceHandle RobotContext::zone_preference(
 void RobotContext::set_zone_booking(
   std::string zone_name,
   std::string waypoint_name,
-  rmf_traffic::agv::Plan::Goal goal)
+  rmf_traffic::agv::Plan::Goal goal,
+  std::string request_id)
 {
   const auto it = _zone_bookings.find(zone_name);
   if (it != _zone_bookings.end() && it->second)
   {
     it->second->waypoint_name = std::move(waypoint_name);
     it->second->goal = std::move(goal);
+    it->second->granted_under_request_id = std::move(request_id);
     return;
   }
 
@@ -640,7 +642,8 @@ void RobotContext::set_zone_booking(
     ZoneBooking{
       zone_name,
       std::move(waypoint_name),
-      std::move(goal)
+      std::move(goal),
+      std::move(request_id)
     });
 }
 
