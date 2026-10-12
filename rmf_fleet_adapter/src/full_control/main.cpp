@@ -311,6 +311,10 @@ public:
     void execute(const LiftMove&) final {}
     void execute(const LiftDoorOpen&) final {}
     void execute(const LiftSessionEnd&) final {}
+    void execute(const ZonePreEntry&) final {}
+    void execute(const ZonePostEntry&) final {}
+    void execute(const ZonePreExit&) final {}
+    void execute(const ZonePostExit&) final {}
 
   private:
     const std::string& _dock_name;
