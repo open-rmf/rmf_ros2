@@ -26,7 +26,7 @@
 #include <rmf_fleet_adapter/StandardNames.hpp>
 
 #include <rmf_fleet_msgs/msg/mutex_group_manual_release.hpp>
-#include <rmf_zone_msgs/msg/zone_modifiers.hpp>
+#include <rmf_zone_msgs/msg/zone_hint.hpp>
 #include <rmf_task_msgs/action/dynamic_event.hpp>
 #include <rmf_task_msgs/msg/dynamic_event_description.hpp>
 #include <rmf_task_msgs/msg/dynamic_event_status.hpp>
@@ -1029,9 +1029,9 @@ public:
 
   bool debug_positions = false;
 
-  /// The hints a on-going GoToZone is expressing for a zone: which group, which
-  /// orientation, which vertices it would rather be given.
-  using ZonePreference = rmf_zone_msgs::msg::ZoneModifiers;
+  /// The hints an on-going GoToZone is expressing for a zone, most preferred
+  /// first. Each says where to park, and facing which way.
+  using ZonePreference = std::vector<rmf_zone_msgs::msg::ZoneHint>;
   using ZonePreferenceHandle = std::shared_ptr<const ZonePreference>;
 
   /// Set the preference for a zone and return the handle that owns it. It

@@ -22,6 +22,7 @@
 
 #include <rclcpp/publisher.hpp>
 
+#include <rmf_zone_msgs/msg/zone_hint.hpp>
 #include <rmf_zone_msgs/msg/zone_request.hpp>
 #include <rmf_zone_msgs/msg/zone_state.hpp>
 
@@ -57,8 +58,7 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_prebooking_request(
   const std::string& robot,
   const std::string& zone,
   std::string request_id,
-  rmf_zone_msgs::msg::ZoneModifiers modifiers =
-    rmf_zone_msgs::msg::ZoneModifiers());
+  std::vector<rmf_zone_msgs::msg::ZoneHint> hints = {});
 
 // Build an ENTRY request asking the zone manager to confirm the booking at
 // the zone boundary, taking a better vertex if one has freed up.
@@ -71,8 +71,7 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_entry_request(
   const std::string& zone,
   std::string request_id,
   rmf_zone_msgs::msg::ZoneEntryContext entry_context,
-  rmf_zone_msgs::msg::ZoneModifiers modifiers =
-    rmf_zone_msgs::msg::ZoneModifiers());
+  std::vector<rmf_zone_msgs::msg::ZoneHint> hints = {});
 
 // Build the ARRIVED request that tells the zone manager this robot has
 // crossed into the zone. Nothing answers it.
@@ -158,6 +157,14 @@ ZoneStateResult handle_zone_state(
   const std::string& zone_name,
   const std::string& request_id,
   const char* caller);
+
+// Find the cheapest goal among different orientations. An empty list leaves
+// the orientation free.
+rmf_traffic::agv::Plan::Goal choose_cheapest_zone_goal(
+  const rmf_traffic::agv::Planner& planner,
+  const rmf_traffic::agv::Plan::StartSet& starts,
+  std::size_t waypoint,
+  const std::vector<double>& orientations);
 
 } // namespace phases
 } // namespace rmf_fleet_adapter

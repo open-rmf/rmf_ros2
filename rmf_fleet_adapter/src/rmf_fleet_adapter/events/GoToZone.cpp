@@ -26,19 +26,19 @@ const auto WAITING_LOG_INTERVAL = std::chrono::seconds(60);
 namespace {
 
 //==============================================================================
-rmf_zone_msgs::msg::ZoneModifiers zone_modifiers(
+std::vector<rmf_zone_msgs::msg::ZoneHint> zone_hints(
   const GoToZone::Description& description)
 {
-  rmf_zone_msgs::msg::ZoneModifiers modifiers;
-  if (description.modifiers().has_value())
+  std::vector<rmf_zone_msgs::msg::ZoneHint> hints;
+  for (const auto& h : description.hints())
   {
-    const auto& m = *description.modifiers();
-    modifiers.group_hint = m.group_hint();
-    modifiers.has_orientation_hint = m.orientation_hint().has_value();
-    modifiers.orientation_hint = m.orientation_hint().value_or(0.0);
-    modifiers.preferred_waypoints = m.preferred_waypoints();
+    rmf_zone_msgs::msg::ZoneHint hint;
+    hint.group_hint = h.group();
+    hint.waypoint_hint = h.waypoint();
+    hint.orientation_hints = h.orientations();
+    hints.push_back(std::move(hint));
   }
-  return modifiers;
+  return hints;
 }
 } // anonymous namespace
 
@@ -179,7 +179,7 @@ auto GoToZone::Active::make(
   // must not send hints from a task that has ended.
   active->_preference = active->_context->set_zone_preference(
     active->_description.zone_name(),
-    zone_modifiers(active->_description));
+    zone_hints(active->_description));
 
   active->_replan_subscription =
     active->_context->observe_replan_request()
@@ -228,7 +228,7 @@ void GoToZone::Active::_publish_prebooking_request()
       _context->name(),
       _description.zone_name(),
       _current_request_id,
-      _preference ? *_preference : rmf_zone_msgs::msg::ZoneModifiers()));
+      _preference ? *_preference : agv::RobotContext::ZonePreference()));
 
   _has_pending_request = true;
 }

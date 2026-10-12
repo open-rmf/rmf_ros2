@@ -68,7 +68,7 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_claim_request(
   const std::string& zone,
   std::string request_id,
   rmf_zone_msgs::msg::ZoneEntryContext entry_context,
-  rmf_zone_msgs::msg::ZoneModifiers modifiers)
+  std::vector<rmf_zone_msgs::msg::ZoneHint> hints)
 {
   auto request = rmf_zone_msgs::msg::ZoneRequest();
   request.robot_name = robot;
@@ -77,7 +77,7 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_claim_request(
   request.zone_name = zone;
   request.request_type = request_type;
   request.entry_context = std::move(entry_context);
-  request.modifiers = std::move(modifiers);
+  request.hints = std::move(hints);
   return request;
 }
 } // anonymous namespace
@@ -88,7 +88,7 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_prebooking_request(
   const std::string& robot,
   const std::string& zone,
   std::string request_id,
-  rmf_zone_msgs::msg::ZoneModifiers modifiers)
+  std::vector<rmf_zone_msgs::msg::ZoneHint> hints)
 {
   // Only a zone task ever prebooks. The zone is its destination by
   // definition, and it is sent before there is a plan to cross anything.
@@ -100,7 +100,7 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_prebooking_request(
   return make_zone_claim_request(
     rmf_zone_msgs::msg::ZoneRequest::PREBOOKING,
     fleet, robot, zone, std::move(request_id), std::move(context),
-    std::move(modifiers));
+    std::move(hints));
 }
 
 //==============================================================================
@@ -110,12 +110,12 @@ rmf_zone_msgs::msg::ZoneRequest make_zone_entry_request(
   const std::string& zone,
   std::string request_id,
   rmf_zone_msgs::msg::ZoneEntryContext entry_context,
-  rmf_zone_msgs::msg::ZoneModifiers modifiers)
+  std::vector<rmf_zone_msgs::msg::ZoneHint> hints)
 {
   return make_zone_claim_request(
     rmf_zone_msgs::msg::ZoneRequest::ENTRY,
     fleet, robot, zone, std::move(request_id), std::move(entry_context),
-    std::move(modifiers));
+    std::move(hints));
 }
 
 //==============================================================================
@@ -199,9 +199,12 @@ ZoneStateResult accept_zone_booking(
     return result;
   }
 
-  auto goal = rmf_traffic::agv::Plan::Goal(wp->index());
-  if (booking.has_orientation)
-    goal = rmf_traffic::agv::Plan::Goal(wp->index(), booking.orientation);
+  // Without a planner nothing can be costed, so take the bare waypoint.
+  const auto planner = context->planner();
+  const auto goal = planner
+    ? choose_cheapest_zone_goal(
+      *planner, context->location(), wp->index(), booking.orientations)
+    : rmf_traffic::agv::Plan::Goal(wp->index());
 
   RCLCPP_INFO(
     node->get_logger(),
@@ -302,6 +305,36 @@ const rmf_zone_msgs::msg::ZoneBooking* find_zone_booking(
   return nullptr;
 }
 } // anonymous namespace
+
+//==============================================================================
+rmf_traffic::agv::Plan::Goal choose_cheapest_zone_goal(
+  const rmf_traffic::agv::Planner& planner,
+  const rmf_traffic::agv::Plan::StartSet& starts,
+  const std::size_t waypoint,
+  const std::vector<double>& orientations)
+{
+  std::optional<rmf_traffic::agv::Plan::Goal> best;
+  std::optional<double> best_cost;
+  if (!starts.empty())
+  {
+    for (const auto orientation : orientations)
+    {
+      const auto goal = rmf_traffic::agv::Plan::Goal(waypoint, orientation);
+      const auto result = planner.plan(starts, goal);
+      if (!result.success())
+        continue;
+
+      const auto cost = result->get_cost();
+      if (!best_cost.has_value() || cost < *best_cost)
+      {
+        best = goal;
+        best_cost = cost;
+      }
+    }
+  }
+
+  return best.value_or(rmf_traffic::agv::Plan::Goal(waypoint));
+}
 
 //==============================================================================
 ZoneStateResult handle_zone_state(

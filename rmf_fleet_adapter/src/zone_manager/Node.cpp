@@ -348,7 +348,7 @@ void Node::_process_prebooking(
   }
 
   // perform waypoint selection
-  const auto result = _select_waypoint(msg->zone_name, msg->modifiers);
+  const auto result = _select_waypoint(msg->zone_name, msg->hints);
 
   if (!result.success)
   {
@@ -378,8 +378,7 @@ void Node::_process_prebooking(
   log_entry.zone_name = msg->zone_name;
   log_entry.assigned_at = this->now();
   log_entry.request_id = msg->request_id;
-  log_entry.has_orientation = msg->modifiers.has_orientation_hint;
-  log_entry.orientation = msg->modifiers.orientation_hint;
+  log_entry.orientations = result.orientations;
 
   _zone_log[result.selected.name] = std::move(log_entry);
 
@@ -549,14 +548,11 @@ void Node::_finalize_entry(
   _reservation_client->thaw_for(
     msg->zone_name, held_vertex, msg->fleet_name, msg->robot_name);
 
-  const bool no_preference =
-    msg->modifiers.group_hint.empty()
-    && !msg->modifiers.has_orientation_hint
-    && msg->modifiers.preferred_waypoints.empty();
+  const bool no_preference = msg->hints.empty();
 
   const auto result = no_preference
     ? SelectionResult()
-    : _select_waypoint(msg->zone_name, msg->modifiers, held_vertex);
+    : _select_waypoint(msg->zone_name, msg->hints, held_vertex);
 
   if (!result.success || result.selected.name == held_vertex)
   {
@@ -567,6 +563,11 @@ void Node::_finalize_entry(
       held_vertex.c_str(), msg->zone_name.c_str());
 
     held->second.request_id = msg->request_id;
+
+    // A repeat request may carry different orientations for the same vertex.
+    if (result.success)
+      held->second.orientations = result.orientations;
+
     _publish_state_with_grant(
       msg->robot_name, msg->fleet_name,
       msg->request_id, msg->zone_name, held_vertex);
@@ -582,6 +583,7 @@ void Node::_finalize_entry(
 
   ZoneLogEntry entry = std::move(held->second);
   entry.request_id = msg->request_id;
+  entry.orientations = result.orientations;
   entry.assigned_at = this->now();
 
   _zone_log.erase(held);
@@ -634,12 +636,12 @@ void Node::_process_exit(
 //==============================================================================
 Node::SelectionResult Node::_select_waypoint(
   const std::string& zone_name,
-  const rmf_zone_msgs::msg::ZoneModifiers& modifiers,
+  const std::vector<rmf_zone_msgs::msg::ZoneHint>& hints,
   const std::string& held_vertex)
 {
   auto zone_it = _zones.find(zone_name);
   if (zone_it == _zones.end())
-    return {false, {}, "unknown_zone"};
+    return {false, {}, {}, "unknown_zone"};
 
   // 1. Copy the waypoint list (already sorted by priority ascending)
   auto candidates = zone_it->second.waypoints;
@@ -650,7 +652,7 @@ Node::SelectionResult Node::_select_waypoint(
     // the reservation node will ever change that, so report it specifically
     // rather than let a misconfigured zone read as a busy one and block a
     // robot indefinitely.
-    return {false, {}, "zone_has_no_waypoints"};
+    return {false, {}, {}, "zone_has_no_waypoints"};
   }
 
   // 2a. Drop waypoints that are already booked.
@@ -683,37 +685,36 @@ Node::SelectionResult Node::_select_waypoint(
       "do not exclude other robots.");
   }
 
-  // 3. Group filtering: apply group_hint if provided.
-  if (!modifiers.group_hint.empty())
+  // 3. Hints, in order. The first that matches a free waypoint wins, and its
+  // orientations ride along with the vertex. Candidates are sorted by
+  // priority, so the first match in a group is that group's best.
+  for (const auto& hint : hints)
   {
-    auto group_filtered = candidates;
-    group_filtered.erase(
-      std::remove_if(group_filtered.begin(), group_filtered.end(),
-        [&](const auto& wp)
-        { return wp.group != modifiers.group_hint; }),
-      group_filtered.end());
-
-    if (!group_filtered.empty())
-      candidates = std::move(group_filtered);
-    // No match for group filter, fall back to all candidates
-  }
-
-  // 4. Preferred waypoints filtering:
-  // if specified, return the first available
-  // match from the preference list.
-  if (!modifiers.preferred_waypoints.empty())
-  {
-    for (const auto& pref : modifiers.preferred_waypoints)
+    if (!hint.waypoint_hint.empty())
     {
       for (const auto& wp : candidates)
       {
-        if (wp.name == pref)
-          return {true, wp, ""};
+        if (wp.name == hint.waypoint_hint)
+          return {true, wp, hint.orientation_hints, ""};
       }
+      continue;
     }
+
+    if (!hint.group_hint.empty())
+    {
+      for (const auto& wp : candidates)
+      {
+        if (wp.group == hint.group_hint)
+          return {true, wp, hint.orientation_hints, ""};
+      }
+      continue;
+    }
+
+    if (!candidates.empty())
+      return {true, candidates.front(), hint.orientation_hints, ""};
   }
 
-  // 5. Priority selection: Select highest priority (first in sorted list).
+  // 4. Priority. Nothing was asked for, or nothing asked for is free.
   if (candidates.empty())
   {
     // Report which kind of empty.
@@ -721,12 +722,12 @@ Node::SelectionResult Node::_select_waypoint(
       _reservation_client->acquisition_in_flight(zone_name);
 
     return {
-      false, {},
+      false, {}, {},
       all_booked ? "zone_full" : "waypoints_not_reserved",
       pending};
   }
 
-  return {true, candidates.front(), ""};
+  return {true, candidates.front(), {}, ""};
 }
 
 //==============================================================================
@@ -785,8 +786,7 @@ rmf_zone_msgs::msg::ZoneState Node::_build_state_msg()
     booking.fleet_name = entry.fleet_name;
     booking.zone_name = entry.zone_name;
     booking.assigned_waypoint_name = wp_name;
-    booking.has_orientation = entry.has_orientation;
-    booking.orientation = entry.orientation;
+    booking.orientations = entry.orientations;
     booking.request_id = entry.request_id;
 
     _reservation_client->transfer(

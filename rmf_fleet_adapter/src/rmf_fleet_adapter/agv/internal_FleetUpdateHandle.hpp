@@ -106,6 +106,10 @@ using DeserializedZoneWaypoint =
   DeserializedDescription<std::optional<std::string>>;
 
 //==============================================================================
+using DeserializedZoneGroup =
+  DeserializedDescription<std::optional<std::string>>;
+
+//==============================================================================
 using PlaceDeserializer =
   std::function<DeserializedPlace(const nlohmann::json&)>;
 
@@ -119,6 +123,11 @@ using ZoneWaypointDeserializer =
     const std::string& zone_name, const nlohmann::json&)>;
 
 //==============================================================================
+using ZoneGroupDeserializer =
+  std::function<DeserializedZoneGroup(
+    const std::string& zone_name, const nlohmann::json&)>;
+
+//==============================================================================
 struct TaskDeserialization
 {
   DeserializeJSONPtr<DeserializedTask> task;
@@ -127,6 +136,7 @@ struct TaskDeserialization
   PlaceDeserializer place;
   ZoneDeserializer zone;
   ZoneWaypointDeserializer zone_waypoint;
+  ZoneGroupDeserializer zone_group;
 
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_pickup;
   std::shared_ptr<FleetUpdateHandle::ConsiderRequest> consider_dropoff;

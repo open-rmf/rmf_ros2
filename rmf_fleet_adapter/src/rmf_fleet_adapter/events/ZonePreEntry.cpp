@@ -476,10 +476,10 @@ void ZonePreEntry::Active::_publish_finalize_request()
   _current_request_id = phases::generate_zone_request_id(
     _context->group(), _context->name(), _data.zone_name);
 
-  rmf_zone_msgs::msg::ZoneModifiers modifiers;
+  std::vector<rmf_zone_msgs::msg::ZoneHint> hints;
   const auto preference = _context->zone_preference(_data.zone_name);
   if (preference)
-    modifiers = *preference;
+    hints = *preference;
 
   using Context = rmf_zone_msgs::msg::ZoneEntryContext;
   auto entry_context = Context();
@@ -522,7 +522,7 @@ void ZonePreEntry::Active::_publish_finalize_request()
       _data.zone_name,
       _current_request_id,
       std::move(entry_context),
-      std::move(modifiers)));
+      std::move(hints)));
 
   _has_pending_request = true;
 }

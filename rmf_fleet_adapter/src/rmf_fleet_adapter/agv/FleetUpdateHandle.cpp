@@ -1803,6 +1803,40 @@ ZoneWaypointDeserializer make_zone_waypoint_deserializer(
       };
     };
 }
+
+ZoneGroupDeserializer make_zone_group_deserializer(
+  std::shared_ptr<const std::shared_ptr<const rmf_traffic::agv::Planner>>
+  planner)
+{
+  return [planner = std::move(planner)](
+      const std::string& zone_name,
+      const nlohmann::json& msg) -> DeserializedZoneGroup
+    {
+      const auto& graph = (*planner)->get_configuration().graph();
+      const auto zone_props = graph.find_known_zone(zone_name);
+      if (!zone_props)
+      {
+        return {
+          std::nullopt,
+          {"zone name [" + zone_name + "] cannot be found in the navigation "
+            "graph"}
+        };
+      }
+
+      const auto group = msg.get<std::string>();
+      for (const auto& iv : zone_props->internal_vertices())
+      {
+        if (iv.get_group_name() == group)
+          return {group, {}};
+      }
+
+      return {
+        std::nullopt,
+        {"group [" + group + "] is not a vertex group of zone ["
+          + zone_name + "]"}
+      };
+    };
+}
 } // anonymous namespace
 
 //==============================================================================
@@ -1824,6 +1858,7 @@ void FleetUpdateHandle::Implementation::add_standard_tasks()
   deserialization.place = make_place_deserializer(planner);
   deserialization.zone = make_zone_deserializer(planner);
   deserialization.zone_waypoint = make_zone_waypoint_deserializer(planner);
+  deserialization.zone_group = make_zone_group_deserializer(planner);
   deserialization.add_schema(schemas::place);
 
   events::ResponsiveWait::add(*activation.event);

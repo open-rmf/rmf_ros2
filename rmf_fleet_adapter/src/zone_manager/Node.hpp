@@ -3,6 +3,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <rmf_zone_msgs/msg/zone_hint.hpp>
 #include <rmf_zone_msgs/msg/zone_request.hpp>
 #include <rmf_zone_msgs/msg/zone_state.hpp>
 #include <rmf_zone_msgs/msg/zone_booking.hpp>
@@ -57,8 +58,7 @@ private:
     std::string zone_name;
     rclcpp::Time assigned_at;
     std::string request_id;
-    bool has_orientation = false;
-    double orientation = 0.0;
+    std::vector<double> orientations;
 
     // Set by an ARRIVED request. The robot is on its waypoint, so the pool
     // no longer has to stay whole on its account.
@@ -232,6 +232,7 @@ private:
   {
     bool success = false;
     ZoneWaypointInfo selected;
+    std::vector<double> orientations;
     std::string rejection_reason;
 
     /// Nothing assignable yet, but reservations are still arriving.
@@ -243,7 +244,7 @@ private:
   ///   finding nothing better keeps it rather than refusing it.
   SelectionResult _select_waypoint(
     const std::string& zone_name,
-    const rmf_zone_msgs::msg::ZoneModifiers& modifiers,
+    const std::vector<rmf_zone_msgs::msg::ZoneHint>& hints,
     const std::string& held_vertex = "");
 };
 

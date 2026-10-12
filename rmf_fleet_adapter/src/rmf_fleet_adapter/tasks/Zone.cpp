@@ -45,6 +45,7 @@ void add_zone(
     [
       zone_deser = deserialization.zone,
       zone_wp_deser = deserialization.zone_waypoint,
+      zone_group_deser = deserialization.zone_group,
       consider = deserialization.consider_zone
     ](const nlohmann::json& msg) -> DeserializedGTZEvent
     {
@@ -70,48 +71,44 @@ void add_zone(
       if (!valid_zone.description.has_value())
         return {nullptr, errors};
 
-      // 2. Parse modifiers (optional)
-      std::optional<GoToZone::Description::Modifiers> modifiers;
-      if (const auto mod_it = msg.find("modifiers"); mod_it != msg.end())
+      // 2. Parse hints (optional), most preferred first
+      std::vector<GoToZone::Description::Hint> hints;
+      if (const auto hints_it = msg.find("hints"); hints_it != msg.end())
       {
-        GoToZone::Description::Modifiers m;
-        // waypoint_preference
-        if (const auto wp_it = mod_it->find("waypoint_preference");
-            wp_it != mod_it->end())
+        for (const auto& h : *hints_it)
         {
-          if (wp_it->contains("group"))
-            m.set_group_hint(wp_it->at("group").get<std::string>());
-          if (wp_it->contains("orientation"))
-            m.set_orientation_hint(wp_it->at("orientation").get<double>());
-          if (const auto pw_it = wp_it->find("preferred_waypoints");
-              pw_it != wp_it->end())
+          GoToZone::Description::Hint hint;
+          if (h.contains("group"))
           {
-            bool any_failure = false;
-            std::vector<std::string> preferred;
-            for (const auto& wp : *pw_it)
-            {
-              auto vp = zone_wp_deser(*valid_zone.description, wp);
-              errors.insert(
-                errors.end(), vp.errors.begin(), vp.errors.end());
-              if (!vp.description.has_value())
-              {
-                any_failure = true;
-                continue;
-              }
-              preferred.push_back(*vp.description);
-            }
-            if (any_failure)
+            auto vg = zone_group_deser(*valid_zone.description, h.at("group"));
+            errors.insert(errors.end(), vg.errors.begin(), vg.errors.end());
+            if (!vg.description.has_value())
               return {nullptr, errors};
-            m.set_preferred_waypoints(std::move(preferred));
+            hint.set_group(*vg.description);
           }
+
+          if (h.contains("waypoint"))
+          {
+            auto vp = zone_wp_deser(*valid_zone.description, h.at("waypoint"));
+            errors.insert(errors.end(), vp.errors.begin(), vp.errors.end());
+            if (!vp.description.has_value())
+              return {nullptr, errors};
+            hint.set_waypoint(*vp.description);
+          }
+
+          if (h.contains("orientations"))
+          {
+            hint.set_orientations(
+              h.at("orientations").get<std::vector<double>>());
+          }
+
+          hints.push_back(std::move(hint));
         }
-        // extend with more modifiers here in future
-        modifiers = std::move(m);
       }
 
       // 3. Create description
       auto desc = GoToZone::Description::make(
-        *valid_zone.description, std::move(modifiers));
+        *valid_zone.description, std::move(hints));
       return {desc, std::move(errors)};
     };
 
