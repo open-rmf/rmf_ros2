@@ -2,6 +2,8 @@
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
 
+#include <memory>
+
 #include <rmf_traffic/agv/VehicleTraits.hpp>
 #include <rmf_traffic/Profile.hpp>
 
@@ -68,7 +70,8 @@ void bind_vehicletraits(py::module& m)
       &Profile::vicinity));
 
   // VEHICLETRAITS =============================================================
-  py::class_<VehicleTraits>(m_vehicletraits, "VehicleTraits")
+  py::class_<VehicleTraits, std::shared_ptr<VehicleTraits>>(
+    m_vehicletraits, "VehicleTraits")
   .def(py::init<VehicleTraits::Limits,
     VehicleTraits::Limits,
     Profile,
