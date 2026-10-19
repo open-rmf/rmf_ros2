@@ -71,7 +71,7 @@ void ZoneReservationClient::acquire(
     const auto existing = _holdings.find(vertex);
     if (existing != _holdings.end())
     {
-      if (existing->second.zone != zone)
+      if (existing->second->zone != zone)
       {
         // Two zones claiming one name means their maps disagree. Taking
         // the other's reservation would send a robot where it may not go.
@@ -80,22 +80,22 @@ void ZoneReservationClient::acquire(
           "Vertex [%s] is claimed by both zone [%s] and zone [%s]. Zone "
           "waypoint names must be unique across every fleet's nav graph, so "
           "[%s] will not be assignable in zone [%s]",
-          vertex.c_str(), existing->second.zone.c_str(), zone.c_str(),
+          vertex.c_str(), existing->second->zone.c_str(), zone.c_str(),
           vertex.c_str(), zone.c_str());
       }
       continue;
     }
 
-    Holding holding;
-    holding.zone = zone;
-    holding.vertex = vertex;
-    holding.request_id = _next_request_id++;
-    holding.state = Holding::State::Requested;
+    auto holding = std::make_shared<Holding>();
+    holding->zone = zone;
+    holding->vertex = vertex;
+    holding->request_id = _next_request_id++;
+    holding->state = Holding::State::Requested;
 
     rmf_reservation_msgs::msg::FlexibleTimeRequest request;
     request.header.robot_name = _robot_name;
     request.header.fleet_name = _fleet_name;
-    request.header.request_id = holding.request_id;
+    request.header.request_id = holding->request_id;
 
     rmf_reservation_msgs::msg::FlexibleTimeReservationAlt alternative;
     alternative.resource_name = vertex;
@@ -130,7 +130,7 @@ void ZoneReservationClient::_on_ticket(
     || msg.header.fleet_name != _fleet_name)
     return;
 
-  auto* holding = _find_by_request_id(msg.header.request_id);
+  const auto holding = _find_by_request_id(msg.header.request_id);
   if (!holding)
     return;
 
@@ -149,7 +149,7 @@ void ZoneReservationClient::_on_allocation(
     || msg.ticket.header.fleet_name != _fleet_name)
     return;
 
-  auto* holding = _find_by_ticket_id(msg.ticket.ticket_id);
+  const auto holding = _find_by_ticket_id(msg.ticket.ticket_id);
   if (!holding)
   {
     // An allocation for a vertex we gave up. Only an allocated ticket can
@@ -181,11 +181,9 @@ void ZoneReservationClient::_on_allocation(
     release.location = msg.resource;
     _release_pub->publish(release);
 
-    const std::string vertex = holding->vertex;
-    const std::string zone = holding->zone;
-    _holdings.erase(vertex);
+    _holdings.erase(holding->vertex);
     if (_on_zone_changed)
-      _on_zone_changed(zone);
+      _on_zone_changed(holding->zone);
     return;
   }
 
@@ -199,16 +197,15 @@ void ZoneReservationClient::_on_allocation(
     "Zone manager now holds [%s] in zone [%s] on ticket %lu",
     holding->vertex.c_str(), holding->zone.c_str(), msg.ticket.ticket_id);
 
-  const std::string zone = holding->zone;
   if (_on_zone_changed)
-    _on_zone_changed(zone);
+    _on_zone_changed(holding->zone);
 }
 
 //==============================================================================
 bool ZoneReservationClient::is_available(
   const std::string& zone, const std::string& vertex) const
 {
-  const auto* holding = _find(zone, vertex);
+  const auto holding = _find(zone, vertex);
   return holding && holding->state == Holding::State::Held;
 }
 
@@ -216,7 +213,7 @@ bool ZoneReservationClient::is_available(
 std::optional<uint64_t> ZoneReservationClient::transferred_ticket_for(
   const std::string& zone, const std::string& vertex) const
 {
-  const auto* holding = _find(zone, vertex);
+  const auto holding = _find(zone, vertex);
   if (!holding)
     return std::nullopt;
 
@@ -233,7 +230,7 @@ bool ZoneReservationClient::transfer(
   const std::string& fleet,
   const std::string& robot)
 {
-  auto* holding = _find(zone, vertex);
+  const auto holding = _find(zone, vertex);
   if (!holding || holding->state != Holding::State::Held)
     return false;
 
@@ -256,7 +253,7 @@ bool ZoneReservationClient::confirm_handback(
   const std::string& robot,
   const HandbackDisposal disposal)
 {
-  auto* holding = _find(zone, vertex);
+  const auto holding = _find(zone, vertex);
   if (!holding)
     return false;
 
@@ -310,7 +307,7 @@ bool ZoneReservationClient::thaw_for(
   const std::string& fleet,
   const std::string& robot)
 {
-  auto* holding = _find(zone, vertex);
+  const auto holding = _find(zone, vertex);
   if (!holding || holding->state != Holding::State::Frozen)
     return false;
 
@@ -353,7 +350,7 @@ bool ZoneReservationClient::release(
   if (it == _holdings.end() || !_find(zone, vertex))
     return false;
 
-  if (it->second.state == Holding::State::Transferred)
+  if (it->second->state == Holding::State::Transferred)
   {
     // Not ours to release. The robot owns it now.
     _disown(vertex);
@@ -362,15 +359,15 @@ bool ZoneReservationClient::release(
 
   // Only an allocated ticket can be released, and _on_allocation catches a
   // still queued one later. Frozen counts as ours, like Held.
-  if ((it->second.state == Holding::State::Held
-    || it->second.state == Holding::State::Frozen)
-    && it->second.ticket_id.has_value())
+  if ((it->second->state == Holding::State::Held
+    || it->second->state == Holding::State::Frozen)
+    && it->second->ticket_id.has_value())
   {
     rmf_reservation_msgs::msg::ReleaseRequest release_msg;
-    release_msg.ticket.ticket_id = *it->second.ticket_id;
+    release_msg.ticket.ticket_id = *it->second->ticket_id;
     release_msg.ticket.header.robot_name = _robot_name;
     release_msg.ticket.header.fleet_name = _fleet_name;
-    release_msg.ticket.header.request_id = it->second.request_id;
+    release_msg.ticket.header.request_id = it->second->request_id;
     release_msg.location = vertex;
     _release_pub->publish(release_msg);
 
@@ -398,9 +395,9 @@ auto ZoneReservationClient::release_zone(const std::string& zone)
     // Transferred belongs to its robot, and a frozen one has a robot still
     // on it and need to wait for it to exit zone. Releasing either takes a
     // vertex out from under a robot.
-    if (holding.zone == zone
-      && holding.state != Holding::State::Transferred
-      && holding.state != Holding::State::Frozen)
+    if (holding->zone == zone
+      && holding->state != Holding::State::Transferred
+      && holding->state != Holding::State::Frozen)
       to_release.push_back(vertex);
   }
 
@@ -427,7 +424,7 @@ bool ZoneReservationClient::has_holdings(const std::string& zone) const
 {
   for (const auto& [vertex, holding] : _holdings)
   {
-    if (holding.zone == zone)
+    if (holding->zone == zone)
       return true;
   }
   return false;
@@ -440,8 +437,8 @@ std::vector<std::string> ZoneReservationClient::transferred_vertices(
   std::vector<std::string> vertices;
   for (const auto& [vertex, holding] : _holdings)
   {
-    if (holding.zone == zone
-      && holding.state == Holding::State::Transferred)
+    if (holding->zone == zone
+      && holding->state == Holding::State::Transferred)
       vertices.push_back(vertex);
   }
   return vertices;
@@ -453,7 +450,7 @@ const
 {
   std::unordered_set<std::string> zones;
   for (const auto& [vertex, holding] : _holdings)
-    zones.insert(holding.zone);
+    zones.insert(holding->zone);
 
   return zones;
 }
@@ -464,7 +461,7 @@ bool ZoneReservationClient::acquisition_in_flight(
 {
   for (const auto& [vertex, holding] : _holdings)
   {
-    if (holding.zone == zone && holding.state == Holding::State::Requested)
+    if (holding->zone == zone && holding->state == Holding::State::Requested)
       return true;
   }
   return false;
@@ -472,51 +469,55 @@ bool ZoneReservationClient::acquisition_in_flight(
 
 //==============================================================================
 auto ZoneReservationClient::_find(
-  const std::string& zone, const std::string& vertex) -> Holding*
+  const std::string& zone, const std::string& vertex)
+-> std::shared_ptr<Holding>
 {
   const auto it = _holdings.find(vertex);
   if (it == _holdings.end())
     return nullptr;
 
-  if (it->second.zone != zone)
+  if (it->second->zone != zone)
   {
     RCLCPP_ERROR(
       _node.get_logger(),
       "Zone [%s] asked about vertex [%s], which is held for zone [%s]. "
       "Refusing to act on another zone's reservation",
-      zone.c_str(), vertex.c_str(), it->second.zone.c_str());
+      zone.c_str(), vertex.c_str(), it->second->zone.c_str());
     return nullptr;
   }
 
-  return &it->second;
+  return it->second;
 }
 
 //==============================================================================
 auto ZoneReservationClient::_find(
-  const std::string& zone, const std::string& vertex) const -> const Holding*
+  const std::string& zone, const std::string& vertex) const
+-> std::shared_ptr<const Holding>
 {
   return const_cast<ZoneReservationClient&>(*this)._find(zone, vertex);
 }
 
 //==============================================================================
-auto ZoneReservationClient::_find_by_request_id(uint64_t request_id) -> Holding*
+auto ZoneReservationClient::_find_by_request_id(uint64_t request_id)
+-> std::shared_ptr<Holding>
 {
   for (auto& [vertex, holding] : _holdings)
   {
-    if (holding.request_id == request_id
-      && holding.state == Holding::State::Requested)
-      return &holding;
+    if (holding->request_id == request_id
+      && holding->state == Holding::State::Requested)
+      return holding;
   }
   return nullptr;
 }
 
 //==============================================================================
-auto ZoneReservationClient::_find_by_ticket_id(uint64_t ticket_id) -> Holding*
+auto ZoneReservationClient::_find_by_ticket_id(uint64_t ticket_id)
+-> std::shared_ptr<Holding>
 {
   for (auto& [vertex, holding] : _holdings)
   {
-    if (holding.ticket_id.has_value() && *holding.ticket_id == ticket_id)
-      return &holding;
+    if (holding->ticket_id.has_value() && *holding->ticket_id == ticket_id)
+      return holding;
   }
   return nullptr;
 }

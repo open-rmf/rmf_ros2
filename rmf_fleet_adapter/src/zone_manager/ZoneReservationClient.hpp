@@ -179,18 +179,19 @@ private:
   void _on_allocation(
     const rmf_reservation_msgs::msg::ReservationAllocation& msg);
 
-  Holding* _find(const std::string& zone, const std::string& vertex);
-  const Holding* _find(
+  std::shared_ptr<Holding> _find(
+    const std::string& zone, const std::string& vertex);
+  std::shared_ptr<const Holding> _find(
     const std::string& zone, const std::string& vertex) const;
 
-  Holding* _find_by_request_id(uint64_t request_id);
-  Holding* _find_by_ticket_id(uint64_t ticket_id);
+  std::shared_ptr<Holding> _find_by_request_id(uint64_t request_id);
+  std::shared_ptr<Holding> _find_by_ticket_id(uint64_t ticket_id);
 
   rclcpp::Node& _node;
   std::function<void(const std::string&)> _on_zone_changed;
 
   // the holding waypoints map, keyed by vertex name
-  std::unordered_map<std::string, Holding> _holdings;
+  std::unordered_map<std::string, std::shared_ptr<Holding>> _holdings;
 
   // Identity used for our own bookings
   std::string _robot_name = "zone_manager";
