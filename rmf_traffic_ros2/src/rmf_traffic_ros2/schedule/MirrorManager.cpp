@@ -88,6 +88,7 @@ public:
   rclcpp::TimerBase::SharedPtr update_timer;
   rclcpp::TimerBase::SharedPtr redo_query_registration_timer;
   rclcpp::TimerBase::SharedPtr reconnect_services_timer;
+  rclcpp::TimerBase::SharedPtr memory_utilization_timer;
   RegisterQueryClient register_query_client;
 
   std::shared_ptr<rmf_traffic::schedule::Mirror> mirror;
@@ -121,6 +122,19 @@ public:
       [&](const ScheduleIdentity::SharedPtr msg)
       {
         handle_startup_event(*msg);
+      });
+
+    memory_utilization_timer = node->create_wall_timer(
+      std::chrono::minutes(5), [this, logger = node->get_logger()]()
+      {
+        if (this->mirror)
+        {
+          RCLCPP_INFO(
+            logger,
+            "Memory footprint: stored waypoints %zu - timeline entries %zu",
+            this->mirror->waypoints_in_storage(),
+            this->mirror->entries_in_timeline());
+        }
       });
   }
 
