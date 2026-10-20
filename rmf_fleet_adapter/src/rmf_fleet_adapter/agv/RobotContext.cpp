@@ -1377,7 +1377,8 @@ const rxcpp::observable<std::string>& RobotContext::request_mutex_groups(
     const auto [it, inserted] = _requesting_mutex_groups.insert({group, t});
     if (!inserted)
     {
-      if (t.nanosec < it->second.nanosec)
+      const auto& prev = it->second;
+      if (t.sec < prev.sec || (t.sec == prev.sec && t.nanosec < prev.nanosec))
         it->second = t;
     }
   }
@@ -1468,7 +1469,7 @@ void RobotContext::schedule_itinerary(
 
       RCLCPP_ERROR(
         node()->get_logger(),
-        "Repeatedly failled attempts to update schedule with an itinerary "
+        "Repeatedly failed attempts to update schedule with an itinerary "
         "containing [%lu] routes with sizes %s during LockMutexGroup "
         "action for robot [%s]. Last attempted value was [%lu]. We will "
         "continue without updating the traffic schedule. This could lead to "

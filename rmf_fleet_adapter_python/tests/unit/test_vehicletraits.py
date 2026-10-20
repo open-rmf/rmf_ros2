@@ -138,3 +138,18 @@ def test_vehicletraits():
 
     # Quirk of bindings
     assert valid_traits.differential is valid_traits.const_differential
+
+
+def test_vehicletraits_setters():
+    vehicle_traits = traits.VehicleTraits(vel_limits, ang_limits, profile)
+
+    vehicle_traits.linear = traits.Limits(3, 4)
+    vehicle_traits.rotational = traits.Limits(5, 6)
+    vehicle_traits.profile = traits.Profile(big_circle)
+
+    assert vehicle_traits.linear.nominal_velocity == 3.0
+    assert vehicle_traits.linear.nominal_acceleration == 4.0
+    assert vehicle_traits.rotational.nominal_velocity == 5.0
+    assert vehicle_traits.rotational.nominal_acceleration == 6.0
+    assert (vehicle_traits.profile.footprint.characteristic_length
+            == big_circle.characteristic_length)

@@ -80,13 +80,22 @@ void bind_vehicletraits(py::module& m)
     py::arg("steering") = VehicleTraits::Differential())
   .def_property("linear",
     py::overload_cast<>(&VehicleTraits::linear, py::const_),
-    py::overload_cast<>(&VehicleTraits::linear))
+    [](VehicleTraits& self, const VehicleTraits::Limits& limits)
+    {
+      self.linear() = limits;
+    })
   .def_property("rotational",
     py::overload_cast<>(&VehicleTraits::rotational, py::const_),
-    py::overload_cast<>(&VehicleTraits::rotational))
+    [](VehicleTraits& self, const VehicleTraits::Limits& limits)
+    {
+      self.rotational() = limits;
+    })
   .def_property("profile",
     py::overload_cast<>(&VehicleTraits::profile, py::const_),
-    py::overload_cast<>(&VehicleTraits::profile))
+    [](VehicleTraits& self, const Profile& profile)
+    {
+      self.profile() = profile;
+    })
   .def_property_readonly("steering", &VehicleTraits::get_steering)
   .def_property("differential",
     py::overload_cast<>(&VehicleTraits::get_differential),

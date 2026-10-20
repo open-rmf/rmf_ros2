@@ -45,7 +45,7 @@ public:
   /// \param[in] discovery_timeout
   ///   How long we will wait to discover the Schedule Node before giving up. If
   ///   rmf_utils::nullopt is given, then this will try to use the
-  ///   discovery_timeout node paramter, or it will wait 1 minute if the
+  ///   discovery_timeout node parameter, or it will wait 1 minute if the
   ///   discovery_timeout node parameter was not defined.
   ///
   /// \sa make()
@@ -69,7 +69,7 @@ public:
   /// \param[in] discovery_timeout
   ///   How long we will wait to discover the Schedule Node before giving up. If
   ///   rmf_utils::nullopt is given, then this will try to use the
-  ///   discovery_timeout node paramter, or it will wait 1 minute if the
+  ///   discovery_timeout node parameter, or it will wait 1 minute if the
   ///   discovery_timeout node parameter was not defined.
   ///
   /// \sa init_and_make()
