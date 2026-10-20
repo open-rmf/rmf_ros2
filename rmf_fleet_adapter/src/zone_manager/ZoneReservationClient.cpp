@@ -24,7 +24,7 @@ namespace zone_manager {
 
 //==============================================================================
 ZoneReservationClient::ZoneReservationClient(
-  rclcpp::Node& node,
+  const std::shared_ptr<rclcpp::Node>& node,
   std::function<void(const std::string&)> on_zone_changed)
 : _node(node),
   _on_zone_changed(std::move(on_zone_changed))
@@ -32,33 +32,55 @@ ZoneReservationClient::ZoneReservationClient(
   const auto qos = rclcpp::QoS(10).transient_local().reliable();
 
   _request_pub =
-    _node.create_publisher<rmf_reservation_msgs::msg::FlexibleTimeRequest>(
+    node->create_publisher<rmf_reservation_msgs::msg::FlexibleTimeRequest>(
     ReservationRequestTopicName, qos);
 
   _claim_pub =
-    _node.create_publisher<rmf_reservation_msgs::msg::ClaimRequest>(
+    node->create_publisher<rmf_reservation_msgs::msg::ClaimRequest>(
     ReservationClaimTopicName, qos);
 
   _release_pub =
-    _node.create_publisher<rmf_reservation_msgs::msg::ReleaseRequest>(
+    node->create_publisher<rmf_reservation_msgs::msg::ReleaseRequest>(
     ReservationReleaseTopicName, qos);
+}
 
-  _ticket_sub =
-    _node.create_subscription<rmf_reservation_msgs::msg::Ticket>(
+//==============================================================================
+std::shared_ptr<ZoneReservationClient> ZoneReservationClient::make(
+  const std::shared_ptr<rclcpp::Node>& node,
+  std::function<void(const std::string&)> on_zone_changed)
+{
+  auto client = std::shared_ptr<ZoneReservationClient>(
+    new ZoneReservationClient(node, std::move(on_zone_changed)));
+
+  const auto qos = rclcpp::QoS(10).transient_local().reliable();
+  const std::weak_ptr<ZoneReservationClient> w = client;
+
+  client->_ticket_sub =
+    node->create_subscription<rmf_reservation_msgs::msg::Ticket>(
     ReservationResponseTopicName, qos,
-    [this](const rmf_reservation_msgs::msg::Ticket::SharedPtr msg)
+    [w](const rmf_reservation_msgs::msg::Ticket::SharedPtr msg)
     {
-      _on_ticket(*msg);
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_on_ticket(*msg);
     });
 
-  _allocation_sub =
-    _node.create_subscription<rmf_reservation_msgs::msg::ReservationAllocation>(
+  client->_allocation_sub =
+    node->create_subscription<rmf_reservation_msgs::msg::ReservationAllocation>(
     ReservationAllocationTopicName, qos,
-    [this](
+    [w](
       const rmf_reservation_msgs::msg::ReservationAllocation::SharedPtr msg)
     {
-      _on_allocation(*msg);
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_on_allocation(*msg);
     });
+
+  return client;
 }
 
 //==============================================================================
@@ -66,6 +88,10 @@ void ZoneReservationClient::acquire(
   const std::string& zone,
   const std::vector<std::string>& vertex_names)
 {
+  const auto node = _node.lock();
+  if (!node)
+    return;
+
   for (const auto& vertex : vertex_names)
   {
     const auto existing = _holdings.find(vertex);
@@ -76,7 +102,7 @@ void ZoneReservationClient::acquire(
         // Two zones claiming one name means their maps disagree. Taking
         // the other's reservation would send a robot where it may not go.
         RCLCPP_ERROR(
-          _node.get_logger(),
+          node->get_logger(),
           "Vertex [%s] is claimed by both zone [%s] and zone [%s]. Zone "
           "waypoint names must be unique across every fleet's nav graph, so "
           "[%s] will not be assignable in zone [%s]",
@@ -104,7 +130,7 @@ void ZoneReservationClient::acquire(
     alternative.has_end = false;
 
     rmf_reservation_msgs::msg::StartTimeRange start;
-    start.earliest_start_time = _node.get_clock()->now();
+    start.earliest_start_time = node->get_clock()->now();
     start.latest_start_time = start.earliest_start_time;
     start.has_earliest_start_time = true;
     start.has_latest_start_time = true;
@@ -116,7 +142,7 @@ void ZoneReservationClient::acquire(
     _request_pub->publish(request);
 
     RCLCPP_DEBUG(
-      _node.get_logger(),
+      node->get_logger(),
       "Zone manager requested a reservation on [%s] for zone [%s]",
       vertex.c_str(), zone.c_str());
   }
@@ -145,6 +171,10 @@ void ZoneReservationClient::_on_ticket(
 void ZoneReservationClient::_on_allocation(
   const rmf_reservation_msgs::msg::ReservationAllocation& msg)
 {
+  const auto node = _node.lock();
+  if (!node)
+    return;
+
   if (msg.ticket.header.robot_name != _robot_name
     || msg.ticket.header.fleet_name != _fleet_name)
     return;
@@ -155,7 +185,7 @@ void ZoneReservationClient::_on_allocation(
     // An allocation for a vertex we gave up. Only an allocated ticket can
     // be released, so ours did nothing at the time and has to go again.
     RCLCPP_INFO(
-      _node.get_logger(),
+      node->get_logger(),
       "Zone manager releasing [%s] on ticket %lu: it arrived after we had "
       "already given that vertex up",
       msg.resource.c_str(), msg.ticket.ticket_id);
@@ -172,7 +202,7 @@ void ZoneReservationClient::_on_allocation(
     // We asked for exactly one vertex, so anything else was substituted,
     // and a reservation outside the zone is no use to us.
     RCLCPP_WARN(
-      _node.get_logger(),
+      node->get_logger(),
       "Zone manager asked for [%s] but was allocated [%s], releasing it",
       holding->vertex.c_str(), msg.resource.c_str());
 
@@ -193,7 +223,7 @@ void ZoneReservationClient::_on_allocation(
   holding->state = Holding::State::Held;
 
   RCLCPP_INFO(
-    _node.get_logger(),
+    node->get_logger(),
     "Zone manager now holds [%s] in zone [%s] on ticket %lu",
     holding->vertex.c_str(), holding->zone.c_str(), msg.ticket.ticket_id);
 
@@ -230,6 +260,10 @@ bool ZoneReservationClient::transfer(
   const std::string& fleet,
   const std::string& robot)
 {
+  const auto node = _node.lock();
+  if (!node)
+    return false;
+
   const auto holding = _find(zone, vertex);
   if (!holding || holding->state != Holding::State::Held)
     return false;
@@ -238,7 +272,7 @@ bool ZoneReservationClient::transfer(
   holding->transferred_to = Holding::RobotId{fleet, robot};
 
   RCLCPP_DEBUG(
-    _node.get_logger(),
+    node->get_logger(),
     "Zone manager handed [%s] to [%s/%s], the ticket is theirs now",
     vertex.c_str(), fleet.c_str(), robot.c_str());
 
@@ -253,6 +287,10 @@ bool ZoneReservationClient::confirm_handback(
   const std::string& robot,
   const HandbackDisposal disposal)
 {
+  const auto node = _node.lock();
+  if (!node)
+    return false;
+
   const auto holding = _find(zone, vertex);
   if (!holding)
     return false;
@@ -271,7 +309,7 @@ bool ZoneReservationClient::confirm_handback(
   if (holding->transferred_to != Holding::RobotId{fleet, robot})
   {
     RCLCPP_WARN(
-      _node.get_logger(),
+      node->get_logger(),
       "Ignoring handback of [%s] from [%s/%s]: it is held by another robot",
       vertex.c_str(), fleet.c_str(), robot.c_str());
     return false;
@@ -282,7 +320,7 @@ bool ZoneReservationClient::confirm_handback(
     holding->state = Holding::State::Frozen;
 
     RCLCPP_INFO(
-      _node.get_logger(),
+      node->get_logger(),
       "Zone manager froze [%s], which [%s/%s] is still parked on",
       vertex.c_str(), fleet.c_str(), robot.c_str());
 
@@ -293,7 +331,7 @@ bool ZoneReservationClient::confirm_handback(
   holding->transferred_to = std::nullopt;
 
   RCLCPP_INFO(
-    _node.get_logger(),
+    node->get_logger(),
     "Zone manager took [%s] back from [%s/%s]",
     vertex.c_str(), fleet.c_str(), robot.c_str());
 
@@ -307,6 +345,10 @@ bool ZoneReservationClient::thaw_for(
   const std::string& fleet,
   const std::string& robot)
 {
+  const auto node = _node.lock();
+  if (!node)
+    return false;
+
   const auto holding = _find(zone, vertex);
   if (!holding || holding->state != Holding::State::Frozen)
     return false;
@@ -319,7 +361,7 @@ bool ZoneReservationClient::thaw_for(
   holding->transferred_to = std::nullopt;
 
   RCLCPP_INFO(
-    _node.get_logger(),
+    node->get_logger(),
     "Zone manager thawed [%s], which [%s/%s] is entering the zone to use",
     vertex.c_str(), fleet.c_str(), robot.c_str());
 
@@ -329,12 +371,16 @@ bool ZoneReservationClient::thaw_for(
 //==============================================================================
 void ZoneReservationClient::_disown(const std::string& vertex)
 {
+  const auto node = _node.lock();
+  if (!node)
+    return;
+
   const auto it = _holdings.find(vertex);
   if (it == _holdings.end())
     return;
 
   RCLCPP_DEBUG(
-    _node.get_logger(),
+    node->get_logger(),
     "Zone manager forgetting [%s]: it was transferred, so its robot owns "
     "the release",
     vertex.c_str());
@@ -346,6 +392,10 @@ void ZoneReservationClient::_disown(const std::string& vertex)
 bool ZoneReservationClient::release(
   const std::string& zone, const std::string& vertex)
 {
+  const auto node = _node.lock();
+  if (!node)
+    return false;
+
   const auto it = _holdings.find(vertex);
   if (it == _holdings.end() || !_find(zone, vertex))
     return false;
@@ -372,7 +422,7 @@ bool ZoneReservationClient::release(
     _release_pub->publish(release_msg);
 
     RCLCPP_INFO(
-      _node.get_logger(),
+      node->get_logger(),
       "Zone manager released [%s] in zone [%s]",
       vertex.c_str(), zone.c_str());
 
@@ -478,11 +528,16 @@ auto ZoneReservationClient::_find(
 
   if (it->second->zone != zone)
   {
-    RCLCPP_ERROR(
-      _node.get_logger(),
-      "Zone [%s] asked about vertex [%s], which is held for zone [%s]. "
-      "Refusing to act on another zone's reservation",
-      zone.c_str(), vertex.c_str(), it->second->zone.c_str());
+    const auto node = _node.lock();
+    if (node)
+    {
+      RCLCPP_ERROR(
+        node->get_logger(),
+        "Zone [%s] asked about vertex [%s], which is held for zone [%s]. "
+        "Refusing to act on another zone's reservation",
+        zone.c_str(), vertex.c_str(), it->second->zone.c_str());
+    }
+
     return nullptr;
   }
 

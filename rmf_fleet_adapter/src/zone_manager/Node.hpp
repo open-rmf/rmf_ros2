@@ -27,11 +27,14 @@ class Node : public rclcpp::Node
 {
 public:
 
-  Node(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
+  static std::shared_ptr<Node> make(
+    const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
   ~Node();
 
 private:
+
+  Node(const rclcpp::NodeOptions& options);
 
   struct ZoneWaypointInfo
   {
@@ -113,7 +116,7 @@ private:
   // When each zone went idle, keyed by zone name. Absent means in demand.
   std::unordered_map<std::string, rclcpp::Time> _zone_idle_since;
 
-  std::unique_ptr<ZoneReservationClient> _reservation_client;
+  std::shared_ptr<ZoneReservationClient> _reservation_client;
 
   void _on_nav_graphs(
     const rmf_building_map_msgs::msg::Graph::SharedPtr msg);

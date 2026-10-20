@@ -46,8 +46,8 @@ public:
 
   /// on_zone_changed fires when a zone's set of held vertices changes, so
   /// the manager can retry requests refused for want of a free vertex.
-  ZoneReservationClient(
-    rclcpp::Node& node,
+  static std::shared_ptr<ZoneReservationClient> make(
+    const std::shared_ptr<rclcpp::Node>& node,
     std::function<void(const std::string& zone)> on_zone_changed);
 
   /// Reserve every listed vertex of a zone from reservation node.
@@ -130,6 +130,10 @@ public:
 
 private:
 
+  ZoneReservationClient(
+    const std::shared_ptr<rclcpp::Node>& node,
+    std::function<void(const std::string& zone)> on_zone_changed);
+
   /// Drop our record of a vertex whose ticket is not ours to release.
   void _disown(const std::string& vertex);
 
@@ -187,7 +191,7 @@ private:
   std::shared_ptr<Holding> _find_by_request_id(uint64_t request_id);
   std::shared_ptr<Holding> _find_by_ticket_id(uint64_t ticket_id);
 
-  rclcpp::Node& _node;
+  std::weak_ptr<rclcpp::Node> _node;
   std::function<void(const std::string&)> _on_zone_changed;
 
   // the holding waypoints map, keyed by vertex name

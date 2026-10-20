@@ -23,7 +23,7 @@ int main(int argc, char* argv[])
 {
   rclcpp::init(argc, argv);
 
-  auto node = std::make_shared<rmf_fleet_adapter::zone_manager::Node>();
+  auto node = rmf_fleet_adapter::zone_manager::Node::make();
 
   // Multi-threaded for a future sensor service, which needs a callback group
   // of its own to call another node synchronously. Everything today shares

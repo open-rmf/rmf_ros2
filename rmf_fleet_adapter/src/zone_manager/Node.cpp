@@ -11,35 +11,10 @@ namespace zone_manager {
 Node::Node(const rclcpp::NodeOptions& options)
 : rclcpp::Node("zone_manager", options)
 {
-  // Subscribers
-  auto transient_qos = rclcpp::QoS(10).transient_local().reliable();
-  auto request_qos = rclcpp::QoS(100).transient_local().reliable();
+  const auto transient_qos = rclcpp::QoS(10).transient_local().reliable();
 
-  _nav_graphs_sub =
-    this->create_subscription<rmf_building_map_msgs::msg::Graph>(
-      NavGraphTopicName, transient_qos,
-      [this](const rmf_building_map_msgs::msg::Graph::SharedPtr msg)
-      { _on_nav_graphs(msg); });
-
-  _zone_request_sub =
-    this->create_subscription<rmf_zone_msgs::msg::ZoneRequest>(
-      ZoneRequestTopicName, request_qos,
-      [this](const rmf_zone_msgs::msg::ZoneRequest::SharedPtr msg)
-      { _on_zone_request(msg); });
-
-  _manual_release_sub =
-    this->create_subscription<rmf_zone_msgs::msg::ZoneManualRelease>(
-      ZoneManualReleaseTopicName, transient_qos,
-      [this](const rmf_zone_msgs::msg::ZoneManualRelease::SharedPtr msg)
-      { _on_manual_release(msg); });
-
-  // Publishers
   _state_pub = this->create_publisher<rmf_zone_msgs::msg::ZoneState>(
     ZoneStateTopicName, transient_qos);
-
-  _reservation_client = std::make_unique<ZoneReservationClient>(
-    *this,
-    [this](const std::string& zone) { _on_zone_pool_changed(zone); });
 
   // How long a request waits for reservations before being refused. The
   // refusal is not final, since the robot reads it as "try again" and does.
@@ -53,12 +28,79 @@ Node::Node(const rclcpp::NodeOptions& options)
   // How long a zone sits unwanted before its reservations are handed back.
   _zone_pool_idle_timeout = std::chrono::seconds(
     this->declare_parameter<int>("zone_pool_idle_timeout", 30));
+}
 
-  _pending_entry_timer = this->create_wall_timer(
+//==============================================================================
+std::shared_ptr<Node> Node::make(const rclcpp::NodeOptions& options)
+{
+  auto node = std::shared_ptr<Node>(new Node(options));
+
+  const auto transient_qos = rclcpp::QoS(10).transient_local().reliable();
+  const auto request_qos = rclcpp::QoS(100).transient_local().reliable();
+
+  const std::weak_ptr<Node> w = node;
+
+  node->_reservation_client = ZoneReservationClient::make(
+    node,
+    [w](const std::string& zone)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_on_zone_pool_changed(zone);
+    });
+
+  node->_nav_graphs_sub =
+    node->create_subscription<rmf_building_map_msgs::msg::Graph>(
+    NavGraphTopicName, transient_qos,
+    [w](const rmf_building_map_msgs::msg::Graph::SharedPtr msg)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_on_nav_graphs(msg);
+    });
+
+  node->_zone_request_sub =
+    node->create_subscription<rmf_zone_msgs::msg::ZoneRequest>(
+    ZoneRequestTopicName, request_qos,
+    [w](const rmf_zone_msgs::msg::ZoneRequest::SharedPtr msg)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_on_zone_request(msg);
+    });
+
+  node->_manual_release_sub =
+    node->create_subscription<rmf_zone_msgs::msg::ZoneManualRelease>(
+    ZoneManualReleaseTopicName, transient_qos,
+    [w](const rmf_zone_msgs::msg::ZoneManualRelease::SharedPtr msg)
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
+
+      self->_on_manual_release(msg);
+    });
+
+  node->_pending_entry_timer = node->create_wall_timer(
     std::chrono::milliseconds(200),
-    [this]() { _tick_pending_entries(); });
+    [w]()
+    {
+      const auto self = w.lock();
+      if (!self)
+        return;
 
-  RCLCPP_INFO(this->get_logger(), "Zone Manager started.");
+      self->_tick_pending_entries();
+    });
+
+  RCLCPP_INFO(node->get_logger(), "Zone Manager started.");
+
+  return node;
 }
 
 //==============================================================================
