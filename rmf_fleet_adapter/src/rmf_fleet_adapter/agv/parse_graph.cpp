@@ -108,17 +108,7 @@ rmf_traffic::agv::Graph parse_graph(
   }
 
   const YAML::Node zones_yaml = graph_config["zones"];
-  if (!zones_yaml)
-  {
-    std::cout << "Your navigation graph does not provide zone information. "
-              <<
-      "This may cause problems with behaviors around zones. Please consider "
-              <<
-      "regenerating your navigration graph with the latest version of "
-              << "rmf_building_map_tools (from the rmf_traffic_editor repo)."
-              << std::endl;
-  }
-  else
+  if (zones_yaml)
   {
     for (const auto& zone : zones_yaml)
     {
