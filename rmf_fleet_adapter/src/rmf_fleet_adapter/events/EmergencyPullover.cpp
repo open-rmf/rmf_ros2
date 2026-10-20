@@ -266,6 +266,12 @@ auto EmergencyPullover::Active::interrupt(
     {
       if (const auto self = w.lock())
       {
+        // A Resume can still fire after this event has finished, e.g. when the
+        // task drops it because the event was cancelled while the task was
+        // interrupted. A finished event must not start working again.
+        if (self->_state->finished())
+          return;
+
         self->_negotiator->claim_license();
         self->_is_interrupted = false;
         self->_find_plan();
