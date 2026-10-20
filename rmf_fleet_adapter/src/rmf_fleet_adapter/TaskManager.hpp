@@ -298,6 +298,9 @@ private:
 
     bool is_finished() const;
 
+    /// Tokens of the interruptions that have not been resumed yet
+    std::vector<std::string> active_interruption_tokens() const;
+
     rmf_traffic::Duration estimate_remaining_time() const;
 
     // Any unknown tokens that were included will be returned
@@ -472,6 +475,13 @@ private:
   void _process_robot_interrupts();
 
   std::function<void()> _robot_interruption_callback();
+
+  /// Resume the interruptions on the active task that were requested through
+  /// the task API. Interruptions held by the emergency pullover or by
+  /// interrupt_robot(~) are left alone. This is used when the active task gets
+  /// cancelled or killed, so the task can wind down instead of staying stuck
+  /// in its interrupted state.
+  void _release_task_api_interruptions(std::vector<std::string> labels);
 
   /// Begin responsively waiting for the next task
   void _begin_waiting();
