@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/open-rmf/rmf_ros2/main/rmf_fleet_adapter/schemas/event_description__zone.json",
+  "title": "Zone Event Description",
+  "description": "Send a robot to a named zone. Optional hints say which waypoint in the zone to prefer.",
+  "type": "object",
+  "properties": {
+    "zone_name": {
+      "type": "string",
+      "description": "The unique name of the target zone."
+    },
+    "hints": {
+      "type": "array",
+      "description": "Ordered preferences, most preferred first. The zone manager takes the first hint it can satisfy.",
+      "items": { "$ref": "#/$defs/hint" },
+      "minItems": 1
+    }
+  },
+  "required": ["zone_name"],
+  "$defs": {
+    "hint": {
+      "type": "object",
+      "description": "One preference: where to park, and facing which way. Name a group, or a waypoint, or neither to accept any waypoint in the zone.",
+      "properties": {
+        "group": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Group label defined per vertex (e.g. 'A', 'left')."
+        },
+        "waypoint": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "integer", "minimum": 0 }
+          ],
+          "description": "An internal vertex of the zone, by name or by navigation graph index."
+        },
+        "orientations": {
+          "type": "array",
+          "description": "Headings in radians the robot may park at. Omit to accept any.",
+          "items": { "type": "number" },
+          "minItems": 1
+        }
+      },
+      "not": { "required": ["group", "waypoint"] },
+      "additionalProperties": false
+    }
+  }
+}
