@@ -572,6 +572,12 @@ auto DynamicEvent::Active::interrupt(
       if (!me)
         return;
 
+      // A Resume can still fire after this event has finished, e.g. when the
+      // task drops it because the event was cancelled while the task was
+      // interrupted. A finished event must not start working again.
+      if (me->_state->finished())
+        return;
+
       me->_interrupted = false;
       if (me->_deferred_event_start)
       {

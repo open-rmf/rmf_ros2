@@ -71,6 +71,8 @@
 #include <rmf_api_msgs/schemas/estimate_robot_task_request.hpp>
 #include <rmf_api_msgs/schemas/estimate_robot_task_response.hpp>
 
+#include <unordered_set>
+
 namespace rmf_fleet_adapter {
 
 //==============================================================================
@@ -635,6 +637,18 @@ bool TaskManager::ActiveTask::is_finished() const
 }
 
 //==============================================================================
+std::vector<std::string> TaskManager::ActiveTask::active_interruption_tokens()
+const
+{
+  std::vector<std::string> tokens;
+  tokens.reserve(_active_interruptions.size());
+  for (const auto& [token, _] : _active_interruptions)
+    tokens.push_back(token);
+
+  return tokens;
+}
+
+//==============================================================================
 std::vector<std::string> TaskManager::ActiveTask::remove_interruption(
   std::vector<std::string> for_tokens,
   std::vector<std::string> labels,
@@ -673,8 +687,12 @@ std::vector<std::string> TaskManager::ActiveTask::remove_interruption(
       _interruption_handler->is_interrupted = false;
       _interruption_handler->interruption_listeners.clear();
 
-      (*_resume_task)();
+      // Take the resume callback out before triggering it. Resuming may finish
+      // the task right away, and the task finished callback replaces this
+      // ActiveTask while we are still inside of this function.
+      auto resume = std::move(*_resume_task);
       _resume_task = std::nullopt;
+      resume();
     }
   }
 
@@ -827,6 +845,7 @@ bool TaskManager::cancel_task_if_present(const std::string& task_id)
   if (_active_task && _active_task.id() == task_id)
   {
     _active_task.cancel({"DispatchRequest"}, _context->now());
+    _release_task_api_interruptions({"DispatchRequest"});
     return true;
   }
 
@@ -1564,7 +1583,8 @@ bool TaskManager::cancel_task(
     }
 
     _task_state_update_available = true;
-    _active_task.cancel(std::move(labels), _context->now());
+    _active_task.cancel(labels, _context->now());
+    _release_task_api_interruptions(std::move(labels));
     return true;
   }
 
@@ -1593,7 +1613,8 @@ bool TaskManager::kill_task(
     }
 
     _task_state_update_available = true;
-    _active_task.kill(std::move(labels), _context->now());
+    _active_task.kill(labels, _context->now());
+    _release_task_api_interruptions(std::move(labels));
     return true;
   }
 
@@ -1625,6 +1646,48 @@ bool TaskManager::quiet_cancel_task(
   }
 
   return false;
+}
+
+//==============================================================================
+void TaskManager::_release_task_api_interruptions(
+  std::vector<std::string> labels)
+{
+  if (!_active_task)
+    return;
+
+  std::unordered_set<std::string> keep;
+  if (_emergency_pullover_interrupt_token.has_value())
+    keep.insert(*_emergency_pullover_interrupt_token);
+
+  for (const auto& r : _robot_interrupts)
+  {
+    const auto interruption = r.interruption.lock();
+    if (!interruption)
+      continue;
+
+    std::lock_guard<std::mutex> lock(interruption->mutex);
+    if (interruption->resumed)
+      continue;
+
+    const auto it = interruption->token_map.find(_active_task.id());
+    if (it != interruption->token_map.end())
+      keep.insert(it->second);
+  }
+
+  std::vector<std::string> release;
+  for (const auto& token : _active_task.active_interruption_tokens())
+  {
+    if (keep.count(token) == 0)
+      release.push_back(token);
+  }
+
+  if (release.empty())
+    return;
+
+  // If no other interruption remains, this resumes the task, which lets the
+  // cancelled or killed task finish so the next task can begin.
+  _active_task.remove_interruption(
+    std::move(release), std::move(labels), _context->now());
 }
 
 //==============================================================================
