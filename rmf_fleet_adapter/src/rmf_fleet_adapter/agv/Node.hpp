@@ -37,6 +37,7 @@
 #include <rmf_reservation_msgs/msg/flexible_time_request.hpp>
 #include <rmf_reservation_msgs/msg/free_parking_spots.hpp>
 #include <rmf_reservation_msgs/msg/release_request.hpp>
+#include <rmf_zone_msgs/msg/zone_request.hpp>
 #include <rmf_reservation_msgs/msg/reservation_allocation.hpp>
 #include <rmf_reservation_msgs/msg/ticket.hpp>
 
@@ -174,6 +175,10 @@ public:
     rclcpp::Publisher<ReservationRelease>::SharedPtr;
   const ReservationReleasePub& release_location() const;
 
+  using ZoneRequest = rmf_zone_msgs::msg::ZoneRequest;
+  using ZoneRequestPub = rclcpp::Publisher<ZoneRequest>::SharedPtr;
+  const ZoneRequestPub& zone_request() const;
+
  const DynamicEventDescriptionPub& all_dynamic_event_descriptions() const;
 
 
@@ -242,6 +247,7 @@ private:
   ReservationClaimPub _reservation_claim_pub;
   Bridge<ReservationAllocation> _reservation_alloc_obs;
   ReservationReleasePub _reservation_release_pub;
+  ZoneRequestPub _zone_request_pub;
   DynamicEventDescriptionPub _general_dynamic_event_description_pub;
 };
 
