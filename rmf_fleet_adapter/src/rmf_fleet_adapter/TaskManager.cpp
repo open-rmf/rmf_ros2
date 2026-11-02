@@ -669,12 +669,19 @@ std::vector<std::string> TaskManager::ActiveTask::remove_interruption(
   {
     if (_resume_task.has_value())
     {
-      std::lock_guard<std::mutex> lock(_interruption_handler->mutex);
-      _interruption_handler->is_interrupted = false;
-      _interruption_handler->interruption_listeners.clear();
+      {
+        std::lock_guard<std::mutex> lock(_interruption_handler->mutex);
+        _interruption_handler->is_interrupted = false;
+        _interruption_handler->interruption_listeners.clear();
+      }
 
-      (*_resume_task)();
+      // Take the resume callback out before triggering it, and do not hold the
+      // lock while triggering it. Resuming may finish the task right away, and
+      // the task finished callback replaces this ActiveTask, including its
+      // interruption handler, while we are still inside of this function.
+      auto resume = std::move(*_resume_task);
       _resume_task = std::nullopt;
+      resume();
     }
   }
 
@@ -2000,18 +2007,20 @@ void TaskManager::_resume_from_emergency()
 
       if (self->_active_task)
       {
-        self->_active_task.remove_interruption(
-          {*self->_emergency_pullover_interrupt_token},
-          {"emergency finished"},
-          self->_context->now());
-        self->_emergency_pullover_interrupt_token = std::nullopt;
-
         RCLCPP_INFO(
           self->_context->node()->get_logger(),
           "Resume execution of task [%s] for [%s] after emergency pullover",
           self->_active_task.id().c_str(),
           self->_context->requester_id().c_str());
         self->_context->current_task_id(self->_active_task.id());
+
+        // This must come last. If the task was cancelled during the emergency,
+        // resuming it finishes it right away, and then there is no active task
+        // anymore once remove_interruption returns.
+        const auto token = *self->_emergency_pullover_interrupt_token;
+        self->_emergency_pullover_interrupt_token = std::nullopt;
+        self->_active_task.remove_interruption(
+          {token}, {"emergency finished"}, self->_context->now());
       }
       else
       {
