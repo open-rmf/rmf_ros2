@@ -507,7 +507,7 @@ public:
           std::vector<std::string> to_release;
 
           context->for_each_releasable_booking(
-            [&](const RobotContext::ZoneBooking& booking)
+            [&, context = context](const RobotContext::ZoneBooking& booking)
             {
               const auto zone = graph.find_known_zone(booking.zone_name);
               if (!zone)
@@ -846,7 +846,7 @@ public:
           "%s",
           ss.str().c_str());
 
-        const std::optional<std::size_t> reset_size = 
+        const std::optional<std::size_t> reset_size =
           self->_pimpl->planner_cache_reset_size;
         if (reset_size.has_value())
         {
