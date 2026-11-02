@@ -73,6 +73,10 @@ public:
   ///   robot requires communication with the Schedule Node, so there may be a
   ///   delay before the robot is ready to be used.
   ///
+  /// \warning This will throw a std::runtime_error if \p start is empty or if
+  /// no charging waypoint is reachable from the robot's starting location in
+  /// the navigation graph.
+  ///
   /// \return a handle to give the adapter updates about the robot.
   void add_robot(
     std::shared_ptr<RobotCommandHandle> command,
