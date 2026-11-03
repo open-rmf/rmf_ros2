@@ -122,6 +122,9 @@ public:
   /// \param[in] callbacks
   ///   The callbacks that will be used to issue commands for the robot.
   ///
+  /// \warning This will throw a std::runtime_error if no charging waypoint is
+  /// reachable from the robot's initial location in the navigation graph.
+  ///
   /// \return an easy robot update handle on success. A nullptr if an error
   /// occurred.
   std::shared_ptr<EasyRobotUpdateHandle> add_robot(
