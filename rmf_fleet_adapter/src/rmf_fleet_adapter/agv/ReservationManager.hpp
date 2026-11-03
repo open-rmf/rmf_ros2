@@ -33,12 +33,26 @@ public:
   void replace_ticket(
     const rmf_reservation_msgs::msg::ReservationAllocation new_allocation);
 
+  /// Adopt a new allocation without releasing the one we currently hold.
+  void adopt_without_release(
+    const rmf_reservation_msgs::msg::ReservationAllocation new_allocation);
+
   /// Retrieves the location name of the current reservation. Returns empty string if
   /// no location is found.
   std::string get_reserved_location() const;
 
   /// Checks if a ticket exists
   bool has_ticket() const;
+
+  /// Release the current ticket, but only if it is holding this exact
+  /// resource. Returns true if a release was published.
+  bool release_if_holding(const std::string& resource);
+
+  /// Stop tracking the current ticket, but only if it is holding this exact
+  /// resource, and without telling the reservation node. Returns true if a
+  /// ticket was dropped.
+  bool forget_if_holding(const std::string& resource);
+
 private:
   std::optional<rmf_reservation_msgs::msg::ReservationAllocation> _allocation;
   std::weak_ptr<agv::RobotContext> _context;
