@@ -73,7 +73,7 @@ public:
   ///   robot requires communication with the Schedule Node, so there may be a
   ///   delay before the robot is ready to be used.
   ///
-  /// \warning This will throw a std::runtime_error if \p start is empty or if
+  /// \warning This will throw a std::runtime_error if start is empty or if
   /// no charging waypoint is reachable from the robot's starting location in
   /// the navigation graph.
   ///
