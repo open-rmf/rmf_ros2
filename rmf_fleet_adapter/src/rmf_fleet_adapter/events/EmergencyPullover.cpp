@@ -248,8 +248,8 @@ auto EmergencyPullover::Active::interrupt(
   std::function<void()> task_is_interrupted) -> Resume
 {
   _negotiator->clear_license();
-  _is_interrupted = true;
   _stop_and_clear();
+  _is_interrupted = true;
 
   _state->update_status(Status::Standby);
   _state->update_log().info("Going into standby for an interruption");
@@ -533,8 +533,14 @@ void EmergencyPullover::Active::_execute_plan(
 void EmergencyPullover::Active::_stop_and_clear()
 {
   _execution = std::nullopt;
-  if (const auto command = _context->command())
-    command->stop();
+
+  // While the task is interrupted, the robot has already been stopped and
+  // someone else may be controlling it, so do not send it any command.
+  if (!_is_interrupted)
+  {
+    if (const auto command = _context->command())
+      command->stop();
+  }
 
   if (_retry_timer)
     _retry_timer->cancel();
