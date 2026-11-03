@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5.0)
+cmake_minimum_required(VERSION 3.20)
 
 project(rmf_fleet_adapter)
 
@@ -40,6 +40,7 @@ set(dep_pkgs
   rmf_task
   rmf_task_sequence
   rmf_reservation_msgs
+  rmf_zone_msgs
   std_msgs
   rmf_api_msgs
   rmf_websocket
@@ -50,6 +51,12 @@ set(dep_pkgs
 foreach(pkg ${dep_pkgs})
   find_package(${pkg} REQUIRED)
 endforeach()
+
+if(TARGET nlohmann_json_schema_validator)
+  set(json_schema_validator_target nlohmann_json_schema_validator)
+else()
+  set(json_schema_validator_target nlohmann_json_schema_validator::validator)
+endif()
 
 # Backward compatibility for yaml-cpp 0.7 that exports a yaml-cpp target
 # while 0.8.0 and above export yaml-cpp::yaml-cpp
@@ -100,6 +107,7 @@ target_link_libraries(rmf_fleet_adapter
     ${rmf_ingestor_msgs_TARGETS}
     ${rmf_lift_msgs_TARGETS}
     ${rmf_reservation_msgs_TARGETS}
+    ${rmf_zone_msgs_TARGETS}
     ${rmf_task_msgs_TARGETS}
     yaml-cpp::yaml-cpp
   PRIVATE
@@ -107,7 +115,7 @@ target_link_libraries(rmf_fleet_adapter
     rmf_websocket::rmf_websocket
     nlohmann_json::nlohmann_json
     rmf_api_msgs::rmf_api_msgs
-    nlohmann_json_schema_validator::validator
+    ${json_schema_validator_target}
 )
 
 target_include_directories(rmf_fleet_adapter
@@ -133,6 +141,7 @@ if (BUILD_TESTING)
       test/phases/test_RequestLift.cpp
       test/phases/test_DispenseItem.cpp
       test/phases/test_IngestItem.cpp
+      test/events/test_ExecutePlan.cpp
       test/services/test_FindEmergencyPullover.cpp
       test/services/test_FindPath.cpp
       test/services/test_Negotiate.cpp
@@ -155,6 +164,7 @@ if (BUILD_TESTING)
       ${rmf_ingestor_msgs_TARGETS}
       ${rmf_lift_msgs_TARGETS}
       ${rmf_reservation_msgs_TARGETS}
+      ${rmf_zone_msgs_TARGETS}
       ${rmf_task_msgs_TARGETS}
       rmf_websocket::rmf_websocket
       ${std_msgs_TARGETS}
@@ -164,7 +174,7 @@ if (BUILD_TESTING)
       rmf_fleet_adapter
       rmf_utils::rmf_utils
       rmf_api_msgs::rmf_api_msgs
-      nlohmann_json_schema_validator::validator
+      ${json_schema_validator_target}
   )
 
   target_compile_definitions(test_rmf_fleet_adapter
@@ -251,6 +261,28 @@ target_include_directories(lift_supervisor
     ${rclcpp_INCLUDE_DIRS}
     ${rmf_lift_msgs_INCLUDE_DIRS}
     ${std_msgs_INCLUDE_DIRS}
+)
+
+# -----------------------------------------------------------------------------
+
+add_executable(zone_manager
+  src/zone_manager/main.cpp
+  src/zone_manager/Node.cpp
+  src/zone_manager/ZoneReservationClient.cpp
+)
+
+target_link_libraries(zone_manager
+  PRIVATE
+    rmf_fleet_adapter
+    ${rclcpp_LIBRARIES}
+    ${rmf_zone_msgs_TARGETS}
+    ${rmf_building_map_msgs_TARGETS}
+    ${rmf_reservation_msgs_TARGETS}
+)
+
+target_include_directories(zone_manager
+  PRIVATE
+    ${rclcpp_INCLUDE_DIRS}
 )
 
 # -----------------------------------------------------------------------------
@@ -510,6 +542,7 @@ install(
     mock_traffic_light
     full_control
     lift_supervisor
+    zone_manager
     mutex_group_supervisor
     experimental_lift_watchdog
     door_supervisor

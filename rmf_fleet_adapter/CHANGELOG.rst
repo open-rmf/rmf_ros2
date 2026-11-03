@@ -2,6 +2,29 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.14.0 (2026-09-26)
+-------------------
+* Support both JSON schema validator target names in rmf_fleet_adapter (`#558 <https://github.com/open-rmf/rmf_ros2/issues/558>`_)
+  `#541 <https://github.com/open-rmf/rmf_ros2/issues/541>`_ added a fallback for installations that export the validator as
+  nlohmann_json_schema_validator instead of
+  nlohmann_json_schema_validator::validator, but applied it only to
+  rmf_task_ros2 and rmf_websocket. rmf_fleet_adapter links the same
+  library and still hardcodes the namespaced name, so on those
+  installations its CMake generate step fails with "Target ... links to
+  nlohmann_json_schema_validator::validator but the target was not found".
+  Apply the same pattern used by rmf_websocket, covering both the library
+  and the BUILD_TESTING target.
+* Fix phase key for skip requests (`#543 <https://github.com/open-rmf/rmf_ros2/issues/543>`_)
+  Generated-by: OpenAI Codex (GPT-5)
+  Co-authored-by: Igor Stadnyk <fallenmi@users.noreply.github.com>
+* Submit bid as long as fleet name exists (in string or array) (`#534 <https://github.com/open-rmf/rmf_ros2/issues/534>`_)
+* Add missing include to unordered_set (`#535 <https://github.com/open-rmf/rmf_ros2/issues/535>`_)
+* Fix EasyTrafficLight publish fleet state (`#525 <https://github.com/open-rmf/rmf_ros2/issues/525>`_)
+* Fix cumulative delay calculation in EasyTrafficLight (`#524 <https://github.com/open-rmf/rmf_ros2/issues/524>`_)
+* Clean up LegacyPhaseShim subscription after task_summaries removal (`#511 <https://github.com/open-rmf/rmf_ros2/issues/511>`_)
+  Co-authored-by: Grey <mxgrey@intrinsic.ai>
+* Contributors: Grey, Igor Stadnyk, Leong Teck, Luca Della Vedova, Matthew Wong, Mosiwon, h-wata, jixiancgh, kj
+
 2.13.0 (2026-06-15)
 -------------------
 * Migrate to ROS Lyrical (`#520 <https://github.com/open-rmf/rmf_ros2/issues/520>`_)

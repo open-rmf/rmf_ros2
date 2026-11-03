@@ -95,7 +95,7 @@ public:
   /// \return true if success
   bool cancel_task(const TaskID& task_id);
 
-  /// Check the state of a submited task. It can be either active or terminated
+  /// Check the state of a submitted task. It can be either active or terminated
   ///
   /// \param [in] task_id
   ///   task_id obtained from `submit_task()`

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.20)
 project(rmf_fleet_adapter_python)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
