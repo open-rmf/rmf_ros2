@@ -28,8 +28,15 @@
 
 #include <rmf_task_msgs/srv/submit_task.hpp>
 
+#include <rmf_task_msgs/msg/api_request.hpp>
+#include <rmf_task_msgs/msg/api_response.hpp>
+
+#include <nlohmann/json.hpp>
+
 #include <chrono>
 #include <thread>
+#include <unordered_map>
+#include <unordered_set>
 #include <rmf_utils/catch.hpp>
 
 namespace rmf_task_ros2 {
@@ -164,6 +171,96 @@ SCENARIO("Dispatcher API Test", "[Dispatcher][.flaky]")
 
   rclcpp::shutdown(rcl_context);
   dispatcher_spin_thread.join();
+}
+
+//==============================================================================
+SCENARIO("Timestamp task IDs stay unique while the clock is not advancing")
+{
+  using ApiRequestMsg = rmf_task_msgs::msg::ApiRequest;
+  using ApiResponseMsg = rmf_task_msgs::msg::ApiResponse;
+
+  const auto rcl_context = std::make_shared<rclcpp::Context>();
+  rcl_context->init(0, nullptr);
+
+  // With use_sim_time enabled and no /clock message, the clock of the
+  // dispatcher stays at zero, so every request below gets the same timestamp.
+  const auto dispatcher = Dispatcher::make(
+    std::make_shared<rclcpp::Node>(
+      "test_timestamp_task_id_dispatcher",
+      rclcpp::NodeOptions()
+      .context(rcl_context)
+      .parameter_overrides(
+        {
+          rclcpp::Parameter("use_sim_time", true),
+          rclcpp::Parameter("use_timestamp_for_task_id", true)
+        })));
+
+  auto dispatcher_spin_thread = std::thread(
+    [dispatcher]()
+    {
+      dispatcher->spin();
+    });
+
+  const auto requester = std::make_shared<rclcpp::Node>(
+    "test_timestamp_task_id_requester",
+    rclcpp::NodeOptions().context(rcl_context));
+
+  const auto qos =
+    rclcpp::SystemDefaultsQoS().keep_last(10).reliable().transient_local();
+
+  // Maps each request ID to the task ID that the dispatcher assigned to it
+  std::unordered_map<std::string, std::string> task_ids;
+  const auto response_sub = requester->create_subscription<ApiResponseMsg>(
+    "task_api_responses", qos,
+    [&task_ids](const ApiResponseMsg& msg)
+    {
+      const auto response = nlohmann::json::parse(msg.json_msg);
+      task_ids[msg.request_id] =
+      response["state"]["booking"]["id"].get<std::string>();
+    });
+
+  const auto request_pub =
+    requester->create_publisher<ApiRequestMsg>("task_api_requests", qos);
+
+  const std::size_t num_requests = 5;
+  for (std::size_t i = 0; i < num_requests; ++i)
+  {
+    nlohmann::json request;
+    request["type"] = "dispatch_task_request";
+    request["request"]["category"] = "patrol";
+    request["request"]["description"]["places"] = {"A", "B"};
+    request["request"]["description"]["rounds"] = 1;
+
+    request_pub->publish(
+      rmf_task_msgs::build<ApiRequestMsg>()
+      .json_msg(request.dump())
+      .request_id("timestamp_task_id_request_" + std::to_string(i)));
+  }
+
+  rclcpp::ExecutorOptions options;
+  options.context = rcl_context;
+  rclcpp::executors::SingleThreadedExecutor executor(options);
+  executor.add_node(requester);
+
+  const auto deadline =
+    std::chrono::steady_clock::now() + std::chrono::seconds(10);
+  while (task_ids.size() < num_requests
+    && std::chrono::steady_clock::now() < deadline)
+  {
+    executor.spin_once(std::chrono::milliseconds(100));
+  }
+
+  rclcpp::shutdown(rcl_context);
+  dispatcher_spin_thread.join();
+
+  REQUIRE(task_ids.size() == num_requests);
+
+  std::unordered_set<std::string> unique_task_ids;
+  for (const auto& [request_id, task_id] : task_ids)
+    unique_task_ids.insert(task_id);
+
+  CHECK(unique_task_ids.size() == num_requests);
+  CHECK(dispatcher->active_dispatches().size() == num_requests);
 }
 
 } // namespace rmf_task_ros2

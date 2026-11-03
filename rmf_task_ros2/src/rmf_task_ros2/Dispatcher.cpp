@@ -48,6 +48,8 @@
 
 #include <std_msgs/msg/string.hpp>
 
+#include <algorithm>
+#include <optional>
 #include <random>
 #include <unordered_set>
 
@@ -197,6 +199,8 @@ public:
   DispatchStates active_dispatch_states;
   DispatchStates finished_dispatch_states;
   std::size_t task_counter = 0; // index for generating task_id
+  // last timestamp used in a task_id, for use_timestamp_for_task_id
+  std::optional<long> last_task_id_timestamp;
   builtin_interfaces::msg::Duration bidding_time_window;
   std::size_t terminated_tasks_max_size;
   int publish_active_tasks_period;
@@ -535,8 +539,15 @@ public:
       }
       else if (use_timestamp_for_task_id)
       {
-        task_id += std::to_string(
-          std::lround(node->get_clock()->now().seconds() * 1e3));
+        // Two requests can arrive within the same millisecond, or while a
+        // simulated clock is not advancing, so never reuse a timestamp.
+        long timestamp =
+          std::lround(node->get_clock()->now().seconds() * 1e3);
+        if (last_task_id_timestamp.has_value())
+          timestamp = std::max(timestamp, *last_task_id_timestamp + 1);
+
+        last_task_id_timestamp = timestamp;
+        task_id += std::to_string(timestamp);
       }
       else
       {
