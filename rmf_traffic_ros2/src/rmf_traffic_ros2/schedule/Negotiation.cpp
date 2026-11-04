@@ -34,6 +34,8 @@
 
 #include <rclcpp/logging.hpp>
 
+#include <algorithm>
+
 namespace rmf_traffic_ros2 {
 namespace schedule {
 
@@ -215,6 +217,8 @@ public:
   std::shared_ptr<Worker> worker;
   rmf_traffic::Duration timeout = std::chrono::seconds(15);
 
+  rclcpp::TimerBase::SharedPtr memory_utilization_timer;
+
   using Repeat = rmf_traffic_msgs::msg::NegotiationRepeat;
   using RepeatSub = rclcpp::Subscription<Repeat>;
   using RepeatPub = rclcpp::Publisher<Repeat>;
@@ -318,6 +322,48 @@ public:
   {
     // TODO(MXG): Make the QoS configurable
     const auto qos = rclcpp::ServicesQoS().reliable().keep_last(1000);
+
+    memory_utilization_timer = node.create_wall_timer(
+      rmf_traffic::time::from_seconds(600.0),
+      [this]()
+      {
+        const std::size_t num_negotiations = this->negotiations.size();
+        std::vector<std::size_t> counts;
+        std::size_t i = 0;
+        for (const auto& [_, negotiation] : this->negotiations)
+        {
+          ++i;
+          if (i > 100)
+          {
+            // Don't keep counting too long or this will block other
+            // responsibilities of the program.
+            break;
+          }
+
+          const std::size_t count = negotiation.room.negotiation.count_tables();
+          counts.push_back(count);
+        }
+
+        std::sort(counts.begin(), counts.end());
+        std::stringstream ss;
+        i = 0;
+        for (auto r_it = counts.rbegin(); r_it != counts.rend(); ++r_it)
+        {
+          if (i > 10)
+          {
+            // Don't make the message too large, just give the top 10 counts
+            break;
+          }
+
+          ss << " [" << *r_it << "]";
+        }
+
+        RCLCPP_INFO(
+          this->node.get_logger(),
+          "%zu active negotiations, largest sizes:%s",
+          num_negotiations,
+          ss.str().c_str());
+      });
 
     repeat_sub = node.create_subscription<Repeat>(
       NegotiationRepeatTopicName, qos,
