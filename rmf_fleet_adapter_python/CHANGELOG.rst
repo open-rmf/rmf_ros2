@@ -2,6 +2,24 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.15.0 (2026-11-13)
+-------------------
+* fix old cmake target for websocket and update other cmake vars (`#580 <https://github.com/open-rmf/rmf_ros2/issues/580>`_)
+* Add GoToZone feature (`#516 <https://github.com/open-rmf/rmf_ros2/issues/516>`_)
+  Co-authored-by: kjchee <keai_jiang_chee@cgh.com.sg>
+  Co-authored-by: Loke Ji Xian <loke_ji_xian@cgh.com.sg>
+  Co-authored-by: Tey Leong Teck <leong_teck_tey@cgh.com.sg>
+  Co-authored-by: Michael X. Grey <mxgrey@intrinsic.ai>
+* Setting a std::stared_ptr in the VehicleTraits in order to preserve shared ownership with the fleet configuration. (`#574 <https://github.com/open-rmf/rmf_ros2/issues/574>`_)
+* bump cmake version (`#570 <https://github.com/open-rmf/rmf_ros2/issues/570>`_)
+* Fix VehicleTraits linear, rotational and profile setters (`#561 <https://github.com/open-rmf/rmf_ros2/issues/561>`_)
+  The Python setters for these properties were bound to the non-const
+  getters, which take no value, so assigning to them always raised
+  TypeError. Assign through the reference accessors instead and add a
+  unit test. This covers the ones missed in `#540 <https://github.com/open-rmf/rmf_ros2/issues/540>`_.
+  Co-authored-by: Mosiwon <Lots-ninety-nine@users.noreply.github.com>
+* Contributors: Aaron Chong, Francesco Fallica, Mosiwon, chart
+
 2.14.0 (2026-09-26)
 -------------------
 * Fix pybind property setters that ignored assigned values (`#539 <https://github.com/open-rmf/rmf_ros2/issues/539>`_) (`#540 <https://github.com/open-rmf/rmf_ros2/issues/540>`_)
