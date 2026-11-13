@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter_python
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.15.0 (2026-11-13)
+-------------------
 * fix old cmake target for websocket and update other cmake vars (`#580 <https://github.com/open-rmf/rmf_ros2/issues/580>`_)
 * Add GoToZone feature (`#516 <https://github.com/open-rmf/rmf_ros2/issues/516>`_)
   Co-authored-by: kjchee <keai_jiang_chee@cgh.com.sg>

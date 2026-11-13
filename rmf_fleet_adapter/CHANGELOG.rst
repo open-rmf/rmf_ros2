@@ -2,8 +2,8 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+2.15.0 (2026-11-13)
+-------------------
 * Document runtime_error thrown by add_robot when no charger is reachable (`#579 <https://github.com/open-rmf/rmf_ros2/issues/579>`_)
   Closes `#553 <https://github.com/open-rmf/rmf_ros2/issues/553>`_
   ---------
