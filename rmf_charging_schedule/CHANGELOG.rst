@@ -2,6 +2,12 @@
 Changelog for package rmf_charging_schedule
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Fix typos in docs, launch args, log messages and comments (`#568 <https://github.com/open-rmf/rmf_ros2/issues/568>`_)
+  Co-authored-by: Mosiwon <Lots-ninety-nine@users.noreply.github.com>
+* Contributors: Mosiwon
+
 2.14.0 (2026-09-26)
 -------------------
 

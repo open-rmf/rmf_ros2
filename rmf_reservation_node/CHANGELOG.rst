@@ -2,6 +2,11 @@
 Changelog for package rmf_reservation_node
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* bump cmake version (`#570 <https://github.com/open-rmf/rmf_ros2/issues/570>`_)
+* Contributors: Aaron Chong
+
 2.14.0 (2026-09-26)
 -------------------
 

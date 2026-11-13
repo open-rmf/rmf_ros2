@@ -2,6 +2,29 @@
 Changelog for package rmf_fleet_adapter
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Document runtime_error thrown by add_robot when no charger is reachable (`#579 <https://github.com/open-rmf/rmf_ros2/issues/579>`_)
+  Closes `#553 <https://github.com/open-rmf/rmf_ros2/issues/553>`_
+  ---------
+  Co-authored-by: Grey <mxgrey@intrinsic.ai>
+  Co-authored-by: Aaron Chong <aaronchongth@gmail.com>
+* fix old cmake target for websocket and update other cmake vars (`#580 <https://github.com/open-rmf/rmf_ros2/issues/580>`_)
+* Keep the boarded destination when re-summoning a lift after a replan (`#556 <https://github.com/open-rmf/rmf_ros2/issues/556>`_)
+  ---------
+  Co-authored-by: Grey <mxgrey@intrinsic.ai>
+* Add GoToZone feature (`#516 <https://github.com/open-rmf/rmf_ros2/issues/516>`_)
+  Co-authored-by: kjchee <keai_jiang_chee@cgh.com.sg>
+  Co-authored-by: Loke Ji Xian <loke_ji_xian@cgh.com.sg>
+  Co-authored-by: Tey Leong Teck <leong_teck_tey@cgh.com.sg>
+  Co-authored-by: Michael X. Grey <mxgrey@intrinsic.ai>
+* bump cmake version (`#570 <https://github.com/open-rmf/rmf_ros2/issues/570>`_)
+* Fix typos in docs, launch args, log messages and comments (`#568 <https://github.com/open-rmf/rmf_ros2/issues/568>`_)
+  Co-authored-by: Mosiwon <Lots-ninety-nine@users.noreply.github.com>
+* fix(mutex): compare full claim_time instead of nanosec only (`#551 <https://github.com/open-rmf/rmf_ros2/issues/551>`_)
+  Co-authored-by: Grey <mxgrey@intrinsic.ai>
+* Contributors: Aaron Chong, Arjo Chakravarty, Mosiwon, chart, h-wata
+
 2.14.0 (2026-09-26)
 -------------------
 * Support both JSON schema validator target names in rmf_fleet_adapter (`#558 <https://github.com/open-rmf/rmf_ros2/issues/558>`_)
