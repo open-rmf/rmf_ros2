@@ -55,7 +55,7 @@ find_package(nlohmann_json REQUIRED)
 find_package(pybind11_json_vendor REQUIRED)
 find_package(pybind11_json REQUIRED)
 
-pybind11_add_module(rmf_adapter SHARED
+pybind11_add_module(rmf_adapter MODULE
   src/adapter.cpp
   src/tests.cpp
   src/types/types.cpp
