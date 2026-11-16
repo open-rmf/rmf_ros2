@@ -20,7 +20,9 @@
 #include <rmf_traffic_ros2/Time.hpp>
 #include <rmf_traffic/agv/Interpolate.hpp>
 
+#include <algorithm>
 #include <iostream>
+#include <limits>
 
 //==============================================================================
 rmf_traffic::Trajectory make_trajectory(
@@ -62,6 +64,87 @@ rmf_traffic::Trajectory make_trajectory(
   is_sitting = false;
 
   return trajectory;
+}
+
+//==============================================================================
+namespace {
+//==============================================================================
+/// Distance along a polyline of the point on it that is closest to p, looking
+/// no further than max_s along it. The first closest point wins.
+double distance_along(
+  const std::vector<Eigen::Vector2d>& line,
+  const std::vector<double>& s,
+  const Eigen::Vector2d& p,
+  double max_s)
+{
+  double best_dist = std::numeric_limits<double>::infinity();
+  double best_s = 0.0;
+  for (std::size_t i = 0; i + 1 < line.size() && s[i] <= max_s; ++i)
+  {
+    const Eigen::Vector2d d = line[i+1] - line[i];
+    const double length = s[i+1] - s[i];
+    double u = 0.0;
+    if (length > 1e-8)
+      u = std::clamp((p - line[i]).dot(d) / (length * length), 0.0, 1.0);
+
+    u = std::min(u, (max_s - s[i]) / std::max(length, 1e-8));
+    const double dist = (p - (line[i] + u * d)).norm();
+    if (dist < best_dist - 1e-9)
+    {
+      best_dist = dist;
+      best_s = s[i] + u * length;
+    }
+  }
+
+  return best_s;
+}
+} // anonymous namespace
+
+//==============================================================================
+std::optional<std::size_t> reached_checkpoint(
+  const rmf_traffic::Trajectory& trajectory,
+  const rmf_fleet_msgs::msg::RobotState& state)
+{
+  if (trajectory.size() < 2)
+    return std::nullopt;
+
+  // The trajectory as a polyline, and how far along it each waypoint is
+  std::vector<Eigen::Vector2d> line;
+  std::vector<double> s;
+  for (const auto& wp : trajectory)
+  {
+    const Eigen::Vector2d p = wp.position().head<2>();
+    s.push_back(line.empty() ? 0.0 : s.back() + (p - line.back()).norm());
+    line.push_back(p);
+  }
+
+  // The robot has not reached the next path point that it has to visit
+  constexpr double tolerance = 1e-3;
+  double max_s = std::numeric_limits<double>::infinity();
+  if (!state.path.empty())
+  {
+    const auto& next = state.path.front();
+    max_s = distance_along(line, s, {next.x, next.y}, s.back()) - tolerance;
+  }
+
+  const auto& l = state.location;
+  const double robot_s =
+    distance_along(line, s, {l.x, l.y}, std::min(max_s, s.back()));
+
+  // The last waypoint that the robot has passed
+  std::size_t c = 0;
+  while (c + 1 < s.size() && s[c+1] <= robot_s + tolerance && s[c+1] < max_s)
+    ++c;
+
+  // If the robot has not moved on from that waypoint, it may still be turning
+  // there, so go back to where it arrived at it.
+  if (robot_s < s[c] + tolerance)
+  {
+    while (c > 0 && s[c] - s[c-1] < tolerance)
+      --c;
+  }
+
+  return c;
 }
 
 //==============================================================================
